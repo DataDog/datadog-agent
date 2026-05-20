@@ -22,7 +22,7 @@
 <p class="small">Local SMP run directory: <code>reports/smp/dogstatsd-agg-serde-20260516-143205/</code></p>
 
 <div class="verdict">
-  <strong>Current verdict:</strong> Stage A-Q are complete locally, and the post-Stage-Q raw-ring telemetry/honesty matrix is complete. Stage I was negative because the columnar parser path computed an unused debug projection for every sample. Stage J removed that artifact and turned the narrow columnar v3 slice into a +13.57% high-rate throughput win. Stage L showed a byte-bounded ingress log can trade unconstrained overload admission for explicit backpressure. Stage M's raw UDS ring removed packet-pool backlog entirely. Stage N/O's compact raw ring plus batch drains remain the best bounded high-rate design. Stage P falsified the simple no-copy direct-reservation idea. Stage Q adds native columnar-v3 payload construction and a v2/direct-series bridge. Three-replicate honesty gates still show positive UDS origin-off v2/v3 throughput, but high-rate wins are explicitly bounded by raw-ring backpressure; UDP/origin-on are raw-disabled fallback checks.
+  <strong>Current verdict:</strong> Stage A-V are complete locally, and the post-Stage-Q raw-ring telemetry/honesty matrix is complete. Stage I was negative because the columnar parser path computed an unused debug projection for every sample. Stage J removed that artifact and turned the narrow columnar v3 slice into a +13.57% high-rate throughput win. Stage L showed a byte-bounded ingress log can trade unconstrained overload admission for explicit backpressure. Stage M's raw UDS ring removed packet-pool backlog entirely. Stage N/O's compact raw ring plus batch drains remain the best bounded high-rate design. Stage P falsified the simple no-copy direct-reservation idea. Stage Q adds native columnar-v3 payload construction and a v2/direct-series bridge. Stage T proves parser dictionaries matter; Stage U/V carry compact IDs farther downstream but are macro-neutral until parser no-materialization and payload dictionary reuse avoid more string/tag work.
 </div>
 
 <h2>Images</h2>
@@ -48,6 +48,10 @@
   <li><code>datadog/agent-dev:smp-dsd-columnar-v3-direct-compact-raw-uds-ring</code> — Stage P direct compact raw UDS ring, commit <code>83d06509167</code></li>
   <li><code>datadog/agent-dev:smp-dsd-columnar-v3-native-columnar-v3</code> — Stage Q native columnar-v3 serializer, commit <code>947dc3f2ec3</code></li>
   <li><code>datadog/agent-dev:smp-dsd-columnar-v3-raw-lag-telemetry</code> — raw-ring lag telemetry, commit <code>b99255eb31e</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-memory-hygiene-reuse</code> — Stage R memory hygiene, commit <code>ab6db258799</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-parser-interning</code> / <code>...-tagset</code> — Stage T parser interning, commit <code>d78e87470fd</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints</code> / <code>...-enabled</code> — Stage U compact identity hints, commit <code>9376b73a9c1</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-compact-consumers</code> / <code>...-baseline</code> / <code>...-enabled</code> — Stage V compact-ID consumers, local worktree after <code>73080eecc9f</code></li>
 </ul>
 
 <h2>Stage result tables</h2>
@@ -286,12 +290,31 @@
   <strong>Stage U caveat:</strong> compact IDs now flow through the hot path safely, but the first consumer is macro-neutral. Stage T already removed most repeated-tagset parser cost; further wins likely require using the compact IDs for descriptor/tagset/payload dictionary reuse or parser no-materialization.
 </div>
 
+<h3>Stage V — compact ID downstream consumers</h3>
+<table>
+<tr><th>Change</th><th>Read</th></tr>
+<tr><td>scalar columnar-v3 rows</td><td>rows carry context key, compact ID/state, value/rate/raw value/type, and optional descriptor fields</td></tr>
+<tr><td>direct parse gate</td><td><code>DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_DIRECT_PARSE=true</code>; supported metric messages bypass full batch materialization</td></tr>
+<tr><td>descriptor omission gate</td><td><code>DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_COMPACT_ROWS_OMIT_DESCRIPTOR=true</code>; later rows can omit repeated descriptor fields after columnar acknowledgement</td></tr>
+<tr><td>safety refinement</td><td>descriptor-known state is per metric type and cleared on descriptor expiry</td></tr>
+</table>
+
+<table>
+<tr><th>Stage V SMP comparison</th><th>Case</th><th>Δ mean</th><th>CI</th><th>Read</th></tr>
+<tr><td>baseline env vs direct parse + compact rows</td><td>standard v3 UDS</td><td>-0.02%</td><td>[-0.15%, +0.12%]</td><td>throughput neutral</td></tr>
+<tr><td>baseline env vs direct parse + compact rows</td><td>high-rate v3 metrics-only</td><td>-0.00%</td><td>[-0.04%, +0.03%]</td><td>throughput neutral</td></tr>
+</table>
+
+<div class="verdict warn">
+  <strong>Stage V caveat:</strong> compact IDs can now drive scalar row/descriptor reuse in a gated slice, but the macro result is still neutral. The remaining parser/enrichment path materializes strings and tag slices before compact IDs can help; next wins require parser no-materialization and v3 payload dictionary ID reuse.
+</div>
+
 <div class="verdict">
-  <strong>Current value read:</strong> Stage I had not actually collapsed identity work: it added an unused debug-key and display-tags projection on every parser hot-path sample. Stage J removes that artifact and shows the narrow columnar design can beat direct metric rows. Stage L shows the large packet queue can be replaced by explicit ingress-log backpressure. Stage M shows a raw UDS ring can eliminate packet-pool backlog. Stage N shows byte-compact retained records matter. Stage O shows batched worker drains are a real but smaller high-rate ceiling step. Stage P shows one-max-slot direct reservation is not the next ceiling. Stage Q completes direct native v3/v2 payload construction but is not a large standalone win over Stage O. Stage R makes proof telemetry and naive descriptor interning explicit costs rather than hidden defaults. Stage S shows direct v3 serializer live heap is not the main RSS culprit and removes low-risk row-copy escapes. Stage T confirms parser/string interning is a real remaining bottleneck; SLRU reset avoidance is safe and exact tagset dictionaries can substantially reduce backpressure on repeated-tagset workloads. Stage U confirms compact IDs can be carried through DogStatsD batching into columnar hints, but needs deeper downstream consumers to pay off. Stage N/O plus Stage Q/R/S/T/U remains the best tested combined design; post-telemetry honesty gates narrow the claim to UDS datagram/origin-off and make high-rate backpressure visible.
+  <strong>Current value read:</strong> Stage I had not actually collapsed identity work: it added an unused debug-key and display-tags projection on every parser hot-path sample. Stage J removes that artifact and shows the narrow columnar design can beat direct metric rows. Stage L shows the large packet queue can be replaced by explicit ingress-log backpressure. Stage M shows a raw UDS ring can eliminate packet-pool backlog. Stage N shows byte-compact retained records matter. Stage O shows batched worker drains are a real but smaller high-rate ceiling step. Stage P shows one-max-slot direct reservation is not the next ceiling. Stage Q completes direct native v3/v2 payload construction but is not a large standalone win over Stage O. Stage R makes proof telemetry and naive descriptor interning explicit costs rather than hidden defaults. Stage S shows direct v3 serializer live heap is not the main RSS culprit and removes low-risk row-copy escapes. Stage T confirms parser/string interning is a real remaining bottleneck; SLRU reset avoidance is safe and exact tagset dictionaries can substantially reduce backpressure on repeated-tagset workloads. Stage U confirms compact IDs can be carried through DogStatsD batching into columnar hints. Stage V proves compact IDs can be consumed as scalar row/descriptor inputs, but remains macro-neutral until more upstream materialization is skipped. Stage N/O plus Stage Q/R/S/T/U/V remains the best tested combined design; post-telemetry honesty gates narrow the claim to UDS datagram/origin-off and make high-rate backpressure visible.
 </div>
 
 <div class="verdict warn">
-  <strong>Stage E/F/G/H/I/J/L/M/N/O/P/Q/R/T/U caveat:</strong> this is intentionally unsafe/local and enabled through env gates. Stage E bypasses iterable channel traversal. Stage F emits DogStatsD time-sampler series as <code>metrics.SerieRow</code>. Stage G bypasses scalar <code>*metrics.Serie</code> materialization. Stage H bypasses grouping/dedup and is intentionally not wire-equivalent. Stage I/J/Q/R/U are v3-only/metric-oriented and fall back to legacy paths for unsupported samples/checks/sketches/events, except the explicit skip-legacy upper-bound probe and the Stage Q direct-series/v2 bridge. Stage L changes overload/backpressure behavior and is only a first-pass packet-batch ingress log. Stage M/N/O/P raw modes are UDS-datagram-only and currently exclude UDP, stream sockets, named pipes, statsd forwarding, and origin detection; the origin-on and UDP probes intentionally ran with raw ingress disabled. Stage R changes measurement cost shape by making proof shadows optional and descriptor interning opt-in. Stage T's exact tagset cache and Stage U compact identities remain opt-in until admission/memory behavior is validated on mostly-unique/adversarial tagsets and more downstream consumers use the compact IDs.
+  <strong>Stage E/F/G/H/I/J/L/M/N/O/P/Q/R/T/U/V caveat:</strong> this is intentionally unsafe/local and enabled through env gates. Stage E bypasses iterable channel traversal. Stage F emits DogStatsD time-sampler series as <code>metrics.SerieRow</code>. Stage G bypasses scalar <code>*metrics.Serie</code> materialization. Stage H bypasses grouping/dedup and is intentionally not wire-equivalent. Stage I/J/Q/R/U/V are v3-only/metric-oriented and fall back to legacy paths for unsupported samples/checks/sketches/events, except the explicit skip-legacy upper-bound probe, the Stage Q direct-series/v2 bridge, and Stage V's gated direct-parse slice. Stage L changes overload/backpressure behavior and is only a first-pass packet-batch ingress log. Stage M/N/O/P raw modes are UDS-datagram-only and currently exclude UDP, stream sockets, named pipes, statsd forwarding, and origin detection; the origin-on and UDP probes intentionally ran with raw ingress disabled. Stage R changes measurement cost shape by making proof shadows optional and descriptor interning opt-in. Stage T's exact tagset cache, Stage U compact identities, and Stage V compact-ID consumers remain opt-in until admission/memory behavior is validated on mostly-unique/adversarial tagsets and broader compatibility is proven.
 </div>
 
 <h2>Artifacts</h2>
@@ -314,9 +337,12 @@
   <li><a href="stageT_parser_interning_effects.csv">stageT_parser_interning_effects.csv</a> — Stage T effect summary.</li>
   <li><a href="stageU_compact_identity_selected_metrics.csv">stageU_compact_identity_selected_metrics.csv</a> — Stage U compact-identity feature-cost metric summaries.</li>
   <li><a href="stageU_compact_identity_effects.csv">stageU_compact_identity_effects.csv</a> — Stage U effect summary.</li>
+  <li><a href="stageV_compact_consumers_selected_metrics.csv">stageV_compact_consumers_selected_metrics.csv</a> — Stage V compact-ID consumer feature-cost metric summaries.</li>
+  <li><a href="stageV_compact_consumers_effects.csv">stageV_compact_consumers_effects.csv</a> — Stage V effect summary.</li>
   <li><a href="notes/stageS-heap-and-v3-serializer-profile.md">notes/stageS-heap-and-v3-serializer-profile.md</a> — Stage S heap/profile and v3 serializer allocation analysis.</li>
   <li><a href="notes/stageT-parser-interning.md">notes/stageT-parser-interning.md</a> — Stage T parser string/tagset interning analysis.</li>
   <li><a href="notes/stageU-compact-identity-hints.md">notes/stageU-compact-identity-hints.md</a> — Stage U compact identity hint analysis.</li>
+  <li><a href="notes/stageV-compact-id-consumers.md">notes/stageV-compact-id-consumers.md</a> — Stage V compact-ID downstream consumer analysis.</li>
   <li><a href="images.txt">images.txt</a> — image IDs and Agent versions.</li>
   <li><a href="environment.txt">environment.txt</a> — Docker/Colima/SMP environment.</li>
   <li><a href="notes/experiment-log.md">notes/experiment-log.md</a> — chronological command log and caveats.</li>

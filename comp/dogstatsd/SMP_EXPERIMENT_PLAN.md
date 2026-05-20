@@ -1609,3 +1609,65 @@ Artifacts:
 - `reports/smp/dogstatsd-agg-serde-20260516-143205/notes/stageU-compact-identity-hints.md`
 - `reports/smp/dogstatsd-agg-serde-20260516-143205/stageU_compact_identity_effects.csv`
 - `reports/smp/dogstatsd-agg-serde-20260516-143205/stageU_compact_identity_selected_metrics.csv`
+
+### Stage V: compact IDs as downstream row/descriptor inputs
+
+Stage V extends Stage U from advisory descriptor hints to first-class columnar-v3
+row inputs in a narrow, explicitly gated vertical slice.
+
+Implemented gates:
+
+- `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_DIRECT_PARSE=true`
+  - supported DogStatsD metric messages parse directly into columnar-v3 scalar
+    rows without building a full `MetricSample` batch;
+  - disabled when mapper, extra tags, histogram-to-distribution, or debug stats
+    are active;
+  - unsupported/timestamped/non-finite samples fall back to the legacy metric
+    path.
+- `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_COMPACT_ROWS_OMIT_DESCRIPTOR=true`
+  - columnar-v3 rows carry scalar aggregation fields plus optional descriptor
+    fields;
+  - after columnar observes a compact identity for a metric type, later rows may
+    omit repeated name/tags/host/source/unit fields;
+  - descriptor-known state is tracked per metric type and cleared on descriptor
+    expiry to avoid stale omissions.
+
+Validation:
+
+```bash
+dda inv test --targets=./pkg/aggregator,./pkg/metrics,./comp/dogstatsd/server/impl,./comp/dogstatsd/internal/identity --timeout=300
+```
+
+Result: passed (`657` package tests; unified report `575` tests).
+
+Images:
+
+- `datadog/agent-dev:smp-dsd-columnar-v3-compact-consumers`
+  - image ID `sha256:8dfa1e6b4817d2566e41461779fa11c0d8eb6df6a9720f4440d09a343cdcf388`
+- `datadog/agent-dev:smp-dsd-columnar-v3-compact-consumers-baseline`
+  - image ID `sha256:81c8db9c5df79d54335d84f7a98f9bc88a6c3e956bc590c0216e9b0e335eb5bd`
+  - env: exact tagset cache + compact identities + compact hint sizing
+- `datadog/agent-dev:smp-dsd-columnar-v3-compact-consumers-enabled`
+  - image ID `sha256:865f8bfecabcf1a161cef0c810f0e830fe51937d6aba5cd4c5b878decf819485`
+  - env: baseline plus direct parse + descriptor omission
+
+Three-replicate SMP feature-cost results (`--total-samples 270`), comparing the
+baseline image against the enabled image:
+
+| Case | Δ mean | CI | Read |
+|---|---:|---:|---|
+| standard v3 UDS compact batch | `-0.02%` | `[-0.15%, +0.12%]` | throughput neutral |
+| high-rate v3 UDS metrics-only compact batch | `-0.00%` | `[-0.04%, +0.03%]` | throughput neutral |
+
+Decision: this proves the row/descriptor plumbing is viable but not yet a macro
+throughput win. CPU was directionally lower in the final selected metrics, but
+the remaining parser/enrichment path still materializes strings and tag slices
+before compact IDs can help. The next high-leverage step is parser
+no-materialization on exact name/tagset hits, followed by descriptor/name/tagset
+ID reuse in the v3 payload dictionary builder.
+
+Artifacts:
+
+- `reports/smp/dogstatsd-agg-serde-20260516-143205/notes/stageV-compact-id-consumers.md`
+- `reports/smp/dogstatsd-agg-serde-20260516-143205/stageV_compact_consumers_effects.csv`
+- `reports/smp/dogstatsd-agg-serde-20260516-143205/stageV_compact_consumers_selected_metrics.csv`

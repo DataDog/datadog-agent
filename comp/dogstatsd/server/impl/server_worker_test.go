@@ -14,10 +14,28 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
+
+func TestParseMetricMessageColumnarV3Direct(t *testing.T) {
+	deps := fulfillDepsWithConfigOverride(t, map[string]interface{}{"dogstatsd_port": listeners.RandomPortName})
+	s := deps.Server.(*dsdServer)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	batcher := &batcherMock{}
+
+	samples, handled, err := s.parseMetricMessageColumnarV3Direct(batcher, parser, identity.NewBuilder(), []byte("direct.metric:42|g|#env:prod"), "", 0, "listener", false, nil, nil, nil)
+	require.NoError(t, err)
+	require.True(t, handled)
+	require.Empty(t, samples)
+	require.Len(t, batcher.samples, 1)
+	assert.Equal(t, "direct.metric", batcher.samples[0].Name)
+	assert.Equal(t, 42.0, batcher.samples[0].Value)
+	assert.Equal(t, metrics.GaugeType, batcher.samples[0].Mtype)
+	assert.Equal(t, []string{"env:prod"}, batcher.samples[0].Tags)
+}
 
 // Run through all of the major metric types and verify both the default and the timestamped flows
 func TestMetricTypes(t *testing.T) {

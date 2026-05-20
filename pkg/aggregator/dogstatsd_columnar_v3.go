@@ -90,11 +90,50 @@ type DogStatsDColumnarV3Inserter interface {
 
 // DogStatsDColumnarV3Sample is the parser-to-columnar-worker handoff row for
 // the local-only vertical-slice experiment. It carries the already resolved
-// backend context key alongside the enriched DogStatsD sample.
+// backend context key plus the scalar fields needed for aggregation. Descriptor
+// fields are present when HasDescriptor is true; compact identity consumers may
+// omit them once the columnar worker has acknowledged descriptor state.
 type DogStatsDColumnarV3Sample struct {
-	ContextKey ckey.ContextKey
-	CompactID  uint64
-	Sample     metrics.MetricSample
+	ContextKey   ckey.ContextKey
+	CompactID    uint64
+	CompactState *metrics.DogStatsDCompactIdentityState
+
+	Value      float64
+	SampleRate float64
+	RawValue   string
+	Mtype      metrics.MetricType
+
+	Name          string
+	Tags          []string
+	Host          string
+	Unit          string
+	NoIndex       bool
+	Source        metrics.MetricSource
+	HasDescriptor bool
+}
+
+// NewDogStatsDColumnarV3SampleFromMetricSample projects a full MetricSample into
+// the narrower parser-to-columnar row used by the v3 vertical slice.
+func NewDogStatsDColumnarV3SampleFromMetricSample(contextKey ckey.ContextKey, compactID uint64, compactState *metrics.DogStatsDCompactIdentityState, sample metrics.MetricSample, includeDescriptor bool) DogStatsDColumnarV3Sample {
+	row := DogStatsDColumnarV3Sample{
+		ContextKey:   contextKey,
+		CompactID:    compactID,
+		CompactState: compactState,
+		Value:        sample.Value,
+		SampleRate:   sample.SampleRate,
+		RawValue:     sample.RawValue,
+		Mtype:        sample.Mtype,
+	}
+	if includeDescriptor {
+		row.Name = sample.Name
+		row.Tags = sample.Tags
+		row.Host = sample.Host
+		row.Unit = sample.Unit
+		row.NoIndex = sample.NoIndex
+		row.Source = sample.Source
+		row.HasDescriptor = true
+	}
+	return row
 }
 
 // DogStatsDColumnarV3SampleBatch is owned by the columnar v3 sample pool.
@@ -186,6 +225,7 @@ type dogstatsdColumnarShard struct {
 	freeDescriptors        []int
 	descriptorActive       []bool
 	descriptorNonMonotonic []bool
+	compactStates          []map[*metrics.DogStatsDCompactIdentityState]struct{}
 	contextKeys            []ckey.ContextKey
 	names                  []string
 	hosts                  []string
@@ -366,7 +406,7 @@ func (w *dogstatsdColumnarWorker) processSamples(samples DogStatsDColumnarV3Samp
 	timestamp := timeNowNano()
 	shardIdx := int(w.shardID)
 	for i := range samples {
-		w.store.insertAcceptedUnlocked(shardIdx, samples[i].ContextKey, samples[i].CompactID, samples[i].Sample, timestamp)
+		w.store.insertAcceptedRowUnlocked(shardIdx, samples[i], timestamp)
 	}
 	w.samplePool.PutBatch(samples)
 }
@@ -428,6 +468,11 @@ func (s *dogstatsdColumnarStore) insert(shardKey ckey.ContextKey, sample metrics
 }
 
 func (s *dogstatsdColumnarStore) insertAccepted(shardIdx int, shardKey ckey.ContextKey, compactID uint64, sample metrics.MetricSample, timestamp float64) {
+	row := NewDogStatsDColumnarV3SampleFromMetricSample(shardKey, compactID, nil, sample, true)
+	s.insertAcceptedRow(shardIdx, row, timestamp)
+}
+
+func (s *dogstatsdColumnarStore) insertAcceptedRow(shardIdx int, row DogStatsDColumnarV3Sample, timestamp float64) {
 	if s == nil || shardIdx < 0 || shardIdx >= len(s.shards) {
 		return
 	}
@@ -436,57 +481,71 @@ func (s *dogstatsdColumnarStore) insertAccepted(shardIdx int, shardKey ckey.Cont
 
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
-	s.insertAcceptedInShard(shard, bucketStart, shardKey, compactID, sample)
+	s.insertAcceptedRowInShard(shard, bucketStart, row)
 }
 
-func (s *dogstatsdColumnarStore) insertAcceptedUnlocked(shardIdx int, shardKey ckey.ContextKey, compactID uint64, sample metrics.MetricSample, timestamp float64) {
+func (s *dogstatsdColumnarStore) insertAcceptedRowUnlocked(shardIdx int, row DogStatsDColumnarV3Sample, timestamp float64) {
 	if s == nil || shardIdx < 0 || shardIdx >= len(s.shards) {
 		return
 	}
 	shard := &s.shards[shardIdx]
 	bucketStart := s.calculateBucketStart(timestamp)
-	s.insertAcceptedInShard(shard, bucketStart, shardKey, compactID, sample)
+	s.insertAcceptedRowInShard(shard, bucketStart, row)
 }
 
 func (s *dogstatsdColumnarStore) insertAcceptedInShard(shard *dogstatsdColumnarShard, bucketStart int64, shardKey ckey.ContextKey, compactID uint64, sample metrics.MetricSample) {
+	row := NewDogStatsDColumnarV3SampleFromMetricSample(shardKey, compactID, nil, sample, true)
+	s.insertAcceptedRowInShard(shard, bucketStart, row)
+}
+
+func (s *dogstatsdColumnarStore) insertAcceptedRowInShard(shard *dogstatsdColumnarShard, bucketStart int64, row DogStatsDColumnarV3Sample) {
 	bucket := shard.buckets[bucketStart]
 	if bucket == nil {
 		bucket = shard.getBucket()
 		shard.buckets[bucketStart] = bucket
 	}
 
-	key := dogstatsdColumnarKey{contextKey: shardKey, mtype: sample.Mtype}
-	descriptorID, ok := shard.lookupDescriptorByCompactID(compactID, key)
+	key := dogstatsdColumnarKey{contextKey: row.ContextKey, mtype: row.Mtype}
+	descriptorID, ok := shard.lookupDescriptorByCompactID(row.CompactID, key)
 	if !ok {
 		descriptorID, ok = shard.descriptorByKey[key]
 		if !ok || !shard.descriptorActive[descriptorID] {
-			descriptorID = shard.appendDescriptor(key, sample, s.descriptorInterning)
+			if !row.HasDescriptor {
+				row.CompactState.ClearColumnarDescriptorKnown(row.Mtype)
+				recordDogstatsdColumnarFallback("compact_descriptor_missing")
+				return
+			}
+			descriptorID = shard.appendDescriptorFromRow(key, row, s.descriptorInterning)
 		}
-		shard.rememberCompactDescriptor(compactID, descriptorID, s.compactHintSize)
+		shard.rememberCompactDescriptor(row.CompactID, descriptorID, s.compactHintSize)
+	}
+	if row.CompactID != 0 && !row.CompactState.ColumnarDescriptorKnown(row.Mtype) {
+		row.CompactState.MarkColumnarDescriptorKnown(row.Mtype)
+		shard.rememberCompactState(descriptorID, row.CompactState)
 	}
 	shard.lastSeen[descriptorID] = bucketStart
 
 	idx := shard.rowIndex(bucket, bucketStart, descriptorID)
 
-	switch sample.Mtype {
+	switch row.Mtype {
 	case metrics.GaugeType:
-		bucket.values[idx] = sample.Value
+		bucket.values[idx] = row.Value
 		bucket.sampled[idx] = true
 	case metrics.CounterType:
-		sampleRate := sample.SampleRate
+		sampleRate := row.SampleRate
 		if sampleRate == 0 {
 			sampleRate = 1
 		}
-		bucket.values[idx] += sample.Value * (1 / sampleRate)
+		bucket.values[idx] += row.Value * (1 / sampleRate)
 		bucket.sampled[idx] = true
 	case metrics.CountType:
-		bucket.values[idx] += sample.Value
+		bucket.values[idx] += row.Value
 		bucket.sampled[idx] = true
 	case metrics.SetType:
 		if bucket.sets[idx] == nil {
 			bucket.sets[idx] = make(map[string]struct{})
 		}
-		bucket.sets[idx][sample.RawValue] = struct{}{}
+		bucket.sets[idx][row.RawValue] = struct{}{}
 		bucket.sampled[idx] = true
 	}
 
@@ -568,6 +627,23 @@ func (s *dogstatsdColumnarShard) rememberCompactDescriptor(compactID uint64, des
 }
 
 func (s *dogstatsdColumnarShard) appendDescriptor(key dogstatsdColumnarKey, sample metrics.MetricSample, internDescriptorStrings bool) int {
+	row := NewDogStatsDColumnarV3SampleFromMetricSample(key.contextKey, 0, nil, sample, true)
+	return s.appendDescriptorFromRow(key, row, internDescriptorStrings)
+}
+
+func (s *dogstatsdColumnarShard) rememberCompactState(descriptorID int, state *metrics.DogStatsDCompactIdentityState) {
+	if state == nil || descriptorID < 0 || descriptorID >= len(s.compactStates) {
+		return
+	}
+	states := s.compactStates[descriptorID]
+	if states == nil {
+		states = make(map[*metrics.DogStatsDCompactIdentityState]struct{}, 1)
+		s.compactStates[descriptorID] = states
+	}
+	states[state] = struct{}{}
+}
+
+func (s *dogstatsdColumnarShard) appendDescriptorFromRow(key dogstatsdColumnarKey, row DogStatsDColumnarV3Sample, internDescriptorStrings bool) int {
 	idx := -1
 	if len(s.freeDescriptors) > 0 {
 		last := len(s.freeDescriptors) - 1
@@ -590,20 +666,21 @@ func (s *dogstatsdColumnarShard) appendDescriptor(key dogstatsdColumnarKey, samp
 		s.lastRow = append(s.lastRow, -1)
 		s.descriptorActive = append(s.descriptorActive, false)
 		s.descriptorNonMonotonic = append(s.descriptorNonMonotonic, false)
+		s.compactStates = append(s.compactStates, nil)
 		s.flushSeen = append(s.flushSeen, 0)
 		s.flushRow = append(s.flushRow, 0)
 	}
 
-	name := sample.Name
-	host := sample.Host
-	tags := cloneSortedTags(sample.Tags)
+	name := row.Name
+	host := row.Host
+	tags := cloneSortedTags(row.Tags)
 	tagKey := ""
-	unit := sample.Unit
+	unit := row.Unit
 	if internDescriptorStrings {
-		name = s.dictionary.internString(sample.Name)
-		host = s.dictionary.internString(sample.Host)
-		tags, tagKey = s.dictionary.internTags(sample.Tags)
-		unit = s.dictionary.internString(sample.Unit)
+		name = s.dictionary.internString(row.Name)
+		host = s.dictionary.internString(row.Host)
+		tags, tagKey = s.dictionary.internTags(row.Tags)
+		unit = s.dictionary.internString(row.Unit)
 	}
 
 	s.descriptorByKey[key] = idx
@@ -614,9 +691,9 @@ func (s *dogstatsdColumnarShard) appendDescriptor(key dogstatsdColumnarKey, samp
 	s.hosts[idx] = host
 	s.tags[idx] = tags
 	s.tagKeys[idx] = tagKey
-	s.mtypes[idx] = sample.Mtype
-	s.noIndex[idx] = sample.NoIndex
-	s.sources[idx] = sample.Source
+	s.mtypes[idx] = row.Mtype
+	s.noIndex[idx] = row.NoIndex
+	s.sources[idx] = row.Source
 	s.units[idx] = unit
 	s.lastSeen[idx] = 0
 	s.lastBucket[idx] = 0
@@ -908,6 +985,14 @@ func (s *dogstatsdColumnarStore) expireDescriptors(shard *dogstatsdColumnarShard
 }
 
 func (s *dogstatsdColumnarShard) releaseDescriptor(descriptorID int) {
+	mtype := s.mtypes[descriptorID]
+	if descriptorID >= 0 && descriptorID < len(s.compactStates) {
+		for state := range s.compactStates[descriptorID] {
+			state.ClearColumnarDescriptorKnown(mtype)
+		}
+		s.compactStates[descriptorID] = nil
+	}
+
 	s.dictionary.releaseString(s.names[descriptorID])
 	s.dictionary.releaseString(s.hosts[descriptorID])
 	s.dictionary.releaseTags(s.tagKeys[descriptorID])

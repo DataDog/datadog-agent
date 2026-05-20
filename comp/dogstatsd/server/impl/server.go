@@ -11,7 +11,9 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"math"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -145,6 +147,7 @@ type dsdServer struct {
 	histToDist               bool
 	histToDistPrefix         string
 	extraTags                []string
+	columnarV3DirectParse    bool
 	Debug                    serverdebug.Component
 	filterList               filterlist.Component
 
@@ -308,6 +311,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		histToDist:              histToDist,
 		histToDistPrefix:        histToDistPrefix,
 		extraTags:               extraTags,
+		columnarV3DirectParse:   columnarV3DirectParseEnabled(),
 		eolTerminationUDP:       eolTerminationUDP,
 		eolTerminationUDS:       eolTerminationUDS,
 		eolTerminationNamedPipe: eolTerminationNamedPipe,
@@ -807,6 +811,11 @@ type precomputedDebugStatsStore interface {
 	StoreMetricStatsWithDebugViewKey(sample metrics.MetricSample, debugViewKey identity.DebugViewKey)
 }
 
+func columnarV3DirectParseEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_DIRECT_PARSE"))
+	return err == nil && enabled
+}
+
 // workers are running this function in their goroutine
 func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, identityBuilder *identity.Builder, packets []*packets.Packet, samples metrics.MetricSampleBatch, filterList *utilstrings.Matcher) metrics.MetricSampleBatch {
 	if identityBuilder == nil {
@@ -861,68 +870,83 @@ func (s *dsdServer) parsePacket(batcher dogstatsdBatcher, parser *parser, identi
 			batcher.appendEvent(event)
 		case metricSampleType:
 			var err error
+			var handled bool
 
 			samples = samples[0:0]
+
+			if columnarV3Enabled && s.columnarV3DirectParse {
+				samples, handled, err = s.parseMetricMessageColumnarV3Direct(batcher, parser, identityBuilder, message, packet.Origin, packet.ProcessID, packet.ListenerID, s.originTelemetry, filterList, samples, columnarV3)
+				if err != nil {
+					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
+					continue
+				}
+				if handled {
+					continue
+				}
+			}
 
 			samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, packet.ProcessID, packet.ListenerID, s.originTelemetry, filterList)
 			if err != nil {
 				s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
 				continue
 			}
-
-			batcherNeedsContext := batcher.needsSampleContext()
-			for idx := range samples {
-				debugEnabled := s.Debug.IsDebugEnabled()
-				needsShardContext := batcherNeedsContext || columnarV3Enabled
-				var sampleContext identity.HotPathContext
-				if debugEnabled {
-					sampleContext = identityBuilder.ResolveHotPath(samples[idx])
-				} else if needsShardContext {
-					sampleContext = identityBuilder.ResolveShardHotPath(samples[idx])
-				}
-
-				if debugEnabled {
-					s.storeMetricStats(samples[idx], sampleContext)
-				} else {
-					// Preserve the legacy runtime-setting race behavior: if debug is
-					// enabled after the cheap IsDebugEnabled check, StoreMetricStats
-					// can still record this sample using its legacy local key path.
-					s.Debug.StoreMetricStats(samples[idx])
-				}
-
-				if columnarV3Enabled && columnarV3.AcceptDogStatsDColumnarV3Sample(samples[idx]) {
-					// The experimental v3 columnar table is now the authoritative
-					// aggregation state for this supported sample. Unsupported
-					// samples return false and continue through the legacy batcher.
-					batcher.appendColumnarV3SampleWithContext(samples[idx], sampleContext)
-				} else if samples[idx].Timestamp > 0.0 {
-					if needsShardContext {
-						batcher.appendLateSampleWithContext(samples[idx], sampleContext)
-					} else {
-						batcher.appendLateSample(samples[idx])
-					}
-				} else if needsShardContext {
-					batcher.appendSampleWithContext(samples[idx], sampleContext)
-				} else {
-					batcher.appendSample(samples[idx])
-				}
-
-				if s.histToDist && samples[idx].Mtype == metrics.HistogramType {
-					distSample := samples[idx].Copy()
-					distSample.Name = s.histToDistPrefix + distSample.Name
-					distSample.Mtype = metrics.DistributionType
-					if batcherNeedsContext {
-						distContext := identityBuilder.ResolveHotPath(*distSample)
-						batcher.appendSampleWithContext(*distSample, distContext)
-					} else {
-						batcher.appendSample(*distSample)
-					}
-				}
-			}
+			s.appendMetricSamples(batcher, identityBuilder, samples, columnarV3, columnarV3Enabled)
 		}
 	}
 
 	return samples
+}
+
+func (s *dsdServer) appendMetricSamples(batcher dogstatsdBatcher, identityBuilder *identity.Builder, samples []metrics.MetricSample, columnarV3 aggregator.DogStatsDColumnarV3Inserter, columnarV3Enabled bool) {
+	batcherNeedsContext := batcher.needsSampleContext()
+	for idx := range samples {
+		debugEnabled := s.Debug.IsDebugEnabled()
+		needsShardContext := batcherNeedsContext || columnarV3Enabled
+		var sampleContext identity.HotPathContext
+		if debugEnabled {
+			sampleContext = identityBuilder.ResolveHotPath(samples[idx])
+		} else if needsShardContext {
+			sampleContext = identityBuilder.ResolveShardHotPath(samples[idx])
+		}
+
+		if debugEnabled {
+			s.storeMetricStats(samples[idx], sampleContext)
+		} else {
+			// Preserve the legacy runtime-setting race behavior: if debug is
+			// enabled after the cheap IsDebugEnabled check, StoreMetricStats
+			// can still record this sample using its legacy local key path.
+			s.Debug.StoreMetricStats(samples[idx])
+		}
+
+		if columnarV3Enabled && columnarV3.AcceptDogStatsDColumnarV3Sample(samples[idx]) {
+			// The experimental v3 columnar table is now the authoritative
+			// aggregation state for this supported sample. Unsupported
+			// samples return false and continue through the legacy batcher.
+			batcher.appendColumnarV3SampleWithContext(samples[idx], sampleContext)
+		} else if samples[idx].Timestamp > 0.0 {
+			if needsShardContext {
+				batcher.appendLateSampleWithContext(samples[idx], sampleContext)
+			} else {
+				batcher.appendLateSample(samples[idx])
+			}
+		} else if needsShardContext {
+			batcher.appendSampleWithContext(samples[idx], sampleContext)
+		} else {
+			batcher.appendSample(samples[idx])
+		}
+
+		if s.histToDist && samples[idx].Mtype == metrics.HistogramType {
+			distSample := samples[idx].Copy()
+			distSample.Name = s.histToDistPrefix + distSample.Name
+			distSample.Mtype = metrics.DistributionType
+			if batcherNeedsContext {
+				distContext := identityBuilder.ResolveHotPath(*distSample)
+				batcher.appendSampleWithContext(*distSample, distContext)
+			} else {
+				batcher.appendSample(*distSample)
+			}
+		}
+	}
 }
 
 func (s *dsdServer) storeMetricStats(sample metrics.MetricSample, sampleContext identity.HotPathContext) {
@@ -980,11 +1004,7 @@ func (s *dsdServer) getOriginCounter(origin string) (okCnt telemetry.SimpleCount
 // which we can't do today.
 func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string,
 	processID uint32, listenerID string, originTelemetry bool, filterList *utilstrings.Matcher) ([]metrics.MetricSample, error) {
-	okCnt := s.tlmProcessedOk
-	errorCnt := s.tlmProcessedError
-	if origin != "" && originTelemetry {
-		okCnt, errorCnt = s.getOriginCounter(origin)
-	}
+	okCnt, errorCnt := s.metricTelemetryCounters(origin, originTelemetry)
 
 	sample, err := parser.parseMetricSample(message)
 	if err != nil {
@@ -992,8 +1012,21 @@ func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, par
 		errorCnt.Inc()
 		return metricSamples, err
 	}
+	s.recordMetricTypeTelemetry(sample.metricType)
+	return s.finishParsedMetricMessage(metricSamples, sample, origin, processID, listenerID, filterList, okCnt), nil
+}
 
-	switch sample.metricType {
+func (s *dsdServer) metricTelemetryCounters(origin string, originTelemetry bool) (telemetry.SimpleCounter, telemetry.SimpleCounter) {
+	okCnt := s.tlmProcessedOk
+	errorCnt := s.tlmProcessedError
+	if origin != "" && originTelemetry {
+		okCnt, errorCnt = s.getOriginCounter(origin)
+	}
+	return okCnt, errorCnt
+}
+
+func (s *dsdServer) recordMetricTypeTelemetry(metricType metricType) {
+	switch metricType {
 	case gaugeType:
 		s.tlmMetricTypeGauge.Inc()
 	case countType:
@@ -1007,7 +1040,113 @@ func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, par
 	case timingType:
 		s.tlmMetricTypeTiming.Inc()
 	}
+}
 
+func columnarV3DirectMetricTypeSupported(mtype metrics.MetricType) bool {
+	switch mtype {
+	case metrics.GaugeType, metrics.CounterType, metrics.CountType, metrics.SetType:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *dsdServer) parseMetricMessageColumnarV3Direct(batcher dogstatsdBatcher, parser *parser, identityBuilder *identity.Builder, message []byte, origin string,
+	processID uint32, listenerID string, originTelemetry bool, filterList *utilstrings.Matcher, metricSamples []metrics.MetricSample, columnarV3 aggregator.DogStatsDColumnarV3Inserter) ([]metrics.MetricSample, bool, error) {
+	// Keep this vertical slice intentionally narrow. If compatibility features that
+	// rewrite identities are active, the normal MetricSample path remains the
+	// source of truth.
+	if s.mapper != nil || len(s.extraTags) > 0 || s.histToDist || s.Debug.IsDebugEnabled() {
+		return metricSamples, false, nil
+	}
+
+	okCnt, errorCnt := s.metricTelemetryCounters(origin, originTelemetry)
+	sample, err := parser.parseMetricSample(message)
+	if err != nil {
+		dogstatsdMetricParseErrors.Add(1)
+		errorCnt.Inc()
+		return metricSamples, true, err
+	}
+	s.recordMetricTypeTelemetry(sample.metricType)
+
+	metricName := sample.name
+	if !isExcluded(metricName, s.enrichConfig.metricPrefix, s.enrichConfig.metricPrefixBlacklist) {
+		metricName = s.enrichConfig.metricPrefix + metricName
+	}
+	if filterList != nil && filterList.Test(metricName) {
+		tlmFilteredPoints.Inc()
+		if len(sample.values) > 0 {
+			s.sharedFloat64List.put(sample.values)
+		}
+		return metricSamples, true, nil
+	}
+
+	tags, hostnameFromTags, extractedOrigin, metricSource := extractTagsMetadata(sample.tags, origin, processID, sample.localData, sample.externalData, sample.cardinality, s.enrichConfig)
+	if s.enrichConfig.serverlessMode {
+		hostnameFromTags = ""
+		if strings.HasPrefix(metricName, "runtime.") {
+			metricSource = serverlessSourceCustomToRuntime(metricSource)
+		}
+	}
+
+	mtype := enrichMetricType(sample.metricType)
+	unit := unitFromMetricType(sample.metricType)
+	timestamp := tsToFloatForSamples(sample.ts)
+	template := metrics.MetricSample{
+		Host:              hostnameFromTags,
+		Name:              metricName,
+		Tags:              tags,
+		Mtype:             mtype,
+		SampleRate:        sample.sampleRate,
+		RawValue:          sample.setValue,
+		Timestamp:         timestamp,
+		OriginInfo:        extractedOrigin,
+		ListenerID:        listenerID,
+		Source:            metricSource,
+		Unit:              unit,
+		DogStatsDTagsetID: sample.tagsetID,
+	}
+
+	acceptedDirect := func(value float64) bool {
+		return timestamp == 0 && !math.IsInf(value, 0) && !math.IsNaN(value) && columnarV3DirectMetricTypeSupported(mtype)
+	}
+	appendDirectAccepted := func(value float64) {
+		template.Value = value
+		context := identityBuilder.ResolveShardHotPath(template)
+		batcher.appendColumnarV3SampleWithContext(template, context)
+		dogstatsdMetricPackets.Add(1)
+		okCnt.Inc()
+	}
+
+	finishLegacy := func() []metrics.MetricSample {
+		metricSamples = s.finishParsedMetricMessage(metricSamples, sample, origin, processID, listenerID, filterList, okCnt)
+		s.appendMetricSamples(batcher, identityBuilder, metricSamples, columnarV3, true)
+		return metricSamples
+	}
+
+	if len(sample.values) > 0 {
+		for _, value := range sample.values {
+			if !acceptedDirect(value) {
+				return finishLegacy(), true, nil
+			}
+		}
+		for _, value := range sample.values {
+			appendDirectAccepted(value)
+		}
+		s.sharedFloat64List.put(sample.values)
+		return metricSamples, true, nil
+	}
+
+	if acceptedDirect(sample.value) {
+		appendDirectAccepted(sample.value)
+	} else {
+		return finishLegacy(), true, nil
+	}
+	return metricSamples, true, nil
+}
+
+func (s *dsdServer) finishParsedMetricMessage(metricSamples []metrics.MetricSample, sample dogstatsdMetricSample, origin string,
+	processID uint32, listenerID string, filterList *utilstrings.Matcher, okCnt telemetry.SimpleCounter) []metrics.MetricSample {
 	if s.mapper != nil {
 		mapResult := s.mapper.Map(sample.name)
 		if mapResult != nil {
@@ -1047,7 +1186,7 @@ func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, par
 		dogstatsdMetricPackets.Add(1)
 		okCnt.Inc()
 	}
-	return metricSamples, nil
+	return metricSamples
 }
 
 func (s *dsdServer) parseEventMessage(parser *parser, message []byte, origin string, processID uint32) (*event.Event, error) {

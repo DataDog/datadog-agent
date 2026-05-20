@@ -127,6 +127,8 @@ func TestCompactIdentityCacheReusesShardContext(t *testing.T) {
 	assert.NotZero(t, first.CompactID)
 	assert.Equal(t, first.CompactID, second.CompactID)
 	assert.Equal(t, first.Shard.ContextKey, second.Shard.ContextKey)
+	assert.NotNil(t, first.CompactState)
+	assert.Same(t, first.CompactState, second.CompactState)
 	assert.Equal(t, uint64(7)<<48, first.CompactID&(uint64(0xffff)<<48))
 }
 

@@ -6,6 +6,8 @@
 package metrics
 
 import (
+	"sync/atomic"
+
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -93,6 +95,66 @@ type MetricSampleContext interface {
 
 // UnitMilliseconds is the unit string for timing metrics, as defined by the Datadog API.
 const UnitMilliseconds = "millisecond"
+
+// DogStatsDCompactIdentityState is shared by the experimental DogStatsD
+// compact-identity cache and downstream consumers that can acknowledge they no
+// longer need full descriptor fields on every row. It is intentionally tiny and
+// atomic because parser workers and columnar workers run on different
+// goroutines.
+type DogStatsDCompactIdentityState struct {
+	columnarDescriptorKnown atomic.Uint32
+}
+
+func dogstatsdColumnarMetricTypeBit(mtype MetricType) uint32 {
+	if mtype < 0 || mtype >= 32 {
+		return 0
+	}
+	return 1 << uint(mtype)
+}
+
+// ColumnarDescriptorKnown reports whether the columnar-v3 consumer has already
+// observed descriptor metadata for this compact identity and metric type.
+func (s *DogStatsDCompactIdentityState) ColumnarDescriptorKnown(mtype MetricType) bool {
+	bit := dogstatsdColumnarMetricTypeBit(mtype)
+	return s != nil && bit != 0 && s.columnarDescriptorKnown.Load()&bit != 0
+}
+
+// MarkColumnarDescriptorKnown records that columnar-v3 can resolve this compact
+// identity and metric type without receiving descriptor strings on subsequent
+// rows.
+func (s *DogStatsDCompactIdentityState) MarkColumnarDescriptorKnown(mtype MetricType) {
+	if s == nil {
+		return
+	}
+	bit := dogstatsdColumnarMetricTypeBit(mtype)
+	if bit == 0 {
+		return
+	}
+	for {
+		old := s.columnarDescriptorKnown.Load()
+		if old&bit != 0 || s.columnarDescriptorKnown.CompareAndSwap(old, old|bit) {
+			return
+		}
+	}
+}
+
+// ClearColumnarDescriptorKnown clears the downstream descriptor acknowledgement
+// for one metric type.
+func (s *DogStatsDCompactIdentityState) ClearColumnarDescriptorKnown(mtype MetricType) {
+	if s == nil {
+		return
+	}
+	bit := dogstatsdColumnarMetricTypeBit(mtype)
+	if bit == 0 {
+		return
+	}
+	for {
+		old := s.columnarDescriptorKnown.Load()
+		if old&bit == 0 || s.columnarDescriptorKnown.CompareAndSwap(old, old&^bit) {
+			return
+		}
+	}
+}
 
 // MetricSample represents a raw metric sample
 type MetricSample struct {

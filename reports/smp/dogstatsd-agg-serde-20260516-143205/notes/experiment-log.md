@@ -1405,3 +1405,40 @@ smp local run \
 Result: `+0.03%`, CI `[-0.01%, +0.07%]`.
 
 Decision: compact ID plumbing is compatible and macro-neutral in the repeated-tagset UDS/v3 envelope. Keep it opt-in; next consumers need to use compact IDs deeper in descriptor/tagset/payload dictionary construction to make a macro difference.
+
+## Stage V: compact ID downstream consumers
+
+Implemented a narrow compact-ID consumer vertical slice after Stage U:
+
+- `DogStatsDColumnarV3Sample` is now a scalar row with optional descriptor fields instead of always carrying a full `MetricSample`.
+- `DogStatsDCompactIdentityState` lets columnar-v3 acknowledge descriptor knowledge per compact identity and metric type.
+- Columnar descriptors remember dependent compact states and clear them on descriptor expiry.
+- `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_COMPACT_ROWS_OMIT_DESCRIPTOR=true` lets the batcher omit name/tags/host/source/unit after descriptor acknowledgement.
+- `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_DIRECT_PARSE=true` parses supported metric messages directly into columnar-v3 rows. It remains disabled if mapper, extra tags, hist-to-dist, or debug stats are active, and unsupported samples fall back to the legacy path.
+
+Validation:
+
+```bash
+dda inv test --targets=./pkg/aggregator,./pkg/metrics,./comp/dogstatsd/server/impl,./comp/dogstatsd/internal/identity --timeout=300
+```
+
+Result: passed (`657` package tests; unified report `575` tests).
+
+Built Stage V optimized Linux/arm64 images:
+
+- `datadog/agent-dev:smp-dsd-columnar-v3-compact-consumers` — `sha256:8dfa1e6b4817d2566e41461779fa11c0d8eb6df6a9720f4440d09a343cdcf388`
+- `datadog/agent-dev:smp-dsd-columnar-v3-compact-consumers-baseline` — `sha256:81c8db9c5df79d54335d84f7a98f9bc88a6c3e956bc590c0216e9b0e335eb5bd`
+- `datadog/agent-dev:smp-dsd-columnar-v3-compact-consumers-enabled` — `sha256:865f8bfecabcf1a161cef0c810f0e830fe51937d6aba5cd4c5b878decf819485`
+
+Feature-cost SMP, baseline env vs direct-parse+descriptor-omission env, `--replicates 3 --total-samples 270`:
+
+| Case | Δ mean | CI | Read |
+|---|---:|---:|---|
+| standard v3 UDS compact batch | `-0.02%` | `[-0.15%, +0.12%]` | neutral |
+| high-rate v3 UDS metrics-only compact batch | `-0.00%` | `[-0.04%, +0.03%]` | neutral |
+
+Selected metrics: `stageV_compact_consumers_selected_metrics.csv`.
+Effect summary: `stageV_compact_consumers_effects.csv`.
+Detailed note: `notes/stageV-compact-id-consumers.md`.
+
+Interpretation: compact IDs can safely drive columnar row/descriptor reuse in this gated slice, but the macro result is neutral because parser/enrichment still materializes names/tags before compact IDs avoid downstream work. Continue with parser no-materialization on exact name/tagset hits and payload dictionary ID reuse.

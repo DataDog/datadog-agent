@@ -265,3 +265,27 @@ Created: 2026-05-20 local via `docker commit` from the Stage U base image
 Agent version: same as Stage U base image
 Env: `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true`, `DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES=true`
 Notes: Parser exact-tagset IDs feed a bounded worker-local compact identity cache; compact IDs are carried through the DogStatsD batcher to the columnar-v3 worker as descriptor hints. Columnar compact hint maps are allocated lazily only when non-zero compact IDs are observed.
+
+## Stage V compact ID consumer images
+
+Branch: dogstatsd-agg-serde-experiment
+Commit: local uncommitted Stage V worktree after `73080eecc9f`
+
+### Stage V compact consumer code, env off
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-compact-consumers]
+Image ID: sha256:8dfa1e6b4817d2566e41461779fa11c0d8eb6df6a9720f4440d09a343cdcf388
+Created: 2026-05-20 local
+Notes: Built as Linux/arm64 with `--no-development`. Direct parse and compact row descriptor omission remain disabled by default.
+
+### Stage V feature-cost baseline
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-compact-consumers-baseline]
+Image ID: sha256:81c8db9c5df79d54335d84f7a98f9bc88a6c3e956bc590c0216e9b0e335eb5bd
+Created: 2026-05-20 local via `docker commit` from the Stage V base image
+Env: `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true`, `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER_SIZE=65536`, `DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES=true`, `DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES_SIZE=65536`, `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_COMPACT_HINT_SIZE=65536`
+
+### Stage V direct parse + compact rows enabled
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-compact-consumers-enabled]
+Image ID: sha256:865f8bfecabcf1a161cef0c810f0e830fe51937d6aba5cd4c5b878decf819485
+Created: 2026-05-20 local via `docker commit` from the Stage V base image
+Env: baseline env plus `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_DIRECT_PARSE=true`, `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_COMPACT_ROWS_OMIT_DESCRIPTOR=true`
+Notes: Supported metric messages parse directly into columnar-v3 scalar rows; descriptor fields may be omitted after columnar has observed the compact identity for that metric type.

@@ -76,6 +76,7 @@ type compactIdentityKey struct {
 type compactIdentityEntry struct {
 	id    uint64
 	shard ShardIdentity
+	state *metrics.DogStatsDCompactIdentityState
 }
 
 type compactIdentityCache struct {
@@ -110,23 +111,23 @@ func (c *compactIdentityCache) lookup(sample metrics.MetricSample) (compactIdent
 	return entry, ok
 }
 
-func (c *compactIdentityCache) insert(sample metrics.MetricSample, shard ShardIdentity) uint64 {
+func (c *compactIdentityCache) insert(sample metrics.MetricSample, shard ShardIdentity) (compactIdentityEntry, bool) {
 	if c == nil || sample.DogStatsDTagsetID == 0 {
-		return 0
+		return compactIdentityEntry{}, false
 	}
 	key := compactIdentityKey{name: sample.Name, host: sample.Host, tagsetID: sample.DogStatsDTagsetID}
 	if entry, ok := c.entries[key]; ok {
-		return entry.id
+		return entry, true
 	}
 	evicted := c.ring[c.next]
 	if evicted.tagsetID != 0 {
 		delete(c.entries, evicted)
 	}
-	id := c.allocateID()
+	entry := compactIdentityEntry{id: c.allocateID(), shard: shard, state: &metrics.DogStatsDCompactIdentityState{}}
 	c.ring[c.next] = key
 	c.next = (c.next + 1) % len(c.ring)
-	c.entries[key] = compactIdentityEntry{id: id, shard: shard}
-	return id
+	c.entries[key] = entry
+	return entry, true
 }
 
 func (c *compactIdentityCache) allocateID() uint64 {
@@ -237,6 +238,10 @@ type HotPathContext struct {
 	// CompactID is an experimental bounded-dictionary identifier for the parsed
 	// DogStatsD identity. A value of 0 means no compact identity is available.
 	CompactID uint64
+
+	// CompactState lets downstream experimental consumers acknowledge descriptor
+	// state for CompactID without feeding back through the parser worker.
+	CompactState *metrics.DogStatsDCompactIdentityState
 }
 
 // ResolvedSampleContext groups all named identities derivable from a parsed
@@ -321,17 +326,22 @@ func (b *Builder) ResolveShardHotPath(sample metrics.MetricSample) HotPathContex
 	b.ensure()
 	if entry, ok := b.compact.lookup(sample); ok {
 		return HotPathContext{
-			Client:    entry.shard.Client,
-			Shard:     entry.shard,
-			CompactID: entry.id,
+			Client:       entry.shard.Client,
+			Shard:        entry.shard,
+			CompactID:    entry.id,
+			CompactState: entry.state,
 		}
 	}
 	shard := b.Shard(sample)
-	compactID := b.compact.insert(sample, shard)
+	entry, ok := b.compact.insert(sample, shard)
+	if !ok {
+		return HotPathContext{Client: shard.Client, Shard: shard}
+	}
 	return HotPathContext{
-		Client:    shard.Client,
-		Shard:     shard,
-		CompactID: compactID,
+		Client:       shard.Client,
+		Shard:        shard,
+		CompactID:    entry.id,
+		CompactState: entry.state,
 	}
 }
 

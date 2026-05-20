@@ -9,6 +9,7 @@
 package serverimpl
 
 import (
+	"os"
 	"strconv"
 	"time"
 
@@ -61,10 +62,11 @@ type batcher struct {
 
 	metricSamplePool *metrics.MetricSamplePool
 
-	columnarV3             aggregator.DogStatsDColumnarV3Inserter
-	columnarV3Samples      []aggregator.DogStatsDColumnarV3SampleBatch
-	columnarV3SamplesCount []int
-	columnarV3SamplePool   *aggregator.DogStatsDColumnarV3SamplePool
+	columnarV3                          aggregator.DogStatsDColumnarV3Inserter
+	columnarV3Samples                   []aggregator.DogStatsDColumnarV3SampleBatch
+	columnarV3SamplesCount              []int
+	columnarV3SamplePool                *aggregator.DogStatsDColumnarV3SamplePool
+	columnarV3CompactRowsOmitDescriptor bool
 
 	demux aggregator.Demultiplexer
 	// buffer slice allocated once per contextResolver to combine and sort
@@ -110,6 +112,11 @@ func (s *shardKeyGenerator) Generate(sample metrics.MetricSample, shards int) ui
 func fastrange(key ckey.ContextKey, pipelineCount int) uint32 {
 	// return uint32(uint64(key) % uint64(pipelineCount))
 	return identity.ShardIndex(key, pipelineCount)
+}
+
+func columnarV3CompactRowsOmitDescriptorEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_COMPACT_ROWS_OMIT_DESCRIPTOR"))
+	return err == nil && enabled
 }
 
 func newBatcher(demux aggregator.DemultiplexerWithAggregator, tlmChannel telemetry.Histogram) *batcher {
@@ -160,10 +167,11 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator, tlmChannel telemet
 		choutEvents:        e,
 		choutServiceChecks: sc,
 
-		columnarV3:             columnarV3,
-		columnarV3Samples:      columnarV3Samples,
-		columnarV3SamplesCount: columnarV3SamplesCount,
-		columnarV3SamplePool:   columnarV3SamplePool,
+		columnarV3:                          columnarV3,
+		columnarV3Samples:                   columnarV3Samples,
+		columnarV3SamplesCount:              columnarV3SamplesCount,
+		columnarV3SamplePool:                columnarV3SamplePool,
+		columnarV3CompactRowsOmitDescriptor: columnarV3CompactRowsOmitDescriptorEnabled(),
 
 		demux:          demux,
 		pipelineCount:  pipelineCount,
@@ -217,10 +225,11 @@ func newServerlessBatcher(demux aggregator.Demultiplexer, tlmChannel telemetry.H
 		samplesWithTsCount: samplesWithTsCount,
 		metricSamplePool:   demux.GetMetricSamplePool(),
 
-		columnarV3:             columnarV3,
-		columnarV3Samples:      columnarV3Samples,
-		columnarV3SamplesCount: columnarV3SamplesCount,
-		columnarV3SamplePool:   columnarV3SamplePool,
+		columnarV3:                          columnarV3,
+		columnarV3Samples:                   columnarV3Samples,
+		columnarV3SamplesCount:              columnarV3SamplesCount,
+		columnarV3SamplePool:                columnarV3SamplePool,
+		columnarV3CompactRowsOmitDescriptor: columnarV3CompactRowsOmitDescriptorEnabled(),
 
 		demux:          demux,
 		pipelineCount:  pipelineCount,
@@ -301,18 +310,26 @@ func (b *batcher) appendColumnarV3SampleWithContext(sample metrics.MetricSample,
 		b.appendSampleWithContext(sample, context)
 		return
 	}
+	includeDescriptor := true
+	if b.columnarV3CompactRowsOmitDescriptor && context.CompactID != 0 && context.CompactState.ColumnarDescriptorKnown(sample.Mtype) {
+		includeDescriptor = false
+	}
+	row := aggregator.NewDogStatsDColumnarV3SampleFromMetricSample(context.Shard.ContextKey, context.CompactID, context.CompactState, sample, includeDescriptor)
+	b.appendColumnarV3Row(row)
+}
+
+func (b *batcher) appendColumnarV3Row(row aggregator.DogStatsDColumnarV3Sample) {
+	if b.columnarV3 == nil || b.columnarV3SamplePool == nil {
+		return
+	}
 	var shardKey uint32
 	if b.pipelineCount > 1 {
-		shardKey = identity.ShardIndex(context.Shard.ContextKey, b.pipelineCount)
+		shardKey = identity.ShardIndex(row.ContextKey, b.pipelineCount)
 	}
 	if b.columnarV3SamplesCount[shardKey] >= len(b.columnarV3Samples[shardKey]) {
 		b.flushColumnarV3Samples(shardKey)
 	}
-	b.columnarV3Samples[shardKey][b.columnarV3SamplesCount[shardKey]] = aggregator.DogStatsDColumnarV3Sample{
-		ContextKey: context.Shard.ContextKey,
-		CompactID:  context.CompactID,
-		Sample:     sample,
-	}
+	b.columnarV3Samples[shardKey][b.columnarV3SamplesCount[shardKey]] = row
 	b.columnarV3SamplesCount[shardKey]++
 }
 

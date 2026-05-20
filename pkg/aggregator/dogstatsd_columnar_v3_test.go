@@ -313,6 +313,145 @@ func TestDogstatsdColumnarV3UsesCompactIdentityDescriptorHints(t *testing.T) {
 	require.Equal(t, 1, shard.descriptorByCompactID[compactID])
 }
 
+func TestDogstatsdColumnarV3CompactRowsCanOmitKnownDescriptors(t *testing.T) {
+	store := newDogStatsDColumnarStore(10, 1)
+	compactID := uint64(0x7000000000001)
+	state := &metrics.DogStatsDCompactIdentityState{}
+	sample := metrics.MetricSample{
+		Name:       "compact.metric",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"env:test"},
+		Host:       "host-a",
+		SampleRate: 1,
+	}
+
+	row := NewDogStatsDColumnarV3SampleFromMetricSample(ckey.ContextKey(1), compactID, state, sample, true)
+	store.insertAcceptedRow(0, row, 101)
+	require.True(t, state.ColumnarDescriptorKnown(metrics.GaugeType))
+	require.Len(t, store.shards[0].descriptorByKey, 1)
+
+	sample.Value = 2
+	row = NewDogStatsDColumnarV3SampleFromMetricSample(ckey.ContextKey(1), compactID, state, sample, false)
+	store.insertAcceptedRow(0, row, 102)
+	require.Len(t, store.shards[0].descriptorByKey, 1)
+
+	var sink columnarPointRowCaptureSink
+	shadow := newDirectRowShadowBuilder()
+	require.Equal(t, uint64(1), store.flushShardToV3MetricPointSink(&store.shards[0], 111, false, &sink, shadow))
+	require.Len(t, sink.rows, 1)
+	require.Equal(t, float64(2), sink.rows[0].Value)
+	require.Equal(t, []string{"env:test"}, sink.rows[0].Tags.UnsafeToReadOnlySliceString())
+}
+
+func TestDogstatsdColumnarV3CompactRowsClearStateOnMissingDescriptor(t *testing.T) {
+	store := newDogStatsDColumnarStore(10, 1)
+	compactID := uint64(0x7000000000001)
+	state := &metrics.DogStatsDCompactIdentityState{}
+	state.MarkColumnarDescriptorKnown(metrics.GaugeType)
+	row := DogStatsDColumnarV3Sample{
+		ContextKey:   ckey.ContextKey(1),
+		CompactID:    compactID,
+		CompactState: state,
+		Value:        1,
+		Mtype:        metrics.GaugeType,
+		SampleRate:   1,
+	}
+
+	store.insertAcceptedRow(0, row, 101)
+	require.False(t, state.ColumnarDescriptorKnown(metrics.GaugeType))
+	require.Empty(t, store.shards[0].descriptorByKey)
+	for _, bucket := range store.shards[0].buckets {
+		require.Empty(t, bucket.descriptors)
+	}
+}
+
+func TestDogstatsdColumnarV3CompactRowsTrackDescriptorStatePerMetricType(t *testing.T) {
+	store := newDogStatsDColumnarStore(10, 1)
+	compactID := uint64(0x7000000000001)
+	state := &metrics.DogStatsDCompactIdentityState{}
+	sample := metrics.MetricSample{
+		Name:       "compact.metric",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"env:test"},
+		SampleRate: 1,
+	}
+
+	row := NewDogStatsDColumnarV3SampleFromMetricSample(ckey.ContextKey(1), compactID, state, sample, true)
+	store.insertAcceptedRow(0, row, 101)
+	require.True(t, state.ColumnarDescriptorKnown(metrics.GaugeType))
+	require.False(t, state.ColumnarDescriptorKnown(metrics.CounterType))
+
+	sample.Mtype = metrics.CounterType
+	sample.Value = 2
+	row = NewDogStatsDColumnarV3SampleFromMetricSample(ckey.ContextKey(1), compactID, state, sample, true)
+	store.insertAcceptedRow(0, row, 102)
+	require.True(t, state.ColumnarDescriptorKnown(metrics.GaugeType))
+	require.True(t, state.ColumnarDescriptorKnown(metrics.CounterType))
+	require.Len(t, store.shards[0].descriptorByKey, 2)
+}
+
+func TestDogstatsdColumnarV3CompactRowsClearDescriptorStateOnExpiry(t *testing.T) {
+	store := newDogStatsDColumnarStore(10, 1)
+	store.descriptorExpiry = 10
+	compactID := uint64(0x7000000000001)
+	state := &metrics.DogStatsDCompactIdentityState{}
+	sample := metrics.MetricSample{
+		Name:       "compact.metric",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"env:test"},
+		SampleRate: 1,
+	}
+
+	row := NewDogStatsDColumnarV3SampleFromMetricSample(ckey.ContextKey(1), compactID, state, sample, true)
+	store.insertAcceptedRow(0, row, 101)
+	require.True(t, state.ColumnarDescriptorKnown(metrics.GaugeType))
+
+	store.expireDescriptors(&store.shards[0], 112)
+	require.False(t, state.ColumnarDescriptorKnown(metrics.GaugeType))
+}
+
+func BenchmarkDogstatsdColumnarV3CompactRows(b *testing.B) {
+	compactID := uint64(0x7000000000001)
+	sample := metrics.MetricSample{
+		Name:       "compact.metric",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"env:test", "service:dogstatsd", "region:us-east-1", "team:agent"},
+		Host:       "host-a",
+		SampleRate: 1,
+	}
+
+	b.Run("with_descriptor", func(b *testing.B) {
+		store := newDogStatsDColumnarStore(10, 1)
+		state := &metrics.DogStatsDCompactIdentityState{}
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			sample.Value = float64(i)
+			row := NewDogStatsDColumnarV3SampleFromMetricSample(ckey.ContextKey(1), compactID, state, sample, true)
+			store.insertAcceptedRow(0, row, 101)
+		}
+	})
+
+	b.Run("descriptor_omitted", func(b *testing.B) {
+		store := newDogStatsDColumnarStore(10, 1)
+		state := &metrics.DogStatsDCompactIdentityState{}
+		row := NewDogStatsDColumnarV3SampleFromMetricSample(ckey.ContextKey(1), compactID, state, sample, true)
+		store.insertAcceptedRow(0, row, 101)
+		require.True(b, state.ColumnarDescriptorKnown(metrics.GaugeType))
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			sample.Value = float64(i)
+			row := NewDogStatsDColumnarV3SampleFromMetricSample(ckey.ContextKey(1), compactID, state, sample, false)
+			store.insertAcceptedRow(0, row, 101)
+		}
+	})
+}
+
 func TestDogstatsdColumnarV3InternsAndExpiresDescriptorDictionaries(t *testing.T) {
 	store := newDogStatsDColumnarStore(10, 1)
 	store.descriptorExpiry = 10
