@@ -97,27 +97,27 @@ def bazel_not_found_message(color: str) -> str:
 def run_bazel(
     ctx: Context,
     *args: str,
-    verbose: bool = False,
+    use_pty: bool = False,
     sudo: bool = False,
+    verbose: bool = False,
 ) -> None | str:
     """Execute a bazel command.
 
     sudo: Run under sudo.
+    use_pty: Run as a pty, combining stdout and stderr into one.
     verbose: Echo comand line to stdout.
     """
     if not (resolved_bazel := shutil.which("bazel")):
         raise Exit(bazel_not_found_message("red"))
     cmd = ("sudo", resolved_bazel) if sudo else ("bazel",)
-    kwargs = {}
-    # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
-    if not sudo and sys.stdout.isatty() and sys.platform != "win32":
-        kwargs["pty"] = True
+    if sys.platform == "win32":
+        use_pty = False
     result = ctx.run(
         (subprocess.list2cmdline if sys.platform == "win32" else shlex.join)(cmd + args),
         echo=verbose,
         hide="both",
         in_stream=False,
-        **kwargs,
+        pty=use_pty,
     )
     return result
 
@@ -139,14 +139,17 @@ def bazel(
         want to process stderr and stderr separately.
     sudo: Run under sudo.
     """
-    result = run_bazel(ctx, verbose=True, sudo=sudo, *args)
+    use_pty = False
+    if not sudo and sys.stdout.isatty() and sys.platform != "win32":
+        use_pty = True
+    result = run_bazel(ctx, verbose=True, sudo=sudo, use_pty=use_pty, *args)
     ret = None
     if capture_output:
         ret = result.stdout
     else:
         print(result.stdout)
     if capture_stderr:
-        ret += result.stderr
+        ret = (ret or "") + result.stderr
     else:
         print(result.stderr)
     return ret
