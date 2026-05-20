@@ -10,10 +10,12 @@ enhancements:
     * Set ``DD_PROCMGR_DDOT_ENABLED`` to a non-enabling value (for example ``0`` or ``false``) in the environment seen by the Agent and installer, **or**
     * Remove ``/etc/datadog-agent/.procmgr-ddot-enabled`` when your deployment will not recreate it.
 
-    With the DDOT gate closed, the installer stops syncing standalone DDOT into ``processes.d`` under ``dd-procmgrd`` and the **datadog-agent-ddot** systemd unit can manage the collector again.
+    Closing the DDOT gate stops the installer from writing DDOT YAML on the **next** install or upgrade hook. It does **not** remove an existing ``processes.d`` file by itself.
+
+    On a host that already has standalone DDOT under procmgr, also **delete** ``datadog-agent-ddot.yaml`` from ``processes.d`` (deb/rpm: ``/opt/datadog-agent/processes.d/``; fleet OCI: under the ``datadog-agent-ddot`` package ``processes.d`` tree for your install layout).
 
     **Disable host-wide process-manager integration** (broader than DDOT)
 
     * Set ``DD_PROCMGR_ENABLED`` to ``0`` or ``false``, **or** remove ``/etc/datadog-agent/.procmgr-enabled``.
 
-    **After you change markers or environment variables**, restart the main Agent service—for example, on systemd: ``systemctl restart datadog-agent``. If you return to systemd-managed standalone DDOT, start or enable ``datadog-agent-ddot`` as before the process-manager path.
+    **After you change markers or environment variables**, restart ``datadog-agent-procmgr`` (or ``datadog-agent``), then start or enable ``datadog-agent-ddot`` if you return to systemd-managed standalone DDOT. Alternatively, run a package install/upgrade so installer hooks remove the YAML and resync procmgr for you.
