@@ -7,8 +7,7 @@ using Xunit;
 namespace CustomActions.Tests.ConfigureUserCustomActions
 {
     /// <summary>
-    /// Unit tests for the DDAGENTUSER_KEEP_USER_RIGHTS opt-out behavior
-    /// added in FRAGENT-3418.
+    /// Unit tests for the DDAGENTUSER_KEEP_RIGHTS opt-out behavior.
     /// </summary>
     public class ConfigureUserAccountRightsTests
     {
@@ -23,7 +22,7 @@ namespace CustomActions.Tests.ConfigureUserCustomActions
         public void ShouldKeepUserAccountRights_Returns_True_For_Truthy_Values(string value)
         {
             Test.Session
-                .Setup(session => session[Datadog.CustomActions.ConfigureUserCustomActions.KeepUserRightsPropertyName])
+                .Setup(session => session[Datadog.CustomActions.ConfigureUserCustomActions.KeepRightsPropertyName])
                 .Returns(value);
 
             Test.Create().ShouldKeepUserAccountRights().Should().BeTrue();
@@ -39,7 +38,7 @@ namespace CustomActions.Tests.ConfigureUserCustomActions
         public void ShouldKeepUserAccountRights_Returns_False_For_Other_Values(string value)
         {
             Test.Session
-                .Setup(session => session[Datadog.CustomActions.ConfigureUserCustomActions.KeepUserRightsPropertyName])
+                .Setup(session => session[Datadog.CustomActions.ConfigureUserCustomActions.KeepRightsPropertyName])
                 .Returns(value);
 
             Test.Create().ShouldKeepUserAccountRights().Should().BeFalse();
@@ -49,7 +48,7 @@ namespace CustomActions.Tests.ConfigureUserCustomActions
         public void ConfigureUserAccountRights_Skips_AddPrivilege_And_Logs_When_Flag_Set()
         {
             Test.Session
-                .Setup(session => session[Datadog.CustomActions.ConfigureUserCustomActions.KeepUserRightsPropertyName])
+                .Setup(session => session[Datadog.CustomActions.ConfigureUserCustomActions.KeepRightsPropertyName])
                 .Returns("1");
 
             Test.Create().ConfigureUserAccountRights();

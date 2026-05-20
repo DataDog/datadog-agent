@@ -396,7 +396,7 @@ namespace WixSetup.Datadog_Agent
                                "DDAGENTUSER_FOUND=[DDAGENTUSER_FOUND], " +
                                "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
                                "DDAGENTUSER_RESET_PASSWORD=[DDAGENTUSER_RESET_PASSWORD], " +
-                               "DDAGENTUSER_KEEP_USER_RIGHTS=[DDAGENTUSER_KEEP_USER_RIGHTS], " +
+                               "DDAGENTUSER_KEEP_RIGHTS=[DDAGENTUSER_KEEP_RIGHTS], " +
                                "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED], " +
                                "DDAGENTUSER_IS_SERVICE_ACCOUNT=[DDAGENTUSER_IS_SERVICE_ACCOUNT]")
                 .HideTarget(true);

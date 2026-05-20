@@ -17,7 +17,7 @@ namespace Datadog.CustomActions
     {
         // Name must match the property declared in WixSetup/Datadog Agent/AgentInstaller.cs
         // and plumbed through CustomActionData in AgentCustomActions.cs SetProperties().
-        internal const string KeepUserRightsPropertyName = "DDAGENTUSER_KEEP_USER_RIGHTS";
+        internal const string KeepRightsPropertyName = "DDAGENTUSER_KEEP_RIGHTS";
 
         private readonly ISession _session;
         private readonly INativeMethods _nativeMethods;
@@ -125,7 +125,7 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
-        /// Returns true when the DDAGENTUSER_KEEP_USER_RIGHTS MSI property is set to a truthy
+        /// Returns true when the DDAGENTUSER_KEEP_RIGHTS MSI property is set to a truthy
         /// value (1/true/yes, case-insensitive). When set, ConfigureUserAccountRights skips
         /// assigning the ddagentuser logon rights so customers can preserve custom changes
         /// (e.g. removing SeDenyNetworkLogonRight to allow access to network resources)
@@ -133,7 +133,7 @@ namespace Datadog.CustomActions
         /// </summary>
         internal bool ShouldKeepUserAccountRights()
         {
-            var keep = _session.Property(KeepUserRightsPropertyName);
+            var keep = _session.Property(KeepRightsPropertyName);
             if (string.IsNullOrEmpty(keep))
             {
                 return false;
@@ -151,7 +151,7 @@ namespace Datadog.CustomActions
         {
             if (ShouldKeepUserAccountRights())
             {
-                _session.Log($"{KeepUserRightsPropertyName} is set, skipping ddagentuser account rights configuration. " +
+                _session.Log($"{KeepRightsPropertyName} is set, skipping ddagentuser account rights configuration. " +
                              "The agent service requires SeServiceLogonRight; ensure it is granted manually if this is a fresh install.");
                 return;
             }
