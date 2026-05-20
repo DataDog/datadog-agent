@@ -110,6 +110,8 @@ class Processor():
 
         comment_pos = line.find(' // ')
         if comment_pos >= 0:
+            comment_text = line[comment_pos:]
+            self.append_internal_comment(comment_text)
             line = line[:comment_pos]
 
         if self.within_multiline:
@@ -170,9 +172,13 @@ class Processor():
         self.num_fail += 1
 
     def append_internal_comment(self, text):
+        text = text.strip()
         if text.startswith('//'):
             text = text[2:]
         text = text.strip()
+        # ignore this common case:
+        if re.match(r'^TODO: replace by .SetDefaultAndBindEnv.', text):
+            return
         self.internal_comment.append(text)
 
     def clean_param(self, params, index):
