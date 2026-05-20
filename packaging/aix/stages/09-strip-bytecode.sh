@@ -59,6 +59,28 @@ find "$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}" -name "*.h" -exec rm -f {} 
 find "$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}" -name "*.pyc" -exec rm -f {} \; 2>/dev/null || true
 log "Build artefacts removed"
 
+# ─── Step 2b: Fix Python entry-point script shebangs ─────────────────────────
+#
+# pip and other Python packages install wrapper scripts (pip3.13, easy_install,
+# etc.) whose shebang is set to sys.executable at install time. Because Python
+# runs from the staging tree ($EMBEDDED_DESTDIR) during the build, sys.executable
+# resolves via realpath() to the staging path, not the final install path
+# ($EMBEDDED). The resulting shebang is therefore wrong on the target host and
+# causes "No such file or directory" when any of these scripts are invoked.
+#
+# Fix: rewrite every non-symlink script in embedded/bin/ whose first line
+# contains the staging path, replacing it with the final install path.
+
+log "Fixing Python entry-point script shebangs ($EMBEDDED_DESTDIR -> $EMBEDDED)"
+find "$EMBEDDED_DESTDIR/bin" -type f | while IFS= read -r f; do
+    case $(head -c 50 "$f" 2>/dev/null) in
+        *"$EMBEDDED_DESTDIR/bin/python"*)
+            sed -i "1s|#!${EMBEDDED_DESTDIR}/bin/|#!${EMBEDDED}/bin/|" "$f"
+            ;;
+    esac
+done
+log "Shebang fix complete"
+
 # ─── Step 3: Compile .py to .pyc for faster agent startup ─────────────────────
 #
 # -x 'test/' skips test directories which contain code that may not compile

@@ -10,6 +10,8 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+- Fix Python entry-point script shebangs in the embedded tree (was pointing to build-host staging path, causing "No such file or directory" when running `pip` or other scripts post-install)
+
 ---
 
 > **Note:** `datadog-agent-7.80.0-devel.git.446.66c9b62-18.aix.ppc64.bff` and all older builds
