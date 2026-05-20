@@ -11,6 +11,8 @@
 <!-- Add entries here for changes not yet in a release. -->
 
 - Upgrade embedded pip from 24.0 to 26.0.1 (patches CVE-2026-1703)
+- Fix Python entry-point script shebangs in the embedded tree (was pointing to build-host staging path, causing "No such file or directory" when running `pip` or other scripts post-install)
+- Include `final_constraints-py3.txt` in the BFF package at `/opt/datadog-agent/final_constraints-py3.txt`
 
 ---
 
