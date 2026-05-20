@@ -42,7 +42,7 @@ build do
   end
 
   if linux_target?
-    command "invoke agent.build --flavor iot --no-development", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e agent.build --flavor iot --no-development", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     mkdir "#{install_dir}/bin"
     mkdir "#{install_dir}/run/"
 
@@ -60,7 +60,7 @@ build do
     if windows_target?
       # just builds the trace-agent, this should be moved to a separate package as it's not related to the iot agent
 
-      command "invoke trace-agent.build", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+      command "dda inv -- -e trace-agent.build", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
 
       mkdir "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
       copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent/trace-agent.exe"

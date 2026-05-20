@@ -42,7 +42,7 @@ build do
   bazel_flags = "--config=release --//:install_dir=#{install_dir}"
 
   if linux_target?
-    command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     mkdir "#{install_dir}/bin"
     copy 'bin/installer', "#{install_dir}/bin/"
 
