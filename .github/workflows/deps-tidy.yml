@@ -3,7 +3,7 @@ name: "Tidy Dependencies"
 on:
   pull_request:
     types:
-      - labeled
+      - opened
       - synchronize
 
 permissions: {}
@@ -11,6 +11,9 @@ permissions: {}
 jobs:
   go_mod_tidy:
     if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-go') }}
+    concurrency:
+      group: deps-tidy-go-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     permissions:
       id-token: write # Required for dd-octo-sts OIDC token
       pull-requests: write # Required to auto-close PRs that bump the root go directive
@@ -61,6 +64,9 @@ jobs:
 
   cargo_tidy:
     if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-cargo') }}
+    concurrency:
+      group: deps-tidy-cargo-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     permissions:
       id-token: write # Required for dd-octo-sts OIDC token
     runs-on: ubuntu-latest
@@ -89,6 +95,9 @@ jobs:
 
   bazel_tidy:
     if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel') }}
+    concurrency:
+      group: deps-tidy-bazel-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     permissions:
       id-token: write # Required for dd-octo-sts OIDC token
     runs-on: ubuntu-latest

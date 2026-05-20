@@ -162,6 +162,7 @@ use_repo(
     "com_github_go_ole_go_ole",
     "com_github_go_sql_driver_mysql",
     "com_github_go_viper_mapstructure_v2",
+    "com_github_go_zookeeper_zk",
     "com_github_gobwas_glob",
     "com_github_goccy_go_yaml",
     "com_github_gocomply_scap",
@@ -182,7 +183,6 @@ use_repo(
     "com_github_google_gopacket",
     "com_github_google_shlex",
     "com_github_google_uuid",
-    "com_github_gorilla_handlers",
     "com_github_gorilla_mux",
     "com_github_gorilla_websocket",
     "com_github_gosnmp_gosnmp",
@@ -303,7 +303,6 @@ use_repo(
     "com_github_safchain_baloum",
     "com_github_safchain_ethtool",
     "com_github_samber_lo",
-    "com_github_samuel_go_zookeeper",
     "com_github_santhosh_tekuri_jsonschema_v5",
     "com_github_santhosh_tekuri_jsonschema_v6",
     "com_github_sassoftware_go_rpmutils",
@@ -332,7 +331,7 @@ use_repo(
     "com_github_uptrace_bun",
     "com_github_uptrace_bun_dialect_pgdialect",
     "com_github_uptrace_bun_driver_pgdriver",
-    "com_github_urfave_negroni",
+    "com_github_urfave_negroni_v3",
     "com_github_vektra_mockery_v3",
     "com_github_vibrantbyte_go_antpath",
     "com_github_vishvananda_netlink",
@@ -470,6 +469,13 @@ use_repo(
     "org_uber_go_zap",
     "org_uber_go_zap_exp",
     "tools_gotest_gotestsum",
+)
+
+# https://github.com/favadi/protoc-go-inject-tag/pull/73
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/rules/protoc_go_inject_tag:add-outputdir-flag.patch"],
+    path = "github.com/favadi/protoc-go-inject-tag",
 )
 
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")

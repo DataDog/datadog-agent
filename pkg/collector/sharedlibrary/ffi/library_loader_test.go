@@ -8,6 +8,8 @@
 package ffi
 
 import (
+	"path"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,4 +49,47 @@ func TestRun_LibraryWithNullSymbols(t *testing.T) {
 
 	_, err = loader.Version(lib)
 	assert.EqualError(t, err, "Failed to get version: pointer to 'Version' symbol of the shared library is NULL")
+}
+
+func TestComputeLibraryPath_Valid(t *testing.T) {
+	folder := t.TempDir()
+	loader := NewSharedLibraryLoader(folder)
+
+	libPath, err := loader.ComputeLibraryPath("my_check")
+	require.NoError(t, err)
+
+	expected := path.Join(folder, "libdatadog-agent-my_check."+getLibExtension())
+	assert.Equal(t, expected, libPath)
+}
+
+func TestComputeLibraryPath_RejectsPathTraversal(t *testing.T) {
+	loader := NewSharedLibraryLoader(t.TempDir())
+
+	cases := []string{
+		"",
+		"foo/../../tmp/baz",
+		"../baz",
+		"foo/bar",
+		`foo\bar`,
+		`..\baz`,
+		"/etc/passwd",
+		"foo\x00bar",
+	}
+	for _, name := range cases {
+		t.Run(name, func(t *testing.T) {
+			libPath, err := loader.ComputeLibraryPath(name)
+			require.Error(t, err)
+			assert.Empty(t, libPath)
+		})
+	}
+}
+
+func TestComputeLibraryPath_StaysInsideFolder(t *testing.T) {
+	folder := t.TempDir()
+	loader := NewSharedLibraryLoader(folder)
+
+	libPath, err := loader.ComputeLibraryPath("safe_check")
+	require.NoError(t, err)
+
+	assert.True(t, strings.HasPrefix(libPath, folder), "libPath %q should be inside %q", libPath, folder)
 }

@@ -141,16 +141,7 @@ class BazelTools:
 
     def __new__(cls, ctx):
         if not cls._paths:
-            labels = (
-                "//bazel/toolchains/protoc",
-                "@com_github_favadi_protoc_go_inject_tag//:protoc-go-inject-tag",
-                "@com_github_golang_mock//mockgen",
-                "@com_github_planetscale_vtprotobuf//cmd/protoc-gen-go-vtproto",
-                "@com_github_tinylib_msgp//:msgp",
-                "@org_golang_google_grpc_cmd_protoc_gen_go_grpc//:protoc-gen-go-grpc",
-                "@org_golang_google_protobuf//cmd/protoc-gen-go",
-                "@rules_go//go",
-            )
+            labels = ("@com_github_golang_mock//mockgen", "@com_github_tinylib_msgp//:msgp", "@rules_go//go")
             bazel(ctx, "build", *labels)
             root = bazel(ctx, "info", "execution_root", capture_output=True).strip()
             for line in bazel(
@@ -166,11 +157,8 @@ class BazelTools:
         return super().__new__(cls)
 
     def __getattr__(self, name):
-        return self._paths[name.replace("_", "-")]
+        return self._paths[name]
 
     @property
     def go_env(self):
         return {"PATH": f"{self._paths['go_bin_runner'].parent}{os.pathsep}{os.getenv('PATH', '')}"}
-
-    def protoc_plugin(self, name):
-        return f"--plugin={name}={self._paths[name]}"
