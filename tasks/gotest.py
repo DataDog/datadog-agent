@@ -27,7 +27,7 @@ from tasks.collector import OTEL_CONTRIB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import run_bazel
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
@@ -202,18 +202,20 @@ def get_bazel_test_targets(ctx, modules: list[GoModule]) -> dict[str, str]:
 
     # Temporary: restrict queries to the top-level trees that have been migrated
     # to Bazel.  Remove this filter when other trees (e.g. test/, tasks/) follow.
-    _BAZEL_QUERYABLE_ROOTS = ('//cmd/', '//comp/', '//pkg/')
+    _BAZEL_QUERYABLE_ROOTS = ('//cmd/', '//comp/', '//pkg/', '//test/')
     bazel_patterns = [p for p in bazel_patterns if any(p.startswith(r) for r in _BAZEL_QUERYABLE_ROOTS)]
     if not bazel_patterns:
         return {}
 
     scope = ' + '.join(bazel_patterns)
-    output = bazel(ctx, "cquery", f"kind(go_test, {scope})", capture_output=True, capture_stderr=True)
-    if not output:
+    # Temporary: Use verbbose to show the query command to show people examples of bazel syntax.
+    # Eventually that will just be noise, so we stop doing it.
+    result = run_bazel(ctx, 'cquery', '--curses=no', f'kind(go_test, {scope})', verbose=True)
+    if not result.stdout:
         return {}
 
-    result = {}
-    for line in output.splitlines():
+    targets = {}
+    for line in result.stdout.splitlines():
         line = line.strip()
         if not line or not line.startswith('//'):
             continue
@@ -222,8 +224,8 @@ def get_bazel_test_targets(ctx, modules: list[GoModule]) -> dict[str, str]:
         # Get directory from label: //pkg/util/log:log_test -> pkg/util/log
         package = label.split(':')[0]
         dir_path = package[2:]  # strip //
-        result[label] = f'{MODULE_PREFIX}/{dir_path}'
-    return result
+        targets[label] = f'{MODULE_PREFIX}/{dir_path}'
+    return targets
 
 
 def _parse_bazel_test_line(line: str) -> tuple[str, str, str | None, bool] | None:
@@ -268,7 +270,7 @@ def _run_bazel_tests(ctx, bazel_targets: list[str], verbose: bool = False) -> Te
     # Windows-safe command-length limit.
     # TODO: on Linux runners, the limit is much higher; consider platform-specific batching.
     MAX_CMD_LENGTH = 32000
-    FIXED_ARGS = ["test", "--keep_going"]
+    FIXED_ARGS = ['test', '--keep_going', '--curses=no', '--color=no']
     fixed_len = sum([len(a) for a in FIXED_ARGS]) + len(FIXED_ARGS) + 1  # args + spaces
 
     # Batch targets so no single invocation exceeds the limit.
@@ -297,7 +299,8 @@ def _run_bazel_tests(ctx, bazel_targets: list[str], verbose: bool = False) -> Te
     for batch in batches:
         try:
             # capture_stderr=True because Bazel writes test result lines to stderr.
-            output = bazel(ctx, *FIXED_ARGS, *batch, capture_output=True, capture_stderr=True)
+            result = run_bazel(ctx, *FIXED_ARGS, *batch)
+            output = result.stdout + result.stderr
         except UnexpectedExit as e:
             output = (e.result.stdout or "") + (e.result.stderr or "")
             run_failed = True
