@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 // mockIssueTemplate is a test implementation of IssueTemplate
@@ -41,7 +41,7 @@ func (m *mockModuleWithCheck) IssueTemplate() IssueTemplate { return m.template 
 func (m *mockModuleWithCheck) BuiltInPeriodicHealthCheck() *BuiltInPeriodicHealthCheck {
 	return &BuiltInPeriodicHealthCheck{
 		Source:   "check-" + m.id,
-		Fn:       func() ([]storedef.IssueReport, error) { return nil, nil },
+		Fn:       func() ([]runnerdef.IssueReport, error) { return nil, nil },
 		Interval: 5 * time.Minute,
 	}
 }
@@ -59,7 +59,7 @@ func (m *mockModuleWithOnce) BuiltInPeriodicHealthCheck() *BuiltInPeriodicHealth
 func (m *mockModuleWithOnce) BuiltInStartupHealthCheck() *BuiltInStartupHealthCheck {
 	return &BuiltInStartupHealthCheck{
 		Source: "once-" + m.id,
-		Fn:     func() ([]storedef.IssueReport, error) { return nil, nil },
+		Fn:     func() ([]runnerdef.IssueReport, error) { return nil, nil },
 	}
 }
 

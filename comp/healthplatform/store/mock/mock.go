@@ -26,18 +26,12 @@ func Mock(_ *testing.T) healthplatform.Component {
 	}
 }
 
-// ReportIssue stores a minimal proto Issue keyed by report.IssueID for testing.
-func (m *mockHealthPlatform) ReportIssue(report healthplatform.IssueReport) error {
-	if report.IssueID == "" {
+// ReportIssue stores the proto Issue keyed by issue.Id for testing.
+func (m *mockHealthPlatform) ReportIssue(issue *healthplatformpayload.Issue) error {
+	if issue == nil || issue.Id == "" {
 		return nil
 	}
-	m.issues[report.IssueID] = &healthplatformpayload.Issue{
-		Id:       report.IssueID,
-		Title:    report.IssueType,
-		Source:   report.Source,
-		Tags:     report.Tags,
-		Severity: "low",
-	}
+	m.issues[issue.Id] = proto.Clone(issue).(*healthplatformpayload.Issue)
 	return nil
 }
 

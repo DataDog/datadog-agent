@@ -27,6 +27,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -102,9 +103,9 @@ func TestBundleStartLifecycle(t *testing.T) {
 		// so the registry's BuildIssue lookup succeeds.
 		testIssueType = "docker-file-tailing-disabled"
 	)
-	require.NoError(t, deps.Scheduler.Schedule(testSource, func() ([]storedef.IssueReport, error) {
+	require.NoError(t, deps.Scheduler.Schedule(testSource, func() ([]runnerdef.IssueReport, error) {
 		checkRunCount.Add(1)
-		return []storedef.IssueReport{
+		return []runnerdef.IssueReport{
 			{
 				IssueID:   testIssueID,
 				IssueType: testIssueType,

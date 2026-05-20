@@ -7,8 +7,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/log/def",
+        "//comp/healthplatform/issueregistry/def",
         "//comp/healthplatform/runner/def",
         "//comp/healthplatform/store/def",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
     ],
 )
 
@@ -19,6 +21,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/log/mock",
+        "//comp/healthplatform/issueregistry/mock",
         "//comp/healthplatform/runner/def",
         "//comp/healthplatform/store/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",

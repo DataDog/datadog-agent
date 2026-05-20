@@ -12,7 +12,7 @@ package rofspermissions
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 )
 
@@ -60,7 +60,7 @@ func (r *rofsPermissionsModule) BuiltInPeriodicHealthCheck() *issues.BuiltInPeri
 func (r *rofsPermissionsModule) BuiltInStartupHealthCheck() *issues.BuiltInStartupHealthCheck {
 	return &issues.BuiltInStartupHealthCheck{
 		Source: "agent",
-		Fn: func() ([]storedef.IssueReport, error) {
+		Fn: func() ([]runnerdef.IssueReport, error) {
 			return Check(r.conf)
 		},
 	}

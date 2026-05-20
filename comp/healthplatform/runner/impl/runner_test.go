@@ -19,6 +19,7 @@ import (
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	registrymock "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/mock"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
@@ -26,18 +27,18 @@ import (
 // mockStore captures ReportIssue calls for assertions.
 type mockStore struct {
 	mu        sync.Mutex
-	reports   []storedef.IssueReport
-	reportErr error // if non-nil, returned for the report whose IssueID equals errOnID
+	issues    []*healthplatformpayload.Issue
+	reportErr error
 	errOnID   string
 }
 
-func (m *mockStore) ReportIssue(r storedef.IssueReport) error {
+func (m *mockStore) ReportIssue(issue *healthplatformpayload.Issue) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.reportErr != nil && r.IssueID == m.errOnID {
+	if m.reportErr != nil && issue.Id == m.errOnID {
 		return m.reportErr
 	}
-	m.reports = append(m.reports, r)
+	m.issues = append(m.issues, issue)
 	return nil
 }
 
@@ -47,18 +48,24 @@ func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue             
 func (m *mockStore) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) { return 0, nil }
 func (m *mockStore) GetActiveIssueIDsByIssueType(_ string) []string               { return nil }
 
+var _ storedef.Component = (*mockStore)(nil)
+
 func newTestRunner(t *testing.T) (*runner, *mockStore) {
 	t.Helper()
 	store := &mockStore{}
-	r := &runner{log: logmock.New(t), store: store}
+	r := &runner{
+		log:      logmock.New(t),
+		registry: registrymock.New(),
+		store:    store,
+	}
 	return r, store
 }
 
 func TestRunHappyPath(t *testing.T) {
 	r, store := newTestRunner(t)
 
-	fn := func() ([]storedef.IssueReport, error) {
-		return []storedef.IssueReport{
+	fn := func() ([]runnerdef.IssueReport, error) {
+		return []runnerdef.IssueReport{
 			{IssueID: "id-1", IssueType: "type-a", Source: "mycomp"},
 			{IssueID: "id-2", IssueType: "type-b", Source: "mycomp"},
 		}, nil
@@ -67,26 +74,28 @@ func TestRunHappyPath(t *testing.T) {
 	ids, err := r.Run("mycomp", fn)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"id-1", "id-2"}, ids)
-	assert.Len(t, store.reports, 2)
+	store.mu.Lock()
+	assert.Len(t, store.issues, 2)
+	store.mu.Unlock()
 }
 
 func TestRunEmptyResult(t *testing.T) {
 	r, store := newTestRunner(t)
 
-	ids, err := r.Run("mycomp", func() ([]storedef.IssueReport, error) {
+	ids, err := r.Run("mycomp", func() ([]runnerdef.IssueReport, error) {
 		return nil, nil
 	})
 
 	require.NoError(t, err)
 	assert.Empty(t, ids)
-	assert.Empty(t, store.reports)
+	assert.Empty(t, store.issues)
 }
 
 func TestRunFnError(t *testing.T) {
 	r, store := newTestRunner(t)
 
-	fn := func() ([]storedef.IssueReport, error) {
-		return []storedef.IssueReport{
+	fn := func() ([]runnerdef.IssueReport, error) {
+		return []runnerdef.IssueReport{
 			{IssueID: "id-1", IssueType: "type-a", Source: "mycomp"},
 		}, errors.New("probe failed")
 	}
@@ -96,50 +105,58 @@ func TestRunFnError(t *testing.T) {
 	assert.Contains(t, err.Error(), "probe failed")
 	// Report emitted before error is still forwarded.
 	assert.Equal(t, []string{"id-1"}, ids)
-	assert.Len(t, store.reports, 1)
+	store.mu.Lock()
+	assert.Len(t, store.issues, 1)
+	store.mu.Unlock()
 }
 
 func TestRunFnPanic(t *testing.T) {
 	r, store := newTestRunner(t)
 
-	ids, err := r.Run("mycomp", func() ([]storedef.IssueReport, error) {
+	ids, err := r.Run("mycomp", func() ([]runnerdef.IssueReport, error) {
 		panic("something exploded")
 	})
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "panic")
 	assert.Empty(t, ids)
-	assert.Empty(t, store.reports)
+	assert.Empty(t, store.issues)
 }
 
 func TestRunSourceDefaultFill(t *testing.T) {
 	r, store := newTestRunner(t)
 
-	fn := func() ([]storedef.IssueReport, error) {
-		return []storedef.IssueReport{
+	fn := func() ([]runnerdef.IssueReport, error) {
+		return []runnerdef.IssueReport{
 			{IssueID: "id-1", IssueType: "type-a"}, // Source intentionally empty
 		}, nil
 	}
 
 	_, err := r.Run("fallback-source", fn)
 	require.NoError(t, err)
-	require.Len(t, store.reports, 1)
-	assert.Equal(t, "fallback-source", store.reports[0].Source)
+	store.mu.Lock()
+	require.Len(t, store.issues, 1)
+	// The mock registry has no template for "type-a" so a minimal proto is built
+	// with the source filled from the fallback.
+	assert.Equal(t, "fallback-source", store.issues[0].Source)
+	store.mu.Unlock()
 }
 
 func TestRunSourceNotOverridden(t *testing.T) {
 	r, store := newTestRunner(t)
 
-	fn := func() ([]storedef.IssueReport, error) {
-		return []storedef.IssueReport{
+	fn := func() ([]runnerdef.IssueReport, error) {
+		return []runnerdef.IssueReport{
 			{IssueID: "id-1", IssueType: "type-a", Source: "explicit-source"},
 		}, nil
 	}
 
 	_, err := r.Run("fallback-source", fn)
 	require.NoError(t, err)
-	require.Len(t, store.reports, 1)
-	assert.Equal(t, "explicit-source", store.reports[0].Source)
+	store.mu.Lock()
+	require.Len(t, store.issues, 1)
+	assert.Equal(t, "explicit-source", store.issues[0].Source)
+	store.mu.Unlock()
 }
 
 func TestRunStoreError(t *testing.T) {
@@ -147,8 +164,8 @@ func TestRunStoreError(t *testing.T) {
 	store.errOnID = "id-2"
 	store.reportErr = errors.New("store rejected")
 
-	fn := func() ([]storedef.IssueReport, error) {
-		return []storedef.IssueReport{
+	fn := func() ([]runnerdef.IssueReport, error) {
+		return []runnerdef.IssueReport{
 			{IssueID: "id-1", IssueType: "type-a", Source: "mycomp"},
 			{IssueID: "id-2", IssueType: "type-b", Source: "mycomp"},
 		}, nil
@@ -158,8 +175,10 @@ func TestRunStoreError(t *testing.T) {
 	require.NoError(t, err)
 	// id-1 accepted, id-2 rejected by store — only id-1 in returned slice.
 	assert.Equal(t, []string{"id-1"}, ids)
-	assert.Len(t, store.reports, 1)
-	assert.Equal(t, "id-1", store.reports[0].IssueID)
+	store.mu.Lock()
+	assert.Len(t, store.issues, 1)
+	assert.Equal(t, "id-1", store.issues[0].Id)
+	store.mu.Unlock()
 }
 
 func TestRunConcurrent(t *testing.T) {
@@ -173,9 +192,9 @@ func TestRunConcurrent(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			fn := func() ([]storedef.IssueReport, error) {
+			fn := func() ([]runnerdef.IssueReport, error) {
 				atomic.AddInt32(&callCount, 1)
-				return []storedef.IssueReport{
+				return []runnerdef.IssueReport{
 					{IssueID: fmt.Sprintf("id-%d", idx), IssueType: "type-a", Source: "mycomp"},
 				}, nil
 			}
@@ -186,9 +205,9 @@ func TestRunConcurrent(t *testing.T) {
 
 	assert.Equal(t, int32(n), atomic.LoadInt32(&callCount))
 	store.mu.Lock()
-	assert.Len(t, store.reports, n)
+	assert.Len(t, store.issues, n)
 	store.mu.Unlock()
 }
 
 // Ensure HealthCheckFunc type is used correctly in tests.
-var _ runnerdef.HealthCheckFunc = func() ([]storedef.IssueReport, error) { return nil, nil }
+var _ runnerdef.HealthCheckFunc = func() ([]runnerdef.IssueReport, error) { return nil, nil }

@@ -14,13 +14,12 @@ import (
 	"testing"
 	"time"
 
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 // mockStore records GetAllIssues calls and returns preset data.
@@ -44,11 +43,11 @@ func (m *mockStore) GetAllIssues() (int, map[string]*healthplatformpayload.Issue
 	return len(cp), cp
 }
 
-func (m *mockStore) ReportIssue(_ storedef.IssueReport) error       { return nil }
-func (m *mockStore) ResolveIssue(_ string)                          {}
-func (m *mockStore) ResolveAllIssues()                              {}
-func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue { return nil }
-func (m *mockStore) GetActiveIssueIDsByIssueType(_ string) []string { return nil }
+func (m *mockStore) ReportIssue(_ *healthplatformpayload.Issue) error { return nil }
+func (m *mockStore) ResolveIssue(_ string)                            {}
+func (m *mockStore) ResolveAllIssues()                                {}
+func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue   { return nil }
+func (m *mockStore) GetActiveIssueIDsByIssueType(_ string) []string   { return nil }
 
 // mockForwarder records Send calls.
 type mockForwarder struct {

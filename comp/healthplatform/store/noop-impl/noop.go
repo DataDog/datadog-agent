@@ -36,7 +36,7 @@ func NewNoopHealthPlatform() *NoopHealthPlatform {
 }
 
 // ReportIssue does nothing when the health platform is disabled.
-func (n *NoopHealthPlatform) ReportIssue(_ healthplatform.IssueReport) error {
+func (n *NoopHealthPlatform) ReportIssue(_ *healthplatformpayload.Issue) error {
 	return nil
 }
 

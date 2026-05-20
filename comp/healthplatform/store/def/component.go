@@ -17,10 +17,11 @@ import (
 
 // Component is the health platform store component interface.
 type Component interface {
-	// ReportIssue records a new or ongoing issue. Two calls with the same
-	// report.IssueID update the same instance (state machine: new → ongoing).
-	// Call ResolveIssue to mark an issue as resolved.
-	ReportIssue(report IssueReport) error
+	// ReportIssue records a new or ongoing issue keyed by issue.Id. Two calls
+	// with the same issue.Id update the same instance (state machine: new →
+	// ongoing). issue.IssueName is used as the issue-type key for telemetry
+	// and persistence. Call ResolveIssue to mark an issue as resolved.
+	ReportIssue(issue *healthplatformpayload.Issue) error
 
 	// =========================================================================
 	// Query Methods

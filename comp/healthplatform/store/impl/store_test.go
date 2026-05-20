@@ -10,7 +10,6 @@ package storeimpl
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -27,59 +26,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
-	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
-	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
-
-// staticTemplate always returns an Issue with a title derived from the issue type.
-type staticTemplate struct{ issueType string }
-
-func (s *staticTemplate) BuildIssue(_ map[string]string) (*healthplatformpayload.Issue, error) {
-	return &healthplatformpayload.Issue{
-		IssueName: s.issueType,
-		Title:     s.issueType + "-title",
-		Source:    s.issueType + "-source",
-		Severity:  "low",
-	}, nil
-}
-
-// testRegistry is a minimal registrydef.Component for unit tests.
-// Only types registered at construction are recognised by HasTemplate/BuildIssue.
-type testRegistry struct {
-	templates map[string]*staticTemplate
-}
-
-func newTestRegistry(types ...string) *testRegistry {
-	r := &testRegistry{templates: make(map[string]*staticTemplate)}
-	for _, t := range types {
-		r.templates[t] = &staticTemplate{issueType: t}
-	}
-	return r
-}
-
-func (r *testRegistry) BuildIssue(issueType string, _ map[string]string) (*healthplatformpayload.Issue, error) {
-	tmpl, ok := r.templates[issueType]
-	if !ok {
-		return nil, fmt.Errorf("no template for %s", issueType)
-	}
-	return tmpl.BuildIssue(nil)
-}
-
-func (r *testRegistry) HasTemplate(issueType string) bool {
-	_, ok := r.templates[issueType]
-	return ok
-}
-
-func (r *testRegistry) GetBuiltInPeriodicHealthChecks() []*issuesmod.BuiltInPeriodicHealthCheck {
-	return nil
-}
-
-func (r *testRegistry) GetBuiltInStartupHealthChecks() []*issuesmod.BuiltInStartupHealthCheck {
-	return nil
-}
-
-var _ registrydef.Component = (*testRegistry)(nil)
 
 // memPersistence stores state in memory, replacing disk I/O in unit tests.
 type memPersistence struct {
@@ -158,7 +105,7 @@ func (f *mockFlareBuilder) Save() (string, error)                    { return ""
 
 var _ flarebuilder.FlareBuilder = (*mockFlareBuilder)(nil)
 
-func newTestStore(t *testing.T, reg registrydef.Component) *healthPlatformImpl {
+func newTestStore(t *testing.T) *healthPlatformImpl {
 	t.Helper()
 	tel := telemetrymock.New(t)
 	return &healthPlatformImpl{
@@ -166,7 +113,6 @@ func newTestStore(t *testing.T, reg registrydef.Component) *healthPlatformImpl {
 		telemetry:        tel,
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
-		issueRegistry:    reg,
 		issues:           make(map[string]*healthplatformpayload.Issue),
 		issuesByType:     make(map[string]map[string]struct{}),
 		persistedIssues:  make(map[string]*PersistedIssue),
@@ -178,25 +124,33 @@ func newTestStore(t *testing.T, reg registrydef.Component) *healthPlatformImpl {
 	}
 }
 
+func TestReportIssueNil(t *testing.T) {
+	h := newTestStore(t)
+	err := h.ReportIssue(nil)
+	assert.ErrorContains(t, err, "nil")
+}
+
 func TestReportIssueEmptyID(t *testing.T) {
-	h := newTestStore(t, newTestRegistry())
-	err := h.ReportIssue(storedef.IssueReport{IssueID: "", IssueType: "some-type"})
+	h := newTestStore(t)
+	err := h.ReportIssue(&healthplatformpayload.Issue{Id: "", IssueName: "some-type"})
 	assert.ErrorContains(t, err, "issue id")
 }
 
-func TestReportIssueEmptyType(t *testing.T) {
-	h := newTestStore(t, newTestRegistry())
-	err := h.ReportIssue(storedef.IssueReport{IssueID: "id-1", IssueType: ""})
-	assert.ErrorContains(t, err, "issue type")
+func TestReportIssueEmptyName(t *testing.T) {
+	h := newTestStore(t)
+	err := h.ReportIssue(&healthplatformpayload.Issue{Id: "id-1", IssueName: ""})
+	assert.ErrorContains(t, err, "issue name")
 }
 
-func TestReportIssueWithTemplate(t *testing.T) {
-	h := newTestStore(t, newTestRegistry("check-failure"))
+func TestReportIssueStoresProto(t *testing.T) {
+	h := newTestStore(t)
 
-	err := h.ReportIssue(storedef.IssueReport{
-		IssueID:   "check-failure:mysql:abc",
-		IssueType: "check-failure",
+	err := h.ReportIssue(&healthplatformpayload.Issue{
+		Id:        "check-failure:mysql:abc",
+		IssueName: "check-failure",
+		Title:     "Check 'mysql' Failed",
 		Source:    "mysql",
+		Severity:  "medium",
 		Tags:      []string{"env:prod"},
 	})
 	require.NoError(t, err)
@@ -204,18 +158,19 @@ func TestReportIssueWithTemplate(t *testing.T) {
 	issue := h.GetIssue("check-failure:mysql:abc")
 	require.NotNil(t, issue)
 	assert.Equal(t, "check-failure:mysql:abc", issue.Id)
-	assert.Equal(t, "check-failure-source", issue.Source) // template source wins
+	assert.Equal(t, "mysql", issue.Source)
+	assert.Equal(t, "medium", issue.Severity)
 	assert.Contains(t, issue.Tags, "env:prod")
 	assert.NotEmpty(t, issue.DetectedAt)
 	assert.NotNil(t, issue.PersistedIssue)
 }
 
-func TestReportIssueNoTemplate(t *testing.T) {
-	h := newTestStore(t, newTestRegistry()) // no templates
+func TestReportIssueMinimalProto(t *testing.T) {
+	h := newTestStore(t)
 
-	err := h.ReportIssue(storedef.IssueReport{
-		IssueID:   "custom:id-1",
-		IssueType: "custom-type",
+	err := h.ReportIssue(&healthplatformpayload.Issue{
+		Id:        "custom:id-1",
+		IssueName: "custom-type",
 		Source:    "my-component",
 	})
 	require.NoError(t, err)
@@ -228,16 +183,16 @@ func TestReportIssueNoTemplate(t *testing.T) {
 }
 
 func TestReportIssueStateTransition(t *testing.T) {
-	h := newTestStore(t, newTestRegistry("t"))
-	report := storedef.IssueReport{IssueID: "t:id", IssueType: "t"}
+	h := newTestStore(t)
+	issue := &healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}
 
-	require.NoError(t, h.ReportIssue(report))
+	require.NoError(t, h.ReportIssue(issue))
 	persisted := h.persistedIssues["t:id"]
 	require.NotNil(t, persisted)
 	assert.Equal(t, IssueStateNew, persisted.State)
 	firstSeen := persisted.FirstSeen
 
-	require.NoError(t, h.ReportIssue(report))
+	require.NoError(t, h.ReportIssue(issue))
 	persisted = h.persistedIssues["t:id"]
 	assert.Equal(t, IssueStateOngoing, persisted.State)
 	assert.Equal(t, firstSeen, persisted.FirstSeen, "FirstSeen must not change on re-report")
@@ -245,8 +200,8 @@ func TestReportIssueStateTransition(t *testing.T) {
 }
 
 func TestResolveIssueRemovesFromActive(t *testing.T) {
-	h := newTestStore(t, newTestRegistry("t"))
-	require.NoError(t, h.ReportIssue(storedef.IssueReport{IssueID: "t:id", IssueType: "t"}))
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
 	h.ResolveIssue("t:id")
 
@@ -257,14 +212,14 @@ func TestResolveIssueRemovesFromActive(t *testing.T) {
 }
 
 func TestResolveIssueUnknownIDIsNoop(t *testing.T) {
-	h := newTestStore(t, newTestRegistry())
+	h := newTestStore(t)
 	h.ResolveIssue("nonexistent") // must not panic or error
 }
 
 func TestResolveAllIssues(t *testing.T) {
-	h := newTestStore(t, newTestRegistry("t"))
-	require.NoError(t, h.ReportIssue(storedef.IssueReport{IssueID: "t:1", IssueType: "t"}))
-	require.NoError(t, h.ReportIssue(storedef.IssueReport{IssueID: "t:2", IssueType: "t"}))
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:1", IssueName: "t"}))
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:2", IssueName: "t"}))
 
 	h.ResolveAllIssues()
 
@@ -277,13 +232,13 @@ func TestResolveAllIssues(t *testing.T) {
 }
 
 func TestGetIssueNilForUnknown(t *testing.T) {
-	h := newTestStore(t, newTestRegistry())
+	h := newTestStore(t)
 	assert.Nil(t, h.GetIssue("does-not-exist"))
 }
 
 func TestGetAllIssuesDeepCopy(t *testing.T) {
-	h := newTestStore(t, newTestRegistry("t"))
-	require.NoError(t, h.ReportIssue(storedef.IssueReport{IssueID: "t:id", IssueType: "t"}))
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t", Source: "orig"}))
 
 	_, issues := h.GetAllIssues()
 	got := issues["t:id"]
@@ -296,10 +251,10 @@ func TestGetAllIssuesDeepCopy(t *testing.T) {
 }
 
 func TestMultiInstanceSameType(t *testing.T) {
-	h := newTestStore(t, newTestRegistry("db-error"))
+	h := newTestStore(t)
 
-	require.NoError(t, h.ReportIssue(storedef.IssueReport{IssueID: "db-error:prod-1", IssueType: "db-error"}))
-	require.NoError(t, h.ReportIssue(storedef.IssueReport{IssueID: "db-error:prod-2", IssueType: "db-error"}))
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "db-error:prod-1", IssueName: "db-error"}))
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "db-error:prod-2", IssueName: "db-error"}))
 
 	count, issues := h.GetAllIssues()
 	assert.Equal(t, 2, count)
@@ -308,10 +263,10 @@ func TestMultiInstanceSameType(t *testing.T) {
 }
 
 func TestMultiTypeSameSource(t *testing.T) {
-	h := newTestStore(t, newTestRegistry("type-a", "type-b"))
+	h := newTestStore(t)
 
-	require.NoError(t, h.ReportIssue(storedef.IssueReport{IssueID: "a:id", IssueType: "type-a", Source: "mysrc"}))
-	require.NoError(t, h.ReportIssue(storedef.IssueReport{IssueID: "b:id", IssueType: "type-b", Source: "mysrc"}))
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "a:id", IssueName: "type-a", Source: "mysrc"}))
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "b:id", IssueName: "type-b", Source: "mysrc"}))
 
 	count, _ := h.GetAllIssues()
 	assert.Equal(t, 2, count)
@@ -322,17 +277,20 @@ func TestPersistenceRoundTrip(t *testing.T) {
 	path := filepath.Join(dir, "issues.json")
 	logger := logmock.New(t)
 
-	h1 := newTestStore(t, newTestRegistry("t"))
+	h1 := newTestStore(t)
 	h1.persistence = newDiskPersistence(path, logger)
-	require.NoError(t, h1.ReportIssue(storedef.IssueReport{IssueID: "t:id", IssueType: "t"}))
+	require.NoError(t, h1.ReportIssue(&healthplatformpayload.Issue{
+		Id: "t:id", IssueName: "t", Title: "Test Issue", Source: "test-src",
+	}))
 
-	h2 := newTestStore(t, newTestRegistry("t"))
+	h2 := newTestStore(t)
 	h2.persistence = newDiskPersistence(path, logger)
 	require.NoError(t, h2.loadFromDisk())
 
 	issue := h2.GetIssue("t:id")
 	require.NotNil(t, issue, "issue must survive persistence round-trip")
 	assert.Equal(t, "t:id", issue.Id)
+	assert.Equal(t, "Test Issue", issue.Title)
 }
 
 func TestPersistenceVersionMismatch(t *testing.T) {
@@ -355,7 +313,7 @@ func TestPersistenceVersionMismatch(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(path, data, 0644))
 
-	h := newTestStore(t, newTestRegistry("t"))
+	h := newTestStore(t)
 	h.persistence = newDiskPersistence(path, logmock.New(t))
 	require.NoError(t, h.loadFromDisk())
 
@@ -366,8 +324,8 @@ func TestPersistenceVersionMismatch(t *testing.T) {
 }
 
 func TestResolvedTTLPruning(t *testing.T) {
-	h := newTestStore(t, newTestRegistry("t"))
-	require.NoError(t, h.ReportIssue(storedef.IssueReport{IssueID: "t:id", IssueType: "t"}))
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
 	// Back-date the resolved-at timestamp so it's older than the TTL.
 	h.persistedIssues["t:id"].State = IssueStateResolved
@@ -383,9 +341,9 @@ func TestResolvedTTLPruning(t *testing.T) {
 }
 
 func TestGetIssuesHTTPEndpoint(t *testing.T) {
-	h := newTestStore(t, newTestRegistry("t"))
-	require.NoError(t, h.ReportIssue(storedef.IssueReport{IssueID: "t:1", IssueType: "t"}))
-	require.NoError(t, h.ReportIssue(storedef.IssueReport{IssueID: "t:2", IssueType: "t"}))
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:1", IssueName: "t"}))
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:2", IssueName: "t"}))
 
 	req := httptest.NewRequest(http.MethodGet, "/health-platform/issues", nil)
 	rec := httptest.NewRecorder()
@@ -405,7 +363,7 @@ func TestGetIssuesHTTPEndpoint(t *testing.T) {
 }
 
 func TestFillFlareSkipsWhenEmpty(t *testing.T) {
-	h := newTestStore(t, newTestRegistry())
+	h := newTestStore(t)
 	fb := newMockFlareBuilder()
 	require.NoError(t, h.fillFlare(context.Background(), fb))
 	_, written := fb.get("health-platform-issues.json")
@@ -413,8 +371,8 @@ func TestFillFlareSkipsWhenEmpty(t *testing.T) {
 }
 
 func TestFillFlareWritesWhenNonEmpty(t *testing.T) {
-	h := newTestStore(t, newTestRegistry("t"))
-	require.NoError(t, h.ReportIssue(storedef.IssueReport{IssueID: "t:id", IssueType: "t"}))
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
 	fb := newMockFlareBuilder()
 	require.NoError(t, h.fillFlare(context.Background(), fb))
@@ -425,15 +383,29 @@ func TestFillFlareWritesWhenNonEmpty(t *testing.T) {
 }
 
 func TestTelemetryCounterIncrements(t *testing.T) {
-	h := newTestStore(t, newTestRegistry("t"))
-	require.NoError(t, h.ReportIssue(storedef.IssueReport{IssueID: "t:id", IssueType: "t"}))
-	assert.Equal(t, 1.0, h.metrics.issuesCounter.WithValues("t").Get())
+	tel := telemetrymock.New(t)
+	counter := tel.NewCounter("health_platform", "issues_detected", []string{"issue_type"}, "")
+	h := &healthPlatformImpl{
+		log:              logmock.New(t),
+		telemetry:        tel,
+		hostnameProvider: &mockHostname{name: "test-host"},
+		agentFlavor:      "agent",
+		issues:           make(map[string]*healthplatformpayload.Issue),
+		issuesByType:     make(map[string]map[string]struct{}),
+		persistedIssues:  make(map[string]*PersistedIssue),
+		persistence:      &memPersistence{},
+		metrics:          telemetryMetrics{issuesCounter: counter},
+	}
+
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
+
+	assert.Equal(t, 1.0, counter.WithValues("t").Get())
 }
 
 func TestGetActiveIssueIDsByIssueType(t *testing.T) {
-	h := newTestStore(t, newTestRegistry("t"))
-	require.NoError(t, h.ReportIssue(storedef.IssueReport{IssueID: "t:1", IssueType: "t"}))
-	require.NoError(t, h.ReportIssue(storedef.IssueReport{IssueID: "t:2", IssueType: "t"}))
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:1", IssueName: "t"}))
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:2", IssueName: "t"}))
 
 	ids := h.GetActiveIssueIDsByIssueType("t")
 	assert.ElementsMatch(t, []string{"t:1", "t:2"}, ids)

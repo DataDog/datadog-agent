@@ -41,7 +41,7 @@ func NewComponent() Provides {
 	}
 }
 
-func (n *noopHealthPlatform) ReportIssue(_ healthplatformdef.IssueReport) error {
+func (n *noopHealthPlatform) ReportIssue(_ *healthplatformpayload.Issue) error {
 	return nil
 }
 

@@ -10,12 +10,14 @@ import (
 	"maps"
 	"sync"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -457,17 +459,22 @@ func (cm *reconcilingConfigManager) reportTemplateResolutionFailure(tpl integrat
 		return
 	}
 	issueID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
-	report := healthplatformdef.IssueReport{
-		IssueID:   issueID,
-		IssueType: healthplatformdef.ADMisconfigurationIssueType,
-		Source:    healthplatformdef.ADMisconfigurationSource,
-		Context: map[string]string{
-			"entityName":   tpl.Name + " (" + svc.GetServiceID() + ")",
-			"errorMessage": err.Error(),
-			"errorSource":  string(types.TemplateResolutionSource),
-		},
+	context := map[string]string{
+		"entityName":   tpl.Name + " (" + svc.GetServiceID() + ")",
+		"errorMessage": err.Error(),
+		"errorSource":  string(types.TemplateResolutionSource),
 	}
-	if reportErr := cm.healthPlatform.ReportIssue(report); reportErr != nil {
+	issue, buildErr := admisconfig.NewADMisconfigurationIssue().BuildIssue(context)
+	if buildErr != nil {
+		issue = &healthplatformpayload.Issue{
+			Id:        issueID,
+			IssueName: healthplatformdef.ADMisconfigurationIssueType,
+			Source:    healthplatformdef.ADMisconfigurationSource,
+		}
+	} else {
+		issue.Id = issueID
+	}
+	if reportErr := cm.healthPlatform.ReportIssue(issue); reportErr != nil {
 		log.Debugf("Failed to report template resolution issue: %v", reportErr)
 	}
 }
