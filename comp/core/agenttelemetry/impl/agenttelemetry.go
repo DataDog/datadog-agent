@@ -195,9 +195,9 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 		return nil
 	}
 
-	// Special case when no aggregate tags are defined - aggregate all metrics
+	// Special case when no preserve tags are defined - aggregate all metrics
 	// aggregateMetric will sum all metrics into a single one without copying tags
-	if !mCfg.aggregateTagsExists {
+	if !mCfg.preserveTagsExists {
 		ma := &dto.Metric{}
 		for _, m := range ms {
 			aggregateMetric(mt, ma, m)
@@ -230,7 +230,7 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 			var specTags = make([]*dto.LabelPair, 0, len(origTags))
 			var sb strings.Builder
 			for _, t := range tags {
-				if _, ok := mCfg.aggregateTagsMap[t.GetName()]; ok {
+				if _, ok := mCfg.preserveTagsMap[t.GetName()]; ok {
 					specTags = append(specTags, t)
 					sb.WriteString(makeLabelPairKey(t))
 				}
@@ -393,8 +393,8 @@ func isMetricFiltered(p *Profile, mCfg *MetricConfig, mt dto.MetricType, m *dto.
 		return false
 	}
 
-	// filter out if tag does not contain in existing aggregateTags
-	if mCfg.aggregateTagsExists && !areTagsMatching(m.GetLabel(), mCfg.aggregateTagsMap) {
+	// filter out if tag does not contain in existing preserveTags
+	if mCfg.preserveTagsExists && !areTagsMatching(m.GetLabel(), mCfg.preserveTagsMap) {
 		return false
 	}
 

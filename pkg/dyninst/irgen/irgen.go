@@ -253,8 +253,18 @@ func generateIR(
 		additionalTypeSet[name] = struct{}{}
 	}
 	specialAdditionalTypeSet := make(map[string]struct{})
-	addDDTraceGoContextTypes(specialAdditionalTypeSet)
+	addDDTraceSpanTypeNames(specialAdditionalTypeSet)
+	specialAdditionalTypeSet["context.Context"] = struct{}{}
 	specialAdditionalTypeOffsets := make(map[string]dwarf.Offset, len(specialAdditionalTypeSet))
+
+	// Context.Context's gotype TypeID, captured while iterating gotypes
+	// below, is used after the method index is built to dynamically
+	// enumerate every context.Context implementation in the binary via
+	// the implementor iterator.
+	var contextInterfaceMethods []gotype.IMethod
+	// DWARF offsets of every concrete context.Context implementation
+	// discovered dynamically via the implementor iterator.
+	var contextImplDwarfOffsets []dwarf.Offset
 
 	var additionalTypeRoots []explorationRoot
 	var methodBuf []gotype.Method
@@ -311,6 +321,17 @@ func generateIR(
 				specialAdditionalTypeOffsets[matchName] = dwarfOffset
 			}
 		}
+		if contextInterfaceMethods == nil && name == "context.Context" {
+			if iface, ok := goType.Interface(); ok {
+				ms, err := iface.Methods(nil)
+				if err != nil {
+					return nil, fmt.Errorf(
+						"failed to get methods for context.Context: %w", err,
+					)
+				}
+				contextInterfaceMethods = ms
+			}
+		}
 		if len(additionalTypeSet) > 0 {
 			if _, requested := additionalTypeSet[name]; requested {
 				if dwarfOffset, ok := typeIndex.resolveDwarfOffset(tid); ok {
@@ -350,6 +371,22 @@ func generateIR(
 		return nil, fmt.Errorf("failed to build method index: %w", err)
 	}
 	defer cleanupCloser(methodIndex, "method index")()
+
+	// Discover every concrete context.Context implementation in the binary
+	// by enumerating types that satisfy context.Context's method set via
+	// the method index. This replaces hardcoding the set of known
+	// implementations and lets custom user types participate in
+	// context-chain decoding.
+	if len(contextInterfaceMethods) > 0 {
+		ii := makeImplementorIterator(methodIndex)
+		for ii.seek(contextInterfaceMethods); ii.valid(); ii.next() {
+			dwarfOffset, ok := typeIndex.resolveDwarfOffset(ii.cur())
+			if !ok {
+				continue
+			}
+			contextImplDwarfOffsets = append(contextImplDwarfOffsets, dwarfOffset)
+		}
+	}
 
 	// Collect line information about subprograms. It's important for
 	// performance to batch analysis of each compilation unit, and do it in
@@ -444,16 +481,37 @@ func generateIR(
 			needsGoContextSupport = true
 		}
 	}
+	// IR type IDs of every concrete context.Context implementation pulled
+	// into the type catalog. Passed to annotateSpecialGoTypes so it knows
+	// which structures to wrap as GoContextImplementationType.
+	contextImplIRTypeIDs := make(map[ir.TypeID]struct{})
 	if needsGoContextSupport {
-		// Pull every dd-trace-go support type and the context.Context
-		// interface itself into the catalog now, so that the unified
-		// expansion below has them as roots. context.Context gets budget
-		// 2 (enough to dereference the interface to its impl pointer and
-		// then dereference that pointer to the impl struct, materializing
-		// the struct as a real StructureType rather than a placeholder).
-		// All other special types get budget 1 — they're either directly
-		// captured or reached via valueCtx's value field at runtime.
-		for _, name := range ddTraceGoContextTypes {
+		// Pull the context.Context interface itself into the catalog now,
+		// so that the unified expansion below has it as a root.
+		// context.Context gets budget 2 (enough to dereference the
+		// interface to its impl pointer and then dereference that pointer
+		// to the impl struct, materializing the struct as a real
+		// StructureType rather than a placeholder).
+		if dwarfOffset, ok := specialAdditionalTypeOffsets["context.Context"]; ok {
+			t, addErr := typeCatalog.addType(dwarfOffset)
+			if addErr != nil {
+				log.Debugf(
+					"failed to add context.Context at offset %#x: %v",
+					dwarfOffset, addErr,
+				)
+			} else {
+				additionalTypeRoots = append(additionalTypeRoots, explorationRoot{
+					typeID: t.GetID(),
+					budget: 2,
+				})
+			}
+		}
+		// Pull every dd-trace-go span type into the catalog. These are
+		// not discovered as context.Context implementations (they need
+		// DDTraceSpan annotation rather than GoContext annotation) but
+		// the chain walk still needs them present so it can attach
+		// trace-correlation layout.
+		for _, name := range ddTraceSpanTypeNames {
 			dwarfOffset, ok := specialAdditionalTypeOffsets[name]
 			if !ok {
 				continue
@@ -461,18 +519,56 @@ func generateIR(
 			t, addErr := typeCatalog.addType(dwarfOffset)
 			if addErr != nil {
 				log.Debugf(
-					"failed to add context support type %q at offset %#x: %v",
+					"failed to add dd-trace-go support type %q at offset %#x: %v",
 					name, dwarfOffset, addErr,
 				)
 				continue
 			}
-			budget := uint32(1)
-			if name == "context.Context" {
-				budget = 2
+			additionalTypeRoots = append(additionalTypeRoots, explorationRoot{
+				typeID: t.GetID(),
+				budget: 1,
+			})
+		}
+		// Pull every dynamically discovered context.Context implementation
+		// into the catalog. The iterator returns both value-form impls
+		// (e.g. emptyCtx) and pointer-form impls (e.g. *cancelCtx); the
+		// latter is what shows up when the methods have pointer
+		// receivers. In both cases what we want as a budget-1 root is
+		// the impl *struct*, so that the struct's fields are explored at
+		// budget 1 and any interface-typed fields (e.g. cancelCtx.err
+		// error, cancelCtx.children map[canceler]struct{}) fire
+		// processInterface to pull in their implementors. For pointer
+		// forms, root the pointee struct directly rather than the
+		// pointer — equivalent to giving the pointer budget 2, but
+		// states the intent.
+		for _, dwarfOffset := range contextImplDwarfOffsets {
+			t, addErr := typeCatalog.addType(dwarfOffset)
+			if addErr != nil {
+				log.Debugf(
+					"failed to add context impl at offset %#x: %v",
+					dwarfOffset, addErr,
+				)
+				continue
+			}
+			if ptr, ok := t.(*ir.PointerType); ok {
+				if placeholder, ok := ptr.Pointee.(*pointeePlaceholderType); ok {
+					pointee, addErr := typeCatalog.addType(placeholder.offset)
+					if addErr != nil {
+						log.Debugf(
+							"failed to add pointee for context impl at offset %#x: %v",
+							placeholder.offset, addErr,
+						)
+						continue
+					}
+					ptr.Pointee = pointee
+					t = pointee
+				} else {
+					t = ptr.Pointee
+				}
 			}
 			additionalTypeRoots = append(additionalTypeRoots, explorationRoot{
 				typeID: t.GetID(),
-				budget: budget,
+				budget: 1,
 			})
 		}
 	}
@@ -511,7 +607,29 @@ func generateIR(
 	if err := finalizeTypes(typeCatalog, materializedSubprograms); err != nil {
 		return nil, err
 	}
-	annotateSpecialGoTypes(typeCatalog, needsGoContextSupport)
+	// Resolve each dynamically discovered context.Context implementation
+	// to an IR struct type ID. We do this after expansion so that
+	// pointer-form impls (e.g. *cancelCtx) have had their pointee struct
+	// materialized — at the moment addType was called above, the pointee
+	// was still a placeholder.
+	for _, dwarfOffset := range contextImplDwarfOffsets {
+		id, ok := typeCatalog.typesByDwarfType[dwarfOffset]
+		if !ok {
+			continue
+		}
+		t := typeCatalog.typesByID[id]
+		switch tt := t.(type) {
+		case *ir.StructureType:
+			contextImplIRTypeIDs[tt.ID] = struct{}{}
+		case *ir.PointerType:
+			if tt.Pointee != nil && !isPlaceholderIRType(tt.Pointee) {
+				if _, isStruct := tt.Pointee.(*ir.StructureType); isStruct {
+					contextImplIRTypeIDs[tt.Pointee.GetID()] = struct{}{}
+				}
+			}
+		}
+	}
+	annotateSpecialGoTypes(typeCatalog, needsGoContextSupport, contextImplIRTypeIDs)
 
 	// Populate event root expressions for every probe.
 	probes, eventIssues := populateProbeEventsExpressions(
