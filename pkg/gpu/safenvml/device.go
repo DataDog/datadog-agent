@@ -78,6 +78,14 @@ type SafeDevice interface {
 	GetNumFans() (int, error)
 	// GetPcieThroughput returns the PCIe throughput in bytes/sec
 	GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32, error)
+	// GetCurrPcieLinkGeneration returns the current PCIe generation
+	GetCurrPcieLinkGeneration() (int, error)
+	// GetMaxPcieLinkGeneration returns the max PCIe generation
+	GetMaxPcieLinkGeneration() (int, error)
+	// GetCurrPcieLinkWidth returns the current PCIe link width
+	GetCurrPcieLinkWidth() (int, error)
+	// GetMaxPcieLinkWidth returns the max PCIe link width
+	GetMaxPcieLinkWidth() (int, error)
 	// GetPerformanceState returns the current performance state
 	GetPerformanceState() (nvml.Pstates, error)
 	// GetPowerManagementLimit returns the power management limit in milliwatts

@@ -2,6 +2,41 @@
 Release Notes
 =============
 
+.. _Release Notes_7.78.4:
+
+7.78.4
+======
+
+.. _Release Notes_7.78.4_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-05-14
+
+- Please refer to the `7.78.4 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7784>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.78.4_Security Notes:
+
+Security Notes
+--------------
+
+- Upgrade ``github.com/moby/spdystream`` to ``0.5.1`` to address
+  `CVE-2026-35469 <https://nvd.nist.gov/vuln/detail/CVE-2026-35469>`_.
+  In versions 0.5.0 and below, the SPDY/3 frame parser does not validate
+  attacker-controlled counts and lengths before allocating memory.
+  Three allocation paths are affected: the SETTINGS frame entry count,
+  the header count in parseHeaderValueBlock, and individual header field
+  sizes — all read as 32-bit integers and used directly as allocation sizes
+  with no bounds checking. Because SPDY header blocks are zlib-compressed,
+  a small on-the-wire payload can decompress into large attacker-controlled
+  values. A remote peer that can send SPDY frames to a service using
+  spdystream can exhaust process memory and cause an out-of-memory crash
+  with a single crafted control frame.
+  This issue has been fixed in version 0.5.1.
+
+
 .. _Release Notes_7.78.3:
 
 7.78.3

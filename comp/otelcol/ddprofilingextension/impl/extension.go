@@ -35,6 +35,7 @@ type ddExtension struct {
 	traceAgent traceagent.Component
 	server     *http.Server
 	log        corelog.Component
+	agentMode  bool
 }
 
 // NewExtension creates a new instance of the extension.
@@ -44,14 +45,18 @@ func NewExtension(cfg *Config, info component.BuildInfo, traceAgent traceagent.C
 		info:       info,
 		traceAgent: traceAgent,
 		log:        log,
+		agentMode:  traceAgent != nil,
 	}, nil
 }
 
 func (e *ddExtension) Start(_ context.Context, host component.Host) error {
-	return e.startForOTelAgent(host)
+	if e.agentMode {
+		return e.startForAgent(host)
+	}
+	return e.startForStandalone()
 }
 
-func (e *ddExtension) startForOTelAgent(host component.Host) error {
+func (e *ddExtension) startForAgent(host component.Host) error {
 	// start server that handles profiles
 	err := e.newServer()
 	if err != nil {
@@ -67,6 +72,14 @@ func (e *ddExtension) startForOTelAgent(host component.Host) error {
 	return profiler.Start(
 		profilerOptions...,
 	)
+}
+
+func (e *ddExtension) startForStandalone() error {
+	profilerOptions := e.buildProfilerOptions()
+	if e.cfg.AgentAddr != "" {
+		profilerOptions = append(profilerOptions, profiler.WithAgentAddr(e.cfg.AgentAddr))
+	}
+	return profiler.Start(profilerOptions...)
 }
 
 func (e *ddExtension) buildProfilerOptions() []profiler.Option {
@@ -115,5 +128,10 @@ func (e *ddExtension) buildProfilerOptions() []profiler.Option {
 
 func (e *ddExtension) Shutdown(ctx context.Context) error {
 	profiler.Stop()
+	if e.server == nil {
+		// Standalone mode sends directly to an external trace-agent and does not
+		// start the local forwarding server used in bundled mode.
+		return nil
+	}
 	return e.server.Shutdown(ctx)
 }

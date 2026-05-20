@@ -170,6 +170,7 @@ func (e extraFactoriesWithoutAgentCore) GetAgentConfig() config.Component {
 // GetExtensions returns the extensions for the collector.
 func (e extraFactoriesWithoutAgentCore) GetExtensions() []extension.Factory {
 	return []extension.Factory{
+		ddprofilingextensionimpl.NewFactory(),
 		healthcheckextension.NewFactory(),
 	}
 }

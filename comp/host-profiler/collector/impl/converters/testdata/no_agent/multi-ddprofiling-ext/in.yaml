@@ -1,0 +1,23 @@
+service:
+  pipelines:
+    profiles:
+      receivers: [profiling]
+      processors: []
+      exporters: [otlphttp]
+  extensions:
+    - ddprofiling
+    - ddprofiling/custom
+
+extensions:
+  ddprofiling: {}
+  ddprofiling/custom: {}
+
+receivers:
+  profiling:
+    symbol_uploader:
+      enabled: false
+
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: test-key

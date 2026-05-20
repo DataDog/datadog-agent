@@ -6,7 +6,6 @@ service:
       exporters: [otlphttp]
   extensions:
     - ddprofiling
-    - ddprofiling/custom
     - hpflare
     - hpflare/prod
     - custom
@@ -15,8 +14,6 @@ service:
 extensions:
   ddprofiling:
     config: value
-  ddprofiling/custom:
-    config: custom
   hpflare:
     config: value
   hpflare/prod:
