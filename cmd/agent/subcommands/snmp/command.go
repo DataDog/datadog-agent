@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"strconv"
@@ -279,6 +280,9 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, flags scanFlags
 	deviceAddr := args[0]
 	if len(args) > 1 {
 		return confErrf("unexpected extra arguments; only one argument expected.")
+	}
+	if flags.bulkMaxRep < 0 || uint64(flags.bulkMaxRep) > math.MaxUint32 {
+		return confErrf("--bulk-max-rep must be between 1 and %d (0 = default)", uint32(math.MaxUint32))
 	}
 	// Parse port from IP address
 	connParams.IPAddress, connParams.Port, _ = maybeSplitIP(deviceAddr)
