@@ -8,7 +8,6 @@ package providers
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,12 +67,7 @@ func ReadSecretFile(path string) secrets.SecretVal {
 		return secrets.SecretVal{Value: "", ErrorMsg: "secret exceeds max allowed size"}
 	}
 
-	file, err := os.Open(path)
-	if err != nil {
-		return secrets.SecretVal{Value: "", ErrorMsg: err.Error()}
-	}
-
-	bytes, err := io.ReadAll(file)
+	bytes, err := os.ReadFile(path)
 	if err != nil {
 		return secrets.SecretVal{Value: "", ErrorMsg: err.Error()}
 	}

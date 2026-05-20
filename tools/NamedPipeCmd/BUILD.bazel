@@ -4,6 +4,7 @@ go_library(
     name = "NamedPipeCmd_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/tools/NamedPipeCmd",
+    target_compatible_with = ["@platforms//os:windows"],  # keep
     visibility = ["//visibility:private"],
     deps = select({
         "@rules_go//go/platform:windows": [
@@ -16,6 +17,6 @@ go_library(
 go_binary(
     name = "NamedPipeCmd",
     embed = [":NamedPipeCmd_lib"],
-    target_compatible_with = ["@platforms//os:windows"],
+    target_compatible_with = ["@platforms//os:windows"],  # keep
     visibility = ["//visibility:public"],
 )
