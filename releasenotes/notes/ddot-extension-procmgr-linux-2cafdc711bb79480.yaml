@@ -10,7 +10,9 @@ enhancements:
     * Set ``DD_PROCMGR_DDOT_ENABLED`` to a non-enabling value (for example ``0`` or ``false``) in the environment seen by the Agent and installer, **or**
     * Remove ``/etc/datadog-agent/.procmgr-ddot-enabled`` when your deployment will not recreate it.
 
-    With the DDOT gate closed, the installer stops syncing DDOT into ``processes.d`` under ``dd-procmgrd`` and you can run the extension from the **datadog-agent-ddot** systemd unit again, as on earlier versions.
+    Closing the DDOT gate stops the installer from writing DDOT YAML on the **next** install or upgrade hook. It does **not** remove an existing ``processes.d`` file by itself.
+
+    On a host that already has extension DDOT under procmgr, also **delete** ``datadog-agent-ddot.yaml`` from ``processes.d`` (deb/rpm: ``/opt/datadog-agent/processes.d/``; fleet OCI: ``/opt/datadog-packages/datadog-agent/stable/processes.d/``, and ``.../experiment/processes.d/`` when that tree is not the same directory as stable).
 
     **Disable host-wide process-manager integration** (broader than DDOT)
 
@@ -18,4 +20,4 @@ enhancements:
 
     Prefer tightening **DDOT** only unless you intend to turn off process-manager usage for all supervised processes on the host.
 
-    **After you change markers or environment variables**, restart the main Agent service so the host applies the update—for example, on systemd: ``systemctl restart datadog-agent``. If you are returning to systemd-managed DDOT for the extension, start or enable ``datadog-agent-ddot`` as you did before the process-manager path.
+    **After you change markers or environment variables**, restart ``datadog-agent-procmgr`` (or ``datadog-agent``, which pulls it in via systemd dependencies), then start or enable ``datadog-agent-ddot`` if you are returning to systemd-managed DDOT for the extension. Alternatively, run an agent or extension install/upgrade so installer hooks remove the YAML and resync procmgr for you.
