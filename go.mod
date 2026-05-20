@@ -284,7 +284,7 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/netsampler/goflow2 v1.3.8-0.20260412031118-ad727784ae6f
 	github.com/oliveagle/jsonpath v0.1.4
-	github.com/open-policy-agent/opa v1.16.1
+	github.com/open-policy-agent/opa v1.16.2
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.152.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
@@ -329,7 +329,7 @@ require (
 	github.com/uptrace/bun v1.2.18
 	github.com/uptrace/bun/dialect/pgdialect v1.2.18
 	github.com/uptrace/bun/driver/pgdriver v1.2.18
-	github.com/urfave/negroni v1.0.0
+	github.com/urfave/negroni/v3 v3.1.1
 	github.com/valyala/fastjson v1.6.10 // indirect
 	github.com/vibrantbyte/go-antpath v1.1.1
 	github.com/vishvananda/netlink v1.3.1
