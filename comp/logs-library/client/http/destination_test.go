@@ -969,6 +969,30 @@ func TestClassifyConnectivityError(t *testing.T) {
 			expected: "http_status",
 		},
 		{
+			// This is the boot-time 5xx / 403-refresh path: unconditionalSend wraps
+			// errServer in a RetryableError. Before adding Unwrap() to RetryableError
+			// the classifier missed this and returned "other".
+			name:     "http_status for errServer wrapped in RetryableError",
+			err:      client.NewRetryableError(errServer),
+			expected: "http_status",
+		},
+		{
+			name:     "http_status for errClient wrapped in RetryableError",
+			err:      client.NewRetryableError(errClient),
+			expected: "http_status",
+		},
+		{
+			// url.Error wrapped in RetryableError — relies on errors.As traversal,
+			// which now works because RetryableError implements Unwrap.
+			name: "dns for url.Error wrapped in RetryableError",
+			err: client.NewRetryableError(&url.Error{
+				Op:  "Post",
+				URL: "https://example.com",
+				Err: &net.DNSError{Err: "no such host", Name: "example.com", IsNotFound: true},
+			}),
+			expected: "dns",
+		},
+		{
 			name:     "other for unknown error",
 			err:      errors.New("something went wrong"),
 			expected: "other",

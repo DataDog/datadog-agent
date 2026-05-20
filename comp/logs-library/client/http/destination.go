@@ -536,30 +536,29 @@ func completeCheckConnectivity(ctx *client.DestinationsContext, destination *Des
 // These values are designed to be stable over time so that dashboards and monitors that
 // filter on failure_cause=<X> remain valid across agent upgrades.
 //
-// Note: *client.RetryableError does not implement Unwrap(), so errors.As cannot traverse
-// through it. For errors wrapped in RetryableError we fall back to message-string heuristics,
-// which still reliably classifies the common failure modes (dns/tls/timeout/connection).
+// *client.RetryableError implements Unwrap, so errors.Is and errors.As can traverse it.
+// This lets us correctly classify wrapped HTTP-status sentinels (errServer/errClient)
+// and wrapped *url.Error chains without falling back to fragile message-string matching.
 func classifyConnectivityError(err error) string {
 	if err == nil {
 		return ""
 	}
 
-	// HTTP status errors (errClient / errServer) are not wrapped in a url.Error.
-	// They are the sentinel package-level vars defined in this file and take priority.
-	if err == errClient || err == errServer {
+	// HTTP status errors (errClient / errServer) — match both the direct sentinel
+	// and the wrapped form produced by client.NewRetryableError(errServer) on 5xx
+	// responses and the secret-backed 403 refresh path.
+	if errors.Is(err, errClient) || errors.Is(err, errServer) {
 		return "http_status"
 	}
 
-	// Attempt to classify via *url.Error. This works when the error IS a *url.Error directly
-	// (not wrapped in RetryableError), which covers non-connectivity-check send paths.
+	// Attempt to classify via *url.Error. errors.As traverses RetryableError now,
+	// so this catches both the direct url.Error case and the wrapped one.
 	if cause := classifyURLError(err); cause != "other" {
 		return cause
 	}
 
-	// Fall back to message-string heuristics. This covers the common boot-time path
-	// where unconditionalSend wraps the *url.Error from http.Client.Do inside a
-	// RetryableError (which has no Unwrap method). The error message still contains
-	// the inner error text, so heuristic matching is reliable.
+	// Fall back to message-string heuristics for any error type we don't recognise
+	// structurally (defensive — shouldn't fire on common paths now that Unwrap exists).
 	return classifyErrorMessage(err.Error())
 }
 
