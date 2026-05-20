@@ -206,37 +206,30 @@ func (olr *OverlappedReader) SynchronousDeviceIoControl(ioControlCode uint32, in
 	var inlineBytes uint32
 	err = windows.DeviceIoControl(olr.h, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, &inlineBytes, &ol)
 
-	switch {
-	case err == nil:
-		// Inline success.
-		if gerr := windows.GetOverlappedResult(olr.h, &ol, &bytesReturned, false); gerr != nil {
-			return inlineBytes, gerr
-		}
-		return bytesReturned, nil
-
-	case errors.Is(err, windows.ERROR_IO_PENDING):
-		// Async: wait on the raw (untagged) event ourselves, then collect.
-		// The bit-tagged OVERLAPPED.HEvent isn't the raw wait handle; do the
-		// wait explicitly rather than rely on a Win32 wait API masking the
-		// IOCP-suppression bit.
-		status, werr := windows.WaitForSingleObject(ev, windows.INFINITE)
-		if werr != nil {
-			return 0, werr
-		}
-		if status != windows.WAIT_OBJECT_0 {
-			return 0, fmt.Errorf("SynchronousDeviceIoControl: unexpected wait status %#x", status)
-		}
-		if gerr := windows.GetOverlappedResult(olr.h, &ol, &bytesReturned, false); gerr != nil {
-			return bytesReturned, gerr
-		}
-		return bytesReturned, nil
-
-	default:
-		// Inline error (e.g., ERROR_MORE_DATA with partial data). The IRP
-		// completed inline so inlineBytes is the byte count Windows wrote;
-		// propagate it with the original error.
+	// Per MSDN, when lpOverlapped is non-NULL the lpBytesReturned value is
+	// "meaningless until the overlapped operation has completed". On any
+	// inline return from DeviceIoControl (success or non-pending error) the
+	// IRP IS complete, so inlineBytes is meaningful. Only ERROR_IO_PENDING
+	// requires deferring to GetOverlappedResult.
+	if !errors.Is(err, windows.ERROR_IO_PENDING) {
 		return inlineBytes, err
 	}
+
+	// Async: wait on the raw (untagged) event ourselves, then collect via
+	// GetOverlappedResult. The bit-tagged OVERLAPPED.HEvent isn't the raw
+	// wait handle; do the wait explicitly rather than rely on a Win32 wait
+	// API masking the IOCP-suppression bit.
+	status, werr := windows.WaitForSingleObject(ev, windows.INFINITE)
+	if werr != nil {
+		return 0, werr
+	}
+	if status != windows.WAIT_OBJECT_0 {
+		return 0, fmt.Errorf("SynchronousDeviceIoControl: unexpected wait status %#x", status)
+	}
+	if gerr := windows.GetOverlappedResult(olr.h, &ol, &bytesReturned, false); gerr != nil {
+		return bytesReturned, gerr
+	}
+	return bytesReturned, nil
 }
 
 func (olr *OverlappedReader) initiateReads() error {

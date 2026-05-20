@@ -267,36 +267,28 @@ func (dh *RealDriverHandle) SynchronousDeviceIoControl(ioControlCode uint32, inB
 	var inlineBytes uint32
 	err = windows.DeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, &inlineBytes, &ol)
 
-	switch {
-	case err == nil:
-		// Inline success: IRP completed before DeviceIoControl returned.
-		// Prefer GetOverlappedResult's count; fall back to inlineBytes.
-		if gerr := windows.GetOverlappedResult(dh.Handle, &ol, &bytesReturned, false); gerr != nil {
-			return inlineBytes, gerr
-		}
-		return bytesReturned, nil
-
-	case errors.Is(err, windows.ERROR_IO_PENDING):
-		// Async: IRP queued. Wait on the raw (untagged) event ourselves, then
-		// collect the final status and byte count.
-		status, werr := windows.WaitForSingleObject(ev, windows.INFINITE)
-		if werr != nil {
-			return 0, werr
-		}
-		if status != windows.WAIT_OBJECT_0 {
-			return 0, fmt.Errorf("SynchronousDeviceIoControl: unexpected wait status %#x", status)
-		}
-		if gerr := windows.GetOverlappedResult(dh.Handle, &ol, &bytesReturned, false); gerr != nil {
-			return bytesReturned, gerr
-		}
-		return bytesReturned, nil
-
-	default:
-		// Inline error (e.g., ERROR_MORE_DATA with partial data). The IRP
-		// completed inline so inlineBytes contains the byte count Windows
-		// wrote; propagate it with the original error.
+	// Per MSDN, when lpOverlapped is non-NULL the lpBytesReturned value is
+	// "meaningless until the overlapped operation has completed". On any
+	// inline return from DeviceIoControl (success or non-pending error) the
+	// IRP IS complete, so inlineBytes is meaningful. Only ERROR_IO_PENDING
+	// requires deferring to GetOverlappedResult.
+	if !errors.Is(err, windows.ERROR_IO_PENDING) {
 		return inlineBytes, err
 	}
+
+	// Async: IRP queued. Wait on the raw (untagged) event ourselves, then
+	// collect the final status and byte count via GetOverlappedResult.
+	status, werr := windows.WaitForSingleObject(ev, windows.INFINITE)
+	if werr != nil {
+		return 0, werr
+	}
+	if status != windows.WAIT_OBJECT_0 {
+		return 0, fmt.Errorf("SynchronousDeviceIoControl: unexpected wait status %#x", status)
+	}
+	if gerr := windows.GetOverlappedResult(dh.Handle, &ol, &bytesReturned, false); gerr != nil {
+		return bytesReturned, gerr
+	}
+	return bytesReturned, nil
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
