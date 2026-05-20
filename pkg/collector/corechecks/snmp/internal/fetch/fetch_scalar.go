@@ -39,7 +39,10 @@ func fetchScalarOidsWithBatching(sess session.Session, oids []string, batchSizeO
 		if err != nil {
 			var fetchErr *fetchError
 			if errors.As(err, &fetchErr) {
+				oldBatchSize := batchSizeOptimizer.BatchSize()
 				shouldRetry := batchSizeOptimizer.OnFailure()
+				log.Debugf("SNMP fetch using %s with batch size %d failed, new batch size is %d",
+					snmpGet, oldBatchSize, batchSizeOptimizer.BatchSize())
 				if shouldRetry {
 					return fetchScalarOidsWithBatching(sess, oids, batchSizeOptimizer)
 				}
@@ -50,7 +53,12 @@ func fetchScalarOidsWithBatching(sess session.Session, oids []string, batchSizeO
 		maps.Copy(retValues, results)
 	}
 
+	oldBatchSize := batchSizeOptimizer.BatchSize()
 	batchSizeOptimizer.OnSuccess()
+	if newBatchSize := batchSizeOptimizer.BatchSize(); newBatchSize != oldBatchSize {
+		log.Debugf("SNMP fetch using %s with batch size %d success, new batch size is %d",
+			snmpGet, oldBatchSize, newBatchSize)
+	}
 
 	return retValues, nil
 }

@@ -32,12 +32,20 @@ func fetchColumnOidsWithBatching(sess session.Session, oids []string, batchSizeO
 		return nil, fmt.Errorf("failed to create column oid batches: %s", err)
 	}
 
+	op := snmpGetBulk
+	if fetchStrategy == useGetNext {
+		op = snmpGetNext
+	}
+
 	for _, batchColumnOids := range batches {
 		results, err := fetchColumnOids(sess, batchColumnOids, bulkMaxRepetitions, fetchStrategy)
 		if err != nil {
 			var fetchErr *fetchError
 			if errors.As(err, &fetchErr) {
+				oldBatchSize := batchSizeOptimizer.BatchSize()
 				shouldRetry := batchSizeOptimizer.OnFailure()
+				log.Debugf("SNMP fetch using %s with batch size %d failed, new batch size is %d",
+					op, oldBatchSize, batchSizeOptimizer.BatchSize())
 				if shouldRetry {
 					return fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, bulkMaxRepetitions, fetchStrategy)
 				}
@@ -55,7 +63,12 @@ func fetchColumnOidsWithBatching(sess session.Session, oids []string, batchSizeO
 		}
 	}
 
+	oldBatchSize := batchSizeOptimizer.BatchSize()
 	batchSizeOptimizer.OnSuccess()
+	if newBatchSize := batchSizeOptimizer.BatchSize(); newBatchSize != oldBatchSize {
+		log.Debugf("SNMP fetch using %s with batch size %d success, new batch size is %d",
+			op, oldBatchSize, newBatchSize)
+	}
 
 	return retValues, nil
 }

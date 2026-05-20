@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/batchsize"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/gosnmp/gosnmp"
 )
@@ -324,13 +325,21 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, callInterval time.
 		maxRep := uint32(maxRepOpt.BatchSize())
 		response, err := snmp.GetBulk([]string{oid}, 0, maxRep)
 		if err != nil {
-			if maxRepOpt.OnFailure() {
+			shouldRetry := maxRepOpt.OnFailure()
+			log.Debugf("SNMP scan GetBulk at OID %s with max-rep %d failed, new max-rep is %d",
+				oid, maxRep, maxRepOpt.BatchSize())
+			if shouldRetry {
 				// Retry against the same OID at a smaller max-repetitions.
 				continue
 			}
 			return result, fmt.Errorf("GetBulk error at OID %s (max-rep=%d): %w", oid, maxRep, err)
 		}
+		oldMaxRep := maxRepOpt.BatchSize()
 		maxRepOpt.OnSuccess()
+		if newMaxRep := maxRepOpt.BatchSize(); newMaxRep != oldMaxRep {
+			log.Debugf("SNMP scan GetBulk at OID %s with max-rep %d success, new max-rep is %d",
+				oid, oldMaxRep, newMaxRep)
+		}
 
 		if len(response.Variables) == 0 {
 			// No more data
