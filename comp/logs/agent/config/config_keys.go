@@ -59,7 +59,7 @@ func (l *LogsConfigKeys) getConfigKey(key string) string {
 }
 
 func isSetAndNotEmpty(config pkgconfigmodel.Reader, key string) bool {
-	return config.IsSet(key) && len(config.GetString(key)) > 0
+	return config.IsConfigured(key) && len(config.GetString(key)) > 0
 }
 
 func (l *LogsConfigKeys) isSetAndNotEmpty(key string) bool {

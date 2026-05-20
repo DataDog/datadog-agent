@@ -36,10 +36,14 @@ func newADSourceManager(logSources *sources.LogSources, services *service.Servic
 }
 
 // AddSource implements schedulers.SourceManager.
-// For container-runtime sources with an identifier, it adds to LogSources first
-// so the AD source is always active before suppression evicts any generic source.
-// This eliminates the TOCTOU window where neither source would be active.
+// Agent container sources are dropped so AD/CCA cannot bypass the internal log
+// tap gate. Other container-runtime sources are added to LogSources before
+// suppression evicts any generic source, eliminating the TOCTOU window where
+// neither source would be active.
 func (m *adSourceManager) AddSource(src *sources.LogSource) {
+	if isContainerSource(src) && m.sp.isAgentContainerID(src.Config.Identifier) {
+		return
+	}
 	m.logSources.AddSource(src)
 	if isContainerSource(src) {
 		m.sp.suppressIdentifier(src.Config.Identifier)
