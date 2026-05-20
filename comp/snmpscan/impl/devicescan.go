@@ -14,8 +14,10 @@ import (
 
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/snmp/batchsize"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/gosnmp/gosnmp"
 )
@@ -62,8 +64,12 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(ctx context.Context, connParams *
 				snmp.LocalAddr, snmp.Port, errors.Join(errs...)),
 		)
 	}
+	bulkMaxRep := scanParams.BulkMaxRepetitions
+	if bulkMaxRep <= 0 {
+		bulkMaxRep = defaultBulkMaxRepetitions
+	}
 	err = s.runDeviceScan(ctx, snmp, namespace, deviceID,
-		scanParams.CallInterval, scanParams.MaxCallCount)
+		scanParams.CallInterval, scanParams.MaxCallCount, bulkMaxRep)
 	if err != nil {
 		errs := []error{err}
 
@@ -109,16 +115,17 @@ func (s snmpScannerImpl) runDeviceScan(
 	deviceID string,
 	callInterval time.Duration,
 	maxCallCount int,
+	bulkMaxRep int,
 ) error {
 	if comparisonModeEnabled {
-		return s.runDeviceScanComparison(ctx, snmpConnection, callInterval, maxCallCount)
+		return s.runDeviceScanComparison(ctx, snmpConnection, callInterval, maxCallCount, bulkMaxRep)
 	}
 
 	// Execute the scan using GetBulk-based walk.
 	// This approach never sends fabricated OIDs to devices, which:
 	// - Prevents infinite loops on devices that respond incorrectly to non-existent OIDs
 	// - Prevents crashes on devices that can't handle malformed table indices
-	pdus, err := gatherPDUsWithBulk(ctx, snmpConnection, callInterval, maxCallCount)
+	pdus, err := gatherPDUsWithBulk(ctx, snmpConnection, callInterval, maxCallCount, bulkMaxRep)
 	if err != nil {
 		return err
 	}
@@ -159,6 +166,7 @@ func (s snmpScannerImpl) runDeviceScanComparison(
 	snmpConnection *gosnmp.GoSNMP,
 	callInterval time.Duration,
 	maxCallCount int,
+	bulkMaxRep int,
 ) error {
 	fmt.Println("\n" + strings.Repeat("=", 60))
 	fmt.Println("SCAN COMPARISON MODE (testing only - no data sent)")
@@ -169,7 +177,7 @@ func (s snmpScannerImpl) runDeviceScanComparison(
 	// Run GetBulk-based scan FIRST (safer - won't crash devices)
 	fmt.Println("\n[1/2] Running GetBulk-based scan (new, safe approach)...")
 	bulkStart := time.Now()
-	bulkPDUs, bulkErr := gatherPDUsWithBulk(ctx, snmpConnection, callInterval, maxCallCount)
+	bulkPDUs, bulkErr := gatherPDUsWithBulk(ctx, snmpConnection, callInterval, maxCallCount, bulkMaxRep)
 	bulkDuration := time.Since(bulkStart)
 
 	bulkResult := scanResult{
@@ -263,7 +271,15 @@ func gatherPDUs(ctx context.Context, snmp *gosnmp.GoSNMP, callInterval time.Dura
 	return pdus, nil
 }
 
-const defaultBulkBatchSize = 50
+// defaultBulkMaxRepetitions is the starting max-repetitions value for GetBulk
+// during a device scan. Matches net-snmp's `snmpbulkwalk -Cr` default.
+const defaultBulkMaxRepetitions = 10
+
+// bulkGetter is the GetBulk surface gatherPDUsWithBulk needs. Wrapping it in an
+// interface lets tests substitute a fake without depending on a live gosnmp.
+type bulkGetter interface {
+	GetBulk(oids []string, nonRepeaters uint8, maxRepetitions uint32) (*gosnmp.SnmpPacket, error)
+}
 
 // gatherPDUsWithBulk returns PDUs from the given SNMP device using GetBulk operations.
 // It walks the entire MIB tree but filters results to keep only one row per column.
@@ -273,9 +289,13 @@ const defaultBulkBatchSize = 50
 //   - Cannot cause infinite loops - tracks visited OIDs
 //   - Cannot crash devices - never sends malformed table indices
 //
+// Adaptive max-repetitions: on GetBulk error the value is halved and the same
+// OID is retried, so a device that times out at a high value can still be
+// walked. On success the value grows back toward bulkMaxRep.
+//
 // Trade-off: May be slower than gatherPDUs for devices with large tables (1000+ rows)
 // because it retrieves all rows before filtering.
-func gatherPDUsWithBulk(ctx context.Context, snmp *gosnmp.GoSNMP, callInterval time.Duration, maxCallCount int) ([]*gosnmp.SnmpPDU, error) {
+func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, callInterval time.Duration, maxCallCount int, bulkMaxRep int) ([]*gosnmp.SnmpPDU, error) {
 	var result []*gosnmp.SnmpPDU
 	seenColumns := make(map[string]bool)
 	visitedOIDs := make(map[string]bool)
@@ -283,7 +303,7 @@ func gatherPDUsWithBulk(ctx context.Context, snmp *gosnmp.GoSNMP, callInterval t
 	// Start from the beginning of the MIB tree
 	oid := ".0.0"
 	requests := 0
-	batchSize := uint32(defaultBulkBatchSize)
+	maxRepOpt := batchsize.NewOptimizer(bulkMaxRep)
 
 	for {
 		select {
@@ -302,9 +322,23 @@ func gatherPDUsWithBulk(ctx context.Context, snmp *gosnmp.GoSNMP, callInterval t
 		}
 
 		// Use GetBulk with REAL OIDs only (never fabricated)
-		response, err := snmp.GetBulk([]string{oid}, 0, batchSize)
+		maxRep := uint32(maxRepOpt.BatchSize())
+		response, err := snmp.GetBulk([]string{oid}, 0, maxRep)
 		if err != nil {
-			return result, fmt.Errorf("GetBulk error at OID %s: %w", oid, err)
+			shouldRetry := maxRepOpt.OnFailure()
+			log.Debugf("SNMP scan GetBulk at OID %s with max-rep %d failed, new max-rep is %d",
+				oid, maxRep, maxRepOpt.BatchSize())
+			if shouldRetry {
+				// Retry against the same OID at a smaller max-repetitions.
+				continue
+			}
+			return result, fmt.Errorf("GetBulk error at OID %s (max-rep=%d): %w", oid, maxRep, err)
+		}
+		oldMaxRep := maxRepOpt.BatchSize()
+		maxRepOpt.OnSuccess()
+		if newMaxRep := maxRepOpt.BatchSize(); newMaxRep != oldMaxRep {
+			log.Debugf("SNMP scan GetBulk at OID %s with max-rep %d success, new max-rep is %d",
+				oid, oldMaxRep, newMaxRep)
 		}
 
 		if len(response.Variables) == 0 {

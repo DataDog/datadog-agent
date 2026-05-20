@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+	"github.com/DataDog/datadog-agent/pkg/snmp/batchsize"
 )
 
 func Test_fetchColumnOids(t *testing.T) {
@@ -91,7 +92,7 @@ func Test_fetchColumnOids(t *testing.T) {
 
 	oids := []string{"1.1.1", "1.1.2"}
 
-	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGetBulk, 100)
+	batchSizeOptimizer := batchsize.NewOptimizer(100)
 
 	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
 	assert.Nil(t, err)
@@ -184,7 +185,7 @@ func Test_fetchColumnOidsBatch_usingGetBulk(t *testing.T) {
 
 	oids := []string{"1.1.1", "1.1.2"}
 
-	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGetBulk, 2)
+	batchSizeOptimizer := batchsize.NewOptimizer(2)
 
 	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, 10, useGetBulk)
 	assert.Nil(t, err)
@@ -343,7 +344,7 @@ func Test_fetchColumnOidsBatch_truncatedResponse_reducesBatchSize(t *testing.T) 
 	sess.On("GetBulk", []string{"1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&singlePacket2, nil)
 
 	oids := []string{"1.1.1", "1.1.2"}
-	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGetBulk, 2)
+	batchSizeOptimizer := batchsize.NewOptimizer(2)
 
 	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
 	require.NoError(t, err)
@@ -357,7 +358,7 @@ func Test_fetchColumnOidsBatch_truncatedResponse_reducesBatchSize(t *testing.T) 
 		},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
-	assert.Equal(t, 1, batchSizeOptimizer.lastSuccessfulBatchSize)
+	assert.Equal(t, 1, batchSizeOptimizer.LastSuccessfulBatchSize())
 }
 
 func Test_fetchColumnOidsBatch_truncatedResponseAtBatchSizeOne_returnsError(t *testing.T) {
@@ -372,13 +373,13 @@ func Test_fetchColumnOidsBatch_truncatedResponseAtBatchSizeOne_returnsError(t *t
 	sess.On("GetBulk", []string{"1.1.1"}, checkconfig.DefaultBulkMaxRepetitions).Return(&truncatedPacket, nil)
 
 	oids := []string{"1.1.1"}
-	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGetBulk, 1)
+	batchSizeOptimizer := batchsize.NewOptimizer(1)
 
 	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "response truncated")
 	assert.Nil(t, columnValues)
-	assert.Equal(t, 1, batchSizeOptimizer.batchSize)
+	assert.Equal(t, 1, batchSizeOptimizer.BatchSize())
 	sess.AssertNumberOfCalls(t, "GetBulk", 1)
 }
 
@@ -537,7 +538,7 @@ func Test_fetchOidBatchSize(t *testing.T) {
 
 	oids := []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0", "1.1.1.5.0", "1.1.1.6.0"}
 
-	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGet, 2)
+	batchSizeOptimizer := batchsize.NewOptimizer(2)
 
 	columnValues, err := fetchScalarOidsWithBatching(sess, oids, batchSizeOptimizer)
 	assert.Nil(t, err)
@@ -622,7 +623,7 @@ func Test_fetchOidBatchSize_v1NoSuchName(t *testing.T) {
 	oids := []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0", "1.1.1.5.0", "1.1.1.6.0"}
 	origOids := slices.Clone(oids)
 
-	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGet, 2)
+	batchSizeOptimizer := batchsize.NewOptimizer(2)
 
 	columnValues, err := fetchScalarOidsWithBatching(sess, oids, batchSizeOptimizer)
 	assert.Nil(t, err)
@@ -642,7 +643,7 @@ func Test_fetchOidBatchSize_zeroSizeError(t *testing.T) {
 	sess := session.CreateMockSession()
 
 	oids := []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0", "1.1.1.5.0", "1.1.1.6.0"}
-	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGet, 0)
+	batchSizeOptimizer := batchsize.NewOptimizer(0)
 	columnValues, err := fetchScalarOidsWithBatching(sess, oids, batchSizeOptimizer)
 
 	assert.EqualError(t, err, "failed to create oid batches: batch size must be positive. invalid size: 0")
@@ -656,7 +657,7 @@ func Test_fetchOidBatchSize_fetchError(t *testing.T) {
 	sess.On("Get", []string{"1.1.1.1.0"}).Return(&gosnmp.SnmpPacket{}, errors.New("my error"))
 
 	oids := []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0", "1.1.1.5.0", "1.1.1.6.0"}
-	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGet, 2)
+	batchSizeOptimizer := batchsize.NewOptimizer(2)
 	columnValues, err := fetchScalarOidsWithBatching(sess, oids, batchSizeOptimizer)
 
 	assert.EqualError(t, err, "failed to fetch scalar oids: fetch scalar: failed getting oids `[1.1.1.1.0]` using Get: my error")
@@ -1045,7 +1046,7 @@ func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 
 	oids := []string{"1.1.1", "1.1.2"}
 
-	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGetBulk, 100)
+	batchSizeOptimizer := batchsize.NewOptimizer(100)
 
 	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
 	assert.Nil(t, err)
@@ -1079,6 +1080,16 @@ func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 
 func Test_batchSizeOptimizers(t *testing.T) {
 	now := time.Now()
+
+	// Mirror of the batchsize package's internal tuning constants. Kept here
+	// so the table-driven cases below read symbolically rather than as bare
+	// numerics. If batchsize changes its policy, these tests will fail and
+	// need updating in lockstep.
+	const (
+		maxFailuresPerWindow    = 2
+		onFailureDecreaseFactor = 2
+		onSuccessIncreaseValue  = 1
+	)
 
 	scalarVariable1 := gosnmp.SnmpPDU{Name: "1.1.1.1.0", Type: gosnmp.Gauge32, Value: 10}
 	scalarVariable2 := gosnmp.SnmpPDU{Name: "1.1.1.2.0", Type: gosnmp.Gauge32, Value: 20}
@@ -1120,14 +1131,8 @@ func Test_batchSizeOptimizers(t *testing.T) {
 			scalarOids: []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0"},
 			columnOids: []string{},
 			batchSizeOptimizers: &OidBatchSizeOptimizers{
-				snmpGetOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGet,
-					configBatchSize:         4,
-					batchSize:               3,
-					failuresByBatchSize:     map[int]int{4: maxFailuresPerWindow},
-					lastSuccessfulBatchSize: 2,
-				},
-				lastRefreshTs: now,
+				snmpGetOptimizer: batchsize.NewOptimizerForTest(4, 3, map[int]int{4: maxFailuresPerWindow}, 2),
+				lastRefreshTs:    now,
 			},
 			expectedValues: &valuestore.ResultValueStore{
 				ScalarValues: valuestore.ScalarResultValuesType{
@@ -1140,14 +1145,8 @@ func Test_batchSizeOptimizers(t *testing.T) {
 			},
 			expectedError: nil,
 			expectedBatchSizeOptimizers: &OidBatchSizeOptimizers{
-				snmpGetOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGet,
-					configBatchSize:         4,
-					batchSize:               3,
-					failuresByBatchSize:     map[int]int{4: maxFailuresPerWindow},
-					lastSuccessfulBatchSize: 3,
-				},
-				lastRefreshTs: now,
+				snmpGetOptimizer: batchsize.NewOptimizerForTest(4, 3, map[int]int{4: maxFailuresPerWindow}, 3),
+				lastRefreshTs:    now,
 			},
 		},
 		{
@@ -1187,28 +1186,10 @@ func Test_batchSizeOptimizers(t *testing.T) {
 			scalarOids: []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0"},
 			columnOids: []string{"1.1.1", "1.1.2", "1.1.3", "1.1.4"},
 			batchSizeOptimizers: &OidBatchSizeOptimizers{
-				snmpGetOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGet,
-					configBatchSize:         4,
-					batchSize:               4,
-					failuresByBatchSize:     map[int]int{},
-					lastSuccessfulBatchSize: 0,
-				},
-				snmpGetBulkOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGetBulk,
-					configBatchSize:         4,
-					batchSize:               4,
-					failuresByBatchSize:     map[int]int{},
-					lastSuccessfulBatchSize: 0,
-				},
-				snmpGetNextOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGetNext,
-					configBatchSize:         4,
-					batchSize:               4,
-					failuresByBatchSize:     map[int]int{},
-					lastSuccessfulBatchSize: 0,
-				},
-				lastRefreshTs: now,
+				snmpGetOptimizer:     batchsize.NewOptimizerForTest(4, 4, map[int]int{}, 0),
+				snmpGetBulkOptimizer: batchsize.NewOptimizerForTest(4, 4, map[int]int{}, 0),
+				snmpGetNextOptimizer: batchsize.NewOptimizerForTest(4, 4, map[int]int{}, 0),
+				lastRefreshTs:        now,
 			},
 			expectedValues: &valuestore.ResultValueStore{
 				ScalarValues: valuestore.ScalarResultValuesType{
@@ -1234,28 +1215,10 @@ func Test_batchSizeOptimizers(t *testing.T) {
 			},
 			expectedError: nil,
 			expectedBatchSizeOptimizers: &OidBatchSizeOptimizers{
-				snmpGetOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGet,
-					configBatchSize:         4,
-					batchSize:               4/onFailureDecreaseFactor + onSuccessIncreaseValue,
-					failuresByBatchSize:     map[int]int{4: 1},
-					lastSuccessfulBatchSize: 2,
-				},
-				snmpGetBulkOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGetBulk,
-					configBatchSize:         4,
-					batchSize:               4/onFailureDecreaseFactor + onSuccessIncreaseValue,
-					failuresByBatchSize:     map[int]int{4: 1},
-					lastSuccessfulBatchSize: 2,
-				},
-				snmpGetNextOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGetNext,
-					configBatchSize:         4,
-					batchSize:               4,
-					failuresByBatchSize:     map[int]int{},
-					lastSuccessfulBatchSize: 0,
-				},
-				lastRefreshTs: now,
+				snmpGetOptimizer:     batchsize.NewOptimizerForTest(4, 4/onFailureDecreaseFactor+onSuccessIncreaseValue, map[int]int{4: 1}, 2),
+				snmpGetBulkOptimizer: batchsize.NewOptimizerForTest(4, 4/onFailureDecreaseFactor+onSuccessIncreaseValue, map[int]int{4: 1}, 2),
+				snmpGetNextOptimizer: batchsize.NewOptimizerForTest(4, 4, map[int]int{}, 0),
+				lastRefreshTs:        now,
 			},
 		},
 		{
@@ -1279,14 +1242,8 @@ func Test_batchSizeOptimizers(t *testing.T) {
 			scalarOids: []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0"},
 			columnOids: []string{},
 			batchSizeOptimizers: &OidBatchSizeOptimizers{
-				snmpGetOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGet,
-					configBatchSize:         4,
-					batchSize:               4,
-					failuresByBatchSize:     map[int]int{},
-					lastSuccessfulBatchSize: 3,
-				},
-				lastRefreshTs: now,
+				snmpGetOptimizer: batchsize.NewOptimizerForTest(4, 4, map[int]int{}, 3),
+				lastRefreshTs:    now,
 			},
 			expectedValues: &valuestore.ResultValueStore{
 				ScalarValues: valuestore.ScalarResultValuesType{
@@ -1299,14 +1256,8 @@ func Test_batchSizeOptimizers(t *testing.T) {
 			},
 			expectedError: nil,
 			expectedBatchSizeOptimizers: &OidBatchSizeOptimizers{
-				snmpGetOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGet,
-					configBatchSize:         4,
-					batchSize:               4,
-					failuresByBatchSize:     map[int]int{4: 1},
-					lastSuccessfulBatchSize: 3,
-				},
-				lastRefreshTs: now,
+				snmpGetOptimizer: batchsize.NewOptimizerForTest(4, 4, map[int]int{4: 1}, 3),
+				lastRefreshTs:    now,
 			},
 		},
 		{
@@ -1338,14 +1289,8 @@ func Test_batchSizeOptimizers(t *testing.T) {
 			scalarOids: []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0"},
 			columnOids: []string{},
 			batchSizeOptimizers: &OidBatchSizeOptimizers{
-				snmpGetOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGet,
-					configBatchSize:         4,
-					batchSize:               2,
-					failuresByBatchSize:     map[int]int{},
-					lastSuccessfulBatchSize: 3,
-				},
-				lastRefreshTs: now,
+				snmpGetOptimizer: batchsize.NewOptimizerForTest(4, 2, map[int]int{}, 3),
+				lastRefreshTs:    now,
 			},
 			expectedValues: &valuestore.ResultValueStore{
 				ScalarValues: valuestore.ScalarResultValuesType{
@@ -1358,14 +1303,8 @@ func Test_batchSizeOptimizers(t *testing.T) {
 			},
 			expectedError: nil,
 			expectedBatchSizeOptimizers: &OidBatchSizeOptimizers{
-				snmpGetOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGet,
-					configBatchSize:         4,
-					batchSize:               2,
-					failuresByBatchSize:     map[int]int{2: 1},
-					lastSuccessfulBatchSize: 1,
-				},
-				lastRefreshTs: now,
+				snmpGetOptimizer: batchsize.NewOptimizerForTest(4, 2, map[int]int{2: 1}, 1),
+				lastRefreshTs:    now,
 			},
 		},
 		{
@@ -1391,28 +1330,10 @@ func Test_batchSizeOptimizers(t *testing.T) {
 			scalarOids: []string{},
 			columnOids: []string{"1.1.1", "1.1.2", "1.1.3", "1.1.4"},
 			batchSizeOptimizers: &OidBatchSizeOptimizers{
-				snmpGetOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGet,
-					configBatchSize:         4,
-					batchSize:               4,
-					failuresByBatchSize:     map[int]int{},
-					lastSuccessfulBatchSize: 4,
-				},
-				snmpGetBulkOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGetBulk,
-					configBatchSize:         4,
-					batchSize:               3,
-					failuresByBatchSize:     map[int]int{4: 1},
-					lastSuccessfulBatchSize: 2,
-				},
-				snmpGetNextOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGetNext,
-					configBatchSize:         4,
-					batchSize:               4,
-					failuresByBatchSize:     map[int]int{},
-					lastSuccessfulBatchSize: 0,
-				},
-				lastRefreshTs: now,
+				snmpGetOptimizer:     batchsize.NewOptimizerForTest(4, 4, map[int]int{}, 4),
+				snmpGetBulkOptimizer: batchsize.NewOptimizerForTest(4, 3, map[int]int{4: 1}, 2),
+				snmpGetNextOptimizer: batchsize.NewOptimizerForTest(4, 4, map[int]int{}, 0),
+				lastRefreshTs:        now,
 			},
 			expectedValues: &valuestore.ResultValueStore{
 				ScalarValues: valuestore.ScalarResultValuesType{},
@@ -1433,28 +1354,10 @@ func Test_batchSizeOptimizers(t *testing.T) {
 			},
 			expectedError: nil,
 			expectedBatchSizeOptimizers: &OidBatchSizeOptimizers{
-				snmpGetOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGet,
-					configBatchSize:         4,
-					batchSize:               4,
-					failuresByBatchSize:     map[int]int{},
-					lastSuccessfulBatchSize: 4,
-				},
-				snmpGetBulkOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGetBulk,
-					configBatchSize:         4,
-					batchSize:               1,
-					failuresByBatchSize:     map[int]int{4: 1, 3: 1, 2: 1, 1: 1},
-					lastSuccessfulBatchSize: 2,
-				},
-				snmpGetNextOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGetNext,
-					configBatchSize:         4,
-					batchSize:               4,
-					failuresByBatchSize:     map[int]int{},
-					lastSuccessfulBatchSize: 4,
-				},
-				lastRefreshTs: now,
+				snmpGetOptimizer:     batchsize.NewOptimizerForTest(4, 4, map[int]int{}, 4),
+				snmpGetBulkOptimizer: batchsize.NewOptimizerForTest(4, 1, map[int]int{4: 1, 3: 1, 2: 1, 1: 1}, 2),
+				snmpGetNextOptimizer: batchsize.NewOptimizerForTest(4, 4, map[int]int{}, 4),
+				lastRefreshTs:        now,
 			},
 		},
 		{
@@ -1481,54 +1384,18 @@ func Test_batchSizeOptimizers(t *testing.T) {
 			scalarOids: []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0"},
 			columnOids: []string{"1.1.1", "1.1.2", "1.1.3", "1.1.4"},
 			batchSizeOptimizers: &OidBatchSizeOptimizers{
-				snmpGetOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGet,
-					configBatchSize:         4,
-					batchSize:               4,
-					failuresByBatchSize:     map[int]int{},
-					lastSuccessfulBatchSize: 4,
-				},
-				snmpGetBulkOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGetBulk,
-					configBatchSize:         4,
-					batchSize:               4,
-					failuresByBatchSize:     map[int]int{},
-					lastSuccessfulBatchSize: 0,
-				},
-				snmpGetNextOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGetNext,
-					configBatchSize:         4,
-					batchSize:               4,
-					failuresByBatchSize:     map[int]int{},
-					lastSuccessfulBatchSize: 0,
-				},
-				lastRefreshTs: now,
+				snmpGetOptimizer:     batchsize.NewOptimizerForTest(4, 4, map[int]int{}, 4),
+				snmpGetBulkOptimizer: batchsize.NewOptimizerForTest(4, 4, map[int]int{}, 0),
+				snmpGetNextOptimizer: batchsize.NewOptimizerForTest(4, 4, map[int]int{}, 0),
+				lastRefreshTs:        now,
 			},
 			expectedValues: nil,
 			expectedError:  errors.New("failed to fetch oids with GetNext batching: failed to fetch column oids: fetch column: failed getting oids `[1.1.1]` using GetNext: next error"),
 			expectedBatchSizeOptimizers: &OidBatchSizeOptimizers{
-				snmpGetOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGet,
-					configBatchSize:         4,
-					batchSize:               4,
-					failuresByBatchSize:     map[int]int{},
-					lastSuccessfulBatchSize: 4,
-				},
-				snmpGetBulkOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGetBulk,
-					configBatchSize:         4,
-					batchSize:               1,
-					failuresByBatchSize:     map[int]int{4: 1, 2: 1, 1: 1},
-					lastSuccessfulBatchSize: 0,
-				},
-				snmpGetNextOptimizer: &oidBatchSizeOptimizer{
-					snmpOperation:           snmpGetNext,
-					configBatchSize:         4,
-					batchSize:               1,
-					failuresByBatchSize:     map[int]int{4: 1, 2: 1, 1: 1},
-					lastSuccessfulBatchSize: 0,
-				},
-				lastRefreshTs: now,
+				snmpGetOptimizer:     batchsize.NewOptimizerForTest(4, 4, map[int]int{}, 4),
+				snmpGetBulkOptimizer: batchsize.NewOptimizerForTest(4, 1, map[int]int{4: 1, 2: 1, 1: 1}, 0),
+				snmpGetNextOptimizer: batchsize.NewOptimizerForTest(4, 1, map[int]int{4: 1, 2: 1, 1: 1}, 0),
+				lastRefreshTs:        now,
 			},
 		},
 	}
@@ -1566,25 +1433,10 @@ func Test_batchSizeOptimizers_notFetchErrors(t *testing.T) {
 	assert.EqualError(t, err, "failed to fetch scalar oids: invalid ErrorIndex `200` when fetching oids `[1.1.1.1.0]`")
 	assert.Nil(t, scalarValues)
 	assert.Equal(t, &OidBatchSizeOptimizers{
-		snmpGetOptimizer: &oidBatchSizeOptimizer{
-			snmpOperation:       snmpGet,
-			configBatchSize:     2,
-			batchSize:           2,
-			failuresByBatchSize: map[int]int{},
-		},
-		snmpGetBulkOptimizer: &oidBatchSizeOptimizer{
-			snmpOperation:       snmpGetBulk,
-			configBatchSize:     2,
-			batchSize:           2,
-			failuresByBatchSize: map[int]int{},
-		},
-		snmpGetNextOptimizer: &oidBatchSizeOptimizer{
-			snmpOperation:       snmpGetNext,
-			configBatchSize:     2,
-			batchSize:           2,
-			failuresByBatchSize: map[int]int{},
-		},
-		lastRefreshTs: lastRefreshTs,
+		snmpGetOptimizer:     batchsize.NewOptimizerForTest(2, 2, map[int]int{}, 0),
+		snmpGetBulkOptimizer: batchsize.NewOptimizerForTest(2, 2, map[int]int{}, 0),
+		snmpGetNextOptimizer: batchsize.NewOptimizerForTest(2, 2, map[int]int{}, 0),
+		lastRefreshTs:        lastRefreshTs,
 	}, batchSizeOptimizers)
 
 	columnValues, err := fetchColumnOidsWithBatching(sess, []string{"1.1.1"}, batchSizeOptimizers.snmpGetBulkOptimizer,
@@ -1592,25 +1444,10 @@ func Test_batchSizeOptimizers_notFetchErrors(t *testing.T) {
 	assert.EqualError(t, err, "failed to fetch column oids: GetBulk not supported in SNMP v1")
 	assert.Nil(t, columnValues)
 	assert.Equal(t, &OidBatchSizeOptimizers{
-		snmpGetOptimizer: &oidBatchSizeOptimizer{
-			snmpOperation:       snmpGet,
-			configBatchSize:     2,
-			batchSize:           2,
-			failuresByBatchSize: map[int]int{},
-		},
-		snmpGetBulkOptimizer: &oidBatchSizeOptimizer{
-			snmpOperation:       snmpGetBulk,
-			configBatchSize:     2,
-			batchSize:           2,
-			failuresByBatchSize: map[int]int{},
-		},
-		snmpGetNextOptimizer: &oidBatchSizeOptimizer{
-			snmpOperation:       snmpGetNext,
-			configBatchSize:     2,
-			batchSize:           2,
-			failuresByBatchSize: map[int]int{},
-		},
-		lastRefreshTs: lastRefreshTs,
+		snmpGetOptimizer:     batchsize.NewOptimizerForTest(2, 2, map[int]int{}, 0),
+		snmpGetBulkOptimizer: batchsize.NewOptimizerForTest(2, 2, map[int]int{}, 0),
+		snmpGetNextOptimizer: batchsize.NewOptimizerForTest(2, 2, map[int]int{}, 0),
+		lastRefreshTs:        lastRefreshTs,
 	}, batchSizeOptimizers)
 }
 
@@ -1618,9 +1455,9 @@ func Test_batchSizeOptimizers_areRefreshed(t *testing.T) {
 	sess := session.CreateMockSession()
 
 	batchSizeOptimizers := NewOidBatchSizeOptimizers(2)
-	batchSizeOptimizers.snmpGetOptimizer.failuresByBatchSize = map[int]int{4: 2, 3: 1}
-	batchSizeOptimizers.snmpGetBulkOptimizer.failuresByBatchSize = map[int]int{4: 2, 3: 1}
-	batchSizeOptimizers.snmpGetNextOptimizer.failuresByBatchSize = map[int]int{4: 2, 3: 1}
+	batchSizeOptimizers.snmpGetOptimizer.SetFailuresByBatchSize(map[int]int{4: 2, 3: 1})
+	batchSizeOptimizers.snmpGetBulkOptimizer.SetFailuresByBatchSize(map[int]int{4: 2, 3: 1})
+	batchSizeOptimizers.snmpGetNextOptimizer.SetFailuresByBatchSize(map[int]int{4: 2, 3: 1})
 	batchSizeOptimizers.lastRefreshTs = batchSizeOptimizers.lastRefreshTs.Add(-failuresWindowDuration * 2)
 
 	oldLastRefreshTs := batchSizeOptimizers.lastRefreshTs
@@ -1632,8 +1469,8 @@ func Test_batchSizeOptimizers_areRefreshed(t *testing.T) {
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}, values)
 
-	assert.Empty(t, batchSizeOptimizers.snmpGetOptimizer.failuresByBatchSize)
-	assert.Empty(t, batchSizeOptimizers.snmpGetBulkOptimizer.failuresByBatchSize)
-	assert.Empty(t, batchSizeOptimizers.snmpGetNextOptimizer.failuresByBatchSize)
+	assert.Empty(t, batchSizeOptimizers.snmpGetOptimizer.FailuresByBatchSize())
+	assert.Empty(t, batchSizeOptimizers.snmpGetBulkOptimizer.FailuresByBatchSize())
+	assert.Empty(t, batchSizeOptimizers.snmpGetNextOptimizer.FailuresByBatchSize())
 	assert.True(t, batchSizeOptimizers.lastRefreshTs.After(oldLastRefreshTs))
 }

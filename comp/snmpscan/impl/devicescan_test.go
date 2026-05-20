@@ -9,12 +9,14 @@ package snmpscanimpl
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestExtractColumnSignatureIntegration(t *testing.T) {
@@ -80,7 +82,7 @@ func TestGatherPDUsWithBulk_ContextCancellation(t *testing.T) {
 		Version:   gosnmp.Version2c,
 	}
 
-	_, err := gatherPDUsWithBulk(ctx, snmp, 0, 0)
+	_, err := gatherPDUsWithBulk(ctx, snmp, 0, 0, defaultBulkMaxRepetitions)
 	assert.ErrorIs(t, err, context.Canceled)
 }
 
@@ -102,8 +104,85 @@ func TestGatherPDUsWithBulk_MaxCallCount(t *testing.T) {
 
 	// With maxCallCount=1, it should try one GetBulk, fail to connect,
 	// and return an error (either connection error or max count error)
-	_, err := gatherPDUsWithBulk(ctx, snmp, 0, 1)
+	_, err := gatherPDUsWithBulk(ctx, snmp, 0, 1, defaultBulkMaxRepetitions)
 	assert.Error(t, err)
+}
+
+// fakeBulkGetter is a scripted GetBulk for testing adaptive behavior.
+type fakeBulkGetter struct {
+	responses []bulkResponse
+	calls     []bulkCall
+}
+
+type bulkCall struct {
+	oid    string
+	maxRep uint32
+}
+
+type bulkResponse struct {
+	packet *gosnmp.SnmpPacket
+	err    error
+}
+
+func (f *fakeBulkGetter) GetBulk(oids []string, _ uint8, maxRep uint32) (*gosnmp.SnmpPacket, error) {
+	f.calls = append(f.calls, bulkCall{oid: oids[0], maxRep: maxRep})
+	if len(f.calls) > len(f.responses) {
+		return nil, errors.New("fakeBulkGetter: no more canned responses")
+	}
+	resp := f.responses[len(f.calls)-1]
+	return resp.packet, resp.err
+}
+
+// endOfMibPacket returns a packet that immediately ends the walk.
+func endOfMibPacket() *gosnmp.SnmpPacket {
+	return &gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{Name: ".0.0", Type: gosnmp.EndOfMibView},
+		},
+	}
+}
+
+func TestGatherPDUsWithBulk_AdaptsMaxRepOnFailure(t *testing.T) {
+	// First call at max-rep=10 times out; optimizer halves to 5; second call
+	// succeeds. Verify the OID didn't advance and the second call used a
+	// smaller max-rep.
+	fake := &fakeBulkGetter{
+		responses: []bulkResponse{
+			{err: errors.New("request timeout")},
+			{packet: endOfMibPacket()},
+		},
+	}
+
+	_, err := gatherPDUsWithBulk(context.Background(), fake, 0, 0, 10)
+	require.NoError(t, err)
+
+	require.Len(t, fake.calls, 2)
+	assert.Equal(t, ".0.0", fake.calls[0].oid)
+	assert.Equal(t, ".0.0", fake.calls[1].oid, "OID should not advance on retry")
+	assert.Equal(t, uint32(10), fake.calls[0].maxRep)
+	assert.Equal(t, uint32(5), fake.calls[1].maxRep, "max-rep should halve on failure")
+}
+
+func TestGatherPDUsWithBulk_GivesUpWhenMaxRepCannotShrink(t *testing.T) {
+	// Every call fails. The optimizer halves down to 1 and then has nowhere
+	// further to go, so OnFailure returns false and gatherPDUsWithBulk
+	// surfaces the error.
+	timeoutErr := errors.New("request timeout")
+	fake := &fakeBulkGetter{
+		responses: []bulkResponse{
+			{err: timeoutErr},
+			{err: timeoutErr},
+			{err: timeoutErr},
+			{err: timeoutErr},
+			{err: timeoutErr}, // floor at 1
+		},
+	}
+
+	_, err := gatherPDUsWithBulk(context.Background(), fake, 0, 0, 4)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "request timeout")
+	// 4 → 2 → 1 → still 1 (OnFailure returns false): 3 calls.
+	assert.GreaterOrEqual(t, len(fake.calls), 2)
 }
 
 func TestColumnFilteringLogic(t *testing.T) {

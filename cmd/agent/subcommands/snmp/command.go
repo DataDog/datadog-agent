@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"strconv"
@@ -46,6 +47,11 @@ const (
 
 // argsType is an alias so we can inject the args via fx.
 type argsType []string
+
+// scanFlags carries scan-specific CLI flag values into fx-resolved functions.
+type scanFlags struct {
+	bulkMaxRep int
+}
 
 // configErr wraps any error caused by invalid configuration.
 // If the main script returns a configErr it will print the usage string along
@@ -143,6 +149,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	logLevelDefaultOff := command.LogLevelDefaultOff{}
 
+	var bulkMaxRep int
+
 	// This command does nothing until the backend supports it, so it isn't visible yet.
 	snmpScanCmd := &cobra.Command{
 		Hidden: true,
@@ -153,7 +161,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 
 			err := fxutil.OneShot(scanDevice,
-				fx.Supply(connParams, globalParams, cmd),
+				fx.Supply(connParams, globalParams, cmd, scanFlags{bulkMaxRep: bulkMaxRep}),
 				fx.Provide(func() argsType { return args }),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
@@ -204,6 +212,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	// general communication options
 	snmpScanCmd.Flags().IntVarP(&connParams.Retries, "retries", "r", defaultRetries, "Set the number of retries")
 	snmpScanCmd.Flags().IntVarP(&connParams.Timeout, "timeout", "t", defaultTimeout, "Set the request timeout (in seconds)")
+	snmpScanCmd.Flags().IntVar(&bulkMaxRep, "bulk-max-rep", 0, "Starting max-repetitions for GetBulk during scan (0 = default 10, matching snmpbulkwalk -Cr). Halves on timeout, recovers on success.")
 
 	// This command does nothing until the backend supports it, so it isn't enabled yet.
 	snmpCmd.AddCommand(snmpScanCmd)
@@ -263,7 +272,7 @@ func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, agentParams *snmppar
 	}
 }
 
-func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, client ipc.HTTPClient) error {
+func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, flags scanFlags, snmpScanner snmpscan.Component, conf config.Component, client ipc.HTTPClient) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
@@ -271,6 +280,9 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 	deviceAddr := args[0]
 	if len(args) > 1 {
 		return confErrf("unexpected extra arguments; only one argument expected.")
+	}
+	if flags.bulkMaxRep < 0 || uint64(flags.bulkMaxRep) > math.MaxUint32 {
+		return confErrf("--bulk-max-rep must be between 1 and %d (0 = default)", uint32(math.MaxUint32))
 	}
 	// Parse port from IP address
 	connParams.IPAddress, connParams.Port, _ = maybeSplitIP(deviceAddr)
@@ -287,7 +299,8 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 	fmt.Printf("Launching scan for device: %s\n", deviceID)
 	err := snmpScanner.ScanDeviceAndSendData(context.Background(), connParams, namespace,
 		snmpscan.ScanParams{
-			ScanType: metadata.ManualScan,
+			ScanType:           metadata.ManualScan,
+			BulkMaxRepetitions: flags.bulkMaxRep,
 		})
 	if err != nil {
 		fmt.Printf("Unable to perform device scan for device %s: %v\n", deviceID, err)

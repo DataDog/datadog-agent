@@ -18,17 +18,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+	"github.com/DataDog/datadog-agent/pkg/snmp/batchsize"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func fetchScalarOidsWithBatching(sess session.Session, oids []string, batchSizeOptimizer *oidBatchSizeOptimizer) (valuestore.ScalarResultValuesType, error) {
+func fetchScalarOidsWithBatching(sess session.Session, oids []string, batchSizeOptimizer *batchsize.Optimizer) (valuestore.ScalarResultValuesType, error) {
 	retValues := make(valuestore.ScalarResultValuesType, len(oids))
 	if len(oids) == 0 {
 		return retValues, nil
 	}
 
-	batches, err := common.CreateStringBatches(oids, batchSizeOptimizer.batchSize)
+	batches, err := common.CreateStringBatches(oids, batchSizeOptimizer.BatchSize())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create oid batches: %s", err)
 	}
@@ -38,7 +39,10 @@ func fetchScalarOidsWithBatching(sess session.Session, oids []string, batchSizeO
 		if err != nil {
 			var fetchErr *fetchError
 			if errors.As(err, &fetchErr) {
-				shouldRetry := batchSizeOptimizer.onBatchSizeFailure()
+				oldBatchSize := batchSizeOptimizer.BatchSize()
+				shouldRetry := batchSizeOptimizer.OnFailure()
+				log.Debugf("SNMP fetch using %s with batch size %d failed, new batch size is %d",
+					snmpGet, oldBatchSize, batchSizeOptimizer.BatchSize())
 				if shouldRetry {
 					return fetchScalarOidsWithBatching(sess, oids, batchSizeOptimizer)
 				}
@@ -49,7 +53,12 @@ func fetchScalarOidsWithBatching(sess session.Session, oids []string, batchSizeO
 		maps.Copy(retValues, results)
 	}
 
-	batchSizeOptimizer.onBatchSizeSuccess()
+	oldBatchSize := batchSizeOptimizer.BatchSize()
+	batchSizeOptimizer.OnSuccess()
+	if newBatchSize := batchSizeOptimizer.BatchSize(); newBatchSize != oldBatchSize {
+		log.Debugf("SNMP fetch using %s with batch size %d success, new batch size is %d",
+			snmpGet, oldBatchSize, newBatchSize)
+	}
 
 	return retValues, nil
 }
