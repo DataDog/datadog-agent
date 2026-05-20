@@ -180,8 +180,8 @@ func TestNCMPayload_JSONFormat(t *testing.T) {
 		{
 			name: "omitempty fields absent when empty",
 			payload: NCMPayload{
-				Namespace:       "production",
-				Configs:         []NetworkDeviceConfig{
+				Namespace: "production",
+				Configs: []NetworkDeviceConfig{
 					{
 						DeviceID:     "default:10.0.0.1",
 						DeviceIP:     "10.0.0.1",
