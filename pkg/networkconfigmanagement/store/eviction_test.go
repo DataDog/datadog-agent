@@ -72,16 +72,20 @@ func TestBuildEvictionIndex(t *testing.T) {
 
 func TestGetGlobalLRUCandidate(t *testing.T) {
 	t.Run("returns empty string when no device exceeds K", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		cs.minConfigsPerDevice = 2
 		countMap := map[string]int{"device:10.0.0.1": 2}
 		entries := []*types.ConfigMetadata{
 			{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", LastAccessedAt: 100},
 			{ConfigUUID: "uuid-2", DeviceID: "device:10.0.0.1", LastAccessedAt: 200},
 		}
 		// K=2: device has exactly 2 configs, none are evictable
-		assert.Empty(t, getGlobalLRUCandidate(countMap, entries, 2))
+		assert.Empty(t, cs.getGlobalLRUCandidate(countMap, entries))
 	})
 
 	t.Run("returns oldest evictable config UUID", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		cs.minConfigsPerDevice = 2
 		countMap := map[string]int{"device:10.0.0.1": 3}
 		entries := []*types.ConfigMetadata{
 			{ConfigUUID: "uuid-oldest", DeviceID: "device:10.0.0.1", LastAccessedAt: 100},
@@ -89,20 +93,24 @@ func TestGetGlobalLRUCandidate(t *testing.T) {
 			{ConfigUUID: "uuid-newest", DeviceID: "device:10.0.0.1", LastAccessedAt: 300},
 		}
 		// K=2: device has 3, oldest is the LRU candidate
-		assert.Equal(t, "uuid-oldest", getGlobalLRUCandidate(countMap, entries, 2))
+		assert.Equal(t, "uuid-oldest", cs.getGlobalLRUCandidate(countMap, entries))
 	})
 
 	t.Run("skips pinned configs", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		cs.minConfigsPerDevice = 2
 		countMap := map[string]int{"device:10.0.0.1": 3}
 		entries := []*types.ConfigMetadata{
 			{ConfigUUID: "uuid-pinned", DeviceID: "device:10.0.0.1", LastAccessedAt: 100, IsPinned: true},
 			{ConfigUUID: "uuid-evictable", DeviceID: "device:10.0.0.1", LastAccessedAt: 200},
 			{ConfigUUID: "uuid-newest", DeviceID: "device:10.0.0.1", LastAccessedAt: 300},
 		}
-		assert.Equal(t, "uuid-evictable", getGlobalLRUCandidate(countMap, entries, 2))
+		assert.Equal(t, "uuid-evictable", cs.getGlobalLRUCandidate(countMap, entries))
 	})
 
 	t.Run("returns globally oldest evictable config across multiple devices", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		cs.minConfigsPerDevice = 2
 		countMap := map[string]int{
 			"device:10.0.0.1": 3,
 			"device:10.0.0.2": 3,
@@ -116,17 +124,19 @@ func TestGetGlobalLRUCandidate(t *testing.T) {
 			{ConfigUUID: "uuid-d2-new", DeviceID: "device:10.0.0.2", LastAccessedAt: 350},
 		}
 		// device:10.0.0.2's oldest (ts=50) is globally older than device:10.0.0.1's oldest (ts=100)
-		assert.Equal(t, "uuid-d2-oldest", getGlobalLRUCandidate(countMap, entries, 2))
+		assert.Equal(t, "uuid-d2-oldest", cs.getGlobalLRUCandidate(countMap, entries))
 	})
 
 	t.Run("does not mutate index", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		cs.minConfigsPerDevice = 2
 		countMap := map[string]int{"device:10.0.0.1": 3}
 		entries := []*types.ConfigMetadata{
 			{ConfigUUID: "uuid-oldest", DeviceID: "device:10.0.0.1", LastAccessedAt: 100},
 			{ConfigUUID: "uuid-middle", DeviceID: "device:10.0.0.1", LastAccessedAt: 200},
 			{ConfigUUID: "uuid-newest", DeviceID: "device:10.0.0.1", LastAccessedAt: 300},
 		}
-		getGlobalLRUCandidate(countMap, entries, 2)
+		cs.getGlobalLRUCandidate(countMap, entries)
 		assert.Equal(t, 3, countMap["device:10.0.0.1"])
 		assert.Len(t, entries, 3)
 	})
@@ -134,6 +144,8 @@ func TestGetGlobalLRUCandidate(t *testing.T) {
 
 func TestGetEvictableExceedingMax(t *testing.T) {
 	t.Run("returns empty when no device exceeds N", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		cs.maxConfigsPerDevice = 3
 		countMap := map[string]int{"device:10.0.0.1": 3}
 		entries := []*types.ConfigMetadata{
 			{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", LastAccessedAt: 100},
@@ -141,20 +153,24 @@ func TestGetEvictableExceedingMax(t *testing.T) {
 			{ConfigUUID: "uuid-3", DeviceID: "device:10.0.0.1", LastAccessedAt: 300},
 		}
 		// N=3: device has exactly 3 total, not over cap
-		assert.Empty(t, getEvictableExceedingMax(countMap, entries, 3))
+		assert.Empty(t, cs.getEvictableExceedingMax(countMap, entries))
 	})
 
 	t.Run("returns configs until device is within N", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		cs.maxConfigsPerDevice = 1
 		countMap := map[string]int{"device:10.0.0.1": 3}
 		entries := []*types.ConfigMetadata{
 			{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", LastAccessedAt: 100},
 			{ConfigUUID: "uuid-2", DeviceID: "device:10.0.0.1", LastAccessedAt: 200},
 			{ConfigUUID: "uuid-3", DeviceID: "device:10.0.0.1", LastAccessedAt: 300},
 		}
-		assert.Equal(t, []string{"uuid-1", "uuid-2"}, getEvictableExceedingMax(countMap, entries, 1))
+		assert.Equal(t, []string{"uuid-1", "uuid-2"}, cs.getEvictableExceedingMax(countMap, entries))
 	})
 
 	t.Run("returns configs until all devices are within N", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		cs.maxConfigsPerDevice = 1
 		countMap := map[string]int{"device:10.0.0.1": 3, "device:10.0.0.2": 3}
 		entries := []*types.ConfigMetadata{
 			{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", LastAccessedAt: 100},
@@ -164,17 +180,19 @@ func TestGetEvictableExceedingMax(t *testing.T) {
 			{ConfigUUID: "uuid-5", DeviceID: "device:10.0.0.2", LastAccessedAt: 500},
 			{ConfigUUID: "uuid-6", DeviceID: "device:10.0.0.2", LastAccessedAt: 600},
 		}
-		assert.Equal(t, []string{"uuid-1", "uuid-2", "uuid-4", "uuid-5"}, getEvictableExceedingMax(countMap, entries, 1))
+		assert.Equal(t, []string{"uuid-1", "uuid-2", "uuid-4", "uuid-5"}, cs.getEvictableExceedingMax(countMap, entries))
 	})
 
 	t.Run("does not mutate index", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		cs.maxConfigsPerDevice = 1
 		countMap := map[string]int{"device:10.0.0.1": 3}
 		entries := []*types.ConfigMetadata{
 			{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", LastAccessedAt: 100},
 			{ConfigUUID: "uuid-2", DeviceID: "device:10.0.0.1", LastAccessedAt: 200},
 			{ConfigUUID: "uuid-3", DeviceID: "device:10.0.0.1", LastAccessedAt: 300},
 		}
-		getEvictableExceedingMax(countMap, entries, 1)
+		cs.getEvictableExceedingMax(countMap, entries)
 		assert.Equal(t, 3, countMap["device:10.0.0.1"])
 		assert.Len(t, entries, 3)
 	})
@@ -196,17 +214,23 @@ func TestEvictConfigs(t *testing.T) {
 
 	t.Run("empty store returns no evicted and no error", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		evicted, err := cs.EvictConfigs(1, 5, noSizeLimit)
+		cs.minConfigsPerDevice = 1
+		cs.maxConfigsPerDevice = 5
+		cs.maxRawConfigStoreBytes = noSizeLimit
+		evicted, err := cs.EvictConfigs()
 		require.NoError(t, err)
 		assert.Empty(t, evicted)
 	})
 
 	t.Run("no eviction when all devices are within the per-device cap", func(t *testing.T) {
 		cs := newTestConfigStore(t)
+		cs.minConfigsPerDevice = 1
+		cs.maxConfigsPerDevice = 3
+		cs.maxRawConfigStoreBytes = noSizeLimit
 		insertTestMetadata(t, cs, types.ConfigMetadata{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", LastAccessedAt: 100})
 		insertTestMetadata(t, cs, types.ConfigMetadata{ConfigUUID: "uuid-2", DeviceID: "device:10.0.0.1", LastAccessedAt: 200})
 
-		evicted, err := cs.EvictConfigs(1, 3, noSizeLimit)
+		evicted, err := cs.EvictConfigs()
 		require.NoError(t, err)
 		assert.Empty(t, evicted)
 
@@ -217,11 +241,14 @@ func TestEvictConfigs(t *testing.T) {
 
 	t.Run("evicts oldest configs until device is within the per-device cap", func(t *testing.T) {
 		cs := newTestConfigStore(t)
+		cs.minConfigsPerDevice = 1
+		cs.maxConfigsPerDevice = 1
+		cs.maxRawConfigStoreBytes = noSizeLimit
 		insertTestMetadata(t, cs, types.ConfigMetadata{ConfigUUID: "uuid-oldest", DeviceID: "device:10.0.0.1", LastAccessedAt: 100})
 		insertTestMetadata(t, cs, types.ConfigMetadata{ConfigUUID: "uuid-middle", DeviceID: "device:10.0.0.1", LastAccessedAt: 200})
 		insertTestMetadata(t, cs, types.ConfigMetadata{ConfigUUID: "uuid-newest", DeviceID: "device:10.0.0.1", LastAccessedAt: 300})
 
-		evicted, err := cs.EvictConfigs(1, 1, noSizeLimit)
+		evicted, err := cs.EvictConfigs()
 		require.NoError(t, err)
 		assert.Equal(t, []string{"uuid-oldest", "uuid-middle"}, evicted)
 
@@ -233,11 +260,14 @@ func TestEvictConfigs(t *testing.T) {
 
 	t.Run("pinned configs are preserved during per-device cap eviction", func(t *testing.T) {
 		cs := newTestConfigStore(t)
+		cs.minConfigsPerDevice = 1
+		cs.maxConfigsPerDevice = 1
+		cs.maxRawConfigStoreBytes = noSizeLimit
 		insertTestMetadata(t, cs, types.ConfigMetadata{ConfigUUID: "uuid-pinned", DeviceID: "device:10.0.0.1", LastAccessedAt: 100, IsPinned: true})
 		insertTestMetadata(t, cs, types.ConfigMetadata{ConfigUUID: "uuid-old", DeviceID: "device:10.0.0.1", LastAccessedAt: 200})
 		insertTestMetadata(t, cs, types.ConfigMetadata{ConfigUUID: "uuid-new", DeviceID: "device:10.0.0.1", LastAccessedAt: 300})
 
-		evicted, err := cs.EvictConfigs(1, 1, noSizeLimit)
+		evicted, err := cs.EvictConfigs()
 		require.NoError(t, err)
 
 		assert.Equal(t, []string{"uuid-old", "uuid-new"}, evicted)
@@ -248,28 +278,34 @@ func TestEvictConfigs(t *testing.T) {
 
 	t.Run("size-based eviction evicts globally by LRU down to minRetainedConfigs floor", func(t *testing.T) {
 		cs := newTestConfigStore(t)
+		cs.minConfigsPerDevice = 1
+		cs.maxConfigsPerDevice = 10
+		cs.maxRawConfigStoreBytes = 0
 		insertTestMetadata(t, cs, types.ConfigMetadata{ConfigUUID: "uuid-oldest", DeviceID: "device:10.0.0.1", LastAccessedAt: 100})
 		insertTestMetadata(t, cs, types.ConfigMetadata{ConfigUUID: "uuid-middle", DeviceID: "device:10.0.0.1", LastAccessedAt: 200})
 		insertTestMetadata(t, cs, types.ConfigMetadata{ConfigUUID: "uuid-newest", DeviceID: "device:10.0.0.1", LastAccessedAt: 300})
 
-		// maxSize=0 always triggers size-based eviction (a bbolt DB is never 0 bytes).
-		// minRetainedConfigs=1 means the loop stops once the device is down to 1 config.
-		evicted, err := cs.EvictConfigs(1, 10, 0)
+		// maxRawConfigStoreBytes=0 always triggers size-based eviction (a bbolt DB is never 0 bytes).
+		// minConfigsPerDevice=1 means the loop stops once the device is down to 1 config.
+		evicted, err := cs.EvictConfigs()
 		assert.Contains(t, err.Error(), "DB size still exceeds the limit")
 		assert.Equal(t, []string{"uuid-oldest", "uuid-middle"}, evicted)
 
 		remaining := metadataUUIDs(t, cs)
 		assert.False(t, remaining["uuid-oldest"])
 		assert.False(t, remaining["uuid-middle"])
-		assert.True(t, remaining["uuid-newest"], "newest must be retained (minRetainedConfigs floor)")
+		assert.True(t, remaining["uuid-newest"], "newest must be retained (minConfigsPerDevice floor)")
 	})
 
 	t.Run("returns evicted list and error when size cannot be reduced enough", func(t *testing.T) {
 		cs := newTestConfigStore(t)
+		cs.minConfigsPerDevice = 1
+		cs.maxConfigsPerDevice = 10
+		cs.maxRawConfigStoreBytes = 0
 		insertTestMetadata(t, cs, types.ConfigMetadata{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", LastAccessedAt: 100})
 
-		// maxSize=0 but minRetainedConfigs=1 prevents evicting the last config
-		evicted, err := cs.EvictConfigs(1, 10, 0)
+		// maxRawConfigStoreBytes=0 but minConfigsPerDevice=1 prevents evicting the last config
+		evicted, err := cs.EvictConfigs()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "DB size still exceeds the limit")
 		assert.Empty(t, evicted)
