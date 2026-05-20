@@ -82,7 +82,7 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     print("Applying OS-specific fixes...")
     core_schema, sysprobe_schema = fix_schema(core_schema, sysprobe_schema)
 
-    comments_info = extract_comments()
+    comments_info = extract_comments(ctx)
     add_comments(core_schema, comments_info)
 
     # adding header
