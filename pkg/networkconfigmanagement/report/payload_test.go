@@ -9,6 +9,7 @@ package report
 
 import (
 	"encoding/json"
+	"strconv"
 	"testing"
 	"time"
 
@@ -18,6 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
+
+func formatInt(v int64) string {
+	return strconv.FormatInt(v, 10)
+}
 
 func TestNetworkDeviceConfig_Creation(t *testing.T) {
 	now := time.Now().Unix()
@@ -125,6 +130,99 @@ func TestNetworkDevicesConfigPayload_Creation(t *testing.T) {
 	assert.Equal(t, timestamp, payload.CollectTimestamp)
 	assert.Len(t, payload.Configs, 2)
 	assert.Equal(t, configs, payload.Configs)
+}
+
+func TestNCMPayload_JSONFormat(t *testing.T) {
+	timestamp := time.Now().Unix()
+
+	tests := []struct {
+		name     string
+		payload  NCMPayload
+		expected string
+	}{
+		{
+			name: "full payload with all fields",
+			payload: NCMPayload{
+				Namespace: "production",
+				Configs: []NetworkDeviceConfig{
+					{
+						DeviceID:     "default:10.0.0.1",
+						DeviceIP:     "10.0.0.1",
+						ConfigType:   types.RUNNING,
+						ConfigSource: types.CLI,
+						Timestamp:    timestamp,
+						Tags:         []string{"device_type:router"},
+						Content:      "running config content",
+						ID:           "test_uuid",
+						ConfigHash:   "test_hash",
+					},
+				},
+				CollectTimestamp: timestamp,
+			},
+			expected: `{
+				"namespace": "production",
+				"configs": [
+					{
+						"device_id": "default:10.0.0.1",
+						"device_ip": "10.0.0.1",
+						"config_type": "running",
+						"config_source": "cli",
+						"timestamp": ` + formatInt(timestamp) + `,
+						"tags": ["device_type:router"],
+						"content": "running config content",
+						"id": "test_uuid",
+						"config_hash": "test_hash"
+					}
+				],
+				"collect_timestamp": ` + formatInt(timestamp) + `
+			}`,
+		},
+		{
+			name: "omitempty fields absent when empty",
+			payload: NCMPayload{
+				Namespace:       "production",
+				Configs:         []NetworkDeviceConfig{
+					{
+						DeviceID:     "default:10.0.0.1",
+						DeviceIP:     "10.0.0.1",
+						ConfigType:   types.RUNNING,
+						ConfigSource: types.CLI,
+						Timestamp:    timestamp,
+						Tags:         []string{"device_type:router"},
+						Content:      "running config content",
+					},
+				},
+				CollectTimestamp: timestamp,
+			},
+			expected: `{
+				"namespace": "production",
+				"configs": [
+					{
+						"device_id": "default:10.0.0.1",
+						"device_ip": "10.0.0.1",
+						"config_type": "running",
+						"config_source": "cli",
+						"timestamp": ` + formatInt(timestamp) + `,
+						"tags": ["device_type:router"],
+						"content": "running config content"
+					}
+				],
+				"collect_timestamp": ` + formatInt(timestamp) + `
+			}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actualJSON, err := json.Marshal(tt.payload)
+			require.NoError(t, err)
+
+			var expectedCompact, actualParsed interface{}
+			require.NoError(t, json.Unmarshal([]byte(tt.expected), &expectedCompact))
+			require.NoError(t, json.Unmarshal(actualJSON, &actualParsed))
+			assert.Equal(t, expectedCompact, actualParsed)
+		})
+	}
 }
 
 func TestNetworkDevicesConfigPayload_EmptyConfigs(t *testing.T) {
