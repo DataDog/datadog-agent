@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
@@ -39,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	checkscheduler "github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector/worker"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -158,11 +156,10 @@ func (p *trialTestProvider) IsUpToDate(context.Context) (bool, error) { return t
 
 // setupPipeline wires runner→scheduler.Scheduler→schedulerCollector→
 // CheckScheduler→AutoConfig using production constructors. The
-// trackingScheduler returned alongside gives race-free Schedule/Unschedule
+// MockScheduler returned alongside gives race-free Schedule/Unschedule
 // counters for the assertions.
-func setupPipeline(t *testing.T) (*AutoConfig, *trackingScheduler) {
+func setupPipeline(t *testing.T) (*AutoConfig, *MockScheduler) {
 	t.Helper()
-	configmock.New(t)
 	expvars.Reset()
 	worker.ResetTrialCallbacksForTest()
 	t.Cleanup(worker.ResetTrialCallbacksForTest)
@@ -174,12 +171,7 @@ func setupPipeline(t *testing.T) (*AutoConfig, *trackingScheduler) {
 	prev := checkscheduler.SetMinAllowedIntervalForTest(time.Millisecond)
 	t.Cleanup(func() { checkscheduler.SetMinAllowedIntervalForTest(prev) })
 
-	deps := createDeps(t)
-	msch := scheduler.NewControllerAndStart()
-	ts := &trackingScheduler{}
-	msch.Register("tracker", ts, false)
-	mockResolver := MockSecretResolver{t: t, scenarios: nil}
-	ac := getAutoConfig(msch, &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp)
+	ms, ac, deps := getResolveTestSetup(t)
 
 	r := runner.NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t))
 	t.Cleanup(r.Stop)
@@ -200,7 +192,7 @@ func setupPipeline(t *testing.T) (*AutoConfig, *trackingScheduler) {
 	)
 	ac.AddScheduler("check", cs, false)
 
-	return ac, ts
+	return ac, ms
 }
 
 // containsConfigNamed reports whether the AD-known configs include name.
@@ -213,19 +205,6 @@ func containsConfigNamed(ac *AutoConfig, name string) bool {
 	}
 	return false
 }
-
-// trackingScheduler counts Schedule/Unschedule callbacks. Counter assertions
-// are race-free even when the unschedule fires almost immediately after the
-// schedule — unlike size-based polling on MockScheduler, which can miss the
-// transient "1" between a fast Schedule→Unschedule pair.
-type trackingScheduler struct {
-	schedules   atomic.Int64
-	unschedules atomic.Int64
-}
-
-func (ts *trackingScheduler) Schedule(_ []integration.Config)   { ts.schedules.Inc() }
-func (ts *trackingScheduler) Unschedule(_ []integration.Config) { ts.unschedules.Inc() }
-func (ts *trackingScheduler) Stop()                             {}
 
 // TestADWorkerIntegration_UnschedulesAfterThresholdFailures wires the
 // production AD pipeline to a real worker.Worker via the same
@@ -240,7 +219,7 @@ func (ts *trackingScheduler) Stop()                             {}
 // Without that wrap, the unwrapped check fails the worker's trialModeCheck
 // type assertion, no trial callback fires, and AD never unschedules.
 func TestADWorkerIntegration_UnschedulesAfterThresholdFailures(t *testing.T) {
-	ac, ts := setupPipeline(t)
+	ac, ms := setupPipeline(t)
 
 	setTrialRunFn(func(uint64) error { return errors.New("trial probe failed") })
 
@@ -256,7 +235,7 @@ func TestADWorkerIntegration_UnschedulesAfterThresholdFailures(t *testing.T) {
 	ac.LoadAndRun(context.Background())
 
 	require.Eventually(t, func() bool {
-		return ts.schedules.Load() == 1 && ts.unschedules.Load() == 1
+		return ms.schedules.Load() == 1 && ms.unschedules.Load() == 1
 	}, 10*time.Second, 20*time.Millisecond,
 		"AD must dispatch Schedule then Unschedule after trialFailureThreshold failures arrive via the real worker→callback→recordTrialResult chain")
 	assert.False(t, containsConfigNamed(ac, "krakend_threshold"),
@@ -271,7 +250,7 @@ func TestADWorkerIntegration_UnschedulesAfterThresholdFailures(t *testing.T) {
 // AD's trialRegistry and must not unschedule the config — they should flow
 // through the normal integration-error path.
 func TestADWorkerIntegration_SuccessPromotesAndIsolatesFromAD(t *testing.T) {
-	ac, ts := setupPipeline(t)
+	ac, ms := setupPipeline(t)
 
 	// Run 0 succeeds (promotes out of trial mode); runs 1..N fail.
 	setTrialRunFn(func(n uint64) error {
@@ -303,8 +282,8 @@ func TestADWorkerIntegration_SuccessPromotesAndIsolatesFromAD(t *testing.T) {
 
 	// Promotion must keep AD out of the trial-counter loop — no Unschedule
 	// dispatch should fire despite many post-promotion failures.
-	assert.Equal(t, int64(1), ts.schedules.Load(), "exactly one Schedule")
-	assert.Equal(t, int64(0), ts.unschedules.Load(), "no Unschedule after promotion")
+	assert.Equal(t, int64(1), ms.schedules.Load(), "exactly one Schedule")
+	assert.Equal(t, int64(0), ms.unschedules.Load(), "no Unschedule after promotion")
 	assert.True(t, containsConfigNamed(ac, "krakend_promotion"))
 }
 
@@ -314,7 +293,7 @@ func TestADWorkerIntegration_SuccessPromotesAndIsolatesFromAD(t *testing.T) {
 // type-assertion fails on every run; AD never sees a trial result; the
 // config stays scheduled even after many failures.
 func TestADWorkerIntegration_NonDiscoveryCheckNeverTriggersTrialPath(t *testing.T) {
-	ac, ts := setupPipeline(t)
+	ac, ms := setupPipeline(t)
 
 	setTrialRunFn(func(uint64) error { return errors.New("regular failure") })
 
@@ -335,8 +314,8 @@ func TestADWorkerIntegration_NonDiscoveryCheckNeverTriggersTrialPath(t *testing.
 		return int(expvars.GetErrorsCount()) >= trialFailureThreshold+3
 	}, 10*time.Second, 20*time.Millisecond)
 
-	assert.Equal(t, int64(1), ts.schedules.Load(), "exactly one Schedule")
-	assert.Equal(t, int64(0), ts.unschedules.Load(),
+	assert.Equal(t, int64(1), ms.schedules.Load(), "exactly one Schedule")
+	assert.Equal(t, int64(0), ms.unschedules.Load(),
 		"non-discovery check must never trigger the trial-path unschedule")
 	assert.True(t, containsConfigNamed(ac, "regular_check"))
 }

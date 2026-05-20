@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -140,8 +141,10 @@ func (o *factoryMock) resetCallChan() {
 }
 
 type MockScheduler struct {
-	scheduled map[string]integration.Config
-	mutex     sync.RWMutex
+	scheduled   map[string]integration.Config
+	schedules   atomic.Int64
+	unschedules atomic.Int64
+	mutex       sync.RWMutex
 }
 
 // Schedule implements scheduler.Scheduler#Schedule.
@@ -151,6 +154,7 @@ func (ms *MockScheduler) Schedule(configs []integration.Config) {
 	for _, cfg := range configs {
 		ms.scheduled[cfg.Digest()] = cfg
 	}
+	ms.schedules.Add(1)
 }
 
 // Unchedule implements scheduler.Scheduler#Unchedule.
@@ -160,6 +164,7 @@ func (ms *MockScheduler) Unschedule(configs []integration.Config) {
 	for _, cfg := range configs {
 		delete(ms.scheduled, cfg.Digest())
 	}
+	ms.unschedules.Add(1)
 }
 
 // Stop implements scheduler.Scheduler#Stop.
@@ -373,7 +378,7 @@ func (suite *AutoConfigTestSuite) TestListenerRetry() {
 	}, 2*time.Second, 10*time.Millisecond)
 }
 
-func getResolveTestConfig(t *testing.T) (*MockScheduler, *AutoConfig) {
+func getResolveTestSetup(t *testing.T) (*MockScheduler, *AutoConfig, Deps) {
 	deps := createDeps(t)
 
 	msch := scheduler.NewControllerAndStart()
@@ -383,6 +388,11 @@ func getResolveTestConfig(t *testing.T) (*MockScheduler, *AutoConfig) {
 	mockResolver := MockSecretResolver{t: t, scenarios: nil}
 	ac := getAutoConfig(msch, &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp)
 
+	return sch, ac, deps
+}
+
+func getResolveTestConfig(t *testing.T) (*MockScheduler, *AutoConfig) {
+	sch, ac, _ := getResolveTestSetup(t)
 	return sch, ac
 }
 
