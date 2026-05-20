@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Set the ``Title`` (``msg_title``) field on ``Agent Startup`` and ``Agent Shutdown``
+    lifecycle events. Previously these events were submitted with an empty title,
+    which caused them to appear without a title in Event Explorer.
