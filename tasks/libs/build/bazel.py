@@ -163,8 +163,13 @@ class BazelTools:
     def __new__(cls, ctx):
         if not cls._paths:
             labels = ("@com_github_tinylib_msgp//:msgp", "@rules_go//go")
-            bazel(ctx, "build", *labels)
-            root = bazel(ctx, "info", "execution_root", capture_output=True).strip()
+            result = run_bazel(ctx, "build", *labels)
+            if result.return_code != 0:
+                print(result.stderr)
+            result = run_bazel(ctx, "info", "execution_root")
+            if result.return_code != 0:
+                print(result.stderr)
+            root = result.stdout.strip()
             for line in bazel(
                 ctx,
                 "cquery",
