@@ -27,6 +27,6 @@ go_test(
     embed = [":tmplgen_lib"],
     deps = [
         "//pkg/fleet/installer/fixtures",
-        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
