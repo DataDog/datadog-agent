@@ -98,3 +98,44 @@ func TestMergeRCAgentConfig_ResetWhenNoLayerSetsLogLevel(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "", content.LogLevel)
 }
+
+// TestMergeRCAgentConfig_OrderPriority verifies the priority semantics of the Order
+// array: Order[0] is highest priority (the loop is reversed, so index 0 is written
+// last and wins over all higher indices).
+func TestMergeRCAgentConfig_OrderPriority(t *testing.T) {
+	noopStatus := func(_ string, _ ApplyStatus) {}
+
+	// Order[0]="override" (highest priority, log_level=warn) should beat Order[1]="fleet_debug" (debug).
+	orderPath, orderRaw := rawConfig("configuration_order", `{"order":["override","fleet_debug"],"internal_order":[]}`)
+	overridePath, overrideRaw := rawConfig("override", `{"name":"override","config":{"log_level":"warn"}}`)
+	cfgPath, cfgRaw := rawConfig("fleet_debug", `{"name":"fleet_debug","config":{"log_level":"debug"}}`)
+
+	content, err := MergeRCAgentConfig(noopStatus, map[string]RawConfig{
+		orderPath:    orderRaw,
+		overridePath: overrideRaw,
+		cfgPath:      cfgRaw,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "warn", content.LogLevel)
+}
+
+// TestMergeRCAgentConfig_InternalOrderOverridesOrder verifies that a non-empty
+// InternalOrder layer wins over a non-empty Order layer, since the InternalOrder
+// loop runs after the Order loop and Order[0] is the last write.
+func TestMergeRCAgentConfig_InternalOrderOverridesOrder(t *testing.T) {
+	noopStatus := func(_ string, _ ApplyStatus) {}
+
+	orderPath, orderRaw := rawConfig("configuration_order",
+		`{"order":["fleet_debug"],"internal_order":["internal_override"]}`)
+	cfgPath, cfgRaw := rawConfig("fleet_debug", `{"name":"fleet_debug","config":{"log_level":"debug"}}`)
+	internalPath, internalRaw := rawConfig("internal_override",
+		`{"name":"internal_override","config":{"log_level":"trace"}}`)
+
+	content, err := MergeRCAgentConfig(noopStatus, map[string]RawConfig{
+		orderPath:    orderRaw,
+		cfgPath:      cfgRaw,
+		internalPath: internalRaw,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "trace", content.LogLevel)
+}
