@@ -121,16 +121,12 @@ type Config struct {
 	// ImageName is the container image name if any
 	ImageName string `json:"image_name"` // (include in digest: false)
 
-	// Discovery indicates that this config is a configuration-discovery
-	// template: the agent should not schedule it directly, and any matched
-	// instance is meant to discover its own config at runtime. A non-nil
-	// pointer means discovery is requested. (optional)
+	// Discovery indicates that this config originates from a
+	// configuration-discovery template: the resolved config should be
+	// scheduled in trial-mode (probe-only) until the check promotes
+	// itself by emitting a successful run. A non-nil pointer marks the
+	// config (template or resolved) as a discovery one. (optional)
 	Discovery *DiscoveryConfig `json:"discovery,omitempty"` // (include in digest: true)
-
-	// TrialMode indicates the config was scheduled in discovery probe mode:
-	// the check should self-configure from the embedded service info and the
-	// runner should suppress integration-error reporting until promoted.
-	TrialMode bool `json:"trial_mode"` // (include in digest: true)
 }
 
 // DiscoveryConfig holds per-template configuration-discovery options.
@@ -484,9 +480,6 @@ func (c *Config) IntDigest() uint64 {
 	if c.Discovery != nil {
 		_, _ = h.Write([]byte("discovery"))
 	}
-	if c.TrialMode {
-		_, _ = h.Write([]byte("trial_mode"))
-	}
 
 	return h.Sum64()
 }
@@ -512,9 +505,6 @@ func (c *Config) FastDigest() uint64 {
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
 	if c.Discovery != nil {
 		_, _ = h.Write([]byte("discovery"))
-	}
-	if c.TrialMode {
-		_, _ = h.Write([]byte("trial_mode"))
 	}
 
 	return h.Sum64()

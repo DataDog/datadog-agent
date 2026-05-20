@@ -133,7 +133,7 @@ func TestGetChecksFromConfigsWrapsTrialModeChecks(t *testing.T) {
 		Name:       "check_trial",
 		Instances:  []integration.Data{integration.Data("{}")},
 		InitConfig: integration.Data("{}"),
-		TrialMode:  true,
+		Discovery:  &integration.DiscoveryConfig{},
 	}
 
 	checks := s.GetChecksFromConfigs([]integration.Config{conf}, false)

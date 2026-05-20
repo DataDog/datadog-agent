@@ -778,7 +778,7 @@ func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
 			// Drop any trial-failure counter so unschedules from service or
 			// config removal (not just the failure-threshold path) don't leak
 			// entries into trialRegistry.
-			if conf.TrialMode {
+			if conf.IsDiscovery() {
 				for _, inst := range conf.Instances {
 					ac.trialRegistry.forget(checkid.BuildID(conf.Name, conf.FastDigest(), inst, conf.InitConfig))
 				}

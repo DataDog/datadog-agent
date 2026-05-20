@@ -952,7 +952,7 @@ func TestRecordTrialResult_UnschedulesAfterThreshold(t *testing.T) {
 
 	cfg := integration.Config{
 		Name:       "krakend",
-		TrialMode:  true,
+		Discovery:  &integration.DiscoveryConfig{},
 		InitConfig: integration.Data("{}"),
 		Instances:  []integration.Data{integration.Data("{}")},
 	}
@@ -998,7 +998,7 @@ func TestApplyChanges_ClearsTrialRegistryOnUnschedule(t *testing.T) {
 
 	cfg := integration.Config{
 		Name:       "krakend",
-		TrialMode:  true,
+		Discovery:  &integration.DiscoveryConfig{},
 		InitConfig: integration.Data("{}"),
 		Instances:  []integration.Data{integration.Data("{}")},
 	}

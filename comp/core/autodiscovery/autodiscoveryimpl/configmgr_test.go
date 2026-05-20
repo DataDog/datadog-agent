@@ -764,7 +764,7 @@ func TestResolveTemplateForService_DiscoveryBuildsTrialConfig(t *testing.T) {
 	resolved, ok := cm.resolveTemplateForService(tpl, svc)
 
 	require.True(t, ok, "discovery branch must produce a resolved config")
-	require.True(t, resolved.TrialMode, "resolved config must be in trial-mode")
+	require.True(t, resolved.IsDiscovery(), "resolved config must keep its discovery marker so the scheduler wraps it in trial mode")
 	require.Len(t, resolved.Instances, 1, "exactly one synthetic instance")
 
 	var inst map[interface{}]interface{}

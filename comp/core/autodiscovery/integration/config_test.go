@@ -270,22 +270,6 @@ func TestDigestIncludesDiscovery(t *testing.T) {
 		"Discovery field must change FastDigest as well")
 }
 
-func TestDigestIncludesTrialMode(t *testing.T) {
-	withoutTrial := &Config{
-		Name:       "foo",
-		InitConfig: Data(""),
-	}
-	withTrial := &Config{
-		Name:       "foo",
-		InitConfig: Data(""),
-		TrialMode:  true,
-	}
-	assert.NotEqual(t, withoutTrial.Digest(), withTrial.Digest(),
-		"TrialMode field must change the config digest so a trial-mode config and its promoted counterpart are distinct")
-	assert.NotEqual(t, withoutTrial.FastDigest(), withTrial.FastDigest(),
-		"TrialMode field must change FastDigest as well so the scheduler reschedules across promotion")
-}
-
 func TestGetNameForInstance(t *testing.T) {
 	config := &Config{}
 

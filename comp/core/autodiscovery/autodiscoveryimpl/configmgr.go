@@ -443,7 +443,9 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 // Discovery templates take a small preamble: they get a synthetic trial
 // instance built up-front so that configresolver.Resolve can perform
 // %%host%% substitution and AD tag injection over it the same way it does
-// for any regular template. The TrialMode flag is stamped after Resolve.
+// for any regular template. The Discovery field is carried through Resolve,
+// so the resolved config keeps IsDiscovery() true and the scheduler wraps
+// the resulting check in trial mode.
 func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
 	digest := tpl.Digest()
 	isDiscovery := tpl.IsDiscovery()
@@ -472,9 +474,6 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 		errorStats.setResolveWarning(tpl.Name, msg)
 		cm.reportTemplateResolutionFailure(tpl, svc, err)
 		return tpl, false
-	}
-	if isDiscovery {
-		config.TrialMode = true
 	}
 	resolvedConfig, err := decryptConfig(config, cm.secretResolver, digest)
 	if err != nil {

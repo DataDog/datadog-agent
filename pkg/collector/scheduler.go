@@ -276,7 +276,7 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 			continue
 		}
 		for _, c := range checks {
-			if config.TrialMode {
+			if config.IsDiscovery() {
 				c = check.NewTrialModeCheck(c)
 			}
 			allChecks = append(allChecks, c)
