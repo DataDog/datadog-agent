@@ -21,7 +21,7 @@ type NCMPayload struct {
 }
 
 // NetworkDeviceConfig contains network device configuration for a single device.
-// ConfigUUID and ConfigHash are populated when the agent was able to persist the
+// ID and ConfigHash are populated when the agent was able to persist the
 // config in the local store; both are omitted from the payload otherwise.
 type NetworkDeviceConfig struct {
 	DeviceID     string             `json:"device_id"`
@@ -31,7 +31,7 @@ type NetworkDeviceConfig struct {
 	Timestamp    int64              `json:"timestamp"`
 	Tags         []string           `json:"tags"`
 	Content      string             `json:"content"`
-	ConfigUUID   string             `json:"config_uuid,omitempty"`
+	ID           string             `json:"id,omitempty"`
 	ConfigHash   string             `json:"config_hash,omitempty"`
 }
 
@@ -51,8 +51,8 @@ func ToNCMPayload(namespace string, configs []NetworkDeviceConfig, timestamp int
 }
 
 // ToNetworkDeviceConfig converts the given parameters into a NetworkDeviceConfig, representing a single device's configuration in a point in time.
-// configUUID and configHash are optional — pass empty strings when the config could not be persisted in the local store.
-func ToNetworkDeviceConfig(deviceID, deviceIP string, configType types.ConfigType, extractedMetadata *profile.ExtractedMetadata, tags []string, content []byte, configUUID, configHash string) NetworkDeviceConfig {
+// id and configHash are optional — pass empty strings when the config could not be persisted in the local store.
+func ToNetworkDeviceConfig(deviceID, deviceIP string, configType types.ConfigType, extractedMetadata *profile.ExtractedMetadata, tags []string, content []byte, id, configHash string) NetworkDeviceConfig {
 	var ts int64
 	if extractedMetadata != nil && extractedMetadata.Timestamp != 0 {
 		ts = extractedMetadata.Timestamp
@@ -67,7 +67,7 @@ func ToNetworkDeviceConfig(deviceID, deviceIP string, configType types.ConfigTyp
 		Timestamp:    ts,
 		Tags:         tags,
 		Content:      string(content),
-		ConfigUUID:   configUUID,
+		ID:           id,
 		ConfigHash:   configHash,
 	}
 }

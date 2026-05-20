@@ -45,7 +45,7 @@ func TestNetworkDeviceConfig_Creation(t *testing.T) {
 	assert.Equal(t, now, config.Timestamp)
 	assert.Equal(t, tags, config.Tags)
 	assert.Equal(t, string(content), config.Content)
-	assert.Equal(t, configUUID, config.ConfigUUID)
+	assert.Equal(t, configUUID, config.ID)
 	assert.Equal(t, configHash, config.ConfigHash)
 }
 
@@ -53,12 +53,12 @@ func TestNetworkDeviceConfig_OmitsEmptyStoreFields(t *testing.T) {
 	metadata := &profile.ExtractedMetadata{Timestamp: time.Now().Unix()}
 	config := ToNetworkDeviceConfig("default:10.0.0.1", "10.0.0.1", types.RUNNING, metadata, nil, []byte("content"), "", "")
 
-	assert.Empty(t, config.ConfigUUID)
+	assert.Empty(t, config.ID)
 	assert.Empty(t, config.ConfigHash)
 
 	jsonData, err := json.Marshal(config)
 	require.NoError(t, err)
-	assert.NotContains(t, string(jsonData), "config_uuid")
+	assert.NotContains(t, string(jsonData), "\"id\"")
 	assert.NotContains(t, string(jsonData), "config_hash")
 }
 
