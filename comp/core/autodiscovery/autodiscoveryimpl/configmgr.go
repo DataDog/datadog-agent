@@ -448,12 +448,11 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 // the resulting check in trial mode.
 func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
 	digest := tpl.Digest()
-	isDiscovery := tpl.IsDiscovery()
 
 	// Mutate a local copy so `tpl` (and the `digest` captured above) keep
 	// representing the source template.
 	resolveTpl := tpl
-	if isDiscovery {
+	if tpl.IsDiscovery() {
 		instanceYAML, err := buildDiscoveryTrialInstance(svc)
 		if err != nil {
 			log.Errorf("autodiscovery: failed to build trial instance for %s/%s: %v", tpl.Name, svc.GetServiceID(), err)
