@@ -37,6 +37,17 @@ func newSamplerWithProtect(maxPatterns int, burstSize, rateLimit float64, protec
 	}, "test")
 }
 
+func newEWMASampler(maxPatterns int, burstSize, rateLimit float64, halfLife time.Duration) *AdaptiveSampler {
+	return NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    maxPatterns,
+		RateLimit:      rateLimit,
+		BurstSize:      burstSize,
+		MatchThreshold: 0.9,
+		EWMAEnabled:    true,
+		EWMAHalfLife:   halfLife,
+	}, "test")
+}
+
 func testMsg() *message.Message {
 	return message.NewMessage([]byte("test"), nil, message.StatusInfo, 0)
 }
@@ -63,11 +74,65 @@ func tokenize(s string) []Token {
 	return tokens
 }
 
+func samplerHasPattern(s *AdaptiveSampler, tokens []Token) bool {
+	for _, e := range s.entries {
+		if IsMatch(e.tokens, tokens, 1.0) {
+			return true
+		}
+	}
+	return false
+}
+
+type namedSamplerPattern struct {
+	name   string
+	tokens []Token
+}
+
+type samplerWorkloadEvent struct {
+	at     time.Duration
+	tokens []Token
+}
+
+type samplerWorkloadResult struct {
+	kept    int
+	dropped int
+}
+
+func runSamplerWorkload(s *AdaptiveSampler, start time.Time, events []samplerWorkloadEvent) samplerWorkloadResult {
+	var result samplerWorkloadResult
+	for _, event := range events {
+		eventTime := start.Add(event.at)
+		s.now = func() time.Time { return eventTime }
+		if s.Process(testMsg(), event.tokens) == nil {
+			result.dropped++
+		} else {
+			result.kept++
+		}
+	}
+	return result
+}
+
+func samplerPatternNames(s *AdaptiveSampler, patterns []namedSamplerPattern) []string {
+	names := make([]string, 0, len(s.entries))
+	for _, entry := range s.entries {
+		name := "unknown"
+		for _, pattern := range patterns {
+			if IsMatch(entry.tokens, pattern.tokens, 1.0) {
+				name = pattern.name
+				break
+			}
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
 var (
 	// structurally similar INFO log lines — match each other at 0.9 threshold
 	patternA = tokenize("2024-01-15 10:30:45 INFO [service-a] request processed id=123 duration=42ms")
 	patternB = tokenize("metric cpu_usage=45.67 host=web-01 env=prod ts=1234567890")
 	patternC = tokenize("http GET /api/v2/users 200 42ms peer=10.0.0.1")
+	patternD = tokenize("db slow-query duration=924ms table=orders sql_state=57014")
 )
 
 // --- NoopSampler ---
@@ -259,6 +324,99 @@ func TestAdaptiveSampler_EvictsLeastFrequentWhenFull(t *testing.T) {
 		counts[i] = e.matchCount
 	}
 	assert.Contains(t, counts, int64(2), "high-frequency pattern A should be retained")
+}
+
+// With EWMA disabled, eviction continues to use lifetime matchCount even if a
+// high-frequency pattern has been idle for a long time.
+func TestAdaptiveSampler_EWMADisabledEvictsLeastFrequentDespiteStaleness(t *testing.T) {
+	s := newSampler(2, 100.0, 0)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	msg := testMsg()
+	for range 10 {
+		s.Process(msg, patternA)
+	}
+	s.Process(msg, patternB)
+
+	s.now = func() time.Time { return t0.Add(10 * time.Second) }
+	s.Process(msg, patternB)
+	s.Process(msg, patternC)
+
+	require.Len(t, s.entries, 2)
+	assert.True(t, samplerHasPattern(s, patternA), "lifetime-hot pattern A should be retained without EWMA")
+	assert.True(t, samplerHasPattern(s, patternC), "new pattern C should be inserted")
+	assert.False(t, samplerHasPattern(s, patternB), "least-frequent pattern B should be evicted without EWMA")
+}
+
+// With EWMA enabled, recent pattern hotness decays over time. A previously hot
+// but stale pattern can be evicted in favor of a recently active one.
+func TestAdaptiveSampler_EWMAEvictsStaleHotPattern(t *testing.T) {
+	s := newEWMASampler(2, 100.0, 0, time.Second)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	msg := testMsg()
+	for range 10 {
+		s.Process(msg, patternA)
+	}
+	s.Process(msg, patternB)
+
+	s.now = func() time.Time { return t0.Add(10 * time.Second) }
+	s.Process(msg, patternB)
+	require.True(t, samplerHasPattern(s, patternB))
+	assert.True(t, IsMatch(s.entries[0].tokens, patternB, 1.0), "recently active pattern B should bubble ahead of stale A")
+
+	s.Process(msg, patternC)
+
+	require.Len(t, s.entries, 2)
+	assert.False(t, samplerHasPattern(s, patternA), "stale pattern A should be evicted after its EWMA score decays")
+	assert.True(t, samplerHasPattern(s, patternB), "recently active pattern B should be retained")
+	assert.True(t, samplerHasPattern(s, patternC), "new pattern C should be inserted")
+}
+
+func TestAdaptiveSampler_EWMAWorkloadAdaptsVsNormalSampler(t *testing.T) {
+	patterns := []namedSamplerPattern{
+		{name: "startup_burst", tokens: patternA},
+		{name: "recent_metrics", tokens: patternB},
+		{name: "recent_http", tokens: patternC},
+		{name: "new_db_churn", tokens: patternD},
+	}
+	for i := range patterns {
+		for j := i + 1; j < len(patterns); j++ {
+			require.Falsef(t, IsMatch(patterns[i].tokens, patterns[j].tokens, 0.9),
+				"workload patterns %q and %q should be distinct", patterns[i].name, patterns[j].name)
+		}
+	}
+
+	var workload []samplerWorkloadEvent
+	for range 20 {
+		workload = append(workload, samplerWorkloadEvent{at: 0, tokens: patternA})
+	}
+	workload = append(workload,
+		samplerWorkloadEvent{at: 0, tokens: patternB},
+		samplerWorkloadEvent{at: 0, tokens: patternC},
+		// The source goes quiet, then B and C become the active patterns.
+		samplerWorkloadEvent{at: 10 * time.Second, tokens: patternB},
+		samplerWorkloadEvent{at: 10100 * time.Millisecond, tokens: patternC},
+		// A new pattern arrives when the table is full.
+		samplerWorkloadEvent{at: 10200 * time.Millisecond, tokens: patternD},
+	)
+
+	start := time.Now()
+	normal := newSampler(3, 100.0, 0)
+	ewma := newEWMASampler(3, 100.0, 0, time.Second)
+
+	normalResult := runSamplerWorkload(normal, start, workload)
+	ewmaResult := runSamplerWorkload(ewma, start, workload)
+
+	require.Equal(t, samplerWorkloadResult{kept: len(workload)}, normalResult)
+	require.Equal(t, samplerWorkloadResult{kept: len(workload)}, ewmaResult)
+
+	assert.Equal(t, []string{"startup_burst", "recent_metrics", "new_db_churn"}, samplerPatternNames(normal, patterns),
+		"normal sampler keeps the lifetime-hot startup pattern and evicts a recent low-count pattern")
+	assert.Equal(t, []string{"new_db_churn", "recent_http", "recent_metrics"}, samplerPatternNames(ewma, patterns),
+		"EWMA sampler evicts the stale startup pattern and keeps recently active patterns")
 }
 
 // --- AdaptiveSampler: bubbling aliasing ---

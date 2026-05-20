@@ -7,6 +7,7 @@
 package preprocessor
 
 import (
+	"math"
 	"regexp"
 	"strconv"
 	"time"
@@ -70,7 +71,8 @@ func adaptiveSamplerSampledCountTag(count int64) string {
 // AdaptiveSamplerConfig holds the configuration for the AdaptiveSampler.
 type AdaptiveSamplerConfig struct {
 	// MaxPatterns is the maximum number of distinct patterns tracked simultaneously.
-	// When full, the least-frequently-matched pattern is evicted to make room for new ones.
+	// When full, the coldest pattern is evicted to make room for new ones.
+	// Coldness is based on lifetime frequency by default, or recent hotness when EWMA is enabled.
 	MaxPatterns int
 	// RateLimit is the steady-state number of logs per second allowed per pattern.
 	RateLimit float64
@@ -83,6 +85,12 @@ type AdaptiveSamplerConfig struct {
 	// ProtectImportantLogs bypasses rate limiting for logs containing critical severity
 	// keywords (FATAL, ERROR, PANIC, etc.). Protected logs are never dropped.
 	ProtectImportantLogs bool
+	// EWMAEnabled uses an exponentially decayed recent-match score for pattern
+	// ordering and eviction. Rate limiting still uses the credit bucket above.
+	EWMAEnabled bool
+	// EWMAHalfLife is the duration after which an inactive pattern's recent-match
+	// score decays by half.
+	EWMAHalfLife time.Duration
 	// Include limits adaptive sampling to messages matching at least one filter.
 	// When empty, all messages are eligible unless excluded.
 	Include []AdaptiveSamplerFilter
@@ -106,17 +114,19 @@ type samplerEntry struct {
 	tokens     []Token
 	credits    float64   // remaining log allowance; decremented on each emitted log
 	lastSeen   time.Time // used for credit refill
-	matchCount int64     // total number of times this pattern has matched; drives sort order
+	matchCount int64     // total number of times this pattern has matched; default sort order
 	sampled    int64     // number of dropped matches since the last emitted log
+	hotness    float64   // exponentially decayed recent-match score
+	hotnessAt  time.Time // timestamp used for hotness decay
 }
 
 // AdaptiveSampler rate-limits logs by structural pattern using per-pattern credit allowances.
 // Structurally similar logs share a credit allowance.
 // New or returning patterns receive a full burst allowance before being rate-limited.
 //
-// entries is maintained as a sorted list in descending matchCount order. The most
-// frequently matched patterns appear at the front, so the scan exits early for the
-// common case where a hot pattern is matched.
+// entries is maintained as a sorted list in descending ranking order. By default
+// ranking uses lifetime matchCount. When EWMAEnabled is set, ranking uses an
+// exponentially decayed recent-match score so stale hot patterns cool down.
 type AdaptiveSampler struct {
 	entries []samplerEntry
 	config  AdaptiveSamplerConfig
@@ -184,6 +194,84 @@ func (s *AdaptiveSampler) shouldSample(msg *message.Message, tokens []Token) boo
 	return matchesAnyFilter(s.config.Include, msg, tokens, s.config.MatchThreshold)
 }
 
+func (e *samplerEntry) decayedHotness(now time.Time, halfLife time.Duration) float64 {
+	if e.hotness == 0 || e.hotnessAt.IsZero() {
+		return 0
+	}
+	if halfLife <= 0 {
+		return e.hotness
+	}
+	elapsed := now.Sub(e.hotnessAt)
+	if elapsed <= 0 {
+		return e.hotness
+	}
+	return e.hotness * math.Pow(0.5, elapsed.Seconds()/halfLife.Seconds())
+}
+
+func (e *samplerEntry) observeHotness(now time.Time, halfLife time.Duration) {
+	e.hotness = e.decayedHotness(now, halfLife) + 1
+	e.hotnessAt = now
+}
+
+func (s *AdaptiveSampler) rankScore(e *samplerEntry, now time.Time) float64 {
+	if s.config.EWMAEnabled {
+		return e.decayedHotness(now, s.config.EWMAHalfLife)
+	}
+	return float64(e.matchCount)
+}
+
+func (s *AdaptiveSampler) ranksBefore(a *samplerEntry, b *samplerEntry, now time.Time) bool {
+	aScore := s.rankScore(a, now)
+	bScore := s.rankScore(b, now)
+	if aScore == bScore {
+		return a.matchCount > b.matchCount
+	}
+	return aScore > bScore
+}
+
+func (s *AdaptiveSampler) findMatch(tokens []Token, now time.Time) int {
+	best := -1
+	for i := range s.entries {
+		e := &s.entries[i]
+		if !IsMatch(e.tokens, tokens, s.config.MatchThreshold) {
+			continue
+		}
+		if !s.config.EWMAEnabled {
+			return i
+		}
+		if best == -1 || s.ranksBefore(e, &s.entries[best], now) {
+			best = i
+		}
+	}
+	return best
+}
+
+func (s *AdaptiveSampler) bubbleEntry(idx int, now time.Time) {
+	for idx > 0 && s.ranksBefore(&s.entries[idx], &s.entries[idx-1], now) {
+		s.entries[idx-1], s.entries[idx] = s.entries[idx], s.entries[idx-1]
+		idx--
+	}
+}
+
+func (s *AdaptiveSampler) evictColdest(now time.Time) {
+	if !s.config.EWMAEnabled {
+		s.entries = s.entries[:len(s.entries)-1]
+		return
+	}
+
+	victim := 0
+	for i := 1; i < len(s.entries); i++ {
+		victimScore := s.rankScore(&s.entries[victim], now)
+		candidateScore := s.rankScore(&s.entries[i], now)
+		if candidateScore < victimScore ||
+			(candidateScore == victimScore && s.entries[i].matchCount <= s.entries[victim].matchCount) {
+			victim = i
+		}
+	}
+	copy(s.entries[victim:], s.entries[victim+1:])
+	s.entries = s.entries[:len(s.entries)-1]
+}
+
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
@@ -198,11 +286,9 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 	}
 	now := s.now()
 
-	for i := range s.entries {
-		e := &s.entries[i]
-		if !IsMatch(e.tokens, tokens, s.config.MatchThreshold) {
-			continue
-		}
+	matchIdx := s.findMatch(tokens, now)
+	if matchIdx >= 0 {
+		e := &s.entries[matchIdx]
 		// Refill credits based on time elapsed since last seen.
 		elapsed := now.Sub(e.lastSeen).Seconds()
 		e.credits += elapsed * s.config.RateLimit
@@ -211,9 +297,12 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		}
 		e.lastSeen = now
 		e.matchCount++
+		if s.config.EWMAEnabled {
+			e.observeHotness(now, s.config.EWMAHalfLife)
+		}
 
 		// All mutations to e must complete before bubbling: bubbling swaps
-		// entries by value, so e (= &s.entries[i]) aliases a different
+		// entries by value, so e (= &s.entries[matchIdx]) aliases a different
 		// entry after the first swap.
 		allow := e.credits >= 1.0
 		if allow {
@@ -227,10 +316,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		}
 
 		// Bubble the matched entry toward the front to maintain descending order.
-		for i > 0 && s.entries[i-1].matchCount < s.entries[i].matchCount {
-			s.entries[i-1], s.entries[i] = s.entries[i], s.entries[i-1]
-			i--
-		}
+		s.bubbleEntry(matchIdx, now)
 
 		if allow {
 			tlmAdaptiveSamplerKept.Inc(s.source)
@@ -241,20 +327,27 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		return nil
 	}
 
-	// No match — this is a new pattern. Evict the least-frequently-matched entry if full.
+	// No match — this is a new pattern. Evict the coldest entry if full.
 	tlmAdaptiveSamplerNewPatterns.Inc(s.source)
 	if len(s.entries) >= s.config.MaxPatterns {
 		tlmAdaptiveSamplerEvictions.Inc(s.source)
-		s.entries = s.entries[:len(s.entries)-1]
+		s.evictColdest(now)
 	}
-	// New patterns start with matchCount=1 and belong at the end of the sorted list.
+	// New patterns start with matchCount=1. Without EWMA they belong at the
+	// end of the lifetime-frequency list; with EWMA they may bubble above
+	// stale entries after insertion.
 	s.entries = append(s.entries, samplerEntry{
 		tokens:     tokens,
 		credits:    s.config.BurstSize - 1,
 		lastSeen:   now,
 		matchCount: 1,
 		sampled:    0,
+		hotness:    1,
+		hotnessAt:  now,
 	})
+	if s.config.EWMAEnabled {
+		s.bubbleEntry(len(s.entries)-1, now)
+	}
 	tlmAdaptiveSamplerKept.Inc(s.source)
 	return msg
 }
