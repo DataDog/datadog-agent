@@ -204,6 +204,7 @@ func preRemoveDatadogAgentDDOT(ctx HookContext) error {
 	if err := syncDDOTProcmgrStop(ctx, false); err != nil {
 		log.Warnf("failed to remove DDOT procmgr experiment config: %s", err)
 	}
+	removeProcmgrDDOTMarker()
 
 	err := agentDDOTService.StopExperiment(ctx)
 	if err != nil {
