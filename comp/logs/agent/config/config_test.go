@@ -964,6 +964,72 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShipInheritsCompressi
 	suite.Equal(endpoints.Main.ConnectionResetInterval, opwEndpoint.ConnectionResetInterval, "OPW must inherit ConnectionResetInterval from main")
 }
 
+// TestBuildEndpointsWithLegacyVectorDualShip verifies that the legacy vector.* prefix is
+// honoured for dual_ship so that users still on the old config are not silently broken.
+// When vector.logs.dual_ship=true the OPW endpoint must appear as an additional endpoint
+// (dual-ship mode) exactly as it would when the modern observability_pipelines_worker key is set.
+func (suite *ConfigTestSuite) TestBuildEndpointsWithLegacyVectorDualShip() {
+	suite.config.SetWithoutSource("api_key", "123")
+	// Use the legacy vector.* prefix for all three OPW settings.
+	suite.config.SetWithoutSource("vector.logs.enabled", true)
+	suite.config.SetWithoutSource("vector.logs.url", "https://opw.example.com:8443/")
+	suite.config.SetWithoutSource("vector.logs.dual_ship", true)
+
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	suite.Require().Nil(err)
+
+	// Primary endpoint must be the Datadog intake, not OPW.
+	suite.Equal("agent-http-intake.logs.datadoghq.com.", endpoints.Main.Host)
+
+	// There must be exactly two endpoints: [main (DD), OPW additional].
+	suite.Require().Len(endpoints.Endpoints, 2, "expected 2 endpoints (DD primary + OPW additional) when legacy vector.logs.dual_ship=true")
+
+	opwEndpoint := endpoints.Endpoints[1]
+	suite.Equal("opw.example.com", opwEndpoint.Host)
+	suite.Equal(8443, opwEndpoint.Port)
+	suite.True(opwEndpoint.UseSSL())
+	suite.True(opwEndpoint.isAdditionalEndpoint)
+	suite.False(opwEndpoint.IsReliable(), "OPW dual-ship endpoint must default to unreliable even via legacy prefix")
+}
+
+// TestBuildEndpointsWithLegacyVectorDualShipReliable verifies that the legacy
+// vector.logs.dual_ship_reliable key is honoured via the fallback path.
+func (suite *ConfigTestSuite) TestBuildEndpointsWithLegacyVectorDualShipReliable() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("vector.logs.enabled", true)
+	suite.config.SetWithoutSource("vector.logs.url", "https://opw.example.com:8443/")
+	suite.config.SetWithoutSource("vector.logs.dual_ship", true)
+	suite.config.SetWithoutSource("vector.logs.dual_ship_reliable", true)
+
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	suite.Require().Nil(err)
+
+	suite.Require().Len(endpoints.Endpoints, 2)
+	opwEndpoint := endpoints.Endpoints[1]
+	suite.Equal("opw.example.com", opwEndpoint.Host)
+	suite.True(opwEndpoint.IsReliable(), "vector.logs.dual_ship_reliable=true must make OPW a reliable additional endpoint via legacy prefix")
+}
+
+// TestBuildEndpointsWithOPWDualShipNoOPWEnabledWarns verifies that setting dual_ship=true when
+// OPW is not enabled (or has no URL) emits a startup warning, because dual_ship has no effect
+// in that configuration — the OPW block is skipped entirely.
+func TestBuildEndpointsWithOPWDualShipNoOPWEnabledWarns(t *testing.T) {
+	cfg := config.NewMock(t)
+	cfg.SetWithoutSource("api_key", "123")
+	// OPW is NOT enabled — dual_ship=true should warn and silently no-op.
+	cfg.SetWithoutSource("observability_pipelines_worker.logs.dual_ship", true)
+
+	var buf bytes.Buffer
+	logger, err := pkglog.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&buf, pkglog.WarnLvl)
+	assert.NoError(t, err)
+	pkglog.SetupLogger(logger, "warn")
+
+	_, buildErr := BuildHTTPEndpointsWithVectorOverride(cfg, "test-track", "test-proto", "test-source")
+	assert.NoError(t, buildErr)
+
+	assert.True(t, strings.Contains(buf.String(), "dual_ship=true has no effect"), "expected startup warning when dual_ship=true and OPW is not enabled; got: %s", buf.String())
+}
+
 // TestBuildEndpointsWithOPWDualShipReliableWithoutDualShipWarns verifies that setting
 // dual_ship_reliable=true without dual_ship=true emits a startup warning, because the
 // reliability setting is silently ignored in that configuration.

@@ -372,7 +372,13 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		log.Warn("observability_pipelines_worker.logs.dual_ship_reliable=true has no effect because observability_pipelines_worker.logs.dual_ship is false")
 	}
 
-	if vectorURL, vectorURLDefined := logsConfig.getObsPipelineURL(); logsConfig.obsPipelineWorkerEnabled() && vectorURLDefined {
+	vectorURL, vectorURLDefined := logsConfig.getObsPipelineURL()
+	opwEnabled := logsConfig.obsPipelineWorkerEnabled() && vectorURLDefined
+	if logsConfig.obsPipelineWorkerDualShip() && !opwEnabled {
+		log.Warn("observability_pipelines_worker.logs.dual_ship=true has no effect because OPW is not enabled or its url is empty")
+	}
+
+	if opwEnabled {
 		host, port, _, useSSL, err := parseAddressWithScheme(vectorURL, defaultNoSSL, parseAddress)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", vectorURL, err)

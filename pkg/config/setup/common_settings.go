@@ -1950,6 +1950,11 @@ func vector(config pkgconfigmodel.Setup) {
 	// Best-effort is the safer default: an unreachable OPW must not block delivery to Datadog.
 	config.BindEnvAndSetDefault("observability_pipelines_worker.logs.dual_ship", false)
 	config.BindEnvAndSetDefault("observability_pipelines_worker.logs.dual_ship_reliable", false)
+
+	// Legacy vector.* aliases for dual_ship keys — users still on the legacy prefix must not have
+	// dual_ship=true silently dropped when the fallback in obsPipelineWorkerDualShip reads these keys.
+	config.BindEnvAndSetDefault("vector.logs.dual_ship", false)
+	config.BindEnvAndSetDefault("vector.logs.dual_ship_reliable", false)
 }
 
 func bindVectorOptions(config pkgconfigmodel.Setup, datatype string) {
