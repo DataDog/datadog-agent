@@ -1,0 +1,44 @@
+comparison,variant,metric,value,unit,notes
+stageT_default_vs_main_standard,baseline_main,throughput_delta,0,pct,baseline
+stageT_default_vs_main_standard,comparison_stageT_default,throughput_delta,2.98,pct,CI [+2.60,+3.36]
+stageT_default_vs_main_standard,baseline_main,avg_rss,438.95,MiB,avg across replicate averages
+stageT_default_vs_main_standard,comparison_stageT_default,avg_rss,491.00,MiB,avg across replicate averages
+stageT_default_vs_main_standard,baseline_main,string_interner_resets_per_worker,21141,count,max per worker avg approx
+stageT_default_vs_main_standard,comparison_stageT_default,string_interner_resets_per_worker,0,count,new SLRU path
+stageT_default_vs_main_standard,comparison_stageT_default,string_interner_evictions_per_worker,47766154,count,individual bounded evictions
+stageT_default_vs_main_standard,comparison_stageT_default,ring_lag_bytes_max,8388522,bytes,max observed shard
+stageT_default_vs_main_standard,comparison_stageT_default,ring_oldest_age_max,775686168,ns,max observed shard
+stageT_default_vs_main_high,comparison_stageT_default,throughput_delta,4.88,pct,CI [+4.52,+5.23]
+stageT_default_vs_main_high,baseline_main,avg_rss,162.70,MiB,avg across replicate averages
+stageT_default_vs_main_high,comparison_stageT_default,avg_rss,162.94,MiB,avg across replicate averages
+stageT_default_vs_main_high,baseline_main,string_interner_resets_per_worker,42481,count,max per worker avg approx
+stageT_default_vs_main_high,comparison_stageT_default,string_interner_resets_per_worker,0,count,new SLRU path
+stageT_default_vs_main_high,comparison_stageT_default,string_interner_evictions_per_worker,97940944,count,individual bounded evictions
+stageT_default_vs_main_high,comparison_stageT_default,ring_lag_bytes_max,8388608,bytes,max observed shard; high-rate reservoir reaches capacity
+stageT_default_vs_main_high,comparison_stageT_default,ring_oldest_age_max,270754364,ns,max observed shard
+stageT_tagset_vs_default_standard,comparison_tagset,throughput_delta,0.02,pct,CI [-0.03,+0.08]
+stageT_tagset_vs_default_standard,baseline_stageT_default,avg_rss,463.89,MiB,avg across replicate averages
+stageT_tagset_vs_default_standard,comparison_tagset,avg_rss,359.44,MiB,avg across replicate averages
+stageT_tagset_vs_default_standard,baseline_stageT_default,string_interner_miss_per_worker,47942704,count,max per worker avg approx
+stageT_tagset_vs_default_standard,comparison_tagset,string_interner_miss_per_worker,47043,count,tagset cache bypasses repeated per-tag interning
+stageT_tagset_vs_default_standard,baseline_stageT_default,ring_blocked_ns_per_shard,30590521208,ns,avg max shard 0
+stageT_tagset_vs_default_standard,comparison_tagset,ring_blocked_ns_per_shard,4399798378,ns,avg max shard 0
+stageT_tagset_vs_default_high,comparison_tagset,throughput_delta,21.17,pct,CI [+21.01,+21.32]; SMP marks regression because absolute change exceeds 20% threshold
+stageT_tagset_vs_default_high,baseline_stageT_default,avg_rss,162.78,MiB,avg across replicate averages
+stageT_tagset_vs_default_high,comparison_tagset,avg_rss,191.99,MiB,avg across replicate averages
+stageT_tagset_vs_default_high,baseline_stageT_default,string_interner_miss_per_worker,103226011,count,max per worker avg approx
+stageT_tagset_vs_default_high,comparison_tagset,string_interner_miss_per_worker,47281,count,tagset cache bypasses repeated per-tag interning
+stageT_tagset_vs_default_high,baseline_stageT_default,ring_lag_bytes_max,8388578,bytes,default high-rate reservoir reaches capacity
+stageT_tagset_vs_default_high,comparison_tagset,ring_lag_bytes_max,2841047,bytes,tagset cache reduces parser bottleneck/backpressure
+stageT_tagset_vs_default_high,baseline_stageT_default,ring_blocked_ns_per_shard,92704604697,ns,avg max shard 0
+stageT_tagset_vs_default_high,comparison_tagset,ring_blocked_ns_per_shard,16792697860,ns,avg max shard 0
+stageT_tagset_vs_main_standard,comparison_tagset,throughput_delta,1.60,pct,CI [+1.43,+1.77]
+stageT_tagset_vs_main_standard,baseline_main,avg_rss,461.60,MiB,avg across replicate averages
+stageT_tagset_vs_main_standard,comparison_tagset,avg_rss,386.79,MiB,avg across replicate averages
+stageT_tagset_vs_main_high,comparison_tagset,throughput_delta,28.42,pct,CI [+28.21,+28.64]; high-rate bounded-backpressure case
+stageT_tagset_vs_main_high,baseline_main,avg_rss,172.91,MiB,avg across replicate averages
+stageT_tagset_vs_main_high,comparison_tagset,avg_rss,191.89,MiB,avg across replicate averages
+stageT_tagset_vs_main_high,baseline_main,string_interner_resets_per_worker,44417,count,max per worker avg approx
+stageT_tagset_vs_main_high,comparison_tagset,string_interner_miss_per_worker,47662,count,max per worker avg approx
+stageT_tagset_vs_main_high,comparison_tagset,ring_lag_bytes_max,3978129,bytes,max observed shard
+stageT_tagset_vs_main_high,comparison_tagset,ring_oldest_age_max,135668642,ns,max observed shard

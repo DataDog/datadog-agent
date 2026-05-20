@@ -1,0 +1,239 @@
+# Local SMP image matrix
+
+Built on 2026-05-16 local using Colima Docker daemon and Linux `datadog/agent-dev-env-linux:latest` build container.
+All images are linux/arm64 and built with `dda inv agent.hacky-dev-image-build --no-development`.
+
+## Baseline main
+
+- Branch/worktree: `main` (`../datadog-agent-smp-main`)
+- Commit: `3ec880f14a3`
+- Image: `datadog/agent-dev:smp-dsd-main`
+- Image ID: `sha256:6f67e85689c833453bb60ba0697d234561a39a9f8df37d36f2a7fd6372316419`
+- Agent version: `Agent 7.81.0-devel - Meta: git.21.3ec880f - Commit: 3ec880f14a3 - Serialization version: v5.0.196 - Go version: go1.25.10`
+
+## Foundation
+
+- Branch/worktree: detached foundation HEAD (`../datadog-agent-smp-foundation`)
+- Commit: `53f7e8fdc3d`
+- Image: `datadog/agent-dev:smp-dsd-foundation`
+- Image ID: `sha256:10c128c6e2f0857ebbdeb9c5a5b2644cb8c112ec4345882537bd24c643966580`
+- Agent version: `Agent 7.81.0-devel - Meta: git.32.53f7e8f - Commit: 53f7e8fdc3d - Serialization version: v5.0.196 - Go version: go1.25.10`
+
+## Stage B experiment
+
+- Branch/worktree: `dogstatsd-agg-serde-experiment` (`/Users/luke.steensen/code/datadog-agent`)
+- Commit: `538ae360d89`
+- Image: `datadog/agent-dev:smp-dsd-experiment`
+- Image ID: `sha256:38a3a685d98e4b6d801750b084d11a186a3a18cddd65516ab7a28738e0a4828a`
+- Agent version: `Agent 7.81.0-devel - Meta: git.33.538ae36 - Commit: 538ae360d89 - Serialization version: v5.0.196 - Go version: go1.25.10`
+
+## Stage C shadow segment image
+Branch: dogstatsd-agg-serde-experiment
+Commit: 911b22716cac8ebd68872af4c039370a05670aa4
+Image: [datadog/agent-dev:smp-dsd-shadow] sha256:270cc428520d84ef539495cb45e9be61fb67fc2afc1aa08063dc0f70c0ffaf03 created=2026-05-17T12:11:47.720507282-05:00 size=472829450
+Agent 7.81.0-devel - Meta: git.34.911b227 - Commit: 911b22716ca - Serialization version: v5.0.196 - Go version: go1.25.10
+
+## Stage D direct aggregator row image
+Branch: dogstatsd-agg-serde-experiment
+Commit: e3f2f987056d0082b16b4dcca884c8dbf5df217b
+Image: [datadog/agent-dev:smp-dsd-direct-row] sha256:2d42ebb7a30f289326e0381ca67e82303027e1f6364dd2cc67f80aaecc7bdf15 created=2026-05-17T13:30:48.126657736-05:00 size=472833953
+Agent 7.81.0-devel - Meta: git.35.e3f2f98 - Commit: e3f2f987056 - Serialization version: v5.0.196 - Go version: go1.25.10
+
+## Stage E direct active serializer image
+Branch: dogstatsd-agg-serde-experiment
+Commit: 9498d5fee95
+Image: [datadog/agent-dev:smp-dsd-direct-active] sha256:4ea5dddf91170749e4b1a804698539f5994ed92ea6fb5fe24dd58d575adab606 created=2026-05-17T21:00 local size=local
+Agent 7.81.0-devel - Meta: git.37.9498d5f - Commit: 9498d5fee95 - Serialization version: v5.0.196 - Go version: go1.25.10
+
+## Stage F direct series rows image
+Branch: dogstatsd-agg-serde-experiment
+Commit: c7327ad816c
+Image: [datadog/agent-dev:smp-dsd-direct-rows] sha256:d3e3444dc310dab44cf4d628b6b7d514da62f018a82cf9f35e6b49e8c5eac095 created=2026-05-17T18:27:20.536501984-05:00 size=472867666
+Agent 7.81.0-devel - Meta: git.39.c7327ad - Commit: c7327ad816c - Serialization version: v5.0.196 - Go version: go1.25.10
+
+## Stage G direct metric rows image
+Branch: dogstatsd-agg-serde-experiment
+Commit: 638b79c3bba
+Image: [datadog/agent-dev:smp-dsd-direct-metric-rows] sha256:3d426f8396fee5839932767a6ba4d3299a37491adc1d58f53224be89fe6014b6 created=2026-05-17T23:09:38.98341442-05:00 size=472886348
+Agent 7.81.0-devel - Meta: git.42.638b79c - Commit: 638b79c3bba - Serialization version: v5.0.196 - Go version: go1.25.10
+
+## Stage H direct context rows image
+Branch: dogstatsd-agg-serde-experiment
+Commit: c989043ddcc
+Image: [datadog/agent-dev:smp-dsd-direct-context-rows] sha256:ba6a973a75a6114d1fcabcf0b89ce976684835836ba273e564bac7539db79a88 created=2026-05-18T00:40:44.767661288-05:00 size=472892474
+Agent 7.81.0-devel - Meta: git.43.c989043 - Commit: c989043ddcc - Serialization version: v5.0.196 - Go version: go1.25.10
+
+## Stage I columnar v3 vertical slice images
+Branch: dogstatsd-agg-serde-experiment
+All images are local-only experiments gated by `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3=true`.
+
+### Stage I naive columnar v3
+Commit: 2ade84801cc
+Image: [datadog/agent-dev:smp-dsd-columnar-v3] sha256:c09554bba2cd27e51ffe5c8c225c34d09028f2adde7e57c08a0c032de890fe37 created=2026-05-18T09:56:09.083407563-05:00 size=472906555
+Agent 7.81.0-devel - Meta: git.45.2ade848 - Commit: 2ade84801cc - Serialization version: v5.0.196 - Go version: go1.25.10
+
+### Stage I merged flush rows
+Commit: 9b04b0c6104
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-merged] sha256:7b74e23aa4b8851b3802b53d2304bf8c3805ba9e4dcb2db309acc97d0bf87b22 created=2026-05-18T10:21:35.137287132-05:00 size=472911226
+Agent 7.81.0-devel - Meta: git.46.9b04b0c - Commit: 9b04b0c6104 - Serialization version: v5.0.196 - Go version: go1.25.10
+
+### Stage I descriptor reuse
+Commit: 0e774a353cb
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-descriptors] sha256:fbc144f26560e10c9ee71bd6087f17f9ecce43a787e25fa6b1c0b0fba69dff9a created=2026-05-18T10:44:07.47864998-05:00 size=472918708
+Agent 7.81.0-devel - Meta: git.47.0e774a3 - Commit: 0e774a353cb - Serialization version: v5.0.196 - Go version: go1.25.10
+
+### Stage I deferred insert telemetry
+Commit: 6f3c5ae857a
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-lite-telemetry] sha256:71b0d4cdd197bdd6af445391a292c6508d1eda6c144f1d1305956dc2bd6f5eb4 created=2026-05-18T11:06:15.960460968-05:00 size=472910221
+Agent 7.81.0-devel - Meta: git.48.6f3c5ae - Commit: 6f3c5ae857a - Serialization version: v5.0.196 - Go version: go1.25.10
+
+### Stage I batched shard workers
+Commit: 7a43a9d0dae
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-batched] sha256:1faa85034ac89580494dace3a7e956fd094d513a0b0a58663c16400c783c551d created=2026-05-18T11:38:03.070190637-05:00 size=472926741
+Agent 7.81.0-devel - Meta: git.49.7a43a9d - Commit: 7a43a9d0dae - Serialization version: v5.0.196 - Go version: go1.25.10
+
+### Stage I batched shard workers without insert lock
+Commit: 87fbbc1fbb5
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-batched-nolock] sha256:02bad07173991588f75a7ea067134a7682889bb387b680fd71b1ecfe6bb2aa46 created=2026-05-18T12:01:50.741962427-05:00 size=472930919
+Agent 7.81.0-devel - Meta: git.50.87fbbc1 - Commit: 87fbbc1fbb5 - Serialization version: v5.0.196 - Go version: go1.25.10
+
+### Stage I current-bucket row cache
+Commit: e68c3c36110
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-bucket-cache] sha256:70545c769c850061824d0b63d5a7fa2a706f734afc4fa4230a6008f8d4505c30 created=2026-05-18T12:23:33.702774006-05:00 size=472927115
+Agent 7.81.0-devel - Meta: git.51.e68c3c3 - Commit: e68c3c36110 - Serialization version: v5.0.196 - Go version: go1.25.10
+
+## Stage J root-cause images
+
+### Stage J shard-only identity columnar v3
+Commit: dfdb011f0d7
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-shard-only] sha256:80614cb1408182f3b7e941cc5d91b0f32ca24d8f3adf09700e1c3fda8f325bd1 created=2026-05-18T13:07:23.437397978-05:00 size=472925523
+Agent 7.81.0-devel - Meta: git.53.dfdb011 - Commit: dfdb011f0d7 - Serialization version: v5.0.196 - Go version: go1.25.10
+
+### Stage J skip legacy flush probe
+Commit: 4a5bbb1fbce
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-skip-legacy] sha256:e18fd14bf734b63845ff2eccd8b39b890c77311ce77b098dcc52cf8175a714c1 created=2026-05-18T14:05:57.234069424-05:00 size=472930317
+Agent 7.81.0-devel - Meta: git.54.4a5bbb1 - Commit: 4a5bbb1fbce - Serialization version: v5.0.196 - Go version: go1.25.10
+
+## Stage L ingress-log images
+
+### Stage L ingress-log code, env off
+Commit: eae5cb364ee (code committed after local build; Agent meta reports previous HEAD 8712e7406c8)
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-ingress-log] sha256:e5550c6ee7fb82cbb9e2c0fc64a5cb591555b9ce69f95d12522fa6794f0b505d created=2026-05-18T16:56:10.401221784-05:00
+Agent 7.81.0-devel - Meta: git.56.8712e74 - Commit: 8712e7406c8 - Serialization version: v5.0.196 - Go version: go1.25.10
+
+### Stage L ingress-log code, env enabled
+Commit: eae5cb364ee (code committed after local build; Agent meta reports previous HEAD 8712e7406c8)
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-ingress-log-enabled] sha256:f2e0ec8bef3125ecd55aa38116073765e6d9c34a51e93f4d445fe6b10551cfbf created=2026-05-18T16:56:14.774598327-05:00
+Env: DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG=true, DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG_MAX_BYTES=16777216
+Agent 7.81.0-devel - Meta: git.56.8712e74 - Commit: 8712e7406c8 - Serialization version: v5.0.196 - Go version: go1.25.10
+
+## Stage M sharded ingress log and raw UDS ring images
+
+Branch: dogstatsd-agg-serde-experiment
+Commit: 53a887497f6
+Image tags: [datadog/agent-dev:smp-dsd-columnar-v3-sharded-log datadog/agent-dev:smp-dsd-columnar-v3-raw-uds-ring]
+Image ID: sha256:abfd3f2cb673cbede15f672e9738c2886d5b564511f16ceb3d87e2fe6c8023eb
+Created: 2026-05-19T00:53:33.26418897Z
+Agent log version: Datadog Agent v7.81.0-devel+git.65.53a8874
+
+The two tags intentionally point at the same raw-capable binary. SMP cases select the path through env/config:
+
+- M1 sharded packet-batch log: `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG_SHARDED=true`, `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG_MAX_BYTES=16777216`
+- M2 raw UDS ring: `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS=true`, `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG_MAX_BYTES=16777216`, and local raw cases set `dogstatsd_port: 0` so UDP does not disable raw mode.
+
+## Stage N compact raw UDS ingress ring image
+
+Branch: dogstatsd-agg-serde-experiment
+Commit: 4b2c4b6b7e6
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-compact-raw-uds-ring]
+Image ID: sha256:7db8f847847eb8d8d3d7c97e38367e464b37e9af34d891e90301c80ff3daa2dc
+Created: 2026-05-18T20:41:47.159839642-05:00
+Agent version: Agent 7.81.0-devel - Meta: git.67.4b2c4b6 - Commit: 4b2c4b6b7e6 - Serialization version: v5.0.196 - Go version: go1.25.10
+
+Env for compact path: `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_COMPACT=true`, `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS=true`, `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG_MAX_BYTES=16777216`, with local compact cases setting `dogstatsd_port: 0` so UDP does not disable raw mode.
+
+## Stage O batch-drain compact raw UDS ingress ring image
+
+Branch: dogstatsd-agg-serde-experiment
+Commit: dc29e8fff7c
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-compact-raw-uds-ring-batch-drain]
+Image ID: sha256:eb8819fb3d7f9aad59b6b1f942b880ddd3b9753b1baa5987cd734312e0d076fa
+Created: 2026-05-19T03:50:14.452016922Z
+Agent version: Agent 7.81.0-devel - Meta: git.69.dc29e8f - Commit: dc29e8fff7c - Serialization version: v5.0.196 - Go version: go1.25.10
+
+Env for batch-drain path: `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_COMPACT=true`, `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_BATCH_DRAIN=true`, `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_BATCH_DRAIN_SIZE=32`, `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG_MAX_BYTES=16777216`, with local cases setting `dogstatsd_port: 0` so UDP does not disable raw mode.
+
+## Stage P direct compact raw UDS ingress ring image
+
+Branch: dogstatsd-agg-serde-experiment
+Commit: 83d06509167
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-direct-compact-raw-uds-ring]
+Image ID: sha256:8ec94dcb242ad75e8dcfcb56074a988ca06a78df120896861eab59478e953711
+Created: 2026-05-19T13:15:34.447818622Z
+Agent version: Agent 7.81.0-devel - Meta: git.71.83d0650 - Commit: 83d06509167 - Serialization version: v5.0.196 - Go version: go1.25.10
+
+Env for direct compact path: `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_DIRECT_COMPACT=true`, `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_BATCH_DRAIN=true`, `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_BATCH_DRAIN_SIZE=32`, `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG_MAX_BYTES=16777216`, with local cases setting `dogstatsd_port: 0` so UDP does not disable raw mode.
+
+## Stage Q native columnar-v3 serializer image
+
+Branch: dogstatsd-agg-serde-experiment
+Commit: 947dc3f2ec3
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-native-columnar-v3]
+Image ID: sha256:b6b4c8aeaa277952d6f13608ef1654fd2d4ba5e23c924c8676a693fba87e0e4b
+Created: 2026-05-19T09:51:40.246153348-05:00
+Agent version: Agent 7.81.0-devel - Meta: git.73.947dc3f - Commit: 947dc3f2ec3 - Serialization version: v5.0.196 - Go version: go1.25.10
+
+Env for native v3 path: `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3=true`, `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_NATIVE_SERIALIZER=true`, plus Stage O compact raw-ingress gates for UDS datagram/off-origin cases.
+
+Env for v2/direct-series bridge: `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3=true`, `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_DIRECT_SERIES_SERIALIZER=true`, plus Stage O compact raw-ingress gates for UDS datagram/off-origin cases. V3 endpoint env is intentionally absent for these v2 runs.
+
+Origin-on probe: `dogstatsd_origin_detection: true`; raw ingress gates are present in the experiment config but the agent logs show raw ingress disabled because origin detection is unsupported by the raw-ring prototype.
+
+## Raw-ring lag/backpressure telemetry image
+
+Branch: dogstatsd-agg-serde-experiment
+Commit: b99255eb31e
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-raw-lag-telemetry]
+Image ID: sha256:d6432a0a29cb88aa1a5918476debb1c0a722515a8d65ce597230563b1b9292bb
+Created: 2026-05-19T10:49:53.302845489-05:00
+Agent version: Agent 7.81.0-devel - Meta: git.76.b99255e - Commit: b99255eb31e - Serialization version: v5.0.196 - Go version: go1.25.10
+
+Adds raw-ingress telemetry: `consumer_lag_records`, `consumer_lag_bytes`, `oldest_record_timestamp_ns`, `oldest_record_age_ns`, and backpressure stats for blocked reservations/appends.
+
+## Stage R memory hygiene images
+Branch: dogstatsd-agg-serde-experiment
+
+### Stage R first pass, descriptor interning on
+Commit: f05e7fa378f
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-memory-hygiene] sha256:52eb5568e09486a15dbf61b011060b91d92c285f5fdd7f176034f5be8ee10c67 created=2026-05-19 local size=local
+Notes: Direct-row and segment-shadow proof telemetry optional; descriptor interning still default-on in this image.
+
+### Stage R descriptor interning default-off
+Commit: cf85e2601ce
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-memory-hygiene-defaults] sha256:4d93e46ed0501b9a38c3a46f7e72f33a1622437710925ecc8a374695bf4ad764 created=2026-05-19 local size=local
+Notes: Descriptor interning moved behind DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_INTERN_DESCRIPTORS=true.
+
+### Stage R final buffer reuse
+Commit: ab6db258799
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-memory-hygiene-reuse] sha256:f0594de5eb3e9db47bfba9ef41ff3c999dc6cb58be2a396632de8237561ad394 created=2026-05-19 local size=local
+Notes: Reuses columnar buckets and flush row slices; final Stage R image used for main/raw-lag comparisons.
+
+## Stage T parser interning images
+
+Branch: dogstatsd-agg-serde-experiment
+Commit: d78e87470fd
+
+### Stage T default SLRU string interner
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-parser-interning]
+Image ID: sha256:9bce78118472178a9d815f9bd7a8e50c80b46d4cf92f502969a2b29d66ab3012
+Created: 2026-05-20 local
+Agent version: Agent 7.81.0-devel - Meta: git.84.d78e874 - Commit: d78e87470fd - Serialization version: v5.0.196 - Go version: go1.25.10
+Notes: Built as Linux/arm64 with `--no-development`. Uses bounded SLRU parser string interner by default. Exact raw-tagset cache remains disabled.
+
+### Stage T exact raw-tagset cache enabled
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-parser-interning-tagset]
+Image ID: sha256:99c37921c6bed2145e1a848499a8e83885f5ee5bfff23601da0f47890c00b93b
+Created: 2026-05-20 local via `docker commit` from the default Stage T image
+Agent version: same as default Stage T image
+Env: `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true`
+Notes: Used only for feature-cost/direct SMP validation of the exact raw-tagset cache.

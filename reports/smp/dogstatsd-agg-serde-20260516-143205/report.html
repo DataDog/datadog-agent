@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DogStatsD Aggregator + Serializer SMP Report</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 2rem; color: #1f2937; line-height: 1.45; }
+  h1, h2 { color: #111827; }
+  .verdict { border-left: 5px solid #2563eb; background: #eff6ff; padding: 1rem; margin: 1rem 0; }
+  .warn { border-left-color: #d97706; background: #fffbeb; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0 2rem; font-size: 0.92rem; }
+  th, td { border: 1px solid #d1d5db; padding: 0.45rem 0.55rem; text-align: left; }
+  th { background: #f3f4f6; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  code { background: #f3f4f6; padding: 0.1rem 0.25rem; border-radius: 3px; }
+  .ok { color: #047857; font-weight: 600; }
+  .small { color: #6b7280; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<h1>DogStatsD Aggregator + Serializer SMP Report</h1>
+<p class="small">Local SMP run directory: <code>reports/smp/dogstatsd-agg-serde-20260516-143205/</code></p>
+
+<div class="verdict">
+  <strong>Current verdict:</strong> Stage A-Q are complete locally, and the post-Stage-Q raw-ring telemetry/honesty matrix is complete. Stage I was negative because the columnar parser path computed an unused debug projection for every sample. Stage J removed that artifact and turned the narrow columnar v3 slice into a +13.57% high-rate throughput win. Stage L showed a byte-bounded ingress log can trade unconstrained overload admission for explicit backpressure. Stage M's raw UDS ring removed packet-pool backlog entirely. Stage N/O's compact raw ring plus batch drains remain the best bounded high-rate design. Stage P falsified the simple no-copy direct-reservation idea. Stage Q adds native columnar-v3 payload construction and a v2/direct-series bridge. Three-replicate honesty gates still show positive UDS origin-off v2/v3 throughput, but high-rate wins are explicitly bounded by raw-ring backpressure; UDP/origin-on are raw-disabled fallback checks.
+</div>
+
+<h2>Images</h2>
+<ul>
+  <li><code>datadog/agent-dev:smp-dsd-main</code> — main baseline, commit <code>3ec880f14a3</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-foundation</code> — foundation, commit <code>53f7e8fdc3d</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-experiment</code> — Stage B instrumentation, commit <code>538ae360d89</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-shadow</code> — Stage C shadow segments, commit <code>911b22716ca</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-direct-row</code> — Stage D direct-row shadow, commit <code>e3f2f987056</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-direct-active</code> — Stage E direct active serializer, commit <code>9498d5fee95</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-direct-rows</code> — Stage F direct series rows, commit <code>c7327ad816c</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-direct-metric-rows</code> — Stage G direct metric rows, commit <code>638b79c3bba</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-direct-context-rows</code> — Stage H unordered direct context rows, commit <code>c989043ddcc</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-bucket-cache</code> — Stage I latest columnar v3 vertical slice, commit <code>e68c3c36110</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-shard-only</code> — Stage J shard-only identity fix, commit <code>dfdb011f0d7</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-skip-legacy</code> — Stage J skip legacy flush probe, commit <code>4a5bbb1fbce</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-ingress-log</code> — Stage L ingress-log code, env off, commit <code>eae5cb364ee</code> plus follow-up <code>7630c423017</code> (SMP image predates follow-up)</li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-ingress-log-enabled</code> — Stage L ingress-log enabled, commit <code>eae5cb364ee</code> plus follow-up <code>7630c423017</code> (SMP image predates follow-up)</li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-sharded-log</code> — Stage M sharded ingress log, commit <code>53a887497f6</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-raw-uds-ring</code> — Stage M raw UDS ring, commit <code>53a887497f6</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-compact-raw-uds-ring</code> — Stage N compact raw UDS ring, commit <code>4b2c4b6b7e6</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-compact-raw-uds-ring-batch-drain</code> — Stage O batched compact raw UDS ring drains, commit <code>dc29e8fff7c</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-direct-compact-raw-uds-ring</code> — Stage P direct compact raw UDS ring, commit <code>83d06509167</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-native-columnar-v3</code> — Stage Q native columnar-v3 serializer, commit <code>947dc3f2ec3</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-raw-lag-telemetry</code> — raw-ring lag telemetry, commit <code>b99255eb31e</code></li>
+</ul>
+
+<h2>Stage result tables</h2>
+
+<h3>Stage A — main vs foundation</h3>
+<table>
+<tr><th>Case</th><th>Goal</th><th>Δ mean</th><th>Δ mean CI</th><th>Confidence</th><th>Regression</th><th>Improvement</th></tr>
+<tr><td><code>uds_dogstatsd_to_api_v3</code></td><td>ingress throughput</td><td class="num">-0.19%</td><td class="num">[-0.46%, +0.07%]</td><td class="num">64.6%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td><code>uds_dogstatsd_to_api</code></td><td>ingress throughput</td><td class="num">-0.18%</td><td class="num">[-0.38%, +0.01%]</td><td class="num">76.4%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td><code>uds_dogstatsd_20mb_12k_contexts_20_senders</code></td><td>memory utilization</td><td class="num">+0.70%</td><td class="num">[+0.47%, +0.94%]</td><td class="num">100.0%</td><td class="ok">false</td><td>false</td></tr>
+</table>
+
+<h3>Stage B — foundation vs instrumentation-only</h3>
+<table>
+<tr><th>Case</th><th>Goal</th><th>Δ mean</th><th>Δ mean CI</th><th>Confidence</th><th>Regression</th><th>Improvement</th></tr>
+<tr><td><code>uds_dogstatsd_to_api_v3</code></td><td>ingress throughput</td><td class="num">-0.29%</td><td class="num">[-0.55%, -0.02%]</td><td class="num">83.2%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td><code>uds_dogstatsd_to_api</code></td><td>ingress throughput</td><td class="num">-0.69%</td><td class="num">[-0.96%, -0.41%]</td><td class="num">99.9%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td><code>uds_dogstatsd_20mb_12k_contexts_20_senders</code></td><td>memory utilization</td><td class="num">+0.77%</td><td class="num">[+0.56%, +0.99%]</td><td class="num">100.0%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed</code></td><td>ingress throughput</td><td class="num">+0.04%</td><td class="num">[-0.23%, +0.31%]</td><td class="num">13.6%</td><td class="ok">false</td><td>true</td></tr>
+</table>
+
+<h3>Stage C — instrumentation vs shadow segments</h3>
+<table>
+<tr><th>Case</th><th>Goal</th><th>Δ mean</th><th>Δ mean CI</th><th>Confidence</th><th>Regression</th><th>Improvement</th></tr>
+<tr><td><code>uds_dogstatsd_to_api_v3</code></td><td>ingress throughput</td><td class="num">-0.19%</td><td class="num">[-0.38%, +0.01%]</td><td class="num">78.1%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td><code>uds_dogstatsd_to_api</code></td><td>ingress throughput</td><td class="num">-0.35%</td><td class="num">[-0.57%, -0.14%]</td><td class="num">96.3%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td><code>uds_dogstatsd_20mb_12k_contexts_20_senders</code></td><td>memory utilization</td><td class="num">+0.72%</td><td class="num">[+0.47%, +0.96%]</td><td class="num">100.0%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed</code></td><td>ingress throughput</td><td class="num">-0.04%</td><td class="num">[-0.32%, +0.24%]</td><td class="num">13.3%</td><td class="ok">false</td><td>false</td></tr>
+</table>
+
+<h3>Stage D — shadow segments vs direct-row shadow</h3>
+<table>
+<tr><th>Case</th><th>Goal</th><th>Δ mean</th><th>Δ mean CI</th><th>Confidence</th><th>Regression</th><th>Improvement</th></tr>
+<tr><td><code>uds_dogstatsd_to_api_v3</code></td><td>ingress throughput</td><td class="num">+0.46%</td><td class="num">[+0.18%, +0.74%]</td><td class="num">96.2%</td><td class="ok">false</td><td>true</td></tr>
+<tr><td><code>uds_dogstatsd_to_api</code></td><td>ingress throughput</td><td class="num">-0.43%</td><td class="num">[-0.65%, -0.22%]</td><td class="num">99.1%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td><code>uds_dogstatsd_20mb_12k_contexts_20_senders</code></td><td>memory utilization</td><td class="num">+0.30%</td><td class="num">[+0.09%, +0.52%]</td><td class="num">93.4%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed</code></td><td>ingress throughput</td><td class="num">+0.16%</td><td class="num">[-0.04%, +0.36%]</td><td class="num">70.6%</td><td class="ok">false</td><td>true</td></tr>
+</table>
+
+<h3>Stage E — direct-row shadow vs direct active serializer</h3>
+<table>
+<tr><th>Case</th><th>Goal</th><th>Δ mean</th><th>Δ mean CI</th><th>Confidence</th><th>Regression</th><th>Improvement</th></tr>
+<tr><td><code>uds_dogstatsd_to_api_v3</code></td><td>ingress throughput</td><td class="num">-0.21%</td><td class="num">[-0.43%, +0.01%]</td><td class="num">77.0%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td><code>uds_dogstatsd_to_api</code></td><td>ingress throughput</td><td class="num">-0.07%</td><td class="num">[-0.39%, +0.24%]</td><td class="num">23.6%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td><code>uds_dogstatsd_20mb_12k_contexts_20_senders</code></td><td>memory utilization</td><td class="num">-0.94%</td><td class="num">[-1.15%, -0.72%]</td><td class="num">100.0%</td><td class="ok">false</td><td>true</td></tr>
+<tr><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed</code></td><td>ingress throughput</td><td class="num">+0.56%</td><td class="num">[+0.27%, +0.84%]</td><td class="num">98.7%</td><td class="ok">false</td><td>true</td></tr>
+</table>
+
+<h3>Stage F — direct active serializer vs direct series rows</h3>
+<table>
+<tr><th>Case</th><th>Goal</th><th>Δ mean</th><th>Δ mean CI</th><th>Confidence</th><th>Regression</th><th>Improvement</th></tr>
+<tr><td><code>uds_dogstatsd_to_api_v3</code></td><td>ingress throughput</td><td class="num">+0.22%</td><td class="num">[-0.03%, +0.47%]</td><td class="num">75.0%</td><td class="ok">false</td><td>true</td></tr>
+<tr><td><code>uds_dogstatsd_to_api</code></td><td>ingress throughput</td><td class="num">-0.13%</td><td class="num">[-0.36%, +0.10%]</td><td class="num">54.0%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td><code>uds_dogstatsd_20mb_12k_contexts_20_senders</code></td><td>memory utilization</td><td class="num">-0.21%</td><td class="num">[-0.44%, +0.01%]</td><td class="num">77.6%</td><td class="ok">false</td><td>true</td></tr>
+<tr><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed</code></td><td>ingress throughput</td><td class="num">-0.12%</td><td class="num">[-0.37%, +0.13%]</td><td class="num">45.7%</td><td class="ok">false</td><td>false</td></tr>
+</table>
+
+<div class="verdict">
+  <strong>Stage F verdict:</strong> direct DogStatsD series rows are locally non-regressing and essentially neutral. This moves more core time-sampler handoff into the new row model, but sketches/check-sampler rows and metric flush/dedup internals are still old-path.
+</div>
+
+<h3>Stage G — direct series rows vs direct metric rows</h3>
+<table>
+<tr><th>Case</th><th>Goal</th><th>Δ mean</th><th>Δ mean CI</th><th>Confidence</th><th>Regression</th><th>Improvement</th></tr>
+<tr><td><code>uds_dogstatsd_to_api_v3</code></td><td>ingress throughput</td><td class="num">-0.08%</td><td class="num">[-0.35%, +0.19%]</td><td class="num">29.3%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td><code>uds_dogstatsd_to_api</code></td><td>ingress throughput</td><td class="num">-0.00%</td><td class="num">[-0.24%, +0.24%]</td><td class="num">1.3%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td><code>uds_dogstatsd_20mb_12k_contexts_20_senders</code></td><td>memory utilization</td><td class="num">-0.52%</td><td class="num">[-0.76%, -0.28%]</td><td class="num">99.4%</td><td class="ok">false</td><td>true</td></tr>
+<tr><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed</code></td><td>ingress throughput</td><td class="num">+0.02%</td><td class="num">[-0.23%, +0.26%]</td><td class="num">6.8%</td><td class="ok">false</td><td>true</td></tr>
+<tr><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">-0.25%</td><td class="num">[-0.48%, -0.01%]</td><td class="num">82.2%</td><td class="ok">false</td><td>false</td></tr>
+</table>
+
+<h3>Stage H — direct metric rows vs unordered direct context rows</h3>
+<table>
+<tr><th>Case</th><th>Goal</th><th>Δ mean</th><th>Δ mean CI</th><th>Confidence</th><th>Regression</th><th>Improvement</th></tr>
+<tr><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">-0.51%</td><td class="num">[-0.73%, -0.29%]</td><td class="num">99.7%</td><td class="ok">false</td><td>false</td></tr>
+</table>
+
+<h3>Stage I — direct metric rows vs columnar v3 vertical slice</h3>
+<table>
+<tr><th>Variant</th><th>Case</th><th>Goal</th><th>Δ mean</th><th>Δ mean CI</th><th>Confidence</th><th>Regression</th><th>Improvement</th></tr>
+<tr><td>naive parser direct insert</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">-4.74%</td><td class="num">[-5.12%, -4.35%]</td><td class="num">100.0%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td>merged flush rows</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">-5.28%</td><td class="num">[-5.63%, -4.93%]</td><td class="num">100.0%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td>descriptor reuse</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">-6.68%</td><td class="num">[-6.96%, -6.40%]</td><td class="num">100.0%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td>deferred insert telemetry</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">-6.02%</td><td class="num">[-6.28%, -5.77%]</td><td class="num">100.0%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td>batched shard workers</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">-8.02%</td><td class="num">[-8.27%, -7.76%]</td><td class="num">100.0%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td>batched/no-lock shard workers</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">-8.61%</td><td class="num">[-8.86%, -8.37%]</td><td class="num">100.0%</td><td class="ok">false</td><td>false</td></tr>
+<tr><td>bucket-row cache</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">-7.11%</td><td class="num">[-7.44%, -6.78%]</td><td class="num">100.0%</td><td class="ok">false</td><td>false</td></tr>
+</table>
+
+<h3>Stage J — root-cause probe: shard-only identity</h3>
+<table>
+<tr><th>Comparison</th><th>Case</th><th>Goal</th><th>Δ mean</th><th>Δ mean CI</th><th>Confidence</th><th>Regression</th><th>Improvement</th></tr>
+<tr><td>direct metric rows → columnar shard-only</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">+13.57%</td><td class="num">[+13.28%, +13.86%]</td><td class="num">100.0%</td><td class="ok">false</td><td>true</td></tr>
+<tr><td>columnar bucket-cache → columnar shard-only</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">+24.07%</td><td class="num">[+23.57%, +24.57%]</td><td class="num">100.0%</td><td>true*</td><td>true</td></tr>
+<tr><td>direct metric rows → columnar shard-only</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed</code></td><td>ingress throughput</td><td class="num">+2.83%</td><td class="num">[+2.44%, +3.22%]</td><td class="num">100.0%</td><td class="ok">false</td><td>true</td></tr>
+<tr><td>columnar shard-only → skip legacy flush</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">-0.22%</td><td class="num">[-0.57%, +0.14%]</td><td class="num">56.7%</td><td class="ok">false</td><td>false</td></tr>
+</table>
+<p class="small">*SMP mechanically marks Regression=true when absolute delta exceeds ±20%, even in the improving direction.</p>
+
+<h3>Stage L — byte-bounded ingress log</h3>
+<table>
+<tr><th>Comparison</th><th>Case</th><th>Goal</th><th>Δ mean</th><th>Δ mean CI</th><th>Read</th></tr>
+<tr><td>columnar env-off → columnar ingress-log</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">-7.79%</td><td class="num">[-8.42%, -7.16%]</td><td>explicit 16MiB backpressure vs large channel</td></tr>
+<tr><td>direct metric rows → columnar ingress-log</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">+4.90%</td><td class="num">[+4.37%, +5.44%]</td><td>high-rate win remains with controlled memory</td></tr>
+<tr><td>direct metric rows → columnar ingress-log</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed</code></td><td>ingress throughput</td><td class="num">+1.22%</td><td class="num">[+0.53%, +1.92%]</td><td>standard case neutral/slightly positive</td></tr>
+</table>
+
+<h3>Stage M — sharded ingress log and raw UDS ring</h3>
+<table>
+<tr><th>Comparison</th><th>Case</th><th>Goal</th><th>Δ mean</th><th>Δ mean CI</th><th>Read</th></tr>
+<tr><td>Stage L ingress-log → M1 sharded packet-batch log</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">-3.77%</td><td class="num">[-4.54%, -2.99%]</td><td>pump/channel removal did not recover throughput in this run</td></tr>
+<tr><td>direct metric rows → M1 sharded packet-batch log</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">-0.09%</td><td class="num">[-0.77%, +0.59%]</td><td>throughput neutral, lower RSS/heap/backlog</td></tr>
+<tr><td>direct metric rows → M2 raw UDS ring</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">+0.80%</td><td class="num">[+0.14%, +1.46%]</td><td>small high-rate win with zero packet-pool backlog</td></tr>
+<tr><td>direct metric rows → M2 raw UDS ring</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed</code></td><td>ingress throughput</td><td class="num">+1.16%</td><td class="num">[+0.77%, +1.55%]</td><td>standard corrected-v3 case positive</td></tr>
+</table>
+
+<h3>Stage N — compact raw UDS ring</h3>
+<table>
+<tr><th>Comparison</th><th>Case</th><th>Goal</th><th>Δ mean</th><th>Δ mean CI</th><th>Read</th></tr>
+<tr><td>fixed-slot raw UDS ring → compact raw UDS ring</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">+3.92%</td><td class="num">[+3.19%, +4.65%]</td><td>compact ring beats fixed-slot M2</td></tr>
+<tr><td>direct metric rows → compact raw UDS ring</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">+7.25%</td><td class="num">[+6.52%, +7.97%]</td><td>best bounded high-rate result so far</td></tr>
+<tr><td>direct metric rows → compact raw UDS ring</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed</code></td><td>ingress throughput</td><td class="num">+2.17%</td><td class="num">[+1.61%, +2.72%]</td><td>standard corrected-v3 case positive</td></tr>
+<tr><td>fixed-slot raw UDS ring → compact raw UDS ring</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed</code></td><td>ingress throughput</td><td class="num">+0.05%</td><td class="num">[+0.01%, +0.09%]</td><td>neutral versus fixed-slot raw</td></tr>
+</table>
+
+<h3>Stage O — batched compact raw UDS ring drains</h3>
+<table>
+<tr><th>Comparison</th><th>Case</th><th>Goal</th><th>Δ mean</th><th>Δ mean CI</th><th>Read</th></tr>
+<tr><td>compact raw UDS ring → batch-drain compact raw UDS ring</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">+1.77%</td><td class="num">[+1.23%, +2.31%]</td><td>batched worker drains help under high offered load</td></tr>
+<tr><td>direct metric rows → batch-drain compact raw UDS ring</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">+7.39%</td><td class="num">[+6.74%, +8.04%]</td><td>best bounded-ingress high-rate result so far</td></tr>
+<tr><td>compact raw UDS ring → batch-drain compact raw UDS ring</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed</code></td><td>ingress throughput</td><td class="num">+0.18%</td><td class="num">[+0.01%, +0.35%]</td><td>standard case neutral/slightly positive</td></tr>
+<tr><td>direct metric rows → batch-drain compact raw UDS ring</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed</code></td><td>ingress throughput</td><td class="num">+1.33%</td><td class="num">[+1.00%, +1.66%]</td><td>standard case positive versus direct rows</td></tr>
+</table>
+
+<h3>Stage P — direct compact raw UDS ring</h3>
+<table>
+<tr><th>Comparison</th><th>Case</th><th>Goal</th><th>Δ mean</th><th>Δ mean CI</th><th>Read</th></tr>
+<tr><td>compact batch-drain raw UDS ring → direct-compact raw UDS ring</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">-3.30%</td><td class="num">[-3.90%, -2.69%]</td><td>simple direct reservation is worse at high rate</td></tr>
+<tr><td>direct metric rows → direct-compact raw UDS ring</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only</code></td><td>ingress throughput</td><td class="num">+4.46%</td><td class="num">[+3.77%, +5.15%]</td><td>positive vs direct rows, worse than Stage O</td></tr>
+<tr><td>compact batch-drain raw UDS ring → direct-compact raw UDS ring</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed</code></td><td>ingress throughput</td><td class="num">-0.03%</td><td class="num">[-0.11%, +0.06%]</td><td>standard case neutral versus Stage O</td></tr>
+<tr><td>direct metric rows → direct-compact raw UDS ring</td><td><code>uds_dogstatsd_to_api_v3_endpoint_fixed</code></td><td>ingress throughput</td><td class="num">+1.78%</td><td class="num">[+1.03%, +2.52%]</td><td>standard case positive versus direct rows</td></tr>
+</table>
+
+<h3>Stage Q — native columnar-v3 serializer and v2/direct-series bridge</h3>
+<table>
+<tr><th>Comparison</th><th>Case</th><th>Δ mean</th><th>Δ mean CI</th><th>Confidence</th><th>Read</th></tr>
+<tr><td>Stage O compact/batch → native v3</td><td><code>fixed-v3 high-rate</code></td><td class="num">+0.80%</td><td class="num">[-0.10%, +1.71%]</td><td class="num">74.7%</td><td>neutral/slightly positive, below confidence threshold</td></tr>
+<tr><td>Stage O compact/batch → native v3</td><td><code>fixed-v3 standard</code></td><td class="num">-0.65%</td><td class="num">[-1.29%, -0.02%]</td><td class="num">81.1%</td><td>neutral/slightly negative</td></tr>
+<tr><td>main → Stage Q native v3</td><td><code>fixed-v3 high-rate</code></td><td class="num">+8.10%</td><td class="num">[+7.47%, +8.73%]</td><td class="num">100.0%</td><td>full design beats main and removes packet-pool backlog</td></tr>
+<tr><td>main → Stage Q native v3</td><td><code>fixed-v3 standard</code></td><td class="num">+1.67%</td><td class="num">[+1.05%, +2.28%]</td><td class="num">99.9%</td><td>positive, memory remains higher</td></tr>
+<tr><td>main → Stage Q direct-series/v2</td><td><code>v2 high-rate</code></td><td class="num">+9.77%</td><td class="num">[+8.76%, +10.78%]</td><td class="num">100.0%</td><td>v2 bridge positive</td></tr>
+<tr><td>main → Stage Q direct-series/v2</td><td><code>v2 standard</code></td><td class="num">+3.27%</td><td class="num">[+2.50%, +4.03%]</td><td class="num">100.0%</td><td>v2 bridge positive, memory higher</td></tr>
+<tr><td>main → Stage Q native v3, origin on</td><td><code>fixed-v3 standard</code></td><td class="num">+2.68%</td><td class="num">[+1.69%, +3.66%]</td><td class="num">99.9%</td><td>raw ingress disabled itself; not raw-ring origin support</td></tr>
+</table>
+
+<h3>Post-Stage-Q — raw-ring telemetry and remaining honesty matrix</h3>
+<table>
+<tr><th>Comparison</th><th>Δ mean</th><th>Δ mean CI</th><th>Confidence</th><th>Read</th></tr>
+<tr><td>v3 high-rate UDS, origin off</td><td class="num">+3.62%</td><td class="num">[+3.35%, +3.90%]</td><td class="num">100.0%</td><td>positive but bounded by raw-ring backpressure</td></tr>
+<tr><td>v3 standard UDS, origin off</td><td class="num">+2.25%</td><td class="num">[+1.94%, +2.55%]</td><td class="num">100.0%</td><td>positive; memory higher</td></tr>
+<tr><td>v2/direct-series high-rate UDS, origin off</td><td class="num">+3.39%</td><td class="num">[+3.08%, +3.70%]</td><td class="num">100.0%</td><td>positive but bounded by raw-ring backpressure</td></tr>
+<tr><td>v2/direct-series standard UDS, origin off</td><td class="num">+1.51%</td><td class="num">[+1.22%, +1.80%]</td><td class="num">100.0%</td><td>positive; memory higher</td></tr>
+<tr><td>v3 high-rate UDS, origin on</td><td class="num">+2.32%</td><td class="num">[+2.03%, +2.61%]</td><td class="num">100.0%</td><td>raw ring disabled; columnar/native remains positive</td></tr>
+<tr><td>v3 standard UDS, origin on</td><td class="num">+1.40%</td><td class="num">[+1.03%, +1.77%]</td><td class="num">100.0%</td><td>raw ring disabled; columnar/native remains positive</td></tr>
+<tr><td>v3 high-rate UDP, raw disabled</td><td class="num">-0.06%</td><td class="num">[-0.28%, +0.17%]</td><td class="num">25.4%</td><td>neutral; raw ring disabled because UDP is enabled</td></tr>
+<tr><td>v3 standard UDP, raw disabled</td><td class="num">+0.06%</td><td class="num">[-0.38%, +0.51%]</td><td class="num">14.3%</td><td>neutral; raw ring disabled because UDP is enabled</td></tr>
+<tr><td>v3 standard UDS, mixed metric types</td><td class="num">-0.01%</td><td class="num">[-0.07%, +0.06%]</td><td class="num">10.6%</td><td>neutral; unsupported metric types fall back</td></tr>
+</table>
+
+<h3>Stage R — memory hygiene and telemetry cost controls</h3>
+<table>
+<tr><th>Comparison</th><th>Case</th><th>Δ mean</th><th>Δ mean CI</th><th>Confidence</th><th>Read</th></tr>
+<tr><td>raw-lag telemetry → Stage R interning-on</td><td><code>v3 standard UDS</code></td><td class="num">+0.23%</td><td class="num">[+0.03%, +0.43%]</td><td class="num">85.8%</td><td>naive interning increased RSS; not default-worthy</td></tr>
+<tr><td>raw-lag telemetry → Stage R default-off interning</td><td><code>v3 standard UDS</code></td><td class="num">+0.13%</td><td class="num">[-0.11%, +0.38%]</td><td class="num">50.9%</td><td>throughput neutral; proof shadows removed; paired RSS lower</td></tr>
+<tr><td>raw-lag telemetry → final Stage R reuse</td><td><code>v3 high-rate UDS</code></td><td class="num">+1.50%</td><td class="num">[+1.22%, +1.78%]</td><td class="num">100.0%</td><td>high-rate path improved, still backpressure-bounded</td></tr>
+<tr><td>main → final Stage R reuse</td><td><code>v3 standard UDS</code></td><td class="num">+2.22%</td><td class="num">[+1.92%, +2.52%]</td><td class="num">100.0%</td><td>throughput-positive, but RSS remains about +45.6 MiB</td></tr>
+</table>
+
+<div class="verdict warn">
+  <strong>Stage R memory read:</strong> expensive proof telemetry is now explicit and optional. Naive descriptor/tagset interning was measured and made opt-in because local tagset reuse was too low. The hot bucket path now uses descriptor IDs instead of per-bucket maps, and SMP observed zero fallback bucket-index creation in measured UDS runs. However, final Stage R is still not a total-memory win versus main: standard v3 UDS remains about +45.6 MiB RSS and +21.5 MiB heap alloc.
+</div>
+
+<h3>Stage S — heap profiling and v3 serializer allocation analysis</h3>
+<table>
+<tr><th>Finding</th><th>Value</th><th>Read</th></tr>
+<tr><td>late pprof in-use heap</td><td>main 162.14 MiB / Stage R 173.31 MiB</td><td>only +11.17 MiB live heap, much smaller than RSS delta</td></tr>
+<tr><td>packet pool vs raw ring live heap</td><td>32.74 MiB / 18.72 MiB</td><td>raw ring lowers explicit ingress reservoir live heap</td></tr>
+<tr><td>parser string interner allocation</td><td>~17.64 GiB</td><td>dominant allocation-space item; next dedup target</td></tr>
+<tr><td>direct columnar-v3 serializer allocation</td><td>~64 MiB over 150 samples</td><td>not a top retained-heap item</td></tr>
+<tr><td>writeSerie focused benchmark</td><td>~6.95 MiB / 9,123 allocs → ~5.25 MiB / 929 allocs</td><td>direct no-mutation v3 fast path removes temporary SerieRow escapes</td></tr>
+</table>
+
+<div class="verdict warn">
+  <strong>Stage S memory read:</strong> direct v3 serializer allocation is real but not the main retained-memory explanation. The remaining RSS gap is more likely heap-sys/RSS retention from transient allocation and allocator behavior. Stage S removed two direct point-row copy/escape costs by passing <code>*V3MetricPointRow</code> through the sink path, and removed common-path <code>writeSerie</code> row allocation.
+</div>
+
+<h3>Stage T — parser string/tagset interning</h3>
+<table>
+<tr><th>Change</th><th>Read</th></tr>
+<tr><td>bounded SLRU string interner</td><td>replaces full-cache reset with recent/protected segments and individual evictions</td></tr>
+<tr><td>non-mutating normal tag extraction</td><td>normal tagsets can be treated as immutable/shared</td></tr>
+<tr><td>optional exact raw-tagset cache</td><td><code>DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true</code>; second sighting admits exact parsed tagset</td></tr>
+<tr><td>focused repeated-tagset benchmark</td><td>default <code>145.9 ns/op, 112 B/op, 1 alloc/op</code>; cache hit <code>15.64 ns/op, 0 B/op, 0 alloc/op</code></td></tr>
+</table>
+
+<table>
+<tr><th>Stage T SMP comparison</th><th>Case</th><th>Δ mean</th><th>CI</th><th>Read</th></tr>
+<tr><td>default vs main</td><td>standard v3 UDS</td><td>+2.98%</td><td>[+2.60%, +3.36%]</td><td>positive; RSS still higher than main</td></tr>
+<tr><td>default vs main</td><td>high-rate v3 metrics-only</td><td>+4.88%</td><td>[+4.52%, +5.23%]</td><td>positive; bounded-backpressure wording</td></tr>
+<tr><td>tagset cache vs default</td><td>standard v3 UDS</td><td>+0.02%</td><td>[-0.03%, +0.08%]</td><td>throughput neutral, lower RSS</td></tr>
+<tr><td>tagset cache vs default</td><td>high-rate v3 metrics-only</td><td>+21.17%</td><td>[+21.01%, +21.32%]</td><td>large parser/backpressure relief; SMP threshold also marks Regression=true</td></tr>
+<tr><td>tagset cache vs main</td><td>standard v3 UDS</td><td>+1.60%</td><td>[+1.43%, +1.77%]</td><td>positive with lower paired RSS</td></tr>
+<tr><td>tagset cache vs main</td><td>high-rate v3 metrics-only</td><td>+28.42%</td><td>[+28.21%, +28.64%]</td><td>large high-rate parser/backpressure win</td></tr>
+</table>
+
+<div class="verdict warn">
+  <strong>Stage T caveat:</strong> the exact tagset cache looks highly valuable for repeated-tagset workloads, reducing string-interner misses from tens/hundreds of millions per worker to about 47k in these SMP runs. Keep it opt-in until mostly-unique/adversarial tagset feature-cost runs validate admission and retained-memory behavior.
+</div>
+
+<div class="verdict">
+  <strong>Current value read:</strong> Stage I had not actually collapsed identity work: it added an unused debug-key and display-tags projection on every parser hot-path sample. Stage J removes that artifact and shows the narrow columnar design can beat direct metric rows. Stage L shows the large packet queue can be replaced by explicit ingress-log backpressure. Stage M shows a raw UDS ring can eliminate packet-pool backlog. Stage N shows byte-compact retained records matter. Stage O shows batched worker drains are a real but smaller high-rate ceiling step. Stage P shows one-max-slot direct reservation is not the next ceiling. Stage Q completes direct native v3/v2 payload construction but is not a large standalone win over Stage O. Stage R makes proof telemetry and naive descriptor interning explicit costs rather than hidden defaults. Stage S shows direct v3 serializer live heap is not the main RSS culprit and removes low-risk row-copy escapes. Stage T confirms parser/string interning is a real remaining bottleneck; SLRU reset avoidance is safe and exact tagset dictionaries can substantially reduce backpressure on repeated-tagset workloads. Stage N/O plus Stage Q/R/S/T remains the best tested combined design; post-telemetry honesty gates narrow the claim to UDS datagram/origin-off and make high-rate backpressure visible.
+</div>
+
+<div class="verdict warn">
+  <strong>Stage E/F/G/H/I/J/L/M/N/O/P/Q/R/T caveat:</strong> this is intentionally unsafe/local and enabled through env gates. Stage E bypasses iterable channel traversal. Stage F emits DogStatsD time-sampler series as <code>metrics.SerieRow</code>. Stage G bypasses scalar <code>*metrics.Serie</code> materialization. Stage H bypasses grouping/dedup and is intentionally not wire-equivalent. Stage I/J/Q/R are v3-only/metric-oriented and fall back to legacy paths for unsupported samples/checks/sketches/events, except the explicit skip-legacy upper-bound probe and the Stage Q direct-series/v2 bridge. Stage L changes overload/backpressure behavior and is only a first-pass packet-batch ingress log. Stage M/N/O/P raw modes are UDS-datagram-only and currently exclude UDP, stream sockets, named pipes, statsd forwarding, and origin detection; the origin-on and UDP probes intentionally ran with raw ingress disabled. Stage R changes measurement cost shape by making proof shadows optional and descriptor interning opt-in. Stage T's exact tagset cache remains opt-in until admission/memory behavior is validated on mostly-unique/adversarial tagsets.
+</div>
+
+<h2>Artifacts</h2>
+<ul>
+  <li><a href="summary.csv">summary.csv</a> — exact SMP result table.</li>
+  <li><a href="selected_metrics.csv">selected_metrics.csv</a> and <a href="selected_metrics.sql">selected_metrics.sql</a> — explanatory DuckDB aggregates over parquet captures.</li>
+  <li><code>stageL_*.csv</code> — Stage L single-replicate ingress-log metric summaries.</li>
+  <li><a href="stageM_selected_metrics.csv">stageM_selected_metrics.csv</a> — Stage M sharded-log/raw-ring metric summaries.</li>
+  <li><a href="stageN_selected_metrics.csv">stageN_selected_metrics.csv</a> — Stage N compact raw-ring metric summaries.</li>
+  <li><a href="stageO_selected_metrics.csv">stageO_selected_metrics.csv</a> — Stage O batch-drain compact raw-ring metric summaries.</li>
+  <li><a href="stageP_selected_metrics.csv">stageP_selected_metrics.csv</a> — Stage P direct-compact raw-ring metric summaries.</li>
+  <li><a href="stageQ_selected_metrics.csv">stageQ_selected_metrics.csv</a> — Stage Q native-v3-vs-Stage-O metric summaries.</li>
+  <li><a href="final_main_vs_stageQ_selected_metrics.csv">final_main_vs_stageQ_selected_metrics.csv</a> — final main-vs-Stage-Q v3/v2/origin metric summaries.</li>
+  <li><a href="final_stageQ_effects.csv">final_stageQ_effects.csv</a> — final Stage Q effect summary.</li>
+  <li><a href="honesty3_matrix_selected_metrics.csv">honesty3_matrix_selected_metrics.csv</a> — post-telemetry three-replicate matrix metric summaries.</li>
+  <li><a href="honesty3_matrix_effects.csv">honesty3_matrix_effects.csv</a> — post-telemetry three-replicate matrix effect summary.</li>
+  <li><a href="stageR_memory_hygiene_selected_metrics.csv">stageR_memory_hygiene_selected_metrics.csv</a> — Stage R memory-hygiene metric summaries.</li>
+  <li><a href="stageR_memory_hygiene_effects.csv">stageR_memory_hygiene_effects.csv</a> — Stage R memory-hygiene effect summary.</li>
+  <li><a href="stageT_parser_interning_selected_metrics.csv">stageT_parser_interning_selected_metrics.csv</a> — Stage T parser/ring/RSS metric summaries.</li>
+  <li><a href="stageT_parser_interning_effects.csv">stageT_parser_interning_effects.csv</a> — Stage T effect summary.</li>
+  <li><a href="notes/stageS-heap-and-v3-serializer-profile.md">notes/stageS-heap-and-v3-serializer-profile.md</a> — Stage S heap/profile and v3 serializer allocation analysis.</li>
+  <li><a href="notes/stageT-parser-interning.md">notes/stageT-parser-interning.md</a> — Stage T parser string/tagset interning analysis.</li>
+  <li><a href="images.txt">images.txt</a> — image IDs and Agent versions.</li>
+  <li><a href="environment.txt">environment.txt</a> — Docker/Colima/SMP environment.</li>
+  <li><a href="notes/experiment-log.md">notes/experiment-log.md</a> — chronological command log and caveats.</li>
+</ul>
+</body>
+</html>

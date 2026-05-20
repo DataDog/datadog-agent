@@ -1492,17 +1492,44 @@ dda inv test --targets=./comp/dogstatsd/server/impl,./comp/dogstatsd/listeners,.
 
 Result: passed (`318` tests).
 
+Images:
+
+- `datadog/agent-dev:smp-dsd-columnar-v3-parser-interning`
+  - image ID `sha256:9bce78118472178a9d815f9bd7a8e50c80b46d4cf92f502969a2b29d66ab3012`
+  - commit `d78e87470fd`
+- `datadog/agent-dev:smp-dsd-columnar-v3-parser-interning-tagset`
+  - image ID `sha256:99c37921c6bed2145e1a848499a8e83885f5ee5bfff23601da0f47890c00b93b`
+  - same image with `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true`
+    baked into image env.
+
+Three-replicate SMP results (`--total-samples 270`):
+
+| Comparison | Case | Δ mean | CI | Read |
+|---|---|---:|---:|---|
+| Stage T default vs `main` | standard v3 UDS | `+2.98%` | `[+2.60%, +3.36%]` | improvement |
+| Stage T default vs `main` | high-rate v3 UDS metrics-only | `+4.88%` | `[+4.52%, +5.23%]` | improvement; still bounded-backpressure wording |
+| Stage T tagset cache vs Stage T default | standard v3 UDS | `+0.02%` | `[-0.03%, +0.08%]` | throughput-neutral |
+| Stage T tagset cache vs Stage T default | high-rate v3 UDS metrics-only | `+21.17%` | `[+21.01%, +21.32%]` | large parser/backpressure relief; SMP marks `Regression=true` only because absolute change exceeds the ±20% effect threshold |
+| Stage T tagset cache vs `main` | standard v3 UDS | `+1.60%` | `[+1.43%, +1.77%]` | improvement with lower paired RSS |
+| Stage T tagset cache vs `main` | high-rate v3 UDS metrics-only | `+28.42%` | `[+28.21%, +28.64%]` | large parser/backpressure relief; same threshold caveat |
+
+Macro read:
+
+- The SLRU string interner is a safe default-on improvement for reset churn: in
+  the validated runs `main` still reached tens of thousands of full resets per
+  worker; Stage T stayed at zero resets and used bounded individual evictions.
+- The SLRU change alone does not solve standard-case RSS; Stage T default still
+  had higher average RSS than `main` in the standard paired run.
+- The exact tagset cache is the bigger repeated-tagset lever. It reduced
+  string-interner misses from tens/hundreds of millions per worker to about
+  `47k` in the SMP workloads because repeated exact tagsets bypass per-tag
+  interning entirely.
+- Keep exact tagset caching opt-in until mostly-unique/adversarial tagset
+  feature-cost runs validate the admission policy.
+
 Artifacts:
 
 - `reports/smp/dogstatsd-agg-serde-20260516-143205/notes/stageT-parser-interning.md`
+- `reports/smp/dogstatsd-agg-serde-20260516-143205/stageT_parser_interning_effects.csv`
+- `reports/smp/dogstatsd-agg-serde-20260516-143205/stageT_parser_interning_selected_metrics.csv`
 - `reports/smp/dogstatsd-agg-serde-20260516-143205/profiles/stageT-parser-tagset-bench-nohottelemetry.txt`
-
-Next SMP work:
-
-1. Build a post-Stage-T image and compare default Stage T vs Stage R/S to isolate
-   the SLRU string interner.
-2. Run the same image with
-   `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true` to isolate exact
-   tagset-cache feature cost.
-3. Re-run main comparisons only after those feature-cost probes show a favorable
-   allocation/RSS/throughput tradeoff.
