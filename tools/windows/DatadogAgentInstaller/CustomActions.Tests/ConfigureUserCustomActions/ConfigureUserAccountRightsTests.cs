@@ -54,7 +54,7 @@ namespace CustomActions.Tests.ConfigureUserCustomActions
             Test.Create().ConfigureUserAccountRights();
 
             Test.NativeMethods.Verify(
-                n => n.AddPrivilege(It.IsAny<SecurityIdentifier>(), It.IsAny<string>()),
+                n => n.AddPrivilege(It.IsAny<SecurityIdentifier>(), It.IsAny<AccountRightsConstants>()),
                 Times.Never);
 
             // The skip path must warn operators that the agent service still needs SeServiceLogonRight.
