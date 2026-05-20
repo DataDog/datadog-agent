@@ -600,6 +600,11 @@ func classifyURLError(err error) string {
 		return metrics.FailureCauseTLS
 	}
 
+	// Guard against malformed *url.Error{Err: nil} from third-party transports.
+	if inner == nil {
+		return metrics.FailureCauseOther
+	}
+
 	return classifyErrorMessage(inner.Error())
 }
 

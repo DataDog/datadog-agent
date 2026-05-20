@@ -1007,6 +1007,12 @@ func TestClassifyConnectivityError(t *testing.T) {
 			err:      errors.New("No Such Host"),
 			expected: metrics.FailureCauseDNS,
 		},
+		{
+			// Malformed *url.Error{Err: nil} from a third-party transport must not panic.
+			name:     "other for url.Error with nil inner",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: nil},
+			expected: metrics.FailureCauseOther,
+		},
 	}
 
 	for _, tc := range tests {
@@ -1015,4 +1021,28 @@ func TestClassifyConnectivityError(t *testing.T) {
 			assert.Equal(t, tc.expected, got)
 		})
 	}
+}
+
+// TestCheckConnectivityIncrementsFailureCauseMetric verifies that CheckConnectivity wires
+// the classifier's result into TlmHTTPConnectivityFailureCause.Inc.  A destination whose
+// host cannot be resolved is guaranteed to produce a DNS error, so we can assert that the
+// counter was incremented with failure_cause="dns".
+func TestCheckConnectivityIncrementsFailureCauseMetric(t *testing.T) {
+	cfg := configmock.New(t)
+
+	// Swap in a mock telemetry component so we can inspect counter increments.
+	telemetryMock := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+	metrics.TlmHTTPConnectivityFailureCause = telemetryMock.NewCounter(
+		"logs", "http_connectivity_failure_cause", []string{"failure_cause"}, "")
+
+	// Point at an unresolvable host — guaranteed to fail with a DNS error.
+	endpoint := config.NewEndpoint("test-api-key", "", "this-host-does-not-exist.invalid", 443, config.EmptyPathPrefix, true)
+
+	result := CheckConnectivity(endpoint, cfg)
+	assert.Equal(t, config.HTTPConnectivity(false), result, "expected connectivity check to fail")
+
+	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "http_connectivity_failure_cause")
+	assert.NoError(t, err)
+	assert.GreaterOrEqual(t, len(metric), 1, "expected at least one failure_cause metric increment")
+	assert.Equal(t, metrics.FailureCauseDNS, metric[0].Tags()["failure_cause"])
 }
