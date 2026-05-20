@@ -203,6 +203,8 @@ logs:
 	// language=yaml
 	agentConfig := `
 log_level: debug
+logs_config:
+  file_scan_period: 1
 anomaly_detection:
   enabled: true
   metrics:
@@ -250,8 +252,10 @@ func (s *logTriggeredSuite) TestLogsTriggeredEmitsOnFileSpike() {
 		logMessage    = "e2e anomaly test event" // fixed content → same signature always
 		baselineLines = 25                       // warmup: 25 s at count=1, satisfies warmup_points=20
 		spikeBatches  = 3                        // spread spike across 3 seconds
-		batchSize     = 10                       // count=10 vs baseline count=1 → clear step change
-		sentinelLines = 3                        // post-spike lines so analysis reaches last spike second
+		batchSize     = 20                       // count=20 vs baseline count=1 → 20x step change; robust
+		// even if SSH latency spreads 20 writes across 2 seconds (count=10/s), still a
+		// clear spike. batchSize=10 was borderline if writes spilled into a second second.
+		sentinelLines = 3 // post-spike lines so analysis reaches last spike second
 	)
 
 	// Create the file before the tailer starts so the agent picks it up immediately.
