@@ -20,18 +20,18 @@ import (
 func TestNoopIntegrationsSendLog(t *testing.T) {
 	comp := NewNoopComponent()
 
-	// Capture stdout so we can assert the output
-	oldStdout := os.Stdout
+	// Capture stderr so we can assert the output; stdout must remain clean for --json mode.
+	oldStderr := os.Stderr
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
-	os.Stdout = w
+	os.Stderr = w
 
 	comp.SendLog("hello from check", "my_check:abc123")
 
 	w.Close()
 	out, err := io.ReadAll(r)
 	require.NoError(t, err)
-	os.Stdout = oldStdout
+	os.Stderr = oldStderr
 
 	assert.True(t, strings.Contains(string(out), "hello from check"), "output should contain the log message")
 	assert.True(t, strings.Contains(string(out), "my_check:abc123"), "output should contain the integration ID")

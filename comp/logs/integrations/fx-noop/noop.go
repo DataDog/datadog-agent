@@ -5,11 +5,12 @@
 
 // Package fxnoop provides a print-only integrations component for use with
 // the `agent check` subcommand. Logs submitted via send_log are printed to
-// stdout instead of being forwarded to the backend.
+// stderr instead of being forwarded to the backend.
 package fxnoop
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -17,7 +18,7 @@ import (
 
 // noopIntegrations is a print-only implementation of integrations.Component.
 // It satisfies the interface so that Python checks can call send_log without
-// hitting a "no receiver" error, and it prints received logs to stdout so the
+// hitting a "no receiver" error, and it prints received logs to stderr so the
 // operator can see what would have been forwarded.
 type noopIntegrations struct{}
 
@@ -39,7 +40,8 @@ func (n *noopIntegrations) Subscribe() chan integrations.IntegrationLog {
 	return nil
 }
 
-// SendLog prints the log line to stdout so the operator can see it.
+// SendLog prints the log line to stderr so the operator can see it without
+// polluting stdout, which may carry JSON-formatted output in --json mode.
 func (n *noopIntegrations) SendLog(log, integrationID string) {
-	fmt.Printf("Log from integration %s: %s\n", integrationID, log)
+	fmt.Fprintf(os.Stderr, "Log from integration %s: %s\n", integrationID, log)
 }
