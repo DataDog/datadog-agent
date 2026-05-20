@@ -38,10 +38,6 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: DefaultGRPCConnectionTimeoutSecs,
 		},
 		{
-			key:          "process_config.ignore_zombie_processes",
-			defaultValue: false,
-		},
-		{
 			key:          "process_config.process_discovery.enabled",
 			defaultValue: true,
 		},
@@ -263,12 +259,6 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_AGENT_URL",
 			value:    "datacat.com",
 			expected: "datacat.com",
-		},
-		{
-			key:      "process_config.ignore_zombie_processes",
-			env:      "DD_PROCESS_CONFIG_IGNORE_ZOMBIE_PROCESSES",
-			value:    "true",
-			expected: true,
 		},
 		{
 			key:      "process_config.internal_profiling.enabled",

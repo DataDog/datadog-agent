@@ -31,6 +31,9 @@ Processes
 {{- end }}
   Open Files: {{ .OpenFdCount }}
   Context Switches: Voluntary: {{ .VoluntaryCtxSwitches }} Involuntary: {{ .InvoluntaryCtxSwitches }}
+{{- if or (ne .ZombieChildrenCount 0) (ne .ZombieNetRate 0.0) }}
+  Zombie Children: {{ .ZombieChildrenCount }} Net Rate: {{ printf "%.2f" .ZombieNetRate }}/s
+{{- end }}
 {{- with .IoStat }}
   IO:
     Read:  {{ io .ReadBytesRate }} B/s {{ io .ReadRate }} Ops/s

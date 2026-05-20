@@ -139,7 +139,6 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)
 	procBindEnvAndSetDefault(config, "process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs)
 	procBindEnvAndSetDefault(config, "process_config.disable_realtime_checks", false)
-	procBindEnvAndSetDefault(config, "process_config.ignore_zombie_processes", false)
 
 	// Process Discovery Check
 	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", true,
