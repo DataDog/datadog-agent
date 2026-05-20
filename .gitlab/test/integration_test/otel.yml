@@ -129,6 +129,7 @@ docker_image_build_otel:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   needs: ["integration_tests_otel"]
+  # TODO: Switch to standard `amd64` runners - see comment above in docker_image_build_otel
   tags: ["docker-in-docker:amd64"]
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/$DDOT_BYOC_OCI_REPO-builder
