@@ -7,7 +7,6 @@ go_test(
         "config_matrix_nix_test.go",
         "defaults_nix_test.go",
         "helpers_test.go",
-        "log_triggered_nix_test.go",
         "shutdown_nix_test.go",
     ],
     gotags = ["test"],
@@ -18,5 +17,6 @@ go_test(
         "@com_github_datadog_datadog_agent_test_e2e_framework//testing/environments",
         "@com_github_datadog_datadog_agent_test_e2e_framework//testing/provisioners/aws/host",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
