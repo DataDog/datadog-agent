@@ -182,7 +182,7 @@ fi
 CHROME_EXT_ID=$(echo "$CHROME_EXT_ID" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 # Launcher passes --config like `agent run -c` / `system-probe --config` (Chrome does not pass argv).
 NATIVE_HOST_BIN="$INSTALL_DIR/embedded/bin/run_ai_usage_native_host.sh"
-NM_HOST_NAME="com.ai_prompt_logger.native_host"
+NM_HOST_NAME="com.datadoghq.ai_prompt_logger.native_host"
 if [ -n "$CHROME_EXT_ID" ] && [ -f "$NATIVE_HOST_BIN" ]; then
     echo "# Installing Chrome NativeMessagingHosts for AI usage native host"
     for user_home in /Users/*; do

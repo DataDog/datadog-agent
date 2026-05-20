@@ -201,16 +201,16 @@ namespace WixSetup.Datadog_Agent
                 },
                 new RegKey(
                     _agentFeatures.MainApplication,
-                    RegistryHive.LocalMachine, @"Software\Google\Chrome\NativeMessagingHosts\com.ai_prompt_logger.native_host",
-                    new RegValue("", @"[AGENT]dist\com.ai_prompt_logger.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
+                    RegistryHive.LocalMachine, @"Software\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_prompt_logger.native_host",
+                    new RegValue("", @"[AGENT]dist\com.datadoghq.ai_prompt_logger.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
                 )
                 {
                     Win64 = true
                 },
                 new RegKey(
                     _agentFeatures.MainApplication,
-                    RegistryHive.LocalMachine, @"Software\WOW6432Node\Google\Chrome\NativeMessagingHosts\com.ai_prompt_logger.native_host",
-                    new RegValue("", @"[AGENT]dist\com.ai_prompt_logger.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
+                    RegistryHive.LocalMachine, @"Software\WOW6432Node\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_prompt_logger.native_host",
+                    new RegValue("", @"[AGENT]dist\com.datadoghq.ai_prompt_logger.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
                 )
                 {
                     Win64 = true

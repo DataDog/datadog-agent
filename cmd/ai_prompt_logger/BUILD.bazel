@@ -73,7 +73,7 @@ pkg_files(
     srcs = ["manifest.json"],
     prefix = "bin/agent/dist",
     renames = {
-        "manifest.json": "com.ai_prompt_logger.native_host.json",
+        "manifest.json": "com.datadoghq.ai_prompt_logger.native_host.json",
     },
     target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//packages:__subpackages__"],

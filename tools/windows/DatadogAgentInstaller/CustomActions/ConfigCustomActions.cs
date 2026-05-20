@@ -17,7 +17,7 @@ namespace Datadog.CustomActions
     public class ConfigCustomActions
     {
         private const string AiUsageNativeHostConfigName = "ai_usage_native_host.yaml";
-        private const string AiUsageNativeHostName = "com.ai_prompt_logger.native_host";
+        private const string AiUsageNativeHostName = "com.datadoghq.ai_prompt_logger.native_host";
 
         /// <summary>
         /// Subset of the Datadog config file that we are going to read.

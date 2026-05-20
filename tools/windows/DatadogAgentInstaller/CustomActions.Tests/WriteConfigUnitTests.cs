@@ -102,7 +102,7 @@ random_property: test
                 Assert.Contains($"chrome_extension_id: \"{chromeExtensionId}\"", aiUsageYaml);
 
                 var manifest = File.ReadAllText(AiUsageManifestPath(projectLocation));
-                Assert.Contains("\"name\": \"com.ai_prompt_logger.native_host\"", manifest);
+                Assert.Contains("\"name\": \"com.datadoghq.ai_prompt_logger.native_host\"", manifest);
                 Assert.Contains("\"path\": \"" + Path.Combine(projectLocation, "bin", "agent", "ai-prompt-logger-native-host.exe").Replace("\\", "\\\\") + "\"", manifest);
                 Assert.Contains($"\"chrome-extension://{chromeExtensionId}/\"", manifest);
             });
@@ -210,7 +210,7 @@ random_property: test
 
         private static string AiUsageManifestPath(string projectLocation)
         {
-            return Path.Combine(projectLocation, "bin", "agent", "dist", "com.ai_prompt_logger.native_host.json");
+            return Path.Combine(projectLocation, "bin", "agent", "dist", "com.datadoghq.ai_prompt_logger.native_host.json");
         }
 
         private static string WriteAiUsageNativeHostExample(string configFolder)
