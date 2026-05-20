@@ -39,10 +39,10 @@
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
-/CHANGELOG-AIX.md                       @DataDog/agent-runtimes
 /CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-delivery
 
 /*.md                                   @DataDog/agent-devx
+/CHANGELOG-AIX.md                       @DataDog/agent-runtimes
 /NOTICE                                 @DataDog/agent-delivery
 
 /LICENSE*                               # do not notify anyone
