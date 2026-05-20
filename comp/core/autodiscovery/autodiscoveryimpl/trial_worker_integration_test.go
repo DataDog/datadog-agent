@@ -18,151 +18,279 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
-	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	"github.com/DataDog/datadog-agent/pkg/collector/worker"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// fakeCheck is a minimal check.Check whose ID is set explicitly so the
-// integration test can verify that the ID built by AD's BuildID matches what
-// the worker reports back via notifyTrialResult.
-type fakeCheck struct {
-	stub.StubCheck
-	mu       sync.Mutex
-	id       checkid.ID
-	runCount *atomic.Uint64
-	runFunc  func(uint64) error
+// trialTestState carries per-test behavior into the package-level test loader.
+// Tests in this file run sequentially (no t.Parallel), so a single global slot
+// is enough.
+var trialTestState struct {
+	mu    sync.Mutex
+	runFn func(n uint64) error
 }
 
-func (c *fakeCheck) ID() checkid.ID          { return c.id }
-func (c *fakeCheck) String() string          { return string(c.id) }
-func (c *fakeCheck) Interval() time.Duration { return time.Second }
-func (c *fakeCheck) Run() error {
-	c.mu.Lock()
+func setTrialRunFn(fn func(n uint64) error) {
+	trialTestState.mu.Lock()
+	defer trialTestState.mu.Unlock()
+	trialTestState.runFn = fn
+}
+
+func init() {
+	// Register the test loader once, before any code (in particular
+	// pkgcollector.InitCheckScheduler) calls loaders.LoaderCatalog and locks
+	// the catalog via sync.Once. Without this, the catalog would only contain
+	// production loaders, none of which know how to load our synthetic
+	// discovery configs.
+	loaders.RegisterLoader(func(sender.SenderManager, option.Option[integrations.Component], tagger.Component, workloadfilter.Component) (check.Loader, int, error) {
+		return &trialTestLoader{}, 0, nil
+	})
+}
+
+// trialTestCheck has an ID built via (*CheckBase).BuildID so it matches AD's
+// popConfig formula at configmgr.go:591. Run() consults the package-level
+// runFn so each test can control per-run outcomes.
+type trialTestCheck struct {
+	core.CheckBase
+	runCount *atomic.Uint64
+}
+
+// Interval returns 0 so the forwardingCollector — not the internal scheduler's
+// jobQueue (1s minimum tick) — controls how quickly the same check pointer is
+// re-emitted to the worker.
+func (c *trialTestCheck) Interval() time.Duration { return 0 }
+
+func (c *trialTestCheck) Run() error {
 	n := c.runCount.Inc() - 1
-	fn := c.runFunc
-	c.mu.Unlock()
+	trialTestState.mu.Lock()
+	fn := trialTestState.runFn
+	trialTestState.mu.Unlock()
 	if fn == nil {
 		return nil
 	}
 	return fn(n)
 }
-func (c *fakeCheck) GetSenderStats() (stats.SenderStats, error) {
+
+// GetSenderStats overrides CheckBase: the embedded base would dereference a
+// nil senderManager (the loader never calls Configure), so the worker's
+// stats-gathering call panics. Returning empty stats is fine — the tests
+// assert on AD state and expvars, not on per-check sender stats.
+func (c *trialTestCheck) GetSenderStats() (stats.SenderStats, error) {
 	return stats.NewSenderStats(), nil
 }
 
-// runChecks pushes the provided checks through a real worker.Worker, closes
-// the channel, and blocks until the worker has finished processing every item.
-// All assertions in the integration tests run after this returns, so they
-// observe stable post-run state (no races with in-flight error reporting).
-func runChecks(t *testing.T, checks []check.Check) {
-	t.Helper()
-	expvars.Reset()
-	pending := make(chan check.Check, len(checks))
-	for _, c := range checks {
-		pending <- c
+type trialTestLoader struct{}
+
+func (l *trialTestLoader) Name() string { return "trial-integration-test" }
+
+func (l *trialTestLoader) Load(_ sender.SenderManager, config integration.Config, instance integration.Data, _ int) (check.Check, error) {
+	c := &trialTestCheck{
+		CheckBase: core.NewCheckBase(config.Name),
+		runCount:  atomic.NewUint64(0),
 	}
-	close(pending)
+	c.BuildID(config.FastDigest(), instance, config.InitConfig)
+	return c, nil
+}
 
-	checksTracker := tracker.NewRunningChecksTracker()
-	w, err := worker.NewWorker(
-		aggregator.NewNoOpSenderManager(),
-		haagentmock.NewMockHaAgent(),
-		healthplatformmock.Mock(t),
-		0, // runnerID
-		1, // ID
-		pending,
-		checksTracker,
-		func(checkid.ID) bool { return true },
-		0,
-	)
-	require.NoError(t, err)
+// forwardingCollector is a minimal collector.Component. Its RunCheck spawns a
+// goroutine that pushes the wrapped check onto the worker's pending channel
+// repeatedly until StopCheck is called. This mimics the production semantics
+// of a periodic check without needing the internal scheduler's jobQueue (which
+// rejects sub-second intervals), so trial-threshold failures complete in
+// milliseconds rather than seconds.
+type forwardingCollector struct {
+	pending chan<- check.Check
 
-	done := make(chan struct{})
+	mu    sync.Mutex
+	stops map[checkid.ID]chan struct{}
+}
+
+func newForwardingCollector(pending chan<- check.Check) *forwardingCollector {
+	return &forwardingCollector{
+		pending: pending,
+		stops:   make(map[checkid.ID]chan struct{}),
+	}
+}
+
+func (fc *forwardingCollector) RunCheck(c check.Check) (checkid.ID, error) {
+	fc.mu.Lock()
+	if _, alreadyRunning := fc.stops[c.ID()]; alreadyRunning {
+		fc.mu.Unlock()
+		return c.ID(), nil
+	}
+	stop := make(chan struct{})
+	fc.stops[c.ID()] = stop
+	fc.mu.Unlock()
+
 	go func() {
-		defer close(done)
-		w.Run(context.Background())
+		for {
+			select {
+			case <-stop:
+				return
+			case fc.pending <- c:
+			}
+		}
 	}()
+	return c.ID(), nil
+}
 
-	select {
-	case <-done:
-	case <-time.After(10 * time.Second):
-		t.Fatal("worker did not finish draining checks within 10s")
+func (fc *forwardingCollector) StopCheck(id checkid.ID) error {
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	if stop, ok := fc.stops[id]; ok {
+		close(stop)
+		delete(fc.stops, id)
+	}
+	return nil
+}
+
+func (fc *forwardingCollector) stopAll() {
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	for id, stop := range fc.stops {
+		close(stop)
+		delete(fc.stops, id)
 	}
 }
 
-// scheduleDiscoveryConfig schedules a discovery config through the real AD
-// pipeline and returns the resulting integration.Config together with the
-// check ID AD would expect to receive from a worker reporting on that check.
-func scheduleDiscoveryConfig(t *testing.T, ac *AutoConfig, name string) (integration.Config, checkid.ID) {
+func (fc *forwardingCollector) ReloadAllCheckInstances(string, []check.Check) ([]checkid.ID, error) {
+	return nil, nil
+}
+func (fc *forwardingCollector) GetChecks() []check.Check                   { return nil }
+func (fc *forwardingCollector) MapOverChecks(cb func([]check.Info))        { cb(nil) }
+func (fc *forwardingCollector) AddEventReceiver(_ collector.EventReceiver) {}
+
+// trialTestProvider yields the prepared configs on first Collect, then empty.
+type trialTestProvider struct {
+	configs   []integration.Config
+	collected bool
+}
+
+func (p *trialTestProvider) String() string                                { return "trial-integration-test" }
+func (p *trialTestProvider) GetConfigErrors() map[string]types.ErrorMsgSet { return nil }
+func (p *trialTestProvider) Collect(context.Context) ([]integration.Config, error) {
+	if p.collected {
+		return nil, nil
+	}
+	p.collected = true
+	return p.configs, nil
+}
+func (p *trialTestProvider) IsUpToDate(context.Context) (bool, error) { return true, nil }
+
+// setupPipeline wires runner→forwardingCollector→CheckScheduler→AutoConfig
+// using production constructors. The trackingScheduler returned alongside
+// gives race-free Schedule/Unschedule counters for the assertions.
+func setupPipeline(t *testing.T) (*AutoConfig, *trackingScheduler, *forwardingCollector) {
 	t.Helper()
-	cfg := integration.Config{
-		Name:       name,
-		Discovery:  &integration.DiscoveryConfig{},
-		InitConfig: integration.Data("{}"),
-		Instances:  []integration.Data{integration.Data("{}")},
-	}
-	changes := ac.processNewConfig(cfg)
-	require.Len(t, changes.Schedule, 1)
-	ac.applyChanges(changes)
-	scheduled := changes.Schedule[0]
-	id := checkid.BuildID(scheduled.Name, scheduled.FastDigest(), scheduled.Instances[0], scheduled.InitConfig)
-	return scheduled, id
-}
-
-// TestADWorkerIntegration_UnschedulesAfterThresholdFailures wires a real
-// worker.Worker to a real AutoConfig via the same RegisterTrialResultCallback
-// call used in production. It pushes a wrapped trial check through the worker
-// trialFailureThreshold times, then asserts AD has unscheduled the config.
-//
-// This is the only test that exercises the check-ID contract between
-// scheduler-loaded check.ID() and AD's popConfig lookup: if the worker reports
-// an ID that does not match AD's BuildID(...), the unschedule silently no-ops
-// (with only a Warnf), and this test catches it.
-func TestADWorkerIntegration_UnschedulesAfterThresholdFailures(t *testing.T) {
 	configmock.New(t)
+	expvars.Reset()
 	worker.ResetTrialCallbacksForTest()
 	t.Cleanup(worker.ResetTrialCallbacksForTest)
+	t.Cleanup(func() { setTrialRunFn(nil) })
 
-	sch, ac := getResolveTestConfig(t)
+	deps := createDeps(t)
+	msch := scheduler.NewControllerAndStart()
+	ts := &trackingScheduler{}
+	msch.Register("tracker", ts, false)
+	mockResolver := MockSecretResolver{t: t, scenarios: nil}
+	ac := getAutoConfig(msch, &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp)
 
-	scheduled, id := scheduleDiscoveryConfig(t, ac, "krakend")
-	require.Eventually(t, func() bool {
-		return sch.scheduledSize() == 1
-	}, 5*time.Second, 10*time.Millisecond, "config should be scheduled before failures are reported")
-	require.Contains(t, scheduledConfigNames(ac), scheduled.Name)
+	r := runner.NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t))
+	t.Cleanup(r.Stop)
 
-	tc := &fakeCheck{
-		id:       id,
-		runCount: atomic.NewUint64(0),
-		runFunc:  func(uint64) error { return errors.New("trial probe failed") },
+	fc := newForwardingCollector(r.GetChan())
+	t.Cleanup(fc.stopAll)
+
+	cs := pkgcollector.InitCheckScheduler(
+		option.New[collector.Component](fc),
+		aggregator.NewNoOpSenderManager(),
+		option.None[integrations.Component](),
+		deps.TaggerComp,
+		deps.FilterComp,
+	)
+	ac.AddScheduler("check", cs, false)
+
+	return ac, ts, fc
+}
+
+// containsConfigNamed reports whether the AD-known configs include name.
+// Uses the public GetAllConfigs API rather than reaching into cfgMgr.
+func containsConfigNamed(ac *AutoConfig, name string) bool {
+	for _, c := range ac.GetAllConfigs() {
+		if c.Name == name {
+			return true
+		}
 	}
-	wrapped := check.NewTrialModeCheck(tc)
+	return false
+}
 
-	checks := make([]check.Check, 0, trialFailureThreshold)
-	for i := 0; i < trialFailureThreshold; i++ {
-		checks = append(checks, wrapped)
+// trackingScheduler counts Schedule/Unschedule callbacks. Counter assertions
+// are race-free even when the unschedule fires almost immediately after the
+// schedule — unlike size-based polling on MockScheduler, which can miss the
+// transient "1" between a fast Schedule→Unschedule pair.
+type trackingScheduler struct {
+	schedules   atomic.Int64
+	unschedules atomic.Int64
+}
+
+func (ts *trackingScheduler) Schedule(_ []integration.Config)   { ts.schedules.Inc() }
+func (ts *trackingScheduler) Unschedule(_ []integration.Config) { ts.unschedules.Inc() }
+func (ts *trackingScheduler) Stop()                             {}
+
+// TestADWorkerIntegration_UnschedulesAfterThresholdFailures wires the
+// production AD pipeline to a real worker.Worker via the same
+// RegisterTrialResultCallback call used in production. A discovery config
+// arrives via a config provider; the controller dispatches to the real
+// CheckScheduler whose GetChecksFromConfigs is the wrap site we want to
+// guard. After trialFailureThreshold failed runs, AD must unschedule.
+//
+// This is the integration test that catches a regression in
+// pkg/collector/scheduler.go:278-281 (the
+// "if config.IsDiscovery() { c = check.NewTrialModeCheck(c) }" block).
+// Without that wrap, the unwrapped check fails the worker's trialModeCheck
+// type assertion, no trial callback fires, and AD never unschedules.
+func TestADWorkerIntegration_UnschedulesAfterThresholdFailures(t *testing.T) {
+	ac, ts, _ := setupPipeline(t)
+
+	setTrialRunFn(func(uint64) error { return errors.New("trial probe failed") })
+
+	provider := &trialTestProvider{
+		configs: []integration.Config{{
+			Name:       "krakend_threshold",
+			Discovery:  &integration.DiscoveryConfig{},
+			InitConfig: integration.Data("{}"),
+			Instances:  []integration.Data{integration.Data("{}")},
+		}},
 	}
-	runChecks(t, checks)
+	ac.AddConfigProvider(provider, false, 0)
+	ac.LoadAndRun(context.Background())
 
 	require.Eventually(t, func() bool {
-		return sch.scheduledSize() == 0
-	}, 5*time.Second, 10*time.Millisecond, "AD must unschedule after trialFailureThreshold failures arrive via the real worker→callback→recordTrialResult chain")
-	require.NotContains(t, scheduledConfigNames(ac), scheduled.Name,
-		"unscheduling must also remove the config from scheduledConfigs so GetAllConfigs stays consistent")
-
-	// Trial-mode errors must not have leaked into the global integration-error
-	// counter — that is the worker's responsibility, but we verify the
-	// end-to-end behavior here.
+		return ts.schedules.Load() == 1 && ts.unschedules.Load() == 1
+	}, 10*time.Second, 20*time.Millisecond,
+		"AD must dispatch Schedule then Unschedule after trialFailureThreshold failures arrive via the real worker→callback→recordTrialResult chain")
+	assert.False(t, containsConfigNamed(ac, "krakend_threshold"),
+		"unscheduling must also drop the config from GetAllConfigs")
 	assert.Equal(t, 0, int(expvars.GetErrorsCount()),
 		"trial-mode failures must not be counted as integration errors")
 }
@@ -170,106 +298,75 @@ func TestADWorkerIntegration_UnschedulesAfterThresholdFailures(t *testing.T) {
 // TestADWorkerIntegration_SuccessPromotesAndIsolatesFromAD verifies that once
 // the worker promotes a check out of trial mode (after the first success), it
 // stops reporting outcomes to AD. Subsequent failures must not accumulate in
-// AD's trialRegistry and must not unschedule the config — they should be
-// counted as normal integration errors instead.
+// AD's trialRegistry and must not unschedule the config — they should flow
+// through the normal integration-error path.
 func TestADWorkerIntegration_SuccessPromotesAndIsolatesFromAD(t *testing.T) {
-	configmock.New(t)
-	worker.ResetTrialCallbacksForTest()
-	t.Cleanup(worker.ResetTrialCallbacksForTest)
+	ac, ts, _ := setupPipeline(t)
 
-	sch, ac := getResolveTestConfig(t)
+	// Run 0 succeeds (promotes out of trial mode); runs 1..N fail.
+	setTrialRunFn(func(n uint64) error {
+		if n == 0 {
+			return nil
+		}
+		return errors.New("post-promotion failure")
+	})
 
-	scheduled, id := scheduleDiscoveryConfig(t, ac, "krakend")
+	provider := &trialTestProvider{
+		configs: []integration.Config{{
+			Name:       "krakend_promotion",
+			Discovery:  &integration.DiscoveryConfig{},
+			InitConfig: integration.Data("{}"),
+			Instances:  []integration.Data{integration.Data("{}")},
+		}},
+	}
+	ac.AddConfigProvider(provider, false, 0)
+	ac.LoadAndRun(context.Background())
+
+	// Wait for at least trialFailureThreshold+1 errors to land in the global
+	// counter — these are the post-promotion failures flowing through the
+	// normal worker error-reporting path. Their existence is the load-bearing
+	// signal that the trial callback did NOT fire for them.
 	require.Eventually(t, func() bool {
-		return sch.scheduledSize() == 1
-	}, 5*time.Second, 10*time.Millisecond)
+		return int(expvars.GetErrorsCount()) >= trialFailureThreshold+1
+	}, 10*time.Second, 20*time.Millisecond,
+		"post-promotion failures must be reported as integration errors, proving promotion isolates the trial path")
 
-	// Run 1 succeeds; runs 2..N fail.
-	tc := &fakeCheck{
-		id:       id,
-		runCount: atomic.NewUint64(0),
-		runFunc: func(n uint64) error {
-			if n == 0 {
-				return nil
-			}
-			return errors.New("post-promotion failure")
-		},
-	}
-	wrapped := check.NewTrialModeCheck(tc)
-
-	const totalRuns = trialFailureThreshold + 1 // 1 success + threshold failures
-	checks := make([]check.Check, 0, totalRuns)
-	for i := 0; i < totalRuns; i++ {
-		checks = append(checks, wrapped)
-	}
-	runChecks(t, checks)
-	require.Equal(t, uint64(totalRuns), tc.runCount.Load(), "every queued run should have executed")
-
-	// The config must still be scheduled — the first run cleared the trial
-	// counter and the wrapper promoted out of trial mode, so the later
-	// failures never made it back to AD.
-	assert.Equal(t, 1, sch.scheduledSize(), "config must remain scheduled after promotion")
-	assert.Contains(t, scheduledConfigNames(ac), scheduled.Name)
-
-	ac.trialRegistry.mu.Lock()
-	_, hasCounter := ac.trialRegistry.counts[id]
-	ac.trialRegistry.mu.Unlock()
-	assert.False(t, hasCounter, "trialRegistry counter must stay clear once the check is promoted")
-
-	// Post-promotion failures must be counted as normal integration errors,
-	// which is the contract the trial path is supposed to preserve.
-	assert.GreaterOrEqual(t, int(expvars.GetErrorsCount()), trialFailureThreshold,
-		"post-promotion failures must be reported via the normal integration-error path")
+	// Promotion must keep AD out of the trial-counter loop — no Unschedule
+	// dispatch should fire despite many post-promotion failures.
+	assert.Equal(t, int64(1), ts.schedules.Load(), "exactly one Schedule")
+	assert.Equal(t, int64(0), ts.unschedules.Load(), "no Unschedule after promotion")
+	assert.True(t, containsConfigNamed(ac, "krakend_promotion"))
 }
 
 // TestADWorkerIntegration_NonDiscoveryCheckNeverTriggersTrialPath verifies
-// that the worker→AD coupling only fires for trial-mode (discovery) checks.
-// A regular check failing repeatedly must not be unscheduled by the trial
-// path, since it is not wrapped in NewTrialModeCheck and therefore does not
-// implement the trialModeCheck interface.
+// that the worker→AD coupling fires only for trial-mode (discovery) checks.
+// A non-discovery config produces an unwrapped check; the worker's trial
+// type-assertion fails on every run; AD never sees a trial result; the
+// config stays scheduled even after many failures.
 func TestADWorkerIntegration_NonDiscoveryCheckNeverTriggersTrialPath(t *testing.T) {
-	configmock.New(t)
-	worker.ResetTrialCallbacksForTest()
-	t.Cleanup(worker.ResetTrialCallbacksForTest)
+	ac, ts, _ := setupPipeline(t)
 
-	sch, ac := getResolveTestConfig(t)
+	setTrialRunFn(func(uint64) error { return errors.New("regular failure") })
 
-	// Schedule a non-discovery config (Discovery is nil).
-	cfg := integration.Config{
-		Name:       "regular_check",
-		InitConfig: integration.Data("{}"),
-		Instances:  []integration.Data{integration.Data("{}")},
+	provider := &trialTestProvider{
+		configs: []integration.Config{{
+			Name:       "regular_check",
+			InitConfig: integration.Data("{}"),
+			Instances:  []integration.Data{integration.Data("{}")},
+			// Discovery is nil — this is NOT a discovery config.
+		}},
 	}
-	changes := ac.processNewConfig(cfg)
-	require.Len(t, changes.Schedule, 1)
-	ac.applyChanges(changes)
-	scheduled := changes.Schedule[0]
-	id := checkid.BuildID(scheduled.Name, scheduled.FastDigest(), scheduled.Instances[0], scheduled.InitConfig)
+	ac.AddConfigProvider(provider, false, 0)
+	ac.LoadAndRun(context.Background())
+
+	// Wait for enough failures to land — equivalent to what would have
+	// crossed the threshold if this were a discovery config.
 	require.Eventually(t, func() bool {
-		return sch.scheduledSize() == 1
-	}, 5*time.Second, 10*time.Millisecond)
+		return int(expvars.GetErrorsCount()) >= trialFailureThreshold+3
+	}, 10*time.Second, 20*time.Millisecond)
 
-	tc := &fakeCheck{
-		id:       id,
-		runCount: atomic.NewUint64(0),
-		runFunc:  func(uint64) error { return errors.New("regular failure") },
-	}
-
-	// Feed the bare (un-wrapped) check N>threshold times.
-	const runs = trialFailureThreshold + 3
-	checks := make([]check.Check, 0, runs)
-	for i := 0; i < runs; i++ {
-		checks = append(checks, tc)
-	}
-	runChecks(t, checks)
-	require.Equal(t, uint64(runs), tc.runCount.Load())
-
-	// Trial-registry must remain untouched and the config must still be
-	// scheduled — the worker has no reason to invoke the trial callback for a
-	// check that does not implement trialModeCheck.
-	ac.trialRegistry.mu.Lock()
-	_, hasCounter := ac.trialRegistry.counts[id]
-	ac.trialRegistry.mu.Unlock()
-	assert.False(t, hasCounter, "non-trial checks must never appear in trialRegistry")
-	assert.Equal(t, 1, sch.scheduledSize(), "non-trial check must stay scheduled regardless of run outcomes")
+	assert.Equal(t, int64(1), ts.schedules.Load(), "exactly one Schedule")
+	assert.Equal(t, int64(0), ts.unschedules.Load(),
+		"non-discovery check must never trigger the trial-path unschedule")
+	assert.True(t, containsConfigNamed(ac, "regular_check"))
 }
