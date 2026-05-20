@@ -252,6 +252,7 @@ func Run(ctx context.Context, params Params) error {
 		err := tryBootstrap(ctx, params.ClientName, addr, authToken, clientTLS, vsockAddr, logger)
 		if err == nil {
 			pkglog.Infof("configstream bootstrap[%s]: snapshot applied", params.ClientName)
+			disableLocalEnvLayer(params.ClientName)
 			return nil
 		}
 		if ctx.Err() != nil {
@@ -265,6 +266,17 @@ func Run(ctx context.Context, params Params) error {
 		case <-time.After(next):
 		}
 	}
+}
+
+// disableLocalEnvLayer drops the env layer on configs that support it (nodetreemodel only).
+func disableLocalEnvLayer(clientName string) {
+	type envLayerSkipper interface{ SkipEnvLayer() }
+	if skipper, ok := pkgconfigsetup.GlobalConfigBuilder().(envLayerSkipper); ok {
+		skipper.SkipEnvLayer()
+		pkglog.Infof("configstream bootstrap[%s]: local env-var layer disabled; core-agent values are the single source of truth", clientName)
+		return
+	}
+	pkglog.Warnf("configstream bootstrap[%s]: config impl does not support disabling the local env-var layer; subprocess env vars may override streamed values", clientName)
 }
 
 // tryBootstrap performs one dial → register → fetch-snapshot attempt. A fresh

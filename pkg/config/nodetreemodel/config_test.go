@@ -2045,3 +2045,33 @@ func TestCheckKnownKeyConcurrentAccess(t *testing.T) {
 	// If we reach here without a fatal "concurrent map writes" crash, the test passed
 	assert.True(t, cfg.GetBool("known_key"))
 }
+
+func TestSkipEnvLayer(t *testing.T) {
+	t.Setenv("TEST_A", "from-env")
+	t.Setenv("TEST_B", "from-env")
+
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", "default-a")
+	cfg.SetDefault("b", "default-b")
+	cfg.BindEnv("a", "TEST_A") //nolint:forbidigo // testing behavior
+	cfg.BindEnv("b", "TEST_B") //nolint:forbidigo // testing behavior
+	cfg.BuildSchema()
+
+	assert.Equal(t, "from-env", cfg.GetString("a"))
+	assert.Equal(t, model.SourceEnvVar, cfg.GetSource("a"))
+
+	cfg.(*ntmConfig).SkipEnvLayer()
+
+	assert.Equal(t, "default-a", cfg.GetString("a"))
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("a"))
+	assert.Equal(t, "default-b", cfg.GetString("b"))
+
+	cfg.Set("a", "from-stream", model.SourceFile)
+	assert.Equal(t, "from-stream", cfg.GetString("a"))
+	assert.Equal(t, model.SourceFile, cfg.GetSource("a"))
+
+	// rebuild must not repopulate the env layer once skipped
+	t.Setenv("TEST_B", "leaked-via-rebuild")
+	cfg.(*ntmConfig).buildEnvVars()
+	assert.Equal(t, "default-b", cfg.GetString("b"))
+}

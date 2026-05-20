@@ -120,6 +120,9 @@ type ntmConfig struct {
 	// any given configuration key. Multiple env vars can be associated with one key
 	configEnvVars map[string][]string
 
+	// when true, buildEnvVars produces an empty env layer instead of reading os.LookupEnv
+	skipEnvLayer atomic.Bool
+
 	// known keys are the set of valid keys to get either leaf or inner node values
 	// they are defined by one of (1) SetDefault (2) BindEnv (3) SetKnown
 	// the map value represents `isLeaf` for each key
@@ -614,6 +617,11 @@ func (c *ntmConfig) isReady() bool {
 }
 
 func (c *ntmConfig) buildEnvVars() {
+	if c.skipEnvLayer.Load() {
+		c.envs = newInnerNode(nil)
+		return
+	}
+
 	root := newInnerNode(nil)
 	envWarnings := []error{}
 
@@ -631,6 +639,19 @@ func (c *ntmConfig) buildEnvVars() {
 	}
 	c.envs = root
 	c.warnings = append(c.warnings, envWarnings...)
+}
+
+// SkipEnvLayer clears the env layer and prevents future rebuilds from repopulating it.
+func (c *ntmConfig) SkipEnvLayer() {
+	c.Lock()
+	defer c.Unlock()
+	c.skipEnvLayer.Store(true)
+	c.envs = newInnerNode(nil)
+	if c.isReady() {
+		if err := c.mergeAllLayers(); err != nil {
+			c.warnings = append(c.warnings, err)
+		}
+	}
 }
 
 func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envval string) error {
