@@ -453,8 +453,7 @@ func (ns *networkState) logTelemetry() {
 
 	// Flush log line if any metric is non-zero
 	if connDroppedDelta > 0 || closedConnDroppedDelta > 0 || dnsStatsDroppedDelta > 0 || httpStatsDroppedDelta > 0 ||
-		http2StatsDroppedDelta > 0 || kafkaStatsDroppedDelta > 0 || postgresStatsDroppedDelta > 0 || redisStatsDroppedDelta > 0 ||
-		windowsLingeringFlowsDelta > 0 {
+		http2StatsDroppedDelta > 0 || kafkaStatsDroppedDelta > 0 || postgresStatsDroppedDelta > 0 || redisStatsDroppedDelta > 0 {
 		s := "State telemetry: "
 		s += " [%d connections dropped due to stats]"
 		s += " [%d closed connections dropped]"
@@ -464,7 +463,6 @@ func (ns *networkState) logTelemetry() {
 		s += " [%d Kafka stats dropped]"
 		s += " [%d postgres stats dropped]"
 		s += " [%d redis stats dropped]"
-		s += " [%d Windows lingering flows suppressed]"
 		log.Warnf(s,
 			connDroppedDelta,
 			closedConnDroppedDelta,
@@ -474,23 +472,25 @@ func (ns *networkState) logTelemetry() {
 			kafkaStatsDroppedDelta,
 			postgresStatsDroppedDelta,
 			redisStatsDroppedDelta,
-			windowsLingeringFlowsDelta,
 		)
 	}
 
 	// debug metrics that aren't useful for customers to see
 	if statsCookieCollisionsDelta > 0 || statsUnderflowsDelta > 0 ||
-		timeSyncCollisionsDelta > 0 || dnsPidCollisionsDelta > 0 {
+		timeSyncCollisionsDelta > 0 || dnsPidCollisionsDelta > 0 ||
+		windowsLingeringFlowsDelta > 0 {
 		s := "State telemetry debug: "
 		s += " [%d stats cookie collisions]"
 		s += " [%d stats underflows]"
 		s += " [%d time sync collisions]"
 		s += " [%d DNS pid collisions]"
+		s += " [%d Windows lingering flows suppressed]"
 		log.Debugf(s,
 			statsCookieCollisionsDelta,
 			statsUnderflowsDelta,
 			timeSyncCollisionsDelta,
 			dnsPidCollisionsDelta,
+			windowsLingeringFlowsDelta,
 		)
 	}
 
