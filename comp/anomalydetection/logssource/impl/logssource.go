@@ -69,7 +69,7 @@ type logssourceComponent struct{}
 //
 // anomaly_detection.logs.enabled is the main toggle for all log ingestion:
 // setting it to false disables container, kubelet, and agent-internal logs
-// (observer's agent_logs tap). Recording is unaffected.
+// (observer's agent_logs tap).
 // anomaly_detection.logs.containers.enabled controls workloadmeta generic
 // container sources and AD-scheduled container log configs.
 // anomaly_detection.logs.kubelet.enabled controls the kubelet journald source.
@@ -80,7 +80,8 @@ type logssourceComponent struct{}
 //   - the observer is unavailable
 //   - anomaly_detection.enabled is false and anomaly_detection.recording.enabled is false
 //   - anomaly_detection.logs.enabled is false and anomaly_detection.recording.enabled is false
-//   - no enabled log source can start
+//   - only container sources are enabled and workloadmeta is unavailable
+//   - all source-specific gates are disabled
 //
 // The component itself has no build-tag constraints. Capability differences
 // across builds are handled transparently by the underlying launchers:
