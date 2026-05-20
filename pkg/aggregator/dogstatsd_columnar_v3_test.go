@@ -293,6 +293,26 @@ func TestDogstatsdColumnarV3BuildsBucketIndexOnlyForNonMonotonicBuckets(t *testi
 	require.ElementsMatch(t, []metrics.Point{{Ts: 100, Value: 2}, {Ts: 110, Value: 3}}, sink.rows[0].Points)
 }
 
+func TestDogstatsdColumnarV3UsesCompactIdentityDescriptorHints(t *testing.T) {
+	store := newDogStatsDColumnarStore(10, 1)
+	compactID := uint64(0x7000000000001)
+	sample := metrics.MetricSample{Name: "compact.metric", Value: 1, Mtype: metrics.GaugeType, SampleRate: 1}
+
+	store.insertAccepted(0, ckey.ContextKey(1), compactID, sample, 101)
+	shard := &store.shards[0]
+	require.Len(t, shard.descriptorByKey, 1)
+	require.Equal(t, 0, shard.descriptorByCompactID[compactID])
+
+	sample.Value = 2
+	store.insertAccepted(0, ckey.ContextKey(1), compactID, sample, 102)
+	require.Len(t, shard.descriptorByKey, 1, "matching compact IDs should reuse the descriptor without creating a new key entry")
+
+	other := metrics.MetricSample{Name: "compact.other", Value: 3, Mtype: metrics.GaugeType, SampleRate: 1}
+	store.insertAccepted(0, ckey.ContextKey(2), compactID, other, 103)
+	require.Len(t, shard.descriptorByKey, 2, "context key validation prevents compact ID collisions from reusing the wrong descriptor")
+	require.Equal(t, 1, shard.descriptorByCompactID[compactID])
+}
+
 func TestDogstatsdColumnarV3InternsAndExpiresDescriptorDictionaries(t *testing.T) {
 	store := newDogStatsDColumnarStore(10, 1)
 	store.descriptorExpiry = 10

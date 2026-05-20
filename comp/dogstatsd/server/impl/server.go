@@ -878,9 +878,7 @@ func (s *dsdServer) parsePacket(batcher dogstatsdBatcher, parser *parser, identi
 				if debugEnabled {
 					sampleContext = identityBuilder.ResolveHotPath(samples[idx])
 				} else if needsShardContext {
-					shard := identityBuilder.Shard(samples[idx])
-					sampleContext.Client = shard.Client
-					sampleContext.Shard = shard
+					sampleContext = identityBuilder.ResolveShardHotPath(samples[idx])
 				}
 
 				if debugEnabled {
@@ -1015,6 +1013,9 @@ func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, par
 		if mapResult != nil {
 			s.log.Tracef("Dogstatsd mapper: metric mapped from %q to %q with tags %v", sample.name, mapResult.Name, mapResult.Tags)
 			sample.name = mapResult.Name
+			if len(mapResult.Tags) > 0 {
+				sample.tagsetID = 0
+			}
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}
 	}
@@ -1030,8 +1031,12 @@ func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, par
 		// extends the first one and reuse it for the rest.
 		if idx == 0 {
 			metricSamples[idx].Tags = append(metricSamples[idx].Tags, s.extraTags...)
+			if len(s.extraTags) > 0 {
+				metricSamples[idx].DogStatsDTagsetID = 0
+			}
 		} else {
 			metricSamples[idx].Tags = metricSamples[0].Tags
+			metricSamples[idx].DogStatsDTagsetID = metricSamples[0].DogStatsDTagsetID
 		}
 
 		// If we're receiving runtime metrics, we need to convert the default source to the runtime source

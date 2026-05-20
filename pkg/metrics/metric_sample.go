@@ -110,6 +110,11 @@ type MetricSample struct {
 	NoIndex         bool
 	Source          MetricSource
 	Unit            string
+
+	// DogStatsDTagsetID is an experimental parser-local compact identifier for
+	// an exact client-provided DogStatsD tagset. A value of 0 means no stable
+	// compact tagset identity is available for this sample.
+	DogStatsDTagsetID uint64
 }
 
 // Implement the MetricSampleContext interface

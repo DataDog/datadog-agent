@@ -75,6 +75,25 @@ func TestParseTagsExperimentalTagsetInterner(t *testing.T) {
 	assert.Same(t, &second[0], &third[0], "third sighting reuses the cached tagset slice")
 }
 
+func TestParseMetricSampleExperimentalTagsetInternerAssignsCompactID(t *testing.T) {
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER_SIZE", "8")
+	deps := newServerDeps(t)
+	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	p := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+
+	first, err := p.parseMetricSample([]byte("compact.metric:1|c|#env:prod,service:api"))
+	assert.NoError(t, err)
+	second, err := p.parseMetricSample([]byte("compact.metric:1|c|#env:prod,service:api"))
+	assert.NoError(t, err)
+	third, err := p.parseMetricSample([]byte("compact.metric:1|c|#env:prod,service:api"))
+	assert.NoError(t, err)
+
+	assert.Zero(t, first.tagsetID, "first sighting only records the admission doorkeeper")
+	assert.NotZero(t, second.tagsetID, "second sighting admits the exact tagset")
+	assert.Equal(t, second.tagsetID, third.tagsetID, "subsequent sightings carry the same compact tagset ID")
+}
+
 func TestParseTagsExperimentalTagsetInternerSkipsSpecialTags(t *testing.T) {
 	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", "true")
 	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER_SIZE", "8")

@@ -107,6 +107,45 @@ func TestMilestone1IdentityBoundaries(t *testing.T) {
 	assert.NotEqual(t, baseIDs.Shard.ContextKey, changedTagsIDs.Shard.ContextKey, "shard identity includes client tags")
 }
 
+func TestCompactIdentityCacheReusesShardContext(t *testing.T) {
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES_SIZE", "4")
+
+	builder := NewBuilderWithScope(7)
+	sample := metrics.MetricSample{
+		Name:              "compact.metric",
+		Host:              "host-a",
+		Tags:              []string{"env:prod", "service:dogstatsd"},
+		Mtype:             metrics.CounterType,
+		Source:            metrics.MetricSourceDogstatsd,
+		DogStatsDTagsetID: 42,
+	}
+
+	first := builder.ResolveShardHotPath(sample)
+	second := builder.ResolveShardHotPath(sample)
+
+	assert.NotZero(t, first.CompactID)
+	assert.Equal(t, first.CompactID, second.CompactID)
+	assert.Equal(t, first.Shard.ContextKey, second.Shard.ContextKey)
+	assert.Equal(t, uint64(7)<<48, first.CompactID&(uint64(0xffff)<<48))
+}
+
+func TestCompactIdentityCacheRequiresParserTagsetID(t *testing.T) {
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES", "true")
+
+	builder := NewBuilderWithScope(1)
+	ctx := builder.ResolveShardHotPath(metrics.MetricSample{
+		Name:   "compact.metric",
+		Host:   "host-a",
+		Tags:   []string{"env:prod"},
+		Mtype:  metrics.GaugeType,
+		Source: metrics.MetricSourceDogstatsd,
+	})
+
+	assert.Zero(t, ctx.CompactID)
+	assert.NotZero(t, ctx.Shard.ContextKey)
+}
+
 func TestMilestone9BackendSeedMatchesMetricSampleContextKeys(t *testing.T) {
 	sample := metrics.MetricSample{
 		Name:       "backend.metric",
@@ -137,6 +176,38 @@ func metricContextKeys(ctx metrics.MetricSampleContext) (ckey.ContextKey, ckey.T
 	metricBuffer := tagset.NewHashingTagsAccumulator()
 	ctx.GetTags(taggerBuffer, metricBuffer, nooptagger.NewComponent())
 	return ckey.NewKeyGenerator().GenerateWithTags2(ctx.GetName(), ctx.GetHost(), taggerBuffer, metricBuffer)
+}
+
+func BenchmarkCompactIdentityShardContext(b *testing.B) {
+	sample := metrics.MetricSample{
+		Name:              "compact.metric",
+		Host:              "host-a",
+		Tags:              []string{"env:prod", "service:dogstatsd", "region:us-east-1", "team:agent"},
+		Mtype:             metrics.CounterType,
+		Source:            metrics.MetricSourceDogstatsd,
+		DogStatsDTagsetID: 1,
+	}
+
+	b.Run("baseline_shard", func(b *testing.B) {
+		builder := NewBuilder()
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = builder.Shard(sample)
+		}
+	})
+
+	b.Run("compact_shard", func(b *testing.B) {
+		b.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES", "true")
+		b.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES_SIZE", "128")
+		builder := NewBuilderWithScope(1)
+		_ = builder.ResolveShardHotPath(sample)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = builder.ResolveShardHotPath(sample)
+		}
+	})
 }
 
 func BenchmarkMilestone9BackendSeedContextKey(b *testing.B) {

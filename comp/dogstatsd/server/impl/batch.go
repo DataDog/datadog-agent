@@ -310,6 +310,7 @@ func (b *batcher) appendColumnarV3SampleWithContext(sample metrics.MetricSample,
 	}
 	b.columnarV3Samples[shardKey][b.columnarV3SamplesCount[shardKey]] = aggregator.DogStatsDColumnarV3Sample{
 		ContextKey: context.Shard.ContextKey,
+		CompactID:  context.CompactID,
 		Sample:     sample,
 	}
 	b.columnarV3SamplesCount[shardKey]++

@@ -29,11 +29,17 @@ func parserTagsetInternerSize(defaultSize int) int {
 	return 4096
 }
 
+type parserTagset struct {
+	tags []string
+	id   uint64
+}
+
 type parserTagsetInterner struct {
 	maxSize int
-	tagsets map[string][]string
+	tagsets map[string]parserTagset
 	ring    []string
 	next    int
+	nextID  uint64
 
 	seen     map[uint64]struct{}
 	seenRing []uint64
@@ -60,23 +66,23 @@ func newParserTagsetInterner(defaultSize int) *parserTagsetInterner {
 	}
 	return &parserTagsetInterner{
 		maxSize:  maxSize,
-		tagsets:  make(map[string][]string),
+		tagsets:  make(map[string]parserTagset),
 		ring:     make([]string, maxSize),
 		seen:     make(map[uint64]struct{}),
 		seenRing: make([]uint64, seenSize),
 	}
 }
 
-func (i *parserTagsetInterner) LoadOrParse(rawTags []byte, parse func([]byte) []string) []string {
+func (i *parserTagsetInterner) LoadOrParse(rawTags []byte, parse func([]byte) []string) parserTagset {
 	if i == nil || len(rawTags) == 0 {
-		return parse(rawTags)
+		return parserTagset{tags: parse(rawTags)}
 	}
 
 	// Keep string(rawTags) directly in the lookup expression so cache hits do
 	// not allocate a temporary string.
-	if tags, found := i.tagsets[string(rawTags)]; found {
+	if tagset, found := i.tagsets[string(rawTags)]; found {
 		i.hits++
-		return tags
+		return tagset
 	}
 
 	hash := hashBytes64(rawTags)
@@ -84,19 +90,20 @@ func (i *parserTagsetInterner) LoadOrParse(rawTags []byte, parse func([]byte) []
 	if !seen {
 		i.recordSeen(hash)
 		i.missNotAdmitted++
-		return parse(rawTags)
+		return parserTagset{tags: parse(rawTags)}
 	}
 
 	tags := parse(rawTags)
 	if hasParserSpecialTags(tags) {
 		i.specialNotAdmitted++
-		return tags
+		return parserTagset{tags: tags}
 	}
 
 	key := string(rawTags)
-	i.insert(key, tags)
+	tagset := parserTagset{tags: tags, id: i.allocateID()}
+	i.insert(key, tagset)
 	i.admitted++
-	return tags
+	return tagset
 }
 
 func (i *parserTagsetInterner) recordSeen(hash uint64) {
@@ -112,7 +119,7 @@ func (i *parserTagsetInterner) recordSeen(hash uint64) {
 	i.seenNext = (i.seenNext + 1) % len(i.seenRing)
 }
 
-func (i *parserTagsetInterner) insert(key string, tags []string) {
+func (i *parserTagsetInterner) insert(key string, tagset parserTagset) {
 	if _, found := i.tagsets[key]; found {
 		return
 	}
@@ -125,7 +132,15 @@ func (i *parserTagsetInterner) insert(key string, tags []string) {
 	}
 	i.ring[i.next] = key
 	i.next = (i.next + 1) % len(i.ring)
-	i.tagsets[key] = tags
+	i.tagsets[key] = tagset
+}
+
+func (i *parserTagsetInterner) allocateID() uint64 {
+	i.nextID++
+	if i.nextID == 0 {
+		i.nextID = 1
+	}
+	return i.nextID
 }
 
 func hasParserSpecialTags(tags []string) bool {

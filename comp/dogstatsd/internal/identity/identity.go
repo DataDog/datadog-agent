@@ -13,6 +13,8 @@
 package identity
 
 import (
+	"os"
+	"strconv"
 	"strings"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -24,20 +26,115 @@ import (
 
 const debugTagSeparator = " "
 
+func compactIdentityCacheEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES"))
+	return err == nil && enabled
+}
+
+func compactIdentityCacheSize() int {
+	if raw := os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES_SIZE"); raw != "" {
+		value, err := strconv.Atoi(raw)
+		if err == nil {
+			return value
+		}
+	}
+	return 4096
+}
+
 // Builder owns scratch buffers used to compute DogStatsD identities.
 //
 // It is not safe for concurrent use. The zero value is valid.
 type Builder struct {
 	keyGenerator *ckey.KeyGenerator
 	metricTags   *tagset.HashingTagsAccumulator
+	compact      *compactIdentityCache
 }
 
 // NewBuilder creates a reusable identity builder.
 func NewBuilder() *Builder {
+	return NewBuilderWithScope(1)
+}
+
+// NewBuilderWithScope creates a reusable identity builder whose compact
+// identity IDs are unique within scope. DogStatsD workers pass their worker ID
+// as the scope so parser-local compact IDs can be carried safely to shared
+// downstream workers.
+func NewBuilderWithScope(scope uint16) *Builder {
 	return &Builder{
 		keyGenerator: ckey.NewKeyGenerator(),
 		metricTags:   tagset.NewHashingTagsAccumulator(),
+		compact:      newCompactIdentityCache(scope, compactIdentityCacheSize()),
 	}
+}
+
+type compactIdentityKey struct {
+	name     string
+	host     string
+	tagsetID uint64
+}
+
+type compactIdentityEntry struct {
+	id    uint64
+	shard ShardIdentity
+}
+
+type compactIdentityCache struct {
+	maxSize int
+	scope   uint64
+	nextID  uint64
+	entries map[compactIdentityKey]compactIdentityEntry
+	ring    []compactIdentityKey
+	next    int
+}
+
+func newCompactIdentityCache(scope uint16, maxSize int) *compactIdentityCache {
+	if !compactIdentityCacheEnabled() || maxSize <= 0 {
+		return nil
+	}
+	if scope == 0 {
+		scope = 1
+	}
+	return &compactIdentityCache{
+		maxSize: maxSize,
+		scope:   uint64(scope) << 48,
+		entries: make(map[compactIdentityKey]compactIdentityEntry),
+		ring:    make([]compactIdentityKey, maxSize),
+	}
+}
+
+func (c *compactIdentityCache) lookup(sample metrics.MetricSample) (compactIdentityEntry, bool) {
+	if c == nil || sample.DogStatsDTagsetID == 0 {
+		return compactIdentityEntry{}, false
+	}
+	entry, ok := c.entries[compactIdentityKey{name: sample.Name, host: sample.Host, tagsetID: sample.DogStatsDTagsetID}]
+	return entry, ok
+}
+
+func (c *compactIdentityCache) insert(sample metrics.MetricSample, shard ShardIdentity) uint64 {
+	if c == nil || sample.DogStatsDTagsetID == 0 {
+		return 0
+	}
+	key := compactIdentityKey{name: sample.Name, host: sample.Host, tagsetID: sample.DogStatsDTagsetID}
+	if entry, ok := c.entries[key]; ok {
+		return entry.id
+	}
+	evicted := c.ring[c.next]
+	if evicted.tagsetID != 0 {
+		delete(c.entries, evicted)
+	}
+	id := c.allocateID()
+	c.ring[c.next] = key
+	c.next = (c.next + 1) % len(c.ring)
+	c.entries[key] = compactIdentityEntry{id: id, shard: shard}
+	return id
+}
+
+func (c *compactIdentityCache) allocateID() uint64 {
+	c.nextID++
+	if c.nextID == 0 || c.nextID >= 1<<48 {
+		c.nextID = 1
+	}
+	return c.scope | c.nextID
 }
 
 // ClientSeriesIdentity is the parsed client-facing series identity before
@@ -136,6 +233,10 @@ type HotPathContext struct {
 	Client    ClientSeriesIdentity
 	DebugView DebugViewKey
 	Shard     ShardIdentity
+
+	// CompactID is an experimental bounded-dictionary identifier for the parsed
+	// DogStatsD identity. A value of 0 means no compact identity is available.
+	CompactID uint64
 }
 
 // ResolvedSampleContext groups all named identities derivable from a parsed
@@ -209,6 +310,28 @@ func (b *Builder) Shard(sample metrics.MetricSample) ShardIdentity {
 		Client:     ClientSeries(sample),
 		Host:       sample.Host,
 		ContextKey: key,
+	}
+}
+
+// ResolveShardHotPath returns the shard identity used by the DogStatsD worker
+// hot path. When the experimental compact identity dictionary is enabled and
+// the parser provided a compact tagset ID, repeated identities can reuse the
+// precomputed shard key and carry a compact ID downstream.
+func (b *Builder) ResolveShardHotPath(sample metrics.MetricSample) HotPathContext {
+	b.ensure()
+	if entry, ok := b.compact.lookup(sample); ok {
+		return HotPathContext{
+			Client:    entry.shard.Client,
+			Shard:     entry.shard,
+			CompactID: entry.id,
+		}
+	}
+	shard := b.Shard(sample)
+	compactID := b.compact.insert(sample, shard)
+	return HotPathContext{
+		Client:    shard.Client,
+		Shard:     shard,
+		CompactID: compactID,
 	}
 }
 

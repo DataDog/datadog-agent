@@ -179,18 +179,19 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		for idx := range ddSample.values {
 			dest = append(dest,
 				metrics.MetricSample{
-					Host:       hostnameFromTags,
-					Name:       metricName,
-					Tags:       tags,
-					Mtype:      mtype,
-					Value:      ddSample.values[idx],
-					SampleRate: ddSample.sampleRate,
-					RawValue:   ddSample.setValue,
-					Timestamp:  tsToFloatForSamples(ddSample.ts),
-					OriginInfo: extractedOrigin,
-					ListenerID: listenerID,
-					Source:     metricSource,
-					Unit:       unit,
+					Host:              hostnameFromTags,
+					Name:              metricName,
+					Tags:              tags,
+					Mtype:             mtype,
+					Value:             ddSample.values[idx],
+					SampleRate:        ddSample.sampleRate,
+					RawValue:          ddSample.setValue,
+					Timestamp:         tsToFloatForSamples(ddSample.ts),
+					OriginInfo:        extractedOrigin,
+					ListenerID:        listenerID,
+					Source:            metricSource,
+					Unit:              unit,
+					DogStatsDTagsetID: ddSample.tagsetID,
 				})
 		}
 		return dest
@@ -198,18 +199,19 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 
 	// only one value contained, simple append it
 	return append(dest, metrics.MetricSample{
-		Host:       hostnameFromTags,
-		Name:       metricName,
-		Tags:       tags,
-		Mtype:      mtype,
-		Value:      ddSample.value,
-		SampleRate: ddSample.sampleRate,
-		RawValue:   ddSample.setValue,
-		Timestamp:  tsToFloatForSamples(ddSample.ts),
-		OriginInfo: extractedOrigin,
-		ListenerID: listenerID,
-		Source:     metricSource,
-		Unit:       unit,
+		Host:              hostnameFromTags,
+		Name:              metricName,
+		Tags:              tags,
+		Mtype:             mtype,
+		Value:             ddSample.value,
+		SampleRate:        ddSample.sampleRate,
+		RawValue:          ddSample.setValue,
+		Timestamp:         tsToFloatForSamples(ddSample.ts),
+		OriginInfo:        extractedOrigin,
+		ListenerID:        listenerID,
+		Source:            metricSource,
+		Unit:              unit,
+		DogStatsDTagsetID: ddSample.tagsetID,
 	})
 }
 

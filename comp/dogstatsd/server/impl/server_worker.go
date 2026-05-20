@@ -76,7 +76,7 @@ func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Com
 		server:                      s,
 		batcher:                     batcher,
 		parser:                      newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
-		identityBuilder:             identity.NewBuilder(),
+		identityBuilder:             identity.NewBuilderWithScope(uint16(workerNum + 1)),
 		samples:                     make(metrics.MetricSampleBatch, 0, defaultSampleSize),
 		packetsTelemetry:            packetsTelemetry,
 		rawIngressBatch:             rawIngressBatch,
