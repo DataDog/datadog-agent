@@ -368,6 +368,10 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 	// additional_endpoints so they are included in the final endpoint list.
 	var opwAdditionals []Endpoint
 
+	if logsConfig.obsPipelineWorkerDualShipReliable() && !logsConfig.obsPipelineWorkerDualShip() {
+		log.Warn("observability_pipelines_worker.logs.dual_ship_reliable=true has no effect because observability_pipelines_worker.logs.dual_ship is false")
+	}
+
 	if vectorURL, vectorURLDefined := logsConfig.getObsPipelineURL(); logsConfig.obsPipelineWorkerEnabled() && vectorURLDefined {
 		host, port, _, useSSL, err := parseAddressWithScheme(vectorURL, defaultNoSSL, parseAddress)
 		if err != nil {
@@ -397,6 +401,18 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 			opwEndpoint.TrackType = main.TrackType
 			opwEndpoint.Protocol = main.Protocol
 			opwEndpoint.Origin = main.Origin
+			// Mirror the fields that loadHTTPAdditionalEndpoints copies from main so that
+			// any compression override applied to main (e.g. via BuildHTTPEndpointsWithCompressionOverride)
+			// and all backoff/recovery settings are consistent between the two endpoints.
+			opwEndpoint.UseCompression = main.UseCompression
+			opwEndpoint.CompressionKind = main.CompressionKind
+			opwEndpoint.CompressionLevel = main.CompressionLevel
+			opwEndpoint.BackoffFactor = main.BackoffFactor
+			opwEndpoint.BackoffBase = main.BackoffBase
+			opwEndpoint.BackoffMax = main.BackoffMax
+			opwEndpoint.RecoveryInterval = main.RecoveryInterval
+			opwEndpoint.RecoveryReset = main.RecoveryReset
+			opwEndpoint.ConnectionResetInterval = main.ConnectionResetInterval
 			opwAdditionals = append(opwAdditionals, opwEndpoint)
 		} else {
 			// Default behaviour: OPW replaces the primary Datadog endpoint and is the only

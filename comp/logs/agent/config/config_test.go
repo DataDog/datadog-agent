@@ -929,6 +929,63 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWNoDualShipReplacesPrimary
 	suite.Require().Len(endpoints.Endpoints, 1, "expected 1 endpoint (OPW as primary, default mode)")
 }
 
+// TestBuildEndpointsWithOPWDualShipInheritsCompressionOverride verifies that a compression override
+// passed via BuildHTTPEndpointsWithCompressionOverride is propagated to the OPW dual-ship endpoint.
+// Without the copy block the OPW endpoint would use the pre-override compression settings while the
+// primary DD endpoint uses the overridden ones — causing the two endpoints to compress differently.
+func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShipInheritsCompressionOverride() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dual_ship", true)
+
+	logsConfig := NewLogsConfigKeysWithVector("logs_config.", "logs.", suite.config)
+	compressionOverride := EndpointCompressionOptions{
+		CompressionKind:  "zstd",
+		CompressionLevel: 9,
+	}
+
+	endpoints, err := BuildHTTPEndpointsWithCompressionOverride(suite.config, logsConfig, httpEndpointPrefix, "test-track", "test-proto", "test-source", compressionOverride)
+	suite.Require().Nil(err)
+
+	suite.Require().Len(endpoints.Endpoints, 2)
+	opwEndpoint := endpoints.Endpoints[1]
+	suite.Equal("opw.example.com", opwEndpoint.Host)
+
+	// OPW must use the same compression as the primary DD endpoint.
+	suite.Equal(endpoints.Main.UseCompression, opwEndpoint.UseCompression, "OPW must inherit UseCompression from main")
+	suite.Equal("zstd", opwEndpoint.CompressionKind, "OPW must inherit CompressionKind override from main")
+	suite.Equal(9, opwEndpoint.CompressionLevel, "OPW must inherit CompressionLevel override from main")
+	suite.Equal(endpoints.Main.BackoffFactor, opwEndpoint.BackoffFactor, "OPW must inherit BackoffFactor from main")
+	suite.Equal(endpoints.Main.BackoffBase, opwEndpoint.BackoffBase, "OPW must inherit BackoffBase from main")
+	suite.Equal(endpoints.Main.BackoffMax, opwEndpoint.BackoffMax, "OPW must inherit BackoffMax from main")
+	suite.Equal(endpoints.Main.RecoveryInterval, opwEndpoint.RecoveryInterval, "OPW must inherit RecoveryInterval from main")
+	suite.Equal(endpoints.Main.RecoveryReset, opwEndpoint.RecoveryReset, "OPW must inherit RecoveryReset from main")
+	suite.Equal(endpoints.Main.ConnectionResetInterval, opwEndpoint.ConnectionResetInterval, "OPW must inherit ConnectionResetInterval from main")
+}
+
+// TestBuildEndpointsWithOPWDualShipReliableWithoutDualShipWarns verifies that setting
+// dual_ship_reliable=true without dual_ship=true emits a startup warning, because the
+// reliability setting is silently ignored in that configuration.
+func TestBuildEndpointsWithOPWDualShipReliableWithoutDualShipWarns(t *testing.T) {
+	cfg := config.NewMock(t)
+	cfg.SetWithoutSource("api_key", "123")
+	cfg.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	cfg.SetWithoutSource("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
+	// dual_ship_reliable=true but dual_ship is false (default) — should warn.
+	cfg.SetWithoutSource("observability_pipelines_worker.logs.dual_ship_reliable", true)
+
+	var buf bytes.Buffer
+	logger, err := pkglog.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&buf, pkglog.WarnLvl)
+	assert.NoError(t, err)
+	pkglog.SetupLogger(logger, "warn")
+
+	_, buildErr := BuildHTTPEndpointsWithVectorOverride(cfg, "test-track", "test-proto", "test-source")
+	assert.NoError(t, buildErr)
+
+	assert.True(t, strings.Contains(buf.String(), "dual_ship_reliable=true has no effect"), "expected startup warning when dual_ship_reliable=true and dual_ship=false; got: %s", buf.String())
+}
+
 func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 	suite.config.SetWithoutSource("api_key", "123")
 
