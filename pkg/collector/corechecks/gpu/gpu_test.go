@@ -958,7 +958,7 @@ func TestMetricsFollowSpec(t *testing.T) {
 		testName := fmt.Sprintf("arch=%s/mode=%s", config.Architecture, config.DeviceMode)
 		t.Run(testName, func(t *testing.T) {
 			archSpec := specs.Architectures.Architectures[config.Architecture]
-			emittedMetrics, knownTagValues := collectMetricSamples(t, config, archSpec)
+			emittedMetrics, knownTagValues := collectMetricSamples(t, config, specs.Architectures, archSpec)
 			validationOptions := gpuspec.ValidationOptions{
 				WorkloadActive: true,
 			}
@@ -970,10 +970,10 @@ func TestMetricsFollowSpec(t *testing.T) {
 // collectMetricSamples runs the GPU check with a capability-driven mock
 // for the given architecture and device mode, then returns emitted metrics (without "gpu." prefix)
 // and their tags.
-func collectMetricSamples(t *testing.T, config gpuspec.GPUConfig, archSpec gpuspec.ArchitectureSpec) (map[string][]gpuspec.MetricObservation, map[string]string) {
+func collectMetricSamples(t *testing.T, config gpuspec.GPUConfig, archSpecs *gpuspec.ArchitecturesSpec, archSpec gpuspec.ArchitectureSpec) (map[string][]gpuspec.MetricObservation, map[string]string) {
 	t.Helper()
 
-	collectionSetup := setupMockCheckForMetricCollection(t, config, archSpec)
+	collectionSetup := setupMockCheckForMetricCollection(t, config, archSpecs, archSpec)
 	collectionSetup.runCollection()
 
 	return GetEmittedGPUMetrics(collectionSetup.mockSender), collectionSetup.knownTagValues
@@ -1007,9 +1007,9 @@ func seedContainersForPIDMapping(wmeta workloadmetamock.Mock, fakeTagger taggerm
 	}
 }
 
-func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, archSpec gpuspec.ArchitectureSpec) metricCollectionSetup {
+func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, archSpecs *gpuspec.ArchitecturesSpec, archSpec gpuspec.ArchitectureSpec) metricCollectionSetup {
 	t.Helper()
-	opts := gpuspec.BuildMockOptionsForConfig(t, config, archSpec)
+	opts := gpuspec.BuildMockOptionsForConfig(t, config, archSpecs, archSpec)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	mockSender := mocksender.NewMockSenderWithSenderManager("gpu", senderManager)

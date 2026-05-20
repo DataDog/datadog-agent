@@ -12,10 +12,12 @@ import (
 	"strings"
 )
 
-// GPUConfig identifies an architecture + device mode pair from the spec.
+// GPUConfig identifies a GPU configuration used for spec validation.
 type GPUConfig struct {
-	Architecture string     `json:"architecture"`
-	DeviceMode   DeviceMode `json:"device_mode"`
+	Architecture    string                   `json:"architecture"`
+	DeviceMode      DeviceMode               `json:"device_mode"`
+	Capabilities    ArchitectureCapabilities `json:"capabilities,omitempty"`
+	NVLinkLinkCount int                      `json:"nvlink_link_count,omitempty"`
 }
 
 // ValidationOptions controls which spec failures should be enforced.
@@ -25,7 +27,12 @@ type ValidationOptions struct {
 
 // Equals checks if two GPU configs are equal.
 func (c *GPUConfig) Equals(other GPUConfig) bool {
-	return c.Architecture == other.Architecture && c.DeviceMode == other.DeviceMode
+	return c.Architecture == other.Architecture &&
+		c.DeviceMode == other.DeviceMode &&
+		c.Capabilities.GPM == other.Capabilities.GPM &&
+		c.Capabilities.NVLink == other.Capabilities.NVLink &&
+		c.Capabilities.C2C == other.Capabilities.C2C &&
+		c.NVLinkLinkCount == other.NVLinkLinkCount
 }
 
 // TagFilter returns the Datadog tag filter expression for a GPU config.
@@ -159,9 +166,16 @@ func KnownGPUConfigs(specs *Specs) []GPUConfig {
 			if !IsModeSupportedByArchitecture(archSpec, mode) {
 				continue
 			}
+			capabilities := archSpec.EffectiveCapabilities(mode)
+			nvlinkLinkCount := 0
+			if capabilities.NVLink > 0 {
+				nvlinkLinkCount = 2
+			}
 			configs = append(configs, GPUConfig{
-				Architecture: strings.ToLower(archName),
-				DeviceMode:   mode,
+				Architecture:    strings.ToLower(archName),
+				DeviceMode:      mode,
+				Capabilities:    capabilities,
+				NVLinkLinkCount: nvlinkLinkCount,
 			})
 		}
 	}
@@ -174,6 +188,12 @@ func ExpectedMetricsForConfig(specs *Specs, config GPUConfig, options Validation
 	expected := make(map[string]MetricSpec)
 	for metricName, metricSpec := range specs.Metrics.Metrics {
 		if !metricSpec.SupportsConfig(config) {
+			continue
+		}
+		if strings.HasPrefix(metricName, "nvlink.") && config.NVLinkLinkCount == 0 {
+			continue
+		}
+		if !metricSpec.SupportsCapabilities(config.Capabilities) {
 			continue
 		}
 		if metricSpec.WorkloadOnly && !options.WorkloadActive {
@@ -313,6 +333,11 @@ func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMe
 		}
 
 		if !metricSpec.SupportsConfig(config) {
+			results.getMetricStatus(metricName).Unsupported++
+			continue
+		}
+
+		if (strings.HasPrefix(metricName, "nvlink.") && config.NVLinkLinkCount == 0) || !metricSpec.SupportsCapabilities(config.Capabilities) {
 			results.getMetricStatus(metricName).Unsupported++
 		}
 	}

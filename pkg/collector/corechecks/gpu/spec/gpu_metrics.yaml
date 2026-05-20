@@ -670,14 +670,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: true
+      capabilities_required:
+        nvlink: 1
   nvlink.count.inactive:
     metadata:
       metric_type: gauge
@@ -685,14 +684,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: true
+      capabilities_required:
+        nvlink: 1
   nvlink.count.total:
     metadata:
       metric_type: gauge
@@ -700,14 +698,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: true
+      capabilities_required:
+        nvlink: 1
   nvlink.ber.effective:
     metadata:
       metric_type: gauge
@@ -715,20 +712,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.ber.symbol:
     metadata:
       metric_type: gauge
@@ -736,20 +726,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.errors.crc.data:
     metadata:
       metric_type: gauge
@@ -761,15 +744,13 @@ metrics:
         min: 0
         max: 1000000000000000
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.errors.crc.flit:
     metadata:
       metric_type: gauge
@@ -781,15 +762,13 @@ metrics:
         min: 0
         max: 1000000000000000
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.errors.buffer.overrun:
     metadata:
       metric_type: gauge
@@ -797,20 +776,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.errors.ecc:
     metadata:
       metric_type: gauge
@@ -822,15 +794,13 @@ metrics:
         min: 0
         max: 1000000000000000
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.errors.effective:
     metadata:
       metric_type: gauge
@@ -838,20 +808,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.errors.local.link.integrity:
     metadata:
       metric_type: gauge
@@ -859,20 +822,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.errors.malformed.packet:
     metadata:
       metric_type: gauge
@@ -880,20 +836,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.errors.recovery:
     metadata:
       metric_type: gauge
@@ -905,15 +854,13 @@ metrics:
         min: 0
         max: 1000000000000000
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.errors.replay:
     metadata:
       metric_type: gauge
@@ -925,15 +872,13 @@ metrics:
         min: 0
         max: 1000000000000000
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.errors.rx:
     metadata:
       metric_type: gauge
@@ -941,20 +886,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.errors.rx.general:
     metadata:
       metric_type: gauge
@@ -962,20 +900,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.errors.rx.remote:
     metadata:
       metric_type: gauge
@@ -983,20 +914,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.errors.symbol:
     metadata:
       metric_type: gauge
@@ -1004,20 +928,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.nvswitch_connected:
     metadata:
       metric_type: gauge
@@ -1025,15 +942,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - pascal
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 3
   nvlink.plr.codes_loss:
     metadata:
       metric_type: gauge
@@ -1278,15 +1193,13 @@ metrics:
         min: 0
         max: 5000000000000 # 5 TB/s (bytes/second)
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.recovery.events.failed:
     metadata:
       metric_type: gauge
@@ -1294,20 +1207,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.recovery.events.successful:
     metadata:
       metric_type: gauge
@@ -1315,20 +1221,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.rx.packets:
     metadata:
       metric_type: gauge
@@ -1336,20 +1235,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.throughput.data.rx:
     metadata:
       metric_type: gauge
@@ -1362,15 +1254,13 @@ metrics:
         min: 0
         max: 3000000000000 # 3 TB/s (bytes/second)
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.throughput.data.tx:
     metadata:
       metric_type: gauge
@@ -1383,15 +1273,13 @@ metrics:
         min: 0
         max: 3000000000000 # 3 TB/s (bytes/second)
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.throughput.raw.rx:
     metadata:
       metric_type: gauge
@@ -1404,15 +1292,13 @@ metrics:
         min: 0
         max: 3000000000000 # 3 TB/s (bytes/second)
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.throughput.raw.tx:
     metadata:
       metric_type: gauge
@@ -1425,15 +1311,13 @@ metrics:
         min: 0
         max: 3000000000000 # 3 TB/s (bytes/second)
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.tx.discards:
     metadata:
       metric_type: gauge
@@ -1441,20 +1325,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.tx.packets:
     metadata:
       metric_type: gauge
@@ -1462,20 +1339,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   c2c.errors.interrupt:
     metadata:
       metric_type: gauge
@@ -1483,21 +1353,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - blackwell
-        - hopper
-        - fermi
-        - kepler
-        - maxwell
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        c2c: true
   c2c.errors.replay:
     metadata:
       metric_type: gauge
@@ -1505,21 +1367,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - blackwell
-        - hopper
-        - fermi
-        - kepler
-        - maxwell
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        c2c: true
   c2c.errors.replay.b2b:
     metadata:
       metric_type: gauge
@@ -1527,21 +1381,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - blackwell
-        - hopper
-        - fermi
-        - kepler
-        - maxwell
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        c2c: true
   pci.replay_counter:
     metadata:
       metric_type: gauge
