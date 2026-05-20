@@ -116,8 +116,13 @@ GOFLAGS="-p=1"
 # build volume so that large packages like datadogV2 don't exhaust /tmp.
 GOCACHE=/opt/dd-build/gocache
 mkdir -p "$GOCACHE"
+# Soft memory limit for the Go runtime. On the 4 GB AIX build host, without
+# this the GC rarely runs during large compilations, causing the process to
+# balloon into swap and thrash. 3 GiB leaves ~1 GB for the OS and other tools
+# while keeping Go compilation in RAM.
+GOMEMLIMIT=3GiB
 
-export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOFLAGS GOCACHE
+export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOFLAGS GOCACHE GOMEMLIMIT
 
 # ── Utility functions ─────────────────────────────────────────────────────────
 
