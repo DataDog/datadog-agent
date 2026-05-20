@@ -159,6 +159,14 @@ func unsanitizedHostnameFromAttributes(attrs pcommon.Map) (string, bool) {
 		return "", false
 	}
 
+	// If on Azure Container Apps, we don't have a hostname
+	if cloudPlatform, ok := attrs.Get(string(conventions.CloudPlatformKey)); ok {
+		p := cloudPlatform.Str()
+		if p == semconv143.CloudPlatformAzureContainerApps.Value.AsString() || p == "azure_container_apps" {
+			return "", false
+		}
+	}
+
 	cloudProvider, ok := attrs.Get(string(conventions.CloudProviderKey))
 	switch {
 	case ok && cloudProvider.Str() == conventions.CloudProviderAWS.Value.AsString():
@@ -210,6 +218,15 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 				},
 			},
 		}, true
+	}
+
+	if cloudPlatform, ok := attrs.Get(string(conventions.CloudPlatformKey)); ok {
+		p := cloudPlatform.Str()
+		if p == semconv143.CloudPlatformAzureContainerApps.Value.AsString() || p == "azure_container_apps" {
+			if replicaName, ok := attrs.Get(string(conventions.ServiceInstanceIDKey)); ok {
+				return source.Source{Kind: source.AzureContainerAppsKind, Identifier: replicaName.Str()}, true
+			}
+		}
 	}
 
 	if launchType, ok := attrs.Get(string(conventions.AWSECSLaunchtypeKey)); ok && launchType.Str() == conventions.AWSECSLaunchtypeFargate.Value.AsString() {
