@@ -221,6 +221,30 @@ func TestJSONAggregatorTelemetry(t *testing.T) {
 
 }
 
+func TestJSONLogsProcessedTelemetry(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 100)
+	initial := metrics.TlmJSONLogsProcessed.WithValues().Get()
+
+	// Single-line JSON increments the counter
+	aggregator.Process(newTestMessage(`{"key":"value"}`))
+	assert.Equal(t, initial+1, metrics.TlmJSONLogsProcessed.WithValues().Get())
+
+	// Multi-line aggregated JSON increments the counter
+	aggregator.Process(newTestMessage(`{"key":`))
+	assert.Equal(t, initial+1, metrics.TlmJSONLogsProcessed.WithValues().Get(), "incomplete JSON should not increment")
+	aggregator.Process(newTestMessage(`"value"}`))
+	assert.Equal(t, initial+2, metrics.TlmJSONLogsProcessed.WithValues().Get())
+
+	// Plain text does not increment the counter
+	aggregator.Process(newTestMessage(`Not JSON at all`))
+	assert.Equal(t, initial+2, metrics.TlmJSONLogsProcessed.WithValues().Get())
+
+	// Partially valid then invalid does not increment
+	aggregator.Process(newTestMessage(`{"key":`))
+	aggregator.Process(newTestMessage(`invalid}`))
+	assert.Equal(t, initial+2, metrics.TlmJSONLogsProcessed.WithValues().Get())
+}
+
 func TestHasBalancedBraces(t *testing.T) {
 	tests := []struct {
 		name     string

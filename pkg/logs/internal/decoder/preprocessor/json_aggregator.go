@@ -60,6 +60,7 @@ func (r *jsonAggregator) Process(msg *message.Message) []*message.Message {
 	// If buffer is empty and content is likely complete single-line JSON,
 	// validate and return without parsing
 	if len(r.messageBuf) == 0 && json.Valid(content) {
+		metrics.TlmJSONLogsProcessed.Inc()
 		return []*message.Message{msg}
 	}
 
@@ -99,6 +100,7 @@ func (r *jsonAggregator) Process(msg *message.Message) []*message.Message {
 			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.AggregatedJSONTag)
 			metrics.TlmAutoMultilineJSONAggregatorFlush.Inc("true")
 		}
+		metrics.TlmJSONLogsProcessed.Inc()
 
 		r.messageBuf = r.messageBuf[:0]
 		msg.SetContent(r.outBuf.Bytes())

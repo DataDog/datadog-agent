@@ -87,8 +87,9 @@ var (
 	// TlmAutoMultilineJSONAggregatorFlush Count of each line flushed from the auto multiline JSON aggregator.
 	TlmAutoMultilineJSONAggregatorFlush = telemetryimpl.GetCompatComponent().NewCounter("logs", "auto_multi_line_json_aggregator_flush", []string{"is_valid"}, "Count of each line flushed from the auto multiline JSON aggregator")
 
-	// TlmJSONLogsProcessed counts log messages identified as valid JSON by the JSON aggregator.
-	TlmJSONLogsProcessed = telemetryimpl.GetCompatComponent().NewCounter("logs", "json_logs_processed", nil, "Count of log messages identified as valid JSON")
+	// TlmJSONLogsProcessed counts log messages validated as JSON by the JSON aggregator.
+	// Only increments when JSON aggregation is enabled (auto_multi_line.enable_json_aggregation).
+	TlmJSONLogsProcessed = telemetryimpl.GetCompatComponent().NewCounter("logs", "json_logs_processed", nil, "Count of log messages validated as JSON by the JSON aggregator")
 
 	// TlmUtilizationRatio is the utilization ratio of a component.
 	// Utilization ratio is calculated as the ratio of time spent in use to the total time.
