@@ -11,17 +11,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 	"go.uber.org/goleak"
 
-	compConfig "github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func newTestSourceProvider() (*sourceProvider, *sources.LogSources) {
@@ -166,21 +159,22 @@ func TestHandleUnset_AllowsReAdd(t *testing.T) {
 	assert.Len(t, ls.GetSources(), 1)
 }
 
-func newWMetaMock(t *testing.T) workloadmetamock.Mock {
-	t.Helper()
-	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
+// stubWmeta is a no-op wmetaStore for tests that don't need workloadmeta
+// behaviour. It starts no background goroutines, keeping the leak check clean.
+type stubWmeta struct{}
+
+func (s *stubWmeta) Subscribe(_ string, _ workloadmeta.SubscriberPriority, _ *workloadmeta.Filter) chan workloadmeta.EventBundle {
+	return make(chan workloadmeta.EventBundle, 1)
+}
+func (s *stubWmeta) Unsubscribe(ch chan workloadmeta.EventBundle) { close(ch) }
+func (s *stubWmeta) GetContainer(_ string) (*workloadmeta.Container, error) {
+	return nil, nil
 }
 
 func TestSourceProvider_GoRoutineExitsCleanly(t *testing.T) {
-	wmeta := newWMetaMock(t)
 	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 	ls := sources.NewLogSources()
-	sp := newSourceProvider(wmeta, ls, nil)
+	sp := newSourceProvider(&stubWmeta{}, ls, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	sp.run(ctx)
