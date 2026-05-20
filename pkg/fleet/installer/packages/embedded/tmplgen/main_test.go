@@ -11,9 +11,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 )
@@ -30,12 +31,9 @@ func TestGenerationIsUpToDate(t *testing.T) {
 	// path under os.TempDir() would keep removed artifacts (e.g. renamed YAML)
 	// and break comparison with the embedded gen tree.
 	generated := filepath.Join(t.TempDir(), "gen")
-	if err := os.MkdirAll(generated, 0755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(generated, 0755))
 
-	err := generate(generated)
-	assert.NoError(t, err)
+	require.NoError(t, generate(generated))
 	newGeneratedFS := os.DirFS(generated)
 	currentGeneratedFS := committedGenFS(t)
 
@@ -44,36 +42,68 @@ func TestGenerationIsUpToDate(t *testing.T) {
 
 func committedGenFS(t *testing.T) fs.FS {
 	t.Helper()
-	for _, dir := range committedGenDirs() {
-		if _, err := os.Stat(dir); err == nil {
-			return os.DirFS(dir)
-		}
-	}
-	t.Fatal("committed tmpl/gen tree not found (run from repo or Bazel test runfiles)")
-	return nil
+	dir, err := committedGenDir()
+	require.NoError(t, err, "committed tmpl/gen tree not found (run from repo checkout)")
+	return os.DirFS(dir)
 }
 
-func committedGenDirs() []string {
-	dirs := []string{}
-	if _, file, _, ok := runtime.Caller(0); ok {
-		dirs = append(dirs, filepath.Join(filepath.Dir(file), "..", "tmpl", "gen"))
+const committedGenRel = "pkg/fleet/installer/packages/embedded/tmpl/gen"
+
+func committedGenDir() (string, error) {
+	candidates := []string{}
+
+	if _, file, _, ok := runtime.Caller(1); ok {
+		srcDir := filepath.Dir(file)
+		srcDir = strings.TrimPrefix(srcDir, "github.com/DataDog/datadog-agent/")
+		candidates = append(candidates, filepath.Join(srcDir, "..", "tmpl", "gen"))
+		if root, err := repoRoot(); err == nil {
+			candidates = append(candidates, filepath.Join(root, srcDir, "..", "tmpl", "gen"))
+		}
 	}
+
+	if root, err := repoRoot(); err == nil {
+		candidates = append(candidates, filepath.Join(root, committedGenRel))
+	}
+
 	if src := os.Getenv("TEST_SRCDIR"); src != "" {
-		dirs = append(dirs,
-			filepath.Join(src, "_main/pkg/fleet/installer/packages/embedded/tmpl/gen"),
-			filepath.Join(src, "pkg/fleet/installer/packages/embedded/tmpl/gen"),
+		candidates = append(candidates,
+			filepath.Join(src, "_main", committedGenRel),
+			filepath.Join(src, committedGenRel),
 		)
-		// Bazel runfiles layout varies; locate embedded/tmpl/gen under TEST_SRCDIR.
 		_ = filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
 			if err != nil || !d.IsDir() || d.Name() != "gen" {
 				return nil
 			}
 			if filepath.Base(filepath.Dir(path)) == "tmpl" &&
 				filepath.Base(filepath.Dir(filepath.Dir(path))) == "embedded" {
-				dirs = append(dirs, path)
+				candidates = append(candidates, path)
 			}
 			return nil
 		})
 	}
-	return dirs
+
+	for _, dir := range candidates {
+		if _, err := os.Stat(dir); err == nil {
+			return dir, nil
+		}
+	}
+	return "", os.ErrNotExist
+}
+
+func repoRoot() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, committedGenRel)); err == nil {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return "", os.ErrNotExist
 }
