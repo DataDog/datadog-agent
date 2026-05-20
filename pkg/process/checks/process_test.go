@@ -712,6 +712,16 @@ func liveProc(pid, ppid int32) *procutil.Process {
 	}
 }
 
+// liveProcCT is liveProc with an explicit CreateTime, used to exercise the
+// PID-reuse path where two parents share a PID but have distinct createTimes.
+func liveProcCT(pid, ppid int32, createTime int64) *procutil.Process {
+	return &procutil.Process{
+		Pid:   pid,
+		Ppid:  ppid,
+		Stats: &procutil.Stats{Status: "S", CreateTime: createTime},
+	}
+}
+
 func TestAggregateZombiesByParent(t *testing.T) {
 	const intervalSec = 10
 	lastRun := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -840,6 +850,36 @@ func TestAggregateZombiesByParent(t *testing.T) {
 			want: map[int32]zombieAggregate{
 				101: {count: 1, netRate: 0},
 			},
+		},
+		{
+			// Parent (pid=100, createTime=1000) had a zombie child; between
+			// polls the parent exits, the zombie is reaped, and an unrelated
+			// process (pid=100, createTime=2000) takes the same PID. The
+			// reap-debit must NOT be attributed to the new occupant; the gate
+			// drops it entirely so the new process gets the zero default.
+			name: "pid reuse: debit dropped, new occupant not charged",
+			lastProcs: map[int32]*procutil.Process{
+				100: liveProcCT(100, 1, 1000),
+				200: zombieProc(200, 100),
+			},
+			procs: map[int32]*procutil.Process{
+				100: liveProcCT(100, 1, 2000),
+			},
+			lastRun: lastRun,
+			want:    nil,
+		},
+		{
+			// Parent exited between polls and the PID was not reused, so
+			// there is no current process for the debit to land on. The gate
+			// drops it.
+			name: "parent vanished: debit dropped",
+			lastProcs: map[int32]*procutil.Process{
+				100: liveProc(100, 1),
+				200: zombieProc(200, 100),
+			},
+			procs:   map[int32]*procutil.Process{},
+			lastRun: lastRun,
+			want:    nil,
 		},
 	}
 

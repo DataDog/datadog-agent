@@ -412,8 +412,15 @@ func (p *ProcessCheck) aggregateZombiesByParent(procs map[int32]*procutil.Proces
 	}
 
 	// Pass 2 — previous zombies no longer zombie in current: reaped, subtract 1/interval.
+	// Skip the debit when the parent has exited or been replaced by an
+	// unrelated PID-reused process; otherwise the new occupant of that PID
+	// would silently inherit the previous parent's negative netRate.
 	for pid, proc := range p.lastProcs {
 		if !proc.IsZombie() || procs[pid].IsZombie() {
+			continue
+		}
+		prev, cur := p.lastProcs[proc.Ppid], procs[proc.Ppid]
+		if prev == nil || cur == nil || !procutil.IsSameProcess(prev, cur) {
 			continue
 		}
 		if zombiesByPPID == nil {
