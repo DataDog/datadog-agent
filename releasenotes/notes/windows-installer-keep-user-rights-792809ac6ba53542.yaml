@@ -1,0 +1,13 @@
+---
+enhancements:
+  - |
+    Windows: Added a new MSI property ``DDAGENTUSER_KEEP_USER_RIGHTS`` that, when
+    set to ``1``, ``true``, or ``yes``, instructs the installer to skip
+    re-applying the ``ddagentuser`` account rights
+    (``SeServiceLogonRight``/``SeDeny*LogonRight``) on install or upgrade. This
+    lets customers preserve custom user-rights changes (for example, removing
+    ``ddagentuser`` from ``SeDenyNetworkLogonRight`` so the Agent can access
+    network resources) across upgrades.
+
+    Default behavior is unchanged: when the property is not set, the installer
+    continues to enforce the hardened user-rights baseline.

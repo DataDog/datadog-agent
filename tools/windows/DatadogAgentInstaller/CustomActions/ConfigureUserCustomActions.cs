@@ -15,6 +15,10 @@ namespace Datadog.CustomActions
 {
     public class ConfigureUserCustomActions
     {
+        // Name must match the property declared in WixSetup/Datadog Agent/AgentInstaller.cs
+        // and plumbed through CustomActionData in AgentCustomActions.cs SetProperties().
+        internal const string KeepUserRightsPropertyName = "DDAGENTUSER_KEEP_USER_RIGHTS";
+
         private readonly ISession _session;
         private readonly INativeMethods _nativeMethods;
         private readonly IRegistryServices _registryServices;
@@ -121,11 +125,36 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
+        /// Returns true when the DDAGENTUSER_KEEP_USER_RIGHTS MSI property is set to a truthy
+        /// value (1/true/yes, case-insensitive). When set, ConfigureUserAccountRights skips
+        /// assigning the ddagentuser logon rights so customers can preserve custom changes
+        /// (e.g. removing SeDenyNetworkLogonRight to allow access to network resources)
+        /// across upgrades.
+        /// </summary>
+        internal bool ShouldKeepUserAccountRights()
+        {
+            var keep = _session.Property(KeepUserRightsPropertyName);
+            if (string.IsNullOrEmpty(keep))
+            {
+                return false;
+            }
+            return keep.Equals("1", StringComparison.OrdinalIgnoreCase)
+                   || keep.Equals("true", StringComparison.OrdinalIgnoreCase)
+                   || keep.Equals("yes", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// User Rights Assignment for ddagentuser
         /// https://learn.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/user-rights-assignment
         /// </summary>
-        private void ConfigureUserAccountRights()
+        internal void ConfigureUserAccountRights()
         {
+            if (ShouldKeepUserAccountRights())
+            {
+                _session.Log($"{KeepUserRightsPropertyName} is set, skipping ddagentuser account rights configuration. " +
+                             "The agent service requires SeServiceLogonRight; ensure it is granted manually if this is a fresh install.");
+                return;
+            }
             _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeDenyInteractiveLogonRight);
             _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeDenyNetworkLogonRight);
             _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeDenyRemoteInteractiveLogonRight);
