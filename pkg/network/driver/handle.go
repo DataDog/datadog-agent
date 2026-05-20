@@ -18,6 +18,7 @@ import (
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
@@ -199,100 +200,27 @@ func (dh *RealDriverHandle) ReadFile(p []byte, bytesRead *uint32, ol *windows.Ov
 // handle, branching internally based on whether the handle was opened with
 // FILE_FLAG_OVERLAPPED.
 //
-// On the returned values: some IOCTLs return ERROR_MORE_DATA after filling
-// part of the output buffer. When Windows reports a byte count, this wrapper
-// returns it alongside the error so callers can inspect both.
+// For synchronous handles, Win32's DeviceIoControl is naturally blocking;
+// per MSDN, lpBytesReturned must be non-NULL when lpOverlapped is NULL. For
+// IOCTLs that report partial output with ERROR_MORE_DATA, bytesReturned
+// carries the partial byte count.
 //
-// # Synchronous handles
+// For overlapped handles, this delegates to
+// winutil.SynchronousOverlappedDeviceIoControl, which synthesizes a private
+// event with the HEvent low bit set so the IOCTL's completion bypasses any
+// IOCP the handle is associated with. See that function for the full
+// rationale and the WINA-2669 hang it exists to prevent.
 //
-// For handles opened without FILE_FLAG_OVERLAPPED, Win32's DeviceIoControl is
-// naturally blocking. Per MSDN, lpBytesReturned must be non-NULL when
-// lpOverlapped is NULL. The call is forwarded directly; bytesReturned is
-// filled by Win32 even on partial-data errors.
-//
-// # Overlapped handles (and why this wrapper exists)
-//
-// For FILE_FLAG_OVERLAPPED handles, DeviceIoControl must be called with a
-// valid OVERLAPPED containing an event. Passing lpOverlapped=NULL is outside
-// the documented contract and has been observed to hang indefinitely when
-// the handle is also associated with an IOCP -- asynchronous completions on
-// IOCP-associated handles are intended to be consumed via the completion
-// port, not via a direct wait on the handle. This is what produced the
-// WINA-2669 datadog-system-probe shutdown hang: with Driver Verifier enabled
-// on ddprocmon.sys, the STOP IOCTL on the overlapped+IOCP procmon handle was
-// issued with lpOverlapped=NULL; the IRP's completion was routed through the
-// IOCP and Win32's fallback wait on the file handle never returned. Only
-// process termination released it.
-//
-// To provide synchronous caller semantics safely, this wrapper issues the
-// IOCTL as an overlapped request using a private manual-reset event. The low
-// bit of OVERLAPPED.HEvent is set so this IOCTL's completion is NOT queued
-// to the handle's IOCP -- the IOCP read loops on these handles
-// (pkg/network/dns ReadDNSPacket, pkg/windowsdriver/olreader
-// OverlappedReader.Read) assume every completion is a *readbuffer and would
-// corrupt or crash on an IOCTL completion. The wrapper waits on the raw
-// (untagged) event handle and then calls GetOverlappedResult(bWait=false)
-// for the final status and byte count. The bit-tagged HEvent isn't the raw
-// wait handle; do the wait explicitly rather than rely on a Win32 wait API
-// masking the IOCP-suppression bit.
-//
-// See: https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-getqueuedcompletionstatus
-//
-//	(lpOverlapped parameter: "A valid event handle whose low-order bit is set
-//	prevents the completion of the overlapped I/O from enqueing a completion
-//	packet to the completion port.")
+// Some IOCTLs return ERROR_MORE_DATA after filling part of the output
+// buffer; in that case bytesReturned is meaningful alongside the error.
 //
 //nolint:revive // TODO(WKIT) Fix revive linter
 func (dh *RealDriverHandle) SynchronousDeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32) (bytesReturned uint32, err error) {
 	if !dh.overlapped {
-		// Native sync path. lpBytesReturned must be non-NULL when lpOverlapped
-		// is NULL. bytesReturned is filled even on errors like ERROR_MORE_DATA.
 		err = windows.DeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, &bytesReturned, nil)
 		return bytesReturned, err
 	}
-
-	ev, err := windows.CreateEvent(nil, 1, 0, nil) // manual-reset, non-signaled
-	if err != nil {
-		return 0, fmt.Errorf("CreateEvent for SynchronousDeviceIoControl: %w", err)
-	}
-	defer windows.CloseHandle(ev)
-
-	var ol windows.Overlapped
-	// Low bit on HEvent suppresses IOCP notification for this IRP (see doc above).
-	ol.HEvent = windows.Handle(uintptr(ev) | 1)
-
-	// Use a separate local for any byte count Windows writes on the initiation
-	// path; the named return value `bytesReturned` is reserved for
-	// GetOverlappedResult on the async-completion path. Keeping the two
-	// variables separate avoids the classic overlapped-I/O race where the
-	// initiation thread and the completion path both write the same DWORD
-	// (Raymond Chen, "Why you should never use the same byte-count variable
-	// for the initiation and completion of an overlapped I/O").
-	var inlineBytes uint32
-	err = windows.DeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, &inlineBytes, &ol)
-
-	// Per MSDN, when lpOverlapped is non-NULL the lpBytesReturned value is
-	// "meaningless until the overlapped operation has completed". On any
-	// inline return from DeviceIoControl (success or non-pending error) the
-	// IRP IS complete, so inlineBytes is meaningful. Only ERROR_IO_PENDING
-	// requires deferring to GetOverlappedResult.
-	if !errors.Is(err, windows.ERROR_IO_PENDING) {
-		return inlineBytes, err
-	}
-
-	// Async: IRP queued. Wait on the raw (untagged) event ourselves, then
-	// collect the final status and byte count via GetOverlappedResult.
-	status, werr := windows.WaitForSingleObject(ev, windows.INFINITE)
-	if werr != nil {
-		return 0, werr
-	}
-	if status != windows.WAIT_OBJECT_0 {
-		return 0, fmt.Errorf("SynchronousDeviceIoControl: unexpected wait status %#x", status)
-	}
-	if gerr := windows.GetOverlappedResult(dh.Handle, &ol, &bytesReturned, false); gerr != nil {
-		return bytesReturned, gerr
-	}
-	return bytesReturned, nil
+	return winutil.SynchronousOverlappedDeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize)
 }
 
 // DeviceIoControl is a deprecated shim around SynchronousDeviceIoControl, kept
