@@ -178,10 +178,19 @@ type logTriggeredSuite struct {
 
 // TestAnomalyDetectionLogsTriggered provisions the agent with a file-tailing log
 // integration. The test itself writes the signal: a stable baseline of one line per
-// second (BOCPD warmup), then a burst of 20 lines in rapid succession (spike).
+// second (BOCPD warmup), then high-frequency batches (spike).
 //
-// The external logssource path (logs.enabled) has no level/status filter, so plain
-// text lines are sufficient — no JSON or ERROR status required.
+// Key design constraints:
+//   - logs_enabled is NOT set: the main logs agent is disabled to avoid double-processing
+//     the custom_logs.d file alongside the logssource's independent pipeline.
+//   - All lines use the SAME content so they produce the same log signature and
+//     accumulate into a single metric series. Different content (e.g. "baseline N" vs
+//     "spike N") produces different char-run lengths → different series hashes →
+//     BOCPD never sees a step change in one series.
+//   - Multiple spike batches span multiple seconds: the scheduler rule (analyzeUpTo =
+//     dataTimeSec-1) means a second T is only analyzed when T+1 data arrives. A single
+//     burst with all lines in the same second is never analyzed unless more lines
+//     follow. Spreading the spike across 3 seconds ensures analysis catches up.
 func TestAnomalyDetectionLogsTriggered(t *testing.T) {
 	// language=yaml
 	logConfig := `
@@ -194,7 +203,6 @@ logs:
 	// language=yaml
 	agentConfig := `
 log_level: debug
-logs_enabled: true
 anomaly_detection:
   enabled: true
   metrics:
@@ -228,21 +236,30 @@ func (s *logTriggeredSuite) writeLogLine(msg string) {
 }
 
 // TestLogsTriggeredEmitsOnFileSpike writes a stable baseline of log lines (one per
-// second, satisfying BOCPD warmup_points=20), then bursts 20 lines in rapid
-// succession. The frequency step-change causes BOCPD to fire, and the stdout
-// reporter emits its canonical marker.
+// second, satisfying BOCPD warmup_points=20), then writes high-frequency batches.
 //
-// Timing: ~25 s baseline + ~instant burst = detection within ~30 s of spike.
+// All lines use the same content ("e2e anomaly test event") so they produce the same
+// log signature → same metric series. The storage accumulates per-second counts:
+// baseline yields count=1/s; each spike batch yields count=batchSize in that second.
+//
+// Three spike batches spread across three seconds ensure BOCPD analyzes at least one
+// high-count second (the scheduler only analyzes second T when T+1 data arrives).
+// Sentinel lines after the spike push analysis through the last spike second.
 func (s *logTriggeredSuite) TestLogsTriggeredEmitsOnFileSpike() {
 	const (
-		baselineLines = 25
-		spikeLines    = 20
+		logMessage    = "e2e anomaly test event" // fixed content → same signature always
+		baselineLines = 25                       // warmup: 25 s at count=1, satisfies warmup_points=20
+		spikeBatches  = 3                        // spread spike across 3 seconds
+		batchSize     = 10                       // count=10 vs baseline count=1 → clear step change
+		sentinelLines = 3                        // post-spike lines so analysis reaches last spike second
 	)
 
 	// Create the file before the tailer starts so the agent picks it up immediately.
 	s.Env().RemoteHost.MustExecute("touch /tmp/e2e-anomaly-test.log")
 
-	waitForObserverReady(s)
+	// The metrics handle is never obtained when metrics.enabled=false (SetObserver
+	// returns early). Use the logssource handle marker instead.
+	waitForLogsObserverReady(s)
 
 	ctx, cancel := context.WithCancel(s.T().Context())
 	ticker := time.NewTicker(time.Second)
@@ -261,7 +278,7 @@ func (s *logTriggeredSuite) TestLogsTriggeredEmitsOnFileSpike() {
 				return
 			default:
 			}
-			s.writeLogLine(fmt.Sprintf("e2e anomaly baseline %d", i))
+			s.writeLogLine(logMessage)
 			if (i+1)%10 == 0 {
 				s.T().Logf("baseline: wrote %d/%d", i+1, baselineLines)
 			}
@@ -271,14 +288,35 @@ func (s *logTriggeredSuite) TestLogsTriggeredEmitsOnFileSpike() {
 			case <-ticker.C:
 			}
 		}
-		s.T().Logf("writing %d spike log lines (burst)...", spikeLines)
-		for i := 0; i < spikeLines; i++ {
+		// Spike: batchSize lines per second across spikeBatches seconds.
+		// Each batch collapses into one second bucket (storage accumulates count).
+		// Multiple batches give consecutive-second data so analysis advances.
+		s.T().Logf("writing spike: %d batches of %d lines...", spikeBatches, batchSize)
+		for b := 0; b < spikeBatches; b++ {
 			select {
 			case <-ctx.Done():
 				return
 			default:
 			}
-			s.writeLogLine(fmt.Sprintf("e2e anomaly spike %d", i))
+			for i := 0; i < batchSize; i++ {
+				s.writeLogLine(logMessage)
+			}
+			s.T().Logf("spike: wrote batch %d/%d", b+1, spikeBatches)
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+		// Sentinel: push analysis forward through the last spike second.
+		s.T().Log("writing sentinel lines...")
+		for i := 0; i < sentinelLines; i++ {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+			s.writeLogLine(logMessage)
 		}
 		s.T().Log("done writing log lines")
 	}()

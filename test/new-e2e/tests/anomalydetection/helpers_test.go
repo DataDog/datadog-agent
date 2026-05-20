@@ -14,11 +14,18 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
-// Observer log markers emitted by comp/anomalydetection/observer/impl/observer.go.
+// Observer log markers emitted by comp/anomalydetection/observer/impl/observer.go
+// and comp/anomalydetection/logssource/impl/logssource.go.
 const (
-	// observerReadyMarker is logged when the observer is wired into the aggregator.
-	// Absence means anomaly_detection.enabled=false or the reporter impl is not loaded.
+	// observerReadyMarker is logged when the demultiplexer wires the observer into
+	// the DSD/metrics pipeline. It only appears when metrics.enabled=true: the
+	// SetObserver call returns early without calling GetHandle when metrics are off.
 	observerReadyMarker = "[observer] getting handle for all-metrics"
+
+	// observerLogsHandleMarker is logged when the logssource component obtains its
+	// observer handle. It appears at agent startup when logs.enabled=true, regardless
+	// of metrics.enabled. Use this as the readiness signal for log-triggered tests.
+	observerLogsHandleMarker = "[observer] getting handle for logs"
 
 	// observerAgentLogsMarker is logged when the agent-log tap is installed.
 	observerAgentLogsMarker = "[observer] getting handle for agent-internal-logs"
@@ -40,18 +47,39 @@ type observerTestSuite interface {
 	Env() *environments.Host
 }
 
-// waitForObserverReady polls /var/log/datadog/agent.log until the observer startup
-// marker appears. Fails the test if the marker is not seen within 2 minutes.
+// waitForObserverReady polls /var/log/datadog/agent.log until the metrics-path
+// observer handle marker appears. Only valid when metrics.enabled=true: the
+// demultiplexer's SetObserver returns early without calling GetHandle when metrics
+// are disabled, so this marker never appears in logs-only mode.
 func waitForObserverReady(s observerTestSuite) {
 	s.T().Helper()
-	s.T().Log("waiting for observer to be ready...")
+	s.T().Log("waiting for observer to be ready (metrics path)...")
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		out, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
 		assert.NoError(c, err, "reading agent.log to check observer readiness")
 		assert.Contains(c, string(out), observerReadyMarker,
 			"agent.log should contain observer startup marker")
 	}, 2*time.Minute, 3*time.Second)
-	s.T().Log("observer ready")
+	s.T().Log("observer ready (metrics path)")
+}
+
+// waitForLogsObserverReady polls the systemd journal for the logssource handle marker.
+// Use this when metrics.enabled=false: the logssource component calls GetHandle("logs")
+// during fx construction (before the file log sink is active), so the marker may appear
+// in journald (stderr capture) rather than agent.log. Journalctl is checked here for
+// reliability.
+func waitForLogsObserverReady(s observerTestSuite) {
+	s.T().Helper()
+	s.T().Log("waiting for observer to be ready (log path)...")
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		out, err := s.Env().RemoteHost.Execute(
+			"sudo journalctl -u datadog-agent --no-pager | grep -F '" + observerLogsHandleMarker + "' || true",
+		)
+		assert.NoError(c, err, "journalctl failed")
+		assert.Contains(c, out, observerLogsHandleMarker,
+			"journald should contain logssource observer handle marker")
+	}, 2*time.Minute, 3*time.Second)
+	s.T().Log("observer ready (log path)")
 }
 
 // waitForAgentStartup polls agent.log for the standard startup banner.
