@@ -340,7 +340,8 @@ func (suite *RestartTestSuite) TestPartialStop_StopsTransientComponentsOnly() {
 }
 
 func (suite *RestartTestSuite) TestPartialStop_WithTimeout() {
-	suite.configOverrides["logs_config.stop_grace_period"] = 1 // 1 second timeout
+	gracePeriod := 1 // 1 second — deliberately short to exercise the timeout path
+	suite.configOverrides["logs_config.stop_grace_period"] = gracePeriod
 
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
@@ -355,9 +356,16 @@ func (suite *RestartTestSuite) TestPartialStop_WithTimeout() {
 	err := agent.partialStop()
 	elapsed := time.Since(start)
 
-	// Should complete within reasonable time
+	// stopComponents has two phases:
+	//   1. Graceful shutdown, bounded by stop_grace_period (here 1s).
+	//   2. If the graceful shutdown times out, a hard force-close followed by
+	//      an additional 5-second cleanup wait (see stopComponents in agent.go).
+	// Worst-case elapsed is therefore grace_period + 5s + some margin.
+	// On slow ARM64 CI the graceful path can exceed 1s, triggering phase 2 and
+	// pushing the total past 3s — which was the original (incorrect) bound.
+	maxExpected := time.Duration(gracePeriod)*time.Second + 5*time.Second + 2*time.Second
 	suite.NoError(err)
-	suite.Less(elapsed, 3*time.Second, "Should complete or timeout within grace period")
+	suite.Less(elapsed, maxExpected, "partialStop should complete within grace_period + cleanup wait + margin")
 }
 
 func (suite *RestartTestSuite) TestPartialStop_FlushesRegistryToDisk() {
