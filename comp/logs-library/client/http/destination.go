@@ -8,10 +8,12 @@ package http
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"expvar"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -528,6 +530,107 @@ func completeCheckConnectivity(ctx *client.DestinationsContext, destination *Des
 	return destination.unconditionalSend(&emptyJSONPayload)
 }
 
+// classifyConnectivityError maps a connectivity-check error to a stable failure_cause tag value.
+// The returned string is one of: dns, tls, timeout, connection, http_status, other.
+//
+// These values are designed to be stable over time so that dashboards and monitors that
+// filter on failure_cause=<X> remain valid across agent upgrades.
+//
+// Note: *client.RetryableError does not implement Unwrap(), so errors.As cannot traverse
+// through it. For errors wrapped in RetryableError we fall back to message-string heuristics,
+// which still reliably classifies the common failure modes (dns/tls/timeout/connection).
+func classifyConnectivityError(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	// HTTP status errors (errClient / errServer) are not wrapped in a url.Error.
+	// They are the sentinel package-level vars defined in this file and take priority.
+	if err == errClient || err == errServer {
+		return "http_status"
+	}
+
+	// Attempt to classify via *url.Error. This works when the error IS a *url.Error directly
+	// (not wrapped in RetryableError), which covers non-connectivity-check send paths.
+	if cause := classifyURLError(err); cause != "other" {
+		return cause
+	}
+
+	// Fall back to message-string heuristics. This covers the common boot-time path
+	// where unconditionalSend wraps the *url.Error from http.Client.Do inside a
+	// RetryableError (which has no Unwrap method). The error message still contains
+	// the inner error text, so heuristic matching is reliable.
+	return classifyErrorMessage(err.Error())
+}
+
+// classifyURLError inspects a *url.Error and its inner error chain and returns a
+// failure_cause tag value, or "other" if the error is not a *url.Error.
+func classifyURLError(err error) string {
+	var urlErr *url.Error
+	if !errors.As(err, &urlErr) {
+		return "other"
+	}
+
+	// Timeout covers both dial timeout and request deadline exceeded.
+	if urlErr.Timeout() {
+		return "timeout"
+	}
+
+	inner := urlErr.Err
+
+	// DNS: *net.DNSError — check before OpError since DNSError is more specific.
+	var dnsErr *net.DNSError
+	if errors.As(inner, &dnsErr) {
+		if dnsErr.Timeout() {
+			return "timeout"
+		}
+		return "dns"
+	}
+
+	// TCP connect errors: *net.OpError wrapping syscall errors.
+	var opErr *net.OpError
+	if errors.As(inner, &opErr) {
+		if opErr.Op == "dial" || opErr.Op == "connect" {
+			return "connection"
+		}
+	}
+
+	// TLS errors: tls.AlertError is a byte type, not a pointer.
+	var tlsAlert tls.AlertError
+	if errors.As(inner, &tlsAlert) {
+		return "tls"
+	}
+
+	return classifyErrorMessage(inner.Error())
+}
+
+// classifyErrorMessage classifies an error based on its message string.
+// This is a fallback for error types that cannot be type-asserted (e.g. when the
+// underlying error is wrapped in a type that lacks Unwrap).
+func classifyErrorMessage(msg string) string {
+	if strings.Contains(msg, "x509") ||
+		strings.Contains(msg, "certificate") ||
+		strings.Contains(msg, "tls") {
+		return "tls"
+	}
+	if strings.Contains(msg, "no such host") ||
+		strings.Contains(msg, "dns") ||
+		strings.Contains(msg, "lookup") {
+		return "dns"
+	}
+	if strings.Contains(msg, "timeout") ||
+		strings.Contains(msg, "timed out") ||
+		strings.Contains(msg, "deadline exceeded") {
+		return "timeout"
+	}
+	if strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "connect:") {
+		return "connection"
+	}
+	return "other"
+}
+
 // CheckConnectivity check if sending logs through HTTP works
 func CheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) config.HTTPConnectivity {
 	log.Info("Checking HTTP connectivity...")
@@ -536,7 +639,9 @@ func CheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) conf
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
 	err := completeCheckConnectivity(ctx, destination)
 	if err != nil {
-		log.Warnf("HTTP connectivity failure: %v", err)
+		cause := classifyConnectivityError(err)
+		log.Warnf("HTTP connectivity failure: %v (failure_cause=%s)", err, cause)
+		metrics.TlmHTTPConnectivityFailureCause.Inc(cause)
 	} else {
 		log.Info("HTTP connectivity successful")
 	}

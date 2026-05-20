@@ -8,8 +8,11 @@ package http
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
 	"errors"
+	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -901,4 +904,81 @@ func TestHTTPTimeoutOverride(t *testing.T) {
 	cfg.SetWithoutSource("logs_config.http_timeout", 1)
 	client := httpClientFactory(cfg, 15*time.Second)()
 	assert.Equal(t, 15*time.Second, client.Timeout)
+}
+
+// TestClassifyConnectivityError verifies that classifyConnectivityError maps
+// concrete network error types to the expected stable failure_cause tag values.
+func TestClassifyConnectivityError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected string
+	}{
+		{
+			name:     "nil error returns empty string",
+			err:      nil,
+			expected: "",
+		},
+		{
+			name:     "dns error",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: &net.DNSError{Err: "no such host", Name: "example.com"}},
+			expected: "dns",
+		},
+		{
+			name: "dns error wrapped in RetryableError",
+			err: client.NewRetryableError(&url.Error{
+				Op:  "Post",
+				URL: "https://example.com",
+				Err: &net.DNSError{Err: "no such host", Name: "example.com"},
+			}),
+			expected: "dns",
+		},
+		{
+			name:     "timeout error",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: &net.DNSError{Err: "i/o timeout", Name: "example.com", IsTimeout: true}},
+			expected: "timeout",
+		},
+		{
+			name:     "tcp connection refused",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}},
+			expected: "connection",
+		},
+		{
+			name:     "tls alert error",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: tls.AlertError(42)},
+			expected: "tls",
+		},
+		{
+			name:     "tls string in error message",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: errors.New("tls: bad certificate")},
+			expected: "tls",
+		},
+		{
+			name:     "x509 certificate error",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: errors.New("x509: certificate signed by unknown authority")},
+			expected: "tls",
+		},
+		{
+			name:     "http_status for errClient sentinel",
+			err:      errClient,
+			expected: "http_status",
+		},
+		{
+			name:     "http_status for errServer sentinel",
+			err:      errServer,
+			expected: "http_status",
+		},
+		{
+			name:     "other for unknown error",
+			err:      errors.New("something went wrong"),
+			expected: "other",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := classifyConnectivityError(tc.err)
+			assert.Equal(t, tc.expected, got)
+		})
+	}
 }

@@ -134,6 +134,17 @@ var (
 	TlmHTTPConnectivityCheck = telemetryimpl.GetCompatComponent().NewCounter("logs", "http_connectivity_check",
 		[]string{"status"}, "Count of HTTP connectivity checks with status")
 
+	// TlmHTTPConnectivityFailureCause tracks the root cause of HTTP connectivity check failures.
+	// Tags: failure_cause — one of:
+	//   dns           — DNS resolution failed
+	//   tls           — TLS handshake or certificate error
+	//   timeout       — connection or request timed out
+	//   connection    — TCP connect refused or reset
+	//   http_status   — HTTP response status >= 400 (server reachable but rejected the probe)
+	//   other         — any other network error
+	TlmHTTPConnectivityFailureCause = telemetryimpl.GetCompatComponent().NewCounter("logs", "http_connectivity_failure_cause",
+		[]string{"failure_cause"}, "Count of HTTP connectivity check failures broken down by root cause")
+
 	// TlmHTTPConnectivityRetryAttempt tracks HTTP connectivity retry attempts
 	// Tags: status (success/failure)
 	TlmHTTPConnectivityRetryAttempt = telemetryimpl.GetCompatComponent().NewCounter("logs", "http_connectivity_retry_attempt",
