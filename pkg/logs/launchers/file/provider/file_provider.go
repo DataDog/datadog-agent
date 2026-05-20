@@ -413,7 +413,7 @@ func (p *FileProvider) filesMatchingSource(source *sources.LogSource, currentlyT
 			continue
 		}
 		if ignoreOlder > 0 {
-			statRes, statErr := os.Stat(path)
+			statRes, statErr := opener.StatLogFile(path)
 			if statErr == nil && isFileOlderThan(statRes.ModTime(), ignoreOlder) {
 				// ignore_older only gates the creation of new tailers; files
 				// that are currently being tailed must stay in the list so
