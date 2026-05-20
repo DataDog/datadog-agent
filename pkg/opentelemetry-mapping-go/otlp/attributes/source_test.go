@@ -19,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	conventionsv140 "go.opentelemetry.io/otel/semconv/v1.40.0"
 	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/azure"
@@ -102,6 +103,26 @@ func TestSourceFromAttrs(t *testing.T) {
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.AWSECSFargateKind, Identifier: "example-task-ARN"},
+		},
+		{
+			name: "Azure Container Apps (semconv v1.35.0 or later)",
+			attrs: testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudProviderKey):     conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey):     conventionsv140.CloudPlatformAzureContainerApps.Value.AsString(),
+				string(conventions.ServiceInstanceIDKey): "replica-1",
+			}),
+			ok:  true,
+			src: source.Source{Kind: source.AzureContainerAppsKind, Identifier: "replica-1"},
+		},
+		{
+			name: "Azure Container Apps (legacy)",
+			attrs: testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudProviderKey):     conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey):     "azure_container_apps",
+				string(conventions.ServiceInstanceIDKey): "replica-1",
+			}),
+			ok:  true,
+			src: source.Source{Kind: source.AzureContainerAppsKind, Identifier: "replica-1"},
 		},
 		{
 			name: "GCP",
