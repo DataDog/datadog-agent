@@ -129,6 +129,8 @@ func (e *ddExtension) buildProfilerOptions() []profiler.Option {
 func (e *ddExtension) Shutdown(ctx context.Context) error {
 	profiler.Stop()
 	if e.server == nil {
+		// Standalone mode sends directly to an external trace-agent and does not
+		// start the local forwarding server used in bundled mode.
 		return nil
 	}
 	return e.server.Shutdown(ctx)
