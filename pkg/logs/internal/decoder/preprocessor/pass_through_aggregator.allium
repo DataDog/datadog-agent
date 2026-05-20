@@ -30,6 +30,7 @@
 --     specific config key.
 
 use "./aggregator.allium" as aggregator
+use "./truncation.allium" as truncation
 
 ------------------------------------------------------------
 -- Entities
@@ -75,6 +76,7 @@ surface PassThroughAggregation {
 
     contracts:
         fulfils Aggregator
+        fulfils Truncatable
 
     @guarantee Determinism
         -- The Aggregator contract's Determinism invariant holds:
@@ -143,51 +145,116 @@ surface PassThroughAggregation {
         -- message. PassThroughAggregator does not modify, replace,
         -- recompute or reorder the tokens.
 
+    @guarantee PassThroughUnderThreshold
+        -- (Inherited from Truncatable.) When the input content's
+        -- length is at or under agg.line_limit AND the input's
+        -- ParsingExtra.IsTruncated is false AND agg.should_truncate
+        -- is false at call entry, the emitted message's content
+        -- equals the whitespace-trimmed input content (no marker
+        -- prepend or append), ParsingExtra.IsTruncated is false on
+        -- the emission, no truncation-reason tag is added, and
+        -- agg.should_truncate remains false at call exit.
+
+    @guarantee TailMarkerOnOverThreshold
+        -- (Inherited from Truncatable.) When the input content's
+        -- length exceeds agg.line_limit OR the input's
+        -- ParsingExtra.IsTruncated is true, the emitted message's
+        -- content has the truncation marker appended after
+        -- whitespace trim, ParsingExtra.IsTruncated is true on
+        -- the emission, and agg.should_truncate is true at call
+        -- exit.
+
+    @guarantee HeadMarkerOnCarryover
+        -- (Inherited from Truncatable.) When agg.should_truncate
+        -- is true at call entry, the emitted message's content
+        -- has the truncation marker prepended (before any tail
+        -- marker that this call may also append), and
+        -- ParsingExtra.IsTruncated is true on the emission. The
+        -- head marker is independent of whether the current
+        -- input is also over-threshold; both markers may apply
+        -- on the same emission.
+
+    @guarantee CarryoverConsumed
+        -- (Inherited from Truncatable.) The new value of
+        -- agg.should_truncate at call exit is determined SOLELY
+        -- by the current call's input — whether the content
+        -- exceeds agg.line_limit OR the input's
+        -- ParsingExtra.IsTruncated is true. The value at call
+        -- entry does NOT propagate into the exit value. A call
+        -- with agg.should_truncate=true at entry but under-
+        -- threshold non-upstream-truncated content produces
+        -- agg.should_truncate=false at exit.
+
+    @guarantee UpstreamFlagPropagation
+        -- (Inherited from Truncatable.) The input's
+        -- ParsingExtra.IsTruncated being true is equivalent to
+        -- the input being over-threshold — both trigger the
+        -- tail marker, set ParsingExtra.IsTruncated on the
+        -- emission, and set agg.should_truncate=true at call
+        -- exit.
+
+    @guarantee TagOnTruncation
+        -- (Inherited from Truncatable.) When the emission carries
+        -- any truncation marker (head, tail, or both),
+        -- ParsingExtra.IsTruncated is set to true. When the
+        -- global logs_config.tag_truncated_logs configuration is
+        -- true, a truncation-reason tag is appended to
+        -- ParsingExtra.Tags (see TagReasonSingleLine for the tag
+        -- value).
+
+    @guarantee MarkerLiteral
+        -- (Inherited from Truncatable.) The marker bytes prepended
+        -- and appended are the literal byte sequence
+        -- `...TRUNCATED...` from the agent's message package
+        -- (message.TruncatedFlag).
+
+    @guarantee TagReasonSingleLine
+        -- The truncation-reason tag value applied by this
+        -- aggregator is always the literal string "single_line"
+        -- (via message.TruncatedReasonTag("single_line")). The
+        -- reason value is not configurable and does not depend
+        -- on input content, label, or pipeline state. Identical
+        -- to SingleLineHandler's tag reason — reflects the
+        -- structural parallelism between PassThroughAggregator
+        -- (preprocessor) and SingleLineHandler (legacy decoder).
+
     @guidance
-        -- Per-call procedure when process is invoked with arguments
-        -- (msg, label, tokens) on a PassThroughAggregator instance:
+        -- Per-call procedure when process is invoked with
+        -- arguments (msg, label, tokens) on a
+        -- PassThroughAggregator instance:
         --
-        -- 1. Capture the current should_truncate value as
-        --    `prepend_marker` (a local variable name for clarity).
+        -- 1. Apply the Truncatable contract's apply operation to
+        --    msg.content with threshold=agg.line_limit,
+        --    upstream_truncated=msg.ParsingExtra.IsTruncated,
+        --    prior_carryover=agg.should_truncate. The contract
+        --    handles whitespace trimming, head/tail marker
+        --    placement, is_truncated flag setting, and tag
+        --    application per its invariants. The tag reason value
+        --    supplied to TagOnTruncation is "single_line" (see
+        --    TagReasonSingleLine).
         --
-        -- 2. Recompute should_truncate for the next call. It
-        --    becomes true if either:
-        --      - the input msg.content exceeds line_limit in byte
-        --        length, OR
-        --      - the input msg.is_truncated is already true.
-        --    Otherwise should_truncate becomes false.
+        --    The contract returns the (possibly decorated)
+        --    content and the new_carryover value. The new
+        --    carryover overwrites agg.should_truncate.
         --
-        -- 3. Trim leading and trailing whitespace from the input
-        --    content. This is unconditional; it applies whether or
-        --    not the line was truncated.
+        -- 2. Replace msg.content with the contract's returned
+        --    bytes and emit one AggregatedMessageWithTokens
+        --    pairing the (now-mutated) input message with the
+        --    tokens argument.
         --
-        -- 4. If prepend_marker is true, prepend the truncation
-        --    marker to the trimmed content.
+        -- The aggregator mutates the input message in place
+        -- rather than copying. Callers that need to retain the
+        -- original bytes must capture them before invoking
+        -- process. The label argument is consumed but has no
+        -- effect (LabelIgnored).
         --
-        -- 5. If should_truncate is true (i.e., this line itself
-        --    triggers truncation), append the truncation marker to
-        --    the content.
-        --
-        -- 6. If either prepend_marker or should_truncate is true,
-        --    mark the emitted message as truncated and — when the
-        --    runtime's truncated-log tagging is enabled — attach
-        --    a truncation-reason tag identifying this aggregator
-        --    as the source.
-        --
-        -- 7. Replace the input message's content with the
-        --    transformed bytes and emit a single
-        --    AggregatedMessageWithTokens pairing the (now-mutated)
-        --    message with the tokens argument.
-        --
-        -- The aggregator mutates the input message in place rather
-        -- than copying. Callers that need to retain the original
-        -- bytes must capture them before invoking process.
-        --
-        -- Note on rolling state: should_truncate carries one bit
-        -- of information from one call to the next. The mapping
-        -- is: "did the previous line trigger truncation? If so,
-        -- prepend a marker to this line as a visual continuation."
-        -- The carry exists so that the marker forms a complete
-        -- pair around any genuinely oversized content (marker
-        -- after the oversized line, marker before the next line).
+        -- Note on rolling state: agg.should_truncate carries one
+        -- bit of information from one call to the next via the
+        -- contract's prior_carryover input. The mapping is: "did
+        -- the previous emission trigger truncation? If so,
+        -- prepend a marker to this emission as a visual
+        -- continuation." The carry exists so that the marker
+        -- forms a complete pair around any genuinely oversized
+        -- content (tail marker after the oversized line, head
+        -- marker before the next line).
 }

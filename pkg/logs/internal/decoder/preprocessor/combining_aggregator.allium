@@ -327,6 +327,44 @@ surface CombiningAggregation {
         -- bucket_content_len could reach line_limit — they just
         -- don't arise under the dispatch defined here.
 
+    @guarantee CombinedEmissionUpstreamFlagIgnored
+        -- The COMBINED-emission path (the bucket-flush procedure
+        -- producing a combined message of two or more lines)
+        -- does NOT honour the upstream IsTruncated flag of any
+        -- contributing line. The bucket-flush invocation of
+        -- apply_truncation passes shouldTruncate = (bucket_
+        -- content_len >= line_limit) only — the per-input
+        -- upstream IsTruncated flags are not OR'd into this
+        -- argument. As a consequence, a combined emission of
+        -- lines where SOME contributors arrived with
+        -- ParsingExtra.IsTruncated=true (e.g. from the framer)
+        -- but the combined buffer stays under line_limit emits
+        -- with IsTruncated=false — the upstream signals are
+        -- DROPPED.
+        --
+        -- The SINGLE-LINE emission path (emit_single, invoked
+        -- for noAggregate labels, aggregate-on-empty-bucket
+        -- lines, exploded individual lines, and oversized
+        -- start_group lines) DOES honour the upstream
+        -- IsTruncated flag — it passes shouldTruncate =
+        -- (length(content) > line_limit OR msg.is_truncated
+        -- upstream). The behavioural asymmetry between the
+        -- two paths is intentional and reflects how the
+        -- bucket accumulation is currently implemented.
+        --
+        -- Consequence for Truncatable conformance:
+        -- CombiningAggregator therefore does NOT declare
+        -- fulfils Truncatable. The single-line path
+        -- structurally conforms to the contract; the
+        -- combined-emission path does not (UpstreamFlagPropagation
+        -- violated). A refactor preserving observable
+        -- behaviour must preserve this asymmetry. A refactor
+        -- that begins propagating upstream flags into the
+        -- combined-emission apply_truncation invocation would
+        -- be a deliberate behaviour change, producing
+        -- additional IsTruncated=true emissions for combined
+        -- buckets containing upstream-flagged contributors.
+
     @guidance
         -- Per-call dispatch when process is invoked with
         -- arguments (msg, label, tokens) on a CombiningAggregator

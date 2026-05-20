@@ -292,6 +292,33 @@ surface RegexAggregation {
         -- when the runtime's tag-truncated-logs configuration
         -- is enabled.
 
+    @guarantee UpstreamFlagIgnored
+        -- The input message's ParsingExtra.IsTruncated flag
+        -- is NOT read by process and does NOT influence any
+        -- truncation decision. An input already marked
+        -- truncated by upstream stages (e.g. by the framer)
+        -- is accumulated into the buffer the same as any
+        -- other input; its truncation signal is dropped.
+        --
+        -- This is a DEVIATION from the Truncatable contract's
+        -- UpstreamFlagPropagation invariant. RegexAggregator
+        -- therefore does NOT declare fulfils Truncatable: only
+        -- the buffer-overflow side of TailMarkerOnOverThreshold
+        -- holds (via MidAggregateTruncation); the
+        -- upstream-truncated side does not.
+        --
+        -- The deviation is current behaviour. A refactor
+        -- preserving observable behaviour must preserve the
+        -- upstream-flag-ignoring semantics; a refactor that
+        -- begins propagating the upstream flag would be a
+        -- deliberate behaviour change, producing additional
+        -- IsTruncated=true emissions for inputs that the
+        -- framer already marked. Identical in shape to
+        -- MultiLineHandler's UpstreamFlagIgnored — both
+        -- aggregators operate buffer-level rather than
+        -- per-input, and both inherit this deviation from
+        -- that pattern.
+
     @guidance
         -- Per-call procedure when process is invoked with
         -- arguments (msg, label, tokens) on a RegexAggregator

@@ -29,6 +29,17 @@
 --   - Telemetry counters (TlmAutoMultilineJSONAggregatorFlush)
 --   - Per-source decoder configuration that selects this
 --     aggregator and constructs its dependencies
+--   - Byte-marker (`...TRUNCATED...`) truncation. This
+--     aggregator does NOT perform byte-marker truncation:
+--     its size-limit handling (FlushOnSizeLimit) emits
+--     buffered messages unmodified rather than cutting and
+--     decorating them, and no message emitted by this
+--     aggregator has IsTruncated set or a truncation-reason
+--     tag added by its own logic (such flags or tags inherit
+--     from upstream stages unchanged). The Truncatable
+--     contract at truncation.allium does not apply here; the
+--     JSONAggregator's domain is JSON-shape aggregation, not
+--     byte-length enforcement.
 
 use "./json_aggregator.allium" as json_aggregator
 

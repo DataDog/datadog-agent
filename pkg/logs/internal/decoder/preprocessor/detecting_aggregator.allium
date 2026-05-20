@@ -42,6 +42,7 @@
 --     aggregator's behavioural contract.
 
 use "./aggregator.allium" as aggregator
+use "./truncation.allium" as truncation
 
 ------------------------------------------------------------
 -- Entities
@@ -116,6 +117,7 @@ surface DetectingAggregation {
 
     contracts:
         fulfils Aggregator
+        fulfils Truncatable
 
     @guarantee Determinism
         -- The Aggregator contract's Determinism invariant holds:
@@ -218,27 +220,85 @@ surface DetectingAggregation {
         -- The aggregate and noAggregate labels never buffer: their
         -- current message is always emitted on the same call.
 
-    @guarantee SingleLineTruncationFlow
-        -- The truncation handling applied to every emission is
-        -- identical in shape to PassThroughAggregator's: a rolling
-        -- should_truncate carry, the truncation marker prepended
-        -- if the prior emission triggered truncation, the marker
-        -- appended if THIS emission's content exceeds line_limit
-        -- or arrives with the upstream-is-truncated flag, the
-        -- emitted message's is_truncated flag set when either
-        -- direction's marker was applied, and the truncation-
-        -- reason tag with value "single_line" attached when
-        -- tag_truncated_logs is true.
-        --
-        -- Each emission updates the should_truncate carry
-        -- independently; the carry follows the SEQUENCE of
-        -- emissions, not the sequence of process calls. (Notably:
-        -- a process call that emits both a previous pending
-        -- message AND the current message — the aggregate or
-        -- noAggregate branch when a pending exists — runs the
-        -- truncation flow twice within the same call, with the
-        -- second emission's prepend driven by the first
-        -- emission's freshly-set carry.)
+    @guarantee PassThroughUnderThreshold
+        -- (Inherited from Truncatable.) When an emission's
+        -- input content is at or under agg.line_limit AND the
+        -- input's ParsingExtra.IsTruncated is false AND
+        -- agg.should_truncate is false at emission entry, the
+        -- emitted content equals the whitespace-trimmed input,
+        -- ParsingExtra.IsTruncated is false, no truncation tag
+        -- is added, and agg.should_truncate remains false.
+
+    @guarantee TailMarkerOnOverThreshold
+        -- (Inherited from Truncatable.) When an emission's
+        -- input content exceeds agg.line_limit OR the input's
+        -- ParsingExtra.IsTruncated is true, the emitted
+        -- content has the truncation marker appended,
+        -- ParsingExtra.IsTruncated is true on the emission,
+        -- and agg.should_truncate is true after the emission.
+
+    @guarantee HeadMarkerOnCarryover
+        -- (Inherited from Truncatable.) When agg.should_truncate
+        -- is true at an emission's entry, the emitted content
+        -- has the truncation marker prepended, and
+        -- ParsingExtra.IsTruncated is true on the emission.
+        -- The head marker is independent of the tail marker;
+        -- both may apply on the same emission.
+
+    @guarantee CarryoverConsumed
+        -- (Inherited from Truncatable.) The new value of
+        -- agg.should_truncate after an emission is determined
+        -- SOLELY by that emission's input — whether the content
+        -- exceeds agg.line_limit OR the input's
+        -- ParsingExtra.IsTruncated is true. The value at
+        -- emission entry does NOT propagate forward.
+
+    @guarantee UpstreamFlagPropagation
+        -- (Inherited from Truncatable.) The input's
+        -- ParsingExtra.IsTruncated being true is equivalent
+        -- to the input being over-threshold — both trigger
+        -- tail marker decoration and set agg.should_truncate
+        -- after the emission.
+
+    @guarantee TagOnTruncation
+        -- (Inherited from Truncatable.) When an emission
+        -- carries any truncation marker,
+        -- ParsingExtra.IsTruncated is set true on the
+        -- emission. When agg.tag_truncated_logs is true, a
+        -- truncation-reason tag is appended to
+        -- ParsingExtra.Tags (see TagReasonSingleLine for the
+        -- tag value).
+
+    @guarantee MarkerLiteral
+        -- (Inherited from Truncatable.) The marker bytes
+        -- prepended and appended are the literal byte
+        -- sequence `...TRUNCATED...` from the agent's
+        -- message package (message.TruncatedFlag).
+
+    @guarantee TagReasonSingleLine
+        -- The truncation-reason tag value applied by this
+        -- aggregator is always the literal string
+        -- "single_line". Identical to PassThroughAggregator's
+        -- and SingleLineHandler's tag reason. Note that this
+        -- is the TRUNCATION tag — distinct from the
+        -- "auto_multiline_detected:true" detection tag
+        -- handled by MultiLineDetectionTag, which is
+        -- orthogonal to truncation.
+
+    @guarantee PerEmissionTruncationFlow
+        -- The Truncatable contract is fulfilled at every
+        -- emission boundary. A single process call may emit
+        -- multiple messages (the aggregate or noAggregate
+        -- branch when a pending message exists emits both
+        -- the pending and the current message), and the
+        -- Truncatable apply operation runs INDEPENDENTLY for
+        -- each emission in sequence. The agg.should_truncate
+        -- carry follows the SEQUENCE of emissions, not the
+        -- sequence of process calls: a process call that
+        -- produces two emissions runs the apply operation
+        -- twice, with the second emission's prior_carryover
+        -- being whatever the first emission's apply operation
+        -- set as new_carryover.
 
     @guidance
         -- Per-call dispatch when process is invoked with arguments
@@ -294,27 +354,23 @@ surface DetectingAggregation {
         -- is_empty procedure:
         --   Return the negation of pending_message_present.
         --
-        -- SingleLineTruncationFlow (applied to each emission):
-        --   The content transformation matches PassThroughAggregator's
-        --   per-call procedure. Given (emit_msg, emit_tokens):
+        -- emit_via_truncatable (applied to each emission):
+        --   Given (emit_msg, emit_tokens):
         --
-        --   1. Capture should_truncate as prepend_marker, then
-        --      recompute should_truncate: it becomes true iff
-        --      emit_msg.content.length > line_limit OR
-        --      emit_msg.is_truncated is already true.
-        --   2. Trim leading and trailing whitespace from
-        --      emit_msg.content.
-        --   3. If prepend_marker: prepend the truncation marker
-        --      to the trimmed content.
-        --   4. If should_truncate (recomputed): append the
-        --      truncation marker.
-        --   5. If either prepend_marker or should_truncate: mark
-        --      emit_msg.is_truncated true and — when
-        --      tag_truncated_logs is true — append the
-        --      truncation-reason tag with value "single_line".
-        --   6. Replace emit_msg.content with the transformed
-        --      bytes and append (emit_msg, emit_tokens) to the
-        --      collected slice.
+        --   1. Apply the Truncatable contract's apply operation
+        --      to emit_msg.content with
+        --      threshold=agg.line_limit,
+        --      upstream_truncated=emit_msg.ParsingExtra.IsTruncated,
+        --      prior_carryover=agg.should_truncate. The contract
+        --      handles whitespace trimming, head/tail marker
+        --      placement, ParsingExtra.IsTruncated setting, and
+        --      tag application (with tag reason "single_line")
+        --      per its invariants.
+        --   2. Overwrite agg.should_truncate with the contract's
+        --      returned new_carryover.
+        --   3. Replace emit_msg.content with the contract's
+        --      returned bytes and append (emit_msg, emit_tokens)
+        --      to the collected slice.
         --
         -- The truncation flow runs independently for each
         -- emission; chained emissions within a single process
