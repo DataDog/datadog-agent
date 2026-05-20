@@ -8,6 +8,20 @@ bazel:test:linux-amd64:
   script:
     - bazel test --keep_going //...
 
+inspect-oidc-token:
+  extends: [ .bazel:test, .bazel:runner:linux-amd64 ]
+  when: manual
+  before_script:
+    - |
+      STEP_VERSION="0.29.0"
+      ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+      curl -fsSL "https://dl.smallstep.com/gh-release/cli/gh-release-header/v${STEP_VERSION}/step_linux_${STEP_VERSION}_${ARCH}.tar.gz" \
+        | tar -xz -C /tmp --strip-components=2 "step_${STEP_VERSION}/bin/step"
+  script:
+    - echo "=== buildbarn Token (decoded) ==="
+    - echo "$BUILDBARN_ID_TOKEN" | /tmp/step crypto jwt inspect --insecure
+    - sleep 10
+
 bazel:test:linux-arm64:
   extends: [ .bazel:test, .bazel:runner:linux-arm64 ]
   script:
