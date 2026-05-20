@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes anomaly detection log ingestion so container autodiscovery does not collect Datadog Agent container logs when container collect-all log collection is enabled.
