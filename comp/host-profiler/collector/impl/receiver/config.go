@@ -96,7 +96,7 @@ func defaultConfig(profilerName string) component.Config {
 	return Config{
 		EbpfCollectorConfig: cfg,
 		SymbolUploader:      symbolUploaderConfig,
-		CollectContext:      false,
+		CollectContext:      true,
 	}
 }
 
