@@ -129,8 +129,6 @@ Enhancement Notes
 
 - Agents are now built with Go ``1.25.10``.
 
-- Agents are now built with Go ``1.25.9``.
-
 - Bump ``rshell`` to v0.0.10 for the Private Action Runner. Shell commands now
   follow symlinks that cross between allowed roots and resolve host-mounted
   paths correctly in containerized deployments.
