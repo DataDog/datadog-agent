@@ -247,14 +247,12 @@ func TestInfoHandler(t *testing.T) {
 			}
 			return nil, fmt.Errorf("container tags not found for %s", cid)
 		},
-		HasContainerFeatures:      true,                                     // so IDProvider reads Datadog-Container-ID header and container hash is computed
-		ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc, // required when HasContainerFeatures for Linux
-		Enabled:                   true,
-		AgentVersion:              "0.99.0",
-		GitCommit:                 "fab047e10",
-		Hostname:                  "test.host.name",
-		DefaultEnv:                "prod",
-		ConfigPath:                "/path/to/config",
+		Enabled:      true,
+		AgentVersion: "0.99.0",
+		GitCommit:    "fab047e10",
+		Hostname:     "test.host.name",
+		DefaultEnv:   "prod",
+		ConfigPath:   "/path/to/config",
 		Endpoints: []*config.Endpoint{{
 			APIKey:  "123",
 			Host:    "https://target-intake.datadoghq.com",

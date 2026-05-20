@@ -36,6 +36,11 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 	}
 }
 
+// IDProvider implementations are able to look up a container ID given a ctx and http header.
+type IDProvider interface {
+	GetContainerID(context.Context, http.Header) string
+}
+
 type idProvider struct{}
 
 // NewIDProvider initializes an IDProvider instance, in non-linux environments the procRoot arg is unused.

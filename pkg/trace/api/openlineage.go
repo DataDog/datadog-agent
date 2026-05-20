@@ -112,7 +112,7 @@ func (r *HTTPReceiver) openLineageProxyHandler() http.Handler {
 // The tags will be added as a header to all proxied requests.
 func newOpenLineageProxy(conf *config.AgentConfig, urls []*url.URL, keys []string, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
 	log.Debug("[openlineage] Creating reverse proxy")
-	cidProvider := NewContainerIDProviderFromConfig(conf)
+	cidProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
 	director := func(req *http.Request) {
 		req.Header.Set("Via", "trace-agent "+conf.AgentVersion)
 		if _, ok := req.Header["User-Agent"]; !ok {
