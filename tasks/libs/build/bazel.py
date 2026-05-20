@@ -142,7 +142,7 @@ def bazel(
     use_pty = False
     if not sudo and sys.stdout.isatty() and sys.platform != "win32":
         use_pty = True
-    result = run_bazel(ctx, verbose=True, sudo=sudo, use_pty=use_pty, *args)
+    result = run_bazel(ctx, *args, verbose=True, sudo=sudo, use_pty=use_pty)
     ret = None
     if capture_output:
         ret = result.stdout
