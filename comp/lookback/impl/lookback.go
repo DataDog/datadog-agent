@@ -24,9 +24,12 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	lookback "github.com/DataDog/datadog-agent/comp/lookback/def"
+	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	rcdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	pkgserializer "github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -51,6 +54,7 @@ type Provides struct {
 	Comp            lookback.Component
 	FlushEndpoint   api.AgentEndpointProvider
 	ForwardEndpoint api.AgentEndpointProvider
+	RCListener      rcclienttypes.ListenerProvider
 }
 
 // NewComponent creates the lookback ring buffer component.
@@ -62,6 +66,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			Comp:            noop,
 			FlushEndpoint:   api.NewAgentEndpointProvider(noop.handleFlush, "/lookback-flush", "GET"),
 			ForwardEndpoint: api.NewAgentEndpointProvider(noop.handleForward, "/lookback-forward", "POST"),
+			RCListener:      rcclienttypes.ListenerProvider{ListenerProvider: rcclienttypes.RCListener{}},
 		}, nil
 	}
 
@@ -144,10 +149,16 @@ func NewComponent(reqs Requires) (Provides, error) {
 		},
 	})
 
+	var rcListener rcclienttypes.ListenerProvider
+	rcListener.ListenerProvider = rcclienttypes.RCListener{
+		rcdata.ProductDebug: comp.onRCFlush,
+	}
+
 	return Provides{
 		Comp:            comp,
 		FlushEndpoint:   api.NewAgentEndpointProvider(comp.handleFlush, "/lookback-flush", "GET"),
 		ForwardEndpoint: api.NewAgentEndpointProvider(comp.handleForward, "/lookback-forward", "POST"),
+		RCListener:      rcListener,
 	}, nil
 }
 
@@ -347,6 +358,104 @@ func (c *component) handleForward(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, `{"forwarded":%d}`, len(buckets))
+}
+
+// rcFlushPayload is the JSON schema for a DEBUG Remote Config config that
+// triggers a lookback flush and forwards the result to the Datadog backend.
+type rcFlushPayload struct {
+	Name       string `json:"name"`
+	Tags       string `json:"tags"`        // comma-separated, optional
+	Start      int64  `json:"start"`       // Unix nanoseconds
+	Stop       int64  `json:"stop"`        // Unix nanoseconds
+	IntervalMs int64  `json:"interval_ms"` // milliseconds, optional (default: 1000 = 1s)
+}
+
+// onRCFlush is registered as a DEBUG product RCListener callback. When the
+// backend pushes a DEBUG config containing a rcFlushPayload, this method runs
+// the flush+forward pipeline and reports the apply status back to RC.
+func (c *component) onRCFlush(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	for configPath, raw := range updates {
+		var p rcFlushPayload
+		if err := json.Unmarshal(raw.Config, &p); err != nil {
+			applyStateCallback(configPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: fmt.Sprintf("invalid payload: %v", err),
+			})
+			continue
+		}
+
+		var tags []string
+		if p.Tags != "" {
+			for _, t := range strings.Split(p.Tags, ",") {
+				if t = strings.TrimSpace(t); t != "" {
+					tags = append(tags, t)
+				}
+			}
+		}
+
+		var interval time.Duration
+		if p.IntervalMs > 0 {
+			interval = time.Duration(p.IntervalMs) * time.Millisecond
+		} // 0 → aggregateRecords defaults to 1s
+
+		entries, err := c.ctxFile.scan(p.Name, tags)
+		if err != nil || len(entries) == 0 {
+			applyStateCallback(configPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: fmt.Sprintf("no contexts for %q: %v", p.Name, err),
+			})
+			continue
+		}
+
+		keys := make([]uint64, 0, len(entries))
+		for k := range entries {
+			keys = append(keys, k)
+		}
+		resolve := func(k uint64) (string, []string, bool) {
+			e, ok := entries[k]
+			return e.name, e.tags, ok
+		}
+
+		buckets, err := c.store.flush(context.Background(), keys, p.Start, p.Stop, int64(interval), resolve)
+		if err != nil || len(buckets) == 0 {
+			applyStateCallback(configPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: fmt.Sprintf("flush error: %v", err),
+			})
+			continue
+		}
+
+		host := c.hostname
+		var sendErr error
+		metrics.Serialize(
+			metrics.NewIterableSeries(func(*metrics.Serie) {}, 100, 100),
+			nil,
+			func(serieSink metrics.SerieSink, _ metrics.SketchesSink) {
+				for i := range buckets {
+					b := &buckets[i]
+					serieSink.Append(&metrics.Serie{
+						Name:   b.Name,
+						Points: []metrics.Point{{Ts: float64(b.Ts) / 1e9, Value: b.Sum}},
+						Tags:   tagset.CompositeTagsFromSlice(b.Tags),
+						Host:   host,
+						MType:  metrics.APIGaugeType,
+					})
+				}
+			},
+			func(src metrics.SerieSource) { sendErr = c.serializer.SendIterableSeries(src) },
+			nil,
+		)
+
+		if sendErr != nil {
+			applyStateCallback(configPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: sendErr.Error(),
+			})
+		} else {
+			c.log.Infof("lookback: RC flush forwarded %d buckets for %q", len(buckets), p.Name)
+			applyStateCallback(configPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		}
+	}
 }
 
 // noopComponent is returned when lookback.enabled = false.
