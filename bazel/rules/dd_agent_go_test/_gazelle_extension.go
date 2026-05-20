@@ -166,9 +166,13 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 				if managed[attr] {
 					continue
 				}
-				if nr.Attr(attr) == nil {
-					copyAttr(ex, nr, attr)
-				}
+				// Always prefer ex's expression for non-managed attrs:
+				// it carries the user-authored comments (e.g. `# keep`)
+				// which the freshly generated rule from r doesn't. The
+				// value itself is identical — r was pre-merged from ex by
+				// the Go extension — we just lose the comments along the
+				// way without this overwrite.
+				copyAttr(ex, nr, attr)
 			}
 		}
 		// Mark the original go_test for removal regardless of what follows:

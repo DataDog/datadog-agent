@@ -14,6 +14,7 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/rule"
+	bzl "github.com/bazelbuild/buildtools/build"
 )
 
 func makeGoTestResult(rules ...*rule.Rule) language.GenerateResult {
@@ -124,6 +125,39 @@ func TestReplaceGoTests_ExistingAttrsPreserved(t *testing.T) {
 	}
 	if got := r.AttrStrings("srcs"); !stringSlicesEqual(got, []string{"mytest.go"}) {
 		t.Errorf("srcs: expected fresh value, got %v", got)
+	}
+}
+
+// TestReplaceGoTests_KeepCommentPreserved guards against silently dropping
+// `# keep` annotations on non-managed attrs when converting go_test to
+// dd_agent_go_test. The Go extension's pre-merged rule carries the value but
+// not the comment; without explicitly copying from the existing rule, the
+// next gazelle run would treat the attribute as freshly generated.
+func TestReplaceGoTests_KeepCommentPreserved(t *testing.T) {
+	fresh := rule.NewRule("go_test", "mytest")
+	fresh.SetAttr("srcs", []string{"mytest.go"})
+	fresh.SetAttr("embed", []string{":mypkg"})
+	// Simulate gazelle's Go-extension pre-merge: r already has tags, no comment.
+	fresh.SetAttr("tags", []string{"manual"})
+
+	prior := rule.NewRule("go_test", "mytest")
+	prior.SetAttr("tags", []string{"manual"})
+	if list, ok := prior.Attr("tags").(*bzl.ListExpr); ok {
+		list.Comment().Suffix = append(list.Comment().Suffix, bzl.Comment{Token: "# keep"})
+	} else {
+		t.Fatalf("expected tags to be a ListExpr, got %T", prior.Attr("tags"))
+	}
+	file := &rule.File{Rules: []*rule.Rule{prior}}
+
+	result := newLang().replaceGoTests(makeGoTestResult(fresh), file, "")
+	r := result.Gen[0]
+	list, ok := r.Attr("tags").(*bzl.ListExpr)
+	if !ok {
+		t.Fatalf("expected tags to be a ListExpr, got %T", r.Attr("tags"))
+	}
+	suffix := list.Comment().Suffix
+	if len(suffix) != 1 || suffix[0].Token != "# keep" {
+		t.Errorf("tags suffix comment: got %v, want [# keep]", suffix)
 	}
 }
 

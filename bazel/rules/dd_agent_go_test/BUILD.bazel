@@ -63,6 +63,7 @@ go_test(
     srcs = [":gazelle_extension_test_src"],
     embed = [":gazelle_extension"],
     deps = [
+        "@buildtools//build",
         "@gazelle//config",
         "@gazelle//language",
         "@gazelle//rule",
