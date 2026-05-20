@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "default_packages.go",
         "installer.go",
+        "progress.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer",
     visibility = ["//visibility:public"],
