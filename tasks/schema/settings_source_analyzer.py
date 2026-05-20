@@ -13,7 +13,7 @@ proc_declare_regex = r'^procBindEnvAndSetDefault\(config, (.*)\)'
 
 def analyze_file(sourcefile):
     """Analyze the given source file, output 'hints' that include the
-       order settings appear, and comments about those settings."""
+    order settings appear, and comments about those settings."""
     p = Processor()
     p.startfilename(sourcefile)
     within_func_init_config = False
@@ -56,16 +56,17 @@ SYSPROBE_SETTINGS = os.path.join(SETTINGS_DIR, "system_probe.go")
 
 def extract_imperative_code_hints():
     return (
-        analyze_file(COMMON_SETTINGS) +
-        analyze_file(APM_SETTINGS) +
-        analyze_file(OTLP_SETTINGS) +
-        analyze_file(MRF_SETTINGS) +
-        analyze_file(PAR_SETTINGS) +
-        analyze_file(PROCESS_SETTINGS) +
-        analyze_file(SYSPROBE_SETTINGS))
+        analyze_file(COMMON_SETTINGS)
+        + analyze_file(APM_SETTINGS)
+        + analyze_file(OTLP_SETTINGS)
+        + analyze_file(MRF_SETTINGS)
+        + analyze_file(PAR_SETTINGS)
+        + analyze_file(PROCESS_SETTINGS)
+        + analyze_file(SYSPROBE_SETTINGS)
+    )
 
 
-class Processor():
+class Processor:
     def __init__(self):
         self.currfunc = ''
         self.currfile = ''
@@ -94,11 +95,13 @@ class Processor():
         if not self.settings:
             self._clear()
             return
-        self.results.append({
-            'func': self.currfunc,
-            'filename': self.currfile,
-            'settings': self.settings,
-        })
+        self.results.append(
+            {
+                'func': self.currfunc,
+                'filename': self.currfile,
+                'settings': self.settings,
+            }
+        )
         self._clear()
 
     def process(self, line, num):
@@ -168,7 +171,6 @@ class Processor():
             self.register_setting('proc', m.group(1))
             return
 
-        #print('** FAIL [%d]: %s' % (num, line))
         self.num_fail += 1
 
     def append_internal_comment(self, text):
