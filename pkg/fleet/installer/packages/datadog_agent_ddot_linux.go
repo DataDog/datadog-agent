@@ -414,23 +414,17 @@ func syncDDOTProcmgrAfterAgentPromotion(ctx HookContext) error {
 }
 
 // syncDDOTProcmgrAfterExtension writes processes.d DDOT config after the DDOT
-// extension is installed. The standalone datadog-agent-ddot package does not
-// use this path (systemd-only).
+// extension is installed on fleet OCI agent packages.
 func syncDDOTProcmgrAfterExtension(ctx HookContext) error {
+	if ctx.PackageType != PackageTypeOCI {
+		return nil
+	}
 	if err := writeProcmgrDDOTEnabledMarkerIfSystemd(ctx); err != nil {
 		return err
 	}
-	switch ctx.PackageType {
-	case PackageTypeOCI:
-		stable := filepath.Base(ctx.PackagePath) != "experiment"
-		_, err := syncDDOTProcmgrState(ctx, stable)
-		return err
-	case PackageTypeDEB, PackageTypeRPM:
-		_, err := syncDDOTProcmgrState(ctx, true)
-		return err
-	default:
-		return nil
-	}
+	stable := filepath.Base(ctx.PackagePath) != "experiment"
+	_, err := syncDDOTProcmgrState(ctx, stable)
+	return err
 }
 
 // ddotExtensionInstalled reports whether the DDOT extension tree is present under

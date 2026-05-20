@@ -8,6 +8,7 @@ package embedded
 
 import (
 	"embed"
+	"fmt"
 	"path/filepath"
 )
 
@@ -30,21 +31,19 @@ var ScriptDDHostInstall []byte
 //go:embed tmpl/gen/debrpm/*.service
 var systemdUnits embed.FS
 
-//go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
-//go:embed tmpl/gen/debrpm/datadog-agent-ddot-exp.yaml
-//go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot.yaml
-//go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot-exp.yaml
 //go:embed tmpl/gen/oci/datadog-agent-ddot.yaml
 //go:embed tmpl/gen/oci/datadog-agent-ddot-exp.yaml
 //go:embed tmpl/gen/oci-nocap/datadog-agent-ddot.yaml
 //go:embed tmpl/gen/oci-nocap/datadog-agent-ddot-exp.yaml
 var ddotProcessYAML embed.FS
 
-// GetDDOTProcessConfig returns the embedded DDOT process YAML bytes for the
-// given systemd layout (OCI vs deb/rpm), stable vs experiment channel, and
-// ambient capabilities support (same directory convention as GetSystemdUnit).
+// GetDDOTProcessConfig returns the embedded DDOT extension process YAML bytes
+// for fleet OCI (stable vs experiment channel, with or without ambient caps).
 // YAML targets the DDOT extension layout (ext/ddot under the agent package).
 func GetDDOTProcessConfig(unitType SystemdUnitType, stable bool, ambiantCapabilitiesSupported bool) ([]byte, error) {
+	if unitType != SystemdUnitTypeOCI {
+		return nil, fmt.Errorf("ddot extension procmgr yaml is OCI-only, got %s", unitType)
+	}
 	dir := string(unitType)
 	if !ambiantCapabilitiesSupported {
 		dir += "-nocap"

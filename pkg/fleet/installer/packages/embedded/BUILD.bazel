@@ -20,8 +20,6 @@ go_library(
         "scripts/dd-host-install",
     ] + glob([
         "tmpl/gen/debrpm/*.service",
-        "tmpl/gen/debrpm/*.yaml",
-        "tmpl/gen/debrpm-nocap/*.yaml",
         "tmpl/gen/oci/*.service",
         "tmpl/gen/oci/*.yaml",
         "tmpl/gen/oci-nocap/*.yaml",
