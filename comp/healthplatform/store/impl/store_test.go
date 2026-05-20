@@ -286,12 +286,12 @@ func TestGetAllIssuesDeepCopy(t *testing.T) {
 	require.NoError(t, h.ReportIssue(storedef.IssueReport{IssueID: "t:id", IssueType: "t"}))
 
 	_, issues := h.GetAllIssues()
-	copy := issues["t:id"]
-	require.NotNil(t, copy)
+	got := issues["t:id"]
+	require.NotNil(t, got)
 
 	// Mutating the returned value must not affect the in-store issue.
 	originalSource := h.issues["t:id"].Source
-	copy.Source = "hacked"
+	got.Source = "hacked"
 	assert.Equal(t, originalSource, h.issues["t:id"].Source)
 }
 

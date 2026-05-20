@@ -9,6 +9,8 @@
 package mock
 
 import (
+	"fmt"
+
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
@@ -39,7 +41,7 @@ func (m *mockRegistry) BuildIssue(issueType string, context map[string]string) (
 	if tmpl, ok := m.templates[issueType]; ok {
 		return tmpl.BuildIssue(context)
 	}
-	return &healthplatformpayload.Issue{IssueName: issueType}, nil
+	return nil, fmt.Errorf("no issue template registered for type %q", issueType)
 }
 
 func (m *mockRegistry) HasTemplate(issueType string) bool {
