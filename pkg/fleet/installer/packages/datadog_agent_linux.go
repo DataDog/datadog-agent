@@ -120,7 +120,7 @@ var (
 	agentConfigUninstallPaths = file.Paths{
 		"install_info",
 		"install.json",
-		// Basenames of procmgr.GlobalMarkerPath / procmgr.DDOTMarkerPath
+		// Basenames of service.GlobalMarkerPath / procmgr.DDOTMarkerPath
 		".procmgr-enabled",
 		".procmgr-ddot-enabled",
 	}
@@ -319,14 +319,16 @@ func writeProcmgrMarker(ctx HookContext, path string) error {
 // install. If DD_PROCMGR_ENABLED is explicitly set false, remove/avoid the
 // marker so the opt-out persists for later hooks that may not inherit env.
 func writeProcmgrGlobalMarkerIfSystemd(ctx HookContext) error {
-	if service.BaseServiceManagerType() != service.SystemdType {
+	switch service.GetServiceManagerType() {
+	case service.SystemdType, service.ProcmgrType:
+	default:
 		return nil
 	}
-	if raw, ok := os.LookupEnv(procmgr.GlobalEnvVar); ok && !procmgr.EnvTruthy(raw) {
-		_ = os.Remove(procmgr.GlobalMarkerPath)
+	if raw, ok := os.LookupEnv(service.GlobalEnvVar); ok && !service.EnvTruthy(raw) {
+		_ = os.Remove(service.GlobalMarkerPath)
 		return nil
 	}
-	if err := writeProcmgrMarker(ctx, procmgr.GlobalMarkerPath); err != nil {
+	if err := writeProcmgrMarker(ctx, service.GlobalMarkerPath); err != nil {
 		return fmt.Errorf("write global procmgr marker: %w", err)
 	}
 	return nil

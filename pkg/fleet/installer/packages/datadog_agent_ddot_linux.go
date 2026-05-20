@@ -239,7 +239,7 @@ func writeOTelConfig(ctx HookContext) error {
 
 // processes.d and marker files: GetServiceManagerType == ProcmgrType requires the
 // global gate (DD_PROCMGR_ENABLED or .procmgr-enabled); writing DDOT YAML also
-// requires the DDOT gate (DD_PROCMGR_DDOT_ENABLED or .procmgr-ddot-enabled).
+// requires the DDOT gate (procmgr.DDOTManaged / .procmgr-ddot-enabled).
 // Otherwise the ddot systemd unit owns DDOT (ConditionPathExists=! when YAML is absent).
 
 func ddotProcmgrProcessesDir(ctx HookContext, stable bool) string {
@@ -296,14 +296,16 @@ func ddotEmbeddedUnitType(ctx HookContext) embedded.SystemdUnitType {
 
 func procmgrOwnsDDOT(ctx HookContext, stable bool) bool {
 	return service.GetServiceManagerType() == service.ProcmgrType &&
-		procmgr.ProcessGateOpen(procmgr.DDOTEnvVar, procmgr.DDOTMarkerPath) &&
+		procmgr.DDOTManaged() &&
 		procmgrBinaryExists(ctx, stable)
 }
 
 // applyDDOTProcmgrProcessesYAML updates processes.d for DDOT only (no systemd
 // restart). Removes the YAML when procmgr does not own DDOT; otherwise writes it.
 func applyDDOTProcmgrProcessesYAML(ctx HookContext, stable bool) (ownsDDOT bool, err error) {
-	if service.BaseServiceManagerType() != service.SystemdType {
+	switch service.GetServiceManagerType() {
+	case service.SystemdType, service.ProcmgrType:
+	default:
 		return false, nil
 	}
 	dir := ddotProcmgrProcessesDir(ctx, stable)
@@ -346,7 +348,9 @@ func syncDDOTProcmgrState(ctx HookContext, stable bool) (bool, error) {
 }
 
 func syncDDOTProcmgrStop(ctx HookContext, stable bool) error {
-	if service.BaseServiceManagerType() != service.SystemdType {
+	switch service.GetServiceManagerType() {
+	case service.SystemdType, service.ProcmgrType:
+	default:
 		return nil
 	}
 	dir := ddotProcmgrProcessesDir(ctx, stable)
@@ -363,7 +367,9 @@ func writeProcmgrDDOTEnabledMarkerIfSystemd(ctx HookContext) error {
 	if err := writeProcmgrGlobalMarkerIfSystemd(ctx); err != nil {
 		return err
 	}
-	if service.BaseServiceManagerType() != service.SystemdType {
+	switch service.GetServiceManagerType() {
+	case service.SystemdType, service.ProcmgrType:
+	default:
 		return nil
 	}
 	if raw, ok := os.LookupEnv(procmgr.DDOTEnvVar); ok && !procmgr.EnvTruthy(raw) {
@@ -388,7 +394,9 @@ func syncDDOTProcmgrAfterAgentPromotion(ctx HookContext) error {
 	if ctx.PackageType != PackageTypeOCI {
 		return nil
 	}
-	if service.BaseServiceManagerType() != service.SystemdType {
+	switch service.GetServiceManagerType() {
+	case service.SystemdType, service.ProcmgrType:
+	default:
 		return nil
 	}
 	stableOCI := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
@@ -448,7 +456,9 @@ func ddotExtensionProcmgrRemoveStable(ctx HookContext) bool {
 // extension is removed but stable still has the extension and both channels share
 // the same processes.d directory, re-sync stable instead of deleting shared YAML.
 func removeDDOTExtensionProcmgrYAML(ctx HookContext) {
-	if service.BaseServiceManagerType() != service.SystemdType {
+	switch service.GetServiceManagerType() {
+	case service.SystemdType, service.ProcmgrType:
+	default:
 		return
 	}
 	stable := ddotExtensionProcmgrRemoveStable(ctx)

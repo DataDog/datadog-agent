@@ -5,31 +5,21 @@
 
 //go:build !windows
 
-package procmgr
+package service
 
 import (
 	"os"
 	"strings"
 )
 
-// DDOT procmgr gate: DD_PROCMGR_DDOT_ENABLED ↔ /etc/datadog-agent/.procmgr-ddot-enabled.
+// Global procmgr gate: DD_PROCMGR_ENABLED ↔ /etc/datadog-agent/.procmgr-enabled.
 const (
-	DDOTEnvVar     = "DD_PROCMGR_DDOT_ENABLED"
-	DDOTMarkerPath = "/etc/datadog-agent/.procmgr-ddot-enabled"
+	GlobalEnvVar     = "DD_PROCMGR_ENABLED"
+	GlobalMarkerPath = "/etc/datadog-agent/.procmgr-enabled"
 )
 
-func processManaged(envVar, markerPath string) bool {
-	v, set := os.LookupEnv(envVar)
-	if set {
-		return EnvTruthy(v)
-	}
-	_, err := os.Stat(markerPath)
-	return err == nil
-}
-
-// DDOTManaged reports whether DDOT is managed by dd-procmgrd (DDOT gate only).
-func DDOTManaged() bool {
-	return processManaged(DDOTEnvVar, DDOTMarkerPath)
+func procmgrEnabled() bool {
+	return gateOpen(GlobalEnvVar, GlobalMarkerPath)
 }
 
 // EnvTruthy reports whether a procmgr gate env value should be interpreted as enabled.
@@ -40,4 +30,13 @@ func EnvTruthy(v string) bool {
 	default:
 		return false
 	}
+}
+
+func gateOpen(envVar, markerPath string) bool {
+	v, set := os.LookupEnv(envVar)
+	if set {
+		return EnvTruthy(v)
+	}
+	_, err := os.Stat(markerPath)
+	return err == nil
 }

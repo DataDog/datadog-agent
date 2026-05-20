@@ -8,11 +8,7 @@
 // Package service provides service manager utilities
 package service
 
-import (
-	"os/exec"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/procmgr"
-)
+import "os/exec"
 
 // Type is the service manager type
 type Type string
@@ -24,29 +20,28 @@ const (
 	SysvinitType Type = "sysvinit"
 	// UpstartType is returned when the service manager is upstart
 	UpstartType Type = "upstart"
-	// SystemdType is returned when the service manager is systemd and the
-	// global process-manager gate is closed (see ProcmgrType).
+	// SystemdType is returned when the service manager is systemd
 	SystemdType Type = "systemd"
-	// ProcmgrType is returned when systemd is present and the global procmgr
-	// gate is open (see procmgr.GlobalGateOpen and procmgr package constants).
+	// ProcmgrType is returned when the host is systemd and the global procmgr gate is open.
 	ProcmgrType Type = "procmgr"
 )
 
-var cachedBaseServiceManagerType *Type
+var cachedServiceManagerType *Type
 
-// BaseServiceManagerType returns systemd / upstart / sysvinit / unknown without
-// applying the process-manager gate. It is cached for the process lifetime.
-func BaseServiceManagerType() Type {
-	if cachedBaseServiceManagerType != nil {
-		return *cachedBaseServiceManagerType
+// GetServiceManagerType returns the service manager of the current system.
+func GetServiceManagerType() Type {
+	if cachedServiceManagerType != nil {
+		return *cachedServiceManagerType
 	}
-	t := baseServiceManagerType()
-	cachedBaseServiceManagerType = &t
-	return t
+	serviceManagerType := getServiceManagerType()
+	if serviceManagerType == SystemdType && procmgrEnabled() {
+		serviceManagerType = ProcmgrType
+	}
+	cachedServiceManagerType = &serviceManagerType
+	return serviceManagerType
 }
 
-// baseServiceManagerType detects systemd vs upstart vs sysvinit (no procmgr gate).
-func baseServiceManagerType() Type {
+func getServiceManagerType() Type {
 	_, err := exec.LookPath("systemctl")
 	if err == nil {
 		return SystemdType
@@ -60,17 +55,4 @@ func baseServiceManagerType() Type {
 		return SysvinitType
 	}
 	return UnknownType
-}
-
-// GetServiceManagerType returns the effective service manager for the host.
-// When the base is systemd and the global procmgr gate is open, this returns
-// ProcmgrType; otherwise it returns the base type. Only BaseServiceManagerType
-// is cached; the gate is re-read each call (cheap) so marker/env match disk
-// after hooks run.
-func GetServiceManagerType() Type {
-	base := BaseServiceManagerType()
-	if base == SystemdType && procmgr.GlobalGateOpen() {
-		return ProcmgrType
-	}
-	return base
 }
