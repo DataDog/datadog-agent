@@ -141,7 +141,7 @@ class BazelTools:
 
     def __new__(cls, ctx):
         if not cls._paths:
-            labels = ("@com_github_golang_mock//mockgen", "@com_github_tinylib_msgp//:msgp", "@rules_go//go")
+            labels = ("@com_github_tinylib_msgp//:msgp", "@rules_go//go")
             bazel(ctx, "build", *labels)
             root = bazel(ctx, "info", "execution_root", capture_output=True).strip()
             for line in bazel(
