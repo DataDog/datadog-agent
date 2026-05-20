@@ -76,7 +76,8 @@ func TestLoad_RejectsPathTraversalName(t *testing.T) {
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	sharedLibraryLoader := ffi.NewSharedLibraryLoader(t.TempDir())
+	sharedLibraryLoader, err := ffi.NewSharedLibraryLoader(t.TempDir())
+	require.NoError(t, err)
 
 	loader, err := newCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader)
 	require.NoError(t, err)

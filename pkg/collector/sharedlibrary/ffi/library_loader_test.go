@@ -53,7 +53,8 @@ func TestRun_LibraryWithNullSymbols(t *testing.T) {
 
 func TestComputeLibraryPath_Valid(t *testing.T) {
 	folder := t.TempDir()
-	loader := NewSharedLibraryLoader(folder)
+	loader, err := NewSharedLibraryLoader(folder)
+	require.NoError(t, err)
 
 	libPath, err := loader.ComputeLibraryPath("my_check")
 	require.NoError(t, err)
@@ -63,7 +64,8 @@ func TestComputeLibraryPath_Valid(t *testing.T) {
 }
 
 func TestComputeLibraryPath_RejectsPathTraversal(t *testing.T) {
-	loader := NewSharedLibraryLoader(t.TempDir())
+	loader, err := NewSharedLibraryLoader(t.TempDir())
+	require.NoError(t, err)
 
 	cases := []string{
 		"",
@@ -86,7 +88,8 @@ func TestComputeLibraryPath_RejectsPathTraversal(t *testing.T) {
 
 func TestComputeLibraryPath_StaysInsideFolder(t *testing.T) {
 	folder := t.TempDir()
-	loader := NewSharedLibraryLoader(folder)
+	loader, err := NewSharedLibraryLoader(folder)
+	require.NoError(t, err)
 
 	libPath, err := loader.ComputeLibraryPath("safe_check")
 	require.NoError(t, err)
