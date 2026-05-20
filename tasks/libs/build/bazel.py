@@ -139,8 +139,8 @@ def bazel(
         want to process stderr and stderr separately.
     sudo: Run under sudo.
     """
-    result = run_bazel(ctx=ctx, verbose=True, sudo=sudo, *args)
-    ret = ""
+    result = run_bazel(ctx, verbose=True, sudo=sudo, *args)
+    ret = None
     if capture_output:
         ret = result.stdout
     else:
