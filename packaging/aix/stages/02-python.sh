@@ -464,9 +464,10 @@ fi
 
 # ─── Step 8: Convenience symlinks ────────────────────────────────────────────
 
-log "Creating convenience symlinks python3 -> python${PYTHON_MAJ_MIN} and pip3 -> pip${PYTHON_MAJ_MIN}"
+log "Creating convenience symlinks python3 -> python${PYTHON_MAJ_MIN}, pip3 -> pip${PYTHON_MAJ_MIN}, pip -> pip${PYTHON_MAJ_MIN}"
 ln -sf "python${PYTHON_MAJ_MIN}" "$EMBEDDED_DESTDIR/bin/python3"
 ln -sf "pip${PYTHON_MAJ_MIN}"    "$EMBEDDED_DESTDIR/bin/pip3"
+ln -sf "pip${PYTHON_MAJ_MIN}"    "$EMBEDDED_DESTDIR/bin/pip"
 log "Symlinks created."
 
 # ─── Step 9: Remove test directories to save space ───────────────────────────
