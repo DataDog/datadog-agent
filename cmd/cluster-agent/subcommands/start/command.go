@@ -121,7 +121,6 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 	v1 "k8s.io/api/core/v1"
@@ -391,7 +390,7 @@ func start(log log.Component,
 		CheckStore: checkStore,
 	})
 
-	api.ModifyAPIRouter(func(r *mux.Router) {
+	api.ModifyAPIRouter(func(r *http.ServeMux) {
 		dcav1.InstallInstrumentationChecksEndpoints(r, checkStore)
 	})
 
@@ -520,7 +519,7 @@ func start(log log.Component,
 		// Start the cluster check Autodiscovery
 		clusterCheckHandler, err := setupClusterCheck(mainCtx, ac, taggerComp)
 		if err == nil {
-			api.ModifyAPIRouter(func(r *mux.Router) {
+			api.ModifyAPIRouter(func(r *http.ServeMux) {
 				dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
 			})
 			// Set cluster checks handler in clusterchecks component

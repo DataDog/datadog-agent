@@ -64,7 +64,8 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
     syscall.resolver.iteration = 0;
     syscall.resolver.ret = 0;
 
-    cache_syscall(&syscall);
+    cache_syscall(ctx, &syscall);
+    update_proc_cache_cgroup();
 
     // tail call
     resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
