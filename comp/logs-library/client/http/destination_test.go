@@ -922,7 +922,7 @@ func TestClassifyConnectivityError(t *testing.T) {
 		{
 			name:     "dns error",
 			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: &net.DNSError{Err: "no such host", Name: "example.com"}},
-			expected: "dns",
+			expected: metrics.FailureCauseDNS,
 		},
 		{
 			name: "dns error wrapped in RetryableError",
@@ -931,42 +931,42 @@ func TestClassifyConnectivityError(t *testing.T) {
 				URL: "https://example.com",
 				Err: &net.DNSError{Err: "no such host", Name: "example.com"},
 			}),
-			expected: "dns",
+			expected: metrics.FailureCauseDNS,
 		},
 		{
 			name:     "timeout error",
 			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: &net.DNSError{Err: "i/o timeout", Name: "example.com", IsTimeout: true}},
-			expected: "timeout",
+			expected: metrics.FailureCauseTimeout,
 		},
 		{
 			name:     "tcp connection refused",
 			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}},
-			expected: "connection",
+			expected: metrics.FailureCauseConnection,
 		},
 		{
 			name:     "tls alert error",
 			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: tls.AlertError(42)},
-			expected: "tls",
+			expected: metrics.FailureCauseTLS,
 		},
 		{
 			name:     "tls string in error message",
 			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: errors.New("tls: bad certificate")},
-			expected: "tls",
+			expected: metrics.FailureCauseTLS,
 		},
 		{
 			name:     "x509 certificate error",
 			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: errors.New("x509: certificate signed by unknown authority")},
-			expected: "tls",
+			expected: metrics.FailureCauseTLS,
 		},
 		{
 			name:     "http_status for errClient sentinel",
 			err:      errClient,
-			expected: "http_status",
+			expected: metrics.FailureCauseHTTPStatus,
 		},
 		{
 			name:     "http_status for errServer sentinel",
 			err:      errServer,
-			expected: "http_status",
+			expected: metrics.FailureCauseHTTPStatus,
 		},
 		{
 			// This is the boot-time 5xx / 403-refresh path: unconditionalSend wraps
@@ -974,12 +974,12 @@ func TestClassifyConnectivityError(t *testing.T) {
 			// the classifier missed this and returned "other".
 			name:     "http_status for errServer wrapped in RetryableError",
 			err:      client.NewRetryableError(errServer),
-			expected: "http_status",
+			expected: metrics.FailureCauseHTTPStatus,
 		},
 		{
 			name:     "http_status for errClient wrapped in RetryableError",
 			err:      client.NewRetryableError(errClient),
-			expected: "http_status",
+			expected: metrics.FailureCauseHTTPStatus,
 		},
 		{
 			// url.Error wrapped in RetryableError — relies on errors.As traversal,
@@ -990,12 +990,22 @@ func TestClassifyConnectivityError(t *testing.T) {
 				URL: "https://example.com",
 				Err: &net.DNSError{Err: "no such host", Name: "example.com", IsNotFound: true},
 			}),
-			expected: "dns",
+			expected: metrics.FailureCauseDNS,
 		},
 		{
 			name:     "other for unknown error",
 			err:      errors.New("something went wrong"),
-			expected: "other",
+			expected: metrics.FailureCauseOther,
+		},
+		{
+			name:     "mixed-case TLS message classified correctly",
+			err:      errors.New("TLS handshake failure"),
+			expected: metrics.FailureCauseTLS,
+		},
+		{
+			name:     "mixed-case DNS message classified correctly",
+			err:      errors.New("No Such Host"),
+			expected: metrics.FailureCauseDNS,
 		},
 	}
 

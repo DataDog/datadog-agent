@@ -548,12 +548,12 @@ func classifyConnectivityError(err error) string {
 	// and the wrapped form produced by client.NewRetryableError(errServer) on 5xx
 	// responses and the secret-backed 403 refresh path.
 	if errors.Is(err, errClient) || errors.Is(err, errServer) {
-		return "http_status"
+		return metrics.FailureCauseHTTPStatus
 	}
 
 	// Attempt to classify via *url.Error. errors.As traverses RetryableError now,
 	// so this catches both the direct url.Error case and the wrapped one.
-	if cause := classifyURLError(err); cause != "other" {
+	if cause := classifyURLError(err); cause != metrics.FailureCauseOther {
 		return cause
 	}
 
@@ -567,12 +567,12 @@ func classifyConnectivityError(err error) string {
 func classifyURLError(err error) string {
 	var urlErr *url.Error
 	if !errors.As(err, &urlErr) {
-		return "other"
+		return metrics.FailureCauseOther
 	}
 
 	// Timeout covers both dial timeout and request deadline exceeded.
 	if urlErr.Timeout() {
-		return "timeout"
+		return metrics.FailureCauseTimeout
 	}
 
 	inner := urlErr.Err
@@ -581,23 +581,23 @@ func classifyURLError(err error) string {
 	var dnsErr *net.DNSError
 	if errors.As(inner, &dnsErr) {
 		if dnsErr.Timeout() {
-			return "timeout"
+			return metrics.FailureCauseTimeout
 		}
-		return "dns"
+		return metrics.FailureCauseDNS
 	}
 
 	// TCP connect errors: *net.OpError wrapping syscall errors.
 	var opErr *net.OpError
 	if errors.As(inner, &opErr) {
 		if opErr.Op == "dial" || opErr.Op == "connect" {
-			return "connection"
+			return metrics.FailureCauseConnection
 		}
 	}
 
 	// TLS errors: tls.AlertError is a byte type, not a pointer.
 	var tlsAlert tls.AlertError
 	if errors.As(inner, &tlsAlert) {
-		return "tls"
+		return metrics.FailureCauseTLS
 	}
 
 	return classifyErrorMessage(inner.Error())
@@ -606,28 +606,31 @@ func classifyURLError(err error) string {
 // classifyErrorMessage classifies an error based on its message string.
 // This is a fallback for error types that cannot be type-asserted (e.g. when the
 // underlying error is wrapped in a type that lacks Unwrap).
+// The message is lowercased before matching so that mixed-case messages from
+// custom transports, Windows resolvers, or third-party middleware are handled correctly.
 func classifyErrorMessage(msg string) string {
+	msg = strings.ToLower(msg)
 	if strings.Contains(msg, "x509") ||
 		strings.Contains(msg, "certificate") ||
 		strings.Contains(msg, "tls") {
-		return "tls"
+		return metrics.FailureCauseTLS
 	}
 	if strings.Contains(msg, "no such host") ||
 		strings.Contains(msg, "dns") ||
 		strings.Contains(msg, "lookup") {
-		return "dns"
+		return metrics.FailureCauseDNS
 	}
 	if strings.Contains(msg, "timeout") ||
 		strings.Contains(msg, "timed out") ||
 		strings.Contains(msg, "deadline exceeded") {
-		return "timeout"
+		return metrics.FailureCauseTimeout
 	}
 	if strings.Contains(msg, "connection refused") ||
 		strings.Contains(msg, "connection reset") ||
 		strings.Contains(msg, "connect:") {
-		return "connection"
+		return metrics.FailureCauseConnection
 	}
-	return "other"
+	return metrics.FailureCauseOther
 }
 
 // CheckConnectivity check if sending logs through HTTP works

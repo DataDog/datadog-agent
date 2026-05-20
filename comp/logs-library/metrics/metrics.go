@@ -135,13 +135,7 @@ var (
 		[]string{"status"}, "Count of HTTP connectivity checks with status")
 
 	// TlmHTTPConnectivityFailureCause tracks the root cause of HTTP connectivity check failures.
-	// Tags: failure_cause — one of:
-	//   dns           — DNS resolution failed
-	//   tls           — TLS handshake or certificate error
-	//   timeout       — connection or request timed out
-	//   connection    — TCP connect refused or reset
-	//   http_status   — HTTP response status >= 400 (server reachable but rejected the probe)
-	//   other         — any other network error
+	// Tags: failure_cause — use the FailureCause* constants defined below.
 	TlmHTTPConnectivityFailureCause = telemetryimpl.GetCompatComponent().NewCounter("logs", "http_connectivity_failure_cause",
 		[]string{"failure_cause"}, "Count of HTTP connectivity check failures broken down by root cause")
 
@@ -179,6 +173,18 @@ var (
 	// Tags: listener_type (tcp, udp)
 	TlmListenerIPDenied = telemetryimpl.GetCompatComponent().NewCounter("logs", "listener_ip_denied",
 		[]string{"listener_type"}, "Count of connections or datagrams rejected by IP allow/deny filters")
+)
+
+// FailureCause* are the stable tag values for the logs.http_connectivity_failure_cause
+// counter's failure_cause tag. Dashboards and monitors filter on these literal strings,
+// so they must not change across agent versions.
+const (
+	FailureCauseDNS        = "dns"
+	FailureCauseTLS        = "tls"
+	FailureCauseTimeout    = "timeout"
+	FailureCauseConnection = "connection"
+	FailureCauseHTTPStatus = "http_status"
+	FailureCauseOther      = "other"
 )
 
 func init() {
