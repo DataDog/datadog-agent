@@ -67,8 +67,9 @@ go_test(
     }),
 )
 
-# TODO: This test can't work from bazel as written because it depends on direct
-# access to the go compiler.
+# TODO: This test can't work from CI as written because it depends on direct
+# access to the go compiler outside of bazel control. It does work from the
+# developer command line.
 go_test(
     name = "symbol_uploader_test",
     srcs = ["symbol_uploader_test.go"],
