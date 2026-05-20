@@ -414,6 +414,16 @@ func (d *daemonImpl) Install(ctx context.Context, url string, args []string) err
 func (d *daemonImpl) install(ctx context.Context, env *env.Env, url string, args []string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "install")
 	defer func() { span.Finish(err) }()
+
+	if req, ok := ctx.Value(requestStateKey).(*requestState); ok {
+		ctx = installer.WithInstallProgress(ctx, func(v float32) {
+			req.Completion = v
+			if dbErr := d.taskDB.SetTaskState(*req); dbErr != nil {
+				log.Warnf("installer: could not persist install progress: %v", dbErr)
+			}
+		})
+	}
+
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
@@ -767,11 +777,12 @@ var requestStateKey requestKey
 
 // requestState represents the state of a task.
 type requestState struct {
-	Package   string
-	ID        string
-	State     pbgo.TaskState
-	Err       string
-	ErrorCode installerErrors.InstallerErrorCode
+	Package    string
+	ID         string
+	State      pbgo.TaskState
+	Err        string
+	ErrorCode  installerErrors.InstallerErrorCode
+	Completion float32
 }
 
 func newRequestContext(request remoteAPIRequest) (*telemetry.Span, context.Context) {
@@ -854,6 +865,7 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 				State: requestState.State,
 				Error: taskErr,
 			}
+			p.Completion = requestState.Completion
 		}
 		packages = append(packages, p)
 	}

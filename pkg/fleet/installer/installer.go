@@ -294,13 +294,14 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 func (i *installerImpl) doInstall(ctx context.Context, url string, args []string, shouldInstallPredicate func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
+	pkg, err := i.downloader.Download(ctx, url)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrDownloadFailed,
 			fmt.Errorf("could not download package: %w", err),
 		)
 	}
+	setInstallProgress(ctx, 0.5)
 	span, ok := telemetry.SpanFromContext(ctx)
 	if ok {
 		span.SetResourceName(pkg.Name)
@@ -369,6 +370,7 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not store package extensions in db: %w", err)
 	}
+	setInstallProgress(ctx, 1.0)
 	return nil
 }
 
