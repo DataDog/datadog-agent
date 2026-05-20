@@ -104,7 +104,7 @@ docker_image_build_otel:
     # localhost:5000 (the local OCI registry started in the before_script).
     - docker buildx create --use --driver docker-container --driver-opt network=host --bootstrap
     - |
-      CACHE_REGISTRY="${IMAGE}-amd64:cache"
+      CACHE_REGISTRY="${IMAGE}:cache"
       CACHE_FROM="--cache-from type=registry,ref=${CACHE_REGISTRY}"
       CACHE_TO=""
       NO_CACHE=""
