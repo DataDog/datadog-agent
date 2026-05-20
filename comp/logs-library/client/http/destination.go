@@ -311,8 +311,14 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			metrics.DestinationLogsDropped.Add(d.host, payload.Count())
 			metrics.TlmLogsDropped.Add(float64(payload.Count()), d.host)
 		} else {
+			var sourceTag string
+			if strings.Contains(d.Metadata().TelemetryName(), "logs") {
+				sourceTag = "logs"
+			} else {
+				sourceTag = "epforwarder"
+			}
 			metrics.LogsSent.Add(payload.Count())
-			metrics.TlmLogsSent.Add(float64(payload.Count()))
+			metrics.TlmLogsSent.Add(float64(payload.Count()), metrics.GetAgentIdentityTag(), sourceTag)
 		}
 
 		output <- payload
