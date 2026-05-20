@@ -333,9 +333,19 @@ Package orchestratorinterface defines the interface for the orchestrator forward
 Package healthplatform implements the "healthplatform" bundle, providing the
 health platform component for detecting and reporting agent health issues.
 
+### [comp/healthplatform/egress](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/egress)
+
+Package egress defines the interface for the health platform egress component.
+
 ### [comp/healthplatform/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/forwarder)
 
 Package forwarder defines the interface for the health platform forwarder.
+
+### [comp/healthplatform/runner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/runner)
+
+Package runner defines the interface for the health platform runner component.
+The runner executes a single HealthCheckFunc once, forwards each emitted
+IssueReport to the store, and returns the set of IssueIds that were reported.
 
 ### [comp/healthplatform/scheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/scheduler)
 
