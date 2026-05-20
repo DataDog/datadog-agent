@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+exports_files(
+    glob(["*.tmpl"]),
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)
+
+go_library(
+    name = "tmplgen_lib",
+    srcs = ["main.go"],
+    embedsrcs = glob(["*.tmpl"]),
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded/tmplgen",
+    visibility = ["//visibility:private"],
+    deps = ["//pkg/template/text"],
+)
+
+go_binary(
+    name = "tmplgen",
+    embed = [":tmplgen_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "tmplgen_test",
+    srcs = ["main_test.go"],
+    data = ["//pkg/fleet/installer/packages/embedded:tmpl_gen"],
+    embed = [":tmplgen_lib"],
+    deps = [
+        "//pkg/fleet/installer/fixtures",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -7,7 +7,6 @@
 package main
 
 import (
-	"embed"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -19,12 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 )
 
-//go:embed gen
-var genFS embed.FS
-
 // TestGenerationIsUpToDate tests that the generated templates are up to date.
 //
-// You can update the templates by running `go generate` in the templates directory.
+// You can update the templates by running `go generate` in the tmplgen directory.
 func TestGenerationIsUpToDate(t *testing.T) {
 	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
 		t.Skip("TestGenerationIsUpToDate is known to fail on the macOS Gitlab runners.")
@@ -41,8 +37,43 @@ func TestGenerationIsUpToDate(t *testing.T) {
 	err := generate(generated)
 	assert.NoError(t, err)
 	newGeneratedFS := os.DirFS(generated)
-	currentGeneratedFS, err := fs.Sub(genFS, "gen")
-	assert.NoError(t, err)
+	currentGeneratedFS := committedGenFS(t)
 
 	fixtures.AssertEqualFS(t, currentGeneratedFS, newGeneratedFS)
+}
+
+func committedGenFS(t *testing.T) fs.FS {
+	t.Helper()
+	for _, dir := range committedGenDirs() {
+		if _, err := os.Stat(dir); err == nil {
+			return os.DirFS(dir)
+		}
+	}
+	t.Fatal("committed tmpl/gen tree not found (run from repo or Bazel test runfiles)")
+	return nil
+}
+
+func committedGenDirs() []string {
+	dirs := []string{}
+	if _, file, _, ok := runtime.Caller(0); ok {
+		dirs = append(dirs, filepath.Join(filepath.Dir(file), "..", "tmpl", "gen"))
+	}
+	if src := os.Getenv("TEST_SRCDIR"); src != "" {
+		dirs = append(dirs,
+			filepath.Join(src, "_main/pkg/fleet/installer/packages/embedded/tmpl/gen"),
+			filepath.Join(src, "pkg/fleet/installer/packages/embedded/tmpl/gen"),
+		)
+		// Bazel runfiles layout varies; locate embedded/tmpl/gen under TEST_SRCDIR.
+		_ = filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || !d.IsDir() || d.Name() != "gen" {
+				return nil
+			}
+			if filepath.Base(filepath.Dir(path)) == "tmpl" &&
+				filepath.Base(filepath.Dir(filepath.Dir(path))) == "embedded" {
+				dirs = append(dirs, path)
+			}
+			return nil
+		})
+	}
+	return dirs
 }
