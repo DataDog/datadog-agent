@@ -933,7 +933,7 @@ func createDeps(t *testing.T) Deps {
 	)
 }
 
-// TestRecordTrialResult_UnschedulesAfterThreshold verifies that RecordTrialResult
+// TestRecordTrialResult_UnschedulesAfterThreshold verifies that recordTrialResult
 // unschedules a trial-mode config after the threshold (5) consecutive failures.
 // scheduledConfigNames returns the set of config names currently in the
 // configmgr's scheduledConfigs map. Used to assert GetAllConfigs consistency.
@@ -972,14 +972,14 @@ func TestRecordTrialResult_UnschedulesAfterThreshold(t *testing.T) {
 	// Four failures — below threshold; config should remain in both scheduler
 	// and scheduledConfigs (so GetAllConfigs reflects it).
 	for i := 0; i < 4; i++ {
-		ac.RecordTrialResult(id, false)
+		ac.recordTrialResult(id, false)
 	}
 	require.Contains(t, scheduledConfigNames(ac), "krakend", "config should still be in scheduledConfigs below failure threshold")
 	require.Equal(t, 1, sch.scheduledSize(), "scheduler should still have the config below threshold")
 
 	// Fifth failure — threshold reached; config must be unscheduled from both
 	// the scheduler AND scheduledConfigs so GetAllConfigs no longer returns it.
-	ac.RecordTrialResult(id, false)
+	ac.recordTrialResult(id, false)
 	require.Eventually(t, func() bool {
 		return sch.scheduledSize() == 0
 	}, 5*time.Second, 10*time.Millisecond, "config should be unscheduled from scheduler after reaching failure threshold")
@@ -1016,7 +1016,7 @@ func TestApplyChanges_ClearsTrialRegistryOnUnschedule(t *testing.T) {
 	// Accumulate failures below the threshold (5). The counter should be
 	// present in trialRegistry but the config should remain scheduled.
 	for i := 0; i < 3; i++ {
-		ac.RecordTrialResult(id, false)
+		ac.recordTrialResult(id, false)
 	}
 	ac.trialRegistry.mu.Lock()
 	require.Equal(t, 3, ac.trialRegistry.counts[id], "trialRegistry must reflect the accumulated failures")

@@ -255,7 +255,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 
 	// Register the trial-result callback so that the check runner worker can
 	// report each trial-mode run outcome back to AutoConfig.
-	worker.RegisterTrialResultCallback(ac.RecordTrialResult)
+	worker.RegisterTrialResultCallback(ac.recordTrialResult)
 
 	return ac
 }
@@ -797,10 +797,10 @@ func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
 	ac.schedulerController.ApplyChanges(changes)
 }
 
-// RecordTrialResult is called by the runner after each trial-mode check run
+// recordTrialResult is called by the runner after each trial-mode check run
 // with the run outcome. If consecutive failures reach the internal threshold,
 // the check is unscheduled.
-func (ac *AutoConfig) RecordTrialResult(id checkid.ID, ok bool) {
+func (ac *AutoConfig) recordTrialResult(id checkid.ID, ok bool) {
 	if !ac.trialRegistry.recordResult(id, ok) {
 		return
 	}
