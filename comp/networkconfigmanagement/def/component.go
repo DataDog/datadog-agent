@@ -17,5 +17,6 @@ import (
 // Component is the component type.
 type Component interface {
 	GetConfigStore() ncmstore.ConfigStore
-	ShouldSendInventoryReport(hasNewConfigs bool, maxInterval time.Duration, now time.Time) bool
+	MeetsInventoryReportRequirements(hasNewConfigs bool, maxInterval time.Duration, now time.Time) bool
+	MarkInventoryReportSent(now time.Time)
 }

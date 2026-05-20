@@ -155,7 +155,10 @@ func (c *Check) Run() error {
 	if checkErr != nil {
 		return checkErr
 	}
-
+	if len(inventoryEntries) > 0 && c.ncmComp != nil {
+		// if sending payload was successful, update the last successful inventory report
+		c.ncmComp.MarkInventoryReportSent(c.clock.Now())
+	}
 	c.sender.Commit()
 	return nil
 }
@@ -254,7 +257,7 @@ func (c *Check) buildInventoryReport(configStore store.ConfigStore, hasNewConfig
 	if c.ncmComp == nil || configStore == nil {
 		return nil
 	}
-	if !c.ncmComp.ShouldSendInventoryReport(hasNewConfigs, c.checkContext.InventoryReportMinInterval, c.clock.Now()) {
+	if !c.ncmComp.MeetsInventoryReportRequirements(hasNewConfigs, c.checkContext.InventoryReportMinInterval, c.clock.Now()) {
 		log.Debugf("did not meet requirements to send inventory report, skipping")
 		return nil
 	}

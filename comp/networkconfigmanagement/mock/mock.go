@@ -53,7 +53,7 @@ func (m *mockNetworkConfigManagement) GetConfigStore() ncmstore.ConfigStore {
 	return m.store
 }
 
-func (m *mockNetworkConfigManagement) ShouldSendInventoryReport(hasNewConfigs bool, maxInterval time.Duration, now time.Time) bool {
+func (m *mockNetworkConfigManagement) MeetsInventoryReportRequirements(hasNewConfigs bool, maxInterval time.Duration, now time.Time) bool {
 	m.inventoryLock.Lock()
 	defer m.inventoryLock.Unlock()
 	if !hasNewConfigs && now.Sub(m.lastInventoryReportAt) < maxInterval {
@@ -61,4 +61,10 @@ func (m *mockNetworkConfigManagement) ShouldSendInventoryReport(hasNewConfigs bo
 	}
 	m.lastInventoryReportAt = now
 	return true
+}
+
+func (m *mockNetworkConfigManagement) MarkInventoryReportSent(now time.Time) {
+	m.inventoryLock.Lock()
+	defer m.inventoryLock.Unlock()
+	m.lastInventoryReportAt = now
 }
