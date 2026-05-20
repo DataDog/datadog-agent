@@ -216,7 +216,6 @@ func (u *verticalController) syncInternal(
 				toEvictOnPatchFailure = append(toEvictOnPatchFailure, cp)
 			} else {
 				autoscalerInternal.InPlacePatchSuccessInc()
-				autoscalerInternal.TrackPodOperation(cp.pod.EntityID.ID, recommendationID)
 			}
 		}
 	}
