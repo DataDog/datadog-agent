@@ -8,6 +8,7 @@ package file
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"slices"
 	"sync"
@@ -68,6 +69,12 @@ type Launcher struct {
 	fileOpener    opener.FileOpener
 	fingerprinter tailer.Fingerprinter
 	stopOnce      sync.Once
+	// rejectedDuplicates tracks (sourceIdentifier, path) pairs that have already had their
+	// duplicate-rejection warning emitted. Without this cache the warning fires on every scan
+	// cycle (~1 s), producing ~3600 WARN/hr per duplicate. The key is built by
+	// duplicateRejectionKey. Entries are cleared when the offending source is removed so that a
+	// legitimate subsequent add still triggers the warning.
+	rejectedDuplicates map[string]struct{}
 }
 
 const (
@@ -124,6 +131,7 @@ func NewLauncher(
 		oldInfoMap:             make(map[string]*oldTailerInfo),
 		fileOpener:             fileOpener,
 		fingerprinter:          fingerprinter,
+		rejectedDuplicates:     make(map[string]struct{}),
 	}
 }
 
@@ -388,6 +396,30 @@ func (s *Launcher) removeSource(source *sources.LogSource) {
 			break
 		}
 	}
+	// Clear any cached duplicate-rejection keys associated with this source so that if
+	// the source is re-added later the warning fires again at that point.
+	identifier := source.Config.Identifier
+	prefix := identifier + "|"
+	for key := range s.rejectedDuplicates {
+		// Keys are built as "<identifier>|<path>"; delete all keys that belong to this source.
+		if len(key) > len(prefix) && key[:len(prefix)] == prefix {
+			delete(s.rejectedDuplicates, key)
+		}
+		// Also handle the case where the *other* source (with a different identifier) was
+		// rejected because this source already owned the file.  We don't have a path-only
+		// index here, so we only clear exact-identifier matches; that is sufficient for
+		// the common case (the duplicate source is removed).
+	}
+}
+
+// duplicateRejectionKey returns the dedup key used to suppress repeated duplicate-tailer
+// warnings for the same (source identifier, file path) pair.
+func duplicateRejectionKey(file *tailer.File) string {
+	var identifier string
+	if file.Source != nil && file.Source.Config() != nil {
+		identifier = file.Source.Config().Identifier
+	}
+	return identifier + "|" + file.Path
 }
 
 // launch launches new tailers for a new source.
@@ -479,7 +511,17 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 	}
 
 	if s.isFileAlreadyTailed(file) {
-		log.Warnf("file %q is already being tailed by another log source; skipping duplicate tailer to avoid auditor offset corruption", file.Path)
+		key := duplicateRejectionKey(file)
+		err := fmt.Errorf("file %q is already being tailed by another log source; duplicate skipped to avoid auditor offset corruption", file.Path)
+		if _, seen := s.rejectedDuplicates[key]; !seen {
+			log.Warn(err)
+			s.rejectedDuplicates[key] = struct{}{}
+		} else {
+			log.Debugf("duplicate tailer rejection (suppressed repeat warning): %v", err)
+		}
+		if file.Source != nil {
+			file.Source.Status().Error(err)
+		}
 		return false
 	}
 
@@ -514,7 +556,17 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	}
 
 	if s.isFileAlreadyTailed(file) {
-		log.Warnf("file %q is already being tailed by another log source; skipping duplicate tailer to avoid auditor offset corruption", file.Path)
+		key := duplicateRejectionKey(file)
+		err := fmt.Errorf("file %q is already being tailed by another log source; duplicate skipped to avoid auditor offset corruption", file.Path)
+		if _, seen := s.rejectedDuplicates[key]; !seen {
+			log.Warn(err)
+			s.rejectedDuplicates[key] = struct{}{}
+		} else {
+			log.Debugf("duplicate tailer rejection (suppressed repeat warning): %v", err)
+		}
+		if file.Source != nil {
+			file.Source.Status().Error(err)
+		}
 		return false
 	}
 

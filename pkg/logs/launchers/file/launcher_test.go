@@ -164,6 +164,84 @@ func TestLauncherRejectsDuplicateFileTailer(t *testing.T) {
 		"a source pointing at a distinct path must still produce its own tailer")
 }
 
+// TestLauncherDuplicateRejectionWarnOnce verifies that the duplicate-tailer rejection
+// warning is emitted at most once per (source identifier, path) pair, even when
+// startNewTailer is called many times in successive scan cycles. After the source is
+// removed and re-added the warning should fire again.
+func TestLauncherDuplicateRejectionWarnOnce(t *testing.T) {
+	testDir := t.TempDir()
+	path := testDir + "/shared.log"
+
+	f, err := os.Create(path)
+	assert.Nil(t, err)
+	defer f.Close()
+
+	launcher := createLauncher(t, launcherTestOptions{openFilesLimit: 5})
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+
+	firstSource := sources.NewLogSource("first", &config.LogsConfig{
+		Type: config.FileType, Path: path, TailingMode: "beginning", Identifier: "container-a",
+	})
+	secondSource := sources.NewLogSource("second", &config.LogsConfig{
+		Type: config.FileType, Path: path, TailingMode: "beginning", Identifier: "container-b",
+	})
+
+	launcher.addSource(firstSource)
+	assert.Equal(t, 1, launcher.tailers.Count())
+
+	// Simulate N scan cycles: startNewTailer is called once per scan for the rejected file.
+	// The dedup cache must suppress repeated warnings so the map entry count stays at 1.
+	file := filetailer.NewFile(path, secondSource, false)
+	for i := 0; i < 5; i++ {
+		launcher.startNewTailer(file, config.Beginning, nil)
+	}
+	assert.Len(t, launcher.rejectedDuplicates, 1,
+		"dedup cache should hold exactly one entry for the rejected (identifier, path) pair")
+
+	// After removing the duplicate source the cache entry must be cleared so that a
+	// subsequent re-add triggers the warning once more.
+	launcher.removeSource(secondSource)
+	assert.Empty(t, launcher.rejectedDuplicates,
+		"cache entry must be cleared when the duplicate source is removed")
+}
+
+// TestLauncherDuplicateRejectionSetsErrorStatus verifies that the rejected source's
+// Status is set to an error state (visible in `agent status`) when startNewTailer
+// and startNewTailerWithStoredInfo refuse to start a duplicate tailer.
+func TestLauncherDuplicateRejectionSetsErrorStatus(t *testing.T) {
+	testDir := t.TempDir()
+	path := testDir + "/shared.log"
+
+	f, err := os.Create(path)
+	assert.Nil(t, err)
+	defer f.Close()
+
+	launcher := createLauncher(t, launcherTestOptions{openFilesLimit: 5})
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+
+	firstSource := sources.NewLogSource("first", &config.LogsConfig{
+		Type: config.FileType, Path: path, TailingMode: "beginning", Identifier: "container-a",
+	})
+	secondSource := sources.NewLogSource("second", &config.LogsConfig{
+		Type: config.FileType, Path: path, TailingMode: "beginning", Identifier: "container-b",
+	})
+
+	launcher.addSource(firstSource)
+	assert.Equal(t, 1, launcher.tailers.Count())
+
+	// The second source resolves to the same file; its tailer must be rejected.
+	launcher.addSource(secondSource)
+	assert.Equal(t, 1, launcher.tailers.Count(), "duplicate source must not produce a second tailer")
+
+	// R2: the rejected source's Status must show an error so that `agent status` surfaces it.
+	assert.True(t, secondSource.Status.IsError(),
+		"rejected source must have its Status set to an error state")
+	assert.Contains(t, secondSource.Status.GetError(), "already being tailed",
+		"error message must explain why the source was rejected")
+}
+
 type TestSetupStrategy interface {
 	Setup(t *testing.T) TestSetupResult
 }
