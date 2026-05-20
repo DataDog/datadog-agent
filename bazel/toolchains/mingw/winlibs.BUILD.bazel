@@ -1,0 +1,82 @@
+"""BUILD file template applied to the @winlibs_mingw64 http_archive.
+
+The WinLibs zip contains a single top-level `mingw64/` directory which is
+stripped by `strip_prefix = "mingw64"`, so files land at the repo root:
+`bin/gcc.exe`, `include/...`, `lib/gcc/x86_64-w64-mingw32/<gcc_ver>/...`.
+
+GCC version is hard-coded here because it must match the zip pinned in
+MODULE.bazel; bumping one without the other is a build error waiting to
+happen, so keep them in lockstep when bumping WinLibs.
+"""
+
+load("@//bazel/toolchains/mingw:toolchain.bzl", "mingw_cc_toolchain_config")
+load("@rules_cc//cc:defs.bzl", "cc_toolchain")
+
+package(default_visibility = ["//visibility:public"])
+
+GCC_VERSION = "14.2.0"
+
+filegroup(
+    name = "all",
+    srcs = glob(
+        ["**"],
+        exclude = [
+            "BUILD.bazel",
+            "WORKSPACE",
+            "WORKSPACE.bazel",
+        ],
+    ),
+)
+
+[
+    filegroup(
+        name = tool_name,
+        srcs = ["bin/" + tool_name + ".exe"],
+    )
+    for tool_name in [
+        "ar",
+        "as",
+        "cpp",
+        "dlltool",
+        "g++",
+        "gcc",
+        "gcov",
+        "ld",
+        "nm",
+        "objdump",
+        "strip",
+        "windmc",
+        "windres",
+    ]
+]
+
+filegroup(
+    name = "make",
+    srcs = ["bin/mingw32-make.exe"],
+)
+
+mingw_cc_toolchain_config(
+    name = "mingw-cc-toolchain-config",
+    gcc_version = GCC_VERSION,
+)
+
+cc_toolchain(
+    name = "mingw_cc_toolchain_definition",
+    all_files = ":all",
+    compiler_files = ":all",
+    dwp_files = ":all",
+    linker_files = ":all",
+    objcopy_files = ":all",
+    strip_files = ":all",
+    toolchain_config = ":mingw-cc-toolchain-config",
+)
+
+toolchain(
+    name = "mingw_cc_toolchain",
+    target_compatible_with = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+    toolchain = ":mingw_cc_toolchain_definition",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)
