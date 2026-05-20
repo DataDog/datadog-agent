@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "slidingwindow",
+    srcs = ["counter.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/slidingwindow",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "slidingwindow_test",
+    srcs = ["counter_test.go"],
+    embed = [":slidingwindow"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
