@@ -42,6 +42,7 @@
 /CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-delivery
 
 /*.md                                   @DataDog/agent-devx
+/CHANGELOG-AIX.md                       @DataDog/agent-runtimes
 /NOTICE                                 @DataDog/agent-delivery
 
 /LICENSE*                               # do not notify anyone
@@ -495,7 +496,7 @@
 /comp/core/autodiscovery/providers/process_log*.go @DataDog/agent-discovery @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/fleet
 /comp/core/autodiscovery/providers/datastreams @DataDog/data-streams-monitoring
-/comp/core/gui/guiimpl/systray/ @DataDog/windows-products @DataDog/agent-configuration
+/comp/core/gui/impl/systray/ @DataDog/windows-products @DataDog/agent-configuration
 /comp/healthplatform/issues/admisconfig @DataDog/container-platform @DataDog/agent-health
 /comp/healthplatform/issues/rofspermissions @DataDog/container-platform @DataDog/agent-health
 /pkg/cloudfoundry                       @DataDog/agent-integrations
@@ -661,7 +662,6 @@
 /pkg/logs/launchers/windowsevent        @DataDog/agent-log-pipelines @DataDog/windows-products
 /pkg/logs/tailers/windowsevent          @DataDog/agent-log-pipelines @DataDog/windows-products
 /pkg/logs/util/windowsevent             @DataDog/agent-log-pipelines @DataDog/windows-products
-/pkg/logs/client                        @DataDog/agent-log-pipelines
 /pkg/logs/diagnostic                    @DataDog/agent-log-pipelines
 /pkg/logs/message                       @DataDog/agent-log-pipelines
 /pkg/process/                           @DataDog/container-experiences

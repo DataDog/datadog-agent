@@ -227,6 +227,11 @@ enum FLUSH_NETWORK_STATS_TYPE
     NETWORK_STATS_TICKER,
 };
 
+enum CACHE_SYSCALL_TYPE
+{
+    CACHE_SYSCALL_UPDATE_PROC_CACHE_CGROUP_KEY,
+};
+
 static __attribute__((always_inline)) u64 get_network_monitor_period() {
     u64 network_monitor_period;
     LOAD_CONSTANT("network_monitor_period", network_monitor_period);

@@ -23,7 +23,7 @@ import (
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -79,7 +79,7 @@ func mockDirectSender(t *testing.T) *directSender {
 	d, err := New(t.Context(), &fakeConnectionSource{}, Dependencies{
 		Config:         config.NewMock(t),
 		Logger:         logmock.New(t),
-		Sysprobeconfig: sysprobeconfigimpl.NewMock(t),
+		Sysprobeconfig: sysprobeconfigmock.NewMock(t),
 		Tagger:         taggernoop.NewComponent(),
 		Wmeta:          wmeta,
 		Hostname:       hostnameComp,

@@ -48,7 +48,9 @@ func TestAnnotateSpecialGoTypesContextValueCtx(t *testing.T) {
 		valueCtx.ID:     valueCtx,
 	}}
 
-	annotateSpecialGoTypes(tc, true)
+	annotateSpecialGoTypes(tc, true, map[ir.TypeID]struct{}{
+		valueCtx.ID: {},
+	})
 
 	wrapped, ok := tc.typesByID[valueCtx.ID].(*ir.GoContextImplementationType)
 	require.True(t, ok, "valueCtx should be wrapped as GoContextImplementationType")
@@ -113,7 +115,7 @@ func TestAnnotateSpecialGoTypesDDTraceSpan(t *testing.T) {
 		span.ID:           span,
 	}}
 
-	annotateSpecialGoTypes(tc, true)
+	annotateSpecialGoTypes(tc, true, nil)
 
 	spanWrapped, ok := tc.typesByID[span.ID].(*ir.DDTraceSpanType)
 	require.True(t, ok, "tracer.Span should be wrapped as DDTraceSpanType")

@@ -89,7 +89,7 @@ func (ra *remoteAgentRegistry) fillFlare(_ context.Context, builder flarebuilder
 			// The flare builder already logs errors, so we can ignore them here.
 			// an error here should not prevent the flare from being created.
 			//nolint:errcheck
-			builder.AddFile(fmt.Sprintf("%s/%s", flareData.RegisteredAgent.String(), registryutil.SanitizeFileName(fileName)), fileData)
+			builder.AddFile(fmt.Sprintf("%s/%s", flareData.RegisteredAgent.SanitizedDisplayName, registryutil.SanitizeFileName(fileName)), fileData)
 		}
 	}
 
