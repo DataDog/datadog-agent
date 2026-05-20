@@ -2634,6 +2634,10 @@ properties:
             - golang_type:int
             comment: The sampler needs a larger tokenizer window than the auto-multiline
               labeler.
+      experimental_auto_multi_line_detection:
+        node_type: setting
+        type: boolean
+        default: false
       file_scan_period:
         node_type: setting
         type: number
@@ -11782,6 +11786,256 @@ properties:
     comment: |-
       Legacy alias for backward compatibility
       This applies to the current infrastructure_mode
+  anomaly_detection:
+    node_type: section
+    type: object
+    properties:
+      agent_logs:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: Agent-internal log sampling. Warn+ are never sampled.
+          sample_rate_debug:
+            node_type: setting
+            type: number
+            default: 0.05
+            tags:
+            - golang_type:float64
+          sample_rate_info:
+            node_type: setting
+            type: number
+            default: 0.2
+            tags:
+            - golang_type:float64
+          sample_rate_trace:
+            node_type: setting
+            type: number
+            default: 0
+            tags:
+            - golang_type:float64
+      checks:
+        node_type: section
+        type: object
+        properties:
+          high_frequency_containers:
+            node_type: setting
+            type: boolean
+            default: false
+          high_frequency_system:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: |-
+              High-frequency check overrides. Increases resolution at the cost of
+              higher CPU/memory usage.
+      debug:
+        node_type: section
+        type: object
+        properties:
+          dump_interval:
+            node_type: setting
+            type: number
+            default: 0
+            tags:
+            - golang_type:int
+          dump_path:
+            node_type: setting
+            type: string
+            default: ''
+            comment: 'Debug tooling: internal state dump. Leave empty/zero in production.'
+          events_dump_path:
+            node_type: setting
+            type: string
+            default: ''
+      detectors:
+        node_type: section
+        type: object
+        properties:
+          bocpd:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+          connection_error_extractor:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          cross_signal:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          cusum:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          log_metrics_extractor:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                comment: Detector/correlator/extractor toggles. Defaults match componentCatalog.defaultEnabled.
+          log_pattern_extractor:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+          passthrough:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          rrcf:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+          scanmw:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          scanwelch:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          time_cluster:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+              min_cluster_size:
+                node_type: setting
+                type: number
+                default: 0
+                tags:
+                - golang_type:int
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: Master switch. When false the entire anomaly detection subsystem
+          is a no-op.
+      logs:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: |-
+              Log ingestion gate. When false, container/journald logs are not routed
+              into the anomaly detection pipeline (recording is unaffected).
+      metrics:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: |-
+              Metrics ingestion gate. When false, externally-ingested metrics
+              (DogStatsD, check samplers) are dropped at the handle factory.
+              Log-derived virtual metrics are unaffected.
+      recording:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Parquet recording of raw ingested signals for offline analysis
+              and replay.
+          flush_interval:
+            node_type: setting
+            type: number
+            default: 60
+            tags:
+            - golang_type:int
+          output_dir:
+            node_type: setting
+            type: string
+            default: /var/run/datadog/anomaly_detection
+          retention:
+            node_type: setting
+            type: string
+            default: 24h
+      reporting:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Anomaly event reporting. Keep false during evaluation / shadow
+              mode.
+      storage:
+        node_type: section
+        type: object
+        properties:
+          eviction_floor_ratio:
+            node_type: setting
+            type: number
+            default: 0.5
+            tags:
+            - golang_type:float64
+          max_series:
+            node_type: setting
+            type: number
+            default: 50000
+            tags:
+            - golang_type:int
+            comment: Storage tuning. See storageConfig in the observer component.
+          point_retention_secs:
+            node_type: setting
+            type: number
+            default: 120
+            tags:
+            - golang_type:int
   appsec:
     node_type: section
     type: object
