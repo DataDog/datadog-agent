@@ -2,8 +2,8 @@
 Schema generation tasks
 """
 
-import os
 import json
+import os
 import tempfile
 
 import yaml
@@ -13,13 +13,12 @@ from invoke.exceptions import Exit
 from tasks.libs.build.bazel import bazel
 from tasks.schema.add_comments import add_comments
 from tasks.schema.fixes import fix_schema
-from tasks.schema.template_parser import parse_template
 from tasks.schema.settings_source_analyzer import extract_imperative_code_hints
+from tasks.schema.template_parser import parse_template
 
 SCHEMA_DIR = os.path.join("pkg", "config", "schema")
 CORE_TEMPLATE = os.path.join("pkg", "config", "config_template.yaml")
 SYSPROBE_TEMPLATE = os.path.join("pkg", "config", "system-probe_template.yaml")
-COMMENT_INFO = os.path.join(SCHEMA_DIR, "comments_info.json")
 
 _SCRIPTS_DIR = os.path.dirname(__file__)
 
@@ -113,7 +112,7 @@ def hints(ctx):
     hints = extract_imperative_code_hints()
     hints_tmp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, delete_on_close=False)
     hints_tmp_file.file.write(json.dumps(hints))
-    print('hints file = %s' % (hints_tmp_file.name,))
+    print(f"hints file = {hints_tmp_file.name}")
 
 
 def extract_comments(ctx):

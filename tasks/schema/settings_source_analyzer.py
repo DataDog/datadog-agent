@@ -1,7 +1,6 @@
 import os
 import re
 
-
 func_start_regex = r'^func (\w+)\(config pkgconfigmodel.Setup\)'
 declare_regex = r'^config.BindEnvAndSetDefault\((.*)\)'
 declare_multiline_regex = r'^config.BindEnvAndSetDefault\(([^)]+){$'
@@ -17,7 +16,7 @@ def analyze_file(sourcefile):
     p = Processor()
     p.startfilename(sourcefile)
     within_func_init_config = False
-    with open(sourcefile, "r") as f:
+    with open(sourcefile) as f:
         content = f.read()
     for i, line in enumerate(content.split('\n')):
         num = i + 1
@@ -72,12 +71,10 @@ class Processor:
         self.currfile = ''
         self.results = []
         self.settings = []
-        self.num_fail = 0
         self.internal_comment = []
         self.within_multiline = False
         self.accum_multiline = []
         self.begin_multiline = None
-        self.curr_linenum = 0
 
     def startfilename(self, filename):
         self.currfile = os.path.basename(filename)
@@ -105,7 +102,6 @@ class Processor:
         self._clear()
 
     def process(self, line, num):
-        self.curr_linenum = num
         line = line.strip()
         if line.startswith('//'):
             self.append_internal_comment(line)
@@ -171,8 +167,6 @@ class Processor:
             self.register_setting('proc', m.group(1))
             return
 
-        self.num_fail += 1
-
     def append_internal_comment(self, text):
         text = text.strip()
         if text.startswith('//'):
@@ -207,14 +201,14 @@ class Processor:
         parts = params.split(',')
 
         keyname = ''
-        unused_default = None
+        _unused_default = None
         envvars = []
         internal_comment = '\n'.join(self.internal_comment)
         self.internal_comment = []
 
         if kind == 'declare':
             keyname = self.clean_param(parts, 0)
-            unused_default = self.clean_param(parts, 1)
+            _unused_default = self.clean_param(parts, 1)
             envvars = self.clean_env_vars(parts, 2)
         elif kind == 'env':
             keyname = self.clean_param(parts, 0)
@@ -223,14 +217,14 @@ class Processor:
             keyname = self.clean_param(parts, 0)
         elif kind == 'default':
             keyname = self.clean_param(parts, 0)
-            unused_default = self.clean_param(parts, 1)
+            _unused_default = self.clean_param(parts, 1)
         elif kind == 'declare_multiline':
             keyname = self.clean_param(parts, 0)
             self.begin_multiline = {'keyname': keyname, 'kind': kind, 'envvars': envvars}
             return
         elif kind == 'proc':
             keyname = self.clean_param(parts, 0)
-            unused_default = self.clean_param(parts, 1)
+            _unused_default = self.clean_param(parts, 1)
         else:
             raise RuntimeError('unknown kind: %s' % kind)
         # unused: envvars
@@ -239,7 +233,7 @@ class Processor:
     def complete_multiline(self):
         keyname = self.begin_multiline['keyname']
         kind = self.begin_multiline['kind']
-        envvars = self.begin_multiline['envvars']
+        _envvars = self.begin_multiline['envvars']
         # unused: envvars
         self.settings.append([keyname, kind, ''])
 
