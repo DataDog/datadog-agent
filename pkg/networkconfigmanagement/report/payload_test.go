@@ -33,8 +33,8 @@ func TestNetworkDeviceConfig_Creation(t *testing.T) {
 	tags := []string{"device_type:router", "vendor:cisco"}
 	content := []byte("version 15.1\nhostname Router1")
 
-	configUUID := "11111111-2222-3333-4444-555555555555"
-	configHash := "deadbeef"
+	configUUID := "test_uuid"
+	configHash := "test_hash"
 
 	config := ToNetworkDeviceConfig(deviceID, deviceIP, configType, metadata, tags, content, configUUID, configHash)
 
