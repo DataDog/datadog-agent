@@ -58,26 +58,35 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 	origin.LocalData.ProcessID = processID
 
 	n := 0
+	mutated := false
 	for _, tag := range tags {
 		if strings.HasPrefix(tag, hostTagPrefix) {
 			host = tag[len(hostTagPrefix):]
+			mutated = true
 			continue
 		} else if strings.HasPrefix(tag, entityIDTagPrefix) {
 			origin.LocalData.PodUID = tag[len(entityIDTagPrefix):]
+			mutated = true
 			continue
 		} else if strings.HasPrefix(tag, CardinalityTagPrefix) && origin.Cardinality == "" {
 			origin.Cardinality = tag[len(CardinalityTagPrefix):]
+			mutated = true
 			continue
 		} else if strings.HasPrefix(tag, jmxCheckNamePrefix) {
 			checkName := tag[len(jmxCheckNamePrefix):]
 			metricSource = metrics.JMXCheckNameToMetricSource(checkName)
+			mutated = true
 			continue
 		}
-		tags[n] = tag
+		if mutated {
+			tags[n] = tag
+		}
 		n++
 	}
 
-	tags = tags[:n]
+	if mutated {
+		tags = tags[:n]
+	}
 
 	return tags, host, origin, metricSource
 }

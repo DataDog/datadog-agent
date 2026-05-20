@@ -11,6 +11,7 @@ type stringInternerTelemetry struct {
 	enabled bool
 
 	resets               telemetry.Counter
+	evictions            telemetry.Counter
 	size                 telemetry.Gauge
 	bytes                telemetry.Gauge
 	hits                 telemetry.Counter
@@ -23,6 +24,7 @@ type stringInternerInstanceTelemetry struct {
 	curBytes int
 
 	resets               telemetry.SimpleCounter
+	evictions            telemetry.SimpleCounter
 	size                 telemetry.SimpleGauge
 	bytes                telemetry.SimpleGauge
 	hits                 telemetry.SimpleCounter
@@ -37,8 +39,9 @@ func newSiTelemetry(enabled bool, telemetry telemetry.Component) *stringInterner
 			globaltlmSIRStrBytes: telemetry.NewSimpleHistogram("dogstatsd", "string_interner_str_bytes",
 				"Number of times string with specific length were added",
 				[]float64{1, 2, 4, 8, 16, 32, 64, 128}),
-			resets: telemetry.NewCounter("dogstatsd", "string_interner_resets", []string{"interner_id"}, "Amount of resets of the string interner used in dogstatsd"),
-			size:   telemetry.NewGauge("dogstatsd", "string_interner_entries", []string{"interner_id"}, "Number of entries in the string interner"),
+			resets:    telemetry.NewCounter("dogstatsd", "string_interner_resets", []string{"interner_id"}, "Amount of resets of the string interner used in dogstatsd"),
+			evictions: telemetry.NewCounter("dogstatsd", "string_interner_evictions", []string{"interner_id"}, "Amount of individual evictions from the string interner used in dogstatsd"),
+			size:      telemetry.NewGauge("dogstatsd", "string_interner_entries", []string{"interner_id"}, "Number of entries in the string interner"),
 			bytes:  telemetry.NewGauge("dogstatsd", "string_interner_bytes", []string{"interner_id"}, "Number of bytes stored in the string interner"),
 			hits:   telemetry.NewCounter("dogstatsd", "string_interner_hits", []string{"interner_id"}, "Number of times string interner returned an existing string"),
 			miss:   telemetry.NewCounter("dogstatsd", "string_interner_miss", []string{"interner_id"}, "Number of times string interner created a new string object"),
@@ -56,6 +59,7 @@ func (s *stringInternerTelemetry) PrepareForID(id string) *stringInternerInstanc
 		return &stringInternerInstanceTelemetry{
 			enabled:              true,
 			resets:               s.resets.WithValues(id),
+			evictions:            s.evictions.WithValues(id),
 			size:                 s.size.WithValues(id),
 			bytes:                s.bytes.WithValues(id),
 			hits:                 s.hits.WithValues(id),
@@ -83,6 +87,19 @@ func (si *stringInternerInstanceTelemetry) Reset(length int) {
 		si.bytes.Sub(float64(si.curBytes))
 		si.size.Sub(float64(length))
 		si.curBytes = 0
+	}
+}
+
+// Evict increments the eviction counter and updates the size and bytes gauges.
+func (si *stringInternerInstanceTelemetry) Evict(length int) {
+	if si.enabled {
+		si.evictions.Inc()
+		si.bytes.Sub(float64(length))
+		si.size.Dec()
+		si.curBytes -= length
+		if si.curBytes < 0 {
+			si.curBytes = 0
+		}
 	}
 }
 

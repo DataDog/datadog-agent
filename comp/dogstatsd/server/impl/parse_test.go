@@ -56,6 +56,72 @@ func TestParseTagsEmpty(t *testing.T) {
 	assert.Nil(t, tags)
 }
 
+func TestParseTagsExperimentalTagsetInterner(t *testing.T) {
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER_SIZE", "8")
+	deps := newServerDeps(t)
+	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	p := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+
+	rawTags := []byte("tag:test,mytag,good:boy")
+	first := p.parseTags(rawTags)
+	second := p.parseTags(rawTags)
+	third := p.parseTags(rawTags)
+
+	assert.ElementsMatch(t, []string{"tag:test", "mytag", "good:boy"}, first)
+	assert.ElementsMatch(t, first, second)
+	assert.ElementsMatch(t, second, third)
+	assert.NotSame(t, &first[0], &second[0], "second sighting is admitted after parsing")
+	assert.Same(t, &second[0], &third[0], "third sighting reuses the cached tagset slice")
+}
+
+func TestParseTagsExperimentalTagsetInternerSkipsSpecialTags(t *testing.T) {
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER_SIZE", "8")
+	deps := newServerDeps(t)
+	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	p := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+
+	rawTags := []byte("tag:test,host:custom")
+	first := p.parseTags(rawTags)
+	second := p.parseTags(rawTags)
+	third := p.parseTags(rawTags)
+
+	assert.ElementsMatch(t, []string{"tag:test", "host:custom"}, first)
+	assert.NotSame(t, &first[0], &second[0])
+	assert.NotSame(t, &second[0], &third[0])
+}
+
+func BenchmarkParseTagsRepeatedTagset(b *testing.B) {
+	for _, tc := range []struct {
+		name    string
+		enabled string
+	}{
+		{name: "default", enabled: "false"},
+		{name: "tagset_interner", enabled: "true"},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			b.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", tc.enabled)
+			b.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER_SIZE", "128")
+			deps := newServerDeps(b)
+			stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+			p := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+			rawTags := []byte("env:prod,service:api,team:agent,version:1,region:us-east-1,az:1,pod:abc123")
+
+			// Warm up the exact-tagset cache. The first sighting records the hash;
+			// the second admits the parsed tagset.
+			_ = p.parseTags(rawTags)
+			_ = p.parseTags(rawTags)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = p.parseTags(rawTags)
+			}
+		})
+	}
+}
+
 func TestUnsafeParseFloat(t *testing.T) {
 	rawFloat := "1.1234"
 

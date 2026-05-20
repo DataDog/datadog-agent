@@ -1436,3 +1436,73 @@ Next memory work:
   tags.
 - Consider v3 builder capacity hints or a batched point-row sink so dictionary
   maps and column buffers can be sized from flush row estimates.
+
+## Stage T: parser string/tagset interning
+
+Stage T targets the dominant parser allocation identified in Stage S. In the
+standard v3 UDS Stage R profile, `stringInterner.LoadOrStore` accounted for
+roughly `17.64 GiB` allocation-space and `parseTags` allocated roughly
+`2.40 GiB` for per-message `[]string` slices. Telemetry from the same run showed
+both parser workers hit `~53M` interner misses and `12,936` full resets against a
+`4096`-entry cache.
+
+Implementation:
+
+- Replace the parser string interner's full-reset map with a bounded SLRU-style
+  dictionary:
+  - first sightings enter a recent/probationary segment;
+  - a hit in recent promotes the string to protected;
+  - both segments use ring eviction;
+  - hits keep the no-allocation `map[string]...` lookup form with
+    `string([]byte)` directly in the index expression;
+  - existing hit/miss/size/bytes telemetry remains;
+  - new `dogstatsd.string_interner_evictions` counts individual evictions;
+  - `dogstatsd.string_interner_resets` should stop increasing for the new path.
+- Make `extractTagsMetadata` non-mutating for normal tagsets. It now rewrites the
+  tag slice only when it actually removes metadata tags such as `host:`,
+  `dd.internal.entity_id:`, `dd.internal.card:`, or `dd.internal.jmx_check_name:`.
+- Add an opt-in exact raw-tagset interner:
+  - `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true`
+  - `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER_SIZE=<entries>`
+  - The cache uses a doorkeeper hash so first sightings are not admitted; second
+    sightings admit the parsed exact tagset.
+  - Tagsets with metadata tags are not admitted.
+  - Per-hit telemetry was intentionally avoided after benchmarking showed it
+    reintroduced allocation; macro validation should use pprof/SMP metrics.
+
+Focused microbenchmark:
+
+```bash
+dda inv test --targets=./comp/dogstatsd/server/impl \
+  --test-run-name='^$' \
+  --extra-args='-bench=BenchmarkParseTagsRepeatedTagset -benchmem -benchtime=3s' \
+  --timeout=300
+```
+
+| Path | ns/op | B/op | allocs/op |
+|---|---:|---:|---:|
+| default repeated tagset parse | `145.9` | `112` | `1` |
+| exact tagset interner hit | `15.64` | `0` | `0` |
+
+Validation:
+
+```bash
+dda inv test --targets=./comp/dogstatsd/server/impl,./comp/dogstatsd/listeners,./comp/dogstatsd/packets --timeout=300
+```
+
+Result: passed (`318` tests).
+
+Artifacts:
+
+- `reports/smp/dogstatsd-agg-serde-20260516-143205/notes/stageT-parser-interning.md`
+- `reports/smp/dogstatsd-agg-serde-20260516-143205/profiles/stageT-parser-tagset-bench-nohottelemetry.txt`
+
+Next SMP work:
+
+1. Build a post-Stage-T image and compare default Stage T vs Stage R/S to isolate
+   the SLRU string interner.
+2. Run the same image with
+   `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true` to isolate exact
+   tagset-cache feature cost.
+3. Re-run main comparisons only after those feature-cost probes show a favorable
+   allocation/RSS/throughput tradeoff.
