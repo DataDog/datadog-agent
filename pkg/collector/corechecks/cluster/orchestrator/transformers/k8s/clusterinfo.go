@@ -10,7 +10,6 @@ package k8s
 import (
 	"context"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/samber/lo"
@@ -171,30 +170,13 @@ type nodeManagerAssignment struct {
 
 // buildNodeManagerIndex inverts the dd-cluster-info nodeManagement
 // structure (manager → entity name → entry) into a lookup by node name.
-// Keys are iterated in sorted order so assignments stay deterministic
-// across runs — fillClusterResourceVersion hashes the cluster JSON,
-// non-deterministic iteration would defeat its change-detection cache.
+// A given node belongs to exactly one management entity, so the inner
+// writes never collide.
 func buildNodeManagerIndex(nodeManagement map[string]map[string]nodeManagerEntry) map[string]nodeManagerAssignment {
 	out := make(map[string]nodeManagerAssignment)
-	managers := make([]string, 0, len(nodeManagement))
-	for m := range nodeManagement {
-		managers = append(managers, m)
-	}
-	sort.Strings(managers)
-	for _, manager := range managers {
-		entries := nodeManagement[manager]
-		names := make([]string, 0, len(entries))
-		for n := range entries {
-			names = append(names, n)
-		}
-		sort.Strings(names)
-		for _, name := range names {
-			entry := entries[name]
+	for manager, entries := range nodeManagement {
+		for name, entry := range entries {
 			for _, node := range entry.Nodes {
-				if existing, ok := out[node]; ok {
-					log.Warnc(fmt.Sprintf("node %q appears under multiple managers in dd-cluster-info (%s/%s and %s/%s); keeping the latter",
-						node, existing.manager, existing.name, manager, name), orchestrator.ExtraLogContext...)
-				}
 				out[node] = nodeManagerAssignment{
 					manager:          manager,
 					name:             name,

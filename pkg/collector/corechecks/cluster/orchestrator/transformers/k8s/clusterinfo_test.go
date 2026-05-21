@@ -326,20 +326,6 @@ func TestApplyClusterInfo_ClusterNameMismatchStillEnriches(t *testing.T) {
 	assert.NotZero(t, cluster.ClusterInfoGeneratedAtUnixNano)
 }
 
-func TestBuildNodeManagerIndex_OverlappingNodesAreDeterministic(t *testing.T) {
-	nm := map[string]map[string]nodeManagerEntry{
-		"karpenter": {
-			"pool-a": {Nodes: []string{"node-x"}},
-		},
-		"asg": {
-			"group-z": {Nodes: []string{"node-x"}, ManagedByDatadog: true},
-		},
-	}
-	first := buildNodeManagerIndex(nm)["node-x"]
-	second := buildNodeManagerIndex(nm)["node-x"]
-	assert.Equal(t, first, second)
-}
-
 func mustFetchFromPayload(t *testing.T, payload string) *ClusterInfo {
 	t.Helper()
 	cm := newClusterInfoConfigMap("ns", clusterInfoConfigMapName, payload, map[string]string{
