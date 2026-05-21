@@ -1,0 +1,13 @@
+# 2026/05/21 11:07:07.233018 [TestValidator_InvalidStable] [rapid] draw head: []byte{0x9}
+# 2026/05/21 11:07:07.233020 [TestValidator_InvalidStable] [rapid] draw tail: []byte{0x30}
+# 2026/05/21 11:07:07.233022 [TestValidator_InvalidStable] InvalidStable violated: head was Invalid but extension produced 1 (head="\t" tail="0")
+# 
+v0.4.8#15379467977221359787
+0x0
+0x9867f1f40f739
+0x9
+0x0
+0x0
+0xe3e05a098777c
+0x30
+0x0

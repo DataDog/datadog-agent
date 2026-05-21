@@ -194,6 +194,16 @@ func TestRegexAggregator_FlushIdempotentOnEmpty_Property(t *testing.T) {
 // the pattern; then Flush must produce exactly one emission (the
 // tail aggregate). This pins the "buffer is fully drained by
 // flush" property end-to-end.
+//
+// The lineLimit is sized large enough that the accumulated
+// buffer cannot reach it within the generated input bounds —
+// otherwise an overflow-during-Process would emit the tail
+// aggregate via MidAggregateTruncation and leave the buffer
+// empty for Flush, which would not satisfy this test's premise.
+// genRegexAggregatorCall produces content up to "START " (6
+// bytes) + 20 bytes (= 26 max) per call; with up to 10 calls
+// plus 2-byte separators between them, the worst case is well
+// under 1000 bytes.
 func TestRegexAggregator_FlushEqualsTotalEmissions_Property(t *testing.T) {
 	re := regexp.MustCompile(`^START`)
 	rapid.Check(t, func(t *rapid.T) {
@@ -201,7 +211,7 @@ func TestRegexAggregator_FlushEqualsTotalEmissions_Property(t *testing.T) {
 		// Force the final line to be non-matching content so the
 		// buffer is non-empty when Flush is called.
 		calls[len(calls)-1].content = "trailing non-match"
-		ag := NewRegexAggregator(re, 100, false, status.NewInfoRegistry(), "multi_line")
+		ag := NewRegexAggregator(re, 1000, false, status.NewInfoRegistry(), "multi_line")
 		for _, c := range calls {
 			ag.Process(newMessage(c.content), c.label, c.tokens)
 		}

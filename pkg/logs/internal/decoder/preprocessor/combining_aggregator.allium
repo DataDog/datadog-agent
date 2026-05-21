@@ -327,43 +327,82 @@ surface CombiningAggregation {
         -- bucket_content_len could reach line_limit — they just
         -- don't arise under the dispatch defined here.
 
-    @guarantee CombinedEmissionUpstreamFlagIgnored
-        -- The COMBINED-emission path (the bucket-flush procedure
-        -- producing a combined message of two or more lines)
-        -- does NOT honour the upstream IsTruncated flag of any
-        -- contributing line. The bucket-flush invocation of
-        -- apply_truncation passes shouldTruncate = (bucket_
-        -- content_len >= line_limit) only — the per-input
-        -- upstream IsTruncated flags are not OR'd into this
-        -- argument. As a consequence, a combined emission of
-        -- lines where SOME contributors arrived with
-        -- ParsingExtra.IsTruncated=true (e.g. from the framer)
-        -- but the combined buffer stays under line_limit emits
-        -- with IsTruncated=false — the upstream signals are
-        -- DROPPED.
+    @guarantee BucketFlushIgnoresUpstreamFlag
+        -- The bucket.flush() emission path does NOT honour
+        -- the upstream IsTruncated flag on any contributing
+        -- line. bucket.flush() invokes apply_truncation with
+        -- shouldTruncate = (bucket_content_len >= line_limit)
+        -- only — the per-input upstream IsTruncated flags
+        -- are not OR'd into this argument.
         --
-        -- The SINGLE-LINE emission path (emit_single, invoked
-        -- for noAggregate labels, aggregate-on-empty-bucket
-        -- lines, exploded individual lines, and oversized
-        -- start_group lines) DOES honour the upstream
-        -- IsTruncated flag — it passes shouldTruncate =
-        -- (length(content) > line_limit OR msg.is_truncated
-        -- upstream). The behavioural asymmetry between the
-        -- two paths is intentional and reflects how the
-        -- bucket accumulation is currently implemented.
+        -- bucket.flush() is invoked from MANY code paths,
+        -- not only combined emissions:
+        --   - Normal combined emission (lineCount > 1) at
+        --     pattern-boundary, start_group flush of the
+        --     prior bucket, or external flush().
+        --   - The noAggregate label's own single-line emit
+        --     (the prior bucket is flushed, then msg is
+        --     added to the now-empty bucket and flushed
+        --     again with lineCount = 1).
+        --   - aggregate-on-empty-bucket: msg is added to
+        --     the empty bucket and immediately flushed as
+        --     a single-line emission.
+        --   - Oversized start_group: msg is added to the
+        --     bucket and flushed immediately if its
+        --     RawDataLen >= line_limit.
+        --   - External flush() at end-of-stream.
+        --
+        -- Consequence: a contributing line arriving with
+        -- ParsingExtra.IsTruncated=true (e.g. from the
+        -- framer) does NOT cause marker bytes to be added
+        -- to the emission for any of these paths. The
+        -- emission's IsTruncated may still propagate from
+        -- the bucket leader's pre-emit state by in-place
+        -- mutation (the leader's pointer is reused for the
+        -- emitted message), but no marker decoration is
+        -- applied unless the buffer itself crossed
+        -- line_limit during accumulation.
+        --
+        -- This is a DEVIATION from the Truncatable contract's
+        -- UpstreamFlagPropagation invariant. A refactor
+        -- preserving observable behaviour must preserve this
+        -- ignore-upstream semantics across all bucket.flush()
+        -- code paths.
+
+    @guarantee EmitSingleHonorsUpstreamFlag
+        -- The bucket.emitSingle() emission path DOES honour
+        -- the upstream IsTruncated flag. It invokes
+        -- apply_truncation with shouldTruncate =
+        -- (length(content) > line_limit OR
+        -- msg.is_truncated upstream). The per-message
+        -- upstream flag triggers tail marker decoration even
+        -- when the message's own content is under
+        -- line_limit.
+        --
+        -- bucket.emitSingle() is invoked only from the
+        -- explosion path:
+        --   - explode_bucket emits each buffered line via
+        --     bucket.emitSingle().
+        --   - The current message in the would-overflow
+        --     branch (wouldOverflowBucket) is emitted via
+        --     bucket.emitSingle() after the prior bucket
+        --     is exploded.
+        --
+        -- This is the only code path through which a
+        -- contributor's upstream IsTruncated flag results
+        -- in marker decoration on its emission. The
+        -- asymmetry between bucket.flush() and
+        -- bucket.emitSingle() is intentional and reflects
+        -- how the bucket accumulation is currently
+        -- implemented; a refactor preserving observable
+        -- behaviour must preserve this asymmetry.
         --
         -- Consequence for Truncatable conformance:
-        -- CombiningAggregator therefore does NOT declare
-        -- fulfils Truncatable. The single-line path
+        -- CombiningAggregator does NOT declare fulfils
+        -- Truncatable. The bucket.emitSingle() path
         -- structurally conforms to the contract; the
-        -- combined-emission path does not (UpstreamFlagPropagation
-        -- violated). A refactor preserving observable
-        -- behaviour must preserve this asymmetry. A refactor
-        -- that begins propagating upstream flags into the
-        -- combined-emission apply_truncation invocation would
-        -- be a deliberate behaviour change, producing
-        -- additional IsTruncated=true emissions for combined
-        -- buckets containing upstream-flagged contributors.
+        -- bucket.flush() path (per BucketFlushIgnoresUpstreamFlag)
+        -- does not (UpstreamFlagPropagation violated).
 
     @guidance
         -- Per-call dispatch when process is invoked with

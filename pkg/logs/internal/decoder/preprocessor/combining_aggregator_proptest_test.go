@@ -146,11 +146,20 @@ func TestCombiningAggregator_FlushClearsBucket_Property(t *testing.T) {
 //	                                    aggregation.
 //
 // The strong form: across arbitrary call sequences with arbitrary
-// line_limits, no emission's content (minus markers) exceeds
-// line_limit when the emission is multi-line (is_multi_line set).
-// A 2+ line combined emission staying under line_limit is the
-// observable manifestation of OverflowExplosion's "abandon
-// combination rather than truncate-combine" policy.
+// line_limits, no emission's content (minus markers) STRICTLY
+// EXCEEDS line_limit when the emission is multi-line
+// (is_multi_line set). A 2+ line combined emission staying at or
+// under line_limit is the observable manifestation of
+// OverflowExplosion's "abandon combination rather than
+// truncate-combine" policy.
+//
+// Note on the "<=" rather than "<" bound: a multi-line emission's
+// body can equal line_limit when trim-spacing reduces a buffer
+// that crossed the limit by exactly the separator bytes (e.g. an
+// empty-content first contributor + a limit-sized second line:
+// buffer reaches line_limit + 2 pre-trim, trims down to
+// line_limit). The OverflowExplosion @guarantee is about not
+// EXCEEDING the limit through aggregation; equality is permitted.
 func TestCombiningAggregator_NoCombinedOverflow_Property(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		calls := rapid.SliceOfN(genCombiningCall(), 1, 12).Draw(t, "calls")
@@ -169,8 +178,8 @@ func TestCombiningAggregator_NoCombinedOverflow_Property(t *testing.T) {
 				}
 				body := strings.TrimPrefix(string(e.Msg.GetContent()), marker)
 				body = strings.TrimSuffix(body, marker)
-				if len(body) >= lineLimit {
-					t.Fatalf("NoCombinedOverflow violated: multi-line emission body %d bytes >= line_limit %d (content %q)",
+				if len(body) > lineLimit {
+					t.Fatalf("NoCombinedOverflow violated: multi-line emission body %d bytes > line_limit %d (content %q)",
 						len(body), lineLimit, e.Msg.GetContent())
 				}
 			}
@@ -376,15 +385,23 @@ func TestCombiningAggregator_HeadMarkerOnCarryover_Property(t *testing.T) {
 // TestCombiningAggregator_CombinedEmissionUpstreamFlagIgnored_Property anchors:
 //
 //	surface CombiningAggregation (combining_aggregator.allium)
-//	    @guarantee CombinedEmissionUpstreamFlagIgnored — the
-//	                                                      bucket.flush
-//	                                                      path does
-//	                                                      NOT honour
-//	                                                      upstream
-//	                                                      IsTruncated
-//	                                                      flags on
-//	                                                      contributing
-//	                                                      lines.
+//	    @guarantee BucketFlushIgnoresUpstreamFlag — the
+//	                                                 bucket.flush()
+//	                                                 path does NOT
+//	                                                 honour upstream
+//	                                                 IsTruncated
+//	                                                 flags on
+//	                                                 contributing
+//	                                                 lines. This
+//	                                                 test covers
+//	                                                 the combined-
+//	                                                 emission case
+//	                                                 specifically;
+//	                                                 the @guarantee
+//	                                                 itself applies
+//	                                                 to all
+//	                                                 bucket.flush()
+//	                                                 paths.
 //
 // LOAD-BEARING for the refactor safety net. A combined emission
 // of 2+ lines where the LATER contributor (not the leader)
@@ -430,11 +447,14 @@ func TestCombiningAggregator_CombinedEmissionUpstreamFlagIgnored_Property(t *tes
 // TestCombiningAggregator_ExplosionPathHonorsUpstream_Property anchors:
 //
 //	surface CombiningAggregation (combining_aggregator.allium)
-//	    @guarantee OverflowExplosion — the explosion path uses the
-//	                                    bucket.emitSingle procedure
-//	                                    which DOES honour upstream
-//	                                    IsTruncated for each emitted
-//	                                    line.
+//	    @guarantee EmitSingleHonorsUpstreamFlag — the
+//	                                               bucket.emitSingle()
+//	                                               path DOES honour
+//	                                               upstream
+//	                                               IsTruncated. It
+//	                                               is invoked only
+//	                                               from the
+//	                                               explosion path.
 //
 // When the wouldOverflowBucket guard fires, the bucket is
 // exploded into individual emissions via bucket.emitSingle. The
