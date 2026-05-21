@@ -144,15 +144,6 @@
       <p>Compatibility still comes from fallback: unusual metric types, origin/enrichment cases, timestamps, events, service checks, and unknown tagsets continue through the general path unless explicitly tested.</p>
     </div>
   </div>
-  <table class="term-table">
-    <tr><th>Experiment word</th><th>Quick meaning for this report</th></tr>
-    <tr><td>SMP</td><td>The local performance comparison harness used here: run a baseline Agent image and a comparison image under generated load, collect metrics, and report deltas.</td></tr>
-    <tr><td>Fixed-rate</td><td>The generator sends at a configured rate. If the Agent gets cheaper, throughput may stay flat while CPU falls. Saturation tests are needed to measure max sustainable ingress.</td></tr>
-    <tr><td>Saturated / backpressured</td><td>The Agent or socket path cannot keep up, so queues grow, clients block, packets drop, or measured lag increases.</td></tr>
-    <tr><td>UDS</td><td>Unix datagram socket DogStatsD input. Most strong results here are for UDS; UDP/origin/Windows/stream cases still need broader validation.</td></tr>
-    <tr><td>v3</td><td>The metrics v3 API/payload path, which already uses dictionary and column ideas. DogStatsD payloads are still built after aggregation.</td></tr>
-    <tr><td>Δ / CI</td><td>Comparison versus baseline and the confidence interval from SMP. Appendix tables keep the exact stage-by-stage numbers.</td></tr>
-  </table>
 </section>
 
 
