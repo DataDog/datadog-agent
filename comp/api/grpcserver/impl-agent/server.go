@@ -281,22 +281,14 @@ func (s *serverSecure) WorkloadFilterEvaluate(ctx context.Context, req *pb.Workl
 	return s.workloadfilterServer.WorkloadFilterEvaluate(ctx, req)
 }
 
+const remoteQueryExecuteStreamChunkSize = 1 << 20
+
 func (s *serverSecure) RemoteQueryExecute(_ context.Context, req *pb.RemoteQueryExecuteRequest) (*pb.RemoteQueryExecuteResponse, error) {
 	if s.remoteQueries == nil {
 		return remoteQueryExecuteErrorResponse(remotequeriesimpl.RemoteQueryStatusExecutorUnavailable, "remote query executor is unavailable"), nil
 	}
 
-	limits := remoteQueryLimitsFromProto(req.GetLimits())
-	execReq, err := remotequeriesimpl.NewRemoteQueryExecuteRequest(
-		req.GetIntegration(),
-		remotequeriesimpl.RemoteQueryExecuteTarget{
-			Host:   req.GetTarget().GetHost(),
-			Port:   int(req.GetTarget().GetPort()),
-			DBName: req.GetTarget().GetDbname(),
-		},
-		req.GetQuery(),
-		limits,
-	)
+	execReq, err := remoteQueryExecuteRequestFromProto(req)
 	if err != nil {
 		return remoteQueryExecuteErrorResponse(remotequeriesimpl.RemoteQueryStatusInvalidRequest, err.Error()), nil
 	}
@@ -307,6 +299,59 @@ func (s *serverSecure) RemoteQueryExecute(_ context.Context, req *pb.RemoteQuery
 	}
 
 	return remoteQueryExecuteResponseFromJSON(result.ResponseJSON)
+}
+
+func (s *serverSecure) RemoteQueryExecuteStream(req *pb.RemoteQueryExecuteRequest, stream pb.AgentSecure_RemoteQueryExecuteStreamServer) error {
+	if s.remoteQueries == nil {
+		return remoteQueryExecuteStreamJSON(remoteQueryExecuteErrorJSON(remotequeriesimpl.RemoteQueryStatusExecutorUnavailable, "remote query executor is unavailable"), stream)
+	}
+
+	execReq, err := remoteQueryExecuteRequestFromProto(req)
+	if err != nil {
+		return remoteQueryExecuteStreamJSON(remoteQueryExecuteErrorJSON(remotequeriesimpl.RemoteQueryStatusInvalidRequest, err.Error()), stream)
+	}
+
+	result := s.remoteQueries.Execute(execReq)
+	if result.Error != nil {
+		return remoteQueryExecuteStreamJSON(remoteQueryExecuteErrorJSON(result.Error.Code, result.Error.Message), stream)
+	}
+
+	return remoteQueryExecuteStreamJSON(result.ResponseJSON, stream)
+}
+
+func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remotequeriesimpl.RemoteQueryExecuteRequest, error) {
+	limits := remoteQueryLimitsFromProto(req.GetLimits())
+	return remotequeriesimpl.NewRemoteQueryExecuteRequest(
+		req.GetIntegration(),
+		remotequeriesimpl.RemoteQueryExecuteTarget{
+			Host:   req.GetTarget().GetHost(),
+			Port:   int(req.GetTarget().GetPort()),
+			DBName: req.GetTarget().GetDbname(),
+		},
+		req.GetQuery(),
+		limits,
+	)
+}
+
+func remoteQueryExecuteStreamJSON(responseJSON string, stream pb.AgentSecure_RemoteQueryExecuteStreamServer) error {
+	responseBytes := []byte(responseJSON)
+	if len(responseBytes) == 0 {
+		return stream.Send(&pb.RemoteQueryExecuteChunk{Final: true})
+	}
+	for offset, chunkIndex := 0, int32(0); offset < len(responseBytes); offset, chunkIndex = offset+remoteQueryExecuteStreamChunkSize, chunkIndex+1 {
+		end := offset + remoteQueryExecuteStreamChunkSize
+		if end > len(responseBytes) {
+			end = len(responseBytes)
+		}
+		if err := stream.Send(&pb.RemoteQueryExecuteChunk{
+			ResponseJsonChunk: responseBytes[offset:end],
+			ChunkIndex:        chunkIndex,
+			Final:             end == len(responseBytes),
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func remoteQueryLimitsFromProto(limits *pb.RemoteQueryExecuteLimits) *remotequeriesimpl.RemoteQueryExecuteLimits {
@@ -325,6 +370,17 @@ func remoteQueryExecuteErrorResponse(code string, message string) *pb.RemoteQuer
 		Status: code,
 		Error:  &pb.RemoteQueryExecuteError{Code: code, Message: message},
 	}
+}
+
+func remoteQueryExecuteErrorJSON(code string, message string) string {
+	payload, err := json.Marshal(remoteQueryExecuteJSONResponse{
+		Status: code,
+		Error:  &remoteQueryExecuteError{Code: code, Message: message},
+	})
+	if err != nil {
+		return `{"status":"executor_unavailable","error":{"code":"executor_unavailable","message":"remote query executor is unavailable"}}`
+	}
+	return string(payload)
 }
 
 type remoteQueryExecuteJSONResponse struct {

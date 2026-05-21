@@ -6,8 +6,11 @@
 package com_datadoghq_remotequeries
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 
 	"google.golang.org/grpc"
 
@@ -20,6 +23,7 @@ import (
 // BridgeClient is the narrow AgentSecure gRPC client surface required by this action.
 type BridgeClient interface {
 	RemoteQueryExecute(ctx context.Context, in *pb.RemoteQueryExecuteRequest, opts ...grpc.CallOption) (*pb.RemoteQueryExecuteResponse, error)
+	RemoteQueryExecuteStream(ctx context.Context, in *pb.RemoteQueryExecuteRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], error)
 }
 
 // BridgeClientFactory returns an authenticated AgentSecure client over the local Agent IPC channel.
@@ -76,13 +80,13 @@ func (a *ExecuteAction) Run(
 		return nil, util.DefaultActionError(fmt.Errorf("remote query action requires an AgentSecure client"))
 	}
 
-	resp, err := client.RemoteQueryExecute(ctx, remoteQueryExecuteRequestFromInputs(inputs))
+	stream, err := client.RemoteQueryExecuteStream(ctx, remoteQueryExecuteRequestFromInputs(inputs))
 	if err != nil {
-		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure RPC failed")
+		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC failed")
 	}
-	output, err := remoteQueryExecuteOutputFromProto(resp)
+	output, err := remoteQueryExecuteOutputFromStream(stream)
 	if err != nil {
-		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure RPC response was invalid")
+		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC response was invalid")
 	}
 	return output, nil
 }
@@ -105,6 +109,54 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryEx
 		}
 	}
 	return req
+}
+
+func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk]) (map[string]interface{}, error) {
+	if stream == nil {
+		return nil, fmt.Errorf("remote query response stream missing")
+	}
+
+	var assembled bytes.Buffer
+	expectedChunkIndex := int32(0)
+	seenFinal := false
+	for {
+		chunk, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		if chunk == nil {
+			return nil, fmt.Errorf("remote query response stream returned nil chunk")
+		}
+		if chunk.GetChunkIndex() != expectedChunkIndex {
+			return nil, fmt.Errorf("remote query response stream chunk index mismatch")
+		}
+		if seenFinal {
+			return nil, fmt.Errorf("remote query response stream sent chunk after final")
+		}
+		_, _ = assembled.Write(chunk.GetResponseJsonChunk())
+		seenFinal = chunk.GetFinal()
+		expectedChunkIndex++
+	}
+	if !seenFinal {
+		return nil, fmt.Errorf("remote query response stream missing final chunk")
+	}
+	return remoteQueryExecuteOutputFromJSON(assembled.Bytes())
+}
+
+func remoteQueryExecuteOutputFromJSON(responseJSON []byte) (map[string]interface{}, error) {
+	var output map[string]interface{}
+	decoder := json.NewDecoder(bytes.NewReader(responseJSON))
+	if err := decoder.Decode(&output); err != nil {
+		return nil, err
+	}
+	status, ok := output["status"].(string)
+	if !ok || status == "" {
+		return nil, fmt.Errorf("remote query response missing status")
+	}
+	return normalizeRemoteQueryOutput(output).(map[string]interface{}), nil
 }
 
 func remoteQueryExecuteOutputFromProto(resp *pb.RemoteQueryExecuteResponse) (map[string]interface{}, error) {
@@ -140,4 +192,28 @@ func remoteQueryExecuteOutputFromProto(resp *pb.RemoteQueryExecuteResponse) (map
 		output["stats"] = resp.GetStats().AsMap()
 	}
 	return output, nil
+}
+
+func normalizeRemoteQueryOutput(value interface{}) interface{} {
+	switch v := value.(type) {
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(v))
+		for key, item := range v {
+			out[key] = normalizeRemoteQueryOutput(item)
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, len(v))
+		for i, item := range v {
+			out[i] = normalizeRemoteQueryOutput(item)
+		}
+		return out
+	case json.Number:
+		if f, err := v.Float64(); err == nil {
+			return f
+		}
+		return v.String()
+	default:
+		return v
+	}
 }

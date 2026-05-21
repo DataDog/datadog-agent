@@ -91,7 +91,7 @@ func TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC(t *t
 
 	fqn := com_datadoghq_remotequeries.BundleID + "." + com_datadoghq_remotequeries.ExecuteActionName
 	t.Logf("fakeintake task enqueued: task_id=%s action_fqn=%s inputs=%s", taskID, fqn, requestEvidence)
-	t.Logf("real AgentSecure IPC configured for standalone PAR: 127.0.0.1:%d RemoteQueryExecute", cmdPortInt)
+	t.Logf("real AgentSecure IPC configured for standalone PAR: 127.0.0.1:%d RemoteQueryExecuteStream", cmdPortInt)
 	require.NoError(t, fakeintakeClient.EnqueuePARTask(taskID, fqn, inputs))
 
 	result, err := fakeintakeClient.GetPARTaskResult(taskID, remoteQueriesProofResultTimeout(proofQuery))
@@ -130,7 +130,7 @@ func TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC(t *t
 		fmt.Sprintf("separate Agent process pid=%s", agentPID),
 		fmt.Sprintf("fakeintake task enqueued: task_id=%s action_fqn=%s inputs=%s", taskID, fqn, requestEvidence),
 		"standalone PAR process dequeued the fakeintake OPMS task and invoked the registered action",
-		fmt.Sprintf("real AgentSecure IPC called by standalone PAR: 127.0.0.1:%d RemoteQueryExecute", cmdPortInt),
+		fmt.Sprintf("real AgentSecure IPC called by standalone PAR: 127.0.0.1:%d RemoteQueryExecuteStream", cmdPortInt),
 		fmt.Sprintf("fakeintake captured successful PAR task result: %s", resultEvidence),
 		fmt.Sprintf("dequeue_calls=%d", dequeueCalls),
 		"task verification skipped for this standalone tracer bullet with DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true",

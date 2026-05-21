@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs the standalone local-only Remote Queries proof:
 # fakeintake -> standalone OS private-action-runner process -> com.datadoghq.remotequeries.execute
-# -> real local AgentSecure gRPC RemoteQueryExecute over Agent IPC TLS/auth
+# -> real local AgentSecure gRPC RemoteQueryExecuteStream over Agent IPC TLS/auth
 # -> loaded Postgres check -> fixture-table proof query -> fakeintake publish.
 # The HTTP execute endpoint remains as a dev preflight for local evidence only.
 #
@@ -453,7 +453,7 @@ PY
 }
 
 run_standalone_go_proof() {
-  log "[$PROOF_CASE_NAME] Running standalone PAR process -> real AgentSecure gRPC IPC -> Postgres -> fakeintake proof test"
+  log "[$PROOF_CASE_NAME] Running standalone PAR process -> real AgentSecure gRPC streaming IPC -> Postgres -> fakeintake proof test"
   (
     cd "$AGENT_REPO"
     RQ_STANDALONE_PROOF=1 \

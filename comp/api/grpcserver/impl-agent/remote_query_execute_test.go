@@ -9,6 +9,8 @@ import (
 	"context"
 	"testing"
 
+	"google.golang.org/grpc"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -35,4 +37,39 @@ func TestRemoteQueryExecuteReturnsSanitizedUnavailableWhenServiceMissing(t *test
 	assert.Equal(t, "executor_unavailable", resp.GetStatus())
 	require.NotNil(t, resp.GetError())
 	assert.Equal(t, "executor_unavailable", resp.GetError().GetCode())
+}
+
+func TestRemoteQueryExecuteStreamReturnsSanitizedUnavailableWhenServiceMissing(t *testing.T) {
+	stream := &captureRemoteQueryExecuteStreamServer{}
+	err := (&serverSecure{}).RemoteQueryExecuteStream(&pb.RemoteQueryExecuteRequest{}, stream)
+
+	require.NoError(t, err)
+	require.Len(t, stream.chunks, 1)
+	assert.True(t, stream.chunks[0].GetFinal())
+	assert.JSONEq(t, `{"status":"executor_unavailable","error":{"code":"executor_unavailable","message":"remote query executor is unavailable"}}`, string(stream.chunks[0].GetResponseJsonChunk()))
+}
+
+func TestRemoteQueryExecuteStreamJSONChunksResponse(t *testing.T) {
+	stream := &captureRemoteQueryExecuteStreamServer{}
+	responseJSON := `{"status":"SUCCEEDED","rows":[{"payload":"` + string(make([]byte, remoteQueryExecuteStreamChunkSize+1)) + `"}]}`
+
+	err := remoteQueryExecuteStreamJSON(responseJSON, stream)
+
+	require.NoError(t, err)
+	require.Len(t, stream.chunks, 2)
+	assert.Equal(t, int32(0), stream.chunks[0].GetChunkIndex())
+	assert.False(t, stream.chunks[0].GetFinal())
+	assert.Equal(t, int32(1), stream.chunks[1].GetChunkIndex())
+	assert.True(t, stream.chunks[1].GetFinal())
+	assert.Equal(t, len(responseJSON), len(stream.chunks[0].GetResponseJsonChunk())+len(stream.chunks[1].GetResponseJsonChunk()))
+}
+
+type captureRemoteQueryExecuteStreamServer struct {
+	grpc.ServerStream
+	chunks []*pb.RemoteQueryExecuteChunk
+}
+
+func (s *captureRemoteQueryExecuteStreamServer) Send(chunk *pb.RemoteQueryExecuteChunk) error {
+	s.chunks = append(s.chunks, chunk)
+	return nil
 }

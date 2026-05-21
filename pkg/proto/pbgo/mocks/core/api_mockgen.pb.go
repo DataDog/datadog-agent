@@ -405,6 +405,26 @@ func (mr *MockAgentSecureClientMockRecorder) RemoteQueryExecute(ctx, in interfac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoteQueryExecute", reflect.TypeOf((*MockAgentSecureClient)(nil).RemoteQueryExecute), varargs...)
 }
 
+// RemoteQueryExecuteStream mocks base method.
+func (m *MockAgentSecureClient) RemoteQueryExecuteStream(ctx context.Context, in *core.RemoteQueryExecuteRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[core.RemoteQueryExecuteChunk], error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "RemoteQueryExecuteStream", varargs...)
+	ret0, _ := ret[0].(grpc.ServerStreamingClient[core.RemoteQueryExecuteChunk])
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RemoteQueryExecuteStream indicates an expected call of RemoteQueryExecuteStream.
+func (mr *MockAgentSecureClientMockRecorder) RemoteQueryExecuteStream(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoteQueryExecuteStream", reflect.TypeOf((*MockAgentSecureClient)(nil).RemoteQueryExecuteStream), varargs...)
+}
+
 // ResetConfigState mocks base method.
 func (m *MockAgentSecureClient) ResetConfigState(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*core.ResetStateConfigResponse, error) {
 	m.ctrl.T.Helper()
@@ -764,6 +784,20 @@ func (m *MockAgentSecureServer) RemoteQueryExecute(arg0 context.Context, arg1 *c
 func (mr *MockAgentSecureServerMockRecorder) RemoteQueryExecute(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoteQueryExecute", reflect.TypeOf((*MockAgentSecureServer)(nil).RemoteQueryExecute), arg0, arg1)
+}
+
+// RemoteQueryExecuteStream mocks base method.
+func (m *MockAgentSecureServer) RemoteQueryExecuteStream(arg0 *core.RemoteQueryExecuteRequest, arg1 grpc.ServerStreamingServer[core.RemoteQueryExecuteChunk]) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoteQueryExecuteStream", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoteQueryExecuteStream indicates an expected call of RemoteQueryExecuteStream.
+func (mr *MockAgentSecureServerMockRecorder) RemoteQueryExecuteStream(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoteQueryExecuteStream", reflect.TypeOf((*MockAgentSecureServer)(nil).RemoteQueryExecuteStream), arg0, arg1)
 }
 
 // ResetConfigState mocks base method.

@@ -13,6 +13,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
+	"io"
 	"testing"
 	"time"
 
@@ -152,4 +153,27 @@ type captureAgentSecureClient struct {
 func (c *captureAgentSecureClient) RemoteQueryExecute(_ context.Context, req *pb.RemoteQueryExecuteRequest, _ ...grpc.CallOption) (*pb.RemoteQueryExecuteResponse, error) {
 	c.requests <- req
 	return c.response, nil
+}
+
+func (c *captureAgentSecureClient) RemoteQueryExecuteStream(_ context.Context, req *pb.RemoteQueryExecuteRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], error) {
+	c.requests <- req
+	responseJSON, err := json.Marshal(map[string]interface{}{"status": c.response.GetStatus(), "rows": []interface{}{map[string]interface{}{"value": 1}}})
+	if err != nil {
+		return nil, err
+	}
+	return &captureRemoteQueryExecuteStream{chunks: []*pb.RemoteQueryExecuteChunk{{ResponseJsonChunk: responseJSON, Final: true}}}, nil
+}
+
+type captureRemoteQueryExecuteStream struct {
+	grpc.ClientStream
+	chunks []*pb.RemoteQueryExecuteChunk
+}
+
+func (s *captureRemoteQueryExecuteStream) Recv() (*pb.RemoteQueryExecuteChunk, error) {
+	if len(s.chunks) == 0 {
+		return nil, io.EOF
+	}
+	chunk := s.chunks[0]
+	s.chunks = s.chunks[1:]
+	return chunk, nil
 }

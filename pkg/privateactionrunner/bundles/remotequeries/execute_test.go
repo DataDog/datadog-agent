@@ -8,6 +8,7 @@ package com_datadoghq_remotequeries
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"testing"
 
 	"google.golang.org/grpc"
@@ -131,4 +132,45 @@ type captureBridgeClient struct {
 func (c *captureBridgeClient) RemoteQueryExecute(_ context.Context, req *pb.RemoteQueryExecuteRequest, _ ...grpc.CallOption) (*pb.RemoteQueryExecuteResponse, error) {
 	c.request = req
 	return c.response, c.err
+}
+
+func (c *captureBridgeClient) RemoteQueryExecuteStream(_ context.Context, req *pb.RemoteQueryExecuteRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], error) {
+	c.request = req
+	if c.err != nil {
+		return nil, c.err
+	}
+	responseJSON, err := json.Marshal(remoteQueryExecuteOutputFromProtoForTest(c.response))
+	if err != nil {
+		return nil, err
+	}
+	return &captureRemoteQueryExecuteStream{chunks: []*pb.RemoteQueryExecuteChunk{{ResponseJsonChunk: responseJSON, Final: true}}}, nil
+}
+
+func remoteQueryExecuteOutputFromProtoForTest(resp *pb.RemoteQueryExecuteResponse) map[string]interface{} {
+	output := map[string]interface{}{"status": resp.GetStatus()}
+	if resp.GetError() != nil {
+		output["error"] = map[string]interface{}{"code": resp.GetError().GetCode(), "message": resp.GetError().GetMessage()}
+	}
+	if len(resp.GetRows()) > 0 {
+		rows := make([]interface{}, 0, len(resp.GetRows()))
+		for _, row := range resp.GetRows() {
+			rows = append(rows, row.AsMap())
+		}
+		output["rows"] = rows
+	}
+	return output
+}
+
+type captureRemoteQueryExecuteStream struct {
+	grpc.ClientStream
+	chunks []*pb.RemoteQueryExecuteChunk
+}
+
+func (s *captureRemoteQueryExecuteStream) Recv() (*pb.RemoteQueryExecuteChunk, error) {
+	if len(s.chunks) == 0 {
+		return nil, io.EOF
+	}
+	chunk := s.chunks[0]
+	s.chunks = s.chunks[1:]
+	return chunk, nil
 }
