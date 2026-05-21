@@ -40,18 +40,18 @@ type config struct {
 }
 
 type metricRow struct {
-	metricName                   string
-	minSupportedArchitecture     string
-	tagset                       string
-	extraTags                    string
-	migSupport                   string
-	vgpuSupport                  string
-	aggregationType              string
-	timeAggregation              string
-	groupAggregation             string
-	granularityAggregation       string
-	granularityTags              string
-	usedInGPUMon                 string
+	metricName               string
+	minSupportedArchitecture string
+	tagset                   string
+	extraTags                string
+	migSupport               string
+	vgpuSupport              string
+	aggregationType          string
+	timeAggregation          string
+	groupAggregation         string
+	granularityAggregation   string
+	granularityTags          string
+	usedInGPUMon             string
 }
 
 func main() {
@@ -238,4 +238,3 @@ func boolString(v bool) string {
 	}
 	return "FALSE"
 }
-
