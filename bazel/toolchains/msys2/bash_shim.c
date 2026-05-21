@@ -4,12 +4,7 @@
 // running batch files; this .exe is invoked directly via CreateProcessW and
 // keeps the raw command line intact.
 //
-// Build (run once after editing this file, from the workspace root):
-//   external/+winlibs_mingw_repository+winlibs_mingw64/bin/gcc.exe \
-//     -O2 -s -static -municode \
-//     -o bazel/toolchains/msys2/bash_shim.exe \
-//     bazel/toolchains/msys2/bash_shim.c
-// then `git add bazel/toolchains/msys2/bash_shim.exe`.
+// See README.md in this directory for the build/rebuild workflow.
 
 #include <stdio.h>
 #include <stdlib.h>
