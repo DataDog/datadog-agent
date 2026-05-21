@@ -48,7 +48,9 @@ func (b *NodeBase) AppendImageTagID(imageTagID uint64, timestamp time.Time) {
 			return
 		}
 	}
-	b.seen = append(b.seen, seenEntry{id: imageTagID, times: ImageTagTimes{FirstSeen: timestamp, LastSeen: timestamp}})
+	// Three-index slice sets cap == len before append so Go allocates exactly one new slot,
+	// avoiding the default doubling strategy for a structure that stays small (typically ≤5 entries).
+	b.seen = append(b.seen[:len(b.seen):len(b.seen)], seenEntry{id: imageTagID, times: ImageTagTimes{FirstSeen: timestamp, LastSeen: timestamp}})
 }
 
 // RecordWithTimestamps sets both FirstSeen and LastSeen for the given imageTagID with the provided timestamps.
@@ -63,7 +65,7 @@ func (b *NodeBase) RecordWithTimestamps(imageTagID uint64, firstSeen, lastSeen t
 			return
 		}
 	}
-	b.seen = append(b.seen, seenEntry{id: imageTagID, times: ImageTagTimes{FirstSeen: firstSeen, LastSeen: lastSeen}})
+	b.seen = append(b.seen[:len(b.seen):len(b.seen)], seenEntry{id: imageTagID, times: ImageTagTimes{FirstSeen: firstSeen, LastSeen: lastSeen}})
 }
 
 // EvictImageTag removes the entry for imageTagID and returns true if the slice is now empty.
