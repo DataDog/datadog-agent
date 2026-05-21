@@ -378,6 +378,30 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}
 			return 0, nvml.SUCCESS
 		},
+		GetCurrPcieLinkGenerationFunc: func() (int, nvml.Return) {
+			if isMIGOrVGPUUnsupported {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			return 1, nvml.SUCCESS
+		},
+		GetMaxPcieLinkGenerationFunc: func() (int, nvml.Return) {
+			if isMIGOrVGPUUnsupported {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			return 4, nvml.SUCCESS
+		},
+		GetCurrPcieLinkWidthFunc: func() (int, nvml.Return) {
+			if isMIGOrVGPUUnsupported {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			return 8, nvml.SUCCESS
+		},
+		GetMaxPcieLinkWidthFunc: func() (int, nvml.Return) {
+			if isMIGOrVGPUUnsupported {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			return 16, nvml.SUCCESS
+		},
 		GetRemappedRowsFunc: func() (int, int, bool, bool, nvml.Return) {
 			if isMIGOrVGPUUnsupported {
 				return 0, 0, false, false, nvml.ERROR_NOT_SUPPORTED

@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -67,6 +68,8 @@ type AgentDemultiplexer struct {
 	// options are the options with which the demultiplexer has been created
 	options    AgentDemultiplexerOptions
 	aggregator *BufferedAggregator
+	// pendingShutdownEvent is sent through a one-shot lifecycle send during the final Stop(true).
+	pendingShutdownEvent *event.Event
 	dataOutputs
 
 	senders *senders
@@ -313,29 +316,68 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 }
 
 // AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
-// to be sent on the next flush.
+// to be sent on the next flush, and stages the matching shutdown event for the
+// final Stop(true) flush.
 func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
-	if agentVersion != "" {
-		d.AggregateSample(metrics.MetricSample{
-			Name:       fmt.Sprintf("datadog.%s.started", d.aggregator.agentName),
-			Value:      1,
-			Tags:       d.aggregator.tags(true),
-			Host:       d.aggregator.hostname,
-			Mtype:      metrics.CountType,
-			SampleRate: 1,
-			Timestamp:  0,
-		})
-
-		if d.aggregator.hostname != "" {
-			// Send startup event only when we have a valid hostname
-			d.aggregator.eventIn <- event.Event{
-				Text:           "Version " + agentVersion,
-				SourceTypeName: "System",
-				Host:           d.aggregator.hostname,
-				EventType:      "Agent Startup",
-			}
-		}
+	if agentVersion == "" {
+		return
 	}
+
+	d.AggregateSample(metrics.MetricSample{
+		Name:       fmt.Sprintf("datadog.%s.started", d.aggregator.agentName),
+		Value:      1,
+		Tags:       d.aggregator.tags(true),
+		Host:       d.aggregator.hostname,
+		Mtype:      metrics.CountType,
+		SampleRate: 1,
+		Timestamp:  0,
+	})
+
+	if startupEvent, ok := d.agentLifecycleEvent(agentVersion, "Agent Startup"); ok {
+		d.aggregator.eventIn <- startupEvent
+	}
+
+	if shutdownEvent, ok := d.agentLifecycleEvent(agentVersion, "Agent Shutdown"); ok {
+		d.m.Lock()
+		defer d.m.Unlock()
+
+		d.pendingShutdownEvent = &shutdownEvent
+	}
+}
+
+func (d *AgentDemultiplexer) takePendingShutdownEvent() *event.Event {
+	d.m.Lock()
+	defer d.m.Unlock()
+
+	shutdownEvent := d.pendingShutdownEvent
+	d.pendingShutdownEvent = nil
+	return shutdownEvent
+}
+
+func (d *AgentDemultiplexer) sendAgentShutdownEvent(shutdownEvent *event.Event) {
+	if shutdownEvent == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	if err := d.sharedSerializer.SendAgentShutdownEvent(ctx, shutdownEvent); err != nil {
+		d.log.Debugf("failed to send Agent Shutdown event: %v", err)
+	}
+}
+
+func (d *AgentDemultiplexer) agentLifecycleEvent(agentVersion string, eventType string) (event.Event, bool) {
+	if d.aggregator.hostname == "" {
+		return event.Event{}, false
+	}
+
+	return event.Event{
+		Text:           "Version " + agentVersion,
+		SourceTypeName: "System",
+		Host:           d.aggregator.hostname,
+		EventType:      eventType,
+	}, true
 }
 
 // run runs all demultiplexer parts
@@ -390,7 +432,9 @@ func (d *AgentDemultiplexer) flushLoop() {
 		case trigger, ok := <-d.stopChan:
 			if ok && trigger != nil {
 				// Final flush requested
+				shutdownEvent := d.takePendingShutdownEvent()
 				d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll)
+				d.sendAgentShutdownEvent(shutdownEvent)
 				if trigger.blockChan != nil {
 					trigger.blockChan <- struct{}{}
 				}

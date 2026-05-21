@@ -330,6 +330,11 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 			provided:      "no_agent/reserved-proc-empty/in.yaml",
 			expectedError: "reserved resource processor name",
 		},
+		{
+			name:          "multiple-ddprofiling-extensions",
+			provided:      "no_agent/multi-ddprofiling-ext/in.yaml",
+			expectedError: "only one ddprofiling extension can be enabled in standalone mode",
+		},
 	}
 
 	runErrorTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)

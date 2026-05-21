@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build ncm
-
 // Package sender provides a wrapper around the sender.Sender to send network device configuration data
 package sender
 
@@ -26,28 +24,31 @@ import (
 )
 
 const (
-	ncmCheckDurationMetric  = "datadog.ncm.check_duration"
-	ncmCheckIntervalMetric  = "datadog.ncm.check_interval"
-	ncmConfigSizeMetric     = "ncm.config_size"
+	ncmCheckDurationMetric             = "datadog.ncm.check_duration"
+	ncmCheckIntervalMetric             = "datadog.ncm.check_interval"
+	ncmCheckInventoryEntriesSentMetric = "datadog.ncm.inventory.entries_sent"
+	ncmConfigSizeMetric                = "ncm.config_size"
+
 	ncmRunningConfigTypeTag = "config_type:running"
 	ncmStartupConfigTypeTag = "config_type:startup"
 )
 
 // NCMSender is a wrapper around the sender.Sender to send network device configuration data
 type NCMSender struct {
-	Sender     sender.Sender
-	namespace  string
-	hostname   string // TODO: get the hostname to use
-	deviceTags []string
-	clock      clock.Clock
+	Sender        sender.Sender
+	namespace     string
+	agentHostname string
+	deviceTags    []string
+	clock         clock.Clock
 }
 
 // NewNCMSender creates a new NCMSender
-func NewNCMSender(sender sender.Sender, namespace string, clock clock.Clock) *NCMSender {
+func NewNCMSender(sender sender.Sender, namespace string, clock clock.Clock, agentHostname string) *NCMSender {
 	return &NCMSender{
-		Sender:    sender,
-		namespace: namespace,
-		clock:     clock,
+		Sender:        sender,
+		namespace:     namespace,
+		clock:         clock,
+		agentHostname: agentHostname,
 	}
 }
 
@@ -64,12 +65,17 @@ func (s *NCMSender) getDeviceTags() []string {
 func (s *NCMSender) SendNCMCheckMetrics(startTime time.Time, lastCheckTime time.Time) {
 	tags := append(s.getDeviceTags(), utils.GetCommonAgentTags()...)
 	duration := s.clock.Since(startTime).Seconds()
-	s.Sender.Gauge(ncmCheckDurationMetric, duration, s.hostname, tags)
+	s.Sender.Gauge(ncmCheckDurationMetric, duration, s.agentHostname, tags)
 
 	if !lastCheckTime.IsZero() {
 		interval := startTime.Sub(lastCheckTime).Seconds()
-		s.Sender.Gauge(ncmCheckIntervalMetric, interval, s.hostname, tags)
+		s.Sender.Gauge(ncmCheckIntervalMetric, interval, s.agentHostname, tags)
 	}
+}
+
+func (s *NCMSender) sendNCMPayloadMetrics(payload ncmreport.NCMPayload) {
+	tags := utils.GetCommonAgentTags()
+	s.Sender.Count(ncmCheckInventoryEntriesSentMetric, float64(len(payload.Inventories)), s.agentHostname, tags)
 }
 
 // SendMetricsFromExtractedMetadata sends metrics from data extracted from the device config after processing
@@ -83,19 +89,19 @@ func (s *NCMSender) SendMetricsFromExtractedMetadata(metadata profile.ExtractedM
 	}
 	// if config size was extracted, submit the metric
 	if metadata.ConfigSize != 0 {
-		s.Sender.Gauge(ncmConfigSizeMetric, float64(metadata.ConfigSize), s.hostname, tags)
+		s.Sender.Gauge(ncmConfigSizeMetric, float64(metadata.ConfigSize), s.agentHostname, tags)
 	}
 }
 
-// SendNCMConfig sends the network device configuration payload to event platform
-func (s *NCMSender) SendNCMConfig(payload ncmreport.NCMPayload) error {
+// SendNCMPayload sends the network device configuration payload to event platform
+func (s *NCMSender) SendNCMPayload(payload ncmreport.NCMPayload) error {
 	payloadBytes, err := json.Marshal(payload)
-	fmt.Println(string(payloadBytes))
 	if err != nil {
 		return err
 	}
 	s.Sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkConfigManagement)
 	// TODO: send metrics about the config retrieval?
+	s.sendNCMPayloadMetrics(payload)
 	return nil
 }
 

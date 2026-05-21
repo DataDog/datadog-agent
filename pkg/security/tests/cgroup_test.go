@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"slices"
@@ -194,6 +195,63 @@ ExecStart=/usr/bin/touch ` + testFile2
 			test.validateOpenSchema(t, event)
 		}, "test_cgroup_systemd")
 	})
+}
+
+func TestCGroupPropagation(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping cgroup propagation test in docker")
+	}
+
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "CLONE_INTO_CGROUP requires kernel >= 5.7", func(kv *kernel.Version) bool {
+		return kv.Code < kernel.Kernel5_7
+	})
+
+	if !utils.IsPureCGroupV2Available() {
+		t.Skip("cgroup v2 unified hierarchy not available")
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_cgroup_propagation",
+			Expression: `open.file.path == "{{.Root}}/test-cgroup-propagation" && process.cgroup.id =~ "*/cg-propagation"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	targetCGroupPath := "/sys/fs/cgroup/cg-propagation"
+	if err := os.MkdirAll(targetCGroupPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(targetCGroupPath)
+
+	testFile, _, err := test.Path("test-cgroup-propagation")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test.WaitSignalFromRule(t, func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return runSyscallTesterFunc(ctx, t, syscallTester, "process-clone-into-cgroup", targetCGroupPath, testFile)
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_cgroup_propagation")
+		assertFieldEqual(t, event, "open.file.path", testFile)
+		assertFieldIsOneOf(t, event, "process.cgroup.id", []string{"/cg-propagation", "/systemd/cg-propagation"})
+
+		test.validateOpenSchema(t, event)
+	}, "test_cgroup_propagation")
 }
 
 func TestCGroupSnapshot(t *testing.T) {

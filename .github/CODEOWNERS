@@ -42,6 +42,7 @@
 /CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-delivery
 
 /*.md                                   @DataDog/agent-devx
+/CHANGELOG-AIX.md                       @DataDog/agent-runtimes
 /NOTICE                                 @DataDog/agent-delivery
 
 /LICENSE*                               # do not notify anyone
@@ -237,7 +238,7 @@
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-products
 /cmd/agent/dist/conf.d/windows_certificate.d/ @DataDog/windows-products
 /cmd/agent/install*.sh                  @DataDog/agent-build
-/cmd/agent/macos/                       @DataDog/windows-products @DataDog/telemetry-onboarding
+/cmd/agent/macos/                       @DataDog/windows-products
 /cmd/ai_prompt_logger/                  @DataDog/windows-products
 /cmd/cluster-agent/                     @DataDog/container-platform
 /cmd/cluster-agent/subcommands/autoscalerlist   @DataDog/container-autoscaling @DataDog/container-integrations
@@ -390,7 +391,6 @@
 /comp/trace-telemetry @DataDog/agent-runtimes
 /comp/updater/daemonchecker @DataDog/fleet
 /comp/updater/ssistatus @DataDog/fleet
-/comp/anomalydetection/hfrunner @DataDog/q-branch
 /comp/anomalydetection/logssource @DataDog/q-branch
 /comp/anomalydetection/observer @DataDog/q-branch
 /comp/anomalydetection/recorder @DataDog/q-branch
@@ -495,7 +495,7 @@
 /comp/core/autodiscovery/providers/process_log*.go @DataDog/agent-discovery @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/fleet
 /comp/core/autodiscovery/providers/datastreams @DataDog/data-streams-monitoring
-/comp/core/gui/guiimpl/systray/ @DataDog/windows-products @DataDog/agent-configuration
+/comp/core/gui/impl/systray/ @DataDog/windows-products @DataDog/agent-configuration
 /comp/healthplatform/issues/admisconfig @DataDog/container-platform @DataDog/agent-health
 /comp/healthplatform/issues/rofspermissions @DataDog/container-platform @DataDog/agent-health
 /pkg/cloudfoundry                       @DataDog/agent-integrations
