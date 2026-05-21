@@ -314,3 +314,11 @@ Image ID: sha256:18e6b54087515f1bcc46cad1b379257ace2e517a468a355ab9b7fc00409ee11
 Created: 2026-05-20 local via `docker commit` from the Stage W base image
 Env: baseline env plus `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE=true`, `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE_SIZE=65536`
 Notes: Exact raw-tagset hits can use a worker-local descriptor cache to append scalar columnar-v3 rows without repeated tag materialization or full `MetricSample` construction. Columnar rows can also carry validated descriptor ID/generation refs.
+
+### Stage W stats-aware fast lane enabled
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-fastlane-stats-shared-enabled]
+Image ID: sha256:6e035a7d3cab03f30fc0d4b1bee4375bb9aacecfbe93f1ce0850830464c40e1c
+Created: 2026-05-21 local via `docker commit` from `datadog/agent-dev:smp-dsd-columnar-v3-fastlane-stats-shared`
+Agent version: Agent 7.81.0-devel - Meta: git.100.b6db1d8 - Commit: b6db1d81aa1 - Serialization version: v5.0.196 - Go version: go1.25.10
+Env: exact tagset cache + compact identities + direct parse + compact row descriptor omission + fast lane + native columnar-v3 serializer + compact UDS raw ring batch drains
+Notes: `dogstatsd-stats` uses the shared parser-side `ShardIdentity`; stats no longer force fast-lane fallback by themselves.

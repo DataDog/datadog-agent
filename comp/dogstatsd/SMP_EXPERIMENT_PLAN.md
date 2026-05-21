@@ -1685,8 +1685,10 @@ Implemented gate:
     be useful;
   - handles only single-value gauge/count metric messages whose exact raw tagset
     is already admitted in the parser tagset cache;
-  - requires no mapper, no extra tags, no hist-to-distribution, no debug stats,
-    no client origin fields, and no UDS origin/process metadata;
+  - requires no mapper, no extra tags, no hist-to-distribution, no client
+    origin fields, and no UDS origin/process metadata;
+  - can update `dogstatsd-stats` from the same shared parser-side series
+    descriptor, so debug stats no longer force a fallback by themselves;
   - on hit, looks up a worker-local descriptor by raw metric name + tagset ID +
     metric type without materializing tags or a full `MetricSample`;
   - appends a scalar columnar-v3 row directly from the cached descriptor;

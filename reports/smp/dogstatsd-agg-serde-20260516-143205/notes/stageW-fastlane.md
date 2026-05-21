@@ -85,9 +85,11 @@ Follow-up stats-aware focused benchmark with `dogstatsd_logging_enabled=false`:
 
 The bounded stats view itself measured `96.14 ns/op`, `0 allocs/op` in the
 contention benchmark versus `555.1 ns/op` for the legacy global-lock shape. The
-macro feature-cost SMP with `dogstatsd-stats` enabled still needs to be run, but
-the focused result shows stats no longer force repeated simple metrics off the
-fast lane.
+focused result shows stats no longer force repeated simple metrics off the fast
+lane.
+
+Follow-up macro SMP with `dogstatsd-stats` enabled on both main and the
+experimental fast-lane stack is recorded in `dogstatsd-stats-feature-cost.md`.
 
 ## SMP results
 
