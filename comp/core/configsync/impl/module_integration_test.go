@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -49,7 +50,7 @@ func TestOptionalModule(t *testing.T) {
 		Config:     cfg,
 		Log:        logmock.New(t),
 		IPCClient:  ipcComp.GetClient(),
-		SyncParams: Params{},
+		SyncParams: configsync.Params{},
 	})
 	require.NoError(t, err)
 	require.True(t, comp.(configSync).enabled)
