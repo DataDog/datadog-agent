@@ -939,7 +939,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor v0.59.0
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/config/schema v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/lite v0.0.0-20260514153718-f9e502901cd2
+	github.com/DataDog/datadog-agent/pkg/config/schema v0.0.0
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/serializer v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.77.0-devel.0.20260211235139-a5361978c2b6
@@ -1361,6 +1362,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/create => ./pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ./pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ./pkg/config/helper
+	github.com/DataDog/datadog-agent/pkg/config/lite => ./pkg/config/lite
 	github.com/DataDog/datadog-agent/pkg/config/mock => ./pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ./pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ./pkg/config/nodetreemodel

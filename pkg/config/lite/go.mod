@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/config/lite
 go 1.25.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.195
+	github.com/DataDog/agent-payload/v5 v5.0.196
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/protobuf v1.36.11
 )
@@ -116,7 +116,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../../pkg/gohai
-	github.com/DataDog/datadog-agent/pkg/logs/client => ../../../pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../pkg/logs/sources
