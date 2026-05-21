@@ -19,11 +19,24 @@ type RemoteQueriesBundle struct {
 	actions map[string]types.Action
 }
 
+var defaultBridgeClientFactory BridgeClientFactory = NewDefaultBridgeClient
+
 func NewRemoteQueriesBundle() *RemoteQueriesBundle {
 	return &RemoteQueriesBundle{
 		actions: map[string]types.Action{
-			ExecuteActionName: NewExecuteAction(NewDefaultBridgeClient),
+			ExecuteActionName: NewExecuteAction(defaultBridgeClientFactory),
 		},
+	}
+}
+
+// SetBridgeClientFactoryForTest overrides the bridge client factory used by newly-created
+// Remote Queries bundles. It is intended for tests that exercise the registered PAR
+// registry/runner path without depending on a live Agent IPC server.
+func SetBridgeClientFactoryForTest(factory BridgeClientFactory) func() {
+	previousFactory := defaultBridgeClientFactory
+	defaultBridgeClientFactory = factory
+	return func() {
+		defaultBridgeClientFactory = previousFactory
 	}
 }
 
