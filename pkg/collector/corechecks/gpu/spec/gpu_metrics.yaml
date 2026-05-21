@@ -430,7 +430,8 @@ metrics:
         XID errors are NVIDIA driver error codes that indicate GPU hardware or
         software issues like thermal throttling to hardware defects.
         Investigate these errors immediately as they often precede total GPU
-        failures. The counter reports errors seen since the last reboot of the host.
+        failures. The counter reports XID errors received since the Agent started
+        collecting events for this device.
     tagsets:
       - device
     custom_tags:
@@ -756,7 +757,9 @@ metrics:
   nvlink.errors.crc.data:
     metadata:
       metric_type: gauge
-      description: NVLink data CRC error counter total for all links
+      description: >-
+        NVLink data CRC error counter total for all links. The counter reports
+        the device lifetime total reported by NVML.
     tagsets:
       - device
     validator:
@@ -776,7 +779,9 @@ metrics:
   nvlink.errors.crc.flit:
     metadata:
       metric_type: gauge
-      description: NVLink flow control CRC error counter total for all links
+      description: >-
+        NVLink flow control CRC error counter total for all links. The counter
+        reports the device lifetime total reported by NVML.
     tagsets:
       - device
     validator:
@@ -796,7 +801,9 @@ metrics:
   nvlink.errors.buffer.overrun:
     metadata:
       metric_type: gauge
-      description: NVLink buffer overrun error counter total for all links
+      description: >-
+        NVLink buffer overrun error counter total for all links. The counter
+        reports the device lifetime total reported by NVML.
     tagsets:
       - device
     support:
@@ -817,7 +824,9 @@ metrics:
   nvlink.errors.ecc:
     metadata:
       metric_type: gauge
-      description: NVLink ECC error counter total for all links
+      description: >-
+        NVLink ECC error counter total for all links. The counter reports the
+        device lifetime total reported by NVML.
     tagsets:
       - device
     validator:
@@ -837,7 +846,9 @@ metrics:
   nvlink.errors.effective:
     metadata:
       metric_type: gauge
-      description: NVLink effective error counter total for all links
+      description: >-
+        NVLink effective error counter total for all links. The counter reports
+        the device lifetime total reported by NVML.
     tagsets:
       - device
     support:
@@ -858,7 +869,9 @@ metrics:
   nvlink.errors.local.link.integrity:
     metadata:
       metric_type: gauge
-      description: NVLink local link integrity error counter total for all links
+      description: >-
+        NVLink local link integrity error counter total for all links. The
+        counter reports the device lifetime total reported by NVML.
     tagsets:
       - device
     support:
@@ -879,7 +892,9 @@ metrics:
   nvlink.errors.malformed.packet:
     metadata:
       metric_type: gauge
-      description: NVLink malformed packet error counter total for all links
+      description: >-
+        NVLink malformed packet error counter total for all links. The counter
+        reports the device lifetime total reported by NVML.
     tagsets:
       - device
     support:
@@ -900,7 +915,9 @@ metrics:
   nvlink.errors.recovery:
     metadata:
       metric_type: gauge
-      description: NVLink recovery error counter total for all links
+      description: >-
+        NVLink recovery error counter total for all links. The counter reports
+        the device lifetime total reported by NVML.
     tagsets:
       - device
     validator:
@@ -920,7 +937,9 @@ metrics:
   nvlink.errors.replay:
     metadata:
       metric_type: gauge
-      description: NVLink replay error counter total for all links
+      description: >-
+        NVLink replay error counter total for all links. The counter reports the
+        device lifetime total reported by NVML.
     tagsets:
       - device
     validator:
@@ -940,7 +959,9 @@ metrics:
   nvlink.errors.rx:
     metadata:
       metric_type: gauge
-      description: NVLink receive error counter total for all links
+      description: >-
+        NVLink receive error counter total for all links. The counter reports
+        the device lifetime total reported by NVML.
     tagsets:
       - device
     support:
@@ -961,7 +982,9 @@ metrics:
   nvlink.errors.rx.general:
     metadata:
       metric_type: gauge
-      description: NVLink general receive error counter total for all links
+      description: >-
+        NVLink general receive error counter total for all links. The counter
+        reports the device lifetime total reported by NVML.
     tagsets:
       - device
     support:
@@ -982,7 +1005,9 @@ metrics:
   nvlink.errors.rx.remote:
     metadata:
       metric_type: gauge
-      description: NVLink remote receive error counter total for all links
+      description: >-
+        NVLink remote receive error counter total for all links. The counter
+        reports the device lifetime total reported by NVML.
     tagsets:
       - device
     support:
@@ -1003,7 +1028,9 @@ metrics:
   nvlink.errors.symbol:
     metadata:
       metric_type: gauge
-      description: NVLink symbol error counter total for all links
+      description: >-
+        NVLink symbol error counter total for all links. The counter reports the
+        device lifetime total reported by NVML.
     tagsets:
       - device
     support:
@@ -1293,7 +1320,9 @@ metrics:
   nvlink.recovery.events.failed:
     metadata:
       metric_type: gauge
-      description: Failed NVLink recovery events total for all links
+      description: >-
+        Failed NVLink recovery events total for all links. The counter reports
+        the device lifetime total reported by NVML.
     tagsets:
       - device
     support:
@@ -1314,7 +1343,9 @@ metrics:
   nvlink.recovery.events.successful:
     metadata:
       metric_type: gauge
-      description: Successful NVLink recovery events total for all links
+      description: >-
+        Successful NVLink recovery events total for all links. The counter
+        reports the device lifetime total reported by NVML.
     tagsets:
       - device
     support:
@@ -1482,7 +1513,9 @@ metrics:
   c2c.errors.interrupt:
     metadata:
       metric_type: gauge
-      description: C2C interrupt error counter total
+      description: >-
+        C2C interrupt error counter total. The counter reports the device
+        lifetime total reported by NVML.
     tagsets:
       - device
     support:
@@ -1504,7 +1537,9 @@ metrics:
   c2c.errors.replay:
     metadata:
       metric_type: gauge
-      description: C2C replay error counter total
+      description: >-
+        C2C replay error counter total. The counter reports the device lifetime
+        total reported by NVML.
     tagsets:
       - device
     support:
@@ -1526,7 +1561,9 @@ metrics:
   c2c.errors.replay.b2b:
     metadata:
       metric_type: gauge
-      description: C2C back-to-back replay error counter total
+      description: >-
+        C2C back-to-back replay error counter total. The counter reports the
+        device lifetime total reported by NVML.
     tagsets:
       - device
     support:
@@ -1753,7 +1790,9 @@ metrics:
   remapped_rows.correctable:
     metadata:
       metric_type: gauge
-      description: Number of rows remapped due to correctable errors
+      description: >-
+        Number of rows remapped due to correctable errors. The counter reports
+        the device lifetime total reported by NVML.
     tagsets:
       - device
     validator:
@@ -1775,7 +1814,9 @@ metrics:
   remapped_rows.failed:
     metadata:
       metric_type: gauge
-      description: Number of rows that failed remapping
+      description: >-
+        Whether row remapping has failed. This value reflects the current
+        remapping status reported by NVML.
     tagsets:
       - device
     validator:
@@ -1795,7 +1836,9 @@ metrics:
   remapped_rows.pending:
     metadata:
       metric_type: gauge
-      description: Number of rows pending remapping
+      description: >-
+        Whether row remapping is pending. This value reflects the current
+        remapping status reported by NVML.
     tagsets:
       - device
     validator:
@@ -1815,7 +1858,9 @@ metrics:
   remapped_rows.uncorrectable:
     metadata:
       metric_type: gauge
-      description: Number of rows remapped due to uncorrectable errors
+      description: >-
+        Number of rows remapped due to uncorrectable errors. The counter reports
+        the device lifetime total reported by NVML.
     tagsets:
       - device
     validator:
