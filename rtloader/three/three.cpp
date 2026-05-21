@@ -19,6 +19,7 @@
 #include "util.h"
 
 #include <algorithm>
+#include <cctype>
 #include <functional>
 #include <sstream>
 
@@ -497,9 +498,47 @@ done:
     return ret;
 }
 
-char *Three::runPostgresRemoteQuery(RtLoaderPyObject *check, const char *request_json)
+namespace {
+std::string normalizeRemoteQueryIntegration(const char *integration)
+{
+    if (integration == NULL) {
+        return "";
+    }
+
+    std::string normalized(integration);
+    normalized.erase(normalized.begin(), std::find_if(normalized.begin(), normalized.end(), [](unsigned char ch) {
+                         return !std::isspace(ch);
+                     }));
+    normalized.erase(std::find_if(normalized.rbegin(), normalized.rend(), [](unsigned char ch) {
+                         return !std::isspace(ch);
+                     }).base(),
+                     normalized.end());
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return normalized;
+}
+
+bool isValidRemoteQueryIntegration(const std::string &integration)
+{
+    if (integration.empty()) {
+        return false;
+    }
+    return std::all_of(integration.begin(), integration.end(), [](unsigned char ch) {
+        return std::islower(ch) || std::isdigit(ch) || ch == '_';
+    });
+}
+} // namespace
+
+char *Three::runRemoteQuery(RtLoaderPyObject *check, const char *integration, const char *request_json)
 {
     if (check == NULL || request_json == NULL) {
+        return NULL;
+    }
+
+    std::string normalized_integration = normalizeRemoteQueryIntegration(integration);
+    if (!isValidRemoteQueryIntegration(normalized_integration)) {
+        setError("invalid remote query integration name");
         return NULL;
     }
 
@@ -509,35 +548,36 @@ char *Three::runPostgresRemoteQuery(RtLoaderPyObject *check, const char *request
     PyObject *execute_func = NULL;
     PyObject *py_request_json = NULL;
     PyObject *result = NULL;
+    std::string module_name = "datadog_checks." + normalized_integration + ".remote_query";
 
-    remote_query_module = PyImport_ImportModule("datadog_checks.postgres.remote_query");
+    remote_query_module = PyImport_ImportModule(module_name.c_str());
     if (remote_query_module == NULL) {
-        setError("error importing Postgres remote query helper: " + _fetchPythonError());
+        setError("error importing remote query helper: " + _fetchPythonError());
         goto done;
     }
 
     execute_func = PyObject_GetAttrString(remote_query_module, "execute_agent_rpc_json");
     if (execute_func == NULL || !PyCallable_Check(execute_func)) {
-        setError("error loading Postgres remote query helper: " + _fetchPythonError());
+        setError("error loading remote query helper: " + _fetchPythonError());
         goto done;
     }
 
     py_request_json = PyUnicode_FromString(request_json);
     if (py_request_json == NULL) {
-        setError("error converting Postgres remote query request to Python string: " + _fetchPythonError());
+        setError("error converting remote query request to Python string: " + _fetchPythonError());
         goto done;
     }
 
     result = PyObject_CallFunctionObjArgs(execute_func, py_request_json, py_check, NULL);
     if (result == NULL || !PyUnicode_Check(result)) {
-        setError("error invoking Postgres remote query helper: " + _fetchPythonError());
+        setError("error invoking remote query helper: " + _fetchPythonError());
         goto done;
     }
 
     ret = as_string(result);
     if (ret == NULL) {
         // as_string clears the error, so we can't fetch it here
-        setError("error converting Postgres remote query helper result to string");
+        setError("error converting remote query helper result to string");
         goto done;
     }
 

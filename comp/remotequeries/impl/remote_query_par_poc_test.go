@@ -24,7 +24,7 @@ func TestRemoteQueryPARHarnessUsesCredentialFreeIPCPostShape(t *testing.T) {
 	harness := NewRemoteQueryPARHarness(client, "https://localhost:5001"+AgentRemoteQueryExecuteEndpointPath)
 
 	result, err := harness.Execute(context.Background(), RemoteQueryPARInputs{
-		Integration: integrationPostgres,
+		Integration: "postgres",
 		Target:      remoteQueryTargetJSON{Host: "localhost", Port: 5432, DBName: "postgres"},
 		Query:       remoteQueryProofQuery,
 		Limits:      &remoteQueryExecuteLimitsJSON{MaxRows: 1, MaxBytes: 1024, TimeoutMs: 1000},
@@ -53,7 +53,7 @@ func TestRemoteQueryPARHarnessWithRealAgentIPCClient(t *testing.T) {
 	harness := NewRemoteQueryPARHarness(ipc.GetClient(), server.URL+AgentRemoteQueryExecuteEndpointPath)
 
 	result, err := harness.Execute(context.Background(), RemoteQueryPARInputs{
-		Integration: integrationPostgres,
+		Integration: "postgres",
 		Target:      remoteQueryTargetJSON{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"},
 		Query:       remoteQueryProofQuery,
 	})
@@ -85,7 +85,7 @@ func TestRemoteQueryPARHarnessPropagatesSanitizedBridgeErrors(t *testing.T) {
 		{
 			name: "target not found",
 			inputs: RemoteQueryPARInputs{
-				Integration: integrationPostgres,
+				Integration: "postgres",
 				Target:      remoteQueryTargetJSON{Host: "localhost", Port: 5432, DBName: "other"},
 				Query:       remoteQueryProofQuery,
 			},
@@ -95,7 +95,7 @@ func TestRemoteQueryPARHarnessPropagatesSanitizedBridgeErrors(t *testing.T) {
 		{
 			name: "invalid query",
 			inputs: RemoteQueryPARInputs{
-				Integration: integrationPostgres,
+				Integration: "postgres",
 				Target:      remoteQueryTargetJSON{Host: "localhost", Port: 5432, DBName: "postgres"},
 				Query:       "SELECT 2 AS value",
 			},

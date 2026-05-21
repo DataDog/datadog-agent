@@ -39,7 +39,7 @@ import (
 #include "rtloader_mem.h"
 
 char *getStringAddr(char **array, unsigned int idx);
-char *run_postgres_remote_query(rtloader_t *, rtloader_pyobject_t *check, const char *request_json);
+char *run_remote_query(rtloader_t *, rtloader_pyobject_t *check, const char *integration, const char *request_json);
 
 static inline void call_free(void* ptr) {
     _free(ptr);
@@ -160,15 +160,11 @@ func (c *PythonCheck) RunSimple() error {
 
 // RunRemoteQueryJSON runs a remote query helper for this Python check.
 func (c *PythonCheck) RunRemoteQueryJSON(integration string, requestJSON string) (string, error) {
-	switch strings.ToLower(strings.TrimSpace(integration)) {
-	case "postgres", "postgresql":
-		return c.runPostgresRemoteQueryJSON(requestJSON)
-	default:
-		return "", fmt.Errorf("unsupported integration")
+	integration = strings.ToLower(strings.TrimSpace(integration))
+	if integration == "" {
+		return "", fmt.Errorf("integration is required")
 	}
-}
 
-func (c *PythonCheck) runPostgresRemoteQueryJSON(requestJSON string) (string, error) {
 	gstate, err := newStickyLock()
 	if err != nil {
 		return "", err
@@ -179,15 +175,17 @@ func (c *PythonCheck) runPostgresRemoteQueryJSON(requestJSON string) (string, er
 		return "", fmt.Errorf("check %s is already cancelled", c.ModuleName)
 	}
 
+	cIntegration := C.CString(integration)
+	defer C.free(unsafe.Pointer(cIntegration))
 	cRequestJSON := C.CString(requestJSON)
 	defer C.free(unsafe.Pointer(cRequestJSON))
 
-	cResult := C.run_postgres_remote_query(rtloader, c.instance, cRequestJSON)
+	cResult := C.run_remote_query(rtloader, c.instance, cIntegration, cRequestJSON)
 	if cResult == nil {
 		if err := getRtLoaderError(); err != nil {
 			return "", err
 		}
-		return "", fmt.Errorf("an error occurred while running Postgres remote query")
+		return "", fmt.Errorf("an error occurred while running remote query")
 	}
 	defer C.rtloader_free(rtloader, unsafe.Pointer(cResult))
 

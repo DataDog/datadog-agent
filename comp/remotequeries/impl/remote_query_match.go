@@ -14,6 +14,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"go.uber.org/fx"
@@ -30,17 +31,12 @@ const (
 	RemoteQueryMatchEndpointPath = "/remote-queries/match-check"
 	// RemoteQueriesMatchEnabledConfig is disabled by default when the key is absent.
 	RemoteQueriesMatchEnabledConfig = "remote_queries.match_check.enabled"
-	// legacyPostgresMatchEnabledConfig preserves compatibility with the earlier POC key.
-	legacyPostgresMatchEnabledConfig = "remote_queries.postgres_match_check.enabled"
 
-	integrationPostgres = "postgres"
-
-	statusOK                     = "ok"
-	statusTargetNotFound         = "target_not_found"
-	statusAmbiguous              = "ambiguous_target"
-	statusInvalidRequest         = "invalid_request"
-	statusUnsupportedIntegration = "unsupported_integration"
-	statusBridgeDisabled         = "bridge_disabled"
+	statusOK             = "ok"
+	statusTargetNotFound = "target_not_found"
+	statusAmbiguous      = "ambiguous_target"
+	statusInvalidRequest = "invalid_request"
+	statusBridgeDisabled = "bridge_disabled"
 )
 
 // Requires defines dependencies for the Remote Queries POC endpoint provider.
@@ -55,16 +51,9 @@ type Requires struct {
 func NewRemoteQueryMatchEndpointProvider(reqs Requires) api.AgentEndpointProvider {
 	h := &remoteQueryMatchHandler{
 		collector: reqs.Collector,
-		enabled:   remoteQueryEnabled(reqs.Cfg, RemoteQueriesMatchEnabledConfig, legacyPostgresMatchEnabledConfig),
+		enabled:   reqs.Cfg.GetBool(RemoteQueriesMatchEnabledConfig),
 	}
 	return api.NewAgentEndpointProvider(h.handle, RemoteQueryMatchEndpointPath, http.MethodPost)
-}
-
-func remoteQueryEnabled(cfg config.Component, genericKey string, legacyKey string) bool {
-	if cfg.IsConfigured(genericKey) {
-		return cfg.GetBool(genericKey)
-	}
-	return cfg.GetBool(legacyKey)
 }
 
 type remoteQueryMatchHandler struct {
@@ -125,11 +114,9 @@ func invalidRequestError(message string) error {
 	return requestParseError{status: statusInvalidRequest, message: message}
 }
 
-func unsupportedIntegrationError() error {
-	return requestParseError{status: statusUnsupportedIntegration, message: "unsupported integration"}
-}
+var integrationNamePattern = regexp.MustCompile(`^[a-z0-9_]+$`)
 
-type postgresInstanceTarget struct {
+type integrationInstanceTarget struct {
 	host   string
 	port   int
 	dbname string
@@ -152,11 +139,11 @@ func (h *remoteQueryMatchHandler) handle(w http.ResponseWriter, r *http.Request)
 	matches := h.findMatches(req.Integration, req.Target)
 	switch len(matches) {
 	case 0:
-		writeMatchResponse(w, http.StatusNotFound, statusTargetNotFound, 0, nil, "no matching Postgres check found")
+		writeMatchResponse(w, http.StatusNotFound, statusTargetNotFound, 0, nil, "no matching integration check found")
 	case 1:
 		writeMatchResponse(w, http.StatusOK, statusOK, 1, &matches[0].sanitized, "")
 	default:
-		writeMatchResponse(w, http.StatusConflict, statusAmbiguous, len(matches), nil, "multiple matching Postgres checks found")
+		writeMatchResponse(w, http.StatusConflict, statusAmbiguous, len(matches), nil, "multiple matching integration checks found")
 	}
 }
 
@@ -183,14 +170,14 @@ func parseMatchRequest(r *http.Request) (remoteQueryMatchRequest, error) {
 }
 
 func parseIntegration(integration string) (string, error) {
-	switch strings.ToLower(strings.TrimSpace(integration)) {
-	case "":
+	integration = strings.ToLower(strings.TrimSpace(integration))
+	if integration == "" {
 		return "", fmt.Errorf("integration is required")
-	case integrationPostgres, "postgresql":
-		return integrationPostgres, nil
-	default:
-		return "", unsupportedIntegrationError()
 	}
+	if !integrationNamePattern.MatchString(integration) {
+		return "", invalidRequestError("integration contains invalid characters")
+	}
+	return integration, nil
 }
 
 func isJSONContentType(contentType string) bool {
@@ -318,38 +305,33 @@ func normalizeHost(host string) string {
 	return strings.TrimSuffix(host, ".")
 }
 
-type postgresCheckMatch struct {
+type integrationCheckMatch struct {
 	check     check.Check
 	sanitized sanitizedMatch
 }
 
-func (h *remoteQueryMatchHandler) findMatches(integration string, target remoteQueryTarget) []postgresCheckMatch {
-	switch integration {
-	case integrationPostgres:
-		return findPostgresMatches(h.collector, target)
-	default:
-		return nil
-	}
+func (h *remoteQueryMatchHandler) findMatches(integration string, target remoteQueryTarget) []integrationCheckMatch {
+	return findIntegrationMatches(h.collector, integration, target)
 }
 
-func findPostgresMatches(collector collector.Component, target remoteQueryTarget) []postgresCheckMatch {
+func findIntegrationMatches(collector collector.Component, integration string, target remoteQueryTarget) []integrationCheckMatch {
 	checks := collector.GetChecks()
-	matches := make([]postgresCheckMatch, 0, 1)
+	matches := make([]integrationCheckMatch, 0, 1)
 	for _, chk := range checks {
-		if !isPostgresCheck(chk) {
+		if normalizeIntegrationName(chk.String()) != integration {
 			continue
 		}
 
-		instanceTarget, ok := parsePostgresInstanceTarget(chk.InstanceConfig())
+		instanceTarget, ok := parseIntegrationInstanceTarget(chk.InstanceConfig())
 		if !ok {
 			continue
 		}
 
 		if instanceTarget.host == target.Host && instanceTarget.port == target.Port && instanceTarget.dbname == target.DBName {
-			matches = append(matches, postgresCheckMatch{
+			matches = append(matches, integrationCheckMatch{
 				check: chk,
 				sanitized: sanitizedMatch{
-					Integration:    "postgres",
+					Integration:    integration,
 					Loader:         chk.Loader(),
 					ConfigProvider: chk.ConfigProvider(),
 				},
@@ -359,37 +341,36 @@ func findPostgresMatches(collector collector.Component, target remoteQueryTarget
 	return matches
 }
 
-func isPostgresCheck(chk check.Check) bool {
-	name := strings.ToLower(strings.TrimSpace(chk.String()))
-	return name == "postgres" || name == "postgresql"
+func normalizeIntegrationName(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
 }
 
-func parsePostgresInstanceTarget(instanceConfig string) (postgresInstanceTarget, bool) {
+func parseIntegrationInstanceTarget(instanceConfig string) (integrationInstanceTarget, bool) {
 	var fields map[string]any
 	if err := yaml.Unmarshal([]byte(instanceConfig), &fields); err != nil || fields == nil {
-		return postgresInstanceTarget{}, false
+		return integrationInstanceTarget{}, false
 	}
 
 	host, ok := fields["host"].(string)
 	if !ok {
-		return postgresInstanceTarget{}, false
+		return integrationInstanceTarget{}, false
 	}
 	host = normalizeHost(host)
 	if host == "" {
-		return postgresInstanceTarget{}, false
+		return integrationInstanceTarget{}, false
 	}
 
 	port, ok := yamlInt(fields["port"])
 	if !ok || port < 1 || port > 65535 {
-		return postgresInstanceTarget{}, false
+		return integrationInstanceTarget{}, false
 	}
 
 	dbname, ok := fields["dbname"].(string)
 	if !ok || dbname == "" {
-		return postgresInstanceTarget{}, false
+		return integrationInstanceTarget{}, false
 	}
 
-	return postgresInstanceTarget{host: host, port: port, dbname: dbname}, true
+	return integrationInstanceTarget{host: host, port: port, dbname: dbname}, true
 }
 
 func yamlInt(value any) (int, bool) {
@@ -415,11 +396,7 @@ func writeMatchParseError(w http.ResponseWriter, err error) {
 		return
 	}
 
-	httpStatus := http.StatusBadRequest
-	if parseErr.status == statusUnsupportedIntegration {
-		httpStatus = http.StatusUnprocessableEntity
-	}
-	writeMatchResponse(w, httpStatus, parseErr.status, 0, nil, parseErr.message)
+	writeMatchResponse(w, http.StatusBadRequest, parseErr.status, 0, nil, parseErr.message)
 }
 
 func writeMatchResponse(w http.ResponseWriter, httpStatus int, status string, matchedCount int, match *sanitizedMatch, message string) {

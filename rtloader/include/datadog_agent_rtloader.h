@@ -190,16 +190,17 @@ DATADOG_AGENT_RTLOADER_API int get_check_deprecated(rtloader_t *rtloader, rtload
 */
 DATADOG_AGENT_RTLOADER_API char *run_check(rtloader_t *, rtloader_pyobject_t *check);
 
-/*! \fn char *run_postgres_remote_query(rtloader_t *, rtloader_pyobject_t *check, const char *request_json)
-    \brief Runs the fixed Postgres remote query helper for a check instance.
+/*! \fn char *run_remote_query(rtloader_t *, rtloader_pyobject_t *check, const char *integration, const char *request_json)
+    \brief Runs the integration remote query helper for a check instance.
     \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
     \param check A rtloader_pyobject_t * pointer to the check instance we wish to use.
+    \param integration The integration helper module name.
     \param request_json A credential-free JSON request string.
     \return A C-string with the JSON result.
     \sa rtloader_pyobject_t, rtloader_t
 */
-DATADOG_AGENT_RTLOADER_API char *run_postgres_remote_query(rtloader_t *, rtloader_pyobject_t *check,
-                                                           const char *request_json);
+DATADOG_AGENT_RTLOADER_API char *run_remote_query(rtloader_t *, rtloader_pyobject_t *check, const char *integration,
+                                                  const char *request_json);
 
 /*! \fn char *cancel_check(rtloader_t *, rtloader_pyobject_t *check)
     \brief Cancels a check instance. This allow check to be notified when

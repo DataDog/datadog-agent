@@ -94,19 +94,19 @@ func TestParseMatchRequestNormalizesTargetHost(t *testing.T) {
 
 	parsed, err := parseMatchRequest(req)
 	require.NoError(t, err)
-	assert.Equal(t, integrationPostgres, parsed.Integration)
+	assert.Equal(t, "postgres", parsed.Integration)
 	assert.Equal(t, remoteQueryTarget{Host: "localhost", Port: 5432, DBName: "Postgres"}, parsed.Target)
 }
 
-func TestParseMatchRequestRejectsUnsupportedIntegration(t *testing.T) {
+func TestParseMatchRequestRejectsInvalidIntegration(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, RemoteQueryMatchEndpointPath, strings.NewReader(
-		`{"integration":"mysql","target":{"host":"localhost","port":3306,"dbname":"mysql"}}`,
+		`{"integration":"my-sql","target":{"host":"localhost","port":3306,"dbname":"mysql"}}`,
 	))
 	req.Header.Set("Content-Type", "application/json")
 
 	_, err := parseMatchRequest(req)
 	require.Error(t, err)
-	assert.Equal(t, "unsupported integration", err.Error())
+	assert.Equal(t, "integration contains invalid characters", err.Error())
 }
 
 func TestRemoteQueryMatchHandlerDisabled(t *testing.T) {
@@ -185,13 +185,14 @@ func TestRemoteQueryMatchHandlerUnknownTargetFieldDoesNotEchoValue(t *testing.T)
 	assert.NotContains(t, body, "secret-value")
 }
 
-func TestRemoteQueryMatchHandlerRejectsUnsupportedIntegration(t *testing.T) {
+func TestRemoteQueryMatchHandlerRejectsInvalidIntegration(t *testing.T) {
 	handler := &remoteQueryMatchHandler{enabled: true, collector: fakeCollector{}}
 
-	recorder := callMatchHandler(handler, `{"integration":"mysql","target":{"host":"localhost","port":3306,"dbname":"mysql"}}`)
+	recorder := callMatchHandler(handler, `{"integration":"my-sql","target":{"host":"localhost","port":3306,"dbname":"mysql"}}`)
 
-	assert.Equal(t, http.StatusUnprocessableEntity, recorder.Code)
-	assert.Contains(t, recorder.Body.String(), `"status":"unsupported_integration"`)
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"status":"invalid_request"`)
+	assert.Contains(t, recorder.Body.String(), "integration contains invalid characters")
 	assert.NotContains(t, recorder.Body.String(), "mysql")
 }
 
@@ -334,21 +335,21 @@ func TestParseExecuteRequestNormalizesAndMarshalsExecutorJSON(t *testing.T) {
 
 	parsed, requestJSON, err := parseExecuteRequest(req)
 	require.NoError(t, err)
-	assert.Equal(t, integrationPostgres, parsed.Integration)
+	assert.Equal(t, "postgres", parsed.Integration)
 	assert.Equal(t, remoteQueryTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, parsed.Target)
 	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":10,"maxBytes":1048576,"timeoutMs":5000}}`, requestJSON)
 	assert.NotContains(t, requestJSON, "integration")
 }
 
-func TestParseExecuteRequestRejectsUnsupportedIntegration(t *testing.T) {
+func TestParseExecuteRequestRejectsInvalidIntegration(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(
-		`{"integration":"mysql","target":{"host":"localhost","port":3306,"dbname":"mysql"},"query":"SELECT 1 AS value"}`,
+		`{"integration":"my-sql","target":{"host":"localhost","port":3306,"dbname":"mysql"},"query":"SELECT 1 AS value"}`,
 	))
 	req.Header.Set("Content-Type", "application/json")
 
 	_, _, err := parseExecuteRequest(req)
 	require.Error(t, err)
-	assert.Equal(t, "unsupported integration", err.Error())
+	assert.Equal(t, "integration contains invalid characters", err.Error())
 }
 
 func TestParseExecuteRequestAllowsOmittedLimits(t *testing.T) {
@@ -389,13 +390,14 @@ func TestRemoteQueryExecuteHandlerRunnerSuccess(t *testing.T) {
 	assert.NotContains(t, recorder.Body.String(), "secret-value")
 }
 
-func TestRemoteQueryExecuteHandlerRejectsUnsupportedIntegration(t *testing.T) {
+func TestRemoteQueryExecuteHandlerRejectsInvalidIntegration(t *testing.T) {
 	handler := &remoteQueryExecuteHandler{enabled: true, collector: fakeCollector{}}
 
-	recorder := callExecuteHandler(handler, `{"integration":"mysql","target":{"host":"localhost","port":3306,"dbname":"mysql"},"query":"SELECT 1 AS value"}`)
+	recorder := callExecuteHandler(handler, `{"integration":"my-sql","target":{"host":"localhost","port":3306,"dbname":"mysql"},"query":"SELECT 1 AS value"}`)
 
-	assert.Equal(t, http.StatusUnprocessableEntity, recorder.Code)
-	assert.Contains(t, recorder.Body.String(), `"status":"unsupported_integration"`)
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"status":"invalid_request"`)
+	assert.Contains(t, recorder.Body.String(), "integration contains invalid characters")
 	assert.NotContains(t, recorder.Body.String(), "mysql")
 }
 
@@ -479,7 +481,7 @@ type fakeRunnerCheck struct {
 }
 
 func (f *fakeRunnerCheck) RunRemoteQueryJSON(integration string, requestJSON string) (string, error) {
-	if integration != integrationPostgres {
+	if integration != "postgres" {
 		return "", assert.AnError
 	}
 	f.seen = requestJSON

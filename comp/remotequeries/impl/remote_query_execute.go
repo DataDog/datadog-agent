@@ -23,8 +23,6 @@ const (
 	RemoteQueryExecuteEndpointPath = "/remote-queries/execute"
 	// RemoteQueriesExecuteEnabledConfig is disabled by default when the key is absent.
 	RemoteQueriesExecuteEnabledConfig = "remote_queries.execute.enabled"
-	// legacyPostgresExecuteEnabledConfig preserves compatibility with the earlier POC key.
-	legacyPostgresExecuteEnabledConfig = "remote_queries.postgres_execute.enabled"
 
 	remoteQueryProofQuery = "SELECT 1 AS value"
 
@@ -61,7 +59,7 @@ func remoteQueryRunnerFor(chk check.Check) (remoteQueryRunner, bool) {
 func NewRemoteQueryExecuteEndpointProvider(reqs Requires) api.AgentEndpointProvider {
 	h := &remoteQueryExecuteHandler{
 		collector: reqs.Collector,
-		enabled:   remoteQueryEnabled(reqs.Cfg, RemoteQueriesExecuteEnabledConfig, legacyPostgresExecuteEnabledConfig),
+		enabled:   reqs.Cfg.GetBool(RemoteQueriesExecuteEnabledConfig),
 	}
 	return api.NewAgentEndpointProvider(h.handle, RemoteQueryExecuteEndpointPath, http.MethodPost)
 }
@@ -132,18 +130,18 @@ func (h *remoteQueryExecuteHandler) handle(w http.ResponseWriter, r *http.Reques
 	matches := h.findMatches(req.Integration, req.Target)
 	switch len(matches) {
 	case 0:
-		writeExecuteError(w, http.StatusNotFound, statusTargetNotFound, "no matching Postgres check found")
+		writeExecuteError(w, http.StatusNotFound, statusTargetNotFound, "no matching integration check found")
 		return
 	case 1:
 		// continue below
 	default:
-		writeExecuteError(w, http.StatusConflict, statusAmbiguous, "multiple matching Postgres checks found")
+		writeExecuteError(w, http.StatusConflict, statusAmbiguous, "multiple matching integration checks found")
 		return
 	}
 
 	runner, ok := remoteQueryRunnerFor(matches[0].check)
 	if !ok {
-		writeExecuteError(w, http.StatusFailedDependency, statusExecutorUnavailable, "matched Postgres check does not support remote query execution")
+		writeExecuteError(w, http.StatusFailedDependency, statusExecutorUnavailable, "matched integration check does not support remote query execution")
 		return
 	}
 
@@ -251,13 +249,8 @@ func parseRequiredPositiveInt(value *int, name string) (int, error) {
 	return *value, nil
 }
 
-func (h *remoteQueryExecuteHandler) findMatches(integration string, target remoteQueryTarget) []postgresCheckMatch {
-	switch integration {
-	case integrationPostgres:
-		return findPostgresMatches(h.collector, target)
-	default:
-		return nil
-	}
+func (h *remoteQueryExecuteHandler) findMatches(integration string, target remoteQueryTarget) []integrationCheckMatch {
+	return findIntegrationMatches(h.collector, integration, target)
 }
 
 func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
@@ -287,11 +280,7 @@ func writeExecuteParseError(w http.ResponseWriter, err error) {
 		return
 	}
 
-	httpStatus := http.StatusBadRequest
-	if parseErr.status == statusUnsupportedIntegration {
-		httpStatus = http.StatusUnprocessableEntity
-	}
-	writeExecuteError(w, httpStatus, parseErr.status, parseErr.message)
+	writeExecuteError(w, http.StatusBadRequest, parseErr.status, parseErr.message)
 }
 
 func writeExecuteError(w http.ResponseWriter, httpStatus int, status string, message string) {
