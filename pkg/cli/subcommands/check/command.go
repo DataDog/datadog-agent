@@ -213,7 +213,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 				fx.Supply(option.None[integrations.Component]()),
 
 				getPlatformModules(),
-				jmxloggerfx.Module(jmxlogger.NewCliParams("")),
+				jmxloggerfx.Module(),
+				fx.Supply(jmxlogger.NewCliParams("")),
 				haagentfx.Module(),
 				ipcfx.ModuleReadOnly(),
 				remotetraceroute.Module(),

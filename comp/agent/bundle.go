@@ -7,6 +7,8 @@
 package agent
 
 import (
+	"go.uber.org/fx"
+
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	cloudfoundrycontainerfx "github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/fx"
 	expvarserverfx "github.com/DataDog/datadog-agent/comp/agent/expvarserver/fx"
@@ -21,7 +23,8 @@ import (
 func Bundle(params jmxlogger.Params) fxutil.BundleOptions {
 	return fxutil.Bundle(
 		autoexitfx.Module(),
-		jmxloggerfx.Module(params),
+		jmxloggerfx.Module(),
+		fx.Supply(params),
 		expvarserverfx.Module(),
 		cloudfoundrycontainerfx.Module(),
 	)

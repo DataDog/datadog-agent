@@ -7,19 +7,15 @@
 package fx
 
 import (
-	"go.uber.org/fx"
-
-	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
 	jmxloggerimpl "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Module defines the fx options for this component.
-func Module(params jmxlogger.Params) fxutil.Module {
+func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
 			jmxloggerimpl.NewComponent,
 		),
-		fx.Supply(params),
 	)
 }

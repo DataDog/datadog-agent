@@ -6,9 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/fx",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/agent/jmxlogger/def",
         "//comp/agent/jmxlogger/impl",
         "//pkg/util/fxutil",
-        "@org_uber_go_fx//:fx",
     ],
 )
