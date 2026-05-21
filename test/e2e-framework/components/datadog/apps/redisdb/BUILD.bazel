@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "redisdb",
+    srcs = ["docker.go"],
+    embedsrcs = [
+        "docker-compose.yaml",
+        "load/redis_load.py",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redisdb",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/docker",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

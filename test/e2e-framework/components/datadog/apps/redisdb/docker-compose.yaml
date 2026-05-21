@@ -1,0 +1,113 @@
+---
+# redisdb E2E lab – Docker Compose topology
+#
+# Services:
+#   redis-master   – primary R/W node (port 6382)
+#   redis-replica  – healthy streaming replica of master (port 6380)
+#   redisdb-load   – continuous Python load generator (metric exerciser)
+#
+# Datadog Autodiscovery labels are attached to each Redis container separately so
+# %%host%% resolves to the container that is actually serving the configured port.
+#
+# All containers share the default bridge network created by Compose.
+version: "3.9"
+
+services:
+
+  # ── Primary node ─────────────────────────────────────────────────────────────
+  redis-master:
+    image: redis:7.0
+    container_name: redis-master
+    command:
+      - redis-server
+      - --port
+      - "6382"
+      - --loglevel
+      - notice
+    ports:
+      - "6382:6382"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6382", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    labels:
+      com.datadoghq.ad.checks: >-
+        {"redisdb": {
+          "init_config": {},
+          "instances": [
+            {
+              "host": "%%host%%",
+              "port": "6382",
+              "keys": ["test_*"],
+              "collect_client_metrics": true,
+              "command_stats": true,
+              "slowlog-max-len": 128,
+              "tags": ["env:e2e-lab", "redis_role:master"]
+            }
+          ]
+        }}
+
+  # ── Streaming replica ─────────────────────────────────────────────────────────
+  redis-replica:
+    image: redis:7.0
+    container_name: redis-replica
+    command:
+      - redis-server
+      - --port
+      - "6380"
+      - --replicaof
+      - redis-master
+      - "6382"
+      - --loglevel
+      - notice
+    ports:
+      - "6380:6380"
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6380", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    labels:
+      com.datadoghq.ad.checks: >-
+        {"redisdb": {
+          "init_config": {},
+          "instances": [
+            {
+              "host": "%%host%%",
+              "port": "6380",
+              "tags": ["env:e2e-lab", "redis_role:replica"]
+            }
+          ]
+        }}
+
+  # ── Load generator ────────────────────────────────────────────────────────────
+  # Runs the copied load/redis_load.py asset. The scenario copies this file to
+  # the remote Docker host before Docker Compose starts.
+  redisdb-load:
+    image: python:3.11-slim
+    container_name: redisdb-load
+    environment:
+      REDIS_MASTER_HOST: redis-master
+      REDIS_MASTER_PORT: "6382"
+      REDIS_REPLICA_HOST: redis-replica
+      REDIS_REPLICA_PORT: "6380"
+    volumes:
+      - /tmp/redisdb-assets/load/redis_load.py:/load/redis_load.py:ro
+    command:
+      - /bin/sh
+      - -c
+      - |
+        pip install --no-cache-dir redis==5.2.1 --quiet
+        exec python /load/redis_load.py
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      redis-replica:
+        condition: service_healthy
+    restart: on-failure
