@@ -58,8 +58,8 @@ func (n *NoopHealthPlatform) ResolveIssue(_ string) {
 func (n *NoopHealthPlatform) ResolveAllIssues() {
 }
 
-// GetActiveIssueIDsByIssueType returns nil when the health platform is disabled.
-func (n *NoopHealthPlatform) GetActiveIssueIDsByIssueType(_ string) []string {
+// GetActiveIssueIDsByIssueName returns nil when the health platform is disabled.
+func (n *NoopHealthPlatform) GetActiveIssueIDsByIssueName(_ string) []string {
 	return nil
 }
 

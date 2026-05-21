@@ -27,6 +27,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
@@ -99,16 +100,16 @@ func TestBundleStartLifecycle(t *testing.T) {
 	const (
 		testSource  = "test-bundle-lifecycle"
 		testIssueID = "test-bundle-lifecycle-issue"
-		// Reuse a real issue type registered by the bundle's side-effect imports
+		// Reuse a real issue name registered by the bundle's side-effect imports
 		// so the registry's BuildIssue lookup succeeds.
-		testIssueType = "docker-file-tailing-disabled"
+		testIssueName = "docker_file_tailing_disabled"
 	)
 	require.NoError(t, deps.Scheduler.Schedule(testSource, func() ([]runnerdef.IssueReport, error) {
 		checkRunCount.Add(1)
 		return []runnerdef.IssueReport{
 			{
 				IssueID:   testIssueID,
-				IssueType: testIssueType,
+				IssueName: testIssueName,
 				Source:    testSource,
 				Context: map[string]string{
 					"dockerDir": "/var/lib/docker",
@@ -142,4 +143,21 @@ func TestBundleStartLifecycle(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "no received report contained the test issue (id=%s)", testIssueID)
+}
+
+// TestAllModulesIssueNameMatchesBuiltIssueName guards the invariant that
+// store.storeIssue keys issuesByName by issue.IssueName, while
+// GetActiveIssueIDsByIssueName is called with module.IssueName(). They must
+// match or restart-based issue resolution silently breaks.
+func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
+	cfg := config.NewMock(t)
+	mods := issues.GetAllModules(cfg)
+	require.NotEmpty(t, mods, "no modules registered")
+	for _, mod := range mods {
+		issue, err := mod.IssueTemplate().BuildIssue(map[string]string{})
+		require.NoError(t, err, "module %s: BuildIssue failed", mod.IssueName())
+		assert.Equal(t, mod.IssueName(), issue.IssueName,
+			"module IssueName() %q must equal BuildIssue().IssueName %q",
+			mod.IssueName(), issue.IssueName)
+	}
 }

@@ -46,7 +46,7 @@ func (m *mockStore) ResolveIssue(_ string)                                      
 func (m *mockStore) ResolveAllIssues()                                            {}
 func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue               { return nil }
 func (m *mockStore) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) { return 0, nil }
-func (m *mockStore) GetActiveIssueIDsByIssueType(_ string) []string               { return nil }
+func (m *mockStore) GetActiveIssueIDsByIssueName(_ string) []string               { return nil }
 
 var _ storedef.Component = (*mockStore)(nil)
 
@@ -66,8 +66,8 @@ func TestRunHappyPath(t *testing.T) {
 
 	fn := func() ([]runnerdef.IssueReport, error) {
 		return []runnerdef.IssueReport{
-			{IssueID: "id-1", IssueType: "type-a", Source: "mycomp"},
-			{IssueID: "id-2", IssueType: "type-b", Source: "mycomp"},
+			{IssueID: "id-1", IssueName: "type-a", Source: "mycomp"},
+			{IssueID: "id-2", IssueName: "type-b", Source: "mycomp"},
 		}, nil
 	}
 
@@ -96,7 +96,7 @@ func TestRunFnError(t *testing.T) {
 
 	fn := func() ([]runnerdef.IssueReport, error) {
 		return []runnerdef.IssueReport{
-			{IssueID: "id-1", IssueType: "type-a", Source: "mycomp"},
+			{IssueID: "id-1", IssueName: "type-a", Source: "mycomp"},
 		}, errors.New("probe failed")
 	}
 
@@ -128,7 +128,7 @@ func TestRunSourceDefaultFill(t *testing.T) {
 
 	fn := func() ([]runnerdef.IssueReport, error) {
 		return []runnerdef.IssueReport{
-			{IssueID: "id-1", IssueType: "type-a"}, // Source intentionally empty
+			{IssueID: "id-1", IssueName: "type-a"}, // Source intentionally empty
 		}, nil
 	}
 
@@ -147,7 +147,7 @@ func TestRunSourceNotOverridden(t *testing.T) {
 
 	fn := func() ([]runnerdef.IssueReport, error) {
 		return []runnerdef.IssueReport{
-			{IssueID: "id-1", IssueType: "type-a", Source: "explicit-source"},
+			{IssueID: "id-1", IssueName: "type-a", Source: "explicit-source"},
 		}, nil
 	}
 
@@ -166,8 +166,8 @@ func TestRunStoreError(t *testing.T) {
 
 	fn := func() ([]runnerdef.IssueReport, error) {
 		return []runnerdef.IssueReport{
-			{IssueID: "id-1", IssueType: "type-a", Source: "mycomp"},
-			{IssueID: "id-2", IssueType: "type-b", Source: "mycomp"},
+			{IssueID: "id-1", IssueName: "type-a", Source: "mycomp"},
+			{IssueID: "id-2", IssueName: "type-b", Source: "mycomp"},
 		}, nil
 	}
 
@@ -195,7 +195,7 @@ func TestRunConcurrent(t *testing.T) {
 			fn := func() ([]runnerdef.IssueReport, error) {
 				atomic.AddInt32(&callCount, 1)
 				return []runnerdef.IssueReport{
-					{IssueID: fmt.Sprintf("id-%d", idx), IssueType: "type-a", Source: "mycomp"},
+					{IssueID: fmt.Sprintf("id-%d", idx), IssueName: "type-a", Source: "mycomp"},
 				}, nil
 			}
 			r.Run("mycomp", fn) //nolint:errcheck

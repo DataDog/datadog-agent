@@ -723,7 +723,7 @@ func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 	// Pre-populate a health issue using the same IssueId format the code uses.
 	hp.ReportIssue(&healthplatformpayload.Issue{
 		Id:        "ad-template:redis:docker://def456:" + tpl.Digest(),
-		IssueName: storedef.ADMisconfigurationIssueType,
+		IssueName: storedef.ADMisconfigurationIssueName,
 		Source:    storedef.ADMisconfigurationSource,
 	})
 	count, _ := hp.GetAllIssues()

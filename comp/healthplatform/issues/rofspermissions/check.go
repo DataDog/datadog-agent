@@ -60,7 +60,7 @@ func Check(cfg config.Component) ([]runnerdef.IssueReport, error) {
 	return []runnerdef.IssueReport{
 		{
 			IssueID:   IssueID,
-			IssueType: IssueType,
+			IssueName: IssueName,
 			Source:    "agent",
 			Context: map[string]string{
 				"directories": strings.Join(nonWritableDirs, ","),

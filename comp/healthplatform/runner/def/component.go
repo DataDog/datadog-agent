@@ -21,9 +21,9 @@ type IssueReport struct {
 	//   "ad-template:redis:svc-foo:deadbeef"
 	IssueID string
 
-	// IssueType is the template id looked up in the issue registry.
-	// Examples: "check-execution-failure", "docker-file-tailing-disabled"
-	IssueType string
+	// IssueName is the snake_case issue name looked up in the issue registry.
+	// Examples: "check_execution_failure", "docker_file_tailing_disabled"
+	IssueName string
 
 	// Source is the reporting integration or component name.
 	// If empty, the runner fills it from the source argument to Run.

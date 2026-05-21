@@ -79,11 +79,11 @@ func (r *runner) Run(source string, fn runnerdef.HealthCheckFunc) (issueIDs []st
 }
 
 // toProto builds a proto Issue from an IssueReport. If the registry has a
-// template for report.IssueType, that template is used to populate the proto
+// template for report.IssueName, that template is used to populate the proto
 // fields; otherwise a minimal proto is built from the report fields directly.
 func (r *runner) toProto(report runnerdef.IssueReport) *healthplatformpayload.Issue {
-	if r.registry.HasTemplate(report.IssueType) {
-		issue, err := r.registry.BuildIssue(report.IssueType, report.Context)
+	if r.registry.HasTemplate(report.IssueName) {
+		issue, err := r.registry.BuildIssue(report.IssueName, report.Context)
 		if err == nil && issue != nil {
 			issue.Id = report.IssueID
 			if len(report.Tags) > 0 {
@@ -91,11 +91,11 @@ func (r *runner) toProto(report runnerdef.IssueReport) *healthplatformpayload.Is
 			}
 			return issue
 		}
-		r.log.Warnf("runner: failed to build issue %s from registry: %v; using minimal proto", report.IssueType, err)
+		r.log.Warnf("runner: failed to build issue %s from registry: %v; using minimal proto", report.IssueName, err)
 	}
 	return &healthplatformpayload.Issue{
 		Id:        report.IssueID,
-		IssueName: report.IssueType,
+		IssueName: report.IssueName,
 		Source:    report.Source,
 		Tags:      report.Tags,
 	}

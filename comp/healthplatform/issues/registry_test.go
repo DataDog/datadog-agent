@@ -36,7 +36,7 @@ type mockModuleWithCheck struct {
 	template *mockIssueTemplate
 }
 
-func (m *mockModuleWithCheck) IssueType() string            { return m.id }
+func (m *mockModuleWithCheck) IssueName() string            { return m.id }
 func (m *mockModuleWithCheck) IssueTemplate() IssueTemplate { return m.template }
 func (m *mockModuleWithCheck) BuiltInPeriodicHealthCheck() *BuiltInPeriodicHealthCheck {
 	return &BuiltInPeriodicHealthCheck{
@@ -53,7 +53,7 @@ type mockModuleWithOnce struct {
 	template *mockIssueTemplate
 }
 
-func (m *mockModuleWithOnce) IssueType() string                                       { return m.id }
+func (m *mockModuleWithOnce) IssueName() string                                       { return m.id }
 func (m *mockModuleWithOnce) IssueTemplate() IssueTemplate                            { return m.template }
 func (m *mockModuleWithOnce) BuiltInPeriodicHealthCheck() *BuiltInPeriodicHealthCheck { return nil }
 func (m *mockModuleWithOnce) BuiltInStartupHealthCheck() *BuiltInStartupHealthCheck {
@@ -69,7 +69,7 @@ type mockModuleWithoutCheck struct {
 	template *mockIssueTemplate
 }
 
-func (m *mockModuleWithoutCheck) IssueType() string                                       { return m.id }
+func (m *mockModuleWithoutCheck) IssueName() string                                       { return m.id }
 func (m *mockModuleWithoutCheck) IssueTemplate() IssueTemplate                            { return m.template }
 func (m *mockModuleWithoutCheck) BuiltInPeriodicHealthCheck() *BuiltInPeriodicHealthCheck { return nil }
 func (m *mockModuleWithoutCheck) BuiltInStartupHealthCheck() *BuiltInStartupHealthCheck   { return nil }

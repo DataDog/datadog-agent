@@ -114,7 +114,7 @@ func newTestStore(t *testing.T) *healthPlatformImpl {
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
 		issues:           make(map[string]*healthplatformpayload.Issue),
-		issuesByType:     make(map[string]map[string]struct{}),
+		issuesByName:     make(map[string]map[string]struct{}),
 		persistedIssues:  make(map[string]*PersistedIssue),
 		persistence:      &memPersistence{},
 		metrics: telemetryMetrics{
@@ -391,7 +391,7 @@ func TestTelemetryCounterIncrements(t *testing.T) {
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
 		issues:           make(map[string]*healthplatformpayload.Issue),
-		issuesByType:     make(map[string]map[string]struct{}),
+		issuesByName:     make(map[string]map[string]struct{}),
 		persistedIssues:  make(map[string]*PersistedIssue),
 		persistence:      &memPersistence{},
 		metrics:          telemetryMetrics{issuesCounter: counter},
@@ -402,15 +402,15 @@ func TestTelemetryCounterIncrements(t *testing.T) {
 	assert.Equal(t, 1.0, counter.WithValues("t").Get())
 }
 
-func TestGetActiveIssueIDsByIssueType(t *testing.T) {
+func TestGetActiveIssueIDsByIssueName(t *testing.T) {
 	h := newTestStore(t)
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:1", IssueName: "t"}))
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:2", IssueName: "t"}))
 
-	ids := h.GetActiveIssueIDsByIssueType("t")
+	ids := h.GetActiveIssueIDsByIssueName("t")
 	assert.ElementsMatch(t, []string{"t:1", "t:2"}, ids)
 
 	h.ResolveIssue("t:1")
-	ids = h.GetActiveIssueIDsByIssueType("t")
+	ids = h.GetActiveIssueIDsByIssueName("t")
 	assert.ElementsMatch(t, []string{"t:2"}, ids)
 }

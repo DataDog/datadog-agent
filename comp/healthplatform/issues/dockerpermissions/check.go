@@ -45,7 +45,7 @@ func Check() ([]runnerdef.IssueReport, error) {
 		return []runnerdef.IssueReport{
 			{
 				IssueID:   IssueID,
-				IssueType: IssueType,
+				IssueName: IssueName,
 				Source:    "docker",
 				Context: map[string]string{
 					"dockerDirs": strings.Join(unreachableSockets, ","),

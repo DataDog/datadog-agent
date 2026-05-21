@@ -468,7 +468,7 @@ func (cm *reconcilingConfigManager) reportTemplateResolutionFailure(tpl integrat
 	if buildErr != nil {
 		issue = &healthplatformpayload.Issue{
 			Id:        issueID,
-			IssueName: healthplatformdef.ADMisconfigurationIssueType,
+			IssueName: healthplatformdef.ADMisconfigurationIssueName,
 			Source:    healthplatformdef.ADMisconfigurationSource,
 		}
 	} else {

@@ -57,7 +57,7 @@ func (m *mockStore) ReportIssue(_ *healthplatformpayload.Issue) error           
 func (m *mockStore) ResolveAllIssues()                                            {}
 func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue               { return nil }
 func (m *mockStore) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) { return 0, nil }
-func (m *mockStore) GetActiveIssueIDsByIssueType(_ string) []string               { return nil }
+func (m *mockStore) GetActiveIssueIDsByIssueName(_ string) []string               { return nil }
 
 func newTestScheduler(t *testing.T, runner runnerdef.Component, store storedef.Component) *scheduler {
 	t.Helper()

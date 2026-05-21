@@ -23,8 +23,9 @@ func init() {
 }
 
 const (
-	// IssueType is the template identifier for ROFS permission issues
-	IssueType = "read-only-filesystem-error"
+	// IssueName is the snake_case identifier for ROFS permission issues,
+	// used as the template registry key and the proto IssueName field.
+	IssueName = "read-only-filesystem-error"
 
 	// IssueID is the unique instance id used when reporting this issue
 	IssueID = "rofs-permissions"
@@ -43,8 +44,8 @@ func NewModule(conf config.Component) issues.Module {
 	}
 }
 
-func (r *rofsPermissionsModule) IssueType() string {
-	return IssueType
+func (r *rofsPermissionsModule) IssueName() string {
+	return IssueName
 }
 
 func (r *rofsPermissionsModule) IssueTemplate() issues.IssueTemplate {
