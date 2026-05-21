@@ -57,10 +57,13 @@ func NewJSONAggregator(tagCompleteJSON bool, maxContentSize int) JSONAggregator 
 func (r *jsonAggregator) Process(msg *message.Message) []*message.Message {
 	content := msg.GetContent()
 
-	// If buffer is empty and content is likely complete single-line JSON,
-	// validate and return without parsing
-	if len(r.messageBuf) == 0 && json.Valid(content) {
-		return []*message.Message{msg}
+	if len(r.messageBuf) == 0 {
+		if !looksLikeJSON(content) {
+			return []*message.Message{msg}
+		}
+		if json.Valid(content) {
+			return []*message.Message{msg}
+		}
 	}
 
 	r.messageBuf = append(r.messageBuf, msg)
@@ -157,4 +160,21 @@ func (n *NoopJSONAggregator) Flush() []*message.Message {
 // IsEmpty always returns true since NoopJSONAggregator never buffers.
 func (n *NoopJSONAggregator) IsEmpty() bool {
 	return true
+}
+
+// looksLikeJSON checks the first non-whitespace byte to determine if the
+// content could be JSON. Returns false for non-JSON content without calling
+// json.Valid(), avoiding a full parse on every message.
+func looksLikeJSON(content []byte) bool {
+	for _, b := range content {
+		switch b {
+		case '{', '[':
+			return true
+		case ' ', '\t', '\n', '\r':
+			continue
+		default:
+			return false
+		}
+	}
+	return false
 }

@@ -198,8 +198,12 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 	}
 	now := s.now()
 
+	tokLen := len(tokens)
 	for i := range s.entries {
 		e := &s.entries[i]
+		if !couldMatch(len(e.tokens), tokLen, s.config.MatchThreshold) {
+			continue
+		}
 		if !IsMatch(e.tokens, tokens, s.config.MatchThreshold) {
 			continue
 		}

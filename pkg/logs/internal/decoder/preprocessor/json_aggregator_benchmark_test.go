@@ -75,6 +75,42 @@ func BenchmarkJSONAggregator_ComplexNestedJSON(b *testing.B) {
 	}
 }
 
+// BenchmarkJSONAggregator_NonJSON tests the fast-reject path for non-JSON messages.
+// These are the ~80% of production logs that don't start with { or [.
+func BenchmarkJSONAggregator_NonJSON(b *testing.B) {
+	aggregator := NewJSONAggregator(true, 10000)
+	nonJSONCorpus := []string{
+		"2024-01-15T10:30:45.123Z INFO [service-name] Request processed successfully user_id=12345",
+		"Jan 15 10:30:47 web-01 nginx: 192.168.1.100 - - [15/Jan/2024:10:30:47 -0800] GET /api/v1/health",
+		"at com.example.Service.handleRequest(Service.java:123)",
+		"cpu=45.67 memory=2048 disk=512000 network_tx=1234567890",
+		"2024-01-15 10:30:50.222 WARN [service-name] Connection pool low available=2 max=50",
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		msg := newTestMessage(nonJSONCorpus[i%len(nonJSONCorpus)])
+		result := aggregator.Process(msg)
+		if len(result) != 1 {
+			b.Fatal("Expected 1 message for non-JSON")
+		}
+	}
+}
+
+// BenchmarkJSONAggregator_MixedCorpus tests the production mix of JSON and non-JSON messages.
+func BenchmarkJSONAggregator_MixedCorpus(b *testing.B) {
+	aggregator := NewJSONAggregator(true, 10000)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		msg := newTestMessage(string(loadBenchCorpus[i%len(loadBenchCorpus)]))
+		result := aggregator.Process(msg)
+		if len(result) != 1 {
+			b.Fatal("Expected 1 message")
+		}
+	}
+}
+
 // BenchmarkJSONAggregator_UnbalancedBraces tests incomplete JSON with unbalanced braces
 // This skips the fast-path entirely (isSingleLineJSON returns false)
 func BenchmarkJSONAggregator_UnbalancedBraces(b *testing.B) {

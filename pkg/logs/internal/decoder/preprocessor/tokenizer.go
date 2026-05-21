@@ -215,13 +215,13 @@ func (t *Tokenizer) tokenize(input []byte) ([]Token, []int) {
 	t.tsBuf = ts
 	t.idxBuf = indicies
 
-	// Allocate exact-sized result slices - smaller than inputLen
+	// Allocate exact-sized token slice — callers take ownership (sampler stores these).
+	// Indices are returned as a view into the internal buffer — callers must NOT store them.
+	// This is safe because indices are only used by limitTokensToBytes (read-only, same call).
 	n := len(ts)
 	result := make([]Token, n)
 	copy(result, ts)
-	resultIdx := make([]int, n)
-	copy(resultIdx, indicies)
-	return result, resultIdx
+	return result, indicies[:n]
 }
 
 func getSpecialShortToken(char byte) Token {
@@ -433,6 +433,18 @@ func TokensToString(tokens []Token) string {
 		builder.WriteString(tokenToString(t))
 	}
 	return builder.String()
+}
+
+// couldMatch checks whether two token sequences could possibly match at the
+// given threshold based on length alone. This is cheaper than IsMatch (one
+// integer comparison vs token-by-token scan) and rejects ~60-80% of entries.
+func couldMatch(lenA, lenB int, thresh float64) bool {
+	shorter := min(lenA, lenB)
+	if shorter == 0 {
+		return lenA == lenB
+	}
+	longer := max(lenA, lenB)
+	return float64(shorter)/float64(longer) >= thresh
 }
 
 // isMatch compares two sequences of tokens and returns true if they match within the
