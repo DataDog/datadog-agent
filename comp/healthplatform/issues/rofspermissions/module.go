@@ -23,7 +23,7 @@ func init() {
 }
 
 const (
-	// IssueName is the snake_case identifier for ROFS permission issues,
+	// IssueName is the identifier for ROFS permission issues,
 	// used as the template registry key and the proto IssueName field.
 	IssueName = "read-only-filesystem-error"
 
