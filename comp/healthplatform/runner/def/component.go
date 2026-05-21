@@ -21,7 +21,7 @@ type IssueReport struct {
 	//   "ad-template:redis:svc-foo:deadbeef"
 	IssueID string
 
-	// IssueName is the snake_case issue name looked up in the issue registry.
+	// IssueName is the issue name looked up in the issue registry.
 	// Examples: "check_execution_failure", "docker_file_tailing_disabled"
 	IssueName string
 

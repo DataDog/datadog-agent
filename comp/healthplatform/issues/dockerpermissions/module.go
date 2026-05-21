@@ -17,7 +17,7 @@ func init() {
 }
 
 const (
-	// IssueName is the snake_case identifier for Docker permission issues,
+	// IssueName is the identifier for Docker permission issues,
 	// used as the template registry key and the proto IssueName field.
 	IssueName = "docker_file_tailing_disabled"
 

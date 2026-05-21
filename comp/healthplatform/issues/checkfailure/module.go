@@ -18,7 +18,7 @@ func init() {
 }
 
 const (
-	// IssueID is the snake_case issue name for check failures, used as the
+	// IssueID is the issue name for check failures, used as the
 	// template registry key and the proto IssueName field.
 	IssueID = "check_execution_failure"
 )

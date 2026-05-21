@@ -18,7 +18,7 @@ func init() {
 }
 
 const (
-	// IssueName is the snake_case identifier for admission controller connectivity issues,
+	// IssueName is the identifier for admission controller connectivity issues,
 	// used as the template registry key and the proto IssueName field.
 	IssueName = "admission_controller_unreachable"
 	// IssueID is the unique instance id used when reporting this issue.
