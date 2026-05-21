@@ -1,0 +1,3 @@
+name: netpath-vm-windows
+runtime: go
+description: Long-lived AWS EC2 Windows Server 2022 VM running the Datadog Agent (Network Path / NPM) plus optional CrowdStrike Falcon sensor, with periodic outbound TCP/UDP workload.

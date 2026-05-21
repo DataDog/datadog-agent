@@ -1,0 +1,8 @@
+[Unit]
+Description=Periodic outbound TCP/UDP probes for NPM + Network Path dynamic tests
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/conn-gen.sh

@@ -1,0 +1,47 @@
+# Datadog network_path integration — scheduled (static) tests.
+#
+# Each instance below produces a path traced on `min_collection_interval`
+# (default 60s). Targets here are intentionally different from the dynamic
+# conn-gen list so they're easy to tell apart in Network Path Analytics.
+# Every instance also carries `source:scheduled` so you can filter
+# scheduled vs dynamic in the UI.
+
+init_config:
+
+instances:
+  - hostname: www.amazon.com
+    protocol: TCP
+    port: 443
+    min_collection_interval: 60
+    tags:
+      - source:scheduled
+      - path_target:amazon
+
+  - hostname: www.microsoft.com
+    protocol: TCP
+    port: 443
+    min_collection_interval: 60
+    tags:
+      - source:scheduled
+      - path_target:microsoft
+
+  - hostname: 8.8.4.4
+    protocol: ICMP
+    min_collection_interval: 60
+    tags:
+      - source:scheduled
+      - path_target:google-dns-secondary
+
+  - hostname: 1.0.0.1
+    protocol: ICMP
+    min_collection_interval: 60
+    tags:
+      - source:scheduled
+      - path_target:cloudflare-dns-secondary
+
+  - hostname: 208.67.222.222
+    protocol: UDP
+    min_collection_interval: 60
+    tags:
+      - source:scheduled
+      - path_target:opendns

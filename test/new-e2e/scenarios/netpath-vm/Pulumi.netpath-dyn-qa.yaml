@@ -1,0 +1,7 @@
+encryptionsalt: v1:Iec9SldjFsI=:v1:eMI1Vo/sCrmyN/dC:WC5nCSWbWgEKgpvNzIKkeIR9FYtPmQ==
+config:
+  aws:region: us-east-1
+  netpath:apiKey:
+    secure: v1:a9snamk+aM/4BlBZ:lB9OhNppdwyloS3OCzgUMqEE92MgDBH/ABwfqLWk71o4uyJZkRwpTNSaSp6NIq45
+  netpath:keyPairName: ken-dynamic-qa-key
+  netpath:site: datad0g.com

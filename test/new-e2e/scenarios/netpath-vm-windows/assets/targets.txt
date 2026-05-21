@@ -1,0 +1,13 @@
+# conn-gen targets — one per line, format: <proto>:<host>:<port>
+# Lines starting with # and blank lines are ignored.
+
+# TCP (HTTPS)
+tcp:api.datadoghq.com:443
+tcp:www.google.com:443
+tcp:github.com:443
+tcp:www.cloudflare.com:443
+
+# UDP (DNS resolvers)
+udp:8.8.8.8:53
+udp:1.1.1.1:53
+udp:9.9.9.9:53

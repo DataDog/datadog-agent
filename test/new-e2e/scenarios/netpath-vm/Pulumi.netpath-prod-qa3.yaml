@@ -1,0 +1,8 @@
+encryptionsalt: v1:tyCsueWG4Eo=:v1:YhhlpKN9qvtMD5Lz:uhbeWZXMjxkOEUNjLCDnT4x9gZaFvw==
+config:
+  aws:region: us-east-1
+  netpath:name: netpath-prod-qa3
+  netpath:tags: env:netpath-prod-qa3,variant:dynamic-only
+  netpath:apiKey:
+    secure: v1:9/j0Ke3xkqJTh8SZ:gYFaY/qeE9qMnhJzky6V3utc3VgVM/tCjOS1cCE+A2/d65BmsboeQalHoWohM9Va
+  netpath:enableScheduled: "false"

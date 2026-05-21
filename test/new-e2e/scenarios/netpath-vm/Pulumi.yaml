@@ -1,0 +1,3 @@
+name: netpath-vm
+runtime: go
+description: Long-lived AWS EC2 VM running the Datadog Agent with Cloud Network Monitoring + Network Path dynamic tests, plus a periodic outbound TCP/UDP workload to exercise both features.

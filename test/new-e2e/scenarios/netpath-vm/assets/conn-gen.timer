@@ -1,0 +1,13 @@
+[Unit]
+Description=Run conn-gen.service every 60s
+Requires=conn-gen.service
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+AccuracySec=1s
+Persistent=true
+Unit=conn-gen.service
+
+[Install]
+WantedBy=timers.target
