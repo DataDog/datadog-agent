@@ -124,11 +124,11 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC(t *testing.T)
 	require.True(t, result.Success)
 	require.Equal(t, taskID, result.TaskID)
 	assert.Equal(t, "SUCCEEDED", result.Outputs["status"])
-	require.Contains(t, result.Outputs, "rows")
+	require.Contains(t, result.Outputs, "data")
 
-	rows, ok := result.Outputs["rows"].([]interface{})
+	data, ok := result.Outputs["data"].(string)
 	require.True(t, ok)
-	assertRemoteQueriesProofRows(t, proofQuery, rows)
+	assertRemoteQueriesProofCopyData(t, proofQuery, data)
 
 	resultEvidence, err := json.Marshal(summarizeRemoteQueriesProofPayload(result.Outputs))
 	require.NoError(t, err)
@@ -227,40 +227,6 @@ func assertRemoteQueriesProofCopyData(t *testing.T, query string, data string) {
 			return
 		}
 		require.FailNowf(t, "unsupported COPY proof query", "%s=%q must use a COPY bridge-allowlisted proof query", remoteQueriesProofQueryOverrideEnv, query)
-	}
-}
-
-func assertRemoteQueriesProofRows(t *testing.T, query string, rows []interface{}) {
-	t.Helper()
-
-	switch query {
-	case remoteQueriesFixtureTableProofQuery:
-		require.Len(t, rows, 2)
-		firstRow, ok := rows[0].(map[string]interface{})
-		require.True(t, ok)
-		assert.Equal(t, "Beautiful city of lights", firstRow["city"])
-		assert.Equal(t, "France", firstRow["country"])
-		secondRow, ok := rows[1].(map[string]interface{})
-		require.True(t, ok)
-		assert.Equal(t, "New York", secondRow["city"])
-		assert.Equal(t, "USA", secondRow["country"])
-	case remoteQueriesSeedProofQuery:
-		require.Len(t, rows, 1)
-		firstRow, ok := rows[0].(map[string]interface{})
-		require.True(t, ok)
-		assert.Equal(t, float64(1), firstRow["value"])
-	default:
-		expectedPayloadBytes, ok := remoteQueriesLargePayloadBytes(query)
-		if ok {
-			require.Len(t, rows, 1)
-			firstRow, ok := rows[0].(map[string]interface{})
-			require.True(t, ok)
-			payload, ok := firstRow["payload"].(string)
-			require.True(t, ok, "payload field must be a string")
-			assert.Len(t, payload, expectedPayloadBytes)
-			return
-		}
-		require.FailNowf(t, "unsupported proof query", "%s=%q must use a bridge-allowlisted proof query", remoteQueriesProofQueryOverrideEnv, query)
 	}
 }
 

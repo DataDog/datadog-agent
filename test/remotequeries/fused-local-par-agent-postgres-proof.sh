@@ -308,7 +308,7 @@ PY
   local token
   token=$(cat "$TMP_ROOT/run/auth_token")
 
-  log "Preflight real Agent IPC HTTP execute endpoint (dev evidence only)"
+  log "Preflight real Agent IPC HTTP execute endpoint is disabled; Remote Queries execution requires AgentSecure COPY streaming"
   local status
   status=$(curl -sS -k -o "$TMP_ROOT/results/agent-execute-preflight.body" -w '%{http_code}' \
     -H "Authorization: Bearer ${token}" \
@@ -319,33 +319,10 @@ PY
   cat "$TMP_ROOT/results/agent-execute-preflight.body"
   printf '\n'
 
-  if [[ "$status" != "200" ]]; then
-    echo "FAIL: expected Agent execute preflight HTTP 200, got $status" >&2
+  if [[ "$status" != "400" ]]; then
+    echo "FAIL: expected Agent execute preflight HTTP 400 for disabled inline execution, got $status" >&2
     exit 1
   fi
-  RQ_REMOTE_QUERY="$RQ_REMOTE_QUERY" python3 - "$TMP_ROOT/results/agent-execute-preflight.body" <<'PY'
-import json
-import os
-import sys
-
-with open(sys.argv[1], encoding="utf-8") as f:
-    body = json.load(f)
-
-if body.get("status") != "SUCCEEDED":
-    raise SystemExit(f"Agent execute preflight response status was not SUCCEEDED: {body}")
-
-rows = body.get("rows")
-query = os.environ["RQ_REMOTE_QUERY"]
-if query == "SELECT city, country FROM cities ORDER BY city":
-    expected = [
-        {"city": "Beautiful city of lights", "country": "France"},
-        {"city": "New York", "country": "USA"},
-    ]
-else:
-    expected = [{"value": 1}]
-if rows != expected:
-    raise SystemExit(f"Agent execute preflight rows did not match expected fixture data: rows={rows!r} expected={expected!r}")
-PY
   if grep -Eq 'password|token|secret' "$TMP_ROOT/results/agent-execute-preflight.body"; then
     echo "FAIL: Agent execute preflight response contained credential-shaped text" >&2
     exit 1
