@@ -12,14 +12,20 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
-// trialRetiredTTL bounds how long AD remembers retired trial check IDs after it
-// enqueues an unschedule. The scheduler controller applies schedule changes
+// trialRetiredTTL is the guard window for late trial results after AD enqueues
+// an unschedule. The scheduler controller applies schedule changes
 // asynchronously and declares an operation unhealthy after schedulersTimeout
-// (currently 5 minutes), so keeping retired IDs for the same window covers the
-// expected drain period without retaining high-churn discovery IDs forever.
-// If a stale queued run reports after this TTL, it is treated like a fresh
-// trial result; that is preferable to an unbounded retired-ID map, and should
-// only happen if the scheduler controller is already unhealthy or badly stuck.
+// (currently 5 minutes), so the same window covers the expected drain period.
+//
+// Retired IDs are pruned lazily, only when another trial result or retire event
+// touches the registry. This TTL therefore bounds how long a retired ID remains
+// semantically active once pruning runs; it is not a hard wall-clock bound on
+// how long the map entry may stay allocated during a quiet period.
+//
+// If a stale queued run reports after this TTL and pruning has removed the ID,
+// it is treated like a fresh trial result. That is preferable to an unbounded
+// retired-ID map, and should only happen if the scheduler controller is already
+// unhealthy or badly stuck.
 const trialRetiredTTL = 5 * time.Minute
 
 // trialRegistry tracks consecutive failures of trial-mode (discovery)
@@ -95,10 +101,9 @@ func (r *trialRegistry) retireLocked(id checkid.ID, now time.Time) {
 }
 
 // pruneRetiredLocked removes retired IDs whose async-unschedule guard window
-// has expired. It runs opportunistically while the registry lock is already
-// held instead of using a background goroutine: trial results and retire events
-// are the only times this state matters, and this keeps lifecycle management
-// local to the registry.
+// has expired. It onl runs opportunistically while the registry lock is
+// already held instead of using a background goroutine, so note that expired
+// entries can remain allocated during periods with no trial activity.
 func (r *trialRegistry) pruneRetiredLocked(now time.Time) {
 	for id, retiredAt := range r.retired {
 		if now.Sub(retiredAt) > trialRetiredTTL {
