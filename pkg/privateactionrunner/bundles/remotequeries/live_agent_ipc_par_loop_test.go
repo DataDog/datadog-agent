@@ -75,12 +75,8 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC(t *testing.T)
 	taskID := fmt.Sprintf("remotequeries-fused-local-proof-%d", time.Now().UnixNano())
 	inputs := map[string]interface{}{
 		"integration": "postgres",
-		"target": map[string]interface{}{
-			"host":   "localhost",
-			"port":   5432,
-			"dbname": "postgres",
-		},
-		"query": "SELECT 1 AS value",
+		"target":      remoteQueriesPostgresTargetFromEnv(t),
+		"query":       "SELECT 1 AS value",
 		"limits": map[string]interface{}{
 			"maxRows":   1,
 			"maxBytes":  1024,
@@ -138,6 +134,32 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC(t *testing.T)
 
 func getenvOptional(name string) string {
 	return os.Getenv(name)
+}
+
+func remoteQueriesPostgresTargetFromEnv(t *testing.T) map[string]interface{} {
+	t.Helper()
+
+	port := 5432
+	if value := os.Getenv("RQ_POSTGRES_PORT"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		require.NoError(t, err)
+		port = parsed
+	}
+
+	host := os.Getenv("RQ_POSTGRES_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+	dbname := os.Getenv("RQ_POSTGRES_DBNAME")
+	if dbname == "" {
+		dbname = "datadog_test"
+	}
+
+	return map[string]interface{}{
+		"host":   host,
+		"port":   port,
+		"dbname": dbname,
+	}
 }
 
 func writeFusedEvidence(t *testing.T, path string, lines []string) {

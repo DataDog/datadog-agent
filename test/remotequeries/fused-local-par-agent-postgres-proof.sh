@@ -5,9 +5,11 @@
 # -> loaded Postgres check -> SELECT 1 AS value -> fakeintake publish.
 # The HTTP execute endpoint remains as a dev preflight for local evidence only.
 #
-# Defaults assume the remote-queries-poc worktree layout. Override AGENT_REPO,
-# INTEGRATIONS_CORE, TMP_ROOT, CMD_PORT, POSTGRES_IMAGE, or AGENT_PYTHON_VERSION /
-# AGENT_PYTHON_ABI if needed. The proof is local-only and intentionally sets
+# Defaults assume the remote-queries-poc worktree layout and reuse the
+# integrations-core Postgres integration test compose fixture. Override
+# AGENT_REPO, INTEGRATIONS_CORE, TMP_ROOT, CMD_PORT, POSTGRES_COMPOSE_FILE,
+# POSTGRES_COMPOSE_PROJECT, POSTGRES_IMAGE, RQ_POSTGRES_*, or
+# AGENT_PYTHON_VERSION / AGENT_PYTHON_ABI if needed. The proof is local-only and intentionally sets
 # DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true inside the Go proof test.
 
 set -euo pipefail
@@ -16,14 +18,21 @@ AGENT_REPO=${AGENT_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
 INTEGRATIONS_CORE=${INTEGRATIONS_CORE:-/home/bits/dd/tasks/remote-queries-poc/worktrees/integrations-core}
 TMP_ROOT=${TMP_ROOT:-/tmp/rq-fused-local-par-agent-postgres}
 CMD_PORT=${CMD_PORT:-55003}
-POSTGRES_IMAGE=${POSTGRES_IMAGE:-postgres:11-alpine}
-POSTGRES_CONTAINER=${POSTGRES_CONTAINER:-rq-fused-local-par-agent-postgres-$$}
+POSTGRES_COMPOSE_FILE=${POSTGRES_COMPOSE_FILE:-$INTEGRATIONS_CORE/postgres/tests/compose/docker-compose.yaml}
+POSTGRES_COMPOSE_PROJECT=${POSTGRES_COMPOSE_PROJECT:-rq-fused-local-par-agent-postgres-$$}
+POSTGRES_IMAGE=${POSTGRES_IMAGE:-13-alpine}
+POSTGRES_LOCALE=${POSTGRES_LOCALE:-UTF8}
+RQ_POSTGRES_HOST=${RQ_POSTGRES_HOST:-localhost}
+RQ_POSTGRES_PORT=${RQ_POSTGRES_PORT:-5432}
+RQ_POSTGRES_DBNAME=${RQ_POSTGRES_DBNAME:-datadog_test}
+RQ_POSTGRES_USERNAME=${RQ_POSTGRES_USERNAME:-datadog}
+RQ_POSTGRES_PASSWORD=${RQ_POSTGRES_PASSWORD:-datadog}
 PIP_PLATFORM=${PIP_PLATFORM:-manylinux2014_x86_64}
 AGENT_PYTHON_VERSION=${AGENT_PYTHON_VERSION:-}
 AGENT_PYTHON_ABI=${AGENT_PYTHON_ABI:-}
 
 AGENT_PID=""
-POSTGRES_STARTED=0
+POSTGRES_COMPOSE_STARTED=0
 
 log() {
   printf '\n[%s] %s\n' "$(date -u +%H:%M:%S)" "$*"
@@ -37,10 +46,14 @@ cleanup_agent() {
   AGENT_PID=""
 }
 
+docker_compose() {
+  docker compose -f "$POSTGRES_COMPOSE_FILE" -p "$POSTGRES_COMPOSE_PROJECT" "$@"
+}
+
 cleanup_all() {
   cleanup_agent
-  if [[ "$POSTGRES_STARTED" == "1" ]]; then
-    docker rm -f "$POSTGRES_CONTAINER" >/dev/null 2>&1 || true
+  if [[ "$POSTGRES_COMPOSE_STARTED" == "1" ]]; then
+    docker_compose down --remove-orphans >/dev/null 2>&1 || true
   fi
 }
 trap cleanup_all EXIT
@@ -179,62 +192,72 @@ PY
   install_python_deps
 }
 
+postgres_is_ready() {
+  PGPASSWORD="$RQ_POSTGRES_PASSWORD" psql \
+    -h "$RQ_POSTGRES_HOST" \
+    -p "$RQ_POSTGRES_PORT" \
+    -U "$RQ_POSTGRES_USERNAME" \
+    -d "$RQ_POSTGRES_DBNAME" \
+    -c 'select 1' >/dev/null 2>&1
+}
+
+postgres_target_is_default_fixture() {
+  [[ "$RQ_POSTGRES_HOST" == "localhost" && \
+    "$RQ_POSTGRES_PORT" == "5432" && \
+    "$RQ_POSTGRES_DBNAME" == "datadog_test" && \
+    "$RQ_POSTGRES_USERNAME" == "datadog" && \
+    "$RQ_POSTGRES_PASSWORD" == "datadog" ]]
+}
+
 start_postgres_fixture() {
-  if psql 'postgresql://postgres@localhost:5432/postgres' -c 'select 1' >/dev/null 2>&1; then
-    log "Using existing local Postgres on localhost:5432"
+  if postgres_is_ready; then
+    log "Using existing compatible Postgres fixture at $RQ_POSTGRES_HOST:$RQ_POSTGRES_PORT/$RQ_POSTGRES_DBNAME"
     return
   fi
 
-  local published_containers proof_containers other_containers
-  published_containers=$(docker ps --filter publish=5432 --format '{{.Names}}' || true)
-  if [[ -n "$published_containers" ]]; then
-    proof_containers=$(grep -E '^rq-fused-local-par-agent-postgres-' <<<"$published_containers" || true)
-    other_containers=$(grep -Ev '^rq-fused-local-par-agent-postgres-' <<<"$published_containers" || true)
-
-    if [[ -n "$proof_containers" ]]; then
-      log "Removing stale proof Postgres container(s) bound to localhost:5432 but not accepting psql"
-      xargs -r docker rm -f <<<"$proof_containers" >/dev/null
-    fi
-    if [[ -n "$other_containers" ]]; then
-      echo "Port 5432 is published by non-proof Docker container(s), and psql select 1 failed:" >&2
-      sed 's/^/  /' <<<"$other_containers" >&2
-      echo "Refusing to remove unrelated containers. Stop them or point this proof at a reachable local Postgres." >&2
-      exit 1
-    fi
-  fi
-
-  log "Starting disposable Postgres fixture $POSTGRES_CONTAINER from $POSTGRES_IMAGE"
-  if ! docker run --rm --name "$POSTGRES_CONTAINER" \
-    -e POSTGRES_HOST_AUTH_METHOD=trust \
-    -p 5432:5432 \
-    -d "$POSTGRES_IMAGE" >/dev/null; then
-    echo "Failed to start disposable Postgres fixture on port 5432." >&2
-    echo "If another local Postgres is intended, ensure this succeeds: psql postgresql://postgres@localhost:5432/postgres -c 'select 1'" >&2
+  if ! postgres_target_is_default_fixture; then
+    echo "Overridden RQ_POSTGRES_* target is not reachable; refusing to start the default compose fixture for a different target." >&2
     exit 1
   fi
-  POSTGRES_STARTED=1
 
-  for _ in $(seq 1 60); do
-    if psql 'postgresql://postgres@localhost:5432/postgres' -c 'select 1' >/dev/null 2>&1; then
-      log "Postgres fixture is ready"
+  [[ -f "$POSTGRES_COMPOSE_FILE" ]] || {
+    echo "Postgres compose fixture not found: $POSTGRES_COMPOSE_FILE" >&2
+    exit 1
+  }
+  docker compose version >/dev/null 2>&1 || {
+    echo "docker compose is required to start the integrations-core Postgres fixture" >&2
+    exit 1
+  }
+
+  log "Starting integrations-core Postgres fixture project=$POSTGRES_COMPOSE_PROJECT image=postgres:$POSTGRES_IMAGE"
+  export POSTGRES_IMAGE POSTGRES_LOCALE
+  docker_compose down --remove-orphans >/dev/null 2>&1 || true
+  docker_compose up -d postgres
+  POSTGRES_COMPOSE_STARTED=1
+
+  for _ in $(seq 1 120); do
+    if postgres_is_ready && docker_compose exec -T postgres test -e /tmp/container_ready.txt >/dev/null 2>&1; then
+      log "Integrations-core Postgres fixture is ready at $RQ_POSTGRES_HOST:$RQ_POSTGRES_PORT/$RQ_POSTGRES_DBNAME"
       return
     fi
     sleep 0.5
   done
 
-  docker logs "$POSTGRES_CONTAINER" | tail -80 >&2 || true
-  echo "Postgres fixture did not become ready" >&2
+  docker_compose ps >&2 || true
+  docker_compose logs --tail=80 postgres >&2 || true
+  echo "Integrations-core Postgres fixture did not become ready" >&2
   exit 1
 }
 
 write_postgres_config() {
-  cat > "$TMP_ROOT/conf.d/postgres.d/conf.yaml" <<'YAML'
+  cat > "$TMP_ROOT/conf.d/postgres.d/conf.yaml" <<YAML
 init_config: {}
 instances:
-  - host: localhost
-    port: 5432
-    dbname: postgres
-    username: postgres
+  - host: $RQ_POSTGRES_HOST
+    port: $RQ_POSTGRES_PORT
+    dbname: $RQ_POSTGRES_DBNAME
+    username: $RQ_POSTGRES_USERNAME
+    password: $RQ_POSTGRES_PASSWORD
 YAML
 }
 
@@ -265,7 +288,22 @@ start_agent_and_wait_for_postgres_check() {
 }
 
 call_agent_execute_preflight() {
-  local payload='{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":1,"maxBytes":1024,"timeoutMs":1000}}'
+  local payload
+  payload=$(RQ_POSTGRES_HOST="$RQ_POSTGRES_HOST" RQ_POSTGRES_PORT="$RQ_POSTGRES_PORT" RQ_POSTGRES_DBNAME="$RQ_POSTGRES_DBNAME" python3 - <<'PY'
+import json
+import os
+print(json.dumps({
+    "integration": "postgres",
+    "target": {
+        "host": os.environ["RQ_POSTGRES_HOST"],
+        "port": int(os.environ["RQ_POSTGRES_PORT"]),
+        "dbname": os.environ["RQ_POSTGRES_DBNAME"],
+    },
+    "query": "SELECT 1 AS value",
+    "limits": {"maxRows": 1, "maxBytes": 1024, "timeoutMs": 1000},
+}))
+PY
+)
   local token
   token=$(cat "$TMP_ROOT/run/auth_token")
 
@@ -303,6 +341,9 @@ run_fused_go_proof() {
     RQ_FUSED_AGENT_AUTH_TOKEN_FILE="$TMP_ROOT/run/auth_token" \
     RQ_FUSED_AGENT_IPC_CERT_FILE="$TMP_ROOT/run/ipc_cert.pem" \
     RQ_FUSED_EVIDENCE_FILE="$TMP_ROOT/results/fused-proof-evidence.txt" \
+    RQ_POSTGRES_HOST="$RQ_POSTGRES_HOST" \
+    RQ_POSTGRES_PORT="$RQ_POSTGRES_PORT" \
+    RQ_POSTGRES_DBNAME="$RQ_POSTGRES_DBNAME" \
     dda inv test --targets=./pkg/privateactionrunner/bundles/remotequeries \
       --extra-args='-run TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC -count=1 -v'
   ) | tee "$TMP_ROOT/results/fused-proof-test.log"

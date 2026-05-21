@@ -80,12 +80,8 @@ func TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC(t *t
 	taskID := fmt.Sprintf("remotequeries-standalone-par-proof-%d", time.Now().UnixNano())
 	inputs := map[string]interface{}{
 		"integration": "postgres",
-		"target": map[string]interface{}{
-			"host":   "localhost",
-			"port":   5432,
-			"dbname": "postgres",
-		},
-		"query": "SELECT 1 AS value",
+		"target":      remoteQueriesPostgresTargetFromEnv(t),
+		"query":       "SELECT 1 AS value",
 		"limits": map[string]interface{}{
 			"maxRows":   1,
 			"maxBytes":  1024,
