@@ -148,19 +148,21 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    increment_telemetry_count(protocol_classifier_calls);
+    // Telemetry disabled for perf testing — atomic increments on the per-packet hot path are
+    // expensive enough to be confounding under high call rates. Re-enable for development only.
+    // increment_telemetry_count(protocol_classifier_calls);
 
     protocol_stack_wrapper_t *protocol_stack_wrapper = get_protocol_stack_wrapper_if_exists(&classification_ctx->tuple);
     protocol_stack_t *protocol_stack = protocol_stack_wrapper ? &protocol_stack_wrapper->stack : NULL;
 
     if (is_fully_classified(protocol_stack)) {
-        increment_telemetry_count(protocol_classifier_skipped_fully_classified);
+        // increment_telemetry_count(protocol_classifier_skipped_fully_classified);
         return;
     }
 
     // Check if we've exceeded the maximum number of classification attempts
     if (classification_attempts_exceeded(protocol_stack_wrapper)) {
-        increment_telemetry_count(protocol_classifier_skipped_max_attempts);
+        // increment_telemetry_count(protocol_classifier_skipped_max_attempts);
         return;
     }
 
