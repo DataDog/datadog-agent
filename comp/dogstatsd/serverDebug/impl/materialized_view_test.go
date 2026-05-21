@@ -25,9 +25,9 @@ func TestMilestone3DebugStatsViewEvictsOldestWhenBudgetExceeded(t *testing.T) {
 	view := newDebugStatsView(1, 2, time.Hour)
 	now := time.Unix(100, 0)
 
-	view.store(now, testDebugViewKey(1, "oldest"))
-	view.store(now.Add(time.Second), testDebugViewKey(2, "middle"))
-	view.store(now.Add(2*time.Second), testDebugViewKey(3, "newest"))
+	view.store(now, testShardIdentity(1, "oldest"))
+	view.store(now.Add(time.Second), testShardIdentity(2, "middle"))
+	view.store(now.Add(2*time.Second), testShardIdentity(3, "newest"))
 
 	snapshot := view.snapshot(now.Add(2 * time.Second))
 	require.Len(t, snapshot, 2)
@@ -40,8 +40,8 @@ func TestMilestone3DebugStatsViewExpiresStaleContexts(t *testing.T) {
 	view := newDebugStatsView(1, 10, time.Second)
 	now := time.Unix(100, 0)
 
-	view.store(now, testDebugViewKey(1, "stale"))
-	view.store(now, testDebugViewKey(2, "fresh"))
+	view.store(now, testShardIdentity(1, "stale"))
+	view.store(now, testShardIdentity(2, "fresh"))
 
 	snapshot := view.snapshot(now.Add(time.Second))
 	require.Len(t, snapshot, 2, "entries at the TTL boundary are still retained")
@@ -54,7 +54,7 @@ func TestMilestone3DebugStatsViewExpiresStaleContexts(t *testing.T) {
 func TestMilestone3DebugStatsViewResetsExpiredContextCount(t *testing.T) {
 	view := newDebugStatsView(1, 10, time.Second)
 	now := time.Unix(100, 0)
-	key := testDebugViewKey(1, "reset")
+	key := testShardIdentity(1, "reset")
 
 	view.store(now, key)
 	view.store(now.Add(500*time.Millisecond), key)
@@ -62,7 +62,7 @@ func TestMilestone3DebugStatsViewResetsExpiredContextCount(t *testing.T) {
 
 	snapshot := view.snapshot(now.Add(2 * time.Second))
 	require.Len(t, snapshot, 1)
-	assert.Equal(t, uint64(1), snapshot[key.Key].Count, "a sample after the TTL starts a fresh materialized-view row")
+	assert.Equal(t, uint64(1), snapshot[key.ContextKey].Count, "a sample after the TTL starts a fresh materialized-view row")
 }
 
 func TestMilestone3SpikeCountersUseTimeBucketsWithoutMetricChannel(t *testing.T) {
@@ -103,7 +103,7 @@ func TestMilestone3bServerDebugComponentEnforcesContextBudget(t *testing.T) {
 			Tags: []string{"instance:" + strconv.Itoa(i)},
 		}
 		context := builder.ResolveHotPath(sample)
-		d.StoreMetricStatsWithDebugViewKey(sample, context.DebugView)
+		d.StoreMetricStatsWithShardIdentity(context.Shard)
 	}
 
 	payload, err := d.GetJSONDebugStats()
@@ -119,9 +119,9 @@ func TestMilestone3bDebugStatsViewTelemetryReportsBounds(t *testing.T) {
 	view := newDebugStatsViewWithTelemetry(1, 2, time.Hour, telemetry)
 	now := time.Unix(100, 0)
 
-	view.store(now, testDebugViewKey(1, "first"))
-	view.store(now.Add(time.Nanosecond), testDebugViewKey(2, "second"))
-	view.store(now.Add(2*time.Nanosecond), testDebugViewKey(3, "third"))
+	view.store(now, testShardIdentity(1, "first"))
+	view.store(now.Add(time.Nanosecond), testShardIdentity(2, "second"))
+	view.store(now.Add(2*time.Nanosecond), testShardIdentity(3, "third"))
 
 	telemetry.assert(t, recordingDebugStatsTelemetry{
 		storedContexts:  2,
@@ -148,7 +148,7 @@ func TestMilestone3bDebugStatsViewTelemetryReportsBounds(t *testing.T) {
 	})
 }
 
-func BenchmarkMilestone3StoreMetricStatsWithDebugViewKey(b *testing.B) {
+func BenchmarkMilestone3StoreMetricStatsWithShardIdentity(b *testing.B) {
 	contexts := make([]identity.HotPathContext, 8192)
 	builder := identity.NewBuilder()
 	for i := range contexts {
@@ -164,13 +164,13 @@ func BenchmarkMilestone3StoreMetricStatsWithDebugViewKey(b *testing.B) {
 	d.SetMetricStatsEnabled(true)
 	defer d.SetMetricStatsEnabled(false)
 
-	b.Run("parallel_precomputed_debug_view_key", func(b *testing.B) {
+	b.Run("parallel_precomputed_shard_identity", func(b *testing.B) {
 		b.ReportAllocs()
 		b.RunParallel(func(pb *testing.PB) {
 			i := 0
 			for pb.Next() {
 				context := contexts[i%len(contexts)]
-				d.StoreMetricStatsWithDebugViewKey(metrics.MetricSample{}, context.DebugView)
+				d.StoreMetricStatsWithShardIdentity(context.Shard)
 				i++
 			}
 		})
@@ -207,7 +207,7 @@ func BenchmarkMilestone3bDebugStatsContention(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
 			i := 0
 			for pb.Next() {
-				legacy.store(now, contexts[i%len(contexts)].DebugView)
+				legacy.store(now, contexts[i%len(contexts)].Shard)
 				i++
 			}
 		})
@@ -221,22 +221,22 @@ func BenchmarkMilestone3bDebugStatsContention(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
 			i := 0
 			for pb.Next() {
-				debugViewKey := contexts[i%len(contexts)].DebugView
-				view.store(now, debugViewKey)
-				buckets.record(debugViewKey.Key, now)
+				shard := contexts[i%len(contexts)].Shard
+				view.store(now, shard)
+				buckets.record(shard.ContextKey, now)
 				i++
 			}
 		})
 	})
 }
 
-func testDebugViewKey(key ckey.ContextKey, name string) identity.DebugViewKey {
-	return identity.DebugViewKey{
+func testShardIdentity(key ckey.ContextKey, name string) identity.ShardIdentity {
+	return identity.ShardIdentity{
 		Client: identity.ClientSeriesIdentity{
 			Name: name,
 			Tags: []string{"env:test"},
 		},
-		Key:         key,
+		ContextKey:  key,
 		DisplayTags: "env:test",
 	}
 }
@@ -310,14 +310,14 @@ func newLegacyDebugStatsStore() *legacyDebugStatsStore {
 	return store
 }
 
-func (s *legacyDebugStatsStore) store(now time.Time, debugViewKey identity.DebugViewKey) {
+func (s *legacyDebugStatsStore) store(now time.Time, shard identity.ShardIdentity) {
 	s.Lock()
-	stat := s.stats[debugViewKey.Key]
+	stat := s.stats[shard.ContextKey]
 	stat.Count++
 	stat.LastSeen = now
-	stat.Name = debugViewKey.Client.Name
-	stat.Tags = debugViewKey.DisplayTags
-	s.stats[debugViewKey.Key] = stat
+	stat.Name = shard.Client.Name
+	stat.Tags = shard.DisplayTags
+	s.stats[shard.ContextKey] = stat
 	s.Unlock()
 
 	s.metricChan <- struct{}{}

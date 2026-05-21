@@ -8,6 +8,7 @@ package serverdebugimpl
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,7 +21,7 @@ import (
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 )
 
-func TestMilestone1DebugViewKeyMatchesCurrentServerDebugStats(t *testing.T) {
+func TestMilestone1ShardIdentityMatchesCurrentServerDebugStats(t *testing.T) {
 	debug := fulfillDeps(t, map[string]interface{}{"dogstatsd_logging_enabled": false})
 	d := debug.(*serverDebugImpl)
 	d.SetMetricStatsEnabled(true)
@@ -48,8 +49,9 @@ func TestMilestone1DebugViewKeyMatchesCurrentServerDebugStats(t *testing.T) {
 	differentTags.Tags = []string{"env:prod", "service:api"}
 
 	builder := identity.NewBuilder()
-	baseDebugView := builder.DebugView(base)
-	differentTagsDebugView := builder.DebugView(differentTags)
+	baseShard := builder.Shard(base)
+	differentHostShard := builder.Shard(differentHostOriginAndType)
+	differentTagsShard := builder.Shard(differentTags)
 
 	d.StoreMetricStats(base)
 	d.StoreMetricStats(reordered)
@@ -60,16 +62,21 @@ func TestMilestone1DebugViewKeyMatchesCurrentServerDebugStats(t *testing.T) {
 	require.NoError(t, err)
 	var stats map[ckey.ContextKey]metricStat
 	require.NoError(t, json.Unmarshal(payload, &stats))
-	require.Len(t, stats, 2)
+	require.Len(t, stats, 3)
 
-	baseStat, ok := stats[baseDebugView.Key]
-	require.True(t, ok, "new debug view key helper must point at the current serverDebug map entry")
-	assert.Equal(t, uint64(3), baseStat.Count, "helper preserves current host/origin/type ignoring semantics")
-	assert.Equal(t, baseDebugView.Client.Name, baseStat.Name)
-	assert.Equal(t, baseDebugView.DisplayTags, baseStat.Tags)
+	baseStat, ok := stats[baseShard.ContextKey]
+	require.True(t, ok, "shared shard identity must point at the current serverDebug map entry")
+	assert.Equal(t, uint64(2), baseStat.Count, "reordered tags collapse into the same host-aware series")
+	assert.Equal(t, baseShard.Client.Name, baseStat.Name)
+	assert.ElementsMatch(t, strings.Fields(baseShard.DisplayTags), strings.Fields(baseStat.Tags))
 
-	differentTagsStat, ok := stats[differentTagsDebugView.Key]
+	differentHostStat, ok := stats[differentHostShard.ContextKey]
+	require.True(t, ok)
+	assert.Equal(t, uint64(1), differentHostStat.Count)
+	assert.ElementsMatch(t, strings.Fields(differentHostShard.DisplayTags), strings.Fields(differentHostStat.Tags))
+
+	differentTagsStat, ok := stats[differentTagsShard.ContextKey]
 	require.True(t, ok)
 	assert.Equal(t, uint64(1), differentTagsStat.Count)
-	assert.Equal(t, differentTagsDebugView.DisplayTags, differentTagsStat.Tags)
+	assert.ElementsMatch(t, strings.Fields(differentTagsShard.DisplayTags), strings.Fields(differentTagsStat.Tags))
 }

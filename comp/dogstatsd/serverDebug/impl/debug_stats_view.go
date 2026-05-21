@@ -44,11 +44,11 @@ func newDebugStatsViewWithTelemetry(shardCount, maxContexts int, ttl time.Durati
 	}
 }
 
-func (v *debugStatsView) store(now time.Time, debugViewKey identity.DebugViewKey) metricStat {
+func (v *debugStatsView) store(now time.Time, shard identity.ShardIdentity) metricStat {
 	stat := v.seriesStore.Observe(now, seriesstats.Point{
-		Key:  debugViewKey.Key,
-		Name: debugViewKey.Client.Name,
-		Tags: debugViewKey.DisplayTags,
+		Key:  shard.ContextKey,
+		Name: shard.Client.Name,
+		Tags: shard.DisplayTags,
 	})
 	return metricStatFromSeriesStat(stat)
 }

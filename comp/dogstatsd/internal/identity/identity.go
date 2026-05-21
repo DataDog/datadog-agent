@@ -6,10 +6,10 @@
 // Package identity names DogStatsD series descriptors and view keys.
 //
 // DogStatsD ingestion currently projects the same parsed sample into several
-// keys: batch sharding includes host, serverDebug stats historically do not,
-// and backend aggregation is resolved later after tagger enrichment. This
+// keys: parser-side series descriptors and batch sharding use the parsed host,
+// while backend aggregation is resolved later after tagger enrichment. This
 // package centralizes those projections so future migrations can share work
-// without treating every projection as a separate semantic identity.
+// without treating every consumer as a separate semantic identity.
 package identity
 
 import (
@@ -152,29 +152,17 @@ type ClientSeriesIdentity struct {
 	Tags []string
 }
 
-// DebugViewKey is the compatibility grouping key currently used by
-// serverDebug stats.
-//
-// It is a view projection over the parsed client series, not a separate
-// semantic series identity. The projection intentionally ignores sample host,
-// metric type, sample rate, timestamp, origin, and listener metadata to preserve
-// existing `agent dogstatsd-stats` behavior.
-type DebugViewKey struct {
-	Client      ClientSeriesIdentity
-	Key         ckey.ContextKey
-	DisplayTags string
-}
-
-// ShardIdentity is the identity currently used to choose a DogStatsD aggregation
-// pipeline before aggregator context resolution.
+// ShardIdentity is the shared parser-side series identity currently used to
+// choose a DogStatsD aggregation pipeline before aggregator context resolution.
 //
 // It includes the parsed metric name, parsed metric tags, and parsed host. It
 // intentionally does not include metric type, sample rate, timestamp, origin, or
 // listener metadata.
 type ShardIdentity struct {
-	Client     ClientSeriesIdentity
-	Host       string
-	ContextKey ckey.ContextKey
+	Client      ClientSeriesIdentity
+	Host        string
+	ContextKey  ckey.ContextKey
+	DisplayTags string
 }
 
 // EffectiveBackendIdentitySeed is the DogStatsD-side seed for the eventual
@@ -218,7 +206,7 @@ func (s *EffectiveBackendIdentitySeed) GetSource() metrics.MetricSource { return
 var _ metrics.MetricSampleContext = (*EffectiveBackendIdentitySeed)(nil)
 
 // LineageIdentity records transport/origin fields that explain where a sample
-// came from, but that are not part of current debug or shard identities.
+// came from, but that are not part of the parser-side series identity.
 type LineageIdentity struct {
 	ListenerID string
 	Source     metrics.MetricSource
@@ -227,13 +215,12 @@ type LineageIdentity struct {
 
 // HotPathContext carries the identities used by the DogStatsD worker hot path.
 //
-// A value of this type can be carried alongside a MetricSample to let debug
-// stats and batch sharding share identity work without forcing downstream
-// backend/lineage descriptors into every hot-path operation.
+// A value of this type can be carried alongside a MetricSample to let stats,
+// batch sharding, and direct consumers share identity work without forcing
+// downstream backend/lineage descriptors into every hot-path operation.
 type HotPathContext struct {
-	Client    ClientSeriesIdentity
-	DebugView DebugViewKey
-	Shard     ShardIdentity
+	Client ClientSeriesIdentity
+	Shard  ShardIdentity
 
 	// CompactID is an experimental bounded-dictionary identifier for the parsed
 	// DogStatsD identity. A value of 0 means no compact identity is available.
@@ -248,7 +235,6 @@ type HotPathContext struct {
 // DogStatsD sample before aggregator context resolution.
 type ResolvedSampleContext struct {
 	Client      ClientSeriesIdentity
-	DebugView   DebugViewKey
 	Shard       ShardIdentity
 	BackendSeed EffectiveBackendIdentitySeed
 	Lineage     LineageIdentity
@@ -288,21 +274,6 @@ func Lineage(sample metrics.MetricSample) LineageIdentity {
 	}
 }
 
-// DebugView returns the current serverDebug view key for sample.
-func (b *Builder) DebugView(sample metrics.MetricSample) DebugViewKey {
-	b.ensure()
-	defer b.metricTags.Reset()
-
-	b.metricTags.Append(sample.Tags...)
-	key := b.keyGenerator.Generate(sample.Name, "", b.metricTags)
-
-	return DebugViewKey{
-		Client:      ClientSeries(sample),
-		Key:         key,
-		DisplayTags: strings.Join(b.metricTags.Get(), debugTagSeparator),
-	}
-}
-
 // Shard returns the current DogStatsD batch shard identity for sample.
 func (b *Builder) Shard(sample metrics.MetricSample) ShardIdentity {
 	b.ensure()
@@ -312,9 +283,10 @@ func (b *Builder) Shard(sample metrics.MetricSample) ShardIdentity {
 	key := b.keyGenerator.Generate(sample.Name, sample.Host, b.metricTags)
 
 	return ShardIdentity{
-		Client:     ClientSeries(sample),
-		Host:       sample.Host,
-		ContextKey: key,
+		Client:      ClientSeries(sample),
+		Host:        sample.Host,
+		ContextKey:  key,
+		DisplayTags: strings.Join(b.metricTags.Get(), debugTagSeparator),
 	}
 }
 
@@ -347,28 +319,7 @@ func (b *Builder) ResolveShardHotPath(sample metrics.MetricSample) HotPathContex
 
 // ResolveHotPath returns the identities used by the DogStatsD worker hot path.
 func (b *Builder) ResolveHotPath(sample metrics.MetricSample) HotPathContext {
-	b.ensure()
-	defer b.metricTags.Reset()
-
-	client := ClientSeries(sample)
-	b.metricTags.Append(sample.Tags...)
-	debugViewKey := b.keyGenerator.Generate(sample.Name, "", b.metricTags)
-	debugView := DebugViewKey{
-		Client:      client,
-		Key:         debugViewKey,
-		DisplayTags: strings.Join(b.metricTags.Get(), debugTagSeparator),
-	}
-	shardKey := b.keyGenerator.Generate(sample.Name, sample.Host, b.metricTags)
-
-	return HotPathContext{
-		Client:    client,
-		DebugView: debugView,
-		Shard: ShardIdentity{
-			Client:     client,
-			Host:       sample.Host,
-			ContextKey: shardKey,
-		},
-	}
+	return b.ResolveShardHotPath(sample)
 }
 
 // Resolve returns all identities currently derivable from sample in DogStatsD.
@@ -376,7 +327,6 @@ func (b *Builder) Resolve(sample metrics.MetricSample) ResolvedSampleContext {
 	hotPath := b.ResolveHotPath(sample)
 	return ResolvedSampleContext{
 		Client:      hotPath.Client,
-		DebugView:   hotPath.DebugView,
 		Shard:       hotPath.Shard,
 		BackendSeed: BackendSeed(sample),
 		Lineage:     Lineage(sample),

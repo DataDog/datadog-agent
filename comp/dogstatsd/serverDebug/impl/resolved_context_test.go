@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-func TestMilestone2StoreMetricStatsWithDebugViewKeyMatchesLegacyKey(t *testing.T) {
+func TestMilestone2StoreMetricStatsWithShardIdentityMatchesLegacyPath(t *testing.T) {
 	debug := fulfillDeps(t, map[string]interface{}{"dogstatsd_logging_enabled": false})
 	d := debug.(*serverDebugImpl)
 	d.SetMetricStatsEnabled(true)
@@ -37,22 +37,22 @@ func TestMilestone2StoreMetricStatsWithDebugViewKeyMatchesLegacyKey(t *testing.T
 	}
 	context := identity.NewBuilder().ResolveHotPath(sample)
 
-	d.StoreMetricStatsWithDebugViewKey(sample, context.DebugView)
+	d.StoreMetricStatsWithShardIdentity(context.Shard)
 	d.StoreMetricStats(sample)
 
 	payload, err := d.GetJSONDebugStats()
 	require.NoError(t, err)
 	var stats map[ckey.ContextKey]metricStat
 	require.NoError(t, json.Unmarshal(payload, &stats))
-	require.Len(t, stats, 1, "precomputed and legacy debug view keys must hit the same stats row")
+	require.Len(t, stats, 1, "precomputed and legacy stats paths must hit the same shared series row")
 
-	stat := stats[context.DebugView.Key]
+	stat := stats[context.Shard.ContextKey]
 	assert.Equal(t, uint64(2), stat.Count)
-	assert.Equal(t, context.DebugView.Client.Name, stat.Name)
-	assert.Equal(t, context.DebugView.DisplayTags, stat.Tags)
+	assert.Equal(t, context.Shard.Client.Name, stat.Name)
+	assert.Equal(t, context.Shard.DisplayTags, stat.Tags)
 }
 
-func BenchmarkMilestone2StoreMetricStatsWithDebugViewKey(b *testing.B) {
+func BenchmarkMilestone2StoreMetricStatsWithShardIdentity(b *testing.B) {
 	samples := make([]metrics.MetricSample, 8192)
 	contexts := make([]identity.HotPathContext, len(samples))
 	builder := identity.NewBuilder()
@@ -77,7 +77,7 @@ func BenchmarkMilestone2StoreMetricStatsWithDebugViewKey(b *testing.B) {
 		}
 	})
 
-	b.Run("precomputed_debug_view_key", func(b *testing.B) {
+	b.Run("precomputed_shard_identity", func(b *testing.B) {
 		debug := fulfillDeps(b, map[string]interface{}{"dogstatsd_logging_enabled": false})
 		d := debug.(*serverDebugImpl)
 		d.SetMetricStatsEnabled(true)
@@ -87,12 +87,12 @@ func BenchmarkMilestone2StoreMetricStatsWithDebugViewKey(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			idx := i % len(samples)
-			d.StoreMetricStatsWithDebugViewKey(samples[idx], contexts[idx].DebugView)
+			d.StoreMetricStatsWithShardIdentity(contexts[idx].Shard)
 		}
 	})
 }
 
-func TestMilestone2StoreMetricStatsWithDebugViewKeyConcurrent(t *testing.T) {
+func TestMilestone2StoreMetricStatsWithShardIdentityConcurrent(t *testing.T) {
 	debug := fulfillDeps(t, map[string]interface{}{"dogstatsd_logging_enabled": false})
 	d := debug.(*serverDebugImpl)
 	d.SetMetricStatsEnabled(true)
@@ -112,7 +112,7 @@ func TestMilestone2StoreMetricStatsWithDebugViewKeyConcurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < samplesPerGoroutine; j++ {
-				d.StoreMetricStatsWithDebugViewKey(sample, context.DebugView)
+				d.StoreMetricStatsWithShardIdentity(context.Shard)
 			}
 		}()
 	}
@@ -123,5 +123,5 @@ func TestMilestone2StoreMetricStatsWithDebugViewKeyConcurrent(t *testing.T) {
 	var stats map[ckey.ContextKey]metricStat
 	require.NoError(t, json.Unmarshal(payload, &stats))
 	require.Len(t, stats, 1)
-	assert.Equal(t, uint64(goroutines*samplesPerGoroutine), stats[context.DebugView.Key].Count)
+	assert.Equal(t, uint64(goroutines*samplesPerGoroutine), stats[context.Shard.ContextKey].Count)
 }

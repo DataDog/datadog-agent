@@ -147,7 +147,7 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 	}
 
 	builder := d.identityBuilders.Get().(*identity.Builder)
-	debugViewKey := builder.DebugView(sample)
+	shard := builder.Shard(sample)
 	d.identityBuilders.Put(builder)
 
 	if !d.enabled.Load() {
@@ -155,12 +155,12 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 		return
 	}
 
-	d.storeMetricStatsWithDebugViewKey(d.clock.Now(), debugViewKey)
+	d.storeMetricStatsWithShardIdentity(d.clock.Now(), shard)
 }
 
-// StoreMetricStatsWithDebugViewKey stores stats using the serverDebug view key
-// already computed by the worker hot path.
-func (d *serverDebugImpl) StoreMetricStatsWithDebugViewKey(_ metrics.MetricSample, debugViewKey identity.DebugViewKey) {
+// StoreMetricStatsWithShardIdentity stores stats using the shared DogStatsD
+// parser-side series identity already computed by the worker hot path.
+func (d *serverDebugImpl) StoreMetricStatsWithShardIdentity(shard identity.ShardIdentity) {
 	if !d.enabled.Load() {
 		return
 	}
@@ -171,12 +171,12 @@ func (d *serverDebugImpl) StoreMetricStatsWithDebugViewKey(_ metrics.MetricSampl
 		return
 	}
 
-	d.storeMetricStatsWithDebugViewKey(now, debugViewKey)
+	d.storeMetricStatsWithShardIdentity(now, shard)
 }
 
-func (d *serverDebugImpl) storeMetricStatsWithDebugViewKey(now time.Time, debugViewKey identity.DebugViewKey) {
-	stat := d.view.store(now, debugViewKey)
-	d.metricsCounts.record(debugViewKey.Key, now)
+func (d *serverDebugImpl) storeMetricStatsWithShardIdentity(now time.Time, shard identity.ShardIdentity) {
+	stat := d.view.store(now, shard)
+	d.metricsCounts.record(shard.ContextKey, now)
 
 	if d.dogstatsdDebugLogger != nil {
 		logMessage := "Metric Name: %v | Tags: {%v} | Count: %v | Last Seen: %v "

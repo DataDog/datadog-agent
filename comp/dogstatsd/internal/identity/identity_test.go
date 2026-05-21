@@ -44,10 +44,9 @@ func TestMilestone1SampleIdentityContracts(t *testing.T) {
 	ids := builder.Resolve(sample)
 
 	assert.Equal(t, ClientSeriesIdentity{Name: sample.Name, Tags: sample.Tags}, ids.Client)
-	assert.Equal(t, ids.Client, ids.DebugView.Client)
 	assert.Equal(t, ids.Client, ids.Shard.Client)
 	assert.Equal(t, "host-a", ids.Shard.Host)
-	assert.ElementsMatch(t, []string{"env:prod", "service:web"}, strings.Fields(ids.DebugView.DisplayTags), "debug-view display tags are deduplicated for display")
+	assert.ElementsMatch(t, []string{"env:prod", "service:web"}, strings.Fields(ids.Shard.DisplayTags), "shared series display tags are deduplicated for display")
 	assert.Equal(t, EffectiveBackendIdentitySeed{
 		Name:       sample.Name,
 		Host:       sample.Host,
@@ -92,19 +91,15 @@ func TestMilestone1IdentityBoundaries(t *testing.T) {
 	changedLineageIDs := builder.Resolve(changedLineage)
 	changedTagsIDs := builder.Resolve(changedTags)
 
-	assert.Equal(t, baseIDs.DebugView.Key, reorderedIDs.DebugView.Key, "debug view key deduplicates and order-normalizes client tags")
-	assert.Equal(t, baseIDs.Shard.ContextKey, reorderedIDs.Shard.ContextKey, "shard identity deduplicates and order-normalizes client tags")
+	assert.Equal(t, baseIDs.Shard.ContextKey, reorderedIDs.Shard.ContextKey, "shared series identity deduplicates and order-normalizes client tags")
 
-	assert.Equal(t, baseIDs.DebugView.Key, changedHostIDs.DebugView.Key, "debug view compatibility key intentionally ignores host")
-	assert.NotEqual(t, baseIDs.Shard.ContextKey, changedHostIDs.Shard.ContextKey, "shard identity includes host")
+	assert.NotEqual(t, baseIDs.Shard.ContextKey, changedHostIDs.Shard.ContextKey, "shared series identity includes host")
 
-	assert.Equal(t, baseIDs.DebugView.Key, changedLineageIDs.DebugView.Key, "debug view compatibility key intentionally ignores lineage and type")
-	assert.Equal(t, baseIDs.Shard.ContextKey, changedLineageIDs.Shard.ContextKey, "shard identity intentionally ignores lineage and type")
+	assert.Equal(t, baseIDs.Shard.ContextKey, changedLineageIDs.Shard.ContextKey, "shared series identity intentionally ignores lineage and type")
 	assert.NotEqual(t, baseIDs.BackendSeed.MetricType, changedLineageIDs.BackendSeed.MetricType, "backend seed records type for later aggregator identity resolution")
 	assert.NotEqual(t, baseIDs.Lineage, changedLineageIDs.Lineage, "lineage identity keeps origin/listener changes visible")
 
-	assert.NotEqual(t, baseIDs.DebugView.Key, changedTagsIDs.DebugView.Key, "debug view key includes client tags")
-	assert.NotEqual(t, baseIDs.Shard.ContextKey, changedTagsIDs.Shard.ContextKey, "shard identity includes client tags")
+	assert.NotEqual(t, baseIDs.Shard.ContextKey, changedTagsIDs.Shard.ContextKey, "shared series identity includes client tags")
 }
 
 func TestCompactIdentityCacheReusesShardContext(t *testing.T) {
@@ -265,15 +260,6 @@ func BenchmarkMilestone1Builder(b *testing.B) {
 		}
 	}
 
-	b.Run("debug", func(b *testing.B) {
-		builder := NewBuilder()
-		b.ReportAllocs()
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			_ = builder.DebugView(samples[i%len(samples)])
-		}
-	})
-
 	b.Run("shard", func(b *testing.B) {
 		builder := NewBuilder()
 		b.ReportAllocs()
@@ -312,14 +298,14 @@ func BenchmarkMilestone2ResolvedContextReuse(b *testing.B) {
 		}
 	}
 
-	b.Run("separate_debug_and_shard", func(b *testing.B) {
-		debugBuilder := NewBuilder()
+	b.Run("duplicate_series_work", func(b *testing.B) {
+		statsBuilder := NewBuilder()
 		shardBuilder := NewBuilder()
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			sample := samples[i%len(samples)]
-			_ = debugBuilder.DebugView(sample)
+			_ = statsBuilder.Shard(sample)
 			_ = shardBuilder.Shard(sample)
 		}
 	})

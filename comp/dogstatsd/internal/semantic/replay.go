@@ -37,13 +37,13 @@ type RawMetric struct {
 // Descriptor is the canonical semantic identity and display metadata captured
 // for deterministic replay.
 type Descriptor struct {
-	Key          ckey.ContextKey
-	Name         string
-	Host         string
-	Tags         []string
-	DebugViewKey string
-	ListenerID   string
-	Origin       string
+	Key        ckey.ContextKey
+	Name       string
+	Host       string
+	Tags       []string
+	SeriesKey  string
+	ListenerID string
+	Origin     string
 }
 
 // Record is one canonical metric observation after parse and enrichment.
@@ -91,7 +91,7 @@ func Replay(corpus Corpus, sink Sink) error {
 	return nil
 }
 
-// Projection replays semantic records into the shared debug and lookback view substrates.
+// Projection replays semantic records into the shared stats and lookback view substrates.
 type Projection struct {
 	SeriesStats *seriesstats.Store
 	Lookback    *lookback.Store
@@ -113,11 +113,11 @@ func (p *Projection) ObserveSemantic(record Record) error {
 	}
 	if p.Lookback != nil {
 		p.Lookback.Observe(record.Timestamp, lookback.Point{
-			Key:          record.Descriptor.Key,
-			Name:         record.Descriptor.Name,
-			DebugViewKey: record.Descriptor.DebugViewKey,
-			ListenerID:   record.Descriptor.ListenerID,
-			Origin:       record.Descriptor.Origin,
+			Key:        record.Descriptor.Key,
+			Name:       record.Descriptor.Name,
+			SeriesKey:  record.Descriptor.SeriesKey,
+			ListenerID: record.Descriptor.ListenerID,
+			Origin:     record.Descriptor.Origin,
 		})
 	}
 	return nil

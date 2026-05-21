@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
+	serverdebugimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -124,7 +125,7 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 func BenchmarkParseMetricMessageColumnarV3DirectFastLane(b *testing.B) {
 	message := []byte("daemon:666|c|@0.5|#sometag1:somevalue1,sometag2:somevalue2,service:agent,env:prod")
 
-	bench := func(b *testing.B, fastLane bool) {
+	bench := func(b *testing.B, fastLane bool, statsEnabled bool) {
 		b.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", "true")
 		b.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES", "true")
 		if fastLane {
@@ -133,9 +134,15 @@ func BenchmarkParseMetricMessageColumnarV3DirectFastLane(b *testing.B) {
 			b.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE", "false")
 		}
 
-		deps := fulfillDepsWithConfigOverride(b, map[string]interface{}{"dogstatsd_port": listeners.RandomPortName})
+		deps := fulfillDepsWithConfigOverride(b, map[string]interface{}{"dogstatsd_port": listeners.RandomPortName, "dogstatsd_logging_enabled": false})
 		s := deps.Server.(*dsdServer)
 		s.columnarV3FastLane = fastLane
+		if statsEnabled {
+			debug := serverdebugimpl.NewServerlessServerDebug(deps.Config)
+			debug.SetMetricStatsEnabled(true)
+			defer debug.SetMetricStatsEnabled(false)
+			s.Debug = debug
+		}
 		parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 		builder := identity.NewBuilder()
 		batcher := &countingBatcher{}
@@ -157,8 +164,10 @@ func BenchmarkParseMetricMessageColumnarV3DirectFastLane(b *testing.B) {
 		}
 	}
 
-	b.Run("direct_materialized", func(b *testing.B) { bench(b, false) })
-	b.Run("fastlane_descriptor_hit", func(b *testing.B) { bench(b, true) })
+	b.Run("direct_materialized", func(b *testing.B) { bench(b, false, false) })
+	b.Run("fastlane_descriptor_hit", func(b *testing.B) { bench(b, true, false) })
+	b.Run("direct_materialized_stats", func(b *testing.B) { bench(b, false, true) })
+	b.Run("fastlane_descriptor_hit_stats", func(b *testing.B) { bench(b, true, true) })
 }
 
 func BenchmarkWithMapper(b *testing.B) {

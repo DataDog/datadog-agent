@@ -24,8 +24,8 @@ type GroupBy string
 const (
 	// GroupByMetricName groups counts by metric name.
 	GroupByMetricName GroupBy = "metric_name"
-	// GroupByDebugView groups counts by the compatibility debug-view key.
-	GroupByDebugView GroupBy = "debug_view"
+	// GroupBySeriesKey groups counts by the shared series key.
+	GroupBySeriesKey GroupBy = "series_key"
 	// GroupByListener groups counts by listener ID.
 	GroupByListener GroupBy = "listener"
 	// GroupByOrigin groups counts by origin/container ID.
@@ -48,18 +48,18 @@ type Options struct {
 
 // Point is one DogStatsD metric observation for recent lookback views.
 type Point struct {
-	Key          ckey.ContextKey
-	Name         string
-	DebugViewKey string
-	ListenerID   string
-	Origin       string
+	Key        ckey.ContextKey
+	Name       string
+	SeriesKey  string
+	ListenerID string
+	Origin     string
 }
 
 // Series identifies one retained series in recent lookback results.
 type Series struct {
-	Key          ckey.ContextKey
-	Name         string
-	DebugViewKey string
+	Key       ckey.ContextKey
+	Name      string
+	SeriesKey string
 }
 
 // SeriesCount is a top-series query result.
@@ -103,12 +103,12 @@ type shard struct {
 }
 
 type bucket struct {
-	start      time.Time
-	series     map[ckey.ContextKey]seriesBucketCount
-	byName     map[string]uint64
-	byDebugKey map[string]uint64
-	byListener map[string]uint64
-	byOrigin   map[string]uint64
+	start       time.Time
+	series      map[ckey.ContextKey]seriesBucketCount
+	byName      map[string]uint64
+	bySeriesKey map[string]uint64
+	byListener  map[string]uint64
+	byOrigin    map[string]uint64
 }
 
 type seriesBucketCount struct {
@@ -186,15 +186,15 @@ func (s *Store) Observe(now time.Time, point Point) bool {
 	}
 	if !exists {
 		stat.series = Series{
-			Key:          point.Key,
-			Name:         point.Name,
-			DebugViewKey: point.DebugViewKey,
+			Key:       point.Key,
+			Name:      point.Name,
+			SeriesKey: point.SeriesKey,
 		}
 	}
 	stat.count++
 	bucket.series[point.Key] = stat
 	bucket.byName[point.Name]++
-	bucket.byDebugKey[point.DebugViewKey]++
+	bucket.bySeriesKey[point.SeriesKey]++
 	bucket.byListener[point.ListenerID]++
 	bucket.byOrigin[point.Origin]++
 	return true
@@ -235,8 +235,8 @@ func (s *Store) TopSeries(now time.Time, window time.Duration, limit int) []Seri
 		if results[i].Name != results[j].Name {
 			return results[i].Name < results[j].Name
 		}
-		if results[i].DebugViewKey != results[j].DebugViewKey {
-			return results[i].DebugViewKey < results[j].DebugViewKey
+		if results[i].SeriesKey != results[j].SeriesKey {
+			return results[i].SeriesKey < results[j].SeriesKey
 		}
 		return results[i].Key < results[j].Key
 	})
@@ -263,8 +263,8 @@ func (s *Store) CountBy(now time.Time, window time.Duration, groupBy GroupBy, li
 		switch groupBy {
 		case GroupByMetricName:
 			source = bucket.byName
-		case GroupByDebugView:
-			source = bucket.byDebugKey
+		case GroupBySeriesKey:
+			source = bucket.bySeriesKey
 		case GroupByListener:
 			source = bucket.byListener
 		case GroupByOrigin:
@@ -357,7 +357,7 @@ func (b *bucket) reset(start time.Time) {
 	b.start = start
 	b.series = make(map[ckey.ContextKey]seriesBucketCount)
 	b.byName = make(map[string]uint64)
-	b.byDebugKey = make(map[string]uint64)
+	b.bySeriesKey = make(map[string]uint64)
 	b.byListener = make(map[string]uint64)
 	b.byOrigin = make(map[string]uint64)
 }
@@ -372,7 +372,7 @@ func ratePerSecond(count uint64, window time.Duration) float64 {
 
 func isSupportedGroupBy(groupBy GroupBy) bool {
 	switch groupBy {
-	case GroupByMetricName, GroupByDebugView, GroupByListener, GroupByOrigin:
+	case GroupByMetricName, GroupBySeriesKey, GroupByListener, GroupByOrigin:
 		return true
 	default:
 		return false

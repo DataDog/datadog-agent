@@ -20,7 +20,7 @@ import (
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 )
 
-func TestMilestone0DebugViewKeyBaseline(t *testing.T) {
+func TestMilestone0StatsUseSharedSeriesIdentity(t *testing.T) {
 	debug := fulfillDeps(t, map[string]interface{}{"dogstatsd_logging_enabled": false})
 	d := debug.(*serverDebugImpl)
 	d.SetMetricStatsEnabled(true)
@@ -56,13 +56,13 @@ func TestMilestone0DebugViewKeyBaseline(t *testing.T) {
 	require.NoError(t, err)
 	var stats map[ckey.ContextKey]metricStat
 	require.NoError(t, json.Unmarshal(payload, &stats))
-	require.Len(t, stats, 2, "debug view currently groups by metric name and client tags only")
+	require.Len(t, stats, 3, "stats share the host-aware DogStatsD series identity")
 
 	var counts []uint64
 	for _, stat := range stats {
 		counts = append(counts, stat.Count)
 	}
-	assert.ElementsMatch(t, []uint64{3, 1}, counts, "host/origin/type changes collapse, tag changes do not")
+	assert.ElementsMatch(t, []uint64{2, 1, 1}, counts, "reordered tags collapse, host and tag changes do not")
 }
 
 func BenchmarkMilestone0StoreMetricStats(b *testing.B) {

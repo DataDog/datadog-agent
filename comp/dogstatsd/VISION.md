@@ -367,8 +367,8 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 
 - Introduce an internal DogStatsD identity/descriptor model near the point where `MetricSample` is ready for batching.
 - Name identities explicitly, for example:
-  - client series and debug-view grouping key: what the client submitted before tagger enrichment, with the current stats view preserving its host-excluding projection;
-  - shard identity: what currently selects the aggregation pipeline;
+  - client series: what the client submitted before tagger enrichment, after DogStatsD metadata tags such as `host:` have been extracted;
+  - shared parser-side series/shard identity: metric name + parsed host + parsed client tags, used for batch sharding and `dogstatsd-stats`;
   - effective backend identity: what eventually determines backend aggregation;
   - lineage identity: listener/process/origin/capture metadata.
 - Initially compute only fields already available in the DogStatsD worker.
@@ -376,7 +376,7 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 **Proof / acceptance criteria**
 
 - Tests prove new identity functions match existing behavior for the cases from Milestone 0.
-- No backend payload or `agent dogstatsd-stats` output changes except where intentionally documented.
+- `agent dogstatsd-stats` keeps its endpoint/command shape; in the experimental shared-identity model, host overrides become visible as separate local series instead of being collapsed by the legacy stats projection.
 - CPU/allocation impact is neutral or better when the new code is wired but not yet reused broadly.
 
 **Initial proof artifacts**
@@ -401,7 +401,7 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 
 - Gives a single place to remove duplicate hashing/tag handling from batcher, debug, and eventually aggregator code.
 
-### Milestone 2: Compute hot-path series, shard, and debug-view keys once
+### Milestone 2: Compute the hot-path series identity once
 
 **Value delivered**
 
@@ -412,13 +412,13 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 
 - Carry a hot-path context alongside each parsed sample through DogStatsD batching.
 - Make batch shard selection consume the precomputed shard identity.
-- Make `serverDebug` consume the precomputed debug-view key and tag display string, preserving the current host-excluding stats grouping as a compatibility projection rather than treating it as a separate series identity.
+- Make `serverDebug` consume the same precomputed parser-side series identity and tag display string used for batch sharding. This intentionally removes the legacy host-excluding stats projection in the experiment: host overrides become separate stats rows because that is the natural shared-series behavior.
 - Keep aggregator context resolution unchanged initially.
 
 **Proof / acceptance criteria**
 
 - Benchmarks show reduced or neutral CPU/allocation cost in DogStatsD parse/batch/debug paths.
-- Golden tests prove shard selection and debug-view grouping keys are unchanged.
+- Golden tests prove shard selection and stats grouping share the same parser-side series key.
 - Race tests pass with multiple workers.
 
 **Initial proof artifacts**
@@ -426,19 +426,19 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 - Hot-path context wiring:
   - `identity.Builder.ResolveHotPath`;
   - `batcher.appendSampleWithContext` / `appendLateSampleWithContext`;
-  - `serverDebug.StoreMetricStatsWithDebugViewKey`;
+  - `serverDebug.StoreMetricStatsWithShardIdentity`;
   - worker-local identity builder passed through `parsePackets`.
 - Contract tests:
   - `TestMilestone2BatcherUsesPrecomputedShardIdentity`;
   - `TestMilestone2ParsePacketsCarriesResolvedSampleContext`;
-  - `TestMilestone2StoreMetricStatsWithDebugViewKeyMatchesLegacyKey`;
-  - `TestMilestone2StoreMetricStatsWithDebugViewKeyConcurrent`.
+  - `TestMilestone2StoreMetricStatsWithShardIdentityMatchesLegacyPath`;
+  - `TestMilestone2StoreMetricStatsWithShardIdentityConcurrent`.
 - Benchmarks:
   - `BenchmarkMilestone2ResolvedContextReuse`;
-  - `BenchmarkMilestone2StoreMetricStatsWithDebugViewKey`.
+  - `BenchmarkMilestone2StoreMetricStatsWithShardIdentity`.
 - Suggested verification commands:
   - `dda inv test --targets=./comp/dogstatsd/internal/identity,./comp/dogstatsd/server/impl,./comp/dogstatsd/serverDebug/impl --test-run-name='Milestone2'`;
-  - `dda inv test --targets=./comp/dogstatsd/serverDebug/impl --test-run-name='Milestone2StoreMetricStatsWithDebugViewKeyConcurrent' --extra-args='-race'`;
+  - `dda inv test --targets=./comp/dogstatsd/serverDebug/impl --test-run-name='Milestone2StoreMetricStatsWithShardIdentityConcurrent' --extra-args='-race'`;
   - `dda inv test --targets=./comp/dogstatsd/internal/identity,./comp/dogstatsd/serverDebug/impl --test-run-name='^$' --extra-args='-bench=BenchmarkMilestone2 -benchmem -count=1'`.
 
 **Stop-safe state**
@@ -485,7 +485,7 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
   - `TestMilestone3SpikeCountersUseTimeBucketsWithoutMetricChannel`.
 - Shard-local lock coverage moved with the reusable store in Milestone 4.
 - Benchmark:
-  - `BenchmarkMilestone3StoreMetricStatsWithDebugViewKey`.
+  - `BenchmarkMilestone3StoreMetricStatsWithShardIdentity`.
 - Suggested verification commands:
   - `dda inv test --targets=./comp/dogstatsd/serverDebug/impl`;
   - `dda inv test --targets=./comp/dogstatsd/serverDebug/impl --test-run-name='Milestone3' --extra-args='-race'`;
@@ -509,9 +509,9 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 **Scope**
 
 - Add a test-only legacy contention benchmark that contrasts the old global-lock/unbuffered-channel shape with the bounded sharded view.
-- Add a component-level high-cardinality budget test through `StoreMetricStatsWithDebugViewKey` and `GetJSONDebugStats`, not only the internal view type.
+- Add a component-level high-cardinality budget test through `StoreMetricStatsWithShardIdentity` and `GetJSONDebugStats`, not only the internal view type.
 - Add operational telemetry for retained contexts, budget evictions, TTL prunes, snapshots, and snapshot size.
-- Keep runtime setting, endpoint, command output, and normal grouping compatibility unchanged.
+- Keep runtime setting, endpoint, and command output shape unchanged; grouping follows the shared host-aware series identity in the experiment.
 
 **Proof / acceptance criteria**
 
@@ -573,8 +573,8 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 **Initial proof artifacts**
 
 - Added `comp/dogstatsd/internal/seriesstats`, a bounded shard-local `SeriesStatsStore` keyed by `ckey.ContextKey` with display descriptors carried as view data.
-- `serverDebug` now adapts its compatibility debug-view key into `SeriesStatsStore` instead of owning its own map, TTL pruning, eviction, and telemetry accounting logic.
-- The existing `dogstatsd-stats` JSON/CLI compatibility projection is preserved by converting store rows back to the legacy `metricStat` shape at the endpoint boundary.
+- `serverDebug` now adapts the shared parser-side series identity into `SeriesStatsStore` instead of owning its own map, TTL pruning, eviction, and telemetry accounting logic.
+- The existing `dogstatsd-stats` JSON/CLI shape is preserved by converting store rows back to the legacy `metricStat` shape at the endpoint boundary; grouping uses the shared host-aware series key.
 - Store query helpers provide deterministic top-K ordering and retained-row rate summaries without introducing dynamic lookback windows yet.
 - Store telemetry is shared with the Milestone 3b DogStatsD debug telemetry: retained contexts, budget evictions, TTL prunes, snapshots, and snapshot size.
 - Contract tests:
@@ -668,7 +668,7 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 - Add per-shard micro-bucket rings, initially for simple count/rate views.
 - Support fixed query shapes first:
   - top series over last N seconds;
-  - rate/count by metric name or debug-view grouping key;
+  - rate/count by metric name or shared series key;
   - group by listener/origin where available;
   - exemplar lookup into the raw ingress ring when enabled.
 - Keep local query windows independent from backend flush interval.
@@ -683,7 +683,7 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 **Initial proof artifacts**
 
 - Added `comp/dogstatsd/internal/lookback`, a bounded shard-local micro-bucket ring for recent DogStatsD count/rate queries.
-- Supports fixed query shapes for top series, count/rate by metric name, debug-view key, listener ID, and origin.
+- Supports fixed query shapes for top series, count/rate by metric name, shared series key, listener ID, and origin.
 - Enforces memory/query bounds with `MaxContextsPerBucket`, `MaxResults`, fixed bucket count, and dropped-point counters.
 - Query scans lock one shard at a time and returns deterministic top-N ordering for fixed inputs.
 - Design adjustment: this milestone lands the bounded query substrate and tests first. A user-facing command/API and raw-ring exemplar lookup should be added before advertising the operator feature broadly.
@@ -831,7 +831,7 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 - Deletion/simplification already completed by the milestone stack:
   - duplicate `serverDebug` map/channel architecture was deleted in favor of `SeriesStatsStore`;
   - listener-specific active capture code now routes through `IngressEnvelope` and no longer requires packet-pool passthrough toggling;
-  - debug-view key remains a compatibility projection, not a separate semantic identity.
+  - stats and lookback use the shared parser-side series identity rather than a separate debug projection.
 - Contract test:
   - `TestMilestone9BackendSeedMatchesMetricSampleContextKeys`.
 - Benchmark:

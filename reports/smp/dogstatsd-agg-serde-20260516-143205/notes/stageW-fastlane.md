@@ -37,8 +37,10 @@ The fast lane is intentionally narrow:
 - supported only when Stage V direct parse is eligible;
 - requires exact raw-tagset cache hit with non-zero tagset ID;
 - single-value gauge/count only in this slice;
-- no mapper, extra tags, debug stats, hist-to-distribution, timestamp, origin
-  fields, UDS origin, or process metadata;
+- no mapper, extra tags, hist-to-distribution, timestamp, origin fields, UDS
+  origin, or process metadata;
+- `dogstatsd-stats` can be updated from the same shared parser-side series
+  identity; the experiment no longer treats stats as a separate debug identity;
 - fallback-safe: misses and unsupported messages use Stage V/direct legacy path.
 
 On hit, the parser looks up a worker-local descriptor by raw metric name +
@@ -71,6 +73,21 @@ Representative focused result:
 | Stage W fast-lane descriptor hit | `185.2` | `0 B/op`, `0 allocs/op` |
 
 That is a `~40.6%` parser/direct-handoff reduction on the exact cache-hit path.
+
+Follow-up stats-aware focused benchmark with `dogstatsd_logging_enabled=false`:
+
+| Path | ns/op | allocs |
+|---|---:|---:|
+| Direct materialized hit, stats off | `317.3` | `0 B/op`, `0 allocs/op` |
+| Fast-lane descriptor hit, stats off | `192.9` | `0 B/op`, `0 allocs/op` |
+| Direct materialized hit, stats on | `452.6` | `0 B/op`, `0 allocs/op` |
+| Fast-lane descriptor hit, stats on | `314.2` | `0 B/op`, `0 allocs/op` |
+
+The bounded stats view itself measured `96.14 ns/op`, `0 allocs/op` in the
+contention benchmark versus `555.1 ns/op` for the legacy global-lock shape. The
+macro feature-cost SMP with `dogstatsd-stats` enabled still needs to be run, but
+the focused result shows stats no longer force repeated simple metrics off the
+fast lane.
 
 ## SMP results
 

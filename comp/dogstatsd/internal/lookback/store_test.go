@@ -42,7 +42,7 @@ func TestMilestone6LookbackTopSeriesMatchesOfflineReference(t *testing.T) {
 	for i := range reference {
 		assert.Equal(t, reference[i].Key, actual[i].Key)
 		assert.Equal(t, reference[i].Name, actual[i].Name)
-		assert.Equal(t, reference[i].DebugViewKey, actual[i].DebugViewKey)
+		assert.Equal(t, reference[i].SeriesKey, actual[i].SeriesKey)
 		assert.Equal(t, reference[i].Count, actual[i].Count)
 		assert.InDelta(t, reference[i].RatePerSecond, actual[i].RatePerSecond, 0.001)
 	}
@@ -64,13 +64,13 @@ func TestMilestone6LookbackCountByFixedShapes(t *testing.T) {
 		{Group: "beta", Count: 1, RatePerSecond: 0.1},
 	}, byName)
 
-	byDebug, err := store.CountBy(now, 10*time.Second, GroupByDebugView, 10)
+	bySeries, err := store.CountBy(now, 10*time.Second, GroupBySeriesKey, 10)
 	require.NoError(t, err)
 	assert.Equal(t, []GroupCount{
 		{Group: "alpha|env:dev", Count: 2, RatePerSecond: 0.2},
 		{Group: "alpha|env:prod", Count: 1, RatePerSecond: 0.1},
 		{Group: "beta|env:prod", Count: 1, RatePerSecond: 0.1},
-	}, byDebug)
+	}, bySeries)
 
 	byListener, err := store.CountBy(now, 10*time.Second, GroupByListener, 10)
 	require.NoError(t, err)
@@ -109,7 +109,7 @@ func TestMilestone6LookbackQueriesAreBoundedAndSafe(t *testing.T) {
 	store := NewStore(Options{ShardCount: 1, Window: time.Minute, BucketWidth: time.Second, MaxContextsPerBucket: 10, MaxResults: 2})
 	now := time.Unix(100, 0)
 	for i := 0; i < 5; i++ {
-		store.Observe(now, testPoint(ckey.ContextKey(i), fmt.Sprintf("metric-%d", i), fmt.Sprintf("debug-%d", i), "udp", "origin"))
+		store.Observe(now, testPoint(ckey.ContextKey(i), fmt.Sprintf("metric-%d", i), fmt.Sprintf("series-%d", i), "udp", "origin"))
 	}
 
 	top := store.TopSeries(now, time.Second, 0)
@@ -158,8 +158,8 @@ func BenchmarkMilestone6LookbackObserve(b *testing.B) {
 	}
 }
 
-func testPoint(key ckey.ContextKey, name string, debugViewKey string, listenerID string, origin string) Point {
-	return Point{Key: key, Name: name, DebugViewKey: debugViewKey, ListenerID: listenerID, Origin: origin}
+func testPoint(key ckey.ContextKey, name string, seriesKey string, listenerID string, origin string) Point {
+	return Point{Key: key, Name: name, SeriesKey: seriesKey, ListenerID: listenerID, Origin: origin}
 }
 
 func offlineTopSeries(now time.Time, window time.Duration, points []struct {
@@ -174,7 +174,7 @@ func offlineTopSeries(now time.Time, window time.Duration, points []struct {
 		}
 		stat := counts[point.point.Key]
 		if stat.count == 0 {
-			stat.series = Series{Key: point.point.Key, Name: point.point.Name, DebugViewKey: point.point.DebugViewKey}
+			stat.series = Series{Key: point.point.Key, Name: point.point.Name, SeriesKey: point.point.SeriesKey}
 		}
 		stat.count++
 		counts[point.point.Key] = stat
@@ -204,8 +204,8 @@ func lessSeriesCount(left, right SeriesCount) bool {
 	if left.Name != right.Name {
 		return left.Name < right.Name
 	}
-	if left.DebugViewKey != right.DebugViewKey {
-		return left.DebugViewKey < right.DebugViewKey
+	if left.SeriesKey != right.SeriesKey {
+		return left.SeriesKey < right.SeriesKey
 	}
 	return left.Key < right.Key
 }

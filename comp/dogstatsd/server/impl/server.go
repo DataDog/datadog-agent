@@ -809,10 +809,6 @@ func (s *dsdServer) errLog(format string, params ...interface{}) {
 	}
 }
 
-type precomputedDebugStatsStore interface {
-	StoreMetricStatsWithDebugViewKey(sample metrics.MetricSample, debugViewKey identity.DebugViewKey)
-}
-
 func columnarV3DirectParseEnabled() bool {
 	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_DIRECT_PARSE"))
 	return err == nil && enabled
@@ -905,9 +901,7 @@ func (s *dsdServer) appendMetricSamples(batcher dogstatsdBatcher, identityBuilde
 		debugEnabled := s.Debug.IsDebugEnabled()
 		needsShardContext := batcherNeedsContext || columnarV3Enabled
 		var sampleContext identity.HotPathContext
-		if debugEnabled {
-			sampleContext = identityBuilder.ResolveHotPath(samples[idx])
-		} else if needsShardContext {
+		if debugEnabled || needsShardContext {
 			sampleContext = identityBuilder.ResolveShardHotPath(samples[idx])
 		}
 
@@ -942,7 +936,7 @@ func (s *dsdServer) appendMetricSamples(batcher dogstatsdBatcher, identityBuilde
 			distSample.Name = s.histToDistPrefix + distSample.Name
 			distSample.Mtype = metrics.DistributionType
 			if batcherNeedsContext {
-				distContext := identityBuilder.ResolveHotPath(*distSample)
+				distContext := identityBuilder.ResolveShardHotPath(*distSample)
 				batcher.appendSampleWithContext(*distSample, distContext)
 			} else {
 				batcher.appendSample(*distSample)
@@ -951,12 +945,12 @@ func (s *dsdServer) appendMetricSamples(batcher dogstatsdBatcher, identityBuilde
 	}
 }
 
-func (s *dsdServer) storeMetricStats(sample metrics.MetricSample, sampleContext identity.HotPathContext) {
-	if debugStore, ok := s.Debug.(precomputedDebugStatsStore); ok {
-		debugStore.StoreMetricStatsWithDebugViewKey(sample, sampleContext.DebugView)
-		return
-	}
-	s.Debug.StoreMetricStats(sample)
+func (s *dsdServer) storeMetricStats(_ metrics.MetricSample, sampleContext identity.HotPathContext) {
+	s.storeMetricStatsWithShard(sampleContext.Shard)
+}
+
+func (s *dsdServer) storeMetricStatsWithShard(shard identity.ShardIdentity) {
+	s.Debug.StoreMetricStatsWithShardIdentity(shard)
 }
 
 // getOriginCounter returns a telemetry counter for processed metrics using the given origin as a tag.
@@ -1126,6 +1120,9 @@ func (s *dsdServer) parseMetricMessageColumnarV3FastLane(batcher dogstatsdBatche
 
 	includeDescriptor := !desc.context.CompactState.ColumnarDescriptorKnown(desc.mtype)
 	row := newDogStatsDColumnarV3SampleFromFastDescriptor(desc, fastSample.value, fastSample.sampleRate, includeDescriptor)
+	if s.Debug.IsDebugEnabled() {
+		s.storeMetricStatsWithShard(desc.context.Shard)
+	}
 	batcher.appendColumnarV3Row(row)
 	dogstatsdMetricPackets.Add(1)
 	okCnt.Inc()
@@ -1137,7 +1134,7 @@ func (s *dsdServer) parseMetricMessageColumnarV3Direct(batcher dogstatsdBatcher,
 	// Keep this vertical slice intentionally narrow. If compatibility features that
 	// rewrite identities are active, the normal MetricSample path remains the
 	// source of truth.
-	if s.mapper != nil || len(s.extraTags) > 0 || s.histToDist || s.Debug.IsDebugEnabled() {
+	if s.mapper != nil || len(s.extraTags) > 0 || s.histToDist {
 		return metricSamples, false, nil
 	}
 
@@ -1200,6 +1197,9 @@ func (s *dsdServer) parseMetricMessageColumnarV3Direct(batcher dogstatsdBatcher,
 	appendDirectAccepted := func(value float64) {
 		template.Value = value
 		context := identityBuilder.ResolveShardHotPath(template)
+		if s.Debug.IsDebugEnabled() {
+			s.storeMetricStatsWithShard(context.Shard)
+		}
 		batcher.appendColumnarV3SampleWithContext(template, context)
 		dogstatsdMetricPackets.Add(1)
 		okCnt.Inc()

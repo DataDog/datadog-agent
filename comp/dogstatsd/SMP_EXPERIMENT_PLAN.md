@@ -111,7 +111,7 @@ Why it matters:
 
 - Multi-sender UDS workload.
 - Mixed metric types.
-- Useful for context-cache, tag-cache, debug-view, and sustained memory behavior.
+- Useful for context-cache, tag-cache, stats-view, and sustained memory behavior.
 - Optimization goal is memory, so it complements the throughput-oriented v3 case.
 
 ## Comparison stages

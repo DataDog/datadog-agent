@@ -20,6 +20,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
+type recordingMetricStatsDebug struct {
+	enabled bool
+	samples []metrics.MetricSample
+	shards  []identity.ShardIdentity
+}
+
+func (d *recordingMetricStatsDebug) StoreMetricStats(sample metrics.MetricSample) {
+	d.samples = append(d.samples, sample)
+}
+
+func (d *recordingMetricStatsDebug) StoreMetricStatsWithShardIdentity(shard identity.ShardIdentity) {
+	d.shards = append(d.shards, shard)
+}
+
+func (d *recordingMetricStatsDebug) IsDebugEnabled() bool { return d.enabled }
+
+func (d *recordingMetricStatsDebug) SetMetricStatsEnabled(enabled bool) { d.enabled = enabled }
+
+func (d *recordingMetricStatsDebug) GetJSONDebugStats() ([]byte, error) { return nil, nil }
+
 func TestParseMetricMessageColumnarV3Direct(t *testing.T) {
 	deps := fulfillDepsWithConfigOverride(t, map[string]interface{}{"dogstatsd_port": listeners.RandomPortName})
 	s := deps.Server.(*dsdServer)
@@ -67,6 +87,36 @@ func TestParseMetricMessageColumnarV3FastLaneUsesExactTagsetHit(t *testing.T) {
 	assert.True(t, row.HasDescriptor)
 	assert.NotZero(t, row.CompactID)
 	assert.NotNil(t, row.CompactState)
+}
+
+func TestParseMetricMessageColumnarV3FastLaneUpdatesDebugStats(t *testing.T) {
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE", "true")
+
+	deps := fulfillDepsWithConfigOverride(t, map[string]interface{}{"dogstatsd_port": listeners.RandomPortName})
+	s := deps.Server.(*dsdServer)
+	debug := &recordingMetricStatsDebug{enabled: true}
+	s.Debug = debug
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	batcher := &batcherMock{}
+	builder := identity.NewBuilder()
+	message := []byte("fast.metric:42|g|#env:prod,service:agent")
+
+	for i := 0; i < 3; i++ {
+		_, handled, err := s.parseMetricMessageColumnarV3Direct(batcher, parser, builder, message, "", 0, "listener", false, nil, nil, nil)
+		require.NoError(t, err)
+		require.True(t, handled)
+	}
+
+	require.Len(t, batcher.samples, 2)
+	require.Len(t, batcher.columnarRows, 1, "third point should use the no-materialization fast lane")
+	require.Len(t, debug.shards, 3, "debug stats should be updated from the shared series identity on both direct and fast-lane paths")
+	assert.Empty(t, debug.samples, "precomputed shared identity avoids rebuilding stats from MetricSample")
+	for _, shard := range debug.shards[1:] {
+		assert.Equal(t, debug.shards[0].ContextKey, shard.ContextKey)
+		assert.Equal(t, "fast.metric", shard.Client.Name)
+	}
 }
 
 // Run through all of the major metric types and verify both the default and the timestamped flows

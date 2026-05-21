@@ -447,14 +447,23 @@
   <p>The experiment was not only about throughput. A major goal was to make existing and proposed DogStatsD observability features cheap enough to leave on or compose: debug stats, raw capture/replay, a future recent-lookback query feature, semantic replay, and payload construction.</p>
   <table class="score">
     <tr><th>Goal</th><th>Confidence</th><th>What we proved</th><th>What remains</th></tr>
-    <tr><td><code>dogstatsd-stats</code> / <code>serverDebug</code></td><td class="status-high">High</td><td>Replaced the old shape with bounded sharded materialized views and a reusable <code>SeriesStatsStore</code>; local observe benchmark was ~67 ns/op, 0 allocs/op.</td><td>Full feature-cost SMP with debug enabled alongside the newest fast path.</td></tr>
+    <tr><td><code>dogstatsd-stats</code> / <code>serverDebug</code></td><td class="status-high">High</td><td>Replaced the old shape with bounded sharded materialized views and a reusable <code>SeriesStatsStore</code>; the latest parser fast lane can update stats from the same host-aware series descriptor instead of falling back to a separate debug identity.</td><td>Full feature-cost SMP with stats enabled; focused benchmark evidence is below.</td></tr>
     <tr><td>Raw capture / raw replay</td><td class="status-medium">Medium-high</td><td>Introduced ingress envelopes and a bounded raw ring; active capture can copy from envelopes instead of entangling packet-pool ownership.</td><td>Byte-budgeted retention, export under load, origin/OOB coverage, and always-on feature-cost runs.</td></tr>
     <tr><td>Recent lookback queries</td><td class="status-medium">Medium</td><td>Built a bounded shard-local micro-bucket substrate with deterministic fixed-shape queries; observe benchmark was ~104 ns/op, 0 allocs/op.</td><td>Wire into live DogStatsD path and measure CPU/RSS/query latency under high cardinality.</td></tr>
     <tr><td>Semantic replay</td><td class="status-medium">Medium</td><td>Proved replay over canonical records can reproduce debug/lookback projections without reparsing or depending on current enrichment state.</td><td>Persisted corpus format, CLI/operator workflow, and connection to real capture artifacts.</td></tr>
     <tr><td>v3 payload construction</td><td class="status-medium">Medium-high</td><td>Stage Q completed native columnar-v3 payload construction and a v2/direct-series bridge; direct serializer allocation was not the main retained-heap culprit.</td><td>Reuse descriptor/name/tagset IDs directly in v3 payload dictionaries to avoid another round of string/tag work.</td></tr>
   </table>
+  <h3>Concrete extra-feature cost example: <code>dogstatsd-stats</code></h3>
+  <p>This is the clearest focused example of the architecture goal. In the old debug-stats shape, every sample updated a globally locked map and sent a spike-detection signal. In the new shape, stats are a bounded sharded materialized view keyed by the same parser-side series descriptor used for ingestion. With the stats-aware fast lane, enabling <code>dogstatsd-stats</code> no longer forces repeated simple metrics back through the object-heavy parser path.</p>
+  <table>
+    <tr><th>Focused local benchmark</th><th>Before / baseline</th><th>After</th><th>Read</th></tr>
+    <tr><td>Stats store update under contention</td><td>legacy global lock + unbuffered spike channel: <code>555 ns/op</code></td><td>bounded sharded materialized view: <code>96 ns/op</code>, <code>0 allocs/op</code></td><td>~5.8× cheaper inner stats update.</td></tr>
+    <tr><td>Parser/direct handoff with stats enabled</td><td>direct materialized path + stats: <code>453 ns/op</code>, <code>0 allocs/op</code></td><td>fast-lane descriptor hit + stats: <code>314 ns/op</code>, <code>0 allocs/op</code></td><td>~31% cheaper while still updating <code>dogstatsd-stats</code>.</td></tr>
+    <tr><td>Marginal cost of stats on the fast lane</td><td>fast-lane descriptor hit without stats: <code>193 ns/op</code></td><td>fast-lane descriptor hit with stats: <code>314 ns/op</code></td><td>Stats add ~121 ns/op on this focused hit path, with no allocations.</td></tr>
+  </table>
+  <p class="small">Caveat: these are focused Go benchmarks, not SMP macro results. They used logging disabled for the per-metric DogStatsD stats log, repeated simple metric lines, exact tagset/descriptor hits, and the experimental direct/fast-lane path. The macro feature-cost SMP is still the next proof step.</p>
   <div class="callout neutral">
-    <strong>Feature-read:</strong> the substrates are promising and bounded, but the full “always-on observability for cheap” claim still needs a feature-cost matrix with debug + lookback + raw ring enabled together. The architecture wins when shared descriptors replace duplicate work, not when every view retains its own copy.
+    <strong>Feature-read:</strong> the substrates are promising and bounded, but the full “always-on observability for cheap” claim still needs a feature-cost matrix with stats + lookback + raw ring enabled together. The architecture wins when shared descriptors replace duplicate work, not when every view retains its own copy.
   </div>
 </section>
 

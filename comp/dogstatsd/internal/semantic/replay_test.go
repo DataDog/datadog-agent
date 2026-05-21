@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-func TestMilestone8SemanticReplayReproducesDebugAndLookbackViews(t *testing.T) {
+func TestMilestone8SemanticReplayReproducesStatsAndLookbackViews(t *testing.T) {
 	now := time.Unix(100, 0)
 	records := []Record{
 		testRecord(now.Add(-2*time.Second), 1, "alpha", []string{"env:prod"}, "alpha|env:prod", "udp", "origin-a"),
@@ -68,9 +68,9 @@ func TestMilestone8SemanticReplayIgnoresChangedEnrichmentState(t *testing.T) {
 	rawTop := rawProjection.Lookback.TopSeries(raw.Timestamp, time.Second, 1)
 	require.Len(t, semanticTop, 1)
 	require.Len(t, rawTop, 1)
-	assert.Equal(t, "requests.count|client:go,env:original", semanticTop[0].DebugViewKey)
-	assert.Equal(t, "requests.count|client:go,env:changed", rawTop[0].DebugViewKey)
-	assert.NotEqual(t, semanticTop[0].DebugViewKey, rawTop[0].DebugViewKey)
+	assert.Equal(t, "requests.count|client:go,env:original", semanticTop[0].SeriesKey)
+	assert.Equal(t, "requests.count|client:go,env:changed", rawTop[0].SeriesKey)
+	assert.NotEqual(t, semanticTop[0].SeriesKey, rawTop[0].SeriesKey)
 }
 
 func TestMilestone8RawReplayStillBuildsRecordsFromCurrentEnrichment(t *testing.T) {
@@ -80,7 +80,7 @@ func TestMilestone8RawReplayStillBuildsRecordsFromCurrentEnrichment(t *testing.T
 	record := BuildRecord(raw, enricher)
 
 	assert.Equal(t, []string{"client:yes", "env:current"}, record.Descriptor.Tags)
-	assert.Equal(t, "metric|client:yes,env:current", record.Descriptor.DebugViewKey)
+	assert.Equal(t, "metric|client:yes,env:current", record.Descriptor.SeriesKey)
 }
 
 func BenchmarkMilestone8SemanticReplayProjection(b *testing.B) {
@@ -105,15 +105,15 @@ func newTestProjection() *Projection {
 	)
 }
 
-func testRecord(timestamp time.Time, key ckey.ContextKey, name string, tags []string, debugViewKey string, listenerID string, origin string) Record {
+func testRecord(timestamp time.Time, key ckey.ContextKey, name string, tags []string, seriesKey string, listenerID string, origin string) Record {
 	return Record{
 		Descriptor: Descriptor{
-			Key:          key,
-			Name:         name,
-			Tags:         tags,
-			DebugViewKey: debugViewKey,
-			ListenerID:   listenerID,
-			Origin:       origin,
+			Key:        key,
+			Name:       name,
+			Tags:       tags,
+			SeriesKey:  seriesKey,
+			ListenerID: listenerID,
+			Origin:     origin,
 		},
 		Type:      metrics.CountType,
 		Timestamp: timestamp,
@@ -128,18 +128,18 @@ type mutableEnricher struct {
 func (e mutableEnricher) Descriptor(raw RawMetric) Descriptor {
 	tags := append([]string(nil), raw.Tags...)
 	tags = append(tags, e.originTags[raw.Origin]...)
-	debugViewKey := raw.Name
+	seriesKey := raw.Name
 	if len(tags) > 0 {
-		debugViewKey += "|" + joinTags(tags)
+		seriesKey += "|" + joinTags(tags)
 	}
 	return Descriptor{
-		Key:          ckey.ContextKey(len(debugViewKey)),
-		Name:         raw.Name,
-		Host:         raw.Host,
-		Tags:         tags,
-		DebugViewKey: debugViewKey,
-		ListenerID:   raw.ListenerID,
-		Origin:       raw.Origin,
+		Key:        ckey.ContextKey(len(seriesKey)),
+		Name:       raw.Name,
+		Host:       raw.Host,
+		Tags:       tags,
+		SeriesKey:  seriesKey,
+		ListenerID: raw.ListenerID,
+		Origin:     raw.Origin,
 	}
 }
 
