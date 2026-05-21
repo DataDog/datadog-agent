@@ -11,60 +11,61 @@ import (
 	"io"
 	"testing"
 
-	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/structpb"
-
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 )
 
 func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
-	franceRow, err := structpb.NewStruct(map[string]interface{}{"city": "Beautiful city of lights", "country": "France"})
-	require.NoError(t, err)
-	usaRow, err := structpb.NewStruct(map[string]interface{}{"city": "New York", "country": "USA"})
-	require.NoError(t, err)
-	client := &captureBridgeClient{response: &pb.RemoteQueryExecuteResponse{Status: "SUCCEEDED", Rows: []*structpb.Struct{franceRow, usaRow}}}
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Metadata{Metadata: &pb.RemoteQueryStreamMetadata{Operation: "copy_stream", Integration: "postgres", Format: "csv"}}}, ChunkIndex: 0},
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 1, Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{Payload: []byte("Beautiful city of lights,France\nNew York,USA\n"), Offset: 0, Bytes: 42}}}, ChunkIndex: 1},
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 2, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{Status: "SUCCEEDED", BytesEmitted: 42, ChunksEmitted: 1}}}, ChunkIndex: 2},
+		{ChunkIndex: 3, Final: true},
+	}}
 	action := NewExecuteAction(func() (BridgeClient, error) {
 		return client, nil
 	})
 
 	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
 		"integration": "postgres",
+		"operation":   "copy_stream",
+		"format":      "csv",
 		"target": map[string]interface{}{
 			"host":   "localhost",
 			"port":   5432,
 			"dbname": "postgres",
 		},
 		"query": "SELECT city, country FROM cities ORDER BY city",
-		"limits": map[string]interface{}{
-			"maxRows":   2,
-			"maxBytes":  1024,
-			"timeoutMs": 1000,
+		"copyLimits": map[string]interface{}{
+			"chunkBytes":  1024,
+			"maxBytes":    1024,
+			"maxRowBytes": 1024,
+			"timeoutMs":   1000,
 		},
 	}), &privateconnection.PrivateCredentials{Tokens: []privateconnection.PrivateCredentialsToken{{Name: "password", Value: "secret-value"}}})
 
 	require.NoError(t, err)
 	require.NotNil(t, client.request)
 	assert.Equal(t, "postgres", client.request.GetIntegration())
+	assert.Equal(t, "copy_stream", client.request.GetOperation())
+	assert.Equal(t, "csv", client.request.GetFormat())
 	assert.Equal(t, "localhost", client.request.GetTarget().GetHost())
 	assert.Equal(t, int32(5432), client.request.GetTarget().GetPort())
 	assert.Equal(t, "postgres", client.request.GetTarget().GetDbname())
 	assert.Equal(t, "SELECT city, country FROM cities ORDER BY city", client.request.GetQuery())
-	assert.Equal(t, int32(2), client.request.GetLimits().GetMaxRows())
+	assert.Equal(t, int32(1024), client.request.GetCopyLimits().GetChunkBytes())
 	requestEvidence, err := json.Marshal(client.request)
 	require.NoError(t, err)
 	assert.NotContains(t, string(requestEvidence), "secret-value")
-	assert.Equal(t, map[string]interface{}{
-		"status": "SUCCEEDED",
-		"rows": []interface{}{
-			map[string]interface{}{"city": "Beautiful city of lights", "country": "France"},
-			map[string]interface{}{"city": "New York", "country": "USA"},
-		},
-	}, output)
+	out, ok := output.(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "SUCCEEDED", out["status"])
+	assert.Equal(t, "Beautiful city of lights,France\nNew York,USA\n", out["data"])
 }
 
 func TestExecuteActionPreservesCopyStreamEvents(t *testing.T) {
@@ -120,9 +121,10 @@ func TestExecuteActionPreservesBinaryCopyStreamPayload(t *testing.T) {
 }
 
 func TestExecuteActionPreservesSanitizedBridgeErrorBody(t *testing.T) {
-	client := &captureBridgeClient{
-		response: &pb.RemoteQueryExecuteResponse{Status: "target_not_found", Error: &pb.RemoteQueryExecuteError{Code: "target_not_found", Message: "no matching integration check found"}},
-	}
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Error{Error: &pb.RemoteQueryStreamError{Code: "target_not_found", Message: "no matching integration check found"}}}, ChunkIndex: 0},
+		{ChunkIndex: 1, Final: true},
+	}}
 	action := NewExecuteAction(func() (BridgeClient, error) {
 		return client, nil
 	})
@@ -176,15 +178,14 @@ func taskWithInputs(inputs map[string]interface{}) *types.Task {
 }
 
 type captureBridgeClient struct {
-	request  *pb.RemoteQueryExecuteRequest
-	response *pb.RemoteQueryExecuteResponse
-	chunks   []*pb.RemoteQueryExecuteChunk
-	err      error
+	request *pb.RemoteQueryExecuteRequest
+	chunks  []*pb.RemoteQueryExecuteChunk
+	err     error
 }
 
 func (c *captureBridgeClient) RemoteQueryExecute(_ context.Context, req *pb.RemoteQueryExecuteRequest, _ ...grpc.CallOption) (*pb.RemoteQueryExecuteResponse, error) {
 	c.request = req
-	return c.response, c.err
+	return nil, c.err
 }
 
 func (c *captureBridgeClient) RemoteQueryExecuteStream(_ context.Context, req *pb.RemoteQueryExecuteRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], error) {
@@ -192,29 +193,7 @@ func (c *captureBridgeClient) RemoteQueryExecuteStream(_ context.Context, req *p
 	if c.err != nil {
 		return nil, c.err
 	}
-	if c.chunks != nil {
-		return &captureRemoteQueryExecuteStream{chunks: c.chunks}, nil
-	}
-	responseJSON, err := json.Marshal(remoteQueryExecuteOutputFromProtoForTest(c.response))
-	if err != nil {
-		return nil, err
-	}
-	return &captureRemoteQueryExecuteStream{chunks: []*pb.RemoteQueryExecuteChunk{{ResponseJsonChunk: responseJSON, Final: true}}}, nil
-}
-
-func remoteQueryExecuteOutputFromProtoForTest(resp *pb.RemoteQueryExecuteResponse) map[string]interface{} {
-	output := map[string]interface{}{"status": resp.GetStatus()}
-	if resp.GetError() != nil {
-		output["error"] = map[string]interface{}{"code": resp.GetError().GetCode(), "message": resp.GetError().GetMessage()}
-	}
-	if len(resp.GetRows()) > 0 {
-		rows := make([]interface{}, 0, len(resp.GetRows()))
-		for _, row := range resp.GetRows() {
-			rows = append(rows, row.AsMap())
-		}
-		output["rows"] = rows
-	}
-	return output
+	return &captureRemoteQueryExecuteStream{chunks: c.chunks}, nil
 }
 
 type captureRemoteQueryExecuteStream struct {

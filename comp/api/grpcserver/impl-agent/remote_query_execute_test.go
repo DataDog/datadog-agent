@@ -31,13 +31,14 @@ func TestRemoteQueryExecuteResponseFromJSONMapsStructuredRows(t *testing.T) {
 	assert.Equal(t, float64(2), resp.GetStats().AsMap()["elapsed_ms"])
 }
 
-func TestRemoteQueryExecuteReturnsSanitizedUnavailableWhenServiceMissing(t *testing.T) {
+func TestRemoteQueryExecuteRejectsUnaryInlineMode(t *testing.T) {
 	resp, err := (&serverSecure{}).RemoteQueryExecute(context.Background(), &pb.RemoteQueryExecuteRequest{})
 
 	require.NoError(t, err)
-	assert.Equal(t, "executor_unavailable", resp.GetStatus())
+	assert.Equal(t, "invalid_request", resp.GetStatus())
 	require.NotNil(t, resp.GetError())
-	assert.Equal(t, "executor_unavailable", resp.GetError().GetCode())
+	assert.Equal(t, "invalid_request", resp.GetError().GetCode())
+	assert.Contains(t, resp.GetError().GetMessage(), "RemoteQueryExecuteStream")
 }
 
 func TestRemoteQueryExecuteStreamReturnsSanitizedUnavailableWhenServiceMissing(t *testing.T) {
@@ -45,9 +46,9 @@ func TestRemoteQueryExecuteStreamReturnsSanitizedUnavailableWhenServiceMissing(t
 	err := (&serverSecure{}).RemoteQueryExecuteStream(&pb.RemoteQueryExecuteRequest{}, stream)
 
 	require.NoError(t, err)
-	require.Len(t, stream.chunks, 1)
-	assert.True(t, stream.chunks[0].GetFinal())
-	assert.JSONEq(t, `{"status":"executor_unavailable","error":{"code":"executor_unavailable","message":"remote query executor is unavailable"}}`, string(stream.chunks[0].GetResponseJsonChunk()))
+	require.Len(t, stream.chunks, 2)
+	assert.Equal(t, "executor_unavailable", stream.chunks[0].GetEvent().GetError().GetCode())
+	assert.True(t, stream.chunks[1].GetFinal())
 }
 
 func TestRemoteQueryExecuteRequestFromProtoPreservesCopyStream(t *testing.T) {
@@ -82,21 +83,6 @@ func TestRemoteQueryStreamEventFromCheckEventPreservesBinaryPayload(t *testing.T
 	assert.Equal(t, []byte{0x00, 0xff, 0x80}, event.GetData().GetPayload())
 	assert.Equal(t, uint64(11), event.GetData().GetOffset())
 	assert.Equal(t, uint64(3), event.GetData().GetBytes())
-}
-
-func TestRemoteQueryExecuteStreamJSONChunksResponse(t *testing.T) {
-	stream := &captureRemoteQueryExecuteStreamServer{}
-	responseJSON := `{"status":"SUCCEEDED","rows":[{"payload":"` + string(make([]byte, remoteQueryExecuteStreamChunkSize+1)) + `"}]}`
-
-	err := remoteQueryExecuteStreamJSON(responseJSON, stream)
-
-	require.NoError(t, err)
-	require.Len(t, stream.chunks, 2)
-	assert.Equal(t, int32(0), stream.chunks[0].GetChunkIndex())
-	assert.False(t, stream.chunks[0].GetFinal())
-	assert.Equal(t, int32(1), stream.chunks[1].GetChunkIndex())
-	assert.True(t, stream.chunks[1].GetFinal())
-	assert.Equal(t, len(responseJSON), len(stream.chunks[0].GetResponseJsonChunk())+len(stream.chunks[1].GetResponseJsonChunk()))
 }
 
 type captureRemoteQueryExecuteStreamServer struct {

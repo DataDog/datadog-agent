@@ -93,9 +93,11 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC(t *testing.T)
 	proofQuery := remoteQueriesProofQueryFromEnv()
 	inputs := map[string]interface{}{
 		"integration": "postgres",
+		"operation":   "copy_stream",
+		"format":      "csv",
 		"target":      remoteQueriesPostgresTargetFromEnv(t),
 		"query":       proofQuery,
-		"limits":      remoteQueriesProofLimits(proofQuery),
+		"copyLimits":  remoteQueriesProofCopyLimits(proofQuery),
 	}
 	requestEvidence, err := json.Marshal(inputs)
 	require.NoError(t, err)
@@ -160,24 +162,6 @@ func remoteQueriesProofQueryFromEnv() string {
 	return remoteQueriesFixtureTableProofQuery
 }
 
-func remoteQueriesProofLimits(query string) map[string]interface{} {
-	maxRows := 1
-	maxBytes := 4 << 10
-	timeoutMs := 5_000
-	if query == remoteQueriesFixtureTableProofQuery {
-		maxRows = 2
-	}
-	if payloadBytes, ok := remoteQueriesLargePayloadBytes(query); ok {
-		maxBytes = payloadBytes + (1 << 20)
-		timeoutMs = 60_000
-	}
-	return map[string]interface{}{
-		"maxRows":   maxRows,
-		"maxBytes":  maxBytes,
-		"timeoutMs": timeoutMs,
-	}
-}
-
 func remoteQueriesProofCopyLimits(query string) map[string]interface{} {
 	maxBytes := 4 << 10
 	timeoutMs := 5_000
@@ -229,6 +213,12 @@ func assertRemoteQueriesProofCopyData(t *testing.T, query string, data string) {
 	case remoteQueriesSeedProofQuery:
 		assert.Equal(t, "1\n", data)
 	default:
+		expectedPayloadBytes, ok := remoteQueriesLargePayloadBytes(query)
+		if ok {
+			assert.Len(t, data, expectedPayloadBytes+1)
+			assert.Equal(t, "\n", data[len(data)-1:])
+			return
+		}
 		require.FailNowf(t, "unsupported COPY proof query", "%s=%q must use a COPY bridge-allowlisted proof query", remoteQueriesProofQueryOverrideEnv, query)
 	}
 }

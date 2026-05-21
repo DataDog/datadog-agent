@@ -37,10 +37,12 @@ type RemoteQueryPARHarness struct {
 
 // RemoteQueryPARInputs is the credential-free task input shape for the PAR-shaped POC harness.
 type RemoteQueryPARInputs struct {
-	Integration string                        `json:"integration"`
-	Target      remoteQueryTargetJSON         `json:"target"`
-	Query       string                        `json:"query"`
-	Limits      *remoteQueryExecuteLimitsJSON `json:"limits,omitempty"`
+	Integration string                            `json:"integration"`
+	Operation   string                            `json:"operation"`
+	Format      string                            `json:"format"`
+	Target      remoteQueryTargetJSON             `json:"target"`
+	Query       string                            `json:"query"`
+	CopyLimits  *remoteQueryExecuteCopyLimitsJSON `json:"copyLimits,omitempty"`
 }
 
 // RemoteQueryPARResult is the decoded execute bridge result or sanitized bridge error.

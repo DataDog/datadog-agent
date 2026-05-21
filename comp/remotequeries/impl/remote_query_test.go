@@ -6,7 +6,6 @@
 package remotequeriesimpl
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -328,17 +327,19 @@ func TestParseExecuteRequestValidatesStrictShape(t *testing.T) {
 	}
 }
 
-func TestParseExecuteRequestNormalizesAndMarshalsExecutorJSON(t *testing.T) {
+func TestParseExecuteRequestNormalizesAndMarshalsCopyStreamExecutorJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(
-		`{"integration":"postgres","target":{"host":" LocalHost. ","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":10,"maxBytes":1048576,"timeoutMs":5000}}`,
+		`{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":" LocalHost. ","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","copyLimits":{"chunkBytes":1024,"maxBytes":1048576,"maxRowBytes":1048576,"timeoutMs":5000}}`,
 	))
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
 	parsed, requestJSON, err := parseExecuteRequest(req)
 	require.NoError(t, err)
 	assert.Equal(t, "postgres", parsed.Integration)
+	assert.Equal(t, "copy_stream", parsed.Operation)
+	assert.Equal(t, "csv", parsed.Format)
 	assert.Equal(t, remoteQueryTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, parsed.Target)
-	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":10,"maxBytes":1048576,"timeoutMs":5000}}`, requestJSON)
+	assert.JSONEq(t, `{"operation":"copy_stream","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","format":"csv","limits":{"chunkBytes":1024,"maxBytes":1048576,"maxRowBytes":1048576,"timeoutMs":5000}}`, requestJSON)
 	assert.NotContains(t, requestJSON, "integration")
 }
 
@@ -353,48 +354,34 @@ func TestParseExecuteRequestRejectsInvalidIntegration(t *testing.T) {
 	assert.Equal(t, "integration contains invalid characters", err.Error())
 }
 
-func TestParseExecuteRequestAllowsOmittedLimits(t *testing.T) {
+func TestParseExecuteRequestRejectsOmittedOperation(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(
 		`{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`,
 	))
 	req.Header.Set("Content-Type", "application/json")
 
-	parsed, requestJSON, err := parseExecuteRequest(req)
-	require.NoError(t, err)
-	assert.Nil(t, parsed.Limits)
-	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`, requestJSON)
-	assert.NotContains(t, requestJSON, "integration")
+	_, _, err := parseExecuteRequest(req)
+	require.Error(t, err)
+	assert.Equal(t, "operation must be copy_stream", err.Error())
 }
 
 func TestParseExecuteRequestAllowsFixtureTableProofQuery(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(
-		`{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT city, country FROM cities ORDER BY city","limits":{"maxRows":2,"maxBytes":1024,"timeoutMs":1000}}`,
+		`{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT city, country FROM cities ORDER BY city"}`,
 	))
 	req.Header.Set("Content-Type", "application/json")
 
 	parsed, requestJSON, err := parseExecuteRequest(req)
 	require.NoError(t, err)
 	assert.Equal(t, remoteQueryFixtureTableProofQuery, parsed.Query)
-	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT city, country FROM cities ORDER BY city","limits":{"maxRows":2,"maxBytes":1024,"timeoutMs":1000}}`, requestJSON)
+	assert.JSONEq(t, `{"operation":"copy_stream","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT city, country FROM cities ORDER BY city","format":"csv"}`, requestJSON)
 	assert.NotContains(t, requestJSON, "integration")
 }
 
-func TestNewRemoteQueryExecuteRequestAllowsFixtureTableProofQuery(t *testing.T) {
-	req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: " LocalHost. ", Port: 5432, DBName: "postgres"}, remoteQueryFixtureTableProofQuery, &RemoteQueryExecuteLimits{MaxRows: 2, MaxBytes: 1024, TimeoutMs: 1000})
-	require.NoError(t, err)
-	assert.Equal(t, "postgres", req.Integration)
-	assert.Equal(t, RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, req.Target)
-	assert.Equal(t, remoteQueryFixtureTableProofQuery, req.Query)
-}
-
-func TestNewRemoteQueryExecuteRequestAllowsLargePayloadProofQueries(t *testing.T) {
-	for query, payloadBytes := range remoteQueryLargePayloadProofQueries {
-		t.Run(fmt.Sprintf("%d", payloadBytes), func(t *testing.T) {
-			req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, query, &RemoteQueryExecuteLimits{MaxRows: 1, MaxBytes: payloadBytes + (1 << 20), TimeoutMs: 60_000})
-			require.NoError(t, err)
-			assert.Equal(t, query, req.Query)
-		})
-	}
+func TestNewRemoteQueryExecuteRequestRejectsInlineMode(t *testing.T) {
+	_, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: " LocalHost. ", Port: 5432, DBName: "postgres"}, remoteQueryFixtureTableProofQuery, &RemoteQueryExecuteLimits{MaxRows: 2, MaxBytes: 1024, TimeoutMs: 1000})
+	require.Error(t, err)
+	assert.EqualError(t, err, "operation must be copy_stream")
 }
 
 func TestRemoteQueryExecuteHandlerDisabled(t *testing.T) {
@@ -406,35 +393,13 @@ func TestRemoteQueryExecuteHandlerDisabled(t *testing.T) {
 	assert.Contains(t, recorder.Body.String(), `"status":"bridge_disabled"`)
 }
 
-func TestRemoteQueryExecuteHandlerRunnerSuccess(t *testing.T) {
-	runner := &fakeRunnerCheck{
-		fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"},
-		response:  `{"status":"SUCCEEDED","rows":[{"value":1}]}`,
-	}
-	handler := &remoteQueryExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}}
+func TestRemoteQueryExecuteHandlerRejectsInlineHTTPExecution(t *testing.T) {
+	handler := &remoteQueryExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: &fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}}}}}}
 
-	recorder := callExecuteHandler(handler, `{"integration":"postgres","target":{"host":"LOCALHOST.","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`)
+	recorder := callExecuteHandler(handler, `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":"LOCALHOST.","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`)
 
-	assert.Equal(t, http.StatusOK, recorder.Code)
-	assert.JSONEq(t, `{"status":"SUCCEEDED","rows":[{"value":1}]}`, recorder.Body.String())
-	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`, runner.seenRequest())
-	assert.NotContains(t, runner.seenRequest(), "integration")
-	assert.NotContains(t, recorder.Body.String(), "secret-value")
-}
-
-func TestRemoteQueryExecuteHandlerRunnerSuccessWithFixtureTableQuery(t *testing.T) {
-	runner := &fakeRunnerCheck{
-		fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"},
-		response:  `{"status":"SUCCEEDED","rows":[{"city":"Beautiful city of lights","country":"France"},{"city":"New York","country":"USA"}]}`,
-	}
-	handler := &remoteQueryExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}}
-
-	recorder := callExecuteHandler(handler, `{"integration":"postgres","target":{"host":"LOCALHOST.","port":5432,"dbname":"postgres"},"query":"SELECT city, country FROM cities ORDER BY city"}`)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
-	assert.JSONEq(t, `{"status":"SUCCEEDED","rows":[{"city":"Beautiful city of lights","country":"France"},{"city":"New York","country":"USA"}]}`, recorder.Body.String())
-	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT city, country FROM cities ORDER BY city"}`, runner.seenRequest())
-	assert.NotContains(t, runner.seenRequest(), "integration")
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "streaming executor")
 	assert.NotContains(t, recorder.Body.String(), "secret-value")
 }
 
@@ -460,7 +425,6 @@ func TestRemoteQueryExecuteServiceCopyStreamDispatch(t *testing.T) {
 	require.Nil(t, result.Error)
 	assert.Equal(t, runner.events, events)
 	assert.Equal(t, 1, runner.streamCalls)
-	assert.Equal(t, 0, runner.jsonCalls)
 	assert.JSONEq(t, `{"operation":"copy_stream","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT city, country FROM cities ORDER BY city","format":"csv","limits":{"chunkBytes":4,"maxBytes":1024,"maxRowBytes":1024,"timeoutMs":1000}}`, runner.streamSeen)
 	assert.NotContains(t, runner.streamSeen, "integration")
 }
@@ -482,10 +446,10 @@ func TestRemoteQueryExecuteHandlerNoMatchAndAmbiguous(t *testing.T) {
 			&fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}},
 		}}}
 
-		recorder := callExecuteHandler(handler, `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"other"},"query":"SELECT 1 AS value"}`)
+		recorder := callExecuteHandler(handler, `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":"localhost","port":5432,"dbname":"other"},"query":"SELECT 1 AS value"}`)
 
-		assert.Equal(t, http.StatusNotFound, recorder.Code)
-		assert.Contains(t, recorder.Body.String(), `"status":"target_not_found"`)
+		assert.Equal(t, http.StatusBadRequest, recorder.Code)
+		assert.Contains(t, recorder.Body.String(), `"status":"invalid_request"`)
 		assert.NotContains(t, recorder.Body.String(), "secret-value")
 		assert.NotContains(t, recorder.Body.String(), "other")
 	})
@@ -496,10 +460,10 @@ func TestRemoteQueryExecuteHandlerNoMatchAndAmbiguous(t *testing.T) {
 			&fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-two\n"}},
 		}}}
 
-		recorder := callExecuteHandler(handler, `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`)
+		recorder := callExecuteHandler(handler, `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`)
 
-		assert.Equal(t, http.StatusConflict, recorder.Code)
-		assert.Contains(t, recorder.Body.String(), `"status":"ambiguous_target"`)
+		assert.Equal(t, http.StatusBadRequest, recorder.Code)
+		assert.Contains(t, recorder.Body.String(), `"status":"invalid_request"`)
 		assert.NotContains(t, recorder.Body.String(), "secret-one")
 		assert.NotContains(t, recorder.Body.String(), "secret-two")
 	})
@@ -511,10 +475,10 @@ func TestRemoteQueryExecuteHandlerUnsupportedAndRunnerErrorAreSanitized(t *testi
 			fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"},
 		}}}
 
-		recorder := callExecuteHandler(handler, `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`)
+		recorder := callExecuteHandler(handler, `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`)
 
-		assert.Equal(t, http.StatusFailedDependency, recorder.Code)
-		assert.Contains(t, recorder.Body.String(), `"status":"executor_unavailable"`)
+		assert.Equal(t, http.StatusBadRequest, recorder.Code)
+		assert.Contains(t, recorder.Body.String(), `"status":"invalid_request"`)
 		assert.NotContains(t, recorder.Body.String(), "secret-value")
 	})
 
@@ -523,10 +487,10 @@ func TestRemoteQueryExecuteHandlerUnsupportedAndRunnerErrorAreSanitized(t *testi
 			&fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}, err: assert.AnError},
 		}}}
 
-		recorder := callExecuteHandler(handler, `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`)
+		recorder := callExecuteHandler(handler, `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`)
 
-		assert.Equal(t, http.StatusBadGateway, recorder.Code)
-		assert.Contains(t, recorder.Body.String(), `"status":"executor_unavailable"`)
+		assert.Equal(t, http.StatusBadRequest, recorder.Code)
+		assert.Contains(t, recorder.Body.String(), `"status":"invalid_request"`)
 		assert.NotContains(t, recorder.Body.String(), "secret-value")
 		assert.NotContains(t, recorder.Body.String(), assert.AnError.Error())
 	})
@@ -550,23 +514,7 @@ func (f fakeWrappedCheck) Unwrap() check.Check {
 
 type fakeRunnerCheck struct {
 	fakeCheck
-	response  string
-	err       error
-	seen      string
-	jsonCalls int
-}
-
-func (f *fakeRunnerCheck) RunRemoteQueryJSON(integration string, requestJSON string) (string, error) {
-	if integration != "postgres" {
-		return "", assert.AnError
-	}
-	f.jsonCalls++
-	f.seen = requestJSON
-	return f.response, f.err
-}
-
-func (f *fakeRunnerCheck) seenRequest() string {
-	return f.seen
+	err error
 }
 
 type fakeStreamRunnerCheck struct {

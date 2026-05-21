@@ -102,7 +102,7 @@ message RemoteQueryExecuteStreamEvent {
 }
 
 message RemoteQueryExecuteChunk {
-    bytes response_json_chunk = 1;
+    reserved 1;
     int32 chunk_index = 2;
     bool final = 3;
     RemoteQueryExecuteStreamEvent event = 4;
@@ -162,7 +162,7 @@ service AgentSecure {
     // Executes an Agent-local Remote Queries request through a matched integration check.
     rpc RemoteQueryExecute(RemoteQueryExecuteRequest) returns (RemoteQueryExecuteResponse);
 
-    // Executes an Agent-local Remote Queries request and streams the JSON response in chunks.
+    // Executes an Agent-local Remote Queries COPY request and streams typed binary-safe events.
     rpc RemoteQueryExecuteStream(RemoteQueryExecuteRequest) returns (stream RemoteQueryExecuteChunk);
 
     // Streams pod-to-service metadata for a specific node.

@@ -41,10 +41,6 @@ var remoteQueryLargePayloadProofQueries = map[string]int{
 	"SELECT repeat('x', 33554432) AS payload": 32 << 20,
 }
 
-type remoteQueryRunner interface {
-	RunRemoteQueryJSON(integration string, requestJSON string) (string, error)
-}
-
 type remoteQueryStreamRunner interface {
 	RunRemoteQueryStream(integration string, requestJSON string, emit func(check.RemoteQueryStreamEvent) error) error
 }
@@ -61,24 +57,6 @@ func isRemoteQueryAllowedProofQuery(query string) bool {
 
 type remoteQueryCheckUnwrapper interface {
 	Unwrap() check.Check
-}
-
-func remoteQueryRunnerFor(chk check.Check) (remoteQueryRunner, bool) {
-	for chk != nil {
-		if runner, ok := chk.(remoteQueryRunner); ok {
-			return runner, true
-		}
-		unwrapper, ok := chk.(remoteQueryCheckUnwrapper)
-		if !ok {
-			break
-		}
-		unwrapped := unwrapper.Unwrap()
-		if unwrapped == chk {
-			break
-		}
-		chk = unwrapped
-	}
-	return nil, false
 }
 
 func remoteQueryStreamRunnerFor(chk check.Check) (remoteQueryStreamRunner, bool) {
@@ -200,12 +178,11 @@ type RemoteQueryExecuteError struct {
 	Message string
 }
 
-// RemoteQueryExecuteResult is the service result. ResponseJSON is set only for successful executor responses.
+// RemoteQueryExecuteResult is the service result.
 type RemoteQueryExecuteResult struct {
-	HTTPStatus   int
-	Status       string
-	Error        *RemoteQueryExecuteError
-	ResponseJSON string
+	HTTPStatus int
+	Status     string
+	Error      *RemoteQueryExecuteError
 }
 
 const (
@@ -215,43 +192,9 @@ const (
 	RemoteQueryStatusExecutorUnavailable = statusExecutorUnavailable
 )
 
-// NewRemoteQueryExecuteRequest validates and normalizes a typed Remote Queries execute request.
+// NewRemoteQueryExecuteRequest rejects legacy inline Remote Queries requests.
 func NewRemoteQueryExecuteRequest(integration string, target RemoteQueryExecuteTarget, query string, limits *RemoteQueryExecuteLimits) (RemoteQueryExecuteRequest, error) {
-	parsedIntegration, err := parseIntegration(integration)
-	if err != nil {
-		return RemoteQueryExecuteRequest{}, err
-	}
-
-	parsedTarget, err := parseTarget(&remoteQueryTargetRequestJSON{Host: target.Host, Port: &target.Port, DBName: target.DBName})
-	if err != nil {
-		return RemoteQueryExecuteRequest{}, err
-	}
-
-	if query == "" {
-		return RemoteQueryExecuteRequest{}, fmt.Errorf("query is required")
-	}
-	if !isRemoteQueryAllowedProofQuery(query) {
-		return RemoteQueryExecuteRequest{}, fmt.Errorf("query is not allowed")
-	}
-
-	var parsedLimits *remoteQueryExecuteLimits
-	if limits != nil {
-		parsedLimits, err = parseExecuteLimits(&remoteQueryExecuteLimitsRequestJSON{
-			MaxRows:   &limits.MaxRows,
-			MaxBytes:  &limits.MaxBytes,
-			TimeoutMs: &limits.TimeoutMs,
-		})
-		if err != nil {
-			return RemoteQueryExecuteRequest{}, err
-		}
-	}
-
-	return remoteQueryExecuteRequestFromInternal(remoteQueryExecuteRequest{
-		Integration: parsedIntegration,
-		Target:      parsedTarget,
-		Query:       query,
-		Limits:      parsedLimits,
-	}), nil
+	return RemoteQueryExecuteRequest{}, fmt.Errorf("operation must be copy_stream")
 }
 
 type remoteQueryExecuteRequest struct {
@@ -300,12 +243,6 @@ type remoteQueryExecuteCopyLimits struct {
 	TimeoutMs   int
 }
 
-type remoteQueryExecutorRequestJSON struct {
-	Target remoteQueryTargetJSON         `json:"target"`
-	Query  string                        `json:"query"`
-	Limits *remoteQueryExecuteLimitsJSON `json:"limits,omitempty"`
-}
-
 type remoteQueryCopyExecutorRequestJSON struct {
 	Operation string                            `json:"operation"`
 	Target    remoteQueryTargetJSON             `json:"target"`
@@ -325,12 +262,6 @@ type remoteQueryTargetJSON struct {
 	Host   string `json:"host"`
 	Port   int    `json:"port"`
 	DBName string `json:"dbname"`
-}
-
-type remoteQueryExecuteLimitsJSON struct {
-	MaxRows   int `json:"maxRows"`
-	MaxBytes  int `json:"maxBytes"`
-	TimeoutMs int `json:"timeoutMs"`
 }
 
 func (h *remoteQueryExecuteHandler) handle(w http.ResponseWriter, r *http.Request) {
@@ -358,7 +289,7 @@ func (h *remoteQueryExecuteHandler) handle(w http.ResponseWriter, r *http.Reques
 	}
 
 	w.WriteHeader(http.StatusOK)
-	_, _ = io.WriteString(w, result.ResponseJSON)
+	_, _ = io.WriteString(w, `{"status":"SUCCEEDED"}`)
 }
 
 func parseExecuteRequest(r *http.Request) (remoteQueryExecuteRequest, string, error) {
@@ -396,6 +327,16 @@ func parseExecuteRequest(r *http.Request) (remoteQueryExecuteRequest, string, er
 	copyLimits, err := parseExecuteCopyLimits(wireReq.CopyLimits)
 	if err != nil {
 		return remoteQueryExecuteRequest{}, "", err
+	}
+
+	if wireReq.Operation != "copy_stream" {
+		return remoteQueryExecuteRequest{}, "", fmt.Errorf("operation must be copy_stream")
+	}
+	if wireReq.Format == "" {
+		wireReq.Format = "csv"
+	}
+	if wireReq.Format != "csv" && wireReq.Format != "binary" {
+		return remoteQueryExecuteRequest{}, "", fmt.Errorf("format must be csv or binary")
 	}
 
 	req := remoteQueryExecuteRequest{Integration: integration, Operation: wireReq.Operation, Target: target, Query: wireReq.Query, Format: wireReq.Format, Limits: limits, CopyLimits: copyLimits}
@@ -500,44 +441,13 @@ func parseRequiredPositiveInt(value *int, name string) (int, error) {
 }
 
 func (s *RemoteQueryExecuteService) Execute(req RemoteQueryExecuteRequest) RemoteQueryExecuteResult {
-	if req.Operation == "copy_stream" {
-		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "copy_stream requires the streaming executor")
-	}
-	if s == nil || !s.enabled {
-		return remoteQueryExecuteErrorResult(http.StatusServiceUnavailable, statusBridgeDisabled, "remote queries bridge is disabled")
-	}
-	if s.collector == nil {
-		return remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "remote query executor is unavailable")
-	}
-
-	internal := req.internal()
-	match, result := s.matchExecutor(internal)
-	if result.Error != nil {
-		return result
-	}
-
-	runner, ok := remoteQueryRunnerFor(match.check)
-	if !ok {
-		return remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "matched integration check does not support remote query execution")
-	}
-
-	requestJSON, err := marshalExecuteRequest(internal)
-	if err != nil {
-		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "malformed JSON request")
-	}
-
-	responseJSON, err := runner.RunRemoteQueryJSON(internal.Integration, requestJSON)
-	if err != nil {
-		return remoteQueryExecuteErrorResult(http.StatusBadGateway, statusExecutorUnavailable, "remote query executor failed")
-	}
-
-	return RemoteQueryExecuteResult{HTTPStatus: http.StatusOK, ResponseJSON: responseJSON}
+	return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "remote queries require operation copy_stream and the streaming executor")
 }
 
 // ExecuteStream executes a COPY streaming request and emits binary-safe stream events without materializing the full result.
 func (s *RemoteQueryExecuteService) ExecuteStream(req RemoteQueryExecuteRequest, emit func(check.RemoteQueryStreamEvent) error) RemoteQueryExecuteResult {
 	if req.Operation != "copy_stream" {
-		return s.Execute(req)
+		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "operation must be copy_stream")
 	}
 	if emit == nil {
 		return remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "remote query stream emitter is unavailable")
@@ -623,44 +533,27 @@ func remoteQueryExecuteRequestFromInternal(req remoteQueryExecuteRequest) Remote
 }
 
 func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
-	if req.Operation == "copy_stream" {
-		format := req.Format
-		if format == "" {
-			format = "csv"
-		}
-		wireReq := remoteQueryCopyExecutorRequestJSON{
-			Operation: req.Operation,
-			Target:    remoteQueryTargetJSON{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName},
-			Query:     req.Query,
-			Format:    format,
-		}
-		if req.CopyLimits != nil {
-			wireReq.Limits = &remoteQueryExecuteCopyLimitsJSON{
-				ChunkBytes:  req.CopyLimits.ChunkBytes,
-				MaxBytes:    req.CopyLimits.MaxBytes,
-				MaxRowBytes: req.CopyLimits.MaxRowBytes,
-				TimeoutMs:   req.CopyLimits.TimeoutMs,
-			}
-		}
-		requestJSON, err := json.Marshal(wireReq)
-		if err != nil {
-			return "", err
-		}
-		return string(requestJSON), nil
+	if req.Operation != "copy_stream" {
+		return "", fmt.Errorf("operation must be copy_stream")
 	}
-
-	wireReq := remoteQueryExecutorRequestJSON{
-		Target: remoteQueryTargetJSON{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName},
-		Query:  req.Query,
+	format := req.Format
+	if format == "" {
+		format = "csv"
 	}
-	if req.Limits != nil {
-		wireReq.Limits = &remoteQueryExecuteLimitsJSON{
-			MaxRows:   req.Limits.MaxRows,
-			MaxBytes:  req.Limits.MaxBytes,
-			TimeoutMs: req.Limits.TimeoutMs,
+	wireReq := remoteQueryCopyExecutorRequestJSON{
+		Operation: req.Operation,
+		Target:    remoteQueryTargetJSON{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName},
+		Query:     req.Query,
+		Format:    format,
+	}
+	if req.CopyLimits != nil {
+		wireReq.Limits = &remoteQueryExecuteCopyLimitsJSON{
+			ChunkBytes:  req.CopyLimits.ChunkBytes,
+			MaxBytes:    req.CopyLimits.MaxBytes,
+			MaxRowBytes: req.CopyLimits.MaxRowBytes,
+			TimeoutMs:   req.CopyLimits.TimeoutMs,
 		}
 	}
-
 	requestJSON, err := json.Marshal(wireReq)
 	if err != nil {
 		return "", err

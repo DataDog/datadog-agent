@@ -79,22 +79,17 @@ func TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC(t *t
 
 	taskID := fmt.Sprintf("remotequeries-standalone-par-proof-%d", time.Now().UnixNano())
 	proofQuery := remoteQueriesProofQueryFromEnv()
+	format := os.Getenv("RQ_REMOTE_FORMAT")
+	if format == "" {
+		format = "csv"
+	}
 	inputs := map[string]interface{}{
 		"integration": "postgres",
+		"operation":   "copy_stream",
+		"format":      format,
 		"target":      remoteQueriesPostgresTargetFromEnv(t),
 		"query":       proofQuery,
-	}
-	copyStream := os.Getenv("RQ_REMOTE_OPERATION") == "copy_stream"
-	if copyStream {
-		inputs["operation"] = "copy_stream"
-		format := os.Getenv("RQ_REMOTE_FORMAT")
-		if format == "" {
-			format = "csv"
-		}
-		inputs["format"] = format
-		inputs["copyLimits"] = remoteQueriesProofCopyLimits(proofQuery)
-	} else {
-		inputs["limits"] = remoteQueriesProofLimits(proofQuery)
+		"copyLimits":  remoteQueriesProofCopyLimits(proofQuery),
 	}
 	requestEvidence, err := json.Marshal(inputs)
 	require.NoError(t, err)
@@ -120,22 +115,15 @@ func TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC(t *t
 	require.True(t, result.Success)
 	require.Equal(t, taskID, result.TaskID)
 	assert.Equal(t, "SUCCEEDED", result.Outputs["status"])
-	if copyStream {
-		t.Logf("copy stream PAR outputs: %+v", summarizeRemoteQueriesProofPayload(result.Outputs))
-		if os.Getenv("RQ_REMOTE_FORMAT") == "binary" {
-			dataBytes, ok := result.Outputs["data_bytes"].(string)
-			require.True(t, ok)
-			assertRemoteQueriesProofBinaryCopyData(t, proofQuery, dataBytes)
-		} else {
-			data, ok := result.Outputs["data"].(string)
-			require.True(t, ok)
-			assertRemoteQueriesProofCopyData(t, proofQuery, data)
-		}
-	} else {
-		require.Contains(t, result.Outputs, "rows")
-		rows, ok := result.Outputs["rows"].([]interface{})
+	t.Logf("copy stream PAR outputs: %+v", summarizeRemoteQueriesProofPayload(result.Outputs))
+	if os.Getenv("RQ_REMOTE_FORMAT") == "binary" {
+		dataBytes, ok := result.Outputs["data_bytes"].(string)
 		require.True(t, ok)
-		assertRemoteQueriesProofRows(t, proofQuery, rows)
+		assertRemoteQueriesProofBinaryCopyData(t, proofQuery, dataBytes)
+	} else {
+		data, ok := result.Outputs["data"].(string)
+		require.True(t, ok)
+		assertRemoteQueriesProofCopyData(t, proofQuery, data)
 	}
 
 	resultEvidence, err := json.Marshal(summarizeRemoteQueriesProofPayload(result.Outputs))

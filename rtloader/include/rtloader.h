@@ -121,15 +121,6 @@ public:
     */
     virtual char *runCheck(RtLoaderPyObject *check) = 0;
 
-    //! Pure virtual runRemoteQuery member.
-    /*!
-      \param check The python object pointer to the check we wish to use.
-      \param integration The integration helper module name.
-      \param request_json A credential-free JSON request string.
-      \return A C-string with the JSON result.
-    */
-    virtual char *runRemoteQuery(RtLoaderPyObject *check, const char *integration, const char *request_json) = 0;
-
     //! Pure virtual runRemoteQueryStream member.
     /*!
       \param check The python object pointer to the check we wish to use.

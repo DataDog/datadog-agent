@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -282,59 +283,34 @@ func (s *serverSecure) WorkloadFilterEvaluate(ctx context.Context, req *pb.Workl
 	return s.workloadfilterServer.WorkloadFilterEvaluate(ctx, req)
 }
 
-const remoteQueryExecuteStreamChunkSize = 1 << 20
-
 func (s *serverSecure) RemoteQueryExecute(_ context.Context, req *pb.RemoteQueryExecuteRequest) (*pb.RemoteQueryExecuteResponse, error) {
-	if s.remoteQueries == nil {
-		return remoteQueryExecuteErrorResponse(remotequeriesimpl.RemoteQueryStatusExecutorUnavailable, "remote query executor is unavailable"), nil
-	}
-
-	execReq, err := remoteQueryExecuteRequestFromProto(req)
-	if err != nil {
-		return remoteQueryExecuteErrorResponse(remotequeriesimpl.RemoteQueryStatusInvalidRequest, err.Error()), nil
-	}
-
-	result := s.remoteQueries.Execute(execReq)
-	if result.Error != nil {
-		return remoteQueryExecuteErrorResponse(result.Error.Code, result.Error.Message), nil
-	}
-
-	return remoteQueryExecuteResponseFromJSON(result.ResponseJSON)
+	return remoteQueryExecuteErrorResponse(remotequeriesimpl.RemoteQueryStatusInvalidRequest, "remote queries require RemoteQueryExecuteStream with operation copy_stream"), nil
 }
 
 func (s *serverSecure) RemoteQueryExecuteStream(req *pb.RemoteQueryExecuteRequest, stream pb.AgentSecure_RemoteQueryExecuteStreamServer) error {
 	if s.remoteQueries == nil {
-		return remoteQueryExecuteStreamJSON(remoteQueryExecuteErrorJSON(remotequeriesimpl.RemoteQueryStatusExecutorUnavailable, "remote query executor is unavailable"), stream)
+		return remoteQueryExecuteStreamError(remotequeriesimpl.RemoteQueryStatusExecutorUnavailable, "remote query executor is unavailable", stream)
 	}
 
 	execReq, err := remoteQueryExecuteRequestFromProto(req)
 	if err != nil {
-		return remoteQueryExecuteStreamJSON(remoteQueryExecuteErrorJSON(remotequeriesimpl.RemoteQueryStatusInvalidRequest, err.Error()), stream)
+		return remoteQueryExecuteStreamError(remotequeriesimpl.RemoteQueryStatusInvalidRequest, err.Error(), stream)
 	}
 
-	if execReq.Operation == "copy_stream" {
-		chunkIndex := int32(0)
-		result := s.remoteQueries.ExecuteStream(execReq, func(event check.RemoteQueryStreamEvent) error {
-			protoEvent, err := remoteQueryStreamEventFromCheckEvent(event)
-			if err != nil {
-				return err
-			}
-			err = stream.Send(&pb.RemoteQueryExecuteChunk{Event: protoEvent, ChunkIndex: chunkIndex})
-			chunkIndex++
+	chunkIndex := int32(0)
+	result := s.remoteQueries.ExecuteStream(execReq, func(event check.RemoteQueryStreamEvent) error {
+		protoEvent, err := remoteQueryStreamEventFromCheckEvent(event)
+		if err != nil {
 			return err
-		})
-		if result.Error != nil {
-			return remoteQueryExecuteStreamJSON(remoteQueryExecuteErrorJSON(result.Error.Code, result.Error.Message), stream)
 		}
-		return stream.Send(&pb.RemoteQueryExecuteChunk{ChunkIndex: chunkIndex, Final: true})
-	}
-
-	result := s.remoteQueries.Execute(execReq)
+		err = stream.Send(&pb.RemoteQueryExecuteChunk{Event: protoEvent, ChunkIndex: chunkIndex})
+		chunkIndex++
+		return err
+	})
 	if result.Error != nil {
-		return remoteQueryExecuteStreamJSON(remoteQueryExecuteErrorJSON(result.Error.Code, result.Error.Message), stream)
+		return remoteQueryExecuteStreamError(result.Error.Code, result.Error.Message, stream)
 	}
-
-	return remoteQueryExecuteStreamJSON(result.ResponseJSON, stream)
+	return stream.Send(&pb.RemoteQueryExecuteChunk{ChunkIndex: chunkIndex, Final: true})
 }
 
 func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remotequeriesimpl.RemoteQueryExecuteRequest, error) {
@@ -343,11 +319,10 @@ func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remo
 		Port:   int(req.GetTarget().GetPort()),
 		DBName: req.GetTarget().GetDbname(),
 	}
-	if req.GetOperation() == "copy_stream" {
-		return remotequeriesimpl.NewRemoteQueryCopyStreamExecuteRequest(req.GetIntegration(), target, req.GetQuery(), req.GetFormat(), remoteQueryCopyLimitsFromProto(req.GetCopyLimits()))
+	if req.GetOperation() != "copy_stream" {
+		return remotequeriesimpl.RemoteQueryExecuteRequest{}, fmt.Errorf("operation must be copy_stream")
 	}
-	limits := remoteQueryLimitsFromProto(req.GetLimits())
-	return remotequeriesimpl.NewRemoteQueryExecuteRequest(req.GetIntegration(), target, req.GetQuery(), limits)
+	return remotequeriesimpl.NewRemoteQueryCopyStreamExecuteRequest(req.GetIntegration(), target, req.GetQuery(), req.GetFormat(), remoteQueryCopyLimitsFromProto(req.GetCopyLimits()))
 }
 
 func remoteQueryStreamEventFromCheckEvent(event check.RemoteQueryStreamEvent) (*pb.RemoteQueryExecuteStreamEvent, error) {
@@ -454,36 +429,17 @@ func stringAttributes(metadata map[string]interface{}, exclude ...string) map[st
 	return attrs
 }
 
-func remoteQueryExecuteStreamJSON(responseJSON string, stream pb.AgentSecure_RemoteQueryExecuteStreamServer) error {
-	responseBytes := []byte(responseJSON)
-	if len(responseBytes) == 0 {
-		return stream.Send(&pb.RemoteQueryExecuteChunk{Final: true})
+func remoteQueryExecuteStreamError(code string, message string, stream pb.AgentSecure_RemoteQueryExecuteStreamServer) error {
+	if err := stream.Send(&pb.RemoteQueryExecuteChunk{
+		ChunkIndex: 0,
+		Event: &pb.RemoteQueryExecuteStreamEvent{Event: &pb.RemoteQueryExecuteStreamEvent_Error{Error: &pb.RemoteQueryStreamError{
+			Code:    code,
+			Message: message,
+		}}},
+	}); err != nil {
+		return err
 	}
-	for offset, chunkIndex := 0, int32(0); offset < len(responseBytes); offset, chunkIndex = offset+remoteQueryExecuteStreamChunkSize, chunkIndex+1 {
-		end := offset + remoteQueryExecuteStreamChunkSize
-		if end > len(responseBytes) {
-			end = len(responseBytes)
-		}
-		if err := stream.Send(&pb.RemoteQueryExecuteChunk{
-			ResponseJsonChunk: responseBytes[offset:end],
-			ChunkIndex:        chunkIndex,
-			Final:             end == len(responseBytes),
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func remoteQueryLimitsFromProto(limits *pb.RemoteQueryExecuteLimits) *remotequeriesimpl.RemoteQueryExecuteLimits {
-	if limits == nil {
-		return nil
-	}
-	return &remotequeriesimpl.RemoteQueryExecuteLimits{
-		MaxRows:   int(limits.GetMaxRows()),
-		MaxBytes:  int(limits.GetMaxBytes()),
-		TimeoutMs: int(limits.GetTimeoutMs()),
-	}
+	return stream.Send(&pb.RemoteQueryExecuteChunk{ChunkIndex: 1, Final: true})
 }
 
 func remoteQueryCopyLimitsFromProto(limits *pb.RemoteQueryExecuteCopyLimits) *remotequeriesimpl.RemoteQueryExecuteCopyLimits {
@@ -503,17 +459,6 @@ func remoteQueryExecuteErrorResponse(code string, message string) *pb.RemoteQuer
 		Status: code,
 		Error:  &pb.RemoteQueryExecuteError{Code: code, Message: message},
 	}
-}
-
-func remoteQueryExecuteErrorJSON(code string, message string) string {
-	payload, err := json.Marshal(remoteQueryExecuteJSONResponse{
-		Status: code,
-		Error:  &remoteQueryExecuteError{Code: code, Message: message},
-	})
-	if err != nil {
-		return `{"status":"executor_unavailable","error":{"code":"executor_unavailable","message":"remote query executor is unavailable"}}`
-	}
-	return string(payload)
 }
 
 type remoteQueryExecuteJSONResponse struct {

@@ -25,27 +25,25 @@ func TestRemoteQueryPARHarnessUsesCredentialFreeIPCPostShape(t *testing.T) {
 
 	result, err := harness.Execute(context.Background(), RemoteQueryPARInputs{
 		Integration: "postgres",
+		Operation:   "copy_stream",
+		Format:      "csv",
 		Target:      remoteQueryTargetJSON{Host: "localhost", Port: 5432, DBName: "postgres"},
 		Query:       remoteQueryProofSeedQuery,
-		Limits:      &remoteQueryExecuteLimitsJSON{MaxRows: 1, MaxBytes: 1024, TimeoutMs: 1000},
+		CopyLimits:  &remoteQueryExecuteCopyLimitsJSON{ChunkBytes: 1024, MaxBytes: 1024, MaxRowBytes: 1024, TimeoutMs: 1000},
 	})
 
 	require.NoError(t, err)
 	assert.Equal(t, "https://localhost:5001"+AgentRemoteQueryExecuteEndpointPath, client.url)
 	assert.Equal(t, "application/json", client.contentType)
-	assert.JSONEq(t, `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":1,"maxBytes":1024,"timeoutMs":1000}}`, client.body)
+	assert.JSONEq(t, `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","copyLimits":{"chunkBytes":1024,"maxBytes":1024,"maxRowBytes":1024,"timeoutMs":1000}}`, client.body)
 	assert.NotContains(t, client.body, "password")
 	assert.NotContains(t, client.body, "secret")
 	assert.Equal(t, "SUCCEEDED", result.Status)
 	assert.JSONEq(t, `{"status":"SUCCEEDED","rows":[{"value":1}]}`, string(result.Raw))
 }
 
-func TestRemoteQueryPARHarnessWithRealAgentIPCClient(t *testing.T) {
-	runner := &fakeRunnerCheck{
-		fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: datastore-secret\n"},
-		response:  `{"status":"SUCCEEDED","rows":[{"value":1}]}`,
-	}
-	handler := &remoteQueryExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}}
+func TestRemoteQueryPARHarnessWithRealAgentIPCClientRejectsHTTPExecution(t *testing.T) {
+	handler := &remoteQueryExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: &fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: datastore-secret\n"}}}}}}
 	ipc := ipcmock.New(t)
 	mux := http.NewServeMux()
 	mux.HandleFunc(AgentRemoteQueryExecuteEndpointPath, handler.handle)
@@ -54,15 +52,16 @@ func TestRemoteQueryPARHarnessWithRealAgentIPCClient(t *testing.T) {
 
 	result, err := harness.Execute(context.Background(), RemoteQueryPARInputs{
 		Integration: "postgres",
+		Operation:   "copy_stream",
+		Format:      "csv",
 		Target:      remoteQueryTargetJSON{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"},
 		Query:       remoteQueryProofSeedQuery,
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, "SUCCEEDED", result.Status)
-	assert.JSONEq(t, `{"status":"SUCCEEDED","rows":[{"value":1}]}`, string(result.Raw))
-	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`, runner.seenRequest())
-	assert.NotContains(t, runner.seenRequest(), "integration")
+	assert.Equal(t, statusInvalidRequest, result.Status)
+	require.NotNil(t, result.Error)
+	assert.Contains(t, result.Error.Message, "streaming executor")
 	assert.NotContains(t, string(result.Raw), "datastore-secret")
 }
 
@@ -86,16 +85,20 @@ func TestRemoteQueryPARHarnessPropagatesSanitizedBridgeErrors(t *testing.T) {
 			name: "target not found",
 			inputs: RemoteQueryPARInputs{
 				Integration: "postgres",
+				Operation:   "copy_stream",
+				Format:      "csv",
 				Target:      remoteQueryTargetJSON{Host: "localhost", Port: 5432, DBName: "other"},
 				Query:       remoteQueryProofSeedQuery,
 			},
-			wantStatus: statusTargetNotFound,
-			wantCode:   statusTargetNotFound,
+			wantStatus: statusInvalidRequest,
+			wantCode:   statusInvalidRequest,
 		},
 		{
 			name: "invalid query",
 			inputs: RemoteQueryPARInputs{
 				Integration: "postgres",
+				Operation:   "copy_stream",
+				Format:      "csv",
 				Target:      remoteQueryTargetJSON{Host: "localhost", Port: 5432, DBName: "postgres"},
 				Query:       "SELECT 2 AS value",
 			},

@@ -400,16 +400,10 @@ PY
   local token
   token=$(cat "$TMP_ROOT/run/auth_token")
 
-  if [[ "${RQ_REMOTE_OPERATION:-}" == "copy_stream" && "${RQ_REMOTE_FORMAT:-}" == "binary" ]]; then
-    log "[$PROOF_CASE_NAME] Skipping inline JSON preflight for binary COPY stream (streaming path only)"
-    return
-  fi
-
-  log "[$PROOF_CASE_NAME] Preflight real Agent IPC HTTP execute endpoint (dev evidence only)"
+  log "[$PROOF_CASE_NAME] Preflight real Agent IPC HTTP execute endpoint is disabled; Remote Queries execution requires AgentSecure COPY streaming"
   local body_file="$CASE_RESULTS_DIR/agent-execute-preflight.raw-body"
   local status_file="$CASE_RESULTS_DIR/agent-execute-preflight.status"
   local summary_file="$CASE_RESULTS_DIR/agent-execute-preflight.summary.json"
-  local sanitized_body_file="$CASE_RESULTS_DIR/agent-execute-preflight.body"
   local status
   status=$(curl -sS -k -o "$body_file" -w '%{http_code}' \
     -H "Authorization: Bearer ${token}" \
@@ -421,53 +415,10 @@ PY
     summarize_json_file "$body_file" "$summary_file"
   fi
 
-  if [[ "$status" != "200" ]]; then
-    echo "FAIL: expected Agent execute preflight HTTP 200, got $status" >&2
+  if [[ "$status" != "400" ]]; then
+    echo "FAIL: expected Agent execute preflight HTTP 400 for disabled inline execution, got $status" >&2
     exit 1
   fi
-  RQ_REMOTE_QUERY="$RQ_REMOTE_QUERY" python3 - "$body_file" <<'PY'
-import json
-import os
-import re
-import sys
-
-with open(sys.argv[1], encoding="utf-8") as f:
-    body = json.load(f)
-
-if body.get("status") != "SUCCEEDED":
-    raise SystemExit(f"Agent execute preflight response status was not SUCCEEDED: {body}")
-
-rows = body.get("rows")
-query = os.environ["RQ_REMOTE_QUERY"]
-if query == "SELECT city, country FROM cities ORDER BY city":
-    expected = [
-        {"city": "Beautiful city of lights", "country": "France"},
-        {"city": "New York", "country": "USA"},
-    ]
-    if rows != expected:
-        raise SystemExit(f"Agent execute preflight rows did not match expected fixture data: rows={rows!r} expected={expected!r}")
-elif query == "SELECT 1 AS value":
-    expected = [{"value": 1}]
-    if rows != expected:
-        raise SystemExit(f"Agent execute preflight rows did not match expected seed data: rows={rows!r} expected={expected!r}")
-else:
-    match = re.fullmatch(r"SELECT repeat\('x', ([0-9]+)\) AS payload", query)
-    if not match:
-        raise SystemExit(f"Unsupported proof query: {query!r}")
-    expected_len = int(match.group(1))
-    if not isinstance(rows, list) or len(rows) != 1:
-        raise SystemExit(f"Agent execute preflight expected one payload row, got rows={rows!r}")
-    payload = rows[0].get("payload") if isinstance(rows[0], dict) else None
-    if not isinstance(payload, str):
-        raise SystemExit("Agent execute preflight payload field was not a string")
-    if len(payload) != expected_len:
-        raise SystemExit(f"Agent execute preflight payload length mismatch: got {len(payload)} expected {expected_len}")
-PY
-  if grep -Eq 'password|token|secret' "$body_file"; then
-    echo "FAIL: Agent execute preflight response contained credential-shaped text" >&2
-    exit 1
-  fi
-  cp "$summary_file" "$sanitized_body_file"
   rm -f "$body_file"
 }
 
@@ -486,8 +437,8 @@ run_standalone_go_proof() {
     RQ_POSTGRES_PORT="$RQ_POSTGRES_PORT" \
     RQ_POSTGRES_DBNAME="$RQ_POSTGRES_DBNAME" \
     RQ_REMOTE_QUERY="$RQ_REMOTE_QUERY" \
-    RQ_REMOTE_OPERATION="${RQ_REMOTE_OPERATION:-}" \
-    RQ_REMOTE_FORMAT="${RQ_REMOTE_FORMAT:-}" \
+    RQ_REMOTE_OPERATION="copy_stream" \
+    RQ_REMOTE_FORMAT="${RQ_REMOTE_FORMAT:-csv}" \
     dda inv test --targets=./pkg/privateactionrunner/bundles/remotequeries \
       --extra-args='-run TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC -count=1 -v'
   ) | tee "$CASE_RESULTS_DIR/standalone-proof-test.log"
@@ -497,13 +448,10 @@ run_proof_case() {
   PROOF_CASE_NAME=$1
   RQ_REMOTE_QUERY=$2
   if [[ "$RQ_REMOTE_OPERATION_WAS_SET" != "1" ]]; then
-    RQ_REMOTE_OPERATION=""
-    if [[ "$PROOF_CASE_NAME" == copy-* ]]; then
-      RQ_REMOTE_OPERATION=copy_stream
-    fi
+    RQ_REMOTE_OPERATION=copy_stream
   fi
   if [[ "$RQ_REMOTE_FORMAT_WAS_SET" != "1" ]]; then
-    RQ_REMOTE_FORMAT=""
+    RQ_REMOTE_FORMAT=csv
     if [[ "$PROOF_CASE_NAME" == "copy-binary-payload" ]]; then
       RQ_REMOTE_FORMAT=binary
     fi

@@ -189,7 +189,7 @@ type AgentSecureClient interface {
 	WorkloadFilterEvaluate(ctx context.Context, in *WorkloadFilterEvaluateRequest, opts ...grpc.CallOption) (*WorkloadFilterEvaluateResponse, error)
 	// Executes an Agent-local Remote Queries request through a matched integration check.
 	RemoteQueryExecute(ctx context.Context, in *RemoteQueryExecuteRequest, opts ...grpc.CallOption) (*RemoteQueryExecuteResponse, error)
-	// Executes an Agent-local Remote Queries request and streams the JSON response in chunks.
+	// Executes an Agent-local Remote Queries COPY request and streams typed binary-safe events.
 	RemoteQueryExecuteStream(ctx context.Context, in *RemoteQueryExecuteRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RemoteQueryExecuteChunk], error)
 	// Streams pod-to-service metadata for a specific node.
 	StreamKubeMetadata(ctx context.Context, in *KubeMetadataStreamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[KubeMetadataStreamResponse], error)
@@ -508,7 +508,7 @@ type AgentSecureServer interface {
 	WorkloadFilterEvaluate(context.Context, *WorkloadFilterEvaluateRequest) (*WorkloadFilterEvaluateResponse, error)
 	// Executes an Agent-local Remote Queries request through a matched integration check.
 	RemoteQueryExecute(context.Context, *RemoteQueryExecuteRequest) (*RemoteQueryExecuteResponse, error)
-	// Executes an Agent-local Remote Queries request and streams the JSON response in chunks.
+	// Executes an Agent-local Remote Queries COPY request and streams typed binary-safe events.
 	RemoteQueryExecuteStream(*RemoteQueryExecuteRequest, grpc.ServerStreamingServer[RemoteQueryExecuteChunk]) error
 	// Streams pod-to-service metadata for a specific node.
 	StreamKubeMetadata(*KubeMetadataStreamRequest, grpc.ServerStreamingServer[KubeMetadataStreamResponse]) error

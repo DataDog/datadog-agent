@@ -71,26 +71,6 @@ func TestRunAfterCancel(t *testing.T) {
 	testRunAfterCancel(t)
 }
 
-func TestRunRemoteQueryJSON(t *testing.T) {
-	testRunRemoteQueryJSON(t)
-}
-
-func TestRunRemoteQueryJSONNormalizesIntegration(t *testing.T) {
-	testRunRemoteQueryJSONNormalizesIntegration(t)
-}
-
-func TestRunRemoteQueryJSONError(t *testing.T) {
-	testRunRemoteQueryJSONError(t)
-}
-
-func TestRunRemoteQueryJSONWithRuntimeNotInitializedError(t *testing.T) {
-	testRunRemoteQueryJSONWithRuntimeNotInitializedError(t)
-}
-
-func TestRunRemoteQueryJSONAfterCancel(t *testing.T) {
-	testRunRemoteQueryJSONAfterCancel(t)
-}
-
 func TestRunRemoteQueryStream(t *testing.T) {
 	testRunRemoteQueryStream(t)
 }

@@ -826,13 +826,12 @@ func (*RemoteQueryExecuteStreamEvent_Final) isRemoteQueryExecuteStreamEvent_Even
 func (*RemoteQueryExecuteStreamEvent_Error) isRemoteQueryExecuteStreamEvent_Event() {}
 
 type RemoteQueryExecuteChunk struct {
-	state             protoimpl.MessageState         `protogen:"open.v1"`
-	ResponseJsonChunk []byte                         `protobuf:"bytes,1,opt,name=response_json_chunk,json=responseJsonChunk,proto3" json:"response_json_chunk,omitempty"`
-	ChunkIndex        int32                          `protobuf:"varint,2,opt,name=chunk_index,json=chunkIndex,proto3" json:"chunk_index,omitempty"`
-	Final             bool                           `protobuf:"varint,3,opt,name=final,proto3" json:"final,omitempty"`
-	Event             *RemoteQueryExecuteStreamEvent `protobuf:"bytes,4,opt,name=event,proto3" json:"event,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state         protoimpl.MessageState         `protogen:"open.v1"`
+	ChunkIndex    int32                          `protobuf:"varint,2,opt,name=chunk_index,json=chunkIndex,proto3" json:"chunk_index,omitempty"`
+	Final         bool                           `protobuf:"varint,3,opt,name=final,proto3" json:"final,omitempty"`
+	Event         *RemoteQueryExecuteStreamEvent `protobuf:"bytes,4,opt,name=event,proto3" json:"event,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RemoteQueryExecuteChunk) Reset() {
@@ -863,13 +862,6 @@ func (x *RemoteQueryExecuteChunk) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RemoteQueryExecuteChunk.ProtoReflect.Descriptor instead.
 func (*RemoteQueryExecuteChunk) Descriptor() ([]byte, []int) {
 	return file_datadog_api_v1_api_proto_rawDescGZIP(), []int{11}
-}
-
-func (x *RemoteQueryExecuteChunk) GetResponseJsonChunk() []byte {
-	if x != nil {
-		return x.ResponseJsonChunk
-	}
-	return nil
 }
 
 func (x *RemoteQueryExecuteChunk) GetChunkIndex() int32 {
@@ -973,13 +965,12 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\x04data\x18\x03 \x01(\v2%.datadog.api.v1.RemoteQueryStreamDataH\x00R\x04data\x12>\n" +
 	"\x05final\x18\x04 \x01(\v2&.datadog.api.v1.RemoteQueryStreamFinalH\x00R\x05final\x12>\n" +
 	"\x05error\x18\x05 \x01(\v2&.datadog.api.v1.RemoteQueryStreamErrorH\x00R\x05errorB\a\n" +
-	"\x05event\"\xc5\x01\n" +
-	"\x17RemoteQueryExecuteChunk\x12.\n" +
-	"\x13response_json_chunk\x18\x01 \x01(\fR\x11responseJsonChunk\x12\x1f\n" +
+	"\x05event\"\x9b\x01\n" +
+	"\x17RemoteQueryExecuteChunk\x12\x1f\n" +
 	"\vchunk_index\x18\x02 \x01(\x05R\n" +
 	"chunkIndex\x12\x14\n" +
 	"\x05final\x18\x03 \x01(\bR\x05final\x12C\n" +
-	"\x05event\x18\x04 \x01(\v2-.datadog.api.v1.RemoteQueryExecuteStreamEventR\x05event2Z\n" +
+	"\x05event\x18\x04 \x01(\v2-.datadog.api.v1.RemoteQueryExecuteStreamEventR\x05eventJ\x04\b\x01\x10\x022Z\n" +
 	"\x05Agent\x12Q\n" +
 	"\vGetHostname\x12!.datadog.model.v1.HostnameRequest\x1a\x1f.datadog.model.v1.HostnameReply2\x8a\x12\n" +
 	"\vAgentSecure\x12c\n" +

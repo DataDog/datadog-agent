@@ -574,65 +574,6 @@ PyMethodDef remoteQueryStreamEmitMethod = {"remote_query_stream_emit", remoteQue
                                            "Emit a remote query stream event."};
 } // namespace
 
-char *Three::runRemoteQuery(RtLoaderPyObject *check, const char *integration, const char *request_json)
-{
-    if (check == NULL || request_json == NULL) {
-        return NULL;
-    }
-
-    std::string normalized_integration = normalizeRemoteQueryIntegration(integration);
-    if (!isValidRemoteQueryIntegration(normalized_integration)) {
-        setError("invalid remote query integration name");
-        return NULL;
-    }
-
-    PyObject *py_check = reinterpret_cast<PyObject *>(check);
-    char *ret = NULL;
-    PyObject *remote_query_module = NULL;
-    PyObject *execute_func = NULL;
-    PyObject *py_request_json = NULL;
-    PyObject *result = NULL;
-    std::string module_name = "datadog_checks." + normalized_integration + ".remote_query";
-
-    remote_query_module = PyImport_ImportModule(module_name.c_str());
-    if (remote_query_module == NULL) {
-        setError("error importing remote query helper: " + _fetchPythonError());
-        goto done;
-    }
-
-    execute_func = PyObject_GetAttrString(remote_query_module, "execute_agent_rpc_json");
-    if (execute_func == NULL || !PyCallable_Check(execute_func)) {
-        setError("error loading remote query helper: " + _fetchPythonError());
-        goto done;
-    }
-
-    py_request_json = PyUnicode_FromString(request_json);
-    if (py_request_json == NULL) {
-        setError("error converting remote query request to Python string: " + _fetchPythonError());
-        goto done;
-    }
-
-    result = PyObject_CallFunctionObjArgs(execute_func, py_request_json, py_check, NULL);
-    if (result == NULL || !PyUnicode_Check(result)) {
-        setError("error invoking remote query helper: " + _fetchPythonError());
-        goto done;
-    }
-
-    ret = as_string(result);
-    if (ret == NULL) {
-        // as_string clears the error, so we can't fetch it here
-        setError("error converting remote query helper result to string");
-        goto done;
-    }
-
- done:
-    Py_XDECREF(result);
-    Py_XDECREF(py_request_json);
-    Py_XDECREF(execute_func);
-    Py_XDECREF(remote_query_module);
-    return ret;
-}
-
 bool Three::runRemoteQueryStream(RtLoaderPyObject *check, const char *integration, const char *request_json,
                                  remote_query_stream_emit_cb emit, void *userdata)
 {

@@ -78,11 +78,14 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopAndFakeintake(t *testing.T) {
 			"port":   5432,
 			"dbname": "postgres",
 		},
-		"query": "SELECT 1 AS value",
-		"limits": map[string]interface{}{
-			"maxRows":   1,
-			"maxBytes":  1024,
-			"timeoutMs": 1000,
+		"operation": "copy_stream",
+		"format":    "csv",
+		"query":     "SELECT 1 AS value",
+		"copyLimits": map[string]interface{}{
+			"chunkBytes":  1024,
+			"maxBytes":    1024,
+			"maxRowBytes": 1024,
+			"timeoutMs":   1000,
 		},
 	}))
 
@@ -91,7 +94,7 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopAndFakeintake(t *testing.T) {
 	require.True(t, result.Success)
 	require.Equal(t, taskID, result.TaskID)
 	assert.Equal(t, "SUCCEEDED", result.Outputs["status"])
-	require.Contains(t, result.Outputs, "rows")
+	require.Contains(t, result.Outputs, "events")
 
 	select {
 	case req := <-bridgeRequests:
@@ -101,6 +104,8 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopAndFakeintake(t *testing.T) {
 		require.NotContains(t, string(requestEvidence), "token")
 		require.NotContains(t, string(requestEvidence), "secret")
 		assert.Equal(t, "postgres", req.GetIntegration())
+		assert.Equal(t, "copy_stream", req.GetOperation())
+		assert.Equal(t, "csv", req.GetFormat())
 		assert.Equal(t, "SELECT 1 AS value", req.GetQuery())
 		assert.Equal(t, "localhost", req.GetTarget().GetHost())
 		assert.Equal(t, int32(5432), req.GetTarget().GetPort())
@@ -157,11 +162,12 @@ func (c *captureAgentSecureClient) RemoteQueryExecute(_ context.Context, req *pb
 
 func (c *captureAgentSecureClient) RemoteQueryExecuteStream(_ context.Context, req *pb.RemoteQueryExecuteRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], error) {
 	c.requests <- req
-	responseJSON, err := json.Marshal(map[string]interface{}{"status": c.response.GetStatus(), "rows": []interface{}{map[string]interface{}{"value": 1}}})
-	if err != nil {
-		return nil, err
-	}
-	return &captureRemoteQueryExecuteStream{chunks: []*pb.RemoteQueryExecuteChunk{{ResponseJsonChunk: responseJSON, Final: true}}}, nil
+	return &captureRemoteQueryExecuteStream{chunks: []*pb.RemoteQueryExecuteChunk{
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Metadata{Metadata: &pb.RemoteQueryStreamMetadata{Operation: "copy_stream", Integration: "postgres", Format: "csv"}}}, ChunkIndex: 0},
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 1, Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{Payload: []byte("1\n"), Offset: 0, Bytes: 2}}}, ChunkIndex: 1},
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 2, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{Status: c.response.GetStatus(), BytesEmitted: 2, ChunksEmitted: 1}}}, ChunkIndex: 2},
+		{ChunkIndex: 3, Final: true},
+	}}, nil
 }
 
 type captureRemoteQueryExecuteStream struct {

@@ -137,12 +137,9 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 		return nil, fmt.Errorf("remote query response stream missing")
 	}
 
-	var assembled bytes.Buffer
-	legacyStreamEvents := make([]json.RawMessage, 0)
 	typedStreamEvents := make([]map[string]interface{}, 0)
 	expectedChunkIndex := int32(0)
 	seenFinal := false
-	finalChunkWasEmpty := false
 	for {
 		chunk, err := stream.Recv()
 		if err == io.EOF {
@@ -166,16 +163,8 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 				return nil, err
 			}
 			typedStreamEvents = append(typedStreamEvents, streamEvent)
-		} else {
-			payload := chunk.GetResponseJsonChunk()
-			if chunk.GetFinal() && len(payload) == 0 && len(legacyStreamEvents) > 0 {
-				finalChunkWasEmpty = true
-			} else {
-				_, _ = assembled.Write(payload)
-				if !chunk.GetFinal() {
-					legacyStreamEvents = append(legacyStreamEvents, append(json.RawMessage(nil), payload...))
-				}
-			}
+		} else if !chunk.GetFinal() {
+			return nil, fmt.Errorf("remote query response stream chunk missing typed event")
 		}
 		seenFinal = chunk.GetFinal()
 		expectedChunkIndex++
@@ -183,13 +172,10 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 	if !seenFinal {
 		return nil, fmt.Errorf("remote query response stream missing final chunk")
 	}
-	if len(typedStreamEvents) > 0 {
-		return remoteQueryExecuteOutputFromTypedEvents(typedStreamEvents)
+	if len(typedStreamEvents) == 0 {
+		return nil, fmt.Errorf("remote query response stream missing typed events")
 	}
-	if finalChunkWasEmpty {
-		return remoteQueryExecuteOutputFromEvents(legacyStreamEvents)
-	}
-	return remoteQueryExecuteOutputFromJSON(assembled.Bytes())
+	return remoteQueryExecuteOutputFromTypedEvents(typedStreamEvents)
 }
 
 func remoteQueryStreamEventFromProto(event *pb.RemoteQueryExecuteStreamEvent) (map[string]interface{}, error) {
@@ -236,6 +222,7 @@ func remoteQueryStreamEventFromProto(event *pb.RemoteQueryExecuteStreamEvent) (m
 
 func remoteQueryExecuteOutputFromTypedEvents(events []map[string]interface{}) (map[string]interface{}, error) {
 	var finalEvent map[string]interface{}
+	var errorEvent map[string]interface{}
 	var data bytes.Buffer
 	for _, event := range events {
 		if event["type"] == "data" {
@@ -246,8 +233,19 @@ func remoteQueryExecuteOutputFromTypedEvents(events []map[string]interface{}) (m
 		if event["type"] == "final" {
 			finalEvent = event
 		}
+		if event["type"] == "error" {
+			errorEvent = event
+		}
 	}
 	if finalEvent == nil {
+		if errorEvent != nil {
+			code, _ := errorEvent["code"].(string)
+			message, _ := errorEvent["message"].(string)
+			return map[string]interface{}{
+				"status": code,
+				"error":  map[string]interface{}{"code": code, "message": message},
+			}, nil
+		}
 		return nil, fmt.Errorf("remote query stream response missing final event")
 	}
 	status, _ := finalEvent["status"].(string)
@@ -264,59 +262,6 @@ func remoteQueryExecuteOutputFromTypedEvents(events []map[string]interface{}) (m
 		output["data"] = string(dataBytes)
 	}
 	return output, nil
-}
-
-func remoteQueryExecuteOutputFromEvents(rawEvents []json.RawMessage) (map[string]interface{}, error) {
-	events := make([]interface{}, 0, len(rawEvents))
-	var finalEvent map[string]interface{}
-	var data bytes.Buffer
-	for _, raw := range rawEvents {
-		var event map[string]interface{}
-		if err := json.Unmarshal(raw, &event); err != nil {
-			return nil, err
-		}
-		events = append(events, normalizeRemoteQueryOutput(event))
-		if event["type"] == "data" {
-			if chunk, ok := event["data"].(string); ok {
-				_, _ = data.WriteString(chunk)
-			}
-		}
-		if event["type"] == "final" {
-			finalEvent = event
-		}
-	}
-	if finalEvent == nil {
-		return nil, fmt.Errorf("remote query stream response missing final event")
-	}
-	status, _ := finalEvent["status"].(string)
-	if status == "" {
-		return nil, fmt.Errorf("remote query stream final event missing status")
-	}
-	output := map[string]interface{}{
-		"status": status,
-		"events": events,
-		"data":   data.String(),
-	}
-	if v, ok := finalEvent["error"]; ok {
-		output["error"] = normalizeRemoteQueryOutput(v)
-	}
-	if v, ok := finalEvent["stats"]; ok {
-		output["stats"] = normalizeRemoteQueryOutput(v)
-	}
-	return output, nil
-}
-
-func remoteQueryExecuteOutputFromJSON(responseJSON []byte) (map[string]interface{}, error) {
-	var output map[string]interface{}
-	decoder := json.NewDecoder(bytes.NewReader(responseJSON))
-	if err := decoder.Decode(&output); err != nil {
-		return nil, err
-	}
-	status, ok := output["status"].(string)
-	if !ok || status == "" {
-		return nil, fmt.Errorf("remote query response missing status")
-	}
-	return normalizeRemoteQueryOutput(output).(map[string]interface{}), nil
 }
 
 func remoteQueryExecuteOutputFromProto(resp *pb.RemoteQueryExecuteResponse) (map[string]interface{}, error) {
