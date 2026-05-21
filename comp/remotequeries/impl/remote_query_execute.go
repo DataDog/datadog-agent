@@ -30,6 +30,8 @@ const (
 	statusExecutorUnavailable = "executor_unavailable"
 )
 
+const remoteQueryBinaryPayloadProofQuery = "SELECT decode('00ff80', 'hex') AS payload"
+
 var remoteQueryLargePayloadProofQueries = map[string]int{
 	"SELECT repeat('x', 1048576) AS payload":  1 << 20,
 	"SELECT repeat('x', 2097152) AS payload":  2 << 20,
@@ -44,12 +46,12 @@ type remoteQueryRunner interface {
 }
 
 type remoteQueryStreamRunner interface {
-	RunRemoteQueryStream(integration string, requestJSON string, emit func(string) error) error
+	RunRemoteQueryStream(integration string, requestJSON string, emit func(check.RemoteQueryStreamEvent) error) error
 }
 
 func isRemoteQueryAllowedProofQuery(query string) bool {
 	switch query {
-	case remoteQueryProofSeedQuery, remoteQueryFixtureTableProofQuery:
+	case remoteQueryProofSeedQuery, remoteQueryFixtureTableProofQuery, remoteQueryBinaryPayloadProofQuery:
 		return true
 	default:
 		_, ok := remoteQueryLargePayloadProofQueries[query]
@@ -174,8 +176,8 @@ func NewRemoteQueryCopyStreamExecuteRequest(integration string, target RemoteQue
 	if format == "" {
 		format = "csv"
 	}
-	if format != "csv" {
-		return RemoteQueryExecuteRequest{}, fmt.Errorf("format must be csv")
+	if format != "csv" && format != "binary" {
+		return RemoteQueryExecuteRequest{}, fmt.Errorf("format must be csv or binary")
 	}
 	var parsedLimits *remoteQueryExecuteCopyLimits
 	if limits != nil {
@@ -532,8 +534,8 @@ func (s *RemoteQueryExecuteService) Execute(req RemoteQueryExecuteRequest) Remot
 	return RemoteQueryExecuteResult{HTTPStatus: http.StatusOK, ResponseJSON: responseJSON}
 }
 
-// ExecuteStream executes a COPY streaming request and emits serialized stream events without materializing the full result.
-func (s *RemoteQueryExecuteService) ExecuteStream(req RemoteQueryExecuteRequest, emit func(string) error) RemoteQueryExecuteResult {
+// ExecuteStream executes a COPY streaming request and emits binary-safe stream events without materializing the full result.
+func (s *RemoteQueryExecuteService) ExecuteStream(req RemoteQueryExecuteRequest, emit func(check.RemoteQueryStreamEvent) error) RemoteQueryExecuteResult {
 	if req.Operation != "copy_stream" {
 		return s.Execute(req)
 	}

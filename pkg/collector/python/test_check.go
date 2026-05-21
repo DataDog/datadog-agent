@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	checkbase "github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
@@ -123,14 +124,18 @@ rtloader_pyobject_t *run_remote_query_stream_instance = NULL;
 const char *run_remote_query_stream_integration = NULL;
 const char *run_remote_query_stream_request_json = NULL;
 const char *run_remote_query_stream_event_json = NULL;
-int run_remote_query_stream(rtloader_t *s, rtloader_pyobject_t *check, const char *integration, const char *request_json, int (*emit)(const char *, void *), void *userdata) {
+int run_remote_query_stream(rtloader_t *s, rtloader_pyobject_t *check, const char *integration, const char *request_json, int (*emit)(const char *, const char *, const uint8_t *, size_t, void *), void *userdata) {
 	run_remote_query_stream_instance = check;
 	run_remote_query_stream_integration = strdup(integration);
 	run_remote_query_stream_request_json = strdup(request_json);
 	run_remote_query_stream_calls++;
-	run_remote_query_stream_event_json = "{\"type\":\"final\",\"status\":\"SUCCEEDED\"}";
+	run_remote_query_stream_event_json = "{\"status\":\"SUCCEEDED\"}";
+	uint8_t payload[] = {0x00, 0xff, 0x80};
 	if (run_remote_query_stream_return && emit != NULL) {
-		if (emit(run_remote_query_stream_event_json, userdata) != 0) {
+		if (emit("data", "{\"sequence\":0,\"offset\":0,\"bytes\":3}", payload, sizeof(payload), userdata) != 0) {
+			return 0;
+		}
+		if (emit("final", run_remote_query_stream_event_json, NULL, 0, userdata) != 0) {
 			return 0;
 		}
 	}
@@ -813,14 +818,20 @@ func testRunRemoteQueryStream(t *testing.T) {
 	check.instance = newMockPyObjectPtr()
 
 	C.reset_check_mock()
-	var events []string
-	err = check.RunRemoteQueryStream(" Postgres ", `{"operation":"copy_stream"}`, func(event string) error {
+	var events []checkbase.RemoteQueryStreamEvent
+	err = check.RunRemoteQueryStream(" Postgres ", `{"operation":"copy_stream"}`, func(event checkbase.RemoteQueryStreamEvent) error {
 		events = append(events, event)
 		return nil
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{`{"type":"final","status":"SUCCEEDED"}`}, events)
+	require.Len(t, events, 2)
+	assert.Equal(t, "data", events[0].Type)
+	assert.JSONEq(t, `{"sequence":0,"offset":0,"bytes":3}`, events[0].MetadataJSON)
+	assert.Equal(t, []byte{0x00, 0xff, 0x80}, events[0].Payload)
+	assert.Equal(t, "final", events[1].Type)
+	assert.JSONEq(t, `{"status":"SUCCEEDED"}`, events[1].MetadataJSON)
+	assert.Empty(t, events[1].Payload)
 	assert.Equal(t, C.int(1), C.gil_locked_calls)
 	assert.Equal(t, C.int(1), C.gil_unlocked_calls)
 	assert.Equal(t, C.int(1), C.run_remote_query_stream_calls)
@@ -837,7 +848,7 @@ func testRunRemoteQueryStreamEmitError(t *testing.T) {
 	check.instance = newMockPyObjectPtr()
 
 	C.reset_check_mock()
-	err = check.RunRemoteQueryStream("postgres", `{"operation":"copy_stream"}`, func(string) error { return assert.AnError })
+	err = check.RunRemoteQueryStream("postgres", `{"operation":"copy_stream"}`, func(checkbase.RemoteQueryStreamEvent) error { return assert.AnError })
 
 	require.Error(t, err)
 	assert.Equal(t, C.int(1), C.run_remote_query_stream_calls)
@@ -853,7 +864,7 @@ func testRunRemoteQueryStreamAfterCancel(t *testing.T) {
 	C.reset_check_mock()
 	check.Cancel()
 
-	err = check.RunRemoteQueryStream("postgres", `{"operation":"copy_stream"}`, func(string) error { return nil })
+	err = check.RunRemoteQueryStream("postgres", `{"operation":"copy_stream"}`, func(checkbase.RemoteQueryStreamEvent) error { return nil })
 	assert.EqualError(t, err, "check fake_check is already cancelled")
 	assert.Equal(t, C.int(0), C.run_remote_query_stream_calls)
 }

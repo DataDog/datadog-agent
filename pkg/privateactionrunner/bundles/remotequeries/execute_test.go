@@ -69,10 +69,10 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 
 func TestExecuteActionPreservesCopyStreamEvents(t *testing.T) {
 	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		{ResponseJsonChunk: []byte(`{"type":"metadata","status":"STARTED","operation":"copy_stream"}`), ChunkIndex: 0},
-		{ResponseJsonChunk: []byte(`{"type":"data","sequence":0,"data":"Beautiful city of lights,France\n","bytes":32}`), ChunkIndex: 1},
-		{ResponseJsonChunk: []byte(`{"type":"data","sequence":1,"data":"New York,USA\n","bytes":13}`), ChunkIndex: 2},
-		{ResponseJsonChunk: []byte(`{"type":"final","status":"SUCCEEDED","stats":{"bytesEmitted":45}}`), ChunkIndex: 3},
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Metadata{Metadata: &pb.RemoteQueryStreamMetadata{Operation: "copy_stream", Format: "csv"}}}, ChunkIndex: 0},
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 1, Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{Payload: []byte("Beautiful city of lights,France\n"), Offset: 0, Bytes: 32}}}, ChunkIndex: 1},
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 2, Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{Payload: []byte("New York,USA\n"), Offset: 32, Bytes: 13}}}, ChunkIndex: 2},
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 3, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{Status: "SUCCEEDED", BytesEmitted: 45}}}, ChunkIndex: 3},
 		{ChunkIndex: 4, Final: true},
 	}}
 	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
@@ -91,7 +91,32 @@ func TestExecuteActionPreservesCopyStreamEvents(t *testing.T) {
 	assert.Equal(t, "csv", client.request.GetFormat())
 	assert.Equal(t, int32(32), client.request.GetCopyLimits().GetChunkBytes())
 	assert.Equal(t, "Beautiful city of lights,France\nNew York,USA\n", output.(map[string]interface{})["data"])
+	assert.Equal(t, []byte("Beautiful city of lights,France\nNew York,USA\n"), output.(map[string]interface{})["data_bytes"])
 	assert.Equal(t, "SUCCEEDED", output.(map[string]interface{})["status"])
+}
+
+func TestExecuteActionPreservesBinaryCopyStreamPayload(t *testing.T) {
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{Payload: []byte{0x00, 0xff, 0x80}, Offset: 0, Bytes: 3}}}, ChunkIndex: 0},
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 1, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{Status: "SUCCEEDED", BytesEmitted: 3, ChunksEmitted: 1}}}, ChunkIndex: 1},
+		{ChunkIndex: 2, Final: true},
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+		"integration": "postgres",
+		"operation":   "copy_stream",
+		"format":      "binary",
+		"target":      map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":       "SELECT decode('00ff80', 'hex') AS payload",
+		"copyLimits":  map[string]interface{}{"chunkBytes": 32, "maxBytes": 1024, "maxRowBytes": 1024, "timeoutMs": 1000},
+	}), nil)
+
+	require.NoError(t, err)
+	out := output.(map[string]interface{})
+	assert.Equal(t, []byte{0x00, 0xff, 0x80}, out["data_bytes"])
+	assert.NotContains(t, out, "data")
+	assert.Equal(t, "SUCCEEDED", out["status"])
 }
 
 func TestExecuteActionPreservesSanitizedBridgeErrorBody(t *testing.T) {

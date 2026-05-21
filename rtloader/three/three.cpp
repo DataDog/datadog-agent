@@ -537,7 +537,7 @@ struct RemoteQueryStreamEmitContext {
     void *userdata;
 };
 
-PyObject *remoteQueryStreamEmit(PyObject *self, PyObject *event)
+PyObject *remoteQueryStreamEmit(PyObject *self, PyObject *args)
 {
     RemoteQueryStreamEmitContext *ctx = static_cast<RemoteQueryStreamEmitContext *>(PyCapsule_GetPointer(self, "remote_query_stream_emit"));
     if (ctx == NULL || ctx->emit == NULL) {
@@ -545,53 +545,23 @@ PyObject *remoteQueryStreamEmit(PyObject *self, PyObject *event)
         return NULL;
     }
 
-    PyObject *normalized_event = event;
-    PyObject *event_copy = NULL;
-    if (PyDict_Check(event)) {
-        PyObject *data = PyDict_GetItemString(event, "data");
-        if (data != NULL && PyBytes_Check(data)) {
-            event_copy = PyDict_Copy(event);
-            if (event_copy == NULL) {
-                return NULL;
-            }
-            char *bytes = PyBytes_AsString(data);
-            Py_ssize_t size = PyBytes_Size(data);
-            PyObject *data_str = PyUnicode_FromStringAndSize(bytes, size);
-            if (data_str == NULL) {
-                Py_DECREF(event_copy);
-                return NULL;
-            }
-            if (PyDict_SetItemString(event_copy, "data", data_str) != 0) {
-                Py_DECREF(data_str);
-                Py_DECREF(event_copy);
-                return NULL;
-            }
-            Py_DECREF(data_str);
-            normalized_event = event_copy;
-        }
-    }
-
-    PyObject *json_module = PyImport_ImportModule("json");
-    if (json_module == NULL) {
-        Py_XDECREF(event_copy);
+    const char *event_type = NULL;
+    const char *metadata_json = NULL;
+    PyObject *payload = NULL;
+    if (!PyArg_ParseTuple(args, "ssO:remote_query_stream_emit", &event_type, &metadata_json, &payload)) {
         return NULL;
     }
-    PyObject *event_json = PyObject_CallMethod(json_module, const_cast<char *>("dumps"), const_cast<char *>("O"), normalized_event);
-    Py_DECREF(json_module);
-    Py_XDECREF(event_copy);
-    if (event_json == NULL || !PyUnicode_Check(event_json)) {
-        Py_XDECREF(event_json);
+    if (!PyBytes_Check(payload)) {
+        PyErr_SetString(PyExc_TypeError, "remote query stream payload must be bytes");
         return NULL;
     }
 
-    PyObject *utf8 = PyUnicode_AsUTF8String(event_json);
-    Py_DECREF(event_json);
-    if (utf8 == NULL) {
+    char *payload_bytes = NULL;
+    Py_ssize_t payload_len = 0;
+    if (PyBytes_AsStringAndSize(payload, &payload_bytes, &payload_len) != 0) {
         return NULL;
     }
-    const char *event_json_c = PyBytes_AsString(utf8);
-    int emit_result = ctx->emit(event_json_c, ctx->userdata);
-    Py_DECREF(utf8);
+    int emit_result = ctx->emit(event_type, metadata_json, reinterpret_cast<const uint8_t *>(payload_bytes), static_cast<size_t>(payload_len), ctx->userdata);
     if (emit_result != 0) {
         PyErr_SetString(PyExc_RuntimeError, "remote query stream emit callback failed");
         return NULL;
@@ -600,8 +570,8 @@ PyObject *remoteQueryStreamEmit(PyObject *self, PyObject *event)
     Py_RETURN_NONE;
 }
 
-PyMethodDef remoteQueryStreamEmitMethod = {"remote_query_stream_emit", remoteQueryStreamEmit, METH_O,
-                                           "Emit a serialized remote query stream event."};
+PyMethodDef remoteQueryStreamEmitMethod = {"remote_query_stream_emit", remoteQueryStreamEmit, METH_VARARGS,
+                                           "Emit a remote query stream event."};
 } // namespace
 
 char *Three::runRemoteQuery(RtLoaderPyObject *check, const char *integration, const char *request_json)

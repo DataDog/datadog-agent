@@ -34,6 +34,11 @@ if [[ -n "${RQ_REMOTE_OPERATION+x}" ]]; then
   RQ_REMOTE_OPERATION_WAS_SET=1
 fi
 RQ_REMOTE_OPERATION=${RQ_REMOTE_OPERATION:-}
+RQ_REMOTE_FORMAT_WAS_SET=0
+if [[ -n "${RQ_REMOTE_FORMAT+x}" ]]; then
+  RQ_REMOTE_FORMAT_WAS_SET=1
+fi
+RQ_REMOTE_FORMAT=${RQ_REMOTE_FORMAT:-}
 RQ_POSTGRES_HOST=${RQ_POSTGRES_HOST:-localhost}
 RQ_POSTGRES_PORT=${RQ_POSTGRES_PORT:-5432}
 RQ_POSTGRES_DBNAME=${RQ_POSTGRES_DBNAME:-datadog_test}
@@ -52,6 +57,7 @@ PROOF_CASE_NAMES=(
   "seed"
   "fixture-city"
   "copy-fixture-city"
+  "copy-binary-payload"
   "payload-1mib"
   "payload-2mib"
   "payload-4mib"
@@ -64,6 +70,7 @@ PROOF_CASE_QUERIES=(
   "SELECT 1 AS value"
   "SELECT city, country FROM cities ORDER BY city"
   "SELECT city, country FROM cities ORDER BY city"
+  "SELECT decode('00ff80', 'hex') AS payload"
   "SELECT repeat('x', 1048576) AS payload"
   "SELECT repeat('x', 2097152) AS payload"
   "SELECT repeat('x', 4194304) AS payload"
@@ -393,6 +400,11 @@ PY
   local token
   token=$(cat "$TMP_ROOT/run/auth_token")
 
+  if [[ "${RQ_REMOTE_OPERATION:-}" == "copy_stream" && "${RQ_REMOTE_FORMAT:-}" == "binary" ]]; then
+    log "[$PROOF_CASE_NAME] Skipping inline JSON preflight for binary COPY stream (streaming path only)"
+    return
+  fi
+
   log "[$PROOF_CASE_NAME] Preflight real Agent IPC HTTP execute endpoint (dev evidence only)"
   local body_file="$CASE_RESULTS_DIR/agent-execute-preflight.raw-body"
   local status_file="$CASE_RESULTS_DIR/agent-execute-preflight.status"
@@ -475,6 +487,7 @@ run_standalone_go_proof() {
     RQ_POSTGRES_DBNAME="$RQ_POSTGRES_DBNAME" \
     RQ_REMOTE_QUERY="$RQ_REMOTE_QUERY" \
     RQ_REMOTE_OPERATION="${RQ_REMOTE_OPERATION:-}" \
+    RQ_REMOTE_FORMAT="${RQ_REMOTE_FORMAT:-}" \
     dda inv test --targets=./pkg/privateactionrunner/bundles/remotequeries \
       --extra-args='-run TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC -count=1 -v'
   ) | tee "$CASE_RESULTS_DIR/standalone-proof-test.log"
@@ -487,6 +500,12 @@ run_proof_case() {
     RQ_REMOTE_OPERATION=""
     if [[ "$PROOF_CASE_NAME" == copy-* ]]; then
       RQ_REMOTE_OPERATION=copy_stream
+    fi
+  fi
+  if [[ "$RQ_REMOTE_FORMAT_WAS_SET" != "1" ]]; then
+    RQ_REMOTE_FORMAT=""
+    if [[ "$PROOF_CASE_NAME" == "copy-binary-payload" ]]; then
+      RQ_REMOTE_FORMAT=binary
     fi
   fi
   CASE_RESULTS_DIR="$TMP_ROOT/results/$PROOF_CASE_NAME"

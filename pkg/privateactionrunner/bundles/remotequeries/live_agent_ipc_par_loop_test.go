@@ -8,7 +8,9 @@
 package com_datadoghq_remotequeries_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -29,10 +31,11 @@ import (
 )
 
 const (
-	fusedLocalProofEnv                  = "RQ_FUSED_PROOF"
-	remoteQueriesSeedProofQuery         = "SELECT 1 AS value"
-	remoteQueriesFixtureTableProofQuery = "SELECT city, country FROM cities ORDER BY city"
-	remoteQueriesProofQueryOverrideEnv  = "RQ_REMOTE_QUERY"
+	fusedLocalProofEnv                   = "RQ_FUSED_PROOF"
+	remoteQueriesSeedProofQuery          = "SELECT 1 AS value"
+	remoteQueriesFixtureTableProofQuery  = "SELECT city, country FROM cities ORDER BY city"
+	remoteQueriesBinaryPayloadProofQuery = "SELECT decode('00ff80', 'hex') AS payload"
+	remoteQueriesProofQueryOverrideEnv   = "RQ_REMOTE_QUERY"
 )
 
 var remoteQueriesLargePayloadProofQueries = map[string]int{
@@ -200,6 +203,21 @@ func remoteQueriesProofResultTimeout(query string) time.Duration {
 func remoteQueriesLargePayloadBytes(query string) (int, bool) {
 	payloadBytes, ok := remoteQueriesLargePayloadProofQueries[query]
 	return payloadBytes, ok
+}
+
+func assertRemoteQueriesProofBinaryCopyData(t *testing.T, query string, dataBase64 string) {
+	t.Helper()
+
+	data, err := base64.StdEncoding.DecodeString(dataBase64)
+	require.NoError(t, err)
+	switch query {
+	case remoteQueriesBinaryPayloadProofQuery:
+		assert.True(t, bytes.HasPrefix(data, []byte("PGCOPY\n\xff\r\n\x00")), "binary COPY payload should keep the PostgreSQL binary header")
+		assert.Contains(t, data, byte(0x00))
+		assert.True(t, bytes.Contains(data, []byte{0x00, 0xff, 0x80}), "binary COPY payload should contain the row bytes from decode('00ff80','hex')")
+	default:
+		require.FailNowf(t, "unsupported binary COPY proof query", "%s=%q must use a binary COPY bridge-allowlisted proof query", remoteQueriesProofQueryOverrideEnv, query)
+	}
 }
 
 func assertRemoteQueriesProofCopyData(t *testing.T, query string, data string) {

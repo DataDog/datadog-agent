@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"unicode/utf8"
 
 	"google.golang.org/grpc"
 
@@ -137,7 +138,8 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 	}
 
 	var assembled bytes.Buffer
-	streamEvents := make([]json.RawMessage, 0)
+	legacyStreamEvents := make([]json.RawMessage, 0)
+	typedStreamEvents := make([]map[string]interface{}, 0)
 	expectedChunkIndex := int32(0)
 	seenFinal := false
 	finalChunkWasEmpty := false
@@ -158,13 +160,21 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 		if seenFinal {
 			return nil, fmt.Errorf("remote query response stream sent chunk after final")
 		}
-		payload := chunk.GetResponseJsonChunk()
-		if chunk.GetFinal() && len(payload) == 0 && len(streamEvents) > 0 {
-			finalChunkWasEmpty = true
+		if event := chunk.GetEvent(); event != nil {
+			streamEvent, err := remoteQueryStreamEventFromProto(event)
+			if err != nil {
+				return nil, err
+			}
+			typedStreamEvents = append(typedStreamEvents, streamEvent)
 		} else {
-			_, _ = assembled.Write(payload)
-			if !chunk.GetFinal() {
-				streamEvents = append(streamEvents, append(json.RawMessage(nil), payload...))
+			payload := chunk.GetResponseJsonChunk()
+			if chunk.GetFinal() && len(payload) == 0 && len(legacyStreamEvents) > 0 {
+				finalChunkWasEmpty = true
+			} else {
+				_, _ = assembled.Write(payload)
+				if !chunk.GetFinal() {
+					legacyStreamEvents = append(legacyStreamEvents, append(json.RawMessage(nil), payload...))
+				}
 			}
 		}
 		seenFinal = chunk.GetFinal()
@@ -173,10 +183,87 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 	if !seenFinal {
 		return nil, fmt.Errorf("remote query response stream missing final chunk")
 	}
+	if len(typedStreamEvents) > 0 {
+		return remoteQueryExecuteOutputFromTypedEvents(typedStreamEvents)
+	}
 	if finalChunkWasEmpty {
-		return remoteQueryExecuteOutputFromEvents(streamEvents)
+		return remoteQueryExecuteOutputFromEvents(legacyStreamEvents)
 	}
 	return remoteQueryExecuteOutputFromJSON(assembled.Bytes())
+}
+
+func remoteQueryStreamEventFromProto(event *pb.RemoteQueryExecuteStreamEvent) (map[string]interface{}, error) {
+	out := map[string]interface{}{"sequence": event.GetSequence()}
+	switch e := event.GetEvent().(type) {
+	case *pb.RemoteQueryExecuteStreamEvent_Metadata:
+		out["type"] = "metadata"
+		out["operation"] = e.Metadata.GetOperation()
+		out["integration"] = e.Metadata.GetIntegration()
+		out["format"] = e.Metadata.GetFormat()
+		if len(e.Metadata.GetAttributes()) > 0 {
+			out["attributes"] = e.Metadata.GetAttributes()
+		}
+	case *pb.RemoteQueryExecuteStreamEvent_Data:
+		out["type"] = "data"
+		payload := append([]byte(nil), e.Data.GetPayload()...)
+		out["payload"] = payload
+		out["offset"] = e.Data.GetOffset()
+		out["bytes"] = e.Data.GetBytes()
+		if utf8.Valid(payload) {
+			out["data"] = string(payload)
+		}
+	case *pb.RemoteQueryExecuteStreamEvent_Final:
+		out["type"] = "final"
+		out["status"] = e.Final.GetStatus()
+		out["bytes_emitted"] = e.Final.GetBytesEmitted()
+		out["chunks_emitted"] = e.Final.GetChunksEmitted()
+		if len(e.Final.GetAttributes()) > 0 {
+			out["attributes"] = e.Final.GetAttributes()
+		}
+	case *pb.RemoteQueryExecuteStreamEvent_Error:
+		out["type"] = "error"
+		out["code"] = e.Error.GetCode()
+		out["message"] = e.Error.GetMessage()
+		out["retryable"] = e.Error.GetRetryable()
+		if len(e.Error.GetAttributes()) > 0 {
+			out["attributes"] = e.Error.GetAttributes()
+		}
+	default:
+		return nil, fmt.Errorf("remote query stream response contained unknown event")
+	}
+	return out, nil
+}
+
+func remoteQueryExecuteOutputFromTypedEvents(events []map[string]interface{}) (map[string]interface{}, error) {
+	var finalEvent map[string]interface{}
+	var data bytes.Buffer
+	for _, event := range events {
+		if event["type"] == "data" {
+			if payload, ok := event["payload"].([]byte); ok {
+				_, _ = data.Write(payload)
+			}
+		}
+		if event["type"] == "final" {
+			finalEvent = event
+		}
+	}
+	if finalEvent == nil {
+		return nil, fmt.Errorf("remote query stream response missing final event")
+	}
+	status, _ := finalEvent["status"].(string)
+	if status == "" {
+		return nil, fmt.Errorf("remote query stream final event missing status")
+	}
+	dataBytes := data.Bytes()
+	output := map[string]interface{}{
+		"status":     status,
+		"events":     normalizeRemoteQueryOutput(events),
+		"data_bytes": append([]byte(nil), dataBytes...),
+	}
+	if utf8.Valid(dataBytes) {
+		output["data"] = string(dataBytes)
+	}
+	return output, nil
 }
 
 func remoteQueryExecuteOutputFromEvents(rawEvents []json.RawMessage) (map[string]interface{}, error) {

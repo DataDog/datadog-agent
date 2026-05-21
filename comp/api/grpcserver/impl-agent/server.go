@@ -38,6 +38,7 @@ import (
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
 	remotequeriesimpl "github.com/DataDog/datadog-agent/comp/remotequeries/impl"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -313,8 +314,12 @@ func (s *serverSecure) RemoteQueryExecuteStream(req *pb.RemoteQueryExecuteReques
 
 	if execReq.Operation == "copy_stream" {
 		chunkIndex := int32(0)
-		result := s.remoteQueries.ExecuteStream(execReq, func(eventJSON string) error {
-			err := stream.Send(&pb.RemoteQueryExecuteChunk{ResponseJsonChunk: []byte(eventJSON), ChunkIndex: chunkIndex})
+		result := s.remoteQueries.ExecuteStream(execReq, func(event check.RemoteQueryStreamEvent) error {
+			protoEvent, err := remoteQueryStreamEventFromCheckEvent(event)
+			if err != nil {
+				return err
+			}
+			err = stream.Send(&pb.RemoteQueryExecuteChunk{Event: protoEvent, ChunkIndex: chunkIndex})
 			chunkIndex++
 			return err
 		})
@@ -343,6 +348,110 @@ func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remo
 	}
 	limits := remoteQueryLimitsFromProto(req.GetLimits())
 	return remotequeriesimpl.NewRemoteQueryExecuteRequest(req.GetIntegration(), target, req.GetQuery(), limits)
+}
+
+func remoteQueryStreamEventFromCheckEvent(event check.RemoteQueryStreamEvent) (*pb.RemoteQueryExecuteStreamEvent, error) {
+	metadata := map[string]interface{}{}
+	if strings.TrimSpace(event.MetadataJSON) != "" {
+		if err := json.Unmarshal([]byte(event.MetadataJSON), &metadata); err != nil {
+			return nil, err
+		}
+	}
+	sequence := uint64FromMetadata(metadata, "sequence")
+	out := &pb.RemoteQueryExecuteStreamEvent{Sequence: sequence}
+	switch event.Type {
+	case "metadata":
+		attrs := stringAttributes(metadata, "operation", "integration", "format", "sequence")
+		out.Event = &pb.RemoteQueryExecuteStreamEvent_Metadata{Metadata: &pb.RemoteQueryStreamMetadata{
+			Operation:   stringFromMetadata(metadata, "operation"),
+			Integration: stringFromMetadata(metadata, "integration"),
+			Format:      stringFromMetadata(metadata, "format"),
+			Attributes:  attrs,
+		}}
+	case "data":
+		out.Event = &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{
+			Payload: append([]byte(nil), event.Payload...),
+			Offset:  uint64FromMetadata(metadata, "offset"),
+			Bytes:   uint64FromMetadata(metadata, "bytes"),
+		}}
+	case "final":
+		out.Event = &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{
+			Status:        stringFromMetadata(metadata, "status"),
+			BytesEmitted:  uint64FromMetadata(metadata, "bytes_emitted", "bytesEmitted", "bytes"),
+			ChunksEmitted: uint64FromMetadata(metadata, "chunks_emitted", "chunksEmitted", "chunks"),
+			Attributes:    stringAttributes(metadata, "status", "sequence", "bytes_emitted", "bytesEmitted", "chunks_emitted", "chunksEmitted"),
+		}}
+	case "error":
+		out.Event = &pb.RemoteQueryExecuteStreamEvent_Error{Error: &pb.RemoteQueryStreamError{
+			Code:       stringFromMetadata(metadata, "code"),
+			Message:    stringFromMetadata(metadata, "message"),
+			Retryable:  boolFromMetadata(metadata, "retryable"),
+			Attributes: stringAttributes(metadata, "code", "message", "retryable", "sequence"),
+		}}
+	default:
+		return nil, errors.New("unknown remote query stream event type")
+	}
+	return out, nil
+}
+
+func stringFromMetadata(metadata map[string]interface{}, key string) string {
+	if v, ok := metadata[key].(string); ok {
+		return v
+	}
+	return ""
+}
+
+func boolFromMetadata(metadata map[string]interface{}, key string) bool {
+	if v, ok := metadata[key].(bool); ok {
+		return v
+	}
+	return false
+}
+
+func uint64FromMetadata(metadata map[string]interface{}, keys ...string) uint64 {
+	for _, key := range keys {
+		switch v := metadata[key].(type) {
+		case float64:
+			if v > 0 {
+				return uint64(v)
+			}
+		case int:
+			if v > 0 {
+				return uint64(v)
+			}
+		case json.Number:
+			if n, err := strconv.ParseUint(string(v), 10, 64); err == nil {
+				return n
+			}
+		case string:
+			if n, err := strconv.ParseUint(v, 10, 64); err == nil {
+				return n
+			}
+		}
+	}
+	return 0
+}
+
+func stringAttributes(metadata map[string]interface{}, exclude ...string) map[string]string {
+	excluded := make(map[string]struct{}, len(exclude))
+	for _, key := range exclude {
+		excluded[key] = struct{}{}
+	}
+	attrs := make(map[string]string)
+	for key, value := range metadata {
+		if _, ok := excluded[key]; ok {
+			continue
+		}
+		switch v := value.(type) {
+		case string:
+			attrs[key] = v
+		case float64:
+			attrs[key] = strconv.FormatFloat(v, 'f', -1, 64)
+		case bool:
+			attrs[key] = strconv.FormatBool(v)
+		}
+	}
+	return attrs
 }
 
 func remoteQueryExecuteStreamJSON(responseJSON string, stream pb.AgentSecure_RemoteQueryExecuteStreamServer) error {

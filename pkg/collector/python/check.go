@@ -34,6 +34,7 @@ import (
 )
 
 /*
+#include <stdint.h>
 #include <stdlib.h>
 
 #include "datadog_agent_rtloader.h"
@@ -41,8 +42,8 @@ import (
 
 char *getStringAddr(char **array, unsigned int idx);
 char *run_remote_query(rtloader_t *, rtloader_pyobject_t *check, const char *integration, const char *request_json);
-extern int remoteQueryStreamEmitBridge(const char *event_json, void *userdata);
-int run_remote_query_stream(rtloader_t *, rtloader_pyobject_t *check, const char *integration, const char *request_json, int (*emit)(const char *, void *), void *userdata);
+extern int remoteQueryStreamEmitBridge(const char *event_type, const char *metadata_json, const uint8_t *payload, size_t payload_len, void *userdata);
+int run_remote_query_stream(rtloader_t *, rtloader_pyobject_t *check, const char *integration, const char *request_json, int (*emit)(const char *, const char *, const uint8_t *, size_t, void *), void *userdata);
 
 static inline int call_run_remote_query_stream(rtloader_t *rtloader, rtloader_pyobject_t *check, const char *integration, const char *request_json, void *userdata) {
     return run_remote_query_stream(rtloader, check, integration, request_json, remoteQueryStreamEmitBridge, userdata);
@@ -200,7 +201,7 @@ func (c *PythonCheck) RunRemoteQueryJSON(integration string, requestJSON string)
 }
 
 // RunRemoteQueryStream runs a streaming remote query helper for this Python check.
-func (c *PythonCheck) RunRemoteQueryStream(integration string, requestJSON string, emit func(string) error) error {
+func (c *PythonCheck) RunRemoteQueryStream(integration string, requestJSON string, emit func(checkbase.RemoteQueryStreamEvent) error) error {
 	integration = strings.ToLower(strings.TrimSpace(integration))
 	if integration == "" {
 		return fmt.Errorf("integration is required")

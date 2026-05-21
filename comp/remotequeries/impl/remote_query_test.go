@@ -441,14 +441,18 @@ func TestRemoteQueryExecuteHandlerRunnerSuccessWithFixtureTableQuery(t *testing.
 func TestRemoteQueryExecuteServiceCopyStreamDispatch(t *testing.T) {
 	runner := &fakeStreamRunnerCheck{
 		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}},
-		events:          []string{`{"type":"metadata","status":"STARTED"}`, `{"type":"data","sequence":0,"data":"a,b\n","bytes":4}`, `{"type":"final","status":"SUCCEEDED"}`},
+		events: []check.RemoteQueryStreamEvent{
+			{Type: "metadata", MetadataJSON: `{"status":"STARTED"}`},
+			{Type: "data", MetadataJSON: `{"sequence":0,"offset":0,"bytes":3}`, Payload: []byte{0x00, 0xff, 0x80}},
+			{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`},
+		},
 	}
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true)
 	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"}, "SELECT city, country FROM cities ORDER BY city", "csv", &RemoteQueryExecuteCopyLimits{ChunkBytes: 4, MaxBytes: 1024, MaxRowBytes: 1024, TimeoutMs: 1000})
 	require.NoError(t, err)
 
-	var events []string
-	result := service.ExecuteStream(req, func(event string) error {
+	var events []check.RemoteQueryStreamEvent
+	result := service.ExecuteStream(req, func(event check.RemoteQueryStreamEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -567,12 +571,12 @@ func (f *fakeRunnerCheck) seenRequest() string {
 
 type fakeStreamRunnerCheck struct {
 	fakeRunnerCheck
-	events      []string
+	events      []check.RemoteQueryStreamEvent
 	streamSeen  string
 	streamCalls int
 }
 
-func (f *fakeStreamRunnerCheck) RunRemoteQueryStream(integration string, requestJSON string, emit func(string) error) error {
+func (f *fakeStreamRunnerCheck) RunRemoteQueryStream(integration string, requestJSON string, emit func(check.RemoteQueryStreamEvent) error) error {
 	if integration != "postgres" {
 		return assert.AnError
 	}

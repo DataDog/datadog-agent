@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
@@ -66,6 +67,21 @@ func TestRemoteQueryExecuteRequestFromProtoPreservesCopyStream(t *testing.T) {
 	require.NotNil(t, req.CopyLimits)
 	assert.Equal(t, 32, req.CopyLimits.ChunkBytes)
 	assert.Nil(t, req.Limits)
+}
+
+func TestRemoteQueryStreamEventFromCheckEventPreservesBinaryPayload(t *testing.T) {
+	event, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
+		Type:         "data",
+		MetadataJSON: `{"sequence":7,"offset":11,"bytes":3}`,
+		Payload:      []byte{0x00, 0xff, 0x80},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, uint64(7), event.GetSequence())
+	require.NotNil(t, event.GetData())
+	assert.Equal(t, []byte{0x00, 0xff, 0x80}, event.GetData().GetPayload())
+	assert.Equal(t, uint64(11), event.GetData().GetOffset())
+	assert.Equal(t, uint64(3), event.GetData().GetBytes())
 }
 
 func TestRemoteQueryExecuteStreamJSONChunksResponse(t *testing.T) {

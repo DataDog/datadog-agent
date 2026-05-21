@@ -87,7 +87,11 @@ func TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC(t *t
 	copyStream := os.Getenv("RQ_REMOTE_OPERATION") == "copy_stream"
 	if copyStream {
 		inputs["operation"] = "copy_stream"
-		inputs["format"] = "csv"
+		format := os.Getenv("RQ_REMOTE_FORMAT")
+		if format == "" {
+			format = "csv"
+		}
+		inputs["format"] = format
 		inputs["copyLimits"] = remoteQueriesProofCopyLimits(proofQuery)
 	} else {
 		inputs["limits"] = remoteQueriesProofLimits(proofQuery)
@@ -118,9 +122,15 @@ func TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC(t *t
 	assert.Equal(t, "SUCCEEDED", result.Outputs["status"])
 	if copyStream {
 		t.Logf("copy stream PAR outputs: %+v", summarizeRemoteQueriesProofPayload(result.Outputs))
-		data, ok := result.Outputs["data"].(string)
-		require.True(t, ok)
-		assertRemoteQueriesProofCopyData(t, proofQuery, data)
+		if os.Getenv("RQ_REMOTE_FORMAT") == "binary" {
+			dataBytes, ok := result.Outputs["data_bytes"].(string)
+			require.True(t, ok)
+			assertRemoteQueriesProofBinaryCopyData(t, proofQuery, dataBytes)
+		} else {
+			data, ok := result.Outputs["data"].(string)
+			require.True(t, ok)
+			assertRemoteQueriesProofCopyData(t, proofQuery, data)
+		}
 	} else {
 		require.Contains(t, result.Outputs, "rows")
 		rows, ok := result.Outputs["rows"].([]interface{})

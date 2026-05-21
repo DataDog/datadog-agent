@@ -64,10 +64,48 @@ message RemoteQueryExecuteResponse {
     google.protobuf.Struct stats = 6;
 }
 
+message RemoteQueryStreamMetadata {
+    string operation = 1;
+    string integration = 2;
+    string format = 3;
+    map<string, string> attributes = 4;
+}
+
+message RemoteQueryStreamData {
+    bytes payload = 1;
+    uint64 offset = 2;
+    uint64 bytes = 3;
+}
+
+message RemoteQueryStreamFinal {
+    string status = 1;
+    uint64 bytes_emitted = 2;
+    uint64 chunks_emitted = 3;
+    map<string, string> attributes = 4;
+}
+
+message RemoteQueryStreamError {
+    string code = 1;
+    string message = 2;
+    bool retryable = 3;
+    map<string, string> attributes = 4;
+}
+
+message RemoteQueryExecuteStreamEvent {
+    uint64 sequence = 1;
+    oneof event {
+        RemoteQueryStreamMetadata metadata = 2;
+        RemoteQueryStreamData data = 3;
+        RemoteQueryStreamFinal final = 4;
+        RemoteQueryStreamError error = 5;
+    }
+}
+
 message RemoteQueryExecuteChunk {
     bytes response_json_chunk = 1;
     int32 chunk_index = 2;
     bool final = 3;
+    RemoteQueryExecuteStreamEvent event = 4;
 }
 
 service AgentSecure {
