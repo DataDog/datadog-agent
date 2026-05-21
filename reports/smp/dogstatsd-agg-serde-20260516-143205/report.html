@@ -240,17 +240,18 @@
 
       <rect x="840" y="400" width="180" height="92" rx="14" fill="#f5f3ff" stroke="#ddd6fe"/>
       <text x="930" y="433" text-anchor="middle" font-size="16" font-weight="800" fill="#0f172a">v3 payloads</text>
-      <text x="930" y="457" text-anchor="middle" font-size="13" fill="#64748b">dictionary/column reuse</text>
+      <text x="930" y="457" text-anchor="middle" font-size="13" fill="#64748b">from aggregated series</text>
 
       <path d="M360 213 C360 255 305 252 305 280" stroke="#64748b" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
       <path d="M382 213 C410 250 475 250 488 280" stroke="#64748b" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
       <path d="M950 213 C930 244 735 236 724 266" stroke="#64748b" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
       <path d="M950 213 C950 244 932 240 932 266" stroke="#64748b" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
       <path d="M950 213 C900 300 740 335 724 396" stroke="#64748b" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
-      <path d="M950 213 C1000 300 940 335 934 396" stroke="#64748b" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <path d="M810 333 C850 365 880 382 914 398" stroke="#64748b" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <text x="866" y="360" font-size="12" fill="#64748b" font-weight="700">flush</text>
     </svg>
   </div>
-  <p class="caption">The important idea is not “columnar everything.” It is “make every expensive conversion explicit and reusable.” Raw capture/replay should consume raw envelopes; aggregation/debug/lookback/payloads should consume parsed metric facts and descriptors.</p>
+  <p class="caption">The important idea is not “columnar everything.” It is “make every expensive conversion explicit and reusable.” Raw capture/replay should consume raw envelopes; aggregation/debug/lookback should consume parsed metric facts and descriptors. DogStatsD v3 payloads are built after aggregation, ideally reusing the same descriptor/dictionary work instead of rebuilding it.</p>
 </section>
 
 <section id="experimental-design">
