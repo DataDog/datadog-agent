@@ -24,13 +24,6 @@ import (
 	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
 )
 
-// ScoreResponse is the JSON payload for GET /api/score.
-type ScoreResponse struct {
-	Available bool         `json:"available"`
-	Reason    string       `json:"reason,omitempty"`
-	Score     *ScoreResult `json:"score,omitempty"`
-}
-
 // BenchAPI handles HTTP API requests for the bench.
 type BenchAPI struct {
 	tb     *Bench
@@ -64,7 +57,6 @@ func (api *BenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/reports", api.cors(api.handleReports))
 	mux.HandleFunc("/api/reports/send", api.cors(api.handleSendReport))
 	mux.HandleFunc("/api/stats", api.cors(api.handleStats))
-	mux.HandleFunc("/api/score", api.cors(api.handleScore))
 	mux.HandleFunc("/api/benchmark", api.cors(api.handleBenchmark))
 	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
 	mux.HandleFunc("/api/correlations/compressed", api.cors(api.handleCompressedCorrelations))
@@ -1192,16 +1184,6 @@ func (api *BenchAPI) handleCompressedCorrelations(w http.ResponseWriter, r *http
 	}
 
 	api.writeJSON(w, groups)
-}
-
-// handleScore returns the Gaussian F1 score for the current analysis.
-func (api *BenchAPI) handleScore(w http.ResponseWriter, _ *http.Request) {
-	result, err := api.tb.ScoreCurrentAnalysis(30.0)
-	if err != nil {
-		api.writeJSON(w, ScoreResponse{Available: false, Reason: err.Error()})
-		return
-	}
-	api.writeJSON(w, ScoreResponse{Available: true, Score: result})
 }
 
 // handleBenchmark returns replay statistics.

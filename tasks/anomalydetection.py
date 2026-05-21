@@ -21,14 +21,6 @@ def build_testbench(ctx):
     )
 
 
-@task
-def build_scorer(ctx):
-    """
-    Builds the anomalydetection-scorer binary to bin/anomalydetection-scorer.
-    """
-    ctx.run("GOWORK=off go build -C internal/qbranch/anomalydetection-scorer -o ../../../bin/anomalydetection-scorer .")
-
-
 # --- Run ---
 
 

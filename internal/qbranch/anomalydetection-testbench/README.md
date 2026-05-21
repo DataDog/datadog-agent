@@ -211,7 +211,7 @@ dda inv -- q.launch-testbench --headless-scenario <scenario-name> --logs-only
 
 ## Params File (`--config`)
 
-The `--config` flag accepts a JSON file that controls both enabled/disabled state and hyperparameters for any component. This is the recommended interface for **Bayesian hyperparameter optimization** — the optimizer writes a params file, runs the testbench in headless mode, and scores the output with `anomalydetection-scorer`.
+The `--config` flag accepts a JSON file that controls both enabled/disabled state and hyperparameters for any component. This is the recommended interface for **Bayesian hyperparameter optimization** — the optimizer writes a params file and runs the testbench in headless mode.
 
 When `--config` is provided it takes full precedence over `--enable`/`--disable`/`--only`. Components not mentioned in the file use their catalog defaults.
 
@@ -381,7 +381,6 @@ These endpoints are available in interactive mode (not headless).
 | GET | `/api/correlations` | Get correlation outputs |
 | GET | `/api/correlations/compressed` | Get compressed correlation outputs |
 | GET | `/api/reports` | Datadog-style report events |
-| GET | `/api/score` | Gaussian F1 score against episode.json ground truth |
 | GET | `/api/stats` | Correlator statistics |
 | GET | `/api/benchmark` | Component benchmark data |
 
@@ -396,4 +395,3 @@ These endpoints are available in interactive mode (not headless).
 - **Split by Tag**: Split series by tag values for comparison
 - **Log Patterns**: Browse detected log pattern clusters
 - **Reports**: Datadog-style incident events on a zoomable timeline
-- **Score**: Live Gaussian F1 score against episode.json ground truth
