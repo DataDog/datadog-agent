@@ -175,7 +175,8 @@ func TestNCMPayload_JSONFormat(t *testing.T) {
 						"config_hash": "test_hash"
 					}
 				],
-				"collect_timestamp": ` + formatInt(timestamp) + `
+				"collect_timestamp": ` + formatInt(timestamp) + `,
+				"agent_hostname": ""
 			}`,
 		},
 		{
@@ -208,7 +209,8 @@ func TestNCMPayload_JSONFormat(t *testing.T) {
 						"content": "running config content"
 					}
 				],
-				"collect_timestamp": ` + formatInt(timestamp) + `
+				"collect_timestamp": ` + formatInt(timestamp) + `,
+				"agent_hostname": ""
 			}`,
 		},
 	}
@@ -234,7 +236,7 @@ func TestNetworkDevicesConfigPayload_EmptyConfigs(t *testing.T) {
 
 	jsonData, err := json.Marshal(payload)
 	require.NoError(t, err)
-	assert.Contains(t, string(jsonData), "\"configs\":[]")
+	assert.NotContains(t, string(jsonData), "\"configs\"")
 }
 
 func TestNetworkDevicesConfigPayload_EmptyTimestamps(t *testing.T) {
