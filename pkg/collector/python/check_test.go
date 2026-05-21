@@ -79,18 +79,14 @@ func TestRunRemoteQueryJSONUnsupportedIntegration(t *testing.T) {
 	testRunRemoteQueryJSONUnsupportedIntegration(t)
 }
 
-func TestRunPostgresRemoteQueryJSON(t *testing.T) {
-	testRunPostgresRemoteQueryJSON(t)
+func TestRunRemoteQueryJSONPostgresError(t *testing.T) {
+	testRunRemoteQueryJSONPostgresError(t)
 }
 
-func TestRunPostgresRemoteQueryJSONError(t *testing.T) {
-	testRunPostgresRemoteQueryJSONError(t)
+func TestRunRemoteQueryJSONWithRuntimeNotInitializedError(t *testing.T) {
+	testRunRemoteQueryJSONWithRuntimeNotInitializedError(t)
 }
 
-func TestRunPostgresRemoteQueryJSONWithRuntimeNotInitializedError(t *testing.T) {
-	testRunPostgresRemoteQueryJSONWithRuntimeNotInitializedError(t)
-}
-
-func TestRunPostgresRemoteQueryJSONAfterCancel(t *testing.T) {
-	testRunPostgresRemoteQueryJSONAfterCancel(t)
+func TestRunRemoteQueryJSONAfterCancel(t *testing.T) {
+	testRunRemoteQueryJSONAfterCancel(t)
 }

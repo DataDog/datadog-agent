@@ -168,11 +168,6 @@ func (c *PythonCheck) RunRemoteQueryJSON(integration string, requestJSON string)
 	}
 }
 
-// RunPostgresRemoteQueryJSON runs the fixed Postgres remote query helper for this Python check.
-func (c *PythonCheck) RunPostgresRemoteQueryJSON(requestJSON string) (string, error) {
-	return c.RunRemoteQueryJSON("postgres", requestJSON)
-}
-
 func (c *PythonCheck) runPostgresRemoteQueryJSON(requestJSON string) (string, error) {
 	gstate, err := newStickyLock()
 	if err != nil {

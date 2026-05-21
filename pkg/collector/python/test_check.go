@@ -697,7 +697,10 @@ func testRunRemoteQueryJSON(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"status":"SUCCEEDED"}`, result)
+	assert.Equal(t, C.int(1), C.gil_locked_calls)
+	assert.Equal(t, C.int(1), C.gil_unlocked_calls)
 	assert.Equal(t, C.int(1), C.run_postgres_remote_query_calls)
+	assert.Equal(t, C.int(1), C.rtloader_free_calls)
 	assert.Equal(t, check.instance, C.run_postgres_remote_query_instance)
 	assert.JSONEq(t, `{"integration":"postgres","query":"SELECT 1 AS value"}`, C.GoString(C.run_postgres_remote_query_request_json))
 }
@@ -719,29 +722,7 @@ func testRunRemoteQueryJSONUnsupportedIntegration(t *testing.T) {
 	assert.Equal(t, C.int(0), C.run_postgres_remote_query_calls)
 }
 
-func testRunPostgresRemoteQueryJSON(t *testing.T) {
-	mockRtloader(t)
-
-	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
-	require.NoError(t, err)
-	check.instance = newMockPyObjectPtr()
-
-	C.reset_check_mock()
-	C.run_postgres_remote_query_return = C.CString(`{"status":"SUCCEEDED"}`)
-
-	result, err := check.RunPostgresRemoteQueryJSON(`{"query":"SELECT 1 AS value"}`)
-
-	require.NoError(t, err)
-	assert.JSONEq(t, `{"status":"SUCCEEDED"}`, result)
-	assert.Equal(t, C.int(1), C.gil_locked_calls)
-	assert.Equal(t, C.int(1), C.gil_unlocked_calls)
-	assert.Equal(t, C.int(1), C.run_postgres_remote_query_calls)
-	assert.Equal(t, C.int(1), C.rtloader_free_calls)
-	assert.Equal(t, check.instance, C.run_postgres_remote_query_instance)
-	assert.Equal(t, `{"query":"SELECT 1 AS value"}`, C.GoString(C.run_postgres_remote_query_request_json))
-}
-
-func testRunPostgresRemoteQueryJSONError(t *testing.T) {
+func testRunRemoteQueryJSONPostgresError(t *testing.T) {
 	mockRtloader(t)
 
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
@@ -753,7 +734,7 @@ func testRunPostgresRemoteQueryJSONError(t *testing.T) {
 	C.has_error_return = 1
 	C.get_error_return = C.CString("rtloader helper failed")
 
-	result, err := check.RunPostgresRemoteQueryJSON(`{"query":"SELECT 1 AS value"}`)
+	result, err := check.RunRemoteQueryJSON("postgres", `{"query":"SELECT 1 AS value"}`)
 
 	assert.Empty(t, result)
 	require.Error(t, err)
@@ -764,7 +745,7 @@ func testRunPostgresRemoteQueryJSONError(t *testing.T) {
 	assert.Equal(t, C.int(0), C.rtloader_free_calls)
 }
 
-func testRunPostgresRemoteQueryJSONWithRuntimeNotInitializedError(t *testing.T) {
+func testRunRemoteQueryJSONWithRuntimeNotInitializedError(t *testing.T) {
 	mockRtloader(t)
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	require.NoError(t, err)
@@ -773,12 +754,12 @@ func testRunPostgresRemoteQueryJSONWithRuntimeNotInitializedError(t *testing.T) 
 	C.reset_check_mock()
 	rtloader = nil
 
-	_, err = check.RunPostgresRemoteQueryJSON(`{"query":"SELECT 1 AS value"}`)
+	_, err = check.RunRemoteQueryJSON("postgres", `{"query":"SELECT 1 AS value"}`)
 	assert.ErrorIs(t, err, ErrNotInitialized)
 	assert.Equal(t, C.int(0), C.run_postgres_remote_query_calls)
 }
 
-func testRunPostgresRemoteQueryJSONAfterCancel(t *testing.T) {
+func testRunRemoteQueryJSONAfterCancel(t *testing.T) {
 	mockRtloader(t)
 
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
@@ -788,7 +769,7 @@ func testRunPostgresRemoteQueryJSONAfterCancel(t *testing.T) {
 	C.reset_check_mock()
 	check.Cancel()
 
-	_, err = check.RunPostgresRemoteQueryJSON(`{"query":"SELECT 1 AS value"}`)
+	_, err = check.RunRemoteQueryJSON("postgres", `{"query":"SELECT 1 AS value"}`)
 	assert.EqualError(t, err, "check fake_check is already cancelled")
 	assert.Equal(t, C.int(0), C.run_postgres_remote_query_calls)
 }
