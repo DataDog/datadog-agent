@@ -24,7 +24,10 @@ rust_binary(
         "@crates//:serde_yaml",
         "@crates//:ureq",
     ] + select({
-        "@platforms//os:windows": ["@crates//:windows-sys"],
+        "@platforms//os:windows": [
+            "@crates//:windows-registry",
+            "@crates//:windows-sys",
+        ],
         "//conditions:default": [],
     }),
 )

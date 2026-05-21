@@ -152,106 +152,21 @@ impl DatadogClient {
 
     #[cfg(windows)]
     fn windows_registry_string(subkey: &str, value_name: &str) -> Option<PathBuf> {
-        use std::ffi::OsStr;
-        use std::os::windows::ffi::OsStrExt;
-        use std::ptr;
-        use windows_sys::Win32::Foundation::ERROR_SUCCESS;
-        use windows_sys::Win32::System::Environment::ExpandEnvironmentStringsW;
-        use windows_sys::Win32::System::Registry::{
-            HKEY, HKEY_LOCAL_MACHINE, KEY_READ, KEY_WOW64_64KEY, REG_EXPAND_SZ, REG_SZ,
-            RegCloseKey, RegOpenKeyExW, RegQueryValueExW,
-        };
+        use windows_registry::LOCAL_MACHINE;
+        use windows_sys::Win32::System::Registry::KEY_WOW64_64KEY;
 
-        fn wide(value: &str) -> Vec<u16> {
-            OsStr::new(value).encode_wide().chain(Some(0)).collect()
-        }
+        let key = LOCAL_MACHINE
+            .options()
+            .read()
+            .access(KEY_WOW64_64KEY)
+            .open(subkey)
+            .ok()?;
 
-        unsafe fn expand_env_string(value: &[u16]) -> Option<Vec<u16>> {
-            let mut source = value.to_vec();
-            source.push(0);
-
-            let required =
-                unsafe { ExpandEnvironmentStringsW(source.as_ptr(), ptr::null_mut(), 0) };
-            if required == 0 {
-                return None;
-            }
-
-            let mut expanded = vec![0u16; required as usize];
-            let written = unsafe {
-                ExpandEnvironmentStringsW(source.as_ptr(), expanded.as_mut_ptr(), required)
-            };
-            if written == 0 || written > required {
-                return None;
-            }
-
-            let len = expanded
-                .iter()
-                .position(|c| *c == 0)
-                .unwrap_or(expanded.len());
-            if len == 0 {
-                return None;
-            }
-            expanded.truncate(len);
-            Some(expanded)
-        }
-
-        unsafe {
-            let mut key: HKEY = ptr::null_mut();
-            let subkey = wide(subkey);
-            let status = RegOpenKeyExW(
-                HKEY_LOCAL_MACHINE,
-                subkey.as_ptr(),
-                0,
-                KEY_READ | KEY_WOW64_64KEY,
-                &mut key,
-            );
-            if status != ERROR_SUCCESS {
-                return None;
-            }
-
-            let value_name = wide(value_name);
-            let mut value_type = 0;
-            let mut byte_len = 0;
-            let status = RegQueryValueExW(
-                key,
-                value_name.as_ptr(),
-                ptr::null_mut(),
-                &mut value_type,
-                ptr::null_mut(),
-                &mut byte_len,
-            );
-            if status != ERROR_SUCCESS
-                || byte_len < 2
-                || (value_type != REG_SZ && value_type != REG_EXPAND_SZ)
-            {
-                RegCloseKey(key);
-                return None;
-            }
-
-            let mut buffer = vec![0u16; (byte_len as usize).div_ceil(2)];
-            let status = RegQueryValueExW(
-                key,
-                value_name.as_ptr(),
-                ptr::null_mut(),
-                &mut value_type,
-                buffer.as_mut_ptr().cast(),
-                &mut byte_len,
-            );
-            RegCloseKey(key);
-            if status != ERROR_SUCCESS {
-                return None;
-            }
-
-            let len = buffer.iter().position(|c| *c == 0).unwrap_or(buffer.len());
-            if len == 0 {
-                return None;
-            }
-            let value = if value_type == REG_EXPAND_SZ {
-                expand_env_string(&buffer[..len])?
-            } else {
-                buffer[..len].to_vec()
-            };
-            Some(PathBuf::from(String::from_utf16_lossy(&value)))
+        let value = key.get_string(value_name).ok()?;
+        if value.is_empty() {
+            None
+        } else {
+            Some(PathBuf::from(value))
         }
     }
 
