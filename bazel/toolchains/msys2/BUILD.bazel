@@ -1,0 +1,3 @@
+# Hermetic MSYS2 sh_toolchain lives in @msys2_base//: (see msys2.BUILD.bazel).
+# This file exists only to mark the package; the BUILD template is loaded from
+# //bazel/toolchains/msys2:msys2.BUILD.bazel by the MSYS2 repository rule.

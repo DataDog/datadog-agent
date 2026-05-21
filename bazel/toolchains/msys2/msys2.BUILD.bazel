@@ -1,0 +1,53 @@
+"""BUILD template instantiated by msys2_base_repository.
+
+%VERSION% and %BASH_ABSOLUTE_PATH% are substituted at fetch time so the URL
+pin in MODULE.bazel stays the single source of truth for which MSYS2 archive
+we use, and so the sh_toolchain points at the actual extracted bash.exe.
+
+After strip_prefix the layout is `usr/bin/`, `etc/`, `var/`, ... at the repo
+root, matching what `msys2-base-x86_64-*.sfx.exe -y -oC:/` would produce.
+"""
+
+load("@rules_shell//shell/toolchains:sh_toolchain.bzl", "sh_toolchain")
+
+package(default_visibility = ["//visibility:public"])
+
+MSYS2_VERSION = "%VERSION%"
+
+filegroup(
+    name = "all",
+    srcs = glob(
+        ["**"],
+        exclude = [
+            "BUILD.bazel",
+            "WORKSPACE",
+            "WORKSPACE.bazel",
+        ],
+        # MSYS2 archives contain symlinks (/bin -> /usr/bin etc.). Developer
+        # Mode on Windows handles them; without it Bazel would fail at fetch
+        # time, not here.
+        allow_empty = False,
+    ),
+)
+
+# Bash plus the MSYS2 runtime DLLs it depends on. Globbing msys-*.dll captures
+# future additions (msys-iconv-*.dll, msys-intl-*.dll, ...) without churn.
+filegroup(
+    name = "bash_files",
+    srcs = ["usr/bin/bash.exe"] + glob(["usr/bin/msys-*.dll"]),
+)
+
+sh_toolchain(
+    name = "msys2_bash",
+    path = "%BASH_ABSOLUTE_PATH%",
+)
+
+toolchain(
+    name = "sh_toolchain",
+    target_compatible_with = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+    toolchain = ":msys2_bash",
+    toolchain_type = "@bazel_tools//tools/sh:toolchain_type",
+)
