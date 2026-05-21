@@ -62,8 +62,8 @@ type Handler struct {
 // concurrent use and MUST return nil to indicate "no submitter registered";
 // nil records are dropped silently rather than panicking the logger chain.
 //
-// The returned Handler has no Bouncer late-binder attached (every record
-// is dispatched). Use WithBouncerLoader to enable per-PC dedup.
+// The returned Handler will DROP all records until a Bouncer is wired via
+// WithBouncerLoader — a Bouncer is mandatory for submission.
 func NewHandler(load func() Submitter) *Handler {
 	return &Handler{load: load}
 }
@@ -74,9 +74,8 @@ func NewHandler(load func() Submitter) *Handler {
 // record to be dropped — this is the safe behaviour when the bouncer
 // is temporarily unavailable during Fx lifecycle transitions (startup /
 // shutdown). Passing nil to WithBouncerLoader itself clears the
-// late-binder entirely (the outer h.loadBouncer != nil gate is the
-// design knob for tests/feature-off paths where every record ships with
-// no dedup).
+// late-binder; since a Bouncer is mandatory for submission, a nil
+// loader causes all records to be dropped.
 func (h *Handler) WithBouncerLoader(loadBouncer func() *Bouncer) *Handler {
 	return &Handler{load: h.load, loadBouncer: loadBouncer}
 }
@@ -135,24 +134,25 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	pcsLen := runtime.Callers(stackSkipBase, pcs[:])
 
 	count := uint32(1)
-	// Bouncer check: the bouncer is consulted whenever the loader
-	// closure is registered. A nil return means the bouncer is
-	// temporarily unavailable (Fx startup / shutdown window) — drop the
-	// record to avoid an unrate-limited burst during restarts. The key
+	// Bouncer check: a Bouncer is mandatory for submission. Both a nil
+	// loader (no bouncer registered at all) and a loader that returns nil
+	// (temporarily unavailable during Fx startup/shutdown) cause the
+	// record to be dropped — preventing an unrate-limited burst. The key
 	// is a FNV-1a hash of the captured PCs so different stacks reaching
 	// the same terminal function are NOT merged.
+	var b *Bouncer
 	if h.loadBouncer != nil {
-		b := h.loadBouncer()
-		if b == nil {
-			return nil
-		}
-		stackKey := hashPCs(pcs[:pcsLen])
-		suppressed, c, _ := b.Observe(stackKey, r.Time)
-		if suppressed {
-			return nil
-		}
-		count = c
+		b = h.loadBouncer()
 	}
+	if b == nil {
+		return nil
+	}
+	stackKey := hashPCs(pcs[:pcsLen])
+	suppressed, c, _ := b.Observe(stackKey, r.Time)
+	if suppressed {
+		return nil
+	}
+	count = c
 
 	out := ErrorLog{
 		Time:   r.Time,
