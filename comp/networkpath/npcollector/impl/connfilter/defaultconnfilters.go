@@ -22,12 +22,14 @@ func getDefaultConnFilters(site string, monitorIPWithoutDomain bool) []Config {
 			MatchDomain: "*.datadoghq.eu",
 		},
 		{
-			Type:        FilterTypeExclude,
-			MatchDomain: "*.local",
+			Type:                FilterTypeExclude,
+			MatchDomain:         `.*\.local`,
+			MatchDomainStrategy: MatchDomainStrategyRegex,
 		},
 		{
-			Type:        FilterTypeExclude,
-			MatchDomain: "*.internal",
+			Type:                FilterTypeExclude,
+			MatchDomain:         `.*\.internal`,
+			MatchDomainStrategy: MatchDomainStrategyRegex,
 		},
 	}
 	if site != "" {
