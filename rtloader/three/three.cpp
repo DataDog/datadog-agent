@@ -141,16 +141,19 @@ bool Three::init()
             setError("could not access sys.path");
             goto done;
         }
-        for (PyPaths::iterator pit = _pythonPaths.begin(); pit != _pythonPaths.end(); ++pit) {
+        // Explicit rtloader paths must take precedence over ambient site-packages.
+        // This keeps tests on their stubs even when a developer has datadog_checks installed locally.
+        Py_ssize_t pythonPathIndex = 0;
+        for (PyPaths::iterator pit = _pythonPaths.begin(); pit != _pythonPaths.end(); ++pit, ++pythonPathIndex) {
             PyObject *p = PyUnicode_FromString(pit->c_str());
             if (p == NULL) {
                 setError("could not set pythonPath: " + _fetchPythonError());
                 goto done;
             }
-            int retval = PyList_Append(path, p);
+            int retval = PyList_Insert(path, pythonPathIndex, p);
             Py_XDECREF(p);
             if (retval == -1) {
-                setError("could not append path to pythonPath: " + _fetchPythonError());
+                setError("could not add path to pythonPath: " + _fetchPythonError());
                 goto done;
             }
         }
