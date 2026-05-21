@@ -76,8 +76,7 @@ def get_vscode_extensions():
     marketplace_url_base = "https://marketplace.visualstudio.com/items?itemName="
     return "\n".join(
         f"- [{extension}]({marketplace_url_base}{extension})"
-        for extension in response.text.splitlines()
-        if not extension.startswith("#")
+        for extension in response.json()
     )
 
 
