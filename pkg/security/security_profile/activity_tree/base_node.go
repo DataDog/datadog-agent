@@ -25,8 +25,6 @@ type seenEntry struct {
 }
 
 // NodeBase provides the base functionality for all nodes in the activity tree.
-// Image tag membership is stored as a flat slice; with typically ≤5 active tags
-// a linear scan beats a hash map on both speed and memory.
 type NodeBase struct {
 	seen []seenEntry
 }

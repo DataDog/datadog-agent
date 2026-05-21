@@ -413,6 +413,7 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 
 // Insert inserts the event in the activity tree
 func (at *ActivityTree) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
+	freshTag := at.GetImageTagID(imageTag) == 0
 	imageTagID := at.GetOrInsertImageTag(imageTag)
 
 	newEntry, err := at.insertEvent(event, false /* !dryRun */, insertMissingProcesses, imageTagID, generationType, resolvers)
@@ -420,6 +421,13 @@ func (at *ActivityTree) Insert(event *model.Event, insertMissingProcesses bool, 
 		// this doesn't count the exec events which are counted separately
 		at.Stats.counts[event.GetEventType()].addedCount[generationType].Inc()
 	}
+
+	// If we just registered a brand-new tag but the event was rejected before any node
+	// could reference it, free the slot immediately so it doesn't linger indefinitely.
+	if freshTag && err != nil {
+		at.removeImageTag(imageTag)
+	}
+
 	return newEntry, err
 }
 
@@ -604,7 +612,13 @@ func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEnt
 }
 
 func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, imageTag string, generationType NodeGenerationType, dryRun bool, resolvers *resolvers.EBPFResolvers) (*ProcessNode, bool, error) {
-	imageTagID := at.GetOrInsertImageTag(imageTag)
+	var imageTagID uint64
+	if dryRun {
+		// dry-run must not mutate the registry; if the tag is unknown it stays unknown (ID 0)
+		imageTagID = at.GetImageTagID(imageTag)
+	} else {
+		imageTagID = at.GetOrInsertImageTag(imageTag)
+	}
 	return at.createProcessNode(entry, imageTagID, generationType, dryRun, resolvers)
 }
 
