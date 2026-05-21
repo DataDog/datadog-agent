@@ -176,7 +176,6 @@ func TestFetchClusterInfo_MultipleConfigMaps(t *testing.T) {
 	labels := map[string]string{clusterInfoManagedByLabel: clusterInfoManagedByValue}
 	cmA := newClusterInfoConfigMap("a-ns", clusterInfoConfigMapName, fullClusterInfoPayload, labels)
 	cmB := newClusterInfoConfigMap("b-ns", clusterInfoConfigMapName, fullClusterInfoPayload, labels)
-	// Insert in reverse-lex order: the selection must be by namespace, not insertion order.
 	client := newFakeClient(cmB, cmA)
 
 	info, err := FetchClusterInfo(context.Background(), client.CoreV1())

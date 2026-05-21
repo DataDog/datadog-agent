@@ -92,16 +92,13 @@ func FetchClusterInfo(ctx context.Context, coreClient corev1Client.CoreV1Interfa
 	if len(cms.Items) == 0 {
 		return nil, nil
 	}
-	sort.SliceStable(cms.Items, func(i, j int) bool {
-		return cms.Items[i].Namespace < cms.Items[j].Namespace
-	})
 	if len(cms.Items) > 1 {
 		namespaces := make([]string, 0, len(cms.Items))
 		for i := range cms.Items {
 			namespaces = append(namespaces, cms.Items[i].Namespace)
 		}
 		log.Warnc(fmt.Sprintf("found multiple %s ConfigMaps in namespaces %v, using %q",
-			clusterInfoConfigMapName, namespaces, namespaces[0]), orchestrator.ExtraLogContext...)
+			clusterInfoConfigMapName, namespaces, cms.Items[0].Namespace), orchestrator.ExtraLogContext...)
 	}
 	chosen := &cms.Items[0]
 	payload, ok := chosen.Data[clusterInfoConfigMapDataKey]
