@@ -71,6 +71,14 @@ func TestRunAfterCancel(t *testing.T) {
 	testRunAfterCancel(t)
 }
 
+func TestRunRemoteQueryJSON(t *testing.T) {
+	testRunRemoteQueryJSON(t)
+}
+
+func TestRunRemoteQueryJSONUnsupportedIntegration(t *testing.T) {
+	testRunRemoteQueryJSONUnsupportedIntegration(t)
+}
+
 func TestRunPostgresRemoteQueryJSON(t *testing.T) {
 	testRunPostgresRemoteQueryJSON(t)
 }

@@ -18,30 +18,32 @@ import (
 )
 
 const (
-	// PostgresExecuteEndpointPath is mounted under /agent by the Agent command API.
-	PostgresExecuteEndpointPath = "/remote-queries/postgres/execute"
-	// PostgresExecuteEnabledConfig is disabled by default when the key is absent.
-	PostgresExecuteEnabledConfig = "remote_queries.postgres_execute.enabled"
+	// RemoteQueryExecuteEndpointPath is mounted under /agent by the Agent command API.
+	RemoteQueryExecuteEndpointPath = "/remote-queries/execute"
+	// RemoteQueriesExecuteEnabledConfig is disabled by default when the key is absent.
+	RemoteQueriesExecuteEnabledConfig = "remote_queries.execute.enabled"
+	// legacyPostgresExecuteEnabledConfig preserves compatibility with the earlier POC key.
+	legacyPostgresExecuteEnabledConfig = "remote_queries.postgres_execute.enabled"
 
-	postgresRemoteQueryProofQuery = "SELECT 1 AS value"
+	remoteQueryProofQuery = "SELECT 1 AS value"
 
 	statusExecutorUnavailable = "executor_unavailable"
 )
 
-type postgresRemoteQueryRunner interface {
-	RunPostgresRemoteQueryJSON(requestJSON string) (string, error)
+type remoteQueryRunner interface {
+	RunRemoteQueryJSON(integration string, requestJSON string) (string, error)
 }
 
-type postgresCheckUnwrapper interface {
+type remoteQueryCheckUnwrapper interface {
 	Unwrap() check.Check
 }
 
-func postgresRemoteQueryRunnerFor(chk check.Check) (postgresRemoteQueryRunner, bool) {
+func remoteQueryRunnerFor(chk check.Check) (remoteQueryRunner, bool) {
 	for chk != nil {
-		if runner, ok := chk.(postgresRemoteQueryRunner); ok {
+		if runner, ok := chk.(remoteQueryRunner); ok {
 			return runner, true
 		}
-		unwrapper, ok := chk.(postgresCheckUnwrapper)
+		unwrapper, ok := chk.(remoteQueryCheckUnwrapper)
 		if !ok {
 			break
 		}
@@ -54,51 +56,53 @@ func postgresRemoteQueryRunnerFor(chk check.Check) (postgresRemoteQueryRunner, b
 	return nil, false
 }
 
-// NewPostgresExecuteEndpointProvider registers the Postgres execute endpoint on the internal Agent API.
-func NewPostgresExecuteEndpointProvider(reqs Requires) api.AgentEndpointProvider {
-	h := &postgresExecuteHandler{
+// NewRemoteQueryExecuteEndpointProvider registers the remote query execute endpoint on the internal Agent API.
+func NewRemoteQueryExecuteEndpointProvider(reqs Requires) api.AgentEndpointProvider {
+	h := &remoteQueryExecuteHandler{
 		collector: reqs.Collector,
-		enabled:   reqs.Cfg.GetBool(PostgresExecuteEnabledConfig),
+		enabled:   remoteQueryEnabled(reqs.Cfg, RemoteQueriesExecuteEnabledConfig, legacyPostgresExecuteEnabledConfig),
 	}
-	return api.NewAgentEndpointProvider(h.handle, PostgresExecuteEndpointPath, http.MethodPost)
+	return api.NewAgentEndpointProvider(h.handle, RemoteQueryExecuteEndpointPath, http.MethodPost)
 }
 
-type postgresExecuteHandler struct {
+type remoteQueryExecuteHandler struct {
 	collector collector.Component
 	enabled   bool
 }
 
-type postgresExecuteRequest struct {
-	Target postgresTarget
-	Query  string
-	Limits *postgresExecuteLimits
+type remoteQueryExecuteRequest struct {
+	Integration string
+	Target      remoteQueryTarget
+	Query       string
+	Limits      *remoteQueryExecuteLimits
 }
 
-type postgresExecuteLimits struct {
+type remoteQueryExecuteLimits struct {
 	MaxRows   int
 	MaxBytes  int
 	TimeoutMs int
 }
 
-type postgresExecuteRequestJSON struct {
-	Target postgresTargetJSON         `json:"target"`
-	Query  string                     `json:"query"`
-	Limits *postgresExecuteLimitsJSON `json:"limits,omitempty"`
+type remoteQueryExecuteRequestJSON struct {
+	Integration string                        `json:"integration"`
+	Target      remoteQueryTargetJSON         `json:"target"`
+	Query       string                        `json:"query"`
+	Limits      *remoteQueryExecuteLimitsJSON `json:"limits,omitempty"`
 }
 
-type postgresTargetJSON struct {
+type remoteQueryTargetJSON struct {
 	Host   string `json:"host"`
 	Port   int    `json:"port"`
 	DBName string `json:"dbname"`
 }
 
-type postgresExecuteLimitsJSON struct {
+type remoteQueryExecuteLimitsJSON struct {
 	MaxRows   int `json:"maxRows"`
 	MaxBytes  int `json:"maxBytes"`
 	TimeoutMs int `json:"timeoutMs"`
 }
 
-func (h *postgresExecuteHandler) handle(w http.ResponseWriter, r *http.Request) {
+func (h *remoteQueryExecuteHandler) handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if !h.enabled {
@@ -108,11 +112,11 @@ func (h *postgresExecuteHandler) handle(w http.ResponseWriter, r *http.Request) 
 
 	req, requestJSON, err := parseExecuteRequest(r)
 	if err != nil {
-		writeExecuteError(w, http.StatusBadRequest, statusInvalidRequest, err.Error())
+		writeExecuteParseError(w, err)
 		return
 	}
 
-	matches := findPostgresMatches(h.collector, req.Target)
+	matches := h.findMatches(req.Integration, req.Target)
 	switch len(matches) {
 	case 0:
 		writeExecuteError(w, http.StatusNotFound, statusTargetNotFound, "no matching Postgres check found")
@@ -124,13 +128,13 @@ func (h *postgresExecuteHandler) handle(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	runner, ok := postgresRemoteQueryRunnerFor(matches[0].check)
+	runner, ok := remoteQueryRunnerFor(matches[0].check)
 	if !ok {
 		writeExecuteError(w, http.StatusFailedDependency, statusExecutorUnavailable, "matched Postgres check does not support remote query execution")
 		return
 	}
 
-	responseJSON, err := runner.RunPostgresRemoteQueryJSON(requestJSON)
+	responseJSON, err := runner.RunRemoteQueryJSON(req.Integration, requestJSON)
 	if err != nil {
 		writeExecuteError(w, http.StatusBadGateway, statusExecutorUnavailable, "remote query executor failed")
 		return
@@ -140,9 +144,9 @@ func (h *postgresExecuteHandler) handle(w http.ResponseWriter, r *http.Request) 
 	_, _ = io.WriteString(w, responseJSON)
 }
 
-func parseExecuteRequest(r *http.Request) (postgresExecuteRequest, string, error) {
+func parseExecuteRequest(r *http.Request) (remoteQueryExecuteRequest, string, error) {
 	if !isJSONContentType(r.Header.Get("Content-Type")) {
-		return postgresExecuteRequest{}, "", fmt.Errorf("content-type must be application/json")
+		return remoteQueryExecuteRequest{}, "", invalidRequestError("content-type must be application/json")
 	}
 
 	defer r.Body.Close()
@@ -151,99 +155,104 @@ func parseExecuteRequest(r *http.Request) (postgresExecuteRequest, string, error
 
 	var root map[string]json.RawMessage
 	if err := decoder.Decode(&root); err != nil {
-		return postgresExecuteRequest{}, "", fmt.Errorf("malformed JSON request")
+		return remoteQueryExecuteRequest{}, "", invalidRequestError("malformed JSON request")
 	}
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		return postgresExecuteRequest{}, "", fmt.Errorf("malformed JSON request")
+		return remoteQueryExecuteRequest{}, "", invalidRequestError("malformed JSON request")
 	}
 
 	for key := range root {
 		switch key {
-		case "target", "query", "limits":
+		case "integration", "target", "query", "limits":
 			continue
 		default:
 			if isCredentialShapedField(key) {
-				return postgresExecuteRequest{}, "", fmt.Errorf("request contains disallowed credential-shaped field")
+				return remoteQueryExecuteRequest{}, "", invalidRequestError("request contains disallowed credential-shaped field")
 			}
-			return postgresExecuteRequest{}, "", fmt.Errorf("request contains unknown field")
+			return remoteQueryExecuteRequest{}, "", invalidRequestError("request contains unknown field")
 		}
+	}
+
+	integration, err := parseIntegrationFromRoot(root)
+	if err != nil {
+		return remoteQueryExecuteRequest{}, "", err
 	}
 
 	target, err := parseTargetFromRoot(root)
 	if err != nil {
-		return postgresExecuteRequest{}, "", err
+		return remoteQueryExecuteRequest{}, "", err
 	}
 
 	query, err := parseRequiredString(root, "query")
 	if err != nil {
-		return postgresExecuteRequest{}, "", err
+		return remoteQueryExecuteRequest{}, "", err
 	}
-	if query != postgresRemoteQueryProofQuery {
-		return postgresExecuteRequest{}, "", fmt.Errorf("query is not allowed")
+	if query != remoteQueryProofQuery {
+		return remoteQueryExecuteRequest{}, "", fmt.Errorf("query is not allowed")
 	}
 
 	limits, err := parseExecuteLimits(root)
 	if err != nil {
-		return postgresExecuteRequest{}, "", err
+		return remoteQueryExecuteRequest{}, "", err
 	}
 
-	req := postgresExecuteRequest{Target: target, Query: query, Limits: limits}
+	req := remoteQueryExecuteRequest{Integration: integration, Target: target, Query: query, Limits: limits}
 	requestJSON, err := marshalExecuteRequest(req)
 	if err != nil {
-		return postgresExecuteRequest{}, "", fmt.Errorf("malformed JSON request")
+		return remoteQueryExecuteRequest{}, "", fmt.Errorf("malformed JSON request")
 	}
 	return req, requestJSON, nil
 }
 
-func parseTargetFromRoot(root map[string]json.RawMessage) (postgresTarget, error) {
+func parseTargetFromRoot(root map[string]json.RawMessage) (remoteQueryTarget, error) {
 	rawTarget, ok := root["target"]
 	if !ok {
-		return postgresTarget{}, fmt.Errorf("target is required")
+		return remoteQueryTarget{}, fmt.Errorf("target is required")
 	}
 
 	var targetFields map[string]json.RawMessage
 	if err := json.Unmarshal(rawTarget, &targetFields); err != nil || targetFields == nil {
-		return postgresTarget{}, fmt.Errorf("target must be an object")
+		return remoteQueryTarget{}, fmt.Errorf("target must be an object")
 	}
 	return parseTargetFields(targetFields)
 }
 
-func parseTargetFields(targetFields map[string]json.RawMessage) (postgresTarget, error) {
+func parseTargetFields(targetFields map[string]json.RawMessage) (remoteQueryTarget, error) {
 	for key := range targetFields {
 		switch key {
 		case "host", "port", "dbname":
 			continue
 		default:
 			if isCredentialShapedField(key) {
-				return postgresTarget{}, fmt.Errorf("request contains disallowed credential-shaped field")
+				return remoteQueryTarget{}, fmt.Errorf("request contains disallowed credential-shaped field")
 			}
-			return postgresTarget{}, fmt.Errorf("target contains unknown field")
+			return remoteQueryTarget{}, fmt.Errorf("target contains unknown field")
 		}
 	}
 
 	host, err := parseTargetString(targetFields, "host")
 	if err != nil {
-		return postgresTarget{}, err
+		return remoteQueryTarget{}, err
 	}
 	host = normalizeHost(host)
 	if host == "" {
-		return postgresTarget{}, fmt.Errorf("target.host is required")
+		return remoteQueryTarget{}, fmt.Errorf("target.host is required")
 	}
 
 	port, err := parseTargetPort(targetFields)
 	if err != nil {
-		return postgresTarget{}, err
+		return remoteQueryTarget{}, err
 	}
 
 	dbname, err := parseTargetString(targetFields, "dbname")
 	if err != nil {
-		return postgresTarget{}, err
+		return remoteQueryTarget{}, err
 	}
 	if dbname == "" {
-		return postgresTarget{}, fmt.Errorf("target.dbname is required")
+		return remoteQueryTarget{}, fmt.Errorf("target.dbname is required")
 	}
 
-	return postgresTarget{Host: host, Port: port, DBName: dbname}, nil
+	return remoteQueryTarget{Host: host, Port: port, DBName: dbname}, nil
 }
 
 func parseRequiredString(root map[string]json.RawMessage, field string) (string, error) {
@@ -258,7 +267,7 @@ func parseRequiredString(root map[string]json.RawMessage, field string) (string,
 	return value, nil
 }
 
-func parseExecuteLimits(root map[string]json.RawMessage) (*postgresExecuteLimits, error) {
+func parseExecuteLimits(root map[string]json.RawMessage) (*remoteQueryExecuteLimits, error) {
 	rawLimits, ok := root["limits"]
 	if !ok {
 		return nil, nil
@@ -294,7 +303,7 @@ func parseExecuteLimits(root map[string]json.RawMessage) (*postgresExecuteLimits
 		return nil, err
 	}
 
-	return &postgresExecuteLimits{MaxRows: maxRows, MaxBytes: maxBytes, TimeoutMs: timeoutMs}, nil
+	return &remoteQueryExecuteLimits{MaxRows: maxRows, MaxBytes: maxBytes, TimeoutMs: timeoutMs}, nil
 }
 
 func parsePositiveJSONInt(fields map[string]json.RawMessage, displayName string, wireName string) (int, error) {
@@ -318,13 +327,23 @@ func parsePositiveJSONInt(fields map[string]json.RawMessage, displayName string,
 	return value, nil
 }
 
-func marshalExecuteRequest(req postgresExecuteRequest) (string, error) {
-	wireReq := postgresExecuteRequestJSON{
-		Target: postgresTargetJSON{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName},
-		Query:  req.Query,
+func (h *remoteQueryExecuteHandler) findMatches(integration string, target remoteQueryTarget) []postgresCheckMatch {
+	switch integration {
+	case integrationPostgres:
+		return findPostgresMatches(h.collector, target)
+	default:
+		return nil
+	}
+}
+
+func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
+	wireReq := remoteQueryExecuteRequestJSON{
+		Integration: req.Integration,
+		Target:      remoteQueryTargetJSON{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName},
+		Query:       req.Query,
 	}
 	if req.Limits != nil {
-		wireReq.Limits = &postgresExecuteLimitsJSON{
+		wireReq.Limits = &remoteQueryExecuteLimitsJSON{
 			MaxRows:   req.Limits.MaxRows,
 			MaxBytes:  req.Limits.MaxBytes,
 			TimeoutMs: req.Limits.TimeoutMs,
@@ -336,6 +355,20 @@ func marshalExecuteRequest(req postgresExecuteRequest) (string, error) {
 		return "", err
 	}
 	return string(requestJSON), nil
+}
+
+func writeExecuteParseError(w http.ResponseWriter, err error) {
+	parseErr, ok := err.(requestParseError)
+	if !ok {
+		writeExecuteError(w, http.StatusBadRequest, statusInvalidRequest, err.Error())
+		return
+	}
+
+	httpStatus := http.StatusBadRequest
+	if parseErr.status == statusUnsupportedIntegration {
+		httpStatus = http.StatusUnprocessableEntity
+	}
+	writeExecuteError(w, httpStatus, parseErr.status, parseErr.message)
 }
 
 func writeExecuteError(w http.ResponseWriter, httpStatus int, status string, message string) {

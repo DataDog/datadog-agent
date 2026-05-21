@@ -158,8 +158,22 @@ func (c *PythonCheck) RunSimple() error {
 	return c.runCheck(false)
 }
 
+// RunRemoteQueryJSON runs a remote query helper for this Python check.
+func (c *PythonCheck) RunRemoteQueryJSON(integration string, requestJSON string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(integration)) {
+	case "postgres", "postgresql":
+		return c.runPostgresRemoteQueryJSON(requestJSON)
+	default:
+		return "", fmt.Errorf("unsupported integration")
+	}
+}
+
 // RunPostgresRemoteQueryJSON runs the fixed Postgres remote query helper for this Python check.
 func (c *PythonCheck) RunPostgresRemoteQueryJSON(requestJSON string) (string, error) {
+	return c.RunRemoteQueryJSON("postgres", requestJSON)
+}
+
+func (c *PythonCheck) runPostgresRemoteQueryJSON(requestJSON string) (string, error) {
 	gstate, err := newStickyLock()
 	if err != nil {
 		return "", err

@@ -19,80 +19,84 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
-func TestPostgresExecutePARHarnessUsesCredentialFreeIPCPostShape(t *testing.T) {
+func TestRemoteQueryPARHarnessUsesCredentialFreeIPCPostShape(t *testing.T) {
 	client := &capturePostClient{response: []byte(`{"status":"SUCCEEDED","rows":[{"value":1}]}`)}
-	harness := NewPostgresExecutePARHarness(client, "https://localhost:5001"+AgentPostgresExecuteEndpointPath)
+	harness := NewRemoteQueryPARHarness(client, "https://localhost:5001"+AgentRemoteQueryExecuteEndpointPath)
 
-	result, err := harness.Execute(context.Background(), PostgresExecutePARInputs{
-		Target: postgresTargetJSON{Host: "localhost", Port: 5432, DBName: "postgres"},
-		Query:  postgresRemoteQueryProofQuery,
-		Limits: &postgresExecuteLimitsJSON{MaxRows: 1, MaxBytes: 1024, TimeoutMs: 1000},
+	result, err := harness.Execute(context.Background(), RemoteQueryPARInputs{
+		Integration: integrationPostgres,
+		Target:      remoteQueryTargetJSON{Host: "localhost", Port: 5432, DBName: "postgres"},
+		Query:       remoteQueryProofQuery,
+		Limits:      &remoteQueryExecuteLimitsJSON{MaxRows: 1, MaxBytes: 1024, TimeoutMs: 1000},
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, "https://localhost:5001"+AgentPostgresExecuteEndpointPath, client.url)
+	assert.Equal(t, "https://localhost:5001"+AgentRemoteQueryExecuteEndpointPath, client.url)
 	assert.Equal(t, "application/json", client.contentType)
-	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":1,"maxBytes":1024,"timeoutMs":1000}}`, client.body)
+	assert.JSONEq(t, `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":1,"maxBytes":1024,"timeoutMs":1000}}`, client.body)
 	assert.NotContains(t, client.body, "password")
 	assert.NotContains(t, client.body, "secret")
 	assert.Equal(t, "SUCCEEDED", result.Status)
 	assert.JSONEq(t, `{"status":"SUCCEEDED","rows":[{"value":1}]}`, string(result.Raw))
 }
 
-func TestPostgresExecutePARHarnessWithRealAgentIPCClient(t *testing.T) {
+func TestRemoteQueryPARHarnessWithRealAgentIPCClient(t *testing.T) {
 	runner := &fakeRunnerCheck{
 		fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: datastore-secret\n"},
 		response:  `{"status":"SUCCEEDED","rows":[{"value":1}]}`,
 	}
-	handler := &postgresExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}}
+	handler := &remoteQueryExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}}
 	ipc := ipcmock.New(t)
 	mux := http.NewServeMux()
-	mux.HandleFunc(AgentPostgresExecuteEndpointPath, handler.handle)
+	mux.HandleFunc(AgentRemoteQueryExecuteEndpointPath, handler.handle)
 	server := ipc.NewMockServer(ipc.HTTPMiddleware(mux))
-	harness := NewPostgresExecutePARHarness(ipc.GetClient(), server.URL+AgentPostgresExecuteEndpointPath)
+	harness := NewRemoteQueryPARHarness(ipc.GetClient(), server.URL+AgentRemoteQueryExecuteEndpointPath)
 
-	result, err := harness.Execute(context.Background(), PostgresExecutePARInputs{
-		Target: postgresTargetJSON{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"},
-		Query:  postgresRemoteQueryProofQuery,
+	result, err := harness.Execute(context.Background(), RemoteQueryPARInputs{
+		Integration: integrationPostgres,
+		Target:      remoteQueryTargetJSON{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"},
+		Query:       remoteQueryProofQuery,
 	})
 
 	require.NoError(t, err)
 	assert.Equal(t, "SUCCEEDED", result.Status)
 	assert.JSONEq(t, `{"status":"SUCCEEDED","rows":[{"value":1}]}`, string(result.Raw))
-	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`, runner.seenRequest())
+	assert.JSONEq(t, `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`, runner.seenRequest())
 	assert.NotContains(t, string(result.Raw), "datastore-secret")
 }
 
-func TestPostgresExecutePARHarnessPropagatesSanitizedBridgeErrors(t *testing.T) {
-	handler := &postgresExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
+func TestRemoteQueryPARHarnessPropagatesSanitizedBridgeErrors(t *testing.T) {
+	handler := &remoteQueryExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
 		&fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: datastore-secret\n"}},
 	}}}
 	ipc := ipcmock.New(t)
 	mux := http.NewServeMux()
-	mux.HandleFunc(AgentPostgresExecuteEndpointPath, handler.handle)
+	mux.HandleFunc(AgentRemoteQueryExecuteEndpointPath, handler.handle)
 	server := ipc.NewMockServer(ipc.HTTPMiddleware(mux))
-	harness := NewPostgresExecutePARHarness(ipc.GetClient(), server.URL+AgentPostgresExecuteEndpointPath)
+	harness := NewRemoteQueryPARHarness(ipc.GetClient(), server.URL+AgentRemoteQueryExecuteEndpointPath)
 
 	tests := []struct {
 		name       string
-		inputs     PostgresExecutePARInputs
+		inputs     RemoteQueryPARInputs
 		wantStatus string
 		wantCode   string
 	}{
 		{
 			name: "target not found",
-			inputs: PostgresExecutePARInputs{
-				Target: postgresTargetJSON{Host: "localhost", Port: 5432, DBName: "other"},
-				Query:  postgresRemoteQueryProofQuery,
+			inputs: RemoteQueryPARInputs{
+				Integration: integrationPostgres,
+				Target:      remoteQueryTargetJSON{Host: "localhost", Port: 5432, DBName: "other"},
+				Query:       remoteQueryProofQuery,
 			},
 			wantStatus: statusTargetNotFound,
 			wantCode:   statusTargetNotFound,
 		},
 		{
 			name: "invalid query",
-			inputs: PostgresExecutePARInputs{
-				Target: postgresTargetJSON{Host: "localhost", Port: 5432, DBName: "postgres"},
-				Query:  "SELECT 2 AS value",
+			inputs: RemoteQueryPARInputs{
+				Integration: integrationPostgres,
+				Target:      remoteQueryTargetJSON{Host: "localhost", Port: 5432, DBName: "postgres"},
+				Query:       "SELECT 2 AS value",
 			},
 			wantStatus: statusInvalidRequest,
 			wantCode:   statusInvalidRequest,
@@ -133,4 +137,4 @@ func (c *capturePostClient) Post(url string, contentType string, body io.Reader,
 	return c.response, c.err
 }
 
-var _ postgresExecutePARIPCClient = (*capturePostClient)(nil)
+var _ remoteQueryPARIPCClient = (*capturePostClient)(nil)

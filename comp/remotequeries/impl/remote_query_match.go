@@ -24,16 +24,21 @@ import (
 )
 
 const (
-	// PostgresMatchEndpointPath is mounted under /agent by the Agent command API.
-	PostgresMatchEndpointPath = "/remote-queries/postgres/match-check"
-	// PostgresMatchEnabledConfig is disabled by default when the key is absent.
-	PostgresMatchEnabledConfig = "remote_queries.postgres_match_check.enabled"
+	// RemoteQueryMatchEndpointPath is mounted under /agent by the Agent command API.
+	RemoteQueryMatchEndpointPath = "/remote-queries/match-check"
+	// RemoteQueriesMatchEnabledConfig is disabled by default when the key is absent.
+	RemoteQueriesMatchEnabledConfig = "remote_queries.match_check.enabled"
+	// legacyPostgresMatchEnabledConfig preserves compatibility with the earlier POC key.
+	legacyPostgresMatchEnabledConfig = "remote_queries.postgres_match_check.enabled"
 
-	statusOK             = "ok"
-	statusTargetNotFound = "target_not_found"
-	statusAmbiguous      = "ambiguous_target"
-	statusInvalidRequest = "invalid_request"
-	statusBridgeDisabled = "bridge_disabled"
+	integrationPostgres = "postgres"
+
+	statusOK                     = "ok"
+	statusTargetNotFound         = "target_not_found"
+	statusAmbiguous              = "ambiguous_target"
+	statusInvalidRequest         = "invalid_request"
+	statusUnsupportedIntegration = "unsupported_integration"
+	statusBridgeDisabled         = "bridge_disabled"
 )
 
 var credentialShapedFields = map[string]struct{}{
@@ -64,16 +69,23 @@ type Requires struct {
 	Collector collector.Component
 }
 
-// NewPostgresMatchEndpointProvider registers the Postgres match endpoint on the internal Agent API.
-func NewPostgresMatchEndpointProvider(reqs Requires) api.AgentEndpointProvider {
-	h := &postgresMatchHandler{
+// NewRemoteQueryMatchEndpointProvider registers the remote query match endpoint on the internal Agent API.
+func NewRemoteQueryMatchEndpointProvider(reqs Requires) api.AgentEndpointProvider {
+	h := &remoteQueryMatchHandler{
 		collector: reqs.Collector,
-		enabled:   reqs.Cfg.GetBool(PostgresMatchEnabledConfig),
+		enabled:   remoteQueryEnabled(reqs.Cfg, RemoteQueriesMatchEnabledConfig, legacyPostgresMatchEnabledConfig),
 	}
-	return api.NewAgentEndpointProvider(h.handle, PostgresMatchEndpointPath, http.MethodPost)
+	return api.NewAgentEndpointProvider(h.handle, RemoteQueryMatchEndpointPath, http.MethodPost)
 }
 
-type postgresMatchHandler struct {
+func remoteQueryEnabled(cfg config.Component, genericKey string, legacyKey string) bool {
+	if cfg.IsConfigured(genericKey) {
+		return cfg.GetBool(genericKey)
+	}
+	return cfg.GetBool(legacyKey)
+}
+
+type remoteQueryMatchHandler struct {
 	collector collector.Component
 	enabled   bool
 }
@@ -96,10 +108,32 @@ type responseError struct {
 	Message string `json:"message"`
 }
 
-type postgresTarget struct {
+type remoteQueryMatchRequest struct {
+	Integration string
+	Target      remoteQueryTarget
+}
+
+type remoteQueryTarget struct {
 	Host   string
 	Port   int
 	DBName string
+}
+
+type requestParseError struct {
+	status  string
+	message string
+}
+
+func (e requestParseError) Error() string {
+	return e.message
+}
+
+func invalidRequestError(message string) error {
+	return requestParseError{status: statusInvalidRequest, message: message}
+}
+
+func unsupportedIntegrationError() error {
+	return requestParseError{status: statusUnsupportedIntegration, message: "unsupported integration"}
 }
 
 type postgresInstanceTarget struct {
@@ -108,7 +142,7 @@ type postgresInstanceTarget struct {
 	dbname string
 }
 
-func (h *postgresMatchHandler) handle(w http.ResponseWriter, r *http.Request) {
+func (h *remoteQueryMatchHandler) handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if !h.enabled {
@@ -116,13 +150,13 @@ func (h *postgresMatchHandler) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	target, err := parseMatchRequest(r)
+	req, err := parseMatchRequest(r)
 	if err != nil {
-		writeMatchResponse(w, http.StatusBadRequest, statusInvalidRequest, 0, nil, err.Error())
+		writeMatchParseError(w, err)
 		return
 	}
 
-	matches := h.findMatches(target)
+	matches := h.findMatches(req.Integration, req.Target)
 	switch len(matches) {
 	case 0:
 		writeMatchResponse(w, http.StatusNotFound, statusTargetNotFound, 0, nil, "no matching Postgres check found")
@@ -133,9 +167,9 @@ func (h *postgresMatchHandler) handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func parseMatchRequest(r *http.Request) (postgresTarget, error) {
+func parseMatchRequest(r *http.Request) (remoteQueryMatchRequest, error) {
 	if !isJSONContentType(r.Header.Get("Content-Type")) {
-		return postgresTarget{}, fmt.Errorf("content-type must be application/json")
+		return remoteQueryMatchRequest{}, invalidRequestError("content-type must be application/json")
 	}
 
 	defer r.Body.Close()
@@ -144,22 +178,46 @@ func parseMatchRequest(r *http.Request) (postgresTarget, error) {
 
 	var root map[string]json.RawMessage
 	if err := decoder.Decode(&root); err != nil {
-		return postgresTarget{}, fmt.Errorf("malformed JSON request")
+		return remoteQueryMatchRequest{}, invalidRequestError("malformed JSON request")
 	}
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		return postgresTarget{}, fmt.Errorf("malformed JSON request")
+		return remoteQueryMatchRequest{}, invalidRequestError("malformed JSON request")
 	}
 
 	for key := range root {
-		if key != "target" {
+		switch key {
+		case "integration", "target":
+			continue
+		default:
 			if isCredentialShapedField(key) {
-				return postgresTarget{}, fmt.Errorf("request contains disallowed credential-shaped field")
+				return remoteQueryMatchRequest{}, invalidRequestError("request contains disallowed credential-shaped field")
 			}
-			return postgresTarget{}, fmt.Errorf("request contains unknown field")
+			return remoteQueryMatchRequest{}, invalidRequestError("request contains unknown field")
 		}
 	}
 
-	return parseTargetFromRoot(root)
+	integration, err := parseIntegrationFromRoot(root)
+	if err != nil {
+		return remoteQueryMatchRequest{}, err
+	}
+	target, err := parseTargetFromRoot(root)
+	if err != nil {
+		return remoteQueryMatchRequest{}, err
+	}
+	return remoteQueryMatchRequest{Integration: integration, Target: target}, nil
+}
+
+func parseIntegrationFromRoot(root map[string]json.RawMessage) (string, error) {
+	integration, err := parseRequiredString(root, "integration")
+	if err != nil {
+		return "", err
+	}
+	switch strings.ToLower(strings.TrimSpace(integration)) {
+	case integrationPostgres, "postgresql":
+		return integrationPostgres, nil
+	default:
+		return "", unsupportedIntegrationError()
+	}
 }
 
 func isJSONContentType(contentType string) bool {
@@ -213,11 +271,16 @@ type postgresCheckMatch struct {
 	sanitized sanitizedMatch
 }
 
-func (h *postgresMatchHandler) findMatches(target postgresTarget) []postgresCheckMatch {
-	return findPostgresMatches(h.collector, target)
+func (h *remoteQueryMatchHandler) findMatches(integration string, target remoteQueryTarget) []postgresCheckMatch {
+	switch integration {
+	case integrationPostgres:
+		return findPostgresMatches(h.collector, target)
+	default:
+		return nil
+	}
 }
 
-func findPostgresMatches(collector collector.Component, target postgresTarget) []postgresCheckMatch {
+func findPostgresMatches(collector collector.Component, target remoteQueryTarget) []postgresCheckMatch {
 	checks := collector.GetChecks()
 	matches := make([]postgresCheckMatch, 0, 1)
 	for _, chk := range checks {
@@ -291,6 +354,20 @@ func yamlInt(value any) (int, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func writeMatchParseError(w http.ResponseWriter, err error) {
+	parseErr, ok := err.(requestParseError)
+	if !ok {
+		writeMatchResponse(w, http.StatusBadRequest, statusInvalidRequest, 0, nil, err.Error())
+		return
+	}
+
+	httpStatus := http.StatusBadRequest
+	if parseErr.status == statusUnsupportedIntegration {
+		httpStatus = http.StatusUnprocessableEntity
+	}
+	writeMatchResponse(w, httpStatus, parseErr.status, 0, nil, parseErr.message)
 }
 
 func writeMatchResponse(w http.ResponseWriter, httpStatus int, status string, matchedCount int, match *sanitizedMatch, message string) {

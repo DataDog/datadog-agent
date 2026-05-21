@@ -7,7 +7,7 @@
 package fx
 
 import (
-	remotequeriesimpl "github.com/DataDog/datadog-agent/comp/dataobs/remotequeries/impl"
+	remotequeriesimpl "github.com/DataDog/datadog-agent/comp/remotequeries/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -15,7 +15,7 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(remotequeriesimpl.NewPostgresMatchEndpointProvider),
-		fx.Provide(remotequeriesimpl.NewPostgresExecuteEndpointProvider),
+		fx.Provide(remotequeriesimpl.NewRemoteQueryMatchEndpointProvider),
+		fx.Provide(remotequeriesimpl.NewRemoteQueryExecuteEndpointProvider),
 	)
 }

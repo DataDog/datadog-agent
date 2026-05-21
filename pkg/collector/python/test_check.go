@@ -683,6 +683,42 @@ func testGetDiagnoses(t *testing.T) {
 	assert.Zero(t, len(diagnoses[1].Remediation))
 }
 
+func testRunRemoteQueryJSON(t *testing.T) {
+	mockRtloader(t)
+
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
+	require.NoError(t, err)
+	check.instance = newMockPyObjectPtr()
+
+	C.reset_check_mock()
+	C.run_postgres_remote_query_return = C.CString(`{"status":"SUCCEEDED"}`)
+
+	result, err := check.RunRemoteQueryJSON("postgres", `{"integration":"postgres","query":"SELECT 1 AS value"}`)
+
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"status":"SUCCEEDED"}`, result)
+	assert.Equal(t, C.int(1), C.run_postgres_remote_query_calls)
+	assert.Equal(t, check.instance, C.run_postgres_remote_query_instance)
+	assert.JSONEq(t, `{"integration":"postgres","query":"SELECT 1 AS value"}`, C.GoString(C.run_postgres_remote_query_request_json))
+}
+
+func testRunRemoteQueryJSONUnsupportedIntegration(t *testing.T) {
+	mockRtloader(t)
+
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
+	require.NoError(t, err)
+	check.instance = newMockPyObjectPtr()
+
+	C.reset_check_mock()
+
+	result, err := check.RunRemoteQueryJSON("mysql", `{"integration":"mysql","query":"SELECT 1"}`)
+
+	assert.Empty(t, result)
+	require.Error(t, err)
+	assert.EqualError(t, err, "unsupported integration")
+	assert.Equal(t, C.int(0), C.run_postgres_remote_query_calls)
+}
+
 func testRunPostgresRemoteQueryJSON(t *testing.T) {
 	mockRtloader(t)
 
