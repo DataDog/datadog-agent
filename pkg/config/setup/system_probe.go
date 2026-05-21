@@ -252,7 +252,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	cfg.BindEnvAndSetDefault("network_config.enable_co_re", true)
 	cfg.BindEnvAndSetDefault("network_config.enable_sk_tracer", false)
-	cfg.BindEnvAndSetDefault("network_config.enable_fentry", false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_FENTRY", "DD_NETWORK_CONFIG_ENABLE_FENTRY")
+	cfg.BindEnvAndSetDefault("network_config.enable_fentry", true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_FENTRY", "DD_NETWORK_CONFIG_ENABLE_FENTRY")
 
 	// TLS cert collection
 	cfg.BindEnvAndSetDefault("network_config.enable_cert_collection", false)
