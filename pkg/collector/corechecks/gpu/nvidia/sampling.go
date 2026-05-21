@@ -139,11 +139,20 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Met
 	deviceSmActive := float64(maxSmUtil+sumSmUtil) / 2.0
 
 	allMetrics = append(allMetrics,
-		Metric{Name: "sm_active", Value: deviceSmActive, Type: ddmetrics.GaugeType, Priority: Medium}, // There's an ebpf based fallback for this metric which should have lower priority
+		Metric{Name: "device.active", Value: isDeviceActive(deviceSmActive), Type: ddmetrics.GaugeType, Priority: Medium},
+		Metric{Name: "sm_active", Value: deviceSmActive, Type: ddmetrics.GaugeType, Priority: Medium},                     // There's an ebpf based fallback for this metric which should have lower priority
 		Metric{Name: "core.limit", Value: float64(device.GetDeviceInfo().CoreCount), Type: ddmetrics.GaugeType, AssociatedWorkloads: allWorkloadIDs},
 	)
 
 	return allMetrics, currentTime, err
+}
+
+func isDeviceActive(smActive float64) float64 {
+	if smActive > 0.05 {
+		return 1.0
+	}
+
+	return 0.0
 }
 
 // createSampleAPIs creates API call definitions for all sampling metrics on demand

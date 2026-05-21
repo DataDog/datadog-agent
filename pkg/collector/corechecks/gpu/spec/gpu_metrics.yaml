@@ -272,6 +272,20 @@ metrics:
         mig: true
         physical: true
         vgpu: true
+  device.active:
+    metadata:
+      metric_type: gauge
+      description: Number of active GPU devices found in the host
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
   device.unhealthy:
     metadata:
       metric_type: gauge
