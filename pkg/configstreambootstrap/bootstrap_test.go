@@ -133,6 +133,49 @@ remote_agent:
 		require.Equal(t, "10.0.0.7", got.CmdHost)
 		require.True(t, got.RARRegistryEnabled)
 	})
+
+	t.Run("yaml supplies vsock_addr", func(t *testing.T) {
+		path := writeYAML(t, `
+vsock_addr: vsock:2:5001
+remote_agent:
+  registry:
+    enabled: true
+`)
+		got := readSettings(path, envFunc(nil))
+		require.Equal(t, "vsock:2:5001", got.VSockAddr)
+	})
+
+	t.Run("env vsock_addr overrides yaml", func(t *testing.T) {
+		path := writeYAML(t, `
+vsock_addr: vsock:2:5001
+remote_agent:
+  registry:
+    enabled: true
+`)
+		env := envFunc(map[string]string{envVSockAddr: "vsock:9:9999"})
+		got := readSettings(path, env)
+		require.Equal(t, "vsock:9:9999", got.VSockAddr)
+	})
+
+	t.Run("empty env vars fall back to yaml", func(t *testing.T) {
+		path := writeYAML(t, `
+auth_token_file_path: /etc/dd/auth_token
+cmd_port: 9000
+vsock_addr: vsock:2:5001
+remote_agent:
+  registry:
+    enabled: true
+`)
+		env := envFunc(map[string]string{
+			envAuthTokenFilePath: "",
+			envCmdPort:           "",
+			envVSockAddr:         "",
+		})
+		got := readSettings(path, env)
+		require.Equal(t, "/etc/dd/auth_token", got.AuthTokenFilePath)
+		require.Equal(t, 9000, got.CmdPort)
+		require.Equal(t, "vsock:2:5001", got.VSockAddr)
+	})
 }
 
 func TestRunFailsFastWhenRARDisabled(t *testing.T) {

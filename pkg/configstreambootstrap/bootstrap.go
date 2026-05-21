@@ -51,6 +51,7 @@ const (
 	envIPCCertFilePath    = "DD_IPC_CERT_FILE_PATH"
 	envCmdHost            = "DD_CMD_HOST"
 	envCmdPort            = "DD_CMD_PORT"
+	envVSockAddr          = "DD_VSOCK_ADDR"
 	envRARRegistryEnabled = "DD_REMOTE_AGENT_REGISTRY_ENABLED"
 
 	defaultCmdHost            = "localhost"
@@ -103,35 +104,41 @@ type settings struct {
 	IPCCertFilePath    string
 	CmdHost            string
 	CmdPort            int
+	VSockAddr          string
 	RARRegistryEnabled bool
 }
 
 // readSettings resolves bootstrap values from env, then a YAML parse bounded
 // to a small set of keys (so malformed sections elsewhere don't abort).
+// Empty env values are treated as unset, so YAML fallback still applies.
 func readSettings(cliConfigPath string, lookupEnv func(string) (string, bool)) settings {
 	bs := settings{CmdHost: defaultCmdHost, CmdPort: defaultCmdPort, RARRegistryEnabled: defaultRARRegistryEnabled}
 
-	authEnv, hasAuthEnv := lookupEnv(envAuthTokenFilePath)
-	certEnv, hasCertEnv := lookupEnv(envIPCCertFilePath)
-	hostEnv, hasHostEnv := lookupEnv(envCmdHost)
-	portEnv, hasPortEnv := lookupEnv(envCmdPort)
-	rarEnv, hasRAREnv := lookupEnv(envRARRegistryEnabled)
+	authEnv, _ := lookupEnv(envAuthTokenFilePath)
+	certEnv, _ := lookupEnv(envIPCCertFilePath)
+	hostEnv, _ := lookupEnv(envCmdHost)
+	portEnv, _ := lookupEnv(envCmdPort)
+	vsockEnv, _ := lookupEnv(envVSockAddr)
+	rarEnv, _ := lookupEnv(envRARRegistryEnabled)
 
-	if hasAuthEnv && authEnv != "" {
+	if authEnv != "" {
 		bs.AuthTokenFilePath = authEnv
 	}
-	if hasCertEnv && certEnv != "" {
+	if certEnv != "" {
 		bs.IPCCertFilePath = certEnv
 	}
-	if hasHostEnv && hostEnv != "" {
+	if hostEnv != "" {
 		bs.CmdHost = hostEnv
 	}
-	if hasPortEnv {
+	if portEnv != "" {
 		if p, err := strconv.Atoi(portEnv); err == nil && p > 0 {
 			bs.CmdPort = p
 		}
 	}
-	if hasRAREnv {
+	if vsockEnv != "" {
+		bs.VSockAddr = vsockEnv
+	}
+	if rarEnv != "" {
 		if v, err := strconv.ParseBool(rarEnv); err == nil {
 			bs.RARRegistryEnabled = v
 		}
@@ -147,6 +154,7 @@ func readSettings(cliConfigPath string, lookupEnv func(string) (string, bool)) s
 			IPCCertFilePath   string `yaml:"ipc_cert_file_path"`
 			CmdHost           string `yaml:"cmd_host"`
 			CmdPort           int    `yaml:"cmd_port"`
+			VSockAddr         string `yaml:"vsock_addr"`
 			RemoteAgent       struct {
 				Registry struct {
 					// *bool to distinguish absent from explicit false.
@@ -156,19 +164,22 @@ func readSettings(cliConfigPath string, lookupEnv func(string) (string, bool)) s
 		}
 		_ = yaml.Unmarshal(data, &cfg)
 
-		if !hasAuthEnv && cfg.AuthTokenFilePath != "" {
+		if authEnv == "" && cfg.AuthTokenFilePath != "" {
 			bs.AuthTokenFilePath = cfg.AuthTokenFilePath
 		}
-		if !hasCertEnv && cfg.IPCCertFilePath != "" {
+		if certEnv == "" && cfg.IPCCertFilePath != "" {
 			bs.IPCCertFilePath = cfg.IPCCertFilePath
 		}
-		if !hasHostEnv && cfg.CmdHost != "" {
+		if hostEnv == "" && cfg.CmdHost != "" {
 			bs.CmdHost = cfg.CmdHost
 		}
-		if !hasPortEnv && cfg.CmdPort > 0 {
+		if portEnv == "" && cfg.CmdPort > 0 {
 			bs.CmdPort = cfg.CmdPort
 		}
-		if !hasRAREnv && cfg.RemoteAgent.Registry.Enabled != nil {
+		if vsockEnv == "" && cfg.VSockAddr != "" {
+			bs.VSockAddr = cfg.VSockAddr
+		}
+		if rarEnv == "" && cfg.RemoteAgent.Registry.Enabled != nil {
 			bs.RARRegistryEnabled = *cfg.RemoteAgent.Registry.Enabled
 		}
 		break
@@ -204,6 +215,9 @@ func seedGlobalBuilder(bs settings, cliConfigPath string) {
 	}
 	b.Set("cmd_host", bs.CmdHost, pkgconfigmodel.SourceFile)
 	b.Set("cmd_port", bs.CmdPort, pkgconfigmodel.SourceFile)
+	if bs.VSockAddr != "" {
+		b.Set("vsock_addr", bs.VSockAddr, pkgconfigmodel.SourceFile)
+	}
 	b.Set("remote_agent.registry.enabled", bs.RARRegistryEnabled, pkgconfigmodel.SourceFile)
 }
 
