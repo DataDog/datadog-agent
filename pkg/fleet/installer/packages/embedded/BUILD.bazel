@@ -101,6 +101,7 @@ go_test(
     name = "tmpl_test",
     srcs = ["tmpl/main_test.go"],
     embed = [":tmpl_lib"],
+    # keep
     embedsrcs = service_srcs + glob([
         "tmpl/gen/debrpm-nocap/**",
         "tmpl/gen/oci-nocap/**",
