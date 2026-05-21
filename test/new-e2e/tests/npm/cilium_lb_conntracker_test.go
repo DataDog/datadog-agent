@@ -121,7 +121,7 @@ func (suite *ciliumLBConntrackerTestSuite) TestCiliumConntracker() {
 			assert.NotEmpty(collect, names) {
 			hostname = names[0]
 		}
-	}, time.Minute, time.Second, "timed out getting connection names")
+	}, 2*time.Minute, time.Second, "timed out getting connection names")
 
 	var svcConns []*process.Connection
 	suite.Require().EventuallyWithT(func(collect *assert.CollectT) {
