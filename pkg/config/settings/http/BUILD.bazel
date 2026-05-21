@@ -10,7 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/ipc/def",
-        "//comp/core/settings",
+        "//comp/core/settings/def",
         "//pkg/config/settings",
     ],
 )
