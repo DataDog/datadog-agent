@@ -5,14 +5,14 @@
 
 //go:build test
 
-package settingsimpl
+// Package mock provides a mock for the settings component
+package mock
 
 import (
 	"net/http"
 
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/core/settings"
+	settingsdef "github.com/DataDog/datadog-agent/comp/core/settings/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -20,23 +20,24 @@ import (
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newMock),
+		fxutil.ProvideComponentConstructor(NewMockComponent),
 	)
 }
 
-// MockProvides is the mock component output
+// MockProvides is the mock component output.
 type MockProvides struct {
-	fx.Out
+	compdef.Out
 
-	Comp settings.Component
+	Comp settingsdef.Component
 }
 
-type mock struct {
+type mockSettings struct {
 	rtSettings map[string]interface{}
 }
 
-func newMock() MockProvides {
-	m := mock{
+// NewMockComponent creates a mock settings component.
+func NewMockComponent() MockProvides {
+	m := mockSettings{
 		rtSettings: map[string]interface{}{},
 	}
 	return MockProvides{
@@ -45,12 +46,12 @@ func newMock() MockProvides {
 }
 
 // RuntimeSettings returns all runtime configurable settings
-func (m mock) RuntimeSettings() map[string]settings.RuntimeSetting {
-	return map[string]settings.RuntimeSetting{}
+func (m mockSettings) RuntimeSettings() map[string]settingsdef.RuntimeSetting {
+	return map[string]settingsdef.RuntimeSetting{}
 }
 
 // GetRuntimeSetting returns the value of a runtime configurable setting
-func (m mock) GetRuntimeSetting(key string) (interface{}, error) {
+func (m mockSettings) GetRuntimeSetting(key string) (interface{}, error) {
 	v, found := m.rtSettings[key]
 	if found {
 		return v, nil
@@ -59,31 +60,31 @@ func (m mock) GetRuntimeSetting(key string) (interface{}, error) {
 }
 
 // SetRuntimeSetting changes the value of a runtime configurable setting
-func (m *mock) SetRuntimeSetting(key string, v interface{}, _ model.Source) error {
+func (m *mockSettings) SetRuntimeSetting(key string, v interface{}, _ model.Source) error {
 	m.rtSettings[key] = v
 	return nil
 }
 
 // GetFullConfig returns the full config
-func (m mock) GetFullConfig(...string) http.HandlerFunc {
+func (m mockSettings) GetFullConfig(...string) http.HandlerFunc {
 	return func(http.ResponseWriter, *http.Request) {}
 }
 
 // GetFullConfigWithoutDefaults returns the full config without defaults
-func (m mock) GetFullConfigWithoutDefaults(...string) http.HandlerFunc {
+func (m mockSettings) GetFullConfigWithoutDefaults(...string) http.HandlerFunc {
 	return func(http.ResponseWriter, *http.Request) {}
 }
 
 // GetFullConfigBySource returns the full config by sources
-func (m mock) GetFullConfigBySource() http.HandlerFunc {
+func (m mockSettings) GetFullConfigBySource() http.HandlerFunc {
 	return func(http.ResponseWriter, *http.Request) {}
 }
 
 // GetValue allows to retrieve the runtime setting
-func (m mock) GetValue(http.ResponseWriter, *http.Request) {}
+func (m mockSettings) GetValue(http.ResponseWriter, *http.Request) {}
 
 // SetValue allows to modify the runtime setting
-func (m mock) SetValue(http.ResponseWriter, *http.Request) {}
+func (m mockSettings) SetValue(http.ResponseWriter, *http.Request) {}
 
 // ListConfigurable returns the list of configurable setting at runtime
-func (m mock) ListConfigurable(http.ResponseWriter, *http.Request) {}
+func (m mockSettings) ListConfigurable(http.ResponseWriter, *http.Request) {}
