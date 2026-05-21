@@ -45,8 +45,8 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
+	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
@@ -139,7 +139,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func() status.Component { return nil }),
 				// The cluster-agent-cloudfoundry agent do not have settings that change are runtime
 				// still, we need to pass it to ensure the API server is proprely initialized
-				settingsimpl.Module(),
+				settingsfx.Module(),
 				fx.Supply(settings.Params{}),
 				autodiscoveryimpl.Module(),
 				fx.Provide(func(config config.Component) healthprobe.Options {

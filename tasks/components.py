@@ -116,7 +116,6 @@ components_classic_style = [
     'comp/core/configsync/configsyncimpl',
     'comp/core/hostname/hostnameimpl',
     'comp/core/pid/pidimpl',
-    'comp/core/settings/settingsimpl',
     'comp/core/status/statusimpl',
     'comp/dogstatsd/pidmap/pidmapimpl',
     'comp/dogstatsd/serverDebug/serverdebugimpl',
