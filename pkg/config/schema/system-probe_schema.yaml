@@ -2002,6 +2002,18 @@ properties:
             node_type: setting
             type: boolean
             default: true
+      syscalls:
+        node_type: section
+        type: object
+        properties:
+          capture_all_errors:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
       sysctl:
         node_type: section
         type: object
