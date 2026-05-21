@@ -38,15 +38,19 @@ const (
 
 	// expectedTimingUnit is the Datadog API unit name for millisecond timing metrics.
 	expectedTimingUnit = "millisecond"
+
+	metricsV2Endpoint = "/api/v2/series"
+	metricsV3Endpoint = "/api/intake/metrics/v3/series"
 )
 
 type dogstatsdUnitSuite struct {
 	e2e.BaseSuite[environments.Host]
 
 	adpEnabled bool
+	v3Enabled  bool
 }
 
-func testDogstatsdMetricUnit(t *testing.T, adpEnabled bool) {
+func testDogstatsdMetricUnit(t *testing.T, adpEnabled, v3Enabled bool) {
 	t.Parallel()
 
 	agentOptions := []agentparams.Option{
@@ -62,13 +66,21 @@ histogram_percentiles:
 	if adpEnabled {
 		agentOptions = append(agentOptions, common.WithADPEnabled())
 	}
+	if v3Enabled {
+		// WithV3MetricsEnabled must come after WithFakeintake, which the provisioner
+		// prepends automatically, so this ordering is correct.
+		agentOptions = append(agentOptions, agentparams.WithV3MetricsEnabled())
+	}
 
 	stackName := "dogstatsdmetricunit"
 	if adpEnabled {
 		stackName += "-adp"
 	}
+	if v3Enabled {
+		stackName += "-v3"
+	}
 
-	e2e.Run(t, &dogstatsdUnitSuite{adpEnabled: adpEnabled},
+	e2e.Run(t, &dogstatsdUnitSuite{adpEnabled: adpEnabled, v3Enabled: v3Enabled},
 		e2e.WithProvisioner(
 			awshost.Provisioner(
 				awshost.WithRunOptions(
@@ -82,12 +94,19 @@ histogram_percentiles:
 
 // TestDogstatsdMetricUnit runs the DogStatsD unit e2e test on Linux.
 func TestDogstatsdMetricUnit(t *testing.T) {
-	testDogstatsdMetricUnit(t, false)
+	testDogstatsdMetricUnit(t, false, false)
 }
 
 // TestDogstatsdMetricUnitADP runs the DogStatsD unit e2e test with ADP serving DogStatsD traffic.
 func TestDogstatsdMetricUnitADP(t *testing.T) {
-	testDogstatsdMetricUnit(t, true)
+	testDogstatsdMetricUnit(t, true, false)
+}
+
+// TestDogstatsdMetricUnitV3 runs the DogStatsD unit e2e test with the V3 metrics intake API enabled.
+// It verifies that the same unit semantics hold over the V3 wire format, and that payloads are
+// routed to /api/intake/metrics/v3/series rather than /api/v2/series.
+func TestDogstatsdMetricUnitV3(t *testing.T) {
+	testDogstatsdMetricUnit(t, false, true)
 }
 
 // sendMetric sends a single DogStatsD metric over UDP to the local Agent.
@@ -96,8 +115,10 @@ func (s *dogstatsdUnitSuite) sendMetric(name string, value float32, metricType s
 	s.Env().RemoteHost.MustExecute(cmd)
 }
 
-// TestDogstatsdUnitOnlyOnTimingMetrics sends a counter, a histogram, and a timing
-// metric in parallel and verifies that only the timing metric carries a unit.
+// TestDogstatsdUnitOnlyOnTimingMetrics sends a counter, a histogram, and a timing metric in
+// parallel and verifies that only the timing metric carries a unit. The test runs for both V2
+// (default) and V3 intake protocols; in both cases it asserts that payloads were routed
+// exclusively to the expected endpoint.
 func (s *dogstatsdUnitSuite) TestDogstatsdUnitOnlyOnTimingMetrics() {
 	if s.adpEnabled {
 		common.AssertADPRunning(s.T(), s.Env().RemoteHost)
@@ -160,5 +181,21 @@ func (s *dogstatsdUnitSuite) TestDogstatsdUnitOnlyOnTimingMetrics() {
 		assert.Equal(s.T(), expectedTimingUnit, m.Unit,
 			"timing metric %q must carry unit %q, got %q", m.Metric, expectedTimingUnit, m.Unit)
 		fmt.Printf("metric %q carries unit %q\n", m.Metric, m.Unit)
+	}
+
+	// Phase 3: verify routing. Each mode must use exactly its intended endpoint and
+	// send nothing to the other.
+	routeStats, err := s.Env().FakeIntake.Client().RouteStats()
+	require.NoError(s.T(), err)
+	if s.v3Enabled {
+		assert.Greater(s.T(), routeStats[metricsV3Endpoint], 0,
+			"expected payloads on %s when V3 is enabled", metricsV3Endpoint)
+		assert.Zero(s.T(), routeStats[metricsV2Endpoint],
+			"expected no payloads on %s when V3 is enabled", metricsV2Endpoint)
+	} else {
+		assert.Greater(s.T(), routeStats[metricsV2Endpoint], 0,
+			"expected payloads on %s when V3 is not enabled", metricsV2Endpoint)
+		assert.Zero(s.T(), routeStats[metricsV3Endpoint],
+			"expected no payloads on %s when V3 is not enabled", metricsV3Endpoint)
 	}
 }
