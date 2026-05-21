@@ -1,0 +1,41 @@
+# 2026/05/20 19:14:56.736238 [TestDetectingAggregator_CarryoverConsumed_Property] [rapid] draw lineLimit: 5
+# 2026/05/20 19:14:56.736241 [TestDetectingAggregator_CarryoverConsumed_Property] [rapid] draw extra: 1
+# 2026/05/20 19:14:56.736243 [TestDetectingAggregator_CarryoverConsumed_Property] [rapid] draw first: []byte{0x61, 0x61, 0x61, 0x61, 0x61, 0x61}
+# 2026/05/20 19:14:56.736244 [TestDetectingAggregator_CarryoverConsumed_Property] [rapid] draw second: []byte{0x78}
+# 2026/05/20 19:14:56.736245 [TestDetectingAggregator_CarryoverConsumed_Property] [rapid] draw third: []byte{0x70}
+# 2026/05/20 19:14:56.736249 [TestDetectingAggregator_CarryoverConsumed_Property] CarryoverConsumed precondition: emission 2 should have head marker; got "p"
+# 
+v0.4.8#14195759071112859850
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
