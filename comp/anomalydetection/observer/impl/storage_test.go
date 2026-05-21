@@ -586,6 +586,34 @@ func TestTimeSeriesStorage_ListSeries_ExcludeNamespaces(t *testing.T) {
 	require.Equal(t, []observer.SeriesRef{onlyTel[0].Ref}, telRefs)
 }
 
+func TestTimeSeriesStorage_ListSeriesRefsInto_MatchesListSeriesFilters(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.Add(observer.TelemetryNamespace, "internal.gauge", 1, 1000, []string{"env:prod"})
+	s.Add("work", "cpu.usage", 2, 1000, []string{"env:prod", "service:web"})
+	s.Add("work", "cpu.load", 3, 1000, []string{"env:prod", "service:api"})
+	s.Add("work", "mem.rss", 4, 1000, []string{"env:stage", "service:web"})
+
+	for name, filter := range map[string]observer.SeriesFilter{
+		"all":                {},
+		"workload":           observer.WorkloadSeriesFilter(),
+		"namespace":          {Namespace: observer.TelemetryNamespace},
+		"name_prefix":        {NamePattern: "cpu."},
+		"tag_matcher":        {TagMatchers: map[string]string{"service": "web"}},
+		"namespace_and_tags": {Namespace: "work", TagMatchers: map[string]string{"env": "prod"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			metas := s.ListSeries(filter)
+			want := make([]observer.SeriesRef, 0, len(metas))
+			for _, meta := range metas {
+				want = append(want, meta.Ref)
+			}
+
+			got := s.ListSeriesRefsInto(filter, []observer.SeriesRef{999})
+			require.Equal(t, want, got)
+		})
+	}
+}
+
 func TestTimeSeriesStorage_RemoveSeriesByRefs(t *testing.T) {
 	s := newTimeSeriesStorage()
 

@@ -1224,9 +1224,10 @@ func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.
 	return result
 }
 
-// ListSeriesRefsInto appends refs for all series matching the filter into dst
-// and returns the resulting slice. It is the allocation-light detector hot path
-// for callers that only need the stable numeric SeriesRef handles.
+// ListSeriesRefsInto uses dst as scratch and returns refs for all series
+// matching the filter. Previous dst contents are discarded. It is the
+// allocation-light detector hot path for callers that only need the stable
+// numeric SeriesRef handles.
 func (s *timeSeriesStorage) ListSeriesRefsInto(filter observer.SeriesFilter, dst []observer.SeriesRef) []observer.SeriesRef {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

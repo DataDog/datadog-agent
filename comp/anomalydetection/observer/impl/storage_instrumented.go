@@ -146,17 +146,24 @@ func (s *instrumentedStorage) ListSeriesRefsInto(filter observerdef.SeriesFilter
 	s.readCount++
 	result := listSeriesRefs(s.inner, filter, dst)
 
-	// Hash refs in sorted order so instrumentation remains deterministic even
-	// if an underlying fallback ListSeries implementation iterates a map.
-	refs := append([]observerdef.SeriesRef(nil), result...)
-	sort.Slice(refs, func(i, j int) bool { return refs[i] < refs[j] })
+	// Hash stable series identities, not numeric refs. Refs are allocation-order
+	// handles, so identity hashing keeps live/replay digests independent of ref
+	// assignment while preserving the ref-only result returned to detectors.
+	metas := s.inner.ListSeries(filter)
+	perSeries := make([]uint64, len(metas))
+	for i, m := range metas {
+		ih := newCallHasher()
+		ih.mixSeriesIdentity(m.Namespace, m.Name, m.Tags)
+		perSeries[i] = ih.sum()
+	}
+	sort.Slice(perSeries, func(i, j int) bool { return perSeries[i] < perSeries[j] })
 
 	ch := newCallHasher()
 	ch.mixString("ListSeriesRefsInto")
 	ch.mixString(filter.Namespace)
-	ch.mixInt64(int64(len(refs)))
-	for _, ref := range refs {
-		ch.mixInt64(int64(ref))
+	ch.mixInt64(int64(len(perSeries)))
+	for _, h := range perSeries {
+		ch.mixUint64(h)
 	}
 	s.callHashes = append(s.callHashes, ch.sum())
 	return result
