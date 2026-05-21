@@ -606,6 +606,16 @@ func (s *baseStartStopSuite) SetupSuite() {
 		s.Require().NoError(err, "should set environment for %s", svc)
 	}
 
+	// Enable silent-process-exit dumps for the agent service binaries so SCM-kills
+	// (e.g. start/stop timeouts) produce a user-mode minidump of the hung process.
+	// WER LocalDumps only covers unhandled-exception crashes; this covers external
+	// TerminateProcess. Dumps land in the same folder as WER LocalDumps so the
+	// existing DownloadAllWERDumps collection path picks them up.
+	for _, binary := range s.getInstalledUserServiceBinaries() {
+		err := windowsCommon.EnableSilentProcessExitDump(host, binary, s.dumpFolder)
+		s.Require().NoError(err, "should enable silent process exit dump for %s", binary)
+	}
+
 	// Setup default expected services
 	s.runningUserServices = func() []string {
 		services := s.getInstalledUserServices()
@@ -950,6 +960,20 @@ func (s *baseStartStopSuite) getInstalledUserServices() []string {
 		"datadog-security-agent",
 		"datadog-system-probe",
 		"Datadog Installer",
+	}
+}
+
+// getInstalledUserServiceBinaries returns the basenames of the executables that
+// back the services in getInstalledUserServices. Used by silent-process-exit
+// monitoring, which matches images by basename rather than by service name.
+func (s *baseStartStopSuite) getInstalledUserServiceBinaries() []string {
+	return []string{
+		"agent.exe",
+		"trace-agent.exe",
+		"process-agent.exe",
+		"security-agent.exe",
+		"system-probe.exe",
+		"datadog-installer.exe",
 	}
 }
 

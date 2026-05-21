@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/cenkalti/backoff/v5"
@@ -17,9 +18,22 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
+// silentExitDumpFileRE matches dump filenames written by Windows SilentProcessExit
+// monitoring, of the form "<image>-(PID-<pid>).dmp" (e.g. "datadog-installer.exe-(PID-6932).dmp").
+// These live one directory level under LocalDumpFolder in a per-event subdirectory
+// named "<image>-(PID-<pid>)-<seq>".
+var silentExitDumpFileRE = regexp.MustCompile(`^(.+)-\(PID-(\d+)\)\.dmp$`)
+
 const (
 	// WERLocalDumpsRegistryKey is the registry key for Windows Error Reporting (WER) user-mode dumps
 	WERLocalDumpsRegistryKey = `HKLM:SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps`
+	// imageFileExecutionOptionsKey is the per-image IFEO key under which the
+	// FLG_MONITOR_SILENT_PROCESS_EXIT GlobalFlag bit (0x200) is set to arm
+	// silent-exit monitoring.
+	imageFileExecutionOptionsKey = `HKLM:SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options`
+	// silentProcessExitKey is the per-image key that holds the silent-exit
+	// dump configuration (LocalDumpFolder, ReportingMode, DumpType, IgnoreSelfExits).
+	silentProcessExitKey = `HKLM:SOFTWARE\Microsoft\Windows NT\CurrentVersion\SilentProcessExit`
 )
 
 // WERDumpFile represents a Windows Error Reporting (WER) dump file
@@ -65,6 +79,48 @@ func EnableWERGlobalDumps(host *components.RemoteHost, dumpFolder string) error 
 	return nil
 }
 
+// EnableSilentProcessExitDump configures WerFault to capture a user-mode dump of the
+// named image when it is terminated by another process (e.g. SCM killing a service
+// that did not respond to start/stop within its timeout). The dump is written to
+// dumpFolder using the same naming convention as WER LocalDumps (<image>.<pid>.dmp),
+// so existing collection/parsing code in this package can pick it up.
+//
+// IgnoreSelfExits is set so normal process exits (ExitProcess from inside the
+// process) do not produce dumps — only externally-initiated terminations.
+//
+// imageName must be the basename (e.g. "datadog-installer.exe"); matching is by
+// basename, not full path.
+//
+// https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/registry-entries-for-silent-process-exit
+func EnableSilentProcessExitDump(host *components.RemoteHost, imageName string, dumpFolder string) error {
+	imageOptions := fmt.Sprintf(`%s\%s`, imageFileExecutionOptionsKey, imageName)
+	silentExit := fmt.Sprintf(`%s\%s`, silentProcessExitKey, imageName)
+
+	// 0x200 == FLG_MONITOR_SILENT_PROCESS_EXIT. ReportingMode 2 == LocalDump.
+	// DumpType 2 == MiniDumpWithFullMemory (heap included; needed for Go runtime
+	// state when diagnosing early-startup hangs).
+	cmd := fmt.Sprintf(`
+		New-Item -Path '%s' -Force | Out-Null
+		Set-ItemProperty -Path '%s' -Name "GlobalFlag" -Value 0x200 -Type DWORD -Force
+		New-Item -Path '%s' -Force | Out-Null
+		Set-ItemProperty -Path '%s' -Name "ReportingMode" -Value 2 -Type DWORD -Force
+		Set-ItemProperty -Path '%s' -Name "LocalDumpFolder" -Value '%s' -Type ExpandString -Force
+		Set-ItemProperty -Path '%s' -Name "DumpType" -Value 2 -Type DWORD -Force
+		Set-ItemProperty -Path '%s' -Name "IgnoreSelfExits" -Value 1 -Type DWORD -Force
+	`,
+		imageOptions,
+		imageOptions,
+		silentExit,
+		silentExit,
+		silentExit, dumpFolder,
+		silentExit,
+		silentExit)
+	if _, err := host.Execute(cmd); err != nil {
+		return fmt.Errorf("error enabling silent process exit dump for %s: %w", imageName, err)
+	}
+	return nil
+}
+
 // GetWERGlobalDumpFolder returns the folder where Windows Error Reporting (WER) dumps are stored
 // as configured in the registry.
 func GetWERGlobalDumpFolder(host *components.RemoteHost) (string, error) {
@@ -75,11 +131,28 @@ func GetWERGlobalDumpFolder(host *components.RemoteHost) (string, error) {
 	return val, nil
 }
 
-// parseWERDumpFilePath parses a WER dump file name of the form <image name>.<pid>.dmp and returns
-// a WERDumpFile struct
+// parseWERDumpFilePath parses a dump file name and returns a WERDumpFile struct.
+// Two formats are recognized:
+//   - WER LocalDumps:        <image>.<pid>.dmp                 (e.g. agent.exe.1234.dmp)
+//   - SilentProcessExit:     <image>-(PID-<pid>).dmp           (e.g. datadog-installer.exe-(PID-6932).dmp)
+//
+// In both cases the returned ImageName omits the ".exe" suffix to match the
+// behavior expected by normalizeImageName / IsIgnoredCrashDump.
 func parseWERDumpFilePath(path string) WERDumpFile {
-	// Example: crash.exe.1234.dmp
 	filename := FileNameFromPath(path)
+
+	if m := silentExitDumpFileRE.FindStringSubmatch(filename); m != nil {
+		// SilentProcessExit format: "<image>.exe-(PID-<pid>).dmp"
+		imageName := strings.TrimSuffix(m[1], ".exe")
+		return WERDumpFile{
+			Path:      path,
+			FileName:  filename,
+			PID:       m[2],
+			ImageName: imageName,
+		}
+	}
+
+	// WER LocalDumps format: "<image>.<pid>.dmp" (e.g. crash.exe.1234.dmp)
 	parts := strings.Split(filename, ".")
 	i := len(parts) - 1
 	// file extension
@@ -98,7 +171,9 @@ func parseWERDumpFilePath(path string) WERDumpFile {
 	}
 }
 
-// ListWERDumps lists WER dumps in a folder on a remote host
+// ListWERDumps lists dump files in a folder on a remote host. It picks up both
+// WER LocalDumps written flat in the folder and SilentProcessExit dumps written
+// one directory level deeper in per-event subdirectories.
 func ListWERDumps(host *components.RemoteHost, dumpFolder string) ([]WERDumpFile, error) {
 	entries, err := host.ReadDir(dumpFolder)
 	if err != nil {
@@ -107,12 +182,22 @@ func ListWERDumps(host *components.RemoteHost, dumpFolder string) ([]WERDumpFile
 
 	var dumps []WERDumpFile
 	for _, entry := range entries {
+		entryPath := filepath.Join(dumpFolder, entry.Name())
 		if entry.IsDir() {
-			// skip directories, WER doesn't create directories in the dump folder
+			// SilentProcessExit writes "<image>-(PID-<pid>)-<seq>/<image>-(PID-<pid>).dmp"
+			subEntries, err := host.ReadDir(entryPath)
+			if err != nil {
+				return nil, fmt.Errorf("error reading dump subdir %s: %w", entryPath, err)
+			}
+			for _, sub := range subEntries {
+				if sub.IsDir() || !strings.HasSuffix(strings.ToLower(sub.Name()), ".dmp") {
+					continue
+				}
+				dumps = append(dumps, parseWERDumpFilePath(filepath.Join(entryPath, sub.Name())))
+			}
 			continue
 		}
-		dump := parseWERDumpFilePath(filepath.Join(dumpFolder, entry.Name()))
-		dumps = append(dumps, dump)
+		dumps = append(dumps, parseWERDumpFilePath(entryPath))
 	}
 
 	return dumps, nil
