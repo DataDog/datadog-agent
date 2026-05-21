@@ -45,7 +45,7 @@ namespace CustomActions.Tests.ConfigureUserCustomActions
         }
 
         [Fact]
-        public void ConfigureUserAccountRights_Skips_AddPrivilege_And_Logs_When_Flag_Set()
+        public void ConfigureUserAccountRights_Skips_SeDeny_Rights_But_Still_Grants_SeServiceLogonRight_When_Flag_Set()
         {
             Test.Session
                 .Setup(session => session[Datadog.CustomActions.ConfigureUserCustomActions.KeepRightsPropertyName])
@@ -53,18 +53,21 @@ namespace CustomActions.Tests.ConfigureUserCustomActions
 
             Test.Create().ConfigureUserAccountRights();
 
+            // SeServiceLogonRight must always be granted: the Agent service depends on it.
             Test.NativeMethods.Verify(
-                n => n.AddPrivilege(It.IsAny<SecurityIdentifier>(), It.IsAny<AccountRightsConstants>()),
-                Times.Never);
-
-            // The skip path must warn operators that the agent service still needs SeServiceLogonRight.
-            Test.Session.Verify(
-                s => s.Log(
-                    It.Is<string>(msg => msg.Contains("SeServiceLogonRight")),
-                    It.IsAny<string>(),
-                    It.IsAny<string>(),
-                    It.IsAny<int>()),
+                n => n.AddPrivilege(It.IsAny<SecurityIdentifier>(), AccountRightsConstants.SeServiceLogonRight),
                 Times.Once);
+
+            // The SeDeny* rights must NOT be re-applied when the operator opts out.
+            Test.NativeMethods.Verify(
+                n => n.AddPrivilege(It.IsAny<SecurityIdentifier>(), AccountRightsConstants.SeDenyInteractiveLogonRight),
+                Times.Never);
+            Test.NativeMethods.Verify(
+                n => n.AddPrivilege(It.IsAny<SecurityIdentifier>(), AccountRightsConstants.SeDenyNetworkLogonRight),
+                Times.Never);
+            Test.NativeMethods.Verify(
+                n => n.AddPrivilege(It.IsAny<SecurityIdentifier>(), AccountRightsConstants.SeDenyRemoteInteractiveLogonRight),
+                Times.Never);
         }
 
         [Fact]

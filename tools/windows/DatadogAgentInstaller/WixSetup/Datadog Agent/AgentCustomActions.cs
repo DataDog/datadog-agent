@@ -680,7 +680,8 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties("DDAGENTUSER_PROCESSED_DOMAIN=[DDAGENTUSER_PROCESSED_DOMAIN], " +
-                               "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME]");
+                               "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME], " +
+                               "DDAGENTUSER_KEEP_RIGHTS=[DDAGENTUSER_KEEP_RIGHTS]");
 
             DeleteInstallState = new CustomAction<CustomActions>(
                     new Id(nameof(DeleteInstallState)),

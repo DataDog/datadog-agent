@@ -412,6 +412,17 @@ func TestAgentUserVars(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "keep rights set",
+			envVars: map[string]string{
+				envAgentUserKeepRights: "1",
+			},
+			expected: &Env{
+				MsiParams: MsiParamsEnv{
+					AgentUserKeepRights: "1",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -422,6 +433,7 @@ func TestAgentUserVars(t *testing.T) {
 			}
 			result := FromEnv()
 			assert.Equal(t, tt.expected.MsiParams.AgentUserName, result.MsiParams.AgentUserName)
+			assert.Equal(t, tt.expected.MsiParams.AgentUserKeepRights, result.MsiParams.AgentUserKeepRights)
 		})
 	}
 }

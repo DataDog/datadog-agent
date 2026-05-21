@@ -84,6 +84,7 @@ const (
 	envAgentUserPasswordCompat  = "DDAGENTUSER_PASSWORD"
 	envProjectLocation          = "DD_PROJECTLOCATION"
 	envApplicationDataDirectory = "DD_APPLICATIONDATADIRECTORY"
+	envAgentUserKeepRights      = "DDAGENTUSER_KEEP_RIGHTS"
 )
 
 var defaultEnv = Env{
@@ -149,6 +150,9 @@ type MsiParamsEnv struct {
 	AgentUserPassword        string
 	ProjectLocation          string
 	ApplicationDataDirectory string
+	// AgentUserKeepRights opts the installer out of re-applying the ddagentuser
+	// SeDeny*LogonRight assignments. Accepts MSI-style truthy values (1/true/yes).
+	AgentUserKeepRights string
 }
 
 // InstallScriptEnv contains the environment variables for the install script.
@@ -306,6 +310,7 @@ func FromEnv() *Env {
 			AgentUserPassword:        getEnvOrDefault(envAgentUserPassword, os.Getenv(envAgentUserPasswordCompat)),
 			ProjectLocation:          getEnvOrDefault(envProjectLocation, ""),
 			ApplicationDataDirectory: getEnvOrDefault(envApplicationDataDirectory, ""),
+			AgentUserKeepRights:      os.Getenv(envAgentUserKeepRights),
 		},
 
 		InstallScript: InstallScriptEnv{
@@ -389,6 +394,7 @@ func (e *MsiParamsEnv) ToEnv(env []string) []string {
 	env = appendStringEnv(env, envAgentUserPassword, e.AgentUserPassword, "")
 	env = appendStringEnv(env, envProjectLocation, e.ProjectLocation, "")
 	env = appendStringEnv(env, envApplicationDataDirectory, e.ApplicationDataDirectory, "")
+	env = appendStringEnv(env, envAgentUserKeepRights, e.AgentUserKeepRights, "")
 	return env
 }
 

@@ -169,8 +169,9 @@ namespace WixSetup.Datadog_Agent
                     AttributesDefinition = "Secure=yes"
                 },
                 // When set to a truthy value (1/true/yes), the installer skips re-applying the
-                // ddagentuser account rights (SeServiceLogonRight and the SeDeny* logon rights).
-                // Lets customers preserve custom user-rights changes across upgrades.
+                // ddagentuser SeDeny*LogonRight assignments so customers can preserve custom
+                // user-rights changes across upgrades. SeServiceLogonRight is always granted
+                // because the Agent service cannot start without it.
                 new Property("DDAGENTUSER_KEEP_RIGHTS")
                 {
                     AttributesDefinition = "Secure=yes"
