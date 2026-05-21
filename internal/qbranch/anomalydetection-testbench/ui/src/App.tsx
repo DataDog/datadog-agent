@@ -5,7 +5,7 @@ import { CorrelatorView } from './components/CorrelatorView';
 import { LogView } from './components/LogView';
 import { ReportsView } from './components/ReportsView';
 import { BenchmarkView } from './components/BenchmarkView';
-import type { EpisodeInfo, ScoreResult } from './api/client';
+import type { EpisodeInfo } from './api/client';
 import type { PhaseMarker } from './components/ChartWithAnomalyDetails';
 
 type TabID = 'timeseries' | 'correlators' | 'logs' | 'reports' | 'benchmark';
@@ -126,7 +126,7 @@ function formatTime(isoString: string): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-function EpisodeInfoPanel({ info, score, onShowConfig }: { info: EpisodeInfo; score?: ScoreResult | null; onShowConfig?: () => void }) {
+function EpisodeInfoPanel({ info, onShowConfig }: { info: EpisodeInfo; onShowConfig?: () => void }) {
   const [expanded, setExpanded] = useState(false);
 
   const phases: { key: string; phase: typeof info.baseline }[] = [
@@ -172,9 +172,6 @@ function EpisodeInfoPanel({ info, score, onShowConfig }: { info: EpisodeInfo; sc
           </button>
         </div>
 
-        {/* Score — before phase badges */}
-        {score && <ScoreDisplay score={score} />}
-
         {/* Phase timeline */}
         {phases.length > 0 && (
           <div className="flex items-center gap-1 shrink-0">
@@ -206,31 +203,6 @@ function EpisodeInfoPanel({ info, score, onShowConfig }: { info: EpisodeInfo; sc
           {'{ }'}
         </button>
       )}
-    </div>
-  );
-}
-
-function f1Color(f1: number): string {
-  if (f1 >= 0.7) return 'text-green-400';
-  if (f1 >= 0.4) return 'text-yellow-400';
-  return 'text-red-400';
-}
-
-function ScoreDisplay({ score }: { score: ScoreResult }) {
-  return (
-    <div className="flex items-center gap-3 bg-slate-700/50 rounded px-3 py-1.5">
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs text-slate-400">F1</span>
-        <span className={`text-sm font-bold font-mono ${f1Color(score.f1)}`}>{score.f1.toFixed(3)}</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs text-slate-400">P</span>
-        <span className="text-sm font-mono text-slate-200">{score.precision.toFixed(3)}</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs text-slate-400">R</span>
-        <span className="text-sm font-mono text-slate-200">{score.recall.toFixed(3)}</span>
-      </div>
     </div>
   );
 }
@@ -659,7 +631,6 @@ function App() {
       {episodeInfo && (
         <EpisodeInfoPanel
           info={episodeInfo}
-          score={state.scoreResponse?.available ? state.scoreResponse.score : null}
           onShowConfig={state.components?.length ? () => setShowConfigModal(true) : undefined}
         />
       )}
