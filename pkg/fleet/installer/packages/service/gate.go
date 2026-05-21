@@ -12,7 +12,6 @@ import (
 	"strings"
 )
 
-// Global procmgr gate: DD_PROCMGR_ENABLED ↔ /etc/datadog-agent/.procmgr-enabled.
 const (
 	GlobalEnvVar     = "DD_PROCMGR_ENABLED"
 	GlobalMarkerPath = "/etc/datadog-agent/.procmgr-enabled"
@@ -22,7 +21,6 @@ func procmgrEnabled() bool {
 	return gateOpen(GlobalEnvVar, GlobalMarkerPath)
 }
 
-// EnvTruthy reports whether a procmgr gate env value should be interpreted as enabled.
 func EnvTruthy(v string) bool {
 	switch strings.ToLower(strings.TrimSpace(v)) {
 	case "1", "true", "t", "yes", "y", "on":

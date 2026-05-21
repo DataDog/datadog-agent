@@ -37,9 +37,7 @@ var systemdUnits embed.FS
 //go:embed tmpl/gen/oci-nocap/datadog-agent-ddot-exp.yaml
 var ddotProcessYAML embed.FS
 
-// GetDDOTProcessConfig returns the embedded DDOT extension process YAML bytes
-// for fleet OCI (stable vs experiment channel, with or without ambient caps).
-// YAML targets the DDOT extension layout (ext/ddot under the agent package).
+// GetDDOTProcessConfig returns embedded DDOT extension YAML for fleet OCI.
 func GetDDOTProcessConfig(unitType SystemdUnitType, stable bool, ambiantCapabilitiesSupported bool) ([]byte, error) {
 	if unitType != SystemdUnitTypeOCI {
 		return nil, fmt.Errorf("ddot extension procmgr yaml is OCI-only, got %s", unitType)

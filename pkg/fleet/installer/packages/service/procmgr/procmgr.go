@@ -5,8 +5,7 @@
 
 //go:build !windows
 
-// Package procmgr contains small helpers for interacting with dd-procmgrd from
-// the fleet installer (Linux only).
+// Package procmgr wraps fleet installer calls into dd-procmgrd (Linux).
 package procmgr
 
 import (

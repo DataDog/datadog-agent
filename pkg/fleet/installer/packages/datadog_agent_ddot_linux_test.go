@@ -31,25 +31,3 @@ func TestDdotExtensionProcmgrRemoveStable(t *testing.T) {
 		})
 	}
 }
-
-func TestShouldRemoveProcmgrDDOTMarkerOnExtensionRemove(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		name        string
-		packageType PackageType
-		packagePath string
-		want        bool
-	}{
-		{"oci_stable", PackageTypeOCI, "/opt/datadog-packages/datadog-agent/stable", true},
-		{"deb", PackageTypeDEB, "/opt/datadog-agent/1.2.3", true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := HookContext{PackageType: tc.packageType, PackagePath: tc.packagePath}
-			if got := shouldRemoveProcmgrDDOTMarkerOnExtensionRemove(ctx); got != tc.want {
-				t.Fatalf("shouldRemoveProcmgrDDOTMarkerOnExtensionRemove() = %v, want %v", got, tc.want)
-			}
-		})
-	}
-}

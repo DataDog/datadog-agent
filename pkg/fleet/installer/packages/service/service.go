@@ -22,7 +22,7 @@ const (
 	UpstartType Type = "upstart"
 	// SystemdType is returned when the service manager is systemd
 	SystemdType Type = "systemd"
-	// ProcmgrType is returned when the host is systemd and the global procmgr gate is open.
+	// ProcmgrType is systemd with the global procmgr gate open.
 	ProcmgrType Type = "procmgr"
 )
 
@@ -39,6 +39,11 @@ func GetServiceManagerType() Type {
 	}
 	cachedServiceManagerType = &serviceManagerType
 	return serviceManagerType
+}
+
+// IsSystemdHost is true when systemctl exists (no procmgr gate, not cached).
+func IsSystemdHost() bool {
+	return getServiceManagerType() == SystemdType
 }
 
 func getServiceManagerType() Type {

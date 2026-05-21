@@ -122,12 +122,10 @@ var (
 	agentConfigUninstallPaths = file.Paths{
 		"install_info",
 		"install.json",
-		// Basenames of service.GlobalMarkerPath / procmgr.DDOTMarkerPath
 		".procmgr-enabled",
-		".procmgr-ddot-enabled",
 	}
 
-	// agentService lists systemd/upstart/sysvinit units for the datadog-agent package (DEB, RPM, and OCI).
+	// agentServiceOCI are the services that are part of the agent package
 	agentService = datadogAgentService{
 		SystemdMainUnitStable: "datadog-agent.service",
 		SystemdMainUnitExp:    "datadog-agent-exp.service",
@@ -147,7 +145,6 @@ var (
 		"datadog-installer.service",
 	}
 
-	// legacyProcmgrUnitNames are pre-rename systemd units for dd-procmgrd (retired on upgrade).
 	legacyProcmgrUnitNames = []string{
 		"datadog-agent-procmgrd.service",
 		"datadog-agent-procmgrd-exp.service",
@@ -220,13 +217,9 @@ func installFilesystem(ctx HookContext) (err error) {
 	return nil
 }
 
-// retireLegacyProcmgrUnits stops, disables, and deletes pre-rename procmgr systemd units.
-// A host that upgraded from datadog-agent-procmgrd.service could otherwise run two dd-procmgrd
-// instances (socket and processes.d conflicts).
+// retireLegacyProcmgrUnits removes datadog-agent-procmgrd*.service units.
 func retireLegacyProcmgrUnits(ctx HookContext) error {
-	switch service.GetServiceManagerType() {
-	case service.SystemdType, service.ProcmgrType:
-	default:
+	if !service.IsSystemdHost() {
 		return nil
 	}
 	running, err := systemd.IsRunning()
@@ -316,24 +309,13 @@ func writeProcmgrMarker(ctx HookContext, path string) error {
 	return nil
 }
 
-// writeProcmgrGlobalMarkerIfSystemd creates /etc/datadog-agent/.procmgr-enabled
-// on systemd hosts so the global procmgr gate is on by default on every agent
-// install. If DD_PROCMGR_ENABLED is explicitly set false, remove/avoid the
-// marker so the opt-out persists for later hooks that may not inherit env.
-func writeProcmgrGlobalMarkerIfSystemd(ctx HookContext) error {
-	switch service.GetServiceManagerType() {
-	case service.SystemdType, service.ProcmgrType:
-	default:
-		return nil
-	}
+// writeProcmgrGlobalMarker creates .procmgr-enabled unless DD_PROCMGR_ENABLED opts out.
+func writeProcmgrGlobalMarker(ctx HookContext) error {
 	if raw, ok := os.LookupEnv(service.GlobalEnvVar); ok && !service.EnvTruthy(raw) {
 		_ = os.Remove(service.GlobalMarkerPath)
 		return nil
 	}
-	if err := writeProcmgrMarker(ctx, service.GlobalMarkerPath); err != nil {
-		return fmt.Errorf("write global procmgr marker: %w", err)
-	}
-	return nil
+	return writeProcmgrMarker(ctx, service.GlobalMarkerPath)
 }
 
 // postInstallDatadogAgent performs post-installation steps for the agent
@@ -341,7 +323,7 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := installFilesystem(ctx); err != nil {
 		return err
 	}
-	if err := writeProcmgrGlobalMarkerIfSystemd(ctx); err != nil {
+	if err := writeProcmgrGlobalMarker(ctx); err != nil {
 		return fmt.Errorf("failed to write global procmgr marker: %w", err)
 	}
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
@@ -719,10 +701,7 @@ func (s *datadogAgentService) RestartStable(ctx HookContext) error {
 	}
 }
 
-// scheduleSystemctlRestartNoBlock enqueues `systemctl restart <unit> --no-block` so
-// systemctl returns without waiting for the restart job to finish. Used when a
-// synchronous restart would stop the caller before it can finish its work (for
-// example promote-experiment handled by datadog-agent-installer-exp).
+// scheduleSystemctlRestartNoBlock runs systemctl restart --no-block.
 func scheduleSystemctlRestartNoBlock(ctx context.Context, unit string) error {
 	running, err := systemd.IsRunning()
 	if err != nil {
@@ -744,10 +723,7 @@ func scheduleSystemctlRestartNoBlock(ctx context.Context, unit string) error {
 	return err
 }
 
-// RestartStableDeferred schedules a restart of the stable main unit without waiting
-// for it to complete. On systemd (including ProcmgrType, which uses systemctl),
-// this uses systemctl --no-block so promote handlers can return before the experiment
-// installer unit is torn down.
+// RestartStableDeferred restarts stable via systemctl --no-block (promote path).
 func (s *datadogAgentService) RestartStableDeferred(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err

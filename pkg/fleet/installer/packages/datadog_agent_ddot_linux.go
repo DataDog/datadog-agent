@@ -34,7 +34,6 @@ const (
 	otelConfigPath        = "/etc/datadog-agent/otel-config.yaml"
 	otelConfigExamplePath = "/etc/datadog-agent/otel-config.yaml.example"
 
-	// ddotProcmgrYAMLName is the processes.d config basename (same file in stable and experiment trees).
 	ddotProcmgrYAMLName = "datadog-agent-ddot.yaml"
 )
 
@@ -60,9 +59,7 @@ var (
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
 	}
 
-	// agentDDOTService are the legacy systemd services for the standalone
-	// datadog-agent-ddot package. Extension DDOT is owned by dd-procmgr when
-	// gated; these units remain for standalone package install and rollback.
+	// agentDDOTService are the services that are part of the DDOT package
 	agentDDOTService = datadogAgentService{
 		SystemdMainUnitStable: "datadog-agent-ddot.service",
 		SystemdMainUnitExp:    "datadog-agent-ddot-exp.service",
@@ -237,11 +234,6 @@ func writeOTelConfig(ctx HookContext) error {
 /// DDOT EXTENSION METHODS ///
 //////////////////////////////
 
-// processes.d and marker files: GetServiceManagerType == ProcmgrType requires the
-// global gate (DD_PROCMGR_ENABLED or .procmgr-enabled); writing DDOT YAML also
-// requires the DDOT gate (procmgr.DDOTManaged / .procmgr-ddot-enabled).
-// Otherwise the ddot systemd unit owns DDOT (ConditionPathExists=! when YAML is absent).
-
 func ddotProcmgrProcessesDir(ctx HookContext, stable bool) string {
 	if ctx.PackageType == PackageTypeOCI {
 		ver := "stable"
@@ -253,11 +245,7 @@ func ddotProcmgrProcessesDir(ctx HookContext, stable bool) string {
 	return filepath.Join("/opt/datadog-agent", "processes.d")
 }
 
-// ociAgentStableAndExperimentProcessesDirsEquivalent reports whether the fleet
-// OCI stable and experiment trees use the same processes.d directory on disk.
-// After repository.PromoteExperiment both symlinks often target the same version
-// directory, so cleaning "experiment/processes.d" would remove the DDOT YAML
-// just written under "stable/processes.d".
+// ociAgentStableAndExperimentProcessesDirsEquivalent is true when stable and experiment processes.d resolve to the same path.
 func ociAgentStableAndExperimentProcessesDirsEquivalent() (bool, error) {
 	stableDir := filepath.Join(paths.PackagesPath, "datadog-agent", "stable", "processes.d")
 	expDir := filepath.Join(paths.PackagesPath, "datadog-agent", "experiment", "processes.d")
@@ -294,14 +282,15 @@ func ddotEmbeddedUnitType(ctx HookContext) embedded.SystemdUnitType {
 	return embedded.SystemdUnitTypeDebRpm
 }
 
-func procmgrOwnsDDOT(ctx HookContext, stable bool) bool {
-	return service.GetServiceManagerType() == service.ProcmgrType &&
-		procmgr.DDOTManaged() &&
-		procmgrBinaryExists(ctx, stable)
+func procmgrUsable(ctx HookContext, stable bool) bool {
+	return service.GetServiceManagerType() == service.ProcmgrType && procmgrBinaryExists(ctx, stable)
 }
 
-// applyDDOTProcmgrProcessesYAML updates processes.d for DDOT only (no systemd
-// restart). Removes the YAML when procmgr does not own DDOT; otherwise writes it.
+func procmgrOwnsDDOT(ctx HookContext, stable bool) bool {
+	return procmgrUsable(ctx, stable) && ddotExtensionInstalled(ctx.PackagePath)
+}
+
+// applyDDOTProcmgrProcessesYAML writes or removes DDOT YAML in processes.d (no unit restart).
 func applyDDOTProcmgrProcessesYAML(ctx HookContext, stable bool) (ownsDDOT bool, err error) {
 	switch service.GetServiceManagerType() {
 	case service.SystemdType, service.ProcmgrType:
@@ -329,15 +318,14 @@ func applyDDOTProcmgrProcessesYAML(ctx HookContext, stable bool) (ownsDDOT bool,
 	return true, nil
 }
 
-// syncDDOTProcmgrState applies DDOT processes.d YAML then restarts the matching
-// dd-procmgrd unit so the daemon reloads configuration.
+// syncDDOTProcmgrState updates DDOT processes.d and restarts dd-procmgrd.
 func syncDDOTProcmgrState(ctx HookContext, stable bool) (bool, error) {
 	ownsDDOT, err := applyDDOTProcmgrProcessesYAML(ctx, stable)
 	if err != nil {
 		return false, err
 	}
 	if !ownsDDOT {
-		if procmgrBinaryExists(ctx, stable) {
+		if procmgrUsable(ctx, stable) {
 			if err := procmgr.RestartDaemon(ctx, !stable); err != nil {
 				log.Warnf("failed to restart dd-procmgrd after dropping DDOT config: %v", err)
 			}
@@ -355,41 +343,13 @@ func syncDDOTProcmgrStop(ctx HookContext, stable bool) error {
 	}
 	dir := ddotProcmgrProcessesDir(ctx, stable)
 	procmgr.RemoveConfig(dir, ddotProcmgrYAMLName)
-	if !procmgrBinaryExists(ctx, stable) {
+	if !procmgrUsable(ctx, stable) {
 		return nil
 	}
 	return procmgr.RestartDaemon(ctx, !stable)
 }
 
-// writeProcmgrDDOTEnabledMarkerIfSystemd writes the global and DDOT procmgr
-// marker files on systemd hosts (same env-or-marker semantics as service gates).
-func writeProcmgrDDOTEnabledMarkerIfSystemd(ctx HookContext) error {
-	if err := writeProcmgrGlobalMarkerIfSystemd(ctx); err != nil {
-		return err
-	}
-	switch service.GetServiceManagerType() {
-	case service.SystemdType, service.ProcmgrType:
-	default:
-		return nil
-	}
-	if raw, ok := os.LookupEnv(procmgr.DDOTEnvVar); ok && !procmgr.EnvTruthy(raw) {
-		_ = os.Remove(procmgr.DDOTMarkerPath)
-		return nil
-	}
-	if err := writeProcmgrMarker(ctx, procmgr.DDOTMarkerPath); err != nil {
-		return fmt.Errorf("write ddot procmgr marker: %w", err)
-	}
-	return nil
-}
-
-func removeProcmgrDDOTMarker() {
-	_ = os.Remove(procmgr.DDOTMarkerPath)
-}
-
-// syncDDOTProcmgrAfterAgentPromotion refreshes stable DDOT YAML in processes.d
-// after OCI promote (YAML only—stable agent may still be down). If stable and
-// experiment package paths differ, also removes experiment DDOT YAML and restarts
-// experiment procmgr; skipped when both paths are the same directory.
+// syncDDOTProcmgrAfterAgentPromotion refreshes DDOT processes.d after OCI promote.
 func syncDDOTProcmgrAfterAgentPromotion(ctx HookContext) error {
 	if ctx.PackageType != PackageTypeOCI {
 		return nil
@@ -421,13 +381,12 @@ func syncDDOTProcmgrAfterAgentPromotion(ctx HookContext) error {
 	return syncDDOTProcmgrStop(expCtx, false)
 }
 
-// syncDDOTProcmgrAfterExtension writes processes.d DDOT config after the DDOT
-// extension is installed on fleet OCI agent packages.
+// syncDDOTProcmgrAfterExtension syncs DDOT processes.d after OCI extension install.
 func syncDDOTProcmgrAfterExtension(ctx HookContext) error {
 	if ctx.PackageType != PackageTypeOCI {
 		return nil
 	}
-	if err := writeProcmgrDDOTEnabledMarkerIfSystemd(ctx); err != nil {
+	if err := writeProcmgrGlobalMarker(ctx); err != nil {
 		return err
 	}
 	stable := filepath.Base(ctx.PackagePath) != "experiment"
@@ -435,15 +394,11 @@ func syncDDOTProcmgrAfterExtension(ctx HookContext) error {
 	return err
 }
 
-// ddotExtensionInstalled reports whether the DDOT extension tree is present under
-// the given agent package path (stable or experiment OCI tree, or deb/rpm root).
 func ddotExtensionInstalled(agentPackagePath string) bool {
 	_, err := os.Stat(filepath.Join(agentPackagePath, "ext", "ddot"))
 	return err == nil
 }
 
-// ddotExtensionProcmgrRemoveStable returns which procmgr channel (stable vs
-// experiment) is being removed for extension pre-remove hooks.
 func ddotExtensionProcmgrRemoveStable(ctx HookContext) bool {
 	if ctx.PackageType == PackageTypeOCI {
 		return filepath.Base(ctx.PackagePath) != "experiment"
@@ -451,10 +406,7 @@ func ddotExtensionProcmgrRemoveStable(ctx HookContext) bool {
 	return true
 }
 
-// removeDDOTExtensionProcmgrYAML drops DDOT process definitions from processes.d
-// for the agent channel whose extension is being removed. When an OCI experiment
-// extension is removed but stable still has the extension and both channels share
-// the same processes.d directory, re-sync stable instead of deleting shared YAML.
+// removeDDOTExtensionProcmgrYAML removes or re-syncs DDOT processes.d on extension remove.
 func removeDDOTExtensionProcmgrYAML(ctx HookContext) {
 	switch service.GetServiceManagerType() {
 	case service.SystemdType, service.ProcmgrType:
@@ -527,7 +479,6 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
-	// Sync processes.d / procmgr markers and restart dd-procmgrd when gates allow.
 	if err := syncDDOTProcmgrAfterExtension(ctx); err != nil {
 		return fmt.Errorf("failed to sync ddot process manager config: %w", err)
 	}
@@ -547,23 +498,8 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	}
 
 	removeDDOTExtensionProcmgrYAML(ctx)
-	if shouldRemoveProcmgrDDOTMarkerOnExtensionRemove(ctx) {
-		removeProcmgrDDOTMarker()
-	}
 
 	return nil
-}
-
-// shouldRemoveProcmgrDDOTMarkerOnExtensionRemove reports whether the DDOT procmgr
-// marker should be cleared on extension pre-remove. Experiment-only removal while
-// stable still has the extension must keep the marker so stable procmgr ownership
-// stays active.
-func shouldRemoveProcmgrDDOTMarkerOnExtensionRemove(ctx HookContext) bool {
-	if ctx.PackageType == PackageTypeOCI && !ddotExtensionProcmgrRemoveStable(ctx) {
-		stableOCI := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
-		return !ddotExtensionInstalled(stableOCI)
-	}
-	return true
 }
 
 // copyFile copies a file from src to dst with the specified permissions

@@ -2,10 +2,7 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "procmgr",
-    srcs = [
-        "gate.go",
-        "procmgr.go",
-    ],
+    srcs = ["procmgr.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/procmgr",
     visibility = ["//visibility:public"],
     deps = select({
