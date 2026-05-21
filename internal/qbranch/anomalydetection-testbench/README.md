@@ -321,6 +321,23 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 |-------|---------|-------------|
 | `window_seconds` | 30 | Time window for clustering anomalies |
 
+## Architecture
+
+### Replay pipeline
+
+The testbench feeds historical data through the observer engine in two phases:
+
+1. **Pre-load** — parquet rows are ingested via `IngestLogNoAdvance` / `IngestMetricSync`. The engine accumulates extractor state and writes time-series points, but no detector or correlator advances are triggered.
+2. **Replay** — `ReplayStoredData` walks through the in-memory storage in chronological order and drives the full detector→correlator pipeline tick by tick, as if data were arriving live.
+
+Because all points are pre-loaded before replay starts, the engine storage is configured with **no point-retention window** (`PointRetentionSecs = 0`). This is intentional and testbench-specific: the production observer uses a bounded retention window (120 s by default). The unbounded config is constructed in `bench.go` and passed explicitly to `DebugView.Reset` — the shared engine code never hard-codes it.
+
+### Reporter and UI updates
+
+The testbench wires `impl-testbench.TestbenchReporter` instead of the production reporter. On each `Report` call it broadcasts a lightweight SSE `advance` event to all connected browser clients, carrying the new timestamp and anomaly counts. The UI listens on `/api/events` (Server-Sent Events) and re-fetches the relevant state endpoints on each event.
+
+The `SSEAccess` interface exposed by the reporter is consumed by the HTTP API layer to register and deregister browser connections.
+
 ## Scenario Directory Structure
 
 Each scenario is a subdirectory within `--scenarios-dir`. An optional `episode.json` provides ground truth for scoring.
