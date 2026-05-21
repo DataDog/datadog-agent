@@ -41,8 +41,8 @@ import (
 	workloadselectionfx "github.com/DataDog/datadog-agent/comp/workloadselection/fx"
 
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
-	remotequeriesfx "github.com/DataDog/datadog-agent/comp/dataobs/remotequeries/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	remotequeriesfx "github.com/DataDog/datadog-agent/comp/remotequeries/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	snmpscanmanagerfx "github.com/DataDog/datadog-agent/comp/snmpscanmanager/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
