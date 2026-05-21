@@ -2791,6 +2791,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.probe.Opts.SyscallsMonitorEnabled),
 		},
 		manager.ConstantEditor{
+			Name:  "capture_all_errors_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.CaptureAllSyscallErrorsEnabled),
+		},
+		manager.ConstantEditor{
 			Name:  "imds_ip",
 			Value: uint64(p.config.RuntimeSecurity.IMDSIPv4),
 		},
