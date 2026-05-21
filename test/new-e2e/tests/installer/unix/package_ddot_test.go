@@ -199,7 +199,8 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	s.host.Run("sudo datadog-agent otel install --url " + agentPackageURL)
 
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
-	procmgrtest.WaitForDDOTRunning(s.T(), s, procmgrtest.DDOTOtelAgentExtensionBinary)
+	// Install-script host: extension runs from fleet stable after otel install (same as other ddot install_script tests).
+	procmgrtest.WaitForDDOTRunning(s.T(), s, procmgrtest.DDOTOtelAgentFleetStableExtensionBinary)
 
 	state := s.host.State()
 	s.assertCoreUnits(state, true)
