@@ -86,7 +86,10 @@
   .takeaways li { margin: .45rem 0; }
   .score td:first-child { font-weight: 700; }
   .term-table td:first-child { font-weight: 800; width: 18%; }
+  .scope { color: var(--muted); font-size: 0.86rem; font-weight: 700; margin: .3rem 0 .65rem; }
   .stage-tag { color: var(--muted); font-weight: 650; font-size: 0.9em; }
+  details.inventory { border: 1px solid var(--border); border-radius: 16px; background: #fff; padding: .75rem 1rem; margin: 1rem 0 2rem; }
+  details.inventory summary { cursor: pointer; font-weight: 800; color: #111827; }
   .status-high { color: var(--green); font-weight: 800; }
   .status-medium { color: var(--amber); font-weight: 800; }
   .status-open { color: #64748b; font-weight: 800; }
@@ -102,17 +105,19 @@
 
 <nav class="nav" aria-label="Report navigation">
   <a href="#context">Context</a>
+  <a href="#primer">30-second primer</a>
   <a href="#executive-summary">Executive summary</a>
   <a href="#motivation">Motivation</a>
   <a href="#plain-english">Plain-English guide</a>
   <a href="#vision">Architecture vision</a>
+  <a href="#before-after">Before / after</a>
   <a href="#experimental-design">Experiment design</a>
   <a href="#timeline">Narrative arc</a>
   <a href="#highlights">Highlights</a>
   <a href="#feature-goals">Feature goals</a>
   <a href="#memory">Memory read</a>
   <a href="#next-questions">Next questions</a>
-  <a href="#appendix-images">Appendix</a>
+  <a href="#appendix-stage-results">Detailed tables</a>
 </nav>
 
 <section id="context">
@@ -124,6 +129,33 @@
   </div>
 </section>
 
+<section id="primer">
+  <h2>30-second primer: what changes in the hot path?</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h3>Today: each line becomes fresh objects</h3>
+      <p>A common DogStatsD metric line might look like:</p>
+      <p><code>requests.count:1|c|#env:prod,service:web,region:us1</code></p>
+      <p>The normal path parses that into strings, tag slices, host/origin state, a sample object, shard/context keys, aggregate state, and finally payload rows. That is correct and general, but repeated traffic rebuilds a lot of the same description.</p>
+    </div>
+    <div class="card">
+      <h3>Experiment: keep the description, stream the value</h3>
+      <p>When the metric name and tag list repeat, we can remember the parsed description and pass a small reference through the pipeline. The hot path then mostly handles the changing parts: value, sample rate, timestamp/window, and aggregate update.</p>
+      <p>Compatibility still comes from fallback: unusual metric types, origin/enrichment cases, timestamps, events, service checks, and unknown tagsets continue through the general path unless explicitly tested.</p>
+    </div>
+  </div>
+  <table class="term-table">
+    <tr><th>Experiment word</th><th>Quick meaning for this report</th></tr>
+    <tr><td>SMP</td><td>The local performance comparison harness used here: run a baseline Agent image and a comparison image under generated load, collect metrics, and report deltas.</td></tr>
+    <tr><td>Fixed-rate</td><td>The generator sends at a configured rate. If the Agent gets cheaper, throughput may stay flat while CPU falls. Saturation tests are needed to measure max sustainable ingress.</td></tr>
+    <tr><td>Saturated / backpressured</td><td>The Agent or socket path cannot keep up, so queues grow, clients block, packets drop, or measured lag increases.</td></tr>
+    <tr><td>UDS</td><td>Unix datagram socket DogStatsD input. Most strong results here are for UDS; UDP/origin/Windows/stream cases still need broader validation.</td></tr>
+    <tr><td>v3</td><td>The metrics v3 API/payload path, which already uses dictionary and column ideas. DogStatsD payloads are still built after aggregation.</td></tr>
+    <tr><td>Δ / CI</td><td>Comparison versus baseline and the confidence interval from SMP. Appendix tables keep the exact stage-by-stage numbers.</td></tr>
+  </table>
+</section>
+
+
 <section id="executive-summary">
   <h2>Executive summary</h2>
   <div class="cards">
@@ -131,24 +163,28 @@
       <span class="pill green">Validated direction</span>
       <h3>Stop rebuilding the same metric description</h3>
       <div class="metric">-14% <span>agent CPU</span></div>
-      <p>In today's general path, every DogStatsD line is parsed into names, tag strings, tag slices, and a <code>MetricSample</code>-like object even when it is the same metric and tags as the previous line. The latest fast path recognizes repeated simple metrics and sends just the changing value plus a small descriptor reference. Fixed-rate throughput stayed neutral, but Agent CPU dropped about 14% on high-rate metrics-only runs.</p>
+      <div class="scope">Scope: local Linux/arm64, UDS, metrics-only fixed-rate runs with repeated tag lists.</div>
+      <p>In today's general path, every DogStatsD line is parsed into names, tag strings, tag slices, and a <code>MetricSample</code>-like object even when it is the same metric and tags as the previous line. The latest fast path recognizes repeated simple metrics and sends just the changing value plus a small descriptor reference.</p>
     </div>
     <div class="card">
-      <span class="pill green">High-rate win</span>
+      <span class="pill green">High-rate repeated-tags win</span>
       <h3>Remember repeated tag lists</h3>
       <div class="metric">+28.4% <span>throughput</span></div>
-      <p>DogStatsD traffic often repeats the same comma-separated tag list many times. Caching the parsed form of those repeated tag lists produced a large high-rate win versus main. This remains gated until adversarial/mostly-unique traffic is tested.</p>
+      <div class="scope">Scope: high-rate UDS metrics-only workload versus main; not a mostly-unique tag workload.</div>
+      <p>DogStatsD traffic often repeats the same comma-separated tag list many times. Caching the parsed form of those repeated tag lists produced a large win in that workload. This remains gated until adversarial/mostly-unique traffic is tested.</p>
     </div>
     <div class="card">
-      <span class="pill green">Bounded ingress</span>
+      <span class="pill green">UDS bounded-ingress win</span>
       <h3>Bound the queue by bytes, not hope</h3>
       <div class="metric">+7.4% <span>high-rate</span></div>
+      <div class="scope">Scope: UDS datagram high-rate case; UDP, stream sockets, and origin metadata need more work.</div>
       <p>The Agent has to absorb bursts between socket readers and parser workers. A compact byte-budgeted UDS ring plus batched parser drains was the best bounded-ingress design tested, replacing large hidden packet-channel backlog with explicit backpressure.</p>
     </div>
     <div class="card">
       <span class="pill amber">Mixed result</span>
       <h3>Memory is predictable, not lower yet</h3>
       <div class="metric">+11 MiB <span>live heap</span></div>
+      <div class="scope">Scope: Stage S late heap profile; RSS deltas were sometimes larger.</div>
       <p>Heap profiles showed the mature design was only about +11 MiB live heap versus main, and the raw ring used less explicit ingress-reservoir heap than the packet pool. RSS was still higher in some runs because the prototype retains dictionaries/caches; this needs byte budgets before any default-on claim.</p>
     </div>
   </div>
@@ -156,6 +192,21 @@
   <div class="verdict good">
     <strong>How we feel about the experiment:</strong> it moved from a sketch to a validated direction. We found real macro wins, falsified several attractive shortcuts, and learned that small IDs for repeated metric descriptions only pay off when they let us avoid building the old object-heavy representation in the first place. We do not yet know the final throughput ceiling because the latest CPU-winning runs are fixed-rate and not saturated.
   </div>
+
+  <div class="verdict warn">
+    <strong>Claim boundaries:</strong> the strongest numbers are local SMP results on optimized Linux/arm64 images, mostly UDS datagram traffic, often metrics-only and repeated-tag workloads. Most new paths are behind explicit experimental gates. Treat the results as evidence for architecture direction and headroom, not as a ready-to-enable production claim across UDP, origin detection, Windows/named pipes, all metric types, events, service checks, or mostly-unique tagsets.
+  </div>
+
+  <h3>Current candidate stack</h3>
+  <table>
+    <tr><th>Piece</th><th>What it contributes</th><th>Status</th></tr>
+    <tr><td>Byte-bounded UDS input ring + batched drains</td><td>Replaces hidden packet-channel backlog with explicit byte budget, lag telemetry, and UDS backpressure.</td><td>Best bounded-ingress design tested; UDS-only experimental path.</td></tr>
+    <tr><td>Native columnar-v3 / direct-series payload bridge</td><td>Reduces translation between DogStatsD aggregation output and serializer payload rows.</td><td>Promising, gated; v3 and v2 bridge tested locally.</td></tr>
+    <tr><td>Repeated tag-list cache</td><td>Parses common tag lists once and reuses the parsed representation.</td><td>Large repeated-tag win; opt-in pending adversarial/mostly-unique validation.</td></tr>
+    <tr><td>Compact identity hints</td><td>Carries small IDs for repeated metric descriptions through DogStatsD and columnar consumers.</td><td>Safe plumbing; macro-neutral until used before object construction.</td></tr>
+    <tr><td>Repeated-metric fast path</td><td>For common simple metrics, sends value + descriptor reference instead of rebuilding full sample objects.</td><td>~8–14% Agent CPU win in fixed-rate Stage W runs; opt-in and narrow.</td></tr>
+    <tr><td>Bounded debug/lookback/replay views</td><td>Makes new observability features views over shared data rather than parallel mini-pipelines.</td><td>Good data-structure proof; combined feature-cost SMP still pending.</td></tr>
+  </table>
 </section>
 
 <section id="motivation">
@@ -262,6 +313,45 @@
   </div>
   <p class="caption">The important idea is not “columnar everything.” It is “make every expensive conversion explicit and reusable.” Raw capture/replay should consume raw envelopes; aggregation/debug/lookback should consume parsed metric facts and descriptors. DogStatsD v3 payloads are built after aggregation, ideally reusing the same descriptor/dictionary work instead of rebuilding it.</p>
 </section>
+
+<section id="before-after">
+  <h2>Before / after snapshots</h2>
+  <div class="grid-2">
+    <div class="diagram" role="img" aria-label="Duplicate work today versus shared descriptor path">
+      <svg viewBox="0 0 560 300" xmlns="http://www.w3.org/2000/svg">
+        <defs><marker id="miniArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#64748b"/></marker></defs>
+        <rect width="560" height="300" rx="18" fill="#fff"/>
+        <text x="30" y="38" font-size="20" font-weight="800" fill="#0f172a">Duplicate work today</text>
+        <rect x="30" y="70" width="140" height="58" rx="12" fill="#eff6ff" stroke="#bfdbfe"/><text x="100" y="103" text-anchor="middle" font-size="13" font-weight="700">parse line</text>
+        <rect x="210" y="55" width="130" height="48" rx="12" fill="#f8fafc" stroke="#cbd5e1"/><text x="275" y="84" text-anchor="middle" font-size="12">aggregation key</text>
+        <rect x="210" y="125" width="130" height="48" rx="12" fill="#f8fafc" stroke="#cbd5e1"/><text x="275" y="154" text-anchor="middle" font-size="12">debug key</text>
+        <rect x="380" y="55" width="135" height="48" rx="12" fill="#f8fafc" stroke="#cbd5e1"/><text x="447" y="84" text-anchor="middle" font-size="12">payload dicts</text>
+        <rect x="380" y="125" width="135" height="48" rx="12" fill="#f8fafc" stroke="#cbd5e1"/><text x="447" y="154" text-anchor="middle" font-size="12">lookback store</text>
+        <path d="M170 99 L205 80" stroke="#64748b" stroke-width="2" marker-end="url(#miniArrow)"/><path d="M170 99 L205 145" stroke="#64748b" stroke-width="2" marker-end="url(#miniArrow)"/><path d="M340 79 L375 79" stroke="#64748b" stroke-width="2" marker-end="url(#miniArrow)"/><path d="M340 149 L375 149" stroke="#64748b" stroke-width="2" marker-end="url(#miniArrow)"/>
+        <text x="30" y="230" font-size="14" fill="#475569">Each feature re-derives names/tags/context in its own shape.</text>
+      </svg>
+    </div>
+    <div class="diagram" role="img" aria-label="Shared descriptor path">
+      <svg viewBox="0 0 560 300" xmlns="http://www.w3.org/2000/svg">
+        <defs><marker id="miniArrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#64748b"/></marker></defs>
+        <rect width="560" height="300" rx="18" fill="#fff"/>
+        <text x="30" y="38" font-size="20" font-weight="800" fill="#0f172a">Shared descriptor path</text>
+        <rect x="30" y="82" width="140" height="58" rx="12" fill="#eff6ff" stroke="#bfdbfe"/><text x="100" y="116" text-anchor="middle" font-size="13" font-weight="700">parse once</text>
+        <rect x="215" y="70" width="150" height="82" rx="14" fill="#ecfdf5" stroke="#bbf7d0"/><text x="290" y="103" text-anchor="middle" font-size="13" font-weight="800">descriptor ref</text><text x="290" y="127" text-anchor="middle" font-size="12" fill="#475569">name + tags + host</text>
+        <rect x="410" y="42" width="110" height="38" rx="10" fill="#f8fafc" stroke="#cbd5e1"/><text x="465" y="66" text-anchor="middle" font-size="12">aggregate</text>
+        <rect x="410" y="92" width="110" height="38" rx="10" fill="#f8fafc" stroke="#cbd5e1"/><text x="465" y="116" text-anchor="middle" font-size="12">debug</text>
+        <rect x="410" y="142" width="110" height="38" rx="10" fill="#f8fafc" stroke="#cbd5e1"/><text x="465" y="166" text-anchor="middle" font-size="12">lookback</text>
+        <rect x="410" y="192" width="110" height="38" rx="10" fill="#f8fafc" stroke="#cbd5e1"/><text x="465" y="216" text-anchor="middle" font-size="12">payload</text>
+        <path d="M170 111 L210 111" stroke="#64748b" stroke-width="2" marker-end="url(#miniArrow2)"/><path d="M365 111 L405 61" stroke="#64748b" stroke-width="2" marker-end="url(#miniArrow2)"/><path d="M365 111 L405 111" stroke="#64748b" stroke-width="2" marker-end="url(#miniArrow2)"/><path d="M365 111 L405 161" stroke="#64748b" stroke-width="2" marker-end="url(#miniArrow2)"/><path d="M365 111 L405 211" stroke="#64748b" stroke-width="2" marker-end="url(#miniArrow2)"/>
+        <text x="30" y="260" font-size="14" fill="#475569">Features share one description; the hot path streams values.</text>
+      </svg>
+    </div>
+  </div>
+  <div class="callout neutral">
+    <strong>Input queue before/after:</strong> the same idea applies at the socket boundary. Instead of relying on a large packet channel whose retained bytes are hard to reason about, the raw UDS ring gives the Agent a byte budget, oldest-age/lag telemetry, and explicit UDS backpressure when the parser falls behind.
+  </div>
+</section>
+
 
 <section id="experimental-design">
   <h2>Experimental design</h2>
@@ -406,37 +496,10 @@
   <strong>Current verdict:</strong> the architecture is promising and increasingly real. We have decisive evidence that remembering repeated tag lists and skipping repeated object construction can move macro CPU/throughput, and that bounded ingress gives better overload honesty. We should still treat the work as experimental until saturation, memory, feature-cost, and compatibility matrices are complete.
 </div>
 
-<h2 id="appendix-images">Appendix: images</h2>
-<ul>
-  <li><code>datadog/agent-dev:smp-dsd-main</code> — main baseline, commit <code>3ec880f14a3</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-foundation</code> — foundation, commit <code>53f7e8fdc3d</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-experiment</code> — Stage B instrumentation, commit <code>538ae360d89</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-shadow</code> — Stage C shadow segments, commit <code>911b22716ca</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-direct-row</code> — Stage D direct-row shadow, commit <code>e3f2f987056</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-direct-active</code> — Stage E direct active serializer, commit <code>9498d5fee95</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-direct-rows</code> — Stage F direct series rows, commit <code>c7327ad816c</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-direct-metric-rows</code> — Stage G direct metric rows, commit <code>638b79c3bba</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-direct-context-rows</code> — Stage H unordered direct context rows, commit <code>c989043ddcc</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-bucket-cache</code> — Stage I latest columnar v3 vertical slice, commit <code>e68c3c36110</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-shard-only</code> — Stage J shard-only identity fix, commit <code>dfdb011f0d7</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-skip-legacy</code> — Stage J skip legacy flush probe, commit <code>4a5bbb1fbce</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-ingress-log</code> — Stage L ingress-log code, env off, commit <code>eae5cb364ee</code> plus follow-up <code>7630c423017</code> (SMP image predates follow-up)</li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-ingress-log-enabled</code> — Stage L ingress-log enabled, commit <code>eae5cb364ee</code> plus follow-up <code>7630c423017</code> (SMP image predates follow-up)</li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-sharded-log</code> — Stage M sharded ingress log, commit <code>53a887497f6</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-raw-uds-ring</code> — Stage M raw UDS ring, commit <code>53a887497f6</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-compact-raw-uds-ring</code> — Stage N compact raw UDS ring, commit <code>4b2c4b6b7e6</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-compact-raw-uds-ring-batch-drain</code> — Stage O batched compact raw UDS ring drains, commit <code>dc29e8fff7c</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-direct-compact-raw-uds-ring</code> — Stage P direct compact raw UDS ring, commit <code>83d06509167</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-native-columnar-v3</code> — Stage Q native columnar-v3 serializer, commit <code>947dc3f2ec3</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-raw-lag-telemetry</code> — raw-ring lag telemetry, commit <code>b99255eb31e</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-memory-hygiene-reuse</code> — Stage R memory hygiene, commit <code>ab6db258799</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-parser-interning</code> / <code>...-tagset</code> — Stage T parser interning, commit <code>d78e87470fd</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints</code> / <code>...-enabled</code> — Stage U compact identity hints, commit <code>9376b73a9c1</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-compact-consumers</code> / <code>...-baseline</code> / <code>...-enabled</code> — Stage V compact-ID consumers, local worktree after <code>73080eecc9f</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-fastlane</code> / <code>...-baseline</code> / <code>...-enabled</code> — Stage W skip repeated object construction, commit <code>658b3c805cb</code></li>
-</ul>
-
 <h2 id="appendix-stage-results">Appendix: detailed stage result tables</h2>
+<div class="callout neutral">
+  <strong>How to read these tables:</strong> each row compares a baseline image to a comparison image for one SMP case. <code>Δ mean</code> is comparison versus baseline; positive is better for throughput goals, while memory rows are interpreted in the row text. <code>CI</code> is SMP's confidence interval. <code>Regression</code>/<code>Improvement</code> are harness flags and can look odd for exploratory cases with very large positive deltas, so prefer the row's read/caveat text for interpretation.
+</div>
 
 <h3>Stage A — main vs foundation</h3>
 <table>
@@ -718,6 +781,39 @@
 <div class="verdict warn">
   <strong>Stage E/F/G/H/I/J/L/M/N/O/P/Q/R/T/U/V/W caveat:</strong> this is intentionally unsafe/local and enabled through env gates. Stage E bypasses iterable channel traversal. Stage F emits DogStatsD time-sampler series as <code>metrics.SerieRow</code>. Stage G bypasses scalar <code>*metrics.Serie</code> materialization. Stage H bypasses grouping/dedup and is intentionally not wire-equivalent. Stage I/J/Q/R/U/V/W are v3-only/metric-oriented and fall back to legacy paths for unsupported samples/checks/sketches/events, except the explicit skip-legacy upper-bound probe, the Stage Q direct-series/v2 bridge, Stage V's gated direct-parse slice, and Stage W's narrower repeated-tag-list fast path. Stage L changes overload/backpressure behavior and is only a first-pass packet-batch ingress log. Stage M/N/O/P raw modes are UDS-datagram-only and currently exclude UDP, stream sockets, named pipes, statsd forwarding, and origin detection; the origin-on and UDP probes intentionally ran with raw ingress disabled. Stage R changes measurement cost shape by making proof shadows optional and descriptor interning opt-in. Stage T's repeated tag-list cache, Stage U compact identities, Stage V compact-ID consumers, and Stage W fast path remain opt-in until admission/memory behavior is validated on mostly-unique/adversarial tagsets and broader compatibility is proven.
 </div>
+
+<h2 id="appendix-images">Appendix: image inventory</h2>
+<details class="inventory"><summary>Show image tags, commits, and Agent image names</summary>
+<ul>
+  <li><code>datadog/agent-dev:smp-dsd-main</code> — main baseline, commit <code>3ec880f14a3</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-foundation</code> — foundation, commit <code>53f7e8fdc3d</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-experiment</code> — Stage B instrumentation, commit <code>538ae360d89</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-shadow</code> — Stage C shadow segments, commit <code>911b22716ca</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-direct-row</code> — Stage D direct-row shadow, commit <code>e3f2f987056</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-direct-active</code> — Stage E direct active serializer, commit <code>9498d5fee95</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-direct-rows</code> — Stage F direct series rows, commit <code>c7327ad816c</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-direct-metric-rows</code> — Stage G direct metric rows, commit <code>638b79c3bba</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-direct-context-rows</code> — Stage H unordered direct context rows, commit <code>c989043ddcc</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-bucket-cache</code> — Stage I latest columnar v3 vertical slice, commit <code>e68c3c36110</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-shard-only</code> — Stage J shard-only identity fix, commit <code>dfdb011f0d7</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-skip-legacy</code> — Stage J skip legacy flush probe, commit <code>4a5bbb1fbce</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-ingress-log</code> — Stage L ingress-log code, env off, commit <code>eae5cb364ee</code> plus follow-up <code>7630c423017</code> (SMP image predates follow-up)</li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-ingress-log-enabled</code> — Stage L ingress-log enabled, commit <code>eae5cb364ee</code> plus follow-up <code>7630c423017</code> (SMP image predates follow-up)</li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-sharded-log</code> — Stage M sharded ingress log, commit <code>53a887497f6</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-raw-uds-ring</code> — Stage M raw UDS ring, commit <code>53a887497f6</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-compact-raw-uds-ring</code> — Stage N compact raw UDS ring, commit <code>4b2c4b6b7e6</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-compact-raw-uds-ring-batch-drain</code> — Stage O batched compact raw UDS ring drains, commit <code>dc29e8fff7c</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-direct-compact-raw-uds-ring</code> — Stage P direct compact raw UDS ring, commit <code>83d06509167</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-native-columnar-v3</code> — Stage Q native columnar-v3 serializer, commit <code>947dc3f2ec3</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-raw-lag-telemetry</code> — raw-ring lag telemetry, commit <code>b99255eb31e</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-memory-hygiene-reuse</code> — Stage R memory hygiene, commit <code>ab6db258799</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-parser-interning</code> / <code>...-tagset</code> — Stage T parser interning, commit <code>d78e87470fd</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints</code> / <code>...-enabled</code> — Stage U compact identity hints, commit <code>9376b73a9c1</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-compact-consumers</code> / <code>...-baseline</code> / <code>...-enabled</code> — Stage V compact-ID consumers, local worktree after <code>73080eecc9f</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-fastlane</code> / <code>...-baseline</code> / <code>...-enabled</code> — Stage W skip repeated object construction, commit <code>658b3c805cb</code></li>
+</ul>
+</details>
+
 
 <h2>Artifacts</h2>
 <ul>
