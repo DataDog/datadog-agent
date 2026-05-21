@@ -1,12 +1,10 @@
-"""BUILD file template applied to the @winlibs_mingw64 http_archive.
+"""BUILD template instantiated by winlibs_mingw_repository.
 
-The WinLibs zip contains a single top-level `mingw64/` directory which is
-stripped by `strip_prefix = "mingw64"`, so files land at the repo root:
-`bin/gcc.exe`, `include/...`, `lib/gcc/x86_64-w64-mingw32/<gcc_ver>/...`.
+%GCC_VERSION% is substituted at fetch time so the URL pin in MODULE.bazel
+stays the single source of truth for which WinLibs zip we use.
 
-GCC version is hard-coded here because it must match the zip pinned in
-MODULE.bazel; bumping one without the other is a build error waiting to
-happen, so keep them in lockstep when bumping WinLibs.
+After strip_prefix the layout is `bin/`, `include/`, `lib/`,
+`x86_64-w64-mingw32/` at the repo root.
 """
 
 load("@//bazel/toolchains/mingw:toolchain.bzl", "mingw_cc_toolchain_config")
@@ -14,7 +12,7 @@ load("@rules_cc//cc:defs.bzl", "cc_toolchain")
 
 package(default_visibility = ["//visibility:public"])
 
-GCC_VERSION = "14.2.0"
+GCC_VERSION = "%GCC_VERSION%"
 
 filegroup(
     name = "all",

@@ -284,16 +284,17 @@ llvm.toolchain(
 
 # Hermetic MinGW-w64 toolchain sourced from a pinned WinLibs distribution.
 # Variant: GCC 14.2.0 + MinGW-w64 12.0.0, POSIX threads, MSVCRT runtime,
-# no LLVM bundle. Bumping requires updating GCC_VERSION in
-# //bazel/toolchains/mingw:winlibs.BUILD.bazel in lockstep.
-http_archive(
+# no LLVM bundle. URL, sha256 and gcc_version must move together when bumping.
+winlibs_mingw_repository = use_repo_rule(
+    "//bazel/toolchains/mingw:winlibs.bzl",
+    "winlibs_mingw_repository",
+)
+
+winlibs_mingw_repository(
     name = "winlibs_mingw64",
-    build_file = "//bazel/toolchains/mingw:winlibs.BUILD.bazel",
+    gcc_version = "14.2.0",
     sha256 = "ff475e985a98c5f3785129baf7460db14fee27708bce35f2833db5009507f1b9",
-    strip_prefix = "mingw64",
-    urls = [
-        "https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-mingw-w64msvcrt-12.0.0-r3.zip",
-    ],
+    url = "https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-mingw-w64msvcrt-12.0.0-r3.zip",
 )
 
 # TODO{agent-build}: Find a way to register platform-specific toolchains dynamically
