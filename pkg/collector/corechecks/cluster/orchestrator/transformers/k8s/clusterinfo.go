@@ -13,6 +13,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/samber/lo"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1Client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"sigs.k8s.io/yaml"
@@ -93,10 +95,7 @@ func FetchClusterInfo(ctx context.Context, coreClient corev1Client.CoreV1Interfa
 		return nil, nil
 	}
 	if len(cms.Items) > 1 {
-		namespaces := make([]string, 0, len(cms.Items))
-		for i := range cms.Items {
-			namespaces = append(namespaces, cms.Items[i].Namespace)
-		}
+		namespaces := lo.Map(cms.Items, func(cm corev1.ConfigMap, _ int) string { return cm.Namespace })
 		log.Warnc(fmt.Sprintf("found multiple %s ConfigMaps in namespaces %v, using %q",
 			clusterInfoConfigMapName, namespaces, cms.Items[0].Namespace), orchestrator.ExtraLogContext...)
 	}
