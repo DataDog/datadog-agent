@@ -555,8 +555,8 @@ func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKe
 
 // EvictUnusedNodes evicts all child nodes that haven't been touched since the given timestamp
 // and returns the total number of process nodes evicted, a node is only evicted if all its children are evictable.
-// tagToID resolves an image tag string to its internal uint64 ID within the owning ActivityTree.
-func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName string, profileImageTag string, tagToID func(string) uint64) int {
+// profileImageTagID is the pre-resolved internal ID for the profile's image tag (0 means unknown/no tag).
+func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName string, profileImageTag string, profileImageTagID uint64) int {
 	totalEvicted := 0
 
 	key := ImageProcessKey{
@@ -567,7 +567,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	// First, recursively evict unused nodes from children
 	for i := len(pn.Children) - 1; i >= 0; i-- {
 		child := pn.Children[i]
-		evicted := child.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag, tagToID)
+		evicted := child.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag, profileImageTagID)
 		totalEvicted += evicted
 
 		// If the child process node itself has no image tags left after eviction, remove it entirely
@@ -583,11 +583,10 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	// Edge case: foo->bar->foo, if the second foo is no longer in the process cache, it will still be refreshed because of the first foo
 	key.Filepath = pn.Process.FileEvent.PathnameStr
 
-	if filepathsInProcessCache[key] {
+	if filepathsInProcessCache[key] && profileImageTagID != 0 {
 		// check if the node was supposed to be removed, then update the last seen to now
-		tagID := tagToID(key.ImageTag)
-		if elem, ok := pn.GetSeenTimes(tagID); ok && elem.LastSeen.Before(before) {
-			pn.NodeBase.AppendImageTagID(tagID, time.Now())
+		if elem, ok := pn.GetSeenTimes(profileImageTagID); ok && elem.LastSeen.Before(before) {
+			pn.NodeBase.AppendImageTagID(profileImageTagID, time.Now())
 		}
 	}
 
