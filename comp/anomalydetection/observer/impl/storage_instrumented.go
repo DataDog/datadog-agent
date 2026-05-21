@@ -142,6 +142,26 @@ func (s *instrumentedStorage) ListSeries(filter observerdef.SeriesFilter) []obse
 	return result
 }
 
+func (s *instrumentedStorage) ListSeriesRefsInto(filter observerdef.SeriesFilter, dst []observerdef.SeriesRef) []observerdef.SeriesRef {
+	s.readCount++
+	result := listSeriesRefs(s.inner, filter, dst)
+
+	// Hash refs in sorted order so instrumentation remains deterministic even
+	// if an underlying fallback ListSeries implementation iterates a map.
+	refs := append([]observerdef.SeriesRef(nil), result...)
+	sort.Slice(refs, func(i, j int) bool { return refs[i] < refs[j] })
+
+	ch := newCallHasher()
+	ch.mixString("ListSeriesRefsInto")
+	ch.mixString(filter.Namespace)
+	ch.mixInt64(int64(len(refs)))
+	for _, ref := range refs {
+		ch.mixInt64(int64(ref))
+	}
+	s.callHashes = append(s.callHashes, ch.sum())
+	return result
+}
+
 func (s *instrumentedStorage) GetSeriesRange(ref observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) *observerdef.Series {
 	s.readCount++
 	result := s.inner.GetSeriesRange(ref, start, end, agg)

@@ -575,9 +575,15 @@ func TestTimeSeriesStorage_ListSeries_ExcludeNamespaces(t *testing.T) {
 	require.Len(t, workload, 1)
 	assert.Equal(t, "work", workload[0].Namespace)
 
+	workloadRefs := s.ListSeriesRefsInto(observer.WorkloadSeriesFilter(), nil)
+	require.Equal(t, []observer.SeriesRef{workload[0].Ref}, workloadRefs)
+
 	onlyTel := s.ListSeries(observer.SeriesFilter{Namespace: observer.TelemetryNamespace})
 	require.Len(t, onlyTel, 1)
 	assert.Equal(t, observer.TelemetryNamespace, onlyTel[0].Namespace)
+
+	telRefs := s.ListSeriesRefsInto(observer.SeriesFilter{Namespace: observer.TelemetryNamespace}, workloadRefs)
+	require.Equal(t, []observer.SeriesRef{onlyTel[0].Ref}, telRefs)
 }
 
 func TestTimeSeriesStorage_RemoveSeriesByRefs(t *testing.T) {
