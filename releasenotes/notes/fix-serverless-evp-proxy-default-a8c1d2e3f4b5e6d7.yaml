@@ -8,6 +8,6 @@ fixes:
     The ``evp_proxy_config.*`` and ``ol_proxy_config.*`` default registrations
     were only reachable under the non-serverless build, so the trace-agent's
     unconditional read of ``evp_proxy_config.enabled`` returned ``false`` and
-    clobbered the package-level ``true`` default. The defaults are now also
-    registered in the serverless config init path so they take effect under
-    the ``serverless`` build tag.
+    clobbered the package-level ``true`` default. The defaults have been moved
+    into the shared APM config setup so they take effect under both the
+    regular and ``serverless`` build tags.
