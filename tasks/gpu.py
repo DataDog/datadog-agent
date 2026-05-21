@@ -154,9 +154,6 @@ def generate_metrics_list(
     Generate a GPU metrics list CSV from the shared GPU spec.
     """
     binary_path = build_binary(ctx, METRICS_LIST_PACKAGE, METRICS_LIST_BINARY, "metrics list generator")
-    command = (
-        f"{shlex.quote(binary_path)} "
-        f"--output-path {shlex.quote(output_path)}"
-    )
+    command = f"{shlex.quote(binary_path)} " f"--output-path {shlex.quote(output_path)}"
     print(f"== Generating GPU metrics list CSV at {output_path} ==")
     ctx.run(command)
