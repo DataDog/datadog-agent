@@ -121,7 +121,7 @@ mkdir -p "$GOCACHE"
 # of ballooning into swap. Not needed on larger hosts.
 _mem_kb=$(lsattr -El sys0 -a realmem 2>/dev/null | awk '{print $2}')
 if [ -n "$_mem_kb" ] && [ "$_mem_kb" -lt 6291456 ]; then
-    GOMEMLIMIT=3GiB
+    GOMEMLIMIT=2GiB
     export GOMEMLIMIT
 fi
 unset _mem_kb
