@@ -107,6 +107,11 @@ log "Building agent version $AGENT_VERSION at commit $COMMIT"
 log "Building agent binary via inv agent.build"
 cd /opt/datadog-agent
 rm -f "$STAGING/opt/datadog-agent/bin/agent/agent-bin"
+# OBJECT_MODE must be unset before Go's external linker runs: when both
+# OBJECT_MODE=64 and AIX_OBJECT_MODE=64 are exported simultaneously, the
+# linker picks up the 32-bit crt0.o and fails. AIX_OBJECT_MODE=64 alone
+# is sufficient for gcc-8 to use the 64-bit startup file.
+unset OBJECT_MODE
 python3.12 -m invoke agent.build \
     --exclude-rtloader \
     --rtloader-root=/opt/datadog-agent/rtloader \
