@@ -13,7 +13,7 @@ require (
 	// This is the last version of dd-trace-go that isn't just a wrapper around
 	// the v2 package. Note that this tracer does not have support for the
 	// remote config key controlling the SymDB upload.
-	gopkg.in/DataDog/dd-trace-go.v1 v1.73.1
+	gopkg.in/DataDog/dd-trace-go.v1 v1.74.6
 )
 
 require (
@@ -48,9 +48,9 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.7 // indirect
+	github.com/hashicorp/go-secure-stdlib/parseutil v0.2.0 // indirect
 	github.com/hashicorp/go-secure-stdlib/strutil v0.1.2 // indirect
-	github.com/hashicorp/go-sockaddr v1.0.2 // indirect
+	github.com/hashicorp/go-sockaddr v1.0.7 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/lufia/plan9stats v0.0.0-20250317134145-8bc96cf8fc35 // indirect
@@ -99,4 +99,9 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )
 
-require gopkg.in/yaml.v3 v3.0.1 // indirect
+require (
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
+	github.com/stretchr/testify v1.10.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
+)
