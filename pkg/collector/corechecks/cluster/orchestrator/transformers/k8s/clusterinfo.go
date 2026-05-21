@@ -94,12 +94,14 @@ func FetchClusterInfo(ctx context.Context, coreClient corev1Client.CoreV1Interfa
 	if len(cms.Items) == 0 {
 		return nil, nil
 	}
+
 	if len(cms.Items) > 1 {
 		namespaces := lo.Map(cms.Items, func(cm corev1.ConfigMap, _ int) string { return cm.Namespace })
 		log.Warnc(fmt.Sprintf("found multiple %s ConfigMaps in namespaces %v, using %q",
 			clusterInfoConfigMapName, namespaces, cms.Items[0].Namespace), orchestrator.ExtraLogContext...)
 	}
 	chosen := &cms.Items[0]
+
 	payload, ok := chosen.Data[clusterInfoConfigMapDataKey]
 	if !ok {
 		log.Warnc(fmt.Sprintf("%s ConfigMap in namespace %q is missing the %q data key",
@@ -107,6 +109,7 @@ func FetchClusterInfo(ctx context.Context, coreClient corev1Client.CoreV1Interfa
 			orchestrator.ExtraLogContext...)
 		return nil, nil
 	}
+
 	var info ClusterInfo
 	if err := yaml.Unmarshal([]byte(payload), &info); err != nil {
 		return nil, fmt.Errorf("parsing %s ConfigMap payload: %w", clusterInfoConfigMapName, err)
@@ -117,6 +120,7 @@ func FetchClusterInfo(ctx context.Context, coreClient corev1Client.CoreV1Interfa
 			orchestrator.ExtraLogContext...)
 		return nil, nil
 	}
+
 	return &info, nil
 }
 
