@@ -2,13 +2,13 @@
 # Runs the fused local-only Remote Queries proof:
 # fakeintake -> live WorkflowRunner PAR loop -> com.datadoghq.remotequeries.execute
 # -> real local AgentSecure gRPC RemoteQueryExecute over Agent IPC TLS/auth
-# -> loaded Postgres check -> SELECT 1 AS value -> fakeintake publish.
+# -> loaded Postgres check -> fixture-table proof query -> fakeintake publish.
 # The HTTP execute endpoint remains as a dev preflight for local evidence only.
 #
 # Defaults assume the remote-queries-poc worktree layout and reuse the
 # integrations-core Postgres integration test compose fixture. Override
 # AGENT_REPO, INTEGRATIONS_CORE, TMP_ROOT, CMD_PORT, POSTGRES_COMPOSE_FILE,
-# POSTGRES_COMPOSE_PROJECT, POSTGRES_IMAGE, RQ_POSTGRES_*, or
+# POSTGRES_COMPOSE_PROJECT, POSTGRES_IMAGE, RQ_REMOTE_QUERY, RQ_POSTGRES_*, or
 # AGENT_PYTHON_VERSION / AGENT_PYTHON_ABI if needed. The proof is local-only and intentionally sets
 # DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true inside the Go proof test.
 
@@ -22,11 +22,12 @@ POSTGRES_COMPOSE_FILE=${POSTGRES_COMPOSE_FILE:-$INTEGRATIONS_CORE/postgres/tests
 POSTGRES_COMPOSE_PROJECT=${POSTGRES_COMPOSE_PROJECT:-rq-fused-local-par-agent-postgres-$$}
 POSTGRES_IMAGE=${POSTGRES_IMAGE:-13-alpine}
 POSTGRES_LOCALE=${POSTGRES_LOCALE:-UTF8}
+RQ_REMOTE_QUERY=${RQ_REMOTE_QUERY:-SELECT city, country FROM cities ORDER BY city}
 RQ_POSTGRES_HOST=${RQ_POSTGRES_HOST:-localhost}
 RQ_POSTGRES_PORT=${RQ_POSTGRES_PORT:-5432}
 RQ_POSTGRES_DBNAME=${RQ_POSTGRES_DBNAME:-datadog_test}
-RQ_POSTGRES_USERNAME=${RQ_POSTGRES_USERNAME:-datadog}
-RQ_POSTGRES_PASSWORD=${RQ_POSTGRES_PASSWORD:-datadog}
+RQ_POSTGRES_USERNAME=${RQ_POSTGRES_USERNAME:-bob}
+RQ_POSTGRES_PASSWORD=${RQ_POSTGRES_PASSWORD:-bob}
 PIP_PLATFORM=${PIP_PLATFORM:-manylinux2014_x86_64}
 AGENT_PYTHON_VERSION=${AGENT_PYTHON_VERSION:-}
 AGENT_PYTHON_ABI=${AGENT_PYTHON_ABI:-}
@@ -205,8 +206,8 @@ postgres_target_is_default_fixture() {
   [[ "$RQ_POSTGRES_HOST" == "localhost" && \
     "$RQ_POSTGRES_PORT" == "5432" && \
     "$RQ_POSTGRES_DBNAME" == "datadog_test" && \
-    "$RQ_POSTGRES_USERNAME" == "datadog" && \
-    "$RQ_POSTGRES_PASSWORD" == "datadog" ]]
+    "$RQ_POSTGRES_USERNAME" == "bob" && \
+    "$RQ_POSTGRES_PASSWORD" == "bob" ]]
 }
 
 start_postgres_fixture() {
@@ -289,7 +290,7 @@ start_agent_and_wait_for_postgres_check() {
 
 call_agent_execute_preflight() {
   local payload
-  payload=$(RQ_POSTGRES_HOST="$RQ_POSTGRES_HOST" RQ_POSTGRES_PORT="$RQ_POSTGRES_PORT" RQ_POSTGRES_DBNAME="$RQ_POSTGRES_DBNAME" python3 - <<'PY'
+  payload=$(RQ_POSTGRES_HOST="$RQ_POSTGRES_HOST" RQ_POSTGRES_PORT="$RQ_POSTGRES_PORT" RQ_POSTGRES_DBNAME="$RQ_POSTGRES_DBNAME" RQ_REMOTE_QUERY="$RQ_REMOTE_QUERY" python3 - <<'PY'
 import json
 import os
 print(json.dumps({
@@ -299,8 +300,8 @@ print(json.dumps({
         "port": int(os.environ["RQ_POSTGRES_PORT"]),
         "dbname": os.environ["RQ_POSTGRES_DBNAME"],
     },
-    "query": "SELECT 1 AS value",
-    "limits": {"maxRows": 1, "maxBytes": 1024, "timeoutMs": 1000},
+    "query": os.environ["RQ_REMOTE_QUERY"],
+    "limits": {"maxRows": 2 if os.environ["RQ_REMOTE_QUERY"] == "SELECT city, country FROM cities ORDER BY city" else 1, "maxBytes": 1024, "timeoutMs": 1000},
 }))
 PY
 )
@@ -322,10 +323,29 @@ PY
     echo "FAIL: expected Agent execute preflight HTTP 200, got $status" >&2
     exit 1
   fi
-  if ! grep -Eq '"status"[[:space:]]*:[[:space:]]*"SUCCEEDED".*"value"[[:space:]]*:[[:space:]]*1|"value"[[:space:]]*:[[:space:]]*1.*"status"[[:space:]]*:[[:space:]]*"SUCCEEDED"' "$TMP_ROOT/results/agent-execute-preflight.body"; then
-    echo "FAIL: Agent execute preflight response did not contain SUCCEEDED row value=1" >&2
-    exit 1
-  fi
+  RQ_REMOTE_QUERY="$RQ_REMOTE_QUERY" python3 - "$TMP_ROOT/results/agent-execute-preflight.body" <<'PY'
+import json
+import os
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as f:
+    body = json.load(f)
+
+if body.get("status") != "SUCCEEDED":
+    raise SystemExit(f"Agent execute preflight response status was not SUCCEEDED: {body}")
+
+rows = body.get("rows")
+query = os.environ["RQ_REMOTE_QUERY"]
+if query == "SELECT city, country FROM cities ORDER BY city":
+    expected = [
+        {"city": "Beautiful city of lights", "country": "France"},
+        {"city": "New York", "country": "USA"},
+    ]
+else:
+    expected = [{"value": 1}]
+if rows != expected:
+    raise SystemExit(f"Agent execute preflight rows did not match expected fixture data: rows={rows!r} expected={expected!r}")
+PY
   if grep -Eq 'password|token|secret' "$TMP_ROOT/results/agent-execute-preflight.body"; then
     echo "FAIL: Agent execute preflight response contained credential-shaped text" >&2
     exit 1
@@ -344,6 +364,7 @@ run_fused_go_proof() {
     RQ_POSTGRES_HOST="$RQ_POSTGRES_HOST" \
     RQ_POSTGRES_PORT="$RQ_POSTGRES_PORT" \
     RQ_POSTGRES_DBNAME="$RQ_POSTGRES_DBNAME" \
+    RQ_REMOTE_QUERY="$RQ_REMOTE_QUERY" \
     dda inv test --targets=./pkg/privateactionrunner/bundles/remotequeries \
       --extra-args='-run TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC -count=1 -v'
   ) | tee "$TMP_ROOT/results/fused-proof-test.log"

@@ -28,7 +28,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const fusedLocalProofEnv = "RQ_FUSED_PROOF"
+const (
+	fusedLocalProofEnv                  = "RQ_FUSED_PROOF"
+	remoteQueriesSeedProofQuery         = "SELECT 1 AS value"
+	remoteQueriesFixtureTableProofQuery = "SELECT city, country FROM cities ORDER BY city"
+	remoteQueriesProofQueryOverrideEnv  = "RQ_REMOTE_QUERY"
+)
 
 func TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC(t *testing.T) {
 	if os.Getenv(fusedLocalProofEnv) != "1" {
@@ -73,15 +78,12 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC(t *testing.T)
 	}()
 
 	taskID := fmt.Sprintf("remotequeries-fused-local-proof-%d", time.Now().UnixNano())
+	proofQuery := remoteQueriesProofQueryFromEnv()
 	inputs := map[string]interface{}{
 		"integration": "postgres",
 		"target":      remoteQueriesPostgresTargetFromEnv(t),
-		"query":       "SELECT 1 AS value",
-		"limits": map[string]interface{}{
-			"maxRows":   1,
-			"maxBytes":  1024,
-			"timeoutMs": 1000,
-		},
+		"query":       proofQuery,
+		"limits":      remoteQueriesProofLimits(proofQuery),
 	}
 	requestEvidence, err := json.Marshal(inputs)
 	require.NoError(t, err)
@@ -106,10 +108,7 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC(t *testing.T)
 
 	rows, ok := result.Outputs["rows"].([]interface{})
 	require.True(t, ok)
-	require.Len(t, rows, 1)
-	firstRow, ok := rows[0].(map[string]interface{})
-	require.True(t, ok)
-	assert.Equal(t, float64(1), firstRow["value"])
+	assertRemoteQueriesProofRows(t, proofQuery, rows)
 
 	resultEvidence, err := json.Marshal(result.Outputs)
 	require.NoError(t, err)
@@ -134,6 +133,49 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC(t *testing.T)
 
 func getenvOptional(name string) string {
 	return os.Getenv(name)
+}
+
+func remoteQueriesProofQueryFromEnv() string {
+	if query := os.Getenv(remoteQueriesProofQueryOverrideEnv); query != "" {
+		return query
+	}
+	return remoteQueriesFixtureTableProofQuery
+}
+
+func remoteQueriesProofLimits(query string) map[string]interface{} {
+	maxRows := 1
+	if query == remoteQueriesFixtureTableProofQuery {
+		maxRows = 2
+	}
+	return map[string]interface{}{
+		"maxRows":   maxRows,
+		"maxBytes":  1024,
+		"timeoutMs": 1000,
+	}
+}
+
+func assertRemoteQueriesProofRows(t *testing.T, query string, rows []interface{}) {
+	t.Helper()
+
+	switch query {
+	case remoteQueriesFixtureTableProofQuery:
+		require.Len(t, rows, 2)
+		firstRow, ok := rows[0].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "Beautiful city of lights", firstRow["city"])
+		assert.Equal(t, "France", firstRow["country"])
+		secondRow, ok := rows[1].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "New York", secondRow["city"])
+		assert.Equal(t, "USA", secondRow["country"])
+	case remoteQueriesSeedProofQuery:
+		require.Len(t, rows, 1)
+		firstRow, ok := rows[0].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, float64(1), firstRow["value"])
+	default:
+		require.FailNowf(t, "unsupported proof query", "%s=%q must use a bridge-allowlisted proof query", remoteQueriesProofQueryOverrideEnv, query)
+	}
 }
 
 func remoteQueriesPostgresTargetFromEnv(t *testing.T) map[string]interface{} {

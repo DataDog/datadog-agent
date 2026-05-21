@@ -24,13 +24,23 @@ const (
 	// RemoteQueriesExecuteEnabledConfig is disabled by default when the key is absent.
 	RemoteQueriesExecuteEnabledConfig = "remote_queries.execute.enabled"
 
-	remoteQueryProofQuery = "SELECT 1 AS value"
+	remoteQueryProofSeedQuery         = "SELECT 1 AS value"
+	remoteQueryFixtureTableProofQuery = "SELECT city, country FROM cities ORDER BY city"
 
 	statusExecutorUnavailable = "executor_unavailable"
 )
 
 type remoteQueryRunner interface {
 	RunRemoteQueryJSON(integration string, requestJSON string) (string, error)
+}
+
+func isRemoteQueryAllowedProofQuery(query string) bool {
+	switch query {
+	case remoteQueryProofSeedQuery, remoteQueryFixtureTableProofQuery:
+		return true
+	default:
+		return false
+	}
 }
 
 type remoteQueryCheckUnwrapper interface {
@@ -138,7 +148,7 @@ func NewRemoteQueryExecuteRequest(integration string, target RemoteQueryExecuteT
 	if query == "" {
 		return RemoteQueryExecuteRequest{}, fmt.Errorf("query is required")
 	}
-	if query != remoteQueryProofQuery {
+	if !isRemoteQueryAllowedProofQuery(query) {
 		return RemoteQueryExecuteRequest{}, fmt.Errorf("query is not allowed")
 	}
 
@@ -258,7 +268,7 @@ func parseExecuteRequest(r *http.Request) (remoteQueryExecuteRequest, string, er
 	if wireReq.Query == "" {
 		return remoteQueryExecuteRequest{}, "", fmt.Errorf("query is required")
 	}
-	if wireReq.Query != remoteQueryProofQuery {
+	if !isRemoteQueryAllowedProofQuery(wireReq.Query) {
 		return remoteQueryExecuteRequest{}, "", fmt.Errorf("query is not allowed")
 	}
 

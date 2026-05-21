@@ -78,15 +78,12 @@ func TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC(t *t
 	waitForStandalonePARPolling(t, fakeintakeClient, cmd, parLog, &stdout, &stderr)
 
 	taskID := fmt.Sprintf("remotequeries-standalone-par-proof-%d", time.Now().UnixNano())
+	proofQuery := remoteQueriesProofQueryFromEnv()
 	inputs := map[string]interface{}{
 		"integration": "postgres",
 		"target":      remoteQueriesPostgresTargetFromEnv(t),
-		"query":       "SELECT 1 AS value",
-		"limits": map[string]interface{}{
-			"maxRows":   1,
-			"maxBytes":  1024,
-			"timeoutMs": 1000,
-		},
+		"query":       proofQuery,
+		"limits":      remoteQueriesProofLimits(proofQuery),
 	}
 	requestEvidence, err := json.Marshal(inputs)
 	require.NoError(t, err)
@@ -110,10 +107,7 @@ func TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC(t *t
 
 	rows, ok := result.Outputs["rows"].([]interface{})
 	require.True(t, ok)
-	require.Len(t, rows, 1)
-	firstRow, ok := rows[0].(map[string]interface{})
-	require.True(t, ok)
-	assert.Equal(t, float64(1), firstRow["value"])
+	assertRemoteQueriesProofRows(t, proofQuery, rows)
 
 	resultEvidence, err := json.Marshal(result.Outputs)
 	require.NoError(t, err)

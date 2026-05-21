@@ -26,7 +26,7 @@ func TestRemoteQueryPARHarnessUsesCredentialFreeIPCPostShape(t *testing.T) {
 	result, err := harness.Execute(context.Background(), RemoteQueryPARInputs{
 		Integration: "postgres",
 		Target:      remoteQueryTargetJSON{Host: "localhost", Port: 5432, DBName: "postgres"},
-		Query:       remoteQueryProofQuery,
+		Query:       remoteQueryProofSeedQuery,
 		Limits:      &remoteQueryExecuteLimitsJSON{MaxRows: 1, MaxBytes: 1024, TimeoutMs: 1000},
 	})
 
@@ -55,7 +55,7 @@ func TestRemoteQueryPARHarnessWithRealAgentIPCClient(t *testing.T) {
 	result, err := harness.Execute(context.Background(), RemoteQueryPARInputs{
 		Integration: "postgres",
 		Target:      remoteQueryTargetJSON{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"},
-		Query:       remoteQueryProofQuery,
+		Query:       remoteQueryProofSeedQuery,
 	})
 
 	require.NoError(t, err)
@@ -87,7 +87,7 @@ func TestRemoteQueryPARHarnessPropagatesSanitizedBridgeErrors(t *testing.T) {
 			inputs: RemoteQueryPARInputs{
 				Integration: "postgres",
 				Target:      remoteQueryTargetJSON{Host: "localhost", Port: 5432, DBName: "other"},
-				Query:       remoteQueryProofQuery,
+				Query:       remoteQueryProofSeedQuery,
 			},
 			wantStatus: statusTargetNotFound,
 			wantCode:   statusTargetNotFound,

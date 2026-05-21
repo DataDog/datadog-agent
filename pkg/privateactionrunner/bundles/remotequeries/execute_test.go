@@ -22,9 +22,11 @@ import (
 )
 
 func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
-	row, err := structpb.NewStruct(map[string]interface{}{"value": 1})
+	franceRow, err := structpb.NewStruct(map[string]interface{}{"city": "Beautiful city of lights", "country": "France"})
 	require.NoError(t, err)
-	client := &captureBridgeClient{response: &pb.RemoteQueryExecuteResponse{Status: "SUCCEEDED", Rows: []*structpb.Struct{row}}}
+	usaRow, err := structpb.NewStruct(map[string]interface{}{"city": "New York", "country": "USA"})
+	require.NoError(t, err)
+	client := &captureBridgeClient{response: &pb.RemoteQueryExecuteResponse{Status: "SUCCEEDED", Rows: []*structpb.Struct{franceRow, usaRow}}}
 	action := NewExecuteAction(func() (BridgeClient, error) {
 		return client, nil
 	})
@@ -36,9 +38,9 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 			"port":   5432,
 			"dbname": "postgres",
 		},
-		"query": "SELECT 1 AS value",
+		"query": "SELECT city, country FROM cities ORDER BY city",
 		"limits": map[string]interface{}{
-			"maxRows":   1,
+			"maxRows":   2,
 			"maxBytes":  1024,
 			"timeoutMs": 1000,
 		},
@@ -50,15 +52,16 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 	assert.Equal(t, "localhost", client.request.GetTarget().GetHost())
 	assert.Equal(t, int32(5432), client.request.GetTarget().GetPort())
 	assert.Equal(t, "postgres", client.request.GetTarget().GetDbname())
-	assert.Equal(t, "SELECT 1 AS value", client.request.GetQuery())
-	assert.Equal(t, int32(1), client.request.GetLimits().GetMaxRows())
+	assert.Equal(t, "SELECT city, country FROM cities ORDER BY city", client.request.GetQuery())
+	assert.Equal(t, int32(2), client.request.GetLimits().GetMaxRows())
 	requestEvidence, err := json.Marshal(client.request)
 	require.NoError(t, err)
 	assert.NotContains(t, string(requestEvidence), "secret-value")
 	assert.Equal(t, map[string]interface{}{
 		"status": "SUCCEEDED",
 		"rows": []interface{}{
-			map[string]interface{}{"value": float64(1)},
+			map[string]interface{}{"city": "Beautiful city of lights", "country": "France"},
+			map[string]interface{}{"city": "New York", "country": "USA"},
 		},
 	}, output)
 }

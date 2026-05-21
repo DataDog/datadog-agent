@@ -365,6 +365,27 @@ func TestParseExecuteRequestAllowsOmittedLimits(t *testing.T) {
 	assert.NotContains(t, requestJSON, "integration")
 }
 
+func TestParseExecuteRequestAllowsFixtureTableProofQuery(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(
+		`{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT city, country FROM cities ORDER BY city","limits":{"maxRows":2,"maxBytes":1024,"timeoutMs":1000}}`,
+	))
+	req.Header.Set("Content-Type", "application/json")
+
+	parsed, requestJSON, err := parseExecuteRequest(req)
+	require.NoError(t, err)
+	assert.Equal(t, remoteQueryFixtureTableProofQuery, parsed.Query)
+	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT city, country FROM cities ORDER BY city","limits":{"maxRows":2,"maxBytes":1024,"timeoutMs":1000}}`, requestJSON)
+	assert.NotContains(t, requestJSON, "integration")
+}
+
+func TestNewRemoteQueryExecuteRequestAllowsFixtureTableProofQuery(t *testing.T) {
+	req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: " LocalHost. ", Port: 5432, DBName: "postgres"}, remoteQueryFixtureTableProofQuery, &RemoteQueryExecuteLimits{MaxRows: 2, MaxBytes: 1024, TimeoutMs: 1000})
+	require.NoError(t, err)
+	assert.Equal(t, "postgres", req.Integration)
+	assert.Equal(t, RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, req.Target)
+	assert.Equal(t, remoteQueryFixtureTableProofQuery, req.Query)
+}
+
 func TestRemoteQueryExecuteHandlerDisabled(t *testing.T) {
 	handler := &remoteQueryExecuteHandler{enabled: false, collector: fakeCollector{}}
 
@@ -386,6 +407,22 @@ func TestRemoteQueryExecuteHandlerRunnerSuccess(t *testing.T) {
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.JSONEq(t, `{"status":"SUCCEEDED","rows":[{"value":1}]}`, recorder.Body.String())
 	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`, runner.seenRequest())
+	assert.NotContains(t, runner.seenRequest(), "integration")
+	assert.NotContains(t, recorder.Body.String(), "secret-value")
+}
+
+func TestRemoteQueryExecuteHandlerRunnerSuccessWithFixtureTableQuery(t *testing.T) {
+	runner := &fakeRunnerCheck{
+		fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"},
+		response:  `{"status":"SUCCEEDED","rows":[{"city":"Beautiful city of lights","country":"France"},{"city":"New York","country":"USA"}]}`,
+	}
+	handler := &remoteQueryExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}}
+
+	recorder := callExecuteHandler(handler, `{"integration":"postgres","target":{"host":"LOCALHOST.","port":5432,"dbname":"postgres"},"query":"SELECT city, country FROM cities ORDER BY city"}`)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.JSONEq(t, `{"status":"SUCCEEDED","rows":[{"city":"Beautiful city of lights","country":"France"},{"city":"New York","country":"USA"}]}`, recorder.Body.String())
+	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT city, country FROM cities ORDER BY city"}`, runner.seenRequest())
 	assert.NotContains(t, runner.seenRequest(), "integration")
 	assert.NotContains(t, recorder.Body.String(), "secret-value")
 }
