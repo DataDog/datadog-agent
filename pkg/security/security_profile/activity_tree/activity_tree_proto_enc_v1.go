@@ -447,7 +447,13 @@ func nodeBaseToProto(nb *NodeBase, tagIDToImageTag func(id uint64) string) *adpr
 	}
 
 	nb.EachSeen(func(id uint64, times ImageTagTimes) {
-		pnb.Seen[tagIDToImageTag(id)] = &adproto.ImageTagTimes{
+		tag := tagIDToImageTag(id)
+		if tag == "" {
+			// ID is stale (slot was freed before this node was evicted); skip to avoid
+			// writing an empty key into the proto map.
+			return
+		}
+		pnb.Seen[tag] = &adproto.ImageTagTimes{
 			FirstSeen: TimestampToProto(&times.FirstSeen),
 			LastSeen:  TimestampToProto(&times.LastSeen),
 		}

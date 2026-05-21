@@ -199,8 +199,12 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 	}
 }
 
-// GetImageTagID returns the internal ID for an image tag, or 0 if not found
+// GetImageTagID returns the internal ID for an image tag, or 0 if not found.
+// Returns 0 for an empty tag (0 is the null sentinel).
 func (at *ActivityTree) GetImageTagID(imageTag string) uint64 {
+	if imageTag == "" {
+		return 0
+	}
 	for i, entry := range at.imageTagIDs {
 		if entry.inUse && entry.tag == imageTag {
 			return uint64(i) + 1
