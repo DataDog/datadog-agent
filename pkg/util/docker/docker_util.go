@@ -386,6 +386,10 @@ func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) 
 	if err != nil {
 		return nil, fmt.Errorf("unable to get Docker stats: %s", err)
 	}
+	defer func() {
+		_, _ = io.Copy(io.Discard, stats.Body)
+		stats.Body.Close()
+	}()
 	containerStats := &dcontainer.StatsResponse{}
 	err = json.NewDecoder(stats.Body).Decode(&containerStats)
 	if err != nil {
