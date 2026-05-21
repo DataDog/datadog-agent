@@ -92,7 +92,7 @@ func makeIISTagValidator(expectedTags map[string]struct{}) func(*testing.T, *htt
 }
 
 // TestUSMStateLifecycle verifies that the Windows USM monitor drives the
-// global usmstate atomic through the same Running/Restricted/Stopped
+// global usmstate.
 // transitions that the Linux monitor does. The agent status template at
 // pkg/status/systemprobe/status_templates/systemprobe.tmpl reads this state;
 // without these transitions it would render as `<no value>`.
