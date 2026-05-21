@@ -3,18 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package aggregator implements the "aggregator" bundle,
-package aggregator
+//go:build test
+
+// Package mock provides a mock for the demultiplexer component
+package mock
 
 import (
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-metric-pipelines
+// Module defines the fx options for the mock component.
+func Module() fxutil.Module {
+	return demultiplexerimpl.MockModule()
+}
 
-// Bundle defines the fx options for this bundle.
-func Bundle(params demultiplexerimpl.Params) fxutil.BundleOptions {
-	return fxutil.Bundle(
-		demultiplexerimpl.Module(params))
+// FakeSamplerMockModule defines the fx options for FakeSamplerMock.
+func FakeSamplerMockModule() fxutil.Module {
+	return demultiplexerimpl.FakeSamplerMockModule()
 }

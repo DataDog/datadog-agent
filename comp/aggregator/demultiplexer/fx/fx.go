@@ -3,18 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package aggregator implements the "aggregator" bundle,
-package aggregator
+// Package fx provides the fx module for the demultiplexer component
+package fx
 
 import (
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-metric-pipelines
-
-// Bundle defines the fx options for this bundle.
-func Bundle(params demultiplexerimpl.Params) fxutil.BundleOptions {
-	return fxutil.Bundle(
-		demultiplexerimpl.Module(params))
+// Module defines the fx options for this component.
+func Module(params demultiplexerimpl.Params) fxutil.Module {
+	return demultiplexerimpl.Module(params)
 }
