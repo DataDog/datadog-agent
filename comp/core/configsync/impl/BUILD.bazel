@@ -4,7 +4,6 @@ go_library(
     name = "impl",
     srcs = [
         "module.go",
-        "params.go",
         "sync.go",
         "test_common.go",
     ],
