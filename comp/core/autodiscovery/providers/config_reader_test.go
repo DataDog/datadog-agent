@@ -129,6 +129,12 @@ func TestGetIntegrationConfig(t *testing.T) {
 	config, _, err = GetIntegrationConfigFromFile("foo", "tests/testcheck.yaml")
 	require.Nil(t, err)
 	assert.Nil(t, config.Discovery)
+
+	// discovery without a match target is rejected: without ad_identifiers,
+	// advanced_ad_identifiers, or cel_selector, no service can match the
+	// template and it would be silently dropped downstream.
+	_, _, err = GetIntegrationConfigFromFile("foo", "tests/discovery_no_match.yaml")
+	assert.NotNil(t, err)
 }
 
 func TestGetIntegrationConfig_Discovery(t *testing.T) {
@@ -145,7 +151,7 @@ func TestReadConfigFiles(t *testing.T) {
 	configs, errors, err := ReadConfigFiles(GetAll)
 	require.Nil(t, err)
 	require.Equal(t, 23, len(configs))
-	require.Equal(t, 4, len(errors))
+	require.Equal(t, 5, len(errors))
 
 	for _, c := range configs {
 		if c.Name == "empty" {

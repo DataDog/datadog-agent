@@ -84,8 +84,8 @@ func TestCollect(t *testing.T) {
 	// total number of configurations found
 	assert.Equal(t, 20, len(configs))
 
-	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml & ad_deprecated.yaml & null_instances.yml)
-	assert.Equal(t, 4, len(provider.Errors))
+	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml & ad_deprecated.yaml & null_instances.yml & discovery_no_match.yaml)
+	assert.Equal(t, 5, len(provider.Errors))
 }
 
 func TestEnvVarReplacement(t *testing.T) {

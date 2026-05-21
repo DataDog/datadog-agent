@@ -446,8 +446,19 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 	}
 
 	// If no valid instances were found & this is neither a metrics file, nor a
-	// logs file, nor a discovery template, this is not a valid configuration file
-	if cf.MetricConfig == nil && cf.LogsConfig == nil && cf.Discovery == nil && len(cf.Instances) < 1 {
+	// logs file, nor a discovery template with a match target, this is not a
+	// valid configuration file. A bare `discovery: {}` with no ad_identifiers,
+	// advanced_ad_identifiers, or cel_selector would never match any service
+	// and would be silently dropped downstream.
+	hasMatchTarget := len(cf.ADIdentifiers) > 0 ||
+		len(cf.AdvancedADIdentifiers) > 0 ||
+		len(cf.CELSelector.Containers) > 0 ||
+		len(cf.CELSelector.Processes) > 0 ||
+		len(cf.CELSelector.Pods) > 0 ||
+		len(cf.CELSelector.KubeServices) > 0 ||
+		len(cf.CELSelector.KubeEndpoints) > 0
+	isDiscoveryTemplate := cf.Discovery != nil && hasMatchTarget
+	if cf.MetricConfig == nil && cf.LogsConfig == nil && !isDiscoveryTemplate && len(cf.Instances) < 1 {
 		return conf, ConfigFormatWrapper{}, errors.New("Configuration file contains no valid instances")
 	}
 
