@@ -2589,8 +2589,8 @@ github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1 h1:HnvrdC79xJ+RP
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1/go.mod h1:whJevzBpTrid75eZy99s3DqCmy05NfibNaF2Ol5Ox5A=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816 h1:8diKw2aLYE6LsjWfYxDEqx0ZmcyMMmqB+qapRJrGtys=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816/go.mod h1:7cPuErOAt7k/oVWAVJnxqAC6mwArrAazkvk0RXiih2A=
-github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260416144717-96f8924d6e18 h1:VbUS1B3mpSjponiKDWHXtofoNBp99Nckf5uZaBeQyPo=
-github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260416144717-96f8924d6e18/go.mod h1:34LtYk9Gh/SCItzi7v8ok9E5lk88AA5I+5aKoVKQClI=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260520145125-a857032b0f66 h1:6WkrNcdwCZqHPdcewcvdPphR5cL42dbBIpv+uXXu/A8=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260520145125-a857032b0f66/go.mod h1:0vRFNCa/57hLNW0YAlluN0bLrGZnsQ0TrLHS/O86GMk=
 github.com/DataDog/rshell v0.0.18 h1:gQB6Y1p5fHyg+QA5FjA/3JFmhiVuAly/WoSM9H2Yh2o=
 github.com/DataDog/rshell v0.0.18/go.mod h1:jZm0YIxCKYEyHJeSSH5rxqmlI1oUi+mXQF6Zf102q+k=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
@@ -4563,8 +4563,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreat
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator v0.152.0/go.mod h1:aMagTzkBnaFaWlDmv0ETipLnVJSEvv1/FtVYUOufAls=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.152.0 h1:4cLXnCpT7oWM16rJdydqWeArqJtVdL+UT8RqnxIVtow=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.152.0/go.mod h1:punVV/IU6ldnoynf6Fiu2wOWqf40SowIAm8bsIqk1R0=
-github.com/open-telemetry/sig-profiling/tools/profcheck v0.0.0-20260303084341-52f633d434c9 h1:3NStK3r8FVhXbU0qkVz/DpPQlaoLLgLHJOAMKyDX4WM=
-github.com/open-telemetry/sig-profiling/tools/profcheck v0.0.0-20260303084341-52f633d434c9/go.mod h1:KRO+Rec0+KycN1CrIP/6Pu0xOraPhbahCbL36i8FkfM=
+github.com/open-telemetry/sig-profiling/profcheck v0.0.0-20260427172309-47cc6a9c3929 h1:aCWNMp+ydtLE5h0y2+4iAsYAKLC0tYEabtze3KZJ4j4=
+github.com/open-telemetry/sig-profiling/profcheck v0.0.0-20260427172309-47cc6a9c3929/go.mod h1:WPdgk1BinVdvYdkbt1KIkgDw6qUiK8CnGq+ftaJ41Ns=
 github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U=
 github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3IKzErnv2BNG4W4MAM=
 github.com/opencontainers/image-spec v1.1.1 h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040=
