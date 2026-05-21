@@ -2665,7 +2665,7 @@ api_key:
 ## @env DD_JMX_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/jmxfetch.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\jmxfetch.log"{{else}}"/opt/datadog-agent/logs/jmxfetch.log"{{ end }}
 ## Path of the log file where JMXFetch logs are written.
 #
-# jmx_log_file: <JMXFETCH_LOG_FILE_PATH>
+# jmx_log_file: {{ if (eq .OS "linux") }}"/var/log/datadog/jmxfetch.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\jmxfetch.log"{{else}}"/opt/datadog-agent/logs/jmxfetch.log"{{ end }}
 
 ## @param jmx_max_restarts - integer - optional - default: 3
 ## @env DD_JMX_MAX_RESTARTS - integer - optional - default: 3
@@ -2749,12 +2749,12 @@ api_key:
 #
 # log_level: 'info'
 
-## @param log_file - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"C:\\ProgramData\\Datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
-## @env DD_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"C:\\ProgramData\\Datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
+## @param log_file - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
+## @env DD_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
 ## Path of the log file for the Datadog Agent.
 ## See https://docs.datadoghq.com/agent/guide/agent-log-files/
 #
-# log_file: <AGENT_LOG_FILE_PATH>
+# log_file: {{ if (eq .OS "linux") }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
 
 ## @param log_format_json - boolean - optional - default: false
 ## @env DD_LOG_FORMAT_JSON - boolean - optional - default: false
