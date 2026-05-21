@@ -21,7 +21,7 @@ go_library(
         "//internal/qbranch/anomalydetection-testbench/bench",
         "//pkg/util/fxutil",
         "//pkg/util/option",
-        "@//comp/core",
+        "@com_github_datadog_datadog_agent//comp/core",
         "@org_uber_go_fx//:fx",
     ],
 )
@@ -222,7 +222,7 @@ go_test(
         "//comp/core/workloadmeta/def",
         "//pkg/util/fxutil",
         "//pkg/util/option",
-        "@//comp/core",
+        "@com_github_datadog_datadog_agent//comp/core",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
     ],
