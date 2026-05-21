@@ -19,8 +19,8 @@ import (
 )
 
 // timeSeriesStorage is an internal storage for time series data.
-// storageConfig holds tunable parameters for timeSeriesStorage.
-type storageConfig struct {
+// StorageConfig holds tunable parameters for timeSeriesStorage.
+type StorageConfig struct {
 	// MaxSeries caps live series; when exceeded on Advance, series are evicted
 	// until count drops to MaxSeries*(1-EvictionFloorRatio). 0 disables eviction.
 	MaxSeries int
@@ -35,9 +35,9 @@ type storageConfig struct {
 	PointRetentionSecs int64
 }
 
-// defaultStorageConfig returns the hard-coded production defaults.
-func defaultStorageConfig() storageConfig {
-	return storageConfig{
+// DefaultStorageConfig returns the hard-coded production defaults.
+func DefaultStorageConfig() StorageConfig {
+	return StorageConfig{
 		MaxSeries:          storageMaxSeries,
 		EvictionFloorRatio: storageEvictionBandRatio,
 		PointRetentionSecs: storagePointRetentionSecs,
@@ -58,7 +58,7 @@ const (
 )
 
 type timeSeriesStorage struct {
-	cfg    storageConfig
+	cfg    StorageConfig
 	mu     sync.RWMutex
 	series map[uint64]*seriesStats // keyed by seriesKeyHash; no string retained per entry
 
@@ -225,11 +225,11 @@ func searchAfter(timestamps []int64, value int64) int {
 
 // newTimeSeriesStorage creates a new time series storage with default config.
 func newTimeSeriesStorage() *timeSeriesStorage {
-	return newTimeSeriesStorageWith(defaultStorageConfig())
+	return newTimeSeriesStorageWith(DefaultStorageConfig())
 }
 
 // newTimeSeriesStorageWith creates a new time series storage with explicit config.
-func newTimeSeriesStorageWith(cfg storageConfig) *timeSeriesStorage {
+func newTimeSeriesStorageWith(cfg StorageConfig) *timeSeriesStorage {
 	return &timeSeriesStorage{
 		cfg:                   cfg,
 		series:                make(map[uint64]*seriesStats),

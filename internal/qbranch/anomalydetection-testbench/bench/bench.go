@@ -490,9 +490,17 @@ func (m *parquetMetricView) GetRawTags() []string    { return m.tags }
 func (m *parquetMetricView) GetTimestampUnix() int64 { return m.timestamp }
 func (m *parquetMetricView) GetSampleRate() float64  { return 1.0 }
 
+// unboundedStorageCfg returns a StorageConfig with no point-retention window,
+// so pre-loaded replay data stays in memory for the full replay run.
+func unboundedStorageCfg() observerimpl.StorageConfig {
+	cfg := observerimpl.DefaultStorageConfig()
+	cfg.PointRetentionSecs = 0
+	return cfg
+}
+
 // resetAllState resets engine state via DebugView.Reset.
 func (tb *Bench) resetAllState() {
-	tb.debug.Reset(tb.settings)
+	tb.debug.Reset(tb.settings, unboundedStorageCfg())
 }
 
 // GetStatus returns the current status.
@@ -575,7 +583,7 @@ func (tb *Bench) isComponentEnabled(name string) bool {
 // Caller must hold lock.
 func (tb *Bench) rerunDetectorsLocked() {
 	// Reset engine with current settings (clears all storage).
-	tb.debug.Reset(tb.settings)
+	tb.debug.Reset(tb.settings, unboundedStorageCfg())
 
 	// Re-feed parquet metrics synchronously into the fresh storage.
 	tb.feedRawMetrics()

@@ -182,7 +182,7 @@ func NewComponent(deps Requires) Provides {
 	settings := settingsFromAgentConfig(catalog, cfg)
 	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
 
-	storageCfg := defaultStorageConfig()
+	storageCfg := DefaultStorageConfig()
 	if cfg != nil {
 		if cfg.IsConfigured("anomaly_detection.storage.max_series") {
 			storageCfg.MaxSeries = cfg.GetInt("anomaly_detection.storage.max_series")
@@ -701,11 +701,11 @@ func (o *observerImpl) Flush() {
 }
 
 // Reset clears all engine state and reconfigures with new settings. Implements DebugView.
-func (o *observerImpl) Reset(settings ComponentSettings) {
+func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) {
 	o.Flush()
 	detectors, correlators, extractors, _ := o.catalog.Instantiate(settings)
 	o.replayMu.Lock()
-	o.engine.ResetForReplay(detectors, correlators, extractors)
+	o.engine.ResetForReplay(detectors, correlators, extractors, storageCfg)
 	o.replayMu.Unlock()
 }
 
