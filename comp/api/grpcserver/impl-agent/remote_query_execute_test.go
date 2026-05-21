@@ -73,11 +73,16 @@ func TestRemoteQueryExecuteRequestFromProtoPreservesCopyStream(t *testing.T) {
 func TestRemoteQueryIPCStreamCoalescerFlushesDataAtFourMiB(t *testing.T) {
 	stream := &captureRemoteQueryExecuteStreamServer{}
 	coalescer := newRemoteQueryIPCStreamCoalescer(stream)
+	const (
+		threeMiB = 3 << 20 // 3 MiB.
+		twoMiB   = 2 << 20 // 2 MiB.
+		fiveMiB  = 5 << 20 // 5 MiB.
+	)
 
 	require.NoError(t, coalescer.Send(check.RemoteQueryStreamEvent{Type: "metadata", MetadataJSON: `{"operation":"copy_stream","format":"csv"}`}))
-	require.NoError(t, coalescer.Send(check.RemoteQueryStreamEvent{Type: "data", MetadataJSON: `{"sequence":1,"offset":0,"bytes":3145728}`, Payload: make([]byte, 3<<20)}))
+	require.NoError(t, coalescer.Send(check.RemoteQueryStreamEvent{Type: "data", MetadataJSON: `{"sequence":1,"offset":0,"bytes":3145728}`, Payload: make([]byte, threeMiB)}))
 	assert.Len(t, stream.chunks, 1, "data below 4MiB should be coalesced before secure IPC send")
-	require.NoError(t, coalescer.Send(check.RemoteQueryStreamEvent{Type: "data", MetadataJSON: `{"sequence":2,"offset":3145728,"bytes":2097152}`, Payload: make([]byte, 2<<20)}))
+	require.NoError(t, coalescer.Send(check.RemoteQueryStreamEvent{Type: "data", MetadataJSON: `{"sequence":2,"offset":3145728,"bytes":2097152}`, Payload: make([]byte, twoMiB)}))
 	require.Len(t, stream.chunks, 2, "crossing 4MiB should flush one coalesced data event")
 	firstData := stream.chunks[1].GetEvent().GetData()
 	require.NotNil(t, firstData)
@@ -90,8 +95,8 @@ func TestRemoteQueryIPCStreamCoalescerFlushesDataAtFourMiB(t *testing.T) {
 	secondData := stream.chunks[2].GetEvent().GetData()
 	require.NotNil(t, secondData)
 	assert.Equal(t, uint64(remoteQuerySecureIPCDataFlushBytes), secondData.GetOffset())
-	assert.Equal(t, uint64((5<<20)-remoteQuerySecureIPCDataFlushBytes), secondData.GetBytes())
-	assert.Len(t, secondData.GetPayload(), (5<<20)-remoteQuerySecureIPCDataFlushBytes)
+	assert.Equal(t, uint64(fiveMiB-remoteQuerySecureIPCDataFlushBytes), secondData.GetBytes())
+	assert.Len(t, secondData.GetPayload(), fiveMiB-remoteQuerySecureIPCDataFlushBytes)
 }
 
 func TestRemoteQueryStreamEventFromCheckEventPreservesBinaryPayload(t *testing.T) {

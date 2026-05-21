@@ -39,12 +39,12 @@ const (
 )
 
 var remoteQueriesLargePayloadProofQueries = map[string]int{
-	"SELECT repeat('x', 1048576) AS payload":  1 << 20,
-	"SELECT repeat('x', 2097152) AS payload":  2 << 20,
-	"SELECT repeat('x', 4194304) AS payload":  4 << 20,
-	"SELECT repeat('x', 8388608) AS payload":  8 << 20,
-	"SELECT repeat('x', 16777216) AS payload": 16 << 20,
-	"SELECT repeat('x', 33554432) AS payload": 32 << 20,
+	"SELECT repeat('x', 1048576) AS payload":  1 << 20,  // 1 MiB.
+	"SELECT repeat('x', 2097152) AS payload":  2 << 20,  // 2 MiB.
+	"SELECT repeat('x', 4194304) AS payload":  4 << 20,  // 4 MiB.
+	"SELECT repeat('x', 8388608) AS payload":  8 << 20,  // 8 MiB.
+	"SELECT repeat('x', 16777216) AS payload": 16 << 20, // 16 MiB.
+	"SELECT repeat('x', 33554432) AS payload": 32 << 20, // 32 MiB.
 }
 
 func TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC(t *testing.T) {
@@ -163,13 +163,13 @@ func remoteQueriesProofQueryFromEnv() string {
 }
 
 func remoteQueriesProofCopyLimits(query string) map[string]interface{} {
-	maxBytes := 4 << 10
+	maxBytes := 4 << 10 // 4 KiB.
 	timeoutMs := 5_000
 	if payloadBytes, ok := remoteQueriesLargePayloadBytes(query); ok {
-		maxBytes = payloadBytes + (1 << 20)
+		maxBytes = payloadBytes + (1 << 20) // Add 1 MiB headroom.
 		timeoutMs = 60_000
 	}
-	chunkBytes := 256 << 10
+	chunkBytes := 256 << 10 // 256 KiB.
 	if value := os.Getenv("RQ_REMOTE_CHUNK_BYTES"); value != "" {
 		parsed, err := strconv.Atoi(value)
 		if err == nil && parsed > 0 {

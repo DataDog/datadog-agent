@@ -33,12 +33,12 @@ const (
 const remoteQueryBinaryPayloadProofQuery = "SELECT decode('00ff80', 'hex') AS payload"
 
 var remoteQueryLargePayloadProofQueries = map[string]int{
-	"SELECT repeat('x', 1048576) AS payload":  1 << 20,
-	"SELECT repeat('x', 2097152) AS payload":  2 << 20,
-	"SELECT repeat('x', 4194304) AS payload":  4 << 20,
-	"SELECT repeat('x', 8388608) AS payload":  8 << 20,
-	"SELECT repeat('x', 16777216) AS payload": 16 << 20,
-	"SELECT repeat('x', 33554432) AS payload": 32 << 20,
+	"SELECT repeat('x', 1048576) AS payload":  1 << 20,  // 1 MiB.
+	"SELECT repeat('x', 2097152) AS payload":  2 << 20,  // 2 MiB.
+	"SELECT repeat('x', 4194304) AS payload":  4 << 20,  // 4 MiB.
+	"SELECT repeat('x', 8388608) AS payload":  8 << 20,  // 8 MiB.
+	"SELECT repeat('x', 16777216) AS payload": 16 << 20, // 16 MiB.
+	"SELECT repeat('x', 33554432) AS payload": 32 << 20, // 32 MiB.
 }
 
 type remoteQueryStreamRunner interface {
