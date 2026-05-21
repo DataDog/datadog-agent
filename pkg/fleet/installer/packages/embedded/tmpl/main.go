@@ -183,8 +183,8 @@ var (
 	}
 
 	systemdUnitsOCI    = systemdUnits(stableDataOCI, expDataOCI, true, true)
-	systemdUnitsDebRpm = systemdUnits(stableDataDebRpm, expDataDebRpm, true, false)
+	systemdUnitsDebRpm = systemdUnits(stableDataDebRpm, expDataDebRpm, true, true)
 
 	systemdUnitsOCILegacyKernel    = systemdUnits(stableDataOCI, expDataOCI, false, true)
-	systemdUnitsDebRpmLegacyKernel = systemdUnits(stableDataDebRpm, expDataDebRpm, false, false)
+	systemdUnitsDebRpmLegacyKernel = systemdUnits(stableDataDebRpm, expDataDebRpm, false, true)
 )
