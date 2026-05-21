@@ -215,24 +215,22 @@ func (p *ActivityTree) removeImageTag(imageTag string) uint64 {
 	return 0
 }
 
-// Inserts image tag. Returns 0 if image tag already existed
-func (p *ActivityTree) insertImageTag(imageTag string) uint64 {
-	for _, tag := range p.imageTagIDs {
-		if tag == imageTag {
-			return 0
-		}
-	}
-
-	p.imageTagIDs = append(p.imageTagIDs, imageTag)
-	return uint64(len(p.imageTagIDs))
-}
-
-// return a valid image tag id. if didn't exist, create entry
+// GetOrInsertImageTag returns the internal ID for an image tag, and creates one if it didn't exist
 func (p *ActivityTree) GetOrInsertImageTag(imageTag string) uint64 {
+	firstTombstone := uint64(0)
+
 	for id, tag := range p.imageTagIDs {
 		if tag == imageTag {
 			return uint64(id) + 1
 		}
+		if firstTombstone == 0 && tag == "" {
+			firstTombstone = uint64(id) + 1
+		}
+	}
+
+	if firstTombstone > 0 {
+		p.imageTagIDs[firstTombstone-1] = imageTag
+		return firstTombstone
 	}
 
 	p.imageTagIDs = append(p.imageTagIDs, imageTag)
@@ -241,13 +239,10 @@ func (p *ActivityTree) GetOrInsertImageTag(imageTag string) uint64 {
 
 // return the image tag from the internal ID
 func (p *ActivityTree) GetTagFromID(imageTagID uint64) string {
-	for id, tag := range p.imageTagIDs {
-		if uint64(id) == imageTagID {
-			return tag
-		}
+	if imageTagID == 0 || imageTagID > uint64(len(p.imageTagIDs)) {
+		return ""
 	}
-
-	return ""
+	return p.imageTagIDs[imageTagID-1]
 }
 
 // SetType changes the type and owner of the ActivityTree
@@ -952,6 +947,7 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 		}
 	}
 	at.ProcessNodes = newProcessNodes
+	at.removeImageTag(imageTag)
 }
 
 func (at *ActivityTree) visitProcessNode(processNode *ProcessNode, cb func(processNode *ProcessNode)) {

@@ -9,7 +9,6 @@
 package activitytree
 
 import (
-	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -337,8 +336,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		}
 
 		// Create a process node with an old "last seen" timestamp
-		tagFromTagID := func(s string) uint64 {
-			fmt.Println(s)
+		tagFromTagID := func(_ string) uint64 {
 			return 666
 		}
 
@@ -376,8 +374,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 			Stats:     NewActivityTreeNodeStats(),
 		}
 
-		tagFromTagID := func(s string) uint64 {
-			fmt.Println(s)
+		tagFromTagID := func(_ string) uint64 {
 			return 666
 		}
 
@@ -514,7 +511,6 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 			case "test-tag":
 				return testTagID
 			}
-			fmt.Println("***** Tag:", tag)
 			return 0
 		}
 

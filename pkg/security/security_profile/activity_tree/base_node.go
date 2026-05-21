@@ -20,7 +20,8 @@ type ImageTagTimes struct {
 
 // NodeBase provides the base functionality for all nodes in the activity tree
 type NodeBase struct {
-	Seen map[uint64]ImageTagTimes // imageTag → timestamps
+	Seen                           map[uint64]ImageTagTimes // imageTag → timestamps
+	removeImageTagFromActivityTree *func(uint64)
 }
 
 // NewNodeBase creates a new NodeBase instance
