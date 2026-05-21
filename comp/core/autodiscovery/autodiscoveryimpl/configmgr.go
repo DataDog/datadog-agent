@@ -405,7 +405,15 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 	// existingResolutions in-place
 	for templateDigest, resolvedDigest := range existingResolutions {
 		if _, found = expectedResolutions[templateDigest]; !found {
-			changes.UnscheduleConfig(cm.scheduledConfigs[resolvedDigest])
+			// If popConfig already removed the scheduled entry out-of-band
+			// (trial-failure unschedule path), skip the Unschedule emission so
+			// we don't propagate a zero-value integration.Config{} downstream
+			// (bogus empty-Provider telemetry, empty payloads on stream/JMX
+			// schedulers). The resolution and health-platform cleanup below
+			// still happen.
+			if cfg, ok := cm.scheduledConfigs[resolvedDigest]; ok {
+				changes.UnscheduleConfig(cfg)
+			}
 			delete(existingResolutions, templateDigest)
 			// Clear any health issue for this template+service pair
 			if tpl, ok := cm.activeConfigs[templateDigest]; ok {

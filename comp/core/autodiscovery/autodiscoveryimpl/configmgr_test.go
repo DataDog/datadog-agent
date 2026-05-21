@@ -794,6 +794,88 @@ func TestResolveTemplateForService_DiscoveryBuildsTrialConfig(t *testing.T) {
 	assert.ElementsMatch(t, []string{"container_name:krakend", "kube_namespace:default"}, tags)
 }
 
+// TestPopConfigDoesNotLeakZeroValueUnschedule verifies that after the
+// trial-failure path (popConfig) removes a resolved discovery config from
+// scheduledConfigs, a subsequent service or template removal does NOT emit a
+// zero-value integration.Config{} in the resulting Unschedule changes.
+//
+// Without the guard in reconcileService, the still-present serviceResolutions
+// entry would make cm.scheduledConfigs[resolvedDigest] return the zero value,
+// which downstream propagates as bogus telemetry (empty Provider/"unknown")
+// and empty payloads to stream/JMX schedulers.
+func TestPopConfigDoesNotLeakZeroValueUnschedule(t *testing.T) {
+	cases := []struct {
+		name string
+		del  func(cm *reconcilingConfigManager, svc listeners.Service, tpl integration.Config) integration.ConfigChanges
+	}{
+		{
+			name: "service removal",
+			del: func(cm *reconcilingConfigManager, svc listeners.Service, _ integration.Config) integration.ConfigChanges {
+				return cm.processDelService(svc)
+			},
+		},
+		{
+			name: "template removal",
+			del: func(cm *reconcilingConfigManager, _ listeners.Service, tpl integration.Config) integration.ConfigChanges {
+				return cm.processDelConfigs([]integration.Config{tpl})
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockResolver := MockSecretResolver{}
+			cm := newReconcilingConfigManager(&mockResolver, healthplatformmock.Mock(t), nil).(*reconcilingConfigManager)
+
+			tpl := integration.Config{
+				Name:          "krakend",
+				ADIdentifiers: []string{"krakend"},
+				Discovery:     &integration.DiscoveryConfig{},
+				InitConfig:    integration.Data("{}"),
+			}
+			svc := &dummyService{
+				ID:            "docker://abc123",
+				ADIdentifiers: []string{"krakend"},
+				Hosts:         map[string]string{"bridge": "10.0.0.5"},
+			}
+
+			// Schedule template + service → one resolved discovery config in
+			// scheduledConfigs, one entry in serviceResolutions.
+			_, _ = cm.processNewConfig(tpl)
+			changes := cm.processNewService(svc)
+			require.Len(t, changes.Schedule, 1, "template + service must resolve to one schedule")
+			resolved := changes.Schedule[0]
+			require.True(t, resolved.IsDiscovery())
+			require.Len(t, resolved.Instances, 1)
+			require.Contains(t, cm.scheduledConfigs, resolved.Digest())
+			require.Contains(t, cm.serviceResolutions, svc.GetServiceID())
+
+			// Simulate the trial-failure unschedule path: popConfig removes
+			// from scheduledConfigs but leaves serviceResolutions intact (so
+			// reconcileService does not re-resolve the same template/service
+			// pair on the next call).
+			id := checkid.BuildID(resolved.Name, resolved.FastDigest(), resolved.Instances[0], resolved.InitConfig)
+			popped, ok := cm.popConfig(id)
+			require.True(t, ok, "popConfig must find the resolved config by check ID")
+			assert.Equal(t, resolved.Digest(), popped.Digest())
+			assert.NotContains(t, cm.scheduledConfigs, resolved.Digest())
+			assert.Contains(t, cm.serviceResolutions, svc.GetServiceID(),
+				"popConfig intentionally leaves serviceResolutions intact so the trial unschedule stays sticky")
+
+			// Now remove the service (or template). reconcileService walks
+			// the stale resolution; the popConfig path already emitted its
+			// own Unschedule, so this cleanup must emit none — in particular,
+			// no zero-value integration.Config{} from the missing
+			// scheduledConfigs[resolvedDigest] lookup.
+			changes = tc.del(cm, svc, tpl)
+			assert.Empty(t, changes.Unschedule,
+				"post-popConfig cleanup must not emit any Unschedule (the trial path already unscheduled the resolved config)")
+			assert.NotContains(t, cm.serviceResolutions, svc.GetServiceID(),
+				"serviceResolutions must still be cleaned up even when scheduledConfigs lookup misses")
+		})
+	}
+}
+
 func TestResolveTemplateForService_DiscoveryRespectsIgnoreAutodiscoveryTags(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	cm := newReconcilingConfigManager(&mockResolver, nil, nil).(*reconcilingConfigManager)
