@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"encoding/binary"
 	"fmt"
 	"slices"
 	"strconv"
@@ -43,6 +44,23 @@ import (
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 )
+
+func mockNVLinkLinkCount(count uint64) func(*nvmlmock.Device) {
+	return func(d *nvmlmock.Device) {
+		getFieldValues := d.GetFieldValuesFunc
+		d.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
+			ret := getFieldValues(values)
+			for i := range values {
+				if values[i].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
+					values[i].NvmlReturn = uint32(nvml.SUCCESS)
+					values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_LONG_LONG)
+					binary.LittleEndian.PutUint64(values[i].Value[:], count)
+				}
+			}
+			return ret
+		}
+	}
+}
 
 func newMockContainerProvider(t *testing.T, pidToContainerID map[int]string) *mock_containers.MockContainerProvider {
 	t.Helper()
@@ -323,7 +341,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 		testutil.WithProcessInfoCallback(func(_ string) ([]nvml.ProcessInfo, nvml.Return) {
 			return nil, nvml.SUCCESS // disable process info, we don't want to mock that part here
 		}),
-		testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithMIGDisabled(),
 		testutil.WithArchitecture("blackwell"),
 	)
@@ -406,7 +424,7 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 			if index >= int(curMIGChildCount.Load()) {
 				return nil, nvml.ERROR_NOT_FOUND
 			}
-			return testutil.GetMIGDeviceMock(deviceIdx, index, testutil.WithMockAllDeviceFunctions()), nvml.SUCCESS
+			return testutil.GetMIGDeviceMock(deviceIdx, index, testutil.WithMockAllDeviceFunctions(), mockNVLinkLinkCount(2)), nvml.SUCCESS
 		}
 		d.GpmMigSampleGetFunc = func(_ int, _ nvml.GpmSample) nvml.Return {
 			return nvml.SUCCESS
@@ -414,6 +432,7 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 		d.GpmSampleGetFunc = func(_ nvml.GpmSample) nvml.Return {
 			return nvml.SUCCESS
 		}
+		mockNVLinkLinkCount(2)(d)
 	})
 
 	// Setup NVML mock with single parent device
@@ -422,7 +441,7 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 		testutil.WithProcessInfoCallback(func(_ string) ([]nvml.ProcessInfo, nvml.Return) {
 			return nil, nvml.SUCCESS
 		}),
-		testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithArchitecture("blackwell"),
 	)
 	nvmlMock.DeviceGetCountFunc = func() (int, nvml.Return) { return 1, nvml.SUCCESS }
