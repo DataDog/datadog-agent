@@ -24,7 +24,6 @@ type Component interface {
 	aggregator.DemultiplexerWithAggregator
 
 	// AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
-	// to be sent on the next flush, and stages the matching shutdown event for the
-	// final Stop(true) flush.
+	// to be sent on the next flush.
 	AddAgentStartupTelemetry(agentVersion string)
 }
