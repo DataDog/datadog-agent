@@ -5,18 +5,8 @@
 
 package connfilter
 
-// getDefaultConnFilters returns the default connection filters.
-//
-// Datadog-owned domains and the configured site are excluded so that the
-// collector does not trace its own infrastructure. The reserved internal-only
-// TLDs `.local` (RFC 6762, mDNS) and `.internal` (IANA Special-Use Domain
-// Names registry) are also excluded since traffic to those names is not a
-// meaningful network path. Users can opt back in by adding an `include`
-// filter under `network_path.collector.filters`; user filters are appended
-// after the defaults and the last matching filter wins.
-//
-// More default filters are added for EUDM mode and can be found in
-// `pkg/config/setup/config.go`.
+// getDefaultConnFilters returns the default connection filters
+// more default filters are added for EUDM mode and can be found in `pkg/config/setup/config.go`.
 func getDefaultConnFilters(site string, monitorIPWithoutDomain bool) []Config {
 	defaultConfig := []Config{
 		{
