@@ -950,25 +950,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
 	config.BindEnvAndSetDefault("runtime_security_config.event_grpc_server", "")
 
-	// trace-agent's evp_proxy
-	config.BindEnvAndSetDefault("evp_proxy_config.enabled", true)
-	config.BindEnvAndSetDefault("evp_proxy_config.dd_url", "")
-	config.BindEnvAndSetDefault("evp_proxy_config.api_key", "")
-	config.BindEnvAndSetDefault("evp_proxy_config.additional_endpoints", map[string][]string{})
-	config.BindEnvAndSetDefault("evp_proxy_config.max_payload_size", int64(10*1024*1024))
-	config.BindEnvAndSetDefault("evp_proxy_config.receiver_timeout", 0)
-	// Delegated authentication for evp_proxy
-	bindDelegatedAuthConfig(config, "evp_proxy_config")
-
-	// trace-agent's ol_proxy
-	config.BindEnvAndSetDefault("ol_proxy_config.enabled", true)
-	config.BindEnvAndSetDefault("ol_proxy_config.dd_url", "")
-	config.BindEnvAndSetDefault("ol_proxy_config.api_key", "")
-	config.BindEnvAndSetDefault("ol_proxy_config.additional_endpoints", map[string][]string{})
-	config.BindEnvAndSetDefault("ol_proxy_config.api_version", 2)
-	// Delegated authentication for ol_proxy_config
-	bindDelegatedAuthConfig(config, "ol_proxy_config")
-
 	// command line options
 	config.SetDefault("cmd.check.fullsketches", false)
 

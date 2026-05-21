@@ -13,7 +13,7 @@ import (
 
 	"go.uber.org/fx"
 
-	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"

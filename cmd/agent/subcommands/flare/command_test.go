@@ -24,7 +24,7 @@ import (
 	profiler "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	profilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	profilermock "github.com/DataDog/datadog-agent/comp/core/profiler/mock"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	settingsmock "github.com/DataDog/datadog-agent/comp/core/settings/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -97,7 +97,7 @@ func getProfiler(t testing.TB) profiler.Component {
 	deps := fxutil.Test[deps](
 		t,
 		core.MockBundle(),
-		settingsimpl.MockModule(),
+		settingsmock.MockModule(),
 		profilerfx.Module(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Provide(func(ipcomp ipc.Component) ipc.HTTPClient { return ipcomp.GetClient() }),

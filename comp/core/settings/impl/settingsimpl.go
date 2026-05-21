@@ -14,30 +14,23 @@ import (
 
 	json "github.com/json-iterator/go"
 	"github.com/mohae/deepcopy"
-	"go.uber.org/fx"
 	"go.yaml.in/yaml/v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
+	settingsdef "github.com/DataDog/datadog-agent/comp/core/settings/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newSettings),
-	)
-}
+// Provides defines the output of the settings component.
+type Provides struct {
+	compdef.Out
 
-type provides struct {
-	fx.Out
-
-	Comp                        settings.Component
+	Comp                        settingsdef.Component
 	FullEndpoint                api.AgentEndpointProvider
 	FullEndpointWithoutDefaults api.AgentEndpointProvider
 	ListEndpoint                api.AgentEndpointProvider
@@ -45,25 +38,26 @@ type provides struct {
 	SetEndpoint                 api.AgentEndpointProvider
 }
 
-type dependencies struct {
-	fx.In
+// Requires defines the dependencies of the settings component.
+type Requires struct {
+	compdef.In
 
 	Log    log.Component
-	Params settings.Params
+	Params settingsdef.Params
 }
 
 type settingsRegistry struct {
 	rwMutex  sync.RWMutex
-	settings map[string]settings.RuntimeSetting
+	settings map[string]settingsdef.RuntimeSetting
 	log      log.Component
 	config   config.Component
 }
 
 // RuntimeSettings returns all runtime configurable settings
-func (s *settingsRegistry) RuntimeSettings() map[string]settings.RuntimeSetting {
+func (s *settingsRegistry) RuntimeSettings() map[string]settingsdef.RuntimeSetting {
 	s.rwMutex.RLock()
 	defer s.rwMutex.RUnlock()
-	settingsCopy := map[string]settings.RuntimeSetting{}
+	settingsCopy := map[string]settingsdef.RuntimeSetting{}
 	maps.Copy(settingsCopy, s.settings)
 	return settingsCopy
 }
@@ -73,7 +67,7 @@ func (s *settingsRegistry) GetRuntimeSetting(setting string) (interface{}, error
 	s.rwMutex.RLock()
 	defer s.rwMutex.RUnlock()
 	if _, ok := s.settings[setting]; !ok {
-		return nil, &settings.SettingNotFoundError{Name: setting}
+		return nil, &settingsdef.SettingNotFoundError{Name: setting}
 	}
 	return s.settings[setting].Get(s.config)
 }
@@ -83,7 +77,7 @@ func (s *settingsRegistry) SetRuntimeSetting(setting string, value interface{}, 
 	s.rwMutex.Lock()
 	defer s.rwMutex.Unlock()
 	if _, ok := s.settings[setting]; !ok {
-		return &settings.SettingNotFoundError{Name: setting}
+		return &settingsdef.SettingNotFoundError{Name: setting}
 	}
 	return s.settings[setting].Set(s.config, value, source)
 }
@@ -184,9 +178,9 @@ func (s *settingsRegistry) GetFullConfigBySource() http.HandlerFunc {
 }
 
 func (s *settingsRegistry) ListConfigurable(w http.ResponseWriter, _ *http.Request) {
-	configurableSettings := make(map[string]settings.RuntimeSettingResponse)
+	configurableSettings := make(map[string]settingsdef.RuntimeSettingResponse)
 	for name, setting := range s.RuntimeSettings() {
-		configurableSettings[name] = settings.RuntimeSettingResponse{
+		configurableSettings[name] = settingsdef.RuntimeSettingResponse{
 			Description: setting.Description(),
 			Hidden:      setting.Hidden(),
 		}
@@ -210,7 +204,7 @@ func (s *settingsRegistry) GetValue(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		switch err.(type) {
-		case *settings.SettingNotFoundError:
+		case *settingsdef.SettingNotFoundError:
 			http.Error(w, string(body), http.StatusBadRequest)
 		default:
 			http.Error(w, string(body), http.StatusInternalServerError)
@@ -243,7 +237,7 @@ func (s *settingsRegistry) SetValue(w http.ResponseWriter, r *http.Request) {
 	if err := s.SetRuntimeSetting(setting, value, model.SourceCLI); err != nil {
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		switch err.(type) {
-		case *settings.SettingNotFoundError:
+		case *settingsdef.SettingNotFoundError:
 			http.Error(w, string(body), http.StatusBadRequest)
 		default:
 			http.Error(w, string(body), http.StatusInternalServerError)
@@ -254,13 +248,13 @@ func (s *settingsRegistry) SetValue(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func newSettings(deps dependencies) provides {
+func NewComponent(deps Requires) Provides {
 	s := &settingsRegistry{
 		settings: deps.Params.Settings,
 		log:      deps.Log,
 		config:   deps.Params.Config,
 	}
-	return provides{
+	return Provides{
 		Comp:                        s,
 		FullEndpoint:                api.NewAgentEndpointProvider(s.GetFullConfig(deps.Params.Namespaces...), "/config", "GET"),
 		FullEndpointWithoutDefaults: api.NewAgentEndpointProvider(s.GetFullConfigWithoutDefaults(deps.Params.Namespaces...), "/config/without-defaults", "GET"),

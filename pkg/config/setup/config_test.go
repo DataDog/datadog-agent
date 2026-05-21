@@ -1509,6 +1509,13 @@ func TestServerlessConfigInit(t *testing.T) {
 	// ensure some non-serverless configs are not declared
 	assert.False(t, conf.IsKnown("sbom.enabled"))
 	assert.False(t, conf.IsKnown("inventories_enabled"))
+
+	// comp/trace/config reads these unconditionally; serverless builds only run
+	// initCommonConfigComponents, so the defaults must be reachable from here.
+	assert.True(t, conf.GetBool("evp_proxy_config.enabled"))
+	assert.Equal(t, int64(10*1024*1024), conf.GetInt64("evp_proxy_config.max_payload_size"))
+	assert.True(t, conf.GetBool("ol_proxy_config.enabled"))
+	assert.Equal(t, 2, conf.GetInt("ol_proxy_config.api_version"))
 }
 
 func TestDisableCoreAgent(t *testing.T) {
