@@ -61,7 +61,8 @@ func TestRemoteQueryPARHarnessWithRealAgentIPCClient(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "SUCCEEDED", result.Status)
 	assert.JSONEq(t, `{"status":"SUCCEEDED","rows":[{"value":1}]}`, string(result.Raw))
-	assert.JSONEq(t, `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`, runner.seenRequest())
+	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`, runner.seenRequest())
+	assert.NotContains(t, runner.seenRequest(), "integration")
 	assert.NotContains(t, string(result.Raw), "datastore-secret")
 }
 

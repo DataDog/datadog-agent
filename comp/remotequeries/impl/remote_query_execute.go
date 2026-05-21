@@ -83,11 +83,10 @@ type remoteQueryExecuteLimits struct {
 	TimeoutMs int
 }
 
-type remoteQueryExecuteRequestJSON struct {
-	Integration string                        `json:"integration"`
-	Target      remoteQueryTargetJSON         `json:"target"`
-	Query       string                        `json:"query"`
-	Limits      *remoteQueryExecuteLimitsJSON `json:"limits,omitempty"`
+type remoteQueryExecutorRequestJSON struct {
+	Target remoteQueryTargetJSON         `json:"target"`
+	Query  string                        `json:"query"`
+	Limits *remoteQueryExecuteLimitsJSON `json:"limits,omitempty"`
 }
 
 type remoteQueryTargetJSON struct {
@@ -337,10 +336,9 @@ func (h *remoteQueryExecuteHandler) findMatches(integration string, target remot
 }
 
 func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
-	wireReq := remoteQueryExecuteRequestJSON{
-		Integration: req.Integration,
-		Target:      remoteQueryTargetJSON{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName},
-		Query:       req.Query,
+	wireReq := remoteQueryExecutorRequestJSON{
+		Target: remoteQueryTargetJSON{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName},
+		Query:  req.Query,
 	}
 	if req.Limits != nil {
 		wireReq.Limits = &remoteQueryExecuteLimitsJSON{

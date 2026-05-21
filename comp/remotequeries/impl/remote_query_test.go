@@ -326,7 +326,7 @@ func TestParseExecuteRequestValidatesStrictShape(t *testing.T) {
 	}
 }
 
-func TestParseExecuteRequestNormalizesAndMarshalsCredentialFreeJSON(t *testing.T) {
+func TestParseExecuteRequestNormalizesAndMarshalsExecutorJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(
 		`{"integration":"postgres","target":{"host":" LocalHost. ","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":10,"maxBytes":1048576,"timeoutMs":5000}}`,
 	))
@@ -336,7 +336,8 @@ func TestParseExecuteRequestNormalizesAndMarshalsCredentialFreeJSON(t *testing.T
 	require.NoError(t, err)
 	assert.Equal(t, integrationPostgres, parsed.Integration)
 	assert.Equal(t, remoteQueryTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, parsed.Target)
-	assert.JSONEq(t, `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":10,"maxBytes":1048576,"timeoutMs":5000}}`, requestJSON)
+	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":10,"maxBytes":1048576,"timeoutMs":5000}}`, requestJSON)
+	assert.NotContains(t, requestJSON, "integration")
 }
 
 func TestParseExecuteRequestRejectsUnsupportedIntegration(t *testing.T) {
@@ -359,7 +360,8 @@ func TestParseExecuteRequestAllowsOmittedLimits(t *testing.T) {
 	parsed, requestJSON, err := parseExecuteRequest(req)
 	require.NoError(t, err)
 	assert.Nil(t, parsed.Limits)
-	assert.JSONEq(t, `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`, requestJSON)
+	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`, requestJSON)
+	assert.NotContains(t, requestJSON, "integration")
 }
 
 func TestRemoteQueryExecuteHandlerDisabled(t *testing.T) {
@@ -382,7 +384,8 @@ func TestRemoteQueryExecuteHandlerRunnerSuccess(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.JSONEq(t, `{"status":"SUCCEEDED","rows":[{"value":1}]}`, recorder.Body.String())
-	assert.JSONEq(t, `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`, runner.seenRequest())
+	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`, runner.seenRequest())
+	assert.NotContains(t, runner.seenRequest(), "integration")
 	assert.NotContains(t, recorder.Body.String(), "secret-value")
 }
 
