@@ -12,6 +12,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
+// testSystemCheckSources mirrors the set in hfrunner/impl for filter tests.
+var testSystemCheckSources = map[metrics.MetricSource]struct{}{
+	metrics.MetricSourceCPU:        {},
+	metrics.MetricSourceLoad:       {},
+	metrics.MetricSourceMemory:     {},
+	metrics.MetricSourceIo:         {},
+	metrics.MetricSourceDisk:       {},
+	metrics.MetricSourceNetwork:    {},
+	metrics.MetricSourceUptime:     {},
+	metrics.MetricSourceFileHandle: {},
+}
+
+// testContainerCheckSources mirrors the set in hfrunner/impl for filter tests.
+var testContainerCheckSources = map[metrics.MetricSource]struct{}{
+	metrics.MetricSourceContainer: {},
+}
+
 // sampleWithSource implements MetricView and sourceProvider.
 type sampleWithSource struct {
 	name   string
@@ -47,24 +64,6 @@ func makeHFHandle(sources map[metrics.MetricSource]struct{}) *hfFilteredHandle {
 	return &hfFilteredHandle{inner: &countingHandle{}, sources: sources}
 }
 
-// systemCheckSources and containerCheckSources mirror the sets the real hfrunner impl
-// returns from StartSystem/StartContainer. Kept here so the hfFilteredHandle tests
-// remain self-contained without importing hfrunner/impl.
-var systemCheckSources = map[metrics.MetricSource]struct{}{
-	metrics.MetricSourceCPU:        {},
-	metrics.MetricSourceLoad:       {},
-	metrics.MetricSourceMemory:     {},
-	metrics.MetricSourceIo:         {},
-	metrics.MetricSourceDisk:       {},
-	metrics.MetricSourceNetwork:    {},
-	metrics.MetricSourceUptime:     {},
-	metrics.MetricSourceFileHandle: {},
-}
-
-var containerCheckSources = map[metrics.MetricSource]struct{}{
-	metrics.MetricSourceContainer: {},
-}
-
 func TestHFFilteredHandle_SystemSources(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -94,7 +93,7 @@ func TestHFFilteredHandle_SystemSources(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := makeHFHandle(systemCheckSources)
+			f := makeHFHandle(testSystemCheckSources)
 			f.ObserveMetric(tt.sample)
 			inner := f.inner.(*countingHandle)
 			if tt.wantDrop && inner.received != 0 {
@@ -133,7 +132,7 @@ func TestHFFilteredHandle_ContainerSources(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := makeHFHandle(containerCheckSources)
+			f := makeHFHandle(testContainerCheckSources)
 			f.ObserveMetric(tt.sample)
 			inner := f.inner.(*countingHandle)
 			if tt.wantDrop && inner.received != 0 {
@@ -149,10 +148,10 @@ func TestHFFilteredHandle_ContainerSources(t *testing.T) {
 func TestHFFilteredHandle_BothEnabled(t *testing.T) {
 	// When both flags are active the combined source set suppresses both categories.
 	combined := make(map[metrics.MetricSource]struct{})
-	for src := range systemCheckSources {
+	for src := range testSystemCheckSources {
 		combined[src] = struct{}{}
 	}
-	for src := range containerCheckSources {
+	for src := range testContainerCheckSources {
 		combined[src] = struct{}{}
 	}
 

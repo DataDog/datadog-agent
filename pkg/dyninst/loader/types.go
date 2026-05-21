@@ -129,6 +129,24 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_GO_CONTEXT_CHAIN_INIT
 	case compiler.OpcodeGoContextChainHop:
 		return C.SM_OP_GO_CONTEXT_CHAIN_HOP
+	case compiler.OpcodeProcessGoTime:
+		return C.SM_OP_PROCESS_GO_TIME
+	case compiler.OpcodeExprLoadAddress:
+		return C.SM_OP_EXPR_LOAD_ADDRESS
+	case compiler.OpcodeArrayLoopBegin:
+		return C.SM_OP_ARRAY_LOOP_BEGIN
+	case compiler.OpcodeArrayLoopEnd:
+		return C.SM_OP_ARRAY_LOOP_END
+	case compiler.OpcodeSliceLoopBegin:
+		return C.SM_OP_SLICE_LOOP_BEGIN
+	case compiler.OpcodeSliceLoopEnd:
+		return C.SM_OP_SLICE_LOOP_END
+	case compiler.OpcodeSwissMapLoopBegin:
+		return C.SM_OP_SWISS_MAP_LOOP_BEGIN
+	case compiler.OpcodeSwissMapLoopEnd:
+		return C.SM_OP_SWISS_MAP_LOOP_END
+	case compiler.OpcodeExprAdvanceOffset:
+		return C.SM_OP_EXPR_ADVANCE_OFFSET
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}

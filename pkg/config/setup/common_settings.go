@@ -177,8 +177,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("prometheus_scrape.version", 1)               // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 
 	// Prometheus HTTP Service Discovery
-	config.BindEnvAndSetDefault("prometheus_http_sd.url", "")            // URL of the Prometheus HTTP SD endpoint
-	config.BindEnvAndSetDefault("prometheus_http_sd.check_template", "") // JSON check template applied to each discovered target (e.g. '{"name":"openmetrics","init_config":{},"instances":[{"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}]}')
+	config.BindEnvAndSetDefault("prometheus_http_sd.configs", []map[string]interface{}{}) // List of HTTP SD endpoints to poll. Each entry must specify url and check_template.
+	config.ParseEnvJSON("prometheus_http_sd.configs", []map[string]interface{}{})         // DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
+	config.BindEnvAndSetDefault("prometheus_http_sd.url", "")                             // [DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs instead.
+	config.BindEnvAndSetDefault("prometheus_http_sd.check_template", "")                  // [DEPRECATED] JSON check template applied to each discovered target. Use prometheus_http_sd.configs instead.
 
 	// Network Devices Monitoring
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
@@ -476,6 +478,11 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// to mount /var/run/datadog into the agent pod. For DSD/APM-enabled deployments
 	// the directory is already mounted; this setting matters for NCCL-only setups.
 	config.BindEnvAndSetDefault("gpu.nccl.host_socket_path", "/var/run/datadog")
+	// In-container directory at which the agent's NCCL socket is mounted in
+	// injected workload pods. Composed with filepath.Base(gpu.nccl.socket_path)
+	// to build the mount destination and NCCL_DD_SOCKET_PATH. Same shape as
+	// admission_controller.inject_config.socket_path used by APM/DSD injection.
+	config.BindEnvAndSetDefault("admission_controller.nccl_profiler.socket_dir", "/var/run/datadog")
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
@@ -1089,6 +1096,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_filterlist_match_prefix", false)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 	config.BindEnvAndSetDefault("metric_tag_filterlist", []interface{}{})
+	// When true (default), metric_tag_filterlist tag stripping is only applied when data_plane.enabled is true.
+	// Set to false to apply tag stripping regardless of whether ADP is running.
+	config.BindEnvAndSetDefault("metric_tag_filterlist_adp_only", true)
 
 	// Integration security
 
@@ -1116,6 +1126,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Remote Flags system
 	remoteflags(config)
+
+	anomalyDetection(config)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1767,6 +1779,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.fingerprint_strategy", DefaultFingerprintStrategy)
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// use the `time` field from container log files instead of ingestion time
+	config.BindEnvAndSetDefault("logs_config.use_container_timestamp", false)
 	// Delegated authentication for logs
 	bindDelegatedAuthConfig(config, "logs_config")
 
@@ -1869,6 +1883,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// Auto multiline detection settings
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
+	config.BindEnvAndSetDefault("logs_config.experimental_auto_multi_line_detection", false)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_custom_samples", []map[string]interface{}{})
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_detection", true)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_datetime_detection", true)
@@ -1894,6 +1909,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// When true, logs containing critical severity keywords (FATAL, ERROR, PANIC, etc.)
 	// bypass the adaptive sampler and are never dropped.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.protect_important_logs", true)
+	// Include limits adaptive sampling to logs matching at least one rule when configured.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.include", []map[string]interface{}{})
+	// Exclude prevents adaptive sampling from applying to logs matching any rule when configured.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.exclude", []map[string]interface{}{})
 
 	// Enable the legacy auto multiline detection (v1)
 	config.BindEnvAndSetDefault("logs_config.force_auto_multi_line_detection_v1", false)
@@ -1905,9 +1924,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
 
 	// Add a tag to logs that are multiline aggregated
-	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", false)
+	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", true)
 	// Add a tag to logs that are truncated by the agent
-	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
+	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", true)
 	// Tag logs with their auto multiline detection label without aggregating them
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_tagging", true)
 
@@ -2068,4 +2087,62 @@ func kubernetes(config pkgconfigmodel.Setup) {
 
 func podman(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("podman_db_path", "")
+}
+
+func anomalyDetection(config pkgconfigmodel.Setup) {
+	// Master switch. When false the entire anomaly detection subsystem is a no-op.
+	config.BindEnvAndSetDefault("anomaly_detection.enabled", false)
+
+	// Log ingestion gate. When false, container/journald logs are not routed
+	// into the anomaly detection pipeline (recording is unaffected).
+	config.BindEnvAndSetDefault("anomaly_detection.logs.enabled", true)
+
+	// Metrics ingestion gate. When false, externally-ingested metrics
+	// (DogStatsD, check samplers) are dropped at the handle factory.
+	// Log-derived virtual metrics are unaffected.
+	config.BindEnvAndSetDefault("anomaly_detection.metrics.enabled", true)
+
+	// Agent-internal log sampling. Warn+ are never sampled.
+	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_info", 0.2)
+	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_debug", 0.05)
+	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_trace", 0.0)
+
+	// Anomaly event reporting. Keep false during evaluation / shadow mode.
+	config.BindEnvAndSetDefault("anomaly_detection.reporting.enabled", false)
+
+	// Parquet recording of raw ingested signals for offline analysis and replay.
+	config.BindEnvAndSetDefault("anomaly_detection.recording.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.recording.output_dir", "/var/run/datadog/anomaly_detection")
+	config.BindEnvAndSetDefault("anomaly_detection.recording.flush_interval", 60)
+	config.BindEnvAndSetDefault("anomaly_detection.recording.retention", "24h")
+
+	// High-frequency check overrides. Increases resolution at the cost of
+	// higher CPU/memory usage.
+	config.BindEnvAndSetDefault("anomaly_detection.checks.high_frequency_system", false)
+	config.BindEnvAndSetDefault("anomaly_detection.checks.high_frequency_containers", false)
+
+	// Debug tooling: internal state dump. Leave empty/zero in production.
+	config.BindEnvAndSetDefault("anomaly_detection.debug.dump_path", "")
+	config.BindEnvAndSetDefault("anomaly_detection.debug.dump_interval", 0)
+	config.BindEnvAndSetDefault("anomaly_detection.debug.events_dump_path", "")
+
+	// Detector/correlator/extractor toggles. Defaults match componentCatalog.defaultEnabled.
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.log_metrics_extractor.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.connection_error_extractor.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.log_pattern_extractor.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.cusum.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.bocpd.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.rrcf.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scanmw.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scanwelch.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.cross_signal.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.min_cluster_size", 0)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.passthrough.enabled", false)
+
+	// Storage tuning. See storageConfig in the observer component.
+	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)
+	config.BindEnvAndSetDefault("anomaly_detection.storage.eviction_floor_ratio", 0.5)
+	config.BindEnvAndSetDefault("anomaly_detection.storage.point_retention_secs", 120)
 }

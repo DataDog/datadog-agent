@@ -7,6 +7,7 @@
 package serializer
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"expvar"
@@ -94,6 +95,7 @@ type MetricSerializer interface {
 	SendAgentchecksMetadata(m marshaler.JSONMarshaler) error
 	SendOrchestratorMetadata(msgs []types.ProcessMessageBody, hostName, clusterID string, payloadType int) error
 	SendOrchestratorManifests(msgs []types.ProcessMessageBody, hostName, clusterID string) error
+	SendAgentShutdownEvent(ctx context.Context, e *event.Event) error
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
@@ -194,6 +196,27 @@ func (s *Serializer) SendEvents(events event.Events) error {
 	return s.Forwarder.SubmitV1Intake(payloads, transaction.Events, s.jsonExtraHeadersWithCompression)
 }
 
+// SendAgentShutdownEvent serializes and sends the Agent Shutdown lifecycle event through
+// a bounded one-shot forwarder path instead of batching it with ordinary events.
+func (s *Serializer) SendAgentShutdownEvent(ctx context.Context, e *event.Event) error {
+	if e == nil {
+		return nil
+	}
+	if !s.enableEvents {
+		s.logger.Debug("events payloads are disabled: dropping Agent Shutdown event")
+		return nil
+	}
+
+	payloads, err := metricsserializer.MarshalEvents(event.Events{e}, s.hostname, s.config, s.logger, s.Strategy)
+	if err != nil {
+		return fmt.Errorf("dropping Agent Shutdown event payload: %v", err)
+	}
+	if len(payloads) == 0 {
+		return nil
+	}
+	return s.Forwarder.SubmitV1IntakeDirect(ctx, payloads, transaction.Events, s.jsonExtraHeadersWithCompression)
+}
+
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
 func (s *Serializer) SendServiceChecks(serviceChecks servicecheck.ServiceChecks) error {
 	if !s.enableServiceChecks {
@@ -254,7 +277,7 @@ func (s *Serializer) getFailoverAllowlist() metricsserializer.Filter {
 	}
 
 	var allowlist map[string]struct{}
-	if s.config.IsSet("multi_region_failover.metric_allowlist") {
+	if s.config.IsConfigured("multi_region_failover.metric_allowlist") {
 		rawList := s.config.GetStringSlice("multi_region_failover.metric_allowlist")
 		allowlist = make(map[string]struct{}, len(rawList))
 		for _, allowed := range rawList {

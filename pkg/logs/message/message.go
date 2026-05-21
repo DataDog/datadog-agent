@@ -288,14 +288,6 @@ type ParsingExtra struct {
 	IsMultiLine bool
 	IsMRFAllow  bool
 	Tags        []string
-	// SourceOverride, if non-empty, is applied to the message origin's source
-	// by the tailer after origin creation. Used by parsers (e.g. syslog) that
-	// run before the origin exists.
-	SourceOverride string
-	// ServiceOverride, if non-empty, is applied to the message origin's service
-	// by the tailer after origin creation. Used by parsers (e.g. syslog) that
-	// run before the origin exists.
-	ServiceOverride string
 }
 
 // ServerlessExtra ships extra information from logs processing in serverless envs.
@@ -391,19 +383,6 @@ func (m *Message) Render() ([]byte, error) {
 }
 
 // Methods implementing observer.LogView for read-only observation.
-
-// GetStatus returns the message status.
-func (m *Message) GetStatus() string {
-	return m.MessageMetadata.GetStatus()
-}
-
-// GetTags returns the message tags.
-func (m *Message) GetTags() []string {
-	if m.Origin == nil {
-		return nil
-	}
-	return m.Origin.Tags()
-}
 
 // GetHostname returns the message hostname.
 func (m *Message) GetHostname() string {

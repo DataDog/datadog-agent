@@ -1926,8 +1926,22 @@ properties:
         example: 'false'
         tags:
         - template_section:LogsAgent
+      use_container_timestamp:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Use the `time` field from container log files (when available) as the log timestamp instead of ingestion time.
+
+          This affects logs collected from container runtimes that provide per-log-line timestamps (for example Docker JSON logs).
+        example: 'false'
+        tags:
+        - template_section:LogsAgent
       logs_dd_url:
         node_type: setting
+        type: string
+        default: ''
         visibility: public
         description: |-
           Define the endpoint and port to hit when using a proxy for logs.
@@ -1935,8 +1949,6 @@ properties:
           specific proxy path, the URL scheme must be specified: https://proxy.example.com:443/logs
         example: <ENDPOINT>:<PORT>
         tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
         - template_section:LogsAgent
       logs_no_ssl:
         node_type: setting
@@ -2190,9 +2202,10 @@ properties:
         default: false
       additional_endpoints:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: object
       aggregation_timeout:
         node_type: setting
         type: number
@@ -2332,9 +2345,8 @@ properties:
         - golang_type:int
       dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       dd_url_443:
         node_type: setting
         type: string
@@ -2422,6 +2434,18 @@ properties:
             node_type: setting
             type: boolean
             default: false
+          exclude:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+          include:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
           match_threshold:
             node_type: setting
             type: number
@@ -2597,11 +2621,11 @@ properties:
       tag_multi_line_logs:
         node_type: setting
         type: boolean
-        default: false
+        default: true
       tag_truncated_logs:
         node_type: setting
         type: boolean
-        default: false
+        default: true
       tagger_warmup_duration:
         node_type: setting
         type: number
@@ -4813,8 +4837,8 @@ properties:
     visibility: public
     description: Network Path configuration
     tags:
-    - template_section:CoreAgent
     - platform_only:windows,linux
+    - template_section:CoreAgent
     properties:
       connections_monitoring:
         node_type: section
@@ -5067,9 +5091,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -5112,9 +5137,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -5129,9 +5153,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -5231,9 +5254,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -5276,9 +5300,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -5293,9 +5316,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -5419,9 +5441,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -5464,9 +5487,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -5481,9 +5503,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -5634,8 +5655,8 @@ properties:
         visibility: public
         description: Configuration for scanning container images for software vulnerabilities.
         tags:
-        - template_section:CoreAgent
         - platform_only:linux
+        - template_section:CoreAgent
         properties:
           enabled:
             node_type: setting
@@ -5694,7 +5715,7 @@ properties:
           overlayfs_disable_cache:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           scan_interval:
             node_type: setting
             type: number
@@ -5717,9 +5738,10 @@ properties:
             default: false
       additional_endpoints:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: object
       batch_max_concurrent_send:
         node_type: setting
         type: number
@@ -5796,9 +5818,8 @@ properties:
             default: false
       dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       dev_mode_no_ssl:
         node_type: setting
         type: boolean
@@ -5825,9 +5846,8 @@ properties:
         - golang_type:int
       logs_dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       logs_no_ssl:
         node_type: setting
         type: boolean
@@ -6800,6 +6820,22 @@ properties:
     example: '10'
     tags:
     - golang_type:int64
+    - template_section:CoreAgent
+  ad_tag_completeness_max_wait:
+    node_type: setting
+    type: number
+    default: 0
+    visibility: public
+    description: |-
+      Maximum time in seconds that autodiscovery waits for an entity's tags to be
+      complete before scheduling checks for it. This avoids checks running briefly
+      with incomplete tags. This can happen when some sources (kubelet, container
+      runtime, etc.) have reported information for the entity, but others have not
+      yet. 0 disables waiting and checks are scheduled as soon as the entity is
+      discovered.
+    example: '0'
+    tags:
+    - golang_type:int
     - template_section:CoreAgent
   ad_allowed_env_vars:
     node_type: setting
@@ -7916,6 +7952,10 @@ properties:
                 example: '""'
                 tags:
                 - template_section:AdmissionController
+          socket_dir:
+            node_type: setting
+            type: string
+            default: /var/run/datadog
       agent_sidecar:
         node_type: section
         type: object
@@ -8668,6 +8708,18 @@ properties:
     example: '60'
     tags:
     - golang_type:int
+    - template_section:KubeApiServer
+  kubernetes_metadata_streaming:
+    node_type: setting
+    type: boolean
+    default: true
+    visibility: public
+    description: |-
+      Stream Kubernetes metadata from the Cluster Agent instead of polling it every
+      `kubernetes_metadata_tag_update_freq` seconds. This propagates the associated
+      tags with less delay.
+    example: 'true'
+    tags:
     - template_section:KubeApiServer
   kubernetes_apiserver_client_timeout:
     node_type: setting
@@ -9654,9 +9706,10 @@ properties:
             properties:
               additional_endpoints:
                 node_type: setting
-                tags:
-                - TODO:fix-no-default
-                - TODO:fix-missing-type
+                type: array
+                default: []
+                items:
+                  type: object
               batch_max_concurrent_send:
                 node_type: setting
                 type: number
@@ -9699,9 +9752,8 @@ properties:
                 - golang_type:int
               dd_url:
                 node_type: setting
-                tags:
-                - TODO:fix-no-default
-                - TODO:fix-missing-type
+                type: string
+                default: ''
               dev_mode_no_ssl:
                 node_type: setting
                 type: boolean
@@ -9716,9 +9768,8 @@ properties:
                 - golang_type:int
               logs_dd_url:
                 node_type: setting
-                tags:
-                - TODO:fix-no-default
-                - TODO:fix-missing-type
+                type: string
+                default: ''
               logs_no_ssl:
                 node_type: setting
                 type: boolean
@@ -9886,9 +9937,10 @@ properties:
             properties:
               additional_endpoints:
                 node_type: setting
-                tags:
-                - TODO:fix-no-default
-                - TODO:fix-missing-type
+                type: array
+                default: []
+                items:
+                  type: object
               batch_max_concurrent_send:
                 node_type: setting
                 type: number
@@ -9931,9 +9983,8 @@ properties:
                 - golang_type:int
               dd_url:
                 node_type: setting
-                tags:
-                - TODO:fix-no-default
-                - TODO:fix-missing-type
+                type: string
+                default: ''
               dev_mode_no_ssl:
                 node_type: setting
                 type: boolean
@@ -9948,9 +9999,8 @@ properties:
                 - golang_type:int
               logs_dd_url:
                 node_type: setting
-                tags:
-                - TODO:fix-no-default
-                - TODO:fix-missing-type
+                type: string
+                default: ''
               logs_no_ssl:
                 node_type: setting
                 type: boolean
@@ -10003,9 +10053,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -10048,9 +10099,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -10065,9 +10115,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -11081,12 +11130,6 @@ properties:
     node_type: setting
     type: string
     default: localhost
-  ad_tag_completeness_max_wait:
-    node_type: setting
-    type: number
-    default: 0
-    tags:
-    - golang_type:int
   additional_endpoints:
     node_type: setting
     type: object
@@ -11141,9 +11184,10 @@ properties:
     properties:
       additional_endpoints:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: object
       batch_max_concurrent_send:
         node_type: setting
         type: number
@@ -11186,9 +11230,8 @@ properties:
         - golang_type:int
       dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       dev_mode_no_ssl:
         node_type: setting
         type: boolean
@@ -11207,9 +11250,8 @@ properties:
         - golang_type:int
       logs_dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       logs_no_ssl:
         node_type: setting
         type: boolean
@@ -11699,9 +11741,10 @@ properties:
     properties:
       additional_endpoints:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: object
       batch_max_concurrent_send:
         node_type: setting
         type: number
@@ -11744,9 +11787,8 @@ properties:
         - golang_type:int
       dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       dev_mode_no_ssl:
         node_type: setting
         type: boolean
@@ -11765,9 +11807,8 @@ properties:
         - golang_type:int
       logs_dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       logs_no_ssl:
         node_type: setting
         type: boolean
@@ -11838,9 +11879,10 @@ properties:
     properties:
       additional_endpoints:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: object
       batch_max_concurrent_send:
         node_type: setting
         type: number
@@ -11883,9 +11925,8 @@ properties:
         - golang_type:int
       dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       dev_mode_no_ssl:
         node_type: setting
         type: boolean
@@ -11904,9 +11945,8 @@ properties:
         - golang_type:int
       logs_dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       logs_no_ssl:
         node_type: setting
         type: boolean
@@ -11995,9 +12035,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -12040,9 +12081,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -12057,9 +12097,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -12164,9 +12203,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -12209,9 +12249,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -12226,9 +12265,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -12285,9 +12323,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -12330,9 +12369,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -12347,9 +12385,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -12484,9 +12521,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -12529,9 +12567,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -12546,9 +12583,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -12601,9 +12637,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -12646,9 +12683,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -12663,9 +12699,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -13081,9 +13116,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -13126,9 +13162,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -13143,9 +13178,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -13996,9 +14030,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -14041,9 +14076,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -14058,9 +14092,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -14172,10 +14205,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-  kubernetes_metadata_streaming:
-    node_type: setting
-    type: boolean
-    default: false
   kubernetes_namespace_annotations_as_tags:
     node_type: setting
     type: object
@@ -14283,6 +14312,10 @@ properties:
     node_type: setting
     type: array
     default: []
+  metric_tag_filterlist_adp_only:
+    node_type: setting
+    type: boolean
+    default: true
   metrics_port:
     node_type: setting
     type: number
@@ -14295,14 +14328,12 @@ properties:
     properties:
       api_key:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       enabled:
         node_type: setting
         type: boolean
@@ -14321,14 +14352,16 @@ properties:
         default: false
       logs_service_allowlist:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: string
       metric_allowlist:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: string
       remote_configuration:
         node_type: section
         type: object
@@ -14352,19 +14385,16 @@ properties:
                 - golang_type:duration
           config_root:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           director_root:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           key:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           max_backoff_interval:
             node_type: setting
             type: number
@@ -14374,9 +14404,11 @@ properties:
             - golang_type:duration
           max_backoff_time:
             node_type: setting
+            type: number
+            default: 0s
+            format: duration
             tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            - golang_type:duration
           org_status_refresh_interval:
             node_type: setting
             type: number
@@ -14391,9 +14423,8 @@ properties:
             - TODO:fix-missing-type
       site:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
   network:
     node_type: section
     type: object
@@ -14423,9 +14454,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -14468,9 +14500,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -14485,9 +14516,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -14857,6 +14887,13 @@ properties:
         node_type: setting
         type: string
         default: ''
+      configs:
+        node_type: setting
+        type: array
+        default: []
+        env_parser: json
+        items:
+          type: object
       url:
         node_type: setting
         type: string
@@ -14968,9 +15005,10 @@ properties:
                 properties:
                   additional_endpoints:
                     node_type: setting
-                    tags:
-                    - TODO:fix-no-default
-                    - TODO:fix-missing-type
+                    type: array
+                    default: []
+                    items:
+                      type: object
                   batch_max_concurrent_send:
                     node_type: setting
                     type: number
@@ -15013,9 +15051,8 @@ properties:
                     - golang_type:int
                   dd_url:
                     node_type: setting
-                    tags:
-                    - TODO:fix-no-default
-                    - TODO:fix-missing-type
+                    type: string
+                    default: ''
                   dev_mode_no_ssl:
                     node_type: setting
                     type: boolean
@@ -15030,9 +15067,8 @@ properties:
                     - golang_type:int
                   logs_dd_url:
                     node_type: setting
-                    tags:
-                    - TODO:fix-no-default
-                    - TODO:fix-missing-type
+                    type: string
+                    default: ''
                   logs_no_ssl:
                     node_type: setting
                     type: boolean
@@ -15097,9 +15133,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -15142,9 +15179,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -15159,9 +15195,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -15499,9 +15534,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -15544,9 +15580,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -15561,9 +15596,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -15748,9 +15782,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -15793,9 +15828,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -15810,9 +15844,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
