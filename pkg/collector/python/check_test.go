@@ -70,3 +70,19 @@ func TestCheckDiagnosesDeserialization(t *testing.T) {
 func TestRunAfterCancel(t *testing.T) {
 	testRunAfterCancel(t)
 }
+
+func TestRunPostgresRemoteQueryJSON(t *testing.T) {
+	testRunPostgresRemoteQueryJSON(t)
+}
+
+func TestRunPostgresRemoteQueryJSONError(t *testing.T) {
+	testRunPostgresRemoteQueryJSONError(t)
+}
+
+func TestRunPostgresRemoteQueryJSONWithRuntimeNotInitializedError(t *testing.T) {
+	testRunPostgresRemoteQueryJSONWithRuntimeNotInitializedError(t)
+}
+
+func TestRunPostgresRemoteQueryJSONAfterCancel(t *testing.T) {
+	testRunPostgresRemoteQueryJSONAfterCancel(t)
+}

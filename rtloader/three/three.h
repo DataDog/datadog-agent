@@ -65,6 +65,7 @@ public:
                   const char *provider_str, RtLoaderPyObject *&check);
 
     char *runCheck(RtLoaderPyObject *check);
+    char *runPostgresRemoteQuery(RtLoaderPyObject *check, const char *request_json);
     void cancelCheck(RtLoaderPyObject *check);
     char **getCheckWarnings(RtLoaderPyObject *check);
     char *getCheckDiagnoses(RtLoaderPyObject *check);

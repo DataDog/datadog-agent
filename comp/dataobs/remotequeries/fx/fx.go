@@ -16,5 +16,6 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(remotequeriesimpl.NewPostgresMatchEndpointProvider),
+		fx.Provide(remotequeriesimpl.NewPostgresExecuteEndpointProvider),
 	)
 }

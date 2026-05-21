@@ -121,6 +121,14 @@ public:
     */
     virtual char *runCheck(RtLoaderPyObject *check) = 0;
 
+    //! Pure virtual runPostgresRemoteQuery member.
+    /*!
+      \param check The python object pointer to the check we wish to use.
+      \param request_json A credential-free JSON request string.
+      \return A C-string with the JSON result.
+    */
+    virtual char *runPostgresRemoteQuery(RtLoaderPyObject *check, const char *request_json) = 0;
+
     //! Pure virtual cancelCheck member.
     /*!
       \param check The python object pointer to the check we wish to cancel.

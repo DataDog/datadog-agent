@@ -39,6 +39,7 @@ import (
 #include "rtloader_mem.h"
 
 char *getStringAddr(char **array, unsigned int idx);
+char *run_postgres_remote_query(rtloader_t *, rtloader_pyobject_t *check, const char *request_json);
 
 static inline void call_free(void* ptr) {
     _free(ptr);
@@ -155,6 +156,33 @@ func (c *PythonCheck) Run() error {
 // RunSimple runs a Python check without sending data to the aggregator
 func (c *PythonCheck) RunSimple() error {
 	return c.runCheck(false)
+}
+
+// RunPostgresRemoteQueryJSON runs the fixed Postgres remote query helper for this Python check.
+func (c *PythonCheck) RunPostgresRemoteQueryJSON(requestJSON string) (string, error) {
+	gstate, err := newStickyLock()
+	if err != nil {
+		return "", err
+	}
+	defer gstate.unlock()
+
+	if c.cancelled {
+		return "", fmt.Errorf("check %s is already cancelled", c.ModuleName)
+	}
+
+	cRequestJSON := C.CString(requestJSON)
+	defer C.free(unsafe.Pointer(cRequestJSON))
+
+	cResult := C.run_postgres_remote_query(rtloader, c.instance, cRequestJSON)
+	if cResult == nil {
+		if err := getRtLoaderError(); err != nil {
+			return "", err
+		}
+		return "", fmt.Errorf("an error occurred while running Postgres remote query")
+	}
+	defer C.rtloader_free(rtloader, unsafe.Pointer(cResult))
+
+	return C.GoString(cResult), nil
 }
 
 // Stop does nothing

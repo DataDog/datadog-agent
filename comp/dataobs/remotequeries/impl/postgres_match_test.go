@@ -237,3 +237,205 @@ func (f fakeCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	return nil, nil
 }
 func (f fakeCheck) IsHASupported() bool { return false }
+
+func TestParseExecuteRequestValidatesStrictShape(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		wantError string
+	}{
+		{
+			name:      "unknown top level field",
+			body:      `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","extra":true}`,
+			wantError: "request contains unknown field",
+		},
+		{
+			name:      "credential-shaped top level field",
+			body:      `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","token":"secret-value"}`,
+			wantError: "request contains disallowed credential-shaped field",
+		},
+		{
+			name:      "unknown target field",
+			body:      `{"target":{"host":"localhost","port":5432,"dbname":"postgres","extra":true},"query":"SELECT 1 AS value"}`,
+			wantError: "target contains unknown field",
+		},
+		{
+			name:      "credential-shaped target field",
+			body:      `{"target":{"host":"localhost","port":5432,"dbname":"postgres","password":"secret-value"},"query":"SELECT 1 AS value"}`,
+			wantError: "request contains disallowed credential-shaped field",
+		},
+		{
+			name:      "non-exact query",
+			body:      `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value;"}`,
+			wantError: "query is not allowed",
+		},
+		{
+			name:      "unknown limits field",
+			body:      `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":10,"maxBytes":1048576,"timeoutMs":5000,"extra":true}}`,
+			wantError: "limits contains unknown field",
+		},
+		{
+			name:      "credential-shaped limits field",
+			body:      `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":10,"maxBytes":1048576,"timeoutMs":5000,"password":"secret-value"}}`,
+			wantError: "request contains disallowed credential-shaped field",
+		},
+		{
+			name:      "string maxRows",
+			body:      `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":"10","maxBytes":1048576,"timeoutMs":5000}}`,
+			wantError: "limits.maxRows must be an integer",
+		},
+		{
+			name:      "zero timeout",
+			body:      `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":10,"maxBytes":1048576,"timeoutMs":0}}`,
+			wantError: "limits.timeoutMs must be at least 1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, PostgresExecuteEndpointPath, strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			_, _, err := parseExecuteRequest(req)
+			require.Error(t, err)
+			assert.Equal(t, tt.wantError, err.Error())
+			assert.NotContains(t, err.Error(), "secret-value")
+		})
+	}
+}
+
+func TestParseExecuteRequestNormalizesAndMarshalsCredentialFreeJSON(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, PostgresExecuteEndpointPath, strings.NewReader(
+		`{"target":{"host":" LocalHost. ","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":10,"maxBytes":1048576,"timeoutMs":5000}}`,
+	))
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	parsed, requestJSON, err := parseExecuteRequest(req)
+	require.NoError(t, err)
+	assert.Equal(t, postgresTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, parsed.Target)
+	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":10,"maxBytes":1048576,"timeoutMs":5000}}`, requestJSON)
+}
+
+func TestParseExecuteRequestAllowsOmittedLimits(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, PostgresExecuteEndpointPath, strings.NewReader(
+		`{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`,
+	))
+	req.Header.Set("Content-Type", "application/json")
+
+	parsed, requestJSON, err := parseExecuteRequest(req)
+	require.NoError(t, err)
+	assert.Nil(t, parsed.Limits)
+	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`, requestJSON)
+}
+
+func TestPostgresExecuteHandlerDisabled(t *testing.T) {
+	handler := &postgresExecuteHandler{enabled: false, collector: fakeCollector{}}
+
+	recorder := callExecuteHandler(handler, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`)
+
+	assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"status":"bridge_disabled"`)
+}
+
+func TestPostgresExecuteHandlerRunnerSuccess(t *testing.T) {
+	runner := &fakeRunnerCheck{
+		fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"},
+		response:  `{"status":"SUCCEEDED","rows":[{"value":1}]}`,
+	}
+	handler := &postgresExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}}
+
+	recorder := callExecuteHandler(handler, `{"target":{"host":"LOCALHOST.","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.JSONEq(t, `{"status":"SUCCEEDED","rows":[{"value":1}]}`, recorder.Body.String())
+	assert.JSONEq(t, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`, runner.seenRequest())
+	assert.NotContains(t, recorder.Body.String(), "secret-value")
+}
+
+func TestPostgresExecuteHandlerNoMatchAndAmbiguous(t *testing.T) {
+	t.Run("no match", func(t *testing.T) {
+		handler := &postgresExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
+			&fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}},
+		}}}
+
+		recorder := callExecuteHandler(handler, `{"target":{"host":"localhost","port":5432,"dbname":"other"},"query":"SELECT 1 AS value"}`)
+
+		assert.Equal(t, http.StatusNotFound, recorder.Code)
+		assert.Contains(t, recorder.Body.String(), `"status":"target_not_found"`)
+		assert.NotContains(t, recorder.Body.String(), "secret-value")
+		assert.NotContains(t, recorder.Body.String(), "other")
+	})
+
+	t.Run("ambiguous", func(t *testing.T) {
+		handler := &postgresExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
+			&fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-one\n"}},
+			&fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-two\n"}},
+		}}}
+
+		recorder := callExecuteHandler(handler, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`)
+
+		assert.Equal(t, http.StatusConflict, recorder.Code)
+		assert.Contains(t, recorder.Body.String(), `"status":"ambiguous_target"`)
+		assert.NotContains(t, recorder.Body.String(), "secret-one")
+		assert.NotContains(t, recorder.Body.String(), "secret-two")
+	})
+}
+
+func TestPostgresExecuteHandlerUnsupportedAndRunnerErrorAreSanitized(t *testing.T) {
+	t.Run("unsupported", func(t *testing.T) {
+		handler := &postgresExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
+			fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"},
+		}}}
+
+		recorder := callExecuteHandler(handler, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`)
+
+		assert.Equal(t, http.StatusFailedDependency, recorder.Code)
+		assert.Contains(t, recorder.Body.String(), `"status":"executor_unavailable"`)
+		assert.NotContains(t, recorder.Body.String(), "secret-value")
+	})
+
+	t.Run("runner error", func(t *testing.T) {
+		handler := &postgresExecuteHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
+			&fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}, err: assert.AnError},
+		}}}
+
+		recorder := callExecuteHandler(handler, `{"target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`)
+
+		assert.Equal(t, http.StatusBadGateway, recorder.Code)
+		assert.Contains(t, recorder.Body.String(), `"status":"executor_unavailable"`)
+		assert.NotContains(t, recorder.Body.String(), "secret-value")
+		assert.NotContains(t, recorder.Body.String(), assert.AnError.Error())
+	})
+}
+
+func callExecuteHandler(handler *postgresExecuteHandler, body string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, PostgresExecuteEndpointPath, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.handle(recorder, req)
+	return recorder
+}
+
+type fakeWrappedCheck struct {
+	check.Check
+}
+
+func (f fakeWrappedCheck) Unwrap() check.Check {
+	return f.Check
+}
+
+type fakeRunnerCheck struct {
+	fakeCheck
+	response string
+	err      error
+	seen     string
+}
+
+func (f *fakeRunnerCheck) RunPostgresRemoteQueryJSON(requestJSON string) (string, error) {
+	f.seen = requestJSON
+	return f.response, f.err
+}
+
+func (f *fakeRunnerCheck) seenRequest() string {
+	return f.seen
+}

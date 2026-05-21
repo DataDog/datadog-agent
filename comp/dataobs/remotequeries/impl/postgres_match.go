@@ -127,7 +127,7 @@ func (h *postgresMatchHandler) handle(w http.ResponseWriter, r *http.Request) {
 	case 0:
 		writeMatchResponse(w, http.StatusNotFound, statusTargetNotFound, 0, nil, "no matching Postgres check found")
 	case 1:
-		writeMatchResponse(w, http.StatusOK, statusOK, 1, &matches[0], "")
+		writeMatchResponse(w, http.StatusOK, statusOK, 1, &matches[0].sanitized, "")
 	default:
 		writeMatchResponse(w, http.StatusConflict, statusAmbiguous, len(matches), nil, "multiple matching Postgres checks found")
 	}
@@ -159,51 +159,7 @@ func parseMatchRequest(r *http.Request) (postgresTarget, error) {
 		}
 	}
 
-	rawTarget, ok := root["target"]
-	if !ok {
-		return postgresTarget{}, fmt.Errorf("target is required")
-	}
-
-	var targetFields map[string]json.RawMessage
-	if err := json.Unmarshal(rawTarget, &targetFields); err != nil || targetFields == nil {
-		return postgresTarget{}, fmt.Errorf("target must be an object")
-	}
-
-	for key := range targetFields {
-		switch key {
-		case "host", "port", "dbname":
-			continue
-		default:
-			if isCredentialShapedField(key) {
-				return postgresTarget{}, fmt.Errorf("request contains disallowed credential-shaped field")
-			}
-			return postgresTarget{}, fmt.Errorf("target contains unknown field")
-		}
-	}
-
-	host, err := parseTargetString(targetFields, "host")
-	if err != nil {
-		return postgresTarget{}, err
-	}
-	host = normalizeHost(host)
-	if host == "" {
-		return postgresTarget{}, fmt.Errorf("target.host is required")
-	}
-
-	port, err := parseTargetPort(targetFields)
-	if err != nil {
-		return postgresTarget{}, err
-	}
-
-	dbname, err := parseTargetString(targetFields, "dbname")
-	if err != nil {
-		return postgresTarget{}, err
-	}
-	if dbname == "" {
-		return postgresTarget{}, fmt.Errorf("target.dbname is required")
-	}
-
-	return postgresTarget{Host: host, Port: port, DBName: dbname}, nil
+	return parseTargetFromRoot(root)
 }
 
 func isJSONContentType(contentType string) bool {
@@ -252,9 +208,18 @@ func isCredentialShapedField(field string) bool {
 	return found
 }
 
-func (h *postgresMatchHandler) findMatches(target postgresTarget) []sanitizedMatch {
-	checks := h.collector.GetChecks()
-	matches := make([]sanitizedMatch, 0, 1)
+type postgresCheckMatch struct {
+	check     check.Check
+	sanitized sanitizedMatch
+}
+
+func (h *postgresMatchHandler) findMatches(target postgresTarget) []postgresCheckMatch {
+	return findPostgresMatches(h.collector, target)
+}
+
+func findPostgresMatches(collector collector.Component, target postgresTarget) []postgresCheckMatch {
+	checks := collector.GetChecks()
+	matches := make([]postgresCheckMatch, 0, 1)
 	for _, chk := range checks {
 		if !isPostgresCheck(chk) {
 			continue
@@ -266,10 +231,13 @@ func (h *postgresMatchHandler) findMatches(target postgresTarget) []sanitizedMat
 		}
 
 		if instanceTarget.host == target.Host && instanceTarget.port == target.Port && instanceTarget.dbname == target.DBName {
-			matches = append(matches, sanitizedMatch{
-				Integration:    "postgres",
-				Loader:         chk.Loader(),
-				ConfigProvider: chk.ConfigProvider(),
+			matches = append(matches, postgresCheckMatch{
+				check: chk,
+				sanitized: sanitizedMatch{
+					Integration:    "postgres",
+					Loader:         chk.Loader(),
+					ConfigProvider: chk.ConfigProvider(),
+				},
 			})
 		}
 	}
