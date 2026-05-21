@@ -585,11 +585,11 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	// Edge case: foo->bar->foo, if the second foo is no longer in the process cache, it will still be refreshed because of the first foo
 	key.Filepath = pn.Process.FileEvent.PathnameStr
 
-	if filepathsInProcessCache[key] {
+	if filepathsInProcessCache[key] && pn.tagIDFromTag != nil {
 		// check if the node was supposed to be removed, then update the last seen to now
-		tagId := (*pn.tagIDFromTag)(key.ImageTag)
-		if elem, ok := pn.Seen[tagId]; ok && elem.LastSeen.Before(before) {
-			pn.NodeBase.AppendImageTagID(tagId, time.Now())
+		tagID := (*pn.tagIDFromTag)(key.ImageTag)
+		if elem, ok := pn.Seen[tagID]; ok && elem.LastSeen.Before(before) {
+			pn.NodeBase.AppendImageTagID(tagID, time.Now())
 		}
 	}
 

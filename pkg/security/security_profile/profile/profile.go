@@ -65,7 +65,7 @@ type activityTreeOpts struct {
 // Profile represents a security profile
 type Profile struct {
 	// common to ActivityDump and SecurityProfile
-	sync.RWMutex
+	sync.Mutex
 	ActivityTree *activity_tree.ActivityTree
 	treeOpts     activityTreeOpts
 

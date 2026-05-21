@@ -411,8 +411,8 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		assert.Len(t, tree.ProcessNodes, 1, "Expected process node to remain in tree")
 
 		// Verify that the LastSeen timestamp was updated to protect the node
-		imageTagTimes := processNode.Seen[testTagID]
-		assert.NotNil(t, imageTagTimes, "Expected image tag to still exist")
+		imageTagTimes, exists := processNode.Seen[testTagID]
+		assert.True(t, exists, "Expected image tag to still exist")
 		assert.True(t, imageTagTimes.LastSeen.After(evictionTime), "Expected LastSeen to be updated to current time")
 	})
 
@@ -478,8 +478,8 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		assert.Equal(t, "/usr/bin/protected", tree.ProcessNodes[0].Process.FileEvent.PathnameStr, "Expected protected node to remain")
 
 		// Verify that the protected node's timestamp was updated
-		imageTagTimes := tree.ProcessNodes[0].Seen[testTagID]
-		assert.NotNil(t, imageTagTimes, "Expected image tag to still exist")
+		imageTagTimes, exists := tree.ProcessNodes[0].Seen[testTagID]
+		assert.True(t, exists, "Expected image tag to still exist")
 		assert.True(t, imageTagTimes.LastSeen.After(evictionTime), "Expected LastSeen to be updated to current time")
 	})
 

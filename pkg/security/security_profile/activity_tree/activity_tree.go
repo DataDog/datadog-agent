@@ -192,34 +192,32 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 	}
 }
 
-// Returns the internal ID for an image tag
-func (p *ActivityTree) GetImageTagID(imageTag string) uint64 {
-	for i, tag := range p.imageTagIDs {
+// GetImageTagID returns the internal ID for an image tag, or 0 if not found
+func (at *ActivityTree) GetImageTagID(imageTag string) uint64 {
+	for i, tag := range at.imageTagIDs {
 		if tag == imageTag {
 			return uint64(i) + 1
 		}
 	}
-
 	return 0
 }
 
-// Removes this image tag from the list of image tags in this profile
-func (p *ActivityTree) removeImageTag(imageTag string) uint64 {
-	for i, tag := range p.imageTagIDs {
+// removeImageTag tombstones the slot for this image tag, freeing it for reuse
+func (at *ActivityTree) removeImageTag(imageTag string) uint64 {
+	for i, tag := range at.imageTagIDs {
 		if tag == imageTag {
-			p.imageTagIDs[i] = ""
+			at.imageTagIDs[i] = ""
 			return uint64(i + 1)
 		}
 	}
-
 	return 0
 }
 
-// GetOrInsertImageTag returns the internal ID for an image tag, and creates one if it didn't exist
-func (p *ActivityTree) GetOrInsertImageTag(imageTag string) uint64 {
+// GetOrInsertImageTag returns the internal ID for an image tag, creating one if it doesn't exist
+func (at *ActivityTree) GetOrInsertImageTag(imageTag string) uint64 {
 	firstTombstone := uint64(0)
 
-	for id, tag := range p.imageTagIDs {
+	for id, tag := range at.imageTagIDs {
 		if tag == imageTag {
 			return uint64(id) + 1
 		}
@@ -229,20 +227,20 @@ func (p *ActivityTree) GetOrInsertImageTag(imageTag string) uint64 {
 	}
 
 	if firstTombstone > 0 {
-		p.imageTagIDs[firstTombstone-1] = imageTag
+		at.imageTagIDs[firstTombstone-1] = imageTag
 		return firstTombstone
 	}
 
-	p.imageTagIDs = append(p.imageTagIDs, imageTag)
-	return uint64(len(p.imageTagIDs))
+	at.imageTagIDs = append(at.imageTagIDs, imageTag)
+	return uint64(len(at.imageTagIDs))
 }
 
-// return the image tag from the internal ID
-func (p *ActivityTree) GetTagFromID(imageTagID uint64) string {
-	if imageTagID == 0 || imageTagID > uint64(len(p.imageTagIDs)) {
+// GetTagFromID returns the image tag string for a given internal ID
+func (at *ActivityTree) GetTagFromID(imageTagID uint64) string {
+	if imageTagID == 0 || imageTagID > uint64(len(at.imageTagIDs)) {
 		return ""
 	}
-	return p.imageTagIDs[imageTagID-1]
+	return at.imageTagIDs[imageTagID-1]
 }
 
 // SetType changes the type and owner of the ActivityTree
@@ -918,10 +916,7 @@ func (at *ActivityTree) SendStats(client statsd.ClientInterface) error {
 
 // TagAllNodes tags all the activity tree's nodes with the given image tag
 func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
-	imageTagID := at.GetImageTagID(imageTag)
-	if imageTagID == 0 {
-		return
-	}
+	imageTagID := at.GetOrInsertImageTag(imageTag)
 	for _, rootNode := range at.ProcessNodes {
 		rootNode.TagAllNodes(imageTagID, timestamp)
 	}

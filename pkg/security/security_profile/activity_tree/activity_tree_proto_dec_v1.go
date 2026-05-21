@@ -20,15 +20,17 @@ import (
 
 // ProtoDecodeActivityTree decodes an ActivityTree structure
 func ProtoDecodeActivityTree(dest *ActivityTree, nodes []*adproto.ProcessActivityNode) {
-	getIdFromTag := func(ImageTag string) uint64 {
-		return dest.GetOrInsertImageTag(ImageTag)
+	getIDFromTag := func(imageTag string) uint64 {
+		return dest.GetOrInsertImageTag(imageTag)
 	}
+	// take a stable pointer so all decoded ProcessNodes share the same resolver
+	tagIDFromTag := &getIDFromTag
 	for _, node := range nodes {
-		dest.ProcessNodes = append(dest.ProcessNodes, protoDecodeProcessActivityNode(dest, node, getIdFromTag))
+		dest.ProcessNodes = append(dest.ProcessNodes, protoDecodeProcessActivityNode(dest, node, getIDFromTag, tagIDFromTag))
 	}
 }
 
-func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.ProcessActivityNode, getIDFromImageTag func(ImageTag string) uint64) *ProcessNode {
+func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.ProcessActivityNode, getIDFromImageTag func(ImageTag string) uint64, tagIDFromTag *func(string) uint64) *ProcessNode {
 	if pan == nil {
 		return nil
 	}
@@ -47,6 +49,7 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 		NodeBase:       NewNodeBase(),
 		NetworkDevices: make(map[model.NetworkDeviceContext]*NetworkDeviceNode, len(pan.NetworkDevices)),
 		Capabilities:   make([]*CapabilityNode, 0, len(pan.CapabilityNodes)),
+		tagIDFromTag:   tagIDFromTag,
 	}
 
 	if pan.NodeBase != nil {
@@ -62,7 +65,7 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 	}
 
 	for _, child := range pan.Children {
-		ppan.Children = append(ppan.Children, protoDecodeProcessActivityNode(ppan, child, getIDFromImageTag))
+		ppan.Children = append(ppan.Children, protoDecodeProcessActivityNode(ppan, child, getIDFromImageTag, tagIDFromTag))
 	}
 
 	for _, fan := range pan.Files {
