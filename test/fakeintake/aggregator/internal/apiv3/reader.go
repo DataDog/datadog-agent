@@ -6,6 +6,7 @@
 // Package apiv3 provides a reader for the V3 metrics intake wire format.
 //
 // Copied for use in fakeintake. Update when reader.go changes.
+
 package apiv3
 
 import (
