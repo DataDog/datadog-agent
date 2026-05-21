@@ -279,8 +279,66 @@ func procmgrUsable(ctx HookContext, stable bool) bool {
 	return service.GetServiceManagerType() == service.ProcmgrType && procmgrBinaryExists(ctx, stable)
 }
 
+func ddotExtensionInstallDir(ctx HookContext) string {
+	if ddotExtensionInstalled(ctx.PackagePath) {
+		return ctx.PackagePath
+	}
+	const debAgentRoot = "/opt/datadog-agent"
+	if ddotExtensionInstalled(debAgentRoot) {
+		return debAgentRoot
+	}
+	return ctx.PackagePath
+}
+
+func ddotEmbeddedUnitType(ctx HookContext) embedded.SystemdUnitType {
+	if ctx.PackageType == PackageTypeOCI {
+		return embedded.SystemdUnitTypeOCI
+	}
+	return embedded.SystemdUnitTypeDebRpm
+}
+
+// ddotExtensionProcmgrHookContext maps deb/rpm hooks to fleet stable/experiment when dd-procmgrd
+// runs from datadog-packages (install-script hosts); otherwise unchanged.
+func ddotExtensionProcmgrHookContext(ctx HookContext, stable bool) HookContext {
+	if ctx.PackageType == PackageTypeOCI {
+		return ctx
+	}
+	ver := "stable"
+	if !stable {
+		ver = "experiment"
+	}
+	if _, err := os.Stat(filepath.Join(paths.PackagesPath, "datadog-agent", ver, "embedded", "bin", "dd-procmgrd")); err != nil {
+		return ctx
+	}
+	out := ctx
+	out.PackageType = PackageTypeOCI
+	out.PackagePath = filepath.Join(paths.PackagesPath, "datadog-agent", ver)
+	return out
+}
+
 func procmgrOwnsDDOT(ctx HookContext, stable bool) bool {
-	return procmgrUsable(ctx, stable) && ddotExtensionInstalled(ctx.PackagePath)
+	return procmgrUsable(ctx, stable) && ddotExtensionInstalled(ddotExtensionInstallDir(ctx))
+}
+
+func ddotProcmgrExtensionYAML(ctx HookContext, stable bool) ([]byte, error) {
+	ambientCapabilitiesSupported, aerr := isAmbiantCapabilitiesSupported()
+	if aerr != nil {
+		log.Errorf("failed to check if ambient capabilities are supported: %v", aerr)
+		ambientCapabilitiesSupported = false
+	}
+	raw, err := embedded.GetDDOTProcessConfig(ddotEmbeddedUnitType(ctx), stable, ambientCapabilitiesSupported)
+	if err != nil {
+		return nil, err
+	}
+	installDir := ddotExtensionInstallDir(ctx)
+	channel := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
+	if !stable {
+		channel = filepath.Join(paths.PackagesPath, "datadog-agent", "experiment")
+	}
+	if installDir == channel {
+		return raw, nil
+	}
+	return []byte(strings.ReplaceAll(string(raw), channel, installDir)), nil
 }
 
 // applyDDOTProcmgrProcessesYAML writes or removes DDOT YAML in processes.d (no unit restart).
@@ -296,12 +354,7 @@ func applyDDOTProcmgrProcessesYAML(ctx HookContext, stable bool) (ownsDDOT bool,
 		procmgr.RemoveConfig(dir, ddotProcmgrYAMLName)
 		return false, nil
 	}
-	ambientCapabilitiesSupported, aerr := isAmbiantCapabilitiesSupported()
-	if aerr != nil {
-		log.Errorf("failed to check if ambient capabilities are supported: %v", aerr)
-		ambientCapabilitiesSupported = false
-	}
-	raw, err := embedded.GetDDOTProcessConfig(embedded.SystemdUnitTypeOCI, stable, ambientCapabilitiesSupported)
+	raw, err := ddotProcmgrExtensionYAML(ctx, stable)
 	if err != nil {
 		return true, fmt.Errorf("ddot procmgr yaml: %w", err)
 	}
@@ -374,17 +427,23 @@ func syncDDOTProcmgrAfterAgentPromotion(ctx HookContext) error {
 	return syncDDOTProcmgrStop(expCtx, false)
 }
 
-// syncDDOTProcmgrAfterExtension syncs DDOT processes.d after OCI extension install.
+// syncDDOTProcmgrAfterExtension syncs DDOT processes.d after extension install.
 func syncDDOTProcmgrAfterExtension(ctx HookContext) error {
-	if ctx.PackageType != PackageTypeOCI {
-		return nil
-	}
 	if err := writeProcmgrGlobalMarker(ctx); err != nil {
 		return err
 	}
-	stable := filepath.Base(ctx.PackagePath) != "experiment"
-	_, err := syncDDOTProcmgrState(ctx, stable)
-	return err
+	switch ctx.PackageType {
+	case PackageTypeOCI:
+		stable := filepath.Base(ctx.PackagePath) != "experiment"
+		_, err := syncDDOTProcmgrState(ctx, stable)
+		return err
+	case PackageTypeDEB, PackageTypeRPM:
+		ctx = ddotExtensionProcmgrHookContext(ctx, true)
+		_, err := syncDDOTProcmgrState(ctx, true)
+		return err
+	default:
+		return nil
+	}
 }
 
 func ddotExtensionInstalled(agentPackagePath string) bool {
@@ -407,7 +466,8 @@ func removeDDOTExtensionProcmgrYAML(ctx HookContext) {
 		return
 	}
 	stable := ddotExtensionProcmgrRemoveStable(ctx)
-	if ctx.PackageType == PackageTypeOCI && !stable {
+	procmgrCtx := ddotExtensionProcmgrHookContext(ctx, stable)
+	if !stable {
 		equiv, err := ociAgentStableAndExperimentProcessesDirsEquivalent()
 		if err != nil {
 			log.Warnf("skipping DDOT procmgr cleanup on experiment extension remove: resolve processes.d paths: %v", err)
@@ -425,7 +485,7 @@ func removeDDOTExtensionProcmgrYAML(ctx HookContext) {
 			}
 		}
 	}
-	if err := syncDDOTProcmgrStop(ctx, stable); err != nil {
+	if err := syncDDOTProcmgrStop(procmgrCtx, stable); err != nil {
 		log.Warnf("failed to remove DDOT procmgr config on extension remove: %v", err)
 	}
 }

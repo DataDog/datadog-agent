@@ -34,7 +34,10 @@ const (
 	CLIBinFleetStable = "/opt/datadog-packages/datadog-agent/stable/embedded/bin/dd-procmgr"
 
 	ProcessStateRunning               = "Running"
+	ProcessStateStarting              = "Starting"
+	ProcessStateStopped               = "Stopped"
 	waitForProcessTimeout             = 90 * time.Second
+	waitForProcessNotRunningTimeout   = 30 * time.Second
 	waitForProcessPollInterval        = 2 * time.Second
 	waitForProcessRunningStableWindow = 5 * time.Second
 	waitForProcessRunningStablePoll   = 500 * time.Millisecond
@@ -152,6 +155,38 @@ func WaitForDDOTRunning(t *testing.T, executor CommandExecutor, expectedBinary s
 		ExpectedBinary: expectedBinary,
 		DesiredState:   ProcessStateRunning,
 	})
+}
+
+// AssertDDOTNotRunning polls dd-procmgr until datadog-agent-ddot is not Running: describe
+// returns process not found, or State is Stopped/Failed/etc. (not Running or Starting).
+func AssertDDOTNotRunning(t *testing.T, executor CommandExecutor) {
+	t.Helper()
+	cli := CLIBinForLinuxHost(t, executor)
+	describeCmd := fmt.Sprintf(`sudo -u dd-agent -- %q describe %q`, cli, DDOTProcessName)
+	require.Eventually(t, func() bool {
+		out, err := executor.ExecuteCommand(describeCmd)
+		if ddotDescribeShowsNotRunning(out, err) {
+			return true
+		}
+		t.Logf("AssertDDOTNotRunning: dd-procmgr describe cmd=%q err=%v\noutput:\n%s", describeCmd, err, out)
+		return false
+	}, waitForProcessNotRunningTimeout, waitForProcessPollInterval,
+		fmt.Sprintf("process %q must not be Running via dd-procmgr describe", DDOTProcessName))
+}
+
+func ddotDescribeShowsNotRunning(out string, err error) bool {
+	msg := out
+	if err != nil {
+		msg += " " + err.Error()
+	}
+	if strings.Contains(msg, "not found") {
+		return true
+	}
+	st := fieldValue(out, "State")
+	if st == "" {
+		return false
+	}
+	return st != ProcessStateRunning && st != ProcessStateStarting
 }
 
 // confirmStableRunningPID returns true iff describe shows wantState and wantPID on every

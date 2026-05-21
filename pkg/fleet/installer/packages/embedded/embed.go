@@ -8,7 +8,6 @@ package embedded
 
 import (
 	"embed"
-	"fmt"
 	"path/filepath"
 )
 
@@ -31,17 +30,18 @@ var ScriptDDHostInstall []byte
 //go:embed tmpl/gen/debrpm/*.service
 var systemdUnits embed.FS
 
+//go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
+//go:embed tmpl/gen/debrpm/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot.yaml
+//go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot-exp.yaml
 //go:embed tmpl/gen/oci/datadog-agent-ddot.yaml
 //go:embed tmpl/gen/oci/datadog-agent-ddot-exp.yaml
 //go:embed tmpl/gen/oci-nocap/datadog-agent-ddot.yaml
 //go:embed tmpl/gen/oci-nocap/datadog-agent-ddot-exp.yaml
 var ddotProcessYAML embed.FS
 
-// GetDDOTProcessConfig returns embedded DDOT extension YAML for fleet OCI.
+// GetDDOTProcessConfig returns embedded DDOT extension process YAML (OCI or deb/rpm layout).
 func GetDDOTProcessConfig(unitType SystemdUnitType, stable bool, ambiantCapabilitiesSupported bool) ([]byte, error) {
-	if unitType != SystemdUnitTypeOCI {
-		return nil, fmt.Errorf("ddot extension procmgr yaml is OCI-only, got %s", unitType)
-	}
 	dir := string(unitType)
 	if !ambiantCapabilitiesSupported {
 		dir += "-nocap"

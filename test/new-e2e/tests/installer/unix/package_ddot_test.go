@@ -163,9 +163,11 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 		s.T().Fatalf("unsupported package manager: %s", s.host.GetPkgManager())
 	}
 
-	// Step 5: ddot must NOT have started — there is no datadog.yaml to enable it.
+	// Step 5: DDOT collector must not run without datadog.yaml (otelcollector not enabled).
+	// Legacy ddot systemd unit stays inactive; procmgr must not report Running either.
 	state := s.host.State()
 	state.AssertUnitsDead(ddotUnit)
+	procmgrtest.AssertDDOTNotRunning(s.T(), s)
 
 	// Step 6: otel-config.yaml must exist and contain the api_key and site from env vars.
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
