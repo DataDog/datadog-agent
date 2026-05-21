@@ -7,7 +7,9 @@
 package remotequeriesimpl
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -93,6 +95,17 @@ type remoteQueryMatchRequest struct {
 	Target      remoteQueryTarget
 }
 
+type remoteQueryMatchRequestJSON struct {
+	Integration string                        `json:"integration"`
+	Target      *remoteQueryTargetRequestJSON `json:"target"`
+}
+
+type remoteQueryTargetRequestJSON struct {
+	Host   string `json:"host"`
+	Port   *int   `json:"port"`
+	DBName string `json:"dbname"`
+}
+
 type remoteQueryTarget struct {
 	Host   string
 	Port   int
@@ -153,43 +166,26 @@ func parseMatchRequest(r *http.Request) (remoteQueryMatchRequest, error) {
 	}
 
 	defer r.Body.Close()
-	decoder := json.NewDecoder(r.Body)
-	decoder.UseNumber()
-
-	var root map[string]json.RawMessage
-	if err := decoder.Decode(&root); err != nil {
-		return remoteQueryMatchRequest{}, invalidRequestError("malformed JSON request")
-	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		return remoteQueryMatchRequest{}, invalidRequestError("malformed JSON request")
+	var wireReq remoteQueryMatchRequestJSON
+	if err := decodeStrictJSON(r.Body, &wireReq); err != nil {
+		return remoteQueryMatchRequest{}, parseJSONRequestError(err)
 	}
 
-	for key := range root {
-		switch key {
-		case "integration", "target":
-			continue
-		default:
-			return remoteQueryMatchRequest{}, invalidRequestError("request contains unknown field")
-		}
-	}
-
-	integration, err := parseIntegrationFromRoot(root)
+	integration, err := parseIntegration(wireReq.Integration)
 	if err != nil {
 		return remoteQueryMatchRequest{}, err
 	}
-	target, err := parseTargetFromRoot(root)
+	target, err := parseTarget(wireReq.Target)
 	if err != nil {
 		return remoteQueryMatchRequest{}, err
 	}
 	return remoteQueryMatchRequest{Integration: integration, Target: target}, nil
 }
 
-func parseIntegrationFromRoot(root map[string]json.RawMessage) (string, error) {
-	integration, err := parseRequiredString(root, "integration")
-	if err != nil {
-		return "", err
-	}
+func parseIntegration(integration string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(integration)) {
+	case "":
+		return "", fmt.Errorf("integration is required")
 	case integrationPostgres, "postgresql":
 		return integrationPostgres, nil
 	default:
@@ -205,32 +201,116 @@ func isJSONContentType(contentType string) bool {
 	return mediaType == "application/json"
 }
 
-func parseTargetString(fields map[string]json.RawMessage, field string) (string, error) {
-	raw, ok := fields[field]
-	if !ok {
-		return "", fmt.Errorf("target.%s is required", field)
+var (
+	errMultipleJSONValues = errors.New("multiple JSON values")
+	errTargetUnknownField = errors.New("target contains unknown field")
+	errTargetMustBeObject = errors.New("target must be an object")
+)
+
+func (t *remoteQueryTargetRequestJSON) UnmarshalJSON(data []byte) error {
+	if !isJSONObject(data) {
+		return errTargetMustBeObject
 	}
-	var value string
-	if err := json.Unmarshal(raw, &value); err != nil {
-		return "", fmt.Errorf("target.%s must be a string", field)
+
+	type targetAlias remoteQueryTargetRequestJSON
+	var target targetAlias
+	if err := decodeStrictJSON(bytes.NewReader(data), &target); err != nil {
+		if isUnknownJSONFieldError(err) {
+			return errTargetUnknownField
+		}
+		return err
 	}
-	return value, nil
+	*t = remoteQueryTargetRequestJSON(target)
+	return nil
 }
 
-func parseTargetPort(fields map[string]json.RawMessage) (int, error) {
-	raw, ok := fields["port"]
-	if !ok {
-		return 0, fmt.Errorf("target.port is required")
+func parseTarget(target *remoteQueryTargetRequestJSON) (remoteQueryTarget, error) {
+	if target == nil {
+		return remoteQueryTarget{}, fmt.Errorf("target is required")
 	}
 
-	var port int
-	if err := json.Unmarshal(raw, &port); err != nil {
-		return 0, fmt.Errorf("target.port must be an integer")
+	host := normalizeHost(target.Host)
+	if host == "" {
+		return remoteQueryTarget{}, fmt.Errorf("target.host is required")
 	}
-	if port < 1 || port > 65535 {
+
+	port, err := parseRequiredPort(target.Port)
+	if err != nil {
+		return remoteQueryTarget{}, err
+	}
+
+	if target.DBName == "" {
+		return remoteQueryTarget{}, fmt.Errorf("target.dbname is required")
+	}
+
+	return remoteQueryTarget{Host: host, Port: port, DBName: target.DBName}, nil
+}
+
+func parseRequiredPort(port *int) (int, error) {
+	if port == nil {
+		return 0, fmt.Errorf("target.port is required")
+	}
+	if *port < 1 || *port > 65535 {
 		return 0, fmt.Errorf("target.port is out of range")
 	}
-	return port, nil
+	return *port, nil
+}
+
+func decodeStrictJSON(r io.Reader, value any) error {
+	decoder := json.NewDecoder(r)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(value); err != nil {
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return errMultipleJSONValues
+	}
+	return nil
+}
+
+func parseJSONRequestError(err error) error {
+	switch {
+	case errors.Is(err, errMultipleJSONValues):
+		return invalidRequestError("malformed JSON request")
+	case errors.Is(err, errTargetUnknownField):
+		return errTargetUnknownField
+	case errors.Is(err, errTargetMustBeObject):
+		return errTargetMustBeObject
+	case errors.Is(err, errLimitsUnknownField):
+		return errLimitsUnknownField
+	case errors.Is(err, errLimitsMustBeObject):
+		return errLimitsMustBeObject
+	case isUnknownJSONFieldError(err):
+		return invalidRequestError("request contains unknown field")
+	}
+
+	var typeErr *json.UnmarshalTypeError
+	if errors.As(err, &typeErr) {
+		switch typeErr.Field {
+		case "port", "target.port":
+			return fmt.Errorf("target.port must be an integer")
+		case "target":
+			return errTargetMustBeObject
+		case "maxRows", "limits.maxRows":
+			return fmt.Errorf("limits.maxRows must be an integer")
+		case "maxBytes", "limits.maxBytes":
+			return fmt.Errorf("limits.maxBytes must be an integer")
+		case "timeoutMs", "limits.timeoutMs":
+			return fmt.Errorf("limits.timeoutMs must be an integer")
+		case "limits":
+			return errLimitsMustBeObject
+		}
+	}
+
+	return invalidRequestError("malformed JSON request")
+}
+
+func isUnknownJSONFieldError(err error) bool {
+	return strings.HasPrefix(err.Error(), "json: unknown field ")
+}
+
+func isJSONObject(data []byte) bool {
+	return bytes.HasPrefix(bytes.TrimSpace(data), []byte("{"))
 }
 
 func normalizeHost(host string) string {
