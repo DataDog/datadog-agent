@@ -8,8 +8,8 @@
 // This test lives in package autodiscoveryimpl_test (not autodiscoveryimpl)
 // because it imports collectorimpl, and collectorimpl already imports
 // autodiscoveryimpl via agent_check_metadata.go. The external test package
-// avoids the cycle. Cross-package helpers come from export_test.go in
-// autodiscoveryimpl.
+// avoids the cycle. Cross-package helpers come from exported same-package
+// test helpers in autodiscoveryimpl's *_test.go files.
 package autodiscoveryimpl_test
 
 import (
