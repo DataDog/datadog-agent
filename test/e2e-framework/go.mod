@@ -74,7 +74,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.76.0-rc.4 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
-	github.com/DataDog/zstd v1.5.7 // indirect
+	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
