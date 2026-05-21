@@ -654,14 +654,10 @@ func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []
 			return nil, true, nil
 		}
 
-		tagToTagID := func(id string) uint64 {
-			return at.GetImageTagID(id)
-		}
-
 		// we can safely insert the rest of the branch since they automatically all be new
 		for j := i; j >= 0; j-- {
 			// create the node
-			matchingNode = NewProcessNode(branchToInsert[j], generationType, r, &tagToTagID)
+			matchingNode = NewProcessNode(branchToInsert[j], generationType, r)
 			parent.AppendChild(matchingNode)
 
 			// insert the new node in the list of children
@@ -784,14 +780,10 @@ func (at *ActivityTree) rebaseTree(parent ProcessNodeParent, childIndexToRebase 
 	}
 
 	// create the new branch
-	tagToTagID := func(id string) uint64 {
-		return at.GetImageTagID(id)
-	}
-
 	var rebaseRoot, childrenCursor *ProcessNode
 	for i := len(branchToInsert) - 1; i >= 1; i-- {
 		eventExecChildTmp := branchToInsert[i]
-		n := NewProcessNode(eventExecChildTmp, generationType, resolvers, &tagToTagID)
+		n := NewProcessNode(eventExecChildTmp, generationType, resolvers)
 		if i == len(branchToInsert)-1 {
 			rebaseRoot = n
 		}
@@ -1056,7 +1048,7 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 		}
 
 		// Evict unused nodes
-		evicted := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag)
+		evicted := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag, at.GetImageTagID)
 		totalEvicted += evicted
 
 		// If the process node itself has no image tags left after eviction, remove it entirely

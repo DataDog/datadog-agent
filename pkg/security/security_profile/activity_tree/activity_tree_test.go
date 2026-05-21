@@ -335,11 +335,9 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 			Stats:     NewActivityTreeNodeStats(),
 		}
 
-		// Create a process node with an old "last seen" timestamp
-		tagFromTagID := func(_ string) uint64 {
-			return 666
-		}
+		testTagID := tree.GetOrInsertImageTag("test-tag")
 
+		// Create a process node with an old "last seen" timestamp
 		oldTime := time.Now().Add(-2 * time.Hour)
 		processNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
@@ -348,9 +346,8 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 					PathnameStr: "/usr/bin/expired",
 				},
 			},
-			tagIDFromTag: &tagFromTagID,
 		}
-		processNode.AppendImageTagID(uint64(666), oldTime)
+		processNode.AppendImageTagID(testTagID, oldTime)
 		tree.ProcessNodes = []*ProcessNode{processNode}
 
 		// Set eviction time to 1 hour ago (node should be evicted)
@@ -374,9 +371,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 			Stats:     NewActivityTreeNodeStats(),
 		}
 
-		tagFromTagID := func(_ string) uint64 {
-			return 666
-		}
+		testTagID := tree.GetOrInsertImageTag("test-tag")
 
 		// Create a process node with an old "last seen" timestamp
 		oldTime := time.Now().Add(-2 * time.Hour)
@@ -387,10 +382,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 					PathnameStr: "/usr/bin/protected",
 				},
 			},
-			tagIDFromTag: &tagFromTagID,
 		}
-
-		testTagID := uint64(666)
 
 		processNode.AppendImageTagID(testTagID, oldTime)
 		tree.ProcessNodes = []*ProcessNode{processNode}
@@ -426,14 +418,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		// Create process nodes with old timestamps
 		oldTime := time.Now().Add(-2 * time.Hour)
 
-		testTagID := uint64(111111)
-		tagFromTagID := func(s string) uint64 {
-			switch s {
-			case "test-tag":
-				return testTagID
-			}
-			return 0
-		}
+		testTagID := tree.GetOrInsertImageTag("test-tag")
 
 		protectedNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
@@ -442,7 +427,6 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 					PathnameStr: "/usr/bin/protected",
 				},
 			},
-			tagIDFromTag: &tagFromTagID,
 		}
 
 		protectedNode.AppendImageTagID(testTagID, oldTime)
@@ -454,7 +438,6 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 					PathnameStr: "/usr/bin/expired",
 				},
 			},
-			tagIDFromTag: &tagFromTagID,
 		}
 
 		expiredNode.AppendImageTagID(testTagID, oldTime)
@@ -495,24 +478,10 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		oldTime := time.Now().Add(-2 * time.Hour)
 		recentTime := time.Now().Add(-30 * time.Minute)
 
-		veryOldTagID := uint64(8888888888888888)
-		oldTagID := uint64(88888888)
-		recentTagID := uint64(1)
-		testTagID := uint64(666)
-
-		tagFromTagID := func(tag string) uint64 {
-			switch tag {
-			case "very-old-tag":
-				return veryOldTagID
-			case "old-tag":
-				return oldTagID
-			case "recent-tag":
-				return recentTagID
-			case "test-tag":
-				return testTagID
-			}
-			return 0
-		}
+		veryOldTagID := tree.GetOrInsertImageTag("very-old-tag")
+		oldTagID := tree.GetOrInsertImageTag("old-tag")
+		recentTagID := tree.GetOrInsertImageTag("recent-tag")
+		testTagID := tree.GetOrInsertImageTag("test-tag")
 
 		processNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
@@ -521,7 +490,6 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 					PathnameStr: "/usr/bin/multi-tag",
 				},
 			},
-			tagIDFromTag: &tagFromTagID,
 		}
 
 		processNode.AppendImageTagID(veryOldTagID, veryOldTime)

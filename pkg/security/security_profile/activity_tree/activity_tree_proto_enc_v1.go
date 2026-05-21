@@ -23,20 +23,8 @@ import (
 func ToProto(at *ActivityTree) []*adproto.ProcessActivityNode {
 	out := make([]*adproto.ProcessActivityNode, 0, len(at.ProcessNodes))
 
-	m := make(map[uint64]string)
-	tagIDToImageTag := func(id uint64) string {
-		e, ok := m[id]
-		if ok {
-			return e
-		}
-
-		s := at.GetTagFromID(id)
-		m[id] = s
-		return s
-	}
-
 	for _, node := range at.ProcessNodes {
-		out = append(out, processActivityNodeToProto(node, tagIDToImageTag))
+		out = append(out, processActivityNodeToProto(node, at.GetTagFromID))
 	}
 	return out
 }

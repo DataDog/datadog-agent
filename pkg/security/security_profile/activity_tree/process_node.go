@@ -52,12 +52,10 @@ type ProcessNode struct {
 	Syscalls     []*SyscallNode
 	Capabilities []*CapabilityNode
 	Children     []*ProcessNode
-
-	tagIDFromTag *func(string) uint64
 }
 
 // NewProcessNode returns a new ProcessNode instance
-func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers, tagIDFromTag *func(string) uint64) *ProcessNode {
+func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) *ProcessNode {
 	// call the callback to resolve additional fields before copying them
 	if resolvers != nil {
 		resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.FileEvent, 0)
@@ -72,7 +70,6 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 		DNSNames:       make(map[string]*DNSNode),
 		IMDSEvents:     make(map[model.IMDSEvent]*IMDSNode),
 		NetworkDevices: make(map[model.NetworkDeviceContext]*NetworkDeviceNode),
-		tagIDFromTag:   tagIDFromTag,
 	}
 	node.NodeBase = NewNodeBase()
 
@@ -558,7 +555,8 @@ func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKe
 
 // EvictUnusedNodes evicts all child nodes that haven't been touched since the given timestamp
 // and returns the total number of process nodes evicted, a node is only evicted if all its children are evictable.
-func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName string, profileImageTag string) int {
+// tagToID resolves an image tag string to its internal uint64 ID within the owning ActivityTree.
+func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName string, profileImageTag string, tagToID func(string) uint64) int {
 	totalEvicted := 0
 
 	key := ImageProcessKey{
@@ -569,7 +567,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	// First, recursively evict unused nodes from children
 	for i := len(pn.Children) - 1; i >= 0; i-- {
 		child := pn.Children[i]
-		evicted := child.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag)
+		evicted := child.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag, tagToID)
 		totalEvicted += evicted
 
 		// If the child process node itself has no image tags left after eviction, remove it entirely
@@ -585,9 +583,9 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	// Edge case: foo->bar->foo, if the second foo is no longer in the process cache, it will still be refreshed because of the first foo
 	key.Filepath = pn.Process.FileEvent.PathnameStr
 
-	if filepathsInProcessCache[key] && pn.tagIDFromTag != nil {
+	if filepathsInProcessCache[key] {
 		// check if the node was supposed to be removed, then update the last seen to now
-		tagID := (*pn.tagIDFromTag)(key.ImageTag)
+		tagID := tagToID(key.ImageTag)
 		if elem, ok := pn.Seen[tagID]; ok && elem.LastSeen.Before(before) {
 			pn.NodeBase.AppendImageTagID(tagID, time.Now())
 		}
