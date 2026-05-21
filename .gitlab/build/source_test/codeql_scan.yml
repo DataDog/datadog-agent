@@ -6,7 +6,9 @@ run_codeql_scan:
   image: registry.ddbuild.io/code-scanning:v89505840-d7f7832-datadog-agent
   timeout: 5h
   tags: ["arch:amd64", "specific:true"]
-  extends: .dd_octo_sts
+  extends:
+    - .dd_octo_sts
+    - .bazel:defs:cache:progressive
   stage: source_test
   rules:
   - !reference [.on_scheduled_main]
@@ -26,6 +28,7 @@ run_codeql_scan:
     SCAN_CONFIGS: --format sarifv2.1.0 --threads 8 --ram 128000 --no-tuple-counting
     UPLOAD_CONFIGS: -upload_sarif=true
   script:
+    - mkdir -p "$CI_PROJECT_DIR/.cache"
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - token="$(dda inv -- auth.gitlab --repo codescanning)"
