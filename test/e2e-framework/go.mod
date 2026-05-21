@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/test/e2e-framework
 go 1.25.6
 
 require (
-	cloud.google.com/go/compute v1.61.0
+	cloud.google.com/go/compute v1.62.0
 	dario.cat/mergo v1.0.2
 	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.76.0-rc.4
@@ -52,11 +52,11 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/crypto v0.51.0
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	k8s.io/api v0.35.4
+	k8s.io/api v0.35.5
 	k8s.io/apimachinery v0.35.5
-	k8s.io/cli-runtime v0.35.4
-	k8s.io/client-go v0.35.4
-	k8s.io/kubectl v0.35.4
+	k8s.io/cli-runtime v0.35.5
+	k8s.io/client-go v0.35.5
+	k8s.io/kubectl v0.35.5
 )
 
 require (
@@ -274,7 +274,7 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/component-base v0.35.4 // indirect
+	k8s.io/component-base v0.35.5 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260330154417-16be699c7b31 // indirect
 	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5 // indirect

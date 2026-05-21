@@ -333,9 +333,20 @@ Package orchestratorinterface defines the interface for the orchestrator forward
 Package healthplatform implements the "healthplatform" bundle, providing the
 health platform component for detecting and reporting agent health issues.
 
+### [comp/healthplatform/egress](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/egress)
+
+Package egress defines the interface for the health platform egress component.
+
 ### [comp/healthplatform/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/forwarder)
 
 Package forwarder defines the interface for the health platform forwarder.
+
+### [comp/healthplatform/issueregistry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry)
+
+Package issueregistry defines the interface for the health platform issue registry component.
+The registry is the single source of truth for issue templates and built-in health checks.
+It is built once at startup from all registered issue modules and shared by the store
+(for template lookup on ReportIssue) and the bundle (for bootstrapping built-in checks).
 
 ### [comp/healthplatform/runner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/runner)
 
@@ -789,13 +800,6 @@ Package telemetry provides the installer telemetry component.
 ### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
 
 Package updater is the updater component.
-
-### [comp/anomalydetection/hfrunner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner)
-
-*Datadog Team*: q-branch
-
-Package hfrunner provides a component that runs system and container checks at
-1-second intervals and routes their output directly into the observer pipeline.
 
 ### [comp/anomalydetection/logssource](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/logssource)
 

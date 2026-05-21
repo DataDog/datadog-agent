@@ -1126,6 +1126,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Remote Flags system
 	remoteflags(config)
+
+	anomalyDetection(config)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -2085,4 +2087,57 @@ func kubernetes(config pkgconfigmodel.Setup) {
 
 func podman(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("podman_db_path", "")
+}
+
+func anomalyDetection(config pkgconfigmodel.Setup) {
+	// Master switch. When false the entire anomaly detection subsystem is a no-op.
+	config.BindEnvAndSetDefault("anomaly_detection.enabled", false)
+
+	// Log ingestion gate. When false, container/journald logs are not routed
+	// into the anomaly detection pipeline (recording is unaffected).
+	config.BindEnvAndSetDefault("anomaly_detection.logs.enabled", true)
+
+	// Metrics ingestion gate. When false, externally-ingested metrics
+	// (DogStatsD, check samplers) are dropped at the handle factory.
+	// Log-derived virtual metrics are unaffected.
+	config.BindEnvAndSetDefault("anomaly_detection.metrics.enabled", true)
+
+	// Agent-internal log sampling. Warn+ are never sampled.
+	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_info", 0.2)
+	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_debug", 0.05)
+	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_trace", 0.0)
+
+	// Anomaly event reporting. Keep false during evaluation / shadow mode.
+	config.BindEnvAndSetDefault("anomaly_detection.reporting.enabled", false)
+
+	// Parquet recording of raw ingested signals for offline analysis and replay.
+	config.BindEnvAndSetDefault("anomaly_detection.recording.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.recording.output_dir", "/var/run/datadog/anomaly_detection")
+	config.BindEnvAndSetDefault("anomaly_detection.recording.flush_interval", 60)
+	config.BindEnvAndSetDefault("anomaly_detection.recording.retention", "24h")
+
+	// Debug tooling: internal state dump. Leave empty/zero in production.
+	config.BindEnvAndSetDefault("anomaly_detection.debug.dump_path", "")
+	config.BindEnvAndSetDefault("anomaly_detection.debug.dump_interval", 0)
+	config.BindEnvAndSetDefault("anomaly_detection.debug.events_dump_path", "")
+
+	// Detector/correlator/extractor toggles. Defaults match componentCatalog.defaultEnabled.
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.log_metrics_extractor.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.connection_error_extractor.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.log_pattern_extractor.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.cusum.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.bocpd.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.rrcf.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scanmw.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scanwelch.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.cross_signal.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.min_cluster_size", 0)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.passthrough.enabled", false)
+
+	// Storage tuning. See storageConfig in the observer component.
+	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)
+	config.BindEnvAndSetDefault("anomaly_detection.storage.eviction_floor_ratio", 0.5)
+	config.BindEnvAndSetDefault("anomaly_detection.storage.point_retention_secs", 120)
 }
