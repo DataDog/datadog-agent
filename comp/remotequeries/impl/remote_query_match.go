@@ -41,26 +41,6 @@ const (
 	statusBridgeDisabled         = "bridge_disabled"
 )
 
-var credentialShapedFields = map[string]struct{}{
-	"app_key":           {},
-	"apikey":            {},
-	"api_key":           {},
-	"conn_string":       {},
-	"connection_string": {},
-	"credential":        {},
-	"credentials":       {},
-	"dsn":               {},
-	"pass":              {},
-	"password":          {},
-	"pwd":               {},
-	"secret":            {},
-	"sslcert":           {},
-	"sslkey":            {},
-	"token":             {},
-	"user":              {},
-	"username":          {},
-}
-
 // Requires defines dependencies for the Remote Queries POC endpoint provider.
 type Requires struct {
 	fx.In
@@ -189,9 +169,6 @@ func parseMatchRequest(r *http.Request) (remoteQueryMatchRequest, error) {
 		case "integration", "target":
 			continue
 		default:
-			if isCredentialShapedField(key) {
-				return remoteQueryMatchRequest{}, invalidRequestError("request contains disallowed credential-shaped field")
-			}
 			return remoteQueryMatchRequest{}, invalidRequestError("request contains unknown field")
 		}
 	}
@@ -259,11 +236,6 @@ func parseTargetPort(fields map[string]json.RawMessage) (int, error) {
 func normalizeHost(host string) string {
 	host = strings.ToLower(strings.TrimSpace(host))
 	return strings.TrimSuffix(host, ".")
-}
-
-func isCredentialShapedField(field string) bool {
-	_, found := credentialShapedFields[strings.ToLower(field)]
-	return found
 }
 
 type postgresCheckMatch struct {

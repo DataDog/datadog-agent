@@ -41,14 +41,14 @@ func TestParseMatchRequestValidatesStrictShape(t *testing.T) {
 			wantError: "target contains unknown field",
 		},
 		{
-			name:      "credential-shaped top level field",
+			name:      "credential-like top level field is unknown",
 			body:      `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"password":"secret-value"}`,
-			wantError: "request contains disallowed credential-shaped field",
+			wantError: "request contains unknown field",
 		},
 		{
-			name:      "credential-shaped target field",
+			name:      "credential-like target field is unknown",
 			body:      `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres","username":"alice"}}`,
-			wantError: "request contains disallowed credential-shaped field",
+			wantError: "target contains unknown field",
 		},
 		{
 			name:      "non-integer port",
@@ -172,7 +172,7 @@ func TestRemoteQueryMatchHandlerAmbiguousMatch(t *testing.T) {
 	assert.NotContains(t, body, "secret-two")
 }
 
-func TestRemoteQueryMatchHandlerCredentialRequestDoesNotEchoValue(t *testing.T) {
+func TestRemoteQueryMatchHandlerUnknownTargetFieldDoesNotEchoValue(t *testing.T) {
 	handler := &remoteQueryMatchHandler{enabled: true, collector: fakeCollector{}}
 
 	recorder := callMatchHandler(handler, `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres","dsn":"postgres://secret-value@example/db"}}`)
@@ -180,7 +180,7 @@ func TestRemoteQueryMatchHandlerCredentialRequestDoesNotEchoValue(t *testing.T) 
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
 	body := recorder.Body.String()
 	assert.Contains(t, body, `"status":"invalid_request"`)
-	assert.Contains(t, body, "credential-shaped field")
+	assert.Contains(t, body, "target contains unknown field")
 	assert.NotContains(t, body, "postgres://secret-value@example/db")
 	assert.NotContains(t, body, "secret-value")
 }
@@ -272,9 +272,9 @@ func TestParseExecuteRequestValidatesStrictShape(t *testing.T) {
 			wantError: "request contains unknown field",
 		},
 		{
-			name:      "credential-shaped top level field",
+			name:      "credential-like top level field is unknown",
 			body:      `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","token":"secret-value"}`,
-			wantError: "request contains disallowed credential-shaped field",
+			wantError: "request contains unknown field",
 		},
 		{
 			name:      "unknown target field",
@@ -282,9 +282,9 @@ func TestParseExecuteRequestValidatesStrictShape(t *testing.T) {
 			wantError: "target contains unknown field",
 		},
 		{
-			name:      "credential-shaped target field",
+			name:      "credential-like target field is unknown",
 			body:      `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres","password":"secret-value"},"query":"SELECT 1 AS value"}`,
-			wantError: "request contains disallowed credential-shaped field",
+			wantError: "target contains unknown field",
 		},
 		{
 			name:      "non-exact query",
@@ -297,9 +297,9 @@ func TestParseExecuteRequestValidatesStrictShape(t *testing.T) {
 			wantError: "limits contains unknown field",
 		},
 		{
-			name:      "credential-shaped limits field",
+			name:      "credential-like limits field is unknown",
 			body:      `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":10,"maxBytes":1048576,"timeoutMs":5000,"password":"secret-value"}}`,
-			wantError: "request contains disallowed credential-shaped field",
+			wantError: "limits contains unknown field",
 		},
 		{
 			name:      "string maxRows",

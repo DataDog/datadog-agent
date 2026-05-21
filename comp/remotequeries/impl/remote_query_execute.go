@@ -165,9 +165,6 @@ func parseExecuteRequest(r *http.Request) (remoteQueryExecuteRequest, string, er
 		case "integration", "target", "query", "limits":
 			continue
 		default:
-			if isCredentialShapedField(key) {
-				return remoteQueryExecuteRequest{}, "", invalidRequestError("request contains disallowed credential-shaped field")
-			}
 			return remoteQueryExecuteRequest{}, "", invalidRequestError("request contains unknown field")
 		}
 	}
@@ -222,9 +219,6 @@ func parseTargetFields(targetFields map[string]json.RawMessage) (remoteQueryTarg
 		case "host", "port", "dbname":
 			continue
 		default:
-			if isCredentialShapedField(key) {
-				return remoteQueryTarget{}, fmt.Errorf("request contains disallowed credential-shaped field")
-			}
 			return remoteQueryTarget{}, fmt.Errorf("target contains unknown field")
 		}
 	}
@@ -282,9 +276,6 @@ func parseExecuteLimits(root map[string]json.RawMessage) (*remoteQueryExecuteLim
 		case "maxRows", "maxBytes", "timeoutMs":
 			continue
 		default:
-			if isCredentialShapedField(key) {
-				return nil, fmt.Errorf("request contains disallowed credential-shaped field")
-			}
 			return nil, fmt.Errorf("limits contains unknown field")
 		}
 	}
