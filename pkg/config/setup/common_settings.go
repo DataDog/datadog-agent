@@ -1554,7 +1554,6 @@ func serializer(config pkgconfigmodel.Setup) {
 	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
 	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
 	config.BindEnvAndSetDefault("serializer_max_uncompressed_payload_size", 4*megaByte)
-	config.BindEnvAndSetDefault("serializer_max_series_points_per_payload", 10000)
 	config.BindEnvAndSetDefault("serializer_max_series_payload_size", 512000)
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
