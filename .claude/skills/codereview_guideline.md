@@ -10,8 +10,8 @@ file's path and to the lines you are scoring.
 - Is it actively "pushy" — inviting use, not just describing?
 - Is the scope narrow enough to avoid false triggers?
 - Does it avoid being so vague that the agent undertriggers?
-- Is the skill name discoverable and appropriately namespaced (e.g. team prefix)?
-- Does the scope overlap with an existing skill? Flag duplicates.
+- Does the skill name reflect the skill's purpose?
+- Does the scope overlap with an existing skill?
 
 ## Dimension 2 — Writing philosophy / 25 pts
 - Does it explain WHY instructions matter, rather than just issuing commands?
@@ -21,10 +21,12 @@ file's path and to the lines you are scoring.
 - Does it use imperative form ("Run X", not "X can be run")?
 - Does it avoid over-narrow, example-specific rules that would
   cause the skill to overfit to particular inputs?
-- Is the risk level communicated? Does the skill interact with production
-  systems (high risk) or operate locally/read-only (low risk)? High-risk
-  skills must document blast radius and how to limit it.
-- Are embedded scripts easy to understand and free of cryptic behavior?
+- Any high risk skill (any skill that interacts with production) must have
+  safe guards documented to limit blast radius. Is it documented and are
+  there user prompts that confirm changes before operating on production?
+- Are embedded scripts easy to understand and free of cryptic behavior? Prefer
+  python or go over shell when the script is longer than 10-20 lines.
+
 
 ## Dimension 3 — Structure and progressive disclosure / 25 pts
 - Is the body under 500 lines?
@@ -50,7 +52,8 @@ file's path and to the lines you are scoring.
 For each changed SKILL.md, emit one finding whose body contains:
 - Scores per dimension (out of 25 each, for a total out of 100)
 - Top 3 actionable improvements grounded in the guidelines above
-- A suggested description rewrite if dimension 1 scored < 18
+- A suggested description rewrite if dimension 1 scored < 18. In case of
+  overlap suggest enhancements to the existing skill.
 - Overall recommendation: Request Changes (<60) / Approve with suggestions (60–79) / Approve (≥80)
 
 Set `priority` from the overall recommendation: 1 for Request Changes, 2 for
