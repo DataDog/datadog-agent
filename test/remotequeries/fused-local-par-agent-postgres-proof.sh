@@ -184,11 +184,33 @@ start_postgres_fixture() {
     return
   fi
 
+  local published_containers proof_containers other_containers
+  published_containers=$(docker ps --filter publish=5432 --format '{{.Names}}' || true)
+  if [[ -n "$published_containers" ]]; then
+    proof_containers=$(grep -E '^rq-fused-local-par-agent-postgres-' <<<"$published_containers" || true)
+    other_containers=$(grep -Ev '^rq-fused-local-par-agent-postgres-' <<<"$published_containers" || true)
+
+    if [[ -n "$proof_containers" ]]; then
+      log "Removing stale proof Postgres container(s) bound to localhost:5432 but not accepting psql"
+      xargs -r docker rm -f <<<"$proof_containers" >/dev/null
+    fi
+    if [[ -n "$other_containers" ]]; then
+      echo "Port 5432 is published by non-proof Docker container(s), and psql select 1 failed:" >&2
+      sed 's/^/  /' <<<"$other_containers" >&2
+      echo "Refusing to remove unrelated containers. Stop them or point this proof at a reachable local Postgres." >&2
+      exit 1
+    fi
+  fi
+
   log "Starting disposable Postgres fixture $POSTGRES_CONTAINER from $POSTGRES_IMAGE"
-  docker run --rm --name "$POSTGRES_CONTAINER" \
+  if ! docker run --rm --name "$POSTGRES_CONTAINER" \
     -e POSTGRES_HOST_AUTH_METHOD=trust \
     -p 5432:5432 \
-    -d "$POSTGRES_IMAGE" >/dev/null
+    -d "$POSTGRES_IMAGE" >/dev/null; then
+    echo "Failed to start disposable Postgres fixture on port 5432." >&2
+    echo "If another local Postgres is intended, ensure this succeeds: psql postgresql://postgres@localhost:5432/postgres -c 'select 1'" >&2
+    exit 1
+  fi
   POSTGRES_STARTED=1
 
   for _ in $(seq 1 60); do
