@@ -801,13 +801,6 @@ Package telemetry provides the installer telemetry component.
 
 Package updater is the updater component.
 
-### [comp/anomalydetection/hfrunner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner)
-
-*Datadog Team*: q-branch
-
-Package hfrunner provides a component that runs system and container checks at
-1-second intervals and routes their output directly into the observer pipeline.
-
 ### [comp/anomalydetection/logssource](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/logssource)
 
 *Datadog Team*: q-branch

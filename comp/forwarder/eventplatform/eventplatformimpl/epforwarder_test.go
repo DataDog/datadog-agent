@@ -12,8 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	eventplatformreceiver "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/def"
+	eventplatformreceivermock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/mock"
 	laconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfxmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
@@ -38,7 +38,7 @@ type EventPlatformForwarderTestSuite struct {
 func (suite *EventPlatformForwarderTestSuite) SetupTest() {
 	suite.config = config.NewMock(suite.T())
 
-	suite.receiver = fxutil.Test[eventplatformreceiver.Component](suite.T(), eventplatformreceiverimpl.MockModule())
+	suite.receiver = fxutil.Test[eventplatformreceiver.Component](suite.T(), eventplatformreceivermock.MockModule())
 	suite.compression = fxutil.Test[logscompression.Component](suite.T(), logscompressionfxmock.MockModule())
 }
 
