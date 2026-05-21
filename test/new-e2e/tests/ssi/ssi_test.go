@@ -170,7 +170,7 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 					Apps: []singlestep.App{
 						{
 							Name:    "local-sdk-injection-app",
-							Image:   "registry.datadoghq.com/injector-dev/python",
+							Image:   "gcr.io/datadoghq/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 							PodLabels: map[string]string{
@@ -183,7 +183,7 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 						},
 						{
 							Name:    "local-sdk-expect-no-injection",
-							Image:   "registry.datadoghq.com/injector-dev/python",
+							Image:   "gcr.io/datadoghq/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 						},
@@ -237,7 +237,7 @@ func (v *ssiSuite) TestNamespaceSelection() {
 					Apps: []singlestep.App{
 						{
 							Name:    "namespace-selection-inject",
-							Image:   "registry.datadoghq.com/injector-dev/python",
+							Image:   "gcr.io/datadoghq/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 						},
@@ -248,7 +248,7 @@ func (v *ssiSuite) TestNamespaceSelection() {
 					Apps: []singlestep.App{
 						{
 							Name:    "namespace-selection-no-inject",
-							Image:   "registry.datadoghq.com/injector-dev/python",
+							Image:   "gcr.io/datadoghq/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 						},
@@ -306,7 +306,7 @@ func (v *ssiSuite) TestWorkloadSelection() {
 					Apps: []singlestep.App{
 						{
 							Name:    "workload-selection-inject",
-							Image:   "registry.datadoghq.com/injector-dev/python",
+							Image:   "gcr.io/datadoghq/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 							PodLabels: map[string]string{
@@ -315,7 +315,7 @@ func (v *ssiSuite) TestWorkloadSelection() {
 						},
 						{
 							Name:    "workload-selection-expect-no-injection",
-							Image:   "registry.datadoghq.com/injector-dev/python",
+							Image:   "gcr.io/datadoghq/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 						},
@@ -358,9 +358,9 @@ func (v *ssiSuite) TestWorkloadSelection() {
 }
 
 func (v *ssiSuite) TestRegistryAllowList() {
-	// All three apps run in the same cluster with allow list = registry.datadoghq.com.
-	// The default container registry for injector and library images is registry.datadoghq.com.
-	// - "allowed": default injector and library, both from registry.datadoghq.com — injection proceeds.
+	// All three apps run in the same cluster with allow list = gcr.io/datadoghq.
+	// The default container registry for injector and library images is gcr.io/datadoghq.
+	// - "allowed": default injector and library, both from gcr.io/datadoghq — injection proceeds.
 	// - "injector-blocked": injector image overridden to fake.registry.invalid — injection blocked.
 	// - "library-blocked": injector is allowed, but python-lib.custom-image points to
 	//   fake.registry.invalid — injection blocked by library registry check.
