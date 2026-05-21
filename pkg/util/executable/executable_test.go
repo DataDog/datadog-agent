@@ -17,13 +17,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestResolvePath(t *testing.T) {
-	testProgram := "ls"
+func probeProgram() string {
 	if runtime.GOOS == "windows" {
-		testProgram = "dir"
+		return "where"
 	}
+	return "ls"
+}
 
-	actualPath, err := ResolvePath(testProgram)
+func TestResolvePath(t *testing.T) {
+	actualPath, err := ResolvePath(probeProgram())
 	require.NoError(t, err)
 
 	require.NotEmpty(t, actualPath)
@@ -34,12 +36,7 @@ func TestResolvePath(t *testing.T) {
 }
 
 func TestResolvePathIsAbsolute(t *testing.T) {
-	testProgram := "ls"
-	if runtime.GOOS == "windows" {
-		testProgram = "dir"
-	}
-
-	actualPath, err := ResolvePath(testProgram)
+	actualPath, err := ResolvePath(probeProgram())
 	require.NoError(t, err)
 
 	absPath, err := filepath.Abs(actualPath)
