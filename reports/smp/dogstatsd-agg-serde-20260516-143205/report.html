@@ -4,28 +4,375 @@
 <meta charset="utf-8">
 <title>DogStatsD Aggregator + Serializer SMP Report</title>
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 2rem; color: #1f2937; line-height: 1.45; }
-  h1, h2 { color: #111827; }
-  .verdict { border-left: 5px solid #2563eb; background: #eff6ff; padding: 1rem; margin: 1rem 0; }
-  .warn { border-left-color: #d97706; background: #fffbeb; }
-  table { border-collapse: collapse; width: 100%; margin: 1rem 0 2rem; font-size: 0.92rem; }
-  th, td { border: 1px solid #d1d5db; padding: 0.45rem 0.55rem; text-align: left; }
-  th { background: #f3f4f6; }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  code { background: #f3f4f6; padding: 0.1rem 0.25rem; border-radius: 3px; }
-  .ok { color: #047857; font-weight: 600; }
-  .small { color: #6b7280; font-size: 0.9rem; }
+  :root {
+    --ink: #172033;
+    --muted: #5f6b7a;
+    --border: #d9e1ee;
+    --soft: #f6f8fb;
+    --blue: #2563eb;
+    --cyan: #0891b2;
+    --green: #059669;
+    --amber: #d97706;
+    --red: #dc2626;
+    --purple: #7c3aed;
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 2rem;
+    color: var(--ink);
+    line-height: 1.5;
+    background: linear-gradient(180deg, #fbfdff 0, #ffffff 28rem);
+  }
+  h1, h2, h3 { color: #111827; line-height: 1.18; }
+  h1 { font-size: clamp(2.2rem, 4vw, 4.2rem); letter-spacing: -0.055em; margin: 0; }
+  h2 { font-size: 1.85rem; margin-top: 2.4rem; padding-top: 0.4rem; }
+  h3 { margin-top: 1.7rem; }
+  a { color: #1d4ed8; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { background: #eef2f7; padding: 0.1rem 0.25rem; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0 2rem; font-size: 0.92rem; background: white; }
+  th, td { border: 1px solid var(--border); padding: 0.5rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: #f3f6fa; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .small { color: var(--muted); font-size: 0.9rem; }
+  .ok { color: var(--green); font-weight: 700; }
+  .hero {
+    padding: 2rem;
+    border: 1px solid #cfe0ff;
+    border-radius: 24px;
+    background:
+      radial-gradient(circle at 12% 10%, rgba(37,99,235,0.20), transparent 28rem),
+      radial-gradient(circle at 88% 0%, rgba(8,145,178,0.18), transparent 24rem),
+      linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
+    box-shadow: 0 18px 55px rgba(30, 64, 175, 0.08);
+    margin-bottom: 1.4rem;
+  }
+  .eyebrow { text-transform: uppercase; letter-spacing: .14em; color: #1d4ed8; font-weight: 800; font-size: 0.78rem; }
+  .hero-subtitle { max-width: 850px; font-size: 1.16rem; color: #334155; margin: 1rem 0 0; }
+  .nav {
+    display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0 2rem;
+    padding: .8rem; border: 1px solid var(--border); border-radius: 16px; background: rgba(255,255,255,.8);
+    position: sticky; top: 0; z-index: 2; backdrop-filter: blur(8px);
+  }
+  .nav a { padding: .35rem .65rem; border-radius: 999px; background: #f1f5f9; font-weight: 650; font-size: .9rem; color: #334155; }
+  .nav a:hover { background: #dbeafe; color: #1d4ed8; text-decoration: none; }
+  .verdict, .callout { border-left: 5px solid var(--blue); background: #eff6ff; padding: 1rem; margin: 1rem 0; border-radius: 0 14px 14px 0; }
+  .warn { border-left-color: var(--amber); background: #fffbeb; }
+  .good { border-left-color: var(--green); background: #ecfdf5; }
+  .neutral { border-left-color: #64748b; background: #f8fafc; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1rem; margin: 1.1rem 0 1.7rem; }
+  .card { border: 1px solid var(--border); border-radius: 18px; padding: 1rem; background: #fff; box-shadow: 0 8px 24px rgba(15,23,42,0.045); }
+  .card h3 { margin: 0 0 .45rem; font-size: 1.03rem; }
+  .metric { font-size: 2rem; font-weight: 850; letter-spacing: -0.035em; color: #111827; }
+  .metric span { font-size: .95rem; font-weight: 700; color: var(--muted); }
+  .pill { display: inline-block; padding: .18rem .5rem; border-radius: 999px; background: #e0f2fe; color: #075985; font-weight: 700; font-size: .78rem; margin-bottom: .45rem; }
+  .pill.green { background: #d1fae5; color: #065f46; }
+  .pill.amber { background: #fef3c7; color: #92400e; }
+  .pill.purple { background: #ede9fe; color: #5b21b6; }
+  .grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+  @media (max-width: 850px) { .grid-2 { grid-template-columns: 1fr; } body { padding: 1rem; } .nav { position: static; } }
+  .diagram { width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: 18px; background: white; margin: 1rem 0 1.6rem; box-shadow: 0 8px 24px rgba(15,23,42,0.04); }
+  .diagram svg { display: block; min-width: 760px; width: 100%; height: auto; }
+  .caption { color: var(--muted); font-size: .9rem; margin-top: -.8rem; }
+  .bar-list { display: grid; gap: .65rem; margin: 1rem 0; }
+  .bar-row { display: grid; grid-template-columns: 230px 1fr 90px; gap: .7rem; align-items: center; font-size: .92rem; }
+  .bar-track { height: 16px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
+  .bar { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--blue), var(--cyan)); }
+  .bar.cpu { background: linear-gradient(90deg, var(--green), #22c55e); }
+  .bar.neg { background: linear-gradient(90deg, var(--amber), #fbbf24); }
+  .takeaways li { margin: .45rem 0; }
+  .score td:first-child { font-weight: 700; }
+  .status-high { color: var(--green); font-weight: 800; }
+  .status-medium { color: var(--amber); font-weight: 800; }
+  .status-open { color: #64748b; font-weight: 800; }
 </style>
 </head>
 <body>
-<h1>DogStatsD Aggregator + Serializer SMP Report</h1>
-<p class="small">Local SMP run directory: <code>reports/smp/dogstatsd-agg-serde-20260516-143205/</code></p>
+<section class="hero">
+  <div class="eyebrow">DogStatsD hack-week experiment report</div>
+  <h1>Can DogStatsD become a streaming data system?</h1>
+  <p class="hero-subtitle">This report summarizes a local SMP experiment series exploring whether DogStatsD ingestion, aggregation, debug stats, capture/replay, recent lookback queries, and v3 payload construction can share one bounded stream of parsed facts instead of duplicating hot-path work.</p>
+  <p class="small">Run directory: <code>reports/smp/dogstatsd-agg-serde-20260516-143205/</code> · Current experiment branch: <code>dogstatsd-agg-serde-experiment</code> · Latest measured code: <code>658b3c805cb</code> plus result commit <code>2488f766169</code></p>
+</section>
+
+<nav class="nav" aria-label="Report navigation">
+  <a href="#executive-summary">Executive summary</a>
+  <a href="#motivation">Why this exists</a>
+  <a href="#vision">Architecture vision</a>
+  <a href="#experimental-design">Experiment design</a>
+  <a href="#timeline">Narrative arc</a>
+  <a href="#highlights">Highlights</a>
+  <a href="#feature-goals">Feature goals</a>
+  <a href="#memory">Memory read</a>
+  <a href="#next-questions">Next questions</a>
+  <a href="#appendix-images">Appendix</a>
+</nav>
+
+<section id="executive-summary">
+  <h2>Executive summary</h2>
+  <div class="cards">
+    <div class="card">
+      <span class="pill green">Validated direction</span>
+      <h3>Parser no-materialization is the big lever</h3>
+      <div class="metric">-14% <span>agent CPU</span></div>
+      <p>Stage W's fast lane bypasses repeated name/tag materialization and full <code>MetricSample</code> construction on exact-tagset hits. Fixed-rate throughput stayed neutral, but Agent CPU dropped about 14% on high-rate metrics-only runs.</p>
+    </div>
+    <div class="card">
+      <span class="pill green">High-rate win</span>
+      <h3>Parser dictionaries can change the ceiling</h3>
+      <div class="metric">+28.4% <span>throughput</span></div>
+      <p>Stage T's opt-in exact raw-tagset cache produced a large repeated-tagset high-rate win versus main. This remains gated until adversarial/mostly-unique tagsets are tested.</p>
+    </div>
+    <div class="card">
+      <span class="pill green">Bounded ingress</span>
+      <h3>Explicit backpressure beats hidden backlog</h3>
+      <div class="metric">+7.4% <span>high-rate</span></div>
+      <p>Stage N/O's compact raw UDS ring plus batched drains became the best bounded-ingress design tested, replacing large packet-channel backlog with byte-budgeted behavior.</p>
+    </div>
+    <div class="card">
+      <span class="pill amber">Still open</span>
+      <h3>Memory is not solved yet</h3>
+      <div class="metric">+RSS <span>retained state</span></div>
+      <p>The new architecture trades CPU for retained dictionaries, rings, descriptor caches, and view state. That is expected for the prototype, but it means memory needs byte budgets and admission policy before any default-on claim.</p>
+    </div>
+  </div>
+
+  <div class="verdict good">
+    <strong>How we feel about the experiment:</strong> it moved from a sketch to a validated direction. We found real macro wins, falsified several attractive shortcuts, and learned that compact identities only pay off when they let us skip materialization <em>before</em> the old object-heavy path. We do not yet know the final throughput ceiling because the latest Stage W runs are fixed-rate and not saturated.
+  </div>
+</section>
+
+<section id="motivation">
+  <h2>Why this exists</h2>
+  <p>DogStatsD is more than a UDP/UDS parser. It is also a local aggregation engine, a debug surface, a capture/replay source, and increasingly a path to v3 columnar payloads. Today those concerns are split across side paths:</p>
+  <ul class="takeaways">
+    <li>normal aggregation parses samples, extracts tags, computes context keys, and later flushes backend payloads;</li>
+    <li>batch sharding computes an overlapping but not identical key;</li>
+    <li><code>serverDebug</code> / <code>agent dogstatsd-stats</code> historically recomputed debug keys into a separate hot-path map;</li>
+    <li>capture/replay taps listener buffers with transport-specific behavior;</li>
+    <li>recent local lookback queries do not have a first-class bounded store;</li>
+    <li>metrics v3 payload construction rebuilds many string/tag/dictionary concepts downstream.</li>
+  </ul>
+  <p>The hypothesis was that we can make these features cheaper and more consistent by treating DogStatsD like a streaming database: one raw ingress stream, one canonical semantic stream, and a set of bounded materialized views.</p>
+</section>
+
+<section id="vision">
+  <h2>Architecture vision: raw stream + semantic stream + materialized views</h2>
+  <div class="diagram" role="img" aria-label="DogStatsD streaming architecture diagram">
+    <svg viewBox="0 0 1120 560" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker>
+        <linearGradient id="bluegrad" x1="0" x2="1"><stop offset="0" stop-color="#dbeafe"/><stop offset="1" stop-color="#e0f2fe"/></linearGradient>
+        <linearGradient id="greengrad" x1="0" x2="1"><stop offset="0" stop-color="#dcfce7"/><stop offset="1" stop-color="#ecfdf5"/></linearGradient>
+      </defs>
+      <rect x="0" y="0" width="1120" height="560" rx="24" fill="#ffffff"/>
+      <text x="40" y="42" font-size="24" font-weight="800" fill="#0f172a">Target shape</text>
+      <text x="40" y="70" font-size="15" fill="#64748b">Compute identities and descriptors once, then feed aggregation, debug, capture/replay, lookback, and payload construction.</text>
+
+      <rect x="40" y="120" width="145" height="78" rx="14" fill="#f1f5f9" stroke="#cbd5e1"/>
+      <text x="112" y="150" text-anchor="middle" font-size="16" font-weight="700" fill="#0f172a">Listeners</text>
+      <text x="112" y="174" text-anchor="middle" font-size="13" fill="#64748b">UDS / UDP / pipe</text>
+
+      <rect x="255" y="105" width="210" height="108" rx="16" fill="url(#bluegrad)" stroke="#93c5fd"/>
+      <text x="360" y="137" text-anchor="middle" font-size="17" font-weight="800" fill="#0f172a">Raw ingress log</text>
+      <text x="360" y="163" text-anchor="middle" font-size="13" fill="#475569">bytes + listener + origin</text>
+      <text x="360" y="185" text-anchor="middle" font-size="13" fill="#475569">bounded by bytes/age</text>
+
+      <rect x="535" y="100" width="230" height="118" rx="16" fill="url(#greengrad)" stroke="#86efac"/>
+      <text x="650" y="134" text-anchor="middle" font-size="17" font-weight="800" fill="#0f172a">Parser / normalizer</text>
+      <text x="650" y="160" text-anchor="middle" font-size="13" fill="#475569">names, tags, origin</text>
+      <text x="650" y="182" text-anchor="middle" font-size="13" fill="#475569">compact IDs, descriptors</text>
+
+      <rect x="835" y="105" width="230" height="108" rx="16" fill="#ede9fe" stroke="#c4b5fd"/>
+      <text x="950" y="137" text-anchor="middle" font-size="17" font-weight="800" fill="#0f172a">Canonical stream</text>
+      <text x="950" y="163" text-anchor="middle" font-size="13" fill="#475569">semantic records</text>
+      <text x="950" y="185" text-anchor="middle" font-size="13" fill="#475569">series refs + values</text>
+
+      <path d="M185 159 L250 159" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+      <path d="M465 159 L530 159" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+      <path d="M765 159 L830 159" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+
+      <rect x="215" y="285" width="170" height="82" rx="14" fill="#fff7ed" stroke="#fed7aa"/>
+      <text x="300" y="318" text-anchor="middle" font-size="16" font-weight="800" fill="#0f172a">Raw capture</text>
+      <text x="300" y="342" text-anchor="middle" font-size="13" fill="#64748b">retrospective export</text>
+
+      <rect x="410" y="285" width="170" height="82" rx="14" fill="#f8fafc" stroke="#cbd5e1"/>
+      <text x="495" y="318" text-anchor="middle" font-size="16" font-weight="800" fill="#0f172a">Raw replay</text>
+      <text x="495" y="342" text-anchor="middle" font-size="13" fill="#64748b">transport fidelity</text>
+
+      <rect x="630" y="270" width="180" height="92" rx="14" fill="#ecfdf5" stroke="#bbf7d0"/>
+      <text x="720" y="303" text-anchor="middle" font-size="16" font-weight="800" fill="#0f172a">Aggregation</text>
+      <text x="720" y="327" text-anchor="middle" font-size="13" fill="#64748b">backend series view</text>
+
+      <rect x="840" y="270" width="180" height="92" rx="14" fill="#eff6ff" stroke="#bfdbfe"/>
+      <text x="930" y="303" text-anchor="middle" font-size="16" font-weight="800" fill="#0f172a">Debug stats</text>
+      <text x="930" y="327" text-anchor="middle" font-size="13" fill="#64748b">bounded materialized view</text>
+
+      <rect x="630" y="400" width="180" height="92" rx="14" fill="#fdf2f8" stroke="#fbcfe8"/>
+      <text x="720" y="433" text-anchor="middle" font-size="16" font-weight="800" fill="#0f172a">Lookback</text>
+      <text x="720" y="457" text-anchor="middle" font-size="13" fill="#64748b">recent windows/top-K</text>
+
+      <rect x="840" y="400" width="180" height="92" rx="14" fill="#f5f3ff" stroke="#ddd6fe"/>
+      <text x="930" y="433" text-anchor="middle" font-size="16" font-weight="800" fill="#0f172a">v3 payloads</text>
+      <text x="930" y="457" text-anchor="middle" font-size="13" fill="#64748b">dictionary/column reuse</text>
+
+      <path d="M360 213 C360 255 305 252 305 280" stroke="#64748b" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <path d="M382 213 C410 250 475 250 488 280" stroke="#64748b" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <path d="M950 213 C930 244 735 236 724 266" stroke="#64748b" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <path d="M950 213 C950 244 932 240 932 266" stroke="#64748b" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <path d="M950 213 C900 300 740 335 724 396" stroke="#64748b" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <path d="M950 213 C1000 300 940 335 934 396" stroke="#64748b" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+    </svg>
+  </div>
+  <p class="caption">The important idea is not “columnar everything.” It is “make every expensive projection explicit and reusable.” Raw capture/replay should consume raw envelopes; aggregation/debug/lookback/payloads should consume canonical semantic records and descriptors.</p>
+</section>
+
+<section id="experimental-design">
+  <h2>Experimental design</h2>
+  <div class="grid-2">
+    <div>
+      <p>We used local SMP comparisons between optimized Linux/arm64 Agent images. Each stage had a baseline image and a comparison image. SMP ran lading generators, a blackhole API endpoint, the Agent under test, and Prometheus-style metric capture. The top-line SMP goal was usually ingress throughput; explanatory metrics were queried from parquet with DuckDB.</p>
+      <ul class="takeaways">
+        <li><strong>Standard case:</strong> UDS datagram DogStatsD at roughly 100 MiB/s with metrics/events/service-checks mixed 90/5/5.</li>
+        <li><strong>High-rate case:</strong> UDS datagram DogStatsD at 250 MiB/s, metrics only, compact batch, designed to expose parser/ingress pressure.</li>
+        <li><strong>Feature-cost cases:</strong> same workload and code, toggling one experimental gate at a time when possible.</li>
+        <li><strong>Replicates:</strong> most final comparisons use 3 replicates / 270 total samples; some early exploratory stages are single-replicate and are marked accordingly in notes.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>What “good” means here</h3>
+      <p><strong>Throughput wins</strong> are useful when the workload is saturated or backpressured.</p>
+      <p><strong>CPU wins</strong> matter even when fixed-rate throughput is neutral: they mean more headroom for the same traffic.</p>
+      <p><strong>Memory wins</strong> require both less retained heap/RSS and predictable byte budgets. We are not there yet.</p>
+      <p><strong>Compatibility</strong> remains the gate for any production migration. Most experimental paths are explicitly opt-in and fallback-safe.</p>
+    </div>
+  </div>
+</section>
+
+<section id="timeline">
+  <h2>Narrative arc: what we tried and what it taught us</h2>
+  <div class="diagram" role="img" aria-label="Experiment timeline">
+    <svg viewBox="0 0 1120 310" xmlns="http://www.w3.org/2000/svg">
+      <defs><marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#64748b"/></marker></defs>
+      <rect width="1120" height="310" rx="22" fill="#fff"/>
+      <path d="M70 155 L1050 155" stroke="#cbd5e1" stroke-width="5" marker-end="url(#arrow2)"/>
+      <g font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
+        <circle cx="120" cy="155" r="16" fill="#2563eb"/><text x="120" y="160" text-anchor="middle" font-size="13" fill="white" font-weight="800">A-H</text>
+        <text x="120" y="92" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a">Direct rows</text><text x="120" y="116" text-anchor="middle" font-size="13" fill="#64748b">mostly neutral</text>
+
+        <circle cx="285" cy="155" r="16" fill="#dc2626"/><text x="285" y="160" text-anchor="middle" font-size="13" fill="white" font-weight="800">I</text>
+        <text x="285" y="220" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a">Naive columnar</text><text x="285" y="244" text-anchor="middle" font-size="13" fill="#64748b">negative; wrong work</text>
+
+        <circle cx="440" cy="155" r="16" fill="#059669"/><text x="440" y="160" text-anchor="middle" font-size="13" fill="white" font-weight="800">J</text>
+        <text x="440" y="92" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a">Shard-only identity</text><text x="440" y="116" text-anchor="middle" font-size="13" fill="#64748b">+13.6% high-rate</text>
+
+        <circle cx="595" cy="155" r="16" fill="#0891b2"/><text x="595" y="160" text-anchor="middle" font-size="13" fill="white" font-weight="800">L-O</text>
+        <text x="595" y="220" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a">Bounded ingress</text><text x="595" y="244" text-anchor="middle" font-size="13" fill="#64748b">raw ring + batch drains</text>
+
+        <circle cx="750" cy="155" r="16" fill="#7c3aed"/><text x="750" y="160" text-anchor="middle" font-size="13" fill="white" font-weight="800">Q</text>
+        <text x="750" y="92" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a">Native v3 path</text><text x="750" y="116" text-anchor="middle" font-size="13" fill="#64748b">+8.1% vs main</text>
+
+        <circle cx="895" cy="155" r="16" fill="#d97706"/><text x="895" y="160" text-anchor="middle" font-size="13" fill="white" font-weight="800">T</text>
+        <text x="895" y="220" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a">Parser tagsets</text><text x="895" y="244" text-anchor="middle" font-size="13" fill="#64748b">+28.4% repeated tags</text>
+
+        <circle cx="1020" cy="155" r="16" fill="#059669"/><text x="1020" y="160" text-anchor="middle" font-size="13" fill="white" font-weight="800">W</text>
+        <text x="1020" y="92" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a">Fast lane</text><text x="1020" y="116" text-anchor="middle" font-size="13" fill="#64748b">-14% Agent CPU</text>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<section id="highlights">
+  <h2>Result highlights</h2>
+  <div class="grid-2">
+    <div>
+      <h3>Largest throughput signals</h3>
+      <div class="bar-list">
+        <div class="bar-row"><div>Stage T tagset cache vs main</div><div class="bar-track"><div class="bar" style="width:100%"></div></div><div class="num">+28.42%</div></div>
+        <div class="bar-row"><div>Stage J shard-only vs direct rows</div><div class="bar-track"><div class="bar" style="width:48%"></div></div><div class="num">+13.57%</div></div>
+        <div class="bar-row"><div>Stage Q native v3 vs main</div><div class="bar-track"><div class="bar" style="width:29%"></div></div><div class="num">+8.10%</div></div>
+        <div class="bar-row"><div>Stage O bounded ring vs direct rows</div><div class="bar-track"><div class="bar" style="width:26%"></div></div><div class="num">+7.39%</div></div>
+      </div>
+      <p class="caption">High-rate UDS metrics-only or v3 endpoint cases. See detailed stage tables below for exact baselines and caveats.</p>
+    </div>
+    <div>
+      <h3>Most important CPU signal</h3>
+      <div class="bar-list">
+        <div class="bar-row"><div>Stage W fast lane, high-rate</div><div class="bar-track"><div class="bar cpu" style="width:70%"></div></div><div class="num">-14.0%</div></div>
+        <div class="bar-row"><div>Stage W fast lane, 2 CPU case</div><div class="bar-track"><div class="bar cpu" style="width:70%"></div></div><div class="num">-14.1%</div></div>
+        <div class="bar-row"><div>Stage W fast lane, standard</div><div class="bar-track"><div class="bar cpu" style="width:42%"></div></div><div class="num">-8.36%</div></div>
+      </div>
+      <p class="caption">Throughput stayed flat because these runs were fixed-rate, but lower Agent CPU is exactly the headroom signal we wanted from parser no-materialization.</p>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <span class="pill purple">Falsified</span>
+      <h3>Naive columnar is not enough</h3>
+      <p>Stage I was negative until we noticed the parser was computing an unused debug projection for every sample. The lesson: shared identity helps only if projection laziness is enforced.</p>
+    </div>
+    <div class="card">
+      <span class="pill purple">Falsified</span>
+      <h3>Skipping grouping naively does not win</h3>
+      <p>Stage H's unsafe direct context rows and Stage P's direct compact raw ring both looked plausible but lost. They increased downstream work or contention more than they saved.</p>
+    </div>
+    <div class="card">
+      <span class="pill green">Validated</span>
+      <h3>Bounded backlog is a product win</h3>
+      <p>Raw-ring telemetry lets us distinguish “faster” from “admitted more hidden backlog.” This matters as much as raw throughput for production behavior.</p>
+    </div>
+  </div>
+</section>
+
+<section id="feature-goals">
+  <h2>How the broader feature goals went</h2>
+  <p>The experiment was not only about throughput. A major goal was to make DogStatsD observability features cheap enough to leave on or compose: debug stats, raw capture/replay, recent lookback, semantic replay, and payload construction.</p>
+  <table class="score">
+    <tr><th>Goal</th><th>Confidence</th><th>What we proved</th><th>What remains</th></tr>
+    <tr><td><code>dogstatsd-stats</code> / <code>serverDebug</code></td><td class="status-high">High</td><td>Replaced the old shape with bounded sharded materialized views and a reusable <code>SeriesStatsStore</code>; local observe benchmark was ~67 ns/op, 0 allocs/op.</td><td>Full feature-cost SMP with debug enabled alongside the newest fast path.</td></tr>
+    <tr><td>Raw capture / raw replay</td><td class="status-medium">Medium-high</td><td>Introduced ingress envelopes and a bounded raw ring; active capture can copy from envelopes instead of entangling packet-pool ownership.</td><td>Byte-budgeted retention, export under load, origin/OOB coverage, and always-on feature-cost runs.</td></tr>
+    <tr><td>Recent lookback queries</td><td class="status-medium">Medium</td><td>Built a bounded shard-local micro-bucket substrate with deterministic fixed-shape queries; observe benchmark was ~104 ns/op, 0 allocs/op.</td><td>Wire into live DogStatsD path and measure CPU/RSS/query latency under high cardinality.</td></tr>
+    <tr><td>Semantic replay</td><td class="status-medium">Medium</td><td>Proved replay over canonical records can reproduce debug/lookback projections without reparsing or depending on current enrichment state.</td><td>Persisted corpus format, CLI/operator workflow, and connection to real capture artifacts.</td></tr>
+    <tr><td>v3 payload construction</td><td class="status-medium">Medium-high</td><td>Stage Q completed native columnar-v3 payload construction and a v2/direct-series bridge; direct serializer allocation was not the main retained-heap culprit.</td><td>Reuse descriptor/name/tagset IDs directly in v3 payload dictionaries to avoid another round of string/tag work.</td></tr>
+  </table>
+  <div class="callout neutral">
+    <strong>Feature-read:</strong> the substrates are promising and bounded, but the full “always-on observability for cheap” claim still needs a feature-cost matrix with debug + lookback + raw ring enabled together. The architecture wins when shared descriptors replace duplicate work, not when every view retains its own copy.
+  </div>
+</section>
+
+<section id="memory">
+  <h2>Memory read: why CPU wins did not become memory wins</h2>
+  <p>The prototype often trades repeated CPU work for retained state. Main has an accidental memory advantage: it materializes many objects transiently, then lets GC reclaim them, while the experiment keeps dictionaries, compact IDs, descriptor caches, rings, and view state alive so later stages can reuse them.</p>
+  <div class="cards">
+    <div class="card"><h3>Main's advantage</h3><p>Fewer parallel representations: less raw tagset cache, compact ID state, descriptor ref state, and materialized view scaffolding.</p></div>
+    <div class="card"><h3>Experiment's advantage</h3><p>Less repeated work and more predictable overload behavior: explicit rings, reusable descriptors, and faster parser hit paths.</p></div>
+    <div class="card"><h3>What has to happen</h3><p>Retained-byte caps, adaptive admission, smaller per-worker defaults, cache sharing, and downstream deletion of duplicate string/tag projections.</p></div>
+  </div>
+  <div class="verdict warn">
+    <strong>Current memory verdict:</strong> do not claim a total-memory win. Claim less hidden ingress backlog, better predictability, and CPU headroom. Memory can become a win only if shared identity/descriptors replace multiple downstream representations instead of sitting beside them.
+  </div>
+</section>
+
+<section id="next-questions">
+  <h2>What we should test next</h2>
+  <ol class="takeaways">
+    <li><strong>Saturation/backpressure sweep:</strong> increase rate or lower CPU until the baseline develops lag/drops, then compare max stable MiB/s, lag, drops, and CPU. This converts Stage W's CPU headroom into an ingress-ceiling answer.</li>
+    <li><strong>Feature-cost matrix:</strong> measure debug stats, lookback, raw ring/capture, and combinations of those features on the latest fast path.</li>
+    <li><strong>Memory/admission hardening:</strong> adversarial mostly-unique tagsets, retained-byte caps, adaptive admission, and no-allocation telemetry.</li>
+    <li><strong>Payload dictionary reuse:</strong> use compact descriptor/name/tagset IDs directly in v3 payload dictionaries instead of rebuilding payload-local string/tag dictionaries from scratch.</li>
+    <li><strong>Compatibility breadth:</strong> mixed metric types, UDP/raw-disabled, origin-on, events, service checks, distributions/histograms/sets, timestamps, stream sockets, and named pipes.</li>
+  </ol>
+</section>
 
 <div class="verdict">
-  <strong>Current verdict:</strong> Stage A-V are complete locally, and the post-Stage-Q raw-ring telemetry/honesty matrix is complete. Stage I was negative because the columnar parser path computed an unused debug projection for every sample. Stage J removed that artifact and turned the narrow columnar v3 slice into a +13.57% high-rate throughput win. Stage L showed a byte-bounded ingress log can trade unconstrained overload admission for explicit backpressure. Stage M's raw UDS ring removed packet-pool backlog entirely. Stage N/O's compact raw ring plus batch drains remain the best bounded high-rate design. Stage P falsified the simple no-copy direct-reservation idea. Stage Q adds native columnar-v3 payload construction and a v2/direct-series bridge. Stage T proves parser dictionaries matter; Stage U/V carry compact IDs farther downstream but are macro-neutral until parser no-materialization and payload dictionary reuse avoid more string/tag work.
+  <strong>Current verdict:</strong> the architecture is promising and increasingly real. We have decisive evidence that parser dictionaries and no-materialization fast lanes can move macro CPU/throughput, and that bounded ingress gives better overload honesty. We should still treat the work as experimental until saturation, memory, feature-cost, and compatibility matrices are complete.
 </div>
 
-<h2>Images</h2>
+<h2 id="appendix-images">Appendix: images</h2>
 <ul>
   <li><code>datadog/agent-dev:smp-dsd-main</code> — main baseline, commit <code>3ec880f14a3</code></li>
   <li><code>datadog/agent-dev:smp-dsd-foundation</code> — foundation, commit <code>53f7e8fdc3d</code></li>
@@ -52,9 +399,10 @@
   <li><code>datadog/agent-dev:smp-dsd-columnar-v3-parser-interning</code> / <code>...-tagset</code> — Stage T parser interning, commit <code>d78e87470fd</code></li>
   <li><code>datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints</code> / <code>...-enabled</code> — Stage U compact identity hints, commit <code>9376b73a9c1</code></li>
   <li><code>datadog/agent-dev:smp-dsd-columnar-v3-compact-consumers</code> / <code>...-baseline</code> / <code>...-enabled</code> — Stage V compact-ID consumers, local worktree after <code>73080eecc9f</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-fastlane</code> / <code>...-baseline</code> / <code>...-enabled</code> — Stage W parser no-materialization fast lane, commit <code>658b3c805cb</code></li>
 </ul>
 
-<h2>Stage result tables</h2>
+<h2 id="appendix-stage-results">Appendix: detailed stage result tables</h2>
 
 <h3>Stage A — main vs foundation</h3>
 <table>
@@ -309,12 +657,32 @@
   <strong>Stage V caveat:</strong> compact IDs can now drive scalar row/descriptor reuse in a gated slice, but the macro result is still neutral. The remaining parser/enrichment path materializes strings and tag slices before compact IDs can help; next wins require parser no-materialization and v3 payload dictionary ID reuse.
 </div>
 
+<h3>Stage W — parser no-materialization fast lane</h3>
+<table>
+<tr><th>Change</th><th>Read</th></tr>
+<tr><td>fast-lane gate</td><td><code>DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE=true</code>; requires exact tagset cache/direct parse and handles a narrow single-value gauge/count slice</td></tr>
+<tr><td>worker-local descriptor cache</td><td>keyed by raw metric name + parser tagset ID + metric type; exact cache hits append scalar columnar-v3 rows without repeated tag materialization or full <code>MetricSample</code> construction</td></tr>
+<tr><td>descriptor-ref safety</td><td>columnar descriptor refs include descriptor ID + generation and are validated before use; stale refs fall back safely</td></tr>
+<tr><td>focused benchmark</td><td>Stage V direct materialized hit <code>311.8 ns/op</code> → Stage W descriptor hit <code>185.2 ns/op</code>; both zero allocations</td></tr>
+</table>
+
+<table>
+<tr><th>Stage W SMP comparison</th><th>Case</th><th>Throughput Δ / CI</th><th>Agent CPU Δ</th><th>Read</th></tr>
+<tr><td>baseline env vs fast lane</td><td>high-rate metrics-only</td><td>+0.01% / [-0.02%, +0.03%]</td><td class="num">-14.0%</td><td>fixed-rate throughput neutral; large CPU headroom gain</td></tr>
+<tr><td>baseline env vs fast lane</td><td>standard compact batch</td><td>+0.00% / [-0.03%, +0.03%]</td><td class="num">-8.36%</td><td>mixed workload still shows CPU savings</td></tr>
+<tr><td>baseline env vs fast lane</td><td>2 CPU / 240 MiB/s metrics-only</td><td>+0.00% / [-0.03%, +0.03%]</td><td class="num">-14.1%</td><td>still fixed-rate/generator-limited; use saturation next</td></tr>
+</table>
+
+<div class="verdict good">
+  <strong>Stage W read:</strong> this is the first compact-ID stage with a decisive macro CPU signal. Compact IDs became valuable once they let the parser skip old materialization work. Throughput stayed neutral because the cases were fixed-rate, so saturation/backpressure is the next test needed to convert CPU headroom into sustainable-ingress evidence.
+</div>
+
 <div class="verdict">
-  <strong>Current value read:</strong> Stage I had not actually collapsed identity work: it added an unused debug-key and display-tags projection on every parser hot-path sample. Stage J removes that artifact and shows the narrow columnar design can beat direct metric rows. Stage L shows the large packet queue can be replaced by explicit ingress-log backpressure. Stage M shows a raw UDS ring can eliminate packet-pool backlog. Stage N shows byte-compact retained records matter. Stage O shows batched worker drains are a real but smaller high-rate ceiling step. Stage P shows one-max-slot direct reservation is not the next ceiling. Stage Q completes direct native v3/v2 payload construction but is not a large standalone win over Stage O. Stage R makes proof telemetry and naive descriptor interning explicit costs rather than hidden defaults. Stage S shows direct v3 serializer live heap is not the main RSS culprit and removes low-risk row-copy escapes. Stage T confirms parser/string interning is a real remaining bottleneck; SLRU reset avoidance is safe and exact tagset dictionaries can substantially reduce backpressure on repeated-tagset workloads. Stage U confirms compact IDs can be carried through DogStatsD batching into columnar hints. Stage V proves compact IDs can be consumed as scalar row/descriptor inputs, but remains macro-neutral until more upstream materialization is skipped. Stage N/O plus Stage Q/R/S/T/U/V remains the best tested combined design; post-telemetry honesty gates narrow the claim to UDS datagram/origin-off and make high-rate backpressure visible.
+  <strong>Current value read:</strong> Stage I had not actually collapsed identity work: it added an unused debug-key and display-tags projection on every parser hot-path sample. Stage J removes that artifact and shows the narrow columnar design can beat direct metric rows. Stage L shows the large packet queue can be replaced by explicit ingress-log backpressure. Stage M shows a raw UDS ring can eliminate packet-pool backlog. Stage N shows byte-compact retained records matter. Stage O shows batched worker drains are a real but smaller high-rate ceiling step. Stage P shows one-max-slot direct reservation is not the next ceiling. Stage Q completes direct native v3/v2 payload construction but is not a large standalone win over Stage O. Stage R makes proof telemetry and naive descriptor interning explicit costs rather than hidden defaults. Stage S shows direct v3 serializer live heap is not the main RSS culprit and removes low-risk row-copy escapes. Stage T confirms parser/string interning is a real remaining bottleneck; SLRU reset avoidance is safe and exact tagset dictionaries can substantially reduce backpressure on repeated-tagset workloads. Stage U confirms compact IDs can be carried through DogStatsD batching into columnar hints. Stage V proves compact IDs can be consumed as scalar row/descriptor inputs but remains macro-neutral while the parser still materializes first. Stage W proves the missing piece: using compact identity state before materialization can produce meaningful macro CPU wins. Stage N/O plus Stage Q/R/S/T/U/V/W remains the best tested combined design; post-telemetry honesty gates narrow the claim to UDS datagram/origin-off and make high-rate backpressure visible.
 </div>
 
 <div class="verdict warn">
-  <strong>Stage E/F/G/H/I/J/L/M/N/O/P/Q/R/T/U/V caveat:</strong> this is intentionally unsafe/local and enabled through env gates. Stage E bypasses iterable channel traversal. Stage F emits DogStatsD time-sampler series as <code>metrics.SerieRow</code>. Stage G bypasses scalar <code>*metrics.Serie</code> materialization. Stage H bypasses grouping/dedup and is intentionally not wire-equivalent. Stage I/J/Q/R/U/V are v3-only/metric-oriented and fall back to legacy paths for unsupported samples/checks/sketches/events, except the explicit skip-legacy upper-bound probe, the Stage Q direct-series/v2 bridge, and Stage V's gated direct-parse slice. Stage L changes overload/backpressure behavior and is only a first-pass packet-batch ingress log. Stage M/N/O/P raw modes are UDS-datagram-only and currently exclude UDP, stream sockets, named pipes, statsd forwarding, and origin detection; the origin-on and UDP probes intentionally ran with raw ingress disabled. Stage R changes measurement cost shape by making proof shadows optional and descriptor interning opt-in. Stage T's exact tagset cache, Stage U compact identities, and Stage V compact-ID consumers remain opt-in until admission/memory behavior is validated on mostly-unique/adversarial tagsets and broader compatibility is proven.
+  <strong>Stage E/F/G/H/I/J/L/M/N/O/P/Q/R/T/U/V/W caveat:</strong> this is intentionally unsafe/local and enabled through env gates. Stage E bypasses iterable channel traversal. Stage F emits DogStatsD time-sampler series as <code>metrics.SerieRow</code>. Stage G bypasses scalar <code>*metrics.Serie</code> materialization. Stage H bypasses grouping/dedup and is intentionally not wire-equivalent. Stage I/J/Q/R/U/V/W are v3-only/metric-oriented and fall back to legacy paths for unsupported samples/checks/sketches/events, except the explicit skip-legacy upper-bound probe, the Stage Q direct-series/v2 bridge, Stage V's gated direct-parse slice, and Stage W's narrower exact-tagset fast lane. Stage L changes overload/backpressure behavior and is only a first-pass packet-batch ingress log. Stage M/N/O/P raw modes are UDS-datagram-only and currently exclude UDP, stream sockets, named pipes, statsd forwarding, and origin detection; the origin-on and UDP probes intentionally ran with raw ingress disabled. Stage R changes measurement cost shape by making proof shadows optional and descriptor interning opt-in. Stage T's exact tagset cache, Stage U compact identities, Stage V compact-ID consumers, and Stage W fast lane remain opt-in until admission/memory behavior is validated on mostly-unique/adversarial tagsets and broader compatibility is proven.
 </div>
 
 <h2>Artifacts</h2>
@@ -339,10 +707,12 @@
   <li><a href="stageU_compact_identity_effects.csv">stageU_compact_identity_effects.csv</a> — Stage U effect summary.</li>
   <li><a href="stageV_compact_consumers_selected_metrics.csv">stageV_compact_consumers_selected_metrics.csv</a> — Stage V compact-ID consumer feature-cost metric summaries.</li>
   <li><a href="stageV_compact_consumers_effects.csv">stageV_compact_consumers_effects.csv</a> — Stage V effect summary.</li>
+  <li><a href="stageW_fastlane_high_selected_metrics.csv">stageW_fastlane_high_selected_metrics.csv</a>, <a href="stageW_fastlane_standard_selected_metrics.csv">stageW_fastlane_standard_selected_metrics.csv</a>, and <a href="stageW_fastlane_2cpu_240mb_selected_metrics.csv">stageW_fastlane_2cpu_240mb_selected_metrics.csv</a> — Stage W fast-lane CPU/throughput metric summaries.</li>
   <li><a href="notes/stageS-heap-and-v3-serializer-profile.md">notes/stageS-heap-and-v3-serializer-profile.md</a> — Stage S heap/profile and v3 serializer allocation analysis.</li>
   <li><a href="notes/stageT-parser-interning.md">notes/stageT-parser-interning.md</a> — Stage T parser string/tagset interning analysis.</li>
   <li><a href="notes/stageU-compact-identity-hints.md">notes/stageU-compact-identity-hints.md</a> — Stage U compact identity hint analysis.</li>
   <li><a href="notes/stageV-compact-id-consumers.md">notes/stageV-compact-id-consumers.md</a> — Stage V compact-ID downstream consumer analysis.</li>
+  <li><a href="notes/stageW-fastlane.md">notes/stageW-fastlane.md</a> — Stage W fast-lane implementation and SMP analysis.</li>
   <li><a href="images.txt">images.txt</a> — image IDs and Agent versions.</li>
   <li><a href="environment.txt">environment.txt</a> — Docker/Colima/SMP environment.</li>
   <li><a href="notes/experiment-log.md">notes/experiment-log.md</a> — chronological command log and caveats.</li>

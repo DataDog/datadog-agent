@@ -1,6 +1,6 @@
 # DogStatsD Aggregator + Serializer SMP Experiment Report
 
-Status: Stage A-V complete locally; raw-ring telemetry, the follow-up three-replicate honesty matrix, Stage R memory-hygiene probes, Stage S heap/profile analysis, Stage T parser interning, Stage U compact identity hints, and Stage V compact-ID consumers are complete. Single-page report: [`report.html`](report.html).
+Status: Stage A-W complete locally; raw-ring telemetry, the follow-up three-replicate honesty matrix, Stage R memory-hygiene probes, Stage S heap/profile analysis, Stage T parser interning, Stage U compact identity hints, Stage V compact-ID consumers, and Stage W parser no-materialization fast lane are complete. The single-page HTML report now starts with a presentation-style overview for broad review, followed by detailed appendices: [`report.html`](report.html).
 
 ## Experiment intent
 
