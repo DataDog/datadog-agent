@@ -62,6 +62,8 @@ core_defaults = {
         "linux": -1,
         "other": 5002,
     },
+    "log_file": "${log_path}/agent.log",
+    "jmx_log_file": "${log_path}/jmxfetch.log",
     "security_agent.log_file": "${log_path}/security-agent.log",
     "process_config.log_file": "${log_path}/process-agent.log",
     "private_action_runner.log_file": "${log_path}/private-action-runner.log",
