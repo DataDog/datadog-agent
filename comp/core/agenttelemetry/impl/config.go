@@ -219,19 +219,13 @@ var defaultProfiles = `
         - name: dogstatsd.udp_packets_bytes
           preserve_tags:
             - emitter
-          default_tags:
-            emitter: agent
         - name: dogstatsd.uds_packets_bytes
           preserve_tags:
             - emitter
-          default_tags:
-            emitter: agent
         - name: logs.bytes_missed
         - name: logs.bytes_sent
           preserve_tags:
             - emitter
-          default_tags:
-            emitter: agent
           aggregate_total: true
         - name: logs.decoded
         - name: logs.dropped
@@ -239,8 +233,6 @@ var defaultProfiles = `
           preserve_tags:
             - emitter
             - compression_kind
-          default_tags:
-            emitter: agent
           aggregate_total: true
         - name: logs.http_connectivity_check
           preserve_tags:
