@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "job.go",
         "scheduler.go",
+        "scheduler_testhelpers.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/scheduler",
     visibility = ["//visibility:public"],

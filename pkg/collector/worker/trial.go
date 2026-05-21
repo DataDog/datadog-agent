@@ -41,13 +41,3 @@ func notifyTrialResult(id checkid.ID, ok bool) {
 		fn(id, ok)
 	}
 }
-
-// ResetTrialCallbacksForTest drops all registered trial-result callbacks.
-// Intended for tests in other packages that exercise the AD↔worker seam and
-// need callback isolation between cases. Must not be called from production
-// code.
-func ResetTrialCallbacksForTest() {
-	trialMu.Lock()
-	defer trialMu.Unlock()
-	trialResultCallbacks = nil
-}

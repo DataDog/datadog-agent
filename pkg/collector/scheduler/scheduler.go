@@ -61,16 +61,6 @@ type Scheduler struct {
 	wgOneTime     sync.WaitGroup // WaitGroup to track the exit of one-time schedule goroutines
 }
 
-// SetMinAllowedIntervalForTest overrides the minimum scheduling interval
-// allowed by Enter. Returns the previous value so callers can restore it.
-// Intended for tests in other packages that need to drive the scheduler at
-// sub-second cadences; must not be called from production code.
-func SetMinAllowedIntervalForTest(d time.Duration) time.Duration {
-	prev := minAllowedInterval
-	minAllowedInterval = d
-	return prev
-}
-
 // NewScheduler create a Scheduler and returns a pointer to it.
 func NewScheduler(checksPipe chan<- check.Check) *Scheduler {
 	return &Scheduler{
