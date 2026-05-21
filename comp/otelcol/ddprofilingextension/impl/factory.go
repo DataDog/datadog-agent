@@ -34,6 +34,11 @@ func NewFactoryForAgent(traceAgent traceagent.Component, log corelog.Component) 
 	}
 }
 
+// NewFactory creates a factory for Datadog Profiling Extension for standalone use with local agent running.
+func NewFactory() extension.Factory {
+	return &ddExtensionFactory{}
+}
+
 // Create creates a new instance of the Datadog Profiling Extension
 func (f *ddExtensionFactory) Create(_ context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
 	config, ok := cfg.(*Config)
