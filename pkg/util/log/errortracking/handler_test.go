@@ -61,7 +61,10 @@ func newRecordingHandler(t *testing.T) (*Handler, *recordingSubmitter) {
 	var slot atomic.Pointer[Submitter]
 	sub := Submitter(rec.submit)
 	slot.Store(&sub)
-	return NewHandler(loaderFor(&slot)), rec
+	// A Bouncer is mandatory for submission. Use a long window so tests
+	// see every record unless they explicitly need suppression behaviour.
+	bouncer := NewBouncer(24*time.Hour, 0)
+	return NewHandler(loaderFor(&slot)).WithBouncerLoader(func() *Bouncer { return bouncer }), rec
 }
 
 // TestHandler_FiltersByLevel asserts the Error threshold on both Enabled
@@ -197,12 +200,11 @@ func TestHandle_BouncerRegisteredButNilDropsRecord(t *testing.T) {
 	assert.Empty(t, rec.snapshot(), "registered-but-nil bouncer must DROP the record, not pass through")
 }
 
-// TestHandler_BouncerNilLoaderIsPassThrough: passing nil to
-// WithBouncerLoader MUST clear the late-binder so every record reaches
-// the Submitter without dedup. This is the feature-off path — the
-// outer h.loadBouncer == nil gate means no bouncer is in the design
-// and all records flow freely.
-func TestHandler_BouncerNilLoaderIsPassThrough(t *testing.T) {
+// TestHandler_BouncerNilLoaderDropsRecord: passing nil to WithBouncerLoader
+// clears the late-binder. Since a Bouncer is mandatory for submission, a nil
+// loader must DROP all records — the same behaviour as a registered loader
+// that returns nil.
+func TestHandler_BouncerNilLoaderDropsRecord(t *testing.T) {
 	h, rec := newRecordingHandler(t)
 	h = h.WithBouncerLoader(nil)
 
@@ -212,7 +214,7 @@ func TestHandler_BouncerNilLoaderIsPassThrough(t *testing.T) {
 		require.NoError(t, h.Handle(context.Background(), r))
 	}
 
-	assert.Len(t, rec.snapshot(), 3, "nil-bouncer loader must NOT dedup")
+	assert.Empty(t, rec.snapshot(), "nil bouncer loader must drop all records")
 }
 
 // TestHandler_StackHashKeyDistinguishesStacks: two different stacks
