@@ -36,8 +36,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
-	configsyncimpl "github.com/DataDog/datadog-agent/comp/core/configsync/impl"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
@@ -200,7 +200,7 @@ func getSharedFxOption() fx.Option {
 			remotehostnameimpl.WithMaxAttempts(10),
 			remotehostnameimpl.WithMaxRetryDelay(15*time.Second),
 		),
-		configsyncfx.Module(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
+		configsyncfx.Module(configsync.NewParams(configSyncTimeout, true, configSyncTimeout)),
 		remoteagentfx.Module(),
 		fxinstrumentation.Module(),
 		localtraceroute.Module(),

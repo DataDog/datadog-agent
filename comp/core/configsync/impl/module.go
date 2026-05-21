@@ -28,7 +28,7 @@ type Requires struct {
 	Config     config.Component
 	Log        log.Component
 	IPCClient  ipc.HTTPClient
-	SyncParams Params
+	SyncParams configsync.Params
 }
 
 type configSync struct {

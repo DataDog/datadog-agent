@@ -15,7 +15,7 @@ import (
 )
 
 // Module defines the fx options for this component.
-func Module(params configsyncimpl.Params) fxutil.Module {
+func Module(params configsync.Params) fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(configsyncimpl.NewComponent),
 		fx.Supply(params),

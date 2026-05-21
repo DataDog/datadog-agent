@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
-	configsyncimpl "github.com/DataDog/datadog-agent/comp/core/configsync/impl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -135,7 +135,7 @@ func getRemoteTaggerOptions() []fx.Option {
 
 func getConfigOptions(params *globalparams.GlobalParams) []fx.Option {
 	return []fx.Option{
-		configsyncfx.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
+		configsyncfx.Module(configsync.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 	}
 }
 
