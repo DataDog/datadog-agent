@@ -65,10 +65,11 @@ def patchelf_dir_action(ctx, input_dir, output_dir, rpath):
     ctx.actions.run_shell(
         inputs = [input_dir],
         outputs = [output_dir],
-        # chmod restores owner-write so patchelf can rewrite read-only files
-        # (e.g. Python lib-dynload modules installed as mode 0555).
+        # /. copies the contents of input rather than nesting it under output
+        # (Bazel pre-creates output via declare_directory). chmod restores
+        # owner-write so patchelf can rewrite files installed as 0555.
         command = (
-            "cp -rL '{input}' '{output}' && " +
+            "cp -rL '{input}/.' '{output}' && " +
             "chmod -R u+w '{output}' && " +
             "find '{output}' -type f \\( -name '*.so' -o -name '*.so.*' \\) " +
             "-exec '{patchelf}' --set-rpath '{rpath}' --force-rpath {{}} \\;"
