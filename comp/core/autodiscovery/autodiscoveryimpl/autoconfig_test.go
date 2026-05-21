@@ -167,6 +167,12 @@ func (ms *MockScheduler) Unschedule(configs []integration.Config) {
 	ms.unschedules.Add(1)
 }
 
+// Schedules returns the Schedule-call count.
+func (ms *MockScheduler) Schedules() int64 { return ms.schedules.Load() }
+
+// Unschedules returns the Unschedule-call count.
+func (ms *MockScheduler) Unschedules() int64 { return ms.unschedules.Load() }
+
 // Stop implements scheduler.Scheduler#Stop.
 func (ms *MockScheduler) Stop() {}
 
@@ -378,7 +384,8 @@ func (suite *AutoConfigTestSuite) TestListenerRetry() {
 	}, 2*time.Second, 10*time.Millisecond)
 }
 
-func getResolveTestSetup(t *testing.T) (*MockScheduler, *AutoConfig, Deps) {
+// GetResolveTestSetup sets up a mock scheduler and auto config.
+func GetResolveTestSetup(t *testing.T) (*MockScheduler, *AutoConfig, Deps) {
 	deps := createDeps(t)
 
 	msch := scheduler.NewControllerAndStart()
@@ -392,7 +399,7 @@ func getResolveTestSetup(t *testing.T) (*MockScheduler, *AutoConfig, Deps) {
 }
 
 func getResolveTestConfig(t *testing.T) (*MockScheduler, *AutoConfig) {
-	sch, ac, _ := getResolveTestSetup(t)
+	sch, ac, _ := GetResolveTestSetup(t)
 	return sch, ac
 }
 

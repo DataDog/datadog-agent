@@ -108,9 +108,9 @@ type AutoConfig struct {
 }
 
 const (
-	// trialFailureThreshold is the number of consecutive failures of a
+	// TrialFailureThreshold is the number of consecutive failures of a
 	// trial-mode (discovery) check that triggers unscheduling.
-	trialFailureThreshold = 5
+	TrialFailureThreshold = 5
 	// wmetaCheckInitialInterval is the initial interval to check if wmeta is ready
 	wmetaCheckInitialInterval = 20 * time.Millisecond
 	// wmetaCheckMaxInterval is the maximum interval to check if wmeta is ready
@@ -227,7 +227,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		serviceListenerFactories: make(map[string]listeners.ServiceListenerFactory),
 		providerCatalog:          make(map[string]providerTypes.ConfigProviderFactory),
 		wmeta:                    wmeta,
-		trialRegistry:            newTrialRegistry(trialFailureThreshold),
+		trialRegistry:            newTrialRegistry(TrialFailureThreshold),
 		taggerComp:               taggerComp,
 		logs:                     logs,
 		filterStore:              filterStore,
