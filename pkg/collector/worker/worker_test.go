@@ -962,8 +962,9 @@ func TestWorkerTrialModeErrorSuppression(t *testing.T) {
 	t.Cleanup(func() { resetTrialCallbacks(t) })
 
 	var callbackOKs []bool
-	RegisterTrialResultCallback(func(_ checkid.ID, ok bool) {
+	RegisterTrialResultCallback(func(_ checkid.ID, ok bool) TrialResultDecision {
 		callbackOKs = append(callbackOKs, ok)
+		return TrialResultContinue
 	})
 
 	var wg sync.WaitGroup
@@ -1016,8 +1017,12 @@ func TestWorkerTrialModePromotion(t *testing.T) {
 	t.Cleanup(func() { resetTrialCallbacks(t) })
 
 	var callbackOKs []bool
-	RegisterTrialResultCallback(func(_ checkid.ID, ok bool) {
+	RegisterTrialResultCallback(func(_ checkid.ID, ok bool) TrialResultDecision {
 		callbackOKs = append(callbackOKs, ok)
+		if ok {
+			return TrialResultPromote
+		}
+		return TrialResultContinue
 	})
 
 	var wg sync.WaitGroup
@@ -1059,6 +1064,59 @@ func TestWorkerTrialModePromotion(t *testing.T) {
 
 	// Run 2 error must appear in the integration-error expvar (normal path).
 	assert.Equal(t, 1, int(expvars.GetErrorsCount()), "post-promotion error must be counted normally")
+
+	AssertAsyncWorkerCount(t, 0)
+}
+
+func TestWorkerTrialModeRetireSuppressesLateRuns(t *testing.T) {
+	// When AutoConfig retires a trial check, already-queued runs must remain
+	// suppressed and must not promote the check even if one late run succeeds.
+	mockConfig := configmock.New(t)
+	expvars.Reset()
+	mockConfig.SetWithoutSource("hostname", "myhost")
+
+	resetTrialCallbacks(t)
+	t.Cleanup(func() { resetTrialCallbacks(t) })
+
+	var callbackOKs []bool
+	RegisterTrialResultCallback(func(_ checkid.ID, ok bool) TrialResultDecision {
+		callbackOKs = append(callbackOKs, ok)
+		return TrialResultRetire
+	})
+
+	var wg sync.WaitGroup
+	checksTracker := tracker.NewRunningChecksTracker()
+	pendingChecksChan := make(chan check.Check, 10)
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
+
+	tc := newCheck(t, "trial_retire:abc", false, nil)
+	tc.runFunc = func(_ checkid.ID) {
+		if tc.runCount.Load() >= 1 {
+			tc.Lock()
+			tc.doErr = true
+			tc.Unlock()
+		}
+	}
+	trialCheck := check.NewTrialModeCheck(tc)
+
+	pendingChecksChan <- trialCheck // run 1: succeeds, but AD retires
+	pendingChecksChan <- trialCheck // run 2: fails, still trial and suppressed
+	close(pendingChecksChan)
+
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+	require.Nil(t, err)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		worker.Run(context.Background())
+	}()
+	wg.Wait()
+
+	require.Len(t, callbackOKs, 2, "retired checks must stay in trial mode for late queued runs")
+	assert.True(t, callbackOKs[0])
+	assert.False(t, callbackOKs[1])
+	assert.Equal(t, 0, int(expvars.GetErrorsCount()), "retired trial check failures must stay suppressed")
 
 	AssertAsyncWorkerCount(t, 0)
 }

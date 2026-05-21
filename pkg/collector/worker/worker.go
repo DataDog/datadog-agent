@@ -208,26 +208,33 @@ func (w *Worker) Run(ctx context.Context) {
 
 		expvars.DeleteRunningStats(check.ID())
 
+		finishSuppressedTrialRun := func() {
+			w.checksTracker.DeleteCheck(check.ID())
+			expvars.AddRunningCheckCount(-1)
+			expvars.AddRunsCount(1)
+			checkLogger.CheckFinished()
+			if watchdogCancel != nil {
+				close(watchdogCancel)
+				watchdogWG.Wait()
+			}
+		}
+
 		// For trial-mode checks: report outcome to AutoConfig and suppress
-		// the normal integration-error reporting on failure.
+		// normal integration reporting until AutoConfig decides the check has
+		// either discovered a valid configuration or should be retired.
 		if trialCheck, ok := check.(trialModeCheck); ok && trialCheck.IsTrialMode() {
-			notifyTrialResult(check.ID(), checkErr == nil)
-			if checkErr != nil {
-				log.Debugf("trial-mode check %s failed (suppressing integration error): %v", check.ID(), checkErr)
-				// Remove from running list and update run counters, then move on.
-				w.checksTracker.DeleteCheck(check.ID())
-				expvars.AddRunningCheckCount(-1)
-				expvars.AddRunsCount(1)
-				checkLogger.CheckFinished()
-				if watchdogCancel != nil {
-					close(watchdogCancel)
-					watchdogWG.Wait()
+			decision := notifyTrialResult(check.ID(), checkErr == nil)
+			if decision == TrialResultPromote && checkErr == nil {
+				// First successful run: promote out of trial mode so subsequent
+				// failures are reported normally and do not trigger unscheduling.
+				trialCheck.ClearTrialMode()
+			} else {
+				if checkErr != nil {
+					log.Debugf("trial-mode check %s failed (suppressing integration error): %v", check.ID(), checkErr)
 				}
+				finishSuppressedTrialRun()
 				continue
 			}
-			// First successful run: promote out of trial mode so subsequent
-			// failures are reported normally and do not trigger unscheduling.
-			trialCheck.ClearTrialMode()
 		}
 
 		checkWarnings := check.GetWarnings()

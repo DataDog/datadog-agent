@@ -11,35 +11,73 @@ import (
 	"github.com/stretchr/testify/require"
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/worker"
 )
 
 func TestTrialRegistry_FailuresUnderThresholdDoNotUnschedule(t *testing.T) {
 	r := newTrialRegistry(3)
 	id := checkid.ID("krakend:abc")
 
-	require.False(t, r.recordResult(id, false))
-	require.False(t, r.recordResult(id, false))
+	decision, shouldUnschedule := r.recordResult(id, false)
+	require.Equal(t, worker.TrialResultContinue, decision)
+	require.False(t, shouldUnschedule)
+	decision, shouldUnschedule = r.recordResult(id, false)
+	require.Equal(t, worker.TrialResultContinue, decision)
+	require.False(t, shouldUnschedule)
 	// Third failure equals threshold — should signal unschedule.
-	require.True(t, r.recordResult(id, false))
+	decision, shouldUnschedule = r.recordResult(id, false)
+	require.Equal(t, worker.TrialResultRetire, decision)
+	require.True(t, shouldUnschedule)
 }
 
 func TestTrialRegistry_SuccessResetsCounter(t *testing.T) {
 	r := newTrialRegistry(3)
 	id := checkid.ID("krakend:abc")
 
-	require.False(t, r.recordResult(id, false))
-	require.False(t, r.recordResult(id, false))
-	require.False(t, r.recordResult(id, true))  // success resets
-	require.False(t, r.recordResult(id, false)) // back to 1
-	require.False(t, r.recordResult(id, false)) // 2
-	require.True(t, r.recordResult(id, false))  // 3 = threshold
+	decision, shouldUnschedule := r.recordResult(id, false)
+	require.Equal(t, worker.TrialResultContinue, decision)
+	require.False(t, shouldUnschedule)
+	decision, shouldUnschedule = r.recordResult(id, false)
+	require.Equal(t, worker.TrialResultContinue, decision)
+	require.False(t, shouldUnschedule)
+	decision, shouldUnschedule = r.recordResult(id, true) // success resets
+	require.Equal(t, worker.TrialResultPromote, decision)
+	require.False(t, shouldUnschedule)
+	decision, shouldUnschedule = r.recordResult(id, false) // back to 1
+	require.Equal(t, worker.TrialResultContinue, decision)
+	require.False(t, shouldUnschedule)
+	decision, shouldUnschedule = r.recordResult(id, false) // 2
+	require.Equal(t, worker.TrialResultContinue, decision)
+	require.False(t, shouldUnschedule)
+	decision, shouldUnschedule = r.recordResult(id, false) // 3 = threshold
+	require.Equal(t, worker.TrialResultRetire, decision)
+	require.True(t, shouldUnschedule)
 }
 
-func TestTrialRegistry_ForgetClears(t *testing.T) {
+func TestTrialRegistry_RetireClearsCountAndSuppressesLateResults(t *testing.T) {
 	r := newTrialRegistry(3)
 	id := checkid.ID("krakend:abc")
+
 	r.recordResult(id, false)
 	r.recordResult(id, false)
-	r.forget(id)
-	require.False(t, r.recordResult(id, false)) // counter restarted
+	r.retire(id)
+
+	decision, shouldUnschedule := r.recordResult(id, true)
+	require.Equal(t, worker.TrialResultRetire, decision)
+	require.False(t, shouldUnschedule)
+	decision, shouldUnschedule = r.recordResult(id, false)
+	require.Equal(t, worker.TrialResultRetire, decision)
+	require.False(t, shouldUnschedule)
+}
+
+func TestTrialRegistry_ResetClearsRetireState(t *testing.T) {
+	r := newTrialRegistry(3)
+	id := checkid.ID("krakend:abc")
+
+	r.retire(id)
+	r.reset(id)
+
+	decision, shouldUnschedule := r.recordResult(id, true)
+	require.Equal(t, worker.TrialResultPromote, decision)
+	require.False(t, shouldUnschedule)
 }

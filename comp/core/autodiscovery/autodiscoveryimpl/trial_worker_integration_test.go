@@ -243,21 +243,7 @@ func containsConfigNamed(ac *autodiscoveryimpl.AutoConfig, name string) bool {
 func TestADWorkerIntegration_UnschedulesAfterThresholdFailures(t *testing.T) {
 	ac, ms := setupPipeline(t)
 
-	// Fail for exactly trialFailureThreshold runs; afterwards, return nil.
-	// Once the threshold is crossed and AD unschedules, the real collector's
-	// CheckWrapper.Cancel races a goroutine that flips its internal `done`
-	// flag — a small number of stale enqueues (already in flight before
-	// scheduler.Cancel ran) can slip through and reach the worker. Making
-	// those late runs return nil keeps them on the suppress/promote path and
-	// prevents the spurious integration-error counts that would otherwise
-	// make this test flaky. The 5-failure trigger remains the load-bearing
-	// part of the test.
-	setTrialRunFn(func(n uint64) error {
-		if int(n) < autodiscoveryimpl.TrialFailureThreshold {
-			return errors.New("trial probe failed")
-		}
-		return nil
-	})
+	setTrialRunFn(func(uint64) error { return errors.New("trial probe failed") })
 
 	provider := &trialTestProvider{
 		configs: []integration.Config{{

@@ -775,12 +775,12 @@ func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
 			if telemetryStorePresent {
 				ac.telemetryStore.ScheduledConfigs.Dec(conf.Provider, configType(conf))
 			}
-			// Drop any trial-failure counter so unschedules from service or
-			// config removal (not just the failure-threshold path) don't leak
-			// entries into trialRegistry.
+			// Retire trial IDs while AD's async scheduler controller drains the
+			// unschedule request. This keeps any already-queued runs suppressed
+			// and prevents them from promoting a check AD is removing.
 			if conf.IsDiscovery() {
 				for _, inst := range conf.Instances {
-					ac.trialRegistry.forget(checkid.BuildID(conf.Name, conf.FastDigest(), inst, conf.InitConfig))
+					ac.trialRegistry.retire(checkid.BuildID(conf.Name, conf.FastDigest(), inst, conf.InitConfig))
 				}
 			}
 		}
@@ -792,20 +792,25 @@ func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
 			if telemetryStorePresent {
 				ac.telemetryStore.ScheduledConfigs.Inc(conf.Provider, configType(conf))
 			}
+			if conf.IsDiscovery() {
+				for _, inst := range conf.Instances {
+					ac.trialRegistry.reset(checkid.BuildID(conf.Name, conf.FastDigest(), inst, conf.InitConfig))
+				}
+			}
 		}
 	}
 	ac.schedulerController.ApplyChanges(changes)
 }
 
 // recordTrialResult is called by the runner after each trial-mode check run
-// with the run outcome. If consecutive failures reach the internal threshold,
-// the check is unscheduled.
-func (ac *AutoConfig) recordTrialResult(id checkid.ID, ok bool) {
-	if !ac.trialRegistry.recordResult(id, ok) {
-		return
+// with the run outcome. It returns the worker disposition for the result. If
+// consecutive failures reach the internal threshold, the check is unscheduled.
+func (ac *AutoConfig) recordTrialResult(id checkid.ID, ok bool) worker.TrialResultDecision {
+	decision, shouldUnschedule := ac.trialRegistry.recordResult(id, ok)
+	if shouldUnschedule {
+		ac.unscheduleCheckByID(id)
 	}
-	ac.trialRegistry.forget(id)
-	ac.unscheduleCheckByID(id)
+	return decision
 }
 
 // unscheduleCheckByID removes the trial config from scheduledConfigs and

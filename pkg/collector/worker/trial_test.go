@@ -31,12 +31,16 @@ func TestRegisterAndNotifyTrialResult(t *testing.T) {
 	}
 	var got []result
 
-	RegisterTrialResultCallback(func(id checkid.ID, ok bool) {
+	RegisterTrialResultCallback(func(id checkid.ID, ok bool) TrialResultDecision {
 		got = append(got, result{id, ok})
+		if ok {
+			return TrialResultPromote
+		}
+		return TrialResultContinue
 	})
 
-	notifyTrialResult("check:abc", true)
-	notifyTrialResult("check:abc", false)
+	assert.Equal(t, TrialResultPromote, notifyTrialResult("check:abc", true))
+	assert.Equal(t, TrialResultContinue, notifyTrialResult("check:abc", false))
 
 	require.Len(t, got, 2)
 	assert.Equal(t, checkid.ID("check:abc"), got[0].id)
@@ -49,11 +53,25 @@ func TestNotifyTrialResultMultipleCallbacks(t *testing.T) {
 	t.Cleanup(func() { resetTrialCallbacks(t) })
 
 	var calls1, calls2 int
-	RegisterTrialResultCallback(func(_ checkid.ID, _ bool) { calls1++ })
-	RegisterTrialResultCallback(func(_ checkid.ID, _ bool) { calls2++ })
+	RegisterTrialResultCallback(func(_ checkid.ID, _ bool) TrialResultDecision {
+		calls1++
+		return TrialResultPromote
+	})
+	RegisterTrialResultCallback(func(_ checkid.ID, _ bool) TrialResultDecision {
+		calls2++
+		return TrialResultRetire
+	})
 
-	notifyTrialResult("check:x", true)
+	assert.Equal(t, TrialResultRetire, notifyTrialResult("check:x", true))
 
 	assert.Equal(t, 1, calls1)
 	assert.Equal(t, 1, calls2)
+}
+
+func TestNotifyTrialResultDefaults(t *testing.T) {
+	resetTrialCallbacks(t)
+	t.Cleanup(func() { resetTrialCallbacks(t) })
+
+	assert.Equal(t, TrialResultPromote, notifyTrialResult("check:x", true))
+	assert.Equal(t, TrialResultContinue, notifyTrialResult("check:x", false))
 }
