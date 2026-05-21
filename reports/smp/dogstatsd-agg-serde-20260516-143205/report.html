@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>DogStatsD Aggregator + Serializer SMP Report</title>
+<title>DogStatsD: Doing More with Less CPU</title>
 <style>
   :root {
     --ink: #172033;
@@ -98,127 +98,98 @@
 <body>
 <section class="hero">
   <div class="eyebrow">DogStatsD hack-week experiment report</div>
-  <h1>Can DogStatsD become a streaming data system?</h1>
-  <p class="hero-subtitle">This report summarizes a local SMP experiment series exploring whether DogStatsD can grow new observability features—debug stats, capture/replay, future lookback queries, and cheaper payload construction—without rebuilding the same parsing, identity, and aggregation work in parallel.</p>
+  <h1>Doing more DogStatsD work with less CPU</h1>
+  <p class="hero-subtitle">The strongest result from this local SMP experiment: the experimental DogStatsD path keeps <code>dogstatsd-stats</code> enabled and still beats stats-disabled main—<strong>+25.8% high-rate ingress</strong> with <strong>42.7% less Agent CPU</strong>. The underlying idea is to share one parsed series description across aggregation, debug stats, capture/replay, lookback, and payload construction instead of rebuilding it in parallel.</p>
   <p class="small">Run directory: <code>reports/smp/dogstatsd-agg-serde-20260516-143205/</code> · Current experiment branch: <code>dogstatsd-agg-serde-experiment</code> · Latest measured code: <code>b6db1d81aa1</code> plus stats-on result commit <code>33dc09ef3a9</code> and paired stats-on-vs-main-off run from 2026-05-21</p>
 </section>
 
 <nav class="nav" aria-label="Report navigation">
-  <a href="#context">Context</a>
-  <a href="#primer">30-second primer</a>
-  <a href="#executive-summary">Executive summary</a>
-  <a href="#motivation">Motivation</a>
-  <a href="#plain-english">Plain-English guide</a>
+  <a href="#lead">Lead result</a>
+  <a href="#plain-english">Technique guide</a>
   <a href="#vision">Architecture vision</a>
   <a href="#before-after">Before / after</a>
   <a href="#experimental-design">Experiment design</a>
   <a href="#timeline">Narrative arc</a>
-  <a href="#highlights">Highlights</a>
   <a href="#feature-goals">Feature goals</a>
+  <a href="#highlights">Supporting details</a>
   <a href="#memory">Memory read</a>
   <a href="#next-questions">Next questions</a>
   <a href="#appendix-stage-results">Detailed tables</a>
 </nav>
 
-<section id="context">
-  <h2>Why we ran this experiment</h2>
-  <div class="callout neutral">
-    <p><strong>Adding DogStatsD features is hard because DogStatsD is on a very hot path.</strong> New observability features often need the same ingredients as aggregation—parsed metric names, tags, hosts, origin information, context keys, recent values, and sometimes raw bytes. If each feature builds its own copy of that state, the Agent pays the parsing, hashing, allocation, and memory cost multiple times.</p>
-    <p>Our immediate motivation was a future lookback/query capability: answer local questions like “what DogStatsD series were active in the last 30 seconds?” or “what changed at a 1s window?” without building a second mini-aggregator beside the real one. More broadly, this is the same pressure behind efforts like <code>comp/observer</code>: useful local observability features are natural to build as a standalone observer, but the add-on approach repeats work and struggles to fit the Agent's resource envelope.</p>
-    <p><strong>The experiment asked:</strong> what if we applied those observer/database ideas to the core DogStatsD path instead, so the core path gains headroom and new features become cheap views over shared data?</p>
+<section id="lead">
+  <h2>Lead result: more DogStatsD observability work, less Agent CPU</h2>
+  <div class="verdict good">
+    <strong>The headline:</strong> the experimental DogStatsD path can keep <code>agent dogstatsd-stats</code> enabled and still beat stats-disabled main in the same paired SMP run. In the high-rate repeated-tagset workload, it sustained <strong>+25.83% more ingress</strong> while using <strong>42.7% less Agent CPU</strong>. In the 100 MiB/s mixed workload, it stayed at target and used <strong>41.3% less Agent CPU</strong>.
   </div>
-</section>
 
-<section id="primer">
-  <h2>30-second primer: what changes in the hot path?</h2>
+  <div class="grid-2">
+    <div>
+      <h3>Why this is the right result to lead with</h3>
+      <p>DogStatsD is one of the Agent's hottest paths. Useful local observability features—debug stats, future lookback queries, capture/replay, and richer payload construction—all want the same ingredients as aggregation: metric names, tags, hosts, context keys, values, and sometimes raw bytes.</p>
+      <p>If every feature rebuilds those ingredients, we end up building a second DogStatsD inside DogStatsD. The experiment tests the opposite model: compute the repeated series description once, stream each point through the normal aggregation path, and let features consume bounded views over that shared state.</p>
+      <p>The <code>dogstatsd-stats</code> result is concrete because it is a real shipped feature, not only a prototype. We turned it on in the experiment and left it off in main; the experiment still used much less CPU.</p>
+    </div>
+    <div class="card">
+      <span class="pill green">Doing more within the old envelope</span>
+      <h3>Paired SMP result</h3>
+      <div class="metric">+25.8% <span>ingress</span></div>
+      <p><strong>High-rate UDS metrics-only:</strong> stats-disabled main sustained <code>196.9 MiB/s</code>; stats-enabled experiment sustained <code>247.7 MiB/s</code>.</p>
+      <div class="metric">-42.7% <span>Agent CPU</span></div>
+      <p class="small">Scope: local Linux/arm64 SMP, UDS datagram, metrics-only, repeated tagsets, experimental gates enabled. Memory was mixed in this comparison.</p>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>Paired run</th><th>Main, <code>dogstatsd-stats</code> disabled</th><th>Experiment, <code>dogstatsd-stats</code> enabled</th><th>Read</th></tr>
+    <tr><td>Standard compact UDS<br><span class="small">100 MiB/s target, metrics/events/service checks</span></td><td><code>97.4 MiB/s</code><br><code>0.627</code> Agent CPU cores<br><code>458 MiB</code> RSS</td><td><code>99.0 MiB/s</code><br><code>0.368</code> Agent CPU cores<br><code>423 MiB</code> RSS</td><td>Same target-rate workload with stats enabled in the experiment: <code>+1.79%</code> throughput, <code>-41.3%</code> CPU, lower RSS/heap.</td></tr>
+    <tr><td>High-rate UDS metrics-only<br><span class="small">250 MiB/s target</span></td><td><code>196.9 MiB/s</code><br><code>242.6k</code> metric samples/s<br><code>0.977</code> Agent CPU cores</td><td><code>247.7 MiB/s</code><br><code>305.1k</code> metric samples/s<br><code>0.560</code> Agent CPU cores</td><td>Stats-enabled experiment stayed near target while stats-disabled main backpressured: <code>+25.83%</code> throughput, <code>-42.7%</code> CPU. RSS/heap were higher than stats-disabled main.</td></tr>
+  </table>
+
+  <h3>The 30-second model</h3>
   <div class="grid-2">
     <div class="card">
-      <h3>Today: each line becomes fresh objects</h3>
-      <p>A common DogStatsD metric line might look like:</p>
+      <h3>Today: rebuild the description per line</h3>
+      <p>A common DogStatsD line might be:</p>
       <p><code>requests.count:1|c|#env:prod,service:web,region:us1</code></p>
-      <p>The normal path parses that into strings, tag slices, host/origin state, a sample object, shard/context keys, aggregate state, and finally payload rows. That is correct and general, but repeated traffic rebuilds a lot of the same description.</p>
+      <p>The general path parses names and tags, builds sample objects, computes context keys, updates aggregation, and later builds payload rows. That is correct and compatible, but repeated traffic rebuilds a lot of identical description.</p>
     </div>
     <div class="card">
-      <h3>Experiment: reuse the series description, process each point</h3>
-      <p>When the metric name and tag list repeat, we can parse that series description once and pass a small reference through the pipeline. Each new DogStatsD point still gets processed normally, but the hot path mostly handles the changing fields: value, sample rate, timestamp/window, and aggregate update.</p>
-      <p>Compatibility still comes from fallback: unusual metric types, origin/enrichment cases, timestamps, events, service checks, and unknown tagsets continue through the general path unless explicitly tested.</p>
+      <h3>Experiment: share the description, stream the points</h3>
+      <p>When the metric name and tag list repeat, parse the series description once and pass a small reference through the pipeline. Each new DogStatsD point is still processed normally; the hot path mostly handles the changing fields: value, sample rate, timestamp/window, and aggregate update.</p>
+      <p>Features such as <code>dogstatsd-stats</code> become bounded materialized views over that shared series identity instead of parallel hot-path pipelines.</p>
     </div>
   </div>
-</section>
 
-
-<section id="executive-summary">
-  <h2>Executive summary</h2>
+  <h3>What supports the headline</h3>
   <div class="cards">
     <div class="card">
-      <span class="pill green">Validated direction</span>
-      <h3>Stop rebuilding the same metric description</h3>
-      <div class="metric">-14% <span>agent CPU</span></div>
-      <div class="scope">Scope: local Linux/arm64, UDS, metrics-only fixed-rate runs with repeated tag lists.</div>
-      <p>In today's general path, every DogStatsD line is parsed into names, tag strings, tag slices, and a <code>MetricSample</code>-like object even when it is the same metric and tags as the previous line. The latest fast path recognizes repeated simple metrics and sends just the changing value plus a small descriptor reference.</p>
-    </div>
-    <div class="card">
       <span class="pill green">Feature-cost proof</span>
-      <h3>Do more work with much less CPU</h3>
-      <div class="metric">+25.8% <span>throughput</span></div>
-      <div class="scope">Scope: paired SMP; experiment has <code>dogstatsd-stats</code> enabled, main has it disabled; high-rate UDS metrics-only repeated-tagset workload.</div>
-      <p>The stricter comparison is the exciting one: with <code>dogstatsd-stats</code> enabled, the experimental stack sustained <code>247.7 MiB/s</code> while stats-disabled main sustained <code>196.9 MiB/s</code>, using <strong>42.7% less Agent CPU</strong>. In the 100 MiB/s mixed workload, throughput stayed at target and Agent CPU still fell 41%.</p>
+      <h3><code>dogstatsd-stats</code> no longer forces the slow path</h3>
+      <p>The stats-aware fast lane updates stats from the same parser-side series descriptor used for ingestion. On descriptor hits, stats add about <code>121 ns/op</code> with <code>0 allocs/op</code> in the focused benchmark, instead of requiring <code>MetricSample</code> reconstruction.</p>
     </div>
     <div class="card">
-      <span class="pill green">High-rate repeated-tags win</span>
-      <h3>Remember repeated tag lists</h3>
+      <span class="pill green">General headroom</span>
+      <h3>Skipping repeated object construction saves CPU</h3>
+      <div class="metric">-14% <span>Agent CPU</span></div>
+      <p>Stage W fixed-rate metrics-only runs showed the fast lane had real CPU headroom even when throughput was generator/rate limited.</p>
+    </div>
+    <div class="card">
+      <span class="pill green">Specific parser win</span>
+      <h3>Repeated tag lists matter</h3>
       <div class="metric">+28.4% <span>throughput</span></div>
-      <div class="scope">Scope: high-rate UDS metrics-only workload versus main; not a mostly-unique tag workload.</div>
-      <p>DogStatsD traffic often repeats the same comma-separated tag list many times. Caching the parsed form of those repeated tag lists produced a large win in that workload. This remains gated until adversarial/mostly-unique traffic is tested.</p>
+      <p>Exact raw-tagset caching produced the largest standalone high-rate win. It remains opt-in until mostly-unique/adversarial tagset behavior is tested.</p>
     </div>
     <div class="card">
-      <span class="pill green">UDS bounded-ingress win</span>
-      <h3>Bound the queue by bytes, not hope</h3>
-      <div class="metric">+7.4% <span>high-rate</span></div>
-      <div class="scope">Scope: UDS datagram high-rate case; UDP, stream sockets, and origin metadata need more work.</div>
-      <p>The Agent has to absorb bursts between socket readers and parser workers. A compact byte-budgeted UDS ring plus batched parser drains was the best bounded-ingress design tested, replacing large hidden packet-channel backlog with explicit backpressure.</p>
+      <span class="pill amber">Boundary</span>
+      <h3>Memory is not solved yet</h3>
+      <p>The experiment trades repeated CPU work for retained dictionaries, descriptor caches, rings, and view state. Standard stats-on-vs-main-off memory improved; high-rate stats-on-vs-main-off retained more RSS/heap.</p>
     </div>
-    <div class="card">
-      <span class="pill amber">Mixed result</span>
-      <h3>Memory is predictable, not universally lower</h3>
-      <div class="metric">+11 MiB <span>live heap</span></div>
-      <div class="scope">Scope: Stage S late heap profile; stats-on-vs-main-stats-on was positive, but stats-on-vs-stats-off and other runs were mixed.</div>
-      <p>Heap profiles showed the mature design was only about +11 MiB live heap versus main, and the raw ring used less explicit ingress-reservoir heap than the packet pool. Stats-on comparisons against main with stats enabled had much lower RSS/heap; against stats-disabled main, memory is mixed. This needs byte budgets before any default-on claim.</p>
-    </div>
-  </div>
-
-  <div class="verdict good">
-    <strong>How we feel about the experiment:</strong> it moved from a sketch to a validated direction. We found real macro wins, falsified several attractive shortcuts, and now have a concrete feature-cost proof: the experiment can keep <code>dogstatsd-stats</code> on and still beat stats-disabled main on throughput and Agent CPU in the high-rate workload. We still need broader compatibility and max-throughput sweeps before default-on claims.
   </div>
 
   <div class="verdict warn">
-    <strong>Claim boundaries:</strong> the strongest numbers are local SMP results on optimized Linux/arm64 images, mostly UDS datagram traffic, often metrics-only and repeated-tag workloads. Most new paths are behind explicit experimental gates. Treat the results as evidence for architecture direction and headroom, not as a ready-to-enable production claim across UDP, origin detection, Windows/named pipes, all metric types, events, service checks, or mostly-unique tagsets.
+    <strong>Claim boundaries:</strong> these are local SMP results on optimized Linux/arm64 images, mostly UDS datagram traffic, often metrics-only and repeated-tag workloads. Most new paths are behind explicit experimental gates. Treat this as strong evidence for the architecture and headroom, not as a default-on production claim across UDP, origin detection, Windows/named pipes, all metric types, events, service checks, or mostly-unique tagsets.
   </div>
-
-  <h3>Current candidate stack</h3>
-  <table>
-    <tr><th>Piece</th><th>What it contributes</th><th>Status</th></tr>
-    <tr><td>Byte-bounded UDS input ring + batched drains</td><td>Replaces hidden packet-channel backlog with explicit byte budget, lag telemetry, and UDS backpressure.</td><td>Best bounded-ingress design tested; UDS-only experimental path.</td></tr>
-    <tr><td>Native columnar-v3 / direct-series payload bridge</td><td>Reduces translation between DogStatsD aggregation output and serializer payload rows.</td><td>Promising, gated; v3 and v2 bridge tested locally.</td></tr>
-    <tr><td>Repeated tag-list cache</td><td>Parses common tag lists once and reuses the parsed representation.</td><td>Large repeated-tag win; opt-in pending adversarial/mostly-unique validation.</td></tr>
-    <tr><td>Compact identity hints</td><td>Carries small IDs for repeated metric descriptions through DogStatsD and columnar consumers.</td><td>Safe plumbing; macro-neutral until used before object construction.</td></tr>
-    <tr><td>Repeated-metric fast path</td><td>For common simple metrics, sends value + descriptor reference instead of rebuilding full sample objects.</td><td>~8–14% Agent CPU win in fixed-rate Stage W runs; opt-in and narrow.</td></tr>
-    <tr><td>Bounded debug/lookback/replay views</td><td>Makes new observability features views over shared data rather than parallel mini-pipelines.</td><td>Strong <code>dogstatsd-stats</code> feature-cost proof: stats-enabled experiment beats stats-disabled main in paired SMP; lookback/capture combinations still pending.</td></tr>
-  </table>
-</section>
-
-<section id="motivation">
-  <h2>Motivation: avoid building a second DogStatsD inside DogStatsD</h2>
-  <p>The normal Agent path is intentionally optimized for production aggregation: listeners read packets, the parser turns each line into metric samples with strings and tag slices, DogStatsD chooses an aggregation pipeline, the aggregator computes backend context keys, and the serializer later builds payload-shaped data.</p>
-  <p>That design is general and battle-tested, but it makes new local features expensive when they are layered on from the side. A feature that wants to show recent activity, capture traffic around a spike, replay traffic deterministically, or expose richer <code>dogstatsd-stats</code> usually needs to rediscover some of the same facts the main path already computed.</p>
-  <ul class="takeaways">
-    <li><strong>Lookback/query</strong> is the motivating new feature: we want recent local views at different windows or aggregation levels without running a whole second aggregator.</li>
-    <li><strong><code>serverDebug</code> / <code>agent dogstatsd-stats</code></strong> already exists, but historically used its own hot-path map/key computation instead of being a bounded view over shared identity state.</li>
-    <li><strong>Capture/replay</strong> wants raw bytes and enough metadata to explain where they came from, but listener-specific hooks make this uneven and hard to compose with semantic views.</li>
-    <li><strong>Payload construction</strong> wants dictionaries of names, tags, tagsets, resources, and values; the metrics v3 serializer has to rebuild many of these concepts downstream.</li>
-    <li><strong><code>comp/observer</code>-style features</strong> showed the product value of local observation, but rebuilding a tiny Agent architecture as an add-on repeats parsing/enrichment/aggregation work and makes resource budgeting difficult.</li>
-  </ul>
-  <p>The hypothesis was that we can make these features cheaper and more consistent by treating DogStatsD like a streaming data system: keep a bounded raw ingress stream, turn parsed traffic into reusable metric facts once, and build bounded materialized views for debug, lookback, replay, and payload construction.</p>
 </section>
 
 <section id="plain-english">
@@ -407,29 +378,27 @@
 </section>
 
 <section id="highlights">
-  <h2>Result highlights</h2>
+  <h2>Supporting details: which mechanisms moved the needle?</h2>
+  <p>The lead result combines several smaller pieces. This section lowers the zoom level: which specific mechanisms produced measurable wins, and which attractive shortcuts did not?</p>
   <div class="grid-2">
     <div>
-      <h3>Largest throughput signals</h3>
+      <h3>Throughput mechanisms below the headline</h3>
       <div class="bar-list">
         <div class="bar-row"><div>Repeated tag-list cache <span class="stage-tag">(Stage T)</span></div><div class="bar-track"><div class="bar" style="width:100%"></div></div><div class="num">+28.42%</div></div>
-        <div class="bar-row"><div>Stats-on experiment vs stats-off main <span class="stage-tag">(feature proof)</span></div><div class="bar-track"><div class="bar" style="width:91%"></div></div><div class="num">+25.83%</div></div>
         <div class="bar-row"><div>Only compute needed keys <span class="stage-tag">(Stage J)</span></div><div class="bar-track"><div class="bar" style="width:48%"></div></div><div class="num">+13.57%</div></div>
         <div class="bar-row"><div>Native v3 payload path <span class="stage-tag">(Stage Q)</span></div><div class="bar-track"><div class="bar" style="width:29%"></div></div><div class="num">+8.10%</div></div>
         <div class="bar-row"><div>Bounded input queue <span class="stage-tag">(Stage O)</span></div><div class="bar-track"><div class="bar" style="width:26%"></div></div><div class="num">+7.39%</div></div>
       </div>
-      <p class="caption">High-rate UDS metrics-only or v3 endpoint cases. The feature-proof row is the stricter paired run where the experiment keeps <code>dogstatsd-stats</code> on while main leaves it off.</p>
+      <p class="caption">High-rate UDS metrics-only or v3 endpoint cases. These are narrower mechanism-level results; the lead stats result is the product-shaped composition.</p>
     </div>
     <div>
-      <h3>Most important CPU signal</h3>
+      <h3>CPU mechanism below the headline</h3>
       <div class="bar-list">
-        <div class="bar-row"><div>Stats-on experiment vs stats-off main, high-rate <span class="stage-tag">(feature proof)</span></div><div class="bar-track"><div class="bar cpu" style="width:100%"></div></div><div class="num">-42.7%</div></div>
-        <div class="bar-row"><div>Stats-on experiment vs stats-off main, standard <span class="stage-tag">(feature proof)</span></div><div class="bar-track"><div class="bar cpu" style="width:97%"></div></div><div class="num">-41.3%</div></div>
-        <div class="bar-row"><div>Skip repeated objects, high-rate <span class="stage-tag">(Stage W)</span></div><div class="bar-track"><div class="bar cpu" style="width:33%"></div></div><div class="num">-14.0%</div></div>
-        <div class="bar-row"><div>Skip repeated objects, 2 CPU <span class="stage-tag">(Stage W)</span></div><div class="bar-track"><div class="bar cpu" style="width:33%"></div></div><div class="num">-14.1%</div></div>
-        <div class="bar-row"><div>Skip repeated objects, standard <span class="stage-tag">(Stage W)</span></div><div class="bar-track"><div class="bar cpu" style="width:20%"></div></div><div class="num">-8.36%</div></div>
+        <div class="bar-row"><div>Skip repeated objects, high-rate <span class="stage-tag">(Stage W)</span></div><div class="bar-track"><div class="bar cpu" style="width:100%"></div></div><div class="num">-14.0%</div></div>
+        <div class="bar-row"><div>Skip repeated objects, 2 CPU <span class="stage-tag">(Stage W)</span></div><div class="bar-track"><div class="bar cpu" style="width:100%"></div></div><div class="num">-14.1%</div></div>
+        <div class="bar-row"><div>Skip repeated objects, standard <span class="stage-tag">(Stage W)</span></div><div class="bar-track"><div class="bar cpu" style="width:59%"></div></div><div class="num">-8.36%</div></div>
       </div>
-      <p class="caption">Stage W fixed-rate runs prove raw headroom from avoiding repeated object construction. The feature-proof rows show that headroom is large enough to keep <code>dogstatsd-stats</code> on and still use far less Agent CPU than stats-disabled main in these workloads.</p>
+      <p class="caption">Stage W fixed-rate runs prove raw headroom from avoiding repeated object construction. The stats feature-cost run shows that headroom can pay for a real observability feature.</p>
     </div>
   </div>
 

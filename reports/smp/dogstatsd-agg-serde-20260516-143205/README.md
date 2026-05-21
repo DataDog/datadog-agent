@@ -1,6 +1,6 @@
 # DogStatsD Aggregator + Serializer SMP Experiment Report
 
-Status: Stage A-W complete locally; raw-ring telemetry, the follow-up three-replicate honesty matrix, Stage R memory-hygiene probes, Stage S heap/profile analysis, Stage T parser interning, Stage U compact identity hints, Stage V compact-ID consumers, Stage W parser no-materialization fast lane, and `dogstatsd-stats` feature-cost SMP are complete. The latest paired stats run shows the experiment with `dogstatsd-stats` enabled beating stats-disabled main on high-rate throughput (`+25.83%`) while using much less Agent CPU (`-42.7%`). The single-page HTML report now starts with a presentation-style overview for broad review, followed by detailed appendices: [`report.html`](report.html).
+Status: Stage A-W complete locally; raw-ring telemetry, the follow-up three-replicate honesty matrix, Stage R memory-hygiene probes, Stage S heap/profile analysis, Stage T parser interning, Stage U compact identity hints, Stage V compact-ID consumers, Stage W parser no-materialization fast lane, and `dogstatsd-stats` feature-cost SMP are complete. The latest paired stats run shows the experiment with `dogstatsd-stats` enabled beating stats-disabled main on high-rate throughput (`+25.83%`) while using much less Agent CPU (`-42.7%`). The single-page HTML report now leads with that “doing more with less CPU” result, then explains the shared-series model and supporting mechanism evidence: [`report.html`](report.html).
 
 ## Experiment intent
 
