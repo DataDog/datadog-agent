@@ -100,7 +100,7 @@
   <div class="eyebrow">DogStatsD hack-week experiment report</div>
   <h1>Can DogStatsD become a streaming data system?</h1>
   <p class="hero-subtitle">This report summarizes a local SMP experiment series exploring whether DogStatsD can grow new observability features—debug stats, capture/replay, future lookback queries, and cheaper payload construction—without rebuilding the same parsing, identity, and aggregation work in parallel.</p>
-  <p class="small">Run directory: <code>reports/smp/dogstatsd-agg-serde-20260516-143205/</code> · Current experiment branch: <code>dogstatsd-agg-serde-experiment</code> · Latest measured code: <code>658b3c805cb</code> plus result commit <code>2488f766169</code></p>
+  <p class="small">Run directory: <code>reports/smp/dogstatsd-agg-serde-20260516-143205/</code> · Current experiment branch: <code>dogstatsd-agg-serde-experiment</code> · Latest measured code: <code>b6db1d81aa1</code> plus stats-on result commit <code>33dc09ef3a9</code></p>
 </section>
 
 <nav class="nav" aria-label="Report navigation">
@@ -158,6 +158,13 @@
       <p>In today's general path, every DogStatsD line is parsed into names, tag strings, tag slices, and a <code>MetricSample</code>-like object even when it is the same metric and tags as the previous line. The latest fast path recognizes repeated simple metrics and sends just the changing value plus a small descriptor reference.</p>
     </div>
     <div class="card">
+      <span class="pill green">Feature-cost proof</span>
+      <h3>Make <code>dogstatsd-stats</code> cheap enough to matter</h3>
+      <div class="metric">+62.6% <span>throughput</span></div>
+      <div class="scope">Scope: stats enabled on both main and the experimental stack; high-rate UDS metrics-only workload.</div>
+      <p>With <code>dogstatsd-stats</code> enabled, main backpressured at about 153 MiB/s while the shared-identity fast lane stayed near the 250 MiB/s target, using <strong>44% less Agent CPU</strong>. In the non-saturated 100 MiB/s case, throughput was similar but Agent CPU fell 57%.</p>
+    </div>
+    <div class="card">
       <span class="pill green">High-rate repeated-tags win</span>
       <h3>Remember repeated tag lists</h3>
       <div class="metric">+28.4% <span>throughput</span></div>
@@ -173,15 +180,15 @@
     </div>
     <div class="card">
       <span class="pill amber">Mixed result</span>
-      <h3>Memory is predictable, not lower yet</h3>
+      <h3>Memory is predictable, not universally lower</h3>
       <div class="metric">+11 MiB <span>live heap</span></div>
-      <div class="scope">Scope: Stage S late heap profile; RSS deltas were sometimes larger.</div>
-      <p>Heap profiles showed the mature design was only about +11 MiB live heap versus main, and the raw ring used less explicit ingress-reservoir heap than the packet pool. RSS was still higher in some runs because the prototype retains dictionaries/caches; this needs byte budgets before any default-on claim.</p>
+      <div class="scope">Scope: Stage S late heap profile; stats-on SMP was a positive memory result, but other runs were mixed.</div>
+      <p>Heap profiles showed the mature design was only about +11 MiB live heap versus main, and the raw ring used less explicit ingress-reservoir heap than the packet pool. Stats-on SMP had much lower RSS/heap, but other runs retained more dictionaries/caches; this needs byte budgets before any default-on claim.</p>
     </div>
   </div>
 
   <div class="verdict good">
-    <strong>How we feel about the experiment:</strong> it moved from a sketch to a validated direction. We found real macro wins, falsified several attractive shortcuts, and learned that small IDs for repeated metric descriptions only pay off when they let us avoid building the old object-heavy representation in the first place. We do not yet know the final throughput ceiling because the latest CPU-winning runs are fixed-rate and not saturated.
+    <strong>How we feel about the experiment:</strong> it moved from a sketch to a validated direction. We found real macro wins, falsified several attractive shortcuts, and now have a concrete feature-cost proof: <code>dogstatsd-stats</code> can be updated from shared parser-side identity instead of rebuilding a parallel debug path. We still need broader compatibility and max-throughput sweeps before default-on claims.
   </div>
 
   <div class="verdict warn">
@@ -196,7 +203,7 @@
     <tr><td>Repeated tag-list cache</td><td>Parses common tag lists once and reuses the parsed representation.</td><td>Large repeated-tag win; opt-in pending adversarial/mostly-unique validation.</td></tr>
     <tr><td>Compact identity hints</td><td>Carries small IDs for repeated metric descriptions through DogStatsD and columnar consumers.</td><td>Safe plumbing; macro-neutral until used before object construction.</td></tr>
     <tr><td>Repeated-metric fast path</td><td>For common simple metrics, sends value + descriptor reference instead of rebuilding full sample objects.</td><td>~8–14% Agent CPU win in fixed-rate Stage W runs; opt-in and narrow.</td></tr>
-    <tr><td>Bounded debug/lookback/replay views</td><td>Makes new observability features views over shared data rather than parallel mini-pipelines.</td><td>Good data-structure proof; combined feature-cost SMP still pending.</td></tr>
+    <tr><td>Bounded debug/lookback/replay views</td><td>Makes new observability features views over shared data rather than parallel mini-pipelines.</td><td>Strong <code>dogstatsd-stats</code> feature-cost proof; lookback/capture combinations still pending.</td></tr>
   </table>
 </section>
 
