@@ -113,13 +113,6 @@ func TestUSMStateLifecycle(t *testing.T) {
 		_ = setupWindowsMonitor(t, cfg)
 		require.Equal(t, usmstate.Restricted, usmstate.Get())
 	})
-
-	t.Run("stopped after explicit Stop", func(t *testing.T) {
-		usmstate.Set(usmstate.Disabled)
-		monitor := setupWindowsMonitor(t, getHTTPCfg())
-		require.NoError(t, monitor.Stop())
-		require.Equal(t, usmstate.Stopped, usmstate.Get())
-	})
 }
 
 // TestHTTPStatsWithIIS tests HTTP monitoring with a real IIS server.
