@@ -1,9 +1,7 @@
 #!/bin/bash
 # Materialize a runnable copy of $INPUT in $OUTPUT, rewriting rpaths on the
-# files listed in $MANIFEST.
-
-# The rpath each file gets is derived from its position in the output tree
-# and the directories in $RPATH_DIRS
+# files listed in $MANIFEST. On Linux each rpath entry is prefixed with
+# `$ORIGIN/<ups>`; on macOS with `@loader_path/<ups>`.
 #
 # Manifest format (tab-separated, one instruction per line):
 #   FILE\t<tree-relative path>
@@ -12,11 +10,12 @@
 # A FILE must exist; a GLOB must match at least one file.
 set -euo pipefail
 
-PATCHELF="$1"
-INPUT="$2"
-OUTPUT="$3"
-MANIFEST="$4"
-shift 4
+PLATFORM="$1"
+PATCHELF="$2"
+INPUT="$3"
+OUTPUT="$4"
+MANIFEST="$5"
+shift 5
 RPATH_DIRS=("$@")
 
 # `cp -rL` materializes a real copy and dereferences any symlinks that
@@ -36,12 +35,19 @@ patch_file() {
         ups="${ups}../"
     done
 
-    local rpath=""
-    for dir in "${RPATH_DIRS[@]}"; do
-        rpath+="${rpath:+:}\$ORIGIN/${ups}${dir}"
-    done
-
-    "$PATCHELF" --set-rpath "$rpath" --force-rpath "$f"
+    if [[ "$PLATFORM" == "darwin" ]]; then
+        for dir in "${RPATH_DIRS[@]}"; do
+            install_name_tool -add_rpath "@loader_path/${ups}${dir}" "$f" 2>/dev/null || true
+        done
+        # Re-sign with an ad-hoc signature; install_name_tool invalidates any existing code signature.
+        codesign --sign - --force "$f" 2>/dev/null
+    else
+        local rpath=""
+        for dir in "${RPATH_DIRS[@]}"; do
+            rpath+="${rpath:+:}\$ORIGIN/${ups}${dir}"
+        done
+        "$PATCHELF" --set-rpath "$rpath" --force-rpath "$f"
+    fi
 }
 
 while IFS=$'\t' read -r kind path; do

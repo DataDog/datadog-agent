@@ -12,8 +12,6 @@ This rule produces a copy of the tree with rpaths rewritten so that:
 
 Most of the necessary information to decide which files to patch and what rpath entries
 to add are based on CcInfo and DefaultInfo entries produced by `rules_foreign_cc` rules.
-
-Linux only for now (uses patchelf). macOS support to be added.
 """
 
 load("@bazel_lib//lib:paths.bzl", "relative_file")
@@ -26,6 +24,9 @@ def _relative_folder(to_dir, from_path):
     # bazel_lib's relative_file assumes files, to make it work for folders
     # we need to go up one more level.
     return paths.normalize("../" + relative_file(to_dir, from_path))
+
+def _is_os(ctx, constraint):
+    return ctx.target_platform_has_constraint(constraint[platform_common.ConstraintValueInfo])
 
 def _collect_cc_libs(cc_info, input_label):
     """Collect libs from CcInfo's linker inputs."""
@@ -91,10 +92,16 @@ def _foreign_cc_runnable_impl(ctx):
     manifest = ctx.actions.declare_file(ctx.label.name + "_patch_manifest.txt")
     ctx.actions.write(manifest, "\n".join(instructions) + "\n")
 
-    toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
+    is_linux = _is_os(ctx, ctx.attr._linux_constraint)
+    is_macos = _is_os(ctx, ctx.attr._macos_constraint)
+    if not is_linux and not is_macos:
+        fail("{}: unsupported platform (Linux and macOS only)".format(ctx.label))
+
+    patchelf = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
 
     args = ctx.actions.args()
-    args.add(toolchain.path)
+    args.add("linux" if is_linux else "darwin")
+    args.add(patchelf.path)
     args.add(input_tree.path)
     args.add(output_tree.path)
     args.add(manifest.path)
@@ -153,6 +160,12 @@ foreign_cc_runnable = rule(
             allow_single_file = True,
             cfg = "exec",
             executable = True,
+        ),
+        "_linux_constraint": attr.label(
+            default = "@platforms//os:linux",
+        ),
+        "_macos_constraint": attr.label(
+            default = "@platforms//os:macos",
         ),
     },
     toolchains = [
