@@ -588,7 +588,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	if filepathsInProcessCache[key] {
 		// check if the node was supposed to be removed, then update the last seen to now
 		tagId := (*pn.tagIDFromTag)(key.ImageTag)
-		if elem, ok := pn.Seen[tagId]; ok == true && elem.LastSeen.Before(before) {
+		if elem, ok := pn.Seen[tagId]; ok && elem.LastSeen.Before(before) {
 			pn.NodeBase.AppendImageTagID(tagId, time.Now())
 		}
 	}
