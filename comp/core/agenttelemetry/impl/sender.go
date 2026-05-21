@@ -187,8 +187,13 @@ func buildURL(endpoint logconfig.Endpoint) string {
 		address = endpoint.Host
 	}
 
+	scheme := "https"
+	if !endpoint.UseSSL() {
+		scheme = "http"
+	}
+
 	url := url.URL{
-		Scheme: "https",
+		Scheme: scheme,
 		Host:   address,
 		Path:   endpoint.PathPrefix + telemetryPath,
 	}
