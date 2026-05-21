@@ -13,11 +13,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/config/lite"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,11 +32,11 @@ func newChecker(cfg config.Component) *checker {
 	return &checker{cfg: cfg}
 }
 
-func (c *checker) Run() (*healthplatform.IssueReport, error) {
+func (c *checker) Run() ([]storedef.IssueReport, error) {
 	return c.validate()
 }
 
-func (c *checker) validate() (*healthplatform.IssueReport, error) {
+func (c *checker) validate() ([]storedef.IssueReport, error) {
 	// AllSettingsWithoutDefaultOrSecrets returns only values the customer actually set
 	raw := c.cfg.AllSettingsWithoutDefaultOrSecrets()
 	if len(raw) == 0 {
@@ -61,9 +60,13 @@ func (c *checker) validate() (*healthplatform.IssueReport, error) {
 		Errors:     strings.Join(errs, "\n"),
 		ErrorCount: len(errs),
 	}
-	return &healthplatform.IssueReport{
-		IssueId: healthplatformdef.InvalidConfigIssueID,
-		Context: info.ToContext(),
+	return []storedef.IssueReport{
+		{
+			IssueID:   storedef.InvalidConfigIssueID,
+			IssueType: storedef.InvalidConfigIssueID,
+			Source:    "agent",
+			Context:   info.ToContext(),
+		},
 	}, nil
 }
 

@@ -66,9 +66,9 @@ func TestBuildIssue_SharesIssueIDWithRescue(t *testing.T) {
 // A vanilla mock has only defaults, which round-trip through YAML cleanly and
 // pass the schema. Confirms Run() is a no-op on a healthy config.
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
-	report, err := newChecker(config.NewMock(t)).Run()
+	reports, err := newChecker(config.NewMock(t)).Run()
 	require.NoError(t, err)
-	assert.Nil(t, report)
+	assert.Empty(t, reports)
 }
 
 // Inject a string into an integer-typed field Confirms the validator surfaces the violation and the
@@ -77,11 +77,11 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	cfg := config.NewMock(t)
 	cfg.SetWithoutSource("agent_ipc.port", "not-a-number")
 
-	report, err := newChecker(cfg).Run()
+	reports, err := newChecker(cfg).Run()
 	require.NoError(t, err)
-	require.NotNil(t, report)
-	assert.Equal(t, healthplatformdef.InvalidConfigIssueID, report.GetIssueId())
+	require.Len(t, reports, 1)
+	assert.Equal(t, healthplatformdef.InvalidConfigIssueID, reports[0].IssueType)
 	assert.Equal(t, string(lite.ErrorKindSchemaValidation),
-		report.GetContext()[lite.ContextKeyErrorKind])
-	assert.Contains(t, report.GetContext()[lite.ContextKeyErrors], "agent_ipc/port")
+		reports[0].Context[lite.ContextKeyErrorKind])
+	assert.Contains(t, reports[0].Context[lite.ContextKeyErrors], "agent_ipc/port")
 }
