@@ -275,13 +275,6 @@ func procmgrBinaryExists(ctx HookContext, stable bool) bool {
 	return err == nil
 }
 
-func ddotEmbeddedUnitType(ctx HookContext) embedded.SystemdUnitType {
-	if ctx.PackageType == PackageTypeOCI {
-		return embedded.SystemdUnitTypeOCI
-	}
-	return embedded.SystemdUnitTypeDebRpm
-}
-
 func procmgrUsable(ctx HookContext, stable bool) bool {
 	return service.GetServiceManagerType() == service.ProcmgrType && procmgrBinaryExists(ctx, stable)
 }
@@ -308,7 +301,7 @@ func applyDDOTProcmgrProcessesYAML(ctx HookContext, stable bool) (ownsDDOT bool,
 		log.Errorf("failed to check if ambient capabilities are supported: %v", aerr)
 		ambientCapabilitiesSupported = false
 	}
-	raw, err := embedded.GetDDOTProcessConfig(ddotEmbeddedUnitType(ctx), stable, ambientCapabilitiesSupported)
+	raw, err := embedded.GetDDOTProcessConfig(embedded.SystemdUnitTypeOCI, stable, ambientCapabilitiesSupported)
 	if err != nil {
 		return true, fmt.Errorf("ddot procmgr yaml: %w", err)
 	}
