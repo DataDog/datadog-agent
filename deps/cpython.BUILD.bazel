@@ -277,7 +277,9 @@ configure_make(
         # Build in parallel but install without parallel execution
         # (see https://github.com/python/cpython/issues/109796)
         "-j 16",
-        "install",
+        # Set compileall options for improved reproducibility of pyc files by enabling hash-based invalidation
+        # and removing the sandbox path from the paths recorded in them.
+        'install COMPILEALL_OPTS="--invalidation-mode checked-hash -s $$BUILD_TMPDIR$$/$$INSTALL_PREFIX$$"',
     ],
     target_compatible_with = select({
         "@platforms//os:macos": [],
