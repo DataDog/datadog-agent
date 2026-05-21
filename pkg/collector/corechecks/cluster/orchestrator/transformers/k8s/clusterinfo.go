@@ -82,9 +82,6 @@ type eksAutoModeYAML struct {
 // is not recognised, or when the payload key is missing — the absence of
 // cluster-info is not an error, the snapshot is informational.
 func FetchClusterInfo(ctx context.Context, coreClient corev1Client.CoreV1Interface) (*ClusterInfo, error) {
-	// The name filter is enforced client-side as well: Kubernetes RBAC
-	// `resourceNames` is ignored on `list`, so a permissive ClusterRole
-	// could return any ConfigMap matching the label.
 	cms, err := coreClient.ConfigMaps(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
 		LabelSelector: clusterInfoManagedByLabel + "=" + clusterInfoManagedByValue,
 		FieldSelector: "metadata.name=" + clusterInfoConfigMapName,
@@ -92,27 +89,21 @@ func FetchClusterInfo(ctx context.Context, coreClient corev1Client.CoreV1Interfa
 	if err != nil {
 		return nil, fmt.Errorf("listing %s ConfigMaps: %w", clusterInfoConfigMapName, err)
 	}
-	matches := make([]int, 0, len(cms.Items))
-	for i := range cms.Items {
-		if cms.Items[i].Name == clusterInfoConfigMapName {
-			matches = append(matches, i)
-		}
-	}
-	if len(matches) == 0 {
+	if len(cms.Items) == 0 {
 		return nil, nil
 	}
-	sort.SliceStable(matches, func(i, j int) bool {
-		return cms.Items[matches[i]].Namespace < cms.Items[matches[j]].Namespace
+	sort.SliceStable(cms.Items, func(i, j int) bool {
+		return cms.Items[i].Namespace < cms.Items[j].Namespace
 	})
-	if len(matches) > 1 {
-		namespaces := make([]string, 0, len(matches))
-		for _, idx := range matches {
-			namespaces = append(namespaces, cms.Items[idx].Namespace)
+	if len(cms.Items) > 1 {
+		namespaces := make([]string, 0, len(cms.Items))
+		for i := range cms.Items {
+			namespaces = append(namespaces, cms.Items[i].Namespace)
 		}
 		log.Warnc(fmt.Sprintf("found multiple %s ConfigMaps in namespaces %v, using %q",
 			clusterInfoConfigMapName, namespaces, namespaces[0]), orchestrator.ExtraLogContext...)
 	}
-	chosen := &cms.Items[matches[0]]
+	chosen := &cms.Items[0]
 	payload, ok := chosen.Data[clusterInfoConfigMapDataKey]
 	if !ok {
 		log.Warnc(fmt.Sprintf("%s ConfigMap in namespace %q is missing the %q data key",

@@ -15,7 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
+	ktesting "k8s.io/client-go/testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 )
@@ -67,6 +70,40 @@ autoscaling:
         enabled: false
 `
 
+// newFakeClient wraps fake.NewClientset with a reactor that honours
+// FieldSelectors on ConfigMap list calls. The default fake client only
+// applies the LabelSelector, which would let wrong-named ConfigMaps
+// leak through tests that exercise the metadata.name filter.
+func newFakeClient(objects ...runtime.Object) *fake.Clientset {
+	client := fake.NewClientset(objects...)
+	tracker := client.Tracker()
+	gvr := corev1.SchemeGroupVersion.WithResource("configmaps")
+	gvk := corev1.SchemeGroupVersion.WithKind("ConfigMap")
+	client.PrependReactor("list", "configmaps", func(action ktesting.Action) (bool, runtime.Object, error) {
+		listAction := action.(ktesting.ListAction)
+		obj, err := tracker.List(gvr, gvk, listAction.GetNamespace())
+		if err != nil {
+			return true, nil, err
+		}
+		fieldSelector := listAction.GetListRestrictions().Fields
+		if fieldSelector == nil || fieldSelector.Empty() {
+			return true, obj, nil
+		}
+		cmList := obj.(*corev1.ConfigMapList)
+		filtered := &corev1.ConfigMapList{ListMeta: cmList.ListMeta}
+		for _, cm := range cmList.Items {
+			if fieldSelector.Matches(fields.Set{
+				"metadata.name":      cm.Name,
+				"metadata.namespace": cm.Namespace,
+			}) {
+				filtered.Items = append(filtered.Items, cm)
+			}
+		}
+		return true, filtered, nil
+	})
+	return client
+}
+
 func newClusterInfoConfigMap(namespace, name, payload string, labels map[string]string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -81,7 +118,7 @@ func newClusterInfoConfigMap(namespace, name, payload string, labels map[string]
 }
 
 func TestFetchClusterInfo_Absent(t *testing.T) {
-	client := fake.NewClientset()
+	client := newFakeClient()
 	info, err := FetchClusterInfo(context.Background(), client.CoreV1())
 	require.NoError(t, err)
 	assert.Nil(t, info)
@@ -91,7 +128,7 @@ func TestFetchClusterInfo_FullPayload(t *testing.T) {
 	cm := newClusterInfoConfigMap("dd-karpenter", clusterInfoConfigMapName, fullClusterInfoPayload, map[string]string{
 		clusterInfoManagedByLabel: clusterInfoManagedByValue,
 	})
-	client := fake.NewClientset(cm)
+	client := newFakeClient(cm)
 
 	info, err := FetchClusterInfo(context.Background(), client.CoreV1())
 	require.NoError(t, err)
@@ -117,7 +154,7 @@ func TestFetchClusterInfo_WrongLabel(t *testing.T) {
 	cm := newClusterInfoConfigMap("dd-karpenter", clusterInfoConfigMapName, fullClusterInfoPayload, map[string]string{
 		"app.kubernetes.io/managed-by": "someone-else",
 	})
-	client := fake.NewClientset(cm)
+	client := newFakeClient(cm)
 
 	info, err := FetchClusterInfo(context.Background(), client.CoreV1())
 	require.NoError(t, err)
@@ -128,7 +165,7 @@ func TestFetchClusterInfo_WrongName(t *testing.T) {
 	cm := newClusterInfoConfigMap("dd-karpenter", "some-other-name", fullClusterInfoPayload, map[string]string{
 		clusterInfoManagedByLabel: clusterInfoManagedByValue,
 	})
-	client := fake.NewClientset(cm)
+	client := newFakeClient(cm)
 
 	info, err := FetchClusterInfo(context.Background(), client.CoreV1())
 	require.NoError(t, err)
@@ -140,7 +177,7 @@ func TestFetchClusterInfo_MultipleConfigMaps(t *testing.T) {
 	cmA := newClusterInfoConfigMap("a-ns", clusterInfoConfigMapName, fullClusterInfoPayload, labels)
 	cmB := newClusterInfoConfigMap("b-ns", clusterInfoConfigMapName, fullClusterInfoPayload, labels)
 	// Insert in reverse-lex order: the selection must be by namespace, not insertion order.
-	client := fake.NewClientset(cmB, cmA)
+	client := newFakeClient(cmB, cmA)
 
 	info, err := FetchClusterInfo(context.Background(), client.CoreV1())
 	require.NoError(t, err)
@@ -153,7 +190,7 @@ func TestFetchClusterInfo_UnknownAPIVersion(t *testing.T) {
 	cm := newClusterInfoConfigMap("ns", clusterInfoConfigMapName, payload, map[string]string{
 		clusterInfoManagedByLabel: clusterInfoManagedByValue,
 	})
-	client := fake.NewClientset(cm)
+	client := newFakeClient(cm)
 
 	info, err := FetchClusterInfo(context.Background(), client.CoreV1())
 	require.NoError(t, err)
@@ -168,7 +205,7 @@ func TestFetchClusterInfo_MissingDataKey(t *testing.T) {
 			Labels:    map[string]string{clusterInfoManagedByLabel: clusterInfoManagedByValue},
 		},
 	}
-	client := fake.NewClientset(cm)
+	client := newFakeClient(cm)
 
 	info, err := FetchClusterInfo(context.Background(), client.CoreV1())
 	require.NoError(t, err)
@@ -179,7 +216,7 @@ func TestFetchClusterInfo_MalformedYAML(t *testing.T) {
 	cm := newClusterInfoConfigMap("ns", clusterInfoConfigMapName, "this: is: not: valid yaml\n", map[string]string{
 		clusterInfoManagedByLabel: clusterInfoManagedByValue,
 	})
-	client := fake.NewClientset(cm)
+	client := newFakeClient(cm)
 
 	info, err := FetchClusterInfo(context.Background(), client.CoreV1())
 	require.Error(t, err)
@@ -309,7 +346,7 @@ func mustFetchFromPayload(t *testing.T, payload string) *ClusterInfo {
 	cm := newClusterInfoConfigMap("ns", clusterInfoConfigMapName, payload, map[string]string{
 		clusterInfoManagedByLabel: clusterInfoManagedByValue,
 	})
-	client := fake.NewClientset(cm)
+	client := newFakeClient(cm)
 	info, err := FetchClusterInfo(context.Background(), client.CoreV1())
 	require.NoError(t, err)
 	require.NotNil(t, info)
