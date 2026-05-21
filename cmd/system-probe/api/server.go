@@ -66,8 +66,12 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclie
 		mux.HandleFunc("/debug/selinux_semodule_list", debug.HandleSelinuxSemoduleList)
 	}
 
-	// Register /agent/coverage endpoint for computing code coverage (e2ecoverage build only)
-	coverage.SetupCoverageHandler(mux)
+	// Register /coverage endpoint for computing code coverage (e2ecoverage build only).
+	// system-probe still uses gorilla/mux, so mount a plain http.ServeMux as a bridge
+	// until system-probe is migrated to net/http.
+	coverageMux := http.NewServeMux()
+	coverage.SetupCoverageHandler(coverageMux)
+	mux.Handle("/coverage", coverageMux)
 
 	go func() {
 		err = http.Serve(conn, mux)
