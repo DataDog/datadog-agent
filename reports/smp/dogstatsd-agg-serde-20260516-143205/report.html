@@ -175,7 +175,7 @@
     <li>batch sharding computes an overlapping but not identical key;</li>
     <li><code>serverDebug</code> / <code>agent dogstatsd-stats</code> historically recomputed debug keys into a separate hot-path map;</li>
     <li>capture/replay taps listener buffers with transport-specific behavior;</li>
-    <li>recent local lookback queries do not have a first-class bounded store;</li>
+    <li>recent local lookback queries are a new capability we would like to build; without a shared stream they would need another side store that duplicates identity/tag work;</li>
     <li>metrics v3 payload construction rebuilds many string/tag/dictionary concepts downstream.</li>
   </ul>
   <p>The hypothesis was that we can make these features cheaper and more consistent by treating DogStatsD like a streaming database: one raw ingress stream, one canonical semantic stream, and a set of bounded materialized views.</p>
@@ -354,7 +354,7 @@
 
 <section id="feature-goals">
   <h2>How the broader feature goals went</h2>
-  <p>The experiment was not only about throughput. A major goal was to make DogStatsD observability features cheap enough to leave on or compose: debug stats, raw capture/replay, recent lookback, semantic replay, and payload construction.</p>
+  <p>The experiment was not only about throughput. A major goal was to make existing and proposed DogStatsD observability features cheap enough to leave on or compose: debug stats, raw capture/replay, a future recent-lookback query feature, semantic replay, and payload construction.</p>
   <table class="score">
     <tr><th>Goal</th><th>Confidence</th><th>What we proved</th><th>What remains</th></tr>
     <tr><td><code>dogstatsd-stats</code> / <code>serverDebug</code></td><td class="status-high">High</td><td>Replaced the old shape with bounded sharded materialized views and a reusable <code>SeriesStatsStore</code>; local observe benchmark was ~67 ns/op, 0 allocs/op.</td><td>Full feature-cost SMP with debug enabled alongside the newest fast path.</td></tr>
