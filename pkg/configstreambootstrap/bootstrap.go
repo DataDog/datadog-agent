@@ -18,6 +18,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -262,6 +263,10 @@ func Run(ctx context.Context, params Params) error {
 			return ctx.Err()
 		}
 		next := bo.NextBackOff()
+		if next == backoff.Stop || next < 0 {
+			// avoid hot loop on Stop sentinel
+			next = bo.MaxInterval
+		}
 		pkglog.Warnf("configstream bootstrap[%s]: attempt %d failed (%v); retrying in %s", params.ClientName, attempt, err, next)
 		select {
 		case <-ctx.Done():
@@ -346,13 +351,15 @@ func applySnapshotToGlobalBuilder(clientName string, snapshot *pbcore.ConfigSnap
 }
 
 // pbValueToGo preserves integer-typed values that structpb has widened to float64.
+// Bounded to |x| <= 2^53 — beyond that, float64 can't represent consecutive integers.
 func pbValueToGo(v *structpb.Value) any {
 	if v == nil {
 		return nil
 	}
 	result := v.AsInterface()
 	if f, ok := result.(float64); ok {
-		if f == float64(int64(f)) {
+		const maxExactInt = 1 << 53
+		if !math.IsNaN(f) && !math.IsInf(f, 0) && f >= -maxExactInt && f <= maxExactInt && f == float64(int64(f)) {
 			return int64(f)
 		}
 	}
