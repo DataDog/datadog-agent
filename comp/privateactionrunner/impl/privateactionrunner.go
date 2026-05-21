@@ -319,7 +319,10 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		}
 	}
 
-	var enrollmentResult *enrollment.Result
+	var (
+		enrollmentResult *enrollment.Result
+		err              error
+	)
 	if apiKeyOnlyEnrollment {
 		enrollmentResult, err = enrollment.SelfEnrollApiKeyOnly(ctx, ddSite, runnerNamePrefix, apiKey, agentIdentifier, cfg.OpmsExtraHeaders)
 	} else {
