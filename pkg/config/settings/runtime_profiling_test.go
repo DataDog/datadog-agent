@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	compsettings "github.com/DataDog/datadog-agent/comp/core/settings"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 )
 
 // mockClient is a test double for the Client interface.
@@ -44,7 +44,7 @@ func (m *mockClient) GetWithSources(_ string) (map[string]interface{}, error) {
 	return nil, nil
 }
 
-func (m *mockClient) List() (map[string]compsettings.RuntimeSettingResponse, error) {
+func (m *mockClient) List() (map[string]settings.RuntimeSettingResponse, error) {
 	return nil, nil
 }
 

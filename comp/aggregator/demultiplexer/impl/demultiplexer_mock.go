@@ -10,7 +10,7 @@ package demultiplexerimpl
 import (
 	"go.uber.org/fx"
 
-	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
