@@ -443,15 +443,15 @@ func nodeBaseToProto(nb *NodeBase, tagIDToImageTag func(id uint64) string) *adpr
 	}
 
 	pnb := &adproto.NodeBase{
-		Seen: make(map[string]*adproto.ImageTagTimes, len(nb.Seen)),
+		Seen: make(map[string]*adproto.ImageTagTimes, nb.SeenLen()),
 	}
 
-	for imageTag, times := range nb.Seen {
-		pnb.Seen[tagIDToImageTag(imageTag)] = &adproto.ImageTagTimes{
+	nb.EachSeen(func(id uint64, times ImageTagTimes) {
+		pnb.Seen[tagIDToImageTag(id)] = &adproto.ImageTagTimes{
 			FirstSeen: TimestampToProto(&times.FirstSeen),
 			LastSeen:  TimestampToProto(&times.LastSeen),
 		}
-	}
+	})
 
 	return pnb
 }

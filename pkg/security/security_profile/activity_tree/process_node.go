@@ -571,7 +571,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 		totalEvicted += evicted
 
 		// If the child process node itself has no image tags left after eviction, remove it entirely
-		if len(child.Seen) == 0 {
+		if child.SeenIsEmpty() {
 			pn.Children = append(pn.Children[:i], pn.Children[i+1:]...)
 			totalEvicted++
 		}
@@ -586,7 +586,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	if filepathsInProcessCache[key] {
 		// check if the node was supposed to be removed, then update the last seen to now
 		tagID := tagToID(key.ImageTag)
-		if elem, ok := pn.Seen[tagID]; ok && elem.LastSeen.Before(before) {
+		if elem, ok := pn.GetSeenTimes(tagID); ok && elem.LastSeen.Before(before) {
 			pn.NodeBase.AppendImageTagID(tagID, time.Now())
 		}
 	}
@@ -594,7 +594,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	_ = pn.NodeBase.EvictBeforeTimestamp(before)
 
 	// If the process node itself can be evicted
-	if len(pn.Children) == 0 && len(pn.Seen) == 0 {
+	if len(pn.Children) == 0 && pn.SeenIsEmpty() {
 		return totalEvicted
 		// No need to evict the activity nodes, since this process node will be removed entirely
 
@@ -604,7 +604,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	for i := len(pn.Syscalls) - 1; i >= 0; i-- {
 		syscallNode := pn.Syscalls[i]
 		if syscallNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-			if len(syscallNode.Seen) == 0 {
+			if syscallNode.SeenIsEmpty() {
 				pn.Syscalls = append(pn.Syscalls[:i], pn.Syscalls[i+1:]...)
 			}
 		}
@@ -613,7 +613,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	// Evict unused file nodes
 	for path, fileNode := range pn.Files {
 		if fileNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-			if len(fileNode.Seen) == 0 {
+			if fileNode.SeenIsEmpty() {
 				delete(pn.Files, path)
 			}
 		}
@@ -622,7 +622,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	// Evict unused DNS nodes
 	for name, dnsNode := range pn.DNSNames {
 		if dnsNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-			if len(dnsNode.Seen) == 0 {
+			if dnsNode.SeenIsEmpty() {
 				delete(pn.DNSNames, name)
 			}
 		}
@@ -631,7 +631,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	// Evict unused IMDS nodes
 	for event, imdsNode := range pn.IMDSEvents {
 		if imdsNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-			if len(imdsNode.Seen) == 0 {
+			if imdsNode.SeenIsEmpty() {
 				delete(pn.IMDSEvents, event)
 			}
 		}
@@ -643,7 +643,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	for i := len(pn.Sockets) - 1; i >= 0; i-- {
 		socketNode := pn.Sockets[i]
 		if socketNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-			if len(socketNode.Seen) == 0 {
+			if socketNode.SeenIsEmpty() {
 				pn.Sockets = append(pn.Sockets[:i], pn.Sockets[i+1:]...)
 			}
 		}
@@ -653,7 +653,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	for i := len(pn.Capabilities) - 1; i >= 0; i-- {
 		capabilityNode := pn.Capabilities[i]
 		if capabilityNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-			if len(capabilityNode.Seen) == 0 {
+			if capabilityNode.SeenIsEmpty() {
 				pn.Capabilities = append(pn.Capabilities[:i], pn.Capabilities[i+1:]...)
 			}
 		}
