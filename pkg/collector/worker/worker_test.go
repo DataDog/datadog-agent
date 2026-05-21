@@ -958,8 +958,8 @@ func TestWorkerTrialModeErrorSuppression(t *testing.T) {
 	expvars.Reset()
 	mockConfig.SetWithoutSource("hostname", "myhost")
 
-	resetTrialCallbacks(t)
-	t.Cleanup(func() { resetTrialCallbacks(t) })
+	resetTrialCallback(t)
+	t.Cleanup(func() { resetTrialCallback(t) })
 
 	var callbackOKs []bool
 	RegisterTrialResultCallback(func(_ checkid.ID, ok bool) bool {
@@ -1013,8 +1013,8 @@ func TestWorkerTrialModePromotion(t *testing.T) {
 	expvars.Reset()
 	mockConfig.SetWithoutSource("hostname", "myhost")
 
-	resetTrialCallbacks(t)
-	t.Cleanup(func() { resetTrialCallbacks(t) })
+	resetTrialCallback(t)
+	t.Cleanup(func() { resetTrialCallback(t) })
 
 	var callbackOKs []bool
 	RegisterTrialResultCallback(func(_ checkid.ID, ok bool) bool {
@@ -1072,8 +1072,8 @@ func TestWorkerTrialModeRetireSuppressesLateRuns(t *testing.T) {
 	expvars.Reset()
 	mockConfig.SetWithoutSource("hostname", "myhost")
 
-	resetTrialCallbacks(t)
-	t.Cleanup(func() { resetTrialCallbacks(t) })
+	resetTrialCallback(t)
+	t.Cleanup(func() { resetTrialCallback(t) })
 
 	var callbackOKs []bool
 	RegisterTrialResultCallback(func(_ checkid.ID, ok bool) bool {

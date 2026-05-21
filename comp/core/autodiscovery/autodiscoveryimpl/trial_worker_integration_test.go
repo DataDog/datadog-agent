@@ -164,14 +164,14 @@ func (p *trialTestProvider) IsUpToDate(context.Context) (bool, error) { return t
 func setupPipeline(t *testing.T) (*autodiscoveryimpl.AutoConfig, *autodiscoveryimpl.MockScheduler) {
 	t.Helper()
 	expvars.Reset()
-	worker.ResetTrialCallbacks()
+	worker.ResetTrialCallback()
 	// Register reset BEFORE fxutil.Test below so the LIFO order is:
 	//   1. fxutil.Test's RequireStop → collectorImpl.stop (drains in-flight
 	//      worker runs and any late notifyTrialResult)
-	//   2. ResetTrialCallbacks (drops AD's registered callback)
+	//   2. ResetTrialCallback (drops AD's registered callback)
 	// If we registered the reset after fxutil.Test, a late callback could
 	// fire into AutoConfig after the test has already torn AD down.
-	t.Cleanup(worker.ResetTrialCallbacks)
+	t.Cleanup(worker.ResetTrialCallback)
 	t.Cleanup(func() { setTrialRunFn(nil) })
 
 	// Allow sub-second intervals so trial-threshold failures complete in

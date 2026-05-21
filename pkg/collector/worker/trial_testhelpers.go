@@ -7,11 +7,11 @@
 
 package worker
 
-// ResetTrialCallbacks drops all registered trial-result callbacks.
+// ResetTrialCallback drops the registered trial-result callback.
 // Intended for tests in other packages that exercise the AD/worker integration
 // and need callback isolation between cases.
-func ResetTrialCallbacks() {
+func ResetTrialCallback() {
 	trialMu.Lock()
 	defer trialMu.Unlock()
-	trialResultCallbacks = nil
+	trialResultCallback = nil
 }

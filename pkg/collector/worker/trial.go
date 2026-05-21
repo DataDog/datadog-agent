@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	trialMu              sync.RWMutex
-	trialResultCallbacks []func(id checkid.ID, ok bool) bool
+	trialMu             sync.RWMutex
+	trialResultCallback func(id checkid.ID, ok bool) bool
 )
 
 type trialModeCheck interface {
@@ -24,29 +24,25 @@ type trialModeCheck interface {
 // RegisterTrialResultCallback registers a function to be called after each
 // trial-mode check run with the run outcome. The callback returns true when
 // the worker should suppress the result from normal integration reporting.
-// Multiple callbacks may be registered; they are called in registration order,
-// and any suppressing callback suppresses the result.
 // This is intended to be called once during agent startup by AutoConfig.
 func RegisterTrialResultCallback(fn func(id checkid.ID, ok bool) bool) {
 	trialMu.Lock()
 	defer trialMu.Unlock()
-	trialResultCallbacks = append(trialResultCallbacks, fn)
+	trialResultCallback = fn
 }
 
-// notifyTrialResult invokes all registered trial-result callbacks and returns
+// notifyTrialResult invokes the registered trial-result callback and returns
 // whether the worker should suppress the result from normal integration
-// reporting. Failed trial results are suppressed by default.
+// reporting. Failed trial results are suppressed by default, even when no
+// callback is registered.
 func notifyTrialResult(id checkid.ID, ok bool) bool {
 	trialMu.RLock()
-	callbacks := make([]func(id checkid.ID, ok bool) bool, len(trialResultCallbacks))
-	copy(callbacks, trialResultCallbacks)
+	fn := trialResultCallback
 	trialMu.RUnlock()
 
 	suppress := !ok
-	for _, fn := range callbacks {
-		if fn(id, ok) {
-			suppress = true
-		}
+	if fn != nil && fn(id, ok) {
+		suppress = true
 	}
 	return suppress
 }

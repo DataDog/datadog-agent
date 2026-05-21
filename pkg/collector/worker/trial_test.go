@@ -13,17 +13,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// resetTrialCallbacks clears the global callback slice for test isolation.
-func resetTrialCallbacks(t *testing.T) {
+// resetTrialCallback clears the global callback for test isolation.
+func resetTrialCallback(t *testing.T) {
 	t.Helper()
 	trialMu.Lock()
 	defer trialMu.Unlock()
-	trialResultCallbacks = nil
+	trialResultCallback = nil
 }
 
 func TestRegisterAndNotifyTrialResult(t *testing.T) {
-	resetTrialCallbacks(t)
-	t.Cleanup(func() { resetTrialCallbacks(t) })
+	resetTrialCallback(t)
+	t.Cleanup(func() { resetTrialCallback(t) })
 
 	type result struct {
 		id checkid.ID
@@ -45,29 +45,27 @@ func TestRegisterAndNotifyTrialResult(t *testing.T) {
 	assert.False(t, got[1].ok)
 }
 
-func TestNotifyTrialResultMultipleCallbacks(t *testing.T) {
-	resetTrialCallbacks(t)
-	t.Cleanup(func() { resetTrialCallbacks(t) })
+func TestRegisterTrialResultCallbackReplacesPreviousCallback(t *testing.T) {
+	resetTrialCallback(t)
+	t.Cleanup(func() { resetTrialCallback(t) })
 
-	var calls1, calls2 int
+	var calls int
 	RegisterTrialResultCallback(func(_ checkid.ID, _ bool) bool {
-		calls1++
-		return false
+		t.Fatal("replaced callback should not be called")
+		return true
 	})
 	RegisterTrialResultCallback(func(_ checkid.ID, _ bool) bool {
-		calls2++
+		calls++
 		return true
 	})
 
 	assert.True(t, notifyTrialResult("check:x", true))
-
-	assert.Equal(t, 1, calls1)
-	assert.Equal(t, 1, calls2)
+	assert.Equal(t, 1, calls)
 }
 
 func TestNotifyTrialResultDefaults(t *testing.T) {
-	resetTrialCallbacks(t)
-	t.Cleanup(func() { resetTrialCallbacks(t) })
+	resetTrialCallback(t)
+	t.Cleanup(func() { resetTrialCallback(t) })
 
 	assert.False(t, notifyTrialResult("check:x", true))
 	assert.True(t, notifyTrialResult("check:x", false))
