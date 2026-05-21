@@ -6,11 +6,14 @@
 package preprocessor
 
 import (
+	"bytes"
 	"regexp"
 	"testing"
 
 	"pgregory.net/rapid"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
@@ -208,6 +211,430 @@ func TestRegexAggregator_FlushEqualsTotalEmissions_Property(t *testing.T) {
 		}
 		if !ag.IsEmpty() {
 			t.Fatal("FlushDrainsBuffer violated: is_empty false after flush")
+		}
+	})
+}
+
+// regexEmission captures one emitted message's observable state,
+// deep-copied to survive the RegexAggregator's ResultLifetime
+// reuse of its collected slice across subsequent Process calls.
+type regexEmission struct {
+	content     []byte
+	isTruncated bool
+	tags        []string
+}
+
+func captureRegexEmissions(emitted []AggregatedMessageWithTokens) []regexEmission {
+	out := make([]regexEmission, len(emitted))
+	for i, e := range emitted {
+		out[i] = regexEmission{
+			content:     append([]byte(nil), e.Msg.GetContent()...),
+			isTruncated: e.Msg.ParsingExtra.IsTruncated,
+			tags:        append([]string(nil), e.Msg.ParsingExtra.Tags...),
+		}
+	}
+	return out
+}
+
+// TestRegexAggregator_PassThroughUnderThreshold_Property anchors:
+//
+//	surface RegexAggregation (regex_aggregator.allium)
+//	    @guarantee ByteConservation — under-threshold accumulation
+//	                                   emits with no markers and
+//	                                   IsTruncated false.
+//
+// A pattern-bounded group whose accumulated content stays under
+// line_limit emits with no truncation markers and IsTruncated=false.
+// Together with UpstreamFlagIgnored, this confirms the only path
+// to a truncated emission is buffer overflow.
+func TestRegexAggregator_PassThroughUnderThreshold_Property(t *testing.T) {
+	re := regexp.MustCompile(`^START`)
+
+	rapid.Check(t, func(t *rapid.T) {
+		nContinuations := rapid.IntRange(0, 3).Draw(t, "nContinuations")
+		ag := NewRegexAggregator(re, 200, false, status.NewInfoRegistry(), "multi_line")
+
+		ag.Process(newMessage("START first"), startGroup, nil)
+		for i := 0; i < nContinuations; i++ {
+			line := string(rapid.SliceOfN(
+				rapid.SampledFrom([]byte("abcdef")),
+				1, 8,
+			).Draw(t, "cont"))
+			ag.Process(newMessage(line), aggregate, nil)
+		}
+		emitted := captureRegexEmissions(ag.Process(newMessage("START second"), startGroup, nil))
+
+		if len(emitted) != 1 {
+			t.Fatalf("expected 1 emission from pattern-boundary, got %d", len(emitted))
+		}
+		e := emitted[0]
+		marker := message.TruncatedFlag
+		if bytes.Contains(e.content, marker) {
+			t.Fatalf("PassThroughUnderThreshold violated: marker found in under-threshold emission %q", e.content)
+		}
+		if e.isTruncated {
+			t.Fatalf("PassThroughUnderThreshold violated: IsTruncated=true on under-threshold emission %q", e.content)
+		}
+	})
+}
+
+// TestRegexAggregator_MidAggregateTruncation_Property anchors:
+//
+//	surface RegexAggregation (regex_aggregator.allium)
+//	    @guarantee MidAggregateTruncation — when buffered aggregate
+//	                                         reaches or exceeds
+//	                                         line_limit, the buffer
+//	                                         is flushed mid-stream
+//	                                         with the truncation
+//	                                         marker appended.
+//
+// A pattern-bounded group whose accumulated content crosses
+// line_limit during a Process call emits the buffered content
+// with the tail marker appended and IsTruncated=true on the SAME
+// process call that caused the overflow.
+func TestRegexAggregator_MidAggregateTruncation_Property(t *testing.T) {
+	re := regexp.MustCompile(`^START`)
+
+	rapid.Check(t, func(t *rapid.T) {
+		lineLimit := rapid.IntRange(8, 30).Draw(t, "lineLimit")
+		// Continuation longer than lineLimit alone forces overflow
+		// when added to "START a" + separator.
+		contLen := lineLimit + 5 + rapid.IntRange(0, 20).Draw(t, "extra")
+		contBytes := bytes.Repeat([]byte("x"), contLen)
+
+		ag := NewRegexAggregator(re, lineLimit, false, status.NewInfoRegistry(), "multi_line")
+		ag.Process(newMessage("START a"), startGroup, nil)
+		emitted := captureRegexEmissions(ag.Process(newMessage(string(contBytes)), aggregate, nil))
+
+		if len(emitted) == 0 {
+			t.Fatal("MidAggregateTruncation violated: expected emission after overflow, got none")
+		}
+		e := emitted[len(emitted)-1]
+		marker := message.TruncatedFlag
+		if !bytes.HasSuffix(e.content, marker) {
+			t.Fatalf("MidAggregateTruncation violated: no tail marker on overflow emission %q", e.content)
+		}
+		if !e.isTruncated {
+			t.Fatal("MidAggregateTruncation violated: IsTruncated=false on overflow emission")
+		}
+	})
+}
+
+// TestRegexAggregator_HeadMarkerOnCarryover_Property anchors:
+//
+//	surface RegexAggregation (regex_aggregator.allium)
+//	    @guarantee MidAggregateTruncation — the continuation-marker
+//	                                         carry is consumed by
+//	                                         the next post-match
+//	                                         non-matching process
+//	                                         call, prepending the
+//	                                         truncation marker to
+//	                                         that call's buffered
+//	                                         content.
+//
+// After overflow sets should_truncate, the next non-matching
+// process call accumulates with the head marker prepended; the
+// eventual emission (here via Flush) begins with the marker.
+func TestRegexAggregator_HeadMarkerOnCarryover_Property(t *testing.T) {
+	re := regexp.MustCompile(`^START`)
+
+	rapid.Check(t, func(t *rapid.T) {
+		// lineLimit large enough that post-carry accumulation
+		// (head marker 15 + short content) stays under limit.
+		lineLimit := rapid.IntRange(25, 60).Draw(t, "lineLimit")
+		overflowBytes := bytes.Repeat([]byte("x"), lineLimit+5)
+		shortBytes := bytes.Repeat([]byte("a"), rapid.IntRange(1, 3).Draw(t, "shortLen"))
+
+		ag := NewRegexAggregator(re, lineLimit, false, status.NewInfoRegistry(), "multi_line")
+		ag.Process(newMessage("START a"), startGroup, nil)
+		ag.Process(newMessage(string(overflowBytes)), aggregate, nil)   // overflow → emit with tail
+		ag.Process(newMessage(string(shortBytes)), aggregate, nil)      // accumulate with head marker
+		flushed := captureRegexEmissions(ag.Flush())                    // emits the carry-marked content
+
+		if len(flushed) != 1 {
+			t.Fatalf("HeadMarkerOnCarryover violated: expected 1 flush emission, got %d", len(flushed))
+		}
+		e := flushed[0]
+		marker := message.TruncatedFlag
+		if !bytes.HasPrefix(e.content, marker) {
+			t.Fatalf("HeadMarkerOnCarryover violated: no head marker on emission after carry; content %q", e.content)
+		}
+		if !e.isTruncated {
+			t.Fatal("HeadMarkerOnCarryover violated: IsTruncated=false on emission with head marker")
+		}
+	})
+}
+
+// TestRegexAggregator_CarryoverConsumed_Property anchors:
+//
+//	surface RegexAggregation (regex_aggregator.allium)
+//	    @guarantee MidAggregateTruncation — the continuation carry
+//	                                         is consumed by the
+//	                                         next non-matching call
+//	                                         and does NOT propagate
+//	                                         further.
+//
+// After overflow (carry set) + non-matching consume (head marker
+// written) + flush, a fresh pattern-bounded group emits with NO
+// markers — the carry was consumed and not propagated.
+func TestRegexAggregator_CarryoverConsumed_Property(t *testing.T) {
+	re := regexp.MustCompile(`^START`)
+
+	rapid.Check(t, func(t *rapid.T) {
+		lineLimit := rapid.IntRange(25, 60).Draw(t, "lineLimit")
+		overflowBytes := bytes.Repeat([]byte("x"), lineLimit+5)
+		shortBytes := bytes.Repeat([]byte("a"), rapid.IntRange(1, 3).Draw(t, "shortLen"))
+		freshBytes := bytes.Repeat([]byte("b"), rapid.IntRange(1, 3).Draw(t, "freshLen"))
+
+		ag := NewRegexAggregator(re, lineLimit, false, status.NewInfoRegistry(), "multi_line")
+		ag.Process(newMessage("START a"), startGroup, nil)
+		ag.Process(newMessage(string(overflowBytes)), aggregate, nil) // emission 1: tail marker, carry set
+		ag.Process(newMessage(string(shortBytes)), aggregate, nil)    // accumulates with head marker
+		emission2 := captureRegexEmissions(ag.Flush())                // emission 2: head marker
+		// Now carry is consumed (should_truncate is false). Start fresh.
+		ag.Process(newMessage("START second"), startGroup, nil)
+		ag.Process(newMessage(string(freshBytes)), aggregate, nil)
+		emission3 := captureRegexEmissions(ag.Flush())                // emission 3: no markers
+
+		marker := message.TruncatedFlag
+
+		if len(emission2) != 1 {
+			t.Fatalf("CarryoverConsumed precondition: expected 1 emission from first flush, got %d", len(emission2))
+		}
+		if !bytes.HasPrefix(emission2[0].content, marker) {
+			t.Fatalf("CarryoverConsumed precondition: first flush emission missing head marker; got %q", emission2[0].content)
+		}
+
+		if len(emission3) != 1 {
+			t.Fatalf("CarryoverConsumed violated: expected 1 emission from second flush, got %d", len(emission3))
+		}
+		e := emission3[0]
+		if bytes.Contains(e.content, marker) {
+			t.Fatalf("CarryoverConsumed violated: fresh emission contains a marker — carry not consumed; content %q", e.content)
+		}
+		if e.isTruncated {
+			t.Fatalf("CarryoverConsumed violated: fresh emission IsTruncated=true on clean accumulation; content %q", e.content)
+		}
+	})
+}
+
+// TestRegexAggregator_UpstreamFlagIgnored_Property anchors:
+//
+//	surface RegexAggregation (regex_aggregator.allium)
+//	    @guarantee UpstreamFlagIgnored — input ParsingExtra.IsTruncated
+//	                                      is NOT read and does NOT
+//	                                      influence any truncation
+//	                                      decision; deliberate
+//	                                      DEVIATION from the
+//	                                      Truncatable contract.
+//
+// LOAD-BEARING for the refactor safety net. Inputs with upstream
+// IsTruncated=true that do NOT cause buffer overflow MUST emit
+// with IsTruncated=false. A refactor that began honouring the
+// upstream flag here would break this test — exactly the
+// behaviour change we want to prevent inadvertently.
+func TestRegexAggregator_UpstreamFlagIgnored_Property(t *testing.T) {
+	re := regexp.MustCompile(`^START`)
+
+	rapid.Check(t, func(t *rapid.T) {
+		lineLimit := 1000 // large, no overflow
+		shortBytes := bytes.Repeat([]byte("a"), rapid.IntRange(1, 8).Draw(t, "shortLen"))
+
+		ag := NewRegexAggregator(re, lineLimit, false, status.NewInfoRegistry(), "multi_line")
+		ag.Process(newMessage("START first"), startGroup, nil)
+		// All continuation messages arrive upstream-flagged but
+		// well under the buffer limit.
+		nFlagged := rapid.IntRange(1, 4).Draw(t, "nFlagged")
+		for i := 0; i < nFlagged; i++ {
+			msg := newMessage(string(shortBytes))
+			msg.ParsingExtra.IsTruncated = true
+			ag.Process(msg, aggregate, nil)
+		}
+		// Pattern boundary triggers emission of the prior group.
+		emitted := captureRegexEmissions(ag.Process(newMessage("START second"), startGroup, nil))
+
+		if len(emitted) != 1 {
+			t.Fatalf("UpstreamFlagIgnored: expected 1 emission from boundary, got %d", len(emitted))
+		}
+		e := emitted[0]
+		marker := message.TruncatedFlag
+		if bytes.Contains(e.content, marker) {
+			t.Fatalf("UpstreamFlagIgnored violated: emission contains marker — upstream flag honoured; content %q", e.content)
+		}
+		if e.isTruncated {
+			t.Fatalf("UpstreamFlagIgnored violated: emission IsTruncated=true without overflow — upstream flag propagated; content %q", e.content)
+		}
+	})
+}
+
+// TestRegexAggregator_TruncationTagging_Property anchors:
+//
+//	surface RegexAggregation (regex_aggregator.allium)
+//	    @guarantee TruncationTagging — when is_buffer_truncated is
+//	                                    true AND
+//	                                    logs_config.tag_truncated_logs
+//	                                    is true, a truncation-reason
+//	                                    tag identifying
+//	                                    "multiline_regex" is appended.
+//
+// With the global config enabled, every emission whose
+// IsTruncated is true carries the truncation-reason tag with
+// value "multiline_regex" (matching MultiLineHandler's tag value,
+// distinct from the "single_line" reason used by per-line
+// aggregators). Emissions with IsTruncated=false do not carry it.
+func TestRegexAggregator_TruncationTagging_Property(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", true)
+	expectedTag := message.TruncatedReasonTag("multiline_regex")
+	re := regexp.MustCompile(`^START`)
+
+	rapid.Check(t, func(t *rapid.T) {
+		lineLimit := rapid.IntRange(8, 30).Draw(t, "lineLimit")
+		overflowBytes := bytes.Repeat([]byte("x"), lineLimit+5)
+
+		ag := NewRegexAggregator(re, lineLimit, false, status.NewInfoRegistry(), "multi_line")
+		ag.Process(newMessage("START a"), startGroup, nil)
+		emitted := captureRegexEmissions(ag.Process(newMessage(string(overflowBytes)), aggregate, nil))
+
+		for i, e := range emitted {
+			if e.isTruncated {
+				hasTag := false
+				for _, tag := range e.tags {
+					if tag == expectedTag {
+						hasTag = true
+						break
+					}
+				}
+				if !hasTag {
+					t.Fatalf("TruncationTagging violated at emission %d: IsTruncated=true but no %q in tags=%v", i, expectedTag, e.tags)
+				}
+			} else {
+				for _, tag := range e.tags {
+					if tag == expectedTag {
+						t.Fatalf("TruncationTagging violated at emission %d: IsTruncated=false but tags contain %q (tags=%v)", i, expectedTag, e.tags)
+					}
+				}
+			}
+		}
+	})
+}
+
+// TestRegexAggregator_TagDisabledNoTag_Property anchors:
+//
+//	surface RegexAggregation (regex_aggregator.allium)
+//	    @guarantee TruncationTagging — when
+//	                                    logs_config.tag_truncated_logs
+//	                                    is false, NO truncation-reason
+//	                                    tag is added regardless of
+//	                                    is_buffer_truncated state.
+//
+// With the global config disabled, no emission carries the
+// "multiline_regex" tag, even when buffer overflow has set
+// IsTruncated=true.
+func TestRegexAggregator_TagDisabledNoTag_Property(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", false)
+	suppressedTag := message.TruncatedReasonTag("multiline_regex")
+	re := regexp.MustCompile(`^START`)
+
+	rapid.Check(t, func(t *rapid.T) {
+		lineLimit := rapid.IntRange(8, 30).Draw(t, "lineLimit")
+		overflowBytes := bytes.Repeat([]byte("x"), lineLimit+5)
+
+		ag := NewRegexAggregator(re, lineLimit, false, status.NewInfoRegistry(), "multi_line")
+		ag.Process(newMessage("START a"), startGroup, nil)
+		emitted := captureRegexEmissions(ag.Process(newMessage(string(overflowBytes)), aggregate, nil))
+
+		for i, e := range emitted {
+			for _, tag := range e.tags {
+				if tag == suppressedTag {
+					t.Fatalf("TruncationTagging (disabled) violated at emission %d: found %q in tags=%v", i, suppressedTag, e.tags)
+				}
+			}
+		}
+	})
+}
+
+// TestRegexAggregator_MultiLineTagging_Property anchors:
+//
+//	surface RegexAggregation (regex_aggregator.allium)
+//	    @guarantee MultiLineTagging — when lines_combined > 1 at
+//	                                   emission time AND
+//	                                   logs_config.tag_multi_line_logs
+//	                                   is true, the multi-line
+//	                                   source tag with value
+//	                                   multi_line_tag_value is added.
+//
+// A pattern-bounded group containing 2+ input lines emits with
+// the multi-line source tag (value "multi_line" per the
+// constructor argument).
+func TestRegexAggregator_MultiLineTagging_Property(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("logs_config.tag_multi_line_logs", true)
+	multiLineTag := message.MultiLineSourceTag("multi_line")
+	re := regexp.MustCompile(`^START`)
+
+	rapid.Check(t, func(t *rapid.T) {
+		nContinuations := rapid.IntRange(1, 4).Draw(t, "nContinuations")
+		ag := NewRegexAggregator(re, 1000, false, status.NewInfoRegistry(), "multi_line")
+
+		ag.Process(newMessage("START first"), startGroup, nil)
+		for i := 0; i < nContinuations; i++ {
+			ag.Process(newMessage("more"), aggregate, nil)
+		}
+		// Pattern boundary triggers emission of the multi-line group.
+		emitted := captureRegexEmissions(ag.Process(newMessage("START second"), startGroup, nil))
+
+		if len(emitted) != 1 {
+			t.Fatalf("expected 1 emission from boundary, got %d", len(emitted))
+		}
+		e := emitted[0]
+		hasTag := false
+		for _, tag := range e.tags {
+			if tag == multiLineTag {
+				hasTag = true
+				break
+			}
+		}
+		if !hasTag {
+			t.Fatalf("MultiLineTagging violated: %d-line group emission missing tag %q; tags=%v", 1+nContinuations, multiLineTag, e.tags)
+		}
+	})
+}
+
+// TestRegexAggregator_PreMatchSinglePass_Property anchors:
+//
+//	surface RegexAggregation (regex_aggregator.allium)
+//	    @guarantee PreMatchSinglePass — before pattern_matched_once
+//	                                     becomes true, each call's
+//	                                     input is the sole occupant
+//	                                     of the buffer.
+//
+// With a regex that never matches the generated content, a
+// sequence of N process calls + a final flush produces exactly N
+// emissions — each input line is emitted individually rather
+// than accumulated.
+func TestRegexAggregator_PreMatchSinglePass_Property(t *testing.T) {
+	// Pattern requiring a Z prefix; combined with content drawn
+	// from a Z-free alphabet, never matches.
+	re := regexp.MustCompile("^Z")
+
+	rapid.Check(t, func(t *rapid.T) {
+		n := rapid.IntRange(1, 8).Draw(t, "n")
+		ag := NewRegexAggregator(re, 200, false, status.NewInfoRegistry(), "multi_line")
+
+		emittedTotal := 0
+		for i := 0; i < n; i++ {
+			line := string(rapid.SliceOfN(
+				rapid.SampledFrom([]byte("abcdef0123")),
+				1, 20,
+			).Draw(t, "line"))
+			emittedTotal += len(ag.Process(newMessage(line), aggregate, nil))
+		}
+		emittedTotal += len(ag.Flush())
+
+		if emittedTotal != n {
+			t.Fatalf("PreMatchSinglePass violated: %d inputs produced %d emissions, expected %d", n, emittedTotal, n)
 		}
 	})
 }
