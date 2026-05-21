@@ -169,7 +169,7 @@ func remoteQueriesProofCopyLimits(query string) map[string]interface{} {
 		maxBytes = payloadBytes + (1 << 20)
 		timeoutMs = 60_000
 	}
-	chunkBytes := 32
+	chunkBytes := 256 << 10
 	if value := os.Getenv("RQ_REMOTE_CHUNK_BYTES"); value != "" {
 		parsed, err := strconv.Atoi(value)
 		if err == nil && parsed > 0 {
