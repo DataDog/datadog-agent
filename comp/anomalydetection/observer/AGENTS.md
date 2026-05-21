@@ -25,7 +25,6 @@ comp/anomalydetection/
     def/        ← public interfaces (own go.mod)
     fx/         ← production Fx wiring
     impl/       ← engine, detectors, correlators, extractors, telemetry
-      hfrunner/ ← high-frequency check runner subpackage
       patterns/ ← log pattern tokenizer/clusterer subpackage
   logssource/   ← container log source feeding the observer
     def/ fx/ impl/
