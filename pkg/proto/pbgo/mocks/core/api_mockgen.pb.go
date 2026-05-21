@@ -385,6 +385,26 @@ func (mr *MockAgentSecureClientMockRecorder) RegisterRemoteAgent(ctx, in interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterRemoteAgent", reflect.TypeOf((*MockAgentSecureClient)(nil).RegisterRemoteAgent), varargs...)
 }
 
+// RemoteQueryExecute mocks base method.
+func (m *MockAgentSecureClient) RemoteQueryExecute(ctx context.Context, in *core.RemoteQueryExecuteRequest, opts ...grpc.CallOption) (*core.RemoteQueryExecuteResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "RemoteQueryExecute", varargs...)
+	ret0, _ := ret[0].(*core.RemoteQueryExecuteResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RemoteQueryExecute indicates an expected call of RemoteQueryExecute.
+func (mr *MockAgentSecureClientMockRecorder) RemoteQueryExecute(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoteQueryExecute", reflect.TypeOf((*MockAgentSecureClient)(nil).RemoteQueryExecute), varargs...)
+}
+
 // ResetConfigState mocks base method.
 func (m *MockAgentSecureClient) ResetConfigState(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*core.ResetStateConfigResponse, error) {
 	m.ctrl.T.Helper()
@@ -729,6 +749,21 @@ func (m *MockAgentSecureServer) RegisterRemoteAgent(arg0 context.Context, arg1 *
 func (mr *MockAgentSecureServerMockRecorder) RegisterRemoteAgent(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterRemoteAgent", reflect.TypeOf((*MockAgentSecureServer)(nil).RegisterRemoteAgent), arg0, arg1)
+}
+
+// RemoteQueryExecute mocks base method.
+func (m *MockAgentSecureServer) RemoteQueryExecute(arg0 context.Context, arg1 *core.RemoteQueryExecuteRequest) (*core.RemoteQueryExecuteResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoteQueryExecute", arg0, arg1)
+	ret0, _ := ret[0].(*core.RemoteQueryExecuteResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RemoteQueryExecute indicates an expected call of RemoteQueryExecute.
+func (mr *MockAgentSecureServerMockRecorder) RemoteQueryExecute(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoteQueryExecute", reflect.TypeOf((*MockAgentSecureServer)(nil).RemoteQueryExecute), arg0, arg1)
 }
 
 // ResetConfigState mocks base method.

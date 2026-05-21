@@ -95,11 +95,14 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC(t *testing.T)
 
 	fqn := com_datadoghq_remotequeries.BundleID + "." + com_datadoghq_remotequeries.ExecuteActionName
 	t.Logf("fakeintake task enqueued: task_id=%s action_fqn=%s inputs=%s", taskID, fqn, requestEvidence)
-	t.Logf("real Agent IPC endpoint configured: https://127.0.0.1:%d%s", cmdPortInt, com_datadoghq_remotequeries.AgentRemoteQueryExecuteEndpointPath)
+	t.Logf("real AgentSecure IPC configured: 127.0.0.1:%d RemoteQueryExecute", cmdPortInt)
 	require.NoError(t, fakeintakeClient.EnqueuePARTask(taskID, fqn, inputs))
 
 	result, err := fakeintakeClient.GetPARTaskResult(taskID, 20*time.Second)
 	require.NoError(t, err)
+	if !result.Success {
+		t.Logf("failed PAR task result: %+v", result)
+	}
 	require.True(t, result.Success)
 	require.Equal(t, taskID, result.TaskID)
 	assert.Equal(t, "SUCCEEDED", result.Outputs["status"])
@@ -126,7 +129,7 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC(t *testing.T)
 	writeFusedEvidence(t, getenvOptional("RQ_FUSED_EVIDENCE_FILE"), []string{
 		fmt.Sprintf("fakeintake task enqueued: task_id=%s action_fqn=%s inputs=%s", taskID, fqn, requestEvidence),
 		"live PAR loop dequeued the fakeintake OPMS task and invoked the registered action",
-		fmt.Sprintf("real Agent IPC endpoint called via NewDefaultBridgeClient: https://127.0.0.1:%d%s", cmdPortInt, com_datadoghq_remotequeries.AgentRemoteQueryExecuteEndpointPath),
+		fmt.Sprintf("real AgentSecure IPC called via NewDefaultBridgeClient: 127.0.0.1:%d RemoteQueryExecute", cmdPortInt),
 		fmt.Sprintf("fakeintake captured successful PAR task result: %s", resultEvidence),
 		fmt.Sprintf("dequeue_calls=%d", dequeueCalls),
 		"task verification skipped locally with DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true",

@@ -58,15 +58,108 @@ func remoteQueryRunnerFor(chk check.Check) (remoteQueryRunner, bool) {
 // NewRemoteQueryExecuteEndpointProvider registers the remote query execute endpoint on the internal Agent API.
 func NewRemoteQueryExecuteEndpointProvider(reqs Requires) api.AgentEndpointProvider {
 	h := &remoteQueryExecuteHandler{
-		collector: reqs.Collector,
-		enabled:   reqs.Cfg.GetBool(RemoteQueriesExecuteEnabledConfig),
+		service: NewRemoteQueryExecuteService(reqs.Collector, reqs.Cfg.GetBool(RemoteQueriesExecuteEnabledConfig)),
 	}
 	return api.NewAgentEndpointProvider(h.handle, RemoteQueryExecuteEndpointPath, http.MethodPost)
 }
 
 type remoteQueryExecuteHandler struct {
+	service   *RemoteQueryExecuteService
 	collector collector.Component
 	enabled   bool
+}
+
+// RemoteQueryExecuteService executes credential-free Remote Queries requests through loaded checks.
+type RemoteQueryExecuteService struct {
+	collector collector.Component
+	enabled   bool
+}
+
+// NewRemoteQueryExecuteService creates the shared executor used by the HTTP POC endpoint and AgentSecure RPC.
+func NewRemoteQueryExecuteService(collector collector.Component, enabled bool) *RemoteQueryExecuteService {
+	return &RemoteQueryExecuteService{collector: collector, enabled: enabled}
+}
+
+// RemoteQueryExecuteTarget identifies the datastore target without carrying credentials.
+type RemoteQueryExecuteTarget struct {
+	Host   string
+	Port   int
+	DBName string
+}
+
+// RemoteQueryExecuteLimits contains optional execution limits for a remote query.
+type RemoteQueryExecuteLimits struct {
+	MaxRows   int
+	MaxBytes  int
+	TimeoutMs int
+}
+
+// RemoteQueryExecuteRequest is the typed internal request shape shared by HTTP and gRPC callers.
+type RemoteQueryExecuteRequest struct {
+	Integration string
+	Target      RemoteQueryExecuteTarget
+	Query       string
+	Limits      *RemoteQueryExecuteLimits
+}
+
+// RemoteQueryExecuteError is a sanitized remote query bridge error.
+type RemoteQueryExecuteError struct {
+	Code    string
+	Message string
+}
+
+// RemoteQueryExecuteResult is the service result. ResponseJSON is set only for successful executor responses.
+type RemoteQueryExecuteResult struct {
+	HTTPStatus   int
+	Status       string
+	Error        *RemoteQueryExecuteError
+	ResponseJSON string
+}
+
+const (
+	// RemoteQueryStatusInvalidRequest reports a malformed or disallowed request.
+	RemoteQueryStatusInvalidRequest = statusInvalidRequest
+	// RemoteQueryStatusExecutorUnavailable reports an unavailable matched executor or bridge dependency.
+	RemoteQueryStatusExecutorUnavailable = statusExecutorUnavailable
+)
+
+// NewRemoteQueryExecuteRequest validates and normalizes a typed Remote Queries execute request.
+func NewRemoteQueryExecuteRequest(integration string, target RemoteQueryExecuteTarget, query string, limits *RemoteQueryExecuteLimits) (RemoteQueryExecuteRequest, error) {
+	parsedIntegration, err := parseIntegration(integration)
+	if err != nil {
+		return RemoteQueryExecuteRequest{}, err
+	}
+
+	parsedTarget, err := parseTarget(&remoteQueryTargetRequestJSON{Host: target.Host, Port: &target.Port, DBName: target.DBName})
+	if err != nil {
+		return RemoteQueryExecuteRequest{}, err
+	}
+
+	if query == "" {
+		return RemoteQueryExecuteRequest{}, fmt.Errorf("query is required")
+	}
+	if query != remoteQueryProofQuery {
+		return RemoteQueryExecuteRequest{}, fmt.Errorf("query is not allowed")
+	}
+
+	var parsedLimits *remoteQueryExecuteLimits
+	if limits != nil {
+		parsedLimits, err = parseExecuteLimits(&remoteQueryExecuteLimitsRequestJSON{
+			MaxRows:   &limits.MaxRows,
+			MaxBytes:  &limits.MaxBytes,
+			TimeoutMs: &limits.TimeoutMs,
+		})
+		if err != nil {
+			return RemoteQueryExecuteRequest{}, err
+		}
+	}
+
+	return remoteQueryExecuteRequestFromInternal(remoteQueryExecuteRequest{
+		Integration: parsedIntegration,
+		Target:      parsedTarget,
+		Query:       query,
+		Limits:      parsedLimits,
+	}), nil
 }
 
 type remoteQueryExecuteRequest struct {
@@ -116,43 +209,29 @@ type remoteQueryExecuteLimitsJSON struct {
 func (h *remoteQueryExecuteHandler) handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	if !h.enabled {
+	service := h.service
+	if service == nil {
+		service = NewRemoteQueryExecuteService(h.collector, h.enabled)
+	}
+	if service == nil || !service.enabled {
 		writeExecuteError(w, http.StatusServiceUnavailable, statusBridgeDisabled, "remote queries bridge is disabled")
 		return
 	}
 
-	req, requestJSON, err := parseExecuteRequest(r)
+	req, _, err := parseExecuteRequest(r)
 	if err != nil {
 		writeExecuteParseError(w, err)
 		return
 	}
 
-	matches := h.findMatches(req.Integration, req.Target)
-	switch len(matches) {
-	case 0:
-		writeExecuteError(w, http.StatusNotFound, statusTargetNotFound, "no matching integration check found")
-		return
-	case 1:
-		// continue below
-	default:
-		writeExecuteError(w, http.StatusConflict, statusAmbiguous, "multiple matching integration checks found")
-		return
-	}
-
-	runner, ok := remoteQueryRunnerFor(matches[0].check)
-	if !ok {
-		writeExecuteError(w, http.StatusFailedDependency, statusExecutorUnavailable, "matched integration check does not support remote query execution")
-		return
-	}
-
-	responseJSON, err := runner.RunRemoteQueryJSON(req.Integration, requestJSON)
-	if err != nil {
-		writeExecuteError(w, http.StatusBadGateway, statusExecutorUnavailable, "remote query executor failed")
+	result := service.Execute(remoteQueryExecuteRequestFromInternal(req))
+	if result.Error != nil {
+		writeExecuteError(w, result.HTTPStatus, result.Error.Code, result.Error.Message)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	_, _ = io.WriteString(w, responseJSON)
+	_, _ = io.WriteString(w, result.ResponseJSON)
 }
 
 func parseExecuteRequest(r *http.Request) (remoteQueryExecuteRequest, string, error) {
@@ -249,8 +328,73 @@ func parseRequiredPositiveInt(value *int, name string) (int, error) {
 	return *value, nil
 }
 
-func (h *remoteQueryExecuteHandler) findMatches(integration string, target remoteQueryTarget) []integrationCheckMatch {
-	return findIntegrationMatches(h.collector, integration, target)
+func (s *RemoteQueryExecuteService) Execute(req RemoteQueryExecuteRequest) RemoteQueryExecuteResult {
+	if s == nil || !s.enabled {
+		return remoteQueryExecuteErrorResult(http.StatusServiceUnavailable, statusBridgeDisabled, "remote queries bridge is disabled")
+	}
+	if s.collector == nil {
+		return remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "remote query executor is unavailable")
+	}
+
+	internal := req.internal()
+	matches := findIntegrationMatches(s.collector, internal.Integration, internal.Target)
+	switch len(matches) {
+	case 0:
+		return remoteQueryExecuteErrorResult(http.StatusNotFound, statusTargetNotFound, "no matching integration check found")
+	case 1:
+		// continue below
+	default:
+		return remoteQueryExecuteErrorResult(http.StatusConflict, statusAmbiguous, "multiple matching integration checks found")
+	}
+
+	runner, ok := remoteQueryRunnerFor(matches[0].check)
+	if !ok {
+		return remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "matched integration check does not support remote query execution")
+	}
+
+	requestJSON, err := marshalExecuteRequest(internal)
+	if err != nil {
+		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "malformed JSON request")
+	}
+
+	responseJSON, err := runner.RunRemoteQueryJSON(internal.Integration, requestJSON)
+	if err != nil {
+		return remoteQueryExecuteErrorResult(http.StatusBadGateway, statusExecutorUnavailable, "remote query executor failed")
+	}
+
+	return RemoteQueryExecuteResult{HTTPStatus: http.StatusOK, ResponseJSON: responseJSON}
+}
+
+func remoteQueryExecuteErrorResult(httpStatus int, status string, message string) RemoteQueryExecuteResult {
+	return RemoteQueryExecuteResult{
+		HTTPStatus: httpStatus,
+		Status:     status,
+		Error:      &RemoteQueryExecuteError{Code: status, Message: message},
+	}
+}
+
+func (r RemoteQueryExecuteRequest) internal() remoteQueryExecuteRequest {
+	internal := remoteQueryExecuteRequest{
+		Integration: r.Integration,
+		Target:      remoteQueryTarget{Host: r.Target.Host, Port: r.Target.Port, DBName: r.Target.DBName},
+		Query:       r.Query,
+	}
+	if r.Limits != nil {
+		internal.Limits = &remoteQueryExecuteLimits{MaxRows: r.Limits.MaxRows, MaxBytes: r.Limits.MaxBytes, TimeoutMs: r.Limits.TimeoutMs}
+	}
+	return internal
+}
+
+func remoteQueryExecuteRequestFromInternal(req remoteQueryExecuteRequest) RemoteQueryExecuteRequest {
+	out := RemoteQueryExecuteRequest{
+		Integration: req.Integration,
+		Target:      RemoteQueryExecuteTarget{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName},
+		Query:       req.Query,
+	}
+	if req.Limits != nil {
+		out.Limits = &RemoteQueryExecuteLimits{MaxRows: req.Limits.MaxRows, MaxBytes: req.Limits.MaxBytes, TimeoutMs: req.Limits.TimeoutMs}
+	}
+	return out
 }
 
 func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {

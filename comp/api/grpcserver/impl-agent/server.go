@@ -7,13 +7,17 @@ package agentimpl
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strconv"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	autodiscoverystream "github.com/DataDog/datadog-agent/comp/core/autodiscovery/stream"
@@ -33,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
+	remotequeriesimpl "github.com/DataDog/datadog-agent/comp/remotequeries/impl"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -60,6 +65,7 @@ type serverSecure struct {
 	autodiscovery        autodiscovery.Component
 	configComp           config.Component
 	configStreamServer   *configstreamServer.Server
+	remoteQueries        *remotequeriesimpl.RemoteQueryExecuteService
 }
 
 func (s *agentServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -273,4 +279,137 @@ func (s *serverSecure) CreateConfigSubscription(stream pb.AgentSecure_CreateConf
 
 func (s *serverSecure) WorkloadFilterEvaluate(ctx context.Context, req *pb.WorkloadFilterEvaluateRequest) (*pb.WorkloadFilterEvaluateResponse, error) {
 	return s.workloadfilterServer.WorkloadFilterEvaluate(ctx, req)
+}
+
+func (s *serverSecure) RemoteQueryExecute(_ context.Context, req *pb.RemoteQueryExecuteRequest) (*pb.RemoteQueryExecuteResponse, error) {
+	if s.remoteQueries == nil {
+		return remoteQueryExecuteErrorResponse(remotequeriesimpl.RemoteQueryStatusExecutorUnavailable, "remote query executor is unavailable"), nil
+	}
+
+	limits := remoteQueryLimitsFromProto(req.GetLimits())
+	execReq, err := remotequeriesimpl.NewRemoteQueryExecuteRequest(
+		req.GetIntegration(),
+		remotequeriesimpl.RemoteQueryExecuteTarget{
+			Host:   req.GetTarget().GetHost(),
+			Port:   int(req.GetTarget().GetPort()),
+			DBName: req.GetTarget().GetDbname(),
+		},
+		req.GetQuery(),
+		limits,
+	)
+	if err != nil {
+		return remoteQueryExecuteErrorResponse(remotequeriesimpl.RemoteQueryStatusInvalidRequest, err.Error()), nil
+	}
+
+	result := s.remoteQueries.Execute(execReq)
+	if result.Error != nil {
+		return remoteQueryExecuteErrorResponse(result.Error.Code, result.Error.Message), nil
+	}
+
+	return remoteQueryExecuteResponseFromJSON(result.ResponseJSON)
+}
+
+func remoteQueryLimitsFromProto(limits *pb.RemoteQueryExecuteLimits) *remotequeriesimpl.RemoteQueryExecuteLimits {
+	if limits == nil {
+		return nil
+	}
+	return &remotequeriesimpl.RemoteQueryExecuteLimits{
+		MaxRows:   int(limits.GetMaxRows()),
+		MaxBytes:  int(limits.GetMaxBytes()),
+		TimeoutMs: int(limits.GetTimeoutMs()),
+	}
+}
+
+func remoteQueryExecuteErrorResponse(code string, message string) *pb.RemoteQueryExecuteResponse {
+	return &pb.RemoteQueryExecuteResponse{
+		Status: code,
+		Error:  &pb.RemoteQueryExecuteError{Code: code, Message: message},
+	}
+}
+
+type remoteQueryExecuteJSONResponse struct {
+	Status    string                   `json:"status"`
+	Error     *remoteQueryExecuteError `json:"error,omitempty"`
+	Columns   []map[string]interface{} `json:"columns,omitempty"`
+	Rows      []map[string]interface{} `json:"rows,omitempty"`
+	Truncated bool                     `json:"truncated,omitempty"`
+	Stats     map[string]interface{}   `json:"stats,omitempty"`
+}
+
+type remoteQueryExecuteError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+func remoteQueryExecuteResponseFromJSON(responseJSON string) (*pb.RemoteQueryExecuteResponse, error) {
+	var payload remoteQueryExecuteJSONResponse
+	decoder := json.NewDecoder(strings.NewReader(responseJSON))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payload); err != nil {
+		return nil, status.Error(codes.Internal, "remote query executor returned invalid JSON")
+	}
+	if payload.Status == "" {
+		return nil, status.Error(codes.Internal, "remote query executor response missing status")
+	}
+
+	out := &pb.RemoteQueryExecuteResponse{
+		Status:    payload.Status,
+		Truncated: payload.Truncated,
+	}
+	if payload.Error != nil {
+		out.Error = &pb.RemoteQueryExecuteError{Code: payload.Error.Code, Message: payload.Error.Message}
+	}
+	for _, column := range payload.Columns {
+		pbColumn, err := structpb.NewStruct(normalizeRemoteQueryStruct(column))
+		if err != nil {
+			return nil, status.Error(codes.Internal, "remote query executor returned invalid column data")
+		}
+		out.Columns = append(out.Columns, pbColumn)
+	}
+	for _, row := range payload.Rows {
+		pbRow, err := structpb.NewStruct(normalizeRemoteQueryStruct(row))
+		if err != nil {
+			return nil, status.Error(codes.Internal, "remote query executor returned invalid row data")
+		}
+		out.Rows = append(out.Rows, pbRow)
+	}
+	if payload.Stats != nil {
+		stats, err := structpb.NewStruct(normalizeRemoteQueryStruct(payload.Stats))
+		if err != nil {
+			return nil, status.Error(codes.Internal, "remote query executor returned invalid stats data")
+		}
+		out.Stats = stats
+	}
+	return out, nil
+}
+
+func normalizeRemoteQueryStruct(in map[string]interface{}) map[string]interface{} {
+	out := make(map[string]interface{}, len(in))
+	for key, value := range in {
+		out[key] = normalizeRemoteQueryValue(value)
+	}
+	return out
+}
+
+func normalizeRemoteQueryValue(value interface{}) interface{} {
+	switch v := value.(type) {
+	case json.Number:
+		if i, err := strconv.ParseInt(v.String(), 10, 64); err == nil {
+			return i
+		}
+		if f, err := strconv.ParseFloat(v.String(), 64); err == nil {
+			return f
+		}
+		return v.String()
+	case map[string]interface{}:
+		return normalizeRemoteQueryStruct(v)
+	case []interface{}:
+		out := make([]interface{}, len(v))
+		for i, item := range v {
+			out[i] = normalizeRemoteQueryValue(item)
+		}
+		return out
+	default:
+		return v
+	}
 }

@@ -6,40 +6,41 @@
 package com_datadoghq_remotequeries
 
 import (
+	"context"
 	"fmt"
-	"net"
-	"net/url"
 	"strconv"
+	"time"
 
-	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
-	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 // NewDefaultBridgeClient creates the local Agent IPC client used by the registered PAR action.
-func NewDefaultBridgeClient() (BridgeClient, string, error) {
+func NewDefaultBridgeClient() (BridgeClient, error) {
 	cfg := pkgconfigsetup.Datadog()
 
-	token, err := pkgtoken.FetchAuthToken(cfg)
-	if err != nil {
-		return nil, "", fmt.Errorf("fetch Agent IPC auth token: %w", err)
-	}
 	clientTLSConfig, _, _, err := cert.FetchIPCCert(cfg)
 	if err != nil {
-		return nil, "", fmt.Errorf("fetch Agent IPC certificate: %w", err)
+		return nil, fmt.Errorf("fetch Agent IPC certificate: %w", err)
 	}
 
-	endpointURL, err := agentIPCURL(cfg, AgentRemoteQueryExecuteEndpointPath)
+	ipcHost, err := agentIPCHost()
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
-	return ipchttp.NewClient(token, clientTLSConfig, cfg), endpointURL, nil
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcHost, strconv.Itoa(cfg.GetInt("cmd_port")), clientTLSConfig)
+	if err != nil {
+		return nil, fmt.Errorf("create AgentSecure client: %w", err)
+	}
+	return client, nil
 }
 
-func agentIPCURL(cfg pkgconfigmodel.Reader, endpointPath string) (string, error) {
+func agentIPCHost() (string, error) {
+	cfg := pkgconfigsetup.Datadog()
 	cmdHostKey := "cmd_host"
 	if cfg.IsConfigured("ipc_address") {
 		cmdHostKey = "ipc_address"
@@ -49,11 +50,5 @@ func agentIPCURL(cfg pkgconfigmodel.Reader, endpointPath string) (string, error)
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", cmdHostKey, err)
 	}
-
-	endpointURL := url.URL{
-		Scheme: "https",
-		Host:   net.JoinHostPort(ipcHost, strconv.Itoa(cfg.GetInt("cmd_port"))),
-		Path:   endpointPath,
-	}
-	return endpointURL.String(), nil
+	return ipcHost, nil
 }

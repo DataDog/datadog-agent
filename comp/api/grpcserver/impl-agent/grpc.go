@@ -32,6 +32,7 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
+	remotequeriesimpl "github.com/DataDog/datadog-agent/comp/remotequeries/impl"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -81,6 +82,7 @@ type server struct {
 	telemetry           telemetry.Component
 	hostname            hostnameinterface.Component
 	configStream        configstream.Component
+	remoteQueries       *remotequeriesimpl.RemoteQueryExecuteService
 }
 
 func (s *server) BuildServer() http.Handler {
@@ -122,6 +124,7 @@ func (s *server) BuildServer() http.Handler {
 		autodiscovery:        s.autodiscovery,
 		configComp:           s.configComp,
 		configStreamServer:   configstreamServer.NewServer(s.configComp, s.configStream, s.remoteAgentRegistry),
+		remoteQueries:        s.remoteQueries,
 	})
 
 	return grpcServer
@@ -134,6 +137,7 @@ type Provides struct {
 
 // NewComponent creates a new grpc component
 func NewComponent(reqs Requires) (Provides, error) {
+	collector, _ := reqs.Collector.Get()
 	provides := Provides{
 		Comp: &server{
 			IPC:                 reqs.IPC,
@@ -152,6 +156,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			telemetry:           reqs.Telemetry,
 			hostname:            reqs.Hostname,
 			configStream:        reqs.ConfigStream,
+			remoteQueries:       remotequeriesimpl.NewRemoteQueryExecuteService(collector, reqs.Cfg.GetBool(remotequeriesimpl.RemoteQueriesExecuteEnabledConfig)),
 		},
 	}
 	return provides, nil

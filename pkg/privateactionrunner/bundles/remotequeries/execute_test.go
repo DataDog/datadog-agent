@@ -8,22 +8,25 @@ package com_datadoghq_remotequeries
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"io"
 	"testing"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/structpb"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestExecuteActionUsesCredentialFreeIPCPostShape(t *testing.T) {
-	client := &captureBridgeClient{response: []byte(`{"status":"SUCCEEDED","rows":[{"value":1}]}`)}
-	action := NewExecuteAction(func() (BridgeClient, string, error) {
-		return client, "https://localhost:5001" + AgentRemoteQueryExecuteEndpointPath, nil
+func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
+	row, err := structpb.NewStruct(map[string]interface{}{"value": 1})
+	require.NoError(t, err)
+	client := &captureBridgeClient{response: &pb.RemoteQueryExecuteResponse{Status: "SUCCEEDED", Rows: []*structpb.Struct{row}}}
+	action := NewExecuteAction(func() (BridgeClient, error) {
+		return client, nil
 	})
 
 	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
@@ -42,25 +45,30 @@ func TestExecuteActionUsesCredentialFreeIPCPostShape(t *testing.T) {
 	}), &privateconnection.PrivateCredentials{Tokens: []privateconnection.PrivateCredentialsToken{{Name: "password", Value: "secret-value"}}})
 
 	require.NoError(t, err)
-	assert.Equal(t, "https://localhost:5001"+AgentRemoteQueryExecuteEndpointPath, client.url)
-	assert.Equal(t, "application/json", client.contentType)
-	assert.JSONEq(t, `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","limits":{"maxRows":1,"maxBytes":1024,"timeoutMs":1000}}`, client.body)
-	assert.NotContains(t, client.body, "secret-value")
+	require.NotNil(t, client.request)
+	assert.Equal(t, "postgres", client.request.GetIntegration())
+	assert.Equal(t, "localhost", client.request.GetTarget().GetHost())
+	assert.Equal(t, int32(5432), client.request.GetTarget().GetPort())
+	assert.Equal(t, "postgres", client.request.GetTarget().GetDbname())
+	assert.Equal(t, "SELECT 1 AS value", client.request.GetQuery())
+	assert.Equal(t, int32(1), client.request.GetLimits().GetMaxRows())
+	requestEvidence, err := json.Marshal(client.request)
+	require.NoError(t, err)
+	assert.NotContains(t, string(requestEvidence), "secret-value")
 	assert.Equal(t, map[string]interface{}{
 		"status": "SUCCEEDED",
 		"rows": []interface{}{
-			map[string]interface{}{"value": json.Number("1")},
+			map[string]interface{}{"value": float64(1)},
 		},
 	}, output)
 }
 
 func TestExecuteActionPreservesSanitizedBridgeErrorBody(t *testing.T) {
 	client := &captureBridgeClient{
-		response: []byte(`{"status":"target_not_found","error":{"code":"target_not_found","message":"no matching integration check found"}}`),
-		err:      errors.New("status 404"),
+		response: &pb.RemoteQueryExecuteResponse{Status: "target_not_found", Error: &pb.RemoteQueryExecuteError{Code: "target_not_found", Message: "no matching integration check found"}},
 	}
-	action := NewExecuteAction(func() (BridgeClient, string, error) {
-		return client, "https://localhost:5001" + AgentRemoteQueryExecuteEndpointPath, nil
+	action := NewExecuteAction(func() (BridgeClient, error) {
+		return client, nil
 	})
 
 	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
@@ -80,9 +88,9 @@ func TestExecuteActionPreservesSanitizedBridgeErrorBody(t *testing.T) {
 }
 
 func TestExecuteActionSanitizesInputExtractionErrors(t *testing.T) {
-	action := NewExecuteAction(func() (BridgeClient, string, error) {
+	action := NewExecuteAction(func() (BridgeClient, error) {
 		require.Fail(t, "bridge client should not be created for invalid inputs")
-		return nil, "", nil
+		return nil, nil
 	})
 
 	_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
@@ -112,20 +120,12 @@ func taskWithInputs(inputs map[string]interface{}) *types.Task {
 }
 
 type captureBridgeClient struct {
-	url         string
-	contentType string
-	body        string
-	response    []byte
-	err         error
+	request  *pb.RemoteQueryExecuteRequest
+	response *pb.RemoteQueryExecuteResponse
+	err      error
 }
 
-func (c *captureBridgeClient) Post(url string, contentType string, body io.Reader, _ ...ipc.RequestOption) ([]byte, error) {
-	c.url = url
-	c.contentType = contentType
-	payload, err := io.ReadAll(body)
-	if err != nil {
-		return nil, err
-	}
-	c.body = string(payload)
+func (c *captureBridgeClient) RemoteQueryExecute(_ context.Context, req *pb.RemoteQueryExecuteRequest, _ ...grpc.CallOption) (*pb.RemoteQueryExecuteResponse, error) {
+	c.request = req
 	return c.response, c.err
 }

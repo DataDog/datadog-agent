@@ -10,6 +10,7 @@ import "datadog/workloadfilter/workloadfilter.proto";
 import "datadog/autodiscovery/autodiscovery.proto";
 import "datadog/kubemetadata/kubemetadata.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
 
 option go_package = "pkg/proto/pbgo/core"; // golang
 
@@ -18,6 +19,39 @@ option go_package = "pkg/proto/pbgo/core"; // golang
 service Agent {
     // get the hostname
     rpc GetHostname (datadog.model.v1.HostnameRequest) returns (datadog.model.v1.HostnameReply);
+}
+
+message RemoteQueryTarget {
+    string host = 1;
+    int32 port = 2;
+    string dbname = 3;
+}
+
+message RemoteQueryExecuteLimits {
+    int32 max_rows = 1;
+    int32 max_bytes = 2;
+    int32 timeout_ms = 3;
+}
+
+message RemoteQueryExecuteRequest {
+    string integration = 1;
+    RemoteQueryTarget target = 2;
+    string query = 3;
+    RemoteQueryExecuteLimits limits = 4;
+}
+
+message RemoteQueryExecuteError {
+    string code = 1;
+    string message = 2;
+}
+
+message RemoteQueryExecuteResponse {
+    string status = 1;
+    RemoteQueryExecuteError error = 2;
+    repeated google.protobuf.Struct columns = 3;
+    repeated google.protobuf.Struct rows = 4;
+    bool truncated = 5;
+    google.protobuf.Struct stats = 6;
 }
 
 service AgentSecure {
@@ -70,6 +104,9 @@ service AgentSecure {
 
     // Evaluates a workloadfilter rule on behalf of remote agents.
     rpc WorkloadFilterEvaluate(datadog.workloadfilter.WorkloadFilterEvaluateRequest) returns (datadog.workloadfilter.WorkloadFilterEvaluateResponse);
+
+    // Executes an Agent-local Remote Queries request through a matched integration check.
+    rpc RemoteQueryExecute(RemoteQueryExecuteRequest) returns (RemoteQueryExecuteResponse);
 
     // Streams pod-to-service metadata for a specific node.
     rpc StreamKubeMetadata(datadog.kubemetadata.KubeMetadataStreamRequest) returns (stream datadog.kubemetadata.KubeMetadataStreamResponse);

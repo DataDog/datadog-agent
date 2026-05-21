@@ -8,19 +8,18 @@
 package com_datadoghq_remotequeries_test
 
 import (
-	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
-	"io"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/structpb"
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	com_datadoghq_remotequeries "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remotequeries"
@@ -28,34 +27,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	fakeintakeserver "github.com/DataDog/datadog-agent/test/fakeintake/server"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func TestRemoteQueriesActionRunsThroughLivePARLoopAndFakeintake(t *testing.T) {
 	t.Setenv(app.InternalSkipTaskVerificationEnvVar, "true")
 
-	bridgeRequests := make(chan []byte, 1)
-	bridgeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodPost, r.Method)
-		require.Equal(t, com_datadoghq_remotequeries.AgentRemoteQueryExecuteEndpointPath, r.URL.Path)
-		require.Contains(t, r.Header.Get("Content-Type"), "application/json")
-
-		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
-		bridgeRequests <- body
-
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"status":"SUCCEEDED","rows":[{"value":1}]}`))
-	}))
-	defer bridgeServer.Close()
-
-	restoreFactory := com_datadoghq_remotequeries.SetBridgeClientFactoryForTest(func() (com_datadoghq_remotequeries.BridgeClient, string, error) {
-		return httpBridgeClient{}, bridgeServer.URL + com_datadoghq_remotequeries.AgentRemoteQueryExecuteEndpointPath, nil
+	row, err := structpb.NewStruct(map[string]interface{}{"value": 1})
+	require.NoError(t, err)
+	bridgeRequests := make(chan *pb.RemoteQueryExecuteRequest, 1)
+	restoreFactory := com_datadoghq_remotequeries.SetBridgeClientFactoryForTest(func() (com_datadoghq_remotequeries.BridgeClient, error) {
+		return &captureAgentSecureClient{
+			requests: bridgeRequests,
+			response: &pb.RemoteQueryExecuteResponse{Status: "SUCCEEDED", Rows: []*structpb.Struct{row}},
+		}, nil
 	})
 	defer restoreFactory()
 
@@ -102,19 +92,21 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopAndFakeintake(t *testing.T) {
 	assert.Equal(t, "SUCCEEDED", result.Outputs["status"])
 	require.Contains(t, result.Outputs, "rows")
 
-	var bridgeRequest map[string]interface{}
 	select {
-	case body := <-bridgeRequests:
-		require.NotContains(t, string(body), "password")
-		require.NotContains(t, string(body), "token")
-		require.NotContains(t, string(body), "secret")
-		require.NoError(t, json.Unmarshal(body, &bridgeRequest))
+	case req := <-bridgeRequests:
+		requestEvidence, err := json.Marshal(req)
+		require.NoError(t, err)
+		require.NotContains(t, string(requestEvidence), "password")
+		require.NotContains(t, string(requestEvidence), "token")
+		require.NotContains(t, string(requestEvidence), "secret")
+		assert.Equal(t, "postgres", req.GetIntegration())
+		assert.Equal(t, "SELECT 1 AS value", req.GetQuery())
+		assert.Equal(t, "localhost", req.GetTarget().GetHost())
+		assert.Equal(t, int32(5432), req.GetTarget().GetPort())
+		assert.Equal(t, "postgres", req.GetTarget().GetDbname())
 	case <-time.After(2 * time.Second):
-		require.FailNow(t, "remote query action did not call the local bridge")
+		require.FailNow(t, "remote query action did not call the AgentSecure client")
 	}
-	assert.Equal(t, "postgres", bridgeRequest["integration"])
-	assert.Equal(t, "SELECT 1 AS value", bridgeRequest["query"])
-	assert.Equal(t, map[string]interface{}{"host": "localhost", "port": float64(5432), "dbname": "postgres"}, bridgeRequest["target"])
 
 	dequeueCalls, err := fakeintakeClient.GetPARDequeueCount()
 	require.NoError(t, err)
@@ -152,24 +144,12 @@ func newLivePARTestConfig(t *testing.T, fakeintakeURL string) *parconfig.Config 
 	}
 }
 
-type httpBridgeClient struct{}
+type captureAgentSecureClient struct {
+	requests chan<- *pb.RemoteQueryExecuteRequest
+	response *pb.RemoteQueryExecuteResponse
+}
 
-func (httpBridgeClient) Post(url string, contentType string, body io.Reader, _ ...ipc.RequestOption) ([]byte, error) {
-	payload, err := io.ReadAll(body)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := http.Post(url, contentType, bytes.NewReader(payload))
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode >= 400 {
-		return respBody, assert.AnError
-	}
-	return respBody, nil
+func (c *captureAgentSecureClient) RemoteQueryExecute(_ context.Context, req *pb.RemoteQueryExecuteRequest, _ ...grpc.CallOption) (*pb.RemoteQueryExecuteResponse, error) {
+	c.requests <- req
+	return c.response, nil
 }

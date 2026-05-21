@@ -6,32 +6,24 @@
 package com_datadoghq_remotequeries
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	"google.golang.org/grpc"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
-const (
-	// AgentRemoteQueryExecuteEndpointPath is the POC-only Agent command API path this PAR action calls.
-	// It is intentionally local-only and is not a production API/IPC commitment.
-	AgentRemoteQueryExecuteEndpointPath = "/agent/remote-queries/execute"
-)
-
-// BridgeClient is the narrow Agent IPC HTTP client surface required by this action.
+// BridgeClient is the narrow AgentSecure gRPC client surface required by this action.
 type BridgeClient interface {
-	Post(url string, contentType string, body io.Reader, opts ...ipc.RequestOption) (resp []byte, err error)
+	RemoteQueryExecute(ctx context.Context, in *pb.RemoteQueryExecuteRequest, opts ...grpc.CallOption) (*pb.RemoteQueryExecuteResponse, error)
 }
 
-// BridgeClientFactory returns an IPC client and fully-qualified local Agent endpoint URL.
-type BridgeClientFactory func() (BridgeClient, string, error)
+// BridgeClientFactory returns an authenticated AgentSecure client over the local Agent IPC channel.
+type BridgeClientFactory func() (BridgeClient, error)
 
 type ExecuteAction struct {
 	newBridgeClient BridgeClientFactory
@@ -73,59 +65,79 @@ func (a *ExecuteAction) Run(
 		)
 	}
 
-	payload, err := json.Marshal(inputs)
-	if err != nil {
-		return nil, util.DefaultActionErrorWithDisplayError(
-			fmt.Errorf("marshal remote query action inputs"),
-			"invalid remote query action inputs",
-		)
-	}
-
 	if a == nil || a.newBridgeClient == nil {
 		return nil, util.DefaultActionError(fmt.Errorf("remote query action requires an Agent IPC client"))
 	}
-	client, endpointURL, err := a.newBridgeClient()
+	client, err := a.newBridgeClient()
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query action could not create an Agent IPC client")
 	}
-	if client == nil || endpointURL == "" {
-		return nil, util.DefaultActionError(fmt.Errorf("remote query action requires an Agent IPC client and endpoint URL"))
+	if client == nil {
+		return nil, util.DefaultActionError(fmt.Errorf("remote query action requires an AgentSecure client"))
 	}
 
-	body, postErr := client.Post(endpointURL, "application/json", bytes.NewReader(payload), ipchttp.WithContext(ctx))
-	output, decodeErr := decodeBridgeResponse(body)
-	if decodeErr == nil {
-		// IPC HTTPClient returns both the response body and an error for HTTP >= 400.
-		// The bridge body is already sanitized, so preserve its status/error payload as the action output.
-		return output, nil
+	resp, err := client.RemoteQueryExecute(ctx, remoteQueryExecuteRequestFromInputs(inputs))
+	if err != nil {
+		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure RPC failed")
 	}
-	if postErr != nil {
-		if len(body) > 0 {
-			return nil, util.DefaultActionErrorWithDisplayError(
-				fmt.Errorf("remote query IPC request failed with undecodable response"),
-				"remote query IPC request failed with undecodable response",
-			)
-		}
-		return nil, util.DefaultActionErrorWithDisplayError(postErr, "remote query IPC request failed")
+	output, err := remoteQueryExecuteOutputFromProto(resp)
+	if err != nil {
+		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure RPC response was invalid")
 	}
-	return nil, util.DefaultActionErrorWithDisplayError(decodeErr, "remote query IPC response was invalid")
+	return output, nil
 }
 
-func decodeBridgeResponse(body []byte) (map[string]interface{}, error) {
-	if len(body) == 0 {
-		return nil, fmt.Errorf("empty remote query response")
+func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryExecuteRequest {
+	req := &pb.RemoteQueryExecuteRequest{
+		Integration: inputs.Integration,
+		Target: &pb.RemoteQueryTarget{
+			Host:   inputs.Target.Host,
+			Port:   int32(inputs.Target.Port),
+			Dbname: inputs.Target.DBName,
+		},
+		Query: inputs.Query,
 	}
-
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	decoder.UseNumber()
-
-	var output map[string]interface{}
-	if err := decoder.Decode(&output); err != nil {
-		return nil, fmt.Errorf("decode remote query response: %w", err)
+	if inputs.Limits != nil {
+		req.Limits = &pb.RemoteQueryExecuteLimits{
+			MaxRows:   int32(inputs.Limits.MaxRows),
+			MaxBytes:  int32(inputs.Limits.MaxBytes),
+			TimeoutMs: int32(inputs.Limits.TimeoutMs),
+		}
 	}
-	status, ok := output["status"].(string)
-	if !ok || status == "" {
+	return req
+}
+
+func remoteQueryExecuteOutputFromProto(resp *pb.RemoteQueryExecuteResponse) (map[string]interface{}, error) {
+	if resp == nil || resp.GetStatus() == "" {
 		return nil, fmt.Errorf("remote query response missing status")
+	}
+
+	output := map[string]interface{}{"status": resp.GetStatus()}
+	if resp.GetError() != nil {
+		output["error"] = map[string]interface{}{
+			"code":    resp.GetError().GetCode(),
+			"message": resp.GetError().GetMessage(),
+		}
+	}
+	if len(resp.GetColumns()) > 0 {
+		columns := make([]interface{}, 0, len(resp.GetColumns()))
+		for _, column := range resp.GetColumns() {
+			columns = append(columns, column.AsMap())
+		}
+		output["columns"] = columns
+	}
+	if len(resp.GetRows()) > 0 {
+		rows := make([]interface{}, 0, len(resp.GetRows()))
+		for _, row := range resp.GetRows() {
+			rows = append(rows, row.AsMap())
+		}
+		output["rows"] = rows
+	}
+	if resp.GetTruncated() {
+		output["truncated"] = true
+	}
+	if resp.GetStats() != nil {
+		output["stats"] = resp.GetStats().AsMap()
 	}
 	return output, nil
 }

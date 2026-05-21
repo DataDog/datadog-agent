@@ -146,6 +146,7 @@ const (
 	AgentSecure_GetHostTags_FullMethodName                             = "/datadog.api.v1.AgentSecure/GetHostTags"
 	AgentSecure_StreamConfigEvents_FullMethodName                      = "/datadog.api.v1.AgentSecure/StreamConfigEvents"
 	AgentSecure_WorkloadFilterEvaluate_FullMethodName                  = "/datadog.api.v1.AgentSecure/WorkloadFilterEvaluate"
+	AgentSecure_RemoteQueryExecute_FullMethodName                      = "/datadog.api.v1.AgentSecure/RemoteQueryExecute"
 	AgentSecure_StreamKubeMetadata_FullMethodName                      = "/datadog.api.v1.AgentSecure/StreamKubeMetadata"
 )
 
@@ -185,6 +186,8 @@ type AgentSecureClient interface {
 	StreamConfigEvents(ctx context.Context, in *ConfigStreamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ConfigEvent], error)
 	// Evaluates a workloadfilter rule on behalf of remote agents.
 	WorkloadFilterEvaluate(ctx context.Context, in *WorkloadFilterEvaluateRequest, opts ...grpc.CallOption) (*WorkloadFilterEvaluateResponse, error)
+	// Executes an Agent-local Remote Queries request through a matched integration check.
+	RemoteQueryExecute(ctx context.Context, in *RemoteQueryExecuteRequest, opts ...grpc.CallOption) (*RemoteQueryExecuteResponse, error)
 	// Streams pod-to-service metadata for a specific node.
 	StreamKubeMetadata(ctx context.Context, in *KubeMetadataStreamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[KubeMetadataStreamResponse], error)
 }
@@ -416,6 +419,16 @@ func (c *agentSecureClient) WorkloadFilterEvaluate(ctx context.Context, in *Work
 	return out, nil
 }
 
+func (c *agentSecureClient) RemoteQueryExecute(ctx context.Context, in *RemoteQueryExecuteRequest, opts ...grpc.CallOption) (*RemoteQueryExecuteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoteQueryExecuteResponse)
+	err := c.cc.Invoke(ctx, AgentSecure_RemoteQueryExecute_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *agentSecureClient) StreamKubeMetadata(ctx context.Context, in *KubeMetadataStreamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[KubeMetadataStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &AgentSecure_ServiceDesc.Streams[5], AgentSecure_StreamKubeMetadata_FullMethodName, cOpts...)
@@ -471,6 +484,8 @@ type AgentSecureServer interface {
 	StreamConfigEvents(*ConfigStreamRequest, grpc.ServerStreamingServer[ConfigEvent]) error
 	// Evaluates a workloadfilter rule on behalf of remote agents.
 	WorkloadFilterEvaluate(context.Context, *WorkloadFilterEvaluateRequest) (*WorkloadFilterEvaluateResponse, error)
+	// Executes an Agent-local Remote Queries request through a matched integration check.
+	RemoteQueryExecute(context.Context, *RemoteQueryExecuteRequest) (*RemoteQueryExecuteResponse, error)
 	// Streams pod-to-service metadata for a specific node.
 	StreamKubeMetadata(*KubeMetadataStreamRequest, grpc.ServerStreamingServer[KubeMetadataStreamResponse]) error
 	mustEmbedUnimplementedAgentSecureServer()
@@ -536,6 +551,9 @@ func (UnimplementedAgentSecureServer) StreamConfigEvents(*ConfigStreamRequest, g
 }
 func (UnimplementedAgentSecureServer) WorkloadFilterEvaluate(context.Context, *WorkloadFilterEvaluateRequest) (*WorkloadFilterEvaluateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WorkloadFilterEvaluate not implemented")
+}
+func (UnimplementedAgentSecureServer) RemoteQueryExecute(context.Context, *RemoteQueryExecuteRequest) (*RemoteQueryExecuteResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoteQueryExecute not implemented")
 }
 func (UnimplementedAgentSecureServer) StreamKubeMetadata(*KubeMetadataStreamRequest, grpc.ServerStreamingServer[KubeMetadataStreamResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method StreamKubeMetadata not implemented")
@@ -846,6 +864,24 @@ func _AgentSecure_WorkloadFilterEvaluate_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentSecure_RemoteQueryExecute_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoteQueryExecuteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentSecureServer).RemoteQueryExecute(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentSecure_RemoteQueryExecute_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentSecureServer).RemoteQueryExecute(ctx, req.(*RemoteQueryExecuteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AgentSecure_StreamKubeMetadata_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(KubeMetadataStreamRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -915,6 +951,10 @@ var AgentSecure_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "WorkloadFilterEvaluate",
 			Handler:    _AgentSecure_WorkloadFilterEvaluate_Handler,
+		},
+		{
+			MethodName: "RemoteQueryExecute",
+			Handler:    _AgentSecure_RemoteQueryExecute_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

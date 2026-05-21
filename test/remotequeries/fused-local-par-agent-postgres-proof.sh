@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Runs the fused local-only Remote Queries proof:
 # fakeintake -> live WorkflowRunner PAR loop -> com.datadoghq.remotequeries.execute
-# -> real local Agent IPC /agent/remote-queries/execute -> loaded Postgres check
-# -> SELECT 1 AS value -> fakeintake publish.
+# -> real local AgentSecure gRPC RemoteQueryExecute over Agent IPC TLS/auth
+# -> loaded Postgres check -> SELECT 1 AS value -> fakeintake publish.
+# The HTTP execute endpoint remains as a dev preflight for local evidence only.
 #
 # Defaults assume the remote-queries-poc worktree layout. Override AGENT_REPO,
 # INTEGRATIONS_CORE, TMP_ROOT, CMD_PORT, POSTGRES_IMAGE, or AGENT_PYTHON_VERSION /
@@ -268,7 +269,7 @@ call_agent_execute_preflight() {
   local token
   token=$(cat "$TMP_ROOT/run/auth_token")
 
-  log "Preflight real Agent IPC execute endpoint"
+  log "Preflight real Agent IPC HTTP execute endpoint (dev evidence only)"
   local status
   status=$(curl -sS -k -o "$TMP_ROOT/results/agent-execute-preflight.body" -w '%{http_code}' \
     -H "Authorization: Bearer ${token}" \
@@ -294,7 +295,7 @@ call_agent_execute_preflight() {
 }
 
 run_fused_go_proof() {
-  log "Running fused PAR -> real Agent IPC -> Postgres -> fakeintake proof test"
+  log "Running fused PAR -> real AgentSecure gRPC IPC -> Postgres -> fakeintake proof test"
   (
     cd "$AGENT_REPO"
     RQ_FUSED_PROOF=1 \
@@ -336,7 +337,7 @@ main() {
   cat "$TMP_ROOT/results/fused-proof-evidence.txt"
 
   log "Done. Sanitized artifacts left in $TMP_ROOT"
-  log "Key evidence: fakeintake enqueue/dequeue/publish and real Agent IPC endpoint evidence are in $TMP_ROOT/results/fused-proof-evidence.txt"
+  log "Key evidence: fakeintake enqueue/dequeue/publish and real AgentSecure IPC evidence are in $TMP_ROOT/results/fused-proof-evidence.txt"
 }
 
 main "$@"
