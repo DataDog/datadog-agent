@@ -250,6 +250,41 @@ func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 	return fi
 }
 
+func storedFileEventToProto(fe *storedFileEvent) *adproto.FileInfo {
+	if fe == nil {
+		return nil
+	}
+
+	fi := adproto.FileInfoFromVTPool()
+	*fi = adproto.FileInfo{
+		Uid:               fe.UID,
+		User:              fe.User,
+		Gid:               fe.GID,
+		Group:             fe.Group,
+		Mode:              uint32(fe.Mode), // yeah sorry
+		Ctime:             fe.CTime,
+		Mtime:             fe.MTime,
+		MountId:           fe.MountID,
+		Inode:             fe.Inode,
+		InUpperLayer:      fe.InUpperLayer,
+		Path:              escape(fe.PathnameStr),
+		Basename:          escape(fe.BasenameStr),
+		Filesystem:        escape(fe.Filesystem),
+		PackageName:       fe.PkgName,
+		PackageVersion:    fe.PkgVersion,
+		PackageEpoch:      pointer.Ptr(uint32(fe.PkgEpoch)),
+		PackageRelease:    pointer.Ptr(fe.PkgRelease),
+		PackageSrcVersion: fe.PkgSrcVersion,
+		PackageSrcEpoch:   pointer.Ptr(uint32(fe.PkgSrcEpoch)),
+		PackageSrcRelease: pointer.Ptr(fe.PkgSrcRelease),
+		Hashes:            make([]string, len(fe.Hashes)),
+		HashState:         adproto.HashState(fe.HashState),
+	}
+	copy(fi.Hashes, fe.Hashes)
+
+	return fi
+}
+
 func fileActivityNodeToProto(fan *FileNode, tagIDToImageTag func(id uint64) string) *adproto.FileActivityNode {
 	if fan == nil {
 		return nil
@@ -259,7 +294,7 @@ func fileActivityNodeToProto(fan *FileNode, tagIDToImageTag func(id uint64) stri
 	*pfan = adproto.FileActivityNode{
 		MatchedRules:   make([]*adproto.MatchedRule, 0, len(fan.MatchedRules)),
 		Name:           escape(fan.Name),
-		File:           fileEventToProto(fan.File),
+		File:           storedFileEventToProto(fan.File),
 		GenerationType: adproto.GenerationType(fan.GenerationType),
 		Open:           openNodeToProto(fan.Open),
 		Children:       make([]*adproto.FileActivityNode, 0, len(fan.Children)),

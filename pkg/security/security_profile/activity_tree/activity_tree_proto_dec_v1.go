@@ -226,6 +226,44 @@ func protoDecodeFileEvent(fi *adproto.FileInfo) *model.FileEvent {
 	return fe
 }
 
+func protoDecodeStoredFileEvent(fi *adproto.FileInfo) *storedFileEvent {
+	if fi == nil {
+		return nil
+	}
+
+	fe := &storedFileEvent{
+		FileFields: model.FileFields{
+			UID:   fi.Uid,
+			User:  fi.User,
+			GID:   fi.Gid,
+			Group: fi.Group,
+			Mode:  uint16(fi.Mode),
+			CTime: fi.Ctime,
+			MTime: fi.Mtime,
+			PathKey: model.PathKey{
+				MountID: fi.MountId,
+				Inode:   fi.Inode,
+			},
+			InUpperLayer: fi.InUpperLayer,
+		},
+		PathnameStr:   fi.Path,
+		BasenameStr:   fi.Basename,
+		Filesystem:    fi.Filesystem,
+		PkgName:       fi.PackageName,
+		PkgVersion:    fi.PackageVersion,
+		PkgEpoch:      int(ptrOrZero(fi.PackageEpoch)),
+		PkgRelease:    ptrOrZero(fi.PackageRelease),
+		PkgSrcVersion: fi.PackageSrcVersion,
+		PkgSrcEpoch:   int(ptrOrZero(fi.PackageSrcEpoch)),
+		PkgSrcRelease: ptrOrZero(fi.PackageSrcRelease),
+		Hashes:        make([]string, len(fi.Hashes)),
+		HashState:     model.HashState(fi.HashState),
+	}
+	copy(fe.Hashes, fi.Hashes)
+
+	return fe
+}
+
 func ptrOrZero[T any](ptr *T) T {
 	if ptr != nil {
 		return *ptr
@@ -242,10 +280,10 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode, getIDFromImageTa
 	pfan := &FileNode{
 		MatchedRules:   make([]*model.MatchedRule, 0, len(fan.MatchedRules)),
 		Name:           fan.Name,
-		File:           protoDecodeFileEvent(fan.File),
+		File:           protoDecodeStoredFileEvent(fan.File),
 		GenerationType: NodeGenerationType(fan.GenerationType),
 		Open:           protoDecodeOpenNode(fan.Open),
-		Children:       make(map[string]*FileNode, len(fan.Children)),
+		Children:       nil,
 		NodeBase:       NewNodeBase(),
 	}
 
@@ -261,9 +299,12 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode, getIDFromImageTa
 		pfan.MatchedRules = append(pfan.MatchedRules, protoDecodeProtoMatchedRule(rule))
 	}
 
-	for _, child := range fan.Children {
-		node := protoDecodeFileActivityNode(child, getIDFromImageTag)
-		pfan.Children[node.Name] = node
+	if len(fan.Children) > 0 {
+		pfan.Children = make(map[string]*FileNode, len(fan.Children))
+		for _, child := range fan.Children {
+			node := protoDecodeFileActivityNode(child, getIDFromImageTag)
+			pfan.Children[node.Name] = node
+		}
 	}
 
 	return pfan

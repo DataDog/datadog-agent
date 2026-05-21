@@ -20,13 +20,32 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// storedFileEvent holds the subset of model.FileEvent fields persisted in the
+// activity tree. Transient resolution state (mount paths, resolution flags,
+// path resolution errors) is intentionally omitted.
+type storedFileEvent struct {
+	model.FileFields
+	PathnameStr   string
+	BasenameStr   string
+	Filesystem    string
+	PkgName       string
+	PkgVersion    string
+	PkgEpoch      int
+	PkgRelease    string
+	PkgSrcVersion string
+	PkgSrcEpoch   int
+	PkgSrcRelease string
+	Hashes        []string
+	HashState     model.HashState
+}
+
 // FileNode holds a tree representation of a list of files
 type FileNode struct {
 	NodeBase
 	MatchedRules   []*model.MatchedRule
 	Name           string
 	IsPattern      bool
-	File           *model.FileEvent
+	File           *storedFileEvent
 	GenerationType NodeGenerationType
 	Open           *OpenNode
 
@@ -51,17 +70,27 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 		Name:           name,
 		GenerationType: generationType,
 		IsPattern:      strings.Contains(name, "*"),
-		Children:       make(map[string]*FileNode),
 	}
 	fan.NodeBase = NewNodeBase()
 	if event != nil {
 		fan.AppendImageTagID(imageTagID, event.ResolveEventTime())
 	}
 	if fileEvent != nil {
-		fileEventTmp := *fileEvent
-		fan.File = &fileEventTmp
-		fan.File.PathnameStr = reducedFilePath
-		fan.File.BasenameStr = name
+		fan.File = &storedFileEvent{
+			FileFields:    fileEvent.FileFields,
+			PathnameStr:   reducedFilePath,
+			BasenameStr:   name,
+			Filesystem:    fileEvent.Filesystem,
+			PkgName:       fileEvent.PkgName,
+			PkgVersion:    fileEvent.PkgVersion,
+			PkgEpoch:      fileEvent.PkgEpoch,
+			PkgRelease:    fileEvent.PkgRelease,
+			PkgSrcVersion: fileEvent.PkgSrcVersion,
+			PkgSrcEpoch:   fileEvent.PkgSrcEpoch,
+			PkgSrcRelease: fileEvent.PkgSrcRelease,
+			Hashes:        fileEvent.Hashes,
+			HashState:     fileEvent.HashState,
+		}
 	}
 	fan.enrichFromEvent(event)
 	return fan
@@ -172,6 +201,9 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		newEntry = true
 		if dryRun {
 			break
+		}
+		if currentFn.Children == nil {
+			currentFn.Children = make(map[string]*FileNode)
 		}
 		if len(currentPath) <= nextParentIndex+1 {
 			currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, imageTagID, generationType, reducedPath, resolvers)
