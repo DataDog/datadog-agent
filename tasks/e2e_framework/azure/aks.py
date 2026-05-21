@@ -16,6 +16,7 @@ scenario_name = "az/aks"
     help={
         "install_agent": doc.install_agent,
         "install_workload": doc.install_workload,
+        "pipeline_id": doc.pipeline_id,
         "agent_version": doc.container_agent_version,
         "stack_name": doc.stack_name,
         "agent_flavor": doc.agent_flavor,
@@ -27,6 +28,7 @@ def create_aks(
     ctx: Context,
     debug: bool | None = False,
     stack_name: str | None = None,
+    pipeline_id: str | None = None,
     install_agent: bool | None = True,
     install_workload: bool | None = True,
     agent_version: str | None = None,
@@ -65,6 +67,7 @@ def create_aks(
         debug=debug,
         app_key_required=True,
         stack_name=stack_name,
+        pipeline_id=pipeline_id,
         install_agent=install_agent,
         install_workload=install_workload,
         agent_version=agent_version,

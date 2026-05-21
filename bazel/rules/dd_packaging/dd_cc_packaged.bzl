@@ -118,7 +118,7 @@ _dd_cc_packaged_rule = rule(
     },
 )
 
-def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], installed_executables = {}, libname = "", visibility = None, **kwargs):
+def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], installed_executables = {}, libname = "", prefix = "", dest_dir = "", visibility = None, **kwargs):
     patched_name = "{}_patched".format(name)
     rewrite_rpath(
         name = patched_name,
@@ -143,13 +143,16 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], instal
             src = ":{}".format(patched_name),
             libname = resolved_libname,
             version = version,
+            prefix = prefix,
+            dest_dir = dest_dir,
             visibility = visibility,
         )
     else:
+        base = dest_dir if dest_dir else "lib"
         pkg_files(
             name = packaged_lib,
             srcs = [":{}".format(patched_name)],
-            prefix = "lib",
+            prefix = (base + "/" + prefix) if prefix else base,
             visibility = visibility,
             package_metadata = [],
         )
@@ -198,6 +201,20 @@ dd_cc_packaged = macro(
             configurable = True,
         ),
         "libname": attr.string(
+            default = "",
+            configurable = False,
+        ),
+        "prefix": attr.string(
+            doc = """Optional subdirectory appended after the base directory.
+            Empty (default) installs files directly under the base.
+            On the versioned path this is forwarded to so_symlink's prefix.""",
+            default = "",
+            configurable = False,
+        ),
+        "dest_dir": attr.string(
+            doc = """Optional override for the base directory. Defaults to lib/
+            on Linux/macOS and bin/ on Windows (via so_symlink). Use this for
+            deps with non-standard install layouts (e.g. msodbcsql/lib64).""",
             default = "",
             configurable = False,
         ),

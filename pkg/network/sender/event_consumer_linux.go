@@ -77,12 +77,13 @@ func NewDirectSenderConsumer(em EventConsumerRegistry, log log.Component, syspro
 // NewDirectSenderPoller creates the direct sender consumer using manual process polling
 func NewDirectSenderPoller(log log.Component, sysprobeconfig sysprobeconfig.Component) error {
 	dsc := &directSenderConsumer{
-		log:            log,
-		processes:      make(map[uint32]*process),
-		proxyFilter:    newDockerProxyFilter(log),
-		extractor:      newServiceExtractor(sysprobeconfig),
-		pidAliveFunc:   ddos.PidExists,
-		fetchProcesses: true,
+		log:                  log,
+		processes:            make(map[uint32]*process),
+		proxyFilter:          newDockerProxyFilter(log),
+		extractor:            newServiceExtractor(sysprobeconfig),
+		processNameExtractor: newProcessNameExtractor(),
+		pidAliveFunc:         ddos.PidExists,
+		fetchProcesses:       true,
 	}
 	directSenderConsumerInstance.Store(dsc)
 	return nil

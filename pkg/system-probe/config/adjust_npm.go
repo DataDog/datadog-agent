@@ -52,11 +52,6 @@ func adjustNetwork(cfg model.Config) {
 			}
 			return nil
 		})
-
-		if cfg.GetBool(netNS("direct_send")) {
-			log.Warn("disabling direct send because this feature is not supported on windows")
-			cfg.Set(netNS("direct_send"), false, model.SourceAgentRuntime)
-		}
 	}
 
 	validateInt64(cfg, spNS("max_tracked_connections"), defaultMaxTrackedConnections, func(v int64) error {
@@ -104,6 +99,13 @@ func adjustNetwork(cfg model.Config) {
 			log.Warn("disabling process event monitoring as it is not supported for this kernel version")
 		}
 		cfg.Set(evNS("network_process", "enabled"), false, model.SourceAgentRuntime)
+	}
+
+	if cfg.GetBool(netNS("direct_send")) && !DirectSendSupported() {
+		if flavor.GetFlavor() == flavor.SystemProbe {
+			log.Warn("disabling direct send because this feature is not supported for this platform")
+		}
+		cfg.Set(netNS("direct_send"), false, model.SourceAgentRuntime)
 	}
 
 	// if npm connection rollups are enabled, but usm rollups are not,

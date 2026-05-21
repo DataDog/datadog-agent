@@ -228,6 +228,7 @@ func TestTimeout(t *testing.T) {
 			extraCfgs: map[string]interface{}{},
 			extraSysCfgs: map[string]interface{}{
 				"network_config.enabled":      true,
+				"network_config.direct_send":  false,
 				"system_probe_config.enabled": true,
 			},
 			profileDuration: defaultProfileDuration,
@@ -239,6 +240,7 @@ func TestTimeout(t *testing.T) {
 			extraSysCfgs: map[string]interface{}{
 				"service_monitoring_config.enabled": true,
 				"system_probe_config.enabled":       true,
+				"network_config.direct_send":        false,
 			},
 			profileDuration: defaultProfileDuration,
 			expTimeout:      baseTimeout + 8*defaultProfileDuration,
@@ -248,6 +250,7 @@ func TestTimeout(t *testing.T) {
 			extraCfgs: map[string]interface{}{},
 			extraSysCfgs: map[string]interface{}{
 				"system_probe_config.enabled": true,
+				"network_config.direct_send":  false,
 			},
 			profileDuration: defaultProfileDuration,
 			expTimeout:      baseTimeout + 8*defaultProfileDuration, // config enables NPM, which enables process agent
@@ -261,6 +264,7 @@ func TestTimeout(t *testing.T) {
 			},
 			extraSysCfgs: map[string]interface{}{
 				"system_probe_config.enabled": true,
+				"network_config.direct_send":  false,
 			},
 			profileDuration: defaultProfileDuration,
 			expTimeout:      baseTimeout + 10*defaultProfileDuration,

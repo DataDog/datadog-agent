@@ -7,7 +7,9 @@
 package mock
 
 import (
+	"sync"
 	"testing"
+	"time"
 
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
@@ -15,6 +17,9 @@ import (
 
 type mockNetworkConfigManagement struct {
 	store ncmstore.ConfigStore
+
+	inventoryLock         sync.Mutex
+	lastInventoryReportAt time.Time
 }
 
 // Mock returns a networkconfigmanagement.Component backed by an in-memory store.
@@ -22,6 +27,30 @@ func Mock(_ *testing.T) networkconfigmanagement.Component {
 	return &mockNetworkConfigManagement{store: ncmstore.NewMemStore()}
 }
 
+// MockWithStore returns a networkconfigmanagement.Component backed by the
+// provided store. Useful for tests that need a memstore with custom options
+// (e.g. deterministic clock or UUID generator) so inventory output is
+// predictable.
+func MockWithStore(_ *testing.T, store ncmstore.ConfigStore) networkconfigmanagement.Component {
+	return &mockNetworkConfigManagement{store: store}
+}
+
 func (m *mockNetworkConfigManagement) GetConfigStore() ncmstore.ConfigStore {
 	return m.store
+}
+
+func (m *mockNetworkConfigManagement) MeetsInventoryReportRequirements(hasNewConfigs bool, maxInterval time.Duration, now time.Time) bool {
+	m.inventoryLock.Lock()
+	defer m.inventoryLock.Unlock()
+	if !hasNewConfigs && now.Sub(m.lastInventoryReportAt) < maxInterval {
+		return false
+	}
+	m.lastInventoryReportAt = now
+	return true
+}
+
+func (m *mockNetworkConfigManagement) MarkInventoryReportSent(now time.Time) {
+	m.inventoryLock.Lock()
+	defer m.inventoryLock.Unlock()
+	m.lastInventoryReportAt = now
 }

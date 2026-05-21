@@ -1326,6 +1326,25 @@ int test_chmod(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+// test_chmod_error chmods a path that must not exist; expects ENOENT (used by capture_all_errors test).
+int test_chmod_error(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please specify a file name\n");
+        return EXIT_FAILURE;
+    }
+
+    if (chmod(argv[1], 0644) < 0) {
+        if (errno != ENOENT) {
+            fprintf(stderr, "chmod(%s) failed with errno %d, expected ENOENT\n", argv[1], errno);
+            return EXIT_FAILURE;
+        }
+        return EXIT_SUCCESS;
+    }
+
+    fprintf(stderr, "chmod(%s) unexpectedly succeeded\n", argv[1]);
+    return EXIT_FAILURE;
+}
+
 int test_chown(int argc, char **argv) {
     if (argc != 4) {
         fprintf(stderr, "Please specify a file name, a user ID, and a group ID\n");
@@ -2154,6 +2173,8 @@ int main(int argc, char **argv) {
             exit_code = test_slow_write(sub_argc, sub_argv);
         } else if (strcmp(cmd, "network_flow_send_udp4") == 0) {
             exit_code = test_network_flow_send_udp4(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "chmod-error") == 0) {
+            exit_code = test_chmod_error(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chmod") == 0) {
             exit_code = test_chmod(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chown") == 0) {

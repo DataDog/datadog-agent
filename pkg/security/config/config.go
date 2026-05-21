@@ -400,6 +400,10 @@ type RuntimeSecurityConfig struct {
 	// SSHUserSessionsEnabled defines if SSH user session features should be enabled
 	SSHUserSessionsEnabled bool
 
+	// CaptureAllSyscallErrorsEnabled, when true, sets the eBPF load-time constant so
+	// IS_UNHANDLED_ERROR treats every negative syscall return as handled.
+	CaptureAllSyscallErrorsEnabled bool
+
 	// EBPFLessEnabled enables the ebpfless probe
 	EBPFLessEnabled bool
 	// EBPFLessSocket defines the socket used for the communication between system-probe and the ebpfless source
@@ -670,6 +674,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// User Sessions
 		SSHUserSessionsEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.user_sessions.ssh.enabled"),
 		UserSessionsCacheSize:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.user_sessions.cache_size"),
+
+		// Capture all syscall errors
+		CaptureAllSyscallErrorsEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.syscalls.capture_all_errors.enabled"),
 
 		// ebpf less
 		EBPFLessEnabled: IsEBPFLessModeEnabled(),

@@ -124,6 +124,7 @@ def create_vm(
         agent_flavor=agent_flavor,
         agent_config_path=agent_config_path,
         local_package=local_package,
+        needs_agent_containers=False,
     )
 
     if interactive:
