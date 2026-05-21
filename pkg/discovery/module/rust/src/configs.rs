@@ -15,10 +15,13 @@
 //! (typically rooted at `/proc/<pid>/root/`), which uses cap-std to reject
 //! `..` traversal and symlink escapes.
 //!
-//! This is intentionally generic — no per-integration knowledge yet. A
-//! follow-up can add well-known fallback paths (Redis `/etc/redis/redis.conf`,
-//! Kafka `/etc/kafka/server.properties`, …) keyed off the generated service
-//! name, and env-var-based location hints (Spring `SPRING_CONFIG_LOCATIONS`,
+//! When the cmdline-scan finds nothing, we fall back to a small table of
+//! well-known paths keyed off `argv[0]`'s basename. This is necessary for
+//! services that take their config as a positional argument and/or overwrite
+//! argv at startup, so the original path is unrecoverable from
+//! `/proc/<pid>/cmdline` — `redis-server` is the canonical case (it rewrites
+//! argv to display the listen address). Follow-ups can extend the table
+//! and add env-var-based location hints (Spring `SPRING_CONFIG_LOCATIONS`,
 //! `JAVA_TOOL_OPTIONS -Dconfig.file=…`).
 
 use std::collections::HashSet;
@@ -33,6 +36,12 @@ const SHORT_CONFIG_FLAGS: &[&str] = &["-c", "-f"];
 /// separated (`--config value`) and inline (`--config=value`) forms.
 const LONG_CONFIG_FLAGS: &[&str] = &["config", "config-file", "conf-file", "configFile"];
 
+/// Per-exe fallback table: matched against `argv[0]`'s basename when the
+/// cmdline-scan finds nothing. Paths are tried in order and all that exist
+/// inside the sandbox are reported.
+const WELL_KNOWN_CONFIGS: &[(&str, &[&str])] =
+    &[("redis-server", &["/etc/redis/redis.conf", "/etc/redis.conf"])];
+
 /// Extract config-file paths referenced by the process command line.
 ///
 /// Returns absolute paths that (a) appear after a known config flag in
@@ -42,6 +51,10 @@ const LONG_CONFIG_FLAGS: &[&str] = &["config", "config-file", "conf-file", "conf
 /// Relative paths are skipped: the process's cwd is ambiguous in this
 /// context (cap-std would resolve relative paths against the sandbox root,
 /// not the process's cwd, which would silently produce wrong results).
+///
+/// When the cmdline-scan finds nothing, falls back to `WELL_KNOWN_CONFIGS`
+/// keyed off `argv[0]`'s basename, so daemons that take a positional config
+/// path or rewrite argv (e.g. `redis-server`) can still be discovered.
 pub fn get_config_files(cmdline: &Cmdline, fs: &SubDirFs) -> Vec<String> {
     if cmdline.is_empty() {
         return Vec::new();
@@ -68,7 +81,40 @@ pub fn get_config_files(cmdline: &Cmdline, fs: &SubDirFs) -> Vec<String> {
             result.push(candidate);
         }
     }
+
+    if result.is_empty() {
+        result.extend(well_known_fallback(cmdline, fs));
+    }
+
     result
+}
+
+/// Probe the well-known-paths table for the current `argv[0]`. Returns the
+/// subset of registered paths that exist inside the sandbox.
+fn well_known_fallback(cmdline: &Cmdline, fs: &SubDirFs) -> Vec<String> {
+    let Some(exe) = argv0_basename(cmdline) else {
+        return Vec::new();
+    };
+    WELL_KNOWN_CONFIGS
+        .iter()
+        .find(|(name, _)| *name == exe)
+        .map(|(_, paths)| {
+            paths
+                .iter()
+                .filter(|p| fs.exists(p))
+                .map(|p| (*p).to_string())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Basename of `argv[0]`, or `None` if cmdline is empty / argv[0] is empty.
+fn argv0_basename(cmdline: &Cmdline) -> Option<&str> {
+    let argv0 = cmdline.args().next()?;
+    if argv0.is_empty() {
+        return None;
+    }
+    Some(argv0.rsplit('/').next().unwrap_or(argv0))
 }
 
 /// Parse cmdline args, returning all path-like tokens that follow a known
@@ -236,5 +282,75 @@ mod tests {
         let got = get_config_files(&cmd, &host_root_fs());
         assert_eq!(got.len(), 1, "expected dedup + existence filter, got: {got:?}");
         assert!(got.first().is_some_and(|p| p.ends_with("real.conf")));
+    }
+
+    #[test]
+    fn argv0_basename_handles_paths_and_plain_names() {
+        assert_eq!(
+            argv0_basename(&cmdline!["redis-server"]),
+            Some("redis-server"),
+        );
+        assert_eq!(
+            argv0_basename(&cmdline!["/usr/bin/redis-server", "127.0.0.1:6379"]),
+            Some("redis-server"),
+        );
+        assert_eq!(argv0_basename(&cmdline![]), None);
+    }
+
+    #[test]
+    fn well_known_fallback_only_fires_for_known_exes() {
+        // Non-redis exe → no fallback even if cmdline-scan is empty.
+        let cmd = cmdline!["nginx", "-g", "daemon off;"];
+        assert!(get_config_files(&cmd, &host_root_fs()).is_empty());
+    }
+
+    // Drives the redis fallback by rooting the sandbox at a tempdir that
+    // mimics `/etc/redis/redis.conf`, mirroring the technique used by
+    // `existence_filter_drops_missing_paths_and_dedupes`.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn well_known_fallback_finds_redis_conf() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().expect("create temp dir");
+        let redis_dir = temp_dir.path().join("etc").join("redis");
+        fs::create_dir_all(&redis_dir).expect("create /etc/redis");
+        fs::write(redis_dir.join("redis.conf"), "port 6379\n").expect("write redis.conf");
+
+        let sandboxed = SubDirFs::new(temp_dir.path()).expect("open sandbox");
+
+        // redis-server rewrites argv to the listen address; the original
+        // positional `/etc/redis/redis.conf` is gone — but argv[0] still
+        // says `redis-server`, which is enough for the fallback to fire.
+        let cmd = cmdline!["redis-server", "127.0.0.1:6379"];
+        assert_eq!(
+            get_config_files(&cmd, &sandboxed),
+            vec!["/etc/redis/redis.conf".to_string()],
+        );
+    }
+
+    // If the cmdline-scan already found a path, the well-known table is
+    // not consulted — avoids dupes and keeps behaviour predictable when
+    // the operator passes an explicit `-c /custom/redis.conf`.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn well_known_fallback_skipped_when_cmdline_already_matched() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().expect("create temp dir");
+        // Create both the explicit cmdline path and the well-known path.
+        let explicit = temp_dir.path().join("custom.conf");
+        fs::write(&explicit, "x\n").expect("write custom.conf");
+        let redis_dir = temp_dir.path().join("etc").join("redis");
+        fs::create_dir_all(&redis_dir).expect("create /etc/redis");
+        fs::write(redis_dir.join("redis.conf"), "y\n").expect("write redis.conf");
+
+        let sandboxed = SubDirFs::new(temp_dir.path()).expect("open sandbox");
+
+        let explicit_abs = format!("/{}", explicit.strip_prefix(temp_dir.path()).unwrap().display());
+        let cmd = Cmdline::from(&["redis-server", "-c", explicit_abs.as_str()][..]);
+        assert_eq!(get_config_files(&cmd, &sandboxed), vec![explicit_abs]);
     }
 }
