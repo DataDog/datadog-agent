@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
+func boolPtr(b bool) *bool { return &b }
+
 func TestResolveRootOwner(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -27,33 +29,49 @@ func TestResolveRootOwner(t *testing.T) {
 		},
 		{
 			name:     "ReplicaSet resolves to Deployment",
-			owners:   []workloadmeta.KubernetesPodOwner{{Kind: "ReplicaSet", Name: "my-app-6d4f5b7c8"}},
+			owners:   []workloadmeta.KubernetesPodOwner{{Kind: "ReplicaSet", Name: "my-app-6d4f5b7c8", Controller: boolPtr(true)}},
 			expected: &core.FilterRootOwner{Kind: "Deployment", Name: "my-app"},
 		},
 		{
 			name:     "Job resolves to CronJob",
-			owners:   []workloadmeta.KubernetesPodOwner{{Kind: "Job", Name: "backup-1562319360"}},
+			owners:   []workloadmeta.KubernetesPodOwner{{Kind: "Job", Name: "backup-1562319360", Controller: boolPtr(true)}},
 			expected: &core.FilterRootOwner{Kind: "CronJob", Name: "backup"},
 		},
 		{
 			name:     "standalone Job stays as Job",
-			owners:   []workloadmeta.KubernetesPodOwner{{Kind: "Job", Name: "one-off"}},
+			owners:   []workloadmeta.KubernetesPodOwner{{Kind: "Job", Name: "one-off", Controller: boolPtr(true)}},
 			expected: &core.FilterRootOwner{Kind: "Job", Name: "one-off"},
 		},
 		{
 			name:     "Deployment is its own root",
-			owners:   []workloadmeta.KubernetesPodOwner{{Kind: "Deployment", Name: "my-app"}},
+			owners:   []workloadmeta.KubernetesPodOwner{{Kind: "Deployment", Name: "my-app", Controller: boolPtr(true)}},
 			expected: &core.FilterRootOwner{Kind: "Deployment", Name: "my-app"},
 		},
 		{
 			name:     "DaemonSet is its own root",
-			owners:   []workloadmeta.KubernetesPodOwner{{Kind: "DaemonSet", Name: "fluentd"}},
+			owners:   []workloadmeta.KubernetesPodOwner{{Kind: "DaemonSet", Name: "fluentd", Controller: boolPtr(true)}},
 			expected: &core.FilterRootOwner{Kind: "DaemonSet", Name: "fluentd"},
 		},
 		{
 			name:     "StatefulSet is its own root",
-			owners:   []workloadmeta.KubernetesPodOwner{{Kind: "StatefulSet", Name: "redis"}},
+			owners:   []workloadmeta.KubernetesPodOwner{{Kind: "StatefulSet", Name: "redis", Controller: boolPtr(true)}},
 			expected: &core.FilterRootOwner{Kind: "StatefulSet", Name: "redis"},
+		},
+		{
+			name: "prefers controller owner over non-controller",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Node", Name: "node-1", Controller: boolPtr(false)},
+				{Kind: "ReplicaSet", Name: "my-app-6d4f5b7c8", Controller: boolPtr(true)},
+			},
+			expected: &core.FilterRootOwner{Kind: "Deployment", Name: "my-app"},
+		},
+		{
+			name: "no controller marked falls back to first owner",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Node", Name: "node-1", Controller: boolPtr(false)},
+				{Kind: "ReplicaSet", Name: "my-app-6d4f5b7c8", Controller: boolPtr(false)},
+			},
+			expected: &core.FilterRootOwner{Kind: "Node", Name: "node-1"},
 		},
 	}
 	for _, tt := range tests {
@@ -71,7 +89,7 @@ func TestCreatePodWithRootOwner(t *testing.T) {
 			Namespace: "default",
 		},
 		Owners: []workloadmeta.KubernetesPodOwner{
-			{Kind: "ReplicaSet", Name: "my-app-6d4f5b7c8"},
+			{Kind: "ReplicaSet", Name: "my-app-6d4f5b7c8", Controller: boolPtr(true)},
 		},
 	}
 	result := CreatePod(pod)

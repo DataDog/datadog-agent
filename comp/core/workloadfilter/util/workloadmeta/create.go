@@ -54,7 +54,15 @@ func resolveRootOwner(owners []workloadmeta.KubernetesPodOwner) *core.FilterRoot
 	if len(owners) == 0 {
 		return nil
 	}
+
 	owner := owners[0]
+	for _, o := range owners {
+		if o.Controller != nil && *o.Controller {
+			owner = o
+			break
+		}
+	}
+
 	switch owner.Kind {
 	case kubernetes.ReplicaSetKind:
 		if deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name); deployment != "" {
