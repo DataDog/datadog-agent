@@ -87,16 +87,10 @@ architectures:
             - FI_DEV_PERF_POLICY_THERMAL
     support:
       - device_modes: [physical]
-        capabilities:
-          gpm: false
-          nvlink: 1
-          c2c: false
         unsupported_fields: []
       - device_modes: [mig, vgpu]
         capabilities:
-          gpm: false
           nvlink: 0
-          c2c: false
         unsupported_fields: []
     unsupported_device_modes:
       - mig
@@ -115,16 +109,10 @@ architectures:
             - FI_DEV_PERF_POLICY_THERMAL
     support:
       - device_modes: [physical]
-        capabilities:
-          gpm: false
-          nvlink: 2
-          c2c: false
         unsupported_fields: []
       - device_modes: [mig, vgpu]
         capabilities:
-          gpm: false
           nvlink: 0
-          c2c: false
         unsupported_fields: []
     unsupported_device_modes:
       - mig
@@ -143,16 +131,10 @@ architectures:
             - FI_DEV_PERF_POLICY_THERMAL
     support:
       - device_modes: [physical]
-        capabilities:
-          gpm: false
-          nvlink: 2
-          c2c: false
         unsupported_fields: []
       - device_modes: [mig, vgpu]
         capabilities:
-          gpm: false
           nvlink: 0
-          c2c: false
         unsupported_fields: []
     unsupported_device_modes:
       - mig
@@ -169,16 +151,10 @@ architectures:
             - FI_DEV_PERF_POLICY_THERMAL
     support:
       - device_modes: [physical]
-        capabilities:
-          gpm: false
-          nvlink: 3
-          c2c: false
         unsupported_fields: []
       - device_modes: [mig, vgpu]
         capabilities:
-          gpm: false
           nvlink: 0
-          c2c: false
         unsupported_fields: []
     unsupported_device_modes: []
   hopper:
@@ -194,14 +170,9 @@ architectures:
             - FI_DEV_PERF_POLICY_THERMAL
     support:
       - device_modes: [physical]
-        capabilities:
-          gpm: true
-          nvlink: 4
-          c2c: true
         unsupported_fields: []
       - device_modes: [mig]
         capabilities:
-          gpm: true
           nvlink: 0
           c2c: false
         unsupported_fields: []
@@ -227,16 +198,8 @@ architectures:
             - FI_DEV_PERF_POLICY_THERMAL
     support:
       - device_modes: [physical]
-        capabilities:
-          gpm: false
-          nvlink: 0
-          c2c: false
         unsupported_fields: []
       - device_modes: [mig, vgpu]
-        capabilities:
-          gpm: false
-          nvlink: 0
-          c2c: false
         unsupported_fields: []
     unsupported_device_modes:
       - mig
@@ -253,14 +216,9 @@ architectures:
             - FI_DEV_PERF_POLICY_THERMAL
     support:
       - device_modes: [physical]
-        capabilities:
-          gpm: true
-          nvlink: 5
-          c2c: true
         unsupported_fields: []
       - device_modes: [mig]
         capabilities:
-          gpm: true
           nvlink: 0
           c2c: false
         unsupported_fields: []

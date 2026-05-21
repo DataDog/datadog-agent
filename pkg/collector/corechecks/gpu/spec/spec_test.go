@@ -21,6 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
+func ptrTo[T any](v T) *T {
+	return &v
+}
+
 func TestLoadSpecNotEmpty(t *testing.T) {
 	specs, err := LoadSpecs()
 	require.NoError(t, err)
@@ -232,9 +236,9 @@ func TestUnsupportedFieldsForModeIncludesHigherNVLinkGenerations(t *testing.T) {
 		Support: []ArchitectureSupportSpec{
 			{
 				DeviceModes: []DeviceMode{DeviceModePhysical},
-				Capabilities: ArchitectureCapabilities{
-					NVLink: 1,
-					C2C:    false,
+				Capabilities: ArchitectureCapabilitiesOverride{
+					NVLink: ptrTo(1),
+					C2C:    ptrTo(false),
 				},
 				UnsupportedFields: []string{"FI_DEV_MEMORY_TEMP"},
 			},

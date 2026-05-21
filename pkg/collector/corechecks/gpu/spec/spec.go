@@ -248,6 +248,13 @@ type ArchitectureCapabilities struct {
 	UnsupportedFieldsByDeviceMode []UnsupportedFieldsByDeviceModeSpec `yaml:"unsupported_fields_by_device_mode"`
 }
 
+// ArchitectureCapabilitiesOverride defines mode-specific capability overrides.
+type ArchitectureCapabilitiesOverride struct {
+	GPM    *bool `yaml:"gpm,omitempty"`
+	NVLink *int  `yaml:"nvlink,omitempty"`
+	C2C    *bool `yaml:"c2c,omitempty"`
+}
+
 // UnsupportedFieldsByDeviceModeSpec groups unsupported fields by device modes.
 type UnsupportedFieldsByDeviceModeSpec struct {
 	DeviceModes []DeviceMode `yaml:"device_modes"`
@@ -264,7 +271,7 @@ type ArchitectureSupportSpec struct {
 	// DeviceModes lists the device modes covered by this support entry.
 	DeviceModes []DeviceMode `yaml:"device_modes"`
 	// Capabilities describes which hardware/API capabilities are available for those modes.
-	Capabilities ArchitectureCapabilities `yaml:"capabilities"`
+	Capabilities ArchitectureCapabilitiesOverride `yaml:"capabilities"`
 	// UnsupportedFields lists additional GetFieldValues fields unsupported for those modes.
 	UnsupportedFields []string `yaml:"unsupported_fields"`
 }
@@ -281,12 +288,26 @@ type ArchitectureSpec struct {
 
 // EffectiveCapabilities returns the capabilities for a device mode.
 func (a ArchitectureSpec) EffectiveCapabilities(mode DeviceMode) ArchitectureCapabilities {
+	capabilities := a.Capabilities
 	for _, support := range a.Support {
 		if slices.Contains(support.DeviceModes, mode) {
-			return support.Capabilities
+			capabilities.applyOverride(support.Capabilities)
+			return capabilities
 		}
 	}
-	return a.Capabilities
+	return capabilities
+}
+
+func (c *ArchitectureCapabilities) applyOverride(override ArchitectureCapabilitiesOverride) {
+	if override.GPM != nil {
+		c.GPM = *override.GPM
+	}
+	if override.NVLink != nil {
+		c.NVLink = *override.NVLink
+	}
+	if override.C2C != nil {
+		c.C2C = *override.C2C
+	}
 }
 
 // UnsupportedFieldsForMode returns fields unsupported for a device mode and capability set.
@@ -336,7 +357,9 @@ func (a ArchitectureSpec) UnsupportedFieldsForMode(mode DeviceMode, archSpecs *A
 func (a ArchitectureSpec) SupportedNVLinkGeneration() int {
 	maxGeneration := a.Capabilities.NVLink
 	for _, support := range a.Support {
-		maxGeneration = max(maxGeneration, support.Capabilities.NVLink)
+		if support.Capabilities.NVLink != nil {
+			maxGeneration = max(maxGeneration, *support.Capabilities.NVLink)
+		}
 	}
 	return maxGeneration
 }
