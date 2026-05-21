@@ -171,7 +171,14 @@ type ActivityTree struct {
 	DNSNames     *utils.StringKeys
 	SyscallsMask map[int]int
 
-	imageTagIDs []string
+	imageTagIDs []imageTagEntry
+}
+
+// imageTagEntry is a slot in the ActivityTree's image tag registry.
+// inUse is false for tombstoned slots that are free for reuse.
+type imageTagEntry struct {
+	tag   string
+	inUse bool
 }
 
 // CookieToProcessNodeCacheSize defines the "cookie to process" node cache size
@@ -194,53 +201,62 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 
 // GetImageTagID returns the internal ID for an image tag, or 0 if not found
 func (at *ActivityTree) GetImageTagID(imageTag string) uint64 {
-	for i, tag := range at.imageTagIDs {
-		if tag == imageTag {
+	for i, entry := range at.imageTagIDs {
+		if entry.inUse && entry.tag == imageTag {
 			return uint64(i) + 1
 		}
 	}
 	return 0
 }
 
-// removeImageTag tombstones the slot for this image tag, freeing it for reuse
+// removeImageTag marks the slot for this image tag as free for reuse
 func (at *ActivityTree) removeImageTag(imageTag string) uint64 {
-	for i, tag := range at.imageTagIDs {
-		if tag == imageTag {
-			at.imageTagIDs[i] = ""
+	for i, entry := range at.imageTagIDs {
+		if entry.inUse && entry.tag == imageTag {
+			at.imageTagIDs[i].inUse = false
 			return uint64(i + 1)
 		}
 	}
 	return 0
 }
 
-// GetOrInsertImageTag returns the internal ID for an image tag, creating one if it doesn't exist
+// GetOrInsertImageTag returns the internal ID for an image tag, creating one if it doesn't exist.
+// Returns 0 for an empty tag, which is treated as a no-op by all callers (0 is the null sentinel).
 func (at *ActivityTree) GetOrInsertImageTag(imageTag string) uint64 {
-	firstTombstone := uint64(0)
+	if imageTag == "" {
+		return 0
+	}
 
-	for id, tag := range at.imageTagIDs {
-		if tag == imageTag {
-			return uint64(id) + 1
+	firstFree := uint64(0)
+
+	for i, entry := range at.imageTagIDs {
+		if entry.inUse && entry.tag == imageTag {
+			return uint64(i) + 1
 		}
-		if firstTombstone == 0 && tag == "" {
-			firstTombstone = uint64(id) + 1
+		if firstFree == 0 && !entry.inUse {
+			firstFree = uint64(i) + 1
 		}
 	}
 
-	if firstTombstone > 0 {
-		at.imageTagIDs[firstTombstone-1] = imageTag
-		return firstTombstone
+	if firstFree > 0 {
+		at.imageTagIDs[firstFree-1] = imageTagEntry{tag: imageTag, inUse: true}
+		return firstFree
 	}
 
-	at.imageTagIDs = append(at.imageTagIDs, imageTag)
+	at.imageTagIDs = append(at.imageTagIDs, imageTagEntry{tag: imageTag, inUse: true})
 	return uint64(len(at.imageTagIDs))
 }
 
-// GetTagFromID returns the image tag string for a given internal ID
+// GetTagFromID returns the image tag string for a given internal ID, or "" if the ID is invalid or the slot is free.
 func (at *ActivityTree) GetTagFromID(imageTagID uint64) string {
 	if imageTagID == 0 || imageTagID > uint64(len(at.imageTagIDs)) {
 		return ""
 	}
-	return at.imageTagIDs[imageTagID-1]
+	entry := at.imageTagIDs[imageTagID-1]
+	if !entry.inUse {
+		return ""
+	}
+	return entry.tag
 }
 
 // SetType changes the type and owner of the ActivityTree
