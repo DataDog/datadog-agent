@@ -16,7 +16,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gorilla/mux"
 	"go.yaml.in/yaml/v2"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -128,7 +127,7 @@ func (sh startupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func buildServer(options healthprobeComponent.Options, log log.Component) *http.Server {
-	r := mux.NewRouter()
+	r := http.NewServeMux()
 
 	liveHandler := liveHandler{
 		logsGoroutines: options.LogsGoroutines,
@@ -149,7 +148,7 @@ func buildServer(options healthprobeComponent.Options, log log.Component) *http.
 	r.Handle("/ready", readyHandler)
 	r.Handle("/startup", startupHandler)
 	// Default route for backward compatibility
-	r.NewRoute().Handler(liveHandler)
+	r.Handle("/", liveHandler)
 
 	return &http.Server{
 		Handler:           r,

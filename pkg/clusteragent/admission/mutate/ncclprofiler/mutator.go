@@ -65,9 +65,10 @@ const (
 //  3. Mounting the .so volume and the agent socket directory into every app container.
 //  4. Setting NCCL env vars (incl. NCCL_DD_SOCKET_PATH from the agent config).
 //
-// hostSocketPath is the host directory containing the agent's Unix socket
-// (mounted into pods at the same path). socketPath is the full in-container
-// socket path the wrapper connects to. Both come from gpu.nccl.{host_socket_path,socket_path}.
+// Mirrors `mutate/config` (APM/DSD): bind-mounts the socket file itself
+// with HostPathSocket, composing host file = hostSocketDir+"/"+filename
+// and in-workload file = clientSocketDir+"/"+filename. NCCL_DD_SOCKET_PATH
+// is set to the in-workload file.
 // initResources is the optional resource requirements applied to the injected
 // init container. nil means no Resources block is set (cluster default applies);
 // operators with a LimitRange or strict QoS requirements override via
@@ -75,21 +76,25 @@ const (
 //
 // Pod-level opt-in policy (label + mutate_unlabelled) is enforced by the
 // webhook objectSelector at the K8s API server, not re-checked here.
-func mutatePod(pod *corev1.Pod, injectorImage, hostSocketPath, socketPath string, initResources *corev1.ResourceRequirements) (bool, error) {
+func mutatePod(pod *corev1.Pod, injectorImage, hostSocketDir, clientSocketDir, socketFilename string, initResources *corev1.ResourceRequirements) (bool, error) {
 	soVolume := corev1.Volume{
 		Name:         soVolumeName,
 		VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
 	}
 	soMount := corev1.VolumeMount{Name: soVolumeName, MountPath: soMountPath, ReadOnly: true}
 
-	hostPathType := corev1.HostPathDirectoryOrCreate
+	// Pod paths are POSIX regardless of where the cluster-agent runs; do
+	// not use path/filepath here (it'd produce backslashes on Windows).
+	hostFile := hostSocketDir + "/" + socketFilename
+	clientFile := clientSocketDir + "/" + socketFilename
+	hostPathType := corev1.HostPathSocket
 	socketVolume := corev1.Volume{
 		Name: socketVolumeName,
 		VolumeSource: corev1.VolumeSource{
-			HostPath: &corev1.HostPathVolumeSource{Path: hostSocketPath, Type: &hostPathType},
+			HostPath: &corev1.HostPathVolumeSource{Path: hostFile, Type: &hostPathType},
 		},
 	}
-	socketMount := corev1.VolumeMount{Name: socketVolumeName, MountPath: hostSocketPath, ReadOnly: true}
+	socketMount := corev1.VolumeMount{Name: socketVolumeName, MountPath: clientFile, ReadOnly: true}
 
 	// Inject volumes + mounts into all app containers using shared helpers.
 	soVolAdded, soMountAdded := mutatecommon.InjectVolume(pod, soVolume, soMount)
@@ -97,7 +102,7 @@ func mutatePod(pod *corev1.Pod, injectorImage, hostSocketPath, socketPath string
 
 	// Inject NCCL env vars into all app containers.
 	envAdded := mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_PROFILER_PLUGIN", Value: soDestPath})
-	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_SOCKET_PATH", Value: socketPath}) || envAdded
+	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_SOCKET_PATH", Value: clientFile}) || envAdded
 	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_INSPECTOR_PATH", Value: soMountPath + "/libnccl-profiler-inspector.so"}) || envAdded
 	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_INSPECTOR_ENABLE", Value: "1"}) || envAdded
 

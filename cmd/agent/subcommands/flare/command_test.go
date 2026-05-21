@@ -131,6 +131,7 @@ func (c *commandTestSuite) TestReadProfileData() {
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 		mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
+		mockSysProbeConfig.SetWithoutSource("network_config.direct_send", false)
 	}
 
 	profiler := getProfiler(t)
@@ -201,12 +202,13 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 		mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
+		mockSysProbeConfig.SetWithoutSource("network_config.direct_send", false)
 	}
 
 	profiler := getProfiler(t)
 	data, err := profiler.ReadProfileData(10, func(string, ...interface{}) error { return nil })
 	require.Error(t, err)
-	require.Regexp(t, "^* error collecting trace agent profile: ", err.Error())
+	require.Regexp(t, "^error collecting trace agent profile: ", err.Error())
 
 	expected := flaretypes.ProfileData{
 		"core-1st-heap.pprof":           []byte("heap_profile"),

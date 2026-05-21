@@ -7,6 +7,7 @@
 package observerimpl
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,7 +18,6 @@ import (
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
-	hfrunnerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
@@ -25,7 +25,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -37,11 +36,6 @@ type Requires struct {
 	Config    config.Component
 	Log       log.Component
 	Telemetry telemetry.Component
-
-	// HFRunner runs system and container checks at 1s and routes them into the
-	// observer pipeline. The noop variant (hfrunner/fx-noop) is wired for the
-	// main agent build; the real implementation lands with the algorithm PRs.
-	HFRunner hfrunnerdef.Component
 
 	// Recorder is an optional component for transparent metric recording.
 	// If provided, all handles will be wrapped to record metrics to parquet files.
@@ -101,7 +95,7 @@ func (m *metricObs) GetSampleRate() float64 {
 
 // logObs contains copied log data and implements observerdef.LogView.
 type logObs struct {
-	content     []byte
+	content     string
 	status      string
 	tags        []string
 	hostname    string
@@ -111,7 +105,7 @@ type logObs struct {
 // Ensure logObs implements observerdef.LogView
 var _ observerdef.LogView = (*logObs)(nil)
 
-func (l *logObs) GetContent() []byte {
+func (l *logObs) GetContent() string {
 	return l.content
 }
 
@@ -119,7 +113,7 @@ func (l *logObs) GetStatus() string {
 	return l.status
 }
 
-func (l *logObs) GetTags() []string {
+func (l *logObs) Tags() []string {
 	return l.tags
 }
 
@@ -150,7 +144,7 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 	settings.Enabled = make(map[string]bool, len(catalog.entries))
 	for _, entry := range catalog.Entries() {
 		prefix := "anomaly_detection.detectors." + entry.name + "."
-		if cfg.IsKnown(prefix + "enabled") {
+		if cfg.IsConfigured(prefix + "enabled") {
 			settings.Enabled[entry.name] = cfg.GetBool(prefix + "enabled")
 		}
 		if entry.readConfig != nil {
@@ -163,20 +157,42 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 	return settings
 }
 
+// disabledObserver is the zero-overhead stub returned when config is absent.
+// It allocates nothing and starts no goroutines.
+type disabledObserver struct{}
+
+func (*disabledObserver) GetHandle(_ string) observerdef.Handle { return &noopObserveHandle{} }
+func (*disabledObserver) DumpMetrics(_ string) error            { return nil }
+
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
 	cfg := deps.Config
+	if cfg == nil {
+		return Provides{Comp: &disabledObserver{}}
+	}
+
 	catalog := defaultCatalog()
 	settings := settingsFromAgentConfig(catalog, cfg)
 	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
 
+	storageCfg := defaultStorageConfig()
+	if cfg != nil {
+		if cfg.IsConfigured("anomaly_detection.storage.max_series") {
+			storageCfg.MaxSeries = cfg.GetInt("anomaly_detection.storage.max_series")
+		}
+		if cfg.IsConfigured("anomaly_detection.storage.eviction_floor_ratio") {
+			storageCfg.EvictionFloorRatio = cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
+		}
+		if cfg.IsConfigured("anomaly_detection.storage.point_retention_secs") {
+			storageCfg.PointRetentionSecs = cfg.GetInt64("anomaly_detection.storage.point_retention_secs")
+		}
+	}
 	eng := newEngine(engineConfig{
-		storage:          newTimeSeriesStorage(),
-		extractors:       extractors,
-		detectors:        detectors,
-		correlators:      correlators,
-		contextProviders: collectContextProviders(extractors),
-		scheduler:        &currentBehaviorPolicy{},
+		storage:     newTimeSeriesStorageWith(storageCfg),
+		extractors:  extractors,
+		detectors:   detectors,
+		correlators: correlators,
+		scheduler:   &currentBehaviorPolicy{},
 	})
 
 	// Wire each injected reporter into its own reporterEventSink subscription.
@@ -199,14 +215,20 @@ func NewComponent(deps Requires) Provides {
 
 	th := newTelemetryHandler(telemetryComp)
 
+	// Wire direct gauge.Set for processing-time telemetry to avoid per-log
+	// ObserverTelemetry struct allocations on the hot path.
+	processingTimeGauge := th.telemetryGauges[telemetryDetectorProcessingTimeNs]
+	eng.onProcessingTime = func(detectorTag string, nanos float64) {
+		processingTimeGauge.Set(nanos, detectorTag)
+	}
+
 	obs := &observerImpl{
 		engine:               eng,
 		catalog:              catalog,
 		obsCh:                make(chan observation, 1000),
 		telemetryHandler:     th,
 		dropCounter:          th.telemetryCounters[telemetryObsChannelDropped],
-		hfFilterSources:      make(map[metrics.MetricSource]struct{}),
-		ingestMetricsEnabled: cfg.GetBool("anomaly_detection.metrics.enabled"),
+		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
 	}
 
 	if !obs.ingestMetricsEnabled {
@@ -223,7 +245,8 @@ func NewComponent(deps Requires) Provides {
 		obs.handleFunc = obs.innerHandle
 	}
 
-	if recorder, ok := deps.Recorder.Get(); ok {
+	recorder, recorderEnabled := deps.Recorder.Get()
+	if recorderEnabled {
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
 
 		// Record detect digests and advance log alongside parquet for parity debugging.
@@ -253,14 +276,24 @@ func NewComponent(deps Requires) Provides {
 
 	go obs.run()
 
-	// Start high-frequency check runners. The hfrunner component handles
-	// config-based toggling and lifecycle internally; we only collect the
-	// MetricSource sets it wants suppressed from the "all-metrics" pipeline.
-	for src := range deps.HFRunner.StartSystem(obs.GetHandle(hfrunnerdef.HFSource)) {
-		obs.hfFilterSources[src] = struct{}{}
-	}
-	for src := range deps.HFRunner.StartContainer(obs.GetHandle(hfrunnerdef.HFContainerSource)) {
-		obs.hfFilterSources[src] = struct{}{}
+	// Wire agent-internal logs into the observer via the pkg/util/log tap.
+	// anomaly_detection.logs.enabled is the parent gate; without it,
+	// agent_logs are also disabled. anomaly_detection.agent_logs.enabled
+	// defaults to true when unset (explicit false disables it).
+	logsEnabled := !cfg.IsConfigured("anomaly_detection.logs.enabled") || cfg.GetBool("anomaly_detection.logs.enabled")
+	agentLogsEnabled := !cfg.IsConfigured("anomaly_detection.agent_logs.enabled") || cfg.GetBool("anomaly_detection.agent_logs.enabled")
+	if (analysisEnabled || recorderEnabled) && logsEnabled && agentLogsEnabled {
+		sampleInfo := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_info")
+		sampleDebug := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_debug")
+		sampleTrace := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_trace")
+		agentLogsHandle := obs.GetHandle("agent-internal-logs")
+		installAgentLogTap(agentLogsHandle, sampleInfo, sampleDebug, sampleTrace)
+		deps.Lifecycle.Append(compdef.Hook{
+			OnStop: func(_ context.Context) error {
+				pkglog.SetLogObserver(nil)
+				return nil
+			},
+		})
 	}
 
 	// Start periodic metric dump if configured
@@ -300,12 +333,6 @@ type observerImpl struct {
 	// Tagged by source for Prometheus visibility. Complements engine.droppedObs
 	// which tracks drops for live/replay parity analysis.
 	dropCounter telemetry.Counter
-
-	// hfFilterSources is the combined set of MetricSource values to suppress from
-	// the "all-metrics" pipeline when their HF counterpart is active. Populated at
-	// construction time from the MetricSource sets returned by hfrunner.StartSystem
-	// and hfrunner.StartContainer.
-	hfFilterSources map[metrics.MetricSource]struct{}
 
 	// ingestMetricsEnabled gates externally-ingested metrics at the handle
 	// factory. When false, "all-metrics" and HF handles return a wrapper
@@ -519,72 +546,24 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 }
 
 // innerHandle creates the base handle without any middleware wrapping.
-// When any HF check collection is enabled, the "all-metrics" handle is wrapped
-// with hfFilteredHandle to suppress 15s samples for checks that have a 1s HF
-// counterpart active — the scorer should only see the higher-resolution stream.
-// When anomaly_detection.metrics.enabled=false, the resulting handle is further
-// wrapped with metricDropHandle so external metrics are dropped at the edge,
-// while ObserveLog/ObserveProfile pass through.
+// When anomaly_detection.metrics.enabled=false, the handle is wrapped with
+// metricDropHandle so external metrics are dropped at the edge, while
+// ObserveLog/ObserveProfile pass through.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
 	h := &handle{ch: o.obsCh, source: name, dropCounter: o.dropCounter}
 	o.engine.registerHandle(h)
 	var out observerdef.Handle = h
-	if len(o.hfFilterSources) > 0 && name == "all-metrics" {
-		out = &hfFilteredHandle{inner: h, sources: o.hfFilterSources}
-	}
 	if !o.ingestMetricsEnabled {
 		out = &metricDropHandle{inner: out}
 	}
 	return out
 }
 
-// sourceProvider is a structural interface satisfied by *metrics.MetricSample,
-// which carries a MetricSource enum populated by the standard check sender.
-// Using a type assertion (rather than adding GetSource to MetricView) avoids
-// importing pkg/metrics into comp/anomalydetection/observer/def.
-type sourceProvider interface {
-	GetSource() metrics.MetricSource
-}
-
-// hfFilteredHandle wraps a Handle and drops metrics whose source is in the
-// provided sources set, so that 15s pipeline samples do not compete with their
-// 1s HF counterparts in the scorer.
-//
-// Filtering uses a MetricSource enum map lookup via a type assertion to
-// sourceProvider. Samples that do not implement sourceProvider pass through
-// unchanged — absence of metadata is not sufficient grounds to drop.
-type hfFilteredHandle struct {
-	inner   observerdef.Handle
-	sources map[metrics.MetricSource]struct{}
-}
-
-func (f *hfFilteredHandle) ObserveMetric(sample observerdef.MetricView) {
-	_ = f.ObserveMetricAndReportDrop(sample)
-}
-
-func (f *hfFilteredHandle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool {
-	if sp, ok := sample.(sourceProvider); ok {
-		if _, suppressed := f.sources[sp.GetSource()]; suppressed {
-			return false
-		}
-	}
-	if dr, ok := f.inner.(interface {
-		ObserveMetricAndReportDrop(observerdef.MetricView) bool
-	}); ok {
-		return dr.ObserveMetricAndReportDrop(sample)
-	}
-	f.inner.ObserveMetric(sample)
-	return false
-}
-
-func (f *hfFilteredHandle) ObserveLog(msg observerdef.LogView) { f.inner.ObserveLog(msg) }
-
 // metricDropHandle drops every ObserveMetric call but lets logs and
 // profiles through. Used when anomaly_detection.metrics.enabled=false so
-// external metric sources (DogStatsD, check samplers, HF runners) do not
-// feed the engine. Virtual metrics produced by LogMetricsExtractors
-// during engine.IngestLog are unaffected because they bypass this handle
-// path entirely (they are written directly to storage from the engine).
+// external metric sources (DogStatsD, check samplers) do not feed the engine.
+// Virtual metrics produced by LogMetricsExtractors during engine.IngestLog are
+// unaffected because they bypass this handle path entirely.
 type metricDropHandle struct{ inner observerdef.Handle }
 
 var _ observerdef.Handle = (*metricDropHandle)(nil)
@@ -683,8 +662,8 @@ func (o *observerImpl) AddTelemetry(name string, value float64, timestamp int64,
 // Implements DebugView.
 func (o *observerImpl) ReplayStoredData() {
 	// resetAnalysisState resets detectors/correlators and tracking state but
-	// preserves extractor state (contextRefs + provider pattern registry) so
-	// enrichAnomaly can still attach log pattern context during replay.
+	// preserves extractor state so enrichAnomaly can still attach log pattern
+	// context (stored on seriesStats) during replay.
 	o.replayMu.Lock()
 	o.engine.resetAnalysisState()
 	o.engine.ReplayStoredData()
@@ -705,9 +684,9 @@ func (o *observerImpl) StorageReader() observerdef.StorageReader {
 func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
 	timestampMs := msg.GetTimestampUnixMilli()
 	lo := &logObs{
-		content:     copyBytes(msg.GetContent()),
+		content:     msg.GetContent(),
 		status:      msg.GetStatus(),
-		tags:        copyTags(msg.GetTags()),
+		tags:        copyTags(msg.Tags()),
 		hostname:    msg.GetHostname(),
 		timestampMs: timestampMs,
 	}
@@ -810,9 +789,9 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	obs := observation{
 		source: h.source,
 		log: &logObs{
-			content:     copyBytes(msg.GetContent()),
+			content:     msg.GetContent(),
 			status:      msg.GetStatus(),
-			tags:        copyTags(msg.GetTags()),
+			tags:        copyTags(msg.Tags()),
 			hostname:    msg.GetHostname(),
 			timestampMs: timestampMs,
 		},
@@ -834,18 +813,8 @@ type logView struct {
 	obs *logObs
 }
 
-func (v *logView) GetContent() []byte           { return v.obs.content }
+func (v *logView) GetContent() string           { return v.obs.content }
 func (v *logView) GetStatus() string            { return v.obs.status }
-func (v *logView) GetTags() []string            { return v.obs.tags }
+func (v *logView) Tags() []string               { return v.obs.tags }
 func (v *logView) GetHostname() string          { return v.obs.hostname }
 func (v *logView) GetTimestampUnixMilli() int64 { return v.obs.timestampMs }
-
-// copyBytes creates a copy of a byte slice.
-func copyBytes(b []byte) []byte {
-	if b == nil {
-		return nil
-	}
-	result := make([]byte, len(b))
-	copy(result, b)
-	return result
-}

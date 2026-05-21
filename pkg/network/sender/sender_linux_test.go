@@ -23,7 +23,7 @@ import (
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -79,7 +79,7 @@ func mockDirectSender(t *testing.T) *directSender {
 	d, err := New(t.Context(), &fakeConnectionSource{}, Dependencies{
 		Config:         config.NewMock(t),
 		Logger:         logmock.New(t),
-		Sysprobeconfig: sysprobeconfigimpl.NewMock(t),
+		Sysprobeconfig: sysprobeconfigmock.NewMock(t),
 		Tagger:         taggernoop.NewComponent(),
 		Wmeta:          wmeta,
 		Hostname:       hostnameComp,
@@ -444,7 +444,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	p[0].Tags = []*intern.Value{intern.GetByString(tags[0])}
 
 	// Have to be sorted with the usage of tags encoder v3
-	expectedTags := []string{"process_context:my-server", "tag0"}
+	expectedTags := []string{"process_context:my-server", "process_name:my-server.sh", "tag0"}
 
 	var dsch eventmonitor.EventConsumerHandler
 	d := mockDirectSender(t)
@@ -458,7 +458,11 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	e.Type = uint32(evmodel.ExecEventType)
 	e.ProcessContext = &evmodel.ProcessContext{Process: evmodel.Process{PIDContext: evmodel.PIDContext{Pid: p[0].Pid}, Argv: []string{"my-server.sh"}}}
 	e.Exec.Process = &e.ProcessContext.Process
-	proc := dsch.Copy(e)
+	copiedEvent := dsch.Copy(e)
+	proc := copiedEvent.(*process)
+	proc.Cwd = t.TempDir()
+	proc.Comm = "my-server.sh"
+	proc.Exe = "/usr/bin/bash"
 	dsch.HandleEvent(proc)
 
 	d.maxConnsPerMessage = 1

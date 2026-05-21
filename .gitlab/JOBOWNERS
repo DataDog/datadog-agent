@@ -222,6 +222,7 @@ new-e2e-ndm-snmp*                       @DataDog/network-device-monitoring-core
 new-e2e-ha-agent*                       @DataDog/network-device-monitoring-core
 # --- Pipelines (metrics / logs / traces) ---
 new-e2e-amp                             @DataDog/agent-metric-pipelines
+new-e2e-amp-adp                         @DataDog/agent-data-plane
 new-e2e-alp*                            @DataDog/agent-log-pipelines
 new-e2e-apm*                            @DataDog/agent-apm
 # --- Security ---

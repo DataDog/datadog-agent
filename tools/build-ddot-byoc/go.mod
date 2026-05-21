@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/google/go-containerregistry v0.21.5
-	github.com/klauspost/compress v1.18.5
+	github.com/klauspost/compress v1.18.6
 )
 
 require (
@@ -22,6 +22,7 @@ require (
 	github.com/vbatts/tar-split v0.12.2 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
+	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/tools v0.45.0 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 )

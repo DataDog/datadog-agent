@@ -127,7 +127,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [ 0, 1 ]
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
@@ -142,7 +142,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [ 0, 1 ]
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
@@ -157,7 +157,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [ 0, 1 ]
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
@@ -172,7 +172,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [ 0, 1 ]
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
@@ -187,7 +187,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [ 0, 1 ]
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
@@ -202,7 +202,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [ 0, 1 ]
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
@@ -217,7 +217,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [ 0, 1 ]
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
@@ -265,7 +265,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [ 1 ]
+      values: [1]
     support:
       unsupported_architectures: []
       device_modes:
@@ -279,7 +279,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [ 0, 1 ]
+      values: [0, 1]
     support:
       unsupported_architectures: []
       device_modes:
@@ -1241,6 +1241,31 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  nvlink.errors.fec:
+    metadata:
+      metric_type: histogram
+      description: >-
+        NVLink FEC history histogram for the port. Each emitted histogram bucket
+        represents the count of messages with exactly N FEC errors in the last interval.
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - hopper
+        - ada
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   nvlink.speed:
     metadata:
       metric_type: gauge
@@ -1570,6 +1595,38 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  pci.link.speed.current:
+    metadata:
+      metric_type: gauge
+      unit: byte/second
+      description: Current usable bandwidth for the PCI link in bytes per second
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 500000000000 # 500 GB/s (bytes/second)
+    support:
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  pci.link.speed.max:
+    metadata:
+      metric_type: gauge
+      unit: byte/second
+      description: Max usable bandwidth for the PCI link in bytes per second
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 500000000000 # 500 GB/s (bytes/second)
+    support:
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   performance_state:
     metadata:
       metric_type: gauge
@@ -1751,7 +1808,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [ 0, 1 ]
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
@@ -1771,7 +1828,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [ 0, 1 ]
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
