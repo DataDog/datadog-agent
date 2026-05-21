@@ -218,8 +218,9 @@ func (a *logAgent) start(context.Context) error {
 
 	a.startPipeline()
 
-	// If we're currently sending over TCP, attempt restart over HTTP
-	if !endpoints.UseHTTP {
+	// If we're currently sending over TCP (not HTTP and not gRPC), attempt restart over HTTP.
+	// Skip for gRPC: gRPC endpoints also have UseHTTP=false but should not be overridden.
+	if !endpoints.UseHTTP && !endpoints.UseGRPC {
 		a.smartHTTPRestart()
 	}
 	return nil

@@ -114,6 +114,24 @@ func getStrategy(
 			encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
 		}
 		if endpoints.UseGRPC {
+			// If there are HTTP additional endpoints, use DualStrategy in gRPC-primary mode:
+			// gRPC is the real primary sender, HTTP additional endpoints are secondaries.
+			// No shadow headers are injected in this mode.
+			if httpAdditionals := getHTTPAdditionalEndpoints(endpoints); len(httpAdditionals) > 0 && !serverlessMeta.IsEnabled() {
+				return grpcsender.NewGRPCPrimaryDualStrategy(
+					inputChan,
+					outputChan,
+					flushChan,
+					encoder,
+					cfg,
+					endpoints,
+					httpAdditionals,
+					compressor,
+					pipelineMonitor,
+					instanceID,
+				)
+			}
+
 			tokenizer := rtokenizer.NewRustTokenizer()
 			translator := grpcsender.NewMessageTranslator(instanceID, tokenizer)
 			// TODO: Consider sharing cluster manager across pipelines for better pattern clustering:
@@ -122,6 +140,7 @@ func getStrategy(
 
 			return grpcsender.NewBatchStrategy(statefulInputChan, outputChan, flushChan, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor, instanceID)
 		}
+		// If 2nd endpoint is gRPC, use DualStrategy in shadow mode
 		if grpcEndpoint, ok := firstGRPCAdditionalEndpoint(endpoints); ok && !serverlessMeta.IsEnabled() {
 			grpcComp := buildEndpointCompressor(compressor, grpcEndpoint)
 			return grpcsender.NewDualStrategy(inputChan, outputChan, flushChan, grpcEndpoint, grpcComp, cfg, endpoints, serverlessMeta, encoder, pipelineMonitor, instanceID)
@@ -151,6 +170,17 @@ func firstGRPCAdditionalEndpoint(endpoints *config.Endpoints) (config.Endpoint, 
 		}
 	}
 	return config.Endpoint{}, false
+}
+
+// getHTTPAdditionalEndpoints returns all additional endpoints that use HTTP (not gRPC).
+func getHTTPAdditionalEndpoints(endpoints *config.Endpoints) []config.Endpoint {
+	var result []config.Endpoint
+	for _, ep := range endpoints.Endpoints[1:] {
+		if !ep.UseGRPC {
+			result = append(result, ep)
+		}
+	}
+	return result
 }
 
 func buildEndpointCompressor(comp logscompression.Component, endpoint config.Endpoint) compressioncommon.Compressor {
