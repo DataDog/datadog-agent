@@ -50,7 +50,7 @@ type Check struct {
 	deviceCache        ddnvml.DeviceCache               // deviceCache is a cache of GPU devices
 	spCache            *nvidia.SystemProbeCache         // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
 	prmCache           *nvidia.PRMCache                 // prmCache manages privileged NVLink PRM metrics fetched from system-probe
-	deviceEvtGatherer  *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
+	DeviceEvtGatherer  *nvidia.DeviceEventsGatherer     // DeviceEvtGatherer asynchronously listens for device events and gathers them
 	workloadTagCache   *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
 	containerProvider  proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
 	rateCalculator     *nvidia.RateCalculator           // rateCalculator calculates the rate of metrics
@@ -154,7 +154,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("error creating workload tag cache: %w", err)
 	}
 	c.workloadTagCache = workloadTagCache
-	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer()
+	c.DeviceEvtGatherer = nvidia.NewDeviceEventsGatherer()
 
 	// Compute whether we should prefer system-probe process metrics
 	systemProbeConfig := pkgconfigsetup.SystemProbe()
@@ -206,7 +206,7 @@ func (c *Check) ensureInitCollectors() error {
 		newCollectors, err := nvidia.BuildCollectors(
 			missingDevices,
 			&nvidia.CollectorDependencies{
-				DeviceEventsGatherer: c.deviceEvtGatherer,
+				DeviceEventsGatherer: c.DeviceEvtGatherer,
 				SystemProbeCache:     c.spCache,
 				PRMCache:             c.prmCache,
 				Telemetry:            c.telemetry.collectorTelemetry,
@@ -226,7 +226,7 @@ func (c *Check) ensureInitCollectors() error {
 
 // Cancel stops the check
 func (c *Check) Cancel() {
-	if err := c.deviceEvtGatherer.Stop(); err != nil {
+	if err := c.DeviceEvtGatherer.Stop(); err != nil {
 		log.Warnf("error stopping event set gatherer: %v", err)
 	}
 
@@ -284,14 +284,14 @@ func (c *Check) Run() error {
 	}
 
 	// start device event gatherer if we have not already
-	if !c.deviceEvtGatherer.Started() {
-		if err := c.deviceEvtGatherer.Start(); err != nil {
+	if !c.DeviceEvtGatherer.Started() {
+		if err := c.DeviceEvtGatherer.Start(); err != nil {
 			log.Warnf("error starting device events collection: %v", err)
 		}
 	}
 
 	// Attempt refreshing device events
-	if err := c.deviceEvtGatherer.Refresh(); err != nil && logLimitCheck.ShouldLog() {
+	if err := c.DeviceEvtGatherer.Refresh(); err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("error refreshing device events cache: %v", err)
 		// Might cause empty metrics in collectors depending on device events
 	}
