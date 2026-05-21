@@ -8,9 +8,9 @@
 package systemprobeunreachable
 
 import (
-	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 func init() {
@@ -18,14 +18,11 @@ func init() {
 }
 
 const (
-	// IssueID is the unique identifier for system-probe unreachable issues
+	// IssueType is the template type identifier for system-probe unreachable issues
+	IssueType = "system-probe-unreachable"
+
+	// IssueID is the unique instance id used when reporting this issue
 	IssueID = "system-probe-unreachable"
-
-	// CheckID is the unique identifier for the built-in check
-	CheckID = "system-probe-reachability"
-
-	// CheckName is the human-readable name for the health check
-	CheckName = "System Probe Reachability Check"
 )
 
 // systemProbeUnreachableModule implements issues.Module
@@ -42,9 +39,9 @@ func NewModule(conf config.Component) issues.Module {
 	}
 }
 
-// IssueID returns the unique identifier for this issue type
-func (m *systemProbeUnreachableModule) IssueID() string {
-	return IssueID
+// IssueType returns the template type identifier for this issue type
+func (m *systemProbeUnreachableModule) IssueType() string {
+	return IssueType
 }
 
 // IssueTemplate returns the template for building complete issues
@@ -52,15 +49,17 @@ func (m *systemProbeUnreachableModule) IssueTemplate() issues.IssueTemplate {
 	return m.template
 }
 
-// BuiltInHealthCheck returns the built-in health check configuration.
-// Once is true so the check runs only once at agent startup.
-func (m *systemProbeUnreachableModule) BuiltInHealthCheck() *issues.BuiltInHealthCheck {
-	return &issues.BuiltInHealthCheck{
-		ID:   CheckID,
-		Name: CheckName,
-		CheckFn: func() (*healthplatform.IssueReport, error) {
+// BuiltInPeriodicHealthCheck returns nil — system-probe reachability is checked once at startup, not periodically.
+func (m *systemProbeUnreachableModule) BuiltInPeriodicHealthCheck() *issues.BuiltInPeriodicHealthCheck {
+	return nil
+}
+
+// BuiltInStartupHealthCheck runs the system-probe reachability check once at agent startup.
+func (m *systemProbeUnreachableModule) BuiltInStartupHealthCheck() *issues.BuiltInStartupHealthCheck {
+	return &issues.BuiltInStartupHealthCheck{
+		Source: "system-probe",
+		Fn: func() ([]storedef.IssueReport, error) {
 			return Check(m.conf)
 		},
-		Once: true,
 	}
 }

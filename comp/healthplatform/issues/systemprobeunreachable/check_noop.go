@@ -8,11 +8,11 @@
 package systemprobeunreachable
 
 import (
-	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 // Check is a no-op on non-Linux platforms where system-probe is not supported.
-func Check(_ config.Component) (*healthplatform.IssueReport, error) {
+func Check(_ config.Component) ([]storedef.IssueReport, error) {
 	return nil, nil
 }
