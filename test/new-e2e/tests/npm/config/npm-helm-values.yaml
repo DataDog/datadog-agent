@@ -1,5 +1,3 @@
 datadog:
   networkMonitoring:
     enabled: true
-  envDict:
-    DD_NETWORK_CONFIG_DIRECT_SEND: "false"
