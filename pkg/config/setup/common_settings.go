@@ -2117,11 +2117,6 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.recording.flush_interval", 60)
 	config.BindEnvAndSetDefault("anomaly_detection.recording.retention", "24h")
 
-	// High-frequency check overrides. Increases resolution at the cost of
-	// higher CPU/memory usage.
-	config.BindEnvAndSetDefault("anomaly_detection.checks.high_frequency_system", false)
-	config.BindEnvAndSetDefault("anomaly_detection.checks.high_frequency_containers", false)
-
 	// Debug tooling: internal state dump. Leave empty/zero in production.
 	config.BindEnvAndSetDefault("anomaly_detection.debug.dump_path", "")
 	config.BindEnvAndSetDefault("anomaly_detection.debug.dump_interval", 0)
