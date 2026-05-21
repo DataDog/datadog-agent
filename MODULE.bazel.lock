@@ -606,7 +606,7 @@
     },
     "@@gcc_toolchain+//:internal.bzl%non_bazel_dependencies": {
       "general": {
-        "bzlTransitiveDigest": "1Tl8gNDYKNLwM1L435EfTXDlrC2wLwGKvKHwUAGvOnI=",
+        "bzlTransitiveDigest": "eoU8kd2a+xVyiuTr1TTJARgRCyksUTJkkzOl+CcW6sE=",
         "usagesDigest": "sWe6gvmFpdWalNUJUWNZF23cgclfU+ijKXCf9JEbTjs=",
         "recordedInputs": [
           "REPO_MAPPING:gcc_toolchain+,bazel_tools bazel_tools",
@@ -616,7 +616,7 @@
           "openssl": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
             "attributes": {
-              "build_file_content": "filegroup(\n    name = \"srcs\",\n    srcs = glob(\n        include = [\"**\"],\n        exclude = [\"**/* *\"],\n    ),\n    visibility = [\"//visibility:public\"],\n)\n",
+              "build_file_content": "filegroup(\r\n    name = \"srcs\",\r\n    srcs = glob(\r\n        include = [\"**\"],\r\n        exclude = [\"**/* *\"],\r\n    ),\r\n    visibility = [\"//visibility:public\"],\r\n)\r\n",
               "sha256": "40dceb51a4f6a5275bde0e6bf20ef4b91bfc32ed57c0552e2e8e15463372b17a",
               "strip_prefix": "openssl-1.1.1n",
               "url": "https://www.openssl.org/source/openssl-1.1.1n.tar.gz"
@@ -625,9 +625,9 @@
           "lapack": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
             "attributes": {
-              "build_file_content": "filegroup(\n    name = \"srcs\",\n    srcs = glob(\n        include = [\"**\"],\n        exclude = [\"**/* *\"],\n    ),\n    visibility = [\"//visibility:public\"],\n)\n",
+              "build_file_content": "filegroup(\r\n    name = \"srcs\",\r\n    srcs = glob(\r\n        include = [\"**\"],\r\n        exclude = [\"**/* *\"],\r\n    ),\r\n    visibility = [\"//visibility:public\"],\r\n)\r\n",
               "patch_cmds": [
-                "cat > make.inc <<EOF\n####################################################################\n#  LAPACK make include file.                                       #\n####################################################################\n\nSHELL = $0\n\nCC ?=\n\nFC ?=\nFFLAGS ?=\nFFLAGS_DRV ?=\nFFLAGS_NOOPT ?=\n\nLDFLAGS ?=\n\nAR ?=\nARFLAGS = cr\nRANLIB = echo\n\nBLASLIB ?=\nCBLASLIB ?=\nLAPACKLIB ?=\nTMGLIB ?=\nLAPACKELIB ?=\n\nDOCSDIR ?=\n\nTIMER ?=\nEOF\n"
+                "cat > make.inc <<EOF\r\n####################################################################\r\n#  LAPACK make include file.                                       #\r\n####################################################################\r\n\r\nSHELL = $0\r\n\r\nCC ?=\r\n\r\nFC ?=\r\nFFLAGS ?=\r\nFFLAGS_DRV ?=\r\nFFLAGS_NOOPT ?=\r\n\r\nLDFLAGS ?=\r\n\r\nAR ?=\r\nARFLAGS = cr\r\nRANLIB = echo\r\n\r\nBLASLIB ?=\r\nCBLASLIB ?=\r\nLAPACKLIB ?=\r\nTMGLIB ?=\r\nLAPACKELIB ?=\r\n\r\nDOCSDIR ?=\r\n\r\nTIMER ?=\r\nEOF\r\n"
               ],
               "sha256": "eac9570f8e0ad6f30ce4b963f4f033f0f643e7c3912fc9ee6cd99120675ad48b",
               "strip_prefix": "lapack-3.12.0",
@@ -817,8 +817,8 @@
     },
     "@@rules_rust+//crate_universe/private:internal_extensions.bzl%cu_nr": {
       "general": {
-        "bzlTransitiveDigest": "PGSiiAcZuyl14IppjuydWg9+28ItT5UwsBN+MBQyohs=",
-        "usagesDigest": "qhmy4zrnFb6knNQRx2XBCVfHObom0vnflm+sibd7SA0=",
+        "bzlTransitiveDigest": "CTeGWob3vocncSqsPiPnNUPXklCIR6jdFcyBeR8RpIs=",
+        "usagesDigest": "w6DeRbiDSXRVPZPJF6BTEEe4fMh1OiL8grDVrOA0M98=",
         "recordedInputs": [
           "REPO_MAPPING:bazel_features+,bazel_features_globals bazel_features++version_extension+bazel_features_globals",
           "REPO_MAPPING:bazel_features+,bazel_features_version bazel_features++version_extension+bazel_features_version",
