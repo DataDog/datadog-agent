@@ -85,6 +85,8 @@
   .bar.neg { background: linear-gradient(90deg, var(--amber), #fbbf24); }
   .takeaways li { margin: .45rem 0; }
   .score td:first-child { font-weight: 700; }
+  .term-table td:first-child { font-weight: 800; width: 18%; }
+  .stage-tag { color: var(--muted); font-weight: 650; font-size: 0.9em; }
   .status-high { color: var(--green); font-weight: 800; }
   .status-medium { color: var(--amber); font-weight: 800; }
   .status-open { color: #64748b; font-weight: 800; }
@@ -100,6 +102,7 @@
 
 <nav class="nav" aria-label="Report navigation">
   <a href="#executive-summary">Executive summary</a>
+  <a href="#plain-english">Plain-English guide</a>
   <a href="#motivation">Why this exists</a>
   <a href="#vision">Architecture vision</a>
   <a href="#experimental-design">Experiment design</a>
@@ -116,21 +119,21 @@
   <div class="cards">
     <div class="card">
       <span class="pill green">Validated direction</span>
-      <h3>Parser no-materialization is the big lever</h3>
+      <h3>Stop rebuilding the same metric description</h3>
       <div class="metric">-14% <span>agent CPU</span></div>
-      <p>Stage W's fast lane bypasses repeated name/tag materialization and full <code>MetricSample</code> construction on exact-tagset hits. Fixed-rate throughput stayed neutral, but Agent CPU dropped about 14% on high-rate metrics-only runs.</p>
+      <p>In today's general path, every DogStatsD line is parsed into names, tag strings, tag slices, and a <code>MetricSample</code>-like object even when it is the same metric and tags as the previous line. The latest fast path recognizes repeated simple metrics and sends just the changing value plus a small descriptor reference. Fixed-rate throughput stayed neutral, but Agent CPU dropped about 14% on high-rate metrics-only runs.</p>
     </div>
     <div class="card">
       <span class="pill green">High-rate win</span>
-      <h3>Parser dictionaries can change the ceiling</h3>
+      <h3>Remember repeated tag lists</h3>
       <div class="metric">+28.4% <span>throughput</span></div>
-      <p>Stage T's opt-in exact raw-tagset cache produced a large repeated-tagset high-rate win versus main. This remains gated until adversarial/mostly-unique tagsets are tested.</p>
+      <p>DogStatsD traffic often repeats the same comma-separated tag list many times. Caching the parsed form of those repeated tag lists produced a large high-rate win versus main. This remains gated until adversarial/mostly-unique traffic is tested.</p>
     </div>
     <div class="card">
       <span class="pill green">Bounded ingress</span>
-      <h3>Explicit backpressure beats hidden backlog</h3>
+      <h3>Bound the queue by bytes, not hope</h3>
       <div class="metric">+7.4% <span>high-rate</span></div>
-      <p>Stage N/O's compact raw UDS ring plus batched drains became the best bounded-ingress design tested, replacing large packet-channel backlog with byte-budgeted behavior.</p>
+      <p>The Agent has to absorb bursts between socket readers and parser workers. A compact byte-budgeted UDS ring plus batched parser drains was the best bounded-ingress design tested, replacing large hidden packet-channel backlog with explicit backpressure.</p>
     </div>
     <div class="card">
       <span class="pill amber">Still open</span>
@@ -141,13 +144,32 @@
   </div>
 
   <div class="verdict good">
-    <strong>How we feel about the experiment:</strong> it moved from a sketch to a validated direction. We found real macro wins, falsified several attractive shortcuts, and learned that compact identities only pay off when they let us skip materialization <em>before</em> the old object-heavy path. We do not yet know the final throughput ceiling because the latest Stage W runs are fixed-rate and not saturated.
+    <strong>How we feel about the experiment:</strong> it moved from a sketch to a validated direction. We found real macro wins, falsified several attractive shortcuts, and learned that small IDs for repeated metric descriptions only pay off when they let us avoid building the old object-heavy representation in the first place. We do not yet know the final throughput ceiling because the latest CPU-winning runs are fixed-rate and not saturated.
+  </div>
+</section>
+
+<section id="plain-english">
+  <h2>Plain-English guide to the techniques</h2>
+  <p>The detailed notes use stage names and shorthand because the work happened incrementally. Think of the stage letters as experiment labels, not product names. This section translates the important ideas into Agent concepts.</p>
+  <table class="term-table">
+    <tr><th>Term used below</th><th>What it means in the Agent</th><th>Why it matters</th></tr>
+    <tr><td>Materialization</td><td>Turning raw DogStatsD bytes into Go objects: metric-name strings, tag strings, tag slices, host fields, sample structs, and descriptor structs.</td><td>It is convenient and general, but expensive when the same metric and same tags appear hundreds of thousands of times per second.</td></tr>
+    <tr><td>Dictionary / interner / cache</td><td>Remember a string or tag list we have already parsed and reuse the existing object or a small numeric ID the next time it appears.</td><td>This is similar to compression: store repeated metadata once, then send references plus the changing values.</td></tr>
+    <tr><td>Compact identity</td><td>A small ID for “this metric name + host + tag list” as seen by a parser worker. It is an optimization hint, not a semantic replacement for full context resolution.</td><td>It lets downstream code ask “have I seen this series descriptor before?” without re-hashing/re-comparing every string.</td></tr>
+    <tr><td>Fast path / fast lane</td><td>A narrow route for very common simple metric lines: if the tag list and descriptor are already known, parse the numeric value and append a row directly.</td><td>The general path still exists for compatibility. The fast path is valuable because it skips work only when it is safe to do so.</td></tr>
+    <tr><td>Raw ingress ring</td><td>A byte-bounded ring buffer between UDS socket reads and parser workers.</td><td>It makes overload behavior explicit: keep only a bounded amount of raw traffic, apply backpressure for UDS, and expose lag/drops instead of hiding backlog in large channels.</td></tr>
+    <tr><td>Columnar / v3-aligned rows</td><td>Represent repeated metadata once and store changing fields like timestamps/values in compact row or column form, closer to the metrics v3 payload shape.</td><td>It can reduce translation work when building payloads and can also serve local lookback/debug views.</td></tr>
+    <tr><td>Materialized view</td><td>A bounded, precomputed local data structure for a query such as “top DogStatsD series recently” or “dogstatsd-stats output.”</td><td>Instead of doing expensive ad hoc work on the hot path or while serving a status request, update a small owned view and query snapshots.</td></tr>
+  </table>
+  <div class="callout neutral">
+    <strong>Rule of thumb:</strong> most wins came from projection laziness. Do not build a string, tag slice, debug key, descriptor, or payload dictionary entry unless some active consumer actually needs it. When traffic repeats, prefer stable references over rebuilding the same description.
   </div>
 </section>
 
 <section id="motivation">
   <h2>Why this exists</h2>
-  <p>DogStatsD is more than a UDP/UDS parser. It is also a local aggregation engine, a debug surface, a capture/replay source, and increasingly a path to v3 columnar payloads. Today those concerns are split across side paths:</p>
+  <p>DogStatsD is more than a UDP/UDS parser. It is also a local aggregation engine, a debug surface, a capture/replay source, and increasingly a path to v3 columnar payloads.</p>
+  <p>In the normal Agent path today, listeners read packets, the parser turns each line into a metric sample with strings and tag slices, DogStatsD chooses an aggregation pipeline, the aggregator computes backend context keys, and the serializer later rebuilds payload-shaped data. That design is general and battle-tested, but several adjacent features repeat parts of the same work:</p>
   <ul class="takeaways">
     <li>normal aggregation parses samples, extracts tags, computes context keys, and later flushes backend payloads;</li>
     <li>batch sharding computes an overlapping but not identical key;</li>
@@ -160,7 +182,8 @@
 </section>
 
 <section id="vision">
-  <h2>Architecture vision: raw stream + semantic stream + materialized views</h2>
+  <h2>Architecture vision: raw traffic first, reusable metric facts second</h2>
+  <p>In ordinary Agent terms: keep a bounded record of the bytes we received, parse those bytes into one reusable description of “what metric series is this?”, and let aggregation/debug/lookback/payload code consume that shared description instead of each rebuilding its own.</p>
   <div class="diagram" role="img" aria-label="DogStatsD streaming architecture diagram">
     <svg viewBox="0 0 1120 560" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -170,7 +193,7 @@
       </defs>
       <rect x="0" y="0" width="1120" height="560" rx="24" fill="#ffffff"/>
       <text x="40" y="42" font-size="24" font-weight="800" fill="#0f172a">Target shape</text>
-      <text x="40" y="70" font-size="15" fill="#64748b">Compute identities and descriptors once, then feed aggregation, debug, capture/replay, lookback, and payload construction.</text>
+      <text x="40" y="70" font-size="15" fill="#64748b">Parse each repeated metric description once, then feed aggregation, debug, capture/replay, lookback, and payload construction.</text>
 
       <rect x="40" y="120" width="145" height="78" rx="14" fill="#f1f5f9" stroke="#cbd5e1"/>
       <text x="112" y="150" text-anchor="middle" font-size="16" font-weight="700" fill="#0f172a">Listeners</text>
@@ -184,11 +207,11 @@
       <rect x="535" y="100" width="230" height="118" rx="16" fill="url(#greengrad)" stroke="#86efac"/>
       <text x="650" y="134" text-anchor="middle" font-size="17" font-weight="800" fill="#0f172a">Parser / normalizer</text>
       <text x="650" y="160" text-anchor="middle" font-size="13" fill="#475569">names, tags, origin</text>
-      <text x="650" y="182" text-anchor="middle" font-size="13" fill="#475569">compact IDs, descriptors</text>
+      <text x="650" y="182" text-anchor="middle" font-size="13" fill="#475569">small IDs, descriptors</text>
 
       <rect x="835" y="105" width="230" height="108" rx="16" fill="#ede9fe" stroke="#c4b5fd"/>
-      <text x="950" y="137" text-anchor="middle" font-size="17" font-weight="800" fill="#0f172a">Canonical stream</text>
-      <text x="950" y="163" text-anchor="middle" font-size="13" fill="#475569">semantic records</text>
+      <text x="950" y="137" text-anchor="middle" font-size="17" font-weight="800" fill="#0f172a">Parsed metric facts</text>
+      <text x="950" y="163" text-anchor="middle" font-size="13" fill="#475569">reusable records</text>
       <text x="950" y="185" text-anchor="middle" font-size="13" fill="#475569">series refs + values</text>
 
       <path d="M185 159 L250 159" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
@@ -227,7 +250,7 @@
       <path d="M950 213 C1000 300 940 335 934 396" stroke="#64748b" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
     </svg>
   </div>
-  <p class="caption">The important idea is not “columnar everything.” It is “make every expensive projection explicit and reusable.” Raw capture/replay should consume raw envelopes; aggregation/debug/lookback/payloads should consume canonical semantic records and descriptors.</p>
+  <p class="caption">The important idea is not “columnar everything.” It is “make every expensive conversion explicit and reusable.” Raw capture/replay should consume raw envelopes; aggregation/debug/lookback/payloads should consume parsed metric facts and descriptors.</p>
 </section>
 
 <section id="experimental-design">
@@ -267,19 +290,19 @@
         <text x="285" y="220" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a">Naive columnar</text><text x="285" y="244" text-anchor="middle" font-size="13" fill="#64748b">negative; wrong work</text>
 
         <circle cx="440" cy="155" r="16" fill="#059669"/><text x="440" y="160" text-anchor="middle" font-size="13" fill="white" font-weight="800">J</text>
-        <text x="440" y="92" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a">Shard-only identity</text><text x="440" y="116" text-anchor="middle" font-size="13" fill="#64748b">+13.6% high-rate</text>
+        <text x="440" y="92" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a">Only compute needed keys</text><text x="440" y="116" text-anchor="middle" font-size="13" fill="#64748b">+13.6% high-rate</text>
 
         <circle cx="595" cy="155" r="16" fill="#0891b2"/><text x="595" y="160" text-anchor="middle" font-size="13" fill="white" font-weight="800">L-O</text>
-        <text x="595" y="220" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a">Bounded ingress</text><text x="595" y="244" text-anchor="middle" font-size="13" fill="#64748b">raw ring + batch drains</text>
+        <text x="595" y="220" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a">Bounded input queue</text><text x="595" y="244" text-anchor="middle" font-size="13" fill="#64748b">byte ring + batch drains</text>
 
         <circle cx="750" cy="155" r="16" fill="#7c3aed"/><text x="750" y="160" text-anchor="middle" font-size="13" fill="white" font-weight="800">Q</text>
         <text x="750" y="92" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a">Native v3 path</text><text x="750" y="116" text-anchor="middle" font-size="13" fill="#64748b">+8.1% vs main</text>
 
         <circle cx="895" cy="155" r="16" fill="#d97706"/><text x="895" y="160" text-anchor="middle" font-size="13" fill="white" font-weight="800">T</text>
-        <text x="895" y="220" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a">Parser tagsets</text><text x="895" y="244" text-anchor="middle" font-size="13" fill="#64748b">+28.4% repeated tags</text>
+        <text x="895" y="220" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a">Remember tag lists</text><text x="895" y="244" text-anchor="middle" font-size="13" fill="#64748b">+28.4% repeated tags</text>
 
         <circle cx="1020" cy="155" r="16" fill="#059669"/><text x="1020" y="160" text-anchor="middle" font-size="13" fill="white" font-weight="800">W</text>
-        <text x="1020" y="92" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a">Fast lane</text><text x="1020" y="116" text-anchor="middle" font-size="13" fill="#64748b">-14% Agent CPU</text>
+        <text x="1020" y="92" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a">Skip repeated objects</text><text x="1020" y="116" text-anchor="middle" font-size="13" fill="#64748b">-14% Agent CPU</text>
       </g>
     </svg>
   </div>
@@ -291,39 +314,39 @@
     <div>
       <h3>Largest throughput signals</h3>
       <div class="bar-list">
-        <div class="bar-row"><div>Stage T tagset cache vs main</div><div class="bar-track"><div class="bar" style="width:100%"></div></div><div class="num">+28.42%</div></div>
-        <div class="bar-row"><div>Stage J shard-only vs direct rows</div><div class="bar-track"><div class="bar" style="width:48%"></div></div><div class="num">+13.57%</div></div>
-        <div class="bar-row"><div>Stage Q native v3 vs main</div><div class="bar-track"><div class="bar" style="width:29%"></div></div><div class="num">+8.10%</div></div>
-        <div class="bar-row"><div>Stage O bounded ring vs direct rows</div><div class="bar-track"><div class="bar" style="width:26%"></div></div><div class="num">+7.39%</div></div>
+        <div class="bar-row"><div>Repeated tag-list cache <span class="stage-tag">(Stage T)</span></div><div class="bar-track"><div class="bar" style="width:100%"></div></div><div class="num">+28.42%</div></div>
+        <div class="bar-row"><div>Only compute needed keys <span class="stage-tag">(Stage J)</span></div><div class="bar-track"><div class="bar" style="width:48%"></div></div><div class="num">+13.57%</div></div>
+        <div class="bar-row"><div>Native v3 payload path <span class="stage-tag">(Stage Q)</span></div><div class="bar-track"><div class="bar" style="width:29%"></div></div><div class="num">+8.10%</div></div>
+        <div class="bar-row"><div>Bounded input queue <span class="stage-tag">(Stage O)</span></div><div class="bar-track"><div class="bar" style="width:26%"></div></div><div class="num">+7.39%</div></div>
       </div>
       <p class="caption">High-rate UDS metrics-only or v3 endpoint cases. See detailed stage tables below for exact baselines and caveats.</p>
     </div>
     <div>
       <h3>Most important CPU signal</h3>
       <div class="bar-list">
-        <div class="bar-row"><div>Stage W fast lane, high-rate</div><div class="bar-track"><div class="bar cpu" style="width:70%"></div></div><div class="num">-14.0%</div></div>
-        <div class="bar-row"><div>Stage W fast lane, 2 CPU case</div><div class="bar-track"><div class="bar cpu" style="width:70%"></div></div><div class="num">-14.1%</div></div>
-        <div class="bar-row"><div>Stage W fast lane, standard</div><div class="bar-track"><div class="bar cpu" style="width:42%"></div></div><div class="num">-8.36%</div></div>
+        <div class="bar-row"><div>Skip repeated objects, high-rate <span class="stage-tag">(Stage W)</span></div><div class="bar-track"><div class="bar cpu" style="width:70%"></div></div><div class="num">-14.0%</div></div>
+        <div class="bar-row"><div>Skip repeated objects, 2 CPU <span class="stage-tag">(Stage W)</span></div><div class="bar-track"><div class="bar cpu" style="width:70%"></div></div><div class="num">-14.1%</div></div>
+        <div class="bar-row"><div>Skip repeated objects, standard <span class="stage-tag">(Stage W)</span></div><div class="bar-track"><div class="bar cpu" style="width:42%"></div></div><div class="num">-8.36%</div></div>
       </div>
-      <p class="caption">Throughput stayed flat because these runs were fixed-rate, but lower Agent CPU is exactly the headroom signal we wanted from parser no-materialization.</p>
+      <p class="caption">Throughput stayed flat because these runs were fixed-rate, but lower Agent CPU is exactly the headroom signal we wanted from avoiding repeated object construction.</p>
     </div>
   </div>
 
   <div class="cards">
     <div class="card">
       <span class="pill purple">Falsified</span>
-      <h3>Naive columnar is not enough</h3>
-      <p>Stage I was negative until we noticed the parser was computing an unused debug projection for every sample. The lesson: shared identity helps only if projection laziness is enforced.</p>
+      <h3>A new data shape is not enough by itself</h3>
+      <p>The first columnar attempt was negative until we noticed the parser was computing debug-only data for every sample. The lesson: shared identity helps only if we also avoid projections no active feature needs.</p>
     </div>
     <div class="card">
       <span class="pill purple">Falsified</span>
       <h3>Skipping grouping naively does not win</h3>
-      <p>Stage H's unsafe direct context rows and Stage P's direct compact raw ring both looked plausible but lost. They increased downstream work or contention more than they saved.</p>
+      <p>Two shortcuts looked plausible but lost: one skipped normal grouping, and one tried one-slot direct reservation in the input ring. Both increased downstream work or contention more than they saved.</p>
     </div>
     <div class="card">
       <span class="pill green">Validated</span>
       <h3>Bounded backlog is a product win</h3>
-      <p>Raw-ring telemetry lets us distinguish “faster” from “admitted more hidden backlog.” This matters as much as raw throughput for production behavior.</p>
+      <p>Input-queue lag telemetry lets us distinguish “actually faster” from “accepted more hidden backlog.” This matters as much as raw throughput for production behavior.</p>
     </div>
   </div>
 </section>
@@ -369,7 +392,7 @@
 </section>
 
 <div class="verdict">
-  <strong>Current verdict:</strong> the architecture is promising and increasingly real. We have decisive evidence that parser dictionaries and no-materialization fast lanes can move macro CPU/throughput, and that bounded ingress gives better overload honesty. We should still treat the work as experimental until saturation, memory, feature-cost, and compatibility matrices are complete.
+  <strong>Current verdict:</strong> the architecture is promising and increasingly real. We have decisive evidence that remembering repeated tag lists and skipping repeated object construction can move macro CPU/throughput, and that bounded ingress gives better overload honesty. We should still treat the work as experimental until saturation, memory, feature-cost, and compatibility matrices are complete.
 </div>
 
 <h2 id="appendix-images">Appendix: images</h2>
@@ -399,7 +422,7 @@
   <li><code>datadog/agent-dev:smp-dsd-columnar-v3-parser-interning</code> / <code>...-tagset</code> — Stage T parser interning, commit <code>d78e87470fd</code></li>
   <li><code>datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints</code> / <code>...-enabled</code> — Stage U compact identity hints, commit <code>9376b73a9c1</code></li>
   <li><code>datadog/agent-dev:smp-dsd-columnar-v3-compact-consumers</code> / <code>...-baseline</code> / <code>...-enabled</code> — Stage V compact-ID consumers, local worktree after <code>73080eecc9f</code></li>
-  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-fastlane</code> / <code>...-baseline</code> / <code>...-enabled</code> — Stage W parser no-materialization fast lane, commit <code>658b3c805cb</code></li>
+  <li><code>datadog/agent-dev:smp-dsd-columnar-v3-fastlane</code> / <code>...-baseline</code> / <code>...-enabled</code> — Stage W skip repeated object construction, commit <code>658b3c805cb</code></li>
 </ul>
 
 <h2 id="appendix-stage-results">Appendix: detailed stage result tables</h2>
@@ -601,7 +624,7 @@
 <tr><th>Change</th><th>Read</th></tr>
 <tr><td>bounded SLRU string interner</td><td>replaces full-cache reset with recent/protected segments and individual evictions</td></tr>
 <tr><td>non-mutating normal tag extraction</td><td>normal tagsets can be treated as immutable/shared</td></tr>
-<tr><td>optional exact raw-tagset cache</td><td><code>DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true</code>; second sighting admits exact parsed tagset</td></tr>
+<tr><td>optional repeated raw tag-list cache</td><td><code>DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true</code>; second sighting admits an exactly repeated parsed tagset</td></tr>
 <tr><td>focused repeated-tagset benchmark</td><td>default <code>145.9 ns/op, 112 B/op, 1 alloc/op</code>; cache hit <code>15.64 ns/op, 0 B/op, 0 alloc/op</code></td></tr>
 </table>
 
@@ -622,7 +645,7 @@
 <h3>Stage U — compact identity hints</h3>
 <table>
 <tr><th>Change</th><th>Read</th></tr>
-<tr><td>parser tagset IDs</td><td>exact raw-tagset cache entries carry compact parser-local IDs</td></tr>
+<tr><td>repeated tag-list IDs</td><td>exact tag-list cache entries carry compact parser-local IDs</td></tr>
 <tr><td>bounded identity cache</td><td><code>DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES=true</code>; caches <code>(name, host, tagset ID)</code> to compact ID + shard context</td></tr>
 <tr><td>columnar descriptor hint</td><td>compact ID is carried to columnar-v3 and validated against <code>ContextKey</code> + metric type before descriptor reuse</td></tr>
 <tr><td>focused shard benchmark</td><td>baseline <code>63.27 ns/op</code>; compact hit <code>52.69 ns/op</code>; both zero allocations</td></tr>
@@ -635,7 +658,7 @@
 </table>
 
 <div class="verdict warn">
-  <strong>Stage U caveat:</strong> compact IDs now flow through the hot path safely, but the first consumer is macro-neutral. Stage T already removed most repeated-tagset parser cost; further wins likely require using the compact IDs for descriptor/tagset/payload dictionary reuse or parser no-materialization.
+  <strong>Stage U caveat:</strong> compact IDs now flow through the hot path safely, but the first consumer is macro-neutral. Remembering tag lists already removed much of the repeated parser cost; further wins likely require using the compact IDs for descriptor/tagset/payload dictionary reuse or for skipping parser object construction.
 </div>
 
 <h3>Stage V — compact ID downstream consumers</h3>
@@ -654,10 +677,10 @@
 </table>
 
 <div class="verdict warn">
-  <strong>Stage V caveat:</strong> compact IDs can now drive scalar row/descriptor reuse in a gated slice, but the macro result is still neutral. The remaining parser/enrichment path materializes strings and tag slices before compact IDs can help; next wins require parser no-materialization and v3 payload dictionary ID reuse.
+  <strong>Stage V caveat:</strong> compact IDs can now drive scalar row/descriptor reuse in a gated slice, but the macro result is still neutral. The remaining parser/enrichment path still builds strings and tag slices before compact IDs can help; next wins require skipping that object construction and reusing IDs in v3 payload dictionaries.
 </div>
 
-<h3>Stage W — parser no-materialization fast lane</h3>
+<h3>Stage W — skip repeated object construction</h3>
 <table>
 <tr><th>Change</th><th>Read</th></tr>
 <tr><td>fast-lane gate</td><td><code>DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE=true</code>; requires exact tagset cache/direct parse and handles a narrow single-value gauge/count slice</td></tr>
@@ -682,7 +705,7 @@
 </div>
 
 <div class="verdict warn">
-  <strong>Stage E/F/G/H/I/J/L/M/N/O/P/Q/R/T/U/V/W caveat:</strong> this is intentionally unsafe/local and enabled through env gates. Stage E bypasses iterable channel traversal. Stage F emits DogStatsD time-sampler series as <code>metrics.SerieRow</code>. Stage G bypasses scalar <code>*metrics.Serie</code> materialization. Stage H bypasses grouping/dedup and is intentionally not wire-equivalent. Stage I/J/Q/R/U/V/W are v3-only/metric-oriented and fall back to legacy paths for unsupported samples/checks/sketches/events, except the explicit skip-legacy upper-bound probe, the Stage Q direct-series/v2 bridge, Stage V's gated direct-parse slice, and Stage W's narrower exact-tagset fast lane. Stage L changes overload/backpressure behavior and is only a first-pass packet-batch ingress log. Stage M/N/O/P raw modes are UDS-datagram-only and currently exclude UDP, stream sockets, named pipes, statsd forwarding, and origin detection; the origin-on and UDP probes intentionally ran with raw ingress disabled. Stage R changes measurement cost shape by making proof shadows optional and descriptor interning opt-in. Stage T's exact tagset cache, Stage U compact identities, Stage V compact-ID consumers, and Stage W fast lane remain opt-in until admission/memory behavior is validated on mostly-unique/adversarial tagsets and broader compatibility is proven.
+  <strong>Stage E/F/G/H/I/J/L/M/N/O/P/Q/R/T/U/V/W caveat:</strong> this is intentionally unsafe/local and enabled through env gates. Stage E bypasses iterable channel traversal. Stage F emits DogStatsD time-sampler series as <code>metrics.SerieRow</code>. Stage G bypasses scalar <code>*metrics.Serie</code> materialization. Stage H bypasses grouping/dedup and is intentionally not wire-equivalent. Stage I/J/Q/R/U/V/W are v3-only/metric-oriented and fall back to legacy paths for unsupported samples/checks/sketches/events, except the explicit skip-legacy upper-bound probe, the Stage Q direct-series/v2 bridge, Stage V's gated direct-parse slice, and Stage W's narrower repeated-tag-list fast path. Stage L changes overload/backpressure behavior and is only a first-pass packet-batch ingress log. Stage M/N/O/P raw modes are UDS-datagram-only and currently exclude UDP, stream sockets, named pipes, statsd forwarding, and origin detection; the origin-on and UDP probes intentionally ran with raw ingress disabled. Stage R changes measurement cost shape by making proof shadows optional and descriptor interning opt-in. Stage T's repeated tag-list cache, Stage U compact identities, Stage V compact-ID consumers, and Stage W fast path remain opt-in until admission/memory behavior is validated on mostly-unique/adversarial tagsets and broader compatibility is proven.
 </div>
 
 <h2>Artifacts</h2>
