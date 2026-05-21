@@ -10,7 +10,7 @@ package invalidconfig
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 func init() {
@@ -26,8 +26,8 @@ func NewModule(cfg config.Component) issues.Module {
 	return &invalidConfigModule{checker: newChecker(cfg)}
 }
 
-func (m *invalidConfigModule) IssueID() string {
-	return healthplatformdef.InvalidConfigIssueID
+func (m *invalidConfigModule) IssueType() string {
+	return storedef.InvalidConfigIssueID
 }
 
 func (m *invalidConfigModule) IssueTemplate() issues.IssueTemplate {
@@ -35,11 +35,14 @@ func (m *invalidConfigModule) IssueTemplate() issues.IssueTemplate {
 }
 
 // BuiltInHealthCheck runs the schema validation once at agent startup
-func (m *invalidConfigModule) BuiltInHealthCheck() *issues.BuiltInHealthCheck {
-	return &issues.BuiltInHealthCheck{
-		ID:      healthplatformdef.InvalidConfigCheckID,
-		Name:    healthplatformdef.InvalidConfigCheckName,
-		CheckFn: m.checker.Run,
-		Once:    true,
+func (m *invalidConfigModule) BuiltInPeriodicHealthCheck() *issues.BuiltInPeriodicHealthCheck {
+	return nil
+}
+
+// BuiltInStartupHealthCheck runs the schema validation once at agent startup.
+func (m *invalidConfigModule) BuiltInStartupHealthCheck() *issues.BuiltInStartupHealthCheck {
+	return &issues.BuiltInStartupHealthCheck{
+		Source: "agent",
+		Fn:     m.checker.Run,
 	}
 }
