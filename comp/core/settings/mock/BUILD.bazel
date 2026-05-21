@@ -7,7 +7,9 @@ go_library(
     tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/settings/impl",
+        "//comp/core/settings/def",
+        "//comp/def",
+        "//pkg/config/model",
         "//pkg/util/fxutil",
     ],
 )
