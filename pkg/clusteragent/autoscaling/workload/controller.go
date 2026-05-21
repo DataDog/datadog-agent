@@ -99,6 +99,13 @@ type Controller struct {
 	datadogMetricIndexer        cache.Indexer
 	datadogMetricInformerSynced cache.InformerSynced
 
+	// workloadGVRs maps a workload Kind (Deployment / StatefulSet / Rollout) to its
+	// GroupVersionResource. Used by extractHPAConfig (UC9) to dispatch live GETs on the
+	// workload pod template when converting AverageValue CPU targets to Utilization
+	// percentages. Populated at construction time by the provider, which already detects
+	// the available kinds (including Argo Rollouts when the CRD is installed).
+	workloadGVRs map[string]schema.GroupVersionResource
+
 	metricsStore *metricsstore.MetricsStore[*model.PodAutoscalerInternal]
 }
 
@@ -118,6 +125,7 @@ func NewController(
 	localSender sender.Sender,
 	limitHeap *limitHeap,
 	globalTagsFunc func() []string,
+	workloadGVRs map[string]schema.GroupVersionResource,
 ) (*Controller, error) {
 	c := &Controller{
 		clusterID:         clusterID,
@@ -126,6 +134,7 @@ func NewController(
 		localSender:       localSender,
 		isFallbackEnabled: false, // keep fallback disabled by default
 		kubeClient:        client,
+		workloadGVRs:      workloadGVRs,
 	}
 
 	autoscalingWorkqueue := workqueue.NewTypedRateLimitingQueueWithConfig(

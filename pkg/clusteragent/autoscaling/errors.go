@@ -56,6 +56,9 @@ const (
 	ConditionReasonUnsupportedHPAMetric ConditionReasonType = "UnsupportedHPAMetric"
 	// ConditionReasonDatadogMetricNotFound indicates a DatadogMetric CRD referenced by an HPA external metric was not found.
 	ConditionReasonDatadogMetricNotFound ConditionReasonType = "DatadogMetricNotFound"
+	// ConditionReasonMissingCPURequest indicates an HPA AverageValue CPU target cannot be converted to a Utilization
+	// percentage because one or more referenced containers have no resources.requests.cpu in the workload pod template.
+	ConditionReasonMissingCPURequest ConditionReasonType = "MissingCPURequest"
 )
 
 // ConditionReason is an interface that errors can implement to provide

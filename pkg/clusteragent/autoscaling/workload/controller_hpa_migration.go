@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
 	k8sclient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
@@ -201,34 +202,38 @@ func resolveDatadogMetricFromCache(indexer cache.Indexer, namespace, name string
 }
 
 // validateHPAMetrics checks that every HPA metric is supported for DPA migration:
-//   - Resource CPU with Utilization target (UC1/UC2)
-//   - ContainerResource CPU with Utilization target (UC1/UC2)
+//   - Resource CPU with Utilization or AverageValue target (UC1/UC2/UC9)
+//   - ContainerResource CPU with Utilization or AverageValue target (UC1/UC2/UC9)
 //   - External metric referencing a DatadogMetric CRD via "datadogmetric@<ns>:<name>" (UC8)
 //
-// Any other metric type or configuration is rejected (UC6).
+// Any other metric type or configuration is rejected (UC6). AverageValue targets are
+// converted to a Utilization percentage at import time from the workload pod template;
+// see extractHPAConfig.
 func validateHPAMetrics(hpa *autoscalingv2.HorizontalPodAutoscaler) error {
 	for _, m := range hpa.Spec.Metrics {
 		switch m.Type {
 		case autoscalingv2.ResourceMetricSourceType:
 			if m.Resource == nil || m.Resource.Name != corev1.ResourceCPU {
 				return autoscaling.NewConditionErrorf(autoscaling.ConditionReasonUnsupportedHPAMetric,
-					"HPA %q uses a non-CPU resource metric — only CPU utilization is supported for migration",
+					"HPA %q uses a non-CPU resource metric — only CPU is supported for migration",
 					hpa.Name)
 			}
-			if m.Resource.Target.Type != autoscalingv2.UtilizationMetricType {
+			if m.Resource.Target.Type != autoscalingv2.UtilizationMetricType &&
+				m.Resource.Target.Type != autoscalingv2.AverageValueMetricType {
 				return autoscaling.NewConditionErrorf(autoscaling.ConditionReasonUnsupportedHPAMetric,
-					"HPA %q uses CPU metric with target type %q — only Utilization is supported for migration",
+					"HPA %q uses CPU metric with target type %q — only Utilization and AverageValue are supported for migration",
 					hpa.Name, m.Resource.Target.Type)
 			}
 		case autoscalingv2.ContainerResourceMetricSourceType:
 			if m.ContainerResource == nil || m.ContainerResource.Name != corev1.ResourceCPU {
 				return autoscaling.NewConditionErrorf(autoscaling.ConditionReasonUnsupportedHPAMetric,
-					"HPA %q uses a non-CPU container resource metric — only CPU utilization is supported for migration",
+					"HPA %q uses a non-CPU container resource metric — only CPU is supported for migration",
 					hpa.Name)
 			}
-			if m.ContainerResource.Target.Type != autoscalingv2.UtilizationMetricType {
+			if m.ContainerResource.Target.Type != autoscalingv2.UtilizationMetricType &&
+				m.ContainerResource.Target.Type != autoscalingv2.AverageValueMetricType {
 				return autoscaling.NewConditionErrorf(autoscaling.ConditionReasonUnsupportedHPAMetric,
-					"HPA %q uses CPU container metric with target type %q — only Utilization is supported for migration",
+					"HPA %q uses CPU container metric with target type %q — only Utilization and AverageValue are supported for migration",
 					hpa.Name, m.ContainerResource.Target.Type)
 			}
 		case autoscalingv2.ExternalMetricSourceType:
@@ -341,24 +346,98 @@ func restoreHPA(ctx context.Context, client k8sclient.Interface, cachedHPA *auto
 
 // extractHPAConfig reads the HPA configuration and returns an HPAConfig suitable for
 // populating a DPA spec (UC2 auto-population). External DatadogMetric references are
-// resolved from the informer cache via datadogMetricIndexer (UC8).
-func extractHPAConfig(datadogMetricIndexer cache.Indexer, hpa *autoscalingv2.HorizontalPodAutoscaler) (HPAConfig, error) {
+// resolved from the informer cache via datadogMetricIndexer (UC8). For HPA metrics
+// configured with target.type = AverageValue (UC9), the absolute CPU quantity is
+// converted to a Utilization percentage by reading the workload's pod template via
+// the dynamic client and the workloadGVRs table (kind-dispatch). If a referenced
+// container has no resources.requests.cpu, ConditionReasonMissingCPURequest is returned.
+func extractHPAConfig(
+	ctx context.Context,
+	datadogMetricIndexer cache.Indexer,
+	dynamicCl dynamic.Interface,
+	workloadGVRs map[string]schema.GroupVersionResource,
+	hpa *autoscalingv2.HorizontalPodAutoscaler,
+) (HPAConfig, error) {
 	cfg := HPAConfig{
 		MinReplicas: hpa.Spec.MinReplicas,
 		MaxReplicas: hpa.Spec.MaxReplicas,
 	}
 
+	// Cache the workload pod template CPU requests so we issue at most one GET per migration
+	// regardless of how many AverageValue CPU metrics the HPA declares.
+	var (
+		cachedRequests    map[string]resource.Quantity
+		cachedRequestsErr error
+		cachedRequestsHit bool
+	)
+	getRequests := func() (map[string]resource.Quantity, error) {
+		if cachedRequestsHit {
+			return cachedRequests, cachedRequestsErr
+		}
+		cachedRequestsHit = true
+		cachedRequests, cachedRequestsErr = getContainerCPURequests(
+			ctx, dynamicCl, workloadGVRs, hpa.Namespace,
+			hpa.Spec.ScaleTargetRef.Kind, hpa.Spec.ScaleTargetRef.Name)
+		return cachedRequests, cachedRequestsErr
+	}
+
 	for _, m := range hpa.Spec.Metrics {
 		switch m.Type {
 		case autoscalingv2.ResourceMetricSourceType:
-			if m.Resource != nil && m.Resource.Name == corev1.ResourceCPU && m.Resource.Target.AverageUtilization != nil {
-				cfg.PodCPUUtilization = pointer.Ptr(*m.Resource.Target.AverageUtilization)
+			if m.Resource == nil || m.Resource.Name != corev1.ResourceCPU {
+				continue
+			}
+			switch m.Resource.Target.Type {
+			case autoscalingv2.UtilizationMetricType:
+				if m.Resource.Target.AverageUtilization != nil {
+					cfg.PodCPUUtilization = pointer.Ptr(*m.Resource.Target.AverageUtilization)
+				}
+			case autoscalingv2.AverageValueMetricType:
+				if m.Resource.Target.AverageValue == nil {
+					continue
+				}
+				reqs, err := getRequests()
+				if err != nil {
+					return cfg, err
+				}
+				totalMilli := sumMilliCPU(reqs)
+				if totalMilli == 0 {
+					return cfg, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonMissingCPURequest,
+						"HPA %q uses Resource CPU AverageValue but the workload pod template has no container with resources.requests.cpu",
+						hpa.Name)
+				}
+				cfg.PodCPUUtilization = pointer.Ptr(cpuPercentage(m.Resource.Target.AverageValue.MilliValue(), totalMilli))
 			}
 		case autoscalingv2.ContainerResourceMetricSourceType:
-			if m.ContainerResource != nil && m.ContainerResource.Name == corev1.ResourceCPU && m.ContainerResource.Target.AverageUtilization != nil {
+			if m.ContainerResource == nil || m.ContainerResource.Name != corev1.ResourceCPU {
+				continue
+			}
+			containerName := m.ContainerResource.Container
+			switch m.ContainerResource.Target.Type {
+			case autoscalingv2.UtilizationMetricType:
+				if m.ContainerResource.Target.AverageUtilization != nil {
+					cfg.ContainerCPUTargets = append(cfg.ContainerCPUTargets, ContainerCPUTarget{
+						ContainerName:  containerName,
+						CPUUtilization: *m.ContainerResource.Target.AverageUtilization,
+					})
+				}
+			case autoscalingv2.AverageValueMetricType:
+				if m.ContainerResource.Target.AverageValue == nil {
+					continue
+				}
+				reqs, err := getRequests()
+				if err != nil {
+					return cfg, err
+				}
+				req, ok := reqs[containerName]
+				if !ok || req.MilliValue() == 0 {
+					return cfg, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonMissingCPURequest,
+						"HPA %q uses ContainerResource CPU AverageValue but container %q has no resources.requests.cpu in the workload pod template",
+						hpa.Name, containerName)
+				}
 				cfg.ContainerCPUTargets = append(cfg.ContainerCPUTargets, ContainerCPUTarget{
-					ContainerName:  m.ContainerResource.Container,
-					CPUUtilization: *m.ContainerResource.Target.AverageUtilization,
+					ContainerName:  containerName,
+					CPUUtilization: cpuPercentage(m.ContainerResource.Target.AverageValue.MilliValue(), req.MilliValue()),
 				})
 			}
 		case autoscalingv2.ExternalMetricSourceType:
@@ -374,6 +453,84 @@ func extractHPAConfig(datadogMetricIndexer cache.Indexer, hpa *autoscalingv2.Hor
 	}
 
 	return cfg, nil
+}
+
+// getContainerCPURequests resolves the workload referenced by (namespace, kind, name) via
+// the dynamic client and returns a map of containerName → CPU request read from
+// spec.template.spec.containers in the pod template. Init containers are intentionally
+// excluded (matches Kubernetes' HPA pod-level Utilization arithmetic). Only kinds present
+// in workloadGVRs are supported; an unknown kind returns ConditionReasonUnsupportedHPAMetric.
+// A 404 from the API server returns ConditionReasonTargetNotFound.
+func getContainerCPURequests(
+	ctx context.Context,
+	dynamicCl dynamic.Interface,
+	workloadGVRs map[string]schema.GroupVersionResource,
+	namespace, kind, name string,
+) (map[string]resource.Quantity, error) {
+	gvr, ok := workloadGVRs[kind]
+	if !ok {
+		return nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonUnsupportedHPAMetric,
+			"workload kind %q is not supported for HPA migration (only Deployment, StatefulSet, and Argo Rollout are supported)", kind)
+	}
+
+	obj, err := dynamicCl.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonTargetNotFound,
+				"workload %s %s/%s not found while resolving HPA AverageValue CPU target", kind, namespace, name)
+		}
+		return nil, fmt.Errorf("failed to get workload %s %s/%s: %w", kind, namespace, name, err)
+	}
+
+	containers, found, err := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "containers")
+	if err != nil || !found {
+		return nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonMissingCPURequest,
+			"workload %s %s/%s has no spec.template.spec.containers", kind, namespace, name)
+	}
+
+	requests := make(map[string]resource.Quantity, len(containers))
+	for _, c := range containers {
+		container, ok := c.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		containerName, _, _ := unstructured.NestedString(container, "name")
+		if containerName == "" {
+			continue
+		}
+		cpuStr, found, err := unstructured.NestedString(container, "resources", "requests", "cpu")
+		if err != nil || !found || cpuStr == "" {
+			continue
+		}
+		q, err := resource.ParseQuantity(cpuStr)
+		if err != nil {
+			continue
+		}
+		requests[containerName] = q
+	}
+	return requests, nil
+}
+
+// sumMilliCPU returns the sum of CPU requests across all containers (in milli-CPU).
+func sumMilliCPU(requests map[string]resource.Quantity) int64 {
+	var total int64
+	for _, q := range requests {
+		total += q.MilliValue()
+	}
+	return total
+}
+
+// cpuPercentage returns round-to-nearest((targetMilli / requestMilli) * 100), capped at int32.
+// Callers must ensure requestMilli > 0.
+func cpuPercentage(targetMilli, requestMilli int64) int32 {
+	if requestMilli <= 0 {
+		return 0
+	}
+	pct := (targetMilli*100 + requestMilli/2) / requestMilli
+	if pct > int64(^uint32(0)>>1) { // > max int32
+		return int32(^uint32(0) >> 1)
+	}
+	return int32(pct)
 }
 
 // resolveExternalMetricConfig resolves one HPA external metric spec into an ExternalMetricConfig
@@ -637,7 +794,7 @@ func (c *Controller) initiateHPAMigration(
 	// UC2: one-shot import of HPA config into profile-managed DPAs.
 	if podAutoscaler.Annotations[model.HPAConfigImportedAnnotation] == "" &&
 		podAutoscaler.Labels[model.ProfileLabelKey] != "" {
-		cfg, err := extractHPAConfig(c.datadogMetricIndexer, hpa)
+		cfg, err := extractHPAConfig(ctx, c.datadogMetricIndexer, c.Client, c.workloadGVRs, hpa)
 		if err != nil {
 			return false, err
 		}

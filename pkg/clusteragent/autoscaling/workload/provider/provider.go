@@ -91,7 +91,26 @@ func StartWorkloadAutoscaling(
 	maxDatadogPodAutoscalerObjects := pkgconfigsetup.Datadog().GetInt("autoscaling.workload.limit")
 	limitHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects, store, (*model.PodAutoscalerInternal).CreationTimestamp)
 
-	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.Cl, apiCl.DynamicCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap, globalTagsFunc)
+	workloadResources := []profile.GroupVersionKindResource{
+		{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, Kind: kubernetes.DeploymentKind},
+		{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}, Kind: kubernetes.StatefulSetKind},
+	}
+	if isArgoRolloutsAvailable(apiCl.Cl.Discovery()) {
+		workloadResources = append(workloadResources, profile.GroupVersionKindResource{
+			GroupVersionResource: schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "rollouts"},
+			Kind:                 kubernetes.RolloutKind,
+		})
+		log.Info("Argo Rollouts CRD detected, enabling rollout support for autoscaling profiles")
+	}
+
+	// workloadGVRs is the kind→GVR map shared with the workload controller for
+	// HPA-migration pod template lookups (UC9 in hpa-migration-userstories-for-implementation.md).
+	workloadGVRs := make(map[string]schema.GroupVersionResource, len(workloadResources))
+	for _, r := range workloadResources {
+		workloadGVRs[r.Kind] = r.GroupVersionResource
+	}
+
+	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.Cl, apiCl.DynamicCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap, globalTagsFunc, workloadGVRs)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}
@@ -106,18 +125,6 @@ func StartWorkloadAutoscaling(
 	)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start profile controller: %w", err)
-	}
-
-	workloadResources := []profile.GroupVersionKindResource{
-		{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, Kind: "Deployment"},
-		{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}, Kind: "StatefulSet"},
-	}
-	if isArgoRolloutsAvailable(apiCl.Cl.Discovery()) {
-		workloadResources = append(workloadResources, profile.GroupVersionKindResource{
-			GroupVersionResource: schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "rollouts"},
-			Kind:                 kubernetes.RolloutKind,
-		})
-		log.Info("Argo Rollouts CRD detected, enabling rollout support for autoscaling profiles")
 	}
 
 	workloadWatcher := profile.NewWorkloadWatcher(
