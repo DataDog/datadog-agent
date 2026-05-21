@@ -28,6 +28,7 @@ type disabledByDefaultSuite struct {
 // TestAnomalyDetectionDisabledByDefault runs the agent with a stock config and
 // asserts that the observer analysis pipeline is not active.
 func TestAnomalyDetectionDisabledByDefault(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &disabledByDefaultSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(scenec2.WithAgentOptions()),

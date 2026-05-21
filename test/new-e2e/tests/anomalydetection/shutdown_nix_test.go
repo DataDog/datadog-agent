@@ -43,6 +43,7 @@ var crashIndicators = [...]string{
 
 // TestAnomalyDetectionShutdown provisions the agent with all observer gates enabled.
 func TestAnomalyDetectionShutdown(t *testing.T) {
+	t.Parallel()
 	// language=yaml
 	agentConfig := `
 log_level: debug

@@ -746,6 +746,7 @@ exports_files(glob(
 # gazelle:exclude test/new-e2e/tests/agent-subcommands/dogstatsdreplay
 # gazelle:exclude test/new-e2e/tests/agent-subcommands/flare
 # gazelle:exclude test/new-e2e/tests/agent-subcommands/status
+# gazelle:exclude test/new-e2e/tests/anomalydetection
 # gazelle:exclude test/new-e2e/tests/apm
 # gazelle:exclude test/new-e2e/tests/autoscaling/spot
 # gazelle:exclude test/new-e2e/tests/containers

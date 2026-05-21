@@ -48,6 +48,7 @@ type metricsTriggeredSuite struct {
 // one-second storage point in the observer, rather than being aggregated
 // into a single 10-second DSD flush bucket.
 func TestAnomalyDetectionMetricsTriggered(t *testing.T) {
+	t.Parallel()
 	// language=yaml
 	agentConfig := `
 log_level: debug
@@ -192,6 +193,7 @@ type logTriggeredSuite struct {
 //     burst with all lines in the same second is never analyzed unless more lines
 //     follow. Spreading the spike across 3 seconds ensures analysis catches up.
 func TestAnomalyDetectionLogsTriggered(t *testing.T) {
+	t.Parallel()
 	// language=yaml
 	logConfig := `
 logs:

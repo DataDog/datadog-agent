@@ -38,6 +38,7 @@ type metricsOffLogsOffSuite struct {
 // TestObserverConfigMatrixMetricsOffLogsOff verifies the observer starts but
 // emits the deterministic metrics-disabled warning and no agent-logs handle.
 func TestObserverConfigMatrixMetricsOffLogsOff(t *testing.T) {
+	t.Parallel()
 	// language=yaml
 	agentConfig := `
 log_level: debug
@@ -82,6 +83,7 @@ type metricsOnLogsOffSuite struct {
 // TestObserverConfigMatrixMetricsOnLogsOff verifies the metrics path is active
 // and the agent-logs tap is not installed.
 func TestObserverConfigMatrixMetricsOnLogsOff(t *testing.T) {
+	t.Parallel()
 	// language=yaml
 	agentConfig := `
 log_level: debug
@@ -124,6 +126,7 @@ type metricsOffLogsOnSuite struct {
 // TestObserverConfigMatrixMetricsOffLogsOn verifies the agent-log tap is
 // installed and the metrics-disabled warning appears.
 func TestObserverConfigMatrixMetricsOffLogsOn(t *testing.T) {
+	t.Parallel()
 	// language=yaml
 	agentConfig := `
 log_level: debug
@@ -166,6 +169,7 @@ type allGatesOnSuite struct {
 // TestObserverConfigMatrixAllGatesOn verifies both the metrics and log paths
 // are active simultaneously with no disabled warnings.
 func TestObserverConfigMatrixAllGatesOn(t *testing.T) {
+	t.Parallel()
 	// language=yaml
 	agentConfig := `
 log_level: debug
