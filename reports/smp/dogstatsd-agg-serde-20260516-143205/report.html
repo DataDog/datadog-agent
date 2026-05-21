@@ -139,8 +139,8 @@
       <p>The normal path parses that into strings, tag slices, host/origin state, a sample object, shard/context keys, aggregate state, and finally payload rows. That is correct and general, but repeated traffic rebuilds a lot of the same description.</p>
     </div>
     <div class="card">
-      <h3>Experiment: keep the description, stream the value</h3>
-      <p>When the metric name and tag list repeat, we can remember the parsed description and pass a small reference through the pipeline. The hot path then mostly handles the changing parts: value, sample rate, timestamp/window, and aggregate update.</p>
+      <h3>Experiment: reuse the series description, process each point</h3>
+      <p>When the metric name and tag list repeat, we can parse that series description once and pass a small reference through the pipeline. Each new DogStatsD point still gets processed normally, but the hot path mostly handles the changing fields: value, sample rate, timestamp/window, and aggregate update.</p>
       <p>Compatibility still comes from fallback: unusual metric types, origin/enrichment cases, timestamps, events, service checks, and unknown tagsets continue through the general path unless explicitly tested.</p>
     </div>
   </div>
