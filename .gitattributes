@@ -2,6 +2,7 @@
 *.bat text eol=crlf
 *.cmd text eol=crlf
 *.bin binary
+*.exe binary
 
 # Set go source line endings to LF on all platforms so gofmt can be used
 *.go text=auto eol=lf
