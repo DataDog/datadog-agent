@@ -136,10 +136,10 @@
       <p>The Agent has to absorb bursts between socket readers and parser workers. A compact byte-budgeted UDS ring plus batched parser drains was the best bounded-ingress design tested, replacing large hidden packet-channel backlog with explicit backpressure.</p>
     </div>
     <div class="card">
-      <span class="pill amber">Still open</span>
-      <h3>Memory is not solved yet</h3>
-      <div class="metric">+RSS <span>retained state</span></div>
-      <p>The new architecture trades CPU for retained dictionaries, rings, descriptor caches, and view state. That is expected for the prototype, but it means memory needs byte budgets and admission policy before any default-on claim.</p>
+      <span class="pill amber">Mixed result</span>
+      <h3>Memory is predictable, not lower yet</h3>
+      <div class="metric">+11 MiB <span>live heap</span></div>
+      <p>Heap profiles showed the mature design was only about +11 MiB live heap versus main, and the raw ring used less explicit ingress-reservoir heap than the packet pool. RSS was still higher in some runs because the prototype retains dictionaries/caches; this needs byte budgets before any default-on claim.</p>
     </div>
   </div>
 
@@ -371,6 +371,7 @@
 <section id="memory">
   <h2>Memory read: why CPU wins did not become memory wins</h2>
   <p>The prototype often trades repeated CPU work for retained state. Main has an accidental memory advantage: it materializes many objects transiently, then lets GC reclaim them, while the experiment keeps dictionaries, compact IDs, descriptor caches, rings, and view state alive so later stages can reuse them.</p>
+  <p>The measured story is mixed rather than catastrophic: Stage S late heap profiles showed main at 162.14 MiB in-use heap and Stage R at 173.31 MiB (+11.17 MiB). RSS deltas could be larger — one standard v3 comparison was about +45.6 MiB RSS and +21.5 MiB heap metric — which points to allocator/RSS retention and cache/backlog shape, not a single giant live object. On the positive side, the raw ring lowered the explicit ingress reservoir live heap from 32.74 MiB packet-pool backlog to 18.72 MiB raw-ring storage.</p>
   <div class="cards">
     <div class="card"><h3>Main's advantage</h3><p>Fewer parallel representations: less raw tagset cache, compact ID state, descriptor ref state, and materialized view scaffolding.</p></div>
     <div class="card"><h3>Experiment's advantage</h3><p>Less repeated work and more predictable overload behavior: explicit rings, reusable descriptors, and faster parser hit paths.</p></div>
