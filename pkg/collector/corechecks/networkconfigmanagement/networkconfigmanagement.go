@@ -116,16 +116,12 @@ func (c *Check) Run() error {
 		log.Warnf("unable to process rules for running config for device %s, using agent collection ts: %s", deviceID, checkErr)
 	} else {
 		// TODO: helper fn to take metadata that needs to be emitted as metrics + emit them
-		configUUID, configHash := "", ""
-		if uuid, hash, stored, err := saveConfig(configStore, deviceID, types.RUNNING, runningConfig); err != nil {
+		if runningUUID, runningHash, stored, err := saveConfig(configStore, deviceID, types.RUNNING, runningConfig); err != nil {
 			log.Warnf("unable to store running config: %v", err)
-		} else {
-			configUUID, configHash = uuid, hash
-			if stored {
-				hasNewConfigs = true
-			}
+		} else if stored {
+			hasNewConfigs = true
 		}
-		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.RUNNING, metadata, deviceTags, runningConfig, configUUID, configHash))
+		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.RUNNING, metadata, deviceTags, runningConfig, runningUUID, runningHash))
 	}
 
 	rawStartupConfig, checkErr := c.remoteClient.RetrieveStartupConfig()
@@ -138,14 +134,10 @@ func (c *Check) Run() error {
 			log.Warnf("unable to process rules for startup config for device %s, using agent collection ts: %s", deviceID, checkErr)
 		} else {
 			// add the startup config to the payload if it was retrieved successfully
-			startupUUID, startupHash := "", ""
-			if uuid, hash, stored, err := saveConfig(configStore, deviceID, types.STARTUP, startupConfig); err != nil {
+			if startupUUID, startupHash, stored, err := saveConfig(configStore, deviceID, types.STARTUP, startupConfig); err != nil {
 				log.Warnf("unable to store startup config: %v", err)
-			} else {
-				startupUUID, startupHash = uuid, hash
-				if stored {
-					hasNewConfigs = true
-				}
+			} else if stored {
+				hasNewConfigs = true
 			}
 			configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.STARTUP, metadata, deviceTags, startupConfig, startupUUID, startupHash))
 		}
