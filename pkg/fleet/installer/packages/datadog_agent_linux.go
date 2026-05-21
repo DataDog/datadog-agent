@@ -122,7 +122,6 @@ var (
 	agentConfigUninstallPaths = file.Paths{
 		"install_info",
 		"install.json",
-		".procmgr-enabled",
 	}
 
 	// agentServiceOCI are the services that are part of the agent package
@@ -299,32 +298,10 @@ func preInstallDatadogAgent(ctx HookContext) error {
 	return packagemanager.RemovePackage(ctx, agentPackage)
 }
 
-func writeProcmgrMarker(ctx HookContext, path string) error {
-	if err := os.WriteFile(path, nil, 0644); err != nil {
-		return err
-	}
-	if err := file.Chown(ctx, path, "dd-agent", "dd-agent"); err != nil {
-		return err
-	}
-	return nil
-}
-
-// writeProcmgrGlobalMarker creates .procmgr-enabled unless DD_PROCMGR_ENABLED opts out.
-func writeProcmgrGlobalMarker(ctx HookContext) error {
-	if raw, ok := os.LookupEnv(service.GlobalEnvVar); ok && !service.EnvTruthy(raw) {
-		_ = os.Remove(service.GlobalMarkerPath)
-		return nil
-	}
-	return writeProcmgrMarker(ctx, service.GlobalMarkerPath)
-}
-
 // postInstallDatadogAgent performs post-installation steps for the agent
 func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := installFilesystem(ctx); err != nil {
 		return err
-	}
-	if err := writeProcmgrGlobalMarker(ctx); err != nil {
-		return fmt.Errorf("failed to write global procmgr marker: %w", err)
 	}
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore custom integrations: %s", err)

@@ -119,12 +119,14 @@ func (s *procmgrExtensionDDOTLinuxSuite) TestExtensionDDOTManagedByProcmgrNotSys
 	s.requireExtensionDDOT()
 
 	// Same contract as TestStandaloneDDOTManagedByProcmgrNotSystemdByDefault: processes.d YAML,
-	// global procmgr marker, systemd must not own DDOT, then dd-procmgr describe Running + stable
+	// dd-procmgrd present, systemd must not own DDOT, then dd-procmgr describe Running + stable
 	// command line matches the extension layout (vs standalone datadog-agent-ddot package paths).
 	stableYAML := procmgrtest.StableDDOTProcmgrYAMLPath(s.T(), s)
 
-	_, err := s.Env().RemoteHost.Execute("test -f /etc/datadog-agent/.procmgr-enabled")
-	require.NoError(s.T(), err, "installer should create the global procmgr marker on systemd hosts")
+	_, err := s.Env().RemoteHost.Execute(
+		"test -x /opt/datadog-agent/embedded/bin/dd-procmgrd || " +
+			"test -x /opt/datadog-packages/datadog-agent/stable/embedded/bin/dd-procmgrd")
+	require.NoError(s.T(), err, "dd-procmgrd should be present in a known agent install root")
 
 	cond := strings.TrimSpace(s.Env().RemoteHost.MustExecute(
 		"systemctl show datadog-agent-ddot.service -p ConditionResult --value"))

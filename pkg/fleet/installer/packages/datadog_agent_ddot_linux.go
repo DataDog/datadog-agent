@@ -260,19 +260,19 @@ func ociAgentStableAndExperimentProcessesDirsEquivalent() (bool, error) {
 	return stableResolved == expResolved, nil
 }
 
-func procmgrBinaryExists(ctx HookContext, stable bool) bool {
-	var binPath string
+func procmgrAgentInstallRoot(ctx HookContext, stable bool) string {
 	if ctx.PackageType == PackageTypeOCI {
 		ver := "stable"
 		if !stable {
 			ver = "experiment"
 		}
-		binPath = filepath.Join(paths.PackagesPath, "datadog-agent", ver, "embedded", "bin", "dd-procmgrd")
-	} else {
-		binPath = filepath.Join("/opt/datadog-agent", "embedded", "bin", "dd-procmgrd")
+		return filepath.Join(paths.PackagesPath, "datadog-agent", ver)
 	}
-	_, err := os.Stat(binPath)
-	return err == nil
+	return "/opt/datadog-agent"
+}
+
+func procmgrBinaryExists(ctx HookContext, stable bool) bool {
+	return service.ProcmgrDaemonAt(procmgrAgentInstallRoot(ctx, stable))
 }
 
 func procmgrUsable(ctx HookContext, stable bool) bool {
@@ -343,9 +343,7 @@ func ddotProcmgrExtensionYAML(ctx HookContext, stable bool) ([]byte, error) {
 
 // applyDDOTProcmgrProcessesYAML writes or removes DDOT YAML in processes.d (no unit restart).
 func applyDDOTProcmgrProcessesYAML(ctx HookContext, stable bool) (ownsDDOT bool, err error) {
-	switch service.GetServiceManagerType() {
-	case service.SystemdType, service.ProcmgrType:
-	default:
+	if !service.IsSystemdHost() {
 		return false, nil
 	}
 	dir := ddotProcmgrProcessesDir(ctx, stable)
@@ -382,9 +380,7 @@ func syncDDOTProcmgrState(ctx HookContext, stable bool) (bool, error) {
 }
 
 func syncDDOTProcmgrStop(ctx HookContext, stable bool) error {
-	switch service.GetServiceManagerType() {
-	case service.SystemdType, service.ProcmgrType:
-	default:
+	if !service.IsSystemdHost() {
 		return nil
 	}
 	dir := ddotProcmgrProcessesDir(ctx, stable)
@@ -400,9 +396,7 @@ func syncDDOTProcmgrAfterAgentPromotion(ctx HookContext) error {
 	if ctx.PackageType != PackageTypeOCI {
 		return nil
 	}
-	switch service.GetServiceManagerType() {
-	case service.SystemdType, service.ProcmgrType:
-	default:
+	if !service.IsSystemdHost() {
 		return nil
 	}
 	stableOCI := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
@@ -429,9 +423,6 @@ func syncDDOTProcmgrAfterAgentPromotion(ctx HookContext) error {
 
 // syncDDOTProcmgrAfterExtension syncs DDOT processes.d after extension install.
 func syncDDOTProcmgrAfterExtension(ctx HookContext) error {
-	if err := writeProcmgrGlobalMarker(ctx); err != nil {
-		return err
-	}
 	switch ctx.PackageType {
 	case PackageTypeOCI:
 		stable := filepath.Base(ctx.PackagePath) != "experiment"
@@ -460,9 +451,7 @@ func ddotExtensionProcmgrRemoveStable(ctx HookContext) bool {
 
 // removeDDOTExtensionProcmgrYAML removes or re-syncs DDOT processes.d on extension remove.
 func removeDDOTExtensionProcmgrYAML(ctx HookContext) {
-	switch service.GetServiceManagerType() {
-	case service.SystemdType, service.ProcmgrType:
-	default:
+	if !service.IsSystemdHost() {
 		return
 	}
 	stable := ddotExtensionProcmgrRemoveStable(ctx)

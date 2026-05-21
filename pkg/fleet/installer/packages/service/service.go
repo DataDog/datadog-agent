@@ -22,7 +22,7 @@ const (
 	UpstartType Type = "upstart"
 	// SystemdType is returned when the service manager is systemd
 	SystemdType Type = "systemd"
-	// ProcmgrType is systemd with the global procmgr gate open.
+	// ProcmgrType is systemd with dd-procmgrd present (installer routes via procmgr helpers).
 	ProcmgrType Type = "procmgr"
 )
 
@@ -34,21 +34,22 @@ func GetServiceManagerType() Type {
 		return *cachedServiceManagerType
 	}
 	serviceManagerType := getServiceManagerType()
-	if serviceManagerType == SystemdType && procmgrEnabled() {
-		serviceManagerType = ProcmgrType
-	}
 	cachedServiceManagerType = &serviceManagerType
 	return serviceManagerType
 }
 
-// IsSystemdHost is true when systemctl exists (no procmgr gate, not cached).
+// IsSystemdHost is true when systemctl exists (ungated; not cached).
 func IsSystemdHost() bool {
-	return getServiceManagerType() == SystemdType
+	_, err := exec.LookPath("systemctl")
+	return err == nil
 }
 
 func getServiceManagerType() Type {
 	_, err := exec.LookPath("systemctl")
 	if err == nil {
+		if procmgrInstallerRoutingEnabled() {
+			return ProcmgrType
+		}
 		return SystemdType
 	}
 	_, err = exec.LookPath("initctl")
