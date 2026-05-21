@@ -88,8 +88,12 @@ contention benchmark versus `555.1 ns/op` for the legacy global-lock shape. The
 focused result shows stats no longer force repeated simple metrics off the fast
 lane.
 
-Follow-up macro SMP with `dogstatsd-stats` enabled on both main and the
-experimental fast-lane stack is recorded in `dogstatsd-stats-feature-cost.md`.
+Follow-up macro SMP is recorded in `dogstatsd-stats-feature-cost.md`. The
+strongest paired run keeps `dogstatsd-stats` enabled only on the experimental
+fast-lane stack and compares against stats-disabled main: high-rate throughput
+was `+25.83%` with `-42.7%` Agent CPU, and the standard workload held target
+throughput with `-41.3%` Agent CPU. A secondary stats-on-vs-stats-on run is also
+recorded there.
 
 ## SMP results
 

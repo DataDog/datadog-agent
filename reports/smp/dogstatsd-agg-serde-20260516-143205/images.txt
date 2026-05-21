@@ -322,3 +322,11 @@ Created: 2026-05-21 local via `docker commit` from `datadog/agent-dev:smp-dsd-co
 Agent version: Agent 7.81.0-devel - Meta: git.100.b6db1d8 - Commit: b6db1d81aa1 - Serialization version: v5.0.196 - Go version: go1.25.10
 Env: exact tagset cache + compact identities + direct parse + compact row descriptor omission + fast lane + native columnar-v3 serializer + compact UDS raw ring batch drains
 Notes: `dogstatsd-stats` uses the shared parser-side `ShardIdentity`; stats no longer force fast-lane fallback by themselves.
+
+### Stage W stats-aware fast lane with dogstatsd-stats baked on
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-fastlane-stats-shared-enabled-stats-on]
+Image ID: sha256:ba144c74d1b379c4350fa2622def353cc670f616c60d1e8197f413566f3d0039
+Created: 2026-05-21 local via `docker commit` from `datadog/agent-dev:smp-dsd-columnar-v3-fastlane-stats-shared-enabled`
+Agent version: Agent 7.81.0-devel - Meta: git.100.b6db1d8 - Commit: b6db1d81aa1 - Serialization version: v5.0.196 - Go version: go1.25.10
+Env: Stage W stats-aware fast lane env plus `DD_DOGSTATSD_METRICS_STATS_ENABLE=true` and `DD_DOGSTATSD_LOGGING_ENABLED=false`
+Notes: Used for the paired feature-cost run where main keeps `dogstatsd-stats` disabled while the experimental image maintains stats.

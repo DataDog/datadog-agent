@@ -1748,3 +1748,11 @@ saturation/backpressure sweep and compare lag/drops at the highest stable input
 rate. Memory is not yet improved: high-rate RSS/heap increased by roughly
 `+4.8%`/`+11.6%`, so retained fast-lane/tagset/descriptor-cache bytes still need
 adversarial and steady-state validation before any default-on decision.
+
+Follow-up feature-cost SMP for `dogstatsd-stats` strengthens the Stage W read.
+In a paired run with `dogstatsd-stats` enabled only on the experimental image,
+the high-rate metrics-only workload improved throughput by `+25.83%` versus
+stats-disabled main while using `-42.7%` Agent CPU. The standard compact-batch
+workload stayed at target with `-41.3%` Agent CPU. That is the current strongest
+"doing more with less" result, while still bounded to UDS/repeated-tagset
+experimental gates and mixed memory behavior.

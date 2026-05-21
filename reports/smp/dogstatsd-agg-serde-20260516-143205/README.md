@@ -1,6 +1,6 @@
 # DogStatsD Aggregator + Serializer SMP Experiment Report
 
-Status: Stage A-W complete locally; raw-ring telemetry, the follow-up three-replicate honesty matrix, Stage R memory-hygiene probes, Stage S heap/profile analysis, Stage T parser interning, Stage U compact identity hints, Stage V compact-ID consumers, Stage W parser no-materialization fast lane, and the initial `dogstatsd-stats` stats-on feature-cost SMP are complete. The single-page HTML report now starts with a presentation-style overview for broad review, followed by detailed appendices: [`report.html`](report.html).
+Status: Stage A-W complete locally; raw-ring telemetry, the follow-up three-replicate honesty matrix, Stage R memory-hygiene probes, Stage S heap/profile analysis, Stage T parser interning, Stage U compact identity hints, Stage V compact-ID consumers, Stage W parser no-materialization fast lane, and `dogstatsd-stats` feature-cost SMP are complete. The latest paired stats run shows the experiment with `dogstatsd-stats` enabled beating stats-disabled main on high-rate throughput (`+25.83%`) while using much less Agent CPU (`-42.7%`). The single-page HTML report now starts with a presentation-style overview for broad review, followed by detailed appendices: [`report.html`](report.html).
 
 ## Experiment intent
 
@@ -58,12 +58,13 @@ Images were built locally as optimized Linux/arm64 Agent images with `dda inv ag
 - Stage V feature-cost baseline: `datadog/agent-dev:smp-dsd-columnar-v3-compact-consumers-baseline` — image ID `sha256:81c8db9c5df79d54335d84f7a98f9bc88a6c3e956bc590c0216e9b0e335eb5bd`, env exact tagset cache + compact identities + compact hint sizing
 - Stage V direct parse + compact row omission: `datadog/agent-dev:smp-dsd-columnar-v3-compact-consumers-enabled` — image ID `sha256:865f8bfecabcf1a161cef0c810f0e830fe51937d6aba5cd4c5b878decf819485`, env baseline plus `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_DIRECT_PARSE=true`, `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_COMPACT_ROWS_OMIT_DESCRIPTOR=true`
 - Stage W stats-aware fast lane: `datadog/agent-dev:smp-dsd-columnar-v3-fastlane-stats-shared-enabled` — commit `b6db1d81aa1`, image ID `sha256:6e035a7d3cab03f30fc0d4b1bee4375bb9aacecfbe93f1ce0850830464c40e1c`, env exact tagset cache + compact identities + direct parse + descriptor omission + fast lane
+- Stage W stats-aware fast lane with stats baked on: `datadog/agent-dev:smp-dsd-columnar-v3-fastlane-stats-shared-enabled-stats-on` — commit `b6db1d81aa1`, image ID `sha256:ba144c74d1b379c4350fa2622def353cc670f616c60d1e8197f413566f3d0039`, env above plus `DD_DOGSTATSD_METRICS_STATS_ENABLE=true` and `DD_DOGSTATSD_LOGGING_ENABLED=false`
 
 See [`images.txt`](images.txt) for image IDs and full version details.
 
 ## High-level results
 
-Stage A-J completed comparisons used local SMP with `--replicates 3 --total-samples 270`; Stage L/M/N/O/P/Q ingress/backpressure/serializer probes are single-replicate local runs (`--replicates 1 --total-samples 150`). Post-telemetry honesty gates and Stage R/T/U/V/W plus the stats-on feature-cost probes used `--replicates 3 --total-samples 270`.
+Stage A-J completed comparisons used local SMP with `--replicates 3 --total-samples 270`; Stage L/M/N/O/P/Q ingress/backpressure/serializer probes are single-replicate local runs (`--replicates 1 --total-samples 150`). Post-telemetry honesty gates and Stage R/T/U/V/W plus the stats feature-cost probes used `--replicates 3 --total-samples 270`. The most recent feature-cost probe is paired: baseline main has `dogstatsd-stats` disabled, while the comparison image has stats enabled and per-metric stats logging disabled.
 
 ### Stage A — main vs foundation
 
