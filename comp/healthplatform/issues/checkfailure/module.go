@@ -18,9 +18,8 @@ func init() {
 }
 
 const (
-	// IssueID is the issue name for check failures, used as the
-	// template registry key and the proto IssueName field.
-	IssueID = "check_execution_failure"
+	// IssueID is the unique instance id prefix used when reporting check failures.
+	IssueID = "check-execution-failure"
 )
 
 // checkFailureModule implements issues.Module
@@ -36,7 +35,7 @@ func NewModule(config.Component) issues.Module {
 }
 
 func (m *checkFailureModule) IssueName() string {
-	return IssueID
+	return issueName
 }
 
 // IssueTemplate returns the template for building complete issues
