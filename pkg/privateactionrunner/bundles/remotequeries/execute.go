@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 	"unicode/utf8"
 
 	"google.golang.org/grpc"
@@ -138,6 +139,11 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 	}
 
 	typedStreamEvents := make([]map[string]interface{}, 0)
+	streamStart := time.Now()
+	var firstChunkAt time.Time
+	var firstDataAt time.Time
+	var finalChunkAt time.Time
+	payloadBytes := 0
 	expectedChunkIndex := int32(0)
 	seenFinal := false
 	for {
@@ -151,6 +157,9 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 		if chunk == nil {
 			return nil, fmt.Errorf("remote query response stream returned nil chunk")
 		}
+		if firstChunkAt.IsZero() {
+			firstChunkAt = time.Now()
+		}
 		if chunk.GetChunkIndex() != expectedChunkIndex {
 			return nil, fmt.Errorf("remote query response stream chunk index mismatch")
 		}
@@ -162,11 +171,22 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 			if err != nil {
 				return nil, err
 			}
+			if streamEvent["type"] == "data" {
+				if firstDataAt.IsZero() {
+					firstDataAt = time.Now()
+				}
+				if payload, ok := streamEvent["payload"].([]byte); ok {
+					payloadBytes += len(payload)
+				}
+			}
 			typedStreamEvents = append(typedStreamEvents, streamEvent)
 		} else if !chunk.GetFinal() {
 			return nil, fmt.Errorf("remote query response stream chunk missing typed event")
 		}
 		seenFinal = chunk.GetFinal()
+		if seenFinal {
+			finalChunkAt = time.Now()
+		}
 		expectedChunkIndex++
 	}
 	if !seenFinal {
@@ -175,7 +195,46 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 	if len(typedStreamEvents) == 0 {
 		return nil, fmt.Errorf("remote query response stream missing typed events")
 	}
-	return remoteQueryExecuteOutputFromTypedEvents(typedStreamEvents)
+	output, err := remoteQueryExecuteOutputFromTypedEvents(typedStreamEvents)
+	if err != nil {
+		return nil, err
+	}
+	if payloadBytes > 0 {
+		output["stream_timing"] = remoteQueryStreamTiming(streamStart, firstChunkAt, firstDataAt, finalChunkAt, payloadBytes, int(expectedChunkIndex))
+	}
+	return output, nil
+}
+
+func remoteQueryStreamTiming(streamStart time.Time, firstChunkAt time.Time, firstDataAt time.Time, finalChunkAt time.Time, payloadBytes int, chunksReceived int) map[string]interface{} {
+	streamEnd := time.Now()
+	dataDuration := finalChunkAt.Sub(firstDataAt)
+	if firstDataAt.IsZero() || finalChunkAt.IsZero() {
+		dataDuration = 0
+	}
+	return map[string]interface{}{
+		"payload_bytes":                payloadBytes,
+		"chunks_received":              chunksReceived,
+		"first_chunk_latency_ms":       durationMillis(firstChunkAt.Sub(streamStart)),
+		"first_data_latency_ms":        durationMillis(firstDataAt.Sub(streamStart)),
+		"data_to_final_ms":             durationMillis(dataDuration),
+		"stream_loop_total_ms":         durationMillis(streamEnd.Sub(streamStart)),
+		"data_to_final_mib_per_second": mibPerSecond(payloadBytes, dataDuration),
+		"stream_loop_mib_per_second":   mibPerSecond(payloadBytes, streamEnd.Sub(streamStart)),
+	}
+}
+
+func durationMillis(duration time.Duration) float64 {
+	if duration <= 0 {
+		return 0
+	}
+	return duration.Seconds() * 1000
+}
+
+func mibPerSecond(bytes int, duration time.Duration) float64 {
+	if bytes <= 0 || duration <= 0 {
+		return 0
+	}
+	return (float64(bytes) / 1024 / 1024) / duration.Seconds()
 }
 
 func remoteQueryStreamEventFromProto(event *pb.RemoteQueryExecuteStreamEvent) (map[string]interface{}, error) {

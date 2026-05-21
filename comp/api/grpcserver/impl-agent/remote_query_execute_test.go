@@ -70,6 +70,30 @@ func TestRemoteQueryExecuteRequestFromProtoPreservesCopyStream(t *testing.T) {
 	assert.Nil(t, req.Limits)
 }
 
+func TestRemoteQueryIPCStreamCoalescerFlushesDataAtFourMiB(t *testing.T) {
+	stream := &captureRemoteQueryExecuteStreamServer{}
+	coalescer := newRemoteQueryIPCStreamCoalescer(stream)
+
+	require.NoError(t, coalescer.Send(check.RemoteQueryStreamEvent{Type: "metadata", MetadataJSON: `{"operation":"copy_stream","format":"csv"}`}))
+	require.NoError(t, coalescer.Send(check.RemoteQueryStreamEvent{Type: "data", MetadataJSON: `{"sequence":1,"offset":0,"bytes":3145728}`, Payload: make([]byte, 3<<20)}))
+	assert.Len(t, stream.chunks, 1, "data below 4MiB should be coalesced before secure IPC send")
+	require.NoError(t, coalescer.Send(check.RemoteQueryStreamEvent{Type: "data", MetadataJSON: `{"sequence":2,"offset":3145728,"bytes":2097152}`, Payload: make([]byte, 2<<20)}))
+	require.Len(t, stream.chunks, 2, "crossing 4MiB should flush one coalesced data event")
+	firstData := stream.chunks[1].GetEvent().GetData()
+	require.NotNil(t, firstData)
+	assert.Equal(t, uint64(0), firstData.GetOffset())
+	assert.Equal(t, uint64(remoteQuerySecureIPCDataFlushBytes), firstData.GetBytes())
+	assert.Len(t, firstData.GetPayload(), remoteQuerySecureIPCDataFlushBytes)
+
+	require.NoError(t, coalescer.Flush())
+	require.Len(t, stream.chunks, 3)
+	secondData := stream.chunks[2].GetEvent().GetData()
+	require.NotNil(t, secondData)
+	assert.Equal(t, uint64(remoteQuerySecureIPCDataFlushBytes), secondData.GetOffset())
+	assert.Equal(t, uint64((5<<20)-remoteQuerySecureIPCDataFlushBytes), secondData.GetBytes())
+	assert.Len(t, secondData.GetPayload(), (5<<20)-remoteQuerySecureIPCDataFlushBytes)
+}
+
 func TestRemoteQueryStreamEventFromCheckEventPreservesBinaryPayload(t *testing.T) {
 	event, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
 		Type:         "data",

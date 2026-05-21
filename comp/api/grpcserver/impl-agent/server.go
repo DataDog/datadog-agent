@@ -6,6 +6,7 @@
 package agentimpl
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -297,20 +298,113 @@ func (s *serverSecure) RemoteQueryExecuteStream(req *pb.RemoteQueryExecuteReques
 		return remoteQueryExecuteStreamError(remotequeriesimpl.RemoteQueryStatusInvalidRequest, err.Error(), stream)
 	}
 
-	chunkIndex := int32(0)
-	result := s.remoteQueries.ExecuteStream(execReq, func(event check.RemoteQueryStreamEvent) error {
-		protoEvent, err := remoteQueryStreamEventFromCheckEvent(event)
-		if err != nil {
+	coalescer := newRemoteQueryIPCStreamCoalescer(stream)
+	result := s.remoteQueries.ExecuteStream(execReq, coalescer.Send)
+	if result.Error != nil {
+		if err := coalescer.Flush(); err != nil {
 			return err
 		}
-		err = stream.Send(&pb.RemoteQueryExecuteChunk{Event: protoEvent, ChunkIndex: chunkIndex})
-		chunkIndex++
-		return err
-	})
-	if result.Error != nil {
-		return remoteQueryExecuteStreamError(result.Error.Code, result.Error.Message, stream)
+		return remoteQueryExecuteStreamErrorAt(result.Error.Code, result.Error.Message, stream, coalescer.NextChunkIndex())
 	}
-	return stream.Send(&pb.RemoteQueryExecuteChunk{ChunkIndex: chunkIndex, Final: true})
+	if err := coalescer.Flush(); err != nil {
+		return err
+	}
+	return stream.Send(&pb.RemoteQueryExecuteChunk{ChunkIndex: coalescer.NextChunkIndex(), Final: true})
+}
+
+const remoteQuerySecureIPCDataFlushBytes = 4_000_000
+
+type remoteQueryIPCStreamCoalescer struct {
+	stream      pb.AgentSecure_RemoteQueryExecuteStreamServer
+	chunkIndex  int32
+	data        bytes.Buffer
+	dataOffset  uint64
+	dataSeq     uint64
+	dataStarted bool
+	dataChunks  uint64
+}
+
+func newRemoteQueryIPCStreamCoalescer(stream pb.AgentSecure_RemoteQueryExecuteStreamServer) *remoteQueryIPCStreamCoalescer {
+	return &remoteQueryIPCStreamCoalescer{stream: stream}
+}
+
+func (c *remoteQueryIPCStreamCoalescer) NextChunkIndex() int32 {
+	return c.chunkIndex
+}
+
+func (c *remoteQueryIPCStreamCoalescer) Send(event check.RemoteQueryStreamEvent) error {
+	protoEvent, err := remoteQueryStreamEventFromCheckEvent(event)
+	if err != nil {
+		return err
+	}
+	data := protoEvent.GetData()
+	if data == nil {
+		if err := c.Flush(); err != nil {
+			return err
+		}
+		return c.sendProtoEvent(protoEvent)
+	}
+
+	if c.dataStarted && data.GetOffset() != c.dataOffset+uint64(c.data.Len()) {
+		if err := c.Flush(); err != nil {
+			return err
+		}
+	}
+	if !c.dataStarted {
+		c.dataStarted = true
+		c.dataOffset = data.GetOffset()
+		c.dataSeq = protoEvent.GetSequence()
+	}
+	if _, err := c.data.Write(data.GetPayload()); err != nil {
+		return err
+	}
+	for c.data.Len() >= remoteQuerySecureIPCDataFlushBytes {
+		if err := c.flushData(remoteQuerySecureIPCDataFlushBytes); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *remoteQueryIPCStreamCoalescer) Flush() error {
+	if !c.dataStarted || c.data.Len() == 0 {
+		c.data.Reset()
+		c.dataStarted = false
+		return nil
+	}
+	return c.flushData(c.data.Len())
+}
+
+func (c *remoteQueryIPCStreamCoalescer) flushData(size int) error {
+	payload := append([]byte(nil), c.data.Bytes()[:size]...)
+	protoEvent := &pb.RemoteQueryExecuteStreamEvent{
+		Sequence: c.dataSeq + c.dataChunks,
+		Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{
+			Payload: payload,
+			Offset:  c.dataOffset,
+			Bytes:   uint64(len(payload)),
+		}},
+	}
+	if err := c.sendProtoEvent(protoEvent); err != nil {
+		return err
+	}
+	remaining := append([]byte(nil), c.data.Bytes()[size:]...)
+	c.data.Reset()
+	_, _ = c.data.Write(remaining)
+	c.dataOffset += uint64(len(payload))
+	c.dataChunks++
+	if c.data.Len() == 0 {
+		c.dataStarted = false
+	}
+	return nil
+}
+
+func (c *remoteQueryIPCStreamCoalescer) sendProtoEvent(event *pb.RemoteQueryExecuteStreamEvent) error {
+	if err := c.stream.Send(&pb.RemoteQueryExecuteChunk{Event: event, ChunkIndex: c.chunkIndex}); err != nil {
+		return err
+	}
+	c.chunkIndex++
+	return nil
 }
 
 func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remotequeriesimpl.RemoteQueryExecuteRequest, error) {
@@ -430,8 +524,12 @@ func stringAttributes(metadata map[string]interface{}, exclude ...string) map[st
 }
 
 func remoteQueryExecuteStreamError(code string, message string, stream pb.AgentSecure_RemoteQueryExecuteStreamServer) error {
+	return remoteQueryExecuteStreamErrorAt(code, message, stream, 0)
+}
+
+func remoteQueryExecuteStreamErrorAt(code string, message string, stream pb.AgentSecure_RemoteQueryExecuteStreamServer, chunkIndex int32) error {
 	if err := stream.Send(&pb.RemoteQueryExecuteChunk{
-		ChunkIndex: 0,
+		ChunkIndex: chunkIndex,
 		Event: &pb.RemoteQueryExecuteStreamEvent{Event: &pb.RemoteQueryExecuteStreamEvent_Error{Error: &pb.RemoteQueryStreamError{
 			Code:    code,
 			Message: message,
@@ -439,7 +537,7 @@ func remoteQueryExecuteStreamError(code string, message string, stream pb.AgentS
 	}); err != nil {
 		return err
 	}
-	return stream.Send(&pb.RemoteQueryExecuteChunk{ChunkIndex: 1, Final: true})
+	return stream.Send(&pb.RemoteQueryExecuteChunk{ChunkIndex: chunkIndex + 1, Final: true})
 }
 
 func remoteQueryCopyLimitsFromProto(limits *pb.RemoteQueryExecuteCopyLimits) *remotequeriesimpl.RemoteQueryExecuteCopyLimits {
