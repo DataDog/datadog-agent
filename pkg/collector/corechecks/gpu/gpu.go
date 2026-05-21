@@ -383,6 +383,12 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 		c.telemetry.metrics.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
 	}
 
+	// A device is considered active when its deduplicated sm_active metric
+	// exceeds this percent threshold. sm_active is in the 0-100 percent range.
+	const activeSMThresholdPercent = 0.05
+	totalDevices := len(perDeviceMetrics)
+	activeDevices := 0
+
 	//iterate through devices to emit its metrics
 	for deviceUUID, deviceData := range perDeviceMetrics {
 		//filter out same metric with lower priority
@@ -395,10 +401,21 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 
 		// iterate through filtered metrics and emit them with the tags
 		for _, metric := range deduplicatedMetrics {
+			if metric.Name == "sm_active" && metric.Value > activeSMThresholdPercent {
+				activeDevices++
+			}
 			if err := c.emitSingleMetric(metric, snd, currentExecutionTime, deviceContainers, deviceTags); err != nil {
 				multiErr = append(multiErr, fmt.Errorf("error emitting metric %s: %w", metric.Name, err))
 			}
 		}
+	}
+
+	metricTimestamp := float64(currentExecutionTime.UnixNano()) / float64(time.Second)
+	if err := snd.GaugeWithTimestamp(gpuMetricsNs+"devices.total", float64(totalDevices), "", nil, metricTimestamp); err != nil {
+		multiErr = append(multiErr, fmt.Errorf("error emitting gpu.devices.total: %w", err))
+	}
+	if err := snd.GaugeWithTimestamp(gpuMetricsNs+"devices.active", float64(activeDevices), "", nil, metricTimestamp); err != nil {
+		multiErr = append(multiErr, fmt.Errorf("error emitting gpu.devices.active: %w", err))
 	}
 
 	return errors.Join(multiErr...)

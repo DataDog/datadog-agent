@@ -286,6 +286,31 @@ metrics:
         mig: true
         physical: true
         vgpu: true
+  devices.total:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Number of GPU devices observed on the host during the most recent
+        check run. Host-level gauge that does not carry per-device tags.
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
+  devices.active:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Number of GPU devices on the host whose streaming multiprocessor
+        utilisation exceeded the activity threshold (sm_active greater than
+        0.05 percent) during the most recent check run.
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
   dram_active:
     metadata:
       metric_type: gauge

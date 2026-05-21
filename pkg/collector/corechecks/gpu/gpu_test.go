@@ -275,6 +275,49 @@ func TestEmitNvmlMetrics(t *testing.T) {
 	}
 }
 
+func TestEmitMetricsEmitsHostLevelDeviceCounts(t *testing.T) {
+	mockSender := mocksender.NewMockSender("gpu")
+	mockSender.SetupAcceptAll()
+
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	check := newConfiguredGPUCheck(t, fakeTagger, testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(), nil)
+
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMockAllFunctions(), testutil.WithDeviceCount(4))
+	ddnvml.WithMockNVML(t, nvmlMock)
+
+	// Activity threshold is 0.05 percent; sm_active is a percent (0-100). Cover
+	// inactive, the boundary (must remain inactive — strict greater-than), and
+	// two clearly-active devices.
+	deviceCases := []struct {
+		smActive float64
+	}{
+		{smActive: 0.04},  // inactive
+		{smActive: 0.05},  // boundary -> inactive
+		{smActive: 0.06},  // active
+		{smActive: 100.0}, // active
+	}
+	for i, dc := range deviceCases {
+		check.collectors = append(check.collectors, &mockCollector{
+			name:       "sampling",
+			deviceUUID: testutil.GPUUUIDs[i],
+			metrics: []*nvidia.Metric{
+				{Name: "sm_active", Value: dc.smActive, Type: ddmetrics.GaugeType, Priority: nvidia.Medium},
+			},
+		})
+	}
+
+	require.NoError(t, check.deviceCache.Refresh())
+
+	metricTime := time.Now()
+	metricTimestamp := float64(metricTime.UnixNano()) / float64(time.Second)
+	require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, metricTime))
+
+	// Host-level gauges are emitted with no tags (no deviceTags path).
+	noTags := mock.MatchedBy(func(tags []string) bool { return len(tags) == 0 })
+	mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.devices.total", float64(4), "", noTags, metricTimestamp)
+	mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.devices.active", float64(2), "", noTags, metricTimestamp)
+}
+
 func TestRunDoesNotError(t *testing.T) {
 	// Tests for the specific output are above, this only ensures that the run function does not error
 	// even if things are not correctly setup

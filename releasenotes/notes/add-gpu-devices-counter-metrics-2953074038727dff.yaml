@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    Add two host-level GPU gauges to the ``gpu`` core check:
+
+    - ``gpu.devices.total``: number of GPU devices observed on the host
+      during the most recent check run.
+    - ``gpu.devices.active``: number of GPU devices whose
+      ``gpu.sm_active`` exceeded 0.05 percent during the most recent
+      check run.
