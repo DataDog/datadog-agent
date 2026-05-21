@@ -19,17 +19,20 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
+	egressfx "github.com/DataDog/datadog-agent/comp/healthplatform/egress/fx"
 	forwarderfx "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/fx"
-	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 
 	// Import issue modules to trigger their init() registration.
 	// The bundle is the correct place for side-effect imports; impl packages
 	// must not import other impl packages.
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig"
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions"
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/rofspermissions"
+	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
+	registryfx "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/fx"
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig"       // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"    // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"      // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions" // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/rofspermissions"   // registers templates via init()
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	runnerfx "github.com/DataDog/datadog-agent/comp/healthplatform/runner/fx"
 	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
@@ -44,29 +47,34 @@ import (
 // Bundle defines the fx options for the health platform bundle.
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
+		registryfx.Module(),
 		runnerfx.Module(),
 		schedulerfx.Module(),
 		forwarderfx.Module(),
+		egressfx.Module(),
 		corefx.Module(),
 		fx.Invoke(bootstrapBuiltInHealthChecks),
 	)
 }
 
-// bootstrapBuiltInHealthChecks registers all built-in health checks at startup.
+// bootstrapBuiltInHealthChecks registers all built-in health checks at startup
+// and forces the egress component to be instantiated (its lifecycle hooks drive the
+// periodic store→intake flush).
 // Once checks run in background goroutines so they do not block OnStart;
 // periodic checks are registered with the scheduler.
 func bootstrapBuiltInHealthChecks(
 	cfg config.Component,
 	logger log.Component,
+	registry registrydef.Component,
 	runner runnerdef.Component,
 	scheduler schedulerdef.Component,
 	store storedef.Component,
+	_ egressdef.Component,
 	lc fx.Lifecycle,
 ) {
 	if !cfg.GetBool("health_platform.enabled") {
 		return
 	}
-	registry := buildRegistry(cfg)
 	lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			for _, once := range registry.GetBuiltInStartupHealthChecks() {
@@ -103,15 +111,4 @@ func bootstrapBuiltInHealthChecks(
 			return nil
 		},
 	})
-}
-
-// buildRegistry instantiates all registered modules into a Registry.
-// TODO: this duplicates the registry built inside store.NewComponent (for template
-// lookups). Both will be unified when issues/registry is promoted to an fx component.
-func buildRegistry(cfg config.Component) *issuesmod.Registry {
-	registry := issuesmod.NewRegistry()
-	for _, module := range issuesmod.GetAllModules(cfg) {
-		registry.RegisterModule(module)
-	}
-	return registry
 }

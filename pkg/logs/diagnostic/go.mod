@@ -5,7 +5,8 @@ go 1.25.0
 require (
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.61.0
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.75.4
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.75.4
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.75.4
+	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.75.4
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.75.4
 	github.com/stretchr/testify v1.11.1
@@ -24,8 +25,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/create v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.75.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.75.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.75.4 // indirect
