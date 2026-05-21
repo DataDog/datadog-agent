@@ -962,9 +962,9 @@ func TestWorkerTrialModeErrorSuppression(t *testing.T) {
 	t.Cleanup(func() { resetTrialCallbacks(t) })
 
 	var callbackOKs []bool
-	RegisterTrialResultCallback(func(_ checkid.ID, ok bool) TrialResultDecision {
+	RegisterTrialResultCallback(func(_ checkid.ID, ok bool) bool {
 		callbackOKs = append(callbackOKs, ok)
-		return TrialResultContinue
+		return true
 	})
 
 	var wg sync.WaitGroup
@@ -1017,12 +1017,9 @@ func TestWorkerTrialModePromotion(t *testing.T) {
 	t.Cleanup(func() { resetTrialCallbacks(t) })
 
 	var callbackOKs []bool
-	RegisterTrialResultCallback(func(_ checkid.ID, ok bool) TrialResultDecision {
+	RegisterTrialResultCallback(func(_ checkid.ID, ok bool) bool {
 		callbackOKs = append(callbackOKs, ok)
-		if ok {
-			return TrialResultPromote
-		}
-		return TrialResultContinue
+		return !ok
 	})
 
 	var wg sync.WaitGroup
@@ -1079,9 +1076,9 @@ func TestWorkerTrialModeRetireSuppressesLateRuns(t *testing.T) {
 	t.Cleanup(func() { resetTrialCallbacks(t) })
 
 	var callbackOKs []bool
-	RegisterTrialResultCallback(func(_ checkid.ID, ok bool) TrialResultDecision {
+	RegisterTrialResultCallback(func(_ checkid.ID, ok bool) bool {
 		callbackOKs = append(callbackOKs, ok)
-		return TrialResultRetire
+		return true
 	})
 
 	var wg sync.WaitGroup

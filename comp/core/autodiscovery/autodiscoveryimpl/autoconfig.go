@@ -803,14 +803,15 @@ func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
 }
 
 // recordTrialResult is called by the runner after each trial-mode check run
-// with the run outcome. It returns the worker disposition for the result. If
-// consecutive failures reach the internal threshold, the check is unscheduled.
-func (ac *AutoConfig) recordTrialResult(id checkid.ID, ok bool) worker.TrialResultDecision {
-	decision, shouldUnschedule := ac.trialRegistry.recordResult(id, ok)
+// with the run outcome. It returns whether the worker should suppress the
+// result from normal integration reporting. If consecutive failures reach the
+// internal threshold, the check is unscheduled.
+func (ac *AutoConfig) recordTrialResult(id checkid.ID, ok bool) bool {
+	suppress, shouldUnschedule := ac.trialRegistry.recordResult(id, ok)
 	if shouldUnschedule {
 		ac.unscheduleCheckByID(id)
 	}
-	return decision
+	return suppress
 }
 
 // unscheduleCheckByID removes the trial config from scheduledConfigs and

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/collector/worker"
 )
 
 const trialRetiredTTL = 5 * time.Minute
@@ -36,30 +35,31 @@ func newTrialRegistry(threshold int) *trialRegistry {
 	}
 }
 
-// recordResult records a check run outcome. It returns the worker disposition
-// for the result and whether this result newly crossed the failure threshold,
-// which means AutoConfig should enqueue an unschedule.
-func (r *trialRegistry) recordResult(id checkid.ID, ok bool) (worker.TrialResultDecision, bool) {
+// recordResult records a check run outcome. It returns whether the worker
+// should suppress the result from normal integration reporting and whether
+// this result newly crossed the failure threshold, which means AutoConfig
+// should enqueue an unschedule.
+func (r *trialRegistry) recordResult(id checkid.ID, ok bool) (bool, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	r.pruneRetiredLocked(time.Now())
 	if _, found := r.retired[id]; found {
-		return worker.TrialResultRetire, false
+		return true, false
 	}
 
 	if ok {
 		delete(r.counts, id)
-		return worker.TrialResultPromote, false
+		return false, false
 	}
 
 	r.counts[id]++
 	if r.counts[id] < r.threshold {
-		return worker.TrialResultContinue, false
+		return true, false
 	}
 
 	r.retireLocked(id, time.Now())
-	return worker.TrialResultRetire, true
+	return true, true
 }
 
 // retire marks id as retired because AD requested unscheduling. The scheduler

@@ -219,12 +219,12 @@ func (w *Worker) Run(ctx context.Context) {
 			}
 		}
 
-		// For trial-mode checks: report outcome to AutoConfig and suppress
-		// normal integration reporting until AutoConfig decides the check has
-		// either discovered a valid configuration or should be retired.
+		// For trial-mode checks: report the outcome to AutoConfig. Suppressed
+		// results stay out of normal integration reporting; a non-suppressed
+		// successful trial promotes the check.
 		if trialCheck, ok := check.(trialModeCheck); ok && trialCheck.IsTrialMode() {
-			decision := notifyTrialResult(check.ID(), checkErr == nil)
-			if decision == TrialResultPromote && checkErr == nil {
+			suppressTrialResult := notifyTrialResult(check.ID(), checkErr == nil)
+			if !suppressTrialResult && checkErr == nil {
 				// First successful run: promote out of trial mode so subsequent
 				// failures are reported normally and do not trigger unscheduling.
 				trialCheck.ClearTrialMode()
