@@ -137,8 +137,8 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 
 		capabilities := archSpec.EffectiveCapabilities(gpuspec.DeviceModePhysical)
 		capabilities.NVLink = archSpec.SupportedNVLinkGeneration()
-		nvlinkLinkCount := linkCount(t, device, nvidia.GetNVLinkCount)
-		if linkCount(t, device, nvidia.GetC2CLinkCount) == 0 {
+		nvlinkLinkCount := linkCount(t, device, "NVLink", nvidia.GetNVLinkCount)
+		if linkCount(t, device, "C2C", nvidia.GetC2CLinkCount) == 0 {
 			capabilities.C2C = false
 		}
 		gpuConfig := gpuspec.GPUConfig{Architecture: archName, DeviceMode: gpuspec.DeviceModePhysical, Capabilities: capabilities, NVLinkLinkCount: nvlinkLinkCount}
@@ -151,11 +151,15 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 	}
 }
 
-func linkCount(t *testing.T, device safenvml.Device, countFunc func(safenvml.Device) (int, error)) int {
+func linkCount(t *testing.T, device safenvml.Device, name string, countFunc func(safenvml.Device) (int, error)) int {
 	t.Helper()
 
 	count, err := countFunc(device)
 	if err != nil {
+		if safenvml.IsAPIUnsupportedOnDevice(err, device) {
+			return 0
+		}
+		require.NoError(t, err, "%s link count probe failed for GPU %s", name, device.GetDeviceInfo().UUID)
 		return 0
 	}
 	return count
