@@ -52,7 +52,8 @@ type Check struct {
 	agentHostname string
 }
 
-// saveConfig saves the config if store is non-nil, and returns an error about manual check mode otherwise.
+// saveConfig saves the config if store is non-nil. Returns the resulting UUID, config hash, a bool
+// that is true when a new entry was written (false when deduplicated), and any error.
 func saveConfig(store store.ConfigStore, deviceID string, cType types.ConfigType, rawConfig []byte) (string, string, bool, error) {
 	if store == nil {
 		return "", "", false, errors.New("local config store unavailable - will not save configs for rollback")
@@ -114,6 +115,7 @@ func (c *Check) Run() error {
 	if checkErr != nil {
 		log.Warnf("unable to process rules for running config for device %s, using agent collection ts: %s", deviceID, checkErr)
 	} else {
+		// TODO: helper fn to take metadata that needs to be emitted as metrics + emit them
 		configUUID, configHash := "", ""
 		if uuid, hash, stored, err := saveConfig(configStore, deviceID, types.RUNNING, runningConfig); err != nil {
 			log.Warnf("unable to store running config: %v", err)
@@ -135,6 +137,7 @@ func (c *Check) Run() error {
 		if checkErr != nil {
 			log.Warnf("unable to process rules for startup config for device %s, using agent collection ts: %s", deviceID, checkErr)
 		} else {
+			// add the startup config to the payload if it was retrieved successfully
 			startupUUID, startupHash := "", ""
 			if uuid, hash, stored, err := saveConfig(configStore, deviceID, types.STARTUP, startupConfig); err != nil {
 				log.Warnf("unable to store startup config: %v", err)
