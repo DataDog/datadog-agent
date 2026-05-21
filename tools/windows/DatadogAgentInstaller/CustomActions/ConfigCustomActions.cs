@@ -424,7 +424,7 @@ namespace Datadog.CustomActions
             }
 
             session.Log(
-                $"Could not find chrome_extension_id in {aiUsageNativeHostYamlPath} or {aiUsageNativeHostExamplePath}; " +
+                $"No chrome_extension_id override found in {aiUsageNativeHostYamlPath} or {aiUsageNativeHostExamplePath}; " +
                 $"using fallback Chrome extension ID {Constants.FallbackAiUsageChromeExtensionId}.");
             return Constants.FallbackAiUsageChromeExtensionId;
         }

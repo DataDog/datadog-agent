@@ -20,7 +20,3 @@ evp_proxy_api_version: 2
 # AI usage EVP intake subdomain header.
 ai_usage_evp_subdomain: "event-platform-intake"
 
-# Chrome extension ID for Native Messaging host registration. Default targets the
-# official AI usage extension; override per environment if you ship a private build.
-# On macOS, DD_AI_USAGE_CHROME_EXTENSION_ID at install time still wins over this value.
-chrome_extension_id: "gkmbhgbippkmmmidcikijiblbagbjgjj"

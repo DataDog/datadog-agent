@@ -14,6 +14,8 @@ namespace CustomActions.Tests
 {
     public class WriteConfigUnitTests
     {
+        private const string CustomChromeExtensionId = "abcdefghijklmnopabcdefghijklmnop";
+
         [Theory]
         [InlineAutoData("APIKEY", "api_key")]
         [InlineAutoData("SITE", "site")]
@@ -90,7 +92,7 @@ random_property: test
             WithTempInstallFolders((configFolder, projectLocation) =>
             {
                 File.WriteAllText(Path.Combine(configFolder, "datadog.yaml.example"), "api_key:\n");
-                var chromeExtensionId = WriteAiUsageNativeHostExample(configFolder);
+                WriteAiUsageNativeHostExample(configFolder);
                 sessionMock.Setup(session => session["APPLICATIONDATADIRECTORY"]).Returns(configFolder);
                 sessionMock.Setup(session => session["PROJECTLOCATION"]).Returns(projectLocation);
 
@@ -99,12 +101,12 @@ random_property: test
                 Assert.Equal(ActionResult.Success, result);
                 var aiUsageYaml = File.ReadAllText(Path.Combine(configFolder, "ai_usage_native_host.yaml"));
                 Assert.Contains("trace_agent_url: \"http://127.0.0.1:8126\"", aiUsageYaml);
-                Assert.Contains($"chrome_extension_id: \"{chromeExtensionId}\"", aiUsageYaml);
+                Assert.DoesNotContain("chrome_extension_id:", aiUsageYaml);
 
                 var manifest = File.ReadAllText(AiUsageManifestPath(projectLocation));
                 Assert.Contains("\"name\": \"com.datadoghq.ai_prompt_logger.native_host\"", manifest);
                 Assert.Contains("\"path\": \"" + Path.Combine(projectLocation, "bin", "agent", "ai-prompt-logger-native-host.exe").Replace("\\", "\\\\") + "\"", manifest);
-                Assert.Contains($"\"chrome-extension://{chromeExtensionId}/\"", manifest);
+                Assert.Contains($"\"chrome-extension://{Constants.FallbackAiUsageChromeExtensionId}/\"", manifest);
             });
         }
 
@@ -136,12 +138,13 @@ random_property: test
         {
             WithTempInstallFolders((configFolder, projectLocation) =>
             {
-                const string existingAiUsageConfig = "trace_agent_url: \"http://127.0.0.1:9999\"\n";
+                var existingAiUsageConfig = "trace_agent_url: \"http://127.0.0.1:9999\"\n" +
+                                            $"chrome_extension_id: \"{CustomChromeExtensionId}\"\n";
                 File.WriteAllText(Path.Combine(configFolder, "datadog.yaml.example"), "api_key:\n");
                 File.WriteAllText(
                     Path.Combine(configFolder, "datadog.yaml"),
                     "apm_config:\n  receiver_port: 8136\n");
-                var chromeExtensionId = WriteAiUsageNativeHostExample(configFolder);
+                WriteAiUsageNativeHostExample(configFolder);
                 File.WriteAllText(Path.Combine(configFolder, "ai_usage_native_host.yaml"), existingAiUsageConfig);
                 sessionMock.Setup(session => session["APPLICATIONDATADIRECTORY"]).Returns(configFolder);
                 sessionMock.Setup(session => session["PROJECTLOCATION"]).Returns(projectLocation);
@@ -151,7 +154,7 @@ random_property: test
                 Assert.Equal(ActionResult.Success, result);
                 Assert.Equal(existingAiUsageConfig, File.ReadAllText(Path.Combine(configFolder, "ai_usage_native_host.yaml")));
                 var manifest = File.ReadAllText(AiUsageManifestPath(projectLocation));
-                Assert.Contains($"\"chrome-extension://{chromeExtensionId}/\"", manifest);
+                Assert.Contains($"\"chrome-extension://{CustomChromeExtensionId}/\"", manifest);
             });
         }
 
@@ -213,16 +216,13 @@ random_property: test
             return Path.Combine(projectLocation, "bin", "agent", "dist", "com.datadoghq.ai_prompt_logger.native_host.json");
         }
 
-        private static string WriteAiUsageNativeHostExample(string configFolder)
+        private static void WriteAiUsageNativeHostExample(string configFolder)
         {
-            const string chromeExtensionId = "abcdefghijklmnopabcdefghijklmnop";
             File.WriteAllText(
                 Path.Combine(configFolder, "ai_usage_native_host.yaml.example"),
                 "trace_agent_url: \"http://127.0.0.1:8126\"\n" +
                 "evp_proxy_api_version: 2\n" +
-                "logs_evp_subdomain: \"http-intake.logs\"\n" +
-                $"chrome_extension_id: \"{chromeExtensionId}\"\n");
-            return chromeExtensionId;
+                "logs_evp_subdomain: \"http-intake.logs\"\n");
         }
     }
 }

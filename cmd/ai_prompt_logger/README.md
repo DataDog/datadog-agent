@@ -33,7 +33,7 @@ Settings live in **`ai_usage_native_host.yaml`** (see **`ai_usage_native_host.ya
 
 - **No flags**: the binary looks for `ai_usage_native_host.yaml` under the packaged config location. On Windows, that is `%ProgramData%\Datadog\ai_usage_native_host.yaml`; otherwise it searches under `{install_root}/etc/…` inferred from the executable path.
 
-On a **packaged macOS** agent, Chrome is pointed at **`embedded/bin/run_ai_usage_native_host.sh`**, which **`exec`s** the binary with **`--config=$install_root/etc/ai_usage_native_host.yaml`**.
+On a **packaged macOS** agent, Chrome is pointed at **`embedded/bin/run_ai_usage_native_host.sh`**, which **`exec`s** the binary with **`--config=$install_root/etc/ai_usage_native_host.yaml`**. On first config creation, the installer generates `trace_agent_url` from the Agent's `apm_config.receiver_port` in `datadog.yaml`.
 
 On a **packaged Windows** agent (MSI), Chrome is pointed directly at **`bin\agent\ai-prompt-logger-native-host.exe`** through a machine-wide HKLM Native Messaging Host registration; no shell wrapper is used.
 
@@ -102,7 +102,7 @@ HKLM\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_prompt_logger.
 HKLM\SOFTWARE\WOW6432Node\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_prompt_logger.native_host
 ```
 
-The default value for both keys points to the manifest under `bin\agent\dist`. The manifest's `path` field points to the bundled host executable under `bin\agent`, and `allowed_origins` uses `chrome_extension_id` from `ai_usage_native_host.yaml` (default: `gkmbhgbippkmmmidcikijiblbagbjgjj`). The active config's `trace_agent_url` is generated from the Agent's `apm_config.receiver_port` in `datadog.yaml`.
+The default value for both keys points to the manifest under `bin\agent\dist`. The manifest's `path` field points to the bundled host executable under `bin\agent`, and `allowed_origins` uses the installer default Chrome extension ID (`gkmbhgbippkmmmidcikijiblbagbjgjj`). The active config's `trace_agent_url` is generated from the Agent's `apm_config.receiver_port` in `datadog.yaml`.
 
 ## Local smoke test
 
