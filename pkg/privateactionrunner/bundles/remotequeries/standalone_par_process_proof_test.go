@@ -94,10 +94,16 @@ func TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC(t *t
 	t.Logf("real AgentSecure IPC configured for standalone PAR: 127.0.0.1:%d RemoteQueryExecute", cmdPortInt)
 	require.NoError(t, fakeintakeClient.EnqueuePARTask(taskID, fqn, inputs))
 
-	result, err := fakeintakeClient.GetPARTaskResult(taskID, 30*time.Second)
+	result, err := fakeintakeClient.GetPARTaskResult(taskID, remoteQueriesProofResultTimeout(proofQuery))
 	require.NoError(t, err)
 	if !result.Success {
-		t.Logf("failed PAR task result: %+v", result)
+		t.Logf("failed PAR task result: %+v", summarizeRemoteQueriesProofPayload(map[string]interface{}{
+			"task_id":       result.TaskID,
+			"success":       result.Success,
+			"outputs":       result.Outputs,
+			"error_code":    result.ErrorCode,
+			"error_details": result.ErrorDetails,
+		}))
 		t.Logf("PAR log tail:\n%s", readTail(parLog, 120))
 	}
 	require.True(t, result.Success)
@@ -109,7 +115,7 @@ func TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC(t *t
 	require.True(t, ok)
 	assertRemoteQueriesProofRows(t, proofQuery, rows)
 
-	resultEvidence, err := json.Marshal(result.Outputs)
+	resultEvidence, err := json.Marshal(summarizeRemoteQueriesProofPayload(result.Outputs))
 	require.NoError(t, err)
 	requireNoCredentialShape(t, resultEvidence)
 	t.Logf("fakeintake captured successful PAR task result: %s", resultEvidence)
@@ -162,7 +168,7 @@ private_action_runner:
   actions_allowlist:
     - "com.datadoghq.remotequeries.execute"
   task_concurrency: 1
-  task_timeout_seconds: 10
+  task_timeout_seconds: 120
 `, fakeintakeURL, cmdPort, authTokenFile, ipcCertFile, privateKeyB64, logFile)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte(cfg), 0o600))
 }

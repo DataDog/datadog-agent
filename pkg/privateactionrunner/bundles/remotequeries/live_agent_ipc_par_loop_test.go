@@ -35,6 +35,15 @@ const (
 	remoteQueriesProofQueryOverrideEnv  = "RQ_REMOTE_QUERY"
 )
 
+var remoteQueriesLargePayloadProofQueries = map[string]int{
+	"SELECT repeat('x', 1048576) AS payload":  1 << 20,
+	"SELECT repeat('x', 2097152) AS payload":  2 << 20,
+	"SELECT repeat('x', 4194304) AS payload":  4 << 20,
+	"SELECT repeat('x', 8388608) AS payload":  8 << 20,
+	"SELECT repeat('x', 16777216) AS payload": 16 << 20,
+	"SELECT repeat('x', 33554432) AS payload": 32 << 20,
+}
+
 func TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC(t *testing.T) {
 	if os.Getenv(fusedLocalProofEnv) != "1" {
 		t.Skipf("set %s=1 and start a local Agent with a loaded Postgres check to run the fused local proof", fusedLocalProofEnv)
@@ -96,10 +105,16 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC(t *testing.T)
 	t.Logf("real AgentSecure IPC configured: 127.0.0.1:%d RemoteQueryExecute", cmdPortInt)
 	require.NoError(t, fakeintakeClient.EnqueuePARTask(taskID, fqn, inputs))
 
-	result, err := fakeintakeClient.GetPARTaskResult(taskID, 20*time.Second)
+	result, err := fakeintakeClient.GetPARTaskResult(taskID, remoteQueriesProofResultTimeout(proofQuery))
 	require.NoError(t, err)
 	if !result.Success {
-		t.Logf("failed PAR task result: %+v", result)
+		t.Logf("failed PAR task result: %+v", summarizeRemoteQueriesProofPayload(map[string]interface{}{
+			"task_id":       result.TaskID,
+			"success":       result.Success,
+			"outputs":       result.Outputs,
+			"error_code":    result.ErrorCode,
+			"error_details": result.ErrorDetails,
+		}))
 	}
 	require.True(t, result.Success)
 	require.Equal(t, taskID, result.TaskID)
@@ -110,7 +125,7 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC(t *testing.T)
 	require.True(t, ok)
 	assertRemoteQueriesProofRows(t, proofQuery, rows)
 
-	resultEvidence, err := json.Marshal(result.Outputs)
+	resultEvidence, err := json.Marshal(summarizeRemoteQueriesProofPayload(result.Outputs))
 	require.NoError(t, err)
 	require.NotContains(t, string(resultEvidence), "password")
 	require.NotContains(t, string(resultEvidence), "token")
@@ -144,14 +159,32 @@ func remoteQueriesProofQueryFromEnv() string {
 
 func remoteQueriesProofLimits(query string) map[string]interface{} {
 	maxRows := 1
+	maxBytes := 4 << 10
+	timeoutMs := 5_000
 	if query == remoteQueriesFixtureTableProofQuery {
 		maxRows = 2
 	}
+	if payloadBytes, ok := remoteQueriesLargePayloadBytes(query); ok {
+		maxBytes = payloadBytes + (1 << 20)
+		timeoutMs = 60_000
+	}
 	return map[string]interface{}{
 		"maxRows":   maxRows,
-		"maxBytes":  1024,
-		"timeoutMs": 1000,
+		"maxBytes":  maxBytes,
+		"timeoutMs": timeoutMs,
 	}
+}
+
+func remoteQueriesProofResultTimeout(query string) time.Duration {
+	if _, ok := remoteQueriesLargePayloadBytes(query); ok {
+		return 2 * time.Minute
+	}
+	return 30 * time.Second
+}
+
+func remoteQueriesLargePayloadBytes(query string) (int, bool) {
+	payloadBytes, ok := remoteQueriesLargePayloadProofQueries[query]
+	return payloadBytes, ok
 }
 
 func assertRemoteQueriesProofRows(t *testing.T, query string, rows []interface{}) {
@@ -174,8 +207,40 @@ func assertRemoteQueriesProofRows(t *testing.T, query string, rows []interface{}
 		require.True(t, ok)
 		assert.Equal(t, float64(1), firstRow["value"])
 	default:
+		expectedPayloadBytes, ok := remoteQueriesLargePayloadBytes(query)
+		if ok {
+			require.Len(t, rows, 1)
+			firstRow, ok := rows[0].(map[string]interface{})
+			require.True(t, ok)
+			payload, ok := firstRow["payload"].(string)
+			require.True(t, ok, "payload field must be a string")
+			assert.Len(t, payload, expectedPayloadBytes)
+			return
+		}
 		require.FailNowf(t, "unsupported proof query", "%s=%q must use a bridge-allowlisted proof query", remoteQueriesProofQueryOverrideEnv, query)
 	}
+}
+
+func summarizeRemoteQueriesProofPayload(value interface{}) interface{} {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		copy := make(map[string]interface{}, len(typed))
+		for key, nested := range typed {
+			copy[key] = summarizeRemoteQueriesProofPayload(nested)
+		}
+		return copy
+	case []interface{}:
+		copy := make([]interface{}, 0, len(typed))
+		for _, nested := range typed {
+			copy = append(copy, summarizeRemoteQueriesProofPayload(nested))
+		}
+		return copy
+	case string:
+		if len(typed) > 4096 {
+			return fmt.Sprintf("<%d bytes>", len(typed))
+		}
+	}
+	return value
 }
 
 func remoteQueriesPostgresTargetFromEnv(t *testing.T) map[string]interface{} {

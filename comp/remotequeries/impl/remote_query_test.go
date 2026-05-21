@@ -6,6 +6,7 @@
 package remotequeriesimpl
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -384,6 +385,16 @@ func TestNewRemoteQueryExecuteRequestAllowsFixtureTableProofQuery(t *testing.T) 
 	assert.Equal(t, "postgres", req.Integration)
 	assert.Equal(t, RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, req.Target)
 	assert.Equal(t, remoteQueryFixtureTableProofQuery, req.Query)
+}
+
+func TestNewRemoteQueryExecuteRequestAllowsLargePayloadProofQueries(t *testing.T) {
+	for query, payloadBytes := range remoteQueryLargePayloadProofQueries {
+		t.Run(fmt.Sprintf("%d", payloadBytes), func(t *testing.T) {
+			req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, query, &RemoteQueryExecuteLimits{MaxRows: 1, MaxBytes: payloadBytes + (1 << 20), TimeoutMs: 60_000})
+			require.NoError(t, err)
+			assert.Equal(t, query, req.Query)
+		})
+	}
 }
 
 func TestRemoteQueryExecuteHandlerDisabled(t *testing.T) {

@@ -24,7 +24,11 @@ POSTGRES_COMPOSE_FILE=${POSTGRES_COMPOSE_FILE:-$INTEGRATIONS_CORE/postgres/tests
 POSTGRES_COMPOSE_PROJECT=${POSTGRES_COMPOSE_PROJECT:-rq-standalone-par-agent-postgres-$$}
 POSTGRES_IMAGE=${POSTGRES_IMAGE:-13-alpine}
 POSTGRES_LOCALE=${POSTGRES_LOCALE:-UTF8}
-RQ_REMOTE_QUERY=${RQ_REMOTE_QUERY:-SELECT city, country FROM cities ORDER BY city}
+RQ_REMOTE_QUERY_WAS_SET=0
+if [[ -n "${RQ_REMOTE_QUERY+x}" ]]; then
+  RQ_REMOTE_QUERY_WAS_SET=1
+fi
+RQ_REMOTE_QUERY=${RQ_REMOTE_QUERY:-}
 RQ_POSTGRES_HOST=${RQ_POSTGRES_HOST:-localhost}
 RQ_POSTGRES_PORT=${RQ_POSTGRES_PORT:-5432}
 RQ_POSTGRES_DBNAME=${RQ_POSTGRES_DBNAME:-datadog_test}
@@ -36,6 +40,30 @@ AGENT_PYTHON_ABI=${AGENT_PYTHON_ABI:-}
 
 AGENT_PID=""
 POSTGRES_COMPOSE_STARTED=0
+PROOF_CASE_NAME=""
+CASE_RESULTS_DIR=""
+
+PROOF_CASE_NAMES=(
+  "seed"
+  "fixture-city"
+  "payload-1mib"
+  "payload-2mib"
+  "payload-4mib"
+  "payload-8mib"
+  "payload-16mib"
+  "payload-32mib"
+)
+
+PROOF_CASE_QUERIES=(
+  "SELECT 1 AS value"
+  "SELECT city, country FROM cities ORDER BY city"
+  "SELECT repeat('x', 1048576) AS payload"
+  "SELECT repeat('x', 2097152) AS payload"
+  "SELECT repeat('x', 4194304) AS payload"
+  "SELECT repeat('x', 8388608) AS payload"
+  "SELECT repeat('x', 16777216) AS payload"
+  "SELECT repeat('x', 33554432) AS payload"
+)
 
 log() {
   printf '\n[%s] %s\n' "$(date -u +%H:%M:%S)" "$*"
@@ -264,6 +292,52 @@ instances:
 YAML
 }
 
+remote_query_limits_json() {
+  RQ_REMOTE_QUERY="$RQ_REMOTE_QUERY" python3 - <<'PY'
+import json
+import os
+import re
+
+query = os.environ["RQ_REMOTE_QUERY"]
+max_rows = 2 if query == "SELECT city, country FROM cities ORDER BY city" else 1
+max_bytes = 4 * 1024
+timeout_ms = 5000
+match = re.fullmatch(r"SELECT repeat\('x', ([0-9]+)\) AS payload", query)
+if match:
+    payload_bytes = int(match.group(1))
+    max_bytes = payload_bytes + 1024 * 1024
+    timeout_ms = 60000
+print(json.dumps({"maxRows": max_rows, "maxBytes": max_bytes, "timeoutMs": timeout_ms}))
+PY
+}
+
+summarize_json_file() {
+  local input=$1
+  local output=$2
+  python3 - "$input" "$output" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as f:
+    body = json.load(f)
+
+def summarize(value):
+    if isinstance(value, dict):
+        return {key: summarize(nested) for key, nested in value.items()}
+    if isinstance(value, list):
+        return [summarize(nested) for nested in value]
+    if isinstance(value, str) and len(value) > 4096:
+        return f"<{len(value)} bytes>"
+    return value
+
+summary = summarize(body)
+with open(sys.argv[2], "w", encoding="utf-8") as f:
+    json.dump(summary, f, indent=2, sort_keys=True)
+    f.write("\n")
+print(json.dumps(summary, sort_keys=True))
+PY
+}
+
 start_agent_and_wait_for_postgres_check() {
   : > "$TMP_ROOT/agent.log"
   PYTHONPATH="$TMP_ROOT/checks.d:$TMP_ROOT/pydeps" \
@@ -292,7 +366,9 @@ start_agent_and_wait_for_postgres_check() {
 
 call_agent_execute_preflight() {
   local payload
-  payload=$(RQ_POSTGRES_HOST="$RQ_POSTGRES_HOST" RQ_POSTGRES_PORT="$RQ_POSTGRES_PORT" RQ_POSTGRES_DBNAME="$RQ_POSTGRES_DBNAME" RQ_REMOTE_QUERY="$RQ_REMOTE_QUERY" python3 - <<'PY'
+  local limits
+  limits=$(remote_query_limits_json)
+  payload=$(RQ_POSTGRES_HOST="$RQ_POSTGRES_HOST" RQ_POSTGRES_PORT="$RQ_POSTGRES_PORT" RQ_POSTGRES_DBNAME="$RQ_POSTGRES_DBNAME" RQ_REMOTE_QUERY="$RQ_REMOTE_QUERY" RQ_LIMITS_JSON="$limits" python3 - <<'PY'
 import json
 import os
 print(json.dumps({
@@ -303,31 +379,37 @@ print(json.dumps({
         "dbname": os.environ["RQ_POSTGRES_DBNAME"],
     },
     "query": os.environ["RQ_REMOTE_QUERY"],
-    "limits": {"maxRows": 2 if os.environ["RQ_REMOTE_QUERY"] == "SELECT city, country FROM cities ORDER BY city" else 1, "maxBytes": 1024, "timeoutMs": 1000},
+    "limits": json.loads(os.environ["RQ_LIMITS_JSON"]),
 }))
 PY
 )
   local token
   token=$(cat "$TMP_ROOT/run/auth_token")
 
-  log "Preflight real Agent IPC HTTP execute endpoint (dev evidence only)"
+  log "[$PROOF_CASE_NAME] Preflight real Agent IPC HTTP execute endpoint (dev evidence only)"
+  local body_file="$CASE_RESULTS_DIR/agent-execute-preflight.raw-body"
+  local status_file="$CASE_RESULTS_DIR/agent-execute-preflight.status"
+  local summary_file="$CASE_RESULTS_DIR/agent-execute-preflight.summary.json"
+  local sanitized_body_file="$CASE_RESULTS_DIR/agent-execute-preflight.body"
   local status
-  status=$(curl -sS -k -o "$TMP_ROOT/results/agent-execute-preflight.body" -w '%{http_code}' \
+  status=$(curl -sS -k -o "$body_file" -w '%{http_code}' \
     -H "Authorization: Bearer ${token}" \
     -H 'Content-Type: application/json' \
     --data "$payload" \
     "https://127.0.0.1:${CMD_PORT}/agent/remote-queries/execute")
-  printf 'agent_execute_http_status=%s\n' "$status" | tee "$TMP_ROOT/results/agent-execute-preflight.status"
-  cat "$TMP_ROOT/results/agent-execute-preflight.body"
-  printf '\n'
+  printf 'agent_execute_http_status=%s\n' "$status" | tee "$status_file"
+  if [[ -s "$body_file" ]]; then
+    summarize_json_file "$body_file" "$summary_file"
+  fi
 
   if [[ "$status" != "200" ]]; then
     echo "FAIL: expected Agent execute preflight HTTP 200, got $status" >&2
     exit 1
   fi
-  RQ_REMOTE_QUERY="$RQ_REMOTE_QUERY" python3 - "$TMP_ROOT/results/agent-execute-preflight.body" <<'PY'
+  RQ_REMOTE_QUERY="$RQ_REMOTE_QUERY" python3 - "$body_file" <<'PY'
 import json
 import os
+import re
 import sys
 
 with open(sys.argv[1], encoding="utf-8") as f:
@@ -343,19 +425,35 @@ if query == "SELECT city, country FROM cities ORDER BY city":
         {"city": "Beautiful city of lights", "country": "France"},
         {"city": "New York", "country": "USA"},
     ]
-else:
+    if rows != expected:
+        raise SystemExit(f"Agent execute preflight rows did not match expected fixture data: rows={rows!r} expected={expected!r}")
+elif query == "SELECT 1 AS value":
     expected = [{"value": 1}]
-if rows != expected:
-    raise SystemExit(f"Agent execute preflight rows did not match expected fixture data: rows={rows!r} expected={expected!r}")
+    if rows != expected:
+        raise SystemExit(f"Agent execute preflight rows did not match expected seed data: rows={rows!r} expected={expected!r}")
+else:
+    match = re.fullmatch(r"SELECT repeat\('x', ([0-9]+)\) AS payload", query)
+    if not match:
+        raise SystemExit(f"Unsupported proof query: {query!r}")
+    expected_len = int(match.group(1))
+    if not isinstance(rows, list) or len(rows) != 1:
+        raise SystemExit(f"Agent execute preflight expected one payload row, got rows={rows!r}")
+    payload = rows[0].get("payload") if isinstance(rows[0], dict) else None
+    if not isinstance(payload, str):
+        raise SystemExit("Agent execute preflight payload field was not a string")
+    if len(payload) != expected_len:
+        raise SystemExit(f"Agent execute preflight payload length mismatch: got {len(payload)} expected {expected_len}")
 PY
-  if grep -Eq 'password|token|secret' "$TMP_ROOT/results/agent-execute-preflight.body"; then
+  if grep -Eq 'password|token|secret' "$body_file"; then
     echo "FAIL: Agent execute preflight response contained credential-shaped text" >&2
     exit 1
   fi
+  cp "$summary_file" "$sanitized_body_file"
+  rm -f "$body_file"
 }
 
 run_standalone_go_proof() {
-  log "Running standalone PAR process -> real AgentSecure gRPC IPC -> Postgres -> fakeintake proof test"
+  log "[$PROOF_CASE_NAME] Running standalone PAR process -> real AgentSecure gRPC IPC -> Postgres -> fakeintake proof test"
   (
     cd "$AGENT_REPO"
     RQ_STANDALONE_PROOF=1 \
@@ -364,14 +462,39 @@ run_standalone_go_proof() {
     RQ_STANDALONE_AGENT_CMD_PORT="$CMD_PORT" \
     RQ_STANDALONE_AGENT_AUTH_TOKEN_FILE="$TMP_ROOT/run/auth_token" \
     RQ_STANDALONE_AGENT_IPC_CERT_FILE="$TMP_ROOT/run/ipc_cert.pem" \
-    RQ_STANDALONE_EVIDENCE_FILE="$TMP_ROOT/results/standalone-proof-evidence.txt" \
+    RQ_STANDALONE_EVIDENCE_FILE="$CASE_RESULTS_DIR/standalone-proof-evidence.txt" \
     RQ_POSTGRES_HOST="$RQ_POSTGRES_HOST" \
     RQ_POSTGRES_PORT="$RQ_POSTGRES_PORT" \
     RQ_POSTGRES_DBNAME="$RQ_POSTGRES_DBNAME" \
     RQ_REMOTE_QUERY="$RQ_REMOTE_QUERY" \
     dda inv test --targets=./pkg/privateactionrunner/bundles/remotequeries \
       --extra-args='-run TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC -count=1 -v'
-  ) | tee "$TMP_ROOT/results/standalone-proof-test.log"
+  ) | tee "$CASE_RESULTS_DIR/standalone-proof-test.log"
+}
+
+run_proof_case() {
+  PROOF_CASE_NAME=$1
+  RQ_REMOTE_QUERY=$2
+  CASE_RESULTS_DIR="$TMP_ROOT/results/$PROOF_CASE_NAME"
+  mkdir -p "$CASE_RESULTS_DIR"
+  printf '%s\n' "$RQ_REMOTE_QUERY" > "$CASE_RESULTS_DIR/query.sql"
+
+  log "[$PROOF_CASE_NAME] Starting proof case: $RQ_REMOTE_QUERY"
+  call_agent_execute_preflight
+  run_standalone_go_proof
+  printf 'case=%s status=passed\n' "$PROOF_CASE_NAME" | tee "$CASE_RESULTS_DIR/status.txt"
+}
+
+run_proof_cases() {
+  if [[ "$RQ_REMOTE_QUERY_WAS_SET" == "1" ]]; then
+    run_proof_case "single" "$RQ_REMOTE_QUERY"
+    return
+  fi
+
+  local idx
+  for idx in "${!PROOF_CASE_NAMES[@]}"; do
+    run_proof_case "${PROOF_CASE_NAMES[$idx]}" "${PROOF_CASE_QUERIES[$idx]}"
+  done
 }
 
 main() {
@@ -401,14 +524,13 @@ main() {
   start_postgres_fixture
   write_postgres_config
   start_agent_and_wait_for_postgres_check
-  call_agent_execute_preflight
-  run_standalone_go_proof
+  run_proof_cases
 
   log "Sanitized standalone proof evidence"
-  cat "$TMP_ROOT/results/standalone-proof-evidence.txt"
+  find "$TMP_ROOT/results" -name 'standalone-proof-evidence.txt' -print -exec cat {} \;
 
-  log "Done. Sanitized artifacts left in $TMP_ROOT"
-  log "Key evidence: fakeintake enqueue/dequeue/publish, standalone PAR PID, and real AgentSecure IPC evidence are in $TMP_ROOT/results/standalone-proof-evidence.txt"
+  log "Done. Sanitized artifacts left in $TMP_ROOT/results"
+  log "Key evidence: per-case preflight summaries, fakeintake enqueue/dequeue/publish, standalone PAR PID, and real AgentSecure IPC evidence are under $TMP_ROOT/results/<case>/"
 }
 
 main "$@"
