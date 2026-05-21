@@ -144,6 +144,13 @@
   review:
     name: '#security-and-compliance-agent'
     id: 'CTNVD37T3'
+'@datadog/agent-supply-chain':
+  notification:
+    name: '#agent-supply-chain-private'
+    id: 'GNW8BFEF2'
+  review:
+    name: '#agent-supply-chain-private'
+    id: 'GNW8BFEF2'
 '@datadog/apm-ecosystems-performance':
   notification:
     name: '#apm-benchmarking-platform'
