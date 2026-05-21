@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"encoding/json"
+	"fmt"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -300,6 +301,47 @@ type CatalogEntry struct {
 	DisplayName    string
 	Kind           string // "detector", "correlator", or "extractor"
 	DefaultEnabled bool
+}
+
+// ParseSettingsFromJSON builds ComponentSettings from a map of JSON-encoded
+// per-component overrides (e.g. from a --config params file). Each value may
+// contain an optional "enabled" bool plus component-specific hyperparameters.
+// Unknown component names are rejected.
+func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSettings, error) {
+	cat := defaultCatalog()
+	settings := ComponentSettings{
+		Enabled: make(map[string]bool),
+		configs: make(map[string]any),
+	}
+	for name, raw := range overrides {
+		var entry *componentEntry
+		for i := range cat.entries {
+			if cat.entries[i].name == name {
+				entry = &cat.entries[i]
+				break
+			}
+		}
+		if entry == nil {
+			return ComponentSettings{}, fmt.Errorf("unknown component %q in params file", name)
+		}
+		var wrapper struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if err := json.Unmarshal(raw, &wrapper); err != nil {
+			return ComponentSettings{}, fmt.Errorf("parsing enabled for %q: %w", name, err)
+		}
+		if wrapper.Enabled != nil {
+			settings.Enabled[name] = *wrapper.Enabled
+		}
+		if entry.parseJSON != nil {
+			cfg, err := entry.parseJSON(entry.defaultConfig, raw)
+			if err != nil {
+				return ComponentSettings{}, fmt.Errorf("parsing config for %q: %w", name, err)
+			}
+			settings.configs[name] = cfg
+		}
+	}
+	return settings, nil
 }
 
 // TestbenchCatalogEntries returns all component names and kinds from the testbench catalog.

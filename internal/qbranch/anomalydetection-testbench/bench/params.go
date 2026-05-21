@@ -54,33 +54,5 @@ func LoadTestbenchParams(path string) (observerimpl.ComponentSettings, error) {
 		return observerimpl.ComponentSettings{}, fmt.Errorf("parsing params file: %w", err)
 	}
 
-	// Build name→entry index for O(1) lookup using the exported catalog.
-	entries := observerimpl.TestbenchCatalogEntries()
-	entryNames := make(map[string]bool, len(entries))
-	for _, e := range entries {
-		entryNames[e.Name] = true
-	}
-
-	settings := observerimpl.ComponentSettings{
-		Enabled: make(map[string]bool),
-	}
-
-	for name, raw := range file.Components {
-		if !entryNames[name] {
-			return observerimpl.ComponentSettings{}, fmt.Errorf("unknown component %q in params file", name)
-		}
-
-		// Extract the optional "enabled" field.
-		var wrapper struct {
-			Enabled *bool `json:"enabled"`
-		}
-		if err := json.Unmarshal(raw, &wrapper); err != nil {
-			return observerimpl.ComponentSettings{}, fmt.Errorf("parsing \"enabled\" for component %q: %w", name, err)
-		}
-		if wrapper.Enabled != nil {
-			settings.Enabled[name] = *wrapper.Enabled
-		}
-	}
-
-	return settings, nil
+	return observerimpl.ParseSettingsFromJSON(file.Components)
 }
