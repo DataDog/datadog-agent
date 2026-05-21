@@ -146,12 +146,17 @@ def _impl(ctx):
                 ),
             ],
             tool_paths = tool_paths,
+            # Paths are relative to the cc_toolchain's package (the root of
+            # @winlibs_mingw64//:), so rules_cc resolves them via crosstool_top
+            # and never constructs a Label("@winlibs_mingw64//...") from inside
+            # @@rules_cc+'s repo_mapping. Using %package(@winlibs_mingw64//)%
+            # here trips rules_cc 0.2.18 on Bazel 9 with an invalid-Label error.
             cxx_builtin_include_directories = [
-                "%package(@winlibs_mingw64//)%/include",
-                "%package(@winlibs_mingw64//)%/lib/gcc/x86_64-w64-mingw32/" + ctx.attr.gcc_version + "/include-fixed",
-                "%package(@winlibs_mingw64//)%/lib/gcc/x86_64-w64-mingw32/" + ctx.attr.gcc_version + "/include",
-                "%package(@winlibs_mingw64//)%/lib/gcc/x86_64-w64-mingw32/" + ctx.attr.gcc_version + "/install-tools/include",
-                "%package(@winlibs_mingw64//)%/x86_64-w64-mingw32/include",
+                "include",
+                "lib/gcc/x86_64-w64-mingw32/" + ctx.attr.gcc_version + "/include-fixed",
+                "lib/gcc/x86_64-w64-mingw32/" + ctx.attr.gcc_version + "/include",
+                "lib/gcc/x86_64-w64-mingw32/" + ctx.attr.gcc_version + "/install-tools/include",
+                "x86_64-w64-mingw32/include",
             ],
             artifact_name_patterns = [
                 artifact_name_pattern(
