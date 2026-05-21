@@ -170,6 +170,8 @@ type ActivityTree struct {
 	// top level lists used to summarize the content of the tree
 	DNSNames     *utils.StringKeys
 	SyscallsMask map[int]int
+
+	imageTagIDs []string
 }
 
 // CookieToProcessNodeCacheSize defines the "cookie to process" node cache size
@@ -188,6 +190,64 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 		SyscallsMask:        make(map[int]int),
 		DNSNames:            utils.NewStringKeys(nil),
 	}
+}
+
+// Returns the internal ID for an image tag
+func (p *ActivityTree) GetImageTagID(imageTag string) uint64 {
+	for i, tag := range p.imageTagIDs {
+		if tag == imageTag {
+			return uint64(i) + 1
+		}
+	}
+
+	return 0
+}
+
+// Removes this image tag from the list of image tags in this profile
+func (p *ActivityTree) removeImageTag(imageTag string) uint64 {
+	for i, tag := range p.imageTagIDs {
+		if tag == imageTag {
+			p.imageTagIDs[i] = ""
+			return uint64(i + 1)
+		}
+	}
+
+	return 0
+}
+
+// Inserts image tag. Returns 0 if image tag already existed
+func (p *ActivityTree) insertImageTag(imageTag string) uint64 {
+	for _, tag := range p.imageTagIDs {
+		if tag == imageTag {
+			return 0
+		}
+	}
+
+	p.imageTagIDs = append(p.imageTagIDs, imageTag)
+	return uint64(len(p.imageTagIDs))
+}
+
+// return a valid image tag id. if didn't exist, create entry
+func (p *ActivityTree) GetOrInsertImageTag(imageTag string) uint64 {
+	for id, tag := range p.imageTagIDs {
+		if tag == imageTag {
+			return uint64(id) + 1
+		}
+	}
+
+	p.imageTagIDs = append(p.imageTagIDs, imageTag)
+	return uint64(len(p.imageTagIDs))
+}
+
+// return the image tag from the internal ID
+func (p *ActivityTree) GetTagFromID(imageTagID uint64) string {
+	for id, tag := range p.imageTagIDs {
+		if uint64(id) == imageTagID {
+			return tag
+		}
+	}
+
+	return ""
 }
 
 // SetType changes the type and owner of the ActivityTree
@@ -212,8 +272,8 @@ func (at *ActivityTree) AppendChild(node *ProcessNode) {
 	node.Parent = at
 }
 
-// AppendImageTag appends the given image tag
-func (at *ActivityTree) AppendImageTag(_ string, _ time.Time) {
+// AppendImageTagID appends the given image tag
+func (at *ActivityTree) AppendImageTagID(_ uint64, _ time.Time) {
 }
 
 // GetParent returns nil for the ActivityTree
@@ -340,7 +400,9 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 
 // Insert inserts the event in the activity tree
 func (at *ActivityTree) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
-	newEntry, err := at.insertEvent(event, false /* !dryRun */, insertMissingProcesses, imageTag, generationType, resolvers)
+	imageTagID := at.GetOrInsertImageTag(imageTag)
+
+	newEntry, err := at.insertEvent(event, false /* !dryRun */, insertMissingProcesses, imageTagID, generationType, resolvers)
 	if newEntry {
 		// this doesn't count the exec events which are counted separately
 		at.Stats.counts[event.GetEventType()].addedCount[generationType].Inc()
@@ -350,12 +412,17 @@ func (at *ActivityTree) Insert(event *model.Event, insertMissingProcesses bool, 
 
 // Contains looks up the event in the activity tree
 func (at *ActivityTree) Contains(event *model.Event, insertMissingProcesses bool, imageTag string, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
-	newEntry, err := at.insertEvent(event, true /* dryRun */, insertMissingProcesses, imageTag, generationType, resolvers)
+	imageTagID := at.GetImageTagID(imageTag)
+	if imageTagID == 0 {
+		return false, nil
+	}
+
+	newEntry, err := at.insertEvent(event, true /* dryRun */, insertMissingProcesses, imageTagID, generationType, resolvers)
 	return !newEntry, err
 }
 
 // insert inserts the event in the activity tree, returns true if the event generated a new entry in the tree
-func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissingProcesses bool, imageTag string, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
+func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissingProcesses bool, imageTagID uint64, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
 	// sanity check
 	if generationType == Unknown || generationType > MaxNodeGenerationType {
 		return false, fmt.Errorf("invalid generation type: %v", generationType)
@@ -367,7 +434,7 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 	}
 
 	// Next we'll call CreateProcessNode, which will retrieve the process node if already present, or create a new one (with all its lineage if needed).
-	node, newProcessNode, err := at.CreateProcessNode(event.ProcessCacheEntry, imageTag, generationType, !insertMissingProcesses /*dryRun*/, resolvers)
+	node, newProcessNode, err := at.createProcessNode(event.ProcessCacheEntry, imageTagID, generationType, !insertMissingProcesses /*dryRun*/, resolvers)
 	if err != nil {
 		return false, err
 	}
@@ -391,7 +458,7 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 	// the count of processed events is the count of events that matched the activity dump selector = the events for
 	// which we successfully found a process activity node
 	at.Stats.counts[event.GetEventType()].processedCount.Inc()
-	node.AppendImageTag(imageTag, event.ResolveEventTime())
+	node.AppendImageTagID(imageTagID, event.ResolveEventTime())
 	// insert the event based on its type
 	switch event.GetEventType() {
 	case model.ExecEventType:
@@ -399,19 +466,19 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 		return newProcessNode, nil
 	case model.FileOpenEventType:
-		return node.InsertFileEvent(&event.Open.File, event, imageTag, generationType, at.Stats, dryRun, at.pathsReducer, resolvers), nil
+		return node.InsertFileEvent(&event.Open.File, event, imageTagID, generationType, at.Stats, dryRun, at.pathsReducer, resolvers), nil
 	case model.DNSEventType:
-		return node.InsertDNSEvent(event, imageTag, generationType, at.Stats, at.DNSNames, dryRun, at.DNSMatchMaxDepth), nil
+		return node.InsertDNSEvent(event, imageTagID, generationType, at.Stats, at.DNSNames, dryRun, at.DNSMatchMaxDepth), nil
 	case model.IMDSEventType:
-		return node.InsertIMDSEvent(event, imageTag, generationType, at.Stats, dryRun), nil
+		return node.InsertIMDSEvent(event, imageTagID, generationType, at.Stats, dryRun), nil
 	case model.BindEventType:
-		return node.InsertBindEvent(event, imageTag, generationType, at.Stats, dryRun), nil
+		return node.InsertBindEvent(event, imageTagID, generationType, at.Stats, dryRun), nil
 	case model.SyscallsEventType:
-		return node.InsertSyscalls(event, imageTag, at.SyscallsMask, at.Stats, dryRun), nil
+		return node.InsertSyscalls(event, imageTagID, at.SyscallsMask, at.Stats, dryRun), nil
 	case model.NetworkFlowMonitorEventType:
-		return node.InsertNetworkFlowMonitorEvent(event, imageTag, generationType, at.Stats, dryRun), nil
+		return node.InsertNetworkFlowMonitorEvent(event, imageTagID, generationType, at.Stats, dryRun), nil
 	case model.CapabilitiesEventType:
-		return node.InsertCapabilitiesUsageEvent(event, imageTag, at.Stats, dryRun), nil
+		return node.InsertCapabilitiesUsageEvent(event, imageTagID, at.Stats, dryRun), nil
 	case model.ExitEventType:
 		// Update the exit time of the process (this is purely informative, do not rely on timestamps to detect
 		// execed children)
@@ -480,7 +547,7 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 //   - check if one of the ancestors of entry is already in the tree and has a shortcut thanks to its cookie
 //   - creates the list of ancestors "we care about" for the tree, i.e. the chain of ancestors created by calling
 //     "GetNextAncestorBinaryOrArgv0" and that match the tree selector.
-func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEntry, imageTag string) ([]*model.ProcessCacheEntry, *ProcessNode, error) {
+func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEntry, imageTagID uint64) ([]*model.ProcessCacheEntry, *ProcessNode, error) {
 	var cs cookieSelector
 	var fastMatch *ProcessNode
 	var found bool
@@ -493,7 +560,7 @@ func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEnt
 		if cs.isSet() {
 			fastMatch, found = at.CookieToProcessNode.Get(cs)
 			if found {
-				fastMatch.applyImageTagOnLineageIfNeeded(imageTag)
+				fastMatch.applyImageTagOnLineageIfNeeded(imageTagID)
 				return branch, fastMatch, nil
 			}
 		}
@@ -523,8 +590,13 @@ func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEnt
 	return branch, nil, ErrNotValidRootNode
 }
 
-// CreateProcessNode looks up or inserts the provided entry in the tree
 func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, imageTag string, generationType NodeGenerationType, dryRun bool, resolvers *resolvers.EBPFResolvers) (*ProcessNode, bool, error) {
+	imageTagID := at.GetOrInsertImageTag(imageTag)
+	return at.createProcessNode(entry, imageTagID, generationType, dryRun, resolvers)
+}
+
+// createProcessNode looks up or inserts the provided entry in the tree
+func (at *ActivityTree) createProcessNode(entry *model.ProcessCacheEntry, imageTagID uint64, generationType NodeGenerationType, dryRun bool, resolvers *resolvers.EBPFResolvers) (*ProcessNode, bool, error) {
 	if entry == nil {
 		return nil, false, nil
 	}
@@ -539,7 +611,7 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, imageT
 
 	// Check if entry or one of its parents cookies are in CookieToProcessNode while building the branch we're trying to
 	// insert.
-	branchToInsert, quickMatch, err := at.buildBranchAndLookupCookies(entry, imageTag)
+	branchToInsert, quickMatch, err := at.buildBranchAndLookupCookies(entry, imageTagID)
 	if err != nil {
 		return nil, false, err
 	}
@@ -559,10 +631,10 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, imageT
 		parent = quickMatch
 	}
 
-	return at.insertBranch(parent, branchToInsert, imageTag, generationType, dryRun, resolvers)
+	return at.insertBranch(parent, branchToInsert, imageTagID, generationType, dryRun, resolvers)
 }
 
-func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []*model.ProcessCacheEntry, imageTag string, generationType NodeGenerationType, dryRun bool, r *resolvers.EBPFResolvers) (*ProcessNode, bool, error) {
+func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []*model.ProcessCacheEntry, imageTagID uint64, generationType NodeGenerationType, dryRun bool, r *resolvers.EBPFResolvers) (*ProcessNode, bool, error) {
 	var matchingNode *ProcessNode
 	var branchIncrement int
 	var newNode, newNodeFromRebase bool
@@ -589,10 +661,14 @@ func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []
 			return nil, true, nil
 		}
 
+		tagToTagID := func(id string) uint64 {
+			return at.GetImageTagID(id)
+		}
+
 		// we can safely insert the rest of the branch since they automatically all be new
 		for j := i; j >= 0; j-- {
 			// create the node
-			matchingNode = NewProcessNode(branchToInsert[j], generationType, r)
+			matchingNode = NewProcessNode(branchToInsert[j], generationType, r, &tagToTagID)
 			parent.AppendChild(matchingNode)
 
 			// insert the new node in the list of children
@@ -603,13 +679,13 @@ func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []
 		}
 
 		// if we reach this point, we can safely return the last inserted entry and indicate that the tree was modified
-		matchingNode.applyImageTagOnLineageIfNeeded(imageTag)
+		matchingNode.applyImageTagOnLineageIfNeeded(imageTagID)
 		return matchingNode, true, nil
 	}
 
 	// if we reach this point, we've successfully found the matching node in the tree without modifying the tree
 	if matchingNode != nil {
-		matchingNode.applyImageTagOnLineageIfNeeded(imageTag)
+		matchingNode.applyImageTagOnLineageIfNeeded(imageTagID)
 	}
 	return matchingNode, newNode, nil
 }
@@ -704,7 +780,7 @@ func (at *ActivityTree) rebaseTree(parent ProcessNodeParent, childIndexToRebase 
 				// ChildNodeToRebase and topLevelNode match and need to be merged, rebase the one in the profile, and insert
 				// the remaining nodes of the branch on top of it
 				newRebasedChild := at.rebaseTree(parent, childIndexToRebase, newParent, nil, generationType, resolvers)
-				output, _, _ := at.insertBranch(newRebasedChild, branchToInsert[:len(branchToInsert)-1], "", generationType, false, resolvers)
+				output, _, _ := at.insertBranch(newRebasedChild, branchToInsert[:len(branchToInsert)-1], 0, generationType, false, resolvers)
 
 				if output == nil {
 					return newRebasedChild
@@ -715,10 +791,14 @@ func (at *ActivityTree) rebaseTree(parent ProcessNodeParent, childIndexToRebase 
 	}
 
 	// create the new branch
+	tagToTagID := func(id string) uint64 {
+		return at.GetImageTagID(id)
+	}
+
 	var rebaseRoot, childrenCursor *ProcessNode
 	for i := len(branchToInsert) - 1; i >= 1; i-- {
 		eventExecChildTmp := branchToInsert[i]
-		n := NewProcessNode(eventExecChildTmp, generationType, resolvers)
+		n := NewProcessNode(eventExecChildTmp, generationType, resolvers, &tagToTagID)
 		if i == len(branchToInsert)-1 {
 			rebaseRoot = n
 		}
@@ -843,8 +923,12 @@ func (at *ActivityTree) SendStats(client statsd.ClientInterface) error {
 
 // TagAllNodes tags all the activity tree's nodes with the given image tag
 func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
+	imageTagID := at.GetImageTagID(imageTag)
+	if imageTagID == 0 {
+		return
+	}
 	for _, rootNode := range at.ProcessNodes {
-		rootNode.TagAllNodes(imageTag, timestamp)
+		rootNode.TagAllNodes(imageTagID, timestamp)
 	}
 }
 
@@ -853,12 +937,17 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 	// purge the cookies which todays are never set. TODO: once they'll get used, recompute them here
 	at.CookieToProcessNode.Purge()
 
+	imageTagID := at.GetImageTagID(imageTag)
+	if imageTagID == 0 {
+		return
+	}
+
 	// recompute also the full list of DNSNames and Syscalls when evicting nodes
 	DNSNames := utils.NewStringKeys(nil)
 	SyscallsMask := make(map[int]int)
 	newProcessNodes := []*ProcessNode{}
 	for _, node := range at.ProcessNodes {
-		if shouldRemoveNode := node.EvictImageTag(imageTag, DNSNames, SyscallsMask); !shouldRemoveNode {
+		if shouldRemoveNode := node.EvictImageTag(imageTagID, DNSNames, SyscallsMask); !shouldRemoveNode {
 			newProcessNodes = append(newProcessNodes, node)
 		}
 	}

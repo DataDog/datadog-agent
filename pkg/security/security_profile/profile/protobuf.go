@@ -29,7 +29,7 @@ func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
 	if p == nil {
 		return nil
 	}
-
+	
 	pad := adprotov1.SecDumpFromVTPool()
 	*pad = adprotov1.SecDump{
 		Host:     p.Header.Host,
