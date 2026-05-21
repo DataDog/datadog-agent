@@ -96,14 +96,15 @@
 <section class="hero">
   <div class="eyebrow">DogStatsD hack-week experiment report</div>
   <h1>Can DogStatsD become a streaming data system?</h1>
-  <p class="hero-subtitle">This report summarizes a local SMP experiment series exploring whether DogStatsD ingestion, aggregation, debug stats, capture/replay, recent lookback queries, and v3 payload construction can share one bounded stream of parsed facts instead of duplicating hot-path work.</p>
+  <p class="hero-subtitle">This report summarizes a local SMP experiment series exploring whether DogStatsD can grow new observability features—debug stats, capture/replay, future lookback queries, and cheaper payload construction—without rebuilding the same parsing, identity, and aggregation work in parallel.</p>
   <p class="small">Run directory: <code>reports/smp/dogstatsd-agg-serde-20260516-143205/</code> · Current experiment branch: <code>dogstatsd-agg-serde-experiment</code> · Latest measured code: <code>658b3c805cb</code> plus result commit <code>2488f766169</code></p>
 </section>
 
 <nav class="nav" aria-label="Report navigation">
+  <a href="#context">Context</a>
   <a href="#executive-summary">Executive summary</a>
+  <a href="#motivation">Motivation</a>
   <a href="#plain-english">Plain-English guide</a>
-  <a href="#motivation">Why this exists</a>
   <a href="#vision">Architecture vision</a>
   <a href="#experimental-design">Experiment design</a>
   <a href="#timeline">Narrative arc</a>
@@ -113,6 +114,15 @@
   <a href="#next-questions">Next questions</a>
   <a href="#appendix-images">Appendix</a>
 </nav>
+
+<section id="context">
+  <h2>Why we ran this experiment</h2>
+  <div class="callout neutral">
+    <p><strong>Adding DogStatsD features is hard because DogStatsD is on a very hot path.</strong> New observability features often need the same ingredients as aggregation—parsed metric names, tags, hosts, origin information, context keys, recent values, and sometimes raw bytes. If each feature builds its own copy of that state, the Agent pays the parsing, hashing, allocation, and memory cost multiple times.</p>
+    <p>Our immediate motivation was a future lookback/query capability: answer local questions like “what DogStatsD series were active in the last 30 seconds?” or “what changed at a 1s window?” without building a second mini-aggregator beside the real one. More broadly, this is the same pressure behind efforts like <code>comp/observer</code>: useful local observability features are natural to build as a standalone observer, but the add-on approach repeats work and struggles to fit the Agent's resource envelope.</p>
+    <p><strong>The experiment asked:</strong> what if we applied those observer/database ideas to the core DogStatsD path instead, so the core path gains headroom and new features become cheap views over shared data?</p>
+  </div>
+</section>
 
 <section id="executive-summary">
   <h2>Executive summary</h2>
@@ -148,6 +158,20 @@
   </div>
 </section>
 
+<section id="motivation">
+  <h2>Motivation: avoid building a second DogStatsD inside DogStatsD</h2>
+  <p>The normal Agent path is intentionally optimized for production aggregation: listeners read packets, the parser turns each line into metric samples with strings and tag slices, DogStatsD chooses an aggregation pipeline, the aggregator computes backend context keys, and the serializer later builds payload-shaped data.</p>
+  <p>That design is general and battle-tested, but it makes new local features expensive when they are layered on from the side. A feature that wants to show recent activity, capture traffic around a spike, replay traffic deterministically, or expose richer <code>dogstatsd-stats</code> usually needs to rediscover some of the same facts the main path already computed.</p>
+  <ul class="takeaways">
+    <li><strong>Lookback/query</strong> is the motivating new feature: we want recent local views at different windows or aggregation levels without running a whole second aggregator.</li>
+    <li><strong><code>serverDebug</code> / <code>agent dogstatsd-stats</code></strong> already exists, but historically used its own hot-path map/key computation instead of being a bounded view over shared identity state.</li>
+    <li><strong>Capture/replay</strong> wants raw bytes and enough metadata to explain where they came from, but listener-specific hooks make this uneven and hard to compose with semantic views.</li>
+    <li><strong>Payload construction</strong> wants dictionaries of names, tags, tagsets, resources, and values; the metrics v3 serializer has to rebuild many of these concepts downstream.</li>
+    <li><strong><code>comp/observer</code>-style features</strong> showed the product value of local observation, but rebuilding a tiny Agent architecture as an add-on repeats parsing/enrichment/aggregation work and makes resource budgeting difficult.</li>
+  </ul>
+  <p>The hypothesis was that we can make these features cheaper and more consistent by treating DogStatsD like a streaming data system: keep a bounded raw ingress stream, turn parsed traffic into reusable metric facts once, and build bounded materialized views for debug, lookback, replay, and payload construction.</p>
+</section>
+
 <section id="plain-english">
   <h2>Plain-English guide to the techniques</h2>
   <p>The detailed notes use stage names and shorthand because the work happened incrementally. Think of the stage letters as experiment labels, not product names. This section translates the important ideas into Agent concepts.</p>
@@ -164,21 +188,6 @@
   <div class="callout neutral">
     <strong>Rule of thumb:</strong> most wins came from projection laziness. Do not build a string, tag slice, debug key, descriptor, or payload dictionary entry unless some active consumer actually needs it. When traffic repeats, prefer stable references over rebuilding the same description.
   </div>
-</section>
-
-<section id="motivation">
-  <h2>Why this exists</h2>
-  <p>DogStatsD is more than a UDP/UDS parser. It is also a local aggregation engine, a debug surface, a capture/replay source, and increasingly a path to v3 columnar payloads.</p>
-  <p>In the normal Agent path today, listeners read packets, the parser turns each line into a metric sample with strings and tag slices, DogStatsD chooses an aggregation pipeline, the aggregator computes backend context keys, and the serializer later rebuilds payload-shaped data. That design is general and battle-tested, but several adjacent features repeat parts of the same work:</p>
-  <ul class="takeaways">
-    <li>normal aggregation parses samples, extracts tags, computes context keys, and later flushes backend payloads;</li>
-    <li>batch sharding computes an overlapping but not identical key;</li>
-    <li><code>serverDebug</code> / <code>agent dogstatsd-stats</code> historically recomputed debug keys into a separate hot-path map;</li>
-    <li>capture/replay taps listener buffers with transport-specific behavior;</li>
-    <li>recent local lookback queries are a new capability we would like to build; without a shared stream they would need another side store that duplicates identity/tag work;</li>
-    <li>metrics v3 payload construction rebuilds many string/tag/dictionary concepts downstream.</li>
-  </ul>
-  <p>The hypothesis was that we can make these features cheaper and more consistent by treating DogStatsD like a streaming database: one raw ingress stream, one canonical semantic stream, and a set of bounded materialized views.</p>
 </section>
 
 <section id="vision">
