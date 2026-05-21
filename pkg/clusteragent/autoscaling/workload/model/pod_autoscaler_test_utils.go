@@ -103,11 +103,21 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 		upstreamCR.Annotations[PreviewAnnotationKey] = f.PreviewAnnotationKey
 	}
 
+	// Mirror UpdateFromPodAutoscaler: cache the metadata fingerprint so equality checks
+	// against a PodAutoscalerInternal that came through the real code path match.
+	// Only populate when the test passes an explicit UpstreamCR — settings-driven shells
+	// synthesised from f.Spec do not go through UpdateFromPodAutoscaler in production.
+	var metadataHash uint64
+	if f.UpstreamCR != nil {
+		metadataHash = ComputePodAutoscalerMetadataHash(upstreamCR)
+	}
+
 	return PodAutoscalerInternal{
 		namespace:                          f.Namespace,
 		name:                               f.Name,
 		generation:                         f.Generation,
 		upstreamCR:                         upstreamCR,
+		metadataHash:                       metadataHash,
 		settingsTimestamp:                  f.SettingsTimestamp,
 		creationTimestamp:                  f.CreationTimestamp,
 		scalingValues:                      f.ScalingValues,

@@ -847,3 +847,112 @@ func TestContainerResourcesForStatus(t *testing.T) {
 		})
 	}
 }
+
+// TestComputePodAutoscalerMetadataHash ensures the hash captures every K8s-sourced
+// label or annotation that UpdateFromPodAutoscaler reads, so the controller can detect
+// annotation-only edits (which do not bump .metadata.generation) by comparing this
+// hash against PodAutoscalerInternal.MetadataHash().
+func TestComputePodAutoscalerMetadataHash(t *testing.T) {
+	base := func() *datadoghq.DatadogPodAutoscaler {
+		return &datadoghq.DatadogPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       "dpa-0",
+				Namespace:  "default",
+				Generation: 1,
+				Labels:     map[string]string{ProfileLabelKey: "high-cpu"},
+				Annotations: map[string]string{
+					PreviewAnnotationKey:           `{"burstable":true}`,
+					ProfileTemplateHashAnnotation:  "hash-1",
+					CustomRecommenderAnnotationKey: "{}",
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name         string
+		mutate       func(o *datadoghq.DatadogPodAutoscaler)
+		expectChange bool
+	}{
+		{
+			name:         "identical object — same hash",
+			mutate:       func(*datadoghq.DatadogPodAutoscaler) {},
+			expectChange: false,
+		},
+		{
+			name:         "preview annotation added (the customer-issue scenario)",
+			mutate:       func(o *datadoghq.DatadogPodAutoscaler) { o.Annotations[PreviewAnnotationKey] = `{"burstable":true}` },
+			expectChange: false, // base already has it
+		},
+		{
+			name:         "preview annotation value changed",
+			mutate:       func(o *datadoghq.DatadogPodAutoscaler) { o.Annotations[PreviewAnnotationKey] = `{"burstable":false}` },
+			expectChange: true,
+		},
+		{
+			name:         "preview annotation removed",
+			mutate:       func(o *datadoghq.DatadogPodAutoscaler) { delete(o.Annotations, PreviewAnnotationKey) },
+			expectChange: true,
+		},
+		{
+			name:         "profile label changed",
+			mutate:       func(o *datadoghq.DatadogPodAutoscaler) { o.Labels[ProfileLabelKey] = "low-cpu" },
+			expectChange: true,
+		},
+		{
+			name:         "profile template hash annotation changed",
+			mutate:       func(o *datadoghq.DatadogPodAutoscaler) { o.Annotations[ProfileTemplateHashAnnotation] = "hash-2" },
+			expectChange: true,
+		},
+		{
+			name: "custom recommender annotation changed",
+			mutate: func(o *datadoghq.DatadogPodAutoscaler) {
+				o.Annotations[CustomRecommenderAnnotationKey] = `{"endpoint":"x"}`
+			},
+			expectChange: true,
+		},
+		{
+			name: "irrelevant annotation changed — same hash",
+			mutate: func(o *datadoghq.DatadogPodAutoscaler) {
+				o.Annotations["kubectl.kubernetes.io/last-applied-configuration"] = "noise"
+			},
+			expectChange: false,
+		},
+		{
+			name: "irrelevant label changed — same hash",
+			mutate: func(o *datadoghq.DatadogPodAutoscaler) {
+				o.Labels["app"] = "noise"
+			},
+			expectChange: false,
+		},
+		{
+			name:         "generation bump — same hash (controller compares generation separately)",
+			mutate:       func(o *datadoghq.DatadogPodAutoscaler) { o.Generation = 99 },
+			expectChange: false,
+		},
+	}
+
+	baseHash := ComputePodAutoscalerMetadataHash(base())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			o := base()
+			tt.mutate(o)
+			got := ComputePodAutoscalerMetadataHash(o)
+			if tt.expectChange {
+				assert.NotEqual(t, baseHash, got, "expected hash to change")
+			} else {
+				assert.Equal(t, baseHash, got, "expected hash to stay the same")
+			}
+		})
+	}
+
+	// Sanity-check the model bookkeeping: UpdateFromPodAutoscaler must cache the same
+	// hash that ComputePodAutoscalerMetadataHash returns for the supplied object.
+	t.Run("UpdateFromPodAutoscaler caches the hash on the internal struct", func(t *testing.T) {
+		o := base()
+		var pai PodAutoscalerInternal
+		assert.Equal(t, uint64(0), pai.MetadataHash(), "uninitialised hash should be zero")
+		pai.UpdateFromPodAutoscaler(o)
+		assert.Equal(t, ComputePodAutoscalerMetadataHash(o), pai.MetadataHash())
+	})
+}

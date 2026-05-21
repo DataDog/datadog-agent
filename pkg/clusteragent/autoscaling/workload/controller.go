@@ -393,8 +393,12 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 
 		// Fall through to normal scaling logic.
 	} else if podAutoscalerInternal.Spec().Owner == datadoghqcommon.DatadogPodAutoscalerLocalOwner {
-		// Implement sync logic for local ownership, source of truth is Kubernetes
-		if podAutoscalerInternal.Generation() != podAutoscaler.Generation {
+		// Sync logic for local ownership: Kubernetes is the source of truth.
+		// Resync on either a spec change (.metadata.generation bump) or a change to one of the
+		// labels/annotations read by UpdateFromPodAutoscaler — annotation-only edits like
+		// autoscaling.datadoghq.com/preview do not bump generation and would otherwise be missed.
+		if podAutoscalerInternal.Generation() != podAutoscaler.Generation ||
+			podAutoscalerInternal.MetadataHash() != model.ComputePodAutoscalerMetadataHash(podAutoscaler) {
 			podAutoscalerInternal.UpdateFromPodAutoscaler(podAutoscaler)
 		}
 	}
