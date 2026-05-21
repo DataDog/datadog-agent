@@ -322,10 +322,23 @@ type remoteQueryIPCStreamCoalescer struct {
 	dataSeq     uint64
 	dataStarted bool
 	dataChunks  uint64
+
+	start               time.Time
+	firstEventAt        time.Time
+	firstDataAt         time.Time
+	lastDataAt          time.Time
+	upstreamDataEvents  uint64
+	upstreamDataBytes   uint64
+	coalescedDataEvents uint64
+	sendCalls           uint64
+	sendDuration        time.Duration
+	dataSendDuration    time.Duration
+	maxSendDuration     time.Duration
+	maxDataSendDuration time.Duration
 }
 
 func newRemoteQueryIPCStreamCoalescer(stream pb.AgentSecure_RemoteQueryExecuteStreamServer) *remoteQueryIPCStreamCoalescer {
-	return &remoteQueryIPCStreamCoalescer{stream: stream}
+	return &remoteQueryIPCStreamCoalescer{stream: stream, start: time.Now()}
 }
 
 func (c *remoteQueryIPCStreamCoalescer) NextChunkIndex() int32 {
@@ -333,6 +346,9 @@ func (c *remoteQueryIPCStreamCoalescer) NextChunkIndex() int32 {
 }
 
 func (c *remoteQueryIPCStreamCoalescer) Send(event check.RemoteQueryStreamEvent) error {
+	if c.firstEventAt.IsZero() {
+		c.firstEventAt = time.Now()
+	}
 	protoEvent, err := remoteQueryStreamEventFromCheckEvent(event)
 	if err != nil {
 		return err
@@ -342,8 +358,18 @@ func (c *remoteQueryIPCStreamCoalescer) Send(event check.RemoteQueryStreamEvent)
 		if err := c.Flush(); err != nil {
 			return err
 		}
-		return c.sendProtoEvent(protoEvent)
+		c.addTimingAttributes(protoEvent)
+		_, err := c.sendProtoEvent(protoEvent)
+		return err
 	}
+
+	now := time.Now()
+	if c.firstDataAt.IsZero() {
+		c.firstDataAt = now
+	}
+	c.lastDataAt = now
+	c.upstreamDataEvents++
+	c.upstreamDataBytes += uint64(len(data.GetPayload()))
 
 	if c.dataStarted && data.GetOffset() != c.dataOffset+uint64(c.data.Len()) {
 		if err := c.Flush(); err != nil {
@@ -385,8 +411,14 @@ func (c *remoteQueryIPCStreamCoalescer) flushData(size int) error {
 			Bytes:   uint64(len(payload)),
 		}},
 	}
-	if err := c.sendProtoEvent(protoEvent); err != nil {
+	duration, err := c.sendProtoEvent(protoEvent)
+	if err != nil {
 		return err
+	}
+	c.coalescedDataEvents++
+	c.dataSendDuration += duration
+	if duration > c.maxDataSendDuration {
+		c.maxDataSendDuration = duration
 	}
 	remaining := append([]byte(nil), c.data.Bytes()[size:]...)
 	c.data.Reset()
@@ -399,12 +431,58 @@ func (c *remoteQueryIPCStreamCoalescer) flushData(size int) error {
 	return nil
 }
 
-func (c *remoteQueryIPCStreamCoalescer) sendProtoEvent(event *pb.RemoteQueryExecuteStreamEvent) error {
+func (c *remoteQueryIPCStreamCoalescer) sendProtoEvent(event *pb.RemoteQueryExecuteStreamEvent) (time.Duration, error) {
+	start := time.Now()
 	if err := c.stream.Send(&pb.RemoteQueryExecuteChunk{Event: event, ChunkIndex: c.chunkIndex}); err != nil {
-		return err
+		return 0, err
+	}
+	duration := time.Since(start)
+	c.sendCalls++
+	c.sendDuration += duration
+	if duration > c.maxSendDuration {
+		c.maxSendDuration = duration
 	}
 	c.chunkIndex++
-	return nil
+	return duration, nil
+}
+
+func (c *remoteQueryIPCStreamCoalescer) addTimingAttributes(event *pb.RemoteQueryExecuteStreamEvent) {
+	final := event.GetFinal()
+	if final == nil {
+		return
+	}
+	if final.Attributes == nil {
+		final.Attributes = map[string]string{}
+	}
+	elapsed := time.Since(c.start)
+	final.Attributes["agent_coalesce_flush_bytes"] = strconv.Itoa(remoteQuerySecureIPCDataFlushBytes)
+	final.Attributes["agent_upstream_data_events"] = strconv.FormatUint(c.upstreamDataEvents, 10)
+	final.Attributes["agent_upstream_data_bytes"] = strconv.FormatUint(c.upstreamDataBytes, 10)
+	final.Attributes["agent_coalesced_data_events"] = strconv.FormatUint(c.coalescedDataEvents, 10)
+	final.Attributes["agent_ipc_send_calls"] = strconv.FormatUint(c.sendCalls, 10)
+	final.Attributes["agent_first_event_latency_ms"] = formatDurationMillis(c.firstEventAt.Sub(c.start))
+	final.Attributes["agent_first_data_latency_ms"] = formatDurationMillis(c.firstDataAt.Sub(c.start))
+	final.Attributes["agent_upstream_data_span_ms"] = formatDurationMillis(c.lastDataAt.Sub(c.firstDataAt))
+	final.Attributes["agent_total_stream_ms"] = formatDurationMillis(elapsed)
+	final.Attributes["agent_total_stream_mib_per_second"] = formatMiBPerSecond(c.upstreamDataBytes, elapsed)
+	final.Attributes["agent_ipc_send_total_ms"] = formatDurationMillis(c.sendDuration)
+	final.Attributes["agent_ipc_send_max_ms"] = formatDurationMillis(c.maxSendDuration)
+	final.Attributes["agent_ipc_data_send_total_ms"] = formatDurationMillis(c.dataSendDuration)
+	final.Attributes["agent_ipc_data_send_max_ms"] = formatDurationMillis(c.maxDataSendDuration)
+}
+
+func formatDurationMillis(duration time.Duration) string {
+	if duration <= 0 {
+		return "0"
+	}
+	return strconv.FormatFloat(duration.Seconds()*1000, 'f', 3, 64)
+}
+
+func formatMiBPerSecond(bytes uint64, duration time.Duration) string {
+	if bytes == 0 || duration <= 0 {
+		return "0"
+	}
+	return strconv.FormatFloat((float64(bytes)/1024/1024)/duration.Seconds(), 'f', 3, 64)
 }
 
 func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remotequeriesimpl.RemoteQueryExecuteRequest, error) {

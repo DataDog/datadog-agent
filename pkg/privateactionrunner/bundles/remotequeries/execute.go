@@ -73,6 +73,7 @@ func (a *ExecuteAction) Run(
 	task *types.Task,
 	_ *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
+	actionStart := time.Now()
 	inputs, err := types.ExtractInputs[ExecuteInputs](task)
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(
@@ -92,13 +93,21 @@ func (a *ExecuteAction) Run(
 		return nil, util.DefaultActionError(fmt.Errorf("remote query action requires an AgentSecure client"))
 	}
 
+	rpcStart := time.Now()
 	stream, err := client.RemoteQueryExecuteStream(ctx, remoteQueryExecuteRequestFromInputs(inputs))
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC failed")
 	}
+	rpcCreatedAt := time.Now()
 	output, err := remoteQueryExecuteOutputFromStream(stream)
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC response was invalid")
+	}
+	if timing, ok := output["stream_timing"].(map[string]interface{}); ok {
+		now := time.Now()
+		timing["action_total_ms"] = durationMillis(now.Sub(actionStart))
+		timing["rpc_create_ms"] = durationMillis(rpcCreatedAt.Sub(rpcStart))
+		timing["rpc_receive_and_assemble_ms"] = durationMillis(now.Sub(rpcCreatedAt))
 	}
 	return output, nil
 }
