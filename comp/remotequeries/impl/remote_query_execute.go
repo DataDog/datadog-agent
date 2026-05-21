@@ -43,6 +43,10 @@ type remoteQueryRunner interface {
 	RunRemoteQueryJSON(integration string, requestJSON string) (string, error)
 }
 
+type remoteQueryStreamRunner interface {
+	RunRemoteQueryStream(integration string, requestJSON string, emit func(string) error) error
+}
+
 func isRemoteQueryAllowedProofQuery(query string) bool {
 	switch query {
 	case remoteQueryProofSeedQuery, remoteQueryFixtureTableProofQuery:
@@ -60,6 +64,24 @@ type remoteQueryCheckUnwrapper interface {
 func remoteQueryRunnerFor(chk check.Check) (remoteQueryRunner, bool) {
 	for chk != nil {
 		if runner, ok := chk.(remoteQueryRunner); ok {
+			return runner, true
+		}
+		unwrapper, ok := chk.(remoteQueryCheckUnwrapper)
+		if !ok {
+			break
+		}
+		unwrapped := unwrapper.Unwrap()
+		if unwrapped == chk {
+			break
+		}
+		chk = unwrapped
+	}
+	return nil, false
+}
+
+func remoteQueryStreamRunnerFor(chk check.Check) (remoteQueryStreamRunner, bool) {
+	for chk != nil {
+		if runner, ok := chk.(remoteQueryStreamRunner); ok {
 			return runner, true
 		}
 		unwrapper, ok := chk.(remoteQueryCheckUnwrapper)
@@ -114,12 +136,60 @@ type RemoteQueryExecuteLimits struct {
 	TimeoutMs int
 }
 
+// RemoteQueryExecuteCopyLimits contains COPY stream execution limits.
+type RemoteQueryExecuteCopyLimits struct {
+	ChunkBytes  int
+	MaxBytes    int
+	MaxRowBytes int
+	TimeoutMs   int
+}
+
 // RemoteQueryExecuteRequest is the typed internal request shape shared by HTTP and gRPC callers.
 type RemoteQueryExecuteRequest struct {
 	Integration string
+	Operation   string
 	Target      RemoteQueryExecuteTarget
 	Query       string
+	Format      string
 	Limits      *RemoteQueryExecuteLimits
+	CopyLimits  *RemoteQueryExecuteCopyLimits
+}
+
+// NewRemoteQueryCopyStreamExecuteRequest validates and normalizes a typed COPY stream request.
+func NewRemoteQueryCopyStreamExecuteRequest(integration string, target RemoteQueryExecuteTarget, query string, format string, limits *RemoteQueryExecuteCopyLimits) (RemoteQueryExecuteRequest, error) {
+	parsedIntegration, err := parseIntegration(integration)
+	if err != nil {
+		return RemoteQueryExecuteRequest{}, err
+	}
+	parsedTarget, err := parseTarget(&remoteQueryTargetRequestJSON{Host: target.Host, Port: &target.Port, DBName: target.DBName})
+	if err != nil {
+		return RemoteQueryExecuteRequest{}, err
+	}
+	if query == "" {
+		return RemoteQueryExecuteRequest{}, fmt.Errorf("query is required")
+	}
+	if !isRemoteQueryAllowedProofQuery(query) {
+		return RemoteQueryExecuteRequest{}, fmt.Errorf("query is not allowed")
+	}
+	if format == "" {
+		format = "csv"
+	}
+	if format != "csv" {
+		return RemoteQueryExecuteRequest{}, fmt.Errorf("format must be csv")
+	}
+	var parsedLimits *remoteQueryExecuteCopyLimits
+	if limits != nil {
+		parsedLimits, err = parseExecuteCopyLimits(&remoteQueryExecuteCopyLimitsRequestJSON{
+			ChunkBytes:  &limits.ChunkBytes,
+			MaxBytes:    &limits.MaxBytes,
+			MaxRowBytes: &limits.MaxRowBytes,
+			TimeoutMs:   &limits.TimeoutMs,
+		})
+		if err != nil {
+			return RemoteQueryExecuteRequest{}, err
+		}
+	}
+	return remoteQueryExecuteRequestFromInternal(remoteQueryExecuteRequest{Integration: parsedIntegration, Operation: "copy_stream", Target: parsedTarget, Query: query, Format: format, CopyLimits: parsedLimits}), nil
 }
 
 // RemoteQueryExecuteError is a sanitized remote query bridge error.
@@ -184,16 +254,22 @@ func NewRemoteQueryExecuteRequest(integration string, target RemoteQueryExecuteT
 
 type remoteQueryExecuteRequest struct {
 	Integration string
+	Operation   string
 	Target      remoteQueryTarget
 	Query       string
+	Format      string
 	Limits      *remoteQueryExecuteLimits
+	CopyLimits  *remoteQueryExecuteCopyLimits
 }
 
 type remoteQueryExecuteRequestJSON struct {
-	Integration string                               `json:"integration"`
-	Target      *remoteQueryTargetRequestJSON        `json:"target"`
-	Query       string                               `json:"query"`
-	Limits      *remoteQueryExecuteLimitsRequestJSON `json:"limits,omitempty"`
+	Integration string                                   `json:"integration"`
+	Operation   string                                   `json:"operation,omitempty"`
+	Target      *remoteQueryTargetRequestJSON            `json:"target"`
+	Query       string                                   `json:"query"`
+	Format      string                                   `json:"format,omitempty"`
+	Limits      *remoteQueryExecuteLimitsRequestJSON     `json:"limits,omitempty"`
+	CopyLimits  *remoteQueryExecuteCopyLimitsRequestJSON `json:"copyLimits,omitempty"`
 }
 
 type remoteQueryExecuteLimitsRequestJSON struct {
@@ -208,10 +284,39 @@ type remoteQueryExecuteLimits struct {
 	TimeoutMs int
 }
 
+type remoteQueryExecuteCopyLimitsRequestJSON struct {
+	ChunkBytes  *int `json:"chunkBytes"`
+	MaxBytes    *int `json:"maxBytes"`
+	MaxRowBytes *int `json:"maxRowBytes"`
+	TimeoutMs   *int `json:"timeoutMs"`
+}
+
+type remoteQueryExecuteCopyLimits struct {
+	ChunkBytes  int
+	MaxBytes    int
+	MaxRowBytes int
+	TimeoutMs   int
+}
+
 type remoteQueryExecutorRequestJSON struct {
 	Target remoteQueryTargetJSON         `json:"target"`
 	Query  string                        `json:"query"`
 	Limits *remoteQueryExecuteLimitsJSON `json:"limits,omitempty"`
+}
+
+type remoteQueryCopyExecutorRequestJSON struct {
+	Operation string                            `json:"operation"`
+	Target    remoteQueryTargetJSON             `json:"target"`
+	Query     string                            `json:"query"`
+	Format    string                            `json:"format"`
+	Limits    *remoteQueryExecuteCopyLimitsJSON `json:"limits,omitempty"`
+}
+
+type remoteQueryExecuteCopyLimitsJSON struct {
+	ChunkBytes  int `json:"chunkBytes"`
+	MaxBytes    int `json:"maxBytes"`
+	MaxRowBytes int `json:"maxRowBytes"`
+	TimeoutMs   int `json:"timeoutMs"`
 }
 
 type remoteQueryTargetJSON struct {
@@ -286,8 +391,12 @@ func parseExecuteRequest(r *http.Request) (remoteQueryExecuteRequest, string, er
 	if err != nil {
 		return remoteQueryExecuteRequest{}, "", err
 	}
+	copyLimits, err := parseExecuteCopyLimits(wireReq.CopyLimits)
+	if err != nil {
+		return remoteQueryExecuteRequest{}, "", err
+	}
 
-	req := remoteQueryExecuteRequest{Integration: integration, Target: target, Query: wireReq.Query, Limits: limits}
+	req := remoteQueryExecuteRequest{Integration: integration, Operation: wireReq.Operation, Target: target, Query: wireReq.Query, Format: wireReq.Format, Limits: limits, CopyLimits: copyLimits}
 	requestJSON, err := marshalExecuteRequest(req)
 	if err != nil {
 		return remoteQueryExecuteRequest{}, "", fmt.Errorf("malformed JSON request")
@@ -299,6 +408,23 @@ var (
 	errLimitsUnknownField = errors.New("limits contains unknown field")
 	errLimitsMustBeObject = errors.New("limits must be an object")
 )
+
+func (l *remoteQueryExecuteCopyLimitsRequestJSON) UnmarshalJSON(data []byte) error {
+	if !isJSONObject(data) {
+		return errLimitsMustBeObject
+	}
+
+	type limitsAlias remoteQueryExecuteCopyLimitsRequestJSON
+	var limits limitsAlias
+	if err := decodeStrictJSON(bytes.NewReader(data), &limits); err != nil {
+		if isUnknownJSONFieldError(err) {
+			return errLimitsUnknownField
+		}
+		return err
+	}
+	*l = remoteQueryExecuteCopyLimitsRequestJSON(limits)
+	return nil
+}
 
 func (l *remoteQueryExecuteLimitsRequestJSON) UnmarshalJSON(data []byte) error {
 	if !isJSONObject(data) {
@@ -315,6 +441,29 @@ func (l *remoteQueryExecuteLimitsRequestJSON) UnmarshalJSON(data []byte) error {
 	}
 	*l = remoteQueryExecuteLimitsRequestJSON(limits)
 	return nil
+}
+
+func parseExecuteCopyLimits(limits *remoteQueryExecuteCopyLimitsRequestJSON) (*remoteQueryExecuteCopyLimits, error) {
+	if limits == nil {
+		return nil, nil
+	}
+	chunkBytes, err := parseRequiredPositiveInt(limits.ChunkBytes, "copyLimits.chunkBytes")
+	if err != nil {
+		return nil, err
+	}
+	maxBytes, err := parseRequiredPositiveInt(limits.MaxBytes, "copyLimits.maxBytes")
+	if err != nil {
+		return nil, err
+	}
+	maxRowBytes, err := parseRequiredPositiveInt(limits.MaxRowBytes, "copyLimits.maxRowBytes")
+	if err != nil {
+		return nil, err
+	}
+	timeoutMs, err := parseRequiredPositiveInt(limits.TimeoutMs, "copyLimits.timeoutMs")
+	if err != nil {
+		return nil, err
+	}
+	return &remoteQueryExecuteCopyLimits{ChunkBytes: chunkBytes, MaxBytes: maxBytes, MaxRowBytes: maxRowBytes, TimeoutMs: timeoutMs}, nil
 }
 
 func parseExecuteLimits(limits *remoteQueryExecuteLimitsRequestJSON) (*remoteQueryExecuteLimits, error) {
@@ -349,6 +498,9 @@ func parseRequiredPositiveInt(value *int, name string) (int, error) {
 }
 
 func (s *RemoteQueryExecuteService) Execute(req RemoteQueryExecuteRequest) RemoteQueryExecuteResult {
+	if req.Operation == "copy_stream" {
+		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "copy_stream requires the streaming executor")
+	}
 	if s == nil || !s.enabled {
 		return remoteQueryExecuteErrorResult(http.StatusServiceUnavailable, statusBridgeDisabled, "remote queries bridge is disabled")
 	}
@@ -357,17 +509,12 @@ func (s *RemoteQueryExecuteService) Execute(req RemoteQueryExecuteRequest) Remot
 	}
 
 	internal := req.internal()
-	matches := findIntegrationMatches(s.collector, internal.Integration, internal.Target)
-	switch len(matches) {
-	case 0:
-		return remoteQueryExecuteErrorResult(http.StatusNotFound, statusTargetNotFound, "no matching integration check found")
-	case 1:
-		// continue below
-	default:
-		return remoteQueryExecuteErrorResult(http.StatusConflict, statusAmbiguous, "multiple matching integration checks found")
+	match, result := s.matchExecutor(internal)
+	if result.Error != nil {
+		return result
 	}
 
-	runner, ok := remoteQueryRunnerFor(matches[0].check)
+	runner, ok := remoteQueryRunnerFor(match.check)
 	if !ok {
 		return remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "matched integration check does not support remote query execution")
 	}
@@ -385,6 +532,52 @@ func (s *RemoteQueryExecuteService) Execute(req RemoteQueryExecuteRequest) Remot
 	return RemoteQueryExecuteResult{HTTPStatus: http.StatusOK, ResponseJSON: responseJSON}
 }
 
+// ExecuteStream executes a COPY streaming request and emits serialized stream events without materializing the full result.
+func (s *RemoteQueryExecuteService) ExecuteStream(req RemoteQueryExecuteRequest, emit func(string) error) RemoteQueryExecuteResult {
+	if req.Operation != "copy_stream" {
+		return s.Execute(req)
+	}
+	if emit == nil {
+		return remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "remote query stream emitter is unavailable")
+	}
+	if s == nil || !s.enabled {
+		return remoteQueryExecuteErrorResult(http.StatusServiceUnavailable, statusBridgeDisabled, "remote queries bridge is disabled")
+	}
+	if s.collector == nil {
+		return remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "remote query executor is unavailable")
+	}
+
+	internal := req.internal()
+	match, result := s.matchExecutor(internal)
+	if result.Error != nil {
+		return result
+	}
+	runner, ok := remoteQueryStreamRunnerFor(match.check)
+	if !ok {
+		return remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "matched integration check does not support remote query streaming")
+	}
+	requestJSON, err := marshalExecuteRequest(internal)
+	if err != nil {
+		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "malformed JSON request")
+	}
+	if err := runner.RunRemoteQueryStream(internal.Integration, requestJSON, emit); err != nil {
+		return remoteQueryExecuteErrorResult(http.StatusBadGateway, statusExecutorUnavailable, "remote query stream executor failed")
+	}
+	return RemoteQueryExecuteResult{HTTPStatus: http.StatusOK, Status: "SUCCEEDED"}
+}
+
+func (s *RemoteQueryExecuteService) matchExecutor(internal remoteQueryExecuteRequest) (integrationCheckMatch, RemoteQueryExecuteResult) {
+	matches := findIntegrationMatches(s.collector, internal.Integration, internal.Target)
+	switch len(matches) {
+	case 0:
+		return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusNotFound, statusTargetNotFound, "no matching integration check found")
+	case 1:
+		return matches[0], RemoteQueryExecuteResult{HTTPStatus: http.StatusOK}
+	default:
+		return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusConflict, statusAmbiguous, "multiple matching integration checks found")
+	}
+}
+
 func remoteQueryExecuteErrorResult(httpStatus int, status string, message string) RemoteQueryExecuteResult {
 	return RemoteQueryExecuteResult{
 		HTTPStatus: httpStatus,
@@ -396,11 +589,16 @@ func remoteQueryExecuteErrorResult(httpStatus int, status string, message string
 func (r RemoteQueryExecuteRequest) internal() remoteQueryExecuteRequest {
 	internal := remoteQueryExecuteRequest{
 		Integration: r.Integration,
+		Operation:   r.Operation,
 		Target:      remoteQueryTarget{Host: r.Target.Host, Port: r.Target.Port, DBName: r.Target.DBName},
 		Query:       r.Query,
+		Format:      r.Format,
 	}
 	if r.Limits != nil {
 		internal.Limits = &remoteQueryExecuteLimits{MaxRows: r.Limits.MaxRows, MaxBytes: r.Limits.MaxBytes, TimeoutMs: r.Limits.TimeoutMs}
+	}
+	if r.CopyLimits != nil {
+		internal.CopyLimits = &remoteQueryExecuteCopyLimits{ChunkBytes: r.CopyLimits.ChunkBytes, MaxBytes: r.CopyLimits.MaxBytes, MaxRowBytes: r.CopyLimits.MaxRowBytes, TimeoutMs: r.CopyLimits.TimeoutMs}
 	}
 	return internal
 }
@@ -408,16 +606,47 @@ func (r RemoteQueryExecuteRequest) internal() remoteQueryExecuteRequest {
 func remoteQueryExecuteRequestFromInternal(req remoteQueryExecuteRequest) RemoteQueryExecuteRequest {
 	out := RemoteQueryExecuteRequest{
 		Integration: req.Integration,
+		Operation:   req.Operation,
 		Target:      RemoteQueryExecuteTarget{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName},
 		Query:       req.Query,
+		Format:      req.Format,
 	}
 	if req.Limits != nil {
 		out.Limits = &RemoteQueryExecuteLimits{MaxRows: req.Limits.MaxRows, MaxBytes: req.Limits.MaxBytes, TimeoutMs: req.Limits.TimeoutMs}
+	}
+	if req.CopyLimits != nil {
+		out.CopyLimits = &RemoteQueryExecuteCopyLimits{ChunkBytes: req.CopyLimits.ChunkBytes, MaxBytes: req.CopyLimits.MaxBytes, MaxRowBytes: req.CopyLimits.MaxRowBytes, TimeoutMs: req.CopyLimits.TimeoutMs}
 	}
 	return out
 }
 
 func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
+	if req.Operation == "copy_stream" {
+		format := req.Format
+		if format == "" {
+			format = "csv"
+		}
+		wireReq := remoteQueryCopyExecutorRequestJSON{
+			Operation: req.Operation,
+			Target:    remoteQueryTargetJSON{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName},
+			Query:     req.Query,
+			Format:    format,
+		}
+		if req.CopyLimits != nil {
+			wireReq.Limits = &remoteQueryExecuteCopyLimitsJSON{
+				ChunkBytes:  req.CopyLimits.ChunkBytes,
+				MaxBytes:    req.CopyLimits.MaxBytes,
+				MaxRowBytes: req.CopyLimits.MaxRowBytes,
+				TimeoutMs:   req.CopyLimits.TimeoutMs,
+			}
+		}
+		requestJSON, err := json.Marshal(wireReq)
+		if err != nil {
+			return "", err
+		}
+		return string(requestJSON), nil
+	}
+
 	wireReq := remoteQueryExecutorRequestJSON{
 		Target: remoteQueryTargetJSON{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName},
 		Query:  req.Query,

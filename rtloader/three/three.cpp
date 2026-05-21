@@ -531,6 +531,77 @@ bool isValidRemoteQueryIntegration(const std::string &integration)
         return std::islower(ch) || std::isdigit(ch) || ch == '_';
     });
 }
+
+struct RemoteQueryStreamEmitContext {
+    remote_query_stream_emit_cb emit;
+    void *userdata;
+};
+
+PyObject *remoteQueryStreamEmit(PyObject *self, PyObject *event)
+{
+    RemoteQueryStreamEmitContext *ctx = static_cast<RemoteQueryStreamEmitContext *>(PyCapsule_GetPointer(self, "remote_query_stream_emit"));
+    if (ctx == NULL || ctx->emit == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "remote query stream emit callback is unavailable");
+        return NULL;
+    }
+
+    PyObject *normalized_event = event;
+    PyObject *event_copy = NULL;
+    if (PyDict_Check(event)) {
+        PyObject *data = PyDict_GetItemString(event, "data");
+        if (data != NULL && PyBytes_Check(data)) {
+            event_copy = PyDict_Copy(event);
+            if (event_copy == NULL) {
+                return NULL;
+            }
+            char *bytes = PyBytes_AsString(data);
+            Py_ssize_t size = PyBytes_Size(data);
+            PyObject *data_str = PyUnicode_FromStringAndSize(bytes, size);
+            if (data_str == NULL) {
+                Py_DECREF(event_copy);
+                return NULL;
+            }
+            if (PyDict_SetItemString(event_copy, "data", data_str) != 0) {
+                Py_DECREF(data_str);
+                Py_DECREF(event_copy);
+                return NULL;
+            }
+            Py_DECREF(data_str);
+            normalized_event = event_copy;
+        }
+    }
+
+    PyObject *json_module = PyImport_ImportModule("json");
+    if (json_module == NULL) {
+        Py_XDECREF(event_copy);
+        return NULL;
+    }
+    PyObject *event_json = PyObject_CallMethod(json_module, const_cast<char *>("dumps"), const_cast<char *>("O"), normalized_event);
+    Py_DECREF(json_module);
+    Py_XDECREF(event_copy);
+    if (event_json == NULL || !PyUnicode_Check(event_json)) {
+        Py_XDECREF(event_json);
+        return NULL;
+    }
+
+    PyObject *utf8 = PyUnicode_AsUTF8String(event_json);
+    Py_DECREF(event_json);
+    if (utf8 == NULL) {
+        return NULL;
+    }
+    const char *event_json_c = PyBytes_AsString(utf8);
+    int emit_result = ctx->emit(event_json_c, ctx->userdata);
+    Py_DECREF(utf8);
+    if (emit_result != 0) {
+        PyErr_SetString(PyExc_RuntimeError, "remote query stream emit callback failed");
+        return NULL;
+    }
+
+    Py_RETURN_NONE;
+}
+
+PyMethodDef remoteQueryStreamEmitMethod = {"remote_query_stream_emit", remoteQueryStreamEmit, METH_O,
+                                           "Emit a serialized remote query stream event."};
 } // namespace
 
 char *Three::runRemoteQuery(RtLoaderPyObject *check, const char *integration, const char *request_json)
@@ -590,6 +661,76 @@ char *Three::runRemoteQuery(RtLoaderPyObject *check, const char *integration, co
     Py_XDECREF(execute_func);
     Py_XDECREF(remote_query_module);
     return ret;
+}
+
+bool Three::runRemoteQueryStream(RtLoaderPyObject *check, const char *integration, const char *request_json,
+                                 remote_query_stream_emit_cb emit, void *userdata)
+{
+    if (check == NULL || request_json == NULL || emit == NULL) {
+        return false;
+    }
+
+    std::string normalized_integration = normalizeRemoteQueryIntegration(integration);
+    if (!isValidRemoteQueryIntegration(normalized_integration)) {
+        setError("invalid remote query integration name");
+        return false;
+    }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+    PyObject *remote_query_module = NULL;
+    PyObject *execute_func = NULL;
+    PyObject *py_request_json = NULL;
+    PyObject *capsule = NULL;
+    PyObject *emit_func = NULL;
+    PyObject *result = NULL;
+    std::string module_name = "datadog_checks." + normalized_integration + ".remote_query";
+    RemoteQueryStreamEmitContext ctx{emit, userdata};
+    bool ok = false;
+
+    remote_query_module = PyImport_ImportModule(module_name.c_str());
+    if (remote_query_module == NULL) {
+        setError("error importing remote query helper: " + _fetchPythonError());
+        goto done;
+    }
+
+    execute_func = PyObject_GetAttrString(remote_query_module, "execute_agent_rpc_stream_copy");
+    if (execute_func == NULL || !PyCallable_Check(execute_func)) {
+        setError("error loading remote query stream helper: " + _fetchPythonError());
+        goto done;
+    }
+
+    py_request_json = PyUnicode_FromString(request_json);
+    if (py_request_json == NULL) {
+        setError("error converting remote query stream request to Python string: " + _fetchPythonError());
+        goto done;
+    }
+
+    capsule = PyCapsule_New(&ctx, "remote_query_stream_emit", NULL);
+    if (capsule == NULL) {
+        setError("error creating remote query stream emit context: " + _fetchPythonError());
+        goto done;
+    }
+    emit_func = PyCFunction_NewEx(&remoteQueryStreamEmitMethod, capsule, NULL);
+    if (emit_func == NULL) {
+        setError("error creating remote query stream emit callback: " + _fetchPythonError());
+        goto done;
+    }
+
+    result = PyObject_CallFunctionObjArgs(execute_func, py_request_json, py_check, emit_func, NULL);
+    if (result == NULL) {
+        setError("error invoking remote query stream helper: " + _fetchPythonError());
+        goto done;
+    }
+    ok = true;
+
+ done:
+    Py_XDECREF(result);
+    Py_XDECREF(emit_func);
+    Py_XDECREF(capsule);
+    Py_XDECREF(py_request_json);
+    Py_XDECREF(execute_func);
+    Py_XDECREF(remote_query_module);
+    return ok;
 }
 
 void Three::cancelCheck(RtLoaderPyObject *check)

@@ -117,6 +117,26 @@ char *run_remote_query(rtloader_t *s, rtloader_pyobject_t *check, const char *in
 	return run_remote_query_return;
 }
 
+int run_remote_query_stream_return = 1;
+int run_remote_query_stream_calls = 0;
+rtloader_pyobject_t *run_remote_query_stream_instance = NULL;
+const char *run_remote_query_stream_integration = NULL;
+const char *run_remote_query_stream_request_json = NULL;
+const char *run_remote_query_stream_event_json = NULL;
+int run_remote_query_stream(rtloader_t *s, rtloader_pyobject_t *check, const char *integration, const char *request_json, int (*emit)(const char *, void *), void *userdata) {
+	run_remote_query_stream_instance = check;
+	run_remote_query_stream_integration = strdup(integration);
+	run_remote_query_stream_request_json = strdup(request_json);
+	run_remote_query_stream_calls++;
+	run_remote_query_stream_event_json = "{\"type\":\"final\",\"status\":\"SUCCEEDED\"}";
+	if (run_remote_query_stream_return && emit != NULL) {
+		if (emit(run_remote_query_stream_event_json, userdata) != 0) {
+			return 0;
+		}
+	}
+	return run_remote_query_stream_return;
+}
+
 //
 // get_check MOCK
 //
@@ -221,6 +241,12 @@ void reset_check_mock() {
 	run_remote_query_instance = NULL;
 	run_remote_query_integration = NULL;
 	run_remote_query_request_json = NULL;
+	run_remote_query_stream_return = 1;
+	run_remote_query_stream_calls = 0;
+	run_remote_query_stream_instance = NULL;
+	run_remote_query_stream_integration = NULL;
+	run_remote_query_stream_request_json = NULL;
+	run_remote_query_stream_event_json = NULL;
 }
 */
 import "C"
@@ -777,6 +803,59 @@ func testRunRemoteQueryJSONAfterCancel(t *testing.T) {
 	_, err = check.RunRemoteQueryJSON("postgres", `{"query":"SELECT 1 AS value"}`)
 	assert.EqualError(t, err, "check fake_check is already cancelled")
 	assert.Equal(t, C.int(0), C.run_remote_query_calls)
+}
+
+func testRunRemoteQueryStream(t *testing.T) {
+	mockRtloader(t)
+
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
+	require.NoError(t, err)
+	check.instance = newMockPyObjectPtr()
+
+	C.reset_check_mock()
+	var events []string
+	err = check.RunRemoteQueryStream(" Postgres ", `{"operation":"copy_stream"}`, func(event string) error {
+		events = append(events, event)
+		return nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{`{"type":"final","status":"SUCCEEDED"}`}, events)
+	assert.Equal(t, C.int(1), C.gil_locked_calls)
+	assert.Equal(t, C.int(1), C.gil_unlocked_calls)
+	assert.Equal(t, C.int(1), C.run_remote_query_stream_calls)
+	assert.Equal(t, check.instance, C.run_remote_query_stream_instance)
+	assert.Equal(t, "postgres", C.GoString(C.run_remote_query_stream_integration))
+	assert.JSONEq(t, `{"operation":"copy_stream"}`, C.GoString(C.run_remote_query_stream_request_json))
+}
+
+func testRunRemoteQueryStreamEmitError(t *testing.T) {
+	mockRtloader(t)
+
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
+	require.NoError(t, err)
+	check.instance = newMockPyObjectPtr()
+
+	C.reset_check_mock()
+	err = check.RunRemoteQueryStream("postgres", `{"operation":"copy_stream"}`, func(string) error { return assert.AnError })
+
+	require.Error(t, err)
+	assert.Equal(t, C.int(1), C.run_remote_query_stream_calls)
+}
+
+func testRunRemoteQueryStreamAfterCancel(t *testing.T) {
+	mockRtloader(t)
+
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
+	require.NoError(t, err)
+	check.instance = newMockPyObjectPtr()
+
+	C.reset_check_mock()
+	check.Cancel()
+
+	err = check.RunRemoteQueryStream("postgres", `{"operation":"copy_stream"}`, func(string) error { return nil })
+	assert.EqualError(t, err, "check fake_check is already cancelled")
+	assert.Equal(t, C.int(0), C.run_remote_query_stream_calls)
 }
 
 func testRunAfterCancel(t *testing.T) {

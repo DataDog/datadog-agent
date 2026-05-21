@@ -438,6 +438,29 @@ func TestRemoteQueryExecuteHandlerRunnerSuccessWithFixtureTableQuery(t *testing.
 	assert.NotContains(t, recorder.Body.String(), "secret-value")
 }
 
+func TestRemoteQueryExecuteServiceCopyStreamDispatch(t *testing.T) {
+	runner := &fakeStreamRunnerCheck{
+		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}},
+		events:          []string{`{"type":"metadata","status":"STARTED"}`, `{"type":"data","sequence":0,"data":"a,b\n","bytes":4}`, `{"type":"final","status":"SUCCEEDED"}`},
+	}
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true)
+	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"}, "SELECT city, country FROM cities ORDER BY city", "csv", &RemoteQueryExecuteCopyLimits{ChunkBytes: 4, MaxBytes: 1024, MaxRowBytes: 1024, TimeoutMs: 1000})
+	require.NoError(t, err)
+
+	var events []string
+	result := service.ExecuteStream(req, func(event string) error {
+		events = append(events, event)
+		return nil
+	})
+
+	require.Nil(t, result.Error)
+	assert.Equal(t, runner.events, events)
+	assert.Equal(t, 1, runner.streamCalls)
+	assert.Equal(t, 0, runner.jsonCalls)
+	assert.JSONEq(t, `{"operation":"copy_stream","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT city, country FROM cities ORDER BY city","format":"csv","limits":{"chunkBytes":4,"maxBytes":1024,"maxRowBytes":1024,"timeoutMs":1000}}`, runner.streamSeen)
+	assert.NotContains(t, runner.streamSeen, "integration")
+}
+
 func TestRemoteQueryExecuteHandlerRejectsInvalidIntegration(t *testing.T) {
 	handler := &remoteQueryExecuteHandler{enabled: true, collector: fakeCollector{}}
 
@@ -523,19 +546,42 @@ func (f fakeWrappedCheck) Unwrap() check.Check {
 
 type fakeRunnerCheck struct {
 	fakeCheck
-	response string
-	err      error
-	seen     string
+	response  string
+	err       error
+	seen      string
+	jsonCalls int
 }
 
 func (f *fakeRunnerCheck) RunRemoteQueryJSON(integration string, requestJSON string) (string, error) {
 	if integration != "postgres" {
 		return "", assert.AnError
 	}
+	f.jsonCalls++
 	f.seen = requestJSON
 	return f.response, f.err
 }
 
 func (f *fakeRunnerCheck) seenRequest() string {
 	return f.seen
+}
+
+type fakeStreamRunnerCheck struct {
+	fakeRunnerCheck
+	events      []string
+	streamSeen  string
+	streamCalls int
+}
+
+func (f *fakeStreamRunnerCheck) RunRemoteQueryStream(integration string, requestJSON string, emit func(string) error) error {
+	if integration != "postgres" {
+		return assert.AnError
+	}
+	f.streamCalls++
+	f.streamSeen = requestJSON
+	for _, event := range f.events {
+		if err := emit(event); err != nil {
+			return err
+		}
+	}
+	return nil
 }

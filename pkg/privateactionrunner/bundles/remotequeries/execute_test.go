@@ -67,6 +67,33 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 	}, output)
 }
 
+func TestExecuteActionPreservesCopyStreamEvents(t *testing.T) {
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		{ResponseJsonChunk: []byte(`{"type":"metadata","status":"STARTED","operation":"copy_stream"}`), ChunkIndex: 0},
+		{ResponseJsonChunk: []byte(`{"type":"data","sequence":0,"data":"Beautiful city of lights,France\n","bytes":32}`), ChunkIndex: 1},
+		{ResponseJsonChunk: []byte(`{"type":"data","sequence":1,"data":"New York,USA\n","bytes":13}`), ChunkIndex: 2},
+		{ResponseJsonChunk: []byte(`{"type":"final","status":"SUCCEEDED","stats":{"bytesEmitted":45}}`), ChunkIndex: 3},
+		{ChunkIndex: 4, Final: true},
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+		"integration": "postgres",
+		"operation":   "copy_stream",
+		"format":      "csv",
+		"target":      map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":       "SELECT city, country FROM cities ORDER BY city",
+		"copyLimits":  map[string]interface{}{"chunkBytes": 32, "maxBytes": 1024, "maxRowBytes": 1024, "timeoutMs": 1000},
+	}), nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, "copy_stream", client.request.GetOperation())
+	assert.Equal(t, "csv", client.request.GetFormat())
+	assert.Equal(t, int32(32), client.request.GetCopyLimits().GetChunkBytes())
+	assert.Equal(t, "Beautiful city of lights,France\nNew York,USA\n", output.(map[string]interface{})["data"])
+	assert.Equal(t, "SUCCEEDED", output.(map[string]interface{})["status"])
+}
+
 func TestExecuteActionPreservesSanitizedBridgeErrorBody(t *testing.T) {
 	client := &captureBridgeClient{
 		response: &pb.RemoteQueryExecuteResponse{Status: "target_not_found", Error: &pb.RemoteQueryExecuteError{Code: "target_not_found", Message: "no matching integration check found"}},
@@ -126,6 +153,7 @@ func taskWithInputs(inputs map[string]interface{}) *types.Task {
 type captureBridgeClient struct {
 	request  *pb.RemoteQueryExecuteRequest
 	response *pb.RemoteQueryExecuteResponse
+	chunks   []*pb.RemoteQueryExecuteChunk
 	err      error
 }
 
@@ -138,6 +166,9 @@ func (c *captureBridgeClient) RemoteQueryExecuteStream(_ context.Context, req *p
 	c.request = req
 	if c.err != nil {
 		return nil, c.err
+	}
+	if c.chunks != nil {
+		return &captureRemoteQueryExecuteStream{chunks: c.chunks}, nil
 	}
 	responseJSON, err := json.Marshal(remoteQueryExecuteOutputFromProtoForTest(c.response))
 	if err != nil {

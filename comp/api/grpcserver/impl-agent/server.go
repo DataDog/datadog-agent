@@ -311,6 +311,19 @@ func (s *serverSecure) RemoteQueryExecuteStream(req *pb.RemoteQueryExecuteReques
 		return remoteQueryExecuteStreamJSON(remoteQueryExecuteErrorJSON(remotequeriesimpl.RemoteQueryStatusInvalidRequest, err.Error()), stream)
 	}
 
+	if execReq.Operation == "copy_stream" {
+		chunkIndex := int32(0)
+		result := s.remoteQueries.ExecuteStream(execReq, func(eventJSON string) error {
+			err := stream.Send(&pb.RemoteQueryExecuteChunk{ResponseJsonChunk: []byte(eventJSON), ChunkIndex: chunkIndex})
+			chunkIndex++
+			return err
+		})
+		if result.Error != nil {
+			return remoteQueryExecuteStreamJSON(remoteQueryExecuteErrorJSON(result.Error.Code, result.Error.Message), stream)
+		}
+		return stream.Send(&pb.RemoteQueryExecuteChunk{ChunkIndex: chunkIndex, Final: true})
+	}
+
 	result := s.remoteQueries.Execute(execReq)
 	if result.Error != nil {
 		return remoteQueryExecuteStreamJSON(remoteQueryExecuteErrorJSON(result.Error.Code, result.Error.Message), stream)
@@ -320,17 +333,16 @@ func (s *serverSecure) RemoteQueryExecuteStream(req *pb.RemoteQueryExecuteReques
 }
 
 func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remotequeriesimpl.RemoteQueryExecuteRequest, error) {
+	target := remotequeriesimpl.RemoteQueryExecuteTarget{
+		Host:   req.GetTarget().GetHost(),
+		Port:   int(req.GetTarget().GetPort()),
+		DBName: req.GetTarget().GetDbname(),
+	}
+	if req.GetOperation() == "copy_stream" {
+		return remotequeriesimpl.NewRemoteQueryCopyStreamExecuteRequest(req.GetIntegration(), target, req.GetQuery(), req.GetFormat(), remoteQueryCopyLimitsFromProto(req.GetCopyLimits()))
+	}
 	limits := remoteQueryLimitsFromProto(req.GetLimits())
-	return remotequeriesimpl.NewRemoteQueryExecuteRequest(
-		req.GetIntegration(),
-		remotequeriesimpl.RemoteQueryExecuteTarget{
-			Host:   req.GetTarget().GetHost(),
-			Port:   int(req.GetTarget().GetPort()),
-			DBName: req.GetTarget().GetDbname(),
-		},
-		req.GetQuery(),
-		limits,
-	)
+	return remotequeriesimpl.NewRemoteQueryExecuteRequest(req.GetIntegration(), target, req.GetQuery(), limits)
 }
 
 func remoteQueryExecuteStreamJSON(responseJSON string, stream pb.AgentSecure_RemoteQueryExecuteStreamServer) error {
@@ -362,6 +374,18 @@ func remoteQueryLimitsFromProto(limits *pb.RemoteQueryExecuteLimits) *remotequer
 		MaxRows:   int(limits.GetMaxRows()),
 		MaxBytes:  int(limits.GetMaxBytes()),
 		TimeoutMs: int(limits.GetTimeoutMs()),
+	}
+}
+
+func remoteQueryCopyLimitsFromProto(limits *pb.RemoteQueryExecuteCopyLimits) *remotequeriesimpl.RemoteQueryExecuteCopyLimits {
+	if limits == nil {
+		return nil
+	}
+	return &remotequeriesimpl.RemoteQueryExecuteCopyLimits{
+		ChunkBytes:  int(limits.GetChunkBytes()),
+		MaxBytes:    int(limits.GetMaxBytes()),
+		MaxRowBytes: int(limits.GetMaxRowBytes()),
+		TimeoutMs:   int(limits.GetTimeoutMs()),
 	}
 }
 

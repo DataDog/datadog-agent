@@ -29,6 +29,11 @@ if [[ -n "${RQ_REMOTE_QUERY+x}" ]]; then
   RQ_REMOTE_QUERY_WAS_SET=1
 fi
 RQ_REMOTE_QUERY=${RQ_REMOTE_QUERY:-}
+RQ_REMOTE_OPERATION_WAS_SET=0
+if [[ -n "${RQ_REMOTE_OPERATION+x}" ]]; then
+  RQ_REMOTE_OPERATION_WAS_SET=1
+fi
+RQ_REMOTE_OPERATION=${RQ_REMOTE_OPERATION:-}
 RQ_POSTGRES_HOST=${RQ_POSTGRES_HOST:-localhost}
 RQ_POSTGRES_PORT=${RQ_POSTGRES_PORT:-5432}
 RQ_POSTGRES_DBNAME=${RQ_POSTGRES_DBNAME:-datadog_test}
@@ -46,6 +51,7 @@ CASE_RESULTS_DIR=""
 PROOF_CASE_NAMES=(
   "seed"
   "fixture-city"
+  "copy-fixture-city"
   "payload-1mib"
   "payload-2mib"
   "payload-4mib"
@@ -56,6 +62,7 @@ PROOF_CASE_NAMES=(
 
 PROOF_CASE_QUERIES=(
   "SELECT 1 AS value"
+  "SELECT city, country FROM cities ORDER BY city"
   "SELECT city, country FROM cities ORDER BY city"
   "SELECT repeat('x', 1048576) AS payload"
   "SELECT repeat('x', 2097152) AS payload"
@@ -467,6 +474,7 @@ run_standalone_go_proof() {
     RQ_POSTGRES_PORT="$RQ_POSTGRES_PORT" \
     RQ_POSTGRES_DBNAME="$RQ_POSTGRES_DBNAME" \
     RQ_REMOTE_QUERY="$RQ_REMOTE_QUERY" \
+    RQ_REMOTE_OPERATION="${RQ_REMOTE_OPERATION:-}" \
     dda inv test --targets=./pkg/privateactionrunner/bundles/remotequeries \
       --extra-args='-run TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC -count=1 -v'
   ) | tee "$CASE_RESULTS_DIR/standalone-proof-test.log"
@@ -475,6 +483,12 @@ run_standalone_go_proof() {
 run_proof_case() {
   PROOF_CASE_NAME=$1
   RQ_REMOTE_QUERY=$2
+  if [[ "$RQ_REMOTE_OPERATION_WAS_SET" != "1" ]]; then
+    RQ_REMOTE_OPERATION=""
+    if [[ "$PROOF_CASE_NAME" == copy-* ]]; then
+      RQ_REMOTE_OPERATION=copy_stream
+    fi
+  fi
   CASE_RESULTS_DIR="$TMP_ROOT/results/$PROOF_CASE_NAME"
   mkdir -p "$CASE_RESULTS_DIR"
   printf '%s\n' "$RQ_REMOTE_QUERY" > "$CASE_RESULTS_DIR/query.sql"

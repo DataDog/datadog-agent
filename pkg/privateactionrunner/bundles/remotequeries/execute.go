@@ -38,10 +38,13 @@ func NewExecuteAction(newBridgeClient BridgeClientFactory) *ExecuteAction {
 }
 
 type ExecuteInputs struct {
-	Integration string        `json:"integration"`
-	Target      TargetInputs  `json:"target"`
-	Query       string        `json:"query"`
-	Limits      *LimitsInputs `json:"limits,omitempty"`
+	Integration string            `json:"integration"`
+	Operation   string            `json:"operation,omitempty"`
+	Target      TargetInputs      `json:"target"`
+	Query       string            `json:"query"`
+	Format      string            `json:"format,omitempty"`
+	Limits      *LimitsInputs     `json:"limits,omitempty"`
+	CopyLimits  *CopyLimitsInputs `json:"copyLimits,omitempty"`
 }
 
 type TargetInputs struct {
@@ -54,6 +57,13 @@ type LimitsInputs struct {
 	MaxRows   int `json:"maxRows"`
 	MaxBytes  int `json:"maxBytes"`
 	TimeoutMs int `json:"timeoutMs"`
+}
+
+type CopyLimitsInputs struct {
+	ChunkBytes  int `json:"chunkBytes"`
+	MaxBytes    int `json:"maxBytes"`
+	MaxRowBytes int `json:"maxRowBytes"`
+	TimeoutMs   int `json:"timeoutMs"`
 }
 
 func (a *ExecuteAction) Run(
@@ -94,6 +104,8 @@ func (a *ExecuteAction) Run(
 func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryExecuteRequest {
 	req := &pb.RemoteQueryExecuteRequest{
 		Integration: inputs.Integration,
+		Operation:   inputs.Operation,
+		Format:      inputs.Format,
 		Target: &pb.RemoteQueryTarget{
 			Host:   inputs.Target.Host,
 			Port:   int32(inputs.Target.Port),
@@ -108,6 +120,14 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryEx
 			TimeoutMs: int32(inputs.Limits.TimeoutMs),
 		}
 	}
+	if inputs.CopyLimits != nil {
+		req.CopyLimits = &pb.RemoteQueryExecuteCopyLimits{
+			ChunkBytes:  int32(inputs.CopyLimits.ChunkBytes),
+			MaxBytes:    int32(inputs.CopyLimits.MaxBytes),
+			MaxRowBytes: int32(inputs.CopyLimits.MaxRowBytes),
+			TimeoutMs:   int32(inputs.CopyLimits.TimeoutMs),
+		}
+	}
 	return req
 }
 
@@ -117,8 +137,10 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 	}
 
 	var assembled bytes.Buffer
+	streamEvents := make([]json.RawMessage, 0)
 	expectedChunkIndex := int32(0)
 	seenFinal := false
+	finalChunkWasEmpty := false
 	for {
 		chunk, err := stream.Recv()
 		if err == io.EOF {
@@ -136,14 +158,65 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 		if seenFinal {
 			return nil, fmt.Errorf("remote query response stream sent chunk after final")
 		}
-		_, _ = assembled.Write(chunk.GetResponseJsonChunk())
+		payload := chunk.GetResponseJsonChunk()
+		if chunk.GetFinal() && len(payload) == 0 && len(streamEvents) > 0 {
+			finalChunkWasEmpty = true
+		} else {
+			_, _ = assembled.Write(payload)
+			if !chunk.GetFinal() {
+				streamEvents = append(streamEvents, append(json.RawMessage(nil), payload...))
+			}
+		}
 		seenFinal = chunk.GetFinal()
 		expectedChunkIndex++
 	}
 	if !seenFinal {
 		return nil, fmt.Errorf("remote query response stream missing final chunk")
 	}
+	if finalChunkWasEmpty {
+		return remoteQueryExecuteOutputFromEvents(streamEvents)
+	}
 	return remoteQueryExecuteOutputFromJSON(assembled.Bytes())
+}
+
+func remoteQueryExecuteOutputFromEvents(rawEvents []json.RawMessage) (map[string]interface{}, error) {
+	events := make([]interface{}, 0, len(rawEvents))
+	var finalEvent map[string]interface{}
+	var data bytes.Buffer
+	for _, raw := range rawEvents {
+		var event map[string]interface{}
+		if err := json.Unmarshal(raw, &event); err != nil {
+			return nil, err
+		}
+		events = append(events, normalizeRemoteQueryOutput(event))
+		if event["type"] == "data" {
+			if chunk, ok := event["data"].(string); ok {
+				_, _ = data.WriteString(chunk)
+			}
+		}
+		if event["type"] == "final" {
+			finalEvent = event
+		}
+	}
+	if finalEvent == nil {
+		return nil, fmt.Errorf("remote query stream response missing final event")
+	}
+	status, _ := finalEvent["status"].(string)
+	if status == "" {
+		return nil, fmt.Errorf("remote query stream final event missing status")
+	}
+	output := map[string]interface{}{
+		"status": status,
+		"events": events,
+		"data":   data.String(),
+	}
+	if v, ok := finalEvent["error"]; ok {
+		output["error"] = normalizeRemoteQueryOutput(v)
+	}
+	if v, ok := finalEvent["stats"]; ok {
+		output["stats"] = normalizeRemoteQueryOutput(v)
+	}
+	return output, nil
 }
 
 func remoteQueryExecuteOutputFromJSON(responseJSON []byte) (map[string]interface{}, error) {

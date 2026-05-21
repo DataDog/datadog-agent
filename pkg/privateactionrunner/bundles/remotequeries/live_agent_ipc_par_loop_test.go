@@ -175,6 +175,21 @@ func remoteQueriesProofLimits(query string) map[string]interface{} {
 	}
 }
 
+func remoteQueriesProofCopyLimits(query string) map[string]interface{} {
+	maxBytes := 4 << 10
+	timeoutMs := 5_000
+	if payloadBytes, ok := remoteQueriesLargePayloadBytes(query); ok {
+		maxBytes = payloadBytes + (1 << 20)
+		timeoutMs = 60_000
+	}
+	return map[string]interface{}{
+		"chunkBytes":  32,
+		"maxBytes":    maxBytes,
+		"maxRowBytes": maxBytes,
+		"timeoutMs":   timeoutMs,
+	}
+}
+
 func remoteQueriesProofResultTimeout(query string) time.Duration {
 	if _, ok := remoteQueriesLargePayloadBytes(query); ok {
 		return 2 * time.Minute
@@ -185,6 +200,19 @@ func remoteQueriesProofResultTimeout(query string) time.Duration {
 func remoteQueriesLargePayloadBytes(query string) (int, bool) {
 	payloadBytes, ok := remoteQueriesLargePayloadProofQueries[query]
 	return payloadBytes, ok
+}
+
+func assertRemoteQueriesProofCopyData(t *testing.T, query string, data string) {
+	t.Helper()
+
+	switch query {
+	case remoteQueriesFixtureTableProofQuery:
+		assert.Equal(t, "Beautiful city of lights,France\nNew York,USA\n", data)
+	case remoteQueriesSeedProofQuery:
+		assert.Equal(t, "1\n", data)
+	default:
+		require.FailNowf(t, "unsupported COPY proof query", "%s=%q must use a COPY bridge-allowlisted proof query", remoteQueriesProofQueryOverrideEnv, query)
+	}
 }
 
 func assertRemoteQueriesProofRows(t *testing.T, query string, rows []interface{}) {

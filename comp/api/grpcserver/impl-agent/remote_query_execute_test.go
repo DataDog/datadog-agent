@@ -49,6 +49,25 @@ func TestRemoteQueryExecuteStreamReturnsSanitizedUnavailableWhenServiceMissing(t
 	assert.JSONEq(t, `{"status":"executor_unavailable","error":{"code":"executor_unavailable","message":"remote query executor is unavailable"}}`, string(stream.chunks[0].GetResponseJsonChunk()))
 }
 
+func TestRemoteQueryExecuteRequestFromProtoPreservesCopyStream(t *testing.T) {
+	req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
+		Integration: "postgres",
+		Operation:   "copy_stream",
+		Format:      "csv",
+		Target:      &pb.RemoteQueryTarget{Host: "LOCALHOST.", Port: 5432, Dbname: "postgres"},
+		Query:       "SELECT city, country FROM cities ORDER BY city",
+		CopyLimits:  &pb.RemoteQueryExecuteCopyLimits{ChunkBytes: 32, MaxBytes: 1024, MaxRowBytes: 1024, TimeoutMs: 1000},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "postgres", req.Integration)
+	assert.Equal(t, "copy_stream", req.Operation)
+	assert.Equal(t, "csv", req.Format)
+	require.NotNil(t, req.CopyLimits)
+	assert.Equal(t, 32, req.CopyLimits.ChunkBytes)
+	assert.Nil(t, req.Limits)
+}
+
 func TestRemoteQueryExecuteStreamJSONChunksResponse(t *testing.T) {
 	stream := &captureRemoteQueryExecuteStreamServer{}
 	responseJSON := `{"status":"SUCCEEDED","rows":[{"payload":"` + string(make([]byte, remoteQueryExecuteStreamChunkSize+1)) + `"}]}`

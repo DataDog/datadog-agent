@@ -33,11 +33,21 @@ message RemoteQueryExecuteLimits {
     int32 timeout_ms = 3;
 }
 
+message RemoteQueryExecuteCopyLimits {
+    int32 chunk_bytes = 1;
+    int32 max_bytes = 2;
+    int32 max_row_bytes = 3;
+    int32 timeout_ms = 4;
+}
+
 message RemoteQueryExecuteRequest {
     string integration = 1;
     RemoteQueryTarget target = 2;
     string query = 3;
     RemoteQueryExecuteLimits limits = 4;
+    string operation = 5;
+    string format = 6;
+    RemoteQueryExecuteCopyLimits copy_limits = 7;
 }
 
 message RemoteQueryExecuteError {

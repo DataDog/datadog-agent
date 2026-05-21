@@ -83,7 +83,14 @@ func TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC(t *t
 		"integration": "postgres",
 		"target":      remoteQueriesPostgresTargetFromEnv(t),
 		"query":       proofQuery,
-		"limits":      remoteQueriesProofLimits(proofQuery),
+	}
+	copyStream := os.Getenv("RQ_REMOTE_OPERATION") == "copy_stream"
+	if copyStream {
+		inputs["operation"] = "copy_stream"
+		inputs["format"] = "csv"
+		inputs["copyLimits"] = remoteQueriesProofCopyLimits(proofQuery)
+	} else {
+		inputs["limits"] = remoteQueriesProofLimits(proofQuery)
 	}
 	requestEvidence, err := json.Marshal(inputs)
 	require.NoError(t, err)
@@ -109,11 +116,17 @@ func TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC(t *t
 	require.True(t, result.Success)
 	require.Equal(t, taskID, result.TaskID)
 	assert.Equal(t, "SUCCEEDED", result.Outputs["status"])
-	require.Contains(t, result.Outputs, "rows")
-
-	rows, ok := result.Outputs["rows"].([]interface{})
-	require.True(t, ok)
-	assertRemoteQueriesProofRows(t, proofQuery, rows)
+	if copyStream {
+		t.Logf("copy stream PAR outputs: %+v", summarizeRemoteQueriesProofPayload(result.Outputs))
+		data, ok := result.Outputs["data"].(string)
+		require.True(t, ok)
+		assertRemoteQueriesProofCopyData(t, proofQuery, data)
+	} else {
+		require.Contains(t, result.Outputs, "rows")
+		rows, ok := result.Outputs["rows"].([]interface{})
+		require.True(t, ok)
+		assertRemoteQueriesProofRows(t, proofQuery, rows)
+	}
 
 	resultEvidence, err := json.Marshal(summarizeRemoteQueriesProofPayload(result.Outputs))
 	require.NoError(t, err)

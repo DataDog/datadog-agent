@@ -90,3 +90,15 @@ func TestRunRemoteQueryJSONWithRuntimeNotInitializedError(t *testing.T) {
 func TestRunRemoteQueryJSONAfterCancel(t *testing.T) {
 	testRunRemoteQueryJSONAfterCancel(t)
 }
+
+func TestRunRemoteQueryStream(t *testing.T) {
+	testRunRemoteQueryStream(t)
+}
+
+func TestRunRemoteQueryStreamEmitError(t *testing.T) {
+	testRunRemoteQueryStreamEmitError(t)
+}
+
+func TestRunRemoteQueryStreamAfterCancel(t *testing.T) {
+	testRunRemoteQueryStreamAfterCancel(t)
+}

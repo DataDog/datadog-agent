@@ -66,6 +66,8 @@ public:
 
     char *runCheck(RtLoaderPyObject *check);
     char *runRemoteQuery(RtLoaderPyObject *check, const char *integration, const char *request_json);
+    bool runRemoteQueryStream(RtLoaderPyObject *check, const char *integration, const char *request_json,
+                              remote_query_stream_emit_cb emit, void *userdata);
     void cancelCheck(RtLoaderPyObject *check);
     char **getCheckWarnings(RtLoaderPyObject *check);
     char *getCheckDiagnoses(RtLoaderPyObject *check);
