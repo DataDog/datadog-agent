@@ -771,18 +771,9 @@ func (tb *Bench) GetDetectorComponentMap() map[string]string {
 
 	result := make(map[string]string)
 	sv := tb.debug.StateView()
-	entries := tb.debug.CatalogEntries()
-
-	// Build entry name set.
-	entryByName := make(map[string]observerimpl.CatalogEntry, len(entries))
-	for _, e := range entries {
-		entryByName[e.Name] = e
-	}
 
 	// Use detector list from StateView (these are the runtime names).
 	for _, d := range sv.ListDetectors() {
-		// Use the detector's runtime name as key, mapped to itself since we
-		// can't look up the catalog key without accessing the private instance.
 		result[d.Name] = d.Name
 	}
 	return result

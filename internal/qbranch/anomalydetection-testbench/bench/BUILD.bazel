@@ -11,8 +11,6 @@ go_library(
         "parquet.go",
         "registry.go",
         "reporter.go",
-        "score.go",
-        "score_tp.go",
         "send_event.go",
         "seriesutil.go",
         "stats.go",

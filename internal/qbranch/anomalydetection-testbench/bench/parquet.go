@@ -397,77 +397,74 @@ func readLogParquetFile(filePath string, logs *[]recorderdef.LogData) {
 		colIdx[field.Name] = i
 	}
 
-	getString := func(name string) *array.String {
-		if idx, ok := colIdx[name]; ok {
-			chunks := table.Column(idx).Data().Chunks()
-			if len(chunks) > 0 {
-				c, _ := chunks[0].(*array.String)
-				return c
-			}
-		}
-		return nil
-	}
-	getInt64 := func(name string) *array.Int64 {
-		if idx, ok := colIdx[name]; ok {
-			chunks := table.Column(idx).Data().Chunks()
-			if len(chunks) > 0 {
-				c, _ := chunks[0].(*array.Int64)
-				return c
-			}
-		}
-		return nil
-	}
-	getBinary := func(name string) *array.Binary {
-		if idx, ok := colIdx[name]; ok {
-			chunks := table.Column(idx).Data().Chunks()
-			if len(chunks) > 0 {
-				c, _ := chunks[0].(*array.Binary)
-				return c
-			}
-		}
-		return nil
-	}
-	getList := func(name string) *array.List {
-		if idx, ok := colIdx[name]; ok {
-			chunks := table.Column(idx).Data().Chunks()
-			if len(chunks) > 0 {
-				c, _ := chunks[0].(*array.List)
-				return c
-			}
-		}
-		return nil
-	}
+	// Iterate record batches so each batch's column arrays are single-chunk
+	// and Value(i) is always in-bounds regardless of parquet row-group count.
+	tr := array.NewTableReader(table, 1024)
+	defer tr.Release()
+	for tr.Next() {
+		rec := tr.Record()
+		n := int(rec.NumRows())
 
-	runIDCol := getString("RunID")
-	timeCol := getInt64("Time")
-	contentCol := getBinary("Content")
-	statusCol := getString("Status")
-	hostnameCol := getString("Hostname")
-	tagsCol := getList("Tags")
+		getStr := func(name string) *array.String {
+			if idx, ok := colIdx[name]; ok {
+				c, _ := rec.Column(idx).(*array.String)
+				return c
+			}
+			return nil
+		}
+		getI64 := func(name string) *array.Int64 {
+			if idx, ok := colIdx[name]; ok {
+				c, _ := rec.Column(idx).(*array.Int64)
+				return c
+			}
+			return nil
+		}
+		getBin := func(name string) *array.Binary {
+			if idx, ok := colIdx[name]; ok {
+				c, _ := rec.Column(idx).(*array.Binary)
+				return c
+			}
+			return nil
+		}
+		getLst := func(name string) *array.List {
+			if idx, ok := colIdx[name]; ok {
+				c, _ := rec.Column(idx).(*array.List)
+				return c
+			}
+			return nil
+		}
 
-	for i := 0; i < numRows; i++ {
-		entry := recorderdef.LogData{}
-		if runIDCol != nil {
-			entry.Source = runIDCol.Value(i)
+		runIDCol := getStr("RunID")
+		timeCol := getI64("Time")
+		contentCol := getBin("Content")
+		statusCol := getStr("Status")
+		hostnameCol := getStr("Hostname")
+		tagsCol := getLst("Tags")
+
+		for i := 0; i < n; i++ {
+			entry := recorderdef.LogData{}
+			if runIDCol != nil {
+				entry.Source = runIDCol.Value(i)
+			}
+			if timeCol != nil {
+				entry.TimestampMs = timeCol.Value(i)
+			}
+			if contentCol != nil && !contentCol.IsNull(i) {
+				data := contentCol.Value(i)
+				entry.Content = make([]byte, len(data))
+				copy(entry.Content, data)
+			}
+			if statusCol != nil {
+				entry.Status = statusCol.Value(i)
+			}
+			if hostnameCol != nil {
+				entry.Hostname = hostnameCol.Value(i)
+			}
+			if tagsCol != nil {
+				entry.Tags = readStringList(tagsCol, i)
+			}
+			*logs = append(*logs, entry)
 		}
-		if timeCol != nil {
-			entry.TimestampMs = timeCol.Value(i)
-		}
-		if contentCol != nil && !contentCol.IsNull(i) {
-			data := contentCol.Value(i)
-			entry.Content = make([]byte, len(data))
-			copy(entry.Content, data)
-		}
-		if statusCol != nil {
-			entry.Status = statusCol.Value(i)
-		}
-		if hostnameCol != nil {
-			entry.Hostname = hostnameCol.Value(i)
-		}
-		if tagsCol != nil {
-			entry.Tags = readStringList(tagsCol, i)
-		}
-		*logs = append(*logs, entry)
 	}
 }
 
