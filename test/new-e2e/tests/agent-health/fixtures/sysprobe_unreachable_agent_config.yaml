@@ -1,0 +1,12 @@
+health_platform:
+  enabled: true
+  forwarder:
+    interval: 30s
+network_config:
+  enabled: true
+# Point to the socket path used by this agent installation.
+# The startup health check dials this path; without it the check falls back
+# to the compiled-in default /var/run/sysprobe/sysprobe.sock which may differ
+# from the actual install location.
+system_probe_config:
+  sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock
