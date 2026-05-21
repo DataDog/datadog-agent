@@ -88,6 +88,7 @@ mkdir -vp $CONF_DIR/checks.d
 
 if [ -d "$SAVED_CONF_DIR" ]; then
     cp -vf "$SAVED_CONF_DIR/datadog.yaml" $CONF_DIR/ 2>/dev/null || true
+    cp -vf "$SAVED_CONF_DIR/system-probe.yaml" $CONF_DIR/ 2>/dev/null || true
     cp -vfR "$SAVED_CONF_DIR/conf.d/"* $CONF_DIR/conf.d 2>/dev/null || true
     cp -vn "$SAVED_CONF_DIR/checks.d/"* $CONF_DIR/checks.d 2>/dev/null || true
 fi
