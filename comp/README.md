@@ -341,6 +341,13 @@ Package egress defines the interface for the health platform egress component.
 
 Package forwarder defines the interface for the health platform forwarder.
 
+### [comp/healthplatform/issueregistry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry)
+
+Package issueregistry defines the interface for the health platform issue registry component.
+The registry is the single source of truth for issue templates and built-in health checks.
+It is built once at startup from all registered issue modules and shared by the store
+(for template lookup on ReportIssue) and the bundle (for bootstrapping built-in checks).
+
 ### [comp/healthplatform/runner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/runner)
 
 Package runner defines the interface for the health platform runner component.
