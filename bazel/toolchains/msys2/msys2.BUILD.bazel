@@ -40,6 +40,8 @@ filegroup(
 sh_toolchain(
     name = "msys2_bash",
     path = "%BASH_ABSOLUTE_PATH%",
+    launcher = "@bazel_tools//tools/launcher",
+    launcher_maker = "@bazel_tools//tools/launcher:launcher_maker",
 )
 
 toolchain(
