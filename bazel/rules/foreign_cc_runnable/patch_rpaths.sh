@@ -37,7 +37,7 @@ patch_file() {
 
     if [[ "$PLATFORM" == "darwin" ]]; then
         for dir in "${RPATH_DIRS[@]}"; do
-            install_name_tool -add_rpath "@loader_path/${ups}${dir}" "$f" 2>/dev/null || true
+            install_name_tool -add_rpath "@loader_path/${ups}${dir}" "$f"
         done
         # Re-sign with an ad-hoc signature; install_name_tool invalidates any existing code signature.
         codesign --sign - --force "$f" 2>/dev/null
