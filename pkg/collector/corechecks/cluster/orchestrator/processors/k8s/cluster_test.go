@@ -163,6 +163,147 @@ func TestClusterProcessor_Process_Success(t *testing.T) {
 	assert.Equal(t, *cluster, clusterFromManifest)
 }
 
+func TestClusterProcessor_Process_NoClusterInfo(t *testing.T) {
+	node := createTestClusterNode("node-1", "v1.20.0", "1000m", "2Gi", "110")
+	kubeSystemNS := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "kube-system",
+			CreationTimestamp: metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC)),
+		},
+	}
+	client := fake.NewClientset(node, kubeSystemNS)
+	fakeDiscoveryClient := client.Discovery().(*fakediscovery.FakeDiscovery)
+	fakeDiscoveryClient.FakedServerVersion = &version.Info{Major: "1", Minor: "20", GitVersion: "v1.20.0"}
+
+	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	cfg.KubeClusterName = "test-cluster"
+	ctx := &processors.K8sProcessorContext{
+		BaseProcessorContext: processors.BaseProcessorContext{
+			Cfg:              cfg,
+			Clock:            clock.New(),
+			ClusterID:        "test-cluster-id",
+			MsgGroupID:       1,
+			ManifestProducer: true,
+		},
+		APIClient: &apiserver.APIClient{Cl: client},
+		HostName:  "test-host",
+	}
+
+	processor := NewClusterProcessor()
+	result, _, err := processor.Process(ctx, []*corev1.Node{node})
+	require.NoError(t, err)
+
+	cluster := result.MetadataMessages[0].(*model.CollectorCluster).Cluster
+	assert.Nil(t, cluster.Autoscaling)
+	assert.Equal(t, int64(0), cluster.ClusterInfoGeneratedAtUnixNano)
+	assert.Nil(t, cluster.CloudResourceId)
+	for _, n := range cluster.NodesInfo {
+		assert.Empty(t, n.NodeManager, "node %q should have no nodeManager when ConfigMap is absent", n.Name)
+	}
+}
+
+func TestClusterProcessor_Process_WithClusterInfo(t *testing.T) {
+	node1 := createTestClusterNode("node-1", "v1.20.0", "1000m", "2Gi", "110")
+	node2 := createTestClusterNode("node-2", "v1.20.0", "2000m", "4Gi", "220")
+	kubeSystemNS := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "kube-system",
+			CreationTimestamp: metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC)),
+		},
+	}
+	clusterInfoCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "dd-cluster-info",
+			Namespace: "dd-karpenter",
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by": "kubectl-datadog",
+			},
+		},
+		Data: map[string]string{
+			"cluster-info": "apiVersion: v1\n" +
+				"clusterName: test-cluster\n" +
+				"clusterArn: arn:aws:eks:eu-west-3:000000000000:cluster/test-cluster\n" +
+				"region: eu-west-3\n" +
+				"generatedAt: 2026-05-13T22:42:45Z\n" +
+				"nodeManagement:\n" +
+				"  karpenter:\n" +
+				"    pool-a:\n" +
+				"      nodes: [node-1]\n" +
+				"      managedByDatadog: true\n" +
+				"  asg:\n" +
+				"    group-z:\n" +
+				"      nodes: [node-2]\n" +
+				"autoscaling:\n" +
+				"  clusterAutoscaler:\n" +
+				"    present: false\n" +
+				"  karpenter:\n" +
+				"    present: true\n" +
+				"    namespace: dd-karpenter\n" +
+				"    name: karpenter\n" +
+				"    version: 1.12.1\n" +
+				"    managedByDatadog: true\n" +
+				"    installerVersion: v0.7.0\n" +
+				"  eksAutoMode:\n" +
+				"    enabled: false\n",
+		},
+	}
+
+	client := fake.NewClientset(node1, node2, kubeSystemNS, clusterInfoCM)
+	fakeDiscoveryClient := client.Discovery().(*fakediscovery.FakeDiscovery)
+	fakeDiscoveryClient.FakedServerVersion = &version.Info{Major: "1", Minor: "20", GitVersion: "v1.20.0"}
+
+	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	cfg.KubeClusterName = "test-cluster"
+	ctx := &processors.K8sProcessorContext{
+		BaseProcessorContext: processors.BaseProcessorContext{
+			Cfg:              cfg,
+			Clock:            clock.New(),
+			ClusterID:        "test-cluster-id",
+			MsgGroupID:       1,
+			ManifestProducer: true,
+		},
+		APIClient: &apiserver.APIClient{Cl: client},
+		HostName:  "test-host",
+	}
+
+	processor := NewClusterProcessor()
+	result, _, err := processor.Process(ctx, []*corev1.Node{node1, node2})
+	require.NoError(t, err)
+
+	cluster := result.MetadataMessages[0].(*model.CollectorCluster).Cluster
+	require.NotNil(t, cluster.Autoscaling)
+	require.NotNil(t, cluster.Autoscaling.Karpenter)
+	assert.True(t, cluster.Autoscaling.Karpenter.Present)
+	assert.Equal(t, "1.12.1", cluster.Autoscaling.Karpenter.Version)
+	assert.NotZero(t, cluster.ClusterInfoGeneratedAtUnixNano)
+
+	arnWrapper, ok := cluster.CloudResourceId.(*model.Cluster_Arn)
+	require.True(t, ok)
+	assert.Equal(t, "arn:aws:eks:eu-west-3:000000000000:cluster/test-cluster", arnWrapper.Arn)
+
+	nodesByName := make(map[string]*model.ClusterNodeInfo)
+	for _, n := range cluster.NodesInfo {
+		nodesByName[n.Name] = n
+	}
+	require.Contains(t, nodesByName, "node-1")
+	assert.Equal(t, "karpenter", nodesByName["node-1"].NodeManager)
+	assert.Equal(t, "pool-a", nodesByName["node-1"].NodeManagerName)
+	assert.True(t, nodesByName["node-1"].NodeManagerManagedByDatadog)
+
+	require.Contains(t, nodesByName, "node-2")
+	assert.Equal(t, "asg", nodesByName["node-2"].NodeManager)
+	assert.Equal(t, "group-z", nodesByName["node-2"].NodeManagerName)
+	assert.False(t, nodesByName["node-2"].NodeManagerManagedByDatadog)
+
+	assert.NotEmpty(t, cluster.ResourceVersion, "cluster info should be hashed into ResourceVersion")
+
+	manifestContent := string(result.ManifestMessages[0].(*model.CollectorManifest).Manifests[0].Content)
+	assert.Contains(t, manifestContent, `"autoscaling":`)
+	assert.Contains(t, manifestContent, `"karpenter":`)
+	assert.Contains(t, manifestContent, `"nodeManager":"karpenter"`)
+	assert.Contains(t, manifestContent, `"arn":"arn:aws:eks:eu-west-3:000000000000:cluster/test-cluster"`)
+}
+
 func TestClusterProcessor_ExtendedResources(t *testing.T) {
 	// Create node with extended resources
 	node := createTestClusterNode("node-1", "v1.20.0", "1000m", "2Gi", "110")

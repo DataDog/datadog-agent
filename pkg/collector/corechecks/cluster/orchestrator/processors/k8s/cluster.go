@@ -147,6 +147,12 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 		clusterModel.CreationTimestamp = kubeSystemCreationTimestamp.Unix()
 	}
 
+	if info, err := k8sTransformers.FetchClusterInfo(context.TODO(), pctx.APIClient.Cl.CoreV1()); err != nil {
+		log.Debugc(fmt.Sprintf("failed to fetch dd-cluster-info ConfigMap: %s", err), orchestrator.ExtraLogContext...)
+	} else {
+		k8sTransformers.ApplyClusterInfo(clusterModel, nodesInfo, info, pctx.Cfg.KubeClusterName)
+	}
+
 	if err := fillClusterResourceVersion(clusterModel); err != nil {
 		return processResult, 0, fmt.Errorf("failed to compute resource version: %s", err.Error())
 	}

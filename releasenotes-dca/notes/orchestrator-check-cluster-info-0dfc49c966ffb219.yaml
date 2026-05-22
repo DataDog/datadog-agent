@@ -1,0 +1,13 @@
+---
+enhancements:
+  - |
+    The Kubernetes orchestrator check now forwards the contents of the
+    ``dd-cluster-info`` ConfigMap (when present in the cluster) inside its
+    synthetic cluster payload. This surfaces the per-node management method
+    (Fargate, Karpenter, EKS managed node group, ASG, standalone), the
+    autoscaling solutions detected on the cluster (legacy cluster-autoscaler,
+    Karpenter, EKS auto-mode), and the EKS cluster ARN to the Datadog
+    back-end. The ConfigMap is written by
+    ``kubectl datadog autoscaling cluster install`` from the
+    `datadog-operator <https://github.com/DataDog/datadog-operator>`_
+    repository; clusters that have not run that command are unaffected.
