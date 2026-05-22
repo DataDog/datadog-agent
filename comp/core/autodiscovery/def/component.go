@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
@@ -31,6 +32,7 @@ type Component interface {
 	GetAutodiscoveryErrors() map[string]map[string]types.ErrorMsgSet
 	AddConfigProviderFromCatalog(cp pkgconfigsetup.ConfigurationProviders) error
 	GetTelemetryStore() *telemetry.Store
+	SetServiceTracker(listeners.ServiceTracker)
 	// TODO (component): once cluster agent uses the API component remove this function
 	GetConfigCheck() integration.ConfigCheckResponse
 }

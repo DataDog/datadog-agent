@@ -54,6 +54,7 @@ type KubeEndpointSlicesListener struct {
 	newService         chan<- Service
 	delService         chan<- Service
 	targetAllEndpoints bool
+	serviceTracker     ServiceTracker
 	m                  sync.RWMutex
 	filterStore        workloadfilter.Component
 	telemetryStore     *telemetry.Store
@@ -86,6 +87,7 @@ func NewKubeEndpointSlicesListener(options ServiceListernerDeps) (ServiceListene
 		serviceLister:         serviceInformer.Lister(),
 		promInclAnnot:         getPrometheusIncludeAnnotations(),
 		targetAllEndpoints:    options.Config.IsProviderEnabled(names.KubeEndpointsFileRegisterName),
+		serviceTracker:        options.ServiceTracker,
 		filterStore:           options.Filter,
 		telemetryStore:        options.Telemetry,
 	}, nil
@@ -358,7 +360,12 @@ func (l *KubeEndpointSlicesListener) shouldIgnore(slice *discv1.EndpointSlice) b
 	if l.targetAllEndpoints {
 		return false
 	}
-
+	if l.serviceTracker != nil {
+		svcName := slice.Labels[kubernetesServiceNameLabel]
+		if svcName != "" && l.serviceTracker.HasService(slice.Namespace, svcName) {
+			return false
+		}
+	}
 	return !l.isEndpointSlicesAnnotated(slice)
 }
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
@@ -62,6 +63,8 @@ func (n *noopAutoConfig) AddConfigProviderFromCatalog(pkgconfigsetup.Configurati
 func (n *noopAutoConfig) GetTelemetryStore() *telemetry.Store {
 	return nil
 }
+
+func (n *noopAutoConfig) SetServiceTracker(listeners.ServiceTracker) {}
 
 func (n *noopAutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	return integration.ConfigCheckResponse{}

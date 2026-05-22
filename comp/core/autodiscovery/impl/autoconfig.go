@@ -98,6 +98,7 @@ type AutoConfig struct {
 	telemetryStore           *acTelemetry.Store
 	healthPlatform           option.Option[healthplatformdef.Component]
 	staticConfigIndex        *listeners.StaticConfigIndex
+	serviceTracker           listeners.ServiceTracker
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -469,6 +470,12 @@ func (ac *AutoConfig) GetTelemetryStore() *acTelemetry.Store {
 	return ac.telemetryStore
 }
 
+// SetServiceTracker sets a ServiceTracker that endpoint listeners use to
+// determine whether a service's endpoints should be tracked for AD scheduling.
+func (ac *AutoConfig) SetServiceTracker(st listeners.ServiceTracker) {
+	ac.serviceTracker = st
+}
+
 // AddConfigProviderFromCatalog looks up a config provider factory in the catalog by name,
 // creates the provider using internal dependencies, and registers it with autodiscovery.
 func (ac *AutoConfig) AddConfigProviderFromCatalog(cp pkgconfigsetup.ConfigurationProviders) error {
@@ -574,6 +581,7 @@ func (ac *AutoConfig) addListenerCandidates(listenerConfigs []pkgconfigsetup.Lis
 			Tagger:            ac.taggerComp,
 			Wmeta:             ac.wmeta,
 			StaticConfigIndex: ac.staticConfigIndex,
+			ServiceTracker:    ac.serviceTracker,
 		}
 
 		ac.listenerCandidates[c.Name] = &listenerCandidate{factory: factory, options: factoryOptions}

@@ -17,14 +17,13 @@ import (
 	discv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	discv1listers "k8s.io/client-go/listers/discovery/v1"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 )
 
-// mockTemplateStore implements serviceTemplateStore for testing without
-// depending on the instrumentation handlers package.
 type mockTemplateStore struct {
 	mu        sync.RWMutex
 	templates map[string][]integration.Config
@@ -35,9 +34,7 @@ func newMockTemplateStore(templates map[string][]integration.Config) *mockTempla
 	if templates == nil {
 		templates = make(map[string][]integration.Config)
 	}
-	return &mockTemplateStore{
-		templates: templates,
-	}
+	return &mockTemplateStore{templates: templates}
 }
 
 func (m *mockTemplateStore) SetOnChange(fn func()) {
@@ -63,14 +60,20 @@ func (m *mockTemplateStore) AllTemplatesByService() map[string][]integration.Con
 	return out
 }
 
-func strPtr(s string) *string {
-	return &s
+func strPtr(s string) *string { return &s }
+
+func newTestLister(slices ...*discv1.EndpointSlice) discv1listers.EndpointSliceLister {
+	indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	for _, s := range slices {
+		_ = indexer.Add(s)
+	}
+	return discv1listers.NewEndpointSliceLister(indexer)
 }
 
-func newTestProvider(store serviceTemplateStore) *KubeEndpointSlicesCRConfigProvider {
+func newTestProvider(store serviceTemplateStore, slices ...*discv1.EndpointSlice) *KubeEndpointSlicesCRConfigProvider {
 	return &KubeEndpointSlicesCRConfigProvider{
-		templateStore:   store,
-		slicesByService: make(map[string]map[string]*discv1.EndpointSlice),
+		templateStore: store,
+		epSliceLister: newTestLister(slices...),
 	}
 }
 
@@ -89,8 +92,7 @@ func makeTestSlice(namespace, serviceName, uid string, endpoints []discv1.Endpoi
 }
 
 func TestCRProvider_IsUpToDate(t *testing.T) {
-	store := newMockTemplateStore(nil)
-	p := newTestProvider(store)
+	p := newTestProvider(newMockTemplateStore(nil))
 	p.upToDate = true
 
 	upToDate, err := p.IsUpToDate(context.Background())
@@ -103,54 +105,6 @@ func TestCRProvider_IsUpToDate(t *testing.T) {
 	assert.False(t, upToDate)
 }
 
-func TestCRProvider_InsertSlice_TrackedService(t *testing.T) {
-	store := newMockTemplateStore(map[string][]integration.Config{
-		"default/my-svc": {{Name: "redisdb", Source: "datadoginstrumentation:default/cr1"}},
-	})
-
-	p := newTestProvider(store)
-
-	slice := makeTestSlice("default", "my-svc", "uid-1", []discv1.Endpoint{
-		{Addresses: []string{"10.0.0.1"}, NodeName: strPtr("node-1")},
-	})
-
-	inserted := p.insertSlice(slice)
-	assert.True(t, inserted)
-	assert.Len(t, p.slicesByService["default/my-svc"], 1)
-}
-
-func TestCRProvider_InsertSlice_UntrackedService(t *testing.T) {
-	store := newMockTemplateStore(nil)
-	p := newTestProvider(store)
-
-	slice := makeTestSlice("default", "unknown-svc", "uid-1", []discv1.Endpoint{
-		{Addresses: []string{"10.0.0.1"}},
-	})
-
-	inserted := p.insertSlice(slice)
-	assert.False(t, inserted)
-	assert.Empty(t, p.slicesByService)
-}
-
-func TestCRProvider_DeleteSlice(t *testing.T) {
-	store := newMockTemplateStore(map[string][]integration.Config{
-		"default/my-svc": {{Name: "redisdb"}},
-	})
-
-	p := newTestProvider(store)
-
-	slice := makeTestSlice("default", "my-svc", "uid-1", []discv1.Endpoint{
-		{Addresses: []string{"10.0.0.1"}},
-	})
-
-	p.insertSlice(slice)
-	assert.Len(t, p.slicesByService["default/my-svc"], 1)
-
-	deleted := p.deleteSlice(slice)
-	assert.True(t, deleted)
-	assert.Empty(t, p.slicesByService)
-}
-
 func TestCRProvider_Collect_GeneratesEndpointConfigs(t *testing.T) {
 	store := newMockTemplateStore(map[string][]integration.Config{
 		"default/my-svc": {{
@@ -160,14 +114,11 @@ func TestCRProvider_Collect_GeneratesEndpointConfigs(t *testing.T) {
 			Source:     "datadoginstrumentation:default/cr1",
 		}},
 	})
-
-	p := newTestProvider(store)
-
 	slice := makeTestSlice("default", "my-svc", "uid-1", []discv1.Endpoint{
 		{Addresses: []string{"10.0.0.1"}, NodeName: strPtr("node-1")},
 		{Addresses: []string{"10.0.0.2"}, NodeName: strPtr("node-2")},
 	})
-	p.insertSlice(slice)
+	p := newTestProvider(store, slice)
 
 	configs, err := p.Collect(context.Background())
 	require.NoError(t, err)
@@ -180,7 +131,6 @@ func TestCRProvider_Collect_GeneratesEndpointConfigs(t *testing.T) {
 		assert.NotEmpty(t, cfg.ServiceID)
 		assert.NotEmpty(t, cfg.ADIdentifiers)
 	}
-
 	assert.NotEqual(t, configs[0].ServiceID, configs[1].ServiceID)
 }
 
@@ -191,12 +141,10 @@ func TestCRProvider_Collect_MultipleTemplatesPerService(t *testing.T) {
 			{Name: "http_check", InitConfig: integration.Data("{}"), Instances: []integration.Data{integration.Data(`{}`)}},
 		},
 	})
-
-	p := newTestProvider(store)
 	slice := makeTestSlice("default", "my-svc", "uid-1", []discv1.Endpoint{
 		{Addresses: []string{"10.0.0.1"}, NodeName: strPtr("node-1")},
 	})
-	p.insertSlice(slice)
+	p := newTestProvider(store, slice)
 
 	configs, err := p.Collect(context.Background())
 	require.NoError(t, err)
@@ -213,8 +161,7 @@ func TestCRProvider_Collect_NoSlicesReturnsEmpty(t *testing.T) {
 	store := newMockTemplateStore(map[string][]integration.Config{
 		"default/my-svc": {{Name: "redisdb"}},
 	})
-
-	p := newTestProvider(store)
+	p := newTestProvider(store) // no slices
 
 	configs, err := p.Collect(context.Background())
 	require.NoError(t, err)
@@ -222,106 +169,12 @@ func TestCRProvider_Collect_NoSlicesReturnsEmpty(t *testing.T) {
 }
 
 func TestCRProvider_Collect_NoTemplatesReturnsEmpty(t *testing.T) {
-	store := newMockTemplateStore(nil)
-	p := newTestProvider(store)
-
 	slice := makeTestSlice("default", "my-svc", "uid-1", []discv1.Endpoint{
 		{Addresses: []string{"10.0.0.1"}},
 	})
-	// Slice won't be inserted because no templates track this service
-	p.insertSlice(slice)
+	p := newTestProvider(newMockTemplateStore(nil), slice)
 
 	configs, err := p.Collect(context.Background())
-	require.NoError(t, err)
-	assert.Empty(t, configs)
-}
-
-func TestCRProvider_OnChangeMarksNotUpToDate(t *testing.T) {
-	store := newMockTemplateStore(nil)
-	p := newTestProvider(store)
-	p.upToDate = true
-
-	store.SetOnChange(func() {
-		p.setUpToDate(false)
-	})
-
-	// Trigger onChange by mutating the store directly.
-	store.mu.Lock()
-	store.templates["default/svc"] = []integration.Config{{Name: "check"}}
-	onChange := store.onChange
-	store.mu.Unlock()
-	if onChange != nil {
-		onChange()
-	}
-
-	upToDate, err := p.IsUpToDate(context.Background())
-	require.NoError(t, err)
-	assert.False(t, upToDate)
-}
-
-func TestCRProvider_EventHandlers(t *testing.T) {
-	store := newMockTemplateStore(map[string][]integration.Config{
-		"default/my-svc": {{Name: "redisdb", InitConfig: integration.Data("{}"), Instances: []integration.Data{integration.Data(`{}`)}}},
-	})
-
-	p := newTestProvider(store)
-	p.upToDate = true
-
-	slice := makeTestSlice("default", "my-svc", "uid-1", []discv1.Endpoint{
-		{Addresses: []string{"10.0.0.1"}, NodeName: strPtr("node-1")},
-	})
-
-	// Add handler
-	p.addHandler(slice)
-	upToDate, err := p.IsUpToDate(context.Background())
-	require.NoError(t, err)
-	assert.False(t, upToDate)
-
-	configs, err := p.Collect(context.Background())
-	require.NoError(t, err)
-	assert.Len(t, configs, 1)
-
-	// Update handler — new slice with different endpoints
-	updatedSlice := makeTestSlice("default", "my-svc", "uid-1", []discv1.Endpoint{
-		{Addresses: []string{"10.0.0.1"}, NodeName: strPtr("node-1")},
-		{Addresses: []string{"10.0.0.2"}, NodeName: strPtr("node-2")},
-	})
-	p.updateHandler(slice, updatedSlice)
-	configs, err = p.Collect(context.Background())
-	require.NoError(t, err)
-	assert.Len(t, configs, 2)
-
-	// Delete handler
-	p.deleteHandler(updatedSlice)
-	configs, err = p.Collect(context.Background())
-	require.NoError(t, err)
-	assert.Empty(t, configs)
-}
-
-func TestCRProvider_DeleteHandler_Tombstone(t *testing.T) {
-	store := newMockTemplateStore(map[string][]integration.Config{
-		"default/my-svc": {{Name: "redisdb", InitConfig: integration.Data("{}"), Instances: []integration.Data{integration.Data(`{}`)}}},
-	})
-
-	p := newTestProvider(store)
-
-	slice := makeTestSlice("default", "my-svc", "uid-1", []discv1.Endpoint{
-		{Addresses: []string{"10.0.0.1"}, NodeName: strPtr("node-1")},
-	})
-	p.insertSlice(slice)
-
-	configs, err := p.Collect(context.Background())
-	require.NoError(t, err)
-	assert.Len(t, configs, 1)
-
-	// Delete via tombstone wrapper
-	tombstone := cache.DeletedFinalStateUnknown{
-		Key: "default/my-svc-uid-1",
-		Obj: slice,
-	}
-	p.deleteHandler(tombstone)
-
-	configs, err = p.Collect(context.Background())
 	require.NoError(t, err)
 	assert.Empty(t, configs)
 }

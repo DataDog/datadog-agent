@@ -73,6 +73,7 @@ import (
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroutefx "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/mcp"
 
 	adproviders "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
@@ -390,24 +391,7 @@ func start(log log.Component,
 	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
-	checkStore := instrumentationhandlers.NewCheckStore()
-	serviceTemplateStore := instrumentationhandlers.NewServiceCheckTemplateStore()
-	instrHandlers := instrumentationhandlers.DefaultHandlers(&instrumentationhandlers.Deps{
-		IsLeader:                  le.IsLeader,
-		CheckStore:                checkStore,
-		ServiceCheckTemplateStore: serviceTemplateStore,
-	})
-
-	epSlicesCRProvider, err := adproviders.NewKubeEndpointSlicesCRConfigProvider(serviceTemplateStore)
-	if err != nil {
-		pkglog.Warnf("Failed to create EndpointSlices CR config provider: %v", err)
-	} else {
-		ac.AddConfigProvider(epSlicesCRProvider, true, 10*time.Second)
-	}
-
-	api.ModifyAPIRouter(func(r *http.ServeMux) {
-		dcav1.InstallInstrumentationChecksEndpoints(r, checkStore)
-	})
+	instrHandlers := setupInstrumentationCRDHandler(le, ac)
 
 	ctx := controllers.ControllerContext{
 		InformerFactory:             apiCl.InformerFactory,
@@ -772,6 +756,30 @@ func start(log log.Component,
 	pkglog.Flush()
 
 	return nil
+}
+
+func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodiscovery.Component) []instrumentation.Handler {
+	checkStore := instrumentationhandlers.NewCheckStore()
+	serviceTemplateStore := instrumentationhandlers.NewServiceCheckTemplateStore()
+	instrHandlers := instrumentationhandlers.DefaultHandlers(&instrumentationhandlers.Deps{
+		IsLeader:                  le.IsLeader,
+		CheckStore:                checkStore,
+		ServiceCheckTemplateStore: serviceTemplateStore,
+	})
+
+	ac.SetServiceTracker(serviceTemplateStore)
+
+	epSlicesCRProvider, err := adproviders.NewKubeEndpointSlicesCRConfigProvider(serviceTemplateStore)
+	if err != nil {
+		pkglog.Warnf("Failed to create EndpointSlices CR config provider: %v", err)
+	} else {
+		ac.AddConfigProvider(epSlicesCRProvider, true, 10*time.Second)
+	}
+
+	api.ModifyAPIRouter(func(r *http.ServeMux) {
+		dcav1.InstallInstrumentationChecksEndpoints(r, checkStore)
+	})
+	return instrHandlers
 }
 
 func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger tagger.Component) (*pkgclusterchecks.Handler, error) {
