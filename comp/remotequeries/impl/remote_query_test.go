@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -220,14 +219,7 @@ type fakeCollector struct {
 	checks []check.Check
 }
 
-func (f fakeCollector) RunCheck(inner check.Check) (checkid.ID, error) { return inner.ID(), nil }
-func (f fakeCollector) StopCheck(checkid.ID) error                     { return nil }
-func (f fakeCollector) MapOverChecks(_ func([]check.Info))             {}
-func (f fakeCollector) GetChecks() []check.Check                       { return f.checks }
-func (f fakeCollector) ReloadAllCheckInstances(string, []check.Check) ([]checkid.ID, error) {
-	return nil, nil
-}
-func (f fakeCollector) AddEventReceiver(collector.EventReceiver) {}
+func (f fakeCollector) GetChecks() []check.Check { return f.checks }
 
 type fakeCheck struct {
 	name     string

@@ -502,76 +502,76 @@ done:
 }
 
 namespace {
-std::string normalizeRemoteQueryIntegration(const char *integration)
-{
-    if (integration == NULL) {
-        return "";
+    std::string normalizeRemoteQueryIntegration(const char *integration)
+    {
+        if (integration == NULL) {
+            return "";
+        }
+
+        std::string normalized(integration);
+        normalized.erase(normalized.begin(), std::find_if(normalized.begin(), normalized.end(), [](unsigned char ch) {
+                             return !std::isspace(ch);
+                         }));
+        normalized.erase(
+            std::find_if(normalized.rbegin(), normalized.rend(), [](unsigned char ch) { return !std::isspace(ch); })
+                .base(),
+            normalized.end());
+        std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+                       [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+        return normalized;
     }
 
-    std::string normalized(integration);
-    normalized.erase(normalized.begin(), std::find_if(normalized.begin(), normalized.end(), [](unsigned char ch) {
-                         return !std::isspace(ch);
-                     }));
-    normalized.erase(std::find_if(normalized.rbegin(), normalized.rend(), [](unsigned char ch) {
-                         return !std::isspace(ch);
-                     }).base(),
-                     normalized.end());
-    std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
-    });
-    return normalized;
-}
-
-bool isValidRemoteQueryIntegration(const std::string &integration)
-{
-    if (integration.empty()) {
-        return false;
-    }
-    return std::all_of(integration.begin(), integration.end(), [](unsigned char ch) {
-        return std::islower(ch) || std::isdigit(ch) || ch == '_';
-    });
-}
-
-struct RemoteQueryStreamEmitContext {
-    remote_query_stream_emit_cb emit;
-    void *userdata;
-};
-
-PyObject *remoteQueryStreamEmit(PyObject *self, PyObject *args)
-{
-    RemoteQueryStreamEmitContext *ctx = static_cast<RemoteQueryStreamEmitContext *>(PyCapsule_GetPointer(self, "remote_query_stream_emit"));
-    if (ctx == NULL || ctx->emit == NULL) {
-        PyErr_SetString(PyExc_RuntimeError, "remote query stream emit callback is unavailable");
-        return NULL;
+    bool isValidRemoteQueryIntegration(const std::string &integration)
+    {
+        if (integration.empty()) {
+            return false;
+        }
+        return std::all_of(integration.begin(), integration.end(),
+                           [](unsigned char ch) { return std::islower(ch) || std::isdigit(ch) || ch == '_'; });
     }
 
-    const char *event_type = NULL;
-    const char *metadata_json = NULL;
-    PyObject *payload = NULL;
-    if (!PyArg_ParseTuple(args, "ssO:remote_query_stream_emit", &event_type, &metadata_json, &payload)) {
-        return NULL;
-    }
-    if (!PyBytes_Check(payload)) {
-        PyErr_SetString(PyExc_TypeError, "remote query stream payload must be bytes");
-        return NULL;
+    struct RemoteQueryStreamEmitContext {
+        remote_query_stream_emit_cb emit;
+        void *userdata;
+    };
+
+    PyObject *remoteQueryStreamEmit(PyObject *self, PyObject *args)
+    {
+        RemoteQueryStreamEmitContext *ctx
+            = static_cast<RemoteQueryStreamEmitContext *>(PyCapsule_GetPointer(self, "remote_query_stream_emit"));
+        if (ctx == NULL || ctx->emit == NULL) {
+            PyErr_SetString(PyExc_RuntimeError, "remote query stream emit callback is unavailable");
+            return NULL;
+        }
+
+        const char *event_type = NULL;
+        const char *metadata_json = NULL;
+        PyObject *payload = NULL;
+        if (!PyArg_ParseTuple(args, "ssO:remote_query_stream_emit", &event_type, &metadata_json, &payload)) {
+            return NULL;
+        }
+        if (!PyBytes_Check(payload)) {
+            PyErr_SetString(PyExc_TypeError, "remote query stream payload must be bytes");
+            return NULL;
+        }
+
+        char *payload_bytes = NULL;
+        Py_ssize_t payload_len = 0;
+        if (PyBytes_AsStringAndSize(payload, &payload_bytes, &payload_len) != 0) {
+            return NULL;
+        }
+        int emit_result = ctx->emit(event_type, metadata_json, reinterpret_cast<const uint8_t *>(payload_bytes),
+                                    static_cast<size_t>(payload_len), ctx->userdata);
+        if (emit_result != 0) {
+            PyErr_SetString(PyExc_RuntimeError, "remote query stream emit callback failed");
+            return NULL;
+        }
+
+        Py_RETURN_NONE;
     }
 
-    char *payload_bytes = NULL;
-    Py_ssize_t payload_len = 0;
-    if (PyBytes_AsStringAndSize(payload, &payload_bytes, &payload_len) != 0) {
-        return NULL;
-    }
-    int emit_result = ctx->emit(event_type, metadata_json, reinterpret_cast<const uint8_t *>(payload_bytes), static_cast<size_t>(payload_len), ctx->userdata);
-    if (emit_result != 0) {
-        PyErr_SetString(PyExc_RuntimeError, "remote query stream emit callback failed");
-        return NULL;
-    }
-
-    Py_RETURN_NONE;
-}
-
-PyMethodDef remoteQueryStreamEmitMethod = {"remote_query_stream_emit", remoteQueryStreamEmit, METH_VARARGS,
-                                           "Emit a remote query stream event."};
+    PyMethodDef remoteQueryStreamEmitMethod
+        = { "remote_query_stream_emit", remoteQueryStreamEmit, METH_VARARGS, "Emit a remote query stream event." };
 } // namespace
 
 bool Three::runRemoteQueryStream(RtLoaderPyObject *check, const char *integration, const char *request_json,
@@ -595,7 +595,7 @@ bool Three::runRemoteQueryStream(RtLoaderPyObject *check, const char *integratio
     PyObject *emit_func = NULL;
     PyObject *result = NULL;
     std::string module_name = "datadog_checks." + normalized_integration + ".remote_query";
-    RemoteQueryStreamEmitContext ctx{emit, userdata};
+    RemoteQueryStreamEmitContext ctx{ emit, userdata };
     bool ok = false;
 
     remote_query_module = PyImport_ImportModule(module_name.c_str());
@@ -634,7 +634,7 @@ bool Three::runRemoteQueryStream(RtLoaderPyObject *check, const char *integratio
     }
     ok = true;
 
- done:
+done:
     Py_XDECREF(result);
     Py_XDECREF(emit_func);
     Py_XDECREF(capsule);

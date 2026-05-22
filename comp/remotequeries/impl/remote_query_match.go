@@ -20,7 +20,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
@@ -43,7 +42,7 @@ type Requires struct {
 	fx.In
 
 	Cfg       config.Component
-	Collector collector.Component
+	Collector remoteQueryCollector
 }
 
 // NewRemoteQueryMatchEndpointProvider registers the remote query match endpoint on the internal Agent API.
@@ -56,8 +55,14 @@ func NewRemoteQueryMatchEndpointProvider(reqs Requires) api.AgentEndpointProvide
 }
 
 type remoteQueryMatchHandler struct {
-	collector collector.Component
+	collector remoteQueryCollector
 	enabled   bool
+}
+
+// remoteQueryCollector is the narrow collector surface Remote Queries needs.
+// Keep this local so the POC endpoint does not force Bazel onboarding for the full collector component package.
+type remoteQueryCollector interface {
+	GetChecks() []check.Check
 }
 
 type matchResponse struct {
@@ -313,7 +318,7 @@ func (h *remoteQueryMatchHandler) findMatches(integration string, target remoteQ
 	return findIntegrationMatches(h.collector, integration, target)
 }
 
-func findIntegrationMatches(collector collector.Component, integration string, target remoteQueryTarget) []integrationCheckMatch {
+func findIntegrationMatches(collector remoteQueryCollector, integration string, target remoteQueryTarget) []integrationCheckMatch {
 	checks := collector.GetChecks()
 	matches := make([]integrationCheckMatch, 0, 1)
 	for _, chk := range checks {

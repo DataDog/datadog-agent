@@ -9,6 +9,7 @@ go_library(
         "jmx.go",
         "loader.go",
         "metadata.go",
+        "remote_query_stream.go",
         "retry.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/check",

@@ -14,7 +14,6 @@ import (
 	"net/http"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
@@ -87,18 +86,18 @@ func NewRemoteQueryExecuteEndpointProvider(reqs Requires) api.AgentEndpointProvi
 
 type remoteQueryExecuteHandler struct {
 	service   *RemoteQueryExecuteService
-	collector collector.Component
+	collector remoteQueryCollector
 	enabled   bool
 }
 
 // RemoteQueryExecuteService executes credential-free Remote Queries requests through loaded checks.
 type RemoteQueryExecuteService struct {
-	collector collector.Component
+	collector remoteQueryCollector
 	enabled   bool
 }
 
 // NewRemoteQueryExecuteService creates the shared executor used by the HTTP POC endpoint and AgentSecure RPC.
-func NewRemoteQueryExecuteService(collector collector.Component, enabled bool) *RemoteQueryExecuteService {
+func NewRemoteQueryExecuteService(collector remoteQueryCollector, enabled bool) *RemoteQueryExecuteService {
 	return &RemoteQueryExecuteService{collector: collector, enabled: enabled}
 }
 

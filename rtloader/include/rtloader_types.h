@@ -38,7 +38,8 @@ typedef enum rtloader_gilstate_e {
 
 typedef void *(*rtloader_malloc_t)(size_t);
 typedef void (*rtloader_free_t)(void *);
-typedef int (*remote_query_stream_emit_cb)(const char *event_type, const char *metadata_json, const uint8_t *payload, size_t payload_len, void *userdata);
+typedef int (*remote_query_stream_emit_cb)(const char *event_type, const char *metadata_json, const uint8_t *payload,
+                                           size_t payload_len, void *userdata);
 
 typedef enum {
     DATADOG_AGENT_RTLOADER_GAUGE = 0,

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build !windows
+//go:build remotequeries_live && !windows
 
 package com_datadoghq_remotequeries_test
 
