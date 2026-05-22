@@ -7,9 +7,7 @@ package agenthealth
 
 import (
 	_ "embed"
-	"errors"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,68 +16,48 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 )
 
 //go:embed fixtures/health_platform_agent_config.yaml
 var healthPlatformAgentConfig string
 
-// brokenCheckConf is the check configuration placed in conf.d to activate the check.
-const brokenCheckConf = `
-init_config:
-instances:
-  - {}
-`
+//go:embed fixtures/broken_check.yaml
+var brokenCheckConf string
 
-// brokenCheckPy is a Python check that always raises — deployed by the provisioner.
-const brokenCheckPy = `
-from datadog_checks.base import AgentCheck
+//go:embed fixtures/broken_check.py
+var brokenCheckPy string
 
-class BrokenCheck(AgentCheck):
-    def check(self, instance):
-        raise Exception("synthetic failure for e2e health platform test")
-`
-
-// fixedCheckPy replaces brokenCheckPy in the Resolution phase.
-const fixedCheckPy = `
-from datadog_checks.base import AgentCheck
-
-class BrokenCheck(AgentCheck):
-    def check(self, instance):
-        self.gauge("e2e.healthplatform.check_ok", 1)
-`
-
-// ============================================================================
-// Environment definition
-// ============================================================================
-
-type checkFailureEnv struct {
-	RemoteHost *components.RemoteHost
-	Agent      *components.RemoteHostAgent
-	Fakeintake *components.FakeIntake
-}
-
-var _ common.Diagnosable = (*checkFailureEnv)(nil)
-
-func (e *checkFailureEnv) Diagnose(_ string) (string, error) {
-	if e.Agent == nil {
-		return "", errors.New("agent not initialized")
-	}
-	return "==== agent diagnose health-issues ====\n" + getHealthDiagnoseOutput(e.Agent), nil
-}
+//go:embed fixtures/fixed_check.py
+var fixedCheckPy string
 
 // ============================================================================
 // Test suite
 // ============================================================================
 
 type checkFailureSuite struct {
-	e2e.BaseSuite[checkFailureEnv]
+	e2e.BaseSuite[environments.Host]
 }
 
 // TestCheckFailureSuite runs the check failure health issue lifecycle test.
 func TestCheckFailureSuite(t *testing.T) {
 	e2e.Run(t, &checkFailureSuite{},
-		e2e.WithPulumiProvisioner(checkFailureEnvProvisioner(), nil),
+		e2e.WithProvisioner(awshost.Provisioner(
+			awshost.WithRunOptions(
+				ec2.WithAgentOptions(
+					agentparams.WithAgentConfig(healthPlatformAgentConfig),
+					agentparams.WithIntegration("broken_check.d", brokenCheckConf),
+					agentparams.WithFile(
+						"/etc/datadog-agent/checks.d/broken_check.py",
+						brokenCheckPy,
+						true,
+					),
+				),
+			),
+		)),
 	)
 }
 
@@ -94,13 +72,7 @@ func TestCheckFailureSuite(t *testing.T) {
 func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 	host := suite.Env().RemoteHost
 	agent := suite.Env().Agent
-	fi := suite.Env().Fakeintake.Client()
-
-	suite.T().Run("PreCondition", func(t *testing.T) {
-		require.EventuallyWithT(t, func(ct *assert.CollectT) {
-			assert.True(ct, agent.Client.IsReady())
-		}, 2*time.Minute, 10*time.Second, "agent not ready")
-	})
+	fi := suite.Env().FakeIntake.Client()
 
 	RunHealthIssueLifecycle(suite.T(),
 		HealthIssueTestCase{

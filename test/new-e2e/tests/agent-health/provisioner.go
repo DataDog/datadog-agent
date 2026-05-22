@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 )
 
@@ -26,60 +25,6 @@ var dockerPermissionAgentConfig string
 
 //go:embed fixtures/docker-compose.busybox.yaml
 var busyboxComposeContent string
-
-// ============================================================================
-// Shared helpers
-// ============================================================================
-
-// baseEC2Env holds the three components shared by all single-host health
-// platform test environments.
-type baseEC2Env struct {
-	RemoteHost *components.RemoteHost
-	Agent      *components.RemoteHostAgent
-	Fakeintake *components.FakeIntake
-}
-
-// newBaseEC2Env provisions a single EC2 VM, a FakeIntake on ECS Fargate, and a
-// Datadog agent with the given extra agentparams options.
-func newBaseEC2Env(
-	ctx *pulumi.Context,
-	env *baseEC2Env,
-	vmName string,
-	agentOptions ...func(*agentparams.Params) error,
-) error {
-	awsEnv, err := aws.NewEnvironment(ctx)
-	if err != nil {
-		return err
-	}
-
-	remoteHost, err := ec2.NewVM(awsEnv, vmName)
-	if err != nil {
-		return err
-	}
-	if err = remoteHost.Export(ctx, &env.RemoteHost.HostOutput); err != nil {
-		return err
-	}
-
-	fi, err := fakeintake.NewECSFargateInstance(awsEnv, "", fakeintake.WithoutDDDevForwarding())
-	if err != nil {
-		return err
-	}
-	if err = fi.Export(ctx, &env.Fakeintake.FakeintakeOutput); err != nil {
-		return err
-	}
-
-	hostAgent, err := agent.NewHostAgent(&awsEnv, remoteHost,
-		append([]func(*agentparams.Params) error{agentparams.WithFakeintake(fi)}, agentOptions...)...,
-	)
-	if err != nil {
-		return err
-	}
-	return hostAgent.Export(ctx, &env.Agent.HostAgentOutput)
-}
-
-// ============================================================================
-// Provisioner functions
-// ============================================================================
 
 func dockerPermissionEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerPermissionEnv] {
 	return func(ctx *pulumi.Context, env *dockerPermissionEnv) error {
@@ -128,24 +73,5 @@ func dockerPermissionEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerPermis
 			return err
 		}
 		return hostAgent.Export(ctx, &env.Agent.HostAgentOutput)
-	}
-}
-
-func checkFailureEnvProvisioner() provisioners.PulumiEnvRunFunc[checkFailureEnv] {
-	return func(ctx *pulumi.Context, env *checkFailureEnv) error {
-		base := &baseEC2Env{
-			RemoteHost: env.RemoteHost,
-			Agent:      env.Agent,
-			Fakeintake: env.Fakeintake,
-		}
-		return newBaseEC2Env(ctx, base, "checkfailurevm",
-			agentparams.WithAgentConfig(healthPlatformAgentConfig),
-			agentparams.WithIntegration("broken_check.d", brokenCheckConf),
-			agentparams.WithFile(
-				"/etc/datadog-agent/checks.d/broken_check.py",
-				brokenCheckPy,
-				true,
-			),
-		)
 	}
 }

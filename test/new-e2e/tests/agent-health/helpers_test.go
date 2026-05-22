@@ -246,10 +246,10 @@ func RunHealthIssueLifecycle(
 	// Phase 2: Restart Resilience
 	// =========================================================================
 	t.Run("RestartResilience", func(t *testing.T) {
+		require.NoError(t, agent.Client.Restart())
 		if fi != nil {
 			require.NoError(t, fi.FlushServerAndResetAggregators())
 		}
-		require.NoError(t, agent.Client.Restart())
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			assert.True(ct, agent.Client.IsReady())
 		}, 2*time.Minute, 10*time.Second, "agent not ready after restart")
@@ -282,10 +282,10 @@ func RunHealthIssueLifecycle(
 		require.NotNilf(t, tc.FixIssue, "FixIssue must be provided to test resolution")
 		tc.FixIssue(t, host)
 
+		require.NoError(t, agent.Client.Restart())
 		if fi != nil {
 			require.NoError(t, fi.FlushServerAndResetAggregators())
 		}
-		require.NoError(t, agent.Client.Restart())
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			assert.True(ct, agent.Client.IsReady())
 		}, 2*time.Minute, 10*time.Second, "agent not ready after fix restart")
