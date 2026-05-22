@@ -15,7 +15,7 @@ import (
 )
 
 func restartModuleHandler(w http.ResponseWriter, r *http.Request, deps module.FactoryDependencies) {
-	moduleName := sysconfigtypes.ModuleName(r.PathValue("module-name"))
+	moduleName := sysconfigtypes.ModuleName(r.PathValue("module_name"))
 
 	if moduleName == config.EventMonitorModule {
 		w.WriteHeader(http.StatusOK)

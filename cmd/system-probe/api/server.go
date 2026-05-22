@@ -51,7 +51,7 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclie
 	setupConfigHandlers(mux, settings)
 
 	// Module-restart handler
-	mux.HandleFunc("POST /module-restart/{module-name}", func(w http.ResponseWriter, r *http.Request) { restartModuleHandler(w, r, deps) })
+	mux.HandleFunc("POST /module-restart/{module_name}", func(w http.ResponseWriter, r *http.Request) { restartModuleHandler(w, r, deps) })
 
 	mux.Handle("/debug/pprof", http.DefaultServeMux)
 	mux.Handle("/debug/pprof/", http.DefaultServeMux)
