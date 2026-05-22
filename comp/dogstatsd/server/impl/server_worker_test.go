@@ -115,6 +115,35 @@ func TestParseMetricMessageColumnarV3FastLaneUsesExactTagsetHit(t *testing.T) {
 	assert.NotNil(t, row.CompactState)
 }
 
+func TestParseMetricMessageColumnarV3FastLaneFallsBackForOriginMetadata(t *testing.T) {
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE", "true")
+
+	deps := fulfillDepsWithConfigOverride(t, map[string]interface{}{"dogstatsd_port": listeners.RandomPortName})
+	s := deps.Server.(*dsdServer)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	parser.dsdOriginEnabled = true
+	batcher := &batcherMock{}
+	builder := identity.NewBuilder()
+	message := []byte("fast.origin.metric:42|g|#env:prod|c:metric-container|card:high")
+
+	for i := 0; i < 3; i++ {
+		_, handled, err := s.parseMetricMessageColumnarV3Direct(batcher, parser, builder, message, "socket-container", 1234, "listener", false, nil, nil, nil)
+		require.NoError(t, err)
+		require.True(t, handled)
+	}
+
+	require.Len(t, batcher.samples, 3)
+	require.Empty(t, batcher.columnarRows, "no-materialization fast lane should not consume origin-bearing messages")
+	for _, sample := range batcher.samples {
+		assert.Equal(t, "socket-container", sample.OriginInfo.ContainerIDFromSocket)
+		assert.Equal(t, uint32(1234), sample.OriginInfo.LocalData.ProcessID)
+		assert.Equal(t, "metric-container", sample.OriginInfo.LocalData.ContainerID)
+		assert.Equal(t, "high", sample.OriginInfo.Cardinality)
+	}
+}
+
 func TestParseMetricMessageColumnarV3FastLaneUpdatesDebugStats(t *testing.T) {
 	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", "true")
 	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES", "true")
