@@ -108,16 +108,15 @@ GOPROXY=https://proxy.golang.org,direct
 # toolchain version (go.mod may require a newer patch than is installed).
 # Auto-download spawns extra processes and consumes significant memory on AIX.
 GOTOOLCHAIN=local
-# Memory constraints for small-memory build hosts (≤ 4 GiB RAM):
-#   -p=1: compile one package at a time so the 3-4 GiB Go compiler process
-#         does not compete with other processes for RAM.
-#   GOMEMLIMIT: soft heap limit so the GC runs more aggressively instead of
-#               growing into swap.  Not needed on larger hosts.
-GOFLAGS="-p=1"
+# On hosts with less than 6 GiB of RAM, restrict Go compilation to one package
+# at a time and cap the heap to prevent swap thrash. Each compile process can
+# use 3-4 GiB; without -p=1 multiple would compete for the same RAM.
+# On larger hosts, the default parallelism is fine.
 _mem_kb=$(lsattr -El sys0 -a realmem 2>/dev/null | awk '{print $2}')
 if [ -n "$_mem_kb" ] && [ "$_mem_kb" -lt 6291456 ]; then
+    GOFLAGS="-p=1"
     GOMEMLIMIT=2GiB
-    export GOMEMLIMIT
+    export GOFLAGS GOMEMLIMIT
 fi
 unset _mem_kb
 # Redirect the Go build cache off /tmp (which is only 12 GB) to the larger
@@ -125,7 +124,7 @@ unset _mem_kb
 GOCACHE=/opt/dd-build/gocache
 mkdir -p "$GOCACHE"
 
-export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOFLAGS GOCACHE
+export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOCACHE
 
 # ── Utility functions ─────────────────────────────────────────────────────────
 
