@@ -1,4 +1,5 @@
 import os
+import subprocess
 import sys
 
 from tasks.libs.common.color import color_message
@@ -64,34 +65,35 @@ def codeowner_has_orphans(owners):
 _CATCH_ALL_PATTERNS = frozenset(["/.*", "/*.md"])
 
 
+_AI_ARTEFACT_NAMES = frozenset(["AGENTS.md", "CLAUDE.md", "GEMINI.md"])
+
+
 def ai_artefacts_have_owner(owners):
-    """Check that every AGENTS.md file and every file under .claude/ has an explicit owner in
-    CODEOWNERS — i.e. is not solely covered by a broad catch-all rule like /.*  or /*.md."""
+    """Check that every AI artefact file has an explicit owner in CODEOWNERS — i.e. is not
+    solely covered by a broad catch-all rule like /.*  or /*.md, and has a non-empty owner list.
+
+    AI artefacts are: AGENTS.md, CLAUDE.md, GEMINI.md (any depth), and everything under .claude/.
+    """
 
     error = False
 
-    # Collect all AI artefact paths: **/AGENTS.md and .claude/**
-    ai_files = []
-    for root, dirs, files in os.walk("."):
-        # Normalize path separator for CODEOWNERS comparison
-        norm_root = root[2:].replace('\\', '/')  # strip leading "./"
-
-        # Skip .git directory
-        dirs[:] = [d for d in dirs if d != '.git']
-
-        for name in files:
-            rel = (norm_root + "/" + name).lstrip("/")
-            if name == "AGENTS.md" or rel.startswith(".claude/"):
-                ai_files.append(rel)
+    # Collect all AI artefact paths from tracked files only (respects .gitignore).
+    # Symlinks point to external targets and are excluded — only regular files are checked.
+    tracked = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+    ai_files = [
+        p
+        for p in tracked
+        if (os.path.basename(p) in _AI_ARTEFACT_NAMES or p.startswith(".claude/")) and not os.path.islink(p)
+    ]
 
     for path in ai_files:
         matched_rule = next((rule for rule in owners.paths if rule[0].match(path)), None)
-        if matched_rule is None or matched_rule[1] in _CATCH_ALL_PATTERNS:
+        if matched_rule is None or matched_rule[1] in _CATCH_ALL_PATTERNS or not matched_rule[2]:
             if not error:
                 print(
                     color_message(
                         "The following AI artefacts don't have an explicit owner in the CODEOWNERS file"
-                        " (catch-all rules like /.*  or /*.md don't count)",
+                        " (catch-all rules like /.*  or /*.md don't count, and rules with no owners don't count)",
                         "red",
                     ),
                     file=sys.stderr,

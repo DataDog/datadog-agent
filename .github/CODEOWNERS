@@ -67,6 +67,8 @@
 /*.md                                   @DataDog/agent-devx
 /CHANGELOG-AIX.md                       @DataDog/agent-runtimes
 /AGENTS.md                              @DataDog/agent-devx
+/CLAUDE.md                              @DataDog/agent-devx
+/GEMINI.md                              @DataDog/agent-devx
 /NOTICE                                 @DataDog/agent-delivery
 
 /LICENSE*                               # do not notify anyone
@@ -855,6 +857,7 @@
 /test/integration/                      @DataDog/serverless-azure-gcp
 /test/integration/docker/               @DataDog/opentelemetry-agent
 /test/e2e-framework/AGENTS.md                           @DataDog/agent-devx
+/test/e2e-framework/CLAUDE.md                          @DataDog/agent-devx
 /test/e2e-framework/testing/testcommon/check            @DataDog/agent-runtimes
 /test/e2e-framework/testing/utils/e2e/client/ecs/       @DataDog/ecs-experiences
 /test/e2e-framework/testing/provisioners/aws/ecs/       @DataDog/ecs-experiences
