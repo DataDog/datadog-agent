@@ -583,18 +583,21 @@ func start(log log.Component,
 		}
 	}
 
-	// Kubernetes Actions
+	// Kubernetes Actions. Failures here must never be fatal — kubeactions is an
+	// optional feature and the cluster-agent must keep serving its other
+	// responsibilities even if remote-config is unavailable or setup fails.
 	var kubeactionsRetriever *kubeactions.ConfigRetriever
 	if config.GetBool("kubeactions.enabled") {
 		if rcClient == nil {
-			return errors.New("remote config is disabled or failed to initialize, remote config is a required dependency for kubeactions")
+			log.Errorf("[KubeActions] kubeactions.enabled is true but remote config is disabled or failed to initialize; kubeactions will not run")
+		} else {
+			log.Infof("[KubeActions] Starting with cluster_id=%s, cluster_name=%s", clusterID, clusterName)
+			if kubeactionsRetriever, err = kubeactions.Setup(mainCtx, apiCl.Cl, clusterName, clusterID, le.IsLeader, rcClient, epForwarder); err != nil {
+				log.Errorf("[KubeActions] Error while starting kubernetes actions, feature will be disabled: %v", err)
+			} else {
+				log.Info("Kubernetes actions subsystem started successfully")
+			}
 		}
-		log.Infof("[KubeActions] Starting with cluster_id=%s, cluster_name=%s", clusterID, clusterName)
-
-		if kubeactionsRetriever, err = kubeactions.Setup(mainCtx, apiCl.Cl, clusterName, clusterID, le.IsLeader, rcClient, epForwarder); err != nil {
-			return fmt.Errorf("Error while starting kubernetes actions: %v", err)
-		}
-		log.Info("Kubernetes actions subsystem started successfully")
 	}
 
 	// Compliance
