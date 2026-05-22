@@ -1185,6 +1185,7 @@ new-e2e-cspm:
     - !reference [.needs_new_e2e_template]
     - qa_agent_linux
     - qa_dca
+    - agent_deb-x64-a7
   variables:
     TARGETS: ./tests/cspm
     TEAM: cspm
