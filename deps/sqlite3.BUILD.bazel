@@ -59,13 +59,25 @@ cc_import(
 
 # This target is meant to be used as a cdeps for go code that relies on sqlite3
 # More specifically, it's intended to avoid rebuilding the sqlite3 amalgamation
-# in github.com/mattn/go-sqlite3
+# in github.com/mattn/go-sqlite3.
+#
+# On Linux/macOS we link against the shared :sqlite3 so a single libsqlite3.so
+# / .dylib is reused across consumers (the dedup goal). On Windows we instead
+# fold the static :libsqlite3 into each consumer binary: the Windows loader
+# does not search Bazel's runfiles `_solib_x86_64/` tree for DLLs, and the
+# current set of Windows consumers is small enough (collectorv2 is the only
+# package that imports the binding, and its tests are linux-only) that
+# embedding sqlite3 statically into each Windows .exe is cheaper than wiring
+# up DLL co-location for both runfiles and the install tree.
 cc_library(
     name = "libsqlite3_dynamic",
     hdrs = _SQLITE3_PUBLIC_HEADERS,
     includes = ["."],
     visibility = ["//visibility:public"],
-    deps = [":_libsqlite3_shared"],
+    deps = select({
+        "@platforms//os:windows": [":libsqlite3"],
+        "//conditions:default": [":_libsqlite3_shared"],
+    }),
 )
 
 dd_cc_packaged(
