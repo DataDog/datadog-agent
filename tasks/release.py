@@ -776,15 +776,6 @@ def get_active_release_branch(ctx, release_branch):
             print(get_default_branch())
 
 
-@task
-def get_unreleased_release_branches(_):
-    """
-    Determine what are the current active release branches for the Agent.
-    """
-    gh = GithubAPI()
-    print(json.dumps([branch.name for branch in gh.latest_unreleased_release_branches()]))
-
-
 def get_next_version(gh, latest_release=None):
     latest_release = latest_release or gh.latest_release()
     current_version = _create_version_from_match(VERSION_RE.search(latest_release))
