@@ -43,8 +43,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	flareprofilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	flareprofilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
-	coresettings "github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	coresettings "github.com/DataDog/datadog-agent/comp/core/settings/def"
+	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -151,7 +151,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						Config:   config,
 					}
 				}),
-				settingsimpl.Module(),
+				settingsfx.Module(),
 				localTaggerfx.Module(),
 				workloadfilterfx.Module(),
 				autodiscoveryimpl.Module(),

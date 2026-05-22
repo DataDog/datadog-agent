@@ -351,8 +351,9 @@ It is built once at startup from all registered issue modules and shared by the 
 ### [comp/healthplatform/runner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/runner)
 
 Package runner defines the interface for the health platform runner component.
-The runner executes a single HealthCheckFunc once, forwards each emitted
-IssueReport to the store, and returns the set of IssueIds that were reported.
+The runner executes a single HealthCheckFunc once, translates each emitted
+IssueReport into a proto Issue (via the issue registry), forwards it to the
+store, and returns the set of IssueIds that were reported.
 
 ### [comp/healthplatform/scheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/scheduler)
 

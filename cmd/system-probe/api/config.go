@@ -8,7 +8,7 @@ package api
 import (
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/core/settings"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 )
 
 // setupConfigHandlers adds the specific handlers for /config endpoints
