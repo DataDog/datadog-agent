@@ -24,8 +24,9 @@ build do
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
   end
 
-  # Upgrade pip to 26.0.1 to address CVE-2026-1703 (path traversal in pip < 26.0
-  # when installing malicious wheel archives). Python 3.13 ships with pip 25.3 via
+  # Upgrade pip to 26.1.1 to address CVE-2026-6357 (self-update import-after-install
+  # timing in pip < 26.1) and CVE-2026-1703 (path traversal in pip < 26.0 when
+  # installing malicious wheel archives). Python 3.13 ships with pip 25.3 via
   # ensurepip, which is vulnerable.
-  command "#{python} -m pip install pip==26.0.1"
+  command "#{python} -m pip install pip==26.1.1"
 end
