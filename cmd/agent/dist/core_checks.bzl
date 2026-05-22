@@ -44,15 +44,20 @@ AGENT_CORECHECKS = [
 ]
 
 AIX_CORECHECKS = [
+    "cloud_hostinfo",
     "cpu",
     "disk",
+    "discovery",
     "io",
     "load",
     "memory",
     "network",
     "ntp",
     "oracle",
+    "snmp",
+    "telemetry",
     "uptime",
+    "versa",
 ]
 
 WINDOWS_CORECHECKS = [
