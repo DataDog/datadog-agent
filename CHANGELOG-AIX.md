@@ -10,6 +10,8 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+- Include missing Go check configurations in the package: `snmp` (`auto_conf.yaml`), `cloud_hostinfo` (`conf.yaml.default`), `telemetry` (`conf.yaml.default`) — these checks are compiled into the agent binary but their config files were missing from `AIX_CORECHECKS`
+
 ---
 
 > **Note:** `datadog-agent-7.80.0-devel.git.446.66c9b62-18.aix.ppc64.bff` and all older builds
