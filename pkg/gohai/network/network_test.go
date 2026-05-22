@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,6 +19,9 @@ import (
 )
 
 func TestCollect(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip("skipping real-interface test in CI: runner NICs may have non-standard MAC addresses")
+	}
 	netInfo, err := CollectInfo()
 	require.NoError(t, err)
 
