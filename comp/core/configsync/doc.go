@@ -3,12 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build test
-
-// Package collector defines the collector component.
-package collector
-
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-}
+// Package configsync implements synchronizing the configuration using the core agent config API.
+//
+// # team: agent-configuration
+package configsync

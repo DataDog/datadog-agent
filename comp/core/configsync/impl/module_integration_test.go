@@ -6,6 +6,7 @@
 package configsyncimpl
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"net/url"
@@ -14,16 +15,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
 func TestOptionalModule(t *testing.T) {
@@ -40,23 +37,27 @@ func TestOptionalModule(t *testing.T) {
 	host, port, err := net.SplitHostPort(url.Host)
 	require.NoError(t, err)
 
-	var cfg config.Component
 	overrides := map[string]interface{}{
 		"agent_ipc.host":                    host,
 		"agent_ipc.port":                    port,
 		"agent_ipc.config_refresh_interval": 1,
 	}
-	comp := fxutil.Test[configsync.Component](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
-		fx.Supply(log.Params{}),
-		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		mocktelemetry.Module(),
-		fx.Provide(func() ipc.Component { return ipcComp }),
-		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
-		Module(Params{}),
-		fx.Populate(&cfg),
-	))
+	cfg := config.NewMockWithOverrides(t, overrides)
+
+	lc := compdef.NewTestLifecycle(t)
+	comp, err := NewComponent(Requires{
+		Lc:         lc,
+		Config:     cfg,
+		Log:        logmock.New(t),
+		IPCClient:  ipcComp.GetClient(),
+		SyncParams: configsync.Params{},
+	})
+	require.NoError(t, err)
 	require.True(t, comp.(configSync).enabled)
+
+	ctx := context.Background()
+	require.NoError(t, lc.Start(ctx))
+	t.Cleanup(func() { lc.Stop(ctx) })
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		assert.Equal(t, "value1", cfg.Get("api_key"))

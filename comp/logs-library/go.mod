@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/logs-library
 go 1.25.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.196
+	github.com/DataDog/agent-payload/v5 v5.0.198
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.75.4
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.77.0-devel.0.20260211235139-a5361978c2b6

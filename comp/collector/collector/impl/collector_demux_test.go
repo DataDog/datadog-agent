@@ -15,27 +15,23 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"go.uber.org/fx"
-
-	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
-	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
-	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
-	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
+	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -85,29 +81,25 @@ func (s *SenderManagerProxy) GetDefaultSender() (sender.Sender, error) {
 }
 
 func (suite *CollectorDemuxTestSuite) SetupTest() {
-	suite.demux = fxutil.Test[demultiplexer.FakeSamplerMock](suite.T(), fx.Provide(func() log.Component { return logmock.New(suite.T()) }), metricscompressionmock.MockModule(), logscompressionmock.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
+	hostname, _ := hostnameinterface.NewMock("my-hostname")
+	suite.demux = demultiplexerimpl.NewFakeSamplerMock(
+		logmock.New(suite.T()),
+		hostname,
+		logscompressionmock.NewMockCompressor(),
+		metricscompressionmock.NewMockCompressor(),
+	)
 	suite.SenderManagerMock = NewSenderManagerMock(suite.demux)
-	suite.c = newCollector(fxutil.Test[dependencies](suite.T(),
-		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
-		fx.Provide(func() config.Component {
-			return config.NewMockWithOverrides(suite.T(), map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond})
-		}),
-		haagentmock.Module(),
-		hostnameimpl.MockModule(),
-		fx.Provide(func() option.Option[agenttelemetry.Component] {
-			return option.None[agenttelemetry.Component]()
-		}),
-		fx.Provide(func() healthplatform.Component {
-			return healthplatformnoopimpl.NewNoopComponent()
-		}),
-		fx.Provide(func() sender.SenderManager {
-			return suite.SenderManagerMock
-		}),
-		fx.Provide(func() option.Option[serializer.MetricSerializer] {
-			return option.None[serializer.MetricSerializer]()
-		}),
-	))
-
+	suite.c = newCollector(dependencies{
+		Lc:               compdef.NewTestLifecycle(suite.T()),
+		Config:           config.NewMockWithOverrides(suite.T(), map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond}),
+		Log:              logmock.New(suite.T()),
+		HaAgent:          haagentmock.NewMockHaAgent(),
+		HealthPlatform:   healthplatformnoopimpl.NewNoopComponent(),
+		Hostname:         hostname,
+		SenderManager:    suite.SenderManagerMock,
+		MetricSerializer: option.None[serializer.MetricSerializer](),
+		AgentTelemetry:   option.None[agenttelemetry.Component](),
+	})
 	suite.c.start(context.TODO())
 }
 
