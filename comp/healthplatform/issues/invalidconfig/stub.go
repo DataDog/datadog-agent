@@ -5,5 +5,7 @@
 
 //go:build jetson
 
-// Empty stub keeps the package importable on IoT Agent (jetson) builds
+// Package invalidconfig: empty stub keeping the package importable on IoT
+// Agent (jetson) builds where the real validator is excluded to stay under
+// the binary size budget.
 package invalidconfig
