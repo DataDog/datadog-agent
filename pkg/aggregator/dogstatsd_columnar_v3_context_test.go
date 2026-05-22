@@ -85,6 +85,44 @@ func TestDogstatsdColumnarV3AppliesMetricTagFilterList(t *testing.T) {
 	require.Equal(t, []metrics.Point{{Ts: 100, Value: 0.3}}, sink.rows[0].Points)
 }
 
+func TestDogstatsdColumnarV3CompactDescriptorRefsUseResolvedContext(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("metric_tag_filterlist_adp_only", false)
+	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
+		"counter.metric": {Tags: []string{"drop"}, Action: "exclude"},
+	}, logmock.New(t))
+	store := newDogStatsDColumnarStore(10, 1, dogstatsdColumnarStoreConfig{
+		tagger:        nooptagger.NewComponent(),
+		tagFilterList: matcher,
+	})
+	stateA := &metrics.DogStatsDCompactIdentityState{}
+	stateB := &metrics.DogStatsDCompactIdentityState{}
+	sampleA := metrics.MetricSample{
+		Name:       "counter.metric",
+		Value:      1,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"drop:a", "keep:x"},
+		Host:       "host-a",
+		SampleRate: 1,
+		Source:     metrics.MetricSourceDogstatsd,
+	}
+	sampleB := sampleA
+	sampleB.Value = 2
+	sampleB.Tags = []string{"drop:b", "keep:x"}
+	sampleAAgain := sampleA
+	sampleAAgain.Value = 3
+
+	store.insertAcceptedRow(0, NewDogStatsDColumnarV3SampleFromMetricSample(ckey.ContextKey(1), 10, stateA, sampleA, true), 101)
+	store.insertAcceptedRow(0, NewDogStatsDColumnarV3SampleFromMetricSample(ckey.ContextKey(2), 11, stateB, sampleB, true), 102)
+	store.insertAcceptedRow(0, NewDogStatsDColumnarV3SampleFromMetricSample(ckey.ContextKey(1), 10, stateA, sampleAAgain, false), 103)
+
+	var sink columnarRowCaptureSink
+	require.Equal(t, uint64(1), store.flush(111, false, &sink))
+	require.Len(t, sink.rows, 1)
+	require.Equal(t, []string{"keep:x"}, sink.rows[0].Tags.UnsafeToReadOnlySliceString())
+	require.Equal(t, []metrics.Point{{Ts: 100, Value: 0.6}}, sink.rows[0].Points)
+}
+
 func TestDogstatsdColumnarV3ParityWithTimeSamplerOriginTags(t *testing.T) {
 	configmock.New(t)
 	fakeTagger := setupTagger(t)

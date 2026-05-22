@@ -136,11 +136,13 @@ func NewDogStatsDColumnarV3SampleFromMetricSample(contextKey ckey.ContextKey, co
 		RawValue:     sample.RawValue,
 		Mtype:        sample.Mtype,
 	}
-	if descriptorID, generation, ok := compactState.ColumnarDescriptorRef(sample.Mtype); ok {
-		row.DescriptorID = descriptorID
-		row.DescriptorGeneration = generation
-		row.HasDescriptorRef = true
-		return row
+	if compactState != nil {
+		if descriptorID, generation, ok := compactState.ColumnarDescriptorRef(sample.Mtype); ok {
+			row.DescriptorID = descriptorID
+			row.DescriptorGeneration = generation
+			row.HasDescriptorRef = true
+			return row
+		}
 	}
 	if includeDescriptor {
 		row.Name = sample.Name
@@ -705,7 +707,11 @@ func (s *dogstatsdColumnarShard) lookupDescriptorByRef(descriptorID int, generat
 	if !hasRef || generation == 0 || descriptorID < 0 || descriptorID >= len(s.descriptorActive) {
 		return 0, false
 	}
-	if s.descriptorActive[descriptorID] && s.descriptorGenerations[descriptorID] == generation && s.contextKeys[descriptorID] == key.contextKey && s.mtypes[descriptorID] == key.mtype {
+	// Descriptor refs are shard-local slots with a generation guard. The row may
+	// still carry the parser-side shard key while the descriptor stores the final
+	// backend context key resolved by the columnar worker, so context key equality
+	// is not a valid ref check here. Generation prevents stale slot reuse.
+	if s.descriptorActive[descriptorID] && s.descriptorGenerations[descriptorID] == generation && s.mtypes[descriptorID] == key.mtype {
 		return descriptorID, true
 	}
 	return 0, false

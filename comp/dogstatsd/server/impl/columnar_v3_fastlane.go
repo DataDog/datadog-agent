@@ -205,11 +205,13 @@ func newDogStatsDColumnarV3SampleFromFastDescriptor(desc *columnarV3FastDescript
 		SampleRate:   sampleRate,
 		Mtype:        desc.mtype,
 	}
-	if descriptorID, generation, ok := desc.context.CompactState.ColumnarDescriptorRef(desc.mtype); ok {
-		row.DescriptorID = descriptorID
-		row.DescriptorGeneration = generation
-		row.HasDescriptorRef = true
-		return row
+	if desc.context.CompactState != nil {
+		if descriptorID, generation, ok := desc.context.CompactState.ColumnarDescriptorRef(desc.mtype); ok {
+			row.DescriptorID = descriptorID
+			row.DescriptorGeneration = generation
+			row.HasDescriptorRef = true
+			return row
+		}
 	}
 	if includeDescriptor {
 		row.Name = desc.name
