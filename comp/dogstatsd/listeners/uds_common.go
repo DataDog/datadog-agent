@@ -333,6 +333,37 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 
 		t1 = time.Now()
 
+		if err != nil {
+			if oob != nil {
+				l.oobPoolManager.Put(oob)
+			}
+			l.sharedPacketPoolManager.Put(packet)
+			// connection has been closed
+			if errors.Is(err, net.ErrClosed) {
+				return nil
+			}
+
+			if n < 0 || oobn < 0 {
+				log.Errorf("dogstatsd-uds: invalid negative read length: payload=%d ancillary=%d: %v", n, oobn, err)
+			} else {
+				log.Errorf("dogstatsd-uds: error reading packet: %v", err)
+			}
+			udsPacketReadingErrors.Add(1)
+			l.telemetryStore.tlmUDSPackets.Inc(tlmListenerID, l.transport, "error")
+			continue
+		}
+
+		if n < 0 || oobn < 0 {
+			if oob != nil {
+				l.oobPoolManager.Put(oob)
+			}
+			l.sharedPacketPoolManager.Put(packet)
+			log.Errorf("dogstatsd-uds: invalid negative read length without read error: payload=%d ancillary=%d", n, oobn)
+			udsPacketReadingErrors.Add(1)
+			l.telemetryStore.tlmUDSPackets.Inc(tlmListenerID, l.transport, "error")
+			continue
+		}
+
 		if oob != nil {
 			// Extract container id from credentials
 			pid, container, taggingErr := processUDSOrigin(oobS[:oobn], l.wmeta, l.pidMap)
@@ -370,17 +401,6 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 			})
 		}
 
-		if err != nil {
-			// connection has been closed
-			if errors.Is(err, net.ErrClosed) {
-				return nil
-			}
-
-			log.Errorf("dogstatsd-uds: error reading packet: %v", err)
-			udsPacketReadingErrors.Add(1)
-			l.telemetryStore.tlmUDSPackets.Inc(tlmListenerID, l.transport, "error")
-			continue
-		}
 		l.telemetryStore.tlmUDSPackets.Inc(tlmListenerID, l.transport, "ok")
 
 		udsBytes.Add(int64(n))

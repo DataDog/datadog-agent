@@ -132,12 +132,13 @@ func defaultMUnixConn(addr net.Addr, streamMode bool) *mockUnixConn {
 }
 
 type mockUnixConn struct {
-	addr       net.Addr
-	buffer     [][]byte
-	offset     int
-	stop       chan struct{}
-	streamMode bool
-	timeout    time.Duration
+	addr        net.Addr
+	buffer      [][]byte
+	offset      int
+	stop        chan struct{}
+	streamMode  bool
+	timeout     time.Duration
+	readMsgUnix func([]byte, []byte) (int, int, int, *net.UnixAddr, error)
 }
 
 func (conn *mockUnixConn) Write(b []byte) (int, error) {
@@ -205,7 +206,10 @@ func (conn *mockUnixConn) ReadFromUnix(b []byte) (int, *net.UnixAddr, error) {
 	n, _ := conn.Read(b)
 	return n, nil, nil
 }
-func (conn *mockUnixConn) ReadMsgUnix(_ []byte, _ []byte) (n int, oobn int, flags int, addr *net.UnixAddr, err error) {
+func (conn *mockUnixConn) ReadMsgUnix(b []byte, oob []byte) (n int, oobn int, flags int, addr *net.UnixAddr, err error) {
+	if conn.readMsgUnix != nil {
+		return conn.readMsgUnix(b, oob)
+	}
 	return 0, 0, 0, nil, nil
 }
 func (conn *mockUnixConn) SyscallConn() (syscall.RawConn, error) {
