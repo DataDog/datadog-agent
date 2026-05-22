@@ -67,7 +67,6 @@ module Omnibus
       return unless File.exist?(path)
 
       normalize_path_tree_permissions(path)
-      normalize_parent_permissions(path) if external_package_path?(path)
     end
 
     def normalize_path_tree_permissions(root)
@@ -77,14 +76,6 @@ module Omnibus
         end
       else
         normalize_path_permissions(root)
-      end
-    end
-
-    def normalize_parent_permissions(path)
-      parent = File.dirname(File.expand_path(path))
-      while parent != "/"
-        normalize_path_permissions(parent)
-        parent = File.dirname(parent)
       end
     end
 
@@ -103,12 +94,29 @@ module Omnibus
     def normalize_path_permissions(path)
       return unless File.exist?(path)
 
+      # The Linux build image may make files group-writable and directories
+      # group-writable/setgid so non-root builders can update shared build
+      # roots. Those bits are build-environment details, not package metadata.
+      # Normalize only real payload paths; symlink permissions are irrelevant
+      # and chmod/chown would affect their targets.
       stat = File.lstat(path)
       return if stat.symlink?
 
+      # Keep all existing permission bits except the shared-build bits:
+      # g+w for files, and g+w/setgid for directories.
       mode = stat.mode & 0o7777
       normalized_mode = stat.directory? ? mode & ~0o2020 : mode & ~0o020
-      File.chmod(normalized_mode, path) if normalized_mode != mode
+
+      # Non-root dev-env builds may write through group permissions without
+      # owning root-created paths, so chmod must also be best-effort.
+      if normalized_mode != mode && (Process.euid == 0 || stat.uid == Process.euid)
+        File.chmod(normalized_mode, path)
+      end
+
+      # Best-effort filesystem cleanup for root-run Omnibus builds. Package
+      # metadata should be root-owned regardless of the builder user, but
+      # non-root builds cannot chown staged files; packager metadata must cover
+      # that case.
       File.chown(0, 0, path) if Process.euid == 0 && (stat.uid != 0 || stat.gid != 0)
     end
 
