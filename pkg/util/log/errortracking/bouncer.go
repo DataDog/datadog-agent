@@ -20,7 +20,7 @@ import (
 // delivered record's Count field reflects every sighting in that
 // window), then resets the entry to a fresh count=1.
 //
-// The key is an opaque uintptr — the caller is responsible for choosing
+// The key is an opaque uint64 — the caller is responsible for choosing
 // it. Today's caller (Handler.Handle) hashes the captured stack PCs
 // with FNV-1a so two distinct stacks reaching the same terminal
 // function are NOT collapsed into the same bouncer entry.
@@ -48,7 +48,7 @@ type Bouncer struct {
 	maxEntries int
 
 	mu      sync.Mutex
-	entries map[uintptr]*bouncerEntry
+	entries map[uint64]*bouncerEntry
 }
 
 type bouncerEntry struct {
@@ -68,7 +68,7 @@ func NewBouncer(window time.Duration, maxEntries int) *Bouncer {
 	return &Bouncer{
 		window:     window,
 		maxEntries: maxEntries,
-		entries:    make(map[uintptr]*bouncerEntry),
+		entries:    make(map[uint64]*bouncerEntry),
 	}
 }
 
@@ -89,7 +89,7 @@ func NewBouncer(window time.Duration, maxEntries int) *Bouncer {
 //
 // When window is non-positive, Observe is a pass-through: returns
 // suppressed=false, count=1, firstSeen=now.
-func (b *Bouncer) Observe(key uintptr, now time.Time) (suppressed bool, count uint32, firstSeen time.Time) {
+func (b *Bouncer) Observe(key uint64, now time.Time) (suppressed bool, count uint32, firstSeen time.Time) {
 	if b.window <= 0 {
 		return false, 1, now
 	}

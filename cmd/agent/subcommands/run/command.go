@@ -609,7 +609,7 @@ func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agent
 	}
 
 	submitter := func(elog errortrackingpkg.ErrorLog) {
-		at.SubmitErrorRecord(elog)
+		at.SubmitErrorLog(elog)
 	}
 
 	bouncerWindow := time.Duration(cfg.GetInt("agent_telemetry.errortracking.bouncer_window_seconds")) * time.Second

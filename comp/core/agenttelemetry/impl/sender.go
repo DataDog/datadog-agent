@@ -41,7 +41,7 @@ const (
 
 	metricPayloadType = "agent-metrics"
 	batchPayloadType  = "message-batch"
-	logsPayloadType   = "logs"
+	logsPayloadType   = "agent-logs"
 
 	httpClientResetInterval = 5 * time.Minute
 	httpClientTimeout       = 10 * time.Second
@@ -56,11 +56,11 @@ type sender interface {
 	sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric)
 	sendEventPayload(ss *senderSession, eventInfo *Event, eventPayload map[string]interface{})
 
-	// sendLogsTypedBatch is the entry point used by atel's
+	// sendLogsBatch is the entry point used by atel's
 	// errortracking flush goroutine. It takes already-converted wire
 	// Log structs and POSTs them as a single LogsPayload via the
 	// shared sendPayloadBody helper.
-	sendLogsTypedBatch(ctx context.Context, logs []Log) error
+	sendLogsBatch(ctx context.Context, logs []Log) error
 }
 
 type client interface {
@@ -455,17 +455,17 @@ func (s *senderImpl) sendPayloadBody(ctx context.Context, body []byte, reqType, 
 	return resp.StatusCode, nil
 }
 
-// sendSerializedPayload marshals v, scrubs sensitive fields, optionally
+// sendPayload marshals v, scrubs sensitive fields, optionally
 // zstd-compresses, and POSTs to every configured endpoint via the shared
 // sendPayloadBody helper. The four steps (marshal -> scrub -> compress ->
 // endpoint iteration) are identical for both the metrics-style payload
 // flushed by flushSession and the logs-style payload sent by
-// sendLogsTypedBatch -- this is the single home for them.
+// sendLogsBatch -- this is the single home for them.
 //
 // Returns a joined error containing every endpoint's transport failure
 // and every non-2xx status, with the URL embedded. Callers may log the
 // error at Debug (telemetry is opportunistic) and move on.
-func (s *senderImpl) sendSerializedPayload(ctx context.Context, v any, reqType string) error {
+func (s *senderImpl) sendPayload(ctx context.Context, v any, reqType string) error {
 	payloadJSON, err := json.Marshal(v)
 	if err != nil {
 		return fmt.Errorf("marshal %s payload: %w", reqType, err)
@@ -521,7 +521,7 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 	s.logComp.Debugf("Flushing Agent Telemetery session with %d payloads", ss.payloadCount())
 
 	payloads := ss.flush()
-	return s.sendSerializedPayload(ss.cancelCtx, payloads, payloads.RequestType)
+	return s.sendPayload(ss.cancelCtx, payloads, payloads.RequestType)
 }
 
 func (s *senderImpl) sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric) {

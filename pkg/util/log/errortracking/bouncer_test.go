@@ -77,7 +77,7 @@ func TestBouncer_ResetsAfterWindow(t *testing.T) {
 // each carrying Count=1.
 func TestBouncer_WindowElapseCarriesPriorCount(t *testing.T) {
 	b := NewBouncer(15*time.Minute, 0)
-	var key uintptr = 0xABCDEF
+	var key uint64 = 0xABCDEF
 
 	t0 := time.Now()
 
@@ -169,7 +169,7 @@ func TestBouncer_RaceFree_ConcurrentObserve(t *testing.T) {
 			defer wg.Done()
 			now := time.Now()
 			for i := 0; i < perGoroutine; i++ {
-				pc := uintptr(g*1000 + i%50) // some overlap to exercise the suppress path
+				pc := uint64(g*1000 + i%50) // some overlap to exercise the suppress path
 				b.Observe(pc, now)
 			}
 		}()
@@ -185,12 +185,12 @@ func TestBouncer_PrunesNearCap(t *testing.T) {
 	b := NewBouncer(time.Minute, 4)
 	t0 := time.Now()
 	// Fill the cap with entries that are about to expire.
-	for pc := uintptr(1); pc <= 4; pc++ {
+	for pc := uint64(1); pc <= 4; pc++ {
 		b.Observe(pc, t0)
 	}
 	// All entries are well past their window when we insert one more.
 	t1 := t0.Add(2 * time.Minute)
-	b.Observe(uintptr(5), t1)
+	b.Observe(uint64(5), t1)
 
 	b.mu.Lock()
 	defer b.mu.Unlock()

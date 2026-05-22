@@ -46,7 +46,7 @@
 // with closures that atomically load the package-global Submitter and
 // Bouncer slots. The Fx graph in cmd/agent/subcommands/run/ calls
 // RegisterErrortrackingSubmitter and RegisterErrortrackingBouncer
-// exactly once at OnStart, pointing at agenttelemetry's SubmitErrorRecord
+// exactly once at OnStart, pointing at agenttelemetry's SubmitErrorLog
 // method and a freshly-constructed Bouncer. agenttelemetry.stop()
 // clears both slots before its own cancel/drain so producers stop
 // reaching the channel before the final flush begins.
