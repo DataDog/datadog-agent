@@ -5,14 +5,14 @@ go 1.25.0
 require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.79.0
 	github.com/DataDog/datadog-agent/pkg/proto v0.79.0
-	go.opentelemetry.io/collector/pdata v1.56.0
+	go.opentelemetry.io/collector/pdata v1.58.0
 )
 
 require github.com/cespare/xxhash/v2 v2.3.0 // indirect
 
 require (
 	github.com/hashicorp/go-version v1.9.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.56.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.58.0 // indirect
 )
 
 require (
@@ -30,7 +30,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.1 // indirect
+	go.uber.org/zap v1.28.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
