@@ -20,13 +20,32 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// storedFileEvent holds the subset of model.FileEvent fields persisted in the
+// activity tree. Transient resolution state (mount paths, resolution flags,
+// path resolution errors) is intentionally omitted.
+type storedFileEvent struct {
+	model.FileFields
+	PathnameStr   string
+	BasenameStr   string
+	Filesystem    string
+	PkgName       string
+	PkgVersion    string
+	PkgEpoch      int
+	PkgRelease    string
+	PkgSrcVersion string
+	PkgSrcEpoch   int
+	PkgSrcRelease string
+	Hashes        []string
+	HashState     model.HashState
+}
+
 // FileNode holds a tree representation of a list of files
 type FileNode struct {
 	NodeBase
 	MatchedRules   []*model.MatchedRule
 	Name           string
 	IsPattern      bool
-	File           *model.FileEvent
+	File           *storedFileEvent
 	GenerationType NodeGenerationType
 	Open           *OpenNode
 
@@ -41,27 +60,46 @@ type OpenNode struct {
 }
 
 // NewFileNode returns a new FileActivityNode instance
-func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, imageTag string, generationType NodeGenerationType, reducedFilePath string, resolvers *resolvers.EBPFResolvers) *FileNode {
+func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, imageTagID uint64, generationType NodeGenerationType, reducedFilePath string, resolvers *resolvers.EBPFResolvers) *FileNode {
 	// call resolver. Safeguard: the process context might be empty if from a snapshot.
 	if resolvers != nil && fileEvent != nil && event.ProcessContext != nil {
 		resolvers.HashResolver.ComputeHashesFromEvent(event, fileEvent, 0)
+	}
+
+	if resolvers != nil {
+		if resolvers.BasenameInterner != nil {
+			name = resolvers.BasenameInterner.Deduplicate(name)
+		}
+		if resolvers.PathInterner != nil && reducedFilePath != "" {
+			reducedFilePath = resolvers.PathInterner.Deduplicate(reducedFilePath)
+		}
 	}
 
 	fan := &FileNode{
 		Name:           name,
 		GenerationType: generationType,
 		IsPattern:      strings.Contains(name, "*"),
-		Children:       make(map[string]*FileNode),
 	}
 	fan.NodeBase = NewNodeBase()
 	if event != nil {
-		fan.AppendImageTag(imageTag, event.ResolveEventTime())
+		fan.AppendImageTagID(imageTagID, event.ResolveEventTime())
 	}
 	if fileEvent != nil {
-		fileEventTmp := *fileEvent
-		fan.File = &fileEventTmp
-		fan.File.PathnameStr = reducedFilePath
-		fan.File.BasenameStr = name
+		fan.File = &storedFileEvent{
+			FileFields:    fileEvent.FileFields,
+			PathnameStr:   reducedFilePath,
+			BasenameStr:   name,
+			Filesystem:    fileEvent.Filesystem,
+			PkgName:       fileEvent.PkgName,
+			PkgVersion:    fileEvent.PkgVersion,
+			PkgEpoch:      fileEvent.PkgEpoch,
+			PkgRelease:    fileEvent.PkgRelease,
+			PkgSrcVersion: fileEvent.PkgSrcVersion,
+			PkgSrcEpoch:   fileEvent.PkgSrcEpoch,
+			PkgSrcRelease: fileEvent.PkgSrcRelease,
+			Hashes:        fileEvent.Hashes,
+			HashState:     fileEvent.HashState,
+		}
 	}
 	fan.enrichFromEvent(event)
 	return fan
@@ -146,7 +184,7 @@ func (fn *FileNode) debug(w io.Writer, prefix string) {
 
 // InsertFileEvent inserts an event in a FileNode. This function returns true if a new entry was added, false if
 // the event was dropped.
-func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, imageTag string, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.EBPFResolvers) bool {
+func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.EBPFResolvers) bool {
 	currentFn := fn
 	currentPath := remainingPath
 	newEntry := false
@@ -164,7 +202,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if ok {
 			currentFn = child
 			currentPath = currentPath[nextParentIndex:]
-			currentFn.AppendImageTag(imageTag, event.ResolveEventTime())
+			currentFn.AppendImageTagID(imageTagID, event.ResolveEventTime())
 			continue
 		}
 
@@ -173,12 +211,15 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if dryRun {
 			break
 		}
+		if currentFn.Children == nil {
+			currentFn.Children = make(map[string]*FileNode)
+		}
 		if len(currentPath) <= nextParentIndex+1 {
-			currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, imageTag, generationType, reducedPath, resolvers)
+			currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, imageTagID, generationType, reducedPath, resolvers)
 			stats.FileNodes++
 			break
 		}
-		newChild := NewFileNode(nil, nil, parent, imageTag, generationType, "", resolvers)
+		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, "", resolvers)
 		currentFn.Children[parent] = newChild
 		currentFn = newChild
 		currentPath = currentPath[nextParentIndex:]
@@ -186,23 +227,23 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 	return newEntry
 }
 
-func (fn *FileNode) tagAllNodes(imageTag string, timestamp time.Time) {
-	fn.AppendImageTag(imageTag, timestamp)
+func (fn *FileNode) tagAllNodes(imageTagID uint64, timestamp time.Time) {
+	fn.AppendImageTagID(imageTagID, timestamp)
 	for _, child := range fn.Children {
-		child.tagAllNodes(imageTag, timestamp)
+		child.tagAllNodes(imageTagID, timestamp)
 	}
 }
 
-func (fn *FileNode) evictImageTag(imageTag string) bool {
-	if !fn.HasImageTag(imageTag) {
+func (fn *FileNode) evictImageTag(imageTagID uint64) bool {
+	if !fn.HasImageTag(imageTagID) {
 		return false
 	}
-	evicted := fn.EvictImageTag(imageTag)
+	evicted := fn.EvictImageTag(imageTagID)
 	if evicted {
 		return true
 	}
 	for filename, child := range fn.Children {
-		if shouldRemoveNode := child.evictImageTag(imageTag); shouldRemoveNode {
+		if shouldRemoveNode := child.evictImageTag(imageTagID); shouldRemoveNode {
 			delete(fn.Children, filename)
 		}
 	}

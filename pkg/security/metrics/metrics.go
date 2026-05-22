@@ -87,6 +87,18 @@ var (
 	// Tags: -
 	MetricDentryERPCResolutionTimeUs = newRuntimeMetric(".dentry_resolver.erpc_avg_resolution_time_usec")
 
+	// String interner metrics
+
+	// MetricStringInternerHits is the counter of hits in a string interner
+	// Tags: interner
+	MetricStringInternerHits = newRuntimeMetric(".string_interner.hits")
+	// MetricStringInternerMisses is the counter of misses in a string interner
+	// Tags: interner
+	MetricStringInternerMisses = newRuntimeMetric(".string_interner.misses")
+	// MetricStringInternerSize is the current size of a string interner
+	// Tags: interner
+	MetricStringInternerSize = newRuntimeMetric(".string_interner.size")
+
 	// DNS Resolver metrics
 
 	// MetricDNSResolverIPResolverCache is the counter for the IP resolver (A and AAAA records)
