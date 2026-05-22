@@ -36,41 +36,17 @@ const (
 )
 
 // ============================================================================
-// diagnose JSON types
-// ============================================================================
-
-// diagnosisEntry is a single entry within a diagnose run.
-// Field names and json tags match the Go types in comp/core/diagnose/def/component.go.
-type diagnosisEntry struct {
-	Name      string `json:"name"`
-	Status    string `json:"result"` // json tag is "result", not "status"
-	Diagnosis string `json:"diagnosis"`
-	Category  string `json:"category"`
-}
-
-// diagnoseRun holds one suite's results inside a diagnose.Result payload.
-type diagnoseRun struct {
-	SuiteName string           `json:"suite_name"`
-	Diagnoses []diagnosisEntry `json:"diagnoses"`
-}
-
-// diagnoseOutput matches the top-level diagnose.Result JSON shape:
-//
-//	{ "runs": [ { "suite_name": "...", "diagnoses": [...] } ], "summary": {...} }
-type diagnoseOutput struct {
-	Runs []diagnoseRun `json:"runs"`
-}
-
-// ============================================================================
 // diagnose helpers
 // ============================================================================
 
-// runHealthDiagnose calls `agent diagnose --include health-issues --json` and returns
-// the parsed output. It fails the test on JSON parse errors.
-func runHealthDiagnose(t testing.TB, agent *components.RemoteHostAgent) diagnoseOutput {
+// runHealthDiagnose calls `agent diagnose --include health-issues --json` and
+// returns the parsed agentclient.DiagnoseResult. The types (DiagnoseResult,
+// DiagnoseRun, DiagnoseEntry) live in the agentclient package so they can be
+// shared across all e2e test packages.
+func runHealthDiagnose(t testing.TB, agent *components.RemoteHostAgent) agentclient.DiagnoseResult {
 	t.Helper()
 	raw := agent.Client.Diagnose(agentclient.WithArgs([]string{"--include", healthIssueSuite, "--json"}))
-	var out diagnoseOutput
+	var out agentclient.DiagnoseResult
 	// The command may include a non-JSON preamble; find the first '{' to be safe.
 	if start := strings.Index(raw, "{"); start >= 0 {
 		raw = raw[start:]
@@ -84,7 +60,7 @@ func runHealthDiagnose(t testing.TB, agent *components.RemoteHostAgent) diagnose
 
 // findDiagnosis searches all runs and returns the first entry whose Name
 // contains issueName (case-sensitive substring match), or nil.
-func findDiagnosis(out diagnoseOutput, issueName string) *diagnosisEntry {
+func findDiagnosis(out agentclient.DiagnoseResult, issueName string) *agentclient.DiagnoseEntry {
 	for r := range out.Runs {
 		for i := range out.Runs[r].Diagnoses {
 			if strings.Contains(out.Runs[r].Diagnoses[i].Name, issueName) {
@@ -106,7 +82,8 @@ func AssertIssueDetectedViaDiagnose(t *testing.T, agent *components.RemoteHostAg
 			totalEntries += len(r.Diagnoses)
 		}
 		d := findDiagnosis(out, issueName)
-		if !assert.NotNilf(ct, d, "health issue %q not found in diagnose (have %d entries across %d runs)", issueName, totalEntries, len(out.Runs)) {
+		if !assert.NotNilf(ct, d, "health issue %q not found in diagnose (have %d entries across %d runs)",
+			issueName, totalEntries, len(out.Runs)) {
 			t.Logf("diagnose runs: %+v", out.Runs)
 			return
 		}

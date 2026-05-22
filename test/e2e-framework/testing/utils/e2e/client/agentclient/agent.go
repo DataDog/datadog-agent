@@ -78,3 +78,33 @@ type Agent interface {
 type Status struct {
 	Content string
 }
+
+// DiagnoseCounters contains the count of diagnosis results from a diagnose run.
+type DiagnoseCounters struct {
+	Total         int `json:"total,omitempty"`
+	Success       int `json:"success,omitempty"`
+	Fail          int `json:"fail,omitempty"`
+	Warnings      int `json:"warnings,omitempty"`
+	UnexpectedErr int `json:"unexpected_error,omitempty"`
+}
+
+// DiagnoseEntry is a single diagnosis entry within a suite run.
+type DiagnoseEntry struct {
+	Name      string `json:"name"`
+	Status    string `json:"result"`
+	Diagnosis string `json:"diagnosis"`
+	Category  string `json:"category,omitempty"`
+}
+
+// DiagnoseRun holds one suite's results inside a diagnose.Result payload.
+type DiagnoseRun struct {
+	SuiteName string          `json:"suite_name"`
+	Diagnoses []DiagnoseEntry `json:"diagnoses"`
+}
+
+// DiagnoseResult is the top-level JSON structure returned by `agent diagnose --json`.
+// It mirrors comp/core/diagnose/def.Result.
+type DiagnoseResult struct {
+	Runs    []DiagnoseRun    `json:"runs"`
+	Summary DiagnoseCounters `json:"summary"`
+}
