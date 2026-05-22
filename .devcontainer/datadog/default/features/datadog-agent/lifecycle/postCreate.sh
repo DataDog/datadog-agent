@@ -30,9 +30,5 @@ DDA_NO_DYNAMIC_DEPS=0 dda inv install-tools 2>&1 | tee "${HOME}/.install-tools.l
 # Create the workspace state directory
 (umask 077 && mkdir -p ~/.local/state/workspaces)
 
-update-tool ddtool@1.101.0
-
-update-tool workspaces-tool-helper@0.3.1
-
 ddtool auth helpers install
 ln -s workspaces-tool-helper ~/.local/bin/xdg-open
