@@ -1,6 +1,3 @@
-extensions:
-  ddprofiling/default:
-  hpflare/default:
 receivers:
   otlp:
     protocols:
@@ -41,7 +38,6 @@ exporters:
       dd-api-key: ${env:DD_API_KEY}
       dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
 service:
-  extensions: [hpflare/default]
   pipelines:
     profiles:
       receivers: [profiling]
