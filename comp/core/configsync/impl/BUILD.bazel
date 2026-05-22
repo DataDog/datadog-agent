@@ -37,6 +37,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/config",
+        "//comp/core/configsync/def",
         "//comp/core/ipc/mock",
         "//comp/core/log/mock",
         "//comp/def",
