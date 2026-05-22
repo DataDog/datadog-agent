@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/slices"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	autodiscoverydef "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
@@ -98,7 +99,7 @@ type AutoConfig struct {
 	telemetryStore           *acTelemetry.Store
 	healthPlatform           option.Option[healthplatformdef.Component]
 	staticConfigIndex        *listeners.StaticConfigIndex
-	serviceTracker           listeners.ServiceTracker
+	serviceTracker           adtypes.ServiceTracker
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -472,7 +473,7 @@ func (ac *AutoConfig) GetTelemetryStore() *acTelemetry.Store {
 
 // SetServiceTracker sets a ServiceTracker that endpoint listeners use to
 // determine whether a service's endpoints should be tracked for AD scheduling.
-func (ac *AutoConfig) SetServiceTracker(st listeners.ServiceTracker) {
+func (ac *AutoConfig) SetServiceTracker(st adtypes.ServiceTracker) {
 	ac.serviceTracker = st
 }
 

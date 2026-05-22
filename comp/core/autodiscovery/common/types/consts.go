@@ -5,6 +5,12 @@
 
 package types
 
+// ServiceTracker reports whether a service is being tracked for endpoint checks
+// by an external source (e.g., DatadogInstrumentation CRs).
+type ServiceTracker interface {
+	HasService(namespace, name string) bool
+}
+
 const (
 	// CheckCmdName is the check name for autodiscovery component, used by cli mode.
 	CheckCmdName = "check-cmd"

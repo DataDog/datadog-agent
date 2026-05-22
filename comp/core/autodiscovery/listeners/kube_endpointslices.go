@@ -54,7 +54,7 @@ type KubeEndpointSlicesListener struct {
 	newService         chan<- Service
 	delService         chan<- Service
 	targetAllEndpoints bool
-	serviceTracker     ServiceTracker
+	serviceTracker     types.ServiceTracker
 	m                  sync.RWMutex
 	filterStore        workloadfilter.Component
 	telemetryStore     *telemetry.Store

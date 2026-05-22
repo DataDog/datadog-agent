@@ -8,6 +8,7 @@ package listeners
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -68,12 +69,6 @@ type Config interface {
 	IsProviderEnabled(string) bool
 }
 
-// ServiceTracker reports whether a service is being tracked for endpoint checks
-// by an external source (e.g., DatadogInstrumentation CRs).
-type ServiceTracker interface {
-	HasService(namespace, name string) bool
-}
-
 // ServiceListernerDeps are the service listerner dependencies
 type ServiceListernerDeps struct {
 	Config            Config
@@ -82,7 +77,7 @@ type ServiceListernerDeps struct {
 	Filter            workloadfilter.Component
 	Wmeta             option.Option[workloadmeta.Component]
 	StaticConfigIndex *StaticConfigIndex
-	ServiceTracker    ServiceTracker
+	ServiceTracker    types.ServiceTracker
 }
 
 // ServiceListenerFactory builds a service listener
