@@ -39,13 +39,6 @@ const (
 // diagnose helpers
 // ============================================================================
 
-// getHealthDiagnoseOutput runs `agent diagnose --include health-issues` and
-// returns the raw output string. It is the single canonical place where the
-// health-issues diagnose command is invoked; all other helpers call this.
-func getHealthDiagnoseOutput(agent *components.RemoteHostAgent) string {
-	return agent.Client.Diagnose(agentclient.WithArgs([]string{"--include", healthIssueSuite}))
-}
-
 // runHealthDiagnose calls `agent diagnose --include health-issues --json` and
 // returns the parsed agentclient.DiagnoseResult. The types (DiagnoseResult,
 // DiagnoseRun, DiagnoseEntry) live in the agentclient package so they can be
@@ -65,17 +58,18 @@ func runHealthDiagnose(t testing.TB, agent *components.RemoteHostAgent) agentcli
 	return out
 }
 
-// findDiagnosis searches all runs and returns the first entry whose Name
-// contains issueName (case-sensitive substring match), or nil.
-func findDiagnosis(out agentclient.DiagnoseResult, issueName string) *agentclient.DiagnoseEntry {
+// findDiagnosesByName searches all runs and returns all entries whose Name
+// contains issueName (case-sensitive substring match).
+func findDiagnosesByName(out agentclient.DiagnoseResult, issueName string) []*agentclient.DiagnoseEntry {
+	var results []*agentclient.DiagnoseEntry
 	for r := range out.Runs {
 		for i := range out.Runs[r].Diagnoses {
 			if strings.Contains(out.Runs[r].Diagnoses[i].Name, issueName) {
-				return &out.Runs[r].Diagnoses[i]
+				results = append(results, &out.Runs[r].Diagnoses[i])
 			}
 		}
 	}
-	return nil
+	return results
 }
 
 // AssertIssueDetectedViaDiagnose polls `agent diagnose --include health-issues` until
@@ -88,13 +82,15 @@ func AssertIssueDetectedViaDiagnose(t *testing.T, agent *components.RemoteHostAg
 		for _, r := range out.Runs {
 			totalEntries += len(r.Diagnoses)
 		}
-		d := findDiagnosis(out, issueName)
-		if !assert.NotNilf(ct, d, "health issue %q not found in diagnose (have %d entries across %d runs)",
+		ds := findDiagnosesByName(out, issueName)
+		if !assert.NotEmptyf(ct, ds, "health issue %q not found in diagnose (have %d entries across %d runs)",
 			issueName, totalEntries, len(out.Runs)) {
 			t.Logf("diagnose runs: %+v", out.Runs)
 			return
 		}
-		assert.NotEqualf(ct, "Pass", d.Status, "health issue %q should not be passing", issueName)
+		for _, d := range ds {
+			assert.NotEqualf(ct, "Pass", d.Status, "health issue %q should not be passing", issueName)
+		}
 	}, defaultIssueTimeout, defaultIssuePollInterval, "health issue %q not detected via diagnose within timeout", issueName)
 }
 
@@ -104,7 +100,7 @@ func AssertIssueAbsentViaDiagnose(t *testing.T, agent *components.RemoteHostAgen
 	t.Helper()
 	require.Never(t, func() bool {
 		out := runHealthDiagnose(t, agent)
-		return findDiagnosis(out, issueName) != nil
+		return len(findDiagnosesByName(out, issueName)) > 0
 	}, defaultIssueAbsenceWindow, defaultIssuePollInterval,
 		"health issue %q appeared in diagnose output after fix", issueName)
 }
@@ -148,14 +144,14 @@ func findIssueByPrefix(report *aggregator.AgentHealthPayload, prefix string) *he
 	return nil
 }
 
-// waitForIssueInFakeintake polls fakeintake until an issue with the given issueID is found,
-// then returns it. Fails the test on timeout.
+// waitForIssuesInFakeintake polls fakeintake until at least one issue matching issueID is found,
+// then returns all matching issues. Fails the test on timeout.
 // If issueID ends with "*" it is treated as a prefix match (useful for check-failure IDs
 // that include a runtime hash suffix).
-func waitForIssueInFakeintake(t *testing.T, fi *fakeintakeclient.Client, issueID string) *healthplatform.Issue {
+func waitForIssuesInFakeintake(t *testing.T, fi *fakeintakeclient.Client, issueID string) []*healthplatform.Issue {
 	t.Helper()
 	prefix, usePrefix := strings.CutSuffix(issueID, "*")
-	var found *healthplatform.Issue
+	var found []*healthplatform.Issue
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		payloads, err := fi.GetAgentHealth()
 		assert.NoError(ct, err)
@@ -167,10 +163,10 @@ func waitForIssueInFakeintake(t *testing.T, fi *fakeintakeclient.Client, issueID
 				iss = findIssue(t, p, issueID)
 			}
 			if iss != nil {
-				found = iss
+				found = append(found, iss)
 			}
 		}
-		assert.NotNil(ct, found, "issue with id/prefix %q not found in fakeintake", issueID)
+		assert.NotEmpty(ct, found, "issue with id/prefix %q not found in fakeintake", issueID)
 	}, defaultIssueTimeout, defaultIssuePollInterval, "issue %q not found in fakeintake within timeout", issueID)
 	return found
 }
@@ -232,12 +228,14 @@ func RunHealthIssueLifecycle(
 
 		// Secondary check: fakeintake payload metadata
 		if fi != nil && (tc.IssueID != "" || tc.AssertMetadata != nil) {
-			issue := waitForIssueInFakeintake(t, fi, tc.IssueID)
-			if tc.AssertMetadata != nil {
-				tc.AssertMetadata(t, issue)
+			issues := waitForIssuesInFakeintake(t, fi, tc.IssueID)
+			if tc.AssertMetadata != nil && len(issues) > 0 {
+				tc.AssertMetadata(t, issues[0])
 			}
-			if issue.PersistedIssue != nil {
-				initialFirstSeen = issue.PersistedIssue.FirstSeen
+			for _, issue := range issues {
+				if issue.PersistedIssue != nil && initialFirstSeen == "" {
+					initialFirstSeen = issue.PersistedIssue.FirstSeen
+				}
 			}
 		}
 	})
@@ -259,10 +257,11 @@ func RunHealthIssueLifecycle(
 
 		// Verify ONGOING state in fakeintake if we captured first_seen earlier
 		if fi != nil && initialFirstSeen != "" {
-			issue := waitForIssueInFakeintake(t, fi, tc.IssueID)
-			require.NotNil(t, issue.PersistedIssue)
-			assert.Equal(t, healthplatform.IssueState_ISSUE_STATE_ONGOING, issue.PersistedIssue.State)
-			assert.Equal(t, initialFirstSeen, issue.PersistedIssue.FirstSeen, "first_seen should be preserved across restart")
+			issues := waitForIssuesInFakeintake(t, fi, tc.IssueID)
+			require.NotEmpty(t, issues)
+			require.NotNil(t, issues[0].PersistedIssue)
+			assert.Equal(t, healthplatform.IssueState_ISSUE_STATE_ONGOING, issues[0].PersistedIssue.State)
+			assert.Equal(t, initialFirstSeen, issues[0].PersistedIssue.FirstSeen, "first_seen should be preserved across restart")
 		}
 	})
 
