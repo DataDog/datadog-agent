@@ -44,6 +44,7 @@ AGENT_CORECHECKS = [
 ]
 
 AIX_CORECHECKS = [
+    "cisco_sdwan",
     "cloud_hostinfo",
     "cpu",
     "disk",
