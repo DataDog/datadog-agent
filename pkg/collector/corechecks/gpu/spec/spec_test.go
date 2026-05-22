@@ -218,7 +218,7 @@ support:
 `), &spec)
 
 	require.Error(t, err)
-	require.ErrorContains(t, err, `invalid metric_type "this-will-never-be-a-valid-metric-type": must be one of [gauge, counter, histogram]`)
+	require.ErrorContains(t, err, `invalid metric_type "this-will-never-be-a-valid-metric-type": must be one of [gauge, counter, histogram, distribution]`)
 }
 
 func TestLoadedMetricsIncludeMetadata(t *testing.T) {

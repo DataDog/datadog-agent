@@ -31,7 +31,7 @@ func TestNewSampleCollector(t *testing.T) {
 			name:                  "Supported",
 			customSetup:           nil, // Use default setup with all functions enabled
 			expectError:           false,
-			expectedSupportedAPIs: 5,
+			expectedSupportedAPIs: 6,
 		},
 		{
 			name: "Unsupported",

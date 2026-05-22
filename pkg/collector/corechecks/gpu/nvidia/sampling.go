@@ -20,6 +20,56 @@ import (
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
+// processSampleDist emits each NVML sample as an individual distribution point,
+// preserving the per-sample values so the backend can compute percentiles
+// instead of collapsing them to a single time-weighted average like processSample.
+func processSampleDist(device ddnvml.Device, metricName string, samplingType nvml.SamplingType, lastTimestamp uint64, priority MetricPriority) ([]Metric, uint64, error) {
+	valueType, samples, err := device.GetSamples(samplingType, lastTimestamp)
+	if err != nil {
+		var nvmlErr *ddnvml.NvmlAPIError
+		if errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
+			return nil, lastTimestamp, nil
+		}
+
+		return nil, 0, fmt.Errorf("failed to get samples for %s: %w", metricName, err)
+	}
+
+	if len(samples) == 0 {
+		return nil, lastTimestamp, nil
+	}
+
+	currentTimestamp := lastTimestamp
+	var metrics []Metric
+	var multiErr []error
+
+	for _, s := range samples {
+		if s.TimeStamp <= lastTimestamp {
+			// Mirror processSample: zero timestamps are invalid placeholders,
+			// and samples at or before lastTimestamp were already accounted for.
+			continue
+		}
+
+		value, err := fieldValueToNumber[float64](valueType, s.SampleValue)
+		if err != nil {
+			multiErr = append(multiErr, fmt.Errorf("failed to convert sample value %s from %v with type %v: %w", metricName, s.SampleValue, valueType, err))
+			continue
+		}
+
+		metrics = append(metrics, Metric{
+			Name:     metricName,
+			Value:    value,
+			Type:     ddmetrics.DistributionType,
+			Priority: priority,
+		})
+
+		if s.TimeStamp > currentTimestamp {
+			currentTimestamp = s.TimeStamp
+		}
+	}
+
+	return metrics, currentTimestamp, errors.Join(multiErr...)
+}
+
 // processSample handles the complex time-weighted averaging logic for NVML sample types
 func processSample(device ddnvml.Device, metricName string, samplingType nvml.SamplingType, lastTimestamp uint64, priority MetricPriority) ([]Metric, uint64, error) {
 	// GetSamples returns a list of samples (timestamp + value) for the
@@ -161,6 +211,12 @@ func createSampleAPIs() []apiCallInfo {
 			Name: "gr_engine_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
 				return processSample(device, "gr_engine_active", nvml.GPU_UTILIZATION_SAMPLES, lastTimestamp, Medium)
+			},
+		},
+		{
+			Name: "gr_engine_dist",
+			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+				return processSampleDist(device, "gr_engine_active.dist", nvml.GPU_UTILIZATION_SAMPLES, lastTimestamp, Medium)
 			},
 		},
 		{

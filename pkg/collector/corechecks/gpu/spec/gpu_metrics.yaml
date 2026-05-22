@@ -571,6 +571,23 @@ metrics:
         mig: true
         physical: true
         vgpu: true
+  gr_engine_active.dist:
+    metadata:
+      metric_type: distribution
+      unit: percent
+      description: Distribution of per-sample graphics engine activity, emitted as
+        individual NVML samples so the backend can compute percentiles instead of a
+        time-weighted average.
+      aggregation: relative_activity
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
   integer_active:
     metadata:
       metric_type: gauge
