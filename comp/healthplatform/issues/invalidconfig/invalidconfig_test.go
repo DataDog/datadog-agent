@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/lite"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 )
 
@@ -34,6 +35,14 @@ func requireSchema(t *testing.T) {
 	if _, err := schema.GetCoreSchema(); err != nil {
 		t.Skipf("embedded schema not available (%v); run `dda inv schema.generate`", err)
 	}
+}
+
+// Backend dedup keys on (orgId, service, env, issue.Id, issue.Category). If the
+// startup-time check (this module) and the rescue path (pkg/config/lite) emit
+// different IssueIDs, the backend will create separate customer rows for what
+// is the same problem. Keep these in sync.
+func TestIssueID_MatchesLite(t *testing.T) {
+	assert.Equal(t, lite.IssueID, IssueID, "invalidconfig.IssueID must match lite.IssueID for backend dedup")
 }
 
 func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {

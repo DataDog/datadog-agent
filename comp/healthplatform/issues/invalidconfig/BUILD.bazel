@@ -32,6 +32,7 @@ dd_agent_go_test(
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/hostname/hostnameinterface/mock",
+        "//pkg/config/lite",
         "//pkg/config/schema",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",

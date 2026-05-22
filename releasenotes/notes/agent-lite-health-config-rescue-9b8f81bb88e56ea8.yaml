@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    When the Agent cannot complete startup because its configuration could not be
+    loaded, it now makes a best-effort attempt to report the failure to the Agent
+    Health Platform before exiting. A minimal configuration reader recovers the
+    API key and site from environment variables or directly from the raw
+    ``datadog.yaml`` text, resolving ``ENC[]`` handles through
+    ``secret_backend_command`` when needed, so the issue can be surfaced even
+    though the regular configuration and forwarder components are unavailable.
