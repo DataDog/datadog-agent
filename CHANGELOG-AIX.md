@@ -10,6 +10,8 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+- Upgrade embedded pip from 24.0 to 26.1 (patches CVE-2026-1703, CVE-2026-6357)
+
 ---
 
 > **Note:** `datadog-agent-7.80.0-devel.git.446.66c9b62-18.aix.ppc64.bff` and all older builds
