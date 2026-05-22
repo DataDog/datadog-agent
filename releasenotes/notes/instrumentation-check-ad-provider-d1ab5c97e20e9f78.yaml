@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Enable ``instrumentation_crd_controller.enabled`` and a new autodiscovery provider
+    will schedule checks derived from ``DatadogInstrumentation`` custom resources
+    deployed in the Kubernetes cluster.
