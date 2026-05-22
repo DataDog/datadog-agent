@@ -310,3 +310,23 @@ func RunHealthIssueLifecycle(
 		t.Logf("Phase 3: %q resolved — absent from diagnose ✓", tc.IssueName)
 	})
 }
+
+// ============================================================================
+// Shared test utilities
+// ============================================================================
+
+// writeCheckFile writes a Python custom check to the agent's checks.d directory.
+// It writes to a world-writable temp path via SFTP, then uses sudo to move the
+// file into the protected directory and set ownership. This helper is shared
+// across all health platform e2e tests that exercise check-failure scenarios.
+func writeCheckFile(t *testing.T, h *components.RemoteHost, content string) {
+	t.Helper()
+	const (
+		tmpPath   = "/tmp/hp_e2e_check.py"
+		checkPath = "/etc/datadog-agent/checks.d/broken_check.py"
+	)
+	_, err := h.WriteFile(tmpPath, []byte(content))
+	require.NoError(t, err, "failed to write check file to temp path")
+	h.MustExecute(fmt.Sprintf("sudo mv %s %s && sudo chown dd-agent:dd-agent %s && sudo chmod 644 %s",
+		tmpPath, checkPath, checkPath, checkPath))
+}

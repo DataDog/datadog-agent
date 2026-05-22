@@ -8,20 +8,16 @@ package agenthealth
 import (
 	_ "embed"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
@@ -62,25 +58,6 @@ type checkFailureEnv struct {
 	RemoteHost *components.RemoteHost
 	Agent      *components.RemoteHostAgent
 	Fakeintake *components.FakeIntake
-}
-
-func checkFailureEnvProvisioner() provisioners.PulumiEnvRunFunc[checkFailureEnv] {
-	return func(ctx *pulumi.Context, env *checkFailureEnv) error {
-		base := &baseEC2Env{
-			RemoteHost: env.RemoteHost,
-			Agent:      env.Agent,
-			Fakeintake: env.Fakeintake,
-		}
-		return newBaseEC2Env(ctx, base, "checkfailurevm",
-			agentparams.WithAgentConfig(healthPlatformAgentConfig),
-			agentparams.WithIntegration("broken_check.d", brokenCheckConf),
-			agentparams.WithFile(
-				"/etc/datadog-agent/checks.d/broken_check.py",
-				brokenCheckPy,
-				true,
-			),
-		)
-	}
 }
 
 var _ common.Diagnosable = (*checkFailureEnv)(nil)
@@ -129,12 +106,10 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 
 	RunHealthIssueLifecycle(suite.T(),
 		HealthIssueTestCase{
-			// IssueName is matched (substring) against the diagnose entry Name field.
 			IssueName: "broken_check",
 			// IssueID ends with "*" for prefix matching: the real ID includes a
 			// runtime-generated hash suffix ("check-execution-failure:broken_check:<hash>").
 			IssueID: "check-execution-failure:broken_check*",
-			// TriggerIssue re-deploys the broken check after the Resolution cleanup.
 			TriggerIssue: func(t *testing.T, h *components.RemoteHost) {
 				writeCheckFile(t, h, brokenCheckPy)
 			},
@@ -152,19 +127,4 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 		},
 		agent, host, fi,
 	)
-}
-
-// writeCheckFile writes content to /etc/datadog-agent/checks.d/broken_check.py.
-// It writes to a temp path first (SFTP user, no sudo), then sudo-moves it into
-// the protected directory with correct ownership.
-func writeCheckFile(t *testing.T, h *components.RemoteHost, content string) {
-	t.Helper()
-	const (
-		tmpPath   = "/tmp/broken_check_e2e.py"
-		checkPath = "/etc/datadog-agent/checks.d/broken_check.py"
-	)
-	_, err := h.WriteFile(tmpPath, []byte(content))
-	require.NoError(t, err, "failed to write check file to temp path")
-	h.MustExecute(fmt.Sprintf("sudo mv %s %s && sudo chown dd-agent:dd-agent %s && sudo chmod 644 %s",
-		tmpPath, checkPath, checkPath, checkPath))
 }

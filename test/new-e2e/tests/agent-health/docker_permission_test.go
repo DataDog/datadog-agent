@@ -6,7 +6,6 @@
 package agenthealth
 
 import (
-	_ "embed"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -15,30 +14,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
-
-//go:embed fixtures/docker_permission_agent_config.yaml
-var dockerPermissionAgentConfig string
-
-//go:embed fixtures/docker-compose.busybox.yaml
-var busyboxComposeContent string
 
 // ============================================================================
 // Environment definition
@@ -49,56 +34,6 @@ type dockerPermissionEnv struct {
 	Agent      *components.RemoteHostAgent
 	Fakeintake *components.FakeIntake
 	Docker     *components.RemoteHostDocker
-}
-
-func dockerPermissionEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerPermissionEnv] {
-	return func(ctx *pulumi.Context, env *dockerPermissionEnv) error {
-		awsEnv, err := aws.NewEnvironment(ctx)
-		if err != nil {
-			return err
-		}
-
-		remoteHost, err := ec2.NewVM(awsEnv, "dockervm")
-		if err != nil {
-			return err
-		}
-		if err = remoteHost.Export(ctx, &env.RemoteHost.HostOutput); err != nil {
-			return err
-		}
-
-		fi, err := fakeintake.NewECSFargateInstance(awsEnv, "", fakeintake.WithoutDDDevForwarding())
-		if err != nil {
-			return err
-		}
-		if err = fi.Export(ctx, &env.Fakeintake.FakeintakeOutput); err != nil {
-			return err
-		}
-
-		dockerManager, err := docker.NewAWSManager(&awsEnv, remoteHost)
-		if err != nil {
-			return err
-		}
-		if err = dockerManager.Export(ctx, &env.Docker.ManagerOutput); err != nil {
-			return err
-		}
-
-		composeBusyboxCmd, err := dockerManager.ComposeStrUp("busybox", []docker.ComposeInlineManifest{
-			{Name: "busybox", Content: pulumi.String(busyboxComposeContent)},
-		}, pulumi.StringMap{})
-		if err != nil {
-			return err
-		}
-
-		hostAgent, err := agent.NewHostAgent(&awsEnv, remoteHost,
-			agentparams.WithFakeintake(fi),
-			agentparams.WithAgentConfig(dockerPermissionAgentConfig),
-			agentparams.WithPulumiResourceOptions(pulumi.DependsOn([]pulumi.Resource{composeBusyboxCmd})),
-		)
-		if err != nil {
-			return err
-		}
-		return hostAgent.Export(ctx, &env.Agent.HostAgentOutput)
-	}
 }
 
 var _ common.Diagnosable = (*dockerPermissionEnv)(nil)

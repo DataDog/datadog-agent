@@ -7,18 +7,32 @@
 package agenthealth
 
 import (
+	_ "embed"
+
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 )
 
-// baseEC2Env holds the three components shared by all single-host health platform
-// test environments.
+//go:embed fixtures/docker_permission_agent_config.yaml
+var dockerPermissionAgentConfig string
+
+//go:embed fixtures/docker-compose.busybox.yaml
+var busyboxComposeContent string
+
+// ============================================================================
+// Shared helpers
+// ============================================================================
+
+// baseEC2Env holds the three components shared by all single-host health
+// platform test environments.
 type baseEC2Env struct {
 	RemoteHost *components.RemoteHost
 	Agent      *components.RemoteHostAgent
@@ -26,8 +40,7 @@ type baseEC2Env struct {
 }
 
 // newBaseEC2Env provisions a single EC2 VM, a FakeIntake on ECS Fargate, and a
-// Datadog agent with the given extra agentparams options. It populates env and
-// returns any Pulumi error.
+// Datadog agent with the given extra agentparams options.
 func newBaseEC2Env(
 	ctx *pulumi.Context,
 	env *baseEC2Env,
@@ -62,4 +75,77 @@ func newBaseEC2Env(
 		return err
 	}
 	return hostAgent.Export(ctx, &env.Agent.HostAgentOutput)
+}
+
+// ============================================================================
+// Provisioner functions
+// ============================================================================
+
+func dockerPermissionEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerPermissionEnv] {
+	return func(ctx *pulumi.Context, env *dockerPermissionEnv) error {
+		awsEnv, err := aws.NewEnvironment(ctx)
+		if err != nil {
+			return err
+		}
+
+		remoteHost, err := ec2.NewVM(awsEnv, "dockervm")
+		if err != nil {
+			return err
+		}
+		if err = remoteHost.Export(ctx, &env.RemoteHost.HostOutput); err != nil {
+			return err
+		}
+
+		fi, err := fakeintake.NewECSFargateInstance(awsEnv, "", fakeintake.WithoutDDDevForwarding())
+		if err != nil {
+			return err
+		}
+		if err = fi.Export(ctx, &env.Fakeintake.FakeintakeOutput); err != nil {
+			return err
+		}
+
+		dockerManager, err := docker.NewAWSManager(&awsEnv, remoteHost)
+		if err != nil {
+			return err
+		}
+		if err = dockerManager.Export(ctx, &env.Docker.ManagerOutput); err != nil {
+			return err
+		}
+
+		composeBusyboxCmd, err := dockerManager.ComposeStrUp("busybox", []docker.ComposeInlineManifest{
+			{Name: "busybox", Content: pulumi.String(busyboxComposeContent)},
+		}, pulumi.StringMap{})
+		if err != nil {
+			return err
+		}
+
+		hostAgent, err := agent.NewHostAgent(&awsEnv, remoteHost,
+			agentparams.WithFakeintake(fi),
+			agentparams.WithAgentConfig(dockerPermissionAgentConfig),
+			agentparams.WithPulumiResourceOptions(pulumi.DependsOn([]pulumi.Resource{composeBusyboxCmd})),
+		)
+		if err != nil {
+			return err
+		}
+		return hostAgent.Export(ctx, &env.Agent.HostAgentOutput)
+	}
+}
+
+func checkFailureEnvProvisioner() provisioners.PulumiEnvRunFunc[checkFailureEnv] {
+	return func(ctx *pulumi.Context, env *checkFailureEnv) error {
+		base := &baseEC2Env{
+			RemoteHost: env.RemoteHost,
+			Agent:      env.Agent,
+			Fakeintake: env.Fakeintake,
+		}
+		return newBaseEC2Env(ctx, base, "checkfailurevm",
+			agentparams.WithAgentConfig(healthPlatformAgentConfig),
+			agentparams.WithIntegration("broken_check.d", brokenCheckConf),
+			agentparams.WithFile(
+				"/etc/datadog-agent/checks.d/broken_check.py",
+				brokenCheckPy,
+				true,
+			),
+		)
+	}
 }
