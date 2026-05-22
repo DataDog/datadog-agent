@@ -14,7 +14,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/config/lite"
 )
+
+// Backend dedup keys on (orgId, service, env, issue.Id, issue.Category). If the
+// startup-time check (this module) and the rescue path (pkg/config/lite) emit
+// different IssueIDs, the backend will create separate customer rows for what
+// is the same problem. Keep these in sync.
+func TestIssueID_MatchesLite(t *testing.T) {
+	assert.Equal(t, lite.IssueID, IssueID, "invalidconfig.IssueID must match lite.IssueID for backend dedup")
+}
 
 func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 	issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{

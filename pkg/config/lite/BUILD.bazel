@@ -1,22 +1,24 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "invalidconfig",
+    name = "lite",
     srcs = [
-        "check.go",
+        "enc.go",
+        "env.go",
+        "fuzzy.go",
         "issue.go",
-        "module.go",
-        "stub.go",
+        "lite.go",
+        "parse.go",
+        "regex.go",
+        "rescue.go",
+        "strings.go",
+        "types.go",
+        "validate.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig",
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/lite",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
-        "//comp/healthplatform/issues",
-        "//comp/healthplatform/store/def",
         "//pkg/config/schema",
-        "//pkg/util/log",
-        "//pkg/util/scrubber",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@in_yaml_go_yaml_v3//:yaml",
         "@org_golang_google_protobuf//types/known/structpb",
@@ -24,13 +26,16 @@ go_library(
 )
 
 go_test(
-    name = "invalidconfig_test",
-    srcs = ["invalidconfig_test.go"],
-    embed = [":invalidconfig"],
+    name = "lite_test",
+    srcs = [
+        "issue_test.go",
+        "lite_test.go",
+        "rescue_test.go",
+    ],
+    embed = [":lite"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
-        "//pkg/config/lite",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
