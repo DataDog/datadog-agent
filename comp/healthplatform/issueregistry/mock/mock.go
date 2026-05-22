@@ -9,9 +9,6 @@
 package mock
 
 import (
-	"fmt"
-
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
@@ -32,22 +29,19 @@ func MockModule() fxutil.Module {
 	return fxutil.Component(fxutil.ProvideComponentConstructor(New))
 }
 
-// RegisterTemplate adds a template under issueName so that BuildIssue succeeds.
+// RegisterTemplate adds a template under issueName so that GetTemplate succeeds.
 // Panics if r was not created by New() — intentional, test-only helper.
 func RegisterTemplate(r registrydef.Component, issueName string, tmpl issuesmod.Template) {
-	r.(*mockRegistry).templates[issueName] = tmpl //nolint:forcetypeassert
-}
-
-func (m *mockRegistry) BuildIssue(issueName string, context map[string]string) (*healthplatformpayload.Issue, error) {
-	if tmpl, ok := m.templates[issueName]; ok {
-		return tmpl.BuildIssue(context)
+	m, ok := r.(*mockRegistry)
+	if !ok {
+		panic("RegisterTemplate: r was not created by mock.New()")
 	}
-	return nil, fmt.Errorf("no issue template registered for type %q", issueName)
+	m.templates[issueName] = tmpl
 }
 
-func (m *mockRegistry) HasTemplate(issueName string) bool {
-	_, ok := m.templates[issueName]
-	return ok
+func (m *mockRegistry) GetTemplate(issueName string) (issuesmod.Template, bool) {
+	tmpl, ok := m.templates[issueName]
+	return tmpl, ok
 }
 
 func (m *mockRegistry) GetBuiltInPeriodicHealthChecks() []*runnerdef.BuiltInPeriodicHealthCheck {

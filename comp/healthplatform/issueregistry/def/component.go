@@ -5,26 +5,21 @@
 
 // Package issueregistry defines the interface for the health platform issue registry component.
 // The registry is the single source of truth for issue templates and built-in health checks.
-// It is built once at startup from all registered issue modules and shared by the store
-// (for template lookup on ReportIssue) and the bundle (for bootstrapping built-in checks).
+// It is built once at startup from all registered issue modules and shared by the runner
+// (for template lookup on IssueReport) and the bundle (for bootstrapping built-in checks).
 package issueregistry
 
 // team: agent-health
 
 import (
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 // Component is the health platform issue registry.
 type Component interface {
-	// BuildIssue builds a complete proto Issue from the template registered for
-	// issueName, filling in template variables from context.
-	// Returns an error if no template is registered for issueName.
-	BuildIssue(issueName string, context map[string]string) (*healthplatformpayload.Issue, error)
-
-	// HasTemplate reports whether a template is registered for issueName.
-	HasTemplate(issueName string) bool
+	// GetTemplate returns the Template registered for issueName, or false if none is registered.
+	GetTemplate(issueName string) (issuesmod.Template, bool)
 
 	// GetBuiltInPeriodicHealthChecks returns all registered periodic health checks.
 	GetBuiltInPeriodicHealthChecks() []*runnerdef.BuiltInPeriodicHealthCheck

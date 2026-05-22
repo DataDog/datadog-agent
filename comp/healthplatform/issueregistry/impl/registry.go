@@ -7,7 +7,6 @@
 package issueregistryimpl
 
 import (
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
@@ -32,13 +31,8 @@ func New(reqs Requires) registrydef.Component {
 	return &registryImpl{inner: r}
 }
 
-func (r *registryImpl) BuildIssue(issueName string, context map[string]string) (*healthplatformpayload.Issue, error) {
-	return r.inner.BuildIssue(issueName, context)
-}
-
-func (r *registryImpl) HasTemplate(issueName string) bool {
-	_, ok := r.inner.GetTemplate(issueName)
-	return ok
+func (r *registryImpl) GetTemplate(issueName string) (issuesmod.Template, bool) {
+	return r.inner.GetTemplate(issueName)
 }
 
 func (r *registryImpl) GetBuiltInPeriodicHealthChecks() []*runnerdef.BuiltInPeriodicHealthCheck {
