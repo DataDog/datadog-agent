@@ -12,6 +12,7 @@
 
 - Upgrade embedded pip from 24.0 to 26.0.1 (patches CVE-2026-1703)
 - Fix Python entry-point script shebangs in the embedded tree (was pointing to build-host staging path, causing "No such file or directory" when running `pip` or other scripts post-install)
+- Keep Python headers (`embedded/include/`) in the package so users can build C extension packages (e.g. `ibm_db` for the DB2 check) against the embedded Python, matching Linux/macOS omnibus behaviour
 - Include `final_constraints-py3.txt` in the BFF package at `/opt/datadog-agent/final_constraints-py3.txt`
 
 ---
