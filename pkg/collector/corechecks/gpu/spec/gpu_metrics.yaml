@@ -227,7 +227,8 @@ metrics:
   clock.throttle_reasons.sync_boost:
     metadata:
       metric_type: gauge
-      description: GPU clocks that are throttled to match clock speed of another GPU
+      description:
+        GPU clocks that are throttled to match clock speed of another GPU
         in the current sync boost group
       aggregation: sensor_data
     tagsets:
@@ -490,7 +491,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the 16-bit floating point calculation
+      description:
+        Percentage of the time that the 16-bit floating point calculation
         engine was active. Only for Hopper and newer GPUs
       aggregation: relative_activity
     tagsets:
@@ -513,7 +515,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the 32-bit floating point calculation
+      description:
+        Percentage of the time that the 32-bit floating point calculation
         engine was active. Only for Hopper and newer GPUs
       aggregation: relative_activity
     tagsets:
@@ -536,7 +539,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the 64-bit floating point calculation
+      description:
+        Percentage of the time that the 64-bit floating point calculation
         engine was active. Only for Hopper and newer GPUs
       aggregation: relative_activity
     tagsets:
@@ -575,7 +579,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the integer calculation engine was
+      description:
+        Percentage of the time that the integer calculation engine was
         active. Only for Hopper and newer GPUs
       aggregation: relative_activity
     tagsets:
@@ -694,6 +699,23 @@ metrics:
         mig: true
         physical: true
         vgpu: true
+  memory.utilization:
+    metadata:
+      metric_type: gauge
+      unit: fraction
+      description: Ratio of used memory compared to total memory
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 1
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   memory.temperature:
     metadata:
       metric_type: gauge
@@ -1865,7 +1887,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: byte
-      description: The memory used by this process at the point the metric was given.
+      description:
+        The memory used by this process at the point the metric was given.
         Only emitted when processes are active.
       used_in_dd_ui: true
       aggregation: absolute_usage
@@ -1888,7 +1911,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of time the streaming multiprocessor was active for a
+      description:
+        Percentage of time the streaming multiprocessor was active for a
         specific process
       aggregation: relative_activity
     workload_only: true
@@ -2040,7 +2064,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the Streaming Multiprocessors that were active in the
+      description:
+        Percentage of the Streaming Multiprocessors that were active in the
         interval
       used_in_dd_ui: true
       aggregation: relative_activity
@@ -2064,7 +2089,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the Streaming Multiprocessors that were in use in the
+      description:
+        Percentage of the Streaming Multiprocessors that were in use in the
         interval
       aggregation: relative_activity
     tagsets:
