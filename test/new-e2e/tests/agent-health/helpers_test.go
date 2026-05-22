@@ -39,17 +39,26 @@ const (
 // diagnose JSON types
 // ============================================================================
 
-// diagnosisEntry is a single entry in the JSON output of `agent diagnose`.
+// diagnosisEntry is a single entry within a diagnose run.
+// Field names and json tags match the Go types in comp/core/diagnose/def/component.go.
 type diagnosisEntry struct {
-	Name     string `json:"Name"`
-	Status   string `json:"Status"`
-	Result   string `json:"Result"`
-	Category string `json:"Category"`
+	Name      string `json:"name"`
+	Status    string `json:"result"` // json tag is "result", not "status"
+	Diagnosis string `json:"diagnosis"`
+	Category  string `json:"category"`
 }
 
-// diagnoseOutput is the top-level structure returned by `agent diagnose --json`.
-type diagnoseOutput struct {
+// diagnoseRun holds one suite's results inside a diagnose.Result payload.
+type diagnoseRun struct {
+	SuiteName string           `json:"suite_name"`
 	Diagnoses []diagnosisEntry `json:"diagnoses"`
+}
+
+// diagnoseOutput matches the top-level diagnose.Result JSON shape:
+//
+//	{ "runs": [ { "suite_name": "...", "diagnoses": [...] } ], "summary": {...} }
+type diagnoseOutput struct {
+	Runs []diagnoseRun `json:"runs"`
 }
 
 // ============================================================================
@@ -73,11 +82,14 @@ func runHealthDiagnose(t testing.TB, agent *components.RemoteHostAgent) diagnose
 	return out
 }
 
-// findDiagnosis returns the first entry whose Name contains issueName, or nil.
+// findDiagnosis searches all runs and returns the first entry whose Name
+// contains issueName (case-sensitive substring match), or nil.
 func findDiagnosis(out diagnoseOutput, issueName string) *diagnosisEntry {
-	for i := range out.Diagnoses {
-		if strings.Contains(out.Diagnoses[i].Name, issueName) {
-			return &out.Diagnoses[i]
+	for r := range out.Runs {
+		for i := range out.Runs[r].Diagnoses {
+			if strings.Contains(out.Runs[r].Diagnoses[i].Name, issueName) {
+				return &out.Runs[r].Diagnoses[i]
+			}
 		}
 	}
 	return nil
@@ -89,9 +101,13 @@ func AssertIssueDetectedViaDiagnose(t *testing.T, agent *components.RemoteHostAg
 	t.Helper()
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		out := runHealthDiagnose(t, agent)
+		totalEntries := 0
+		for _, r := range out.Runs {
+			totalEntries += len(r.Diagnoses)
+		}
 		d := findDiagnosis(out, issueName)
-		if !assert.NotNilf(ct, d, "health issue %q not found in diagnose (have %d entries)", issueName, len(out.Diagnoses)) {
-			t.Logf("diagnose entries: %+v", out.Diagnoses)
+		if !assert.NotNilf(ct, d, "health issue %q not found in diagnose (have %d entries across %d runs)", issueName, totalEntries, len(out.Runs)) {
+			t.Logf("diagnose runs: %+v", out.Runs)
 			return
 		}
 		assert.NotEqualf(ct, "Pass", d.Status, "health issue %q should not be passing", issueName)
@@ -113,7 +129,7 @@ func AssertIssueAbsentViaDiagnose(t *testing.T, agent *components.RemoteHostAgen
 // fakeintake helpers
 // ============================================================================
 
-// findIssue searches for an issue by ID in a fakeintake health report payload.
+// findIssue searches for an issue by exact ID in a fakeintake health report payload.
 func findIssue(t testing.TB, report *aggregator.AgentHealthPayload, issueID string) *healthplatform.Issue {
 	t.Helper()
 	if report == nil || report.HealthReport == nil {
@@ -133,20 +149,44 @@ func findIssue(t testing.TB, report *aggregator.AgentHealthPayload, issueID stri
 	return nil
 }
 
+// findIssueByPrefix searches for any issue whose ID starts with prefix.
+// Useful for issue types where the ID includes a runtime-generated hash suffix
+// (e.g. "check-execution-failure:broken_check:a1b2c3d4").
+func findIssueByPrefix(report *aggregator.AgentHealthPayload, prefix string) *healthplatform.Issue {
+	if report == nil || report.HealthReport == nil {
+		return nil
+	}
+	for id, issue := range report.Issues {
+		if strings.HasPrefix(id, prefix) {
+			return issue
+		}
+	}
+	return nil
+}
+
 // waitForIssueInFakeintake polls fakeintake until an issue with the given issueID is found,
 // then returns it. Fails the test on timeout.
+// If issueID ends with "*" it is treated as a prefix match (useful for check-failure IDs
+// that include a runtime hash suffix).
 func waitForIssueInFakeintake(t *testing.T, fi *fakeintakeclient.Client, issueID string) *healthplatform.Issue {
 	t.Helper()
+	prefix, usePrefix := strings.CutSuffix(issueID, "*")
 	var found *healthplatform.Issue
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		payloads, err := fi.GetAgentHealth()
 		assert.NoError(ct, err)
 		for _, p := range payloads {
-			if iss := findIssue(t, p, issueID); iss != nil {
+			var iss *healthplatform.Issue
+			if usePrefix {
+				iss = findIssueByPrefix(p, prefix)
+			} else {
+				iss = findIssue(t, p, issueID)
+			}
+			if iss != nil {
 				found = iss
 			}
 		}
-		assert.NotNil(ct, found, "issue %q not found in fakeintake", issueID)
+		assert.NotNil(ct, found, "issue with id/prefix %q not found in fakeintake", issueID)
 	}, defaultIssueTimeout, defaultIssuePollInterval, "issue %q not found in fakeintake within timeout", issueID)
 	return found
 }

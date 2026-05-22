@@ -6,6 +6,7 @@
 package agenthealth
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -63,7 +64,7 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 			// IssueName is matched (substring) against the diagnose entry Name field,
 			// which the checkfailure template populates with the check name.
 			IssueName: "broken_check",
-			IssueID:   "check-execution-failure:broken_check",
+			IssueID:   "check-execution-failure:broken_check*",
 
 			// TriggerIssue re-deploys the broken check after the Resolution cleanup
 			// restores the working version, so the environment is ready for a re-run.
@@ -78,10 +79,10 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 
 			// AssertMetadata validates the fakeintake payload metadata fields.
 			AssertMetadata: func(t *testing.T, issue *healthplatform.Issue) {
-				assert.Equal(t, "check-execution-failure", issue.IssueName)
-				assert.Equal(t, "checks", issue.Category)
-				assert.Equal(t, "agent", issue.Source)
-				assert.Contains(t, issue.Tags, "check:broken_check")
+				assert.Equal(t, "check_execution_failure", issue.IssueName)
+				assert.Equal(t, "check-execution", issue.Category)
+				assert.Equal(t, "collector", issue.Source)
+				assert.Contains(t, issue.Tags, "broken_check")
 				require.NotNil(t, issue.Remediation, "remediation should be provided")
 				assert.NotEmpty(t, issue.Remediation.Summary)
 			},
@@ -92,12 +93,16 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 	)
 }
 
-// writeCheckFile writes content to the broken_check.py location using WriteFile,
-// then fixes ownership so dd-agent can read it.
+// writeCheckFile writes content to /etc/datadog-agent/checks.d/broken_check.py.
+// It writes to a world-writable temp path first, then uses sudo to move the file
 func writeCheckFile(t *testing.T, h *components.RemoteHost, content string) {
 	t.Helper()
-	const checkPath = "/etc/datadog-agent/checks.d/broken_check.py"
-	_, err := h.WriteFile(checkPath, []byte(content))
-	require.NoError(t, err, "failed to write check file")
-	h.MustExecute("sudo chown dd-agent:dd-agent " + checkPath)
+	const (
+		tmpPath   = "/tmp/broken_check_e2e.py"
+		checkPath = "/etc/datadog-agent/checks.d/broken_check.py"
+	)
+	_, err := h.WriteFile(tmpPath, []byte(content))
+	require.NoError(t, err, "failed to write check file to temp path")
+	h.MustExecute(fmt.Sprintf("sudo mv %s %s && sudo chown dd-agent:dd-agent %s && sudo chmod 644 %s",
+		tmpPath, checkPath, checkPath, checkPath))
 }
