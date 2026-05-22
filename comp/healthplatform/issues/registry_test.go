@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 // mockIssueTemplate is a test implementation of IssueTemplate
@@ -36,12 +36,12 @@ type mockModuleWithCheck struct {
 	template *mockIssueTemplate
 }
 
-func (m *mockModuleWithCheck) IssueType() string            { return m.id }
+func (m *mockModuleWithCheck) IssueName() string            { return m.id }
 func (m *mockModuleWithCheck) IssueTemplate() IssueTemplate { return m.template }
 func (m *mockModuleWithCheck) BuiltInPeriodicHealthCheck() *BuiltInPeriodicHealthCheck {
 	return &BuiltInPeriodicHealthCheck{
 		Source:   "check-" + m.id,
-		Fn:       func() ([]storedef.IssueReport, error) { return nil, nil },
+		Fn:       func() ([]runnerdef.IssueReport, error) { return nil, nil },
 		Interval: 5 * time.Minute,
 	}
 }
@@ -53,13 +53,13 @@ type mockModuleWithOnce struct {
 	template *mockIssueTemplate
 }
 
-func (m *mockModuleWithOnce) IssueType() string                                       { return m.id }
+func (m *mockModuleWithOnce) IssueName() string                                       { return m.id }
 func (m *mockModuleWithOnce) IssueTemplate() IssueTemplate                            { return m.template }
 func (m *mockModuleWithOnce) BuiltInPeriodicHealthCheck() *BuiltInPeriodicHealthCheck { return nil }
 func (m *mockModuleWithOnce) BuiltInStartupHealthCheck() *BuiltInStartupHealthCheck {
 	return &BuiltInStartupHealthCheck{
 		Source: "once-" + m.id,
-		Fn:     func() ([]storedef.IssueReport, error) { return nil, nil },
+		Fn:     func() ([]runnerdef.IssueReport, error) { return nil, nil },
 	}
 }
 
@@ -69,7 +69,7 @@ type mockModuleWithoutCheck struct {
 	template *mockIssueTemplate
 }
 
-func (m *mockModuleWithoutCheck) IssueType() string                                       { return m.id }
+func (m *mockModuleWithoutCheck) IssueName() string                                       { return m.id }
 func (m *mockModuleWithoutCheck) IssueTemplate() IssueTemplate                            { return m.template }
 func (m *mockModuleWithoutCheck) BuiltInPeriodicHealthCheck() *BuiltInPeriodicHealthCheck { return nil }
 func (m *mockModuleWithoutCheck) BuiltInStartupHealthCheck() *BuiltInStartupHealthCheck   { return nil }
