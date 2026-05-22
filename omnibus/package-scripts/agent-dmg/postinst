@@ -19,6 +19,7 @@ LOG_DIR=/opt/datadog-agent/logs
 INSTALL_STAGING_DIR="/private/var/root/datadog-install"
 INSTALL_ENV_FILE="$INSTALL_STAGING_DIR/env"
 SAVED_CONF_DIR="$INSTALL_STAGING_DIR/saved-conf"
+AI_USAGE_CHROME_EXTENSION_ID_DEFAULT="gkmbhgbippkmmmidcikijiblbagbjgjj"
 
 # Let's log the standard outputs of this script
 LOG_FILE="$LOG_DIR/postinstall.log"
@@ -99,6 +100,23 @@ fi
 
 if [ ! -f "$CONF_DIR/ai_usage_native_host.yaml" ] && [ -f "$CONF_DIR/ai_usage_native_host.yaml.example" ]; then
     cp "$CONF_DIR/ai_usage_native_host.yaml.example" "$CONF_DIR/ai_usage_native_host.yaml"
+    apm_receiver_port=$(awk '
+        /^[[:space:]]*#/ { next }
+        /^[^[:space:]][^:]*:/ { in_apm = 0 }
+        /^[[:space:]]*apm_config:[[:space:]]*($|#)/ { in_apm = 1; next }
+        in_apm && /^[[:space:]]*receiver_port:/ {
+            sub(/^[^:]*:[[:space:]]*/, "")
+            sub(/[[:space:]]*#.*/, "")
+            gsub(/["'\''[:space:]]/, "")
+            if ($0 ~ /^[0-9]+$/) {
+                print
+                exit
+            }
+        }
+    ' "$CONF_DIR/datadog.yaml" 2>/dev/null || true)
+    if [ -n "$apm_receiver_port" ]; then
+        sed -i '' "s#^[ #]*trace_agent_url:.*#trace_agent_url: \"http://127.0.0.1:$apm_receiver_port\"#" "$CONF_DIR/ai_usage_native_host.yaml"
+    fi
 fi
 
 # Read configuration written by the install script (if present).
@@ -181,9 +199,12 @@ if [ -z "$CHROME_EXT_ID" ] && [ -f "$CONF_DIR/ai_usage_native_host.yaml" ]; then
     CHROME_EXT_ID=$(awk '/^chrome_extension_id:/{sub(/^[^:]*:[[:space:]]*/, ""); gsub(/["'\'']/, ""); print; exit}' "$CONF_DIR/ai_usage_native_host.yaml")
 fi
 CHROME_EXT_ID=$(echo "$CHROME_EXT_ID" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+if [ -z "$CHROME_EXT_ID" ]; then
+    CHROME_EXT_ID="$AI_USAGE_CHROME_EXTENSION_ID_DEFAULT"
+fi
 # Launcher passes --config like `agent run -c` / `system-probe --config` (Chrome does not pass argv).
 NATIVE_HOST_BIN="$INSTALL_DIR/embedded/bin/run_ai_usage_native_host.sh"
-NM_HOST_NAME="com.ai_prompt_logger.native_host"
+NM_HOST_NAME="com.datadoghq.ai_prompt_logger.native_host"
 if [ -n "$CHROME_EXT_ID" ] && [ -f "$NATIVE_HOST_BIN" ]; then
     echo "# Installing Chrome NativeMessagingHosts for AI usage native host"
     for user_home in /Users/*; do
