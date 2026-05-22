@@ -29,7 +29,7 @@ replace (
 	// To update the Datadog/opentelemetry-ebpf-profiler dependency on latest commit on datadog branch, change the following line to:
 	// replace go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler datadog
 	// and run `go mod tidy` then `dda inv tidy`
-	go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260416144717-96f8924d6e18
+	go.opentelemetry.io/ebpf-profiler => github.com/wehzzz/opentelemetry-ebpf-profiler v0.0.202619-0.20260522095638-aa7d8685dd25
 )
 
 require (
@@ -345,7 +345,7 @@ require (
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.mongodb.org/mongo-driver/v2 v2.5.0
 	go.opentelemetry.io/collector/component v1.58.0
-	go.opentelemetry.io/collector/component/componenttest v0.152.0
+	go.opentelemetry.io/collector/component/componenttest v0.152.1
 	go.opentelemetry.io/collector/config/configtelemetry v0.152.0
 	go.opentelemetry.io/collector/confmap v1.58.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v1.58.0
@@ -395,7 +395,7 @@ require (
 	golang.org/x/time v0.15.0
 	golang.org/x/tools v0.45.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
-	google.golang.org/grpc v1.81.0
+	google.golang.org/grpc v1.81.1
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -830,15 +830,15 @@ require (
 	go.opentelemetry.io/collector/config/configoptional v1.58.0 // indirect
 	go.opentelemetry.io/collector/config/configretry v1.58.0 // indirect
 	go.opentelemetry.io/collector/config/configtls v1.58.0 // indirect
-	go.opentelemetry.io/collector/confmap/xconfmap v0.152.0
+	go.opentelemetry.io/collector/confmap/xconfmap v0.152.1
 	go.opentelemetry.io/collector/connector v0.152.0 // indirect
 	go.opentelemetry.io/collector/connector/connectortest v0.152.0 // indirect
 	go.opentelemetry.io/collector/connector/xconnector v0.152.0 // indirect
 	go.opentelemetry.io/collector/consumer v1.58.0
-	go.opentelemetry.io/collector/consumer/consumererror v0.152.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumererror v0.152.1 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror/xconsumererror v0.152.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumertest v0.152.0 // indirect
-	go.opentelemetry.io/collector/consumer/xconsumer v0.152.0
+	go.opentelemetry.io/collector/consumer/consumertest v0.152.1 // indirect
+	go.opentelemetry.io/collector/consumer/xconsumer v0.152.1
 	go.opentelemetry.io/collector/exporter/exporterhelper v0.152.0 // indirect
 	go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.152.0 // indirect
 	go.opentelemetry.io/collector/exporter/exportertest v0.152.0 // indirect
@@ -856,8 +856,8 @@ require (
 	go.opentelemetry.io/collector/internal/memorylimiter v0.152.0 // indirect
 	go.opentelemetry.io/collector/internal/sharedcomponent v0.152.0 // indirect
 	go.opentelemetry.io/collector/internal/telemetry v0.152.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.152.0
-	go.opentelemetry.io/collector/pdata/testdata v0.152.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.152.1
+	go.opentelemetry.io/collector/pdata/testdata v0.152.1 // indirect
 	go.opentelemetry.io/collector/pdata/xpdata v0.152.0 // indirect
 	go.opentelemetry.io/collector/pipeline v1.58.0 // indirect
 	go.opentelemetry.io/collector/pipeline/xpipeline v0.152.0 // indirect
@@ -868,8 +868,8 @@ require (
 	go.opentelemetry.io/collector/processor/xprocessor v0.152.0
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.152.0 // indirect
 	go.opentelemetry.io/collector/receiver/receiverhelper v0.152.0 // indirect
-	go.opentelemetry.io/collector/receiver/receivertest v0.152.0 // indirect
-	go.opentelemetry.io/collector/receiver/xreceiver v0.152.0
+	go.opentelemetry.io/collector/receiver/receivertest v0.152.1 // indirect
+	go.opentelemetry.io/collector/receiver/xreceiver v0.152.1
 	go.opentelemetry.io/collector/scraper v0.152.0 // indirect
 	go.opentelemetry.io/collector/scraper/scraperhelper v0.152.0 // indirect
 	go.opentelemetry.io/collector/service/hostcapabilities v0.152.0 // indirect
@@ -1006,7 +1006,7 @@ require (
 	github.com/go-openapi/swag/yamlutils v0.25.5 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
-	go.opentelemetry.io/collector/internal/componentalias v0.152.0 // indirect
+	go.opentelemetry.io/collector/internal/componentalias v0.152.1 // indirect
 )
 
 require (
