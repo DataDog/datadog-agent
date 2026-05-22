@@ -612,6 +612,48 @@ func TestRegexAggregator_MultiLineTagging_Property(t *testing.T) {
 	})
 }
 
+// TestRegexAggregator_TokensFromAggregateLeader_Property anchors:
+//
+//	surface RegexAggregation (regex_aggregator.allium)
+//	    @guarantee TokensFromAggregateLeader — emitted tokens are
+//	                                            the tokens passed
+//	                                            alongside the FIRST
+//	                                            line of the
+//	                                            aggregate.
+//
+// LOAD-BEARING for the refactor safety net. The aggregator
+// stores firstLineTokens on the leader call and uses those at
+// flush time, NOT the last-contributor's tokens. If a refactor
+// swapped this to last-tokens or recomputed, downstream tagging
+// would silently drift.
+func TestRegexAggregator_TokensFromAggregateLeader_Property(t *testing.T) {
+	re := regexp.MustCompile(`^START`)
+
+	rapid.Check(t, func(t *rapid.T) {
+		leaderTokens := []Token{Token(1), Token(2), Token(3)}
+		continuationTokens := []Token{Token(7), Token(8)}
+
+		ag := NewRegexAggregator(re, 200, false, status.NewInfoRegistry(), "multi_line")
+		ag.Process(newMessage("START leader"), startGroup, leaderTokens)
+		ag.Process(newMessage("continuation"), aggregate, continuationTokens)
+		// Boundary triggers emission of the prior group.
+		emitted := ag.Process(newMessage("START next"), startGroup, []Token{Token(0)})
+
+		if len(emitted) != 1 {
+			t.Fatalf("expected 1 emission from boundary, got %d", len(emitted))
+		}
+		gotTokens := emitted[0].Tokens
+		if len(gotTokens) != len(leaderTokens) {
+			t.Fatalf("TokensFromAggregateLeader violated: emission has %d tokens, leader had %d", len(gotTokens), len(leaderTokens))
+		}
+		for i := range leaderTokens {
+			if gotTokens[i] != leaderTokens[i] {
+				t.Fatalf("TokensFromAggregateLeader violated: emission token[%d]=%v, expected leader token[%d]=%v (or did the aggregator forward continuation tokens %v?)", i, gotTokens[i], i, leaderTokens[i], continuationTokens)
+			}
+		}
+	})
+}
+
 // TestRegexAggregator_PreMatchSinglePass_Property anchors:
 //
 //	surface RegexAggregation (regex_aggregator.allium)

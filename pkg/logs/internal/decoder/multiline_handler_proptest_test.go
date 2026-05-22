@@ -8,6 +8,7 @@ package decoder
 import (
 	"bytes"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -470,6 +471,59 @@ func TestMultiLineHandler_TagDisabledNoTag_Property(t *testing.T) {
 				if tag == suppressedTag {
 					t.Fatalf("TagOnTruncation (disabled) violated at emission %d: found %q in tags=%v", i, suppressedTag, e.tags)
 				}
+			}
+		}
+	})
+}
+
+// TestMultiLineHandler_LineSeparator_Property anchors:
+//
+//	surface MultiLineHandling (multiline_handler.allium)
+//	    @guarantee LineSeparator — between consecutive input lines
+//	                                accumulated into the same
+//	                                buffer, the handler writes the
+//	                                EscapedLineFeed marker.
+//
+// A pattern-bounded group containing 2+ input lines emits content
+// where the EscapedLineFeed separator appears between adjacent
+// line contents. Separator bytes count toward buffered_content_len
+// for the overflow check.
+func TestMultiLineHandler_LineSeparator_Property(t *testing.T) {
+	re := regexp.MustCompile("^START")
+
+	rapid.Check(t, func(t *rapid.T) {
+		// Large limit so no overflow.
+		nContinuations := rapid.IntRange(1, 3).Draw(t, "nContinuations")
+		rig := newMultiLineTestRig(re, 1000)
+
+		// Build a sequence of distinct continuation lines so we
+		// can find them in the emission and verify a separator
+		// appears between them.
+		conts := make([]string, nContinuations)
+		for i := 0; i < nContinuations; i++ {
+			conts[i] = "cont" + string([]byte{byte('A' + i)})
+		}
+
+		rig.send("START leader", false)
+		for _, c := range conts {
+			rig.send(c, false)
+		}
+		rig.send("START next", false) // triggers emission
+
+		if len(rig.emitted) < 1 {
+			t.Fatal("expected at least 1 emission")
+		}
+		content := string(rig.emitted[0].content)
+		separator := string(message.EscapedLineFeed)
+
+		// Every pair of consecutive expected pieces (leader,
+		// conts[0], conts[1], ...) should have the separator
+		// between them.
+		pieces := append([]string{"START leader"}, conts...)
+		for i := 0; i < len(pieces)-1; i++ {
+			pair := pieces[i] + separator + pieces[i+1]
+			if !strings.Contains(content, pair) {
+				t.Fatalf("LineSeparator violated: expected %q (separator between %q and %q) in emission content %q", pair, pieces[i], pieces[i+1], content)
 			}
 		}
 	})

@@ -620,6 +620,137 @@ func TestCombiningAggregator_TruncationTaggingAutoMultiline_Property(t *testing.
 	})
 }
 
+// TestCombiningAggregator_StartGroupBoundary_Property anchors:
+//
+//	surface CombiningAggregation (combining_aggregator.allium)
+//	    @guarantee StartGroupBoundary — a process call with the
+//	                                     start_group label flushes
+//	                                     any buffered bucket as a
+//	                                     combined emission and
+//	                                     then begins a new bucket
+//	                                     containing the current
+//	                                     message.
+//
+// After accumulating startGroup + aggregate(s) into a bucket, a
+// subsequent startGroup call emits the prior bucket as ONE
+// combined emission and starts a fresh accumulation with the
+// new startGroup line.
+func TestCombiningAggregator_StartGroupBoundary_Property(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		nContinuations := rapid.IntRange(0, 3).Draw(t, "nContinuations")
+
+		ag := NewCombiningAggregator(200, false, false, status.NewInfoRegistry())
+		ag.Process(newMessage("S1 leader"), startGroup, nil)
+		for i := 0; i < nContinuations; i++ {
+			ag.Process(newMessage("cont"), aggregate, nil)
+		}
+		// New startGroup should flush prior bucket.
+		emitted := captureCombiningEmissions(ag.Process(newMessage("S2 leader"), startGroup, nil))
+
+		if len(emitted) != 1 {
+			t.Fatalf("StartGroupBoundary violated: expected exactly 1 emission (the prior bucket flushed), got %d", len(emitted))
+		}
+		// The emission should contain the leader's content.
+		if !bytes.Contains(emitted[0].content, []byte("S1 leader")) {
+			t.Fatalf("StartGroupBoundary violated: emission missing leader content; got %q", emitted[0].content)
+		}
+		// If continuations were added, emission should be multi-line.
+		if nContinuations > 0 && !emitted[0].isMultiLine {
+			t.Fatalf("StartGroupBoundary violated: %d-continuation emission not multi-line", nContinuations)
+		}
+	})
+}
+
+// TestCombiningAggregator_NoAggregateFlushes_Property anchors:
+//
+//	surface CombiningAggregation (combining_aggregator.allium)
+//	    @guarantee NoAggregateFlushes — a process call with the
+//	                                     no_aggregate label flushes
+//	                                     any buffered bucket and
+//	                                     emits the current line as
+//	                                     a single-line message
+//	                                     (producing 1 or 2
+//	                                     emissions).
+//
+// After accumulating startGroup + aggregate(s) into a bucket, a
+// noAggregate call produces 2 emissions: the prior bucket (as a
+// combined message if 2+ lines, single-line if 1) and the
+// current noAggregate message as a single-line. With an empty
+// prior bucket, noAggregate produces just 1 emission.
+func TestCombiningAggregator_NoAggregateFlushes_Property(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		nContinuations := rapid.IntRange(1, 3).Draw(t, "nContinuations")
+
+		ag := NewCombiningAggregator(200, false, false, status.NewInfoRegistry())
+		ag.Process(newMessage("S leader"), startGroup, nil)
+		for i := 0; i < nContinuations; i++ {
+			ag.Process(newMessage("cont"), aggregate, nil)
+		}
+		// noAggregate should flush prior bucket + emit current.
+		emitted := captureCombiningEmissions(ag.Process(newMessage("naX"), noAggregate, nil))
+
+		if len(emitted) != 2 {
+			t.Fatalf("NoAggregateFlushes violated: expected 2 emissions (prior bucket + current), got %d", len(emitted))
+		}
+		// Emission 1: the prior combined bucket.
+		if !bytes.Contains(emitted[0].content, []byte("S leader")) {
+			t.Fatalf("NoAggregateFlushes violated: emission 1 missing leader content; got %q", emitted[0].content)
+		}
+		if !emitted[0].isMultiLine {
+			t.Fatalf("NoAggregateFlushes violated: emission 1 with %d-line prior bucket should be multi-line", 1+nContinuations)
+		}
+		// Emission 2: the current noAggregate as single-line.
+		if !bytes.Contains(emitted[1].content, []byte("naX")) {
+			t.Fatalf("NoAggregateFlushes violated: emission 2 missing current message; got %q", emitted[1].content)
+		}
+		if emitted[1].isMultiLine {
+			t.Fatalf("NoAggregateFlushes violated: emission 2 (current noAggregate) should be single-line, got multi-line; content %q", emitted[1].content)
+		}
+	})
+}
+
+// TestCombiningAggregator_TokensFromAggregateLeader_Property anchors:
+//
+//	surface CombiningAggregation (combining_aggregator.allium)
+//	    @guarantee TokensFromAggregateLeader — a combined
+//	                                            emission's tokens
+//	                                            are the tokens
+//	                                            passed alongside
+//	                                            the FIRST line of
+//	                                            the bucket (the
+//	                                            start_group line
+//	                                            that initiated the
+//	                                            group).
+//
+// Build a multi-line group with leader-tokens vs. continuation-
+// tokens. The boundary-flushed combined emission carries the
+// leader's tokens, not the continuation's.
+func TestCombiningAggregator_TokensFromAggregateLeader_Property(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		leaderTokens := []Token{Token(1), Token(2), Token(3)}
+		contTokens := []Token{Token(7), Token(8)}
+
+		ag := NewCombiningAggregator(200, false, false, status.NewInfoRegistry())
+		ag.Process(newMessage("S leader"), startGroup, leaderTokens)
+		ag.Process(newMessage("cont"), aggregate, contTokens)
+		// Boundary triggers emission of the prior group.
+		emitted := ag.Process(newMessage("S next"), startGroup, []Token{Token(0)})
+
+		if len(emitted) != 1 {
+			t.Fatalf("expected 1 emission, got %d", len(emitted))
+		}
+		gotTokens := emitted[0].Tokens
+		if len(gotTokens) != len(leaderTokens) {
+			t.Fatalf("TokensFromAggregateLeader violated: emission has %d tokens, leader had %d", len(gotTokens), len(leaderTokens))
+		}
+		for i := range leaderTokens {
+			if gotTokens[i] != leaderTokens[i] {
+				t.Fatalf("TokensFromAggregateLeader violated: emission token[%d]=%v, expected leader token[%d]=%v (continuation had %v)", i, gotTokens[i], i, leaderTokens[i], contTokens)
+			}
+		}
+	})
+}
+
 // TestCombiningAggregator_MultiLineSourceTag_Property anchors:
 //
 //	surface CombiningAggregation (combining_aggregator.allium)

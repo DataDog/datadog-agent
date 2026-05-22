@@ -532,6 +532,111 @@ func TestDetectingAggregator_TagDisabledNoTag_Property(t *testing.T) {
 	})
 }
 
+// TestDetectingAggregator_StartGroupBufferedUntilNextCall_Property anchors:
+//
+//	surface DetectingAggregation (detecting_aggregator.allium)
+//	    @guarantee StartGroupBufferedUntilNextCall — a process
+//	                                                  call with the
+//	                                                  start_group
+//	                                                  label flushes
+//	                                                  any pending
+//	                                                  message then
+//	                                                  buffers the
+//	                                                  current
+//	                                                  message; the
+//	                                                  start_group
+//	                                                  is NOT
+//	                                                  emitted on
+//	                                                  the call that
+//	                                                  received it.
+//
+// On a fresh aggregator, a startGroup call produces zero
+// emissions (the message is buffered as pending). The next call
+// (aggregate, noAggregate, or another startGroup) releases the
+// pending. A subsequent flush releases any final pending.
+func TestDetectingAggregator_StartGroupBufferedUntilNextCall_Property(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		content := string(rapid.SliceOfN(
+			rapid.SampledFrom([]byte("abcdef0123")),
+			1, 20,
+		).Draw(t, "content"))
+
+		ag := NewDetectingAggregator(status.NewInfoRegistry(), 200, false, false)
+		emitted := ag.Process(makeDetectingMessage([]byte(content), false), startGroup, nil)
+		if len(emitted) != 0 {
+			t.Fatalf("StartGroupBufferedUntilNextCall violated: startGroup on fresh aggregator emitted %d messages, expected 0", len(emitted))
+		}
+
+		// Now release via flush.
+		flushed := ag.Flush()
+		if len(flushed) != 1 {
+			t.Fatalf("StartGroupBufferedUntilNextCall violated: expected flush to release the pending startGroup, got %d emissions", len(flushed))
+		}
+	})
+}
+
+// TestDetectingAggregator_MultiLineDetectionTag_Property anchors:
+//
+//	surface DetectingAggregation (detecting_aggregator.allium)
+//	    @guarantee MultiLineDetectionTag — when a process call's
+//	                                        label is aggregate AND
+//	                                        a previous process call
+//	                                        buffered a message with
+//	                                        the start_group label,
+//	                                        the buffered message is
+//	                                        emitted with an
+//	                                        additional tag
+//	                                        "auto_multiline_detected:true".
+//
+// LOAD-BEARING for the refactor safety net. The detection tag is
+// the WHOLE PURPOSE of DetectingAggregator; if the refactor
+// changed when the tag is applied (e.g., applied unconditionally
+// or skipped), behaviour would silently drift.
+//
+// Sequence: startGroup buffers msg A. aggregate emits A (with
+// detection tag) and also emits B (without detection tag).
+func TestDetectingAggregator_MultiLineDetectionTag_Property(t *testing.T) {
+	detectionTag := "auto_multiline_detected:true"
+
+	rapid.Check(t, func(t *rapid.T) {
+		contentA := string(rapid.SliceOfN(
+			rapid.SampledFrom([]byte("abcdef")),
+			1, 10,
+		).Draw(t, "contentA"))
+		contentB := string(rapid.SliceOfN(
+			rapid.SampledFrom([]byte("ghijkl")),
+			1, 10,
+		).Draw(t, "contentB"))
+
+		ag := NewDetectingAggregator(status.NewInfoRegistry(), 200, false, false)
+		ag.Process(makeDetectingMessage([]byte(contentA), false), startGroup, nil)
+		emitted := captureDetectingEmissions(ag.Process(makeDetectingMessage([]byte(contentB), false), aggregate, nil))
+
+		if len(emitted) != 2 {
+			t.Fatalf("MultiLineDetectionTag setup: expected 2 emissions (pending + current), got %d", len(emitted))
+		}
+		// Emission 1: the pending startGroup, SHOULD have the
+		// detection tag.
+		hasTagOnFirst := false
+		for _, tag := range emitted[0].tags {
+			if tag == detectionTag {
+				hasTagOnFirst = true
+				break
+			}
+		}
+		if !hasTagOnFirst {
+			t.Fatalf("MultiLineDetectionTag violated: pending startGroup emission missing %q tag; tags=%v", detectionTag, emitted[0].tags)
+		}
+		// Emission 2: the current aggregate, should NOT have
+		// the detection tag.
+		for _, tag := range emitted[1].tags {
+			if tag == detectionTag {
+				t.Fatalf("MultiLineDetectionTag violated: current aggregate emission has unexpected %q tag (tag belongs only to detected start_group emissions); tags=%v", detectionTag, emitted[1].tags)
+			}
+		}
+	})
+}
+
 // TestDetectingAggregator_PerEmissionTruncationFlow_Property anchors:
 //
 //	surface DetectingAggregation (detecting_aggregator.allium)

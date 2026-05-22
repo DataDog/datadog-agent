@@ -267,6 +267,51 @@ func TestWindowsEvent_MarkerScanShortStringNotDetected_Property(t *testing.T) {
 	})
 }
 
+// TestWindowsEvent_RetroactiveDetection_Property anchors:
+//
+//	surface WindowsEventTruncation (windows_event_truncation.allium)
+//	    @guarantee RetroactiveDetection — IsTruncated is determined
+//	                                       NOT by tracking whether
+//	                                       SetMessage truncated,
+//	                                       but by SCANNING the
+//	                                       stored message field
+//	                                       for the marker at the
+//	                                       time of message
+//	                                       construction.
+//
+// LOAD-BEARING for the refactor safety net. If the refactor
+// changed detection to state-tracking (e.g., a per-Map "did we
+// truncate?" boolean), behaviour would diverge for messages
+// whose content naturally contains the marker substring at a
+// boundary. This test injects the marker into under-limit
+// content and verifies the resulting message is still detected
+// as truncated.
+func TestWindowsEvent_RetroactiveDetection_Property(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		// Under-limit content with the marker artificially
+		// placed at the tail boundary. SetMessage does NOT
+		// truncate (content is under 128KB), so no state is
+		// set indicating "we truncated."
+		bodyLen := rapid.IntRange(1, 200).Draw(t, "bodyLen")
+		body := strings.Repeat("x", bodyLen)
+		// Append the marker manually — this simulates content
+		// that already contained the marker for any reason.
+		injected := body + truncatedFlag
+
+		m := newTestMap()
+		if err := m.SetMessage(injected); err != nil {
+			t.Fatalf("SetMessage failed: %v", err)
+		}
+
+		// The flag must be detected from the marker presence,
+		// regardless of whether SetMessage actually applied
+		// truncation logic (it didn't, since len < limit).
+		if !hasTruncatedFlag(m.GetMessage()) {
+			t.Fatalf("RetroactiveDetection violated: marker present in stored content but hasTruncatedFlag returned false (detection should be marker-scan-based, not state-tracked); content=%q", m.GetMessage())
+		}
+	})
+}
+
 // TestWindowsEvent_NoCarryOver_Property anchors:
 //
 //	surface WindowsEventTruncation (windows_event_truncation.allium)

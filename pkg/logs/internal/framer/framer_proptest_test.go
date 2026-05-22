@@ -329,6 +329,72 @@ func TestFramer_NoCarryOverBetweenEmissions_Property(t *testing.T) {
 	})
 }
 
+// TestFramer_IsTruncatedOnEmittedFrame_Property anchors:
+//
+//	surface FramerTruncation (framer.allium)
+//	    @guarantee IsTruncatedOnEmittedFrame — the IsTruncated
+//	                                            flag is set on the
+//	                                            EMITTED frame's
+//	                                            ParsingExtra (a new
+//	                                            *message.Message
+//	                                            constructed by
+//	                                            emitFrame). The
+//	                                            original input
+//	                                            message's
+//	                                            IsTruncated flag
+//	                                            is not modified.
+//
+// LOAD-BEARING for the refactor safety net. If the refactor
+// changes the framer to mutate the input message in place
+// instead of constructing a new emission message, observable
+// identity behaviour changes — any caller retaining the input
+// would suddenly see truncation flags it didn't set. This test
+// pins the current "new message per frame" semantics.
+func TestFramer_IsTruncatedOnEmittedFrame_Property(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		lineLimit := rapid.IntRange(10, 50).Draw(t, "lineLimit")
+		// Oversized input forces force-cut → emission with
+		// IsTruncated=true.
+		excess := lineLimit + rapid.IntRange(1, 40).Draw(t, "excess")
+		body := make([]byte, excess)
+		for i := range body {
+			body[i] = 'y'
+		}
+
+		var emittedPtrs []*message.Message
+		fr := NewFramer(
+			func(m *message.Message, _ int) {
+				emittedPtrs = append(emittedPtrs, m)
+			},
+			UTF8Newline,
+			lineLimit,
+		)
+
+		input := message.NewMessage(body, nil, "", 0)
+		// Input deliberately starts with IsTruncated=false.
+		input.ParsingExtra.IsTruncated = false
+		fr.Process(input)
+
+		// Input's flag must be unchanged.
+		if input.ParsingExtra.IsTruncated {
+			t.Fatal("IsTruncatedOnEmittedFrame violated: input message's IsTruncated flipped to true (framer should not mutate the input)")
+		}
+		// At least one emission expected (force-cut).
+		if len(emittedPtrs) == 0 {
+			t.Fatal("expected at least 1 emission from oversized input, got 0")
+		}
+		// The emitted frame is a new message — different pointer
+		// from input — with IsTruncated=true.
+		first := emittedPtrs[0]
+		if first == input {
+			t.Fatal("IsTruncatedOnEmittedFrame violated: emitted frame is the SAME pointer as input (framer should construct a new message)")
+		}
+		if !first.ParsingExtra.IsTruncated {
+			t.Fatal("IsTruncatedOnEmittedFrame violated: emitted frame's IsTruncated=false on oversized input")
+		}
+	})
+}
+
 // TestFramer_DatagramEndOfProcessFlush_Property anchors:
 //
 //	surface FramerTruncation (framer.allium)

@@ -500,6 +500,45 @@ func TestSingleLineHandler_TagOnTruncation_Property(t *testing.T) {
 	})
 }
 
+// TestSingleLineHandler_InputMessageMutated_Property anchors:
+//
+//	surface SingleLineHandling (single_line_handler.allium)
+//	    @guarantee InputMessageMutated — the input *message.Message
+//	                                      is mutated in place
+//	                                      before being passed to
+//	                                      outputFn; the handler
+//	                                      does not construct a new
+//	                                      message.
+//
+// LOAD-BEARING for the refactor safety net. If the refactor
+// switches from in-place mutation to allocation of new emission
+// messages, observable identity behaviour changes — any caller
+// retaining a reference to the input message would no longer see
+// the post-process modifications. This test verifies the pointer
+// passed to outputFn is the SAME as the input pointer.
+func TestSingleLineHandler_InputMessageMutated_Property(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		lineLimit := rapid.IntRange(1, 200).Draw(t, "lineLimit")
+		in := genSingleLineInput().Draw(t, "input")
+
+		var inputPtr *message.Message
+		var emittedPtr *message.Message
+		h := NewSingleLineHandler(func(m *message.Message) {
+			emittedPtr = m
+		}, lineLimit)
+
+		msg := message.NewMessage(append([]byte(nil), in.content...), nil, "", time.Now().UnixNano())
+		msg.RawDataLen = len(in.content)
+		msg.ParsingExtra.IsTruncated = in.upstreamIsTruncated
+		inputPtr = msg
+		h.process(msg)
+
+		if emittedPtr != inputPtr {
+			t.Fatalf("InputMessageMutated violated: emitted pointer %p differs from input pointer %p (handler allocated a new message instead of mutating in place)", emittedPtr, inputPtr)
+		}
+	})
+}
+
 // TestSingleLineHandler_TagDisabledNoTag_Property anchors:
 //
 //	surface SingleLineHandling (single_line_handler.allium)
