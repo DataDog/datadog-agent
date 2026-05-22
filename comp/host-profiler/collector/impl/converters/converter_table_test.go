@@ -265,8 +265,8 @@ func TestConverterWithoutAgent(t *testing.T) {
 		},
 		{
 			name:     "internal-metrics-endpoint-takes-precedence-over-profiles-endpoint",
-			provided: "no_agent/int-metrics-ep-over-prof-ep/in.yaml",
-			expected: "no_agent/int-metrics-ep-over-prof-ep/out.yaml",
+			provided: "no_agent/int-metrics-prefer-ep/in.yaml",
+			expected: "no_agent/int-metrics-prefer-ep/out.yaml",
 		},
 		{
 			name:     "internal-metrics-preserves-user-metrics-endpoint",
