@@ -711,11 +711,14 @@ metrics:
         min: 0
         max: 1
     support:
-      unsupported_architectures: []
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
       device_modes:
-        mig: false
+        mig: true
         physical: true
-        vgpu: false
+        vgpu: true
   memory.temperature:
     metadata:
       metric_type: gauge
