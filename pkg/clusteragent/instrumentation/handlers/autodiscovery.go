@@ -134,7 +134,7 @@ func (h *AutodiscoveryHandler) Handle(_ context.Context, event instrumentation.E
 }
 
 func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.DatadogInstrumentationCheckConfig) (integration.Config, error) {
-	initConfig, instances, logsConfig, err := translateConfigChecks(check)
+	initConfig, instances, logsConfig, err := translateCheckFields(check)
 	if err != nil {
 		return integration.Config{}, err
 	}
@@ -150,7 +150,7 @@ func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadogh
 }
 
 func translateServiceCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.DatadogInstrumentationCheckConfig) (integration.Config, error) {
-	initConfig, instances, logsConfig, err := translateConfigChecks(check)
+	initConfig, instances, logsConfig, err := translateCheckFields(check)
 	if err != nil {
 		return integration.Config{}, err
 	}
@@ -163,7 +163,7 @@ func translateServiceCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq
 	}, nil
 }
 
-func translateConfigChecks(check datadoghq.DatadogInstrumentationCheckConfig) (integration.Data, []integration.Data, integration.Data, error) {
+func translateCheckFields(check datadoghq.DatadogInstrumentationCheckConfig) (integration.Data, []integration.Data, integration.Data, error) {
 	initConfig, err := rawExtensionToData(check.InitConfig)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("init_config: %w", err)

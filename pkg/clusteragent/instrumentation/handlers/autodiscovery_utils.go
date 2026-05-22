@@ -70,6 +70,7 @@ func (s *ServiceCheckTemplateStore) writeTemplates(key string, cr *datadoghq.Dat
 	}
 }
 
+// deleteTemplates removes templates keyed by DDI CR.
 func (s *ServiceCheckTemplateStore) deleteTemplates(key string) {
 	s.mu.Lock()
 	delete(s.entries, key)

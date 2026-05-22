@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build clusterchecks && kubeapiserver
+//go:build kubeapiserver
 
 package providers
 
@@ -78,8 +78,7 @@ func NewKubeEndpointSlicesCRConfigProvider(templateStore serviceTemplateStore) (
 // check templates from the template store with EndpointSlices from the lister.
 func (p *KubeEndpointSlicesCRConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	p.setUpToDate(true)
-	configs := p.generateConfigs()
-	return configs, nil
+	return p.generateConfigs(), nil
 }
 
 // IsUpToDate returns whether the provider needs to be polled.
