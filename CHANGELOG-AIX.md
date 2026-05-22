@@ -10,6 +10,10 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+- Fix SQLite build: link with `-lm` when `SQLITE_ENABLE_MATH_FUNCTIONS` is enabled
+- Include `final_constraints-py3.txt` in the BFF package at `/opt/datadog-agent/final_constraints-py3.txt`
+- Upgrade embedded pip from 24.0 to 26.1 (patches CVE-2026-1703, CVE-2026-6357)
+
 ---
 
 > **Note:** `datadog-agent-7.80.0-devel.git.446.66c9b62-18.aix.ppc64.bff` and all older builds
