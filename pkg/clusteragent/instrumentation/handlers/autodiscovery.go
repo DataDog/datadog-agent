@@ -78,7 +78,6 @@ func (h *AutodiscoveryHandler) HasSection(cr *datadoghq.DatadogInstrumentation) 
 // SupportsTarget returns whether Autodiscovery check delivery supports the target kind.
 func (h *AutodiscoveryHandler) SupportsTarget(ref autoscalingv2.CrossVersionObjectReference) bool {
 	switch ref.Kind {
-	// 'Service' kind isn't supported but will be in the future.
 	case "Deployment", "DaemonSet", "StatefulSet", "CronJob", "Job":
 		return true
 	default:
@@ -88,41 +87,7 @@ func (h *AutodiscoveryHandler) SupportsTarget(ref autoscalingv2.CrossVersionObje
 
 // Validate reports per-check validation errors against spec.config.checks.
 func (h *AutodiscoveryHandler) Validate(cr *datadoghq.DatadogInstrumentation) []instrumentation.ValidationError {
-	if cr == nil {
-		return nil
-	}
-	var errs []instrumentation.ValidationError
-	for i, check := range cr.Spec.Config.Checks {
-		if strings.TrimSpace(check.Integration) == "" {
-			errs = append(errs, instrumentation.ValidationError{
-				Type:        checksReadyConditionType,
-				Reason:      "InvalidIntegration",
-				Message:     "integration name must not be empty",
-				Field:       fmt.Sprintf("spec.config.checks[%d].integration", i),
-				HandlerName: h.Name(),
-			})
-		}
-		if len(check.Instances) == 0 && len(check.Logs) == 0 {
-			errs = append(errs, instrumentation.ValidationError{
-				Type:        checksReadyConditionType,
-				Reason:      "InvalidInstances",
-				Message:     "at least one instance or log config is required",
-				Field:       fmt.Sprintf("spec.config.checks[%d].instances", i),
-				HandlerName: h.Name(),
-			})
-		}
-
-		if len(check.ContainerImage) == 0 {
-			errs = append(errs, instrumentation.ValidationError{
-				Type:        checksReadyConditionType,
-				Reason:      "InvalidContainerImage",
-				Message:     "at least one container image is required",
-				Field:       fmt.Sprintf("spec.config.checks[%d].containerImage", i),
-				HandlerName: h.Name(),
-			})
-		}
-	}
-	return errs
+	return validateChecks(cr, h.Name())
 }
 
 // Handle translates check configs into integration.Config entries on Create/Update,
@@ -230,26 +195,9 @@ func (c *CheckStore) hashStates() uint64 {
 }
 
 func translateCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.DatadogInstrumentationCheckConfig) (integration.Config, error) {
-	initConfig, err := rawExtensionToData(check.InitConfig)
+	initConfig, instances, logsConfig, err := translateConfigChecks(check)
 	if err != nil {
-		return integration.Config{}, fmt.Errorf("init_config: %w", err)
-	}
-	if len(initConfig) == 0 {
-		initConfig = integration.Data("{}")
-	}
-
-	instances := make([]integration.Data, 0, len(check.Instances))
-	for j, raw := range check.Instances {
-		data, err := rawExtensionToData(raw)
-		if err != nil {
-			return integration.Config{}, fmt.Errorf("instances[%d]: %w", j, err)
-		}
-		instances = append(instances, data)
-	}
-
-	logsConfig, err := marshalLogs(check.Logs)
-	if err != nil {
-		return integration.Config{}, fmt.Errorf("logs: %w", err)
+		return integration.Config{}, err
 	}
 
 	return integration.Config{
@@ -261,6 +209,31 @@ func translateCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.Datado
 		CELSelector:   buildCELSelector(cr.Spec.TargetRef, cr.Namespace),
 		Source:        fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
 	}, nil
+}
+
+func translateConfigChecks(check datadoghq.DatadogInstrumentationCheckConfig) (integration.Data, []integration.Data, integration.Data, error) {
+	initConfig, err := rawExtensionToData(check.InitConfig)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("init_config: %w", err)
+	}
+	if len(initConfig) == 0 {
+		initConfig = integration.Data("{}")
+	}
+
+	instances := make([]integration.Data, 0, len(check.Instances))
+	for j, raw := range check.Instances {
+		data, err := rawExtensionToData(raw)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("instances[%d]: %w", j, err)
+		}
+		instances = append(instances, data)
+	}
+
+	logsConfig, err := marshalLogs(check.Logs)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("logs: %w", err)
+	}
+	return initConfig, instances, logsConfig, nil
 }
 
 func rawExtensionToData(raw runtime.RawExtension) (integration.Data, error) {
@@ -296,4 +269,43 @@ func buildCELSelector(ref autoscalingv2.CrossVersionObjectReference, namespace s
 	return workloadfilter.Rules{
 		Containers: []string{expr},
 	}
+}
+
+// validateChecks validates the check configs in a DatadogInstrumentation CR.
+// It is shared by all handlers that support the spec.config.checks section.
+func validateChecks(cr *datadoghq.DatadogInstrumentation, handlerName string) []instrumentation.ValidationError {
+	if cr == nil {
+		return nil
+	}
+	var errs []instrumentation.ValidationError
+	for i, check := range cr.Spec.Config.Checks {
+		if strings.TrimSpace(check.Integration) == "" {
+			errs = append(errs, instrumentation.ValidationError{
+				Type:        checksReadyConditionType,
+				Reason:      "InvalidIntegration",
+				Message:     "integration name must not be empty",
+				Field:       fmt.Sprintf("spec.config.checks[%d].integration", i),
+				HandlerName: handlerName,
+			})
+		}
+		if len(check.Instances) == 0 && len(check.Logs) == 0 {
+			errs = append(errs, instrumentation.ValidationError{
+				Type:        checksReadyConditionType,
+				Reason:      "InvalidInstances",
+				Message:     "at least one instance or log config is required",
+				Field:       fmt.Sprintf("spec.config.checks[%d].instances", i),
+				HandlerName: handlerName,
+			})
+		}
+		if len(check.ContainerImage) == 0 {
+			errs = append(errs, instrumentation.ValidationError{
+				Type:        checksReadyConditionType,
+				Reason:      "InvalidContainerImage",
+				Message:     "at least one container image is required",
+				Field:       fmt.Sprintf("spec.config.checks[%d].containerImage", i),
+				HandlerName: handlerName,
+			})
+		}
+	}
+	return errs
 }
