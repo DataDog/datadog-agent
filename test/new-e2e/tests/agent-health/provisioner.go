@@ -34,6 +34,9 @@ var dockerPermissionAgentConfig string
 //go:embed fixtures/docker-compose.busybox.yaml
 var busyboxComposeContent string
 
+//go:embed fixtures/health_platform_agent_config.yaml
+var healthPlatformAgentConfig string
+
 // ============================================================================
 // Shared environment shape
 // ============================================================================
@@ -223,14 +226,6 @@ func (e *dockerPermissionEnv) diagnoseDocker() (string, error) {
 // Check Failure environment
 // ============================================================================
 
-// checkFailureAgentConf is the agent config used by the check failure suite.
-const checkFailureAgentConf = `
-health_platform:
-  enabled: true
-  forwarder:
-    interval: 30s
-`
-
 // brokenCheckConf is the check configuration file content (conf.d).
 const brokenCheckConf = `
 init_config:
@@ -261,7 +256,7 @@ func checkFailureEnvProvisioner() provisioners.PulumiEnvRunFunc[checkFailureEnv]
 			Fakeintake: env.Fakeintake,
 		}
 		return newBaseEC2Env(ctx, base, "checkfailurevm",
-			agentparams.WithAgentConfig(checkFailureAgentConf),
+			agentparams.WithAgentConfig(healthPlatformAgentConfig),
 			// Deploy the broken check via the integration mechanism so it is
 			// present when the agent first starts.
 			agentparams.WithIntegration("broken_check.d", brokenCheckConf),
