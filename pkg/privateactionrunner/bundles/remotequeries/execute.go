@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"time"
 	"unicode/utf8"
@@ -77,20 +77,20 @@ func (a *ExecuteAction) Run(
 	inputs, err := types.ExtractInputs[ExecuteInputs](task)
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(
-			fmt.Errorf("invalid remote query action inputs"),
+			errors.New("invalid remote query action inputs"),
 			"invalid remote query action inputs",
 		)
 	}
 
 	if a == nil || a.newBridgeClient == nil {
-		return nil, util.DefaultActionError(fmt.Errorf("remote query action requires an Agent IPC client"))
+		return nil, util.DefaultActionError(errors.New("remote query action requires an Agent IPC client"))
 	}
 	client, err := a.newBridgeClient()
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query action could not create an Agent IPC client")
 	}
 	if client == nil {
-		return nil, util.DefaultActionError(fmt.Errorf("remote query action requires an AgentSecure client"))
+		return nil, util.DefaultActionError(errors.New("remote query action requires an AgentSecure client"))
 	}
 
 	rpcStart := time.Now()
@@ -144,7 +144,7 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryEx
 
 func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk]) (map[string]interface{}, error) {
 	if stream == nil {
-		return nil, fmt.Errorf("remote query response stream missing")
+		return nil, errors.New("remote query response stream missing")
 	}
 
 	typedStreamEvents := make([]map[string]interface{}, 0)
@@ -164,16 +164,16 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 			return nil, err
 		}
 		if chunk == nil {
-			return nil, fmt.Errorf("remote query response stream returned nil chunk")
+			return nil, errors.New("remote query response stream returned nil chunk")
 		}
 		if firstChunkAt.IsZero() {
 			firstChunkAt = time.Now()
 		}
 		if chunk.GetChunkIndex() != expectedChunkIndex {
-			return nil, fmt.Errorf("remote query response stream chunk index mismatch")
+			return nil, errors.New("remote query response stream chunk index mismatch")
 		}
 		if seenFinal {
-			return nil, fmt.Errorf("remote query response stream sent chunk after final")
+			return nil, errors.New("remote query response stream sent chunk after final")
 		}
 		if event := chunk.GetEvent(); event != nil {
 			streamEvent, err := remoteQueryStreamEventFromProto(event)
@@ -190,7 +190,7 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 			}
 			typedStreamEvents = append(typedStreamEvents, streamEvent)
 		} else if !chunk.GetFinal() {
-			return nil, fmt.Errorf("remote query response stream chunk missing typed event")
+			return nil, errors.New("remote query response stream chunk missing typed event")
 		}
 		seenFinal = chunk.GetFinal()
 		if seenFinal {
@@ -199,10 +199,10 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 		expectedChunkIndex++
 	}
 	if !seenFinal {
-		return nil, fmt.Errorf("remote query response stream missing final chunk")
+		return nil, errors.New("remote query response stream missing final chunk")
 	}
 	if len(typedStreamEvents) == 0 {
-		return nil, fmt.Errorf("remote query response stream missing typed events")
+		return nil, errors.New("remote query response stream missing typed events")
 	}
 	output, err := remoteQueryExecuteOutputFromTypedEvents(typedStreamEvents)
 	if err != nil {
@@ -283,7 +283,7 @@ func remoteQueryStreamEventFromProto(event *pb.RemoteQueryExecuteStreamEvent) (m
 			out["attributes"] = e.Error.GetAttributes()
 		}
 	default:
-		return nil, fmt.Errorf("remote query stream response contained unknown event")
+		return nil, errors.New("remote query stream response contained unknown event")
 	}
 	return out, nil
 }
@@ -314,11 +314,11 @@ func remoteQueryExecuteOutputFromTypedEvents(events []map[string]interface{}) (m
 				"error":  map[string]interface{}{"code": code, "message": message},
 			}, nil
 		}
-		return nil, fmt.Errorf("remote query stream response missing final event")
+		return nil, errors.New("remote query stream response missing final event")
 	}
 	status, _ := finalEvent["status"].(string)
 	if status == "" {
-		return nil, fmt.Errorf("remote query stream final event missing status")
+		return nil, errors.New("remote query stream final event missing status")
 	}
 	dataBytes := data.Bytes()
 	output := map[string]interface{}{
@@ -328,41 +328,6 @@ func remoteQueryExecuteOutputFromTypedEvents(events []map[string]interface{}) (m
 	}
 	if utf8.Valid(dataBytes) {
 		output["data"] = string(dataBytes)
-	}
-	return output, nil
-}
-
-func remoteQueryExecuteOutputFromProto(resp *pb.RemoteQueryExecuteResponse) (map[string]interface{}, error) {
-	if resp == nil || resp.GetStatus() == "" {
-		return nil, fmt.Errorf("remote query response missing status")
-	}
-
-	output := map[string]interface{}{"status": resp.GetStatus()}
-	if resp.GetError() != nil {
-		output["error"] = map[string]interface{}{
-			"code":    resp.GetError().GetCode(),
-			"message": resp.GetError().GetMessage(),
-		}
-	}
-	if len(resp.GetColumns()) > 0 {
-		columns := make([]interface{}, 0, len(resp.GetColumns()))
-		for _, column := range resp.GetColumns() {
-			columns = append(columns, column.AsMap())
-		}
-		output["columns"] = columns
-	}
-	if len(resp.GetRows()) > 0 {
-		rows := make([]interface{}, 0, len(resp.GetRows()))
-		for _, row := range resp.GetRows() {
-			rows = append(rows, row.AsMap())
-		}
-		output["rows"] = rows
-	}
-	if resp.GetTruncated() {
-		output["truncated"] = true
-	}
-	if resp.GetStats() != nil {
-		output["stats"] = resp.GetStats().AsMap()
 	}
 	return output, nil
 }

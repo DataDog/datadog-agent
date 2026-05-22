@@ -44,8 +44,8 @@ char *getStringAddr(char **array, unsigned int idx);
 extern int remoteQueryStreamEmitBridge(const char *event_type, const char *metadata_json, const uint8_t *payload, size_t payload_len, void *userdata);
 int run_remote_query_stream(rtloader_t *, rtloader_pyobject_t *check, const char *integration, const char *request_json, int (*emit)(const char *, const char *, const uint8_t *, size_t, void *), void *userdata);
 
-static inline int call_run_remote_query_stream(rtloader_t *rtloader, rtloader_pyobject_t *check, const char *integration, const char *request_json, void *userdata) {
-    return run_remote_query_stream(rtloader, check, integration, request_json, remoteQueryStreamEmitBridge, userdata);
+static inline int call_run_remote_query_stream(rtloader_t *rtloader, rtloader_pyobject_t *check, const char *integration, const char *request_json, uintptr_t userdata) {
+    return run_remote_query_stream(rtloader, check, integration, request_json, remoteQueryStreamEmitBridge, (void *)userdata);
 }
 
 static inline void call_free(void* ptr) {
@@ -169,10 +169,10 @@ func (c *PythonCheck) RunSimple() error {
 func (c *PythonCheck) RunRemoteQueryStream(integration string, requestJSON string, emit func(checkbase.RemoteQueryStreamEvent) error) error {
 	integration = strings.ToLower(strings.TrimSpace(integration))
 	if integration == "" {
-		return fmt.Errorf("integration is required")
+		return errors.New("integration is required")
 	}
 	if emit == nil {
-		return fmt.Errorf("emit callback is required")
+		return errors.New("emit callback is required")
 	}
 
 	gstate, err := newStickyLock()
@@ -192,12 +192,12 @@ func (c *PythonCheck) RunRemoteQueryStream(integration string, requestJSON strin
 
 	h := cgo.NewHandle(emit)
 	defer h.Delete()
-	ok := C.call_run_remote_query_stream(rtloader, c.instance, cIntegration, cRequestJSON, unsafe.Pointer(h))
+	ok := C.call_run_remote_query_stream(rtloader, c.instance, cIntegration, cRequestJSON, C.uintptr_t(h))
 	if ok == 0 {
 		if err := getRtLoaderError(); err != nil {
 			return err
 		}
-		return fmt.Errorf("an error occurred while running remote query stream")
+		return errors.New("an error occurred while running remote query stream")
 	}
 	return nil
 }

@@ -146,16 +146,16 @@ func NewRemoteQueryCopyStreamExecuteRequest(integration string, target RemoteQue
 		return RemoteQueryExecuteRequest{}, err
 	}
 	if query == "" {
-		return RemoteQueryExecuteRequest{}, fmt.Errorf("query is required")
+		return RemoteQueryExecuteRequest{}, errors.New("query is required")
 	}
 	if !isRemoteQueryAllowedProofQuery(query) {
-		return RemoteQueryExecuteRequest{}, fmt.Errorf("query is not allowed")
+		return RemoteQueryExecuteRequest{}, errors.New("query is not allowed")
 	}
 	if format == "" {
 		format = "csv"
 	}
 	if format != "csv" && format != "binary" {
-		return RemoteQueryExecuteRequest{}, fmt.Errorf("format must be csv or binary")
+		return RemoteQueryExecuteRequest{}, errors.New("format must be csv or binary")
 	}
 	var parsedLimits *remoteQueryExecuteCopyLimits
 	if limits != nil {
@@ -193,8 +193,8 @@ const (
 )
 
 // NewRemoteQueryExecuteRequest rejects legacy inline Remote Queries requests.
-func NewRemoteQueryExecuteRequest(integration string, target RemoteQueryExecuteTarget, query string, limits *RemoteQueryExecuteLimits) (RemoteQueryExecuteRequest, error) {
-	return RemoteQueryExecuteRequest{}, fmt.Errorf("operation must be copy_stream")
+func NewRemoteQueryExecuteRequest(_ string, _ RemoteQueryExecuteTarget, _ string, _ *RemoteQueryExecuteLimits) (RemoteQueryExecuteRequest, error) {
+	return RemoteQueryExecuteRequest{}, errors.New("operation must be copy_stream")
 }
 
 type remoteQueryExecuteRequest struct {
@@ -314,10 +314,10 @@ func parseExecuteRequest(r *http.Request) (remoteQueryExecuteRequest, string, er
 	}
 
 	if wireReq.Query == "" {
-		return remoteQueryExecuteRequest{}, "", fmt.Errorf("query is required")
+		return remoteQueryExecuteRequest{}, "", errors.New("query is required")
 	}
 	if !isRemoteQueryAllowedProofQuery(wireReq.Query) {
-		return remoteQueryExecuteRequest{}, "", fmt.Errorf("query is not allowed")
+		return remoteQueryExecuteRequest{}, "", errors.New("query is not allowed")
 	}
 
 	limits, err := parseExecuteLimits(wireReq.Limits)
@@ -330,19 +330,19 @@ func parseExecuteRequest(r *http.Request) (remoteQueryExecuteRequest, string, er
 	}
 
 	if wireReq.Operation != "copy_stream" {
-		return remoteQueryExecuteRequest{}, "", fmt.Errorf("operation must be copy_stream")
+		return remoteQueryExecuteRequest{}, "", errors.New("operation must be copy_stream")
 	}
 	if wireReq.Format == "" {
 		wireReq.Format = "csv"
 	}
 	if wireReq.Format != "csv" && wireReq.Format != "binary" {
-		return remoteQueryExecuteRequest{}, "", fmt.Errorf("format must be csv or binary")
+		return remoteQueryExecuteRequest{}, "", errors.New("format must be csv or binary")
 	}
 
 	req := remoteQueryExecuteRequest{Integration: integration, Operation: wireReq.Operation, Target: target, Query: wireReq.Query, Format: wireReq.Format, Limits: limits, CopyLimits: copyLimits}
 	requestJSON, err := marshalExecuteRequest(req)
 	if err != nil {
-		return remoteQueryExecuteRequest{}, "", fmt.Errorf("malformed JSON request")
+		return remoteQueryExecuteRequest{}, "", errors.New("malformed JSON request")
 	}
 	return req, requestJSON, nil
 }
@@ -440,7 +440,7 @@ func parseRequiredPositiveInt(value *int, name string) (int, error) {
 	return *value, nil
 }
 
-func (s *RemoteQueryExecuteService) Execute(req RemoteQueryExecuteRequest) RemoteQueryExecuteResult {
+func (s *RemoteQueryExecuteService) Execute(_ RemoteQueryExecuteRequest) RemoteQueryExecuteResult {
 	return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "remote queries require operation copy_stream and the streaming executor")
 }
 
@@ -534,7 +534,7 @@ func remoteQueryExecuteRequestFromInternal(req remoteQueryExecuteRequest) Remote
 
 func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
 	if req.Operation != "copy_stream" {
-		return "", fmt.Errorf("operation must be copy_stream")
+		return "", errors.New("operation must be copy_stream")
 	}
 	format := req.Format
 	if format == "" {

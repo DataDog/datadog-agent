@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -284,7 +283,7 @@ func (s *serverSecure) WorkloadFilterEvaluate(ctx context.Context, req *pb.Workl
 	return s.workloadfilterServer.WorkloadFilterEvaluate(ctx, req)
 }
 
-func (s *serverSecure) RemoteQueryExecute(_ context.Context, req *pb.RemoteQueryExecuteRequest) (*pb.RemoteQueryExecuteResponse, error) {
+func (s *serverSecure) RemoteQueryExecute(_ context.Context, _ *pb.RemoteQueryExecuteRequest) (*pb.RemoteQueryExecuteResponse, error) {
 	return remoteQueryExecuteErrorResponse(remotequeriesimpl.RemoteQueryStatusInvalidRequest, "remote queries require RemoteQueryExecuteStream with operation copy_stream"), nil
 }
 
@@ -492,7 +491,7 @@ func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remo
 		DBName: req.GetTarget().GetDbname(),
 	}
 	if req.GetOperation() != "copy_stream" {
-		return remotequeriesimpl.RemoteQueryExecuteRequest{}, fmt.Errorf("operation must be copy_stream")
+		return remotequeriesimpl.RemoteQueryExecuteRequest{}, errors.New("operation must be copy_stream")
 	}
 	return remotequeriesimpl.NewRemoteQueryCopyStreamExecuteRequest(req.GetIntegration(), target, req.GetQuery(), req.GetFormat(), remoteQueryCopyLimitsFromProto(req.GetCopyLimits()))
 }

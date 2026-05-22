@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
@@ -62,10 +63,10 @@ func NewRemoteQueryPARHarness(client remoteQueryPARIPCClient, endpointURL string
 // Execute sends a credential-free target/query request through the injected Agent IPC HTTP client.
 func (h *RemoteQueryPARHarness) Execute(ctx context.Context, inputs RemoteQueryPARInputs) (RemoteQueryPARResult, error) {
 	if h == nil || h.client == nil {
-		return RemoteQueryPARResult{}, fmt.Errorf("remote query PAR harness requires an IPC client")
+		return RemoteQueryPARResult{}, errors.New("remote query PAR harness requires an IPC client")
 	}
 	if h.endpointURL == "" {
-		return RemoteQueryPARResult{}, fmt.Errorf("remote query PAR harness requires an endpoint URL")
+		return RemoteQueryPARResult{}, errors.New("remote query PAR harness requires an endpoint URL")
 	}
 
 	payload, err := json.Marshal(inputs)
@@ -82,7 +83,7 @@ func (h *RemoteQueryPARHarness) Execute(ctx context.Context, inputs RemoteQueryP
 	}
 	if postErr != nil {
 		if len(body) > 0 {
-			return RemoteQueryPARResult{}, fmt.Errorf("remote query IPC request failed with undecodable response")
+			return RemoteQueryPARResult{}, errors.New("remote query IPC request failed with undecodable response")
 		}
 		return RemoteQueryPARResult{}, fmt.Errorf("remote query IPC request failed: %w", postErr)
 	}
@@ -91,7 +92,7 @@ func (h *RemoteQueryPARHarness) Execute(ctx context.Context, inputs RemoteQueryP
 
 func decodeRemoteQueryPARResponse(body []byte) (RemoteQueryPARResult, error) {
 	if len(body) == 0 {
-		return RemoteQueryPARResult{}, fmt.Errorf("empty remote query response")
+		return RemoteQueryPARResult{}, errors.New("empty remote query response")
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(body))
@@ -102,7 +103,7 @@ func decodeRemoteQueryPARResponse(body []byte) (RemoteQueryPARResult, error) {
 		return RemoteQueryPARResult{}, fmt.Errorf("decode remote query response: %w", err)
 	}
 	if result.Status == "" {
-		return RemoteQueryPARResult{}, fmt.Errorf("remote query response missing status")
+		return RemoteQueryPARResult{}, errors.New("remote query response missing status")
 	}
 	result.Raw = append(result.Raw[:0], body...)
 	return result, nil

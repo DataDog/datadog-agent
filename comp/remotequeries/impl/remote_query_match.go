@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -172,7 +171,7 @@ func parseMatchRequest(r *http.Request) (remoteQueryMatchRequest, error) {
 func parseIntegration(integration string) (string, error) {
 	integration = strings.ToLower(strings.TrimSpace(integration))
 	if integration == "" {
-		return "", fmt.Errorf("integration is required")
+		return "", errors.New("integration is required")
 	}
 	if !integrationNamePattern.MatchString(integration) {
 		return "", invalidRequestError("integration contains invalid characters")
@@ -213,12 +212,12 @@ func (t *remoteQueryTargetRequestJSON) UnmarshalJSON(data []byte) error {
 
 func parseTarget(target *remoteQueryTargetRequestJSON) (remoteQueryTarget, error) {
 	if target == nil {
-		return remoteQueryTarget{}, fmt.Errorf("target is required")
+		return remoteQueryTarget{}, errors.New("target is required")
 	}
 
 	host := normalizeHost(target.Host)
 	if host == "" {
-		return remoteQueryTarget{}, fmt.Errorf("target.host is required")
+		return remoteQueryTarget{}, errors.New("target.host is required")
 	}
 
 	port, err := parseRequiredPort(target.Port)
@@ -227,7 +226,7 @@ func parseTarget(target *remoteQueryTargetRequestJSON) (remoteQueryTarget, error
 	}
 
 	if target.DBName == "" {
-		return remoteQueryTarget{}, fmt.Errorf("target.dbname is required")
+		return remoteQueryTarget{}, errors.New("target.dbname is required")
 	}
 
 	return remoteQueryTarget{Host: host, Port: port, DBName: target.DBName}, nil
@@ -235,10 +234,10 @@ func parseTarget(target *remoteQueryTargetRequestJSON) (remoteQueryTarget, error
 
 func parseRequiredPort(port *int) (int, error) {
 	if port == nil {
-		return 0, fmt.Errorf("target.port is required")
+		return 0, errors.New("target.port is required")
 	}
 	if *port < 1 || *port > 65535 {
-		return 0, fmt.Errorf("target.port is out of range")
+		return 0, errors.New("target.port is out of range")
 	}
 	return *port, nil
 }
@@ -275,15 +274,15 @@ func parseJSONRequestError(err error) error {
 	if errors.As(err, &typeErr) {
 		switch typeErr.Field {
 		case "port", "target.port":
-			return fmt.Errorf("target.port must be an integer")
+			return errors.New("target.port must be an integer")
 		case "target":
 			return errTargetMustBeObject
 		case "maxRows", "limits.maxRows":
-			return fmt.Errorf("limits.maxRows must be an integer")
+			return errors.New("limits.maxRows must be an integer")
 		case "maxBytes", "limits.maxBytes":
-			return fmt.Errorf("limits.maxBytes must be an integer")
+			return errors.New("limits.maxBytes must be an integer")
 		case "timeoutMs", "limits.timeoutMs":
-			return fmt.Errorf("limits.timeoutMs must be an integer")
+			return errors.New("limits.timeoutMs must be an integer")
 		case "limits":
 			return errLimitsMustBeObject
 		}

@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -283,11 +284,12 @@ func writeFusedEvidence(t *testing.T, path string, lines []string) {
 	if path == "" {
 		return
 	}
-	payload := ""
+	var payload strings.Builder
 	for _, line := range lines {
-		payload += line + "\n"
+		payload.WriteString(line)
+		payload.WriteByte('\n')
 	}
-	require.NoError(t, os.WriteFile(path, []byte(payload), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte(payload.String()), 0o600))
 }
 
 func getenvRequired(t *testing.T, name string) string {

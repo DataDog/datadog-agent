@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "remote_query_execute.go",
+        "remote_query_match.go",
+        "remote_query_par_poc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/remotequeries/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "@//comp/collector/collector",
+        "@//pkg/collector/check",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "remote_query_par_poc_test.go",
+        "remote_query_test.go",
+    ],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
+        "@//comp/collector/collector",
+        "@//comp/core/autodiscovery/integration",
+        "@//comp/core/diagnose/def",
+        "@//pkg/aggregator/sender",
+        "@//pkg/collector/check",
+        "@//pkg/collector/check/id",
+        "@//pkg/collector/check/stats",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

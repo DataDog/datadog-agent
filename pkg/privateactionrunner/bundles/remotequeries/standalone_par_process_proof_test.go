@@ -138,7 +138,7 @@ func TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC(t *t
 
 	writeFusedEvidence(t, getenvOptional("RQ_STANDALONE_EVIDENCE_FILE"), []string{
 		fmt.Sprintf("standalone private-action-runner process pid=%d", parPID),
-		fmt.Sprintf("separate Agent process pid=%s", agentPID),
+		"separate Agent process pid=" + agentPID,
 		fmt.Sprintf("fakeintake task enqueued: task_id=%s action_fqn=%s inputs=%s", taskID, fqn, requestEvidence),
 		"standalone PAR process dequeued the fakeintake OPMS task and invoked the registered action",
 		fmt.Sprintf("real AgentSecure IPC called by standalone PAR: 127.0.0.1:%d RemoteQueryExecuteStream", cmdPortInt),

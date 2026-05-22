@@ -222,7 +222,7 @@ type fakeCollector struct {
 
 func (f fakeCollector) RunCheck(inner check.Check) (checkid.ID, error) { return inner.ID(), nil }
 func (f fakeCollector) StopCheck(checkid.ID) error                     { return nil }
-func (f fakeCollector) MapOverChecks(cb func([]check.Info))            {}
+func (f fakeCollector) MapOverChecks(_ func([]check.Info))             {}
 func (f fakeCollector) GetChecks() []check.Check                       { return f.checks }
 func (f fakeCollector) ReloadAllCheckInstances(string, []check.Check) ([]checkid.ID, error) {
 	return nil, nil
