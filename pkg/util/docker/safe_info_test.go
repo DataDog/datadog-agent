@@ -8,7 +8,6 @@
 package docker
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -68,7 +67,7 @@ func TestSafeInfo_HappyPath(t *testing.T) {
 	defer server.Close()
 
 	cli := newTestDockerClient(t, server.URL)
-	info, err := safeInfo(context.Background(), cli)
+	info, err := safeInfo(t.Context(), cli)
 	require.NoError(t, err)
 	assert.Equal(t, "test-daemon", info.Name)
 	assert.Equal(t, "29.0.1", info.ServerVersion)
@@ -93,7 +92,7 @@ func TestSafeInfo_FallbackOnInvalidPrefix(t *testing.T) {
 	defer server.Close()
 
 	cli := newTestDockerClient(t, server.URL)
-	info, err := safeInfo(context.Background(), cli)
+	info, err := safeInfo(t.Context(), cli)
 	require.NoError(t, err)
 	assert.Equal(t, "broken-daemon", info.Name)
 	assert.Equal(t, "28.5.0", info.ServerVersion)
@@ -110,7 +109,7 @@ func TestSafeInfo_PropagatesNonDecodeErrors(t *testing.T) {
 	defer server.Close()
 
 	cli := newTestDockerClient(t, server.URL)
-	_, err := safeInfo(context.Background(), cli)
+	_, err := safeInfo(t.Context(), cli)
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "tolerant /info fallback")
 }
