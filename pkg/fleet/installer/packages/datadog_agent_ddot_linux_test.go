@@ -7,7 +7,11 @@
 
 package packages
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestDdotExtensionProcmgrRemoveStable(t *testing.T) {
 	t.Parallel()
@@ -30,4 +34,52 @@ func TestDdotExtensionProcmgrRemoveStable(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOciAgentStableAndExperimentProcessesDirsEquivalentAt(t *testing.T) {
+	t.Run("missing_stable_not_error", func(t *testing.T) {
+		t.Parallel()
+		base := t.TempDir()
+		expDir := filepath.Join(base, "datadog-agent", "experiment", "processes.d")
+		if err := os.MkdirAll(expDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		equiv, err := ociAgentStableAndExperimentProcessesDirsEquivalentAt(base)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if equiv {
+			t.Fatal("expected not equivalent when stable processes.d is absent")
+		}
+	})
+
+	t.Run("same_directory", func(t *testing.T) {
+		t.Parallel()
+		base := t.TempDir()
+		stableDir := filepath.Join(base, "datadog-agent", "stable", "processes.d")
+		expDir := filepath.Join(base, "datadog-agent", "experiment", "processes.d")
+		shared := filepath.Join(base, "shared", "processes.d")
+		if err := os.MkdirAll(shared, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Dir(stableDir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Dir(expDir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(shared, stableDir); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(shared, expDir); err != nil {
+			t.Fatal(err)
+		}
+		equiv, err := ociAgentStableAndExperimentProcessesDirsEquivalentAt(base)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !equiv {
+			t.Fatal("expected equivalent when both channels resolve to the same processes.d")
+		}
+	})
 }

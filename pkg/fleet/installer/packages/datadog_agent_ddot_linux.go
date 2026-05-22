@@ -247,14 +247,24 @@ func ddotProcmgrProcessesDir(ctx HookContext, stable bool) string {
 
 // ociAgentStableAndExperimentProcessesDirsEquivalent is true when stable and experiment processes.d resolve to the same path.
 func ociAgentStableAndExperimentProcessesDirsEquivalent() (bool, error) {
-	stableDir := filepath.Join(paths.PackagesPath, "datadog-agent", "stable", "processes.d")
-	expDir := filepath.Join(paths.PackagesPath, "datadog-agent", "experiment", "processes.d")
+	return ociAgentStableAndExperimentProcessesDirsEquivalentAt(paths.PackagesPath)
+}
+
+func ociAgentStableAndExperimentProcessesDirsEquivalentAt(base string) (bool, error) {
+	stableDir := filepath.Join(base, "datadog-agent", "stable", "processes.d")
+	expDir := filepath.Join(base, "datadog-agent", "experiment", "processes.d")
 	stableResolved, err := filepath.EvalSymlinks(stableDir)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
 		return false, err
 	}
 	expResolved, err := filepath.EvalSymlinks(expDir)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
 		return false, err
 	}
 	return stableResolved == expResolved, nil
@@ -409,12 +419,11 @@ func syncDDOTProcmgrAfterAgentPromotion(ctx HookContext) error {
 		return err
 	}
 	equiv, err := ociAgentStableAndExperimentProcessesDirsEquivalent()
-	if err != nil {
-		log.Warnf("skipping experiment DDOT procmgr cleanup after promote: resolve processes.d paths: %v", err)
+	if err == nil && equiv {
 		return nil
 	}
-	if equiv {
-		return nil
+	if err != nil {
+		log.Warnf("experiment DDOT procmgr cleanup after promote: resolve processes.d paths: %v", err)
 	}
 	expCtx := ctx
 	expCtx.PackagePath = filepath.Join(paths.PackagesPath, "datadog-agent", "experiment")
@@ -458,11 +467,7 @@ func removeDDOTExtensionProcmgrYAML(ctx HookContext) {
 	procmgrCtx := ddotExtensionProcmgrHookContext(ctx, stable)
 	if !stable {
 		equiv, err := ociAgentStableAndExperimentProcessesDirsEquivalent()
-		if err != nil {
-			log.Warnf("skipping DDOT procmgr cleanup on experiment extension remove: resolve processes.d paths: %v", err)
-			return
-		}
-		if equiv {
+		if err == nil && equiv {
 			stableOCI := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
 			if ddotExtensionInstalled(stableOCI) {
 				stableCtx := ctx
@@ -472,6 +477,9 @@ func removeDDOTExtensionProcmgrYAML(ctx HookContext) {
 				}
 				return
 			}
+		}
+		if err != nil {
+			log.Warnf("experiment extension remove: resolve processes.d paths: %v; removing experiment DDOT procmgr config", err)
 		}
 	}
 	if err := syncDDOTProcmgrStop(procmgrCtx, stable); err != nil {
