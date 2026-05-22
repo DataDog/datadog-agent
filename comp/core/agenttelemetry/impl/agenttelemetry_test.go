@@ -61,7 +61,7 @@ type senderMock struct {
 	// barrier (e.g. wait on runner.stop().Done) that establishes
 	// happens-before with the job's completion.
 	//
-	// sendLogsCallCount counts sendLogsTypedBatch invocations; sentLogs
+	// sendLogsCallCount counts sendLogsBatch invocations; sentLogs
 	// flattens every batch into one accumulating slice. The pair lets
 	// tests distinguish "1 call with N records" from "N calls with 1
 	// record each" — the latter would be a regression to per-batch
@@ -82,7 +82,7 @@ func (s *senderMock) sendAgentMetricPayloads(_ *senderSession, metrics []*agentm
 }
 func (s *senderMock) sendEventPayload(_ *senderSession, _ *Event, _ map[string]interface{}) {
 }
-func (s *senderMock) sendLogsTypedBatch(_ context.Context, logs []Log) error {
+func (s *senderMock) sendLogsBatch(_ context.Context, logs []Log) error {
 	s.sentLogsMu.Lock()
 	defer s.sentLogsMu.Unlock()
 	s.sendLogsCallCount++
@@ -91,7 +91,7 @@ func (s *senderMock) sendLogsTypedBatch(_ context.Context, logs []Log) error {
 }
 
 // capturedLogs returns a thread-safe snapshot of the records captured
-// via sendLogsTypedBatch. Tests should call this rather than reading
+// via sendLogsBatch. Tests should call this rather than reading
 // sentLogs directly.
 func (s *senderMock) capturedLogs() []Log {
 	s.sentLogsMu.Lock()
@@ -102,7 +102,7 @@ func (s *senderMock) capturedLogs() []Log {
 }
 
 // sendLogsCalls returns a thread-safe snapshot of how many times
-// sendLogsTypedBatch was invoked. Pair with capturedLogs to assert
+// sendLogsBatch was invoked. Pair with capturedLogs to assert
 // "one HTTP call per flush" (N records via 1 call, not 1 record via N
 // calls).
 func (s *senderMock) sendLogsCalls() int {

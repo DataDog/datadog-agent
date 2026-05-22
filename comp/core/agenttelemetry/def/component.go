@@ -22,14 +22,14 @@ type Component interface {
 	//    payload     - de-serializable into JSON
 	SendEvent(eventType string, eventPayload []byte) error
 
-	// SubmitErrorRecord accepts a single error log record from the
+	// SubmitErrorLog accepts a single error log record from the
 	// pkg/util/log slog handler and enqueues it for asynchronous flush
 	// to the Cross-Org Agent Telemetry (COAT) intake. Implementations
 	// MUST be non-blocking on the hot path: enqueue to a bounded buffer
 	// and drop silently on overflow.
 	//
 	// Recursion prevention: the flush path
-	// (sendLogsTypedBatch → sendSerializedPayload) MUST NOT log at
+	// (sendLogsBatch → sendPayload) MUST NOT log at
 	// Error or above. A flush-path Errorf would re-enter the slog
 	// handler and feed records back into this same channel. This
 	// invariant is enforced by convention — there is no runtime
@@ -41,7 +41,7 @@ type Component interface {
 	// This method receives the ErrorLog value-type defined at
 	// pkg/util/log/errortracking; the component never sees raw slog
 	// types on its public surface.
-	SubmitErrorRecord(log errortracking.ErrorLog)
+	SubmitErrorLog(log errortracking.ErrorLog)
 
 	StartStartupSpan(operationName string) (*installertelemetry.Span, context.Context)
 }

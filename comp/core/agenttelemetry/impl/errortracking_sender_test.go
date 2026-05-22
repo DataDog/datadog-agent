@@ -86,8 +86,8 @@ func (c *captureClient) snapshot() ([]*http.Request, [][]byte) {
 // newTestSender constructs a senderImpl wired to a single in-memory
 // endpoint, bypassing the heavyweight newSenderImpl path that would
 // require a full config.Component and BuildHTTPEndpointsWithConfig call.
-// The fields populated here are exactly the ones sendLogsTypedBatch and
-// sendSerializedPayload read.
+// The fields populated here are exactly the ones sendLogsBatch and
+// sendPayload read.
 func newTestSender(t *testing.T, cl client) *senderImpl {
 	t.Helper()
 	main := logconfig.NewEndpoint("test-api-key", "", "instrumentation-telemetry-intake.datad0g.com", 0, "", true)
@@ -108,10 +108,10 @@ func newTestSender(t *testing.T, cl client) *senderImpl {
 
 // TestSendPayloadBody_StatusCodes locks the contract of the extracted
 // shared transport helper (review comment C3 on PR #49946). Both
-// flushSession and sendLogsTypedBatch route per-endpoint POSTs through
-// sendSerializedPayload, which in turn calls this helper; the helper
+// flushSession and sendLogsBatch route per-endpoint POSTs through
+// sendPayload, which in turn calls this helper; the helper
 // must return the raw HTTP status code regardless of value so the
-// uniform Debug-log policy in sendSerializedPayload can apply
+// uniform Debug-log policy in sendPayload can apply
 // (non-2xx is observability noise, only transport errors propagate).
 func TestSendPayloadBody_StatusCodes(t *testing.T) {
 	cases := []struct {
@@ -154,7 +154,7 @@ func TestSendPayloadBody_NetworkError(t *testing.T) {
 }
 
 // =============================================================================
-// atel-level errortracking tests (buffered channel + flush + errorLogToLog)
+// atel-level errortracking tests (buffered channel + flush + enrichErrorLog)
 // =============================================================================
 
 // TestErrorLogToLog_WireShape locks the wire payload shape: only
@@ -170,7 +170,7 @@ func TestErrorLogToLog_WireShape(t *testing.T) {
 	require.GreaterOrEqual(t, in.PCsLen, 1)
 	in.PC = in.PCs[0]
 
-	out := errorLogToLog(in)
+	out := enrichErrorLog(in)
 
 	// Stack-derived + defaults: present on the wire.
 	assert.Equal(t, LogLevelError, out.Level)
@@ -191,7 +191,7 @@ func TestErrorLogToLog_NoPC_EmptyStackTrace(t *testing.T) {
 		Time: time.Now(),
 		PC:   0,
 	}
-	out := errorLogToLog(in)
+	out := enrichErrorLog(in)
 	assert.Empty(t, out.StackTrace, "no captured PCs must produce empty stack_trace")
 }
 
@@ -207,7 +207,7 @@ func TestErrorLogToLog_MultiFramePCs(t *testing.T) {
 	require.GreaterOrEqual(t, in.PCsLen, 2,
 		"this test must capture at least 2 frames (test func + testing harness)")
 
-	out := errorLogToLog(in)
+	out := enrichErrorLog(in)
 
 	require.NotEmpty(t, out.StackTrace, "multi-frame PCs must produce non-empty stack_trace")
 	lines := strings.Split(out.StackTrace, "\n")
@@ -249,29 +249,29 @@ func newTestAtelMinimal(t *testing.T, sndr sender, bufSize int) *atel {
 	return a
 }
 
-// TestSubmitErrorRecord_DisabledNoOp: a disabled atel must accept calls
+// TestSubmitErrorLog_DisabledNoOp: a disabled atel must accept calls
 // and drop them silently (no panic, no enqueue, no drop counter bump —
 // because we never reached the enqueue path).
-func TestSubmitErrorRecord_DisabledNoOp(t *testing.T) {
+func TestSubmitErrorLog_DisabledNoOp(t *testing.T) {
 	a := &atel{enabled: false}
-	a.SubmitErrorRecord(errorLog("dropped"))
+	a.SubmitErrorLog(errorLog("dropped"))
 	assert.Equal(t, uint64(0), a.errLogsDropped.Load())
 }
 
-// TestSubmitErrorRecord_AcceptsRecord_PCZero: a record carrying PC=0
+// TestSubmitErrorLog_AcceptsRecord_PCZero: a record carrying PC=0
 // (the common case for caller-PC-less origins, e.g. synthetic test
 // inputs) must be enqueued normally and reach the sender on flush.
 // Regression coverage for the positive-path enqueue contract previously
 // folded into the now-removed recursion-guard tests. Drives via the
-// public SubmitErrorRecord + fake-sender observation rather than
+// public SubmitErrorLog + fake-sender observation rather than
 // reading a.errLogsCh directly (pducolin's "skip internals from
 // testing" comment on PR #50607).
-func TestSubmitErrorRecord_AcceptsRecord_PCZero(t *testing.T) {
+func TestSubmitErrorLog_AcceptsRecord_PCZero(t *testing.T) {
 	sm := &senderMock{}
 	a := newTestAtelMinimal(t, sm, 8)
 	defer a.cancel()
 
-	a.SubmitErrorRecord(errorLog("from-external"))
+	a.SubmitErrorLog(errorLog("from-external"))
 
 	a.flushErrortracking(context.Background())
 
@@ -279,13 +279,13 @@ func TestSubmitErrorRecord_AcceptsRecord_PCZero(t *testing.T) {
 		"PC=0 record must be enqueued and flushed to the sender")
 }
 
-// TestSubmitErrorRecord_FeatureDisabled_NoChannel: when
+// TestSubmitErrorLog_FeatureDisabled_NoChannel: when
 // agent_telemetry.errortracking.enabled is false (default), or when
 // gov/FIPS exclusion blocks the parent agent_telemetry feature,
-// SubmitErrorRecord must be a no-op and the underlying channel must not
+// SubmitErrorLog must be a no-op and the underlying channel must not
 // be allocated. This is the gating contract: deployments that don't opt
 // in pay zero overhead (no buffer, no idle flush goroutine).
-func TestSubmitErrorRecord_FeatureDisabled_NoChannel(t *testing.T) {
+func TestSubmitErrorLog_FeatureDisabled_NoChannel(t *testing.T) {
 	// Simulate the "createAtel saw errortracking gate=false" shape:
 	// enabled (agenttelemetry) is true, errortrackingEnabled is false,
 	// errLogsCh is left as the zero value (nil).
@@ -297,29 +297,29 @@ func TestSubmitErrorRecord_FeatureDisabled_NoChannel(t *testing.T) {
 
 	assert.Nil(t, a.errLogsCh, "feature-disabled atel must not allocate the channel")
 
-	// Calling SubmitErrorRecord must be a no-op: the errLogsCh==nil
+	// Calling SubmitErrorLog must be a no-op: the errLogsCh==nil
 	// guard short-circuits before the select, so no panic and no drop
 	// counter bump (we never reached the enqueue path).
 	assert.NotPanics(t, func() {
-		a.SubmitErrorRecord(errorLog("ignored"))
+		a.SubmitErrorLog(errorLog("ignored"))
 	})
 	assert.Equal(t, uint64(0), a.errLogsDropped.Load(),
 		"feature-disabled drops are not overflow drops; counter must stay at 0")
 }
 
-// TestSubmitErrorRecord_NonBlocking_DropsOnOverflow: when the bounded
-// channel is full, SubmitErrorRecord MUST drop silently (NOT block) and
+// TestSubmitErrorLog_NonBlocking_DropsOnOverflow: when the bounded
+// channel is full, SubmitErrorLog MUST drop silently (NOT block) and
 // increment the drop counter. The hot path is the slog handler — it
 // cannot block on a slow or stuck backend.
-func TestSubmitErrorRecord_NonBlocking_DropsOnOverflow(t *testing.T) {
+func TestSubmitErrorLog_NonBlocking_DropsOnOverflow(t *testing.T) {
 	a := newTestAtelMinimal(t, &senderMock{}, 2)
 	defer a.cancel()
 
-	a.SubmitErrorRecord(errorLog("one"))
-	a.SubmitErrorRecord(errorLog("two"))
+	a.SubmitErrorLog(errorLog("one"))
+	a.SubmitErrorLog(errorLog("two"))
 	// Channel full (cap=2). The next two must be dropped silently.
-	a.SubmitErrorRecord(errorLog("drop-1"))
-	a.SubmitErrorRecord(errorLog("drop-2"))
+	a.SubmitErrorLog(errorLog("drop-1"))
+	a.SubmitErrorLog(errorLog("drop-2"))
 
 	assert.Equal(t, 2, len(a.errLogsCh), "buffer should still hold exactly cap records")
 	assert.Equal(t, uint64(2), a.errLogsDropped.Load(),
@@ -329,7 +329,7 @@ func TestSubmitErrorRecord_NonBlocking_DropsOnOverflow(t *testing.T) {
 // TestFlushErrortracking_DrainsWholeBufferInOneCall: flushErrortracking
 // drains every record currently buffered and dispatches them as ONE
 // HTTP call. The pre-batchSize-removal behaviour split a large drain
-// across multiple sendLogsTypedBatch invocations; after T3 the contract
+// across multiple sendLogsBatch invocations; after T3 the contract
 // is "the entire flush is a single typed-logs POST" regardless of
 // in-channel count.
 func TestFlushErrortracking_DrainsWholeBufferInOneCall(t *testing.T) {
@@ -339,7 +339,7 @@ func TestFlushErrortracking_DrainsWholeBufferInOneCall(t *testing.T) {
 	defer a.cancel()
 
 	for i := 0; i < total; i++ {
-		a.SubmitErrorRecord(errorLog(fmt.Sprintf("r-%d", i)))
+		a.SubmitErrorLog(errorLog(fmt.Sprintf("r-%d", i)))
 	}
 
 	a.flushErrortracking(context.Background())
@@ -347,7 +347,7 @@ func TestFlushErrortracking_DrainsWholeBufferInOneCall(t *testing.T) {
 	got := sm.capturedLogs()
 	require.Len(t, got, total, "every enqueued record must be dispatched in one drain pass")
 	require.Equal(t, 1, sm.sendLogsCalls(),
-		"drain must dispatch the entire buffer in exactly one sendLogsTypedBatch call; multiple calls would indicate a regression to per-batch dispatch")
+		"drain must dispatch the entire buffer in exactly one sendLogsBatch call; multiple calls would indicate a regression to per-batch dispatch")
 	for _, log := range got {
 		// Per-record identification by Message was removed when Message
 		// stopped shipping — it is always empty on the wire.
@@ -371,9 +371,9 @@ func TestFlushErrortracking_FinalDrain(t *testing.T) {
 	a := newTestAtelMinimal(t, sm, 16)
 	defer a.cancel()
 
-	a.SubmitErrorRecord(errorLog("pending-1"))
-	a.SubmitErrorRecord(errorLog("pending-2"))
-	a.SubmitErrorRecord(errorLog("pending-3"))
+	a.SubmitErrorLog(errorLog("pending-1"))
+	a.SubmitErrorLog(errorLog("pending-2"))
+	a.SubmitErrorLog(errorLog("pending-3"))
 
 	shutdownCtx, cancelDrain := context.WithTimeout(context.Background(), a.shutdownDrainTimeout)
 	defer cancelDrain()
@@ -400,7 +400,7 @@ type ctxObservingSender struct {
 	ctxDeadlineOn []bool
 }
 
-func (s *ctxObservingSender) sendLogsTypedBatch(ctx context.Context, logs []Log) error {
+func (s *ctxObservingSender) sendLogsBatch(ctx context.Context, logs []Log) error {
 	s.mu.Lock()
 	canceled := false
 	select {
@@ -412,7 +412,7 @@ func (s *ctxObservingSender) sendLogsTypedBatch(ctx context.Context, logs []Log)
 	s.ctxCanceledOn = append(s.ctxCanceledOn, canceled)
 	s.ctxDeadlineOn = append(s.ctxDeadlineOn, hasDeadline)
 	s.mu.Unlock()
-	return s.senderMock.sendLogsTypedBatch(ctx, logs)
+	return s.senderMock.sendLogsBatch(ctx, logs)
 }
 
 // TestFlushErrortracking_ShutdownCtxIsLive: the shutdown-path drain
@@ -427,7 +427,7 @@ func TestFlushErrortracking_ShutdownCtxIsLive(t *testing.T) {
 	sm := &ctxObservingSender{}
 	a := newTestAtelMinimal(t, sm, 16)
 
-	a.SubmitErrorRecord(errorLog("pre-stop"))
+	a.SubmitErrorLog(errorLog("pre-stop"))
 
 	// Simulate the lifecycle cancel; the shutdown-drain ctx is built
 	// from background, NOT from a.cancelCtx.
@@ -466,7 +466,7 @@ func BenchmarkSymbolizeStack(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		sink = symbolizeStack(in)
+		sink = symbolizeStackFrames(in)
 	}
 	// Defeat dead-store elimination so the compiler cannot prove sink is
 	// unused and elide the call.

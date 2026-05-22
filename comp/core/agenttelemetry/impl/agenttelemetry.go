@@ -60,9 +60,9 @@ type atel struct {
 	prevPromMetricValuesMU        sync.Mutex
 
 	// Errortracking: bounded channel drained by a runner-scheduled job.
-	// SubmitErrorRecord enqueues here non-blockingly; flushErrortracking
+	// SubmitErrorLog enqueues here non-blockingly; flushErrortracking
 	// drains the channel on each tick and on shutdown, dispatching via
-	// sender.sendLogsTypedBatch.
+	// sender.sendLogsBatch.
 	//
 	// errortrackingEnabled gates allocation of errLogsCh and registration
 	// of the flush job on the composed gate (IsAgentTelemetryEnabled &&
@@ -177,7 +177,7 @@ func createAtel(
 
 	// Only allocate the errortracking channel (and later spawn the flush
 	// goroutine in start) when the errortracking feature is enabled.
-	// Otherwise leave errLogsCh nil; SubmitErrorRecord is then a no-op
+	// Otherwise leave errLogsCh nil; SubmitErrorLog is then a no-op
 	// (see the errLogsCh==nil guard there) and we avoid the buffer +
 	// idle goroutine for deployments that don't opt in.
 	//
@@ -700,16 +700,15 @@ func (a *atel) SendEvent(eventType string, eventPayload []byte) error {
 	return nil
 }
 
-// SubmitErrorRecord is the per-record entry point. Non-blocking:
-// enqueues into the bounded errLogsCh buffer; on overflow, drops
-// silently and increments errLogsDropped (the calling goroutine — the
-// slog handler hot path — MUST NOT block on a misbehaving backend).
+// SubmitErrorLog is the per-log entry point. Non-blocking: enqueues
+// into the bounded errLogsCh buffer; on overflow, drops silently and
+// increments errLogsDropped (the calling goroutine — the slog handler
+// hot path — MUST NOT block on a misbehaving backend).
 //
-// Recursion prevention: the flush path (sendLogsTypedBatch →
-// sendSerializedPayload) is required to log only at Debug. A future
-// addition of any Errorf in that path would re-enter this method via
-// the slog handler.
-func (a *atel) SubmitErrorRecord(log errortracking.ErrorLog) {
+// Recursion prevention: the flush path (sendLogsBatch → sendPayload)
+// is required to log only at Debug. A future addition of any Errorf in
+// that path would re-enter this method via the slog handler.
+func (a *atel) SubmitErrorLog(log errortracking.ErrorLog) {
 	if !a.enabled {
 		return
 	}
@@ -726,12 +725,12 @@ func (a *atel) SubmitErrorRecord(log errortracking.ErrorLog) {
 	}
 }
 
-// flushErrortracking drains every record currently buffered in
-// errLogsCh and dispatches the entire slice as ONE typed-logs HTTP
-// call via sender.sendLogsTypedBatch. The drain is non-blocking: the
-// loop exits as soon as the channel has no immediately-available
-// record. A no-op when errortracking is disabled (errLogsCh == nil) or
-// the channel is empty.
+// flushErrortracking drains every log currently buffered in errLogsCh
+// and dispatches the entire slice as ONE HTTP call via
+// sender.sendLogsBatch. The drain is non-blocking: the loop exits as
+// soon as the channel has no immediately-available log.
+// A no-op when errortracking is disabled (errLogsCh == nil) or the
+// channel is empty.
 //
 // Called from two places:
 //  1. The runner-scheduled job tick (via job.Run when profiles==nil),
@@ -741,7 +740,7 @@ func (a *atel) SubmitErrorRecord(log errortracking.ErrorLog) {
 //     context with a.shutdownDrainTimeout so the post-stop POSTs do
 //     NOT inherit the already-canceled lifecycle context — without
 //     this the shutdown drain would silently drop every buffered
-//     record (HTTP returns context canceled immediately).
+//     log (HTTP returns context canceled immediately).
 //
 // Behavioral note: send failures (5xx, network) are logged at Debug
 // and the batch is dropped. The pkg/util/log/errortracking handler is
@@ -751,25 +750,25 @@ func (a *atel) flushErrortracking(ctx context.Context) {
 	if a.errLogsCh == nil {
 		return
 	}
-	var records []errortracking.ErrorLog
+	var errLogs []errortracking.ErrorLog
 drain:
 	for {
 		select {
-		case r := <-a.errLogsCh:
-			records = append(records, r)
+		case l := <-a.errLogsCh:
+			errLogs = append(errLogs, l)
 		default:
 			break drain
 		}
 	}
-	if len(records) == 0 {
+	if len(errLogs) == 0 {
 		return
 	}
-	logs := make([]Log, len(records))
-	for i, r := range records {
-		logs[i] = errorLogToLog(r)
+	logs := make([]Log, len(errLogs))
+	for i, l := range errLogs {
+		logs[i] = enrichErrorLog(l)
 	}
-	if err := a.sender.sendLogsTypedBatch(ctx, logs); err != nil {
-		a.logComp.Debugf("errortracking flush failed (%d records): %v", len(records), err)
+	if err := a.sender.sendLogsBatch(ctx, logs); err != nil {
+		a.logComp.Debugf("errortracking flush failed (%d logs): %v", len(errLogs), err)
 	}
 }
 
@@ -846,7 +845,7 @@ func (a *atel) start() error {
 // Shutdown ordering for the errortracking path (records-after-drain
 // safety):
 //  1. Clear the submitter + bouncer slots so producers stop reaching
-//     SubmitErrorRecord. After this point Handler.Enabled is false and
+//     SubmitErrorLog. After this point Handler.Enabled is false and
 //     the parent multi-handler short-circuits.
 //  2. Cancel the lifecycle context (a.cancel) — any in-flight runner-
 //     scheduled flush tick promptly cancels its HTTP POST.

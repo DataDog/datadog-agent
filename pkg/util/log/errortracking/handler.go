@@ -165,11 +165,11 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	return nil
 }
 
-// hashPCs returns a 64-bit FNV-1a hash of the captured stack PCs,
-// truncated to uintptr. The hash is the bouncer key — two records
-// reaching the same terminal function from different call stacks
-// produce different hashes and are NOT deduped together.
-func hashPCs(pcs []uintptr) uintptr {
+// hashPCs returns a 64-bit FNV-1a hash of the captured stack PCs.
+// The hash is the bouncer key — two records reaching the same terminal
+// function from different call stacks produce different hashes and are
+// NOT deduped together.
+func hashPCs(pcs []uintptr) uint64 {
 	h := fnv.New64a()
 	var buf [8]byte
 	for _, pc := range pcs {
@@ -178,7 +178,7 @@ func hashPCs(pcs []uintptr) uintptr {
 		}
 		h.Write(buf[:])
 	}
-	return uintptr(h.Sum64())
+	return h.Sum64()
 }
 
 // WithAttrs is a required slog.Handler interface method. Attrs are not

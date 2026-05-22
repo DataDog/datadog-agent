@@ -15,30 +15,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 )
 
-// sendLogsTypedBatch is the entry that takes already-converted wire
-// Log structs (produced by errorLogToLog) and POSTs them as a single
-// LogsPayload-envelope to every configured endpoint via the shared
-// sendSerializedPayload helper.
+// sendLogsBatch takes already-converted wire Log structs (produced by
+// enrichErrorLog) and POSTs them as a single LogsPayload-envelope to
+// every configured endpoint via the shared sendPayload helper.
 //
 // The marshal -> scrub -> compress -> endpoint-fanout pipeline is owned
-// by sendSerializedPayload (see sender.go); this method only constructs
-// the logs payload envelope.
+// by sendPayload (see sender.go); this method only constructs the logs
+// payload envelope.
 //
 // Error semantics: only transport errors (network failures,
 // request-build errors) are joined into the returned error. Non-2xx
 // HTTP statuses (4xx/5xx including 429) are logged at Debug by
-// sendSerializedPayload and NOT surfaced to the caller — this matches
-// the existing flushSession contract and keeps the shutdown drain
-// treating "enqueue-to-HTTP succeeded" as success regardless of server
-// response. Addresses louis-cqrl's 🟡 "doc comment misrepresents the
-// error contract" thread on PR #50607.
+// sendPayload and NOT surfaced to the caller — this matches the
+// existing flushSession contract and keeps the shutdown drain treating
+// "enqueue-to-HTTP succeeded" as success regardless of server response.
 //
 // This function does NOT log at Error. Doing so would re-enter the
-// errortracking slog handler and feed records back into the same flush
+// errortracking slog handler and feed logs back into the same flush
 // path; callers observe failures via the returned error and log at
 // Debug. The invariant is enforced by convention — see
 // comp/core/agenttelemetry/def/component.go.
-func (s *senderImpl) sendLogsTypedBatch(ctx context.Context, logs []Log) error {
+func (s *senderImpl) sendLogsBatch(ctx context.Context, logs []Log) error {
 	if len(logs) == 0 {
 		return nil
 	}
@@ -48,10 +45,10 @@ func (s *senderImpl) sendLogsTypedBatch(ctx context.Context, logs []Log) error {
 	payload.EventTime = time.Now().Unix()
 	payload.Payload = LogsPayload{Logs: logs}
 
-	return s.sendSerializedPayload(ctx, payload, logsPayloadType)
+	return s.sendPayload(ctx, payload, logsPayloadType)
 }
 
-// errorLogToLog converts an ErrorLog (carried across the pkg/util/log ->
+// enrichErrorLog converts an ErrorLog (carried across the pkg/util/log ->
 // comp/core boundary) into the wire-shape Log struct expected by dd-go's
 // tracer-telemetry-intake/telemetry-payload/logs.go.
 //
@@ -68,11 +65,11 @@ func (s *senderImpl) sendLogsTypedBatch(ctx context.Context, logs []Log) error {
 //     count here.
 //   - Message, Tags, TraceID, SpanID -> "" (not populated)
 //   - IsCrash -> false (this path does not emit crash logs)
-func errorLogToLog(e errortracking.ErrorLog) Log {
+func enrichErrorLog(e errortracking.ErrorLog) Log {
 	count := int(e.Count)
 	if count < 1 {
 		// Defensive: producers that didn't go through the Bouncer
-		// (synthetic tests, direct SubmitErrorRecord callers) won't
+		// (synthetic tests, direct SubmitErrorLog callers) won't
 		// populate Count. Default to 1 so the wire field stays valid.
 		count = 1
 	}
@@ -82,18 +79,18 @@ func errorLogToLog(e errortracking.ErrorLog) Log {
 		Count:      count,
 		IsCrash:    false,
 	}
-	out.StackTrace = symbolizeStack(e)
+	out.StackTrace = symbolizeStackFrames(e)
 	return out
 }
 
-// symbolizeStack walks the PCs captured at log time and produces the
-// multi-line "file:line\tfunc" string the dd-go intake schema expects.
+// symbolizeStackFrames walks the PCs captured at log time and produces
+// the multi-line "file:line\tfunc" string the dd-go intake schema expects.
 //
 // Symbolization is deferred from handler-side to flush-time on purpose:
 // runtime.CallersFrames performs symbol table lookups and is relatively
 // expensive; doing it here keeps the producer's hot path zero-alloc
 // beyond the runtime.Callers fixed-array fill.
-func symbolizeStack(e errortracking.ErrorLog) string {
+func symbolizeStackFrames(e errortracking.ErrorLog) string {
 	if e.PCsLen == 0 {
 		return ""
 	}
