@@ -575,9 +575,7 @@ metrics:
     metadata:
       metric_type: distribution
       unit: percent
-      description: Distribution of per-sample graphics engine activity, emitted as
-        individual NVML samples so the backend can compute percentiles instead of a
-        time-weighted average.
+      description: Percent of time that the graphics engine was active, as a distribution
       aggregation: relative_activity
     tagsets:
       - device
@@ -2057,9 +2055,7 @@ metrics:
     metadata:
       metric_type: distribution
       unit: percent
-      description: Distribution of per-process streaming multiprocessor activity,
-        emitted as individual process utilization samples so the backend can compute
-        percentiles instead of a single device-wide aggregate.
+      description: Percentage of time the streaming multiprocessor was active, as a distribution
       aggregation: relative_activity
     tagsets:
       - device
