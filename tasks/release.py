@@ -279,13 +279,6 @@ def tag_version(
 
 
 @task
-def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
-    with agent_context(ctx, get_default_branch(major=get_version_major(release_branch))):
-        tag_version(ctx, release_branch, commit, push, force, devel=True, skip_agent_context=True)
-        tag_modules(ctx, release_branch, commit, push, force, devel=True, trust=True, skip_agent_context=True)
-
-
-@task
 def finish(ctx, release_branch, upstream="origin", release_date=None):
     """Updates the release.json file for the new version.
 
@@ -727,71 +720,6 @@ def get_release_json_value(ctx, key, release_branch=None, skip_checkout=False, w
         release_json = _get_release_json_value(key)
 
     print(release_json)
-
-
-def _update_last_stable(_, version, major_version: int = 7):
-    """
-    Updates the last_release field(s) of release.json and returns the current milestone
-    """
-    release_json = load_release_json()
-    # If the release isn't a RC, update the last stable release field
-    version.major = major_version
-    release_json['last_stable'][str(major_version)] = str(version)
-    _save_release_json(release_json)
-
-    return release_json["current_milestone"]
-
-
-@task
-def cleanup(ctx, release_branch):
-    """Perform the post release cleanup steps
-
-    Currently this:
-      - Updates the scheduled nightly pipeline to target the new stable branch
-      - Updates the release.json last_stable fields
-    """
-
-    # This task will create a PR to update the last_stable field in release.json
-    # It must create the PR against the default branch (6 or 7), so setting the context on it
-    main_branch = get_default_branch()
-    with agent_context(ctx, main_branch):
-        gh = GithubAPI()
-        major_version = get_version_major(release_branch)
-        latest_release = gh.latest_release(major_version)
-        match = VERSION_RE.search(latest_release)
-        if not match:
-            raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
-
-        version = _create_version_from_match(match)
-        current_milestone = _update_last_stable(ctx, version, major_version=major_version)
-
-        # create pull request to update last stable version
-        cleanup_branch = f"release/{version}-cleanup"
-        ctx.run(f"git checkout -b {cleanup_branch}")
-        ctx.run("git add release.json")
-
-        commit_message = f"Update last_stable to {version}"
-        set_gitconfig_in_ci(ctx)
-        ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {cleanup_branch} branch and then open a PR against {main_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        if not ctx.run(f"git push --set-upstream origin {cleanup_branch}", warn=True):
-            raise Exit(
-                color_message(
-                    f"Could not push branch {cleanup_branch} to the upstream 'origin'. Please push it manually and then open a PR against {main_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        create_release_pr(commit_message, main_branch, cleanup_branch, version, milestone=current_milestone)
 
 
 @task
