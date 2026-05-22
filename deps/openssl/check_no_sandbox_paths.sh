@@ -7,7 +7,7 @@ set -euo pipefail
 
 FAILED=0
 
-libs=("$1" "$2")
+libs=("$@")
 
 for lib_relpath in "${libs[@]}"; do
     lib="$TEST_SRCDIR/$lib_relpath"
