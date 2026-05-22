@@ -188,6 +188,7 @@ modules:
     used_by_otel: true
   pkg/config/helper:
     used_by_otel: true
+  pkg/config/lite: default
   pkg/config/mock:
     used_by_otel: true
   pkg/config/model:
