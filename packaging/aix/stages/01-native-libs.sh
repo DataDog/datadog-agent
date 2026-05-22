@@ -159,18 +159,21 @@ stage_toolbox_lib() {
         exit 1
     fi
     cp "$_lib64" "$EMBEDDED_DESTDIR/lib/"
-    for _hdr in "$@"; do
-        if [ -f "$_hdr" ]; then
-            # Preserve one level of subdirectory (e.g. readline/readline.h)
-            _subdir=$(dirname "$_hdr" | sed "s|/opt/freeware/include||")
-            if [ -n "$_subdir" ] && [ "$_subdir" != "/" ] && [ "$_subdir" != "." ]; then
-                mkdir -p "$EMBEDDED_DESTDIR/include/$_subdir"
-                cp "$_hdr" "$EMBEDDED_DESTDIR/include/$_subdir/"
-            else
-                cp "$_hdr" "$EMBEDDED_DESTDIR/include/"
+    # AIX sh with set -u treats empty "$@" as unset; guard with $# check.
+    if [ $# -gt 0 ]; then
+        for _hdr in "$@"; do
+            if [ -f "$_hdr" ]; then
+                # Preserve one level of subdirectory (e.g. readline/readline.h)
+                _subdir=$(dirname "$_hdr" | sed "s|/opt/freeware/include||")
+                if [ -n "$_subdir" ] && [ "$_subdir" != "/" ] && [ "$_subdir" != "." ]; then
+                    mkdir -p "$EMBEDDED_DESTDIR/include/$_subdir"
+                    cp "$_hdr" "$EMBEDDED_DESTDIR/include/$_subdir/"
+                else
+                    cp "$_hdr" "$EMBEDDED_DESTDIR/include/"
+                fi
             fi
-        fi
-    done
+        done
+    fi
     lib_mark "$_name" "$_ver"
     log "${_name} ${_ver} staged"
 }
@@ -267,10 +270,20 @@ else
     # Apply OpenSSL 3.5.6 regression fix (matches deps/repos.MODULE.bazel).
     # Upstream issue: openssl/openssl#30728 — OSSL_PARAM_BLD_push_octet_*() with buf=NULL, bsize=0 fails.
     patch -p1 < "$SCRIPT_DIR/../../../deps/openssl/0002-OSSL_PARAM_BLD_push_octet_allow_NULL_buffer.patch"
+    # Disable post-quantum algorithms (ML-KEM, ML-DSA, SLH-DSA) added in
+    # OpenSSL 3.5.x. They reference __clog (C99 complex log) which GCC 8 on
+    # AIX 7.2 does not provide — neither libm.a nor libgcc.a export the symbol.
+    # The Datadog agent does not require post-quantum TLS on AIX.
+    # no-tests: test/rsa_complex.c uses clog() (C99 complex log), also absent on
+    # AIX 7.2 with GCC 8. We only need the libraries, not the test suite.
     ./Configure aix64-gcc \
         --prefix="$EMBEDDED" \
         --openssldir="$EMBEDDED/ssl" \
         -Wl,-brtl \
+        no-ml-kem \
+        no-ml-dsa \
+        no-slh-dsa \
+        no-tests \
         shared
     make -j"$NPROC"
     make install_sw DESTDIR="$STAGING"
@@ -426,7 +439,7 @@ else
     # Build as a shared library wrapped in a .a archive (AIX convention).
     # Python's configure link tests require a shared member to detect sqlite3.
     $CC "$CFLAGS" -DSQLITE_ENABLE_MATH_FUNCTIONS -shared -Wl,-brtl -Wl,-bexpall \
-        sqlite3.c -lpthreads -o libsqlite3.so.0
+        sqlite3.c -lpthreads -lm -o libsqlite3.so.0
     ar -X64 -rcs "$EMBEDDED_DESTDIR/lib/libsqlite3.a" libsqlite3.so.0
     cp sqlite3.h sqlite3ext.h "$EMBEDDED_DESTDIR/include/"
     lib_cache_save sqlite "$SQLITE_VERSION" "$_pre"

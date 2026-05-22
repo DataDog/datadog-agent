@@ -34,6 +34,12 @@ fi
 : "${CXXFLAGS:?CXXFLAGS must be set}"
 : "${LDFLAGS:?LDFLAGS must be set}"
 
+# AGENT_SRC: root of the agent source tree. Defaults to /opt/datadog-agent
+# (standard install path). Override when the source lives elsewhere, e.g.:
+#   AGENT_SRC=/dd/datadog-agent sh 03-rtloader.sh
+AGENT_SRC=${AGENT_SRC:-/opt/datadog-agent}
+RTLOADER_SRC="$AGENT_SRC/rtloader"
+
 # --- Pre-flight: confirm Stage 02 completed ---
 if [ ! -f "$EMBEDDED_DESTDIR/lib/libpython${PYTHON_MAJ_MIN}.so" ]; then
     log "ERROR: libpython${PYTHON_MAJ_MIN}.so not found at $EMBEDDED_DESTDIR/lib — did Stage 02 (02-python) complete successfully?"
@@ -44,7 +50,7 @@ fi
 cleanup() {
     if [ $? -ne 0 ]; then
         log "ERROR: $STAGE_NAME failed. Removing partial outputs."
-        rm -rf /opt/datadog-agent/rtloader/build
+        rm -rf "$RTLOADER_SRC/build"
         rm -f "$STAGING/opt/datadog-agent/rtloader/libdatadog-agent-rtloader.so"
         rm -f "$STAGING/opt/datadog-agent/rtloader/libdatadog-agent-three.so"
     fi
@@ -54,8 +60,8 @@ trap cleanup EXIT
 # ─── Step 1: Clean and create rtloader build directory ────────────────────────
 
 log "Cleaning rtloader build directory"
-rm -rf /opt/datadog-agent/rtloader/build
-mkdir -p /opt/datadog-agent/rtloader/build
+rm -rf "$RTLOADER_SRC/build"
+mkdir -p "$RTLOADER_SRC/build"
 
 # ─── Step 2: CMake configure ──────────────────────────────────────────────────
 #
@@ -91,7 +97,7 @@ if [ "$_embedded_real" != "$_destdir_real" ]; then
 fi
 
 log "Running cmake for rtloader"
-cd /opt/datadog-agent/rtloader/build
+cd "$RTLOADER_SRC/build"
 
 OBJECT_MODE=64 cmake \
     -DCMAKE_C_COMPILER="$CC" \
@@ -135,14 +141,17 @@ log "rtloader build complete."
 # The .a form (archive containing shr_64.o) is the canonical AIX shared library.
 
 log "Relinking libdatadog-agent-three.so to use libpython${PYTHON_MAJ_MIN}.a(shr_64.o)"
-cd /opt/datadog-agent/rtloader/build/three
+cd "$RTLOADER_SRC/build/three"
 
 # Step 1: Re-run the cmake ExportImportList (export symbols file generation)
-EXPORT_CMD=$(head -1 CMakeFiles/datadog-agent-three.dir/link.txt)
+# link.txt line 1 is the ExportImportList command.
+EXPORT_CMD=$(sed -n '1p' CMakeFiles/datadog-agent-three.dir/link.txt)
 eval "$EXPORT_CMD"
 
 # Step 2: Re-run the link command, substituting .so with .a for libpython${PYTHON_MAJ_MIN}
-LINK_CMD=$(tail -1 CMakeFiles/datadog-agent-three.dir/link.txt)
+# link.txt line 2 is the g++ shared library link command.
+# (cmake 3.16 on AIX also emits ar and strip lines after it — tail -1 would be wrong.)
+LINK_CMD=$(sed -n '2p' CMakeFiles/datadog-agent-three.dir/link.txt)
 LINK_CMD_FIXED=$(printf '%s' "$LINK_CMD" | sed "s|libpython${PYTHON_MAJ_MIN}\\.so|libpython${PYTHON_MAJ_MIN}.a|g")
 eval "$LINK_CMD_FIXED"
 log "Relink complete. three.so now depends on libpython${PYTHON_MAJ_MIN}.a(shr_64.o)"
@@ -186,50 +195,50 @@ cp "$GCC8_PTHREAD_DIR/libstdc++.a" "$STAGING/opt/datadog-agent/embedded/lib/"
 cp "$GCC8_PTHREAD_DIR/libgcc_s.a"  "$STAGING/opt/datadog-agent/embedded/lib/"
 log "Bundled libstdc++.a and libgcc_s.a into embedded/lib"
 
-# ─── Step 4: Copy outputs to staging ──────────────────────────────────────────
+# ─── Step 4: Extract/copy .so files and create CGO .a archives ────────────────
 #
-# The two produced .so files must land in $STAGING/opt/datadog-agent/rtloader/
-# so the agent binary can find them at runtime via LIBPATH.
+# cmake on AIX builds libdatadog-agent-three as an unversioned shared lib
+# (produces both .so and .a). However it builds libdatadog-agent-rtloader as a
+# versioned shared lib (produces only a .a archive whose member is
+# libdatadog-agent-rtloader.so.0.1.0).
+#
+# We need:
+#   - libdatadog-agent-rtloader.so  in staging/rtloader/ (runtime LIBPATH)
+#   - libdatadog-agent-three.so     in staging/rtloader/ (runtime LIBPATH)
+#   - libdatadog-agent-rtloader.a   in staging/rtloader/ (AIX loader convention)
+#   - libdatadog-agent-three.a      in staging/rtloader/ (AIX loader convention)
+#
+# For CGO, Go requires archive member names ending in ".o" or containing ".so."
+# (with version). We standardise on "shr_64.o" for both archives.
 
-log "Copying rtloader .so files to staging"
-cd /opt/datadog-agent/rtloader/build
 mkdir -p "$STAGING/opt/datadog-agent/rtloader"
-cp rtloader/libdatadog-agent-rtloader.so \
-   three/libdatadog-agent-three.so \
-   "$STAGING/opt/datadog-agent/rtloader/"
-log "Copy complete."
 
-# ─── Step 4b: Create AIX .a archive wrappers ──────────────────────────────────
-#
-# On AIX, Go's CGO requires shared libraries wrapped in .a archives.
-# Without these, Go cannot generate correct //go:cgo_import_dynamic directives
-# (which must reference "lib.a/lib.so" format).
-# Archives are created in the build tree where CGO_LDFLAGS points.
-
-log "Creating .a archive wrappers for rtloader .so files (AIX CGO requirement)"
-# On AIX, Go's compiler (lex.go) requires the archive member name to either end in
-# ".o" or contain ".so." (a version number). The conventional AIX name for the
-# 64-bit shared module inside an archive is "shr_64.o".
-cd /opt/datadog-agent/rtloader/build/rtloader
+# rtloader: extract the versioned .so from cmake's archive, expose as unversioned .so
+log "Extracting libdatadog-agent-rtloader.so from cmake archive"
+cd "$RTLOADER_SRC/build/rtloader"
+ar -X64 -x libdatadog-agent-rtloader.a
+# cmake names the member libdatadog-agent-rtloader.so.0.1.0 — rename to .so
+_rtloader_member=$(ar -X64 -t libdatadog-agent-rtloader.a | head -1)
+mv "$_rtloader_member" libdatadog-agent-rtloader.so
+# Rebuild the .a with a shr_64.o member name for CGO compatibility
 cp libdatadog-agent-rtloader.so shr_64.o
-ar -X64 -r libdatadog-agent-rtloader.a shr_64.o
+ar -X64 -rcs libdatadog-agent-rtloader.a shr_64.o
 rm -f shr_64.o
-cd /opt/datadog-agent/rtloader/build/three
+log "libdatadog-agent-rtloader.so extracted and .a rebuilt with shr_64.o member"
+
+# three: cmake already produced both .so and .a; rebuild .a with shr_64.o member
+log "Rebuilding libdatadog-agent-three.a with shr_64.o member"
+cd "$RTLOADER_SRC/build/three"
 cp libdatadog-agent-three.so shr_64.o
-ar -X64 -r libdatadog-agent-three.a shr_64.o
+ar -X64 -rcs libdatadog-agent-three.a shr_64.o
 rm -f shr_64.o
-log "Archive wrappers created (member: shr_64.o in each .a)."
+log "libdatadog-agent-three.a rebuilt with shr_64.o member"
 
-# ─── Step 4c: Copy .a archive wrappers to staging ─────────────────────────────
-#
-# The AIX dynamic linker resolves shared library dependencies by looking for
-# lib<name>.a(shr_64.o) archives in LIBPATH. If only the .so file is present
-# the loader raises "Dependent module lib<name>.a(shr_64.o) could not be loaded."
-# Both the .so and the .a must exist in the same directory in the package.
-
-log "Copying rtloader .a archive wrappers to staging"
-cp /opt/datadog-agent/rtloader/build/rtloader/libdatadog-agent-rtloader.a \
-   /opt/datadog-agent/rtloader/build/three/libdatadog-agent-three.a \
+log "Copying rtloader .so and .a files to staging"
+cp "$RTLOADER_SRC/build/rtloader/libdatadog-agent-rtloader.so" \
+   "$RTLOADER_SRC/build/rtloader/libdatadog-agent-rtloader.a" \
+   "$RTLOADER_SRC/build/three/libdatadog-agent-three.so" \
+   "$RTLOADER_SRC/build/three/libdatadog-agent-three.a" \
    "$STAGING/opt/datadog-agent/rtloader/"
 log "Archive wrappers copied to staging."
 

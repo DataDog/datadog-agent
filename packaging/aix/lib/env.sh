@@ -71,15 +71,39 @@ if [ ! -x /opt/freeware/bin/gcc-8 ]; then
     printf 'ERROR: gcc-8 not found. Install it with: yum install -y gcc8 gcc8-c++\n' >&2
     exit 1
 fi
-CC=/opt/freeware/bin/gcc-8
-CXX=/opt/freeware/bin/g++-8
+
+# GNU make is required — AIX's native /usr/bin/make cannot handle Python's
+# Makefile (it rejects comment lines as "shell command not associated with a
+# dependency"). GNU make installs to /opt/freeware/bin/make via the IBM
+# Toolbox RPM and is selected automatically because /opt/freeware/bin is first
+# in PATH below.
+# Install on the build host with (if yum works):
+#   yum install -y make
+# Or directly via RPM:
+#   curl -fSL -o /tmp/make.rpm https://public.dhe.ibm.com/aix/freeSoftware/aixtoolbox/RPMS/ppc/make/make-4.4.1-1.aix7.1.ppc.rpm
+#   rpm -Uvh /tmp/make.rpm
+if [ ! -x /opt/freeware/bin/make ]; then
+    printf 'ERROR: GNU make not found at /opt/freeware/bin/make.\n' >&2
+    printf '       Install with: rpm -Uvh https://public.dhe.ibm.com/aix/freeSoftware/aixtoolbox/RPMS/ppc/make/make-4.4.1-1.aix7.1.ppc.rpm\n' >&2
+    exit 1
+fi
+OBJECT_MODE=64
+# AIX_OBJECT_MODE controls startup-file selection in GCC (vs OBJECT_MODE which
+# controls ld). However, Go's linker probes the external C compiler with a bare
+# invocation (no -maix64) while OBJECT_MODE=64 already puts ld in 64-bit mode.
+# This mismatch causes ld to reject the 32-bit /lib/crt0.o that GCC links.
+# Fix: wrap gcc-8/g++-8 so every invocation — including Go's probe — gets
+# -maix64 and therefore selects the 64-bit /lib/crt0_64.o startup file.
+_GCC_WRAP_DIR="$BUILD_DIR/gcc-wrap"
+mkdir -p "$_GCC_WRAP_DIR"
+printf '#!/bin/sh\nexec /opt/freeware/bin/gcc-8 -maix64 "$@"\n' > "$_GCC_WRAP_DIR/gcc-8"
+printf '#!/bin/sh\nexec /opt/freeware/bin/g++-8 -maix64 "$@"\n' > "$_GCC_WRAP_DIR/g++-8"
+chmod +x "$_GCC_WRAP_DIR/gcc-8" "$_GCC_WRAP_DIR/g++-8"
+AIX_OBJECT_MODE=64
+CC="$_GCC_WRAP_DIR/gcc-8"
+CXX="$_GCC_WRAP_DIR/g++-8"
 NM="/usr/bin/nm -X64"
 ARFLAGS="-X64 -cru"
-OBJECT_MODE=64
-# gcc-8 checks AIX_OBJECT_MODE (not OBJECT_MODE) for startup-file selection.
-# Without it, gcc-8 passes 32-bit /lib/crt0.o to ld, which ld running in
-# 64-bit mode rejects. AIX_OBJECT_MODE=64 makes gcc-8 use /lib/crt0_64.o.
-AIX_OBJECT_MODE=64
 
 export CC CXX NM ARFLAGS OBJECT_MODE AIX_OBJECT_MODE
 
@@ -94,6 +118,14 @@ LDFLAGS="-maix64 -Wl,-brtl -Wl,-bbigtoc -L$EMBEDDED_DESTDIR/lib"
 CPPFLAGS="-I$EMBEDDED_DESTDIR/include"
 
 export CFLAGS CXXFLAGS LDFLAGS CPPFLAGS
+
+# ── TLS / CA bundle ──────────────────────────────────────────────────────────
+# AIX's system CA store is outdated. Point curl and git at the freeware CA
+# bundle (installed with openssl from AIX Toolbox) so downloads work without
+# --insecure.
+CURL_CA_BUNDLE=/opt/freeware/etc/ssl/certs/ca-bundle.crt
+GIT_SSL_CAINFO=/opt/freeware/etc/ssl/certs/ca-bundle.crt
+export CURL_CA_BUNDLE GIT_SSL_CAINFO
 
 # ── PATH and Go toolchain ─────────────────────────────────────────────────────
 
@@ -112,12 +144,15 @@ GOTOOLCHAIN=local
 # processes from competing for RAM on the 4 GB AIX build host and causing
 # thrashing or OOM kills.
 GOFLAGS="-p=1"
-# Redirect the Go build cache off /tmp (which is only 12 GB) to the larger
-# build volume so that large packages like datadogV2 don't exhaust /tmp.
+# Redirect the Go build cache and temp directory off /tmp (only ~3 GB on AIX
+# 7.2) to the larger build volume. /tmp fills quickly when compiling large
+# packages like datadogV2 or snmptraps; GOCACHE handles the incremental cache
+# and GOTMPDIR handles the per-build scratch space (go-buildXXX dirs).
 GOCACHE=/opt/dd-build/gocache
-mkdir -p "$GOCACHE"
+GOTMPDIR=/opt/dd-build/gotmp
+mkdir -p "$GOCACHE" "$GOTMPDIR"
 
-export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOFLAGS GOCACHE
+export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOFLAGS GOCACHE GOTMPDIR
 
 # ── Utility functions ─────────────────────────────────────────────────────────
 

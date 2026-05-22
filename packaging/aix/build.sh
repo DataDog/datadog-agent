@@ -34,14 +34,20 @@ if [ -z "${AGENT_BUILD:-}" ]; then
     exit 1
 fi
 
-if [ ! -d /opt/datadog-agent/.git ]; then
-    printf 'ERROR: /opt/datadog-agent/.git not found\n' >&2
+# AGENT_SRC: root of the agent source tree. Defaults to /opt/datadog-agent.
+# Override when the source lives elsewhere, e.g.: AGENT_SRC=/dd/datadog-agent
+AGENT_SRC=${AGENT_SRC:-/opt/datadog-agent}
+export AGENT_SRC
+
+if [ ! -d "$AGENT_SRC/.git" ]; then
+    printf 'ERROR: %s/.git not found\n' "$AGENT_SRC" >&2
     printf '       The source tree must include full git history.\n' >&2
+    printf '       Set AGENT_SRC to the correct path if the source is not at /opt/datadog-agent.\n' >&2
     exit 1
 fi
 
 if [ -z "${AGENT_VERSION:-}" ]; then
-    AGENT_VERSION=$(cd /opt/datadog-agent && \
+    AGENT_VERSION=$(cd "$AGENT_SRC" && \
         python3.12 -m invoke agent.version --url-safe --include-git 2>&1)
     if [ -z "$AGENT_VERSION" ]; then
         printf 'ERROR: invoke agent.version returned empty output.\n' >&2

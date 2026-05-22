@@ -34,6 +34,11 @@ fi
 : "${GOROOT:?GOROOT must be set}"
 : "${CGO_ENABLED:?CGO_ENABLED must be set}"
 
+# AGENT_SRC: root of the agent source tree. Defaults to /opt/datadog-agent.
+# Override when the source lives elsewhere, e.g.: AGENT_SRC=/dd/datadog-agent
+AGENT_SRC=${AGENT_SRC:-/opt/datadog-agent}
+RTLOADER_SRC="$AGENT_SRC/rtloader"
+
 # --- Pre-flight: confirm Stage 03 completed ---
 if [ ! -f "$STAGING/opt/datadog-agent/rtloader/libdatadog-agent-rtloader.so" ]; then
     log "ERROR: libdatadog-agent-rtloader.so not found at $STAGING/opt/datadog-agent/rtloader — did Stage 03 (03-rtloader) complete successfully?"
@@ -67,7 +72,7 @@ mkdir -p "$STAGING/opt/datadog-agent/bin/agent"
 # tree; the staging copies are for the final package only.
 
 log "Setting rtloader CGO flags"
-export CGO_CFLAGS="$CGO_CFLAGS -I/opt/datadog-agent/rtloader/include"
+export CGO_CFLAGS="$CGO_CFLAGS -I$RTLOADER_SRC/include"
 #
 # -lpython3 (via libpython3.a symlink) causes libpython3.a(shr_64.o) to appear in the agent binary's
 # XCOFF startup-load chain. This is necessary but not sufficient: the binary
@@ -88,8 +93,8 @@ if [ ! -f "$PYTHON_EXP" ]; then
 fi
 log "Using Python export file: $PYTHON_EXP"
 export CGO_LDFLAGS="$CGO_LDFLAGS \
-  -L/opt/datadog-agent/rtloader/build/rtloader \
-  -L/opt/datadog-agent/rtloader/build/three \
+  -L$RTLOADER_SRC/build/rtloader \
+  -L$RTLOADER_SRC/build/three \
   -L$EMBEDDED_DESTDIR/lib \
   -lpython3 \
   -Wl,-bE:$PYTHON_EXP \
@@ -97,7 +102,7 @@ export CGO_LDFLAGS="$CGO_LDFLAGS \
 
 # ─── Step 3: Get commit hash ──────────────────────────────────────────────────
 
-COMMIT=$(git -C /opt/datadog-agent rev-parse --short HEAD)
+COMMIT=$(git -C "$AGENT_SRC" rev-parse --short HEAD)
 log "Building agent version $AGENT_VERSION at commit $COMMIT"
 
 # ─── Step 4: Build the agent binary ───────────────────────────────────────────
@@ -105,40 +110,29 @@ log "Building agent version $AGENT_VERSION at commit $COMMIT"
 # Build tags and ldflags are determined by inv agent.build (tasks/build_tags.py).
 
 log "Building agent binary via inv agent.build"
-cd /opt/datadog-agent
-rm -f "$STAGING/opt/datadog-agent/bin/agent/agent-bin"
+cd "$AGENT_SRC"
+rm -f "$STAGING/opt/datadog-agent/bin/agent/agent"
 python3.12 -m invoke agent.build \
     --exclude-rtloader \
-    --rtloader-root=/opt/datadog-agent/rtloader \
+    --rtloader-root="$RTLOADER_SRC" \
     --embedded-path="$EMBEDDED_DESTDIR" \
-    --agent-bin="$STAGING/opt/datadog-agent/bin/agent/agent-bin"
+    --agent-bin="$STAGING/opt/datadog-agent/bin/agent/agent"
 
-strip -X64 "$STAGING/opt/datadog-agent/bin/agent/agent-bin"
-log "agent binary build complete: $STAGING/opt/datadog-agent/bin/agent/agent-bin"
-
-# Install the agent wrapper: sets LIBPATH/PATH so the binary works when invoked
-# directly (not just via SRC). The wrapper execs agent-bin, so the process is
-# replaced immediately — SRC PID tracking and signal handling are unaffected.
-cp "$(dirname "$0")/../agent-wrapper.sh" "$STAGING/opt/datadog-agent/bin/agent/agent"
-chmod 755 "$STAGING/opt/datadog-agent/bin/agent/agent"
-log "agent wrapper installed at $STAGING/opt/datadog-agent/bin/agent/agent"
+strip -X64 "$STAGING/opt/datadog-agent/bin/agent/agent"
+log "agent binary build complete: $STAGING/opt/datadog-agent/bin/agent/agent"
 
 # ─── Step 5: Build the trace-agent binary ─────────────────────────────────────
 #
 # Build tags are determined by inv trace-agent.build (tasks/build_tags.py).
 
 log "Building trace-agent binary via inv trace-agent.build"
-cd /opt/datadog-agent
+cd "$AGENT_SRC"
 python3.12 -m invoke trace-agent.build
 mkdir -p "$STAGING/opt/datadog-agent/embedded/bin"
-rm -f "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
-cp /opt/datadog-agent/bin/trace-agent/trace-agent "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
-strip -X64 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
-log "trace-agent binary build complete: $STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
-
-cp "$(dirname "$0")/../trace-agent-wrapper.sh" "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
-chmod 755 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
-log "trace-agent wrapper installed at $STAGING/opt/datadog-agent/embedded/bin/trace-agent"
+rm -f "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
+cp "$AGENT_SRC/bin/trace-agent/trace-agent" "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
+strip -X64 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
+log "trace-agent binary build complete: $STAGING/opt/datadog-agent/embedded/bin/trace-agent"
 
 # ─── Step 6: Verify XCOFF64 magic bytes ───────────────────────────────────────
 #
@@ -146,7 +140,7 @@ log "trace-agent wrapper installed at $STAGING/opt/datadog-agent/embedded/bin/tr
 # would indicate a cross-compile or wrong-format build.
 
 log "Verifying agent binary is XCOFF64"
-MAGIC=$(od -A x -t x1 "$STAGING/opt/datadog-agent/bin/agent/agent-bin" | head -1 | awk '{print $2 $3}')
+MAGIC=$(od -A x -t x1 "$STAGING/opt/datadog-agent/bin/agent/agent" | head -1 | awk '{print $2 $3}')
 if [ "$MAGIC" != "01f7" ]; then
     log "ERROR: agent binary is not XCOFF64 (got: $MAGIC)"
     log "       Expected magic bytes: 01 f7"
@@ -156,7 +150,7 @@ fi
 log "XCOFF64 magic verified for agent binary (magic: $MAGIC)"
 
 log "Verifying trace-agent binary is XCOFF64"
-MAGIC=$(od -A x -t x1 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin" | head -1 | awk '{print $2 $3}')
+MAGIC=$(od -A x -t x1 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent" | head -1 | awk '{print $2 $3}')
 if [ "$MAGIC" != "01f7" ]; then
     log "ERROR: trace-agent binary is not XCOFF64 (got: $MAGIC)"
     log "       Expected magic bytes: 01 f7"

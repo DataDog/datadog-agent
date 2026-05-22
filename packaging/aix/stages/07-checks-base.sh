@@ -105,8 +105,15 @@ log "Deps to install ($(wc -l < "$DEPS_FILE") packages, ddtrace skipped):"
 cat "$DEPS_FILE"
 
 log "Installing datadog-checks-base [deps] (excluding ddtrace)"
+# AIX72_WHEELS: pre-built wheels for Rust-based packages that cannot be compiled
+# on AIX 7.2 TL2 (IBM Rust SDK 1.92 requires strftime_l, only in TL3+). These
+# wheels are built on AIX 7.3 and retagged to aix_7202_2015_64.
+# pip's --find-links checks this directory before falling back to PyPI.
+AIX72_WHEELS="$BUILD_DIR/aix72-wheels"
+mkdir -p "$AIX72_WHEELS"
 PATH="/opt/freeware/lib/RustSDK/${RUST_VERSION}/bin:$PATH" \
-  xargs "$PIP" install --no-cache-dir < "$DEPS_FILE"
+LIBPATH="$EMBEDDED_DESTDIR/lib:/opt/freeware/lib:${LIBPATH:-}" \
+  xargs "$PIP" install --no-cache-dir --find-links "$AIX72_WHEELS" < "$DEPS_FILE"
 log "datadog-checks-base [deps] installed successfully"
 
 # ─── Step 2: Freeze installed state to constraints file ───────────────────────

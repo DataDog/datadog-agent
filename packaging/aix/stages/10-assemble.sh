@@ -15,6 +15,9 @@ exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
 
+# AGENT_SRC: root of the agent source tree (same default as 04-agent.sh).
+AGENT_SRC=${AGENT_SRC:-/opt/datadog-agent}
+
 # --- Input validation ---
 : "${AGENT_VERSION:?AGENT_VERSION must be set}"
 : "${AGENT_VRMF:?AGENT_VRMF must be set}"
@@ -39,7 +42,7 @@ trap cleanup EXIT
 # The agent binary is the primary deliverable. If it is absent the staging
 # tree is incomplete and packaging will produce a broken BFF.
 
-AGENT_BIN="$STAGING/opt/datadog-agent/bin/agent/agent-bin"
+AGENT_BIN="$STAGING/opt/datadog-agent/bin/agent/agent"
 if [ ! -f "$AGENT_BIN" ]; then
     log "ERROR: agent binary not found at $AGENT_BIN"
     log "       Did Stage 04 (04-agent) complete successfully?"
@@ -55,7 +58,7 @@ log "Pre-flight: agent binary found at $AGENT_BIN"
 
 log "Copying main config example"
 mkdir -p "$STAGING/etc/datadog-agent"
-cp /opt/datadog-agent/cmd/agent/dist/datadog.yaml \
+cp "$AGENT_SRC/cmd/agent/dist/datadog.yaml" \
     "$STAGING/etc/datadog-agent/datadog.yaml.example"
 log "Config example written to $STAGING/etc/datadog-agent/datadog.yaml.example"
 
@@ -72,7 +75,7 @@ log "Installing check configs"
 # inv agent.build (stage 04) populates bin/agent/dist/conf.d/ with the check
 # configs for AIX_CORECHECKS (defined in tasks/core_checks.py).  Copy that
 # output directly — no list to maintain here.
-DIST_CONFD=/opt/datadog-agent/bin/agent/dist/conf.d
+DIST_CONFD="$AGENT_SRC/bin/agent/dist/conf.d"
 STAGING_CONFD="$STAGING/etc/datadog-agent/conf.d"
 if [ ! -d "$DIST_CONFD" ]; then
     log "ERROR: $DIST_CONFD not found — did Stage 04 complete successfully?"

@@ -115,6 +115,9 @@ export CC=/opt/freeware/bin/gcc
 export CXX=/opt/freeware/bin/g++
 export PATH=/opt/freeware/lib/RustSDK/"$RUST_VERSION"/bin:"$PATH"
 export CARGO_HOME=/opt/cargo
+export LIBPATH="${EMBEDDED_DESTDIR}/lib:/opt/freeware/lib:${LIBPATH:-}"
+export TMPDIR="${BUILD_DIR}/gotmp"
+export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
 log "  CC=$CC"
 log "  CXX=$CXX"

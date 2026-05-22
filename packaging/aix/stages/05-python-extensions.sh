@@ -218,6 +218,16 @@ log "Installing cryptography==$CRYPTOGRAPHY_VERSION (Rust/PyO3 extension)"
 log "  Setting Rust environment: PATH=/opt/freeware/lib/RustSDK/$RUST_VERSION/bin:..."
 export PATH=/opt/freeware/lib/RustSDK/"$RUST_VERSION"/bin:"$PATH"
 export CARGO_HOME=/opt/cargo
+# libs.a (strftime_l stub) and libunwind.a live in /opt/freeware/lib; the IBM
+# Rust SDK 1.92 needs both at load time via the patched libc++.so.1.
+export LIBPATH="${EMBEDDED_DESTDIR}/lib:/opt/freeware/lib:${LIBPATH:-}"
+# Redirect tmp to large build volume — /tmp is only 3GB and cargo needs space for
+# crates.io index download and extraction.
+export TMPDIR="${BUILD_DIR}/gotmp"
+# Use the sparse registry protocol instead of the full git-based crates.io index.
+# The git index is ~400MB and causes cargo to SIGSEGV (OOM or libgit2 bug) on AIX 7.2.
+# Sparse protocol fetches only needed crate metadata — much lighter.
+export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
 # Check wheel cache (keyed by version so a version bump triggers a fresh build)
 CRYPTO_CACHE_DIR="$WHEEL_CACHE/cryptography-$CRYPTOGRAPHY_VERSION"
@@ -241,8 +251,13 @@ else
     # that would fail with AIX TLS error 0509-187.
     # ARFLAGS="" prevents the cc-rs "ar -cru cq" double-operation conflict.
     log "Pre-installing maturin (required for --no-build-isolation cryptography build)"
+    # Use --find-links to prefer a pre-built maturin wheel from the aix72-wheels
+    # directory (built on AIX 7.3, retagged). Building maturin from source requires
+    # cargo to resolve its dependency graph, which SIGSEGV's on AIX 7.2 due to
+    # a known crash in cargo's registry resolution for large dependency graphs.
+    AIX72_WHEELS="$BUILD_DIR/aix72-wheels"
     ARFLAGS="" \
-        $PIP install "maturin>=1,<2"
+        $PIP install --find-links "$AIX72_WHEELS" "maturin>=1,<2"
     log "maturin installed"
 
     OPENSSL_DIR=$EMBEDDED_DESTDIR \

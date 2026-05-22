@@ -44,7 +44,7 @@ trap cleanup EXIT
 #   scp /tmp/dd-agent-src.tar.gz aix-host:/tmp/
 #   ssh aix-host 'mkdir -p /opt/datadog-agent && gunzip -c /tmp/dd-agent-src.tar.gz | tar xf - -C /opt/datadog-agent'
 
-AGENT_SRC=/opt/datadog-agent
+AGENT_SRC=${AGENT_SRC:-/opt/datadog-agent}
 
 if [ ! -f "$AGENT_SRC/go.mod" ]; then
     log "ERROR: agent source not found at $AGENT_SRC/go.mod"
@@ -57,7 +57,7 @@ if [ ! -f "$AGENT_SRC/go.mod" ]; then
 fi
 
 log "Agent source found at $AGENT_SRC"
-log "  go.mod: $(head -1 $AGENT_SRC/go.mod)"
+log "  go.mod: $(head -1 "$AGENT_SRC/go.mod")"
 
 # ─── Step 2: Read INTEGRATIONS_CORE_VERSION from release.json ─────────────────
 
