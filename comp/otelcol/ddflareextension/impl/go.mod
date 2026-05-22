@@ -43,7 +43,7 @@ require (
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.152.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.152.0
 	go.uber.org/zap v1.28.0
-	go.yaml.in/yaml/v2 v2.4.4
+	go.yaml.in/yaml/v3 v3.0.1
 )
 
 require github.com/puzpuzpuz/xsync/v4 v4.5.0 // indirect
