@@ -21,7 +21,7 @@ go_test(
     embed = [":issues"],
     gotags = ["test"],
     deps = [
-        "//comp/healthplatform/store/def",
+        "//comp/healthplatform/runner/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

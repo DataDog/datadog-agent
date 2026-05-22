@@ -10,7 +10,12 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+- Include missing Go check configurations in the package: `cisco_sdwan`, `snmp`, `cloud_hostinfo`, `discovery`, `telemetry`, `versa` — these checks are compiled into the agent binary but their config files were missing from `AIX_CORECHECKS`
+- Fix SQLite build: link with `-lm` when `SQLITE_ENABLE_MATH_FUNCTIONS` is enabled
+- Fix Go agent/trace-agent build: unset `OBJECT_MODE` before invoking the Go external linker in stage 04 (`OBJECT_MODE=64` and `AIX_OBJECT_MODE=64` exported simultaneously cause the linker to pick up the 32-bit `crt0.o`)
+- Include `final_constraints-py3.txt` in the BFF package at `/opt/datadog-agent/final_constraints-py3.txt`
 - Fix Python entry-point script shebangs in the embedded tree (was pointing to build-host staging path, causing "No such file or directory" when running `pip` or other scripts post-install)
+- Upgrade embedded pip from 24.0 to 26.1 (patches CVE-2026-1703, CVE-2026-6357)
 
 ---
 
