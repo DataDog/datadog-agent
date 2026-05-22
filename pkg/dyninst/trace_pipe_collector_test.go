@@ -29,8 +29,7 @@ import (
 // by PID into separate log files. This is useful for debugging test failures
 // where BPF programs emit debug output via bpf_trace_printk.
 type tracePipeCollector struct {
-	dir  string   // temp directory for log files
-	tp   *os.File // trace_pipe file handle
+	dir  string // temp directory for log files
 	done chan struct{}
 	wg   sync.WaitGroup
 
@@ -61,14 +60,13 @@ func newTracePipeCollector(t *testing.T) *tracePipeCollector {
 
 	c := &tracePipeCollector{
 		dir:  dir,
-		tp:   tp,
 		done: make(chan struct{}),
 	}
 	c.mu.files = make(map[int]*os.File)
 	c.mu.pendingPID = -1
 
 	c.wg.Add(1)
-	go c.readLoop()
+	go c.readLoop(tp)
 
 	t.Logf("trace pipe collector started, logging to %s", dir)
 	return c
@@ -145,10 +143,11 @@ func (c *tracePipeCollector) GetLogs(pid int) (*os.File, error) {
 }
 
 // readLoop is the main goroutine that reads from trace_pipe.
-func (c *tracePipeCollector) readLoop() {
+func (c *tracePipeCollector) readLoop(tp *os.File) {
 	defer c.wg.Done()
+	defer tp.Close()
 
-	reader := bufio.NewReader(c.tp)
+	reader := bufio.NewReader(tp)
 	for {
 		select {
 		case <-c.done:
@@ -156,7 +155,7 @@ func (c *tracePipeCollector) readLoop() {
 		default:
 		}
 
-		if err := c.tp.SetReadDeadline(time.Now().Add(100 * time.Millisecond)); err != nil {
+		if err := tp.SetReadDeadline(time.Now().Add(100 * time.Millisecond)); err != nil {
 			c.mu.Lock()
 			c.mu.err = fmt.Errorf("failed to set read deadline: %w", err)
 			c.mu.Unlock()

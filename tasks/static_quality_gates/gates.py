@@ -203,6 +203,34 @@ class GateResult:
         """Remaining disk size capacity in bytes"""
         return max(0, self.config.max_on_disk_size - self.measurement.on_disk_size)
 
+    @property
+    def violation_message(self) -> str | None:
+        if self.success:
+            return None
+        violation_messages = []
+        for violation in self.violations:
+            current_mb = violation.current_size / (1024 * 1024)
+            max_mb = violation.max_size / (1024 * 1024)
+            excess_mb = violation.excess_bytes / (1024 * 1024)
+            if excess_mb < 1:
+                excess_kb = violation.excess_bytes / 1024
+                excess_str = f"{excess_kb:.1f} KB"
+            else:
+                excess_str = f"{excess_mb:.1f} MB"
+            violation_messages.append(
+                f"{violation.measurement_type.title()} size {current_mb:.1f} MB "
+                f"exceeds limit of {max_mb:.1f} MB by {excess_str}"
+            )
+        return f"{self.config.gate_name} failed!\n" + "\n".join(violation_messages)
+
+
+@dataclass(frozen=True)
+class GateExecutionError:
+    """Represents an unexpected exception that prevented a gate from running."""
+
+    name: str
+    traceback: str
+
 
 class ArtifactMeasurer(Protocol):
     """
@@ -361,7 +389,9 @@ class DockerArtifactMeasurer:
         Generate Docker image URL based on gate configuration.
         """
         # Extract flavor from gate name
-        if "cluster" in config.gate_name:
+        if "host_profiler" in config.gate_name:
+            flavor = "ddot-ebpf"
+        elif "cluster" in config.gate_name:
             flavor = "cluster-agent"
         elif "dogstatsd" in config.gate_name:
             flavor = "dogstatsd"
@@ -376,7 +406,8 @@ class DockerArtifactMeasurer:
         jmx = "-jmx" if "jmx" in config.gate_name else ""
 
         # Handle image suffix
-        image_suffix = ("-7" if flavor == "agent" else "") + jmx
+        # ddot-ebpf uses TAG_SUFFIX: -7 in its CI build job, same as agent
+        image_suffix = ("-7" if flavor in ("agent", "ddot-ebpf") else "") + jmx
 
         # Handle nightly builds
         if os.environ.get("BUCKET_BRANCH") == "nightly" and flavor != "dogstatsd":
@@ -531,15 +562,7 @@ class StaticQualityGate:
         """
         violations = []
 
-        if measurement.on_wire_size > self.config.max_on_wire_size:
-            violations.append(
-                SizeViolation(
-                    measurement_type="wire",
-                    current_size=measurement.on_wire_size,
-                    max_size=self.config.max_on_wire_size,
-                )
-            )
-
+        # Only on-disk size can currently cause a violation
         if measurement.on_disk_size > self.config.max_on_disk_size:
             violations.append(
                 SizeViolation(

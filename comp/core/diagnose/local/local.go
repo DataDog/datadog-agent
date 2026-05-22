@@ -9,7 +9,6 @@ package local
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -19,10 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -38,9 +35,7 @@ func Run(
 	diagnoseConfig diagnose.Config,
 	log log.Component,
 	filterStore workloadfilter.Component,
-	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
-	secretResolver secrets.Component,
 	tagger tagger.Component,
 	config config.Component,
 ) (*diagnose.Result, error) {
@@ -60,7 +55,7 @@ func Run(
 		},
 	}
 
-	integrationConfigs, err := getLocalIntegrationConfigs(filterStore, wmeta, ac, secretResolver, tagger, config)
+	integrationConfigs, err := getLocalIntegrationConfigs(filterStore, ac, tagger, config)
 
 	if err != nil {
 		localSuite[diagnose.CheckDatadog] = func(_ diagnose.Config) []diagnose.Diagnosis {
@@ -99,16 +94,10 @@ func Run(
 
 func getLocalIntegrationConfigs(
 	filterStore workloadfilter.Component,
-	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
-	secretResolver secrets.Component,
 	tagger tagger.Component,
 	config config.Component) ([]integration.Config, error) {
-	wmetaInstance, ok := wmeta.Get()
-	if !ok {
-		return nil, errors.New("Workload Meta is not available")
-	}
-	common.LoadComponents(secretResolver, wmetaInstance, tagger, filterStore, ac, config.GetString("confd_path"))
+	common.LoadComponents(ac, config.GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to AutoDiscovery.

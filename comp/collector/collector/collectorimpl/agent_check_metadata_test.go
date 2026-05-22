@@ -13,14 +13,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	healthplatformnoopfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx-noop"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -49,7 +50,9 @@ func TestExternalHostTags(t *testing.T) {
 		fx.Provide(func() option.Option[agenttelemetry.Component] {
 			return option.None[agenttelemetry.Component]()
 		}),
-		healthplatformnoopfx.Module(),
+		fx.Provide(func() healthplatform.Component {
+			return healthplatformnoopimpl.NewNoopComponent()
+		}),
 		fx.Provide(func() option.Option[serializer.MetricSerializer] {
 			return option.None[serializer.MetricSerializer]()
 		}),

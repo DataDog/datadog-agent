@@ -18,7 +18,7 @@
           {
             "function": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.float64]",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go",
-            "lineNumber": 109
+            "lineNumber": 120
           },
           {
             "function": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2.UseGenericsWithFloat64",
@@ -26,9 +26,14 @@
             "lineNumber": 99
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 72
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 45
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -120,7 +125,7 @@
           {
             "function": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.int]",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go",
-            "lineNumber": 109
+            "lineNumber": 120
           },
           {
             "function": "main.outerFilter[go.shape.int]",
@@ -133,9 +138,14 @@
             "lineNumber": 282
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 80
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",

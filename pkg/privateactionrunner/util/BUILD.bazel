@@ -6,6 +6,7 @@ go_library(
         "circuit_breaker.go",
         "context.go",
         "error.go",
+        "http_retry.go",
         "jwt.go",
         "keys.go",
         "response_parser.go",
@@ -16,6 +17,7 @@ go_library(
     deps = [
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
+        "@com_github_cenkalti_backoff_v5//:backoff",
         "@com_github_go_jose_go_jose_v4//:go-jose",
         "@com_github_golang_jwt_jwt_v5//:jwt",
     ],
@@ -23,8 +25,14 @@ go_library(
 
 go_test(
     name = "util_test",
-    srcs = ["keys_test.go"],
+    srcs = [
+        "http_retry_test.go",
+        "keys_test.go",
+    ],
     embed = [":util"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

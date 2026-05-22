@@ -9,8 +9,9 @@ package ddprofilingextensionimpl
 // Config contains the config of the profiler.
 type Config struct {
 	ProfilerOptions ProfilerOptions `mapstructure:"profiler_options"`
-	// Endpoint reports the endpoint used for profiles.
-	// Default: BuildInfo.Version (e.g. v0.117.0)
+	AgentAddr       string          `mapstructure:"agent_addr"`
+	// Endpoint is the local port the profiling HTTP server listens on; used as "localhost:<endpoint>".
+	// Default: "7501"
 	Endpoint string `mapstructure:"endpoint"`
 }
 

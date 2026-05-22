@@ -29,6 +29,8 @@
       -e CI_IDENTITIES_GITLAB_ID_TOKEN
       -e AWS_NETWORKING=true
       -e GOMODCACHE="c:\modcache"
+      -e GOPROXY
+      -e GONOSUMDB
       -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl}"
       -e PIP_INDEX_URL
       ${WINBUILDIMAGE}

@@ -198,6 +198,22 @@ namespace WixSetup.Datadog_Agent
                 )
                 {
                     Win64 = true
+                },
+                new RegKey(
+                    _agentFeatures.MainApplication,
+                    RegistryHive.LocalMachine, @"Software\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_prompt_logger.native_host",
+                    new RegValue("", @"[AGENT]dist\com.datadoghq.ai_prompt_logger.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
+                )
+                {
+                    Win64 = true
+                },
+                new RegKey(
+                    _agentFeatures.MainApplication,
+                    RegistryHive.LocalMachine, @"Software\WOW6432Node\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_prompt_logger.native_host",
+                    new RegValue("", @"[AGENT]dist\com.datadoghq.ai_prompt_logger.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
+                )
+                {
+                    Win64 = true
                 }
             );
             var agentOpenSSLVersion = Environment.GetEnvironmentVariable("AGENT_OPENSSL_VERSION");
@@ -679,6 +695,26 @@ namespace WixSetup.Datadog_Agent
                     AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                 });
             }
+            var procmgrService = GenerateDependentServiceInstaller(
+                new Id("ddagentprocmgrservice"),
+                Constants.ProcmgrServiceName,
+                "Datadog Process Manager",
+                "Manage Datadog agent processes",
+                "LocalSystem");
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ProcmgrService, procmgrService));
+            agentBinDir.Add(new EventSource
+            {
+                Name = Constants.ProcmgrServiceName,
+                Log = "Application",
+                EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.ProcmgrService)}",
+                AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
+            });
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.Procmgr));
+
+            // AI usage Chrome native messaging host (Rust). Plain non-service file in bin\agent.
+            // Explicit Id only on the .exe so future custom actions can reference it via [#ai_prompt_logger_native_host].
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AiPromptLoggerNativeHostId, _agentBinaries.AiPromptLoggerNativeHost));
+
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),
                 // Temporary binary for extracting the embedded Python - will be deleted

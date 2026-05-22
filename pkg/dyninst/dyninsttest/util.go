@@ -19,7 +19,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/cilium/ebpf/link"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
@@ -158,41 +157,4 @@ func StartProcess(ctx context.Context, t *testing.T, tempDir string, binPath str
 
 	require.NoError(t, err)
 	return proc, sampleStdin
-}
-
-// AttachBPFProbes attaches the BPF program to the running process.
-func AttachBPFProbes(
-	t *testing.T,
-	binPath string,
-	obj object.File,
-	pid int,
-	program *loader.Program,
-) func() {
-	sampleLink, err := link.OpenExecutable(binPath)
-	require.NoError(t, err)
-	textSection := obj.Section(".text")
-	require.NotNil(t, textSection)
-
-	var allAttached []link.Link
-	for _, attachpoint := range program.Attachpoints {
-		// Despite the name, Uprobe expects an offset in the object file, and not the virtual address.
-		addr := attachpoint.PC - textSection.Addr + textSection.Offset
-		attached, err := sampleLink.Uprobe(
-			"",
-			program.BpfProgram,
-			&link.UprobeOptions{
-				PID:     pid,
-				Address: addr,
-				Offset:  0,
-				Cookie:  attachpoint.Cookie,
-			},
-		)
-		require.NoError(t, err)
-		allAttached = append(allAttached, attached)
-	}
-	return func() {
-		for _, a := range allAttached {
-			require.NoError(t, a.Close())
-		}
-	}
 }

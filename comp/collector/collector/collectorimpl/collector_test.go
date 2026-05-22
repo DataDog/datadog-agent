@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -26,7 +26,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	healthplatformnoopfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx-noop"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -113,7 +114,9 @@ func (suite *CollectorTestSuite) SetupTest() {
 		fx.Provide(func() option.Option[agenttelemetry.Component] {
 			return option.None[agenttelemetry.Component]()
 		}),
-		healthplatformnoopfx.Module(),
+		fx.Provide(func() healthplatform.Component {
+			return healthplatformnoopimpl.NewNoopComponent()
+		}),
 	))
 	suite.c.start(context.TODO())
 }

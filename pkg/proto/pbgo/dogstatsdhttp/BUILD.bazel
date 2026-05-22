@@ -1,4 +1,15 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
+
+write_pb_go(
+    name = "write_pb_go",
+    srcs = {
+        "//pkg/proto/datadog/dogstatsdhttp:pb_go_proto": [
+            "payload.pb.go",
+            "payload_vtproto.pb.go",
+        ],
+    },
+)
 
 go_library(
     name = "dogstatsdhttp",

@@ -2,13 +2,18 @@
 Schema generation tasks
 """
 
+import json
 import os
+import tempfile
 
 import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.libs.build.bazel import bazel
+from tasks.schema.add_comments import add_comments
 from tasks.schema.fixes import fix_schema
+from tasks.schema.settings_source_analyzer import extract_imperative_code_hints
 from tasks.schema.template_parser import parse_template
 
 SCHEMA_DIR = os.path.join("pkg", "config", "schema")
@@ -28,31 +33,8 @@ yaml.add_representer(str, str_presenter)
 
 
 @task
-def compress(ctx, output_dir=SCHEMA_DIR):
-    compressed_dir = os.path.join(output_dir, "compressed")
-    if not os.path.exists(compressed_dir):
-        os.mkdir(compressed_dir)
-
-    core = os.path.join(output_dir, "core_schema.yaml")
-    sysprobe = os.path.join(output_dir, "system-probe_schema.yaml")
-    coreCompressed = os.path.join(output_dir, "compressed", "core_schema.yaml.zstd")
-    sysprobeCompressed = os.path.join(output_dir, "compressed", "system-probe_schema.yaml.zstd")
-    compressor = os.path.join(output_dir, "compressor", "compress_schema.go")
-
-    core_size_before = os.path.getsize(core)
-    sysprobe_size_before = os.path.getsize(sysprobe)
-
-    ctx.run(f"go run {compressor} {core} {coreCompressed} {sysprobe} {sysprobeCompressed}")
-
-    core_size_after = os.path.getsize(f"{coreCompressed}")
-    sysprobe_size_after = os.path.getsize(f"{sysprobeCompressed}")
-
-    print(
-        f"core_schema.yaml:        {core_size_before:>8,} B -> {core_size_after:>8,} B ({core_size_after / core_size_before * 100:.1f}%)"
-    )
-    print(
-        f"system-probe_schema.yaml:{sysprobe_size_before:>8,} B -> {sysprobe_size_after:>8,} B ({sysprobe_size_after / sysprobe_size_before * 100:.1f}%)"
-    )
+def compress(ctx):
+    bazel(ctx, "run", "//pkg/config/schema:write_compressed")
 
 
 @task
@@ -99,6 +81,9 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     print("Applying OS-specific fixes...")
     core_schema, sysprobe_schema = fix_schema(core_schema, sysprobe_schema)
 
+    comments_info = extract_comments(ctx)
+    add_comments(core_schema, comments_info)
+
     # adding header
     core_schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
     sysprobe_schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
@@ -119,3 +104,29 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     print("Schema generation complete. Output files:")
     print(f"  {core}")
     print(f"  {sysprobe}")
+
+
+@task
+def hints(ctx):
+    # Extract hints, dump them to a temporary directory for debugging purposes
+    hints = extract_imperative_code_hints()
+    hints_tmp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, delete_on_close=False)
+    hints_tmp_file.file.write(json.dumps(hints))
+    print(f"hints file = {hints_tmp_file.name}")
+
+
+def extract_comments(ctx):
+    # Extract hints object
+    hints = extract_imperative_code_hints()
+
+    # Collect comments per setting
+    comment_assoc_map = {}
+
+    for setting_group in hints:
+        for setting in setting_group['settings']:
+            (setting_name, _unused, comment) = setting
+            if comment == '':
+                continue
+            comment_assoc_map[setting_name] = comment
+
+    return comment_assoc_map

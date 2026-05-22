@@ -19,16 +19,25 @@
     "error": ""
   },
   "right": {
-    "type": "unsupported",
-    "operation": "gt",
-    "argument": [
-      {
-        "len": {
-          "ref": "payload"
-        }
+    "type": "gt",
+    "operation": "",
+    "left": {
+      "type": "len",
+      "operation": "",
+      "left": {
+        "type": "ref",
+        "ref": "payload",
+        "operation": "",
+        "error": ""
       },
-      5
-    ],
+      "error": ""
+    },
+    "right": {
+      "type": "literal",
+      "operation": "",
+      "value": 5,
+      "error": ""
+    },
     "error": ""
   },
   "error": ""

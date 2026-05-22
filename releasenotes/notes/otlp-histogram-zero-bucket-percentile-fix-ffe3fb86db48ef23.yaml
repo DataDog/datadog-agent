@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    Fixed an OTLP explicit-bucket histogram bug where percentile aggregations
+    (p50, p75, p90, p95, p99) for distribution metrics could collapse to 0
+    when a histogram's first non-empty bucket was ``(0, B]``. This affected
+    the default boundary set used by Micrometer's OTLP registry and many OTel
+    SDKs (``[0, 5, 10, 25, 50, 75, 100, 250, …]``), most visibly when
+    high-cardinality tagging and short delta intervals produced small
+    per-bucket counts. ``avg``, ``sum``, ``min``, ``max``, and ``count``
+    aggregations were not affected.

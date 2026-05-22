@@ -69,7 +69,7 @@ go_test(
         "worker_test.go",
     ],
     embed = [":defaultforwarder"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",

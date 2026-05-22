@@ -20,6 +20,32 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
+func TestGetTasks(t *testing.T) {
+	dummyECS, err := testutil.NewDummyECS(
+		testutil.FileHandlerOption("/v4/1234-1/tasks", "./testdata/tasks.json"),
+	)
+	require.NoError(t, err)
+	ts := dummyECS.Start()
+	defer ts.Close()
+
+	client := NewClient(ts.URL+"/v4/1234-1", "v4")
+	tasks, err := client.GetTasks(context.Background())
+	require.NoError(t, err)
+	require.Len(t, tasks, 2)
+
+	// service task: has ServiceName and a "service:" Group
+	serviceTask := tasks[0]
+	require.Equal(t, "arn:aws:ecs:us-east-1:123457279990:task/ecs-cluster/aaa111bbb222ccc333ddd444eee55500", serviceTask.TaskARN)
+	require.Equal(t, "my-service", serviceTask.ServiceName)
+	require.Equal(t, "service:my-service", serviceTask.Group)
+
+	// daemon task: has a "daemon:" Group and no ServiceName
+	daemonTask := tasks[1]
+	require.Equal(t, "arn:aws:ecs:us-east-1:123457279990:task/ecs-cluster/fff666eee555ddd444ccc333bbb22200", daemonTask.TaskARN)
+	require.Equal(t, "daemon:my-daemon", daemonTask.Group)
+	require.Empty(t, daemonTask.ServiceName)
+}
+
 func TestGetV4TaskWithTags(t *testing.T) {
 	testDataPath := "./testdata/task_with_tags.json"
 	dummyECS, err := testutil.NewDummyECS(

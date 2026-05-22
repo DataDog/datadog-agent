@@ -1,0 +1,29 @@
+# Budget=250 bytes. Three 100-byte invocations arrive in sequence; the
+# third triggers budget-driven eviction of the oldest entry (k1), which
+# is emitted via budget_evictions as a truncated Ready.
+config:
+  budget_bytes: 250
+ops:
+  - !add-fragment {key: k1, side: entry, seq: 0, final: false, expect_return: false, bytes: 100}
+  - !add-fragment {key: k2, side: entry, seq: 0, final: false, expect_return: false, bytes: 100}
+  - !add-fragment {key: k3, side: entry, seq: 0, final: false, expect_return: false, bytes: 100}
+---
+op: !add-fragment {key: k1, side: entry, seq: 0, final: false, expect_return: false, bytes: 100}
+state:
+  budget_used: 100
+  bytes: 100
+  tree_size: 1
+---
+op: !add-fragment {key: k2, side: entry, seq: 0, final: false, expect_return: false, bytes: 100}
+state:
+  budget_used: 200
+  bytes: 200
+  tree_size: 2
+---
+op: !add-fragment {key: k3, side: entry, seq: 0, final: false, expect_return: false, bytes: 100}
+budget_evictions:
+  - {key: k1, entry_frags: 1, entry_bytes: 100, return_frags: 0, return_bytes: 0, entry_truncated: true}
+state:
+  budget_used: 200
+  bytes: 200
+  tree_size: 2

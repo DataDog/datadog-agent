@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/zstd"
-	"github.com/gorilla/mux"
 )
 
 const (
@@ -40,7 +39,7 @@ var bufferPool = sync.Pool{
 }
 
 // InstallNodeMetricsEndpoints register handler for node metrics collection
-func InstallNodeMetricsEndpoints(ctx context.Context, r *mux.Router, cfg config.Component) {
+func InstallNodeMetricsEndpoints(ctx context.Context, r *http.ServeMux, cfg config.Component) {
 	leaderHander := newSeriesHandler(ctx)
 	handler := api.WithLeaderProxyHandler(
 		loadMetricsHandlerName,
@@ -59,7 +58,7 @@ func InstallNodeMetricsEndpoints(ctx context.Context, r *mux.Router, cfg config.
 		},
 		leaderHander.handle,
 	)
-	r.HandleFunc("/series", api.WithTelemetryWrapper(loadMetricsHandlerName, handler)).Methods("POST")
+	r.HandleFunc("POST /series", api.WithTelemetryWrapper(loadMetricsHandlerName, handler))
 }
 
 // Handler handles the series request and store the metrics to loadstore

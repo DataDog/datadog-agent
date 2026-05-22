@@ -13,10 +13,12 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"unsafe"
 
 	"github.com/cilium/ebpf/ringbuf"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,6 +30,20 @@ type Sink interface {
 	// memory reuse.
 	HandleEvent(Message) error
 
+	// HandleDropNotification is called when a side-channel drop notification
+	// is received. Notifications are fire-and-forget from the dispatcher's
+	// perspective; the sink is responsible for any serialization it needs
+	// relative to HandleEvent.
+	HandleDropNotification(output.DropNotification)
+
+	// EvictOlderThan asks the sink to finalize any buffered entries whose
+	// invocation predates cutoffKtimeNs (in the bpf_ktime_get_ns domain).
+	// Called from the actuator goroutine when BPF reported that a drop
+	// notification was itself lost and a grace window has elapsed. The
+	// sink applies its own monotonic check, so callers may invoke this
+	// freely with the latest cutoff on each stats poll.
+	EvictOlderThan(cutoffKtimeNs uint64)
+
 	// Close will be called when the sink is no longer needed.
 	Close()
 }
@@ -37,9 +53,10 @@ type Sink interface {
 // It reads events from the ringbuffer and dispatches them to the relevant
 // sinks.
 type Dispatcher struct {
-	reader       *ringbuf.Reader
-	wg           sync.WaitGroup
-	shuttingDown chan<- struct{}
+	reader           *ringbuf.Reader
+	dropNotifyReader *ringbuf.Reader // may be nil
+	wg               sync.WaitGroup
+	shuttingDown     chan<- struct{}
 
 	flush struct {
 		*sync.Cond      // uses its own sync.Mutex
@@ -58,11 +75,16 @@ type Dispatcher struct {
 // The dispatcher must be shutdown to avoid leaking resources. Note that from
 // this point forth, the dispatcher owns the reader; shutting down the
 // dispatcher will close the reader.
-func NewDispatcher(reader *ringbuf.Reader) *Dispatcher {
+//
+// dropNotifyReader is optional. If non-nil, the dispatcher spawns a second
+// reader goroutine that reads fixed-size drop notifications from that reader
+// and delivers them to sinks via HandleDropNotification.
+func NewDispatcher(reader, dropNotifyReader *ringbuf.Reader) *Dispatcher {
 	shuttingDown := make(chan struct{})
 	rt := &Dispatcher{
-		reader:       reader,
-		shuttingDown: shuttingDown,
+		reader:           reader,
+		dropNotifyReader: dropNotifyReader,
+		shuttingDown:     shuttingDown,
 	}
 	rt.flush.Cond = sync.NewCond(&sync.Mutex{})
 	rt.mu.sinks = make(map[ir.ProgramID]Sink)
@@ -71,6 +93,13 @@ func NewDispatcher(reader *ringbuf.Reader) *Dispatcher {
 		defer rt.wg.Done()
 		_ = rt.run(shuttingDown)
 	}()
+	if dropNotifyReader != nil {
+		rt.wg.Add(1)
+		go func() {
+			defer rt.wg.Done()
+			rt.runDropNotify(shuttingDown)
+		}()
+	}
 
 	return rt
 }
@@ -82,6 +111,9 @@ func (d *Dispatcher) Shutdown() error {
 
 	close(d.shuttingDown)
 	err := d.reader.Close()
+	if d.dropNotifyReader != nil {
+		err = errors.Join(err, d.dropNotifyReader.Close())
+	}
 	d.wg.Wait()
 
 	// Close any remaining sinks.
@@ -134,6 +166,17 @@ func (d *Dispatcher) UnregisterSink(progID ir.ProgramID) {
 	if s != nil {
 		s.Close()
 	}
+}
+
+// EvictOlderThan forwards an eviction request to the sink registered for
+// progID, if any. Returns without error if the sink is not registered —
+// the program may have been unregistered concurrently.
+func (d *Dispatcher) EvictOlderThan(progID ir.ProgramID, cutoffKtimeNs uint64) {
+	sink, ok := d.getSink(progID)
+	if !ok {
+		return
+	}
+	sink.EvictOlderThan(cutoffKtimeNs)
 }
 
 // flushAndWait triggers a flush of the ringbuffer reader and waits until the
@@ -240,4 +283,54 @@ func (d *Dispatcher) getSink(progID ir.ProgramID) (Sink, bool) {
 	defer d.mu.Unlock()
 	sink, ok := d.mu.sinks[progID]
 	return sink, ok
+}
+
+// dropNotifySize is the exact byte size of one drop notification. The
+// side-channel ringbuf carries nothing else, so every record has this size.
+const dropNotifySize = int(unsafe.Sizeof(output.DropNotification{}))
+
+// runDropNotify drains the side-channel ringbuf, decoding each record as a
+// DropNotification and routing it to the sink identified by Prog_id. Shares
+// the same shutdown channel as the main reader so Shutdown closes both.
+func (d *Dispatcher) runDropNotify(shuttingDown <-chan struct{}) {
+	reader := d.dropNotifyReader
+	inShutdown := func() bool {
+		select {
+		case <-shuttingDown:
+			return true
+		default:
+			return false
+		}
+	}
+	var rec ringbuf.Record
+	for {
+		if inShutdown() {
+			return
+		}
+		if err := reader.ReadInto(&rec); err != nil {
+			if errors.Is(err, ringbuf.ErrClosed) || inShutdown() {
+				return
+			}
+			// ErrFlushed is not used on this reader — no flush path. Any
+			// other error aborts the goroutine with a log.
+			log.Errorf("drop-notify reader: %v", err)
+			return
+		}
+		if len(rec.RawSample) != dropNotifySize {
+			log.Errorf(
+				"drop-notify: unexpected record size %d, want %d",
+				len(rec.RawSample), dropNotifySize,
+			)
+			continue
+		}
+		notif := *(*output.DropNotification)(unsafe.Pointer(&rec.RawSample[0]))
+		progID := ir.ProgramID(notif.Prog_id)
+		sink, ok := d.getSink(progID)
+		if !ok {
+			// Sink was unregistered between BPF emitting the notification
+			// and us reading it. Nothing to do.
+			continue
+		}
+		sink.HandleDropNotification(notif)
+	}
 }

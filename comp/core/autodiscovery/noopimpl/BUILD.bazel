@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "noopimpl",
+    srcs = ["autoconfig.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/types",
+        "//comp/core/autodiscovery/scheduler",
+        "//comp/core/autodiscovery/telemetry",
+        "//pkg/collector/check/id",
+        "//pkg/config/setup",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)
