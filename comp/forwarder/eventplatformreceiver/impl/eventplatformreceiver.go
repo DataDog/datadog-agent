@@ -9,13 +9,12 @@ package eventplatformreceiverimpl
 import (
 	"net/http"
 
-	"go.uber.org/fx"
-
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	eventplatformreceiver "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -23,12 +22,21 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(NewReceiver),
+		fxutil.ProvideComponentConstructor(NewComponent),
 	)
 }
 
-type provides struct {
-	fx.Out
+// Requires defines the component dependencies.
+type Requires struct {
+	compdef.In
+
+	Hostname hostnameinterface.Component
+	Config   configComponent.Component
+}
+
+// Provides defines the component outputs.
+type Provides struct {
+	compdef.Out
 
 	Comp     eventplatformreceiver.Component
 	Endpoint api.AgentEndpointProvider
@@ -38,10 +46,17 @@ func streamEventPlatform(eventPlatformReceiver eventplatformreceiver.Component) 
 	return apiutils.GetStreamFunc(func() apiutils.MessageReceiver { return eventPlatformReceiver }, "event platform payloads", "agent")
 }
 
+// NewComponent returns a new event platform receiver component.
+func NewComponent(reqs Requires) Provides {
+	return NewReceiver(reqs.Hostname, reqs.Config)
+}
+
 // NewReceiver returns a new event platform receiver.
-func NewReceiver(hostname hostnameinterface.Component, config configComponent.Component) provides { // nolint:revive
+// Prefer NewComponent for fx-based construction; this function exists for
+// callers that construct the receiver directly without an fx container.
+func NewReceiver(hostname hostnameinterface.Component, config configComponent.Component) Provides {
 	epr := diagnostic.NewBufferedMessageReceiver(&epFormatter{}, hostname, config)
-	return provides{
+	return Provides{
 		Comp:     epr,
 		Endpoint: api.NewAgentEndpointProvider(streamEventPlatform(epr), "/stream-event-platform", "POST"),
 	}
