@@ -52,7 +52,9 @@ const (
 	// changeEventIntegrationID identifies the publishing integration. The
 	// `edge-intelligence` integration is registered upstream in
 	// integrations-internal-core#3240 (source_type_id 78252213) and the
-	// event-management intake derives source_type from this value.
+	// event-management intake derives source_type from this value. We also
+	// emit changeEventSourceTypeID explicitly so the intake can validate the
+	// pairing without a registry lookup.
 	changeEventIntegrationID = "edge-intelligence"
 	changeEventSourceTypeID  = 78252213
 
