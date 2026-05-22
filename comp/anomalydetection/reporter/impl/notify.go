@@ -49,10 +49,12 @@ const (
 	// changedResourceNameMaxLen caps the changed_resource.name length.
 	changedResourceNameMaxLen = 128
 
-	// changeEventIntegrationID identifies the publishing integration.
-	// source_type_id is intentionally omitted: the intake rejects it as a
-	// custom property and derives source_type from integration_id instead.
+	// changeEventIntegrationID identifies the publishing integration. The
+	// `edge-intelligence` integration is registered upstream in
+	// integrations-internal-core#3240 (source_type_id 78252213) and the
+	// event-management intake derives source_type from this value.
 	changeEventIntegrationID = "edge-intelligence"
+	changeEventSourceTypeID  = 78252213
 
 	// changedResourceType is the resource classification carried in
 	// data.attributes.attributes.changed_resource.type.
@@ -176,6 +178,7 @@ func buildChangeEventPayload(c observerdef.ActiveCorrelation, msg, ts, aggKey, h
 		"message":         msg,
 		"category":        "change",
 		"integration_id":  changeEventIntegrationID,
+		"source_type_id":  changeEventSourceTypeID,
 		"tags":            BuildEventTags(c),
 		"timestamp":       ts,
 		"aggregation_key": aggKey,
