@@ -6,18 +6,175 @@
 package agenthealth
 
 import (
+	_ "embed"
+	"errors"
+	"fmt"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
+
+//go:embed fixtures/docker_permission_agent_config.yaml
+var dockerPermissionAgentConfig string
+
+//go:embed fixtures/docker-compose.busybox.yaml
+var busyboxComposeContent string
+
+// ============================================================================
+// Environment definition
+// ============================================================================
+
+type dockerPermissionEnv struct {
+	RemoteHost *components.RemoteHost
+	Agent      *components.RemoteHostAgent
+	Fakeintake *components.FakeIntake
+	Docker     *components.RemoteHostDocker
+}
+
+func dockerPermissionEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerPermissionEnv] {
+	return func(ctx *pulumi.Context, env *dockerPermissionEnv) error {
+		awsEnv, err := aws.NewEnvironment(ctx)
+		if err != nil {
+			return err
+		}
+
+		remoteHost, err := ec2.NewVM(awsEnv, "dockervm")
+		if err != nil {
+			return err
+		}
+		if err = remoteHost.Export(ctx, &env.RemoteHost.HostOutput); err != nil {
+			return err
+		}
+
+		fi, err := fakeintake.NewECSFargateInstance(awsEnv, "", fakeintake.WithoutDDDevForwarding())
+		if err != nil {
+			return err
+		}
+		if err = fi.Export(ctx, &env.Fakeintake.FakeintakeOutput); err != nil {
+			return err
+		}
+
+		dockerManager, err := docker.NewAWSManager(&awsEnv, remoteHost)
+		if err != nil {
+			return err
+		}
+		if err = dockerManager.Export(ctx, &env.Docker.ManagerOutput); err != nil {
+			return err
+		}
+
+		composeBusyboxCmd, err := dockerManager.ComposeStrUp("busybox", []docker.ComposeInlineManifest{
+			{Name: "busybox", Content: pulumi.String(busyboxComposeContent)},
+		}, pulumi.StringMap{})
+		if err != nil {
+			return err
+		}
+
+		hostAgent, err := agent.NewHostAgent(&awsEnv, remoteHost,
+			agentparams.WithFakeintake(fi),
+			agentparams.WithAgentConfig(dockerPermissionAgentConfig),
+			agentparams.WithPulumiResourceOptions(pulumi.DependsOn([]pulumi.Resource{composeBusyboxCmd})),
+		)
+		if err != nil {
+			return err
+		}
+		return hostAgent.Export(ctx, &env.Agent.HostAgentOutput)
+	}
+}
+
+var _ common.Diagnosable = (*dockerPermissionEnv)(nil)
+
+func (e *dockerPermissionEnv) Diagnose(outputDir string) (string, error) {
+	var parts []string
+	if e.Agent != nil {
+		parts = append(parts, "==== Agent ====")
+		dst, err := e.generateAndDownloadAgentFlare(outputDir)
+		if err != nil {
+			parts = append(parts, fmt.Sprintf("flare error: %v", err))
+		} else {
+			parts = append(parts, "flare: "+dst)
+		}
+	}
+	if e.Docker != nil {
+		parts = append(parts, "==== Docker ====")
+		diag, err := e.diagnoseDocker()
+		if err != nil {
+			parts = append(parts, fmt.Sprintf("docker diag error: %v", err))
+		} else {
+			parts = append(parts, diag)
+		}
+	}
+	return strings.Join(parts, "\n"), nil
+}
+
+func (e *dockerPermissionEnv) generateAndDownloadAgentFlare(outputDir string) (string, error) {
+	if e.Agent == nil || e.RemoteHost == nil {
+		return "", errors.New("agent or host not initialized")
+	}
+	out, err := e.Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send"}))
+	allOut := out
+	if err != nil {
+		allOut = out + "\n" + err.Error()
+	}
+	re := regexp.MustCompile(`(?m)^(.+\.zip) is going to be uploaded to Datadog$`)
+	m := re.FindStringSubmatch(allOut)
+	if len(m) < 2 {
+		return "", fmt.Errorf("no flare archive path in output: %s", allOut)
+	}
+	flarePath := m[1]
+	info, err := e.RemoteHost.Lstat(flarePath)
+	if err != nil {
+		return "", fmt.Errorf("stat flare: %w", err)
+	}
+	dst := filepath.Join(outputDir, info.Name())
+	if err = e.RemoteHost.EnsureFileIsReadable(flarePath); err != nil {
+		return "", fmt.Errorf("chmod flare: %w", err)
+	}
+	if err = e.RemoteHost.GetFile(flarePath, dst); err != nil {
+		return "", fmt.Errorf("download flare: %w", err)
+	}
+	return dst, nil
+}
+
+func (e *dockerPermissionEnv) diagnoseDocker() (string, error) {
+	var sb strings.Builder
+	for _, c := range []struct{ label, cmd string }{
+		{"containers", "docker ps -a"},
+		{"socket perms", "ls -l /var/run/docker.sock"},
+		{"dd-agent groups", "groups dd-agent"},
+	} {
+		out, err := e.RemoteHost.Execute(c.cmd)
+		if err != nil {
+			sb.WriteString(fmt.Sprintf("[%s] error: %v\n", c.label, err))
+		} else {
+			sb.WriteString(fmt.Sprintf("[%s]\n%s\n", c.label, out))
+		}
+	}
+	return sb.String(), nil
+}
+
+// ============================================================================
+// Test suite
+// ============================================================================
 
 type dockerPermissionSuite struct {
 	e2e.BaseSuite[dockerPermissionEnv]
@@ -41,7 +198,6 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 	agent := suite.Env().Agent
 	fi := suite.Env().Fakeintake.Client()
 
-	// Verify containers are running before the lifecycle phases start.
 	suite.T().Run("PreCondition", func(t *testing.T) {
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			assert.True(ct, agent.Client.IsReady())
@@ -61,24 +217,16 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 
 	RunHealthIssueLifecycle(suite.T(),
 		HealthIssueTestCase{
-			// IssueName is a substring of the Title built by dockerpermissions.Issue.BuildIssue().
 			IssueName: "Docker",
 			IssueID:   "docker-socket-permissions",
-
-			// TriggerIssue restores the broken state (used by Cleanup after Resolution).
-			// The initial broken state comes from the provisioner (agent has no Docker access).
 			TriggerIssue: func(t *testing.T, h *components.RemoteHost) {
 				h.MustExecute("sudo chmod 660 /var/run/docker.sock")
 			},
-
-			// FixIssue grants world-access so dd-agent can reach the socket.
 			FixIssue: func(t *testing.T, h *components.RemoteHost) {
 				h.MustExecute("sudo chmod 666 /var/run/docker.sock")
 				perm := h.MustExecute("stat -c '%a' /var/run/docker.sock")
 				assert.Contains(t, strings.TrimSpace(perm), "666", "docker socket should be world-accessible")
 			},
-
-			// AssertMetadata validates the fakeintake payload fields.
 			AssertMetadata: func(t *testing.T, issue *healthplatform.Issue) {
 				assert.Equal(t, "docker-socket-permissions", issue.Id)
 				assert.Equal(t, "docker_file_tailing_disabled", issue.IssueName)
@@ -92,8 +240,6 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 				assert.NotEmpty(t, issue.Remediation.Steps)
 			},
 		},
-		agent,
-		host,
-		fi,
+		agent, host, fi,
 	)
 }
