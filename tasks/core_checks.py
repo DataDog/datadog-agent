@@ -47,6 +47,7 @@ AIX_CORECHECKS = [
     "cloud_hostinfo",
     "cpu",
     "disk",
+    "discovery",
     "io",
     "load",
     "memory",
@@ -56,6 +57,7 @@ AIX_CORECHECKS = [
     "snmp",
     "telemetry",
     "uptime",
+    "versa",
 ]
 
 WINDOWS_CORECHECKS = [

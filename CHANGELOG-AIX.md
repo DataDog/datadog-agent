@@ -10,7 +10,7 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
-- Include missing Go check configurations in the package: `snmp` (`auto_conf.yaml`), `cloud_hostinfo` (`conf.yaml.default`), `telemetry` (`conf.yaml.default`) — these checks are compiled into the agent binary but their config files were missing from `AIX_CORECHECKS`
+- Include missing Go check configurations in the package: `snmp`, `cloud_hostinfo`, `discovery`, `telemetry`, `versa` — these checks are compiled into the agent binary but their config files were missing from `AIX_CORECHECKS`
 
 ---
 
