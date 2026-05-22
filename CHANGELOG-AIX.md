@@ -10,7 +10,11 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+<<<<<<< pgimalac/aix-sqlite-lm
 - Fix SQLite build: link with `-lm` when `SQLITE_ENABLE_MATH_FUNCTIONS` is enabled
+=======
+- Upgrade embedded pip from 24.0 to 26.1 (patches CVE-2026-1703, CVE-2026-6357)
+>>>>>>> main
 
 ---
 

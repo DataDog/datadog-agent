@@ -161,9 +161,6 @@ exports_files(glob(
 # gazelle:exclude comp/host-profiler/collector/impl/processor
 # gazelle:exclude comp/host-profiler/collector/impl/receiver
 # gazelle:exclude comp/host-profiler/flare
-# gazelle:exclude comp/host-profiler/symboluploader/pclntab
-# gazelle:exclude comp/host-profiler/symboluploader/symbol
-# gazelle:exclude comp/host-profiler/symboluploader/symbolcopier
 # gazelle:exclude comp/languagedetection/client/fx
 # gazelle:exclude comp/languagedetection/client/impl
 # gazelle:exclude comp/logonduration/fx
@@ -778,8 +775,6 @@ exports_files(glob(
 # gazelle:exclude tools/ebpf
 # gazelle:exclude tools/gdb
 # gazelle:exclude tools/go-update
-# gazelle:exclude tools/host-profiler
-# Standalone debugging tool with its own go.mod; not built as part of the agent.
 # gazelle:exclude tools/retry_file_dump
 # gazelle:exclude tools/windows
 
