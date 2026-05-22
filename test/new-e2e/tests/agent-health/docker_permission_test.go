@@ -154,7 +154,7 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		HealthIssueTestCase{
 			IssueName: "Docker",
 			IssueID:   "docker-socket-permissions",
-			TriggerIssue: func(t *testing.T, h *components.RemoteHost) {
+			TriggerIssue: func(_ *testing.T, h *components.RemoteHost) {
 				h.MustExecute("sudo chmod 660 /var/run/docker.sock")
 			},
 			FixIssue: func(t *testing.T, h *components.RemoteHost) {
