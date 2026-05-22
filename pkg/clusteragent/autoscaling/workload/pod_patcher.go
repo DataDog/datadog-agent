@@ -90,16 +90,19 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 	}
 
 	// Patching the pod with the recommendations.
-	// In burstable mode, applyVerticalConstraints has already stamped the CPU-limit remove
-	// sentinel (-1) on each container recommendation, so ResourcesHash naturally encodes the
-	// burstable state — no extra suffix is needed here.
+	// In burstable mode the CPU-limit sentinel is already encoded in the hash; no extra suffix needed.
 	effectiveRecommendationID := autoscaler.ScalingValues().Vertical.ResourcesHash
 	if pod.Annotations[model.RecommendationIDAnnotation] != effectiveRecommendationID {
 		pod.Annotations[model.RecommendationIDAnnotation] = effectiveRecommendationID
 		patched = true
 	}
 
+	// Update the model's QoS class from the spec — pod.Status.QOSClass is not set at admission time.
+	// This keeps the model current so the next sync resolves the sentinel correctly for this pod's class.
+	autoscaler.SetPodsQOSClass(computePodQoSFromSpec(&pod.Spec))
+
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
+	// The recommendation is already QoS-resolved by applyVerticalConstraints.
 	for _, reco := range autoscaler.ScalingValues().Vertical.ContainerResources {
 		patched = patchPod(reco, pod) || patched
 	}
@@ -205,7 +208,7 @@ func (pa podPatcher) observedPodCallback(ctx context.Context, pod *workloadmeta.
 }
 
 // K8s guarantees that the name for an init container or normal container are unique among all containers.
-// It means that dispatching recommendations just by container names is sufficient
+// It means that dispatching recommendations just by container names is sufficient.
 func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *corev1.Pod) (patched bool) {
 	for i := range pod.Spec.Containers {
 		cont := &pod.Spec.Containers[i]
@@ -239,8 +242,7 @@ func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerR
 	}
 	for resourceName, limit := range reco.Limits {
 		if limit.Sign() < 0 {
-			// Negative value (removeLimitSentinel) is set by applyVerticalConstraints in burstable
-			// mode, meaning "remove this limit from the container".
+			// removeLimitSentinel — delete the limit from the container.
 			if _, hasCurrent := cont.Resources.Limits[resourceName]; hasCurrent {
 				delete(cont.Resources.Limits, resourceName)
 				patched = true

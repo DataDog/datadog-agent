@@ -46,6 +46,7 @@ const inPlaceResizeSupportedCacheTTL = 15 * time.Minute
 // mode) to signal "delete this limit from the pod instead of setting it to this value".
 // Negative quantities are never valid as real Kubernetes resource values, making the intent
 // unambiguous and easy to identify with quantity.Sign() < 0.
+// Guaranteed pods substitute the sentinel with the CPU request instead of deleting the limit.
 var removeLimitSentinel = resource.MustParse("-1")
 
 // isInPlaceResizeSupported checks whether the API server exposes the pods/resize
@@ -334,12 +335,14 @@ func hasLimitIncrease(
 }
 
 // applyVerticalConstraints applies the container constraints from the PodAutoscaler spec to the
-// recommendations, and in burstable mode stores removeLimitSentinel (-1) on the CPU limit of every
-// container so that:
-//   - the ResourcesHash changes when burstable mode is toggled (triggering pod re-patches)
-//   - hasLimitIncrease sees cpuLimit.Sign() <= 0 and correctly identifies the transition as a limit increase
-//   - patchContainerResources removes the CPU limit from the pod when it encounters the sentinel
-func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constraints *datadoghqcommon.DatadogPodAutoscalerConstraints, burstable bool) (limitErr, err error) {
+// recommendations, and in burstable mode resolves the CPU-limit intent per QoS class:
+//   - non-Guaranteed pods: stores removeLimitSentinel (-1) so the ResourcesHash changes when
+//     burstable is toggled, hasLimitIncrease correctly identifies the transition, and
+//     patchContainerResources removes the CPU limit when it encounters the sentinel.
+//   - Guaranteed pods: substitutes the sentinel immediately with the CPU request (keeping
+//     request==limit) or drops CPU from both maps when no request is present, so the stored
+//     recommendation is already correct and no post-processing is needed at patch time.
+func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constraints *datadoghqcommon.DatadogPodAutoscalerConstraints, burstable bool, podsQOSClass corev1.PodQOSClass) (limitErr, err error) {
 	if verticalRecs == nil {
 		return nil, nil
 	}
@@ -447,19 +450,26 @@ func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constra
 		kept = append(kept, cr)
 	}
 
-	// In burstable mode, stamp the CPU limit to removeLimitSentinel (-1) on every container.
-	// This has three effects:
-	//   1. The ResourcesHash changes when burstable is toggled (pods get re-patched).
-	//   2. hasLimitIncrease sees cpuLimit.Sign() <= 0, correctly identifying non-burstable →
-	//      burstable as a limit increase (unlimited > any finite limit).
-	//   3. patchContainerResources sees Sign() < 0 and removes the CPU limit from the running
-	//      pod instead of setting it.
 	if burstable {
+		guaranteed := podsQOSClass == corev1.PodQOSGuaranteed
 		for i := range kept {
 			if kept[i].Limits == nil {
 				kept[i].Limits = corev1.ResourceList{}
 			}
-			kept[i].Limits[corev1.ResourceCPU] = removeLimitSentinel.DeepCopy()
+			if guaranteed {
+				// Guaranteed pod: substituting the sentinel with the CPU request keeps request==limit
+				// and the pod stays Guaranteed. If there is no CPU request, drop CPU from both maps
+				// so the pod's current CPU configuration is left untouched.
+				if req, hasReq := kept[i].Requests[corev1.ResourceCPU]; hasReq {
+					kept[i].Limits[corev1.ResourceCPU] = req.DeepCopy()
+				} else {
+					delete(kept[i].Limits, corev1.ResourceCPU)
+					delete(kept[i].Requests, corev1.ResourceCPU)
+				}
+			} else {
+				// Non-Guaranteed pod: stamp the sentinel so patchContainerResources removes the limit.
+				kept[i].Limits[corev1.ResourceCPU] = removeLimitSentinel.DeepCopy()
+			}
 			modified = true
 		}
 	}
@@ -613,6 +623,9 @@ func getPodResizeStatus(pod *workloadmeta.KubernetesPod, recommendationID string
 	return PodResizeStatusCompleted, time.Time{}
 }
 
+// fromAutoscalerToContainerResourcePatches converts the recommendation into per-container patches.
+// The recommendation is already QoS-resolved by applyVerticalConstraints: Guaranteed pods have the
+// CPU request value instead of the sentinel, non-Guaranteed pods carry the sentinel.
 func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod) []workloadpatcher.ContainerResourcePatch {
 	containersResources := autoscalerInternal.ScalingValues().Vertical.ContainerResources
 
@@ -637,8 +650,12 @@ func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutos
 			Limits:   resourceListToStringMap(cr.Limits),
 		}
 		if burstable {
-			delete(patch.Limits, string(corev1.ResourceCPU)) // don't re-set CPU limit
-			patch.LimitsToDelete = []string{string(corev1.ResourceCPU)}
+			cpu := string(corev1.ResourceCPU)
+			if lim, hasCPU := cr.Limits[corev1.ResourceCPU]; hasCPU && lim.Sign() < 0 {
+				// Sentinel present (non-Guaranteed pod) — delete the CPU limit.
+				delete(patch.Limits, cpu)
+				patch.LimitsToDelete = []string{cpu}
+			}
 		}
 		patches = append(patches, patch)
 	}

@@ -87,11 +87,28 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 		return autoscaling.NoRequeue, nil
 	}
 
+	// Get the pods for the pod owner first so the QoS class is known before building the recommendation.
+	pods := u.podWatcher.GetPodsForOwner(target)
+	if len(pods) == 0 {
+		// If we found nothing, we'll wait just until the next sync
+		log.Debugf("No pods found for autoscaler: %s, gvk: %s, name: %s", autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
+		return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
+	}
+
+	var podsQOSClass corev1.PodQOSClass
+	for _, pod := range pods {
+		if pod.DeletionTimestamp == nil {
+			podsQOSClass = corev1.PodQOSClass(pod.QOSClass)
+			break
+		}
+	}
+	autoscalerInternal.SetPodsQOSClass(podsQOSClass)
+
 	// Deep-copy to avoid mutating the original recommendation stored in mainScalingValues/fallbackScalingValues.
 	// Without this, clamped values would persist and the VerticalScalingLimited condition would be
 	// cleared on the next sync since constraints re-applied to already-clamped values are no-ops.
 	constrainedVertical := scalingValues.Vertical.DeepCopy()
-	limitErr, err := applyVerticalConstraints(constrainedVertical, autoscalerInternal.Spec().Constraints, autoscalerInternal.IsBurstable())
+	limitErr, err := applyVerticalConstraints(constrainedVertical, autoscalerInternal.Spec().Constraints, autoscalerInternal.IsBurstable(), podsQOSClass)
 	if err != nil {
 		autoscalerInternal.SetConstrainedVerticalScaling(nil, nil)
 		autoscalerInternal.UpdateFromVerticalAction(nil, err)
@@ -99,18 +116,7 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	}
 	autoscalerInternal.SetConstrainedVerticalScaling(constrainedVertical, limitErr)
 
-	// recommendationID is the constrained hash; in burstable mode applyVerticalConstraints
-	// already stamped a CPU-limit zero sentinel on each container, so the hash naturally
-	// differs from non-burstable — no extra suffix required.
 	recommendationID := constrainedVertical.ResourcesHash
-
-	// Get the pods for the pod owner
-	pods := u.podWatcher.GetPodsForOwner(target)
-	if len(pods) == 0 {
-		// If we found nothing, we'll wait just until the next sync
-		log.Debugf("No pods found for autoscaler: %s, gvk: %s, name: %s", autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
-		return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
-	}
 
 	// Compute pods per resourceHash and per owner (needed by the rollout path).
 	podsPerRecommendationID := make(map[string]int32)

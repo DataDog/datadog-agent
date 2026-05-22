@@ -493,12 +493,12 @@ func TestApplyVerticalConstraints_NoModification(t *testing.T) {
 	}
 
 	// Nil constraints
-	limitErr, err := applyVerticalConstraints(vertical, nil, false)
+	limitErr, err := applyVerticalConstraints(vertical, nil, false, "")
 	assert.NoError(t, err)
 	assert.NoError(t, limitErr)
 
 	// Empty container list
-	limitErr, err = applyVerticalConstraints(vertical, &datadoghqcommon.DatadogPodAutoscalerConstraints{}, false)
+	limitErr, err = applyVerticalConstraints(vertical, &datadoghqcommon.DatadogPodAutoscalerConstraints{}, false, "")
 	assert.NoError(t, err)
 	assert.NoError(t, limitErr)
 
@@ -507,7 +507,7 @@ func TestApplyVerticalConstraints_NoModification(t *testing.T) {
 		Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
 			{Name: "other-container", MinAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2")}},
 		},
-	}, false)
+	}, false, "")
 	assert.NoError(t, err)
 	assert.NoError(t, limitErr)
 
@@ -520,12 +520,65 @@ func TestApplyVerticalConstraints_NoModification(t *testing.T) {
 				MaxAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2"), corev1.ResourceMemory: resource.MustParse("1Gi")},
 			},
 		},
-	}, false)
+	}, false, "")
 	assert.NoError(t, err)
 	assert.NoError(t, limitErr)
 
 	// Hash unchanged through all scenarios
 	assert.Equal(t, "original-hash", vertical.ResourcesHash)
+}
+
+func TestApplyVerticalConstraints_BurstableGuaranteed(t *testing.T) {
+	t.Run("guaranteed pod: sentinel resolved to cpu request", func(t *testing.T) {
+		vertical := &model.VerticalScalingValues{
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name:     "app",
+					Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("750m"), corev1.ResourceMemory: resource.MustParse("1Gi")},
+					Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1"), corev1.ResourceMemory: resource.MustParse("1Gi")},
+				},
+			},
+		}
+		_, err := applyVerticalConstraints(vertical, nil, true, corev1.PodQOSGuaranteed)
+		require.NoError(t, err)
+		cr := vertical.ContainerResources[0]
+		assert.Equal(t, resource.MustParse("750m"), cr.Limits[corev1.ResourceCPU], "cpu limit must equal request to preserve Guaranteed")
+		assert.Equal(t, resource.MustParse("750m"), cr.Requests[corev1.ResourceCPU])
+	})
+
+	t.Run("guaranteed pod, no cpu request: cpu dropped from both maps", func(t *testing.T) {
+		vertical := &model.VerticalScalingValues{
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name:     "app",
+					Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("1Gi")},
+					Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1"), corev1.ResourceMemory: resource.MustParse("1Gi")},
+				},
+			},
+		}
+		_, err := applyVerticalConstraints(vertical, nil, true, corev1.PodQOSGuaranteed)
+		require.NoError(t, err)
+		cr := vertical.ContainerResources[0]
+		assert.NotContains(t, cr.Limits, corev1.ResourceCPU, "cpu must be dropped from limits when no request available")
+		assert.NotContains(t, cr.Requests, corev1.ResourceCPU)
+	})
+
+	t.Run("non-guaranteed pod: sentinel stamped as normal", func(t *testing.T) {
+		vertical := &model.VerticalScalingValues{
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name:     "app",
+					Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("500m")},
+					Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1"), corev1.ResourceMemory: resource.MustParse("512Mi")},
+				},
+			},
+		}
+		_, err := applyVerticalConstraints(vertical, nil, true, corev1.PodQOSBurstable)
+		require.NoError(t, err)
+		cr := vertical.ContainerResources[0]
+		cpuLim := cr.Limits[corev1.ResourceCPU]
+		assert.True(t, cpuLim.Sign() < 0, "sentinel must be stamped for non-Guaranteed pod")
+	})
 }
 
 func TestApplyVerticalConstraints_AllFeatures(t *testing.T) {
@@ -634,7 +687,7 @@ func TestApplyVerticalConstraints_AllFeatures(t *testing.T) {
 		},
 	}
 
-	limitErr, err := applyVerticalConstraints(vertical, constraints, false)
+	limitErr, err := applyVerticalConstraints(vertical, constraints, false, "")
 	require.NoError(t, err)
 
 	// "disabled" and "empty-controlled" should be removed -> 4 containers left
@@ -705,7 +758,7 @@ func TestApplyVerticalConstraints_ValidationErrors(t *testing.T) {
 			{Name: "app", MinAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")}},
 			{Name: "app", MaxAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2")}},
 		},
-	}, false)
+	}, false, "")
 	require.Error(t, err)
 	var condErr autoscaling.ConditionReason
 	require.ErrorAs(t, err, &condErr)
@@ -718,7 +771,7 @@ func TestApplyVerticalConstraints_ValidationErrors(t *testing.T) {
 			{Name: "*", MinAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("50m")}},
 			{Name: "*", MaxAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4")}},
 		},
-	}, false)
+	}, false, "")
 	require.Error(t, err)
 	require.ErrorAs(t, err, &condErr)
 	assert.Equal(t, autoscaling.ConditionReasonInvalidSpec, condErr.Reason())
@@ -762,7 +815,18 @@ func TestFromAutoscalerToContainerResourcePatches_PreservesPodOrder(t *testing.T
 }
 
 func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
-	sv := &model.VerticalScalingValues{
+	// ScalingValues reflect what applyVerticalConstraints stores: sentinel on non-Guaranteed pods.
+	svWithSentinel := &model.VerticalScalingValues{
+		ResourcesHash: "r1",
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:     "app",
+				Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("250m")},
+				Limits:   corev1.ResourceList{corev1.ResourceCPU: removeLimitSentinel.DeepCopy(), corev1.ResourceMemory: resource.MustParse("512Mi")},
+			},
+		},
+	}
+	svNoSentinel := &model.VerticalScalingValues{
 		ResourcesHash: "r1",
 		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
 			{
@@ -778,11 +842,11 @@ func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
 		Containers: []workloadmeta.OrchestratorContainer{{Name: "app"}},
 	}
 
-	t.Run("burstable: cpu removed from limits, LimitsToDelete set", func(t *testing.T) {
+	t.Run("burstable: sentinel in reco → cpu removed from limits, LimitsToDelete set", func(t *testing.T) {
 		ai := (&model.FakePodAutoscalerInternal{
 			Namespace:            "default",
 			Name:                 "ai",
-			ScalingValues:        model.ScalingValues{Vertical: sv},
+			ScalingValues:        model.ScalingValues{Vertical: svWithSentinel},
 			PreviewAnnotationKey: `{"burstable":true}`,
 		}).Build()
 
@@ -800,7 +864,7 @@ func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
 		ai := (&model.FakePodAutoscalerInternal{
 			Namespace:     "default",
 			Name:          "ai",
-			ScalingValues: model.ScalingValues{Vertical: sv},
+			ScalingValues: model.ScalingValues{Vertical: svNoSentinel},
 		}).Build()
 
 		patches := fromAutoscalerToContainerResourcePatches(&ai, pod)
@@ -809,5 +873,72 @@ func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
 		p := patches[0]
 		assert.Equal(t, "500m", p.Limits["cpu"], "cpu limit must be set when not burstable")
 		assert.Empty(t, p.LimitsToDelete, "LimitsToDelete must be empty when not burstable")
+	})
+}
+
+func TestFromAutoscalerToContainerResourcePatches_BurstableGuaranteed(t *testing.T) {
+	// For Guaranteed pods applyVerticalConstraints already resolves the sentinel to the request
+	// value; fromAutoscalerToContainerResourcePatches receives the post-constraint reco.
+	svResolved := &model.VerticalScalingValues{
+		ResourcesHash: "r1",
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:     "app",
+				Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("750m"), corev1.ResourceMemory: resource.MustParse("1Gi")},
+				Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("750m"), corev1.ResourceMemory: resource.MustParse("1Gi")},
+			},
+		},
+	}
+	svNoCPU := &model.VerticalScalingValues{
+		ResourcesHash: "r2",
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:     "app",
+				Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("1Gi")},
+				Limits:   corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("1Gi")},
+			},
+		},
+	}
+
+	guaranteedPod := &workloadmeta.KubernetesPod{
+		EntityID:   workloadmeta.EntityID{ID: "pod1"},
+		QOSClass:   string(corev1.PodQOSGuaranteed),
+		Containers: []workloadmeta.OrchestratorContainer{{Name: "app"}},
+	}
+
+	t.Run("guaranteed pod + burstable → cpu limit kept at request value, no delete", func(t *testing.T) {
+		ai := (&model.FakePodAutoscalerInternal{
+			Namespace:            "default",
+			Name:                 "ai",
+			ScalingValues:        model.ScalingValues{Vertical: svResolved},
+			PreviewAnnotationKey: `{"burstable":true}`,
+		}).Build()
+
+		patches := fromAutoscalerToContainerResourcePatches(&ai, guaranteedPod)
+
+		require.Len(t, patches, 1)
+		p := patches[0]
+		assert.Equal(t, "750m", p.Limits["cpu"], "cpu limit must equal request to preserve Guaranteed")
+		assert.Equal(t, "1Gi", p.Limits["memory"])
+		assert.Equal(t, "750m", p.Requests["cpu"])
+		assert.Empty(t, p.LimitsToDelete)
+	})
+
+	t.Run("guaranteed pod + burstable + no cpu → cpu absent from patch", func(t *testing.T) {
+		ai := (&model.FakePodAutoscalerInternal{
+			Namespace:            "default",
+			Name:                 "ai",
+			ScalingValues:        model.ScalingValues{Vertical: svNoCPU},
+			PreviewAnnotationKey: `{"burstable":true}`,
+		}).Build()
+
+		patches := fromAutoscalerToContainerResourcePatches(&ai, guaranteedPod)
+
+		require.Len(t, patches, 1)
+		p := patches[0]
+		assert.NotContains(t, p.Limits, "cpu")
+		assert.NotContains(t, p.Requests, "cpu")
+		assert.Empty(t, p.LimitsToDelete)
+		assert.Equal(t, "1Gi", p.Limits["memory"])
 	})
 }

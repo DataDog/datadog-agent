@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -60,6 +61,7 @@ type FakePodAutoscalerInternal struct {
 	InPlaceRolloutFallbackCount        uint
 	InPlacePDBBlockedCount             uint
 	InPlaceResizeCompletedCount        uint
+	PodsQOSClass                       corev1.PodQOSClass
 	CurrentReplicas                    *int32
 	ScaledReplicas                     *int32
 	EvictedReplicas                    *int32
@@ -134,6 +136,7 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 		inPlaceRolloutFallbackCount:        f.InPlaceRolloutFallbackCount,
 		inPlacePDBBlockedCount:             f.InPlacePDBBlockedCount,
 		inPlaceResizeCompletedCount:        f.InPlaceResizeCompletedCount,
+		verticalPodsQOSClass:               f.PodsQOSClass,
 		currentReplicas:                    f.CurrentReplicas,
 		scaledReplicas:                     f.ScaledReplicas,
 		evictedReplicas:                    f.EvictedReplicas,

@@ -41,6 +41,13 @@ const (
 	// statusRetainedRecommendations is the maximum number of horizontal recommendations kept in status
 	statusRetainedRecommendations = 60
 
+	// DatadogPodAutoscalerBurstableQoSBlockedCondition is True when burstable CPU-limit removal is
+	// suppressed because at least one pod is Guaranteed (defined locally; pending operator API addition).
+	DatadogPodAutoscalerBurstableQoSBlockedCondition datadoghqcommon.DatadogPodAutoscalerConditionType = "BurstableQoSBlocked"
+
+	// BurstableBlockedByQoSReason is the Reason value used on BurstableQoSBlockedCondition.
+	BurstableBlockedByQoSReason = "BurstableBlockedByQoS"
+
 	// CustomRecommenderAnnotationKey is the key used to store custom recommender configuration in annotations
 	CustomRecommenderAnnotationKey = "autoscaling.datadoghq.com/custom-recommender"
 )
@@ -150,6 +157,9 @@ type PodAutoscalerInternal struct {
 	// verticalLastLimitReason is the reason vertical scaling was limited by min/max constraints.
 	// When non-nil, it carries a ConditionError so that both Reason and Message are preserved.
 	verticalLastLimitReason error
+
+	// verticalPodsQOSClass is the QoS class of the workload pods (empty when unknown).
+	verticalPodsQOSClass corev1.PodQOSClass
 
 	// currentReplicas is the current number of PODs for the targetRef
 	currentReplicas *int32
@@ -486,8 +496,20 @@ func (p *PodAutoscalerInternal) ClearVerticalState() {
 	p.verticalLastAction = nil
 	p.verticalLastActionError = nil
 	p.verticalLastLimitReason = nil
+	p.verticalPodsQOSClass = ""
 	p.scaledReplicas = nil
 	p.evictedReplicas = nil
+}
+
+// SetPodsQOSClass records the QoS class of the workload pods.
+// The in-place resize controller sets it authoritatively each sync; admission sets it per observed pod.
+func (p *PodAutoscalerInternal) SetPodsQOSClass(class corev1.PodQOSClass) {
+	p.verticalPodsQOSClass = class
+}
+
+// PodsQOSClass returns the QoS class of the workload pods (empty when unknown).
+func (p *PodAutoscalerInternal) PodsQOSClass() corev1.PodQOSClass {
+	return p.verticalPodsQOSClass
 }
 
 // SetEvictedReplicas sets the evicted pod count for the current in-place resize cycle.
@@ -614,6 +636,8 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghqcommon.Datadog
 			p.verticalLastActionError = errorFromCondition(cond)
 		case cond.Type == datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition && cond.Status == corev1.ConditionTrue:
 			p.verticalLastLimitReason = errorFromCondition(cond)
+		case cond.Type == DatadogPodAutoscalerBurstableQoSBlockedCondition && cond.Status == corev1.ConditionTrue:
+			p.verticalPodsQOSClass = corev1.PodQOSGuaranteed
 		}
 	}
 }
@@ -1017,6 +1041,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 		datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition:   nil,
 		datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply:                nil,
 		datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition:    nil,
+		DatadogPodAutoscalerBurstableQoSBlockedCondition:                       nil,
 	}
 
 	if currentStatus != nil {
@@ -1071,6 +1096,20 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 		status.Conditions = append(status.Conditions, newConditionFromError(true, currentTime, p.verticalLastLimitReason, datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition, existingConditions))
 	} else {
 		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, "", "", currentTime, datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition, existingConditions))
+	}
+
+	// Burstable: report when CPU-limit removal had to be suppressed for Guaranteed-QoS pods.
+	if verticalEnabled && p.verticalPodsQOSClass == corev1.PodQOSGuaranteed {
+		status.Conditions = append(status.Conditions, newCondition(
+			corev1.ConditionTrue,
+			BurstableBlockedByQoSReason,
+			"burstable CPU-limit removal suppressed for at least one Guaranteed-QoS pod; recreate the affected pods (or remove the limit from the workload template) to apply burstable",
+			currentTime,
+			DatadogPodAutoscalerBurstableQoSBlockedCondition,
+			existingConditions,
+		))
+	} else {
+		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, "", "", currentTime, DatadogPodAutoscalerBurstableQoSBlockedCondition, existingConditions))
 	}
 
 	// Building rollout errors
