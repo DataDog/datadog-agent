@@ -130,12 +130,11 @@ func TestAggregateDoesntStartGroup(t *testing.T) {
 	assertMessageContent(t, msgs[0], "3")
 }
 
-// TestAggregateCarriesLastLineTimestamp guards against AGENT-16207: when the
-// auto-multiline aggregator emits a combined message, its
-// ParsingExtra.Timestamp must equal the LAST aggregated line's timestamp.
-// The Docker socket tailer uses this field as the lastSince offset; if it
-// holds the first line's timestamp instead, any reader restart causes
-// Docker to replay lines 2..N as duplicates.
+// TestAggregateCarriesLastLineTimestamp asserts that when the auto-multiline
+// aggregator emits a combined message, its ParsingExtra.Timestamp equals the
+// LAST aggregated line's timestamp. The Docker socket tailer uses this field
+// as the lastSince offset; if it held the first line's timestamp instead,
+// any reader restart would cause Docker to replay lines 2..N as duplicates.
 func TestAggregateCarriesLastLineTimestamp(t *testing.T) {
 	const (
 		ts1 = "2026-05-11T10:00:00.000000001Z"

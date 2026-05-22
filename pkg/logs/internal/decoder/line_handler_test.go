@@ -200,7 +200,7 @@ func TestMultiLineHandler(t *testing.T) {
 // is asserted here as a counterpart to TestAggregateCarriesLastLineTimestamp
 // in the auto-multiline aggregator — both paths must agree, otherwise the
 // Docker socket tailer's lastSince offset gets stuck on the first line of a
-// group and replays the rest on every reader restart. See AGENT-16207.
+// group and replays the rest on every reader restart.
 func TestMultiLineHandlerCarriesLastLineTimestamp(t *testing.T) {
 	const (
 		ts1 = "2026-05-11T10:00:00.000000001Z"

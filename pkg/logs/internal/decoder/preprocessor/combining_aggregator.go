@@ -99,7 +99,7 @@ func (b *bucket) flush() AggregatedMessageWithTokens {
 		// (the Docker socket tailer's lastSince, in particular) advance past every
 		// line that was combined. Without this, a reader restart resumes from the
 		// first line's timestamp and Docker replays lines 2..N of the group as
-		// duplicates. See AGENT-16207.
+		// duplicates.
 		msg.ParsingExtra.Timestamp = b.lines[lineCount-1].Msg.ParsingExtra.Timestamp
 	}
 

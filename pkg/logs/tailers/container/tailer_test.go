@@ -115,13 +115,13 @@ func TestGetLastSince(t *testing.T) {
 	assert.Equal(t, _time.Add(time.Nanosecond), tailer.getLastSince())
 }
 
-// TestBuildMessageAdvancesLastSince guards the auditor-side half of the
-// AGENT-16207 fix: the docker tailer commits whatever ParsingExtra.Timestamp
-// sits on the emitted message. Combined with the aggregator change that
-// carries the LAST aggregated line's timestamp on combined messages, this
-// guarantees the lastSince offset advances past every line of a multi-line
-// group, so a reader restart resumes after the group instead of replaying
-// lines 2..N as duplicates.
+// TestBuildMessageAdvancesLastSince covers the auditor-side half of
+// multi-line offset tracking: the docker tailer commits whatever
+// ParsingExtra.Timestamp sits on the emitted message. Combined with the
+// aggregator carrying the LAST aggregated line's timestamp on combined
+// messages, this guarantees the lastSince offset advances past every line
+// of a multi-line group, so a reader restart resumes after the group
+// instead of replaying lines 2..N as duplicates.
 func TestBuildMessageAdvancesLastSince(t *testing.T) {
 	const aggregatedTimestamp = "2026-05-11T10:00:00.000000003Z"
 
