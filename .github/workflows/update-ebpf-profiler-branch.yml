@@ -2,6 +2,8 @@ name: Update ebpf-profiler to branch
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types: [ebpf-profiler-datadog-branch-updated]
 
 permissions: {}
 
