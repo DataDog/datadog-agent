@@ -57,6 +57,32 @@ func TestParseMetricMessageColumnarV3Direct(t *testing.T) {
 	assert.Equal(t, []string{"env:prod"}, batcher.samples[0].Tags)
 }
 
+func TestParseMetricMessageColumnarV3DirectCarriesOriginMetadata(t *testing.T) {
+	deps := fulfillDepsWithConfigOverride(t, map[string]interface{}{"dogstatsd_port": listeners.RandomPortName})
+	s := deps.Server.(*dsdServer)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	parser.dsdOriginEnabled = true
+	batcher := &batcherMock{}
+
+	message := []byte("direct.metric:42|g|#env:prod,dd.internal.entity_id:pod-from-tag|c:metric-container|e:it-true,cn-nginx,pu-pod-from-env|card:high")
+	samples, handled, err := s.parseMetricMessageColumnarV3Direct(batcher, parser, identity.NewBuilder(), message, "socket-container", 1234, "listener", false, nil, nil, nil)
+	require.NoError(t, err)
+	require.True(t, handled)
+	require.Empty(t, samples)
+	require.Len(t, batcher.samples, 1)
+
+	sample := batcher.samples[0]
+	assert.Equal(t, []string{"env:prod"}, sample.Tags)
+	assert.Equal(t, "socket-container", sample.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(1234), sample.OriginInfo.LocalData.ProcessID)
+	assert.Equal(t, "metric-container", sample.OriginInfo.LocalData.ContainerID)
+	assert.Equal(t, "pod-from-tag", sample.OriginInfo.LocalData.PodUID)
+	assert.True(t, sample.OriginInfo.ExternalData.Init)
+	assert.Equal(t, "nginx", sample.OriginInfo.ExternalData.ContainerName)
+	assert.Equal(t, "pod-from-env", sample.OriginInfo.ExternalData.PodUID)
+	assert.Equal(t, "high", sample.OriginInfo.Cardinality)
+}
+
 func TestParseMetricMessageColumnarV3FastLaneUsesExactTagsetHit(t *testing.T) {
 	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", "true")
 	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES", "true")

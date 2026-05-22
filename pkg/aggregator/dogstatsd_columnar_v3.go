@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"slices"
@@ -14,10 +15,14 @@ import (
 	"sync"
 	"time"
 
+	taggercomp "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -89,10 +94,12 @@ type DogStatsDColumnarV3Inserter interface {
 }
 
 // DogStatsDColumnarV3Sample is the parser-to-columnar-worker handoff row for
-// the local-only vertical-slice experiment. It carries the already resolved
-// backend context key plus the scalar fields needed for aggregation. Descriptor
-// fields are present when HasDescriptor is true; compact identity consumers may
-// omit them once the columnar worker has acknowledged descriptor state.
+// the local-only vertical-slice experiment. It carries the parser-side shard
+// key plus the scalar fields needed for aggregation. When descriptor fields are
+// present, the columnar worker resolves the final backend context with the same
+// tagger/tag-filter path as the legacy TimeSampler before storing the row.
+// Compact identity consumers may omit descriptor fields once the columnar
+// worker has acknowledged descriptor state for compatibility-safe rows.
 type DogStatsDColumnarV3Sample struct {
 	ContextKey   ckey.ContextKey
 	CompactID    uint64
@@ -113,6 +120,7 @@ type DogStatsDColumnarV3Sample struct {
 	Unit          string
 	NoIndex       bool
 	Source        metrics.MetricSource
+	OriginInfo    taggertypes.OriginInfo
 	HasDescriptor bool
 }
 
@@ -141,10 +149,39 @@ func NewDogStatsDColumnarV3SampleFromMetricSample(contextKey ckey.ContextKey, co
 		row.Unit = sample.Unit
 		row.NoIndex = sample.NoIndex
 		row.Source = sample.Source
+		row.OriginInfo = sample.OriginInfo
 		row.HasDescriptor = true
 	}
 	return row
 }
+
+// GetName implements metrics.MetricSampleContext so the columnar table can
+// reuse the same backend context resolver as the legacy TimeSampler.
+func (r *DogStatsDColumnarV3Sample) GetName() string { return r.Name }
+
+// GetHost implements metrics.MetricSampleContext.
+func (r *DogStatsDColumnarV3Sample) GetHost() string { return r.Host }
+
+// GetTags implements metrics.MetricSampleContext. Client-provided DogStatsD
+// tags remain metric tags; origin-derived tags are appended through the tagger
+// buffer, matching metrics.MetricSample.GetTags.
+func (r *DogStatsDColumnarV3Sample) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator, tagger taggercomp.Component) {
+	metricBuffer.Append(r.Tags...)
+	if tagger != nil {
+		tagger.EnrichTags(taggerBuffer, r.OriginInfo)
+	}
+}
+
+// GetMetricType implements metrics.MetricSampleContext.
+func (r *DogStatsDColumnarV3Sample) GetMetricType() metrics.MetricType { return r.Mtype }
+
+// IsNoIndex implements metrics.MetricSampleContext.
+func (r *DogStatsDColumnarV3Sample) IsNoIndex() bool { return r.NoIndex }
+
+// GetSource implements metrics.MetricSampleContext.
+func (r *DogStatsDColumnarV3Sample) GetSource() metrics.MetricSource { return r.Source }
+
+var _ metrics.MetricSampleContext = (*DogStatsDColumnarV3Sample)(nil)
 
 // DogStatsDColumnarV3SampleBatch is owned by the columnar v3 sample pool.
 type DogStatsDColumnarV3SampleBatch []DogStatsDColumnarV3Sample
@@ -219,9 +256,11 @@ type dogstatsdColumnarDictionary struct {
 }
 
 type dogstatsdColumnarShard struct {
-	mu          sync.Mutex
-	buckets     map[int64]*dogstatsdColumnarBucket
-	freeBuckets []*dogstatsdColumnarBucket
+	mu              sync.Mutex
+	buckets         map[int64]*dogstatsdColumnarBucket
+	freeBuckets     []*dogstatsdColumnarBucket
+	contextResolver *timestampContextResolver
+	tagsStore       *tags.Store
 
 	serieRowsScratch []metrics.SerieRow
 	v3RowsScratch    []metrics.V3MetricPointRow
@@ -260,7 +299,13 @@ type dogstatsdColumnarStore struct {
 	descriptorExpiry    int64
 	descriptorInterning bool
 	compactHintSize     int
+	tagFilterList       filterlist.TagMatcher
 	shards              []dogstatsdColumnarShard
+}
+
+type dogstatsdColumnarStoreConfig struct {
+	tagger        taggercomp.Component
+	tagFilterList filterlist.TagMatcher
 }
 
 func newDogstatsdColumnarDictionary() dogstatsdColumnarDictionary {
@@ -339,7 +384,7 @@ func (d *dogstatsdColumnarDictionary) releaseTags(key string) {
 	tlmDogstatsdColumnarStats.Inc("released_dictionary_tagsets")
 }
 
-func newDogStatsDColumnarStore(interval int64, shardCount int) *dogstatsdColumnarStore {
+func newDogStatsDColumnarStore(interval int64, shardCount int, configs ...dogstatsdColumnarStoreConfig) *dogstatsdColumnarStore {
 	if interval == 0 {
 		interval = bucketSize
 	}
@@ -347,19 +392,34 @@ func newDogStatsDColumnarStore(interval int64, shardCount int) *dogstatsdColumna
 		shardCount = 1
 	}
 
+	var config dogstatsdColumnarStoreConfig
+	if len(configs) > 0 {
+		config = configs[0]
+	}
+
 	store := &dogstatsdColumnarStore{
 		interval:            interval,
 		descriptorExpiry:    columnarV3DescriptorExpirySeconds(),
 		descriptorInterning: columnarV3DescriptorInterningEnabled(),
 		compactHintSize:     columnarV3CompactHintSize(),
+		tagFilterList:       config.tagFilterList,
 		shards:              make([]dogstatsdColumnarShard, shardCount),
 	}
 	if store.descriptorExpiry > 0 && store.descriptorExpiry < store.interval {
 		store.descriptorExpiry = store.interval
 	}
+	cfg := pkgconfigsetup.Datadog()
+	contextExpireTime := cfg.GetInt64("dogstatsd_context_expiry_seconds")
+	counterExpireTime := contextExpireTime + cfg.GetInt64("dogstatsd_expiry_seconds")
+	useTagsStore := cfg.GetBool("aggregator_use_tags_store")
 	for i := range store.shards {
 		store.shards[i].buckets = make(map[int64]*dogstatsdColumnarBucket)
 		store.shards[i].descriptorByKey = make(map[dogstatsdColumnarKey]int)
+		if config.tagger != nil {
+			id := fmt.Sprintf("columnar_v3 #%d", i)
+			store.shards[i].tagsStore = tags.NewStore(useTagsStore, id)
+			store.shards[i].contextResolver = newTimestampContextResolver(config.tagger, store.shards[i].tagsStore, id, contextExpireTime, counterExpireTime)
+		}
 		if store.descriptorInterning {
 			store.shards[i].dictionary = newDogstatsdColumnarDictionary()
 		}
@@ -368,13 +428,15 @@ func newDogStatsDColumnarStore(interval int64, shardCount int) *dogstatsdColumna
 }
 
 type dogstatsdColumnarWorker struct {
-	store      *dogstatsdColumnarStore
-	shardID    TimeSamplerID
-	samplePool *DogStatsDColumnarV3SamplePool
+	store         *dogstatsdColumnarStore
+	shardID       TimeSamplerID
+	samplePool    *DogStatsDColumnarV3SamplePool
+	tagFilterList filterlist.TagMatcher
 
-	samplesChan chan DogStatsDColumnarV3SampleBatch
-	flushChan   chan dogstatsdColumnarFlushTrigger
-	stopChan    chan struct{}
+	samplesChan       chan DogStatsDColumnarV3SampleBatch
+	flushChan         chan dogstatsdColumnarFlushTrigger
+	tagFilterListChan chan filterlist.TagMatcher
+	stopChan          chan struct{}
 }
 
 type dogstatsdColumnarFlushTrigger struct {
@@ -385,14 +447,16 @@ type dogstatsdColumnarFlushTrigger struct {
 	blockChan      chan uint64
 }
 
-func newDogStatsDColumnarWorker(store *dogstatsdColumnarStore, shardID TimeSamplerID, bufferSize int, samplePool *DogStatsDColumnarV3SamplePool) *dogstatsdColumnarWorker {
+func newDogStatsDColumnarWorker(store *dogstatsdColumnarStore, shardID TimeSamplerID, bufferSize int, samplePool *DogStatsDColumnarV3SamplePool, tagFilterList filterlist.TagMatcher) *dogstatsdColumnarWorker {
 	return &dogstatsdColumnarWorker{
-		store:       store,
-		shardID:     shardID,
-		samplePool:  samplePool,
-		samplesChan: make(chan DogStatsDColumnarV3SampleBatch, bufferSize),
-		flushChan:   make(chan dogstatsdColumnarFlushTrigger),
-		stopChan:    make(chan struct{}),
+		store:             store,
+		shardID:           shardID,
+		samplePool:        samplePool,
+		tagFilterList:     tagFilterList,
+		samplesChan:       make(chan DogStatsDColumnarV3SampleBatch, bufferSize),
+		flushChan:         make(chan dogstatsdColumnarFlushTrigger),
+		tagFilterListChan: make(chan filterlist.TagMatcher),
+		stopChan:          make(chan struct{}),
 	}
 }
 
@@ -403,6 +467,8 @@ func (w *dogstatsdColumnarWorker) run() {
 			return
 		case samples := <-w.samplesChan:
 			w.processSamples(samples)
+		case matcher := <-w.tagFilterListChan:
+			w.setTagFilterList(matcher)
 		case trigger := <-w.flushChan:
 			w.triggerFlush(trigger)
 		}
@@ -417,9 +483,20 @@ func (w *dogstatsdColumnarWorker) processSamples(samples DogStatsDColumnarV3Samp
 	timestamp := timeNowNano()
 	shardIdx := int(w.shardID)
 	for i := range samples {
-		w.store.insertAcceptedRowUnlocked(shardIdx, samples[i], timestamp)
+		w.store.insertAcceptedRowUnlocked(shardIdx, samples[i], timestamp, w.tagFilterList)
 	}
 	w.samplePool.PutBatch(samples)
+}
+
+func (w *dogstatsdColumnarWorker) setTagFilterList(matcher filterlist.TagMatcher) {
+	w.tagFilterList = matcher
+	if w.store == nil || int(w.shardID) >= len(w.store.shards) {
+		return
+	}
+	resolver := w.store.shards[int(w.shardID)].contextResolver
+	if resolver != nil {
+		resolver.resolver.clearTagFilterCache()
+	}
 }
 
 func (w *dogstatsdColumnarWorker) triggerFlush(trigger dogstatsdColumnarFlushTrigger) {
@@ -492,24 +569,46 @@ func (s *dogstatsdColumnarStore) insertAcceptedRow(shardIdx int, row DogStatsDCo
 
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
-	s.insertAcceptedRowInShard(shard, bucketStart, row)
+	s.insertAcceptedRowInShard(shard, bucketStart, row, int64(timestamp), s.tagFilterList)
 }
 
-func (s *dogstatsdColumnarStore) insertAcceptedRowUnlocked(shardIdx int, row DogStatsDColumnarV3Sample, timestamp float64) {
+func (s *dogstatsdColumnarStore) insertAcceptedRowUnlocked(shardIdx int, row DogStatsDColumnarV3Sample, timestamp float64, tagFilterList filterlist.TagMatcher) {
 	if s == nil || shardIdx < 0 || shardIdx >= len(s.shards) {
 		return
 	}
 	shard := &s.shards[shardIdx]
 	bucketStart := s.calculateBucketStart(timestamp)
-	s.insertAcceptedRowInShard(shard, bucketStart, row)
+	s.insertAcceptedRowInShard(shard, bucketStart, row, int64(timestamp), tagFilterList)
 }
 
 func (s *dogstatsdColumnarStore) insertAcceptedInShard(shard *dogstatsdColumnarShard, bucketStart int64, shardKey ckey.ContextKey, compactID uint64, sample metrics.MetricSample) {
 	row := NewDogStatsDColumnarV3SampleFromMetricSample(shardKey, compactID, nil, sample, true)
-	s.insertAcceptedRowInShard(shard, bucketStart, row)
+	s.insertAcceptedRowInShard(shard, bucketStart, row, bucketStart, s.tagFilterList)
 }
 
-func (s *dogstatsdColumnarStore) insertAcceptedRowInShard(shard *dogstatsdColumnarShard, bucketStart int64, row DogStatsDColumnarV3Sample) {
+func (s *dogstatsdColumnarStore) resolveRowContext(shard *dogstatsdColumnarShard, row DogStatsDColumnarV3Sample, timestamp int64, tagFilterList filterlist.TagMatcher) DogStatsDColumnarV3Sample {
+	if shard == nil || shard.contextResolver == nil || !row.HasDescriptor {
+		return row
+	}
+
+	contextKey := shard.contextResolver.trackContext(&row, timestamp, tagFilterList)
+	context, ok := shard.contextResolver.get(contextKey)
+	if !ok || context == nil {
+		return row
+	}
+
+	row.ContextKey = contextKey
+	row.Name = context.Name
+	row.Host = context.Host
+	row.Tags = context.Tags().UnsafeToReadOnlySliceString()
+	row.NoIndex = context.noIndex
+	row.Source = context.source
+	return row
+}
+
+func (s *dogstatsdColumnarStore) insertAcceptedRowInShard(shard *dogstatsdColumnarShard, bucketStart int64, row DogStatsDColumnarV3Sample, timestamp int64, tagFilterList filterlist.TagMatcher) {
+	row = s.resolveRowContext(shard, row, timestamp, tagFilterList)
+
 	bucket := shard.buckets[bucketStart]
 	if bucket == nil {
 		bucket = shard.getBucket()
@@ -868,6 +967,7 @@ func (s *dogstatsdColumnarStore) flushShard(shard *dogstatsdColumnarShard, cutof
 		tlmDogstatsdColumnarStats.Inc("flushed_buckets")
 	}
 	s.expireDescriptors(shard, cutoffTime)
+	s.expireContexts(shard, cutoffTime)
 
 	for i := range rows {
 		shadow.observeSerieRow(&rows[i])
@@ -900,6 +1000,7 @@ func (s *dogstatsdColumnarStore) flushShardToV3MetricPointSink(shard *dogstatsdC
 		tlmDogstatsdColumnarStats.Inc("flushed_buckets")
 	}
 	s.expireDescriptors(shard, cutoffTime)
+	s.expireContexts(shard, cutoffTime)
 
 	for i := range rows {
 		shadow.observeV3MetricPointRow(&rows[i])
@@ -1011,6 +1112,16 @@ func (s *dogstatsdColumnarStore) expireDescriptors(shard *dogstatsdColumnarShard
 		key := dogstatsdColumnarKey{contextKey: shard.contextKeys[descriptorID], mtype: shard.mtypes[descriptorID]}
 		delete(shard.descriptorByKey, key)
 		shard.releaseDescriptor(descriptorID)
+	}
+}
+
+func (s *dogstatsdColumnarStore) expireContexts(shard *dogstatsdColumnarShard, cutoffTime int64) {
+	if shard == nil || shard.contextResolver == nil {
+		return
+	}
+	shard.contextResolver.expireContexts(cutoffTime)
+	if shard.tagsStore != nil {
+		shard.tagsStore.Shrink()
 	}
 }
 

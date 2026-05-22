@@ -311,12 +311,42 @@ func (b *batcher) appendColumnarV3SampleWithContext(sample metrics.MetricSample,
 		b.appendSampleWithContext(sample, context)
 		return
 	}
+
+	compactID := context.CompactID
+	compactState := context.CompactState
 	includeDescriptor := true
-	if b.columnarV3CompactRowsOmitDescriptor && context.CompactID != 0 && context.CompactState.ColumnarDescriptorKnown(sample.Mtype) {
+	if !columnarV3CompactDescriptorReuseSafe(sample) {
+		// Backend context resolution can add tagger/origin tags that are not part
+		// of the parser-side compact identity. Keep full descriptors on these
+		// rows so the columnar worker can resolve the same effective context as
+		// the legacy TimeSampler.
+		compactID = 0
+		compactState = nil
+	} else if b.columnarV3CompactRowsOmitDescriptor && compactID != 0 && compactState != nil && compactState.ColumnarDescriptorKnown(sample.Mtype) {
 		includeDescriptor = false
 	}
-	row := aggregator.NewDogStatsDColumnarV3SampleFromMetricSample(context.Shard.ContextKey, context.CompactID, context.CompactState, sample, includeDescriptor)
+	row := aggregator.NewDogStatsDColumnarV3SampleFromMetricSample(context.Shard.ContextKey, compactID, compactState, sample, includeDescriptor)
 	b.appendColumnarV3Row(row)
+}
+
+func columnarV3CompactDescriptorReuseSafe(sample metrics.MetricSample) bool {
+	// metric_tag_filterlist is applied during backend context resolution for
+	// DogStatsD counters. The batcher does not own the current tag-filter matcher,
+	// so keep counter descriptors materialized and let the columnar worker resolve
+	// the final context every time.
+	if sample.Mtype == metrics.CounterType {
+		return false
+	}
+
+	origin := sample.OriginInfo
+	return origin.ContainerIDFromSocket == "" &&
+		origin.LocalData.ProcessID == 0 &&
+		origin.LocalData.ContainerID == "" &&
+		origin.LocalData.Inode == 0 &&
+		origin.LocalData.PodUID == "" &&
+		!origin.ExternalData.Init &&
+		origin.ExternalData.ContainerName == "" &&
+		origin.ExternalData.PodUID == ""
 }
 
 func (b *batcher) appendColumnarV3Row(row aggregator.DogStatsDColumnarV3Sample) {

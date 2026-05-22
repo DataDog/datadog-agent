@@ -209,11 +209,14 @@ func initAgentDemultiplexer(log log.Component,
 	var columnarV3Workers []*dogstatsdColumnarWorker
 	var columnarV3SamplePool *DogStatsDColumnarV3SamplePool
 	if columnarV3ExperimentEnabled() {
-		columnarV3 = newDogStatsDColumnarStore(bucketSize, statsdPipelinesCount)
+		columnarV3 = newDogStatsDColumnarStore(bucketSize, statsdPipelinesCount, dogstatsdColumnarStoreConfig{
+			tagger:        tagger,
+			tagFilterList: filterList.GetTagFilterList(),
+		})
 		columnarV3SamplePool = newDogStatsDColumnarV3SamplePool(MetricSamplePoolBatchSize)
 		columnarV3Workers = make([]*dogstatsdColumnarWorker, statsdPipelinesCount)
 		for i := 0; i < statsdPipelinesCount; i++ {
-			columnarV3Workers[i] = newDogStatsDColumnarWorker(columnarV3, TimeSamplerID(i), bufferSize, columnarV3SamplePool)
+			columnarV3Workers[i] = newDogStatsDColumnarWorker(columnarV3, TimeSamplerID(i), bufferSize, columnarV3SamplePool, filterList.GetTagFilterList())
 		}
 		if columnarV3NativeSerializerEnabled() {
 			log.Infof("DogStatsD experimental columnar v3 native serializer enabled")
@@ -886,6 +889,9 @@ func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagMatcher filterlist.Ta
 	d.aggregator.tagFilterListChan <- tagMatcher
 
 	for _, worker := range d.statsd.workers {
+		worker.tagFilterListChan <- tagMatcher
+	}
+	for _, worker := range d.statsd.columnarV3Workers {
 		worker.tagFilterListChan <- tagMatcher
 	}
 }
