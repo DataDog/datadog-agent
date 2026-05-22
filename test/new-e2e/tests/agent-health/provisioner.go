@@ -34,6 +34,62 @@ var dockerPermissionAgentConfig string
 //go:embed fixtures/docker-compose.busybox.yaml
 var busyboxComposeContent string
 
+// ============================================================================
+// Shared environment shape
+// ============================================================================
+
+// baseEC2Env captures the components common to all single-host health platform
+// tests. Tests that need additional components (e.g. Docker) embed this or use
+// a flat struct and implement a similar Diagnose method.
+type baseEC2Env struct {
+	RemoteHost *components.RemoteHost
+	Agent      *components.RemoteHostAgent
+	Fakeintake *components.FakeIntake
+}
+
+// newBaseEC2Env is a helper that provisions an EC2 host, a FakeIntake instance,
+// and an agent with the provided agentparams options. It populates the three
+// fields in env and returns any Pulumi error.
+func newBaseEC2Env(
+	ctx *pulumi.Context,
+	env *baseEC2Env,
+	vmName string,
+	agentOptions ...func(*agentparams.Params) error,
+) error {
+	awsEnv, err := aws.NewEnvironment(ctx)
+	if err != nil {
+		return err
+	}
+
+	remoteHost, err := ec2.NewVM(awsEnv, vmName)
+	if err != nil {
+		return err
+	}
+	if err = remoteHost.Export(ctx, &env.RemoteHost.HostOutput); err != nil {
+		return err
+	}
+
+	fi, err := fakeintake.NewECSFargateInstance(awsEnv, "", fakeintake.WithoutDDDevForwarding())
+	if err != nil {
+		return err
+	}
+	if err = fi.Export(ctx, &env.Fakeintake.FakeintakeOutput); err != nil {
+		return err
+	}
+
+	hostAgent, err := agent.NewHostAgent(&awsEnv, remoteHost,
+		append([]func(*agentparams.Params) error{agentparams.WithFakeintake(fi)}, agentOptions...)...,
+	)
+	if err != nil {
+		return err
+	}
+	return hostAgent.Export(ctx, &env.Agent.HostAgentOutput)
+}
+
+// ============================================================================
+// Docker Permission environment
+// ============================================================================
+
 type dockerPermissionEnv struct {
 	RemoteHost *components.RemoteHost
 	Agent      *components.RemoteHostAgent
@@ -48,192 +104,183 @@ func dockerPermissionEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerPermis
 			return err
 		}
 
-		// Create a remote host
 		remoteHost, err := ec2.NewVM(awsEnv, "dockervm")
 		if err != nil {
 			return err
 		}
-		err = remoteHost.Export(ctx, &env.RemoteHost.HostOutput)
-		if err != nil {
+		if err = remoteHost.Export(ctx, &env.RemoteHost.HostOutput); err != nil {
 			return err
 		}
 
-		// Create a fakeintake instance on ECS Fargate
-		// Skip forwarding to dddev, agenthealth is only on staging
-		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, "", fakeintake.WithoutDDDevForwarding())
+		fi, err := fakeintake.NewECSFargateInstance(awsEnv, "", fakeintake.WithoutDDDevForwarding())
 		if err != nil {
 			return err
 		}
-		err = fakeIntake.Export(ctx, &env.Fakeintake.FakeintakeOutput)
-		if err != nil {
+		if err = fi.Export(ctx, &env.Fakeintake.FakeintakeOutput); err != nil {
 			return err
 		}
 
-		// Create a docker manager
 		dockerManager, err := docker.NewAWSManager(&awsEnv, remoteHost)
 		if err != nil {
 			return err
 		}
-		err = dockerManager.Export(ctx, &env.Docker.ManagerOutput)
-		if err != nil {
+		if err = dockerManager.Export(ctx, &env.Docker.ManagerOutput); err != nil {
 			return err
 		}
 
-		// Deploy busybox containers using Docker Compose
-		// These will run without proper permissions to trigger the docker permission issue
 		composeBusyboxCmd, err := dockerManager.ComposeStrUp("busybox", []docker.ComposeInlineManifest{
-			{
-				Name:    "busybox",
-				Content: pulumi.String(busyboxComposeContent),
-			},
+			{Name: "busybox", Content: pulumi.String(busyboxComposeContent)},
 		}, pulumi.StringMap{})
 		if err != nil {
 			return err
 		}
 
-		// Install the agent on the remote host
-		// Agent depends on containers being deployed first
 		hostAgent, err := agent.NewHostAgent(&awsEnv, remoteHost,
-			agentparams.WithFakeintake(fakeIntake),
+			agentparams.WithFakeintake(fi),
 			agentparams.WithAgentConfig(dockerPermissionAgentConfig),
 			agentparams.WithPulumiResourceOptions(pulumi.DependsOn([]pulumi.Resource{composeBusyboxCmd})),
 		)
 		if err != nil {
 			return err
 		}
-		err = hostAgent.Export(ctx, &env.Agent.HostAgentOutput)
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return hostAgent.Export(ctx, &env.Agent.HostAgentOutput)
 	}
 }
 
-// Ensure dockerPermissionEnv implements the Diagnosable interface
 var _ common.Diagnosable = (*dockerPermissionEnv)(nil)
 
-// Diagnose returns diagnostic information about the environment
 func (e *dockerPermissionEnv) Diagnose(outputDir string) (string, error) {
-	diagnoses := []string{}
-
-	if e.RemoteHost == nil {
-		return "", errors.New("RemoteHost component is not initialized")
-	}
-
-	// Add Agent diagnose
+	var parts []string
 	if e.Agent != nil {
-		diagnoses = append(diagnoses, "==== Agent ====")
-		dstPath, err := e.generateAndDownloadAgentFlare(outputDir)
+		parts = append(parts, "==== Agent ====")
+		dst, err := e.generateAndDownloadAgentFlare(outputDir)
 		if err != nil {
-			diagnoses = append(diagnoses, fmt.Sprintf("Failed to generate agent flare: %v", err))
+			parts = append(parts, fmt.Sprintf("flare error: %v", err))
 		} else {
-			diagnoses = append(diagnoses, "Flare archive downloaded to "+dstPath)
+			parts = append(parts, "flare: "+dst)
 		}
-		diagnoses = append(diagnoses, "")
 	}
-
-	// Add Docker diagnose
 	if e.Docker != nil {
-		diagnoses = append(diagnoses, "==== Docker ====")
-		dockerDiag, err := e.diagnoseDocker()
+		parts = append(parts, "==== Docker ====")
+		diag, err := e.diagnoseDocker()
 		if err != nil {
-			diagnoses = append(diagnoses, fmt.Sprintf("Failed to collect Docker diagnostics: %v", err))
+			parts = append(parts, fmt.Sprintf("docker diag error: %v", err))
 		} else {
-			diagnoses = append(diagnoses, dockerDiag)
+			parts = append(parts, diag)
 		}
-		diagnoses = append(diagnoses, "")
 	}
-
-	return strings.Join(diagnoses, "\n"), nil
+	return strings.Join(parts, "\n"), nil
 }
 
 func (e *dockerPermissionEnv) generateAndDownloadAgentFlare(outputDir string) (string, error) {
 	if e.Agent == nil || e.RemoteHost == nil {
-		return "", errors.New("Agent or RemoteHost component is not initialized")
+		return "", errors.New("agent or host not initialized")
 	}
-
-	// Generate a flare
-	flareCommandOutput, err := e.Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send"}))
-
-	lines := []string{flareCommandOutput}
+	out, err := e.Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send"}))
+	allOut := out
 	if err != nil {
-		lines = append(lines, err.Error())
+		allOut = out + "\n" + err.Error()
 	}
-	flareCommandOutput = strings.Join(lines, "\n")
-
-	// Find <path to flare>.zip in flare command output
 	re := regexp.MustCompile(`(?m)^(.+\.zip) is going to be uploaded to Datadog$`)
-	matches := re.FindStringSubmatch(flareCommandOutput)
-	if len(matches) < 2 {
-		return "", fmt.Errorf("output does not contain the path to the flare archive, output: %s", flareCommandOutput)
+	m := re.FindStringSubmatch(allOut)
+	if len(m) < 2 {
+		return "", fmt.Errorf("no flare archive path in output: %s", allOut)
 	}
-
-	flarePath := matches[1]
-	flareFileInfo, err := e.RemoteHost.Lstat(flarePath)
+	flarePath := m[1]
+	info, err := e.RemoteHost.Lstat(flarePath)
 	if err != nil {
-		return "", fmt.Errorf("failed to stat flare archive: %w", err)
+		return "", fmt.Errorf("stat flare: %w", err)
 	}
-
-	dstPath := filepath.Join(outputDir, flareFileInfo.Name())
-
-	err = e.RemoteHost.EnsureFileIsReadable(flarePath)
-	if err != nil {
-		return "", fmt.Errorf("failed to ensure flare archive is readable: %w", err)
+	dst := filepath.Join(outputDir, info.Name())
+	if err = e.RemoteHost.EnsureFileIsReadable(flarePath); err != nil {
+		return "", fmt.Errorf("chmod flare: %w", err)
 	}
-
-	err = e.RemoteHost.GetFile(flarePath, dstPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to download flare archive: %w", err)
+	if err = e.RemoteHost.GetFile(flarePath, dst); err != nil {
+		return "", fmt.Errorf("download flare: %w", err)
 	}
-
-	return dstPath, nil
+	return dst, nil
 }
 
 func (e *dockerPermissionEnv) diagnoseDocker() (string, error) {
-	var diag strings.Builder
-
-	// Check Docker containers
-	output, err := e.RemoteHost.Execute("docker ps -a")
-	if err != nil {
-		return "", fmt.Errorf("failed to list Docker containers: %w", err)
+	var sb strings.Builder
+	cmds := []struct{ label, cmd string }{
+		{"containers", "docker ps -a"},
+		{"socket perms", "ls -l /var/run/docker.sock"},
+		{"dd-agent groups", "groups dd-agent"},
 	}
-	diag.WriteString("Docker containers:\n")
-	diag.WriteString(output)
-	diag.WriteString("\n\n")
-
-	// Check Docker socket permissions
-	output, err = e.RemoteHost.Execute("ls -l /var/run/docker.sock")
-	if err != nil {
-		diag.WriteString(fmt.Sprintf("Failed to check Docker socket permissions: %v\n", err))
-	} else {
-		diag.WriteString("Docker socket permissions:\n")
-		diag.WriteString(output)
-		diag.WriteString("\n\n")
-	}
-
-	// Check dd-agent user groups
-	output, err = e.RemoteHost.Execute("groups dd-agent")
-	if err != nil {
-		diag.WriteString(fmt.Sprintf("Failed to check dd-agent groups: %v\n", err))
-	} else {
-		diag.WriteString("dd-agent user groups:\n")
-		diag.WriteString(output)
-		diag.WriteString("\n\n")
-	}
-
-	// Get logs from spam containers
-	for i := 1; i <= 5; i++ {
-		containerName := fmt.Sprintf("spam%d", i)
-		output, err = e.RemoteHost.Execute("docker logs --tail 20 " + containerName)
+	for _, c := range cmds {
+		out, err := e.RemoteHost.Execute(c.cmd)
 		if err != nil {
-			diag.WriteString(fmt.Sprintf("Failed to get logs from %s: %v\n", containerName, err))
+			sb.WriteString(fmt.Sprintf("[%s] error: %v\n", c.label, err))
 		} else {
-			diag.WriteString(fmt.Sprintf("Logs from %s (last 20 lines):\n", containerName))
-			diag.WriteString(output)
-			diag.WriteString("\n\n")
+			sb.WriteString(fmt.Sprintf("[%s]\n%s\n", c.label, out))
 		}
 	}
+	return sb.String(), nil
+}
 
-	return diag.String(), nil
+// ============================================================================
+// Check Failure environment
+// ============================================================================
+
+// checkFailureAgentConf is the agent config used by the check failure suite.
+const checkFailureAgentConf = `
+health_platform:
+  enabled: true
+  forwarder:
+    interval: 30s
+`
+
+// brokenCheckConf is the check configuration file content (conf.d).
+const brokenCheckConf = `
+init_config:
+instances:
+  - {}
+`
+
+// brokenCheckPy is a Python check that always raises an exception.
+const brokenCheckPy = `
+from datadog_checks.base import AgentCheck
+
+class BrokenCheck(AgentCheck):
+    def check(self, instance):
+        raise Exception("synthetic failure for e2e health platform test")
+`
+
+type checkFailureEnv struct {
+	RemoteHost *components.RemoteHost
+	Agent      *components.RemoteHostAgent
+	Fakeintake *components.FakeIntake
+}
+
+func checkFailureEnvProvisioner() provisioners.PulumiEnvRunFunc[checkFailureEnv] {
+	return func(ctx *pulumi.Context, env *checkFailureEnv) error {
+		base := &baseEC2Env{
+			RemoteHost: env.RemoteHost,
+			Agent:      env.Agent,
+			Fakeintake: env.Fakeintake,
+		}
+		return newBaseEC2Env(ctx, base, "checkfailurevm",
+			agentparams.WithAgentConfig(checkFailureAgentConf),
+			// Deploy the broken check via the integration mechanism so it is
+			// present when the agent first starts.
+			agentparams.WithIntegration("broken_check.d", brokenCheckConf),
+			agentparams.WithFile(
+				"/etc/datadog-agent/checks.d/broken_check.py",
+				brokenCheckPy,
+				true, // useSudo
+			),
+		)
+	}
+}
+
+var _ common.Diagnosable = (*checkFailureEnv)(nil)
+
+func (e *checkFailureEnv) Diagnose(outputDir string) (string, error) {
+	if e.Agent == nil {
+		return "", errors.New("agent not initialized")
+	}
+	// Run diagnose command and include health-issues output.
+	out := e.Agent.Client.Diagnose(agentclient.WithArgs([]string{"--include", healthIssueSuite}))
+	return "==== agent diagnose health-issues ====\n" + out, nil
 }
