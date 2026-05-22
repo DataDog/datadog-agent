@@ -1,5 +1,9 @@
 import Cocoa
 
+// Avoid process termination when writing to a client socket that already closed.
+// write() will return -1 with errno=EPIPE, which WiFiIPCServer handles.
+signal(SIGPIPE, SIG_IGN)
+
 // Parse command-line arguments
 let args = CommandLine.arguments
 let useFileLogging = args.contains("--use-file-logging")

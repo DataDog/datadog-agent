@@ -203,6 +203,7 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     mkdir -vp "$SAVED_CONF_DIR/checks.d"
     chmod 700 "$INSTALL_STAGING_DIR"
     cp -vf $CONF_DIR/datadog.yaml "$SAVED_CONF_DIR/"
+    cp -vf $CONF_DIR/system-probe.yaml "$SAVED_CONF_DIR/" 2>/dev/null || true
     cp -vfR $CONF_DIR/conf.d/* "$SAVED_CONF_DIR/conf.d" 2>/dev/null || true
     find "$SAVED_CONF_DIR/conf.d" '(' -name '*.yaml.example' -o -name '*.yaml.default' ')' -delete
     cp -vfR $CONF_DIR/checks.d/* "$SAVED_CONF_DIR/checks.d" 2>/dev/null || true
