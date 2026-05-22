@@ -29,5 +29,3 @@ service:
     logs:
       receivers: [nop]
       exporters: [nop]
-
-

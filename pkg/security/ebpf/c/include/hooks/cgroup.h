@@ -4,12 +4,21 @@
 #include "constants/custom.h"
 #include "constants/offsets/filesystem.h"
 #include "helpers/process.h"
+#include "helpers/syscalls.h"
 #include "helpers/utils.h"
 #include "hooks/dentry_resolver.h"
 #include "structs/dentry_resolver.h"
 #include "maps.h"
 
 #define ROOT_CGROUP_PROCS_FILE_INO 2
+
+// tail call invoked from cache_syscall_update_cgroup; see update_proc_cache_cgroup in
+// helpers/syscalls.h for the inline counterpart used by hooks that chain to another tail
+// call.
+TAIL_CALL_FNC(update_proc_cache_cgroup, void *ctx) {
+    update_proc_cache_cgroup();
+    return 0;
+}
 
 static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     u32 cgroup_write_type = get_cgroup_write_type();
@@ -130,7 +139,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         return 0;
     }
 
-    new_entry.cgroup.cgroup_file = resolver->key;
+    new_entry.cgroup.path_key = resolver->key;
 
 #ifdef DEBUG_CGROUP
     bpf_printk("container id: %s\n", container_qstr.name);

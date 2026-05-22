@@ -410,9 +410,15 @@ func (p *PodAutoscalerInternal) RemoveValues() {
 }
 
 // RemoveMainValues clears main autoscaling values data from the PodAutoscalerInternal as we stopped autoscaling
-func (p *PodAutoscalerInternal) RemoveMainValues() {
+func (p *PodAutoscalerInternal) RemoveMainValues() (removed bool, previous ScalingValues) {
+	if p.mainScalingValuesVersion == 0 && p.mainScalingValues.IsEmpty() {
+		return false, ScalingValues{}
+	}
+
+	previousMainScalingValues := p.mainScalingValues
 	p.mainScalingValues = ScalingValues{}
 	p.mainScalingValuesVersion = 0
+	return true, previousMainScalingValues
 }
 
 // RemoveLocalValues clears local autoscaling values data from the PodAutoscalerInternal as we stopped autoscaling

@@ -149,7 +149,7 @@ func (i *InventoryPayload) FlareProvider() flaretypes.Provider {
 	// same name for all provider while a anonymous function is unique.
 	//
 	// for example the flare logs  this will show:
-	//   'comp/metadata/inventoryagent/inventoryagentimpl.newInventoryAgentProvider.(*InventoryPayload).FlareProvider.func2'
+	//   'comp/metadata/inventoryagent/impl.NewComponent.(*InventoryPayload).FlareProvider.func2'
 	// instead of:
 	//   'comp/metadata/internal/util.(*InventoryPayload).fillFlare-fm'
 	return flaretypes.NewProvider(

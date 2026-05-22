@@ -106,15 +106,22 @@ log "Building agent version $AGENT_VERSION at commit $COMMIT"
 
 log "Building agent binary via inv agent.build"
 cd /opt/datadog-agent
-rm -f "$STAGING/opt/datadog-agent/bin/agent/agent"
+rm -f "$STAGING/opt/datadog-agent/bin/agent/agent-bin"
 python3.12 -m invoke agent.build \
     --exclude-rtloader \
     --rtloader-root=/opt/datadog-agent/rtloader \
     --embedded-path="$EMBEDDED_DESTDIR" \
-    --agent-bin="$STAGING/opt/datadog-agent/bin/agent/agent"
+    --agent-bin="$STAGING/opt/datadog-agent/bin/agent/agent-bin"
 
-strip -X64 "$STAGING/opt/datadog-agent/bin/agent/agent"
-log "agent binary build complete: $STAGING/opt/datadog-agent/bin/agent/agent"
+strip -X64 "$STAGING/opt/datadog-agent/bin/agent/agent-bin"
+log "agent binary build complete: $STAGING/opt/datadog-agent/bin/agent/agent-bin"
+
+# Install the agent wrapper: sets LIBPATH/PATH so the binary works when invoked
+# directly (not just via SRC). The wrapper execs agent-bin, so the process is
+# replaced immediately — SRC PID tracking and signal handling are unaffected.
+cp "$(dirname "$0")/../agent-wrapper.sh" "$STAGING/opt/datadog-agent/bin/agent/agent"
+chmod 755 "$STAGING/opt/datadog-agent/bin/agent/agent"
+log "agent wrapper installed at $STAGING/opt/datadog-agent/bin/agent/agent"
 
 # ─── Step 5: Build the trace-agent binary ─────────────────────────────────────
 #
@@ -122,12 +129,16 @@ log "agent binary build complete: $STAGING/opt/datadog-agent/bin/agent/agent"
 
 log "Building trace-agent binary via inv trace-agent.build"
 cd /opt/datadog-agent
-python3.12 -m invoke trace-agent.build --rebuild
+python3.12 -m invoke trace-agent.build
 mkdir -p "$STAGING/opt/datadog-agent/embedded/bin"
-rm -f "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
-cp /opt/datadog-agent/bin/trace-agent/trace-agent "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
-strip -X64 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
-log "trace-agent binary build complete: $STAGING/opt/datadog-agent/embedded/bin/trace-agent"
+rm -f "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
+cp /opt/datadog-agent/bin/trace-agent/trace-agent "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
+strip -X64 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
+log "trace-agent binary build complete: $STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
+
+cp "$(dirname "$0")/../trace-agent-wrapper.sh" "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
+chmod 755 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
+log "trace-agent wrapper installed at $STAGING/opt/datadog-agent/embedded/bin/trace-agent"
 
 # ─── Step 6: Verify XCOFF64 magic bytes ───────────────────────────────────────
 #
@@ -135,7 +146,7 @@ log "trace-agent binary build complete: $STAGING/opt/datadog-agent/embedded/bin/
 # would indicate a cross-compile or wrong-format build.
 
 log "Verifying agent binary is XCOFF64"
-MAGIC=$(od -A x -t x1 "$STAGING/opt/datadog-agent/bin/agent/agent" | head -1 | awk '{print $2 $3}')
+MAGIC=$(od -A x -t x1 "$STAGING/opt/datadog-agent/bin/agent/agent-bin" | head -1 | awk '{print $2 $3}')
 if [ "$MAGIC" != "01f7" ]; then
     log "ERROR: agent binary is not XCOFF64 (got: $MAGIC)"
     log "       Expected magic bytes: 01 f7"
@@ -145,7 +156,7 @@ fi
 log "XCOFF64 magic verified for agent binary (magic: $MAGIC)"
 
 log "Verifying trace-agent binary is XCOFF64"
-MAGIC=$(od -A x -t x1 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent" | head -1 | awk '{print $2 $3}')
+MAGIC=$(od -A x -t x1 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin" | head -1 | awk '{print $2 $3}')
 if [ "$MAGIC" != "01f7" ]; then
     log "ERROR: trace-agent binary is not XCOFF64 (got: $MAGIC)"
     log "       Expected magic bytes: 01 f7"

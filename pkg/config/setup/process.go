@@ -6,13 +6,13 @@
 package setup
 
 import (
-	"encoding/json"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -117,19 +117,8 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 		"DD_CUSTOM_SENSITIVE_WORDS",
 		"DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS",
 		"DD_PROCESS_AGENT_CUSTOM_SENSITIVE_WORDS")
-	config.ParseEnvAsStringSlice("process_config.custom_sensitive_words", func(val string) []string {
-		// historically we accept DD_CUSTOM_SENSITIVE_WORDS as "w1,w2,..." but Viper expects the user to set a list as ["w1","w2",...]
-		if strings.HasPrefix(val, "[") && strings.HasSuffix(val, "]") {
-			res := []string{}
-			if err := json.Unmarshal([]byte(val), &res); err != nil {
-				log.Errorf("Error parsing JSON value for 'process_config.custom_sensitive_words' from env vars: %s", err)
-				return nil
-			}
-			return res
-		}
+	pkgconfighelper.ParseEnvJSONOrComma("process_config.custom_sensitive_words", config)
 
-		return strings.Split(val, ",")
-	})
 	config.BindEnvAndSetDefault("process_config.scrub_args", true,
 		"DD_SCRUB_ARGS",
 		"DD_PROCESS_CONFIG_SCRUB_ARGS",

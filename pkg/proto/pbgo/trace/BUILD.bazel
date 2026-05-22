@@ -1,4 +1,22 @@
+# gazelle:write_pb_go //pkg/proto/datadog/trace:trace_go_proto //pkg/proto/datadog/trace:trace_go_proto_tagged
 load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
+
+write_pb_go(
+    name = "write_pb_go",
+    srcs = {
+        "//pkg/proto/datadog/trace:trace_go_proto_tagged": [
+            "agent_payload.pb.go",
+            "agent_payload_vtproto.pb.go",
+            "span.pb.go",
+            "span_vtproto.pb.go",
+            "stats.pb.go",
+            "stats_vtproto.pb.go",
+            "tracer_payload.pb.go",
+            "tracer_payload_vtproto.pb.go",
+        ],
+    },
+)
 
 go_library(
     name = "trace",

@@ -18,7 +18,7 @@ func init() {
 }
 
 const (
-	// IssueID is the unique identifier for check failure issues
+	// IssueID is the unique instance id prefix used when reporting check failures.
 	IssueID = "check-execution-failure"
 )
 
@@ -34,9 +34,8 @@ func NewModule(config.Component) issues.Module {
 	}
 }
 
-// IssueID returns the unique identifier for this issue type
-func (m *checkFailureModule) IssueID() string {
-	return IssueID
+func (m *checkFailureModule) IssueName() string {
+	return issueName
 }
 
 // IssueTemplate returns the template for building complete issues
@@ -44,7 +43,12 @@ func (m *checkFailureModule) IssueTemplate() issues.IssueTemplate {
 	return m.template
 }
 
-// BuiltInCheck returns nil - check failures are reported by external integrations
-func (m *checkFailureModule) BuiltInCheck() *issues.BuiltInCheck {
+// BuiltInPeriodicHealthCheck returns nil - check failures are reported by external integrations
+func (m *checkFailureModule) BuiltInPeriodicHealthCheck() *issues.BuiltInPeriodicHealthCheck {
+	return nil
+}
+
+// BuiltInStartupHealthCheck returns nil - no startup-time check for this module
+func (m *checkFailureModule) BuiltInStartupHealthCheck() *issues.BuiltInStartupHealthCheck {
 	return nil
 }

@@ -24,7 +24,9 @@ type ProcessNameExtractor struct {
 
 // NewProcessNameExtractor creates a new ProcessNameExtractor.
 func NewProcessNameExtractor() *ProcessNameExtractor {
-	return &ProcessNameExtractor{}
+	return &ProcessNameExtractor{
+		names: map[int32]string{},
+	}
 }
 
 // Extract populates the internal map with the executable name for each process.
@@ -40,6 +42,26 @@ func (e *ProcessNameExtractor) Extract(processes map[int32]*procutil.Process) {
 	e.mu.Lock()
 	e.names = names
 	e.mu.Unlock()
+}
+
+// ExtractSingle extracts process name from a single process
+func (e *ProcessNameExtractor) ExtractSingle(proc *procutil.Process) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if proc.Comm != "" {
+		e.names[proc.Pid] = proc.Comm
+	} else if proc.Exe != "" {
+		e.names[proc.Pid] = filepath.Base(proc.Exe)
+	}
+}
+
+// Remove deletes process name for the provided PID
+func (e *ProcessNameExtractor) Remove(pid int32) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	delete(e.names, pid)
 }
 
 // GetProcessName returns the process name for the given pid, or an empty

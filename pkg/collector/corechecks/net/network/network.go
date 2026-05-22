@@ -3,20 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build linux || aix
 
 package network
 
 import (
-	"bufio"
-	"errors"
 	"fmt"
 	"maps"
-	"os"
 	"regexp"
+	"runtime"
 	"slices"
-	"strconv"
-	"strings"
 
 	"github.com/shirou/gopsutil/v4/net"
 	yaml "go.yaml.in/yaml/v2"
@@ -73,6 +69,9 @@ var (
 
 	udpStateMetricsSuffixMapping = map[string]string{
 		"NONE": "connections",
+		// AIX netstat output omits the state column for UDP rows; gopsutil
+		// leaves Status as "" in that case. Map it the same as "NONE".
+		"": "connections",
 	}
 )
 
@@ -235,53 +234,12 @@ func submitConnectionsMetrics(sender sender.Sender, protocolName string, stateMe
 	}
 }
 
-func netstatTCPExtCounters() (map[string]int64, error) {
-	f, err := os.Open("/proc/net/netstat")
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	counters := map[string]int64{}
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
-		i := strings.IndexRune(line, ':')
-		if i == -1 {
-			return nil, errors.New("/proc/net/netstat is not fomatted correctly, expected ':'")
-		}
-		proto := strings.ToLower(line[:i])
-		if proto != "tcpext" {
-			continue
-		}
-
-		counterNames := strings.Split(line[i+2:], " ")
-
-		if !scanner.Scan() {
-			return nil, errors.New("/proc/net/netstat is not fomatted correctly, not data line")
-		}
-		line = scanner.Text()
-
-		counterValues := strings.Split(line[i+2:], " ")
-		if len(counterNames) != len(counterValues) {
-			return nil, errors.New("/proc/net/netstat is not fomatted correctly, expected same number of columns")
-		}
-
-		for j := range counterNames {
-			value, err := strconv.ParseInt(counterValues[j], 10, 64)
-			if err != nil {
-				return nil, err
-			}
-			counters[counterNames[j]] = value
-		}
-	}
-
-	return counters, nil
-}
-
 // Configure configures the network checks
 func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string, provider string) error {
-	if flavor.GetFlavor() == flavor.DefaultAgent && !pkgconfigsetup.Datadog().GetBool("network_check.use_core_loader") {
+	// On Linux the Go network check coexists with the Python one; the flag
+	// selects which runs. On AIX there is no Python network check, so the
+	// Go check is unconditionally enabled.
+	if runtime.GOOS != "aix" && flavor.GetFlavor() == flavor.DefaultAgent && !pkgconfigsetup.Datadog().GetBool("network_check.use_core_loader") {
 		return fmt.Errorf("%w: network core check is disabled", check.ErrSkipCheckInstance)
 	}
 

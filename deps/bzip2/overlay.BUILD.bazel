@@ -22,15 +22,7 @@ license(
     visibility = ["//visibility:public"],
 )
 
-exports_files([
-    "LICENSE",
-])
-
 VERSION = "1.0.8"
-
-exports_files([
-    "LICENSE",
-])
 
 # only for test cases in //deps/bzip
 exports_files([

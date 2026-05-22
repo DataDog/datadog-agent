@@ -1403,3 +1403,42 @@ func BenchmarkConcentrator(b *testing.B) {
 		c.addNow(testTrace, infraTags{})
 	}
 }
+
+func TestLangInStatsV1(t *testing.T) {
+	now := time.Now()
+	c := NewTestConcentrator(now)
+	alignedNow := alignTs(now.UnixNano(), c.bsize)
+	c.spanConcentrator.oldestTs = alignedNow - int64(c.spanConcentrator.bufferLen)*c.bsize
+
+	strings := idx.NewStringTable()
+	start := getTsInBucket(alignedNow, testBucketInterval, 0) - 50
+	span := idx.NewInternalSpan(strings, &idx.Span{
+		SpanID:      1,
+		ParentID:    0,
+		ServiceRef:  strings.Add("A1"),
+		NameRef:     strings.Add("query"),
+		ResourceRef: strings.Add("resource1"),
+		TypeRef:     strings.Add("db"),
+		Start:       uint64(start),
+		Duration:    50,
+		Attributes: map[uint32]*idx.AnyValue{
+			strings.Add("_top_level"): {Value: &idx.AnyValue_DoubleValue{DoubleValue: 1}},
+		},
+	})
+	chunk := idx.NewInternalTraceChunk(strings, 0, "", nil, []*idx.InternalSpan{span}, false, nil, 0)
+
+	testTrace := &traceutil.ProcessedTraceV1{
+		TraceChunk: chunk,
+		Root:       span,
+		TracerEnv:  "none",
+		Lang:       "python",
+	}
+	c.addNowV1(testTrace, infraTags{})
+
+	stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+	require.Len(t, stats.Stats, 1)
+
+	// addNowV1 does not set Lang in the aggregation key, so the language is lost.
+	// This assertion fails: stats.Stats[0].Lang will be "" instead of "python".
+	assert.Equal(t, "python", stats.Stats[0].Lang)
+}

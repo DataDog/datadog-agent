@@ -150,7 +150,11 @@
         {"name": "rpc.grpc.status.code", "provider": "otel",    "type": "string"},
         {"name": "rpc.grpc.status.code", "provider": "otel",    "type": "int64"},
         {"name": "grpc.status.code",     "provider": "datadog", "type": "string"},
-        {"name": "grpc.status.code",     "provider": "datadog", "type": "int64"}
+        {"name": "grpc.status.code",     "provider": "datadog", "type": "int64"},
+        {"name": "rpc.response.status_code", "provider": "otel", "version": "1.39.0", "type": "string", "when": [{"attribute": "rpc.system.name", "eq": "grpc"}]},
+        {"name": "rpc.response.status_code", "provider": "otel", "version": "1.39.0", "type": "int64",  "when": [{"attribute": "rpc.system.name", "eq": "grpc"}]},
+        {"name": "rpc.response.status_code", "provider": "otel", "version": "1.39.0", "type": "string", "when": [{"attribute": "rpc.system", "eq": "grpc"}, {"attribute": "rpc.system.name", "present": false}]},
+        {"name": "rpc.response.status_code", "provider": "otel", "version": "1.39.0", "type": "int64",  "when": [{"attribute": "rpc.system", "eq": "grpc"}, {"attribute": "rpc.system.name", "present": false}]}
       ]
     },
     "span.kind": {

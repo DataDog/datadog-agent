@@ -15,6 +15,18 @@ DEVENV_IMAGE="registry.ddbuild.io/ci/datadog-agent-devenv:1-${DEVENV_ARCH}"
 
 echo "Building ${CLUSTER_AGENT_IMAGE} (linux/${DEVENV_ARCH}) from ${REPO_DIR}"
 
+# The Docker socket GID inside the Colima VM differs from the host GID
+# (typically 991 for the docker group in the VM vs 0 on macOS). Detect it
+# so --group-add can give the datadog user access to the socket.
+DOCKER_GID=$(docker run --rm --platform "linux/${DEVENV_ARCH}" \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    "${DEVENV_IMAGE}" stat -c '%g' /var/run/docker.sock 2>/dev/null || true)
+
+GROUP_FLAGS=()
+if [ -n "${DOCKER_GID}" ]; then
+    GROUP_FLAGS=(--group-add "${DOCKER_GID}")
+fi
+
 exec docker run --rm \
     --platform "linux/${DEVENV_ARCH}" \
     --cap-add=SYS_PTRACE \
@@ -25,6 +37,7 @@ exec docker run --rm \
     -v "${GOPATH:-${HOME}/go}/pkg/mod:/home/datadog/go/pkg/mod" \
     -v "${HOME}/.ssh:/home/datadog/.ssh" \
     --user datadog \
+    "${GROUP_FLAGS[@]}" \
     "${DEVENV_IMAGE}" \
     bash -xc "
         git config --global --add safe.directory /workspaces/datadog-agent && \

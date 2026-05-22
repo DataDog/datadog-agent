@@ -164,7 +164,10 @@ def build(
 
     flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
 
-    schema_compress(ctx)
+    # AIX build hosts do not have bazel; the compressed schema files are
+    # committed to the repo and do not need regeneration there.
+    if sys.platform != "aix":
+        schema_compress(ctx)
 
     with gitlab_section("Build agent", collapsed=True):
         go_build(
@@ -322,7 +325,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         )
 
     shutil.copytree(
-        "./comp/core/gui/guiimpl/views/private",
+        "./comp/core/gui/impl/views/private",
         os.path.join(dist_folder, "views"),
         ignore=shutil.ignore_patterns("BUILD.bazel"),
         dirs_exist_ok=True,

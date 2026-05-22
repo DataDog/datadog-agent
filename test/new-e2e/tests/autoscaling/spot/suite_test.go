@@ -26,10 +26,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	k8sclient "k8s.io/client-go/kubernetes"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	kindvmscen "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awskindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	localkubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/kubernetes"
 )
 
@@ -41,8 +44,8 @@ const (
 	spotAssignedLabel           = "autoscaling.datadoghq.com/spot-assigned"
 	spotConfigAnnotation        = "autoscaling.datadoghq.com/spot-config"
 	spotDisabledUntilAnnotation = "autoscaling.datadoghq.com/spot-disabled-until"
-	karpenterCapacityTypeLabel  = "karpenter.sh/capacity-type"
-	karpenterCapacityTypeSpot   = "spot"
+	spotCapacityTypeLabel       = "autoscaling.datadoghq.com/capacity-type"
+	spotCapacityTypeValue       = "interruptible"
 
 	// kindClusterName is the provisioner name; the kind cluster name is derived from it.
 	kindClusterName = "spot-test"
@@ -57,20 +60,23 @@ const (
 	rebalanceStabilizationPeriod = 10 * time.Second
 )
 
-var helmValues = fmt.Sprintf(`
+// helmChartVersion is the minimum Datadog Helm chart version that exposes the
+// datadog.autoscaling.cluster.spot.enabled feature toggle.
+const helmChartVersion = "3.208.0"
+
+// makeHelmValues returns the Helm values for the spot scheduling suite.
+// pullPolicy should be "Never" when the image is pre-loaded into kind (local dev)
+// or "IfNotPresent" when the image is pulled from a registry (CI).
+func makeHelmValues(pullPolicy string) string {
+	return fmt.Sprintf(`
 clusterAgent:
   enabled: true
   image:
-    # pre-loaded into kind via WithKindLoadImage; Never prevents pulling from a registry
-    pullPolicy: Never
+    pullPolicy: %s
   admissionController:
     enabled: true
     mutateUnlabelled: false
   env:
-    - name: DD_LOG_LEVEL
-      value: "DEBUG"
-    - name: DD_AUTOSCALING_CLUSTER_SPOT_ENABLED
-      value: "true"
     - name: DD_AUTOSCALING_CLUSTER_SPOT_DEFAULTS_PERCENTAGE
       value: "100"
     - name: DD_AUTOSCALING_CLUSTER_SPOT_DEFAULTS_MIN_ON_DEMAND_REPLICAS
@@ -81,22 +87,51 @@ clusterAgent:
       value: "%v"
     - name: DD_AUTOSCALING_CLUSTER_SPOT_REBALANCE_STABILIZATION_PERIOD
       value: "%v"
-# node-agent DaemonSet not needed; only the cluster-agent runs the spot scheduler
+  podAnnotations:
+    ad.datadoghq.com/cluster-agent.logs: '[{"source":"cluster-agent","service":"datadog-cluster-agent"}]'
+# node-agent DaemonSet collects cluster-agent logs via the annotation above
 agents:
-  enabled: false
+  enabled: true
+  # tolerate all taints so the DaemonSet runs on all nodes
+  tolerations:
+    - operator: Exists
 # cluster check runners not needed for spot scheduling
 clusterChecksRunner:
   enabled: false
 datadog:
+  logLevel: DEBUG
+  logs:
+    enabled: true
+    containerCollectAll: false
   kubeStateMetricsCore:
     # the framework sets this to true by default, which unconditionally enables the
     # cluster checks runner deployment regardless of clusterChecksRunner.enabled
     useClusterCheckRunners: false
-`, scheduleTimeout, fallbackDuration, rebalanceStabilizationPeriod)
+  autoscaling:
+    cluster:
+      spot:
+        enabled: true
+`, pullPolicy, scheduleTimeout, fallbackDuration, rebalanceStabilizationPeriod)
+}
+
+// workerNodes defines the kind cluster topology required by the spot scheduling tests:
+// one on-demand worker and one spot worker with the interruptible label and taint.
+var workerNodes = []kubeComp.KindWorkerNode{
+	{}, // on-demand
+	{
+		Labels: []kubeComp.Label{{Key: "autoscaling.datadoghq.com/capacity-type", Value: "interruptible"}},
+		Taints: []kubeComp.Taint{{Key: "autoscaling.datadoghq.com/capacity-type", Value: "interruptible", Effect: "NoSchedule"}},
+	},
+}
 
 // rebalancingTimeout returns the expected duration to rebalance given number of spot pods.
 func rebalancingTimeout(spotPods int) time.Duration {
-	return time.Duration(spotPods)*2*rebalanceStabilizationPeriod + 30*time.Second
+	// Each rebalance cycle costs one rebalanceStabilizationPeriod plus pod startup time: the
+	// rebalancer resets its stabilization clock when a replacement pod joins the pod set, so the
+	// next eviction can only happen once the replacement is Running and the full stabilization
+	// period has elapsed.
+	const waitUntilRunning = 30 * time.Second
+	return time.Duration(spotPods) * (rebalanceStabilizationPeriod + waitUntilRunning)
 }
 
 type spotSchedulingSuite struct {
@@ -105,6 +140,7 @@ type spotSchedulingSuite struct {
 	spotNode      string
 	onDemandNode  string
 	testNamespace string // namespace for the current test, set by SetupTest
+	waitForLogs   bool   // wait for node-agent readiness before running tests to get cluster-agent logs.
 }
 
 // TestSpotSchedulingKind runs spot scheduling integration tests on a local kind cluster.
@@ -115,29 +151,40 @@ func TestSpotSchedulingKind(t *testing.T) {
 	if image == "" {
 		t.Skip("DD_TEST_CLUSTER_AGENT_IMAGE not set; skipping spot scheduling e2e tests")
 	}
+	e2e.Run(t, new(spotSchedulingSuite), e2e.WithProvisioner(localkubernetes.Provisioner(
+		localkubernetes.WithName(kindClusterName),
+		localkubernetes.WithKindWorkerNodes(workerNodes...),
+		localkubernetes.WithoutFakeIntake(),
+		localkubernetes.WithKindLoadImage(image),
+		localkubernetes.WithAgentOptions(
+			kubernetesagentparams.WithClusterAgentFullImagePath(image),
+			kubernetesagentparams.WithHelmChartVersion(helmChartVersion),
+			kubernetesagentparams.WithHelmValues(makeHelmValues("Never")),
+		),
+	)))
+}
 
-	workerNodes := []kubeComp.KindWorkerNode{
-		{
-			Labels: []kubeComp.Label{{Key: "karpenter.sh/capacity-type", Value: "on-demand"}},
-		},
-		{
-			Labels: []kubeComp.Label{{Key: "karpenter.sh/capacity-type", Value: "spot"}},
-			Taints: []kubeComp.Taint{{Key: "autoscaling.datadoghq.com/capacity-type", Value: "interruptible", Effect: "NoSchedule"}},
-		},
+// TestSpotSchedulingKindCI runs spot scheduling integration tests on a kind cluster
+// provisioned on AWS. The cluster-agent image is resolved automatically from the
+// qa_dca ECR image built by this pipeline (cluster-agent-qa:{E2E_PIPELINE_ID}-{E2E_COMMIT_SHA}).
+// Requires E2E_PIPELINE_ID to be set (provided by the standard .new_e2e_template CI job).
+func TestSpotSchedulingKindCI(t *testing.T) {
+	flake.Mark(t)
+	if os.Getenv("E2E_PIPELINE_ID") == "" {
+		t.Skip("E2E_PIPELINE_ID not set; this test is for CI use only")
 	}
-
-	e2e.Run(t, &spotSchedulingSuite{}, e2e.WithProvisioner(
-		localkubernetes.Provisioner(
-			localkubernetes.WithName(kindClusterName),
-			localkubernetes.WithKindWorkerNodes(workerNodes...),
-			localkubernetes.WithoutFakeIntake(),
-			localkubernetes.WithKindLoadImage(image),
-			localkubernetes.WithAgentOptions(
-				kubernetesagentparams.WithClusterAgentFullImagePath(image),
-				kubernetesagentparams.WithHelmValues(helmValues),
+	e2e.Run(t, &spotSchedulingSuite{waitForLogs: true}, e2e.WithProvisioner(awskindvm.Provisioner(
+		awskindvm.WithRunOptions(
+			kindvmscen.WithName(kindClusterName),
+			kindvmscen.WithKindWorkerNodes(workerNodes...),
+			kindvmscen.WithoutFakeIntake(),
+			kindvmscen.WithAgentOptions(
+				kubernetesagentparams.WithHelmChartVersion(helmChartVersion),
+				kubernetesagentparams.WithHelmValues(makeHelmValues("IfNotPresent")),
+				kubernetesagentparams.WithTimeout(600),
 			),
 		),
-	))
+	)))
 }
 
 func (s *spotSchedulingSuite) SetupSuite() {
@@ -147,9 +194,9 @@ func (s *spotSchedulingSuite) SetupSuite() {
 	s.kubeClient = s.Env().KubernetesCluster.Client()
 	s.identifyNodes()
 	s.waitForWebhook()
-	// The cluster-agent ClusterRole is missing pods/eviction — a known issue to be fixed
-	// in the next Helm chart release.
-	s.patchClusterAgentEvictionRole()
+	if s.waitForLogs {
+		s.waitForNodeAgent()
+	}
 }
 
 func (s *spotSchedulingSuite) SetupTest() {
@@ -181,45 +228,52 @@ func (s *spotSchedulingSuite) eventually(fn func(c *assert.CollectT)) {
 	s.EventuallyWithT(fn, 1*time.Minute, 5*time.Second)
 }
 
-// expectRunningSpot asserts that exactly count pods are Running on the spot node with spot-assigned label.
+// groupPods groups pods first by node name, then by phase.
+// Unscheduled pods (no node assigned) are grouped under "<unscheduled>".
+func groupPods(pods []corev1.Pod) map[string]map[corev1.PodPhase][]string {
+	g := make(map[string]map[corev1.PodPhase][]string)
+	for _, p := range pods {
+		node := p.Spec.NodeName
+		if node == "" {
+			node = "<unscheduled>"
+		}
+		if g[node] == nil {
+			g[node] = make(map[corev1.PodPhase][]string)
+		}
+		g[node][p.Status.Phase] = append(g[node][p.Status.Phase], p.Name)
+	}
+	return g
+}
+
+// expectRunningSpot asserts that exactly count pods are Running on the spot node.
 func (s *spotSchedulingSuite) expectRunningSpot(c *assert.CollectT, pods []corev1.Pod, count int) {
-	actual := 0
-	for _, p := range pods {
-		if p.Status.Phase == corev1.PodRunning && p.Spec.NodeName == s.spotNode {
-			require.Contains(c, p.Labels, spotAssignedLabel, "pod %s on spot node should have spot-assigned label", p.Name)
-			actual++
-		}
-	}
-	require.Equal(c, count, actual, "expected %d running spot pods", count)
+	g := groupPods(pods)
+	require.Equal(c, count, len(g[s.spotNode][corev1.PodRunning]),
+		"expected %d running spot pods; pod breakdown: %v", count, g)
 }
 
-// expectRunningOnDemand asserts that exactly count pods are Running on the on-demand node without spot-assigned label.
+// expectRunningOnDemand asserts that exactly count pods are Running on the on-demand node.
 func (s *spotSchedulingSuite) expectRunningOnDemand(c *assert.CollectT, pods []corev1.Pod, count int) {
-	actual := 0
-	for _, p := range pods {
-		if p.Status.Phase == corev1.PodRunning && p.Spec.NodeName == s.onDemandNode {
-			require.NotContains(c, p.Labels, spotAssignedLabel, "pod %s on on-demand node should not have spot-assigned label", p.Name)
-			actual++
-		}
-	}
-	require.Equal(c, count, actual, "expected %d running on-demand pods", count)
+	g := groupPods(pods)
+	require.Equal(c, count, len(g[s.onDemandNode][corev1.PodRunning]),
+		"expected %d running on-demand pods; pod breakdown: %v", count, g)
 }
 
-// identifyNodes finds the spot and on-demand worker nodes by karpenter.sh/capacity-type label.
+// identifyNodes finds the spot and on-demand worker nodes by autoscaling.datadoghq.com/capacity-type label.
 func (s *spotSchedulingSuite) identifyNodes() {
 	s.T().Helper()
 	nodes, err := s.kubeClient.CoreV1().Nodes().List(s.T().Context(), metav1.ListOptions{})
 	s.Require().NoError(err)
 	for _, node := range nodes.Items {
-		switch node.Labels[karpenterCapacityTypeLabel] {
-		case karpenterCapacityTypeSpot:
+		switch node.Labels[spotCapacityTypeLabel] {
+		case spotCapacityTypeValue:
 			s.spotNode = node.Name
 		default:
 			s.onDemandNode = node.Name
 		}
 	}
-	s.Require().NotEmpty(s.spotNode, "no node with %s=spot found; check WithKindWorkerNodes", karpenterCapacityTypeLabel)
-	s.Require().NotEmpty(s.onDemandNode, "no node without %s=spot found; check WithKindWorkerNodes", karpenterCapacityTypeLabel)
+	s.Require().NotEmpty(s.spotNode, "no node with %s=%s found; check WithKindWorkerNodes", spotCapacityTypeLabel, spotCapacityTypeValue)
+	s.Require().NotEmpty(s.onDemandNode, "no node without %s=%s found; check WithKindWorkerNodes", spotCapacityTypeLabel, spotCapacityTypeValue)
 }
 
 // waitForWebhook polls MutatingWebhookConfigurations until the spot scheduling webhook is registered.
@@ -241,6 +295,34 @@ func (s *spotSchedulingSuite) waitForWebhook() {
 	}, 5*time.Minute, 5*time.Second, "spot scheduling webhook not registered; is the cluster-agent running?")
 }
 
+// waitForNodeAgent waits until all node-agent DaemonSet pods are Running and Ready.
+func (s *spotSchedulingSuite) waitForNodeAgent() {
+	s.T().Helper()
+
+	nodeAgentApp := s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]
+	s.Require().NotEmpty(nodeAgentApp, "LinuxNodeAgent label selector not set")
+
+	s.Require().Eventually(func() bool {
+		pods, err := s.kubeClient.CoreV1().Pods(s.Env().Agent.LinuxNodeAgent.Namespace).List(s.T().Context(), metav1.ListOptions{
+			LabelSelector: "app=" + nodeAgentApp,
+		})
+		if err != nil || len(pods.Items) == 0 {
+			return false
+		}
+		for _, pod := range pods.Items {
+			if pod.Status.Phase != corev1.PodRunning {
+				return false
+			}
+			for _, cs := range pod.Status.ContainerStatuses {
+				if !cs.Ready {
+					return false
+				}
+			}
+		}
+		return true
+	}, 5*time.Minute, 5*time.Second, "node-agent pods not ready; cluster-agent logs won't be collected")
+}
+
 func (s *spotSchedulingSuite) createTestNamespace() {
 	name := s.T().Name()
 	if i := strings.LastIndex(name, "/"); i >= 0 {
@@ -258,21 +340,6 @@ func (s *spotSchedulingSuite) createTestNamespace() {
 
 func (s *spotSchedulingSuite) deleteTestNamespace() {
 	err := s.kubeClient.CoreV1().Namespaces().Delete(context.Background(), s.testNamespace, metav1.DeleteOptions{})
-	s.Require().NoError(err)
-}
-
-// patchClusterAgentEvictionRole adds pods/eviction create permission to the cluster-agent
-// ClusterRole. This is needed because the Helm chart omits this rule; it will be fixed
-// in the next operator release.
-func (s *spotSchedulingSuite) patchClusterAgentEvictionRole() {
-	patch := []byte(`[{"op":"add","path":"/rules/-","value":{"apiGroups":[""],"resources":["pods/eviction"],"verbs":["create"]}}]`)
-	_, err := s.kubeClient.RbacV1().ClusterRoles().Patch(
-		s.T().Context(),
-		"dda-linux-datadog-cluster-agent",
-		types.JSONPatchType,
-		patch,
-		metav1.PatchOptions{},
-	)
 	s.Require().NoError(err)
 }
 

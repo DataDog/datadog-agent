@@ -279,6 +279,13 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 	}
 
 	// Note: serverless trace tag logic also in comp/trace/payload-modifier/impl/payloadmodifier_test.go
+	//
+	// Note: the deprecated DD_APM_SPAN_DERIVED_PRIMARY_TAGS option is honored for
+	// serverless-init (and the AAS extension) inside comp/trace/config/impl/setup.go
+	// (gated on serverless.enabled || IsAzureAppServicesExtension()). It lives there
+	// rather than here because the AAS extension shares the same gate but doesn't go
+	// through StartServerlessTraceAgent. Treat that block as serverless-only despite
+	// its location in shared trace-agent config code.
 	functionTags := strings.Join(configuredTags, ",")
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:               pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),

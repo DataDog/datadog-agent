@@ -8,6 +8,7 @@ package viperconfig
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -71,6 +72,8 @@ type safeConfig struct {
 	warnings []error
 
 	existingTransformers map[string]bool
+
+	startTime time.Time
 }
 
 // GetLibType return "viper"
@@ -286,15 +289,36 @@ func (c *safeConfig) ParseEnvAsMapStringInterface(key string, fn func(string) ma
 	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
-// ParseEnvAsSliceMapString registers a transformer function to parse an an environment variables as a []map[string]string.
-func (c *safeConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
-	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
+// ParseEnvSplitComma registers a transformer function to parse an environment variable as a comma-separated list of strings.
+func (c *safeConfig) ParseEnvSplitComma(key string) {
+	c.setEnvTransformer(key, func(data string) interface{} {
+		if data == "" {
+			return []string(nil)
+		}
+		return strings.Split(data, ",")
+	})
 }
 
-// ParseEnvAsSlice registers a transformer function to parse an an environment variables as a
-// []interface{}.
-func (c *safeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
-	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
+// ParseEnvSplitSpace registers a transformer function to parse an environment variable as a space-separated list of strings.
+func (c *safeConfig) ParseEnvSplitSpace(key string) {
+	c.setEnvTransformer(key, func(data string) interface{} {
+		if data == "" {
+			return []string(nil)
+		}
+		return strings.Split(data, " ")
+	})
+}
+
+// ParseEnvJSON registers a transformer function to parse an environment variable as a JSON payload into varType.
+func (c *safeConfig) ParseEnvJSON(key string, varType any) {
+	t := reflect.TypeOf(varType)
+	c.setEnvTransformer(key, func(data string) interface{} {
+		res := reflect.New(t).Interface()
+		if err := json.Unmarshal([]byte(data), res); err != nil {
+			log.Errorf(`"%s" can not be parsed: %v`, key, err)
+		}
+		return reflect.ValueOf(res).Elem().Interface()
+	})
 }
 
 // IsSet wraps Viper for concurrent access
@@ -1002,6 +1026,10 @@ func (c *safeConfig) Warnings() *model.Warnings {
 	return &model.Warnings{Errors: c.warnings}
 }
 
+func (c *safeConfig) StartTime() time.Time {
+	return c.startTime
+}
+
 func (c *safeConfig) Object() model.Reader {
 	return c
 }
@@ -1023,6 +1051,7 @@ func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Repla
 		configEnvVars:        map[string]struct{}{},
 		unknownKeys:          map[string]struct{}{},
 		existingTransformers: make(map[string]bool),
+		startTime:            time.Now(),
 	}
 
 	// load one Viper instance per source of setting change

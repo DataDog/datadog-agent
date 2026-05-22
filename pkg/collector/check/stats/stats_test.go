@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/core/mock"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
