@@ -5,19 +5,19 @@
 
 //go:build !jetson
 
-// Package invalidconfig reports datadog.yaml problems through the Agent Health Platform.
-// Excluded from the IoT Agent build
+// Package invalidconfig reports datadog.yaml schema violations through the Agent Health Platform.
+// Excluded from the IoT Agent build to stay under the binary size budget.
 package invalidconfig
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
-	"github.com/DataDog/datadog-agent/pkg/config/lite"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -54,25 +54,22 @@ func (c *checker) validate() ([]storedef.IssueReport, error) {
 	if len(errs) == 0 {
 		return nil, nil
 	}
-	info := lite.IssueInfo{
-		Kind:       lite.ErrorKindSchemaValidation,
-		ConfigPath: c.cfg.ConfigFileUsed(),
-		Errors:     strings.Join(errs, "\n"),
-		ErrorCount: len(errs),
-	}
 	return []storedef.IssueReport{
 		{
-			IssueID:   storedef.InvalidConfigIssueID,
-			IssueType: storedef.InvalidConfigIssueID,
+			IssueID:   IssueID,
+			IssueType: IssueID,
 			Source:    "agent",
-			Context:   info.ToContext(),
+			Context: map[string]string{
+				contextKeyConfigPath: c.cfg.ConfigFileUsed(),
+				contextKeyErrorCount: strconv.Itoa(len(errs)),
+				contextKeyErrors:     strings.Join(errs, "\n"),
+			},
 		},
 	}, nil
 }
 
-// normalizeForSchema coerces a Go-native config map into JSON-native types
-// via a YAML round-trip
-// ScrubYaml strips any accidental secret-like values
+// normalizeForSchema coerces a Go-native config map into JSON-native types via
+// a YAML round-trip. ScrubYaml strips any accidental secret-like values
 func normalizeForSchema(in map[string]any) (map[string]any, error) {
 	b, err := yaml.Marshal(in)
 	if err != nil {

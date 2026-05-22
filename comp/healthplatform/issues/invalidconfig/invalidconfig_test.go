@@ -14,53 +14,28 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
-	"github.com/DataDog/datadog-agent/pkg/config/lite"
 )
 
-func TestBuildIssue_YAMLParseHasHighSeverity(t *testing.T) {
+func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 	issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{
-		lite.ContextKeyErrorKind:    string(lite.ErrorKindYAMLParse),
-		lite.ContextKeyConfigPath:   "/etc/datadog-agent/datadog.yaml",
-		lite.ContextKeyErrorMessage: "yaml: line 12: did not find expected ',' or ']'",
+		contextKeyConfigPath: "/etc/datadog-agent/datadog.yaml",
+		contextKeyErrorCount: "3",
+		contextKeyErrors:     "/agent_ipc/port: expected integer\n/tags: expected array",
 	})
 	require.NoError(t, err)
-	assert.Equal(t, healthplatformdef.InvalidConfigIssueID, issue.GetId())
-	assert.Equal(t, "high", issue.GetSeverity())
-	assert.Contains(t, issue.GetTitle(), "not valid YAML")
-	assert.Contains(t, issue.GetDescription(), "/etc/datadog-agent/datadog.yaml")
-	assert.Equal(t, string(lite.ErrorKindYAMLParse),
-		issue.GetExtra().GetFields()[lite.ContextKeyErrorKind].GetStringValue())
-	require.NotEmpty(t, issue.GetRemediation().GetSteps())
-}
-
-func TestBuildIssue_SchemaValidationHasMediumSeverity(t *testing.T) {
-	issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{
-		lite.ContextKeyErrorKind:  string(lite.ErrorKindSchemaValidation),
-		lite.ContextKeyConfigPath: "/etc/datadog-agent/datadog.yaml",
-		lite.ContextKeyErrorCount: "3",
-		lite.ContextKeyErrors:     "/agent_ipc/port: expected integer\n/tags: expected array",
-	})
-	require.NoError(t, err)
+	assert.Equal(t, IssueID, issue.GetId())
 	assert.Equal(t, "medium", issue.GetSeverity())
 	assert.Contains(t, issue.GetTitle(), "3 schema violations")
-	assert.Equal(t, string(lite.ErrorKindSchemaValidation),
-		issue.GetExtra().GetFields()[lite.ContextKeyErrorKind].GetStringValue())
 	assert.Equal(t, float64(3),
-		issue.GetExtra().GetFields()[lite.ContextKeyErrorCount].GetNumberValue())
+		issue.GetExtra().GetFields()[contextKeyErrorCount].GetNumberValue())
 	assert.Contains(t, issue.GetDescription(), "agent_ipc/port")
 	assert.Contains(t, issue.GetDescription(), "/tags")
 	assert.Contains(t, issue.GetDescription(), "; ", "description must use a visible delimiter between violations so the UI renders them legibly")
 
-	errorsBlob := issue.GetExtra().GetFields()[lite.ContextKeyErrors].GetStringValue()
+	errorsBlob := issue.GetExtra().GetFields()[contextKeyErrors].GetStringValue()
 	assert.Contains(t, errorsBlob, "agent_ipc/port")
 	assert.Contains(t, errorsBlob, "/tags")
 	assert.Contains(t, errorsBlob, " • ", "extra.errors must use a visible delimiter so the UI renders multi-violation blobs legibly")
-}
-
-// Backend dedupe depends on both code paths emitting the same Issue ID.
-func TestBuildIssue_SharesIssueIDWithRescue(t *testing.T) {
-	assert.Equal(t, lite.IssueID, healthplatformdef.InvalidConfigIssueID)
 }
 
 // A vanilla mock has only defaults, which round-trip through YAML cleanly and
@@ -71,8 +46,8 @@ func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
 	assert.Empty(t, reports)
 }
 
-// Inject a string into an integer-typed field Confirms the validator surfaces the violation and the
-// checker wraps it into an IssueReport.
+// Inject a string into an integer-typed field. Confirms the validator surfaces
+// the violation and the checker wraps it into an IssueReport.
 func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	cfg := config.NewMock(t)
 	cfg.SetWithoutSource("agent_ipc.port", "not-a-number")
@@ -80,8 +55,7 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	reports, err := newChecker(cfg).Run()
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
-	assert.Equal(t, healthplatformdef.InvalidConfigIssueID, reports[0].IssueType)
-	assert.Equal(t, string(lite.ErrorKindSchemaValidation),
-		reports[0].Context[lite.ContextKeyErrorKind])
-	assert.Contains(t, reports[0].Context[lite.ContextKeyErrors], "agent_ipc/port")
+	assert.Equal(t, IssueID, reports[0].IssueType)
+	assert.Equal(t, IssueID, reports[0].IssueID)
+	assert.Contains(t, reports[0].Context[contextKeyErrors], "agent_ipc/port")
 }
