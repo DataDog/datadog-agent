@@ -374,13 +374,13 @@ func TestCheck_Run_Success(t *testing.T) {
 	// ID is randomly generated per store call, so unmarshal the actual NCM
 	// payload, capture the IDs, and assert the rest of the payload matches.
 	actualNCMPayload := findEventPlatformEventPayload(t, mockSender, eventplatform.EventTypeNetworkConfigManagement)
-	require.Len(t, actualNCMPayload.Configs, len(expectedPayload.Configs))
+	require.Len(t, actualNCMPayload.Configs, len(expectedConfigPayload.Configs))
 	uuidRe := regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 	for i := range actualNCMPayload.Configs {
 		assert.Regexp(t, uuidRe, actualNCMPayload.Configs[i].ID, "config[%d] should have a valid UUID", i)
-		expectedPayload.Configs[i].ID = actualNCMPayload.Configs[i].ID
+		expectedConfigPayload.Configs[i].ID = actualNCMPayload.Configs[i].ID
 	}
-	assert.Equal(t, expectedPayload, actualNCMPayload)
+	assert.Equal(t, expectedConfigPayload, actualNCMPayload)
 
 	mockSender.AssertEventPlatformEvent(t, expectedDeviceMetadata, eventplatform.EventTypeNetworkDevicesMetadata)
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "datadog.ncm.check_duration", expectedTags)

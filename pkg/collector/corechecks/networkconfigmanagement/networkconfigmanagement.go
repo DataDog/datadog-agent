@@ -116,7 +116,8 @@ func (c *Check) Run() error {
 		log.Warnf("unable to process rules for running config for device %s, using agent collection ts: %s", deviceID, checkErr)
 	} else {
 		// TODO: helper fn to take metadata that needs to be emitted as metrics + emit them
-		if runningUUID, runningHash, stored, err := saveConfig(configStore, deviceID, types.RUNNING, runningConfig); err != nil {
+		runningUUID, runningHash, stored, err := saveConfig(configStore, deviceID, types.RUNNING, runningConfig)
+		if err != nil {
 			log.Warnf("unable to store running config: %v", err)
 		} else if stored {
 			hasNewConfigs = true
@@ -134,7 +135,8 @@ func (c *Check) Run() error {
 			log.Warnf("unable to process rules for startup config for device %s, using agent collection ts: %s", deviceID, checkErr)
 		} else {
 			// add the startup config to the payload if it was retrieved successfully
-			if startupUUID, startupHash, stored, err := saveConfig(configStore, deviceID, types.STARTUP, startupConfig); err != nil {
+			startupUUID, startupHash, stored, err := saveConfig(configStore, deviceID, types.STARTUP, startupConfig)
+			if err != nil {
 				log.Warnf("unable to store startup config: %v", err)
 			} else if stored {
 				hasNewConfigs = true
