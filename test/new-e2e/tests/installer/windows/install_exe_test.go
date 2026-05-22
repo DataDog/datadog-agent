@@ -159,11 +159,7 @@ func (s *testInstallExeSuite) TestConfigValuesNotOverwrittenByDefaults() {
 	// do not overwrite config values (WINA-2118).
 	output, err := s.InstallScript().Run(
 		// explicitly unset some values that are always set by this Run helper method
-		WithExtraEnvVars(map[string]string{
-			"DD_API_KEY":        "",
-			"DD_SITE":           "",
-			"DD_REMOTE_UPDATES": "",
-		}),
+		WithUnsetEnvVars("DD_API_KEY", "DD_SITE", "DD_REMOTE_UPDATES"),
 	)
 
 	// Assert

@@ -24,7 +24,7 @@ type HostInfo struct {
 	OSInfo   *OSInfo
 }
 
-// OSInfo contains a selection of values from: Get-WmiObject Win32_OperatingSystem
+// OSInfo contains a selection of values from: Get-CimInstance Win32_OperatingSystem
 // https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-operatingsystem
 type OSInfo struct {
 	WindowsDirectory string `json:"WindowsDirectory"`
@@ -94,7 +94,7 @@ func RenameComputer(host *components.RemoteHost, hostname string) error {
 
 // GetJoinedDomain returns the domain that the host is joined to
 func GetJoinedDomain(host *components.RemoteHost) (string, error) {
-	domain, err := host.Execute("(Get-WMIObject Win32_ComputerSystem).Domain")
+	domain, err := host.Execute("(Get-CimInstance Win32_ComputerSystem).Domain")
 	if err != nil {
 		return "", fmt.Errorf("GetJoinedDomain failed: %v", err)
 	}
@@ -103,7 +103,7 @@ func GetJoinedDomain(host *components.RemoteHost) (string, error) {
 
 // GetOSInfo returns OSInfo for the given VM
 func GetOSInfo(host *components.RemoteHost) (*OSInfo, error) {
-	cmd := "Get-WmiObject Win32_OperatingSystem | ConvertTo-Json"
+	cmd := "Get-CimInstance Win32_OperatingSystem | ConvertTo-Json -WarningAction SilentlyContinue"
 	output, err := host.Execute(cmd)
 	if err != nil {
 		fmt.Println(output)

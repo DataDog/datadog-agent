@@ -58,7 +58,7 @@ func ListBoundPorts(host *components.RemoteHost) ([]*BoundPort, error) {
 			LocalPort = $_.LocalPort
 			Process = (Get-Process -Id $_.OwningProcess).Name
 			PID = $_.OwningProcess
-		}} | ConvertTo-JSON`)
+		}} | ConvertTo-JSON -WarningAction SilentlyContinue`)
 	if err != nil {
 		return nil, err
 	}

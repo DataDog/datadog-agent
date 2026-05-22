@@ -54,7 +54,7 @@ func MeasureCommand(host *components.RemoteHost, command string) (time.Duration,
 		@{
 			TotalMilliseconds=$taken.TotalMilliseconds
 			Output=$cmdout
-		} | ConvertTo-JSON`, command)
+		} | ConvertTo-JSON -WarningAction SilentlyContinue`, command)
 	out, err := host.Execute(powershellCommand)
 	if err != nil {
 		return 0, out, err

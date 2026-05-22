@@ -97,8 +97,12 @@ func WithDomainController(domainFqdn, adminPassword string) func(*Configuration)
 // https://learn.microsoft.com/en-us/powershell/module/addsdeployment/install-addsforest?view=windowsserver2022-ps&viewFallbackFrom=win10-ps
 func (adCtx *activeDirectoryContext) installDomainController(params *DomainControllerConfiguration) error {
 	var installCmd command.Command
+	// ADDSDeployment is Windows PowerShell 5.1 only on every Windows Server
+	// version. Loaded through pwsh's compat shim, Get-ADDomainController fails
+	// to reach the AD Web Services endpoint after Install-ADDSForest completes.
+	// Invoke via powershell.exe so the whole script runs natively.
 	installCmd, err := adCtx.comp.host.OS.Runner().Command(adCtx.comp.namer.ResourceName("install-forest"), &command.Args{
-		Create: pulumi.Sprintf(`
+		Create: pulumi.Sprintf(`powershell.exe -NoProfile -Command {
 Add-WindowsFeature -name ad-domain-services -IncludeManagementTools;
 Import-Module ADDSDeployment;
 try {
@@ -113,7 +117,7 @@ try {
 		Force                         = $true
 	}; Install-ADDSForest @HashArguments
 }
-`, params.DomainName, params.DomainPassword),
+}`, params.DomainName, params.DomainPassword),
 	}, pulumi.Parent(adCtx.comp), pulumi.DependsOn(adCtx.createdResources))
 	if err != nil {
 		return err
@@ -131,8 +135,10 @@ try {
 	adCtx.createdResources = append(adCtx.createdResources, waitForRebootCmd)
 
 	// Wait for service to enter running state, then wait for it to respond successfully to the Get-ADDomain command.
+	// On Server 2016 the ActiveDirectory module loads via pwsh's compat shim;
+	// invoke via powershell.exe to run natively in Windows PowerShell 5.1.
 	ensureAdwsStartedCmd, err := adCtx.comp.host.OS.Runner().Command(adCtx.comp.namer.ResourceName("ensure-adws-started"), &command.Args{
-		Create: pulumi.String(`
+		Create: pulumi.String(`powershell.exe -NoProfile -Command {
 (Get-Service ADWS).WaitForStatus('Running', '00:01:00')
 $timeout = [DateTime]::Now.AddMinutes(5)
 while ([DateTime]::Now -lt $timeout) {
@@ -146,7 +152,7 @@ while ([DateTime]::Now -lt $timeout) {
 if ([DateTime]::Now -ge $timeout) {
     throw "Get-ADDomain timed out"
 }
-`),
+}`),
 	}, utils.PulumiDependsOn(waitForRebootCmd))
 	if err != nil {
 		return err

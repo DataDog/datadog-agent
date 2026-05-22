@@ -101,7 +101,7 @@ func (s *testExtensionsSuite) verifyDDOTRunning(expectedVersion string) {
 			return true
 		}
 		binaryPath, err := s.Env().RemoteHost.Execute(
-			`(Get-WmiObject -Class Win32_Service -Filter "Name='datadog-otel-agent'").PathName`)
+			`(Get-CimInstance -ClassName Win32_Service -Filter "Name='datadog-otel-agent'").PathName`)
 		if err != nil {
 			return false
 		}

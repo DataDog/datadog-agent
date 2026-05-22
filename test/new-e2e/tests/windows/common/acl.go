@@ -458,7 +458,7 @@ func FindWorldWritablePaths(host *components.RemoteHost, paths []string) ([]stri
 	pathArray := fmt.Sprintf("@('%s')", strings.Join(paths, "','"))
 
 	// Call ConvertTo-JSON in this way to ensure that the output is a JSON array
-	cmd := fmt.Sprintf(`. %s; ConvertTo-JSON -InputObject @(Find-WorldWritableFilesInPaths -paths %s)`, aclHelpersPath, pathArray)
+	cmd := fmt.Sprintf(`. %s; ConvertTo-JSON -WarningAction SilentlyContinue -InputObject @(Find-WorldWritableFilesInPaths -paths %s)`, aclHelpersPath, pathArray)
 	output, err := host.Execute(cmd)
 	if err != nil {
 		return nil, err

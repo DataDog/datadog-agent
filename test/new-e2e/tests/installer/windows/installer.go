@@ -168,12 +168,7 @@ func (d *DatadogInstaller) SetCatalog(newCatalog Catalog) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// s.T().Logf("Running: daemon set-catalog '%s'", string(serializedCatalog))
-	// escaping the quotes really shouldn't be necessary because powershell will not parse them
-	// when inside the single quotes but it seems like Golang is doing something weird with the
-	// quotes, but only on Windows since this works fine on Linux without escaping.
-	catalog := strings.ReplaceAll(string(serializedCatalog), `"`, `\"`)
-	return d.execute(fmt.Sprintf("daemon set-catalog '%s'", catalog))
+	return d.execute(fmt.Sprintf("daemon set-catalog '%s'", string(serializedCatalog)))
 }
 
 // ignoreEOF ignores EOF errors
@@ -615,9 +610,7 @@ func (d *DatadogInstaller) SetConfigExperiment(config ConfigExperiment) (string,
 	if err != nil {
 		return "", err
 	}
-	// Escape quotes in the JSON string to handle PowerShell quoting properly
-	configStr := strings.ReplaceAll(string(serializedConfig), `"`, `\"`)
-	return d.execute(fmt.Sprintf("daemon set-config-catalog '%s'", configStr))
+	return d.execute(fmt.Sprintf("daemon set-config-catalog '%s'", string(serializedConfig)))
 }
 
 // StartConfigExperiment starts a config experiment using the provided InstallerConfig through the daemon.
@@ -633,11 +626,9 @@ func (d *DatadogInstaller) StartConfigExperiment(packageName string, config Conf
 	if err != nil {
 		return "", err
 	}
-	// Escape quotes in the JSON string to handle PowerShell quoting properly
-	opsStr := strings.ReplaceAll(string(serializedOps), `"`, `\"`)
 
 	// Then start the config experiment
-	return d.execute(fmt.Sprintf("daemon start-config-experiment %s '%s'", packageName, opsStr))
+	return d.execute(fmt.Sprintf("daemon start-config-experiment %s '%s'", packageName, string(serializedOps)))
 }
 
 // PromoteConfigExperiment promotes a config experiment through the daemon.

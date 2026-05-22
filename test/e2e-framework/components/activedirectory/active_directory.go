@@ -115,8 +115,11 @@ func NewActiveDirectory(ctx *pulumi.Context, e config.Env, host *remote.Host, op
 				}
 				userMaps[user.Username] = struct{}{}
 
+				// On Server 2016 the ActiveDirectory module loads via pwsh's compat
+				// shim; invoke via powershell.exe to run natively in Windows
+				// PowerShell 5.1.
 				createDomainUserCmd, err := host.OS.Runner().Command(comp.namer.ResourceName("create-domain-users", user.Username), &command.Args{
-					Create: pulumi.Sprintf(`
+					Create: pulumi.Sprintf(`powershell.exe -NoProfile -Command {
 $HashArguments = @{
 	Name = '%s'
 	AccountPassword = (ConvertTo-SecureString %s -AsPlainText -Force)
@@ -139,7 +142,7 @@ while ([DateTime]::Now -lt $timeout) {
     }
 }
 throw $adError
-`, user.Username, user.Password),
+}`, user.Username, user.Password),
 				}, pulumi.DependsOn(adCtx.createdResources))
 				if err != nil {
 					return err

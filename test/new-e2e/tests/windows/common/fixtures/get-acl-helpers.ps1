@@ -114,7 +114,7 @@ function ConvertTo-ACLDTO {
         }
 
         # Convert new ACL object to JSON
-        $newAclJson = $newAclObject | ConvertTo-Json -Depth 5
+        $newAclJson = $newAclObject | ConvertTo-Json -Depth 5 -WarningAction SilentlyContinue
 
         # Output modified JSON
         Write-Output $newAclJson
@@ -159,7 +159,7 @@ function ConvertTo-ServiceSecurityDTO {
         }
 
         # Convert new ACL object to JSON
-        $newAclJson = $newObject | ConvertTo-Json -Depth 5
+        $newAclJson = $newObject | ConvertTo-Json -Depth 5 -WarningAction SilentlyContinue
 
         # Output modified JSON
         Write-Output $newAclJson

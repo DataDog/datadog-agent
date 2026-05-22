@@ -134,11 +134,15 @@ func (b *baseInstaller) prepareInstaller(params Params) (string, error) {
 }
 
 // prepareEnvVars prepares the environment variables for the installation.
-// It combines the base environment variables with any extra variables provided in params.
+// It combines the base environment variables with any extra variables provided
+// in params, then removes any variables named in params.unsetEnvVars.
 // This is the base implementation that can be extended by specific installer types.
 func (b *baseInstaller) prepareEnvVars(params Params) map[string]string {
 	envVars := b.getBaseEnvVars()
 	maps.Copy(envVars, params.extraEnvVars)
+	for _, name := range params.unsetEnvVars {
+		delete(envVars, name)
+	}
 	return envVars
 }
 

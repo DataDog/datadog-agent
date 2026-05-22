@@ -128,7 +128,7 @@ func RestartService(host *components.RemoteHost, service string) error {
 //
 // https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/get-service?view=powershell-7.4
 func GetServiceConfig(host *components.RemoteHost, service string) (*ServiceConfig, error) {
-	cmd := fmt.Sprintf("Get-Service -Name '%s' | ConvertTo-Json", service)
+	cmd := fmt.Sprintf("Get-Service -Name '%s' | ConvertTo-Json -WarningAction SilentlyContinue", service)
 	output, err := host.Execute(cmd)
 	if err != nil {
 		fmt.Println(output)
@@ -208,14 +208,14 @@ func GetEmptyServiceConfigMap(services []string) ServiceConfigMap {
 
 // GetServiceAccountName returns the account name that the service runs as
 func GetServiceAccountName(host *components.RemoteHost, service string) (string, error) {
-	cmd := fmt.Sprintf("(Get-WmiObject Win32_Service -Filter \"Name=`'%s`'\").StartName", service)
+	cmd := fmt.Sprintf("(Get-CimInstance Win32_Service -Filter \"Name=`'%s`'\").StartName", service)
 	out, err := host.Execute(cmd)
 	return strings.TrimSpace(out), err
 }
 
 // GetServicePID returns the PID of the service
 func GetServicePID(host *components.RemoteHost, service string) (int, error) {
-	cmd := fmt.Sprintf("(Get-WmiObject Win32_Service -Filter \"Name=`'%s`'\").ProcessId", service)
+	cmd := fmt.Sprintf("(Get-CimInstance Win32_Service -Filter \"Name=`'%s`'\").ProcessId", service)
 	out, err := host.Execute(cmd)
 	if err != nil {
 		return 0, err
