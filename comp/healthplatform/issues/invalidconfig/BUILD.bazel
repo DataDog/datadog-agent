@@ -14,12 +14,12 @@ go_library(
         "//comp/core/config",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/store/def",
-        "//pkg/config/lite",
         "//pkg/config/schema",
         "//pkg/util/log",
         "//pkg/util/scrubber",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@in_yaml_go_yaml_v3//:yaml",
+        "@org_golang_google_protobuf//types/known/structpb",
     ],
 )
 
@@ -30,8 +30,6 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/config",
-        "//comp/healthplatform/store/def",
-        "//pkg/config/lite",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

@@ -10,8 +10,10 @@ package invalidconfig
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
+
+// IssueID is the stable Agent Health identifier for configuration-schema violations
+const IssueID = "invalid-config"
 
 func init() {
 	issues.RegisterModuleFactory(NewModule)
@@ -27,14 +29,14 @@ func NewModule(cfg config.Component) issues.Module {
 }
 
 func (m *invalidConfigModule) IssueType() string {
-	return storedef.InvalidConfigIssueID
+	return IssueID
 }
 
 func (m *invalidConfigModule) IssueTemplate() issues.IssueTemplate {
 	return InvalidConfigIssue{}
 }
 
-// BuiltInHealthCheck runs the schema validation once at agent startup
+// BuiltInPeriodicHealthCheck returns nil as schema validation runs only at startup
 func (m *invalidConfigModule) BuiltInPeriodicHealthCheck() *issues.BuiltInPeriodicHealthCheck {
 	return nil
 }
