@@ -319,6 +319,7 @@ func TestCheck_Run_Success(t *testing.T) {
 				Timestamp:    1754043600,
 				Tags:         expectedTags,
 				Content:      runningOutput,
+				ID:           "87b2343a-56d9-43bc-a35a-4d842dec9586",
 				ConfigHash:   hashConfigForTest(runningOutput),
 			},
 			{
@@ -329,6 +330,7 @@ func TestCheck_Run_Success(t *testing.T) {
 				Timestamp:    1754043600, // timestamp taken from agent collection (could not be extracted from config)
 				Tags:         expectedTags,
 				Content:      startupOutput,
+				ID:           "d348e53f-db31-47ed-8d50-11462d7a15e5",
 				ConfigHash:   hashConfigForTest(startupOutput),
 			},
 		},
