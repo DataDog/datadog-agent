@@ -44,14 +44,18 @@ log "Strip pass complete"
 
 # ─── Step 2: Remove build artefacts not needed at runtime ─────────────────────
 #
-# Headers, pkg-config metadata, and man pages are only needed during compilation.
+# pkg-config metadata and man pages are only needed during compilation.
 # Source files (.c/.h) inside the Python stdlib tree are not needed at runtime.
+# Note: embedded/include (Python.h etc.) is intentionally kept so users can
+# build C extension packages (e.g. ibm_db) against the embedded Python.
 # __pycache__ directories may contain stale .pyc files from an earlier compileall
 # run or a pip install; delete them before the fresh compileall in Step 4 so
 # there are no stale bytecode files with incorrect magic numbers.
 
-log "Removing build-time artefacts (headers, pkgconfig, man pages, .c/.h files)"
-rm -rf "$EMBEDDED_DESTDIR/include"
+log "Removing build-time artefacts (pkgconfig, man pages, .c/.h files)"
+# Keep embedded/include (Python headers) — users need Python.h to build C
+# extensions such as ibm_db. Linux/macOS omnibus packages also ship these
+# headers; we match that behaviour here.
 rm -rf "$EMBEDDED_DESTDIR/lib/pkgconfig"
 rm -rf "$EMBEDDED_DESTDIR/share/man"
 find "$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}" -name "*.c" -exec rm -f {} \;
