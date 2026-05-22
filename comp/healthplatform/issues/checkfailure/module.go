@@ -18,7 +18,7 @@ func init() {
 }
 
 const (
-	// IssueID is the unique identifier for check failure issues
+	// IssueID is the unique instance id prefix used when reporting check failures.
 	IssueID = "check-execution-failure"
 )
 
@@ -34,8 +34,8 @@ func NewModule(config.Component) issues.Module {
 	}
 }
 
-func (m *checkFailureModule) IssueType() string {
-	return IssueID
+func (m *checkFailureModule) IssueName() string {
+	return issueName
 }
 
 // IssueTemplate returns the template for building complete issues

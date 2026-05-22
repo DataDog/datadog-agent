@@ -74,7 +74,7 @@ func TestBuildIssue_Extra(t *testing.T) {
 
 func TestNewModule(t *testing.T) {
 	m := NewModule(nil)
-	assert.Equal(t, IssueID, m.IssueType())
+	assert.Equal(t, IssueName, m.IssueName())
 	assert.NotNil(t, m.IssueTemplate())
 	assert.Nil(t, m.BuiltInPeriodicHealthCheck())
 	assert.Nil(t, m.BuiltInStartupHealthCheck())

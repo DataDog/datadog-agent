@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
-
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
@@ -54,11 +53,11 @@ func (m *mockStore) ResolveIssue(id string) {
 	defer m.mu.Unlock()
 	m.resolvedIDs = append(m.resolvedIDs, id)
 }
-func (m *mockStore) ReportIssue(_ storedef.IssueReport) error                     { return nil }
+func (m *mockStore) ReportIssue(_ *healthplatformpayload.Issue) error             { return nil }
 func (m *mockStore) ResolveAllIssues()                                            {}
 func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue               { return nil }
 func (m *mockStore) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) { return 0, nil }
-func (m *mockStore) GetActiveIssueIDsByIssueType(_ string) []string               { return nil }
+func (m *mockStore) GetActiveIssueIDsByIssueName(_ string) []string               { return nil }
 
 func newTestScheduler(t *testing.T, runner runnerdef.Component, store storedef.Component) *scheduler {
 	t.Helper()
@@ -72,7 +71,7 @@ func newTestScheduler(t *testing.T, runner runnerdef.Component, store storedef.C
 
 func TestScheduleRegisters(t *testing.T) {
 	s := newTestScheduler(t, &mockRunner{}, &mockStore{})
-	fn := func() ([]storedef.IssueReport, error) { return nil, nil }
+	fn := func() ([]runnerdef.IssueReport, error) { return nil, nil }
 
 	require.NoError(t, s.Schedule("mycomp", fn, time.Minute, nil))
 
@@ -84,7 +83,7 @@ func TestScheduleRegisters(t *testing.T) {
 
 func TestScheduleValidation(t *testing.T) {
 	s := newTestScheduler(t, &mockRunner{}, &mockStore{})
-	fn := func() ([]storedef.IssueReport, error) { return nil, nil }
+	fn := func() ([]runnerdef.IssueReport, error) { return nil, nil }
 
 	assert.Error(t, s.Schedule("", fn, time.Minute, nil))
 	assert.Error(t, s.Schedule("mycomp", nil, time.Minute, nil))
@@ -92,7 +91,7 @@ func TestScheduleValidation(t *testing.T) {
 
 func TestScheduleDuplicateSource(t *testing.T) {
 	s := newTestScheduler(t, &mockRunner{}, &mockStore{})
-	fn := func() ([]storedef.IssueReport, error) { return nil, nil }
+	fn := func() ([]runnerdef.IssueReport, error) { return nil, nil }
 
 	require.NoError(t, s.Schedule("mycomp", fn, time.Minute, nil))
 	assert.Error(t, s.Schedule("mycomp", fn, time.Minute, nil))
@@ -100,7 +99,7 @@ func TestScheduleDuplicateSource(t *testing.T) {
 
 func TestScheduleDefaultInterval(t *testing.T) {
 	s := newTestScheduler(t, &mockRunner{}, &mockStore{})
-	fn := func() ([]storedef.IssueReport, error) { return nil, nil }
+	fn := func() ([]runnerdef.IssueReport, error) { return nil, nil }
 
 	require.NoError(t, s.Schedule("mycomp", fn, 0, nil))
 
@@ -119,7 +118,7 @@ func TestTickDiffResolveDisappeared(t *testing.T) {
 
 	check := &registeredHealthCheck{
 		source:       "mycomp",
-		fn:           func() ([]storedef.IssueReport, error) { return nil, nil },
+		fn:           func() ([]runnerdef.IssueReport, error) { return nil, nil },
 		lastIssueIDs: make(map[string]struct{}),
 		stopCh:       make(chan struct{}),
 	}
@@ -151,7 +150,7 @@ func TestTickEmptyResultResolvesAll(t *testing.T) {
 
 	check := &registeredHealthCheck{
 		source:       "mycomp",
-		fn:           func() ([]storedef.IssueReport, error) { return nil, nil },
+		fn:           func() ([]runnerdef.IssueReport, error) { return nil, nil },
 		lastIssueIDs: make(map[string]struct{}),
 		stopCh:       make(chan struct{}),
 	}
@@ -180,7 +179,7 @@ func TestTickErrorDoesNotResolveActiveIssues(t *testing.T) {
 
 	check := &registeredHealthCheck{
 		source:       "mycomp",
-		fn:           func() ([]storedef.IssueReport, error) { return nil, nil },
+		fn:           func() ([]runnerdef.IssueReport, error) { return nil, nil },
 		lastIssueIDs: make(map[string]struct{}),
 		stopCh:       make(chan struct{}),
 	}
@@ -220,7 +219,7 @@ func TestSchedulerLifecycle(t *testing.T) {
 	}
 	s := newTestScheduler(t, mr, &mockStore{})
 
-	fn := func() ([]storedef.IssueReport, error) { return nil, nil }
+	fn := func() ([]runnerdef.IssueReport, error) { return nil, nil }
 	require.NoError(t, s.Schedule("mycomp", fn, 20*time.Millisecond, nil))
 
 	require.NoError(t, s.start(context.Background()))
