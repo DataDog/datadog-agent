@@ -9,6 +9,10 @@ permissions:
   # write permissions are needed to create the comment
   pull-requests: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   old-versions-match:
     # Only run if the PR is labeled with 'go-update'
