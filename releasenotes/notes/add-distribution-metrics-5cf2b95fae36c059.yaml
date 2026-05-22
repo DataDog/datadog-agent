@@ -3,4 +3,4 @@ features:
   - |
     Two new distribution metrics have been added for the GPU Monitoring product:
     * ``gpu.sm_active.dist``: Percentage of time the streaming multiprocessor was active, as a distribution
-    * ``gr_engine_active.dist``: Percent of time that the graphics engine was active, as a distribution
+    * ``gpu.gr_engine_active.dist``: Percent of time that the graphics engine was active, as a distribution
