@@ -31,12 +31,8 @@ var ScriptDDHostInstall []byte
 //go:embed tmpl/gen/debrpm/*.service
 var systemdUnits embed.FS
 
-//go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
-//go:embed tmpl/gen/debrpm/datadog-agent-ddot-exp.yaml
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot-sa.yaml
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot-sa-exp.yaml
-//go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot.yaml
-//go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot-exp.yaml
 //go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot-sa.yaml
 //go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot-sa-exp.yaml
 //go:embed tmpl/gen/oci/datadog-agent-ddot.yaml

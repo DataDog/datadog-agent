@@ -14,11 +14,9 @@ service_srcs = [
     "tmpl/gen/debrpm/datadog-agent-data-plane-exp.service",
     "tmpl/gen/debrpm/datadog-agent-data-plane.service",
     "tmpl/gen/debrpm/datadog-agent-ddot-exp.service",
-    "tmpl/gen/debrpm/datadog-agent-ddot-exp.yaml",
     "tmpl/gen/debrpm/datadog-agent-ddot-sa-exp.yaml",
     "tmpl/gen/debrpm/datadog-agent-ddot-sa.yaml",
     "tmpl/gen/debrpm/datadog-agent-ddot.service",
-    "tmpl/gen/debrpm/datadog-agent-ddot.yaml",
     "tmpl/gen/debrpm/datadog-agent-exp.service",
     "tmpl/gen/debrpm/datadog-agent-installer-exp.service",
     "tmpl/gen/debrpm/datadog-agent-installer.service",
@@ -63,10 +61,8 @@ service_srcs = [
 # service_srcs + glob(nocap/**) does not list duplicate embedsrc labels.
 # keep
 ddot_nocap_yaml_embedsrcs = [
-    "tmpl/gen/debrpm-nocap/datadog-agent-ddot-exp.yaml",
     "tmpl/gen/debrpm-nocap/datadog-agent-ddot-sa-exp.yaml",
     "tmpl/gen/debrpm-nocap/datadog-agent-ddot-sa.yaml",
-    "tmpl/gen/debrpm-nocap/datadog-agent-ddot.yaml",
     "tmpl/gen/oci-nocap/datadog-agent-ddot-exp.yaml",
     "tmpl/gen/oci-nocap/datadog-agent-ddot-sa-exp.yaml",
     "tmpl/gen/oci-nocap/datadog-agent-ddot-sa.yaml",
