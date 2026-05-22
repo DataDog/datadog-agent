@@ -6,7 +6,6 @@ Notes about Agent6:
     the task will be run in the agent6 branch.
 """
 
-import json
 import os
 import sys
 import tempfile
