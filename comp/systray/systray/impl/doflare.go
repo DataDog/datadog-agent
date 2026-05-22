@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"net"
 	"regexp"
 	"strconv"
 	"sync"
@@ -180,7 +181,8 @@ func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string
 	if err != nil {
 		return "", err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+	addr := net.JoinHostPort(ipcAddress, strconv.Itoa(pkgconfigsetup.Datadog().GetInt("cmd_port")))
+	urlstr := fmt.Sprintf("https://%s/agent/flare", addr)
 
 	r, e := s.client.Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	var filePath string

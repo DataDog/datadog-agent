@@ -121,7 +121,7 @@ func TestAsJsonFieldError(t *testing.T) {
 	infoNotExported := &struct {
 		// use a json tag to make sure the error is due to the field not being exported
 		// but govet doesn't like that
-		notExported Value[int] `json:"not_exported"` //nolint:govet
+		notExported Value[int] `json:"not_exported"` //nolint:govet,staticcheck
 	}{
 		notExported: NewValue(3),
 	}

@@ -54,10 +54,10 @@ import (
 
 const (
 	// defaultMaxRetry is the default maximum number of retries for a pending message
-	defaultMaxRetry = 5
+	defaultMaxRetry = 25
 
 	// retryDelay is the delay between retries, changing this value may impact the retry logic.
-	retryDelay = time.Second
+	retryDelay = 200 * time.Millisecond
 )
 
 type pendingMsg struct {
@@ -84,6 +84,54 @@ func (p *pendingMsg) getMaxRetry() int {
 		maxRetry = max(maxRetry, p.sshSessionPatcher.MaxRetry())
 	}
 	return maxRetry
+}
+
+// tryResolve collects external tags and checks whether the message is ready to be
+// sent. Returns false when the message should be retried later. Increments server
+// counters for skipped retries and missing tags.
+func (a *APIServer) tryResolve(msg *pendingMsg, isRetryAllowed bool) bool {
+	var (
+		skippedRetry bool
+		missingTags  bool
+	)
+
+	if msg.extTagsCb != nil {
+		tags, retryable := msg.extTagsCb()
+		if len(tags) == 0 {
+			if isRetryAllowed && retryable && msg.retry < msg.getMaxRetry() {
+				return false
+			}
+			missingTags = true
+			// skippedRetry only when queue pressure forced us past a retryable miss
+			if !isRetryAllowed && retryable && msg.retry < msg.getMaxRetry() {
+				skippedRetry = true
+			}
+		} else {
+			for _, tag := range tags {
+				if !slices.Contains(msg.tags, tag) {
+					msg.tags = append(msg.tags, tag)
+				}
+			}
+		}
+	}
+
+	if !msg.isResolved() {
+		if isRetryAllowed && msg.retry < msg.getMaxRetry() {
+			return false
+		}
+		if !isRetryAllowed && msg.retry < msg.getMaxRetry() {
+			skippedRetry = true
+		}
+	}
+
+	if skippedRetry {
+		a.skippedRetryCount.Inc()
+	}
+	if missingTags {
+		a.missingTagsCount.Inc()
+	}
+
+	return true
 }
 
 func (p *pendingMsg) isResolved() bool {
@@ -184,6 +232,11 @@ type APIServer struct {
 	envAsTags          []string
 	containerFilter    workloadfilter.FilterBundle
 
+	// retry queue metrics counters
+	retryCount        atomic.Int64
+	skippedRetryCount atomic.Int64
+	missingTagsCount  atomic.Int64
+
 	// os release data
 	kernelVersion string
 	distribution  string
@@ -192,6 +245,7 @@ type APIServer struct {
 	stopper  startstop.Stopper
 	wg       sync.WaitGroup
 
+	hostname               string
 	securityAgentAPIClient *SecurityAgentAPIClient
 }
 
@@ -254,7 +308,7 @@ func (a *APIServer) enqueue(msg *pendingMsg) {
 	a.queueLock.Unlock()
 }
 
-func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) bool) {
+func (a *APIServer) dequeue(now time.Time, sendCallback func(msg *pendingMsg, retry bool) bool) {
 	a.queueLock.Lock()
 	defer a.queueLock.Unlock()
 
@@ -268,7 +322,7 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) 
 			return false
 		}
 
-		if cb(msg, queueSize < a.cfg.EventRetryQueueThreshold) {
+		if sendCallback(msg, queueSize < a.cfg.EventRetryQueueThreshold) {
 			queueSize--
 			return true
 		}
@@ -283,6 +337,7 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) 
 		seclog.Debugf("failed to send event for rule `%s`, retry %d/%d, queue size: %d", msg.ruleID, msg.retry, msgMaxRetry, len(a.queue))
 
 		msg.sendAfter = now.Add(retryDelay)
+		a.retryCount.Inc()
 		msg.retry++
 
 		return false
@@ -352,7 +407,7 @@ func SendCustomEventKillAction(probe *sprobe.Probe, tags []string, actionReports
 }
 
 func (a *APIServer) start(ctx context.Context) {
-	ticker := time.NewTicker(200 * time.Millisecond)
+	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -363,22 +418,7 @@ func (a *APIServer) start(ctx context.Context) {
 					seclog.Debugf("queue limit reached: %d, sending event anyway", len(a.queue))
 				}
 
-				if msg.extTagsCb != nil && isRetryAllowed {
-					tags, retryable := msg.extTagsCb()
-					if len(tags) == 0 && retryable && msg.retry < msg.getMaxRetry() {
-						return false
-					}
-
-					// dedup
-					for _, tag := range tags {
-						if !slices.Contains(msg.tags, tag) {
-							msg.tags = append(msg.tags, tag)
-						}
-					}
-				}
-
-				// not fully resolved, retry
-				if !msg.isResolved() && isRetryAllowed && msg.retry < msg.getMaxRetry() {
+				if !a.tryResolve(msg, isRetryAllowed) {
 					return false
 				}
 
@@ -387,7 +427,7 @@ func (a *APIServer) start(ctx context.Context) {
 				SendCustomEventKillAction(a.probe, msg.tags, msg.actionReports)
 				if a.containerFilter != nil {
 					containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
-					if a.containerFilter.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil))) {
+					if a.containerFilter.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil))) {
 						// similar return value as if we had sent the message
 						return true
 					}
@@ -407,8 +447,13 @@ func (a *APIServer) start(ctx context.Context) {
 					Service:   msg.service,
 					Tags:      msg.tags,
 					Timestamp: timestamppb.New(msg.timestamp),
+					Hostname:  a.hostname,
 				}
 				a.updateMsgService(m)
+
+				if err := a.statsdClient.Distribution(metrics.MetricEventServerRetriesBeforeSend, float64(msg.retry), []string{}, 1.0); err != nil {
+					seclog.Tracef("failed to send retries_before_send metric: %v", err)
+				}
 
 				a.msgSender.Send(m, a.expireEvent)
 
@@ -626,6 +671,31 @@ func (a *APIServer) SendStats() error {
 				return err
 			}
 		}
+	}
+
+	// retry queue counters (delta since last call)
+	if val := a.retryCount.Swap(0); val > 0 {
+		if err := a.statsdClient.Count(metrics.MetricEventServerRetry, val, []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if val := a.skippedRetryCount.Swap(0); val > 0 {
+		if err := a.statsdClient.Count(metrics.MetricEventServerSkippedRetry, val, []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if val := a.missingTagsCount.Swap(0); val > 0 {
+		if err := a.statsdClient.Count(metrics.MetricEventServerMissingTags, val, []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+
+	// current queue depth
+	a.queueLock.Lock()
+	queueSize := int64(len(a.queue))
+	a.queueLock.Unlock()
+	if err := a.statsdClient.Gauge(metrics.MetricEventServerQueueSize, float64(queueSize), []string{}, 1.0); err != nil {
+		return err
 	}
 
 	// telemetry for msg senders
@@ -865,10 +935,11 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		connEstablished: atomic.NewBool(false),
 		envAsTags:       getEnvAsTags(cfg),
 		containerFilter: containerFilter,
+		hostname:        hostname,
 	}
 
-	if !cfg.SendPayloadsFromSystemProbe && cfg.EventGRPCServer == "security-agent" {
-		seclog.Infof("setting up security agent api client")
+	if !cfg.SendPayloadsFromSystemProbe && (cfg.EventGRPCServer == "security-agent" || cfg.EventGRPCServer == "system-probe") {
+		seclog.Infof("setting up runtime security agent api client")
 
 		securityAgentAPIClient, err := NewSecurityAgentAPIClient(cfg)
 		if err != nil {

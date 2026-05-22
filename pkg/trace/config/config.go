@@ -274,6 +274,9 @@ type ProfilingProxyConfig struct {
 	AdditionalEndpoints map[string][]string
 	// ReceiverTimeout is the timeout in seconds for profile upload requests
 	ReceiverTimeout int
+	// MaxRequestBytes is the maximum body size buffered when fanning out to
+	// multiple profiling endpoints. Defaults to 50 MB.
+	MaxRequestBytes int64
 }
 
 // EVPProxy contains the settings for the EVPProxy proxy.
@@ -367,12 +370,15 @@ type AgentConfig struct {
 	Endpoints []*Endpoint
 
 	// Concentrator
-	BucketInterval            time.Duration // the size of our pre-aggregation per bucket
-	ExtraAggregators          []string      // DEPRECATED
-	PeerTagsAggregation       bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
-	ComputeStatsBySpanKind    bool          // enables/disables the computing of stats based on a span's `span.kind` field
-	PeerTags                  []string      // additional tags to use for peer entity stats aggregation
-	SpanDerivedPrimaryTagKeys []string      // tag keys to use for span-derived primary tag stats aggregation
+	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
+	ExtraAggregators       []string      // DEPRECATED
+	PeerTagsAggregation    bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
+	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
+	PeerTags               []string      // additional tags to use for peer entity stats aggregation
+	// Deprecated/Experimental: only populated when the agent runs in a serverless
+	// context (Datadog AAS extension or cmd/serverless-init). See
+	// ConfiguredSpanDerivedPrimaryTagKeys.
+	SpanDerivedPrimaryTagKeys []string
 
 	// Sampler configuration
 	ExtraSampleRate float64
@@ -512,6 +518,11 @@ type AgentConfig struct {
 	// DebuggerIntakeProxy contains the settings for the Live Debugger intake proxy.
 	DebuggerIntakeProxy DebuggerProxyConfig
 
+	// DebuggerLogsEnabled indicates whether logs are enabled at the agent level.
+	// When false, debugger proxy endpoints drop incoming data to respect the
+	// customer's intent of having the Logs product disabled.
+	DebuggerLogsEnabled bool
+
 	// SymDBProxy contains the settings for the Symbol Database proxy.
 	SymDBProxy SymDBProxyConfig
 
@@ -643,11 +654,14 @@ func New() *AgentConfig {
 
 		ErrorTrackingStandalone: false,
 
-		ReceiverEnabled:        true,
-		ReceiverHost:           "localhost",
-		ReceiverPort:           8126,
-		ReceiverIdleTimeout:    60 * time.Second,
-		MaxRequestBytes:        25 * 1024 * 1024, // 25MB
+		ReceiverEnabled:     true,
+		ReceiverHost:        "localhost",
+		ReceiverPort:        8126,
+		ReceiverIdleTimeout: 60 * time.Second,
+		MaxRequestBytes:     25 * 1024 * 1024, // 25MB
+		ProfilingProxy: ProfilingProxyConfig{
+			MaxRequestBytes: 50 * 1024 * 1024, // 50MB
+		},
 		PipeBufferSize:         1_000_000,
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",
@@ -812,7 +826,20 @@ func (c *AgentConfig) ConfiguredPeerTags() []string {
 	if !c.PeerTagsAggregation {
 		return nil
 	}
-	return preparePeerTags(append(basePeerTags, c.PeerTags...))
+	return preparePeerTags(append(basePeerTags(), c.PeerTags...))
+}
+
+// ConfiguredSpanDerivedPrimaryTagKeys returns the configured span-derived primary
+// tag keys used for stats aggregation.
+//
+// Deprecated/Experimental: this is only populated in serverless contexts (the
+// Datadog AAS extension, or cmd/serverless-init for Cloud Run / Container Apps /
+// Cloud Run Functions). Tracers should send additional_metric_tags instead.
+func (c *AgentConfig) ConfiguredSpanDerivedPrimaryTagKeys() []string {
+	if len(c.SpanDerivedPrimaryTagKeys) == 0 {
+		return nil
+	}
+	return preparePeerTags(c.SpanDerivedPrimaryTagKeys)
 }
 
 func inAzureAppServices() bool {

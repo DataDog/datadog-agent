@@ -12,12 +12,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type subscription struct {
+	ch   chan *LogSource
+	done chan struct{}
+}
+
 // LogSources serves as the interface between Schedulers and Launchers, distributing
 // notifications of added/removed LogSources to subscribed Launchers.
 //
 // Each subscription receives its own unbuffered channel for sources, and should
-// consume from the channel quickly to avoid blocking other goroutines.  There is
-// no means to unsubscribe.
+// consume from the channel quickly to avoid blocking other goroutines.
+// Callers must provide a done channel and close it when they stop consuming,
+// so that blocked sends can be skipped.
 //
 // If any sources have been added when GetAddedForType is called, then those sources
 // are immediately sent to the channel.
@@ -26,17 +32,17 @@ import (
 type LogSources struct {
 	mu            sync.Mutex
 	sources       []*LogSource
-	added         []chan *LogSource
-	addedByType   map[string][]chan *LogSource
-	removed       []chan *LogSource
-	removedByType map[string][]chan *LogSource
+	added         []*subscription
+	addedByType   map[string][]*subscription
+	removed       []*subscription
+	removedByType map[string][]*subscription
 }
 
 // NewLogSources creates a new log sources.
 func NewLogSources() *LogSources {
 	return &LogSources{
-		addedByType:   make(map[string][]chan *LogSource),
-		removedByType: make(map[string][]chan *LogSource),
+		addedByType:   make(map[string][]*subscription),
+		removedByType: make(map[string][]*subscription),
 	}
 }
 
@@ -57,11 +63,17 @@ func (s *LogSources) AddSource(source *LogSource) {
 	s.mu.Unlock()
 
 	for _, stream := range streams {
-		stream <- source
+		select {
+		case stream.ch <- source:
+		case <-stream.done:
+		}
 	}
 
 	for _, stream := range streamsForType {
-		stream <- source
+		select {
+		case stream.ch <- source:
+		case <-stream.done:
+		}
 	}
 }
 
@@ -86,10 +98,16 @@ func (s *LogSources) RemoveSource(source *LogSource) {
 
 	if sourceFound {
 		for _, stream := range streams {
-			stream <- source
+			select {
+			case stream.ch <- source:
+			case <-stream.done:
+			}
 		}
 		for _, stream := range streamsForType {
-			stream <- source
+			select {
+			case stream.ch <- source:
+			case <-stream.done:
+			}
 		}
 	}
 }
@@ -99,12 +117,12 @@ func (s *LogSources) RemoveSource(source *LogSource) {
 // added or removed concurrently.
 //
 // Any sources added before this call are delivered from a new goroutine.
-func (s *LogSources) SubscribeAll() (added chan *LogSource, removed chan *LogSource) {
+func (s *LogSources) SubscribeAll(addedDone, removedDone chan struct{}) (chan *LogSource, chan *LogSource) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	added = make(chan *LogSource)
-	removed = make(chan *LogSource)
+	added := &subscription{ch: make(chan *LogSource), done: addedDone}
+	removed := &subscription{ch: make(chan *LogSource), done: removedDone}
 
 	s.added = append(s.added, added)
 	s.removed = append(s.removed, removed)
@@ -112,11 +130,15 @@ func (s *LogSources) SubscribeAll() (added chan *LogSource, removed chan *LogSou
 	existingSources := slices.Clone(s.sources) // clone for goroutine
 	go func() {
 		for _, source := range existingSources {
-			added <- source
+			select {
+			case added.ch <- source:
+			case <-addedDone:
+				return
+			}
 		}
 	}()
 
-	return
+	return added.ch, removed.ch
 }
 
 // SubscribeForType returns two channels carrying notifications of added and
@@ -124,20 +146,20 @@ func (s *LogSources) SubscribeAll() (added chan *LogSource, removed chan *LogSou
 // consistency if sources are added or removed concurrently.
 //
 // Any sources added before this call are delivered from a new goroutine.
-func (s *LogSources) SubscribeForType(sourceType string) (added chan *LogSource, removed chan *LogSource) {
+func (s *LogSources) SubscribeForType(sourceType string, addedDone, removedDone chan struct{}) (chan *LogSource, chan *LogSource) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	added = make(chan *LogSource)
-	removed = make(chan *LogSource)
+	added := &subscription{ch: make(chan *LogSource), done: addedDone}
+	removed := &subscription{ch: make(chan *LogSource), done: removedDone}
 
 	if _, exists := s.addedByType[sourceType]; !exists {
-		s.addedByType[sourceType] = []chan *LogSource{}
+		s.addedByType[sourceType] = []*subscription{}
 	}
 	s.addedByType[sourceType] = append(s.addedByType[sourceType], added)
 
 	if _, exists := s.removedByType[sourceType]; !exists {
-		s.removedByType[sourceType] = []chan *LogSource{}
+		s.removedByType[sourceType] = []*subscription{}
 	}
 	s.removedByType[sourceType] = append(s.removedByType[sourceType], removed)
 
@@ -145,40 +167,48 @@ func (s *LogSources) SubscribeForType(sourceType string) (added chan *LogSource,
 	go func() {
 		for _, source := range existingSources {
 			if source.Config.Type == sourceType {
-				added <- source
+				select {
+				case added.ch <- source:
+				case <-addedDone:
+					return
+				}
 			}
 		}
 	}()
 
-	return
+	return added.ch, removed.ch
 }
 
 // GetAddedForType returns a channel carrying notifications of new sources
 // with the given type.
 //
 // Any sources added before this call are delivered from a new goroutine.
-func (s *LogSources) GetAddedForType(sourceType string) chan *LogSource {
+func (s *LogSources) GetAddedForType(sourceType string, addedDone chan struct{}) chan *LogSource {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	_, exists := s.addedByType[sourceType]
 	if !exists {
-		s.addedByType[sourceType] = []chan *LogSource{}
+		s.addedByType[sourceType] = []*subscription{}
 	}
 
-	stream := make(chan *LogSource)
+	stream := &subscription{ch: make(chan *LogSource), done: addedDone}
 	s.addedByType[sourceType] = append(s.addedByType[sourceType], stream)
 
 	existingSources := slices.Clone(s.sources) // clone for goroutine
 	go func() {
 		for _, source := range existingSources {
 			if source.Config.Type == sourceType {
-				stream <- source
+				select {
+				case stream.ch <- source:
+				case <-addedDone:
+					return
+				}
 			}
 		}
 	}()
 
-	return stream
+	return stream.ch
 }
 
 // GetSources returns all the sources currently held.  The result is copied and

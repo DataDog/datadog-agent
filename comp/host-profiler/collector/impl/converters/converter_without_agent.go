@@ -46,7 +46,7 @@ var resourceDetectionDefaultConfig = confMap{
 //   - Check if used otlphttpexporter has dd-api-key as string, if not string convert it, if not at all notify user
 //   - If profiling::symbol_uploader::enabled == true, convert api_key/app_key to strings in each endpoint
 //   - If no profiling is used & configured, add minimal one with symbol_uploader: false
-//   - remove ddprofiling & hpflare extensions
+//   - remove hpflare extensions
 type converterWithoutAgent struct{}
 
 func newConverterWithoutAgent(convSettings confmap.ConverterSettings) confmap.Converter {
@@ -187,6 +187,7 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 		return nil, err
 	}
 	foundResourcedetection := false
+	foundDDHostNameProcessor := false
 	toDelete := make(map[string]bool)
 
 	// remove infraattributes, track & sanitize resourcedetection
@@ -212,6 +213,10 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 			}
 			foundResourcedetection = true
 		}
+
+		if isComponentType(name, componentTypeDDHostNameProcessor) {
+			foundDDHostNameProcessor = true
+		}
 	}
 
 	// Add resourcedetection/default if none found
@@ -221,6 +226,15 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 		}
 		slog.Warn("Added minimal resourcedetection processor to user configuration")
 		processorNames = append(processorNames, defaultResourceDetectionName)
+	}
+
+	// Add ddhostname/default if none found
+	if !foundDDHostNameProcessor {
+		if err := Set(processors, defaultDDHostNameProcessorName, confMap{}); err != nil {
+			return nil, err
+		}
+		slog.Info("Added minimal ddhostname processor to user configuration")
+		processorNames = append(processorNames, defaultDDHostNameProcessorName)
 	}
 
 	// Remove processors marked for deletion
@@ -353,7 +367,7 @@ func (c *converterWithoutAgent) ensureOtlpHTTPExporterConfig(conf confMap, expor
 			if !ensureKeyStringValue(headers, fieldDDAPIKey) {
 				return fmt.Errorf("%s exporter missing required dd-api-key header", name)
 			}
-			if _, err := SetDefault(headers, fieldDDEVPOrigin, version.ProfilerName); err != nil {
+			if _, err := SetDefault(headers, fieldDDEVPOrigin, version.StandaloneProfilerName); err != nil {
 				return err
 			}
 			if _, err := SetDefault(headers, fieldDDEVPOriginVersion, version.ProfilerVersion); err != nil {
@@ -382,14 +396,19 @@ func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 
 	// Filter out agent-only extensions
 	filteredExtensions := make([]any, 0, len(extensions))
+	ddProfilingExtensions := 0
 	for _, extAny := range extensions {
 		ext, ok := extAny.(string)
 		if !ok {
 			return errors.New("extension names in service should be strings")
 		}
 
-		// Skip ddprofiling and hpflare extensions
-		if isComponentType(ext, componentTypeDDProfiling) || isComponentType(ext, componentTypeHPFlare) {
+		if isComponentType(ext, componentTypeDDProfiling) {
+			ddProfilingExtensions++
+		}
+
+		// Skip hpflare extensions
+		if isComponentType(ext, componentTypeHPFlare) {
 			continue
 		}
 
@@ -398,11 +417,15 @@ func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 
 	service["extensions"] = filteredExtensions
 
+	if ddProfilingExtensions > 1 {
+		return errors.New("only one ddprofiling extension can be enabled in standalone mode")
+	}
+
 	// Also remove the extension definitions from global config
 	extensionsConf, ok := Get[confMap](conf, "extensions")
 	if ok {
 		for name := range extensionsConf {
-			if isComponentType(name, componentTypeDDProfiling) || isComponentType(name, componentTypeHPFlare) {
+			if isComponentType(name, componentTypeHPFlare) {
 				delete(extensionsConf, name)
 			}
 		}

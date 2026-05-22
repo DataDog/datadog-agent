@@ -20,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -97,6 +97,13 @@ var DefaultMaxClockRates = map[nvml.ClockType]uint32{
 var DefaultFieldValues = map[uint32]uint64{
 	nvml.FI_DEV_NVLINK_LINK_COUNT: 2,
 }
+
+const (
+	mockPpcntGroupPLR         = 0x22
+	mockPpcntSizeBytes        = 256
+	mockRegTLVHeaderLenDwords = 1
+	mockDwordSizeBytes        = 4
+)
 
 // DevicesWithMIGChildren is a list of device indexes that have MIG children.
 var DevicesWithMIGChildren = []int{5, 6}
@@ -371,6 +378,30 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}
 			return 0, nvml.SUCCESS
 		},
+		GetCurrPcieLinkGenerationFunc: func() (int, nvml.Return) {
+			if isMIGOrVGPUUnsupported {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			return 1, nvml.SUCCESS
+		},
+		GetMaxPcieLinkGenerationFunc: func() (int, nvml.Return) {
+			if isMIGOrVGPUUnsupported {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			return 4, nvml.SUCCESS
+		},
+		GetCurrPcieLinkWidthFunc: func() (int, nvml.Return) {
+			if isMIGOrVGPUUnsupported {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			return 8, nvml.SUCCESS
+		},
+		GetMaxPcieLinkWidthFunc: func() (int, nvml.Return) {
+			if isMIGOrVGPUUnsupported {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			return 16, nvml.SUCCESS
+		},
 		GetRemappedRowsFunc: func() (int, int, bool, bool, nvml.Return) {
 			if isMIGOrVGPUUnsupported {
 				return 0, 0, false, false, nvml.ERROR_NOT_SUPPORTED
@@ -415,6 +446,12 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 0, nvml.SUCCESS
+		},
+		GetSramEccErrorStatusFunc: func() (nvml.EccSramErrorStatus, nvml.Return) {
+			if isMIGUnsupported || arch < nvml.DEVICE_ARCH_AMPERE {
+				return nvml.EccSramErrorStatus{}, nvml.ERROR_NOT_SUPPORTED
+			}
+			return nvml.EccSramErrorStatus{}, nvml.SUCCESS
 		},
 		GetIndexFunc: func() (int, nvml.Return) {
 			return deviceIdx, nvml.SUCCESS
@@ -527,10 +564,11 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}
 			return getGpuInstanceProfileInfo(deviceIdx), nvml.SUCCESS
 		},
-		ReadWritePRM_v1Func: func(_ *nvml.PRMTLV_v1) nvml.Return {
+		ReadWritePRM_v1Func: func(buffer *nvml.PRMTLV_v1) nvml.Return {
 			if opts.isVGPU() || opts.isMIGMode() || opts.architecture < nvml.DEVICE_ARCH_BLACKWELL {
 				return nvml.ERROR_NOT_SUPPORTED
 			}
+			fillMockPLRPRMResponse(buffer)
 			return nvml.SUCCESS
 		},
 	}
@@ -540,6 +578,31 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 	}
 
 	return mock
+}
+
+func fillMockPLRPRMResponse(buffer *nvml.PRMTLV_v1) {
+	port := uint64(binary.BigEndian.Uint32(buffer.InData[20:24]) >> 16)
+
+	regHeaderOffset := 4 * mockDwordSizeBytes
+	payloadOffset := regHeaderOffset + mockDwordSizeBytes
+	regLenDwords := uint32(mockPpcntSizeBytes/mockDwordSizeBytes + mockRegTLVHeaderLenDwords)
+	regHeader := uint32(3<<27) | (regLenDwords << 16)
+	binary.BigEndian.PutUint32(buffer.InData[regHeaderOffset:payloadOffset], regHeader)
+
+	payload := buffer.InData[payloadOffset : payloadOffset+mockPpcntSizeBytes]
+	for i := range payload {
+		payload[i] = 0
+	}
+	binary.BigEndian.PutUint32(payload[0:4], mockPpcntGroupPLR)
+
+	offset := 2 * mockDwordSizeBytes
+	for i := 0; i < 9; i++ {
+		value := port*100 + uint64(i)
+		binary.BigEndian.PutUint32(payload[offset:offset+mockDwordSizeBytes], uint32(value>>32))
+		offset += mockDwordSizeBytes
+		binary.BigEndian.PutUint32(payload[offset:offset+mockDwordSizeBytes], uint32(value))
+		offset += mockDwordSizeBytes
+	}
 }
 
 func getGpuInstanceProfileInfo(deviceIdx int) nvml.GpuInstanceProfileInfo {

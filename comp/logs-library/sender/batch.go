@@ -11,8 +11,8 @@ import (
 	"io"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

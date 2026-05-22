@@ -21,7 +21,7 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
@@ -107,6 +107,10 @@ func newFactoryForAgentWithType(
 		options = append(options, otlpmetrics.WithOTelPrefix())
 	}
 
+	if featuregates.InferIntervalDeltaFeatureGate.IsEnabled() {
+		options = append(options, otlpmetrics.WithInferDeltaInterval())
+	}
+
 	f := &factory{
 		s:            s,
 		hostProvider: hostGetter,
@@ -152,6 +156,10 @@ func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Facto
 		// old gate, no action needed
 	default:
 		options = append(options, otlpmetrics.WithRemapping())
+	}
+
+	if featuregates.InferIntervalDeltaFeatureGate.IsEnabled() {
+		options = append(options, otlpmetrics.WithInferDeltaInterval())
 	}
 
 	f := &factory{

@@ -1,4 +1,4 @@
-Main module: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
+=== yield 1 [final=true] ===
 Package: main
 	Function: busyloop (main.busyloop) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/busyloop/main.go [21:56] injectible: [21-27], [46-47], [49-51], [53-54], [56-56]
 		Arg: concurrency: int (declared at line 21, available: [21-56])

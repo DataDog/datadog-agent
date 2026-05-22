@@ -8,10 +8,12 @@
 package nvidia
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -614,6 +616,25 @@ use_sudo: true
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestRunCommand(t *testing.T) {
+	tests := []struct {
+		binary         string
+		args           []string
+		expectedOutput string
+	}{
+		{binary: "echo", args: []string{"hello"}, expectedOutput: "hello\n"},
+		{binary: "printf", args: []string{"%s", "hello"}, expectedOutput: "hello"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.binary, func(t *testing.T) {
+			out, err := runCommand(context.Background(), tt.binary, tt.args, false)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedOutput, string(out))
 		})
 	}
 }

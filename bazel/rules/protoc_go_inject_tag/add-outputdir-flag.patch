@@ -1,0 +1,59 @@
+diff --git a/file.go b/file.go
+index 5a7ef80..4bfc3cb 100644
+--- a/file.go
++++ b/file.go
+@@ -131,6 +131,10 @@ func parseFile(inputPath string, src interface{}, xxxSkip []string) (areas []tex
+ }
+ 
+ func writeFile(inputPath string, areas []textArea, removeTagComment bool) (err error) {
++	return writeFileTo(inputPath, inputPath, areas, removeTagComment)
++}
++
++func writeFileTo(inputPath, outputPath string, areas []textArea, removeTagComment bool) (err error) {
+ 	f, err := os.Open(inputPath)
+ 	if err != nil {
+ 		return
+@@ -151,12 +155,12 @@ func writeFile(inputPath string, areas []textArea, removeTagComment bool) (err e
+ 		logf("inject custom tag %q to expression %q", area.InjectTag, string(contents[area.Start-1:area.End-1]))
+ 		contents = injectTag(contents, area, removeTagComment)
+ 	}
+-	if err = os.WriteFile(inputPath, contents, 0o644); err != nil {
++	if err = os.WriteFile(outputPath, contents, 0o644); err != nil {
+ 		return
+ 	}
+ 
+ 	if len(areas) > 0 {
+-		logf("file %q is injected with custom tags", inputPath)
++		logf("file %q is injected with custom tags", outputPath)
+ 	}
+ 	return
+ }
+diff --git a/main.go b/main.go
+index 68f6161..d67d555 100644
+--- a/main.go
++++ b/main.go
+@@ -9,9 +9,10 @@ import (
+ )
+ 
+ func main() {
+-	var inputFiles, xxxTags string
++	var inputFiles, outputDir, xxxTags string
+ 	var removeTagComment bool
+ 	flag.StringVar(&inputFiles, "input", "", "pattern to match input file(s)")
++	flag.StringVar(&outputDir, "outputdir", "", "if set, write tagged copies into this directory instead of overwriting input in place")
+ 	flag.StringVar(&xxxTags, "XXX_skip", "", "tags that should be skipped (applies 'tag:\"-\"') for unknown fields (deprecated since protoc-gen-go v1.4.0)")
+ 	flag.BoolVar(&removeTagComment, "remove_tag_comment", false, "removes tag comments from the generated file(s)")
+ 	flag.BoolVar(&verbose, "verbose", false, "verbose logging")
+@@ -57,7 +58,11 @@ func main() {
+ 		if err != nil {
+ 			log.Fatal(err)
+ 		}
+-		if err = writeFile(path, areas, removeTagComment); err != nil {
++		outputPath := path
++		if outputDir != "" {
++			outputPath = filepath.Join(outputDir, filepath.Base(path))
++		}
++		if err = writeFileTo(path, outputPath, areas, removeTagComment); err != nil {
+ 			log.Fatal(err)
+ 		}
+ 	}

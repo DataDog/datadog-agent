@@ -293,7 +293,8 @@ func TestCollection(t *testing.T) {
 					port:   port,
 					ipc:    ipcComp,
 				},
-				IPC: ipcComp,
+				Config: mockStore.GetConfig(),
+				IPC:    ipcComp,
 			}
 
 			mockStore.Notify(test.preEvents)

@@ -15,6 +15,6 @@ go_test(
     name = "packet_test",
     srcs = ["packet_test.go"],
     embed = [":packet"],
-    gotags = ["test"],  # keep (needed for test_helpers.go's //go:build test)
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

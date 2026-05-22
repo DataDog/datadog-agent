@@ -55,7 +55,6 @@ elseif(APPLE)
   set_target_properties(datadog-agent-three PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 endif()
 
-add_compile_definitions(DATADOG_AGENT_THREE)
 target_include_directories(datadog-agent-three PRIVATE .)
 target_include_directories(datadog-agent-three PUBLIC
     ${CMAKE_SOURCE_DIR}/include

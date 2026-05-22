@@ -98,6 +98,11 @@ type unmarshalEndpoint struct {
 	IsReliable *bool  `mapstructure:"is_reliable" json:"is_reliable"`
 	UseSSL     *bool  `mapstructure:"use_ssl" json:"use_ssl"`
 
+	// ConnectionResetIntervalSeconds is the per-endpoint connection reset interval in seconds.
+	// A nil value means "not set" and will inherit the main endpoint's value.
+	// A zero value explicitly disables connection resets for this endpoint.
+	ConnectionResetIntervalSeconds *int `mapstructure:"connection_reset_interval" json:"connection_reset_interval"`
+
 	Endpoint `mapstructure:",squash"`
 }
 
@@ -188,7 +193,11 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallba
 		newE.CompressionLevel = e.CompressionLevel
 		newE.ProxyAddress = l.socks5ProxyAddress()
 		newE.isReliable = e.IsReliable == nil || *e.IsReliable
-		newE.ConnectionResetInterval = e.ConnectionResetInterval
+		if e.ConnectionResetIntervalSeconds != nil {
+			newE.ConnectionResetInterval = time.Duration(*e.ConnectionResetIntervalSeconds) * time.Second
+		} else {
+			newE.ConnectionResetInterval = main.ConnectionResetInterval
+		}
 		newE.BackoffFactor = e.BackoffFactor
 		newE.BackoffBase = e.BackoffBase
 		newE.BackoffMax = e.BackoffMax
@@ -229,7 +238,11 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 		newE.CompressionLevel = main.CompressionLevel
 		newE.ProxyAddress = e.ProxyAddress
 		newE.isReliable = e.IsReliable == nil || *e.IsReliable
-		newE.ConnectionResetInterval = e.ConnectionResetInterval
+		if e.ConnectionResetIntervalSeconds != nil {
+			newE.ConnectionResetInterval = time.Duration(*e.ConnectionResetIntervalSeconds) * time.Second
+		} else {
+			newE.ConnectionResetInterval = main.ConnectionResetInterval
+		}
 		newE.BackoffFactor = main.BackoffFactor
 		newE.BackoffBase = main.BackoffBase
 		newE.BackoffMax = main.BackoffMax

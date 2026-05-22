@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	configschema "github.com/DataDog/datadog-agent/pkg/config/schema"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -125,6 +126,20 @@ func checkYAMLSyntax(path string) (bool, []string, error) {
 	}
 
 	return true, warnings, nil
+}
+
+func runSchema(configPath string) ([]string, error) {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read config file %s: %w", configPath, err)
+	}
+
+	var config interface{}
+	err = yaml.Unmarshal(data, &config)
+	if err != nil {
+		return nil, fmt.Errorf("invalid YAML for '%s': %s", configPath, err)
+	}
+	return configschema.ValidateCoreConfig(config)
 }
 
 // validateAPIKey validates the format of a Datadog API key.
@@ -258,7 +273,25 @@ func runConfigCheck(_ log.Component, cfg config.Component, noAPICheck bool) erro
 	}
 	fmt.Fprintf(out, "[OK]   yaml_syntax: YAML syntax is valid\n")
 
-	// 3. API key format — check function returns message; caller handles output
+	// 3. Schema validation against the core agent JSON Schema.
+	// Validates the config file directly so that Viper-injected defaults are not
+	// included (only user-supplied values are checked).
+	schemaErrors, err := runSchema(configPath)
+	if err != nil {
+		fmt.Fprintf(out, "[ERR] impossible to validate config: %s\n", err)
+		hasErrors = true
+	} else {
+		if len(schemaErrors) != 0 {
+			fmt.Fprintf(out, "[ERR]   Agent configuration is invalid:\n")
+			for _, err := range schemaErrors {
+				fmt.Fprintf(out, "\t- %s\n", err)
+			}
+		} else {
+			fmt.Fprintf(out, "[OK]   Agent configuration is valid\n")
+		}
+	}
+
+	// 4. API key format — check function returns message; caller handles output
 	apiKey := cfg.GetString("api_key")
 	msg, err := validateAPIKey(apiKey)
 	if err != nil {
@@ -270,7 +303,7 @@ func runConfigCheck(_ log.Component, cfg config.Component, noAPICheck bool) erro
 		fmt.Fprintf(out, "[OK]   %s\n", msg)
 	}
 
-	// 4. Site validation — check function returns message; caller handles output
+	// 5. Site validation — check function returns message; caller handles output
 	siteValid, site, siteMsg := checkSite(cfg)
 	if siteValid {
 		fmt.Fprintf(out, "[OK]   site: %s\n", siteMsg)
@@ -279,7 +312,7 @@ func runConfigCheck(_ log.Component, cfg config.Component, noAPICheck bool) erro
 		hasErrors = true
 	}
 
-	// 5. Live API key validation (skip if --no-api, key missing/ENC[], or site invalid)
+	// 6. Live API key validation (skip if --no-api, key missing/ENC[], or site invalid)
 	canValidateLive := !noAPICheck && !hasErrors && siteValid && apiKey != "" && !scrubber.IsEnc(apiKey)
 	if canValidateLive {
 		if ok, err := checkAPIKeyLive(apiKey, site); err != nil {
@@ -294,7 +327,7 @@ func runConfigCheck(_ log.Component, cfg config.Component, noAPICheck bool) erro
 		}
 	}
 
-	// 6. Product enablement summary — check function returns lines; caller handles output
+	// 7. Product enablement summary — check function returns lines; caller handles output
 	_, productLines := checkEnabledProducts(cfg)
 	for _, line := range productLines {
 		fmt.Fprintf(out, "%s\n", line)

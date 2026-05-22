@@ -11,8 +11,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"go.uber.org/fx"
@@ -22,7 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -36,7 +38,6 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -46,7 +47,7 @@ import (
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	healthplatformfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -120,7 +121,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadfilterfx.Module(),
 				autodiscoveryimpl.Module(),
 				haagentfx.Module(),
-				healthplatformfx.Module(),
+				healthplatform.Bundle(),
 				hostnameimpl.Module(),
 				logscompressorfx.Module(),
 				metricscompressorfx.Module(),
@@ -391,9 +392,7 @@ Health platform must be enabled for issues to be reported.`,
 
 func cmdDiagnose(cliParams *cliParams,
 	filterStore workloadfilter.Component,
-	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
-	secretResolver secrets.Component,
 	log log.Component,
 	tagger tagger.Component,
 	diagnoseComponent diagnose.Component,
@@ -438,13 +437,13 @@ func cmdDiagnose(cliParams *cliParams,
 				fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
 				fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 			}
-			result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, filterStore, wmeta, ac, secretResolver, tagger, config)
+			result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, filterStore, ac, tagger, config)
 		}
 	} else {
 		if !cliParams.JSONOutput { // If JSON output is requested, the output should stay a valid JSON
 			fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 		}
-		result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, filterStore, wmeta, ac, secretResolver, tagger, config)
+		result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, filterStore, ac, tagger, config)
 	}
 
 	if err != nil {
@@ -464,8 +463,8 @@ func printPayload(name payloadName, _ log.Component, config config.Component, cl
 	if err != nil {
 		return err
 	}
-	apiConfigURL := fmt.Sprintf("https://%v:%d%s%s",
-		ipcAddress, config.GetInt("cmd_port"), metadataEndpoint, name)
+	addr := net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cmd_port")))
+	apiConfigURL := fmt.Sprintf("https://%s%s%s", addr, metadataEndpoint, name)
 
 	r, err := client.Get(apiConfigURL, ipchttp.WithCloseConnection)
 	if err != nil {
@@ -481,8 +480,8 @@ func printHealthPlatformIssues(_ log.Component, config config.Component, client 
 	if err != nil {
 		return err
 	}
-	apiConfigURL := fmt.Sprintf("https://%v:%d/health-platform/issues",
-		ipcAddress, config.GetInt("cmd_port"))
+	addr := net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cmd_port")))
+	apiConfigURL := fmt.Sprintf("https://%s/health-platform/issues", addr)
 
 	r, err := client.Get(apiConfigURL, ipchttp.WithCloseConnection)
 	if err != nil {
@@ -502,7 +501,8 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config, client ipc.HTTPCl
 
 	// Form call end-point
 	//nolint:revive // TODO(CINT) Fix revive linter
-	diagnoseURL := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+	addr := net.JoinHostPort(ipcAddress, strconv.Itoa(pkgconfigsetup.Datadog().GetInt("cmd_port")))
+	diagnoseURL := fmt.Sprintf("https://%s/agent/diagnose", addr)
 
 	// Serialized diag config to pass it to Agent execution context
 	var cfgSer []byte
@@ -536,7 +536,8 @@ func printAgentFullTelemetry(config config.Component, client ipc.HTTPClient) err
 	if err != nil {
 		return err
 	}
-	r, err := client.Get(fmt.Sprintf("http://%s:%s/telemetry", ipcAddress, config.GetString("expvar_port")))
+	addr := net.JoinHostPort(ipcAddress, config.GetString("expvar_port"))
+	r, err := client.Get(fmt.Sprintf("http://%s/telemetry", addr))
 	if err != nil {
 		return fmt.Errorf("error getting full telemetry payload: %w", err)
 	}

@@ -18,8 +18,8 @@ var kv = kernel.MustHostVersion()
 // Config returns a network.Config setup for test purposes
 func Config() *config.Config {
 	cfg := config.New()
-	if env.IsECSFargate() || cfg.EnableEbpfless {
-		// protocol classification not yet supported on fargate
+	if env.IsECSFargate() || cfg.EnableEbpfless || cfg.EnableSKTracer {
+		// protocol classification not yet supported on above configs
 		cfg.ProtocolClassificationEnabled = false
 	}
 	// prebuilt on 5.18+ does not support UDPv6

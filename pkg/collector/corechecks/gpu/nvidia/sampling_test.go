@@ -384,7 +384,7 @@ func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 			var smActiveMetric *Metric
 			for _, metric := range processMetrics {
 				if metric.Name == "sm_active" {
-					smActiveMetric = &metric
+					smActiveMetric = metric
 					break
 				}
 			}

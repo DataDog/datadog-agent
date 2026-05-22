@@ -58,7 +58,7 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 	if fh.PCEs[pid] != nil {
 		return fh.PCEs[pid]
 	}
-	return GetPlaceholderProcessCacheEntry(pid, pid, false)
+	return GetPlaceholderProcessCacheEntry(PIDContext{Pid: pid})
 }
 
 // Event represents an event sent from the kernel
@@ -249,7 +249,7 @@ func (cg *CGroupContext) UnixCreatedAt() time.Time {
 
 // IsNull returns true if the cgroup context is null
 func (cg *CGroupContext) IsNull() bool {
-	return cg.CGroupPathKey.IsNull()
+	return cg.CGroupPathKey.IsNull() && cg.CGroupID == ""
 }
 
 // IsResolved returns true if the cgroup context is resolved & not null

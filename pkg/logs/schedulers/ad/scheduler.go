@@ -37,10 +37,18 @@ type Scheduler struct {
 
 var _ schedulers.Scheduler = &Scheduler{}
 
-// New creates a new scheduler.
+// New creates a new scheduler with the default name ("logs-agent AD scheduler").
+// Use NewNamed to create a scheduler with a custom name.
 func New(ac autodiscovery.Component) schedulers.Scheduler {
+	return NewNamed(ac, "logs-agent AD scheduler")
+}
+
+// NewNamed creates a new scheduler with the given name.
+// The name must be unique within autodiscovery — registering two schedulers
+// with the same name causes the second to silently replace the first.
+func NewNamed(ac autodiscovery.Component, name string) schedulers.Scheduler {
 	sch := &Scheduler{}
-	sch.listener = adlistener.NewADListener("logs-agent AD scheduler", ac, sch.Schedule, sch.Unschedule)
+	sch.listener = adlistener.NewADListener(name, ac, sch.Schedule, sch.Unschedule)
 	return sch
 }
 
@@ -199,8 +207,8 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	case names.File:
 		// config defined in a file
 		configs, err = logsConfig.ParseYAML(config.LogsConfig)
-	case names.Container, names.Kubernetes, names.KubeContainer, names.ProcessLog:
-		// config attached to a container label or a pod annotation
+	case names.Container, names.Kubernetes, names.KubeContainer, names.ProcessLog, names.InstrumentationChecks:
+		// config attached to a container label, a pod annotation, or an instrumentation check
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
 	case names.RemoteConfig:
 		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling") {

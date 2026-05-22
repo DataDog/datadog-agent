@@ -60,15 +60,16 @@ type Manifest struct {
 }
 
 type KarpenterV1NodePool struct {
-	Metadata Metadata                  `json:"metadata"`
-	Spec     *karpenterv1.NodePoolSpec `json:"spec"`
+	Metadata         Metadata                  `json:"metadata"`
+	TemplateMetadata *Metadata                 `json:"template_metadata,omitempty"`
+	Spec             *karpenterv1.NodePoolSpec `json:"spec"`
 }
 
 type Labels []KeyValue
 type Annotations []KeyValue
 
 type Metadata struct {
-	Name        string      `json:"name"`
+	Name        string      `json:"name,omitempty"`
 	Labels      Labels      `json:"labels,omitempty"`
 	Annotations Annotations `json:"annotations,omitempty"`
 }

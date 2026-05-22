@@ -363,6 +363,9 @@ func GetSidecarPatterns() []appsecconfig.SidecarInjectionPattern {
 		log.Error("Appsec Injector not initialized, cannot setup sidecar patterns")
 		return nil
 	}
+	if !injector.config.Injection.Enabled || !injector.config.Product.Enabled {
+		return nil
+	}
 
 	var sidecarPatterns []appsecconfig.SidecarInjectionPattern
 

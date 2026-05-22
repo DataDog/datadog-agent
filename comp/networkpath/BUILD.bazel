@@ -1,7 +1,1 @@
 # gazelle:ignore
-# gazelle:exclude npcollector
-# gazelle:exclude traceroute/fx-local
-# gazelle:exclude traceroute/fx-remote
-# gazelle:exclude traceroute/impl-local
-# gazelle:exclude traceroute/impl-remote
-# gazelle:exclude traceroute/mock

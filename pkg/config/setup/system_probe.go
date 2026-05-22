@@ -16,8 +16,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-type transformerFunction func(string) []map[string]string
-
 const (
 	defaultConnsMessageBatchSize = 600
 
@@ -137,13 +135,13 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("system_probe_config.btf_path", "", "DD_SYSTEM_PROBE_BTF_PATH")
 	cfg.BindEnvAndSetDefault("system_probe_config.btf_output_dir", defaultBTFOutputDir, "DD_SYSTEM_PROBE_BTF_OUTPUT_DIR")
 	cfg.BindEnvAndSetDefault("system_probe_config.remote_config_btf_enabled", false, "DD_SYSTEM_PROBE_REMOTE_CONFIG_BTF_ENABLED")
-	cfg.BindEnv("system_probe_config.enable_runtime_compiler", "DD_ENABLE_RUNTIME_COMPILER") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("system_probe_config.enable_runtime_compiler", false, "DD_ENABLE_RUNTIME_COMPILER")
 	// deprecated in favor of allow_prebuilt_fallback below
-	cfg.BindEnv("system_probe_config.allow_precompiled_fallback", "DD_ALLOW_PRECOMPILED_FALLBACK") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.BindEnv("system_probe_config.allow_prebuilt_fallback", "DD_ALLOW_PREBUILT_FALLBACK")       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("system_probe_config.allow_precompiled_fallback", false, "DD_ALLOW_PRECOMPILED_FALLBACK")
+	cfg.BindEnvAndSetDefault("system_probe_config.allow_prebuilt_fallback", false, "DD_ALLOW_PREBUILT_FALLBACK")
 	cfg.BindEnvAndSetDefault("system_probe_config.allow_runtime_compiled_fallback", true, "DD_ALLOW_RUNTIME_COMPILED_FALLBACK")
 	cfg.BindEnvAndSetDefault("system_probe_config.runtime_compiler_output_dir", defaultRuntimeCompilerOutputDir, "DD_RUNTIME_COMPILER_OUTPUT_DIR")
-	cfg.BindEnv("system_probe_config.enable_kernel_header_download", "DD_ENABLE_KERNEL_HEADER_DOWNLOAD") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("system_probe_config.enable_kernel_header_download", false, "DD_ENABLE_KERNEL_HEADER_DOWNLOAD")
 	cfg.BindEnvAndSetDefault("system_probe_config.kernel_header_dirs", []string{}, "DD_KERNEL_HEADER_DIRS")
 	cfg.BindEnvAndSetDefault("system_probe_config.kernel_header_download_dir", defaultKernelHeadersDownloadDir, "DD_KERNEL_HEADER_DOWNLOAD_DIR")
 	cfg.BindEnvAndSetDefault("system_probe_config.apt_config_dir", suffixHostEtc(defaultAptConfigDirSuffix), "DD_APT_CONFIG_DIR")
@@ -169,7 +167,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.interrupt_overhead", 2*time.Microsecond)
 
 	// network_tracer settings
-	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.
+	// migration to BindEnvAndSetDefault is possible but requires switching
+	// the IsSet caller in pkg/system-probe/config/adjust.go to IsConfigured
+	// (same pattern as allow_prebuilt_fallback) so the legacy auto-enable
+	// from system_probe_config.enabled keeps respecting an explicit false.
 	cfg.BindEnv("network_config.enabled", "DD_SYSTEM_PROBE_NETWORK_ENABLED") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' //nolint:errcheck
 	cfg.BindEnvAndSetDefault("system_probe_config.disable_tcp", false, "DD_DISABLE_TCP_TRACING")
 	cfg.BindEnvAndSetDefault("system_probe_config.disable_udp", false, "DD_DISABLE_UDP_TRACING")
@@ -183,12 +184,12 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("system_probe_config.offset_guess_threshold", int64(defaultOffsetThreshold))
 
 	cfg.BindEnvAndSetDefault("system_probe_config.max_tracked_connections", int64(65536))
-	cfg.BindEnv("system_probe_config.max_closed_connections_buffered")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.BindEnv("network_config.max_failed_connections_buffered")        //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.BindEnv("system_probe_config.closed_connection_flush_threshold") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.BindEnv("network_config.closed_connection_flush_threshold")      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.BindEnv("system_probe_config.closed_channel_size")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.BindEnv("network_config.closed_channel_size")                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("system_probe_config.max_closed_connections_buffered", int64(0))
+	cfg.BindEnvAndSetDefault("network_config.max_failed_connections_buffered", int64(0))
+	cfg.BindEnvAndSetDefault("system_probe_config.closed_connection_flush_threshold", 0)
+	cfg.BindEnvAndSetDefault("network_config.closed_connection_flush_threshold", 0)
+	cfg.BindEnvAndSetDefault("system_probe_config.closed_channel_size", 0)
+	cfg.BindEnvAndSetDefault("network_config.closed_channel_size", 500)
 	cfg.BindEnvAndSetDefault("network_config.closed_buffer_wakeup_count", 4)
 	cfg.BindEnvAndSetDefault("system_probe_config.max_connection_state_buffered", 75000)
 
@@ -245,6 +246,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	cfg.BindEnvAndSetDefault("network_config.enable_co_re", true)
 	cfg.BindEnvAndSetDefault("network_config.enable_fentry", false)
+	cfg.BindEnvAndSetDefault("network_config.enable_sk_tracer", false)
 
 	// TLS cert collection
 	cfg.BindEnvAndSetDefault("network_config.enable_cert_collection", false)
@@ -266,6 +268,15 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("ebpf_check.kernel_bpf_stats", false)
 	// noisy neighbor module
 	cfg.BindEnvAndSetDefault("noisy_neighbor.enabled", false)
+	// Per-PMU-event toggles. Default false because each enabled event
+	// adds non-trivial overhead.
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.cycles", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.instructions", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.cache_misses", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.cache_references", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.itlb_misses", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.branch_misses", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.cpu_migrations", false)
 
 	// settings for the entry count of the ebpfcheck
 	// control the size of the buffers used for the batch lookups of the ebpf maps
@@ -284,6 +295,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.enable_kernel_filters", true)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.enable_approvers", false)  // will be set to true by sanitize() if enable_kernel_filters is true
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.enable_discarders", false) // will be set to true by sanitize() if enable_kernel_filters is true
+	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.basename_approvers_size", 4096)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.flush_discarder_window", 3)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.pid_cache_size", 10000)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.dns_resolution.cache_size", 1024)
@@ -352,6 +364,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", runtime.GOOS == "linux")
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
+	cfg.BindEnvAndSetDefault("discovery.service_map.enabled", false)
 
 	// Privileged Logs config
 	cfg.BindEnvAndSetDefault("privileged_logs.enabled", false)
@@ -364,10 +377,12 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// GPU monitoring
 	cfg.BindEnvAndSetDefault("gpu_monitoring.enabled", false)
-	cfg.BindEnv("gpu_monitoring.nvml_lib_path") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("gpu_monitoring.enable_ebpf_probes", true)
+	cfg.BindEnvAndSetDefault("gpu_monitoring.nvml_lib_path", "")
 	cfg.BindEnvAndSetDefault("gpu_monitoring.process_scan_interval_seconds", 5)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.initial_process_sync", true)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.configure_cgroup_perms", false)
+	cfg.BindEnvAndSetDefault("gpu_monitoring.prm_endpoint_enabled", true)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.enable_fatbin_parsing", false)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.fatbin_request_queue_size", 100)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.ring_buffer_pages_per_device", 32) // 32 pages = 128KB by default per device
@@ -392,7 +407,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	initCWSSystemProbeConfig(cfg)
 	initUSMSystemProbeConfig(cfg)
 
-	cfg.BindEnvAndSetDefault("network_config.direct_send", false)
+	cfg.BindEnvAndSetDefault("network_config.direct_send", runtime.GOOS == "linux")
 }
 
 func suffixHostEtc(suffix string) string {
