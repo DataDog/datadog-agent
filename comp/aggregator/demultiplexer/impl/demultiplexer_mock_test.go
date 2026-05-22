@@ -10,7 +10,7 @@ package demultiplexerimpl
 import (
 	"testing"
 
-	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
