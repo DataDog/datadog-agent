@@ -12,6 +12,12 @@ fi
 install -d /opt/doghome/devcontainer/features/datadog-agent/lifecycle
 install -m 755 "$featureDir/lifecycle/postCreate.sh" /opt/doghome/devcontainer/features/datadog-agent/lifecycle/postCreate.sh
 
+# Fetch update-tool and use it to install the rest of the tools
+curl --no-progress-meter --retry 10 --retry-max-time 60 -Lo /usr/local/bin/update-tool\
+     https://binaries.ddbuild.io/devtools/bin/update-tool
+chmod +x /usr/local/bin/update-tool
+
+
 # Configure PATH for interactive shells.
 # File name convention *-workspace-env.sh is important:
 # /etc/zsh/zshenv sources these files.

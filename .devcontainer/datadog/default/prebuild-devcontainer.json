@@ -1,7 +1,7 @@
 {
     // Trigger build: 2026-05-22 14:32
     "name": "Datadog Agent Development Container",
-    "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace_test_only:v114707304-d3811639",
+    "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace_test_only:v114748813-5e435901",
     "features": {
         "./features/datadog-agent": {}
     },
