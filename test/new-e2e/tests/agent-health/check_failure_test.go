@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 //go:embed fixtures/health_platform_agent_config.yaml
@@ -66,8 +65,7 @@ func (e *checkFailureEnv) Diagnose(_ string) (string, error) {
 	if e.Agent == nil {
 		return "", errors.New("agent not initialized")
 	}
-	out := e.Agent.Client.Diagnose(agentclient.WithArgs([]string{"--include", healthIssueSuite}))
-	return "==== agent diagnose health-issues ====\n" + out, nil
+	return "==== agent diagnose health-issues ====\n" + getHealthDiagnoseOutput(e.Agent), nil
 }
 
 // ============================================================================

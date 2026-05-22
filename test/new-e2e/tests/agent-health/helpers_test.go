@@ -39,6 +39,13 @@ const (
 // diagnose helpers
 // ============================================================================
 
+// getHealthDiagnoseOutput runs `agent diagnose --include health-issues` and
+// returns the raw output string. It is the single canonical place where the
+// health-issues diagnose command is invoked; all other helpers call this.
+func getHealthDiagnoseOutput(agent *components.RemoteHostAgent) string {
+	return agent.Client.Diagnose(agentclient.WithArgs([]string{"--include", healthIssueSuite}))
+}
+
 // runHealthDiagnose calls `agent diagnose --include health-issues --json` and
 // returns the parsed agentclient.DiagnoseResult. The types (DiagnoseResult,
 // DiagnoseRun, DiagnoseEntry) live in the agentclient package so they can be
