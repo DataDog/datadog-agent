@@ -13,8 +13,6 @@ import (
 	"net/http"
 	"runtime"
 
-	gorilla "github.com/gorilla/mux"
-
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/debug"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -35,7 +33,7 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclie
 		return err
 	}
 
-	mux := gorilla.NewRouter()
+	mux := http.NewServeMux()
 
 	err = module.Register(cfg, mux, modules.All(), rcclient, deps)
 	if err != nil {
@@ -53,9 +51,10 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclie
 	setupConfigHandlers(mux, settings)
 
 	// Module-restart handler
-	mux.HandleFunc("/module-restart/{module-name}", func(w http.ResponseWriter, r *http.Request) { restartModuleHandler(w, r, deps) }).Methods("POST")
+	mux.HandleFunc("POST /module-restart/{module-name}", func(w http.ResponseWriter, r *http.Request) { restartModuleHandler(w, r, deps) })
 
-	mux.PathPrefix("/debug/pprof").Handler(http.DefaultServeMux)
+	mux.Handle("/debug/pprof", http.DefaultServeMux)
+	mux.Handle("/debug/pprof/", http.DefaultServeMux)
 	mux.Handle("/debug/vars", http.DefaultServeMux)
 	mux.Handle("/telemetry", deps.Telemetry.Handler())
 
@@ -67,11 +66,7 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclie
 	}
 
 	// Register /coverage endpoint for computing code coverage (e2ecoverage build only).
-	// system-probe still uses gorilla/mux, so mount a plain http.ServeMux as a bridge
-	// until system-probe is migrated to net/http.
-	coverageMux := http.NewServeMux()
-	coverage.SetupCoverageHandler(coverageMux)
-	mux.Handle("/coverage", coverageMux)
+	coverage.SetupCoverageHandler(mux)
 
 	go func() {
 		err = http.Serve(conn, mux)
