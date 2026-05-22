@@ -279,13 +279,6 @@ def tag_version(
 
 
 @task
-def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
-    with agent_context(ctx, get_default_branch(major=get_version_major(release_branch))):
-        tag_version(ctx, release_branch, commit, push, force, devel=True, skip_agent_context=True)
-        tag_modules(ctx, release_branch, commit, push, force, devel=True, trust=True, skip_agent_context=True)
-
-
-@task
 def finish(ctx, release_branch, upstream="origin", release_date=None):
     """Updates the release.json file for the new version.
 
