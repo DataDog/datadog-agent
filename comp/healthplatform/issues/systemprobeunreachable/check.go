@@ -48,7 +48,8 @@ func Check(cfg config.Component) ([]storedef.IssueReport, error) {
 
 	return []storedef.IssueReport{
 		{
-			IssueID: IssueID,
+			IssueID:   IssueID,
+			IssueType: IssueType,
 			Context: map[string]string{
 				"socket":          socketPath,
 				"network_enabled": networkEnabled,
