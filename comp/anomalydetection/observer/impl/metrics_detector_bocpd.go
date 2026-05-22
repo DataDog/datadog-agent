@@ -24,7 +24,7 @@ type bocpdSeriesState struct {
 	// Cursor tracking the last position advanced by Detect.
 	lastProcessedTime  int64
 	lastProcessedCount int   // PointCountUpTo(ref, dataTime) at last Detect
-	lastWriteGen       int64 // WriteGeneration at last Detect (informational)
+	lastWriteGen       int64 // WriteGeneration at last Detect; used to catch same-bucket merges
 
 	// Warmup: Welford online mean/variance accumulation.
 	initialized  bool
@@ -211,10 +211,13 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			}
 
 			// Skip if no new data is visible at the current dataTime.
-			// PointCountUpTo makes pre-loaded replay data visible as dataTime
-			// advances, and also handles live writes correctly.
+			// PointCountUpTo handles replay (data becomes visible as dataTime
+			// advances) and the common live case. WriteGeneration catches
+			// same-bucket merges and retention-churn scenarios where point
+			// count stays constant but stored values changed.
 			visibleCount := storage.PointCountUpTo(ref, dataTime)
-			if visibleCount <= state.lastProcessedCount {
+			writeGen := storage.WriteGeneration(ref)
+			if visibleCount <= state.lastProcessedCount && writeGen == state.lastWriteGen {
 				continue
 			}
 
@@ -230,10 +233,9 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			for k := prevLen; k < len(allAnomalies); k++ {
 				allAnomalies[k].SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: agg}
 			}
-			// Always advance cursors: visibleCount > lastProcessedCount is the
-			// invariant we rely on, regardless of whether ForEachPoint found points.
+			// Always advance cursors regardless of whether ForEachPoint found points.
 			state.lastProcessedCount = visibleCount
-			state.lastWriteGen = storage.WriteGeneration(ref)
+			state.lastWriteGen = writeGen
 		}
 	}
 
