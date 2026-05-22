@@ -21,7 +21,12 @@ import subprocess
 import sys
 import traceback
 from functools import partial
-from subprocess import DEVNULL
+
+try:
+    from subprocess import DEVNULL  # py3k
+except ImportError:
+    DEVNULL = open(os.devnull, "wb")  # type: ignore[misc]
+
 
 DEFAULT_EXTENSIONS = 'c,h,C,H,cpp,hpp,cc,hh,c++,h++,cxx,hxx'
 DEFAULT_CLANG_FORMAT_IGNORE = '.clang-format-ignore'
