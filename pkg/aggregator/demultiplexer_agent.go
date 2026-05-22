@@ -285,6 +285,24 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 	d.aggregator.SetObserverHandle(metricsHandle)
 }
 
+// SetCheckInterval records the collector's configured cadence for a check.
+// Check aggregation uses this metadata to bypass checks that are not faster
+// than check_aggregator.window_duration.
+func (d *AgentDemultiplexer) SetCheckInterval(id checkid.ID, interval time.Duration) {
+	if d == nil {
+		return
+	}
+
+	d.m.RLock()
+	agg := d.aggregator
+	d.m.RUnlock()
+
+	if agg == nil {
+		return
+	}
+	agg.setCheckInterval(id, interval)
+}
+
 // AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
 // to be sent on the next flush, and stages the matching shutdown event for the
 // final Stop(true) flush.
@@ -400,7 +418,7 @@ func (d *AgentDemultiplexer) flushLoop() {
 			if ok && trigger != nil {
 				// Final flush requested
 				shutdownEvent := d.takePendingShutdownEvent()
-				d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll)
+				d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll, trigger.drainCheckAggregator)
 				d.sendAgentShutdownEvent(shutdownEvent)
 				if trigger.blockChan != nil {
 					trigger.blockChan <- struct{}{}
@@ -409,13 +427,13 @@ func (d *AgentDemultiplexer) flushLoop() {
 			return
 		// manual flush sequence
 		case trigger := <-d.flushChan:
-			d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll)
+			d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll, trigger.drainCheckAggregator)
 			if trigger.blockChan != nil {
 				trigger.blockChan <- struct{}{}
 			}
 		// automatic flush sequence
 		case t := <-flushTicker:
-			d.flushToSerializer(t, false, false)
+			d.flushToSerializer(t, false, false, false)
 		}
 	}
 }
@@ -434,10 +452,11 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 	// stop all automatic flush & the mainloop,
 	if flush {
 		trigger := trigger{
-			time:              time.Now(),
-			blockChan:         make(chan struct{}),
-			waitForSerializer: flush,
-			forceFlushAll:     forceFlushAll,
+			time:                 time.Now(),
+			blockChan:            make(chan struct{}),
+			waitForSerializer:    flush,
+			forceFlushAll:        forceFlushAll,
+			drainCheckAggregator: true,
 		}
 		timeoutStart := time.Now()
 
@@ -516,7 +535,7 @@ func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSeri
 // If one day a better (faster?) solution is needed, we could either consider:
 // - to have an implementation of SendIterableSeries listening on multiple sinks in parallel, or,
 // - to have a thread-safe implementation of the underlying `util.BufferedChan`.
-func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool) {
+func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool, drainCheckAggregator bool) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 
@@ -556,10 +575,11 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 			if d.aggregator != nil {
 				t := flushTrigger{
 					trigger: trigger{
-						time:              start,
-						blockChan:         make(chan struct{}),
-						waitForSerializer: waitForSerializer,
-						forceFlushAll:     forceFlushAll,
+						time:                 start,
+						blockChan:            make(chan struct{}),
+						waitForSerializer:    waitForSerializer,
+						forceFlushAll:        forceFlushAll,
+						drainCheckAggregator: drainCheckAggregator,
 					},
 					sketchesSink: sketchesSink,
 					seriesSink:   seriesSink,

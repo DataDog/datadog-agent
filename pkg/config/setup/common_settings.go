@@ -36,6 +36,18 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
 	config.BindEnvAndSetDefault("check_sampler_context_metrics", false)
 	config.BindEnvAndSetDefault("check_sampler_allow_sketch_bucket_reset", true)
+
+	// CheckAggregator (wall-clock windowing layer over CheckSampler output).
+	// Checks with a known cadence faster than window_duration are windowed;
+	// slow or unknown-cadence checks bypass the layer.
+	//
+	// Optional wall-clock window duration over which CheckSampler's per-commit
+	// *Serie output is rolled up. Zero follows the aggregator flush interval.
+	config.BindEnvAndSetDefault("check_aggregator.window_duration", 0*time.Second)
+	// Per-(check_id, MetricContext) cap on buffered series within a window.
+	// Bounds memory under pathological cadences. For 1Hz over 15s expect
+	// ≤15 series per context; default sets ~8× headroom.
+	config.BindEnvAndSetDefault("check_aggregator.max_series_per_window", 128)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 	config.BindEnvAndSetDefault("collect_ccrid", true)
 

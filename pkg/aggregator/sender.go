@@ -312,6 +312,7 @@ func (s *checkSender) sendHistogramBucket(metric string, value int64, lowerBound
 		Timestamp:       timeNowNano(),
 		FlushFirstValue: flushFirstValue,
 		MultipleBuckets: multipleBuckets,
+		Source:          metrics.CheckNameToMetricSource(checkid.IDToCheckName(s.id)),
 	}
 
 	if hostname == "" && !s.defaultHostnameDisabled {

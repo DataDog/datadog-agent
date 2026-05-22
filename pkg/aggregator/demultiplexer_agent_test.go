@@ -208,6 +208,43 @@ func newShutdownTelemetryTestDemux(t *testing.T, hostname string) (*AgentDemulti
 	return demux, s
 }
 
+func TestFlushToSerializerDrainsCheckAggregatorOnlyWhenRequested(t *testing.T) {
+	deps := createDemultiplexerAgentTestDeps(t)
+	demux := InitAndStartAgentDemultiplexer(
+		deps.Log,
+		NewForwarderTest(deps.Log),
+		deps.OrchestratorFwd,
+		demuxTestOptions(),
+		deps.EventPlatform,
+		deps.HaAgent,
+		deps.Compressor,
+		deps.Tagger,
+		deps.FilterList,
+		"",
+	)
+	s := &MockSerializerSketch{}
+	s.On("AreSeriesEnabled").Return(true)
+	s.On("AreSketchesEnabled").Return(true)
+	s.On("SendServiceChecks", mock.Anything).Return(nil)
+	demux.aggregator.serializer = s
+	demux.sharedSerializer = s
+
+	openSeries := makeSerie(1, 100, 42)
+	openSketch := makeSketchSeries(1, 100, 10)
+	demux.aggregator.checkAggregator.Submit(checkID1, openSeries, &captureSink{})
+	demux.aggregator.checkAggregator.SubmitSketch(checkID1, openSketch, &captureSketchSink{})
+
+	demux.ForceFlushToSerializer(time.Unix(101, 0), true)
+	require.NotContains(t, s.series, openSeries, "manual flush must not drain an incomplete check aggregation window")
+	require.NotContains(t, s.sketches, openSketch, "manual flush must not drain an incomplete sketch aggregation window")
+
+	demux.flushToSerializer(time.Unix(102, 0), true, false, true)
+
+	require.Contains(t, s.series, openSeries, "final flush must drain the open partial series window")
+	require.Contains(t, s.sketches, openSketch, "final flush must drain the open partial sketch window")
+	demux.Stop(false)
+}
+
 func TestMetricSampleTypeConversion(t *testing.T) {
 	require := require.New(t)
 
@@ -541,6 +578,20 @@ func TestUpdateMetricFilterList(t *testing.T) {
 	}, time.Second, time.Millisecond)
 
 	filterList.SetMetricFilterList([]string{"more.metric"}, false)
+}
+
+func TestSetCheckIntervalAfterStopIsNoop(t *testing.T) {
+	configmock.New(t)
+	opts := demuxTestOptions()
+	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
+	demux := deps.Demultiplexer
+
+	demux.Stop(false)
+	require.Eventually(t, func() bool {
+		return demux.aggregator == nil
+	}, time.Second, time.Millisecond)
+
+	demux.SetCheckInterval(checkid.ID("stopped-check"), time.Second)
 }
 
 type DemultiplexerAgentTestDeps struct {

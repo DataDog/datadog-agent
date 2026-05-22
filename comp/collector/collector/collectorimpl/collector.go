@@ -89,6 +89,10 @@ type collectorImpl struct {
 	createdAt time.Time
 }
 
+type checkIntervalSetter interface {
+	SetCheckInterval(checkid.ID, time.Duration)
+}
+
 type provides struct {
 	fx.Out
 
@@ -227,7 +231,9 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 		return emptyID, fmt.Errorf("a check with ID %s is already running", ch.ID())
 	}
 
+	c.setCheckInterval(ch.ID(), ch.Interval())
 	if err := c.scheduler.Enter(ch); err != nil {
+		c.setCheckInterval(ch.ID(), 0)
 		return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
 	}
 
@@ -334,6 +340,12 @@ func (c *collectorImpl) delete(id checkid.ID) {
 
 	delete(c.checks, id)
 	c.notify(id, collector.CheckStop)
+}
+
+func (c *collectorImpl) setCheckInterval(id checkid.ID, interval time.Duration) {
+	if setter, ok := c.senderManager.(checkIntervalSetter); ok {
+		setter.SetCheckInterval(id, interval)
+	}
 }
 
 // lightweight shortcut to see if the collector has started

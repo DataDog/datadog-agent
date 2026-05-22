@@ -82,6 +82,12 @@ type trigger struct {
 	// incomplete buckets. Is generally only appropriate to set during shutdown, since
 	// subsequent transmissions of the same bucket will override earlier entries in the backend.
 	forceFlushAll bool
+
+	// drainCheckAggregator forces open check metric aggregation windows to emit.
+	// This is only appropriate during shutdown/final flush; normal manual flushes
+	// must leave still-open windows intact so collection cadence stays decoupled
+	// from send cadence.
+	drainCheckAggregator bool
 }
 
 // flushTrigger is a trigger used to flush data, results is expected to be written

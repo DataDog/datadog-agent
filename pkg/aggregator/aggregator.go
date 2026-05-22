@@ -253,6 +253,8 @@ type BufferedAggregator struct {
 
 	tagsStore              *tags.Store
 	checkSamplers          map[checkid.ID]*CheckSampler
+	checkIntervals         map[checkid.ID]time.Duration
+	pendingCheckDrains     map[checkid.ID]struct{}
 	serviceChecks          servicecheck.ServiceChecks
 	events                 event.Events
 	manifests              []*senderOrchestratorManifest
@@ -280,6 +282,10 @@ type BufferedAggregator struct {
 
 	// observerHandle is set at startup and copied into newly created CheckSamplers.
 	observerHandle observer.Handle
+
+	// checkAggregator windows CheckSampler output for checks configured
+	// faster than the effective check aggregator window duration.
+	checkAggregator *CheckAggregator
 
 	// use this chan to trigger a filterList reconfiguration
 	filterListChan  chan utilstrings.Matcher
@@ -341,6 +347,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		tagsStore:                   tagsStore,
 		checkSamplers:               make(map[checkid.ID]*CheckSampler),
+		checkIntervals:              make(map[checkid.ID]time.Duration),
+		pendingCheckDrains:          make(map[checkid.ID]struct{}),
 		flushInterval:               flushInterval,
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
@@ -365,7 +373,20 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tagFilterList:     filterList.GetTagFilterList(),
 	}
 
+	aggregator.checkAggregator = newCheckAggregator(
+		checkAggregatorWindowDuration(flushInterval),
+		pkgconfigsetup.Datadog().GetInt("check_aggregator.max_series_per_window"),
+	)
+
 	return aggregator
+}
+
+func checkAggregatorWindowDuration(flushInterval time.Duration) time.Duration {
+	configured := pkgconfigsetup.Datadog().GetDuration("check_aggregator.window_duration")
+	if configured > 0 {
+		return configured
+	}
+	return flushInterval
 }
 
 func (agg *BufferedAggregator) addOrchestratorManifest(manifests *senderOrchestratorManifest) {
@@ -529,6 +550,33 @@ func (agg *BufferedAggregator) SetObserverHandle(h observer.Handle) {
 	agg.observerHandle = h
 }
 
+func (agg *BufferedAggregator) setCheckInterval(id checkid.ID, interval time.Duration) {
+	agg.checkItems <- &checkIntervalUpdate{id: id, interval: interval}
+}
+
+func (agg *BufferedAggregator) handleCheckIntervalUpdate(id checkid.ID, interval time.Duration) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+
+	wasAggregated := agg.shouldAggregateCheck(id)
+	if interval <= 0 {
+		delete(agg.checkIntervals, id)
+		if wasAggregated || agg.checkAggregator.HasCheckWindows(id) {
+			agg.pendingCheckDrains[id] = struct{}{}
+		}
+		return
+	}
+	agg.checkIntervals[id] = interval
+	if !agg.shouldAggregateCheck(id) && (wasAggregated || agg.checkAggregator.HasCheckWindows(id)) {
+		agg.pendingCheckDrains[id] = struct{}{}
+	}
+}
+
+func (agg *BufferedAggregator) shouldAggregateCheck(id checkid.ID) bool {
+	interval, ok := agg.checkIntervals[id]
+	return ok && interval > 0 && interval < agg.checkAggregator.windowDuration
+}
+
 // GetSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
@@ -542,30 +590,65 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.S
 // getSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
+//
+// CheckSampler output is windowed only for checks whose configured cadence is
+// faster than the effective check aggregator window duration. Slow and unknown-cadence checks
+// bypass the windowing layer to preserve their existing send-time semantics.
 func (agg *BufferedAggregator) getSeriesAndSketches(
-	_ time.Time,
+	before time.Time,
 	seriesSink metrics.SerieSink,
 	sketchesSink metrics.SketchesSink,
 ) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
+	flushTime := timeToSeconds(before)
+
 	//nolint:revive // TODO(AML) Fix revive linter
 	for checkId, checkSampler := range agg.checkSamplers {
 		checkSeries, sketches := checkSampler.flush()
-		for _, s := range checkSeries {
-			seriesSink.Append(s)
-		}
-
-		for _, sk := range sketches {
-			sketchesSink.Append(sk)
+		if agg.shouldAggregateCheck(checkId) {
+			for _, s := range checkSeries {
+				agg.checkAggregator.Submit(checkId, s, seriesSink)
+			}
+			for _, sk := range sketches {
+				agg.checkAggregator.SubmitSketch(checkId, sk, sketchesSink)
+			}
+		} else {
+			if _, ok := agg.pendingCheckDrains[checkId]; ok {
+				agg.checkAggregator.DrainCheck(checkId, seriesSink, sketchesSink)
+				delete(agg.pendingCheckDrains, checkId)
+			}
+			for _, s := range checkSeries {
+				seriesSink.Append(s)
+			}
+			for _, sk := range sketches {
+				sketchesSink.Append(sk)
+			}
 		}
 
 		if checkSampler.deregistered {
 			checkSampler.release()
 			delete(agg.checkSamplers, checkId)
+			delete(agg.checkIntervals, checkId)
+			delete(agg.pendingCheckDrains, checkId)
 		}
 	}
+
+	// After every CheckSampler has flushed, sweep windows whose deadlines
+	// have passed and emit them. Windows still within their deadline
+	// remain open for accumulation in subsequent flush cycles.
+	agg.checkAggregator.FlushExpired(flushTime, seriesSink)
+	agg.checkAggregator.FlushExpiredSketches(flushTime, sketchesSink)
+}
+
+// timeToSeconds converts a time.Time to seconds-since-epoch as a float,
+// matching the format CheckSampler uses for commit timestamps.
+func timeToSeconds(t time.Time) float64 {
+	if t.IsZero() {
+		t = time.Now()
+	}
+	return float64(t.UnixNano()) / 1e9
 }
 
 func updateSerieTelemetry(start time.Time, serieCount uint64, err error) {
@@ -659,6 +742,9 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
 	agg.getSeriesAndSketches(trigger.time, trigger.seriesSink, trigger.sketchesSink)
+	if trigger.drainCheckAggregator {
+		agg.checkAggregator.Drain(trigger.seriesSink, trigger.sketchesSink)
+	}
 	agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
 }
 
@@ -981,7 +1067,19 @@ func (agg *BufferedAggregator) handleDeregisterSampler(id checkid.ID) {
 	defer agg.mu.Unlock()
 	if cs, ok := agg.checkSamplers[id]; ok {
 		cs.deregistered = true
+		return
 	}
+	delete(agg.checkIntervals, id)
+	delete(agg.pendingCheckDrains, id)
+}
+
+type checkIntervalUpdate struct {
+	id       checkid.ID
+	interval time.Duration
+}
+
+func (s *checkIntervalUpdate) handle(agg *BufferedAggregator) {
+	agg.handleCheckIntervalUpdate(s.id, s.interval)
 }
 
 // registerSampler is an item sent internally by the aggregator to

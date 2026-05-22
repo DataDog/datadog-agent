@@ -28,6 +28,38 @@ type bucketBounds struct {
 	lower, upper float64
 }
 
+type sketchSummaryObserverSample struct {
+	name      string
+	value     float64
+	tags      []string
+	timestamp int64
+	source    metrics.MetricSource
+}
+
+func (s sketchSummaryObserverSample) GetName() string {
+	return s.name
+}
+
+func (s sketchSummaryObserverSample) GetValue() float64 {
+	return s.value
+}
+
+func (s sketchSummaryObserverSample) GetRawTags() []string {
+	return s.tags
+}
+
+func (s sketchSummaryObserverSample) GetTimestampUnix() int64 {
+	return s.timestamp
+}
+
+func (s sketchSummaryObserverSample) GetSampleRate() float64 {
+	return 1
+}
+
+func (s sketchSummaryObserverSample) GetSource() metrics.MetricSource {
+	return s.source
+}
+
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
 	id                     checkid.ID
@@ -38,6 +70,7 @@ type CheckSampler struct {
 	sketchMap              sketchMap
 	lastBucketValue        map[ckey.ContextKey]int64
 	lastBucketValueByBound map[ckey.ContextKey]map[bucketBounds]int64
+	histogramSketchContext map[ckey.ContextKey]struct{}
 	deregistered           bool
 	contextResolverMetrics bool
 	logThrottling          util.SimpleThrottler
@@ -57,13 +90,15 @@ func newCheckSampler(
 	tagger tagger.Component,
 ) *CheckSampler {
 	return &CheckSampler{
-		id:                     id,
-		series:                 make([]*metrics.Serie, 0),
-		sketches:               make(metrics.SketchSeriesList, 0),
-		contextResolver:        newCountBasedContextResolver(expirationCount, cache, tagger, string(id)),
-		metrics:                metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
-		sketchMap:              make(sketchMap),
-		lastBucketValue:        make(map[ckey.ContextKey]int64),
+		id:              id,
+		series:          make([]*metrics.Serie, 0),
+		sketches:        make(metrics.SketchSeriesList, 0),
+		contextResolver: newCountBasedContextResolver(expirationCount, cache, tagger, string(id)),
+		metrics:         metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
+		sketchMap:       make(sketchMap),
+		lastBucketValue: make(map[ckey.ContextKey]int64),
+		// histogramSketchContext is lazily allocated in addBucket only
+		// when an observer handle is attached.
 		contextResolverMetrics: contextResolverMetrics,
 		logThrottling:          util.NewSimpleThrottler(5, 5*time.Minute, ""),
 		allowSketchBucketReset: allowSketchBucketReset,
@@ -103,6 +138,7 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 		// Interval: TODO: investigate
 		Points:     points,
 		ContextKey: ck,
+		Source:     ctx.source,
 	}
 
 	return ss
@@ -187,6 +223,17 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 		return
 	}
 
+	// Mark this context as histogram-bucket-derived so commitSketches
+	// can emit a per-commit observer summary later. Only allocate when an
+	// observer handle is actually attached — keeps the no-observer path
+	// allocation-free per CheckSamplerCoreBehaviorPreserved.
+	if cs.observerHandle != nil {
+		if cs.histogramSketchContext == nil {
+			cs.histogramSketchContext = make(map[ckey.ContextKey]struct{})
+		}
+		cs.histogramSketchContext[contextKey] = struct{}{}
+	}
+
 	// "if the quantile falls into the highest bucket, the upper bound of the 2nd highest bucket is returned"
 	if math.IsInf(bucket.UpperBound, 1) {
 		cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.LowerBound, uint(bucket.Value))
@@ -250,6 +297,10 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *utilstring
 		if series == nil {
 			continue
 		}
+		if _, ok := cs.histogramSketchContext[ck]; ok {
+			cs.observeSketchSummary(series)
+			delete(cs.histogramSketchContext, ck)
+		}
 		// Filter the metrics
 		if filterList != nil && filterList.Test(series.Name) {
 			tlmChecksFilteredMetrics.Inc()
@@ -257,6 +308,53 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *utilstring
 		}
 		cs.sketches = append(cs.sketches, series)
 	}
+}
+
+func (cs *CheckSampler) observeSketchSummary(series *metrics.SketchSeries) {
+	if cs.observerHandle == nil {
+		return
+	}
+
+	// The observer/ring-buffer stores scalar time series, not sketches.
+	// Record fixed-cardinality BasicStats summaries for each committed
+	// sketch point so local queries keep 1Hz activity/value context without
+	// storing full sketches or one series per histogram bucket.
+	for _, point := range series.Points {
+		if point.Sketch == nil {
+			continue
+		}
+		count, min, max, sum, avg := point.Sketch.BasicStats()
+		if count == 0 {
+			continue
+		}
+		tags := sketchSummaryTags(series)
+		cs.observeSketchSummaryMetric(series, point.Ts, tags, "count", float64(count))
+		cs.observeSketchSummaryMetric(series, point.Ts, tags, "sum", sum)
+		cs.observeSketchSummaryMetric(series, point.Ts, tags, "min", min)
+		cs.observeSketchSummaryMetric(series, point.Ts, tags, "max", max)
+		cs.observeSketchSummaryMetric(series, point.Ts, tags, "avg", avg)
+	}
+}
+
+func sketchSummaryTags(series *metrics.SketchSeries) []string {
+	tags := make([]string, 0, series.Tags.Len()+2)
+	series.Tags.ForEach(func(tag string) {
+		tags = append(tags, tag)
+	})
+	return append(tags, "observer_metric_type:sketch_summary")
+}
+
+func (cs *CheckSampler) observeSketchSummaryMetric(series *metrics.SketchSeries, timestamp int64, baseTags []string, statistic string, value float64) {
+	tags := make([]string, 0, len(baseTags)+1)
+	tags = append(tags, baseTags...)
+	tags = append(tags, "sketch_stat:"+statistic)
+	cs.observerHandle.ObserveMetric(sketchSummaryObserverSample{
+		name:      series.Name + "." + statistic,
+		value:     value,
+		tags:      tags,
+		timestamp: timestamp,
+		source:    series.Source,
+	})
 }
 
 func (cs *CheckSampler) commit(timestamp float64, filterList *utilstrings.Matcher) {
@@ -271,6 +369,7 @@ func (cs *CheckSampler) commit(timestamp float64, filterList *utilstrings.Matche
 	for _, ctxKey := range expiredContextKeys {
 		delete(cs.lastBucketValue, ctxKey)
 		delete(cs.lastBucketValueByBound, ctxKey)
+		delete(cs.histogramSketchContext, ctxKey)
 	}
 
 	cs.metrics.Expire(expiredContextKeys, timestamp)
