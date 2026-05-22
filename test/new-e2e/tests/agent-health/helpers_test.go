@@ -109,39 +109,43 @@ func AssertIssueAbsentViaDiagnose(t *testing.T, agent *components.RemoteHostAgen
 // fakeintake helpers
 // ============================================================================
 
-// findIssue searches for an issue by exact ID in a fakeintake health report payload.
-func findIssue(t testing.TB, report *aggregator.AgentHealthPayload, issueID string) *healthplatform.Issue {
+// findIssuesByID searches for all issues with the given exact ID in a fakeintake health report payload.
+func findIssuesByID(t testing.TB, report *aggregator.AgentHealthPayload, issueID string) []*healthplatform.Issue {
 	t.Helper()
 	if report == nil || report.HealthReport == nil {
 		return nil
 	}
+	var results []*healthplatform.Issue
 	for id, issue := range report.Issues {
 		if id == issueID {
-			return issue
+			results = append(results, issue)
 		}
 	}
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("issue %q not found; have %d issues:", issueID, len(report.Issues)))
-	for id, iss := range report.Issues {
-		sb.WriteString(fmt.Sprintf("\n  id=%q title=%q", id, iss.GetTitle()))
+	if len(results) == 0 {
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("issue %q not found; have %d issues:", issueID, len(report.Issues)))
+		for id, iss := range report.Issues {
+			sb.WriteString(fmt.Sprintf("\n  id=%q title=%q", id, iss.GetTitle()))
+		}
+		t.Log(sb.String())
 	}
-	t.Log(sb.String())
-	return nil
+	return results
 }
 
-// findIssueByPrefix searches for any issue whose ID starts with prefix.
+// findIssuesByPrefix searches for all issues whose ID starts with prefix.
 // Useful for issue types where the ID includes a runtime-generated hash suffix
 // (e.g. "check-execution-failure:broken_check:a1b2c3d4").
-func findIssueByPrefix(report *aggregator.AgentHealthPayload, prefix string) *healthplatform.Issue {
+func findIssuesByPrefix(report *aggregator.AgentHealthPayload, prefix string) []*healthplatform.Issue {
 	if report == nil || report.HealthReport == nil {
 		return nil
 	}
+	var results []*healthplatform.Issue
 	for id, issue := range report.Issues {
 		if strings.HasPrefix(id, prefix) {
-			return issue
+			results = append(results, issue)
 		}
 	}
-	return nil
+	return results
 }
 
 // waitForIssuesInFakeintake polls fakeintake until at least one issue matching issueID is found,
@@ -156,14 +160,10 @@ func waitForIssuesInFakeintake(t *testing.T, fi *fakeintakeclient.Client, issueI
 		payloads, err := fi.GetAgentHealth()
 		assert.NoError(ct, err)
 		for _, p := range payloads {
-			var iss *healthplatform.Issue
 			if usePrefix {
-				iss = findIssueByPrefix(p, prefix)
+				found = append(found, findIssuesByPrefix(p, prefix)...)
 			} else {
-				iss = findIssue(t, p, issueID)
-			}
-			if iss != nil {
-				found = append(found, iss)
+				found = append(found, findIssuesByID(t, p, issueID)...)
 			}
 		}
 		assert.NotEmpty(ct, found, "issue with id/prefix %q not found in fakeintake", issueID)

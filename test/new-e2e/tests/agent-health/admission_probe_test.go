@@ -116,7 +116,7 @@ func (suite *admissionProbeSuite) TestAdmissionProbeIssueLifecycle() {
 				return
 			}
 			latest := payloads[len(payloads)-1]
-			detectedIssue = findIssue(t, latest, admissionProbeIssueID)
+			if issues := findIssuesByID(t, latest, admissionProbeIssueID); len(issues) > 0 { detectedIssue = issues[0] }
 			assert.NotNil(ct, detectedIssue, "Admission probe issue not in fakeintake report")
 		}, 4*time.Minute, 15*time.Second, "Health report with admission probe issue not received in fakeintake")
 
@@ -154,7 +154,7 @@ func (suite *admissionProbeSuite) TestAdmissionProbeIssueLifecycle() {
 				return false
 			}
 			for _, payload := range payloads {
-				if findIssue(t, payload, admissionProbeIssueID) != nil {
+				if len(findIssuesByID(t, payload, admissionProbeIssueID)) > 0 {
 					return true
 				}
 			}
