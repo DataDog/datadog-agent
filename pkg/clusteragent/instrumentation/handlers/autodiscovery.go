@@ -133,13 +133,6 @@ func (h *AutodiscoveryHandler) Handle(_ context.Context, event instrumentation.E
 	}, nil
 }
 
-// ListConfigs returns a snapshot of all stored integration.Config entries
-// across all DatadogInstrumentation CRs handled by this instance and the
-// current state hash.
-func (h *AutodiscoveryHandler) ListConfigs() ([]integration.Config, uint64) {
-	return h.checkStore.ListConfigs()
-}
-
 func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.DatadogInstrumentationCheckConfig) (integration.Config, error) {
 	initConfig, instances, logsConfig, err := translateConfigChecks(check)
 	if err != nil {

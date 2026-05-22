@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver
+//go:build clusterchecks && kubeapiserver
 
 package providers
 
@@ -45,7 +45,7 @@ type KubeEndpointSlicesCRConfigProvider struct {
 // NewKubeEndpointSlicesCRConfigProvider returns a new KubeEndpointSlicesCRConfigProvider.
 // It registers EndpointSlice informer event handlers and hooks into the template
 // store's onChange callback to mark the provider as dirty when templates change.
-func NewKubeEndpointSlicesCRConfigProvider(templateStore serviceTemplateStore) (*KubeEndpointSlicesCRConfigProvider, error) {
+func NewKubeEndpointSlicesCRConfigProvider(templateStore serviceTemplateStore) (types.ConfigProvider, error) {
 	provider := &KubeEndpointSlicesCRConfigProvider{
 		templateStore:   templateStore,
 		slicesByService: make(map[string]map[string]*discv1.EndpointSlice),
@@ -126,7 +126,9 @@ func (p *KubeEndpointSlicesCRConfigProvider) updateHandler(oldObj, newObj interf
 	}
 
 	if !equality.Semantic.DeepEqual(newSlice.Endpoints, oldSlice.Endpoints) {
-		if p.replaceSlice(oldSlice, newSlice) {
+		p.deleteSlice(oldSlice)
+		shouldUpdate := p.insertSlice(newSlice)
+		if shouldUpdate {
 			p.setUpToDate(false)
 		}
 	}
@@ -178,41 +180,6 @@ func (p *KubeEndpointSlicesCRConfigProvider) insertSlice(slice *discv1.EndpointS
 	}
 	p.slicesByService[svcKey][string(slice.UID)] = slice
 	return true
-}
-
-// replaceSlice atomically removes the old slice and inserts the new one under a single lock.
-func (p *KubeEndpointSlicesCRConfigProvider) replaceSlice(oldSlice, newSlice *discv1.EndpointSlice) bool {
-	oldKey, _, _, oldOk := serviceKeyForSlice(oldSlice)
-	newKey, newNs, newName, newOk := serviceKeyForSlice(newSlice)
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	changed := false
-
-	// Remove old
-	if oldOk {
-		if slices, found := p.slicesByService[oldKey]; found {
-			if _, exists := slices[string(oldSlice.UID)]; exists {
-				delete(slices, string(oldSlice.UID))
-				if len(slices) == 0 {
-					delete(p.slicesByService, oldKey)
-				}
-				changed = true
-			}
-		}
-	}
-
-	// Insert new (only if service is tracked)
-	if newOk && p.templateStore.HasService(newNs, newName) {
-		if p.slicesByService[newKey] == nil {
-			p.slicesByService[newKey] = make(map[string]*discv1.EndpointSlice)
-		}
-		p.slicesByService[newKey][string(newSlice.UID)] = newSlice
-		changed = true
-	}
-
-	return changed
 }
 
 // deleteSlice removes a cached EndpointSlice.

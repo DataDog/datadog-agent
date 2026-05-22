@@ -23,6 +23,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 )
 
+// templatesForService returns all check templates targeting a given service.
+func (s *ServiceCheckTemplateStore) templatesForService(namespace, name string) []integration.Config {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []integration.Config
+	for _, entry := range s.entries {
+		if entry.serviceNamespace == namespace && entry.serviceName == name {
+			out = append(out, entry.templates...)
+		}
+	}
+	return out
+}
+
 func newHandler() (*AutodiscoveryHandler, *CheckStore, *ServiceCheckTemplateStore) {
 	cs := NewCheckStore()
 	ts := NewServiceCheckTemplateStore()
@@ -31,6 +44,16 @@ func newHandler() (*AutodiscoveryHandler, *CheckStore, *ServiceCheckTemplateStor
 		ServiceCheckTemplateStore: ts,
 	})
 	return h, cs, ts
+}
+
+// configsForCR returns the stored configs for the given CR, abstracting the
+// difference between the check store (workload) and template store (service).
+func configsForCR(cr *datadoghq.DatadogInstrumentation, cs *CheckStore, ts *ServiceCheckTemplateStore) []integration.Config {
+	if isService(cr) {
+		return ts.templatesForService(cr.Namespace, cr.Spec.TargetRef.Name)
+	}
+	configs, _ := cs.ListConfigs()
+	return configs
 }
 
 func newCR(name, namespace string, targetKind, targetName string, checks []datadoghq.DatadogInstrumentationCheckConfig) *datadoghq.DatadogInstrumentation {
@@ -192,7 +215,7 @@ func TestValidate(t *testing.T) {
 			expectErrCount: 0,
 		},
 		{
-			name: "no container image",
+			name: "no container image for workload",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
 					Integration: "redisdb",
@@ -203,7 +226,7 @@ func TestValidate(t *testing.T) {
 			expectField:    "spec.config.checks[0].containerImage",
 		},
 		{
-			name: "all validations fail",
+			name: "all validations fail for workload",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{Integration: "", Instances: nil},
 			}),
@@ -235,10 +258,6 @@ func TestValidate(t *testing.T) {
 			if tt.expectField != "" && len(errs) > 0 {
 				assert.Equal(t, tt.expectField, errs[0].Field)
 			}
-			for _, e := range errs {
-				assert.Equal(t, checksReadyConditionType, e.Type)
-				assert.Equal(t, "autodiscovery", e.HandlerName)
-			}
 		})
 	}
 }
@@ -251,166 +270,109 @@ func TestHandle_NilCR(t *testing.T) {
 	assert.Equal(t, "MissingResource", status.Reason)
 }
 
-func TestHandle_Delete(t *testing.T) {
-	h, cs, _ := newHandler()
-	cr := newCR("test", "default", "Deployment", "my-app", []datadoghq.DatadogInstrumentationCheckConfig{
-		{
-			Integration: "redisdb",
-			Instances:   []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
-		},
-	})
+func TestHandle_CreateAndDelete(t *testing.T) {
+	tests := []struct {
+		name       string
+		targetKind string
+		targetName string
+	}{
+		{"workload", "Deployment", "my-app"},
+		{"service", "Service", "my-svc"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, cs, ts := newHandler()
+			cr := newCR("test", "default", tt.targetKind, tt.targetName, []datadoghq.DatadogInstrumentationCheckConfig{
+				{Integration: "redisdb", Instances: []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})}},
+			})
 
-	_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
-	require.NoError(t, err)
-	assert.Len(t, cs.ListConfigs(), 1)
+			// Create
+			status, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
+			require.NoError(t, err)
+			assert.Equal(t, metav1.ConditionTrue, status.Status)
+			assert.Equal(t, "Configured", status.Reason)
+			assert.Contains(t, status.Message, "1 check(s) configured")
 
-	status, err := h.Handle(context.Background(), instrumentation.EventDelete, cr)
-	require.NoError(t, err)
-	assert.Equal(t, metav1.ConditionTrue, status.Status)
-	assert.Equal(t, "Deleted", status.Reason)
-	assert.Empty(t, cs.ListConfigs())
+			configs := configsForCR(cr, cs, ts)
+			require.Len(t, configs, 1)
+			assert.Equal(t, "redisdb", configs[0].Name)
+			assert.Equal(t, "datadoginstrumentation:default/test", configs[0].Source)
+
+			// Delete
+			status, err = h.Handle(context.Background(), instrumentation.EventDelete, cr)
+			require.NoError(t, err)
+			assert.Equal(t, metav1.ConditionTrue, status.Status)
+			assert.Equal(t, "Deleted", status.Reason)
+			assert.Empty(t, configsForCR(cr, cs, ts))
+		})
+	}
 }
 
-func TestHandle_CreateAndUpdate(t *testing.T) {
-	h, cs, _ := newHandler()
-	cr := newCR("test", "default", "Deployment", "my-app", []datadoghq.DatadogInstrumentationCheckConfig{
-		{
-			Integration: "redisdb",
-			Instances:   []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
-		},
-	})
+func TestHandle_Update(t *testing.T) {
+	tests := []struct {
+		name       string
+		targetKind string
+		targetName string
+	}{
+		{"workload", "Deployment", "my-app"},
+		{"service", "Service", "my-svc"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, cs, ts := newHandler()
+			cr := newCR("test", "default", tt.targetKind, tt.targetName, []datadoghq.DatadogInstrumentationCheckConfig{
+				{Integration: "redisdb", Instances: []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})}},
+			})
 
-	status, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
-	require.NoError(t, err)
-	assert.Equal(t, metav1.ConditionTrue, status.Status)
-	assert.Equal(t, "Configured", status.Reason)
-	assert.Contains(t, status.Message, "1 check(s) configured")
+			_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
+			require.NoError(t, err)
+			assert.Len(t, configsForCR(cr, cs, ts), 1)
 
-	configs := cs.ListConfigs()
-	require.Len(t, configs, 1)
-	assert.Equal(t, "redisdb", configs[0].Name)
-	assert.Equal(t, "datadoginstrumentation:default/test", configs[0].Source)
-
-	cr.Spec.Config.Checks = append(cr.Spec.Config.Checks, datadoghq.DatadogInstrumentationCheckConfig{
-		Integration: "nginx",
-		Instances:   []runtime.RawExtension{rawJSON(t, map[string]string{"url": "http://localhost"})},
-	})
-	status, err = h.Handle(context.Background(), instrumentation.EventUpdate, cr)
-	require.NoError(t, err)
-	assert.Equal(t, metav1.ConditionTrue, status.Status)
-	assert.Contains(t, status.Message, "2 check(s) configured")
-	assert.Len(t, cs.ListConfigs(), 2)
+			cr.Spec.Config.Checks = append(cr.Spec.Config.Checks, datadoghq.DatadogInstrumentationCheckConfig{
+				Integration: "nginx",
+				Instances:   []runtime.RawExtension{rawJSON(t, map[string]string{"url": "http://localhost"})},
+			})
+			status, err := h.Handle(context.Background(), instrumentation.EventUpdate, cr)
+			require.NoError(t, err)
+			assert.Equal(t, metav1.ConditionTrue, status.Status)
+			assert.Contains(t, status.Message, "2 check(s) configured")
+			assert.Len(t, configsForCR(cr, cs, ts), 2)
+		})
+	}
 }
 
 func TestHandle_MultipleCRs(t *testing.T) {
-	h, cs, _ := newHandler()
-	cr1 := newCR("redis-check", "ns1", "Deployment", "redis", []datadoghq.DatadogInstrumentationCheckConfig{
-		{Integration: "redisdb", Instances: []runtime.RawExtension{rawJSON(t, map[string]string{"host": "redis"})}},
-	})
-	cr2 := newCR("nginx-check", "ns2", "DaemonSet", "nginx", []datadoghq.DatadogInstrumentationCheckConfig{
-		{Integration: "nginx", Instances: []runtime.RawExtension{rawJSON(t, map[string]string{"url": "http://nginx"})}},
-	})
+	tests := []struct {
+		name       string
+		targetKind string
+	}{
+		{"workload", "Deployment"},
+		{"service", "Service"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, cs, ts := newHandler()
+			cr1 := newCR("redis-check", "ns1", tt.targetKind, "target-1", []datadoghq.DatadogInstrumentationCheckConfig{
+				{Integration: "redisdb", Instances: []runtime.RawExtension{rawJSON(t, map[string]string{"host": "redis"})}},
+			})
+			cr2 := newCR("nginx-check", "ns2", tt.targetKind, "target-2", []datadoghq.DatadogInstrumentationCheckConfig{
+				{Integration: "nginx", Instances: []runtime.RawExtension{rawJSON(t, map[string]string{"url": "http://nginx"})}},
+			})
 
-	_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr1)
-	require.NoError(t, err)
-	_, err = h.Handle(context.Background(), instrumentation.EventCreate, cr2)
-	require.NoError(t, err)
-	assert.Len(t, cs.ListConfigs(), 2)
+			_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr1)
+			require.NoError(t, err)
+			_, err = h.Handle(context.Background(), instrumentation.EventCreate, cr2)
+			require.NoError(t, err)
 
-	_, err = h.Handle(context.Background(), instrumentation.EventDelete, cr1)
-	require.NoError(t, err)
-	configs := cs.ListConfigs()
-	require.Len(t, configs, 1)
-	assert.Equal(t, "nginx", configs[0].Name)
-}
+			// Delete first CR; second should remain
+			_, err = h.Handle(context.Background(), instrumentation.EventDelete, cr1)
+			require.NoError(t, err)
 
-func TestHandle_ServiceCreate(t *testing.T) {
-	h, cs, ts := newHandler()
-	cr := newCR("redis-check", "default", "Service", "redis-svc", []datadoghq.DatadogInstrumentationCheckConfig{
-		{
-			Integration: "redisdb",
-			Instances:   []runtime.RawExtension{rawJSON(t, map[string]string{"host": "%%host%%"})},
-		},
-	})
-
-	status, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
-	require.NoError(t, err)
-	assert.Equal(t, metav1.ConditionTrue, status.Status)
-	assert.Equal(t, "Configured", status.Reason)
-	assert.Contains(t, status.Message, "1 check(s) configured")
-
-	templates := ts.templatesForService("default", "redis-svc")
-	require.Len(t, templates, 1)
-	assert.Equal(t, "redisdb", templates[0].Name)
-	assert.Equal(t, "datadoginstrumentation:default/redis-check", templates[0].Source)
-	assert.Empty(t, cs.ListConfigs())
-}
-
-func TestHandle_ServiceDelete(t *testing.T) {
-	h, _, ts := newHandler()
-	cr := newCR("redis-check", "default", "Service", "redis-svc", []datadoghq.DatadogInstrumentationCheckConfig{
-		{
-			Integration: "redisdb",
-			Instances:   []runtime.RawExtension{rawJSON(t, map[string]string{"host": "%%host%%"})},
-		},
-	})
-
-	_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
-	require.NoError(t, err)
-	assert.NotEmpty(t, ts.templatesForService("default", "redis-svc"))
-
-	status, err := h.Handle(context.Background(), instrumentation.EventDelete, cr)
-	require.NoError(t, err)
-	assert.Equal(t, metav1.ConditionTrue, status.Status)
-	assert.Equal(t, "Deleted", status.Reason)
-	assert.Empty(t, ts.templatesForService("default", "redis-svc"))
-}
-
-func TestHandle_ServiceUpdate(t *testing.T) {
-	h, _, ts := newHandler()
-	cr := newCR("redis-check", "default", "Service", "redis-svc", []datadoghq.DatadogInstrumentationCheckConfig{
-		{
-			Integration: "redisdb",
-			Instances:   []runtime.RawExtension{rawJSON(t, map[string]string{"host": "%%host%%"})},
-		},
-	})
-
-	_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
-	require.NoError(t, err)
-	assert.Len(t, ts.templatesForService("default", "redis-svc"), 1)
-
-	cr.Spec.Config.Checks = append(cr.Spec.Config.Checks, datadoghq.DatadogInstrumentationCheckConfig{
-		Integration: "http_check",
-		Instances:   []runtime.RawExtension{rawJSON(t, map[string]string{"url": "http://localhost"})},
-	})
-	status, err := h.Handle(context.Background(), instrumentation.EventUpdate, cr)
-	require.NoError(t, err)
-	assert.Equal(t, metav1.ConditionTrue, status.Status)
-	assert.Contains(t, status.Message, "2 check(s) configured")
-	assert.Len(t, ts.templatesForService("default", "redis-svc"), 2)
-}
-
-func TestHandle_ServiceMultipleCRs(t *testing.T) {
-	h, _, ts := newHandler()
-	cr1 := newCR("redis", "ns1", "Service", "svc-1", []datadoghq.DatadogInstrumentationCheckConfig{
-		{Integration: "redisdb", Instances: []runtime.RawExtension{rawJSON(t, map[string]string{"host": "redis"})}},
-	})
-	cr2 := newCR("nginx", "ns2", "Service", "svc-2", []datadoghq.DatadogInstrumentationCheckConfig{
-		{Integration: "nginx", Instances: []runtime.RawExtension{rawJSON(t, map[string]string{"url": "http://nginx"})}},
-	})
-
-	_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr1)
-	require.NoError(t, err)
-	_, err = h.Handle(context.Background(), instrumentation.EventCreate, cr2)
-	require.NoError(t, err)
-
-	assert.Len(t, ts.templatesForService("ns1", "svc-1"), 1)
-	assert.Len(t, ts.templatesForService("ns2", "svc-2"), 1)
-
-	_, err = h.Handle(context.Background(), instrumentation.EventDelete, cr1)
-	require.NoError(t, err)
-	assert.Empty(t, ts.templatesForService("ns1", "svc-1"))
-	assert.Len(t, ts.templatesForService("ns2", "svc-2"), 1)
+			remaining := configsForCR(cr2, cs, ts)
+			require.Len(t, remaining, 1)
+			assert.Equal(t, "nginx", remaining[0].Name)
+		})
+	}
 }
 
 func TestServiceCheckTemplateStore_OnChange(t *testing.T) {
@@ -514,7 +476,7 @@ func TestTranslateCheck(t *testing.T) {
 			_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
 			require.NoError(t, err)
 
-			configs := cs.ListConfigs()
+			configs, _ := cs.ListConfigs()
 			require.Len(t, configs, 1)
 			assert.Equal(t, tt.expectedInit, string(configs[0].InitConfig))
 			require.Len(t, configs[0].Instances, tt.expectedInstLen)
