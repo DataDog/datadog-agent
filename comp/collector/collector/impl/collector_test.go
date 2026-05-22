@@ -18,17 +18,21 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/impl/internal/middleware"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
@@ -36,6 +40,38 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
+
+// testDependencies mirrors the dependencies struct but uses fx.In so that
+// fxutil.Test can inject it. Use makeDeps to convert to the actual dependencies
+// type before calling newCollector or newProvides.
+type testDependencies struct {
+	fx.In
+
+	Lc             compdef.Lifecycle
+	Config         config.Component
+	Log            log.Component
+	HaAgent        haagent.Component
+	HealthPlatform healthplatform.Component
+	Hostname       hostnameinterface.Component
+
+	SenderManager    sender.SenderManager
+	MetricSerializer option.Option[serializer.MetricSerializer]
+	AgentTelemetry   option.Option[agenttelemetry.Component]
+}
+
+func makeDeps(td testDependencies) dependencies {
+	return dependencies{
+		Lc:               td.Lc,
+		Config:           td.Config,
+		Log:              td.Log,
+		HaAgent:          td.HaAgent,
+		HealthPlatform:   td.HealthPlatform,
+		Hostname:         td.Hostname,
+		SenderManager:    td.SenderManager,
+		MetricSerializer: td.MetricSerializer,
+		AgentTelemetry:   td.AgentTelemetry,
+	}
+}
 
 // FIXTURE
 type TestCheck struct {

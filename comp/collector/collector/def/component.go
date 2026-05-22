@@ -9,12 +9,8 @@ package collector
 // team: agent-runtimes
 
 import (
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // EventType represents the type of events emitted by the collector
@@ -44,16 +40,4 @@ type Component interface {
 	ReloadAllCheckInstances(name string, newInstances []check.Check) ([]checkid.ID, error)
 	// AddEventReceiver adds a callback to the collector to be called each time a check is added or removed.
 	AddEventReceiver(cb EventReceiver)
-}
-
-// NoneModule return a None optional type for Component.
-//
-// This helper allows code that needs a disabled Optional type for the collector to get it. The helper is split from
-// the implementation to avoid linking with the implementation.
-func NoneModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(func() option.Option[Component] {
-			return option.None[Component]()
-		}),
-	)
 }

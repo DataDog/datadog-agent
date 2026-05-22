@@ -21,7 +21,7 @@ import (
 	"go.uber.org/fx"
 
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
-	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
+	collectornoopimpl "github.com/DataDog/datadog-agent/comp/collector/collector/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
@@ -73,7 +73,7 @@ func getFlareWithParams(t *testing.T, params Params, overrides map[string]interf
 			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 			demultiplexerimpl.MockModule(),
 			fx.Provide(func() Params { return params }),
-			collector.NoneModule(),
+			collectornoopimpl.NoneModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			autodiscoveryimpl.MockModule(),
 			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: scheduler.NewController()}),
@@ -101,7 +101,7 @@ func getFlareComponent(t *testing.T, params Params, overrides map[string]interfa
 			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 			demultiplexerimpl.MockModule(),
 			fx.Provide(func() Params { return params }),
-			collector.NoneModule(),
+			collectornoopimpl.NoneModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			autodiscoveryimpl.MockModule(),
 			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: scheduler.NewController()}),
