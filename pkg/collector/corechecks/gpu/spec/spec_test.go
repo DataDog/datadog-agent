@@ -57,7 +57,7 @@ func TestLoadSpecNotEmpty(t *testing.T) {
 		require.NotEmptyf(t, aggregationName, "aggregation name should not be empty")
 		require.NotEmptyf(t, aggregationSpec.Description, "aggregation %s should define description", aggregationName)
 		require.NotEmptyf(t, aggregationSpec.TimeAggregator, "aggregation %s should define time_aggregator", aggregationName)
-		require.NotEmptyf(t, aggregationSpec.GroupAggregator, "aggregation %s should define group-aggregator", aggregationName)
+		require.NotEmptyf(t, aggregationSpec.GroupAggregator, "aggregation %s should define group_aggregator", aggregationName)
 		require.NotEmptyf(t, aggregationSpec.GranularityAggregator, "aggregation %s should define granularity_aggregator", aggregationName)
 	}
 }

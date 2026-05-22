@@ -64,7 +64,7 @@ type AggregationsSpec struct {
 type AggregationSpec struct {
 	Description           string `yaml:"description"`
 	TimeAggregator        string `yaml:"time_aggregator"`
-	GroupAggregator       string `yaml:"group-aggregator"`
+	GroupAggregator       string `yaml:"group_aggregator"`
 	GranularityAggregator string `yaml:"granularity_aggregator"`
 }
 

@@ -1383,7 +1383,7 @@ metrics:
       description: >-
         Failed NVLink recovery events total for all links. The counter reports
         the device lifetime total reported by NVML.
-      aggregation: absolute_usage
+      aggregation: lifetime_error
     tagsets:
       - device
     support:
@@ -1407,6 +1407,7 @@ metrics:
       description: >-
         Successful NVLink recovery events total for all links. The counter
         reports the device lifetime total reported by NVML.
+      aggregation: lifetime_error
     tagsets:
       - device
     support:
@@ -1911,7 +1912,7 @@ metrics:
       description: >-
         Number of rows remapped due to correctable errors. The counter reports
         the device lifetime total reported by NVML.
-      aggregation: absolute_usage
+      aggregation: lifetime_error
     tagsets:
       - device
     validator:
@@ -1982,7 +1983,7 @@ metrics:
       description: >-
         Number of rows remapped due to uncorrectable errors. The counter reports
         the device lifetime total reported by NVML.
-      aggregation: absolute_usage
+      aggregation: lifetime_error
     tagsets:
       - device
     validator:
