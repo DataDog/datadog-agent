@@ -370,13 +370,13 @@ func syncDDOTProcmgrState(ctx HookContext, stable bool) (bool, error) {
 	}
 	if !ownsDDOT {
 		if procmgrUsable(ctx, stable) {
-			if err := procmgr.RestartDaemon(ctx, !stable); err != nil {
+			if err := agentService.RestartProcmgrDaemon(ctx, stable); err != nil {
 				log.Warnf("failed to restart dd-procmgrd after dropping DDOT config: %v", err)
 			}
 		}
 		return false, nil
 	}
-	return ownsDDOT, procmgr.RestartDaemon(ctx, !stable)
+	return ownsDDOT, agentService.RestartProcmgrDaemon(ctx, stable)
 }
 
 func syncDDOTProcmgrStop(ctx HookContext, stable bool) error {
@@ -388,7 +388,7 @@ func syncDDOTProcmgrStop(ctx HookContext, stable bool) error {
 	if !procmgrUsable(ctx, stable) {
 		return nil
 	}
-	return procmgr.RestartDaemon(ctx, !stable)
+	return agentService.RestartProcmgrDaemon(ctx, stable)
 }
 
 // syncDDOTProcmgrAfterAgentPromotion refreshes DDOT processes.d after OCI promote.

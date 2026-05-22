@@ -47,7 +47,7 @@ func IsSystemdHost() bool {
 func getServiceManagerType() Type {
 	_, err := exec.LookPath("systemctl")
 	if err == nil {
-		if procmgrInstallerRoutingEnabled() {
+		if procmgrDaemonPresentOnHost() {
 			return ProcmgrType
 		}
 		return SystemdType

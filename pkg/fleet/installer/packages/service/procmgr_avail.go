@@ -42,7 +42,3 @@ func procmgrDaemonPresentOnHost() bool {
 	}
 	return false
 }
-
-func procmgrInstallerRoutingEnabled() bool {
-	return procmgrDaemonPresentOnHost()
-}
