@@ -2053,6 +2053,22 @@ metrics:
         mig: true
         physical: true
         vgpu: true
+  sm_active.dist:
+    metadata:
+      metric_type: distribution
+      unit: percent
+      description: Distribution of per-process streaming multiprocessor activity,
+        emitted as individual process utilization samples so the backend can compute
+        percentiles instead of a single device-wide aggregate.
+      aggregation: relative_activity
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
   sm_occupancy:
     metadata:
       metric_type: gauge

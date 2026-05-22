@@ -173,6 +173,7 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Met
 				Metric{Name: "process.dram_active", Value: float64(sample.MemUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
 				Metric{Name: "process.encoder_active", Value: float64(sample.EncUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
 				Metric{Name: "process.decoder_active", Value: float64(sample.DecUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
+				Metric{Name: "sm_active.dist", Value: float64(sample.SmUtil), Type: ddmetrics.DistributionType, Priority: Medium},
 			)
 
 			if sample.SmUtil > maxSmUtil {

@@ -87,7 +87,7 @@ func TestCollectProcessUtilization(t *testing.T) {
 			samples: []nvml.ProcessUtilizationSample{
 				{Pid: 1234, TimeStamp: 1000, SmUtil: 75, MemUtil: 60, EncUtil: 30, DecUtil: 15},
 			},
-			expectedCount: 6, // 4 per-process + sm_active + core.limit
+			expectedCount: 7, // 4 per-process + sm_active.dist + sm_active + core.limit
 		},
 		{
 			name: "MultipleUtilizationProcesses",
@@ -95,14 +95,14 @@ func TestCollectProcessUtilization(t *testing.T) {
 				{Pid: 1001, TimeStamp: 1100, SmUtil: 50, MemUtil: 40, EncUtil: 20, DecUtil: 10},
 				{Pid: 1003, TimeStamp: 1200, SmUtil: 80, MemUtil: 70, EncUtil: 35, DecUtil: 25},
 			},
-			expectedCount: 10, // 2×4 per-process + sm_active + core.limit
+			expectedCount: 12, // 2×(4 per-process + sm_active.dist) + sm_active + core.limit
 		},
 		{
 			name: "ZeroUtilizationValues",
 			samples: []nvml.ProcessUtilizationSample{
 				{Pid: 13001, TimeStamp: 4000, SmUtil: 0, MemUtil: 0, EncUtil: 0, DecUtil: 0},
 			},
-			expectedCount: 6, // 4 per-process + sm_active + core.limit
+			expectedCount: 7, // 4 per-process + sm_active.dist + sm_active + core.limit
 		},
 	}
 
