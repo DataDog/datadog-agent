@@ -10,7 +10,7 @@ import (
 	replayfx "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx"
 	server "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	serverfx "github.com/DataDog/datadog-agent/comp/dogstatsd/server/fx"
-	serverdebugfx "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/fx"
+	serverdebugimpltopk "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpltopk"
 	statusfx "github.com/DataDog/datadog-agent/comp/dogstatsd/status/fx"
 	offlinereporterfx "github.com/DataDog/datadog-agent/comp/offlinereporter/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -22,7 +22,7 @@ import (
 func Bundle(params server.Params) fxutil.BundleOptions {
 	return fxutil.Bundle(
 		offlinereporterfx.Module(),
-		serverdebugfx.Module(),
+		serverdebugimpltopk.Module(),
 		replayfx.Module(),
 		pidmapfx.Module(),
 		serverfx.Module(params),
