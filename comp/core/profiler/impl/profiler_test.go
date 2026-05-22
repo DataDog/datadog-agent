@@ -25,7 +25,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	profilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	profilermock "github.com/DataDog/datadog-agent/comp/core/profiler/mock"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	settingsmock "github.com/DataDog/datadog-agent/comp/core/settings/mock"
 	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 
@@ -80,7 +80,7 @@ func getProfiler(t testing.TB, overrideSysProbe map[string]interface{}) profiler
 		}),
 		fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
 		fxutil.ProvideOptional[sysprobeconfigdef.Component](),
-		settingsimpl.MockModule(),
+		settingsmock.MockModule(),
 		fxutil.ProvideComponentConstructor(NewComponent),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
