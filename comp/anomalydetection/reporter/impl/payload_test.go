@@ -63,10 +63,8 @@ func TestBuildChangeEventPayload_WireShape(t *testing.T) {
 	// host is required by the event-management intake (mirrors notableevents and logonduration).
 	assert.Equal(t, "my-test-host", attrs["host"])
 
-	// edge-intelligence routing: must be present and locked to the registered
-	// values from integrations-internal-core#3240.
 	assert.Equal(t, "edge-intelligence", attrs["integration_id"])
-	assert.EqualValues(t, 78252213, attrs["source_type_id"])
+	assert.NotContains(t, attrs, "source_type_id", "source_type_id is rejected by the intake")
 
 	tags, ok := attrs["tags"].([]any)
 	assert.True(t, ok, "tags must be a JSON array")
