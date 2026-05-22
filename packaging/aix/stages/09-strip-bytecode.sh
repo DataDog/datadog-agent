@@ -76,6 +76,7 @@ find "$EMBEDDED_DESTDIR/bin" -type f | while IFS= read -r f; do
     case $(head -1 "$f" 2>/dev/null) in
         "#!${EMBEDDED_DESTDIR}/bin/python"*)
             cp -p "$f" "${f}.tmp" && sed "1s|#!${EMBEDDED_DESTDIR}/bin/|#!${EMBEDDED}/bin/|" "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
+            log "Fixed shebang: $(basename "$f")"
             ;;
     esac
 done
