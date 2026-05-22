@@ -1,12 +1,21 @@
 ---
 fixes:
   - |
-    Decode the Docker daemon's ``/info`` response tolerantly to handle daemons
-    that emit invalid CIDRs in ``DefaultAddressPools[].Base``. The strict
-    ``netip.Prefix`` decoding introduced by the moby v29 client (used since the
-    CVE-2026-34040 / CVE-2026-33997 fix) previously caused ``DockerUtil`` to
-    fail to initialize against such daemons, which cascaded into hostname
-    detection, the workloadmeta Docker collector, the Docker core check, host
-    metadata and host tags being unavailable. In containerized environments
-    without an explicit ``DD_HOSTNAME``, this could prevent the Agent from
-    starting.
+    Fix the Agent's Docker integration against Docker daemons that return
+    malformed values in their ``/info`` response. The failure was visible in
+    Agent logs as::
+
+        Docker init error: temporary failure in dockerutil, will retry later:
+        Error reading remote info: netip.ParsePrefix("invalid Prefix"): no '/'
+
+    When triggered, it prevented the Docker integration from initializing,
+    which cascaded into:
+
+    * missing container and image tags on metrics, traces and logs collected
+      from Docker containers,
+    * missing ``docker_version`` and ``docker_swarm`` entries in host
+      metadata,
+    * missing ``docker_swarm_node_role`` host tag on Docker Swarm nodes,
+    * in containerized deployments without an explicit ``DD_HOSTNAME``, the
+      Agent could refuse to start because the Docker hostname provider could
+      no longer determine a hostname.
