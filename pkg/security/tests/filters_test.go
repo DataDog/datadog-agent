@@ -245,7 +245,16 @@ func TestFilterOpenParentBasenameApprover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testFile2, _, err = test.Path("test-2")
+	testDir2, _, err := test.Path("test-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(testDir2), 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	testFile2, _, err = test.Path("test-2/" + basename)
 	if err != nil {
 		t.Fatal(err)
 	}

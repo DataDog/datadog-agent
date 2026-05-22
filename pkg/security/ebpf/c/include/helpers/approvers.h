@@ -253,8 +253,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_by_basename(struct den
         prefix.value[i] = basename.value[i];
     }
 
-    struct event_mask_filter_t *filter = bpf_map_lookup_elem(&basename_approvers, &prefix);
-    if (filter && filter->event_mask & (1 << (event_type - 1))) {
+    if (is_basename_in_map(&prefix, event_type)) {
         monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
         return APPROVED;
     }
