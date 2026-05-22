@@ -9,7 +9,7 @@ go_library(
         "//comp/core/config",
         "//comp/healthplatform/issueregistry/def",
         "//comp/healthplatform/issues",
-        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "//comp/healthplatform/runner/def",
     ],
 )
 

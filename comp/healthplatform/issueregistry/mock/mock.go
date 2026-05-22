@@ -14,16 +14,17 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type mockRegistry struct {
-	templates map[string]issuesmod.IssueTemplate
+	templates map[string]issuesmod.Template
 }
 
 // New returns an empty mock registry. Call RegisterTemplate to add templates.
 func New() registrydef.Component {
-	return &mockRegistry{templates: make(map[string]issuesmod.IssueTemplate)}
+	return &mockRegistry{templates: make(map[string]issuesmod.Template)}
 }
 
 // MockModule provides the mock registry via fx.
@@ -31,28 +32,28 @@ func MockModule() fxutil.Module {
 	return fxutil.Component(fxutil.ProvideComponentConstructor(New))
 }
 
-// RegisterTemplate adds a template under issueType so that BuildIssue succeeds.
+// RegisterTemplate adds a template under issueName so that BuildIssue succeeds.
 // Panics if r was not created by New() — intentional, test-only helper.
-func RegisterTemplate(r registrydef.Component, issueType string, tmpl issuesmod.IssueTemplate) {
-	r.(*mockRegistry).templates[issueType] = tmpl //nolint:forcetypeassert
+func RegisterTemplate(r registrydef.Component, issueName string, tmpl issuesmod.Template) {
+	r.(*mockRegistry).templates[issueName] = tmpl //nolint:forcetypeassert
 }
 
-func (m *mockRegistry) BuildIssue(issueType string, context map[string]string) (*healthplatformpayload.Issue, error) {
-	if tmpl, ok := m.templates[issueType]; ok {
+func (m *mockRegistry) BuildIssue(issueName string, context map[string]string) (*healthplatformpayload.Issue, error) {
+	if tmpl, ok := m.templates[issueName]; ok {
 		return tmpl.BuildIssue(context)
 	}
-	return nil, fmt.Errorf("no issue template registered for type %q", issueType)
+	return nil, fmt.Errorf("no issue template registered for type %q", issueName)
 }
 
-func (m *mockRegistry) HasTemplate(issueType string) bool {
-	_, ok := m.templates[issueType]
+func (m *mockRegistry) HasTemplate(issueName string) bool {
+	_, ok := m.templates[issueName]
 	return ok
 }
 
-func (m *mockRegistry) GetBuiltInPeriodicHealthChecks() []*issuesmod.BuiltInPeriodicHealthCheck {
+func (m *mockRegistry) GetBuiltInPeriodicHealthChecks() []*runnerdef.BuiltInPeriodicHealthCheck {
 	return nil
 }
 
-func (m *mockRegistry) GetBuiltInStartupHealthChecks() []*issuesmod.BuiltInStartupHealthCheck {
+func (m *mockRegistry) GetBuiltInStartupHealthChecks() []*runnerdef.BuiltInHealthCheck {
 	return nil
 }

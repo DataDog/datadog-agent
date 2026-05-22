@@ -75,7 +75,9 @@ func TestBuildIssue_Extra(t *testing.T) {
 func TestNewModule(t *testing.T) {
 	m := NewModule(nil)
 	assert.Equal(t, IssueName, m.IssueName())
-	assert.NotNil(t, m.IssueTemplate())
+	issue, err := m.BuildIssue(map[string]string{})
+	require.NoError(t, err)
+	assert.NotNil(t, issue)
 	assert.Nil(t, m.BuiltInPeriodicHealthCheck())
 	assert.Nil(t, m.BuiltInStartupHealthCheck())
 }
