@@ -33,6 +33,12 @@
         "schedule": ["* 2-6 * * 1-5"]
       },
       {
+        "matchDepNames": ["linux-images-devcontainer"],
+        "maxMajorIncrement": 0,
+        "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
+        "schedule": ["* 2-6 * * 1-5"]
+      },
+      {
         "matchDepNames": ["windows-images"],
         "maxMajorIncrement": 0,
         "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
@@ -189,7 +195,7 @@
         "matchStrings": [
           "\"image\":\\s*\"registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace:(?<currentValue>v[^\"]+)\""
         ],
-        "depNameTemplate": "linux-images",
+        "depNameTemplate": "linux-images-devcontainer",
         "versioningTemplate": "loose",
         "datasourceTemplate": "custom.linux-images"
       },
@@ -209,6 +215,17 @@
         "managerFilePatterns": [".dda/version"],
         "matchStrings": [
           "(?<currentValue>[0-9]+.[0-9]+.[0-9]+)"
+        ],
+        "depNameTemplate": "DataDog/datadog-agent-dev",
+        "datasourceTemplate": "github-releases"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": [
+          "Dockerfiles/agent-ddot/Dockerfile.agent-otel"
+        ],
+        "matchStrings": [
+          "DDA_VERSION=v(?<currentValue>[0-9]+.[0-9]+.[0-9]+)"
         ],
         "depNameTemplate": "DataDog/datadog-agent-dev",
         "datasourceTemplate": "github-releases"

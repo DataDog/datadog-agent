@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build ncm
-
 // Package report contains types and functions for submitting/reporting network device configurations payloads
 package report
 
@@ -16,8 +14,10 @@ import (
 // NCMPayload contains network devices configuration payload sent to EvP / backend
 type NCMPayload struct {
 	Namespace        string                `json:"namespace"`
-	Configs          []NetworkDeviceConfig `json:"configs"`
+	Configs          []NetworkDeviceConfig `json:"configs,omitempty"`
+	Inventories      []InventoryEntry      `json:"inventories,omitempty"`
 	CollectTimestamp int64                 `json:"collect_timestamp"`
+	AgentHostname    string                `json:"agent_hostname"`
 }
 
 // NetworkDeviceConfig contains network device configuration for a single device
@@ -31,8 +31,16 @@ type NetworkDeviceConfig struct {
 	Content      string             `json:"content"`
 }
 
+// InventoryEntry contains the metadata about the configs stored locally on the agent
+type InventoryEntry struct {
+	Namespace  string `json:"namespace"`
+	ConfigID   string `json:"config_id"`
+	DeviceID   string `json:"device_id"`
+	ReportedAt int64  `json:"reported_at"`
+}
+
 // ToNCMPayload converts the given parameters into a NCMPayload (sent to event platform / backend).
-func ToNCMPayload(namespace string, configs []NetworkDeviceConfig, timestamp int64) NCMPayload {
+func ToNCMPayload(namespace string, agentHostname string, configs []NetworkDeviceConfig, inventories []InventoryEntry, timestamp int64) NCMPayload {
 	for i := range configs {
 		// if timestamp could not be extracted from the configurations / commands, use the agent timestamp
 		if configs[i].Timestamp == 0 {
@@ -41,7 +49,9 @@ func ToNCMPayload(namespace string, configs []NetworkDeviceConfig, timestamp int
 	}
 	return NCMPayload{
 		Namespace:        namespace,
+		AgentHostname:    agentHostname,
 		Configs:          configs,
+		Inventories:      inventories,
 		CollectTimestamp: timestamp,
 	}
 }
