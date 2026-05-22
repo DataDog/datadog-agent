@@ -15,6 +15,7 @@
 - Fix Go agent/trace-agent build: unset `OBJECT_MODE` before invoking the Go external linker in stage 04 (`OBJECT_MODE=64` and `AIX_OBJECT_MODE=64` exported simultaneously cause the linker to pick up the 32-bit `crt0.o`)
 - Include `final_constraints-py3.txt` in the BFF package at `/opt/datadog-agent/final_constraints-py3.txt`
 - Upgrade embedded pip from 24.0 to 26.1 (patches CVE-2026-1703, CVE-2026-6357)
+- Set `GOMEMLIMIT=2GiB` on build hosts with less than 6 GiB RAM to prevent Go compiler swap thrash (grouped with the existing `-p=1` flag for the same reason)
 
 ---
 
