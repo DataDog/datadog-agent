@@ -11,7 +11,7 @@
 <!-- Add entries here for changes not yet in a release. -->
 
 - Go checks: bundle `conf.yaml.example` and `conf.yaml.default` from integrations-core for all Go checks that have them, supplementing the agent-repo config (agent-repo takes precedence on filename conflicts)
-
+- Keep Python headers (`embedded/include/`) in the package so users can build C extension packages (e.g. `ibm_db` for the DB2 check) against the embedded Python, matching Linux/macOS omnibus behaviour
 - Include missing Go check configurations in the package: `cisco_sdwan`, `snmp`, `cloud_hostinfo`, `discovery`, `telemetry`, `versa` — these checks are compiled into the agent binary but their config files were missing from `AIX_CORECHECKS`
 - Fix SQLite build: link with `-lm` when `SQLITE_ENABLE_MATH_FUNCTIONS` is enabled
 - Fix Go agent/trace-agent build: unset `OBJECT_MODE` before invoking the Go external linker in stage 04 (`OBJECT_MODE=64` and `AIX_OBJECT_MODE=64` exported simultaneously cause the linker to pick up the 32-bit `crt0.o`)
