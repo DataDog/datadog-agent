@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    Decode the Docker daemon's ``/info`` response tolerantly to handle daemons
+    that emit invalid CIDRs in ``DefaultAddressPools[].Base``. The strict
+    ``netip.Prefix`` decoding introduced by the moby v29 client (used since the
+    CVE-2026-34040 / CVE-2026-33997 fix) previously caused ``DockerUtil`` to
+    fail to initialize against such daemons, which cascaded into hostname
+    detection, the workloadmeta Docker collector, the Docker core check, host
+    metadata and host tags being unavailable. In containerized environments
+    without an explicit ``DD_HOSTNAME``, this could prevent the Agent from
+    starting.
