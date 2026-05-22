@@ -38,10 +38,7 @@ func TestAnomalyDetectionDisabledByDefault(t *testing.T) {
 
 // TestObserverSilentWithDefaultConfig asserts the observer analysis pipeline is
 // not wired when anomaly_detection is not configured.
-//
-// Note: some [observer] lines (e.g. "[observer] getting handle for system-checks-hf")
-// may appear because the HFRunner calls GetHandle unconditionally even on the noop
-// path. The meaningful signal is observerReadyMarker — the "all-metrics" handle that
+// The meaningful signal is observerReadyMarker — the "all-metrics" handle that
 // the aggregator creates only when the full analysis pipeline is active.
 func (s *disabledByDefaultSuite) TestObserverSilentWithDefaultConfig() {
 	waitForAgentStartup(s)
@@ -55,7 +52,7 @@ func (s *disabledByDefaultSuite) TestObserverSilentWithDefaultConfig() {
 
 	// Collect any [observer] lines as evidence for the failure message.
 	// The match uses "[observer" (no closing bracket) to catch all observer-prefixed
-	// tags including [observer/hfrunner], [observer/engine], etc.
+	// tags including [observer/engine], etc.
 	var culprits []string
 	for _, line := range strings.Split(agentLog, "\n") {
 		if strings.Contains(line, "[observer") {

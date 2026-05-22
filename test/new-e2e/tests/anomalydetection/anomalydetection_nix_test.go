@@ -44,15 +44,13 @@ type metricsTriggeredSuite struct {
 //   - With a constant baseline the stddev≈0 path sets threshold=10%×mean,
 //     so even a small spike fires immediately.
 //
-// dogstatsd_flush_interval=1 ensures each UDP send produces a distinct
-// one-second storage point in the observer, rather than being aggregated
-// into a single 10-second DSD flush bucket.
+// The test sends one gauge per second to produce distinct one-second storage
+// points in the observer; CUSUM fires after min_points=5 baseline points.
 func TestAnomalyDetectionMetricsTriggered(t *testing.T) {
 	t.Parallel()
 	// language=yaml
 	agentConfig := `
 log_level: debug
-dogstatsd_flush_interval: 1
 anomaly_detection:
   enabled: true
   metrics:
