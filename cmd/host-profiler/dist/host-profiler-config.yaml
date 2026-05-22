@@ -35,8 +35,7 @@ processors:
 exporters:
   debug: {}
   otlphttp:
-    profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
-    metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
+    endpoint: https://otlp.${env:DD_SITE}
     headers:
       dd-api-key: ${env:DD_API_KEY}
       dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
