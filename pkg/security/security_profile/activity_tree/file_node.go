@@ -16,6 +16,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -175,7 +177,7 @@ func (fn *FileNode) debug(w io.Writer, prefix string) {
 
 // InsertFileEvent inserts an event in a FileNode. This function returns true if a new entry was added, false if
 // the event was dropped.
-func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.EBPFResolvers) bool {
+func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.EBPFResolvers, interner *simplelru.LRU[string, string]) bool {
 	currentFn := fn
 	currentPath := remainingPath
 	newEntry := false
@@ -202,6 +204,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if dryRun {
 			break
 		}
+		parent = internString(interner, parent)
 		if currentFn.Children == nil {
 			currentFn.Children = make(map[string]*FileNode)
 		}

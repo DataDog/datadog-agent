@@ -172,6 +172,10 @@ type ActivityTree struct {
 	SyscallsMask map[int]int
 
 	imageTagIDs []imageTagEntry
+
+	// nameInterner deduplicates file path component strings (e.g. "usr", "lib", "libssl.so.3")
+	// across process subtrees. No mutex needed — the ActivityTree is single-writer.
+	nameInterner *simplelru.LRU[string, string]
 }
 
 // imageTagEntry is a slot in the ActivityTree's image tag registry.
@@ -184,9 +188,14 @@ type imageTagEntry struct {
 // CookieToProcessNodeCacheSize defines the "cookie to process" node cache size
 const CookieToProcessNodeCacheSize = 128
 
+// nameInternerSize is the maximum number of distinct path component strings kept
+// in the per-tree interner. Sized to comfortably cover a typical container workload.
+const nameInternerSize = 1024
+
 // NewActivityTree returns a new ActivityTree instance
 func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType string) *ActivityTree {
 	cache, _ := simplelru.NewLRU[cookieSelector, *ProcessNode](CookieToProcessNodeCacheSize, nil)
+	interner, _ := simplelru.NewLRU[string, string](nameInternerSize, nil)
 
 	return &ActivityTree{
 		treeType:            treeType,
@@ -196,7 +205,21 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 		CookieToProcessNode: cache,
 		SyscallsMask:        make(map[int]int),
 		DNSNames:            utils.NewStringKeys(nil),
+		nameInterner:        interner,
 	}
+}
+
+// internString returns a deduplicated copy of s using the provided LRU interner.
+// If interner is nil it returns s unchanged. Safe to call with an empty string.
+func internString(interner *simplelru.LRU[string, string], s string) string {
+	if interner == nil || s == "" {
+		return s
+	}
+	if interned, ok := interner.Get(s); ok {
+		return interned
+	}
+	interner.Add(s, s)
+	return s
 }
 
 // GetImageTagID returns the internal ID for an image tag, or 0 if not found.
@@ -487,7 +510,7 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 		return newProcessNode, nil
 	case model.FileOpenEventType:
-		return node.InsertFileEvent(&event.Open.File, event, imageTagID, generationType, at.Stats, dryRun, at.pathsReducer, resolvers), nil
+		return node.InsertFileEvent(&event.Open.File, event, imageTagID, generationType, at.Stats, dryRun, at.pathsReducer, resolvers, at.nameInterner), nil
 	case model.DNSEventType:
 		return node.InsertDNSEvent(event, imageTagID, generationType, at.Stats, at.DNSNames, dryRun, at.DNSMatchMaxDepth), nil
 	case model.IMDSEventType:
