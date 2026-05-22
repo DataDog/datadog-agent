@@ -10,6 +10,9 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+- Fix SQLite build: link with `-lm` when `SQLITE_ENABLE_MATH_FUNCTIONS` is enabled
+- Include `final_constraints-py3.txt` in the BFF package at `/opt/datadog-agent/final_constraints-py3.txt`
+- Upgrade embedded pip from 24.0 to 26.1 (patches CVE-2026-1703, CVE-2026-6357)
 - Set `GOMEMLIMIT=2GiB` on build hosts with less than 6 GiB RAM to prevent Go compiler swap thrash (grouped with the existing `-p=1` flag for the same reason)
 
 ---
