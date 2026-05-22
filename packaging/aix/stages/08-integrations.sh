@@ -68,6 +68,33 @@ for check in cpu memory disk load; do
 done
 log "Built-in check configs copied"
 
+# ─── Step 1b: Supplement Go check configs from integrations-core ──────────────
+#
+# For every Go check whose conf.d directory was populated by inv agent.build,
+# also copy conf.yaml.default and conf.yaml.example from integrations-core if
+# they exist there. This provides the full documented configuration (e.g. snmp
+# has a rich conf.yaml.example in integrations-core but only an auto_conf.yaml
+# in the agent repo). Stage 10 copies agent-repo configs afterward, so
+# agent-repo files take precedence when both repos provide the same filename.
+
+AGENT_DIST_CONFD=/opt/datadog-agent/bin/agent/dist/conf.d
+if [ -d "$AGENT_DIST_CONFD" ]; then
+    for check_dir in "$AGENT_DIST_CONFD"/*.d; do
+        [ -d "$check_dir" ] || continue
+        check=$(basename "$check_dir" .d)
+        CHECK_DATA="$INTEGRATIONS_CORE/$check/datadog_checks/$check/data"
+        if [ -d "$CHECK_DATA" ]; then
+            mkdir -p "$STAGING/etc/datadog-agent/conf.d/${check}.d"
+            for conf_file in conf.yaml.example conf.yaml.default; do
+                if [ -f "$CHECK_DATA/$conf_file" ]; then
+                    cp "$CHECK_DATA/$conf_file" "$STAGING/etc/datadog-agent/conf.d/${check}.d/"
+                    log "Copied integrations-core $conf_file for Go check: $check"
+                fi
+            done
+        fi
+    done
+fi
+
 # ─── Step 2: Install Python checks from integrations-core ─────────────────────
 #
 # Install each check from the pinned integrations-core checkout.

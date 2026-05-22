@@ -10,6 +10,8 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+- Go checks: bundle `conf.yaml.example` and `conf.yaml.default` from integrations-core for all Go checks that have them, supplementing the agent-repo config (agent-repo takes precedence on filename conflicts)
+
 - Include missing Go check configurations in the package: `cisco_sdwan`, `snmp`, `cloud_hostinfo`, `discovery`, `telemetry`, `versa` — these checks are compiled into the agent binary but their config files were missing from `AIX_CORECHECKS`
 - Fix SQLite build: link with `-lm` when `SQLITE_ENABLE_MATH_FUNCTIONS` is enabled
 - Include `final_constraints-py3.txt` in the BFF package at `/opt/datadog-agent/final_constraints-py3.txt`
