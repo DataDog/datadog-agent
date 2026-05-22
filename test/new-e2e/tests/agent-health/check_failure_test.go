@@ -14,12 +14,12 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 )
 
 //go:embed fixtures/health_platform_agent_config.yaml
@@ -80,9 +80,8 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 			// IssueID ends with "*" for prefix matching: the real ID includes a
 			// runtime-generated hash suffix ("check-execution-failure:broken_check:<hash>").
 			IssueID: "check-execution-failure:broken_check*",
-			TriggerIssue: func(t *testing.T, h *components.RemoteHost) {
-				writeCheckFile(t, h, brokenCheckPy)
-			},
+			// TriggerIssue is nil: the provisioner already deploys broken_check.py via
+			// agentparams.WithFile, so no runtime setup is needed.
 			FixIssue: func(t *testing.T, h *components.RemoteHost) {
 				writeCheckFile(t, h, fixedCheckPy)
 			},
