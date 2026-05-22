@@ -16,11 +16,11 @@ import (
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
-	"github.com/twmb/murmur3"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
+	"github.com/twmb/murmur3"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,6 +45,18 @@ const (
 	// CustomRecommenderAnnotationKey is the key used to store custom recommender configuration in annotations
 	CustomRecommenderAnnotationKey = "autoscaling.datadoghq.com/custom-recommender"
 )
+
+// resyncLabelKeysFromPodAutoscaler lists the label keys read by UpdateFromPodAutoscaler.
+var resyncLabelKeysFromPodAutoscaler = []string{
+	ProfileLabelKey,
+}
+
+// resyncAnnotationKeysFromPodAutoscaler lists the annotation keys read by UpdateFromPodAutoscaler.
+var resyncAnnotationKeysFromPodAutoscaler = []string{
+	PreviewAnnotationKey,
+	ProfileTemplateHashAnnotation,
+	CustomRecommenderAnnotationKey,
+}
 
 // PodAutoscalerInternal holds the necessary data to work with the `DatadogPodAutoscaler` CRD.
 type PodAutoscalerInternal struct {
@@ -84,10 +96,9 @@ type PodAutoscalerInternal struct {
 	// previewOptions holds the parsed preview feature flags from the DPA annotations
 	previewOptions previewOptions
 
-	// metadataHash is a fingerprint of the K8s labels/annotations consumed by
-	// UpdateFromPodAutoscaler. Compared against ComputePodAutoscalerMetadataHash
-	// on the latest K8s object to detect annotation-only edits, which do not bump
-	// .metadata.generation and would otherwise go unnoticed by the controller.
+	// metadataHash fingerprints the K8s state read by UpdateFromPodAutoscaler
+	// (.metadata.generation plus watched labels/annotations), so that a single
+	// equality check captures both spec changes and out-of-spec edits.
 	metadataHash uint64
 
 	// scalingValues represents the active scaling values that should be used
@@ -300,40 +311,17 @@ func (p *PodAutoscalerInternal) UpdateFromProfile(
 	p.horizontalEventsRetention, p.horizontalRecommendationsRetention = getHorizontalRetentionValues(dpaSpec.ApplyPolicy)
 }
 
-// resyncLabelKeysFromPodAutoscaler lists the label keys consumed by UpdateFromPodAutoscaler.
-// Keep aligned with UpdateFromPodAutoscaler.
-var resyncLabelKeysFromPodAutoscaler = []string{
-	ProfileLabelKey,
-}
-
-// resyncAnnotationKeysFromPodAutoscaler lists the annotation keys consumed by
-// UpdateFromPodAutoscaler. Keep aligned with UpdateFromPodAutoscaler.
-var resyncAnnotationKeysFromPodAutoscaler = []string{
-	PreviewAnnotationKey,
-	ProfileTemplateHashAnnotation,
-	CustomRecommenderAnnotationKey,
-}
-
-// ComputePodAutoscalerMetadataHash returns a fingerprint of the labels and annotations
-// consumed by UpdateFromPodAutoscaler. The controller compares the value returned here
-// for the latest K8s object against PodAutoscalerInternal.MetadataHash() to detect
-// annotation-only edits, which do not bump .metadata.generation.
-//
-// Keep aligned with UpdateFromPodAutoscaler: any new K8s-sourced label or annotation
-// read added there must also be reflected here.
-func ComputePodAutoscalerMetadataHash(podAutoscaler *datadoghq.DatadogPodAutoscaler) uint64 {
-	hasher := murmur3.New64()
-	for _, key := range resyncLabelKeysFromPodAutoscaler {
-		_, _ = hasher.Write([]byte("L\x00" + key + "\x00" + podAutoscaler.Labels[key] + "\x00"))
-	}
-	for _, key := range resyncAnnotationKeysFromPodAutoscaler {
-		_, _ = hasher.Write([]byte("A\x00" + key + "\x00" + podAutoscaler.Annotations[key] + "\x00"))
-	}
-	return hasher.Sum64()
-}
-
-// UpdateFromPodAutoscaler updates the PodAutoscalerInternal from a PodAutoscaler object inside K8S
+// UpdateFromPodAutoscaler updates the PodAutoscalerInternal from a PodAutoscaler object inside K8S.
+// For local-owner DPAs it short-circuits when the cached metadata fingerprint is unchanged.
 func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
+	if podAutoscaler.Spec.Owner == datadoghqcommon.DatadogPodAutoscalerLocalOwner {
+		newHash := computePodAutoscalerMetadataHash(podAutoscaler)
+		if p.metadataHash == newHash {
+			return
+		}
+		p.metadataHash = newHash
+	}
+
 	if v, ok := podAutoscaler.Labels[ProfileLabelKey]; ok {
 		p.profileName = v
 	}
@@ -354,9 +342,6 @@ func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq
 	// without branching on profile-managed vs standalone.
 	// For profile-managed DPAs, UpdateFromProfile() will overwrite this with the profile value.
 	p.previewOptions = parsePreviewAnnotationString(podAutoscaler.Annotations[PreviewAnnotationKey])
-	// Record a fingerprint of the labels/annotations consumed above so the controller can
-	// detect annotation-only edits (which don't bump .metadata.generation).
-	p.metadataHash = ComputePodAutoscalerMetadataHash(podAutoscaler)
 }
 
 // UpdateFromSettings updates the PodAutoscalerInternal from a new settings
@@ -692,13 +677,6 @@ func (p *PodAutoscalerInternal) ID() string {
 // Generation returns the generation of the PodAutoscaler
 func (p *PodAutoscalerInternal) Generation() int64 {
 	return p.generation
-}
-
-// MetadataHash returns the fingerprint of K8s labels/annotations captured by the last
-// UpdateFromPodAutoscaler call. Compare it against ComputePodAutoscalerMetadataHash on a
-// fresh K8s object to detect annotation-only edits, which do not bump .metadata.generation.
-func (p *PodAutoscalerInternal) MetadataHash() uint64 {
-	return p.metadataHash
 }
 
 // Spec returns the spec of the PodAutoscaler, sourced from the upstream CR.
@@ -1388,4 +1366,19 @@ func parseCustomConfigurationAnnotation(annotations map[string]string) (*Recomme
 	}
 
 	return &customConfiguration, nil
+}
+
+// computePodAutoscalerMetadataHash returns a fingerprint of the K8s state
+// read by UpdateFromPodAutoscaler — .metadata.generation plus the watched
+// labels/annotations — used to identify any change worth re-syncing.
+func computePodAutoscalerMetadataHash(podAutoscaler *datadoghq.DatadogPodAutoscaler) uint64 {
+	hasher := murmur3.New64()
+	_, _ = fmt.Fprintf(hasher, "G\x00%d\x00", podAutoscaler.Generation)
+	for _, key := range resyncLabelKeysFromPodAutoscaler {
+		_, _ = hasher.Write([]byte("L\x00" + key + "\x00" + podAutoscaler.Labels[key] + "\x00"))
+	}
+	for _, key := range resyncAnnotationKeysFromPodAutoscaler {
+		_, _ = hasher.Write([]byte("A\x00" + key + "\x00" + podAutoscaler.Annotations[key] + "\x00"))
+	}
+	return hasher.Sum64()
 }

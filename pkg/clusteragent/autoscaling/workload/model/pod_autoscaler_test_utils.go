@@ -105,11 +105,11 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 
 	// Mirror UpdateFromPodAutoscaler: cache the metadata fingerprint so equality checks
 	// against a PodAutoscalerInternal that came through the real code path match.
-	// Only populate when the test passes an explicit UpstreamCR — settings-driven shells
-	// synthesised from f.Spec do not go through UpdateFromPodAutoscaler in production.
+	// Only populate when the test passes an explicit local-owner UpstreamCR — settings-driven
+	// shells (and non-local owners) do not go through the gated path in production.
 	var metadataHash uint64
-	if f.UpstreamCR != nil {
-		metadataHash = ComputePodAutoscalerMetadataHash(upstreamCR)
+	if f.UpstreamCR != nil && f.UpstreamCR.Spec.Owner == datadoghqcommon.DatadogPodAutoscalerLocalOwner {
+		metadataHash = computePodAutoscalerMetadataHash(upstreamCR)
 	}
 
 	return PodAutoscalerInternal{
