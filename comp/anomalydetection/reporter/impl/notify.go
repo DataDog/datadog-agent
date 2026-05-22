@@ -17,7 +17,7 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	pkgstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )

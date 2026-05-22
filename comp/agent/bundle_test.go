@@ -14,7 +14,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -25,7 +25,7 @@ func TestBundleDependencies(t *testing.T) {
 		core.MockBundle(),
 		defaultforwarder.MockModule(),
 		orchestratorimpl.MockModule(),
-		eventplatformimpl.MockModule(),
+		eventplatformmock.MockModule(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)

@@ -14,7 +14,7 @@ go_library(
         "//comp/anomalydetection/reporter/def",
         "//comp/core/config",
         "//comp/core/log/def",
-        "//comp/forwarder/eventplatform",
+        "//comp/forwarder/eventplatform/def",
         "//pkg/logs/message",
         "//pkg/util/strings",
     ],

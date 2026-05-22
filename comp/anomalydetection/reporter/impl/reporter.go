@@ -16,7 +16,7 @@ import (
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 )
 
 // Requires defines the dependencies for the live reporter component.

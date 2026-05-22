@@ -56,7 +56,8 @@ import (
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
@@ -160,7 +161,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 			cliParams.cmd = cmd
 			cliParams.args = args
 
-			eventplatforParams := eventplatformimpl.NewDefaultParams()
+			eventplatforParams := eventplatform.NewDefaultParams()
 			eventplatforParams.UseNoopEventPlatformForwarder = true
 
 			disableCmdPort()
@@ -197,7 +198,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 				// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithFlushInterval(0))),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewNoopParams()),
-				eventplatformimpl.Module(eventplatforParams),
+				eventplatformfx.Module(eventplatforParams),
 				eventplatformreceiverimpl.Module(),
 				fx.Supply(
 					status.Params{

@@ -22,7 +22,7 @@ import (
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/logonduration"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
