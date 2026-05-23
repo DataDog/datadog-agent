@@ -144,6 +144,64 @@ func TestParseMetricMessageColumnarV3FastLaneFallsBackForOriginMetadata(t *testi
 	}
 }
 
+func TestParseMetricMessageColumnarV3FastLaneFallsBackForSpecialTags(t *testing.T) {
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE", "true")
+
+	deps := fulfillDepsWithConfigOverride(t, map[string]interface{}{"dogstatsd_port": listeners.RandomPortName})
+	s := deps.Server.(*dsdServer)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	parser.dsdOriginEnabled = true
+	builder := identity.NewBuilder()
+
+	for _, tc := range []struct {
+		name   string
+		msg    []byte
+		assert func(*testing.T, metrics.MetricSample)
+	}{
+		{
+			name: "host tag",
+			msg:  []byte("fast.special.host:42|g|#env:prod,host:custom-host"),
+			assert: func(t *testing.T, sample metrics.MetricSample) {
+				assert.Equal(t, "custom-host", sample.Host)
+				assert.Equal(t, []string{"env:prod"}, sample.Tags)
+			},
+		},
+		{
+			name: "entity id tag",
+			msg:  []byte("fast.special.entity:42|g|#env:prod,dd.internal.entity_id:pod-from-tag"),
+			assert: func(t *testing.T, sample metrics.MetricSample) {
+				assert.Equal(t, "pod-from-tag", sample.OriginInfo.LocalData.PodUID)
+				assert.Equal(t, []string{"env:prod"}, sample.Tags)
+			},
+		},
+		{
+			name: "cardinality tag",
+			msg:  []byte("fast.special.card:42|g|#env:prod,dd.internal.card:high"),
+			assert: func(t *testing.T, sample metrics.MetricSample) {
+				assert.Equal(t, "high", sample.OriginInfo.Cardinality)
+				assert.Equal(t, []string{"env:prod"}, sample.Tags)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			batcher := &batcherMock{}
+			for i := 0; i < 3; i++ {
+				_, handled, err := s.parseMetricMessageColumnarV3Direct(batcher, parser, builder, tc.msg, "", 0, "listener", false, nil, nil, nil)
+				require.NoError(t, err)
+				require.True(t, handled)
+			}
+
+			require.Len(t, batcher.samples, 3)
+			require.Empty(t, batcher.columnarRows, "no-materialization fast lane should not consume parser-special tagsets")
+			for _, sample := range batcher.samples {
+				tc.assert(t, sample)
+			}
+		})
+	}
+}
+
 func TestParseMetricMessageColumnarV3FastLaneUpdatesDebugStats(t *testing.T) {
 	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", "true")
 	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES", "true")
