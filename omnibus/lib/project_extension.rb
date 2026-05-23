@@ -241,10 +241,14 @@ module Omnibus
 
   Packager::PKG.prepend PackagerPKGNotarizer
 
-  # Omnibus creates parent directories in the RPM staging tree for every
-  # extra_package_file. Those parents are often owned by distribution packages
-  # (for example /usr/lib/systemd), and should not be owned by Datadog RPMs.
-  # Explicit extra_package_file directories are still kept.
+  # The legacy Omnibus RPM packager builds its file list by globbing the staging
+  # tree. When Omnibus stages an external extra_package_file, it creates parent
+  # directories in that tree as an implementation detail. Without filtering,
+  # those synthetic parents are emitted as %dir entries, so our RPM starts
+  # owning distro-owned directories like /usr/lib/systemd or /lib/systemd/system.
+  #
+  # Keep explicit extra_package_file entries, but drop only the parent
+  # directories that were created to stage external extra_package_file paths.
   module PackagerRPMExtraPackageParentFilter
     def build_filepath(path, debug = false)
       filepath = "/" + path.gsub("#{build_dir(debug)}/", "")
