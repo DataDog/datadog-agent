@@ -293,16 +293,19 @@ type dogstatsdColumnarShard struct {
 	flushGeneration        uint64
 	flushSeen              []uint64
 	flushRow               []int
+	lastCutOffTime         int64
 	dictionary             dogstatsdColumnarDictionary
 }
 
 type dogstatsdColumnarStore struct {
-	interval            int64
-	descriptorExpiry    int64
-	descriptorInterning bool
-	compactHintSize     int
-	tagFilterList       filterlist.TagMatcher
-	shards              []dogstatsdColumnarShard
+	interval                int64
+	descriptorExpiry        int64
+	counterExpiry           int64
+	counterDescriptorExpiry int64
+	descriptorInterning     bool
+	compactHintSize         int
+	tagFilterList           filterlist.TagMatcher
+	shards                  []dogstatsdColumnarShard
 }
 
 type dogstatsdColumnarStoreConfig struct {
@@ -399,20 +402,31 @@ func newDogStatsDColumnarStore(interval int64, shardCount int, configs ...dogsta
 		config = configs[0]
 	}
 
+	cfg := pkgconfigsetup.Datadog()
+	counterExpiry := cfg.GetInt64("dogstatsd_expiry_seconds")
+	descriptorExpiry := columnarV3DescriptorExpirySeconds()
+	counterDescriptorExpiry := descriptorExpiry
+	if counterDescriptorExpiry > 0 {
+		counterDescriptorExpiry += counterExpiry
+	}
 	store := &dogstatsdColumnarStore{
-		interval:            interval,
-		descriptorExpiry:    columnarV3DescriptorExpirySeconds(),
-		descriptorInterning: columnarV3DescriptorInterningEnabled(),
-		compactHintSize:     columnarV3CompactHintSize(),
-		tagFilterList:       config.tagFilterList,
-		shards:              make([]dogstatsdColumnarShard, shardCount),
+		interval:                interval,
+		descriptorExpiry:        descriptorExpiry,
+		counterExpiry:           counterExpiry,
+		counterDescriptorExpiry: counterDescriptorExpiry,
+		descriptorInterning:     columnarV3DescriptorInterningEnabled(),
+		compactHintSize:         columnarV3CompactHintSize(),
+		tagFilterList:           config.tagFilterList,
+		shards:                  make([]dogstatsdColumnarShard, shardCount),
 	}
 	if store.descriptorExpiry > 0 && store.descriptorExpiry < store.interval {
 		store.descriptorExpiry = store.interval
 	}
-	cfg := pkgconfigsetup.Datadog()
+	if store.descriptorExpiry > 0 {
+		store.counterDescriptorExpiry = store.descriptorExpiry + counterExpiry
+	}
 	contextExpireTime := cfg.GetInt64("dogstatsd_context_expiry_seconds")
-	counterExpireTime := contextExpireTime + cfg.GetInt64("dogstatsd_expiry_seconds")
+	counterExpireTime := contextExpireTime + counterExpiry
 	useTagsStore := cfg.GetBool("aggregator_use_tags_store")
 	for i := range store.shards {
 		store.shards[i].buckets = make(map[int64]*dogstatsdColumnarBucket)
@@ -963,17 +977,28 @@ func (s *dogstatsdColumnarStore) flushShard(shard *dogstatsdColumnarShard, cutof
 		shard.insertedSamples = 0
 	}
 
+	hadBuckets := len(shard.buckets) > 0
 	for bucketTimestamp, bucket := range shard.buckets {
 		if bucketTimestamp+s.interval > cutoffTime && !forceFlushAll {
 			continue
 		}
+		s.sampleCounterZeroValues(shard, bucketTimestamp, bucket)
 		s.collectBucket(shard, bucketTimestamp, bucket, &rows, generation)
 		delete(shard.buckets, bucketTimestamp)
 		shard.releaseBucket(bucket)
 		tlmDogstatsdColumnarStats.Inc("flushed_buckets")
 	}
+	cutoffBucket := s.calculateBucketStart(float64(cutoffTime))
+	if !hadBuckets && shard.lastCutOffTime+s.interval <= cutoffBucket {
+		bucketTimestamp := cutoffBucket - s.interval
+		bucket := shard.getBucket()
+		s.sampleCounterZeroValues(shard, bucketTimestamp, bucket)
+		s.collectBucket(shard, bucketTimestamp, bucket, &rows, generation)
+		shard.releaseBucket(bucket)
+	}
 	s.expireDescriptors(shard, cutoffTime)
 	s.expireContexts(shard, cutoffTime)
+	shard.lastCutOffTime = cutoffBucket
 
 	for i := range rows {
 		shadow.observeSerieRow(&rows[i])
@@ -996,17 +1021,28 @@ func (s *dogstatsdColumnarStore) flushShardToV3MetricPointSink(shard *dogstatsdC
 		shard.insertedSamples = 0
 	}
 
+	hadBuckets := len(shard.buckets) > 0
 	for bucketTimestamp, bucket := range shard.buckets {
 		if bucketTimestamp+s.interval > cutoffTime && !forceFlushAll {
 			continue
 		}
+		s.sampleCounterZeroValues(shard, bucketTimestamp, bucket)
 		s.collectBucketToV3MetricPointRows(shard, bucketTimestamp, bucket, &rows, generation)
 		delete(shard.buckets, bucketTimestamp)
 		shard.releaseBucket(bucket)
 		tlmDogstatsdColumnarStats.Inc("flushed_buckets")
 	}
+	cutoffBucket := s.calculateBucketStart(float64(cutoffTime))
+	if !hadBuckets && shard.lastCutOffTime+s.interval <= cutoffBucket {
+		bucketTimestamp := cutoffBucket - s.interval
+		bucket := shard.getBucket()
+		s.sampleCounterZeroValues(shard, bucketTimestamp, bucket)
+		s.collectBucketToV3MetricPointRows(shard, bucketTimestamp, bucket, &rows, generation)
+		shard.releaseBucket(bucket)
+	}
 	s.expireDescriptors(shard, cutoffTime)
 	s.expireContexts(shard, cutoffTime)
+	shard.lastCutOffTime = cutoffBucket
 
 	for i := range rows {
 		shadow.observeV3MetricPointRow(&rows[i])
@@ -1106,13 +1142,43 @@ func (s *dogstatsdColumnarShard) nextFlushGeneration() uint64 {
 	return s.flushGeneration
 }
 
+func (s *dogstatsdColumnarStore) sampleCounterZeroValues(shard *dogstatsdColumnarShard, bucketTimestamp int64, bucket *dogstatsdColumnarBucket) {
+	if s.counterExpiry <= 0 || shard == nil || bucket == nil || shard.contextResolver == nil {
+		return
+	}
+	for descriptorID, active := range shard.descriptorActive {
+		if !active || shard.mtypes[descriptorID] != metrics.CounterType {
+			continue
+		}
+		entry, ok := shard.contextResolver.resolver.contextsByKey[shard.contextKeys[descriptorID]]
+		if !ok || entry.context == nil || entry.context.mtype != metrics.CounterType {
+			continue
+		}
+		if entry.lastSeen+s.counterExpiry <= bucketTimestamp {
+			continue
+		}
+		idx := shard.rowIndex(bucket, bucketTimestamp, descriptorID)
+		bucket.sampled[idx] = true
+	}
+}
+
+func (s *dogstatsdColumnarStore) descriptorExpiryForMetricType(mtype metrics.MetricType) int64 {
+	if mtype == metrics.CounterType {
+		return s.counterDescriptorExpiry
+	}
+	return s.descriptorExpiry
+}
+
 func (s *dogstatsdColumnarStore) expireDescriptors(shard *dogstatsdColumnarShard, cutoffTime int64) {
 	if s.descriptorExpiry <= 0 {
 		return
 	}
-	expireBefore := cutoffTime - s.descriptorExpiry
 	for descriptorID, active := range shard.descriptorActive {
-		if !active || shard.lastSeen[descriptorID] >= expireBefore {
+		if !active {
+			continue
+		}
+		descriptorExpiry := s.descriptorExpiryForMetricType(shard.mtypes[descriptorID])
+		if descriptorExpiry <= 0 || shard.lastSeen[descriptorID] >= cutoffTime-descriptorExpiry {
 			continue
 		}
 		key := dogstatsdColumnarKey{contextKey: shard.contextKeys[descriptorID], mtype: shard.mtypes[descriptorID]}

@@ -316,6 +316,9 @@ func setupTagger(t testing.TB) tagger.Component {
 	container3EntityID := taggertypes.NewEntityID(taggertypes.ContainerID, "container3")
 	fakeTagger.SetTags(container3EntityID, "source1", []string{"env:dev", "image_name:image", "pod_name:thing3"}, nil, nil, nil)
 
+	pod1EntityID := taggertypes.NewEntityID(taggertypes.KubernetesPodUID, "pod1")
+	fakeTagger.SetTags(pod1EntityID, "source1", []string{"kube_namespace:default", "pod_name:pod1", "pod_phase:running"}, nil, nil, nil)
+
 	return fakeTagger
 }
 
