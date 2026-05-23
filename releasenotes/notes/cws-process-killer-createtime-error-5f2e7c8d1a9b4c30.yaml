@@ -1,0 +1,3 @@
+fixes:
+  - |
+    CWS: Fix process kill action handling when procfs process creation time lookup fails.
