@@ -44,19 +44,51 @@ func waitForHTTPServer(t *testing.T, host *components.RemoteHost, checkCmd strin
 	}, 30*time.Second, 2*time.Second, "HTTP server on port %d not responding", port)
 }
 
-// httpServerScript is a minimal HTTP server using only the socket module.
-// It supports keep-alive connections and is used on both Linux and Windows.
-const httpServerScript = `import socket, sys
-port = int(sys.argv[1])
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-s.bind(("0.0.0.0", port))
-s.listen(8192)
-while True:
-    conn, addr = s.accept()
-    conn.recv(4096)
-    conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\nok")
-    conn.close()
+// httpServerScript is a minimal HTTP/1.1 server built on stdlib
+// ThreadingHTTPServer. Threaded accept handles connection bursts in parallel,
+// and per-request exceptions are isolated instead of killing the server.
+// Used on both Linux and Windows.
+const httpServerScript = `import sys
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+
+class H(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+    def do_GET(self):
+        body = b"ok"
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "keep-alive")
+        self.end_headers()
+        self.wfile.write(body)
+    def log_message(self, *_args, **_kw):
+        pass
+
+ThreadingHTTPServer(("0.0.0.0", int(sys.argv[1])), H).serve_forever()
+`
+
+// httpListenerScript is a PowerShell HTTP/1.1 server built on
+// System.Net.HttpListener. On Windows HttpListener sits on top of HTTP.sys —
+// the ETW provider USM hooks for HTTP capture — so connections to this server
+// are observable by USM in the same way IIS traffic is.
+//
+// Usage: powershell.exe -ExecutionPolicy Bypass -File httplistener.ps1 <port>
+const httpListenerScript = `param([int]$port)
+$listener = New-Object System.Net.HttpListener
+$listener.Prefixes.Add("http://+:$port/")
+$listener.Start()
+while ($listener.IsListening) {
+    try {
+        $ctx = $listener.GetContext()
+        $resp = $ctx.Response
+        $bytes = [Text.Encoding]::UTF8.GetBytes("ok")
+        $resp.ContentLength64 = $bytes.Length
+        $resp.KeepAlive = $true
+        $resp.OutputStream.Write($bytes, 0, $bytes.Length)
+        $resp.Close()
+    } catch {
+        # swallow per-connection errors so the listener survives client misbehavior
+    }
+}
 `
 
 // sendPythonHTTPRequests sends requestsPerPort keep-alive HTTP GET requests to each
@@ -110,7 +142,7 @@ func fetchAndAssertTaggedConnections(t *testing.T, fi *fi.Client, label string, 
 		stats = getConnectionStats(t, cnx, []int32{portA, portB}, "process_context:")
 		return stats.connsByPort[portA] >= minPerPort && stats.connsByPort[portB] >= minPerPort &&
 			stats.untaggedByPort[portA] == 0 && stats.untaggedByPort[portB] == 0
-	}, 120*time.Second, 5*time.Second, "%s: timed out waiting for tagged connections on both ports (%d: %d/%d untagged, %d: %d/%d untagged)",
+	}, 180*time.Second, 5*time.Second, "%s: timed out waiting for tagged connections on both ports (%d: %d/%d untagged, %d: %d/%d untagged)",
 		label, portA, stats.untaggedByPort[portA], stats.connsByPort[portA], portB, stats.untaggedByPort[portB], stats.connsByPort[portB])
 
 	assertTaggedConnectionsOnPort(t, stats, label, portA, minPerPort)

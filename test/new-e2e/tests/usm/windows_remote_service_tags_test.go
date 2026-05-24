@@ -64,7 +64,7 @@ func (s *windowsUSMSuite) SetupSuite() {
 	host := s.Env().RemoteHost
 
 	s.setupIISSites(host)
-	s.setupPythonServers(host)
+	s.setupHTTPListeners(host)
 	s.restartAgent(host)
 	waitForConnectionsPipeline(s.T(), s.Env().FakeIntake.Client())
 }
@@ -87,18 +87,18 @@ func (s *windowsUSMSuite) setupIISSites(host *components.RemoteHost) {
 	}
 }
 
-func (s *windowsUSMSuite) setupPythonServers(host *components.RemoteHost) {
-	pythonExe := `C:\Program Files\Datadog\Datadog Agent\embedded3\python.exe`
-	out, _ := host.Execute(`Test-Path "` + pythonExe + `"`)
-	require.Contains(s.T(), out, "True", "embedded Python not found at %s", pythonExe)
-
+// setupHTTPListeners writes a System.Net.HttpListener-based PowerShell server
+// and starts one instance per port via WMI. HttpListener sits on top of
+// HTTP.sys, which is what Windows USM monitors — required for USM to see
+// these connections.
+func (s *windowsUSMSuite) setupHTTPListeners(host *components.RemoteHost) {
 	host.MustExecute(`New-Item -ItemType Directory -Force -Path C:\temp | Out-Null`)
-	_, err := host.WriteFile(`C:\temp\httpserver.py`, []byte(httpServerScript))
-	require.NoError(s.T(), err, "failed to write HTTP server script")
+	_, err := host.WriteFile(`C:\temp\httplistener.ps1`, []byte(httpListenerScript))
+	require.NoError(s.T(), err, "failed to write HTTP listener script")
 
 	for _, port := range []string{"8083", "8084"} {
-		out, err = host.Execute(`$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{` +
-			`CommandLine='"` + pythonExe + `" C:\temp\httpserver.py ` + port + `'}; ` +
+		out, err := host.Execute(`$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{` +
+			`CommandLine='powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\temp\httplistener.ps1 ` + port + `'}; ` +
 			`Write-Output "port` + port + `: pid=$($r.ProcessId) rc=$($r.ReturnValue)"`)
 		require.NoError(s.T(), err, "WMI process creation failed for port %s", port)
 		require.Contains(s.T(), out, "rc=0", "WMI process creation returned non-zero for port %s", port)
@@ -191,22 +191,16 @@ func (s *windowsUSMSuite) TestHTTPRemoteServiceTags() {
 
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
+	// FlushServerAndResetAggregators clears fakeintake's aggregator; the agent's
+	// process_context tagging pipeline takes a few seconds to resume publishing
+	// after a flush, and connection records that land at fakeintake during that
+	// window are recorded as untagged and never re-tagged retroactively. Wait
+	// for a fresh connections payload to land before generating traffic.
+	waitForConnectionsPipeline(t, s.Env().FakeIntake.Client())
+
 	const requestsPerPort = 4000
 	sendWindowsKeepAliveRequestsToPort(host, 8083, requestsPerPort, 20)
 	sendWindowsKeepAliveRequestsToPort(host, 8084, requestsPerPort, 20)
 
-	var stats connectionStats
-	require.Eventually(t, func() bool {
-		cnx, err := s.Env().FakeIntake.Client().GetConnections()
-		if err != nil || cnx == nil {
-			return false
-		}
-		stats = getConnectionStats(t, cnx, []int32{8083, 8084}, "process_context:")
-		return stats.connsByPort[8083] >= requestsPerPort && stats.connsByPort[8084] >= requestsPerPort &&
-			stats.untaggedByPort[8083] == 0 && stats.untaggedByPort[8084] == 0
-	}, 120*time.Second, 5*time.Second, "http: timed out waiting for tagged connections on both ports (8083: %d/%d untagged, 8084: %d/%d untagged)",
-		stats.untaggedByPort[8083], stats.connsByPort[8083], stats.untaggedByPort[8084], stats.connsByPort[8084])
-
-	assertTaggedConnectionsOnPort(t, stats, "http", 8083, requestsPerPort)
-	assertTaggedConnectionsOnPort(t, stats, "http", 8084, requestsPerPort)
+	fetchAndAssertTaggedConnections(t, s.Env().FakeIntake.Client(), "http", 8083, 8084, requestsPerPort)
 }
