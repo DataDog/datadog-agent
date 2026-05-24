@@ -568,15 +568,6 @@ func batchConnections(
 				}
 			}
 
-			// For same-host connections, resolve and attach the remote service tags.
-			c.RemoteServiceTagsIdx = -1
-			// USM supports TCP only; skip UDP connections.
-			if c.IntraHost && c.Laddr.ContainerId == "" && c.Type == model.ConnectionType_tcp {
-				if remoteTags := remoteServiceResolver.Resolve(c.Pid, c.Raddr.Port, c.Laddr.Port); len(remoteTags) > 0 {
-					c.RemoteServiceTagsIdx = int32(tagsEncoder.Encode(remoteTags))
-				}
-			}
-
 			// Get process tags and add them to the connection tags
 			if processTagProvider != nil {
 				if processTags, err := processTagProvider(c.Pid); err != nil {
