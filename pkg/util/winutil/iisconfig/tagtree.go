@@ -43,6 +43,7 @@ type pathTreeEntry struct {
 	nodes     map[string]*pathTreeEntry
 	ddjson    APMTags
 	appconfig APMTags
+	envvars   APMTags
 }
 
 func splitPaths(path string) []string {
@@ -55,7 +56,7 @@ func splitPaths(path string) []string {
 	return append(s, b)
 }
 
-func findInPathTree(pathTrees map[uint32]*pathTreeEntry, siteID uint32, urlpath string) (APMTags, APMTags) {
+func findInPathTree(pathTrees map[uint32]*pathTreeEntry, siteID uint32, urlpath string) (APMTags, APMTags, APMTags) {
 	// urlpath will come in as something like
 	// /path/to/app
 
@@ -63,24 +64,24 @@ func findInPathTree(pathTrees map[uint32]*pathTreeEntry, siteID uint32, urlpath 
 	pathparts := splitPaths(urlpath)
 
 	if _, ok := pathTrees[siteID]; !ok {
-		return APMTags{}, APMTags{}
+		return APMTags{}, APMTags{}, APMTags{}
 	}
 	if len(pathparts) == 0 {
-		return pathTrees[siteID].ddjson, pathTrees[siteID].appconfig
+		return pathTrees[siteID].ddjson, pathTrees[siteID].appconfig, pathTrees[siteID].envvars
 	}
 
 	currNode := pathTrees[siteID]
 
 	for _, part := range pathparts {
 		if _, ok := currNode.nodes[part]; !ok {
-			return currNode.ddjson, currNode.appconfig
+			return currNode.ddjson, currNode.appconfig, currNode.envvars
 		}
 		currNode = currNode.nodes[part]
 	}
-	return currNode.ddjson, currNode.appconfig
+	return currNode.ddjson, currNode.appconfig, currNode.envvars
 }
 
-func addToPathTree(pathTrees map[uint32]*pathTreeEntry, siteID string, urlpath string, ddjson, appconfig APMTags) {
+func addToPathTree(pathTrees map[uint32]*pathTreeEntry, siteID string, urlpath string, ddjson, appconfig, envvars APMTags) {
 
 	intid, err := strconv.Atoi(siteID)
 	if err != nil {
@@ -102,6 +103,7 @@ func addToPathTree(pathTrees map[uint32]*pathTreeEntry, siteID string, urlpath s
 	if len(pathparts) == 0 {
 		pathTrees[id].ddjson = ddjson
 		pathTrees[id].appconfig = appconfig
+		pathTrees[id].envvars = envvars
 		return
 	}
 
@@ -117,20 +119,82 @@ func addToPathTree(pathTrees map[uint32]*pathTreeEntry, siteID string, urlpath s
 	}
 	currNode.ddjson = ddjson
 	currNode.appconfig = appconfig
+	currNode.envvars = envvars
 }
 
-// GetAPMTags returns the APM tags for the given siteID and URL path
-func (iiscfg *DynamicIISConfig) GetAPMTags(siteID uint32, urlpath string) (APMTags, APMTags) {
+// GetAPMTags returns the APM tags for the given siteID and URL path.
+// It returns three sources, in increasing precedence: datadog.json, web.config,
+// and environment variables (applicationHost.config app pool / app-level merged
+// with the host's system environment).
+func (iiscfg *DynamicIISConfig) GetAPMTags(siteID uint32, urlpath string) (APMTags, APMTags, APMTags) {
 	iiscfg.mux.Lock()
 	defer iiscfg.mux.Unlock()
-	return findInPathTree(iiscfg.pathTrees, siteID, urlpath)
+	ddjson, appcfg, poolEnv := findInPathTree(iiscfg.pathTrees, siteID, urlpath)
+	return ddjson, appcfg, overlayAPMTags(iiscfg.systemEnvTags, poolEnv)
+}
+
+// overlayAPMTags returns base with any non-empty fields from override applied
+// on top. Empty fields in override do not clear base values.
+func overlayAPMTags(base, override APMTags) APMTags {
+	out := base
+	if override.DDService != "" {
+		out.DDService = override.DDService
+	}
+	if override.DDEnv != "" {
+		out.DDEnv = override.DDEnv
+	}
+	if override.DDVersion != "" {
+		out.DDVersion = override.DDVersion
+	}
+	return out
+}
+
+// apmTagsFromEnvVars extracts UST fields from an IIS environmentVariables list.
+func apmTagsFromEnvVars(vars []iisEnvVar) APMTags {
+	var tags APMTags
+	for _, v := range vars {
+		switch v.Name {
+		case "DD_SERVICE":
+			tags.DDService = v.Value
+		case "DD_ENV":
+			tags.DDEnv = v.Value
+		case "DD_VERSION":
+			tags.DDVersion = v.Value
+		}
+	}
+	return tags
+}
+
+// buildPoolEnvTags returns a map of pool name to UST tags derived from
+// applicationHost.config applicationPools. Per-pool environmentVariables
+// overlay applicationPoolDefaults entries.
+func buildPoolEnvTags(pools iisApplicationPools) map[string]APMTags {
+	defaults := apmTagsFromEnvVars(pools.Defaults.EnvVars.Adds)
+	out := make(map[string]APMTags, len(pools.Pools))
+	for _, p := range pools.Pools {
+		out[p.Name] = overlayAPMTags(defaults, apmTagsFromEnvVars(p.EnvVars.Adds))
+	}
+	return out
 }
 
 func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 	pathTrees := make(map[uint32]*pathTreeEntry)
+	poolEnvTags := buildPoolEnvTags(xmlcfg.ApplicationHost.ApplicationPools)
 
 	for _, site := range xmlcfg.ApplicationHost.Sites {
 		for _, app := range site.Applications {
+			// applicationHost.config supports environmentVariables at two
+			// levels: the application pool and the application itself.
+			// App-level entries override pool-level entries for the worker
+			// hosting this application.
+			envvars := overlayAPMTags(poolEnvTags[app.AppPool], apmTagsFromEnvVars(app.EnvVars.Adds))
+			hasenv := envvars != (APMTags{})
+
+			var ddjson APMTags
+			var appconfig APMTags
+			hasddjson := false
+			haswebcfg := false
+
 			for _, vdir := range app.VirtualDirs {
 				if vdir.Path != "/" {
 					// assume that non `/` virtual paths mean that
@@ -148,10 +212,6 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 
 				ddjsonpath := filepath.Join(ppath, "datadog.json")
 				webcfg := filepath.Join(ppath, "web.config")
-				hasddjson := false
-				haswebcfg := false
-				var ddjson APMTags
-				var appconfig APMTags
 
 				if _, err := os.Stat(ddjsonpath); err == nil {
 					hasddjson = true
@@ -172,12 +232,13 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 						haswebcfg = false
 					}
 				}
-				if !hasddjson && !haswebcfg {
-					continue
-				}
-
-				addToPathTree(pathTrees, site.SiteID, app.Path, ddjson, appconfig)
 			}
+
+			if !hasddjson && !haswebcfg && !hasenv {
+				continue
+			}
+
+			addToPathTree(pathTrees, site.SiteID, app.Path, ddjson, appconfig, envvars)
 		}
 	}
 	return pathTrees

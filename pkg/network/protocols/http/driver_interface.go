@@ -50,6 +50,7 @@ type WinHttpTransaction struct {
 	// ContentLength uint32
 	TagsFromJson   iisconfig.APMTags
 	TagsFromConfig iisconfig.APMTags
+	TagsFromEnv    iisconfig.APMTags
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter

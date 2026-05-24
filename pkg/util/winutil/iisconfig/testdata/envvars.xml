@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <system.applicationHost>
+    <applicationPools>
+      <applicationPoolDefaults>
+        <environmentVariables>
+          <add name="DD_ENV" value="default-env" />
+        </environmentVariables>
+      </applicationPoolDefaults>
+      <add name="poolA">
+        <environmentVariables>
+          <add name="DD_SERVICE" value="poolA-service" />
+          <add name="DD_VERSION" value="1.0.0" />
+        </environmentVariables>
+      </add>
+      <add name="poolB">
+        <environmentVariables>
+          <add name="DD_SERVICE" value="poolB-service" />
+          <add name="DD_ENV" value="poolB-env" />
+        </environmentVariables>
+      </add>
+      <add name="poolC">
+      </add>
+    </applicationPools>
+    <sites>
+      <site name="envsite" id="10">
+        <application path="/" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/b" applicationPool="poolB">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/c" applicationPool="poolC">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+          <environmentVariables>
+            <add name="DD_SERVICE" value="app-c-service" />
+            <add name="DD_VERSION" value="9.9.9" />
+          </environmentVariables>
+        </application>
+        <application path="/d" applicationPool="poolC">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+      </site>
+    </sites>
+  </system.applicationHost>
+</configuration>

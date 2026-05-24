@@ -121,22 +121,28 @@ func (tx *WinHttpTransaction) DynamicTags() []string {
 		}
 	}
 
-	// tag precedence is web.config -> datadog.json
-	if (len(tx.TagsFromConfig.DDEnv)) > 0 {
+	// tag precedence is env vars (applicationHost.config + system env) -> web.config -> datadog.json
+	if len(tx.TagsFromEnv.DDEnv) > 0 {
+		tags = append(tags, fmt.Sprintf("env:%v", tx.TagsFromEnv.DDEnv))
+	} else if len(tx.TagsFromConfig.DDEnv) > 0 {
 		tags = append(tags, fmt.Sprintf("env:%v", tx.TagsFromConfig.DDEnv))
-	} else if (len(tx.TagsFromJson.DDEnv)) > 0 {
+	} else if len(tx.TagsFromJson.DDEnv) > 0 {
 		tags = append(tags, fmt.Sprintf("env:%v", tx.TagsFromJson.DDEnv))
 	}
 
-	if (len(tx.TagsFromConfig.DDService)) > 0 {
+	if len(tx.TagsFromEnv.DDService) > 0 {
+		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromEnv.DDService))
+	} else if len(tx.TagsFromConfig.DDService) > 0 {
 		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromConfig.DDService))
-	} else if (len(tx.TagsFromJson.DDService)) > 0 {
+	} else if len(tx.TagsFromJson.DDService) > 0 {
 		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromJson.DDService))
 	}
 
-	if (len(tx.TagsFromConfig.DDVersion)) > 0 {
+	if len(tx.TagsFromEnv.DDVersion) > 0 {
+		tags = append(tags, fmt.Sprintf("version:%v", tx.TagsFromEnv.DDVersion))
+	} else if len(tx.TagsFromConfig.DDVersion) > 0 {
 		tags = append(tags, fmt.Sprintf("version:%v", tx.TagsFromConfig.DDVersion))
-	} else if (len(tx.TagsFromJson.DDVersion)) > 0 {
+	} else if len(tx.TagsFromJson.DDVersion) > 0 {
 		tags = append(tags, fmt.Sprintf("version:%v", tx.TagsFromJson.DDVersion))
 	}
 	if len(tags) == 0 {

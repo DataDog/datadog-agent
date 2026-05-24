@@ -28,14 +28,15 @@ var (
 // changes, and reload the configuration when it changes.  It provides additional
 // methods for getting specific configuration items
 type DynamicIISConfig struct {
-	watcher      *fsnotify.Watcher
-	path         string
-	wg           sync.WaitGroup
-	mux          sync.Mutex
-	stopChannel  chan bool
-	xmlcfg       *iisConfiguration
-	siteIDToName map[uint32]string
-	pathTrees    map[uint32]*pathTreeEntry
+	watcher       *fsnotify.Watcher
+	path          string
+	wg            sync.WaitGroup
+	mux           sync.Mutex
+	stopChannel   chan bool
+	xmlcfg        *iisConfiguration
+	siteIDToName  map[uint32]string
+	pathTrees     map[uint32]*pathTreeEntry
+	systemEnvTags APMTags
 }
 
 // NewDynamicIISConfig creates a new DynamicIISConfig
@@ -109,11 +110,20 @@ type iisBinding struct {
 	Protocol    string `xml:"protocol,attr"`
 	BindingInfo string `xml:"bindingInformation,attr"`
 }
+type iisEnvVar struct {
+	Name  string `xml:"name,attr"`
+	Value string `xml:"value,attr"`
+}
+type iisEnvironmentVariables struct {
+	XMLName xml.Name    `xml:"environmentVariables"`
+	Adds    []iisEnvVar `xml:"add"`
+}
 type iisApplication struct {
-	XMLName     xml.Name              `xml:"application"`
-	Path        string                `xml:"path,attr"`
-	AppPool     string                `xml:"applicationPool,attr"`
-	VirtualDirs []iisVirtualDirectory `xml:"virtualDirectory"`
+	XMLName     xml.Name                `xml:"application"`
+	Path        string                  `xml:"path,attr"`
+	AppPool     string                  `xml:"applicationPool,attr"`
+	VirtualDirs []iisVirtualDirectory   `xml:"virtualDirectory"`
+	EnvVars     iisEnvironmentVariables `xml:"environmentVariables"`
 }
 type iisSite struct {
 	Name         string           `xml:"name,attr"`
@@ -121,9 +131,24 @@ type iisSite struct {
 	Applications []iisApplication `xml:"application"`
 	Bindings     []iisBinding     `xml:"bindings>binding"`
 }
+type iisApplicationPool struct {
+	XMLName xml.Name                `xml:"add"`
+	Name    string                  `xml:"name,attr"`
+	EnvVars iisEnvironmentVariables `xml:"environmentVariables"`
+}
+type iisApplicationPoolDefaults struct {
+	XMLName xml.Name                `xml:"applicationPoolDefaults"`
+	EnvVars iisEnvironmentVariables `xml:"environmentVariables"`
+}
+type iisApplicationPools struct {
+	XMLName  xml.Name                   `xml:"applicationPools"`
+	Defaults iisApplicationPoolDefaults `xml:"applicationPoolDefaults"`
+	Pools    []iisApplicationPool       `xml:"add"`
+}
 type iisSystemApplicationHost struct {
-	XMLName xml.Name  `xml:"system.applicationHost"`
-	Sites   []iisSite `xml:"sites>site"`
+	XMLName          xml.Name            `xml:"system.applicationHost"`
+	Sites            []iisSite           `xml:"sites>site"`
+	ApplicationPools iisApplicationPools `xml:"applicationPools"`
 }
 
 type iisConfiguration struct {
@@ -158,7 +183,20 @@ func (iiscfg *DynamicIISConfig) readXMLConfig() error {
 	iiscfg.xmlcfg = &newcfg
 	iiscfg.siteIDToName = idmap
 	iiscfg.pathTrees = pt
+	iiscfg.systemEnvTags = readSystemEnvAPMTags()
 	return nil
+}
+
+// readSystemEnvAPMTags reads UST tags from the current process environment.
+// The IIS worker process (w3wp.exe) inherits these from its parent, so they
+// act as a host-wide fallback when applicationHost.config does not specify
+// pool- or app-level environment variables.
+func readSystemEnvAPMTags() APMTags {
+	return APMTags{
+		DDService: os.Getenv("DD_SERVICE"),
+		DDEnv:     os.Getenv("DD_ENV"),
+		DDVersion: os.Getenv("DD_VERSION"),
+	}
 }
 
 // GetSiteNameFromID looks up a site name by its site ID
