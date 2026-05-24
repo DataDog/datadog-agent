@@ -7,7 +7,6 @@ package profile
 
 import (
 	"bytes"
-	"fmt"
 	"regexp"
 	"strconv"
 	"time"
@@ -32,6 +31,12 @@ type MetadataRule struct {
 
 // MetadataType represents enums for "types" of things than can be typically extracted for NCM
 type MetadataType string
+
+// Timestamp represents capturing a timestamp from the pattern specified
+
+// ConfigSize represents capturing a number that would correlate with the size of a configuration
+
+// Author represents the username/identifier of the person who made the latest change if available
 
 const (
 	// Timestamp represents capturing a timestamp from the pattern specified
@@ -62,41 +67,17 @@ type ExtractedMetadata struct {
 	Author     string
 }
 
-// ProcessCommandOutput is for applying redactions, validating, and extracting metadata from a configuration pulled from a device
-func (p *NCMProfile) ProcessCommandOutput(ct CommandType, output []byte) ([]byte, *ExtractedMetadata, error) {
-	normalizedOutput := normalizeOutput(output)
-	if err := p.ValidateOutput(ct, normalizedOutput); err != nil {
-		return []byte{}, nil, err
-	}
-	redactedOutput, err := p.applyRedactions(ct, normalizedOutput)
-	if err != nil {
-		return []byte{}, nil, err
-	}
-	metadata, err := p.extractMetadata(ct, normalizedOutput)
-	if err != nil {
-		return []byte{}, nil, err
-	}
-	return redactedOutput, metadata, nil
-}
-
-func normalizeOutput(output []byte) []byte {
-	return bytes.ReplaceAll(output, []byte{'\r', '\n'}, []byte{'\n'})
-}
-
-func (p *NCMProfile) extractMetadata(ct CommandType, output []byte) (*ExtractedMetadata, error) {
-	commandInfo, ok := p.Commands[ct]
-	if !ok {
-		return nil, fmt.Errorf("no metadata found for command type %s in profile %s", ct, p.Name)
-	}
+// ExtractMetadata extracts available metadata from the given config output
+func (p *NCMProfile) ExtractMetadata(config []byte) (*ExtractedMetadata, error) {
 	result := &ExtractedMetadata{}
-	metadataParsingRules := commandInfo.ProcessingRules.MetadataRules
 	// TODO: iron out a better way to organize parsing these (i.e. by particular units, etc.) and funnel into the correct field
+	// Possibly instead of []MetadataRule there should be a structured object of {timestamp:Rule, size:Rule, etc.}?
 	// TODO: should this just return the `NetworkDeviceConfig` pre-filled with the metadata?
 	// TODO: send metrics once retrieved by the main functionality (access to metrics sender for the device)
-	for _, rule := range metadataParsingRules {
+	for _, rule := range p.MetadataRules {
 		switch rule.Type {
 		case Timestamp:
-			match := rule.Regex.FindSubmatch(output)
+			match := rule.Regex.FindSubmatch(config)
 			if len(match) < 2 {
 				log.Warnf("could not parse timestamp for profile %s", p.Name)
 				continue
@@ -109,7 +90,7 @@ func (p *NCMProfile) extractMetadata(ct CommandType, output []byte) (*ExtractedM
 			}
 			result.Timestamp = timestamp.Unix()
 		case ConfigSize:
-			matches := rule.Regex.FindSubmatch(output)
+			matches := rule.Regex.FindSubmatch(config)
 			sizeIndex := rule.Regex.SubexpIndex("Size")
 			if sizeIndex == -1 || matches == nil {
 				log.Warnf("could not parse config size for profile %s", p.Name)
@@ -122,7 +103,7 @@ func (p *NCMProfile) extractMetadata(ct CommandType, output []byte) (*ExtractedM
 			}
 			result.ConfigSize = size
 		case Author:
-			matches := rule.Regex.FindSubmatch(output)
+			matches := rule.Regex.FindSubmatch(config)
 			if len(matches) < 2 {
 				log.Warnf("could not parse author for profile %s", p.Name)
 				continue
@@ -134,66 +115,40 @@ func (p *NCMProfile) extractMetadata(ct CommandType, output []byte) (*ExtractedM
 	return result, nil
 }
 
-// ValidateOutput is a function that will confirm if the output from the CLI command is considered "valid" and returned successfully
-func (p *NCMProfile) ValidateOutput(ct CommandType, output []byte) error {
-	commandInfo, ok := p.Commands[ct]
-	if !ok {
-		return fmt.Errorf("no metadata found for command type %s in profile %s", ct, p.Name)
+func Redact(config []byte, rules []RedactionRule) ([]byte, error) {
+	config = normalizeOutput(config)
+	if len(rules) == 0 {
+		return config, nil
 	}
-	validationRules := commandInfo.ProcessingRules.ValidationRules
-	for _, rule := range validationRules {
-		if !rule.Pattern.Match(output) {
-			return fmt.Errorf("invalid output (due to rule requiring: %s) for command type %s in profile %s", rule.Pattern, ct, p.Name)
-		}
-	}
-	return nil
-}
-
-func (p *NCMProfile) applyRedactions(ct CommandType, output []byte) ([]byte, error) {
-	commandInfo, ok := p.Commands[ct]
-	if !ok {
-		return []byte{}, fmt.Errorf("no metadata found for command type %s in profile %s", ct, p.Name)
-	}
-	scrubbedOutput, err := commandInfo.scrub(output)
-	if err != nil {
-		return []byte{}, err
-	}
-	return scrubbedOutput, nil
-}
-
-func (c Commands) scrub(output []byte) ([]byte, error) {
-	// check if the scrubber exists
-	if c.Scrubber != nil {
-		return c.Scrubber.ScrubBytes(output)
-	}
-	if len(c.ProcessingRules.RedactionRules) > 0 {
-		log.Warnf("no rules for redacting found for command %s, skipping redaction", c.CommandType)
-	}
-	return output, nil
-}
-
-func (p *NCMProfile) initializeScrubbers() {
-	for _, command := range p.Commands {
-		command.initializeScrubber()
-	}
-}
-
-func (c *Commands) initializeScrubber() {
-	rules := c.ProcessingRules
-
-	if len(rules.RedactionRules) > 0 {
-		// initialize scrubber for command
-		c.Scrubber = scrubber.New()
-	}
-	for i := range rules.RedactionRules {
+	scrub := scrubber.New()
+	for _, rule := range rules {
 		replacer := scrubber.Replacer{
-			Regex: rules.RedactionRules[i].Regex,
-			Repl:  []byte(rules.RedactionRules[i].Replacement),
+			Regex: rule.Regex,
+			Repl:  []byte(rule.Replacement),
 		}
 		mode := scrubber.SingleLine
-		if rules.RedactionRules[i].Multiline {
+		if rule.Multiline {
 			mode = scrubber.MultiLine
 		}
-		c.Scrubber.AddReplacer(mode, replacer)
+		scrub.AddReplacer(mode, replacer)
 	}
+	return scrub.ScrubBytes(config)
+}
+
+// ProcessConfig is for applying redactions and extracting metadata from a configuration pulled from a device
+func (p *NCMProfile) ProcessConfig(config []byte) ([]byte, *ExtractedMetadata, error) {
+	normalizedOutput := normalizeOutput(config)
+	redactedOutput, err := Redact(normalizedOutput, p.Redactions)
+	if err != nil {
+		return []byte{}, nil, err
+	}
+	metadata, err := p.ExtractMetadata(normalizedOutput)
+	if err != nil {
+		return []byte{}, nil, err
+	}
+	return redactedOutput, metadata, nil
+}
+
+func normalizeOutput(output []byte) []byte {
+	return bytes.ReplaceAll(output, []byte{'\r', '\n'}, []byte{'\n'})
 }

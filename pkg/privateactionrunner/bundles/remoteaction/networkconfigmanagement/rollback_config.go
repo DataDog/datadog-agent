@@ -118,13 +118,18 @@ func (h *RollbackConfigHandler) Run(
 		return nil, fmt.Errorf("no NCM configuration for device: %q", inputs.DeviceID)
 	}
 
-	client, err := ncmremote.NewSSHClient(&device)
+	client, err := ncmremote.NewSSHConnector(&device)
 	if err != nil {
 		return nil, fmt.Errorf("%v: %w", inputs.DeviceID, err)
 	}
-	defer client.Close()
+	// TODO set profile properly
+	conn, err := client.Connect()
+	if err != nil {
+		return nil, fmt.Errorf("%v: %w", inputs.DeviceID, err)
+	}
+	defer conn.Close()
 
-	err = client.PushConfig(ctx, storedConfig.RawConfig)
+	err = conn.PushConfig(ctx, storedConfig.RawConfig)
 	if err != nil {
 		return nil, fmt.Errorf("cannot push config to device %q: %w", inputs.DeviceID, err)
 	}
