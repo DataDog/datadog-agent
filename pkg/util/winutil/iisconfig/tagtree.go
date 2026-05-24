@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"golang.org/x/sys/windows/registry"
 )
@@ -123,18 +124,24 @@ func addToPathTree(pathTrees map[uint32]*pathTreeEntry, siteID string, urlpath s
 }
 
 // GetAPMTags returns the APM tags for the given siteID and URL path.
-// It returns three sources, in increasing precedence: datadog.json, web.config,
-// and environment variables (applicationHost.config app pool / app-level merged
-// with the host's system environment).
+// It returns three sources, in increasing precedence within DynamicTags:
+// datadog.json, web.config, and environment variables from
+// applicationHost.config (applicationPoolDefaults, applicationPools, and
+// per-application environmentVariables).
 func (iiscfg *DynamicIISConfig) GetAPMTags(siteID uint32, urlpath string) (APMTags, APMTags, APMTags) {
 	iiscfg.mux.Lock()
 	defer iiscfg.mux.Unlock()
-	ddjson, appcfg, poolEnv := findInPathTree(iiscfg.pathTrees, siteID, urlpath)
-	return ddjson, appcfg, overlayAPMTags(iiscfg.systemEnvTags, poolEnv)
+	return findInPathTree(iiscfg.pathTrees, siteID, urlpath)
+}
+
+// isEmpty reports whether t has no UST fields set.
+func (t APMTags) isEmpty() bool {
+	return t.DDService == "" && t.DDEnv == "" && t.DDVersion == ""
 }
 
 // overlayAPMTags returns base with any non-empty fields from override applied
-// on top. Empty fields in override do not clear base values.
+// on top. Empty fields in override do not clear base values; IIS provides
+// <remove>/<clear> for that, which is not yet parsed here.
 func overlayAPMTags(base, override APMTags) APMTags {
 	out := base
 	if override.DDService != "" {
@@ -165,30 +172,42 @@ func apmTagsFromEnvVars(vars []iisEnvVar) APMTags {
 	return tags
 }
 
-// buildPoolEnvTags returns a map of pool name to UST tags derived from
-// applicationHost.config applicationPools. Per-pool environmentVariables
-// overlay applicationPoolDefaults entries.
-func buildPoolEnvTags(pools iisApplicationPools) map[string]APMTags {
-	defaults := apmTagsFromEnvVars(pools.Defaults.EnvVars.Adds)
-	out := make(map[string]APMTags, len(pools.Pools))
+// buildPoolEnvTags returns a map keyed by lowercased pool name to UST tags
+// derived from applicationHost.config applicationPools. Per-pool
+// environmentVariables overlay applicationPoolDefaults entries. IIS treats
+// pool names case-insensitively, so the lookup side must also lowercase.
+func buildPoolEnvTags(pools iisApplicationPools) (perPool map[string]APMTags, defaults APMTags) {
+	defaults = apmTagsFromEnvVars(pools.Defaults.EnvVars.Adds)
+	perPool = make(map[string]APMTags, len(pools.Pools))
 	for _, p := range pools.Pools {
-		out[p.Name] = overlayAPMTags(defaults, apmTagsFromEnvVars(p.EnvVars.Adds))
+		perPool[strings.ToLower(p.Name)] = overlayAPMTags(defaults, apmTagsFromEnvVars(p.EnvVars.Adds))
 	}
-	return out
+	return perPool, defaults
+}
+
+// poolEnvFor returns the pool-level env tags for app.AppPool, falling back to
+// applicationPoolDefaults when the pool name is not explicitly declared (IIS
+// still applies defaults to implicit / inherited pools).
+func poolEnvFor(perPool map[string]APMTags, defaults APMTags, poolName string) APMTags {
+	if env, ok := perPool[strings.ToLower(poolName)]; ok {
+		return env
+	}
+	return defaults
 }
 
 func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 	pathTrees := make(map[uint32]*pathTreeEntry)
-	poolEnvTags := buildPoolEnvTags(xmlcfg.ApplicationHost.ApplicationPools)
+	perPool, defaults := buildPoolEnvTags(xmlcfg.ApplicationHost.ApplicationPools)
 
 	for _, site := range xmlcfg.ApplicationHost.Sites {
 		for _, app := range site.Applications {
 			// applicationHost.config supports environmentVariables at two
-			// levels: the application pool and the application itself.
-			// App-level entries override pool-level entries for the worker
-			// hosting this application.
-			envvars := overlayAPMTags(poolEnvTags[app.AppPool], apmTagsFromEnvVars(app.EnvVars.Adds))
-			hasenv := envvars != (APMTags{})
+			// levels: the application pool (with applicationPoolDefaults
+			// underneath it) and the application itself. App-level entries
+			// override pool-level entries for the worker hosting this
+			// application.
+			envvars := overlayAPMTags(poolEnvFor(perPool, defaults, app.AppPool), apmTagsFromEnvVars(app.EnvVars.Adds))
+			hasenv := !envvars.isEmpty()
 
 			var ddjson APMTags
 			var appconfig APMTags
@@ -220,16 +239,23 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 					haswebcfg = true
 				}
 
+				// Read into temporaries so a parse failure does not
+				// overwrite values from an earlier vdir with partial /
+				// zero data.
 				if hasddjson {
-					ddjson, err = ReadDatadogJSON(ddjsonpath)
-					if err != nil {
+					parsed, perr := ReadDatadogJSON(ddjsonpath)
+					if perr != nil {
 						hasddjson = false
+					} else {
+						ddjson = parsed
 					}
 				}
 				if haswebcfg {
-					appconfig, err = ReadDotNetConfig(webcfg)
-					if err != nil {
+					parsed, perr := ReadDotNetConfig(webcfg)
+					if perr != nil {
 						haswebcfg = false
+					} else {
+						appconfig = parsed
 					}
 				}
 			}

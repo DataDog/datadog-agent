@@ -121,7 +121,8 @@ func (tx *WinHttpTransaction) DynamicTags() []string {
 		}
 	}
 
-	// tag precedence is env vars (applicationHost.config + system env) -> web.config -> datadog.json
+	// tag precedence per field is applicationHost.config environmentVariables ->
+	// web.config -> datadog.json. Each UST field falls through independently.
 	if len(tx.TagsFromEnv.DDEnv) > 0 {
 		tags = append(tags, fmt.Sprintf("env:%v", tx.TagsFromEnv.DDEnv))
 	} else if len(tx.TagsFromConfig.DDEnv) > 0 {

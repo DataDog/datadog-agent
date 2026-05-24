@@ -40,6 +40,12 @@
         <application path="/d" applicationPool="poolC">
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
+        <application path="/e" applicationPool="POOLA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/f" applicationPool="DefaultAppPool">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
       </site>
     </sites>
   </system.applicationHost>

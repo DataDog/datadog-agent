@@ -28,15 +28,14 @@ var (
 // changes, and reload the configuration when it changes.  It provides additional
 // methods for getting specific configuration items
 type DynamicIISConfig struct {
-	watcher       *fsnotify.Watcher
-	path          string
-	wg            sync.WaitGroup
-	mux           sync.Mutex
-	stopChannel   chan bool
-	xmlcfg        *iisConfiguration
-	siteIDToName  map[uint32]string
-	pathTrees     map[uint32]*pathTreeEntry
-	systemEnvTags APMTags
+	watcher      *fsnotify.Watcher
+	path         string
+	wg           sync.WaitGroup
+	mux          sync.Mutex
+	stopChannel  chan bool
+	xmlcfg       *iisConfiguration
+	siteIDToName map[uint32]string
+	pathTrees    map[uint32]*pathTreeEntry
 }
 
 // NewDynamicIISConfig creates a new DynamicIISConfig
@@ -183,20 +182,7 @@ func (iiscfg *DynamicIISConfig) readXMLConfig() error {
 	iiscfg.xmlcfg = &newcfg
 	iiscfg.siteIDToName = idmap
 	iiscfg.pathTrees = pt
-	iiscfg.systemEnvTags = readSystemEnvAPMTags()
 	return nil
-}
-
-// readSystemEnvAPMTags reads UST tags from the current process environment.
-// The IIS worker process (w3wp.exe) inherits these from its parent, so they
-// act as a host-wide fallback when applicationHost.config does not specify
-// pool- or app-level environment variables.
-func readSystemEnvAPMTags() APMTags {
-	return APMTags{
-		DDService: os.Getenv("DD_SERVICE"),
-		DDEnv:     os.Getenv("DD_ENV"),
-		DDVersion: os.Getenv("DD_VERSION"),
-	}
 }
 
 // GetSiteNameFromID looks up a site name by its site ID

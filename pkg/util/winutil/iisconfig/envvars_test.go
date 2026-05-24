@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestAPMTagsFromEnvVars covers the new applicationHost.config environment
-// variable sources: pool defaults, per-pool, per-application overrides, and
-// the system env fallback.
+// TestAPMTagsFromEnvVars covers the applicationHost.config environment
+// variable sources: applicationPoolDefaults, per-pool, and per-application
+// overrides.
 func TestAPMTagsFromEnvVars(t *testing.T) {
 	path, err := os.Getwd()
 	require.Nil(t, err)
@@ -26,12 +26,6 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 	testroot := filepath.Join(path, "testdata")
 	t.Setenv("TESTROOTDIR", testroot)
 
-	// system-level env vars: should populate any field a more specific source
-	// does not provide.
-	t.Setenv("DD_SERVICE", "system-service")
-	t.Setenv("DD_ENV", "system-env")
-	t.Setenv("DD_VERSION", "system-version")
-
 	iisCfg, err := NewDynamicIISConfig()
 	require.Nil(t, err)
 	require.NotNil(t, iisCfg)
@@ -39,9 +33,9 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 	require.Nil(t, iisCfg.Start())
 	defer iisCfg.Stop()
 
-	t.Run("pool env overrides pool defaults; system env fills missing fields", func(t *testing.T) {
+	t.Run("pool env overlays applicationPoolDefaults", func(t *testing.T) {
 		// site 10, app "/" uses poolA: SERVICE/VERSION from pool, ENV from
-		// applicationPoolDefaults (which beats system DD_ENV).
+		// applicationPoolDefaults.
 		_, _, env := iisCfg.GetAPMTags(10, "/")
 		assert.Equal(t, "poolA-service", env.DDService)
 		assert.Equal(t, "default-env", env.DDEnv)
@@ -53,8 +47,8 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		_, _, env := iisCfg.GetAPMTags(10, "/b")
 		assert.Equal(t, "poolB-service", env.DDService)
 		assert.Equal(t, "poolB-env", env.DDEnv)
-		// version was not set in poolB nor in defaults, falls back to system env.
-		assert.Equal(t, "system-version", env.DDVersion)
+		// DD_VERSION not set anywhere applicable -> empty.
+		assert.Equal(t, "", env.DDVersion)
 	})
 
 	t.Run("app env overrides pool env", func(t *testing.T) {
@@ -67,42 +61,31 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		assert.Equal(t, "9.9.9", env.DDVersion)
 	})
 
-	t.Run("system env fallback when pool has no overrides", func(t *testing.T) {
-		// poolC has no env vars and /d does not override; only the defaults
-		// (DD_ENV) and system env apply.
+	t.Run("app inherits only applicationPoolDefaults when pool has nothing", func(t *testing.T) {
+		// poolC has no env vars and /d does not override; only defaults apply.
 		_, _, env := iisCfg.GetAPMTags(10, "/d")
-		assert.Equal(t, "system-service", env.DDService)
+		assert.Equal(t, "", env.DDService)
 		assert.Equal(t, "default-env", env.DDEnv)
-		assert.Equal(t, "system-version", env.DDVersion)
+		assert.Equal(t, "", env.DDVersion)
 	})
-}
 
-func TestAPMTagsFromEnvVars_NoSystemEnv(t *testing.T) {
-	// Ensure no leakage from the host runner.
-	t.Setenv("DD_SERVICE", "")
-	t.Setenv("DD_ENV", "")
-	t.Setenv("DD_VERSION", "")
+	t.Run("pool lookup is case-insensitive", func(t *testing.T) {
+		// /e references "POOLA" but the pool is declared as "poolA".
+		// IIS treats pool names case-insensitively.
+		_, _, env := iisCfg.GetAPMTags(10, "/e")
+		assert.Equal(t, "poolA-service", env.DDService)
+		assert.Equal(t, "default-env", env.DDEnv)
+		assert.Equal(t, "1.0.0", env.DDVersion)
+	})
 
-	path, err := os.Getwd()
-	require.Nil(t, err)
-
-	iisCfgPath = filepath.Join(path, "testdata", "envvars.xml")
-	testroot := filepath.Join(path, "testdata")
-	t.Setenv("TESTROOTDIR", testroot)
-
-	iisCfg, err := NewDynamicIISConfig()
-	require.Nil(t, err)
-	require.NotNil(t, iisCfg)
-
-	require.Nil(t, iisCfg.Start())
-	defer iisCfg.Stop()
-
-	// poolC has no overrides and the system has nothing set: env tags should
-	// only carry the applicationPoolDefaults DD_ENV.
-	_, _, env := iisCfg.GetAPMTags(10, "/d")
-	assert.Equal(t, "", env.DDService)
-	assert.Equal(t, "default-env", env.DDEnv)
-	assert.Equal(t, "", env.DDVersion)
+	t.Run("undeclared pool falls back to applicationPoolDefaults", func(t *testing.T) {
+		// /f references "DefaultAppPool" which is not listed under
+		// <applicationPools><add>. IIS still applies applicationPoolDefaults.
+		_, _, env := iisCfg.GetAPMTags(10, "/f")
+		assert.Equal(t, "", env.DDService)
+		assert.Equal(t, "default-env", env.DDEnv)
+		assert.Equal(t, "", env.DDVersion)
+	})
 }
 
 func TestOverlayAPMTags(t *testing.T) {
@@ -114,4 +97,11 @@ func TestOverlayAPMTags(t *testing.T) {
 	assert.Equal(t, "base-env", out.DDEnv)
 	// empty override field must not clear the base value
 	assert.Equal(t, "base-ver", out.DDVersion)
+}
+
+func TestAPMTagsIsEmpty(t *testing.T) {
+	assert.True(t, APMTags{}.isEmpty())
+	assert.False(t, APMTags{DDService: "x"}.isEmpty())
+	assert.False(t, APMTags{DDEnv: "x"}.isEmpty())
+	assert.False(t, APMTags{DDVersion: "x"}.isEmpty())
 }
