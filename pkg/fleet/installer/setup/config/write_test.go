@@ -441,3 +441,146 @@ func TestEnsureUTF8(t *testing.T) {
 	_, err := ensureUTF8(input)
 	assert.ErrorContains(t, err, "not valid UTF-8", "should return error for unknown encodings")
 }
+
+type backfillTestCase struct {
+	name           string
+	template       string
+	currentConfig  string
+	expectedOutput string
+}
+
+func runBackfillTestCase(t *testing.T, tc backfillTestCase) {
+	t.Helper()
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "datadog.yaml")
+	templatePath := filepath.Join(dir, "datadog.yaml.example")
+
+	require.NoError(t, os.WriteFile(templatePath, []byte(tc.template), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(tc.currentConfig), 0644))
+
+	err := BackfillFromTemplate(configPath, templatePath, 0640)
+	require.NoError(t, err)
+
+	result, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+
+	if string(result) != tc.expectedOutput {
+		t.Errorf("test %q failed:\nGot:\n%s\nExpected:\n%s", tc.name, result, tc.expectedOutput)
+	}
+}
+
+func TestBackfillFromTemplate(t *testing.T) {
+	testCases := []backfillTestCase{
+		{
+			name:           "realistic fleet setup: disclaimer config merged into template with api_key",
+			template:       "api_key:\n",
+			currentConfig:  disclaimerGenerated + "\n\napi_key: \"0000\"\n",
+			expectedOutput: disclaimerGenerated + "\n\napi_key: \"0000\"\n",
+		},
+		{
+			name:           "template with comments and placeholder key, config has real values",
+			template:       "## Example config\n## @param api_key\napi_key:\n## @param site\nsite:\n",
+			currentConfig:  disclaimerGenerated + "\n\napi_key: abc123\nsite: datadoghq.eu\n",
+			expectedOutput: disclaimerGenerated + "\n\n" + "## Example config\n## @param api_key\napi_key: abc123\n## @param site\nsite: datadoghq.eu\n",
+		},
+		{
+			name:           "config has extra keys not in template (e.g. DDOT extension)",
+			template:       "## Example\napi_key:\n",
+			currentConfig:  "api_key: abc123\notelcollector:\n  enabled: true\nagent_ipc:\n  port: 5009\n",
+			expectedOutput: disclaimerGenerated + "\n\n" + "## Example\napi_key: abc123\notelcollector:\n  enabled: true\nagent_ipc:\n  port: 5009\n",
+		},
+		{
+			name:           "config overrides template default values",
+			template:       "api_key: PLACEHOLDER\nsite: datadoghq.com\n",
+			currentConfig:  "api_key: real-key\nsite: datadoghq.eu\n",
+			expectedOutput: disclaimerGenerated + "\n\n" + "api_key: real-key\nsite: datadoghq.eu\n",
+		},
+		{
+			name:           "comment-only template preserves comments",
+			template:       "## All options are commented out\n## @param api_key - string\n## @param site - string\n",
+			currentConfig:  "api_key: abc123\n",
+			expectedOutput: disclaimerGenerated + "\n\n" + "## All options are commented out\n## @param api_key - string\n## @param site - string\napi_key: abc123\n",
+		},
+		{
+			name:           "nested mapping merge preserves template comments",
+			template:       "## Proxy configuration\nproxy:\n  http: \"\"\n  https: \"\"\n",
+			currentConfig:  "proxy:\n  http: http://myproxy:8080\n  https: https://myproxy:8443\n",
+			expectedOutput: disclaimerGenerated + "\n\n" + "## Proxy configuration\nproxy:\n  http: http://myproxy:8080\n  https: https://myproxy:8443\n",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			runBackfillTestCase(t, tc)
+		})
+	}
+}
+
+func TestBackfillFromTemplate_TemplateNotExist(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "datadog.yaml")
+	originalContent := "api_key: abc123\n"
+
+	require.NoError(t, os.WriteFile(configPath, []byte(originalContent), 0644))
+
+	err := BackfillFromTemplate(configPath, filepath.Join(dir, "datadog.yaml.example"), 0640)
+	require.NoError(t, err)
+
+	result, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	assert.Equal(t, originalContent, string(result), "config should be unchanged when template doesn't exist")
+}
+
+func TestBackfillFromTemplate_ConfigNotExist(t *testing.T) {
+	dir := t.TempDir()
+	templatePath := filepath.Join(dir, "datadog.yaml.example")
+	configPath := filepath.Join(dir, "datadog.yaml")
+
+	require.NoError(t, os.WriteFile(templatePath, []byte("# example\n"), 0644))
+
+	err := BackfillFromTemplate(configPath, templatePath, 0640)
+	require.NoError(t, err)
+
+	_, err = os.Stat(configPath)
+	assert.True(t, os.IsNotExist(err), "config should not be created when it doesn't exist")
+}
+
+func TestBackfillFromTemplate_EmptyTemplate(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "datadog.yaml")
+	templatePath := filepath.Join(dir, "datadog.yaml.example")
+	originalContent := "api_key: abc123\n"
+
+	require.NoError(t, os.WriteFile(templatePath, []byte(""), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(originalContent), 0644))
+
+	err := BackfillFromTemplate(configPath, templatePath, 0640)
+	require.NoError(t, err)
+
+	result, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	assert.Equal(t, originalContent, string(result), "config should be unchanged when template is empty")
+}
+
+func TestBackfillFromTemplate_DisclaimerNotDuplicated(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "datadog.yaml")
+	templatePath := filepath.Join(dir, "datadog.yaml.example")
+
+	// Template already has the disclaimer
+	template := disclaimerGenerated + "\n\napi_key:\n"
+	currentConfig := disclaimerGenerated + "\n\napi_key: abc123\n"
+
+	require.NoError(t, os.WriteFile(templatePath, []byte(template), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(currentConfig), 0644))
+
+	err := BackfillFromTemplate(configPath, templatePath, 0640)
+	require.NoError(t, err)
+
+	result, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+
+	resultStr := string(result)
+	assert.Equal(t, 1, strings.Count(resultStr, "generated by the Datadog Installer"),
+		"disclaimer should appear exactly once, got:\n%s", resultStr)
+}

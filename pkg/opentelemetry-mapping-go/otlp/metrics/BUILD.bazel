@@ -48,6 +48,7 @@ go_test(
     name = "metrics_test",
     srcs = [
         "consume_host_test.go",
+        "consumer_test.go",
         "dimensions_test.go",
         "histograms_test.go",
         "key_hash_cache_test.go",
@@ -66,6 +67,7 @@ go_test(
     ],
     data = glob(["test/**"]),
     embed = [":metrics"],
+    gotags = ["test"],
     deps = [
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/opentelemetry-mapping-go/otlp/attributes/source",

@@ -32,6 +32,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
@@ -41,7 +42,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8sexec"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/k8sutils"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	apiserverUtils "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -91,7 +91,7 @@ type WebhookForPods struct {
 	name            string
 	isEnabled       bool
 	endpoint        string
-	resources       map[string][]string
+	resources       []common.WebhookResourceRule
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 	admissionFunc   admission.WebhookFunc
@@ -104,7 +104,7 @@ func newWebhookForPods(admissionFunc admission.WebhookFunc) *WebhookForPods {
 		isEnabled: pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.enabled") &&
 			len(pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_name")) > 0,
 		endpoint:        pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.pod_endpoint"),
-		resources:       map[string][]string{"": {"pods"}},
+		resources:       []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		admissionFunc:   admissionFunc,
@@ -134,7 +134,7 @@ func (w *WebhookForPods) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *WebhookForPods) Resources() map[string][]string {
+func (w *WebhookForPods) Resources() []common.WebhookResourceRule {
 	return w.resources
 }
 
@@ -171,7 +171,7 @@ type WebhookForCommands struct {
 	name            string
 	isEnabled       bool
 	endpoint        string
-	resources       map[string][]string
+	resources       []common.WebhookResourceRule
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 	admissionFunc   admission.WebhookFunc
@@ -184,7 +184,7 @@ func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForComma
 		isEnabled: pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.enabled") &&
 			len(pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_name")) > 0,
 		endpoint:        pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.command_endpoint"),
-		resources:       map[string][]string{"": {"pods/exec"}},
+		resources:       []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods/exec"}}},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Connect},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		admissionFunc:   admissionFunc,
@@ -214,7 +214,7 @@ func (w *WebhookForCommands) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *WebhookForCommands) Resources() map[string][]string {
+func (w *WebhookForCommands) Resources() []common.WebhookResourceRule {
 	return w.resources
 }
 
@@ -305,7 +305,7 @@ func ParseInstrumentationMode(input string) (InstrumentationMode, error) {
 // CWSInstrumentation is the main handler for the CWS instrumentation mutating webhook endpoints
 type CWSInstrumentation struct {
 	// filter is used to filter the pods to instrument
-	filter *containers.Filter
+	filter workloadfilter.FilterBundle
 	// image is the full image string used to configure the init container of the CWS instrumentation
 	image string
 	// resources is the resources applied to the CWS instrumentation init container
@@ -327,22 +327,19 @@ type CWSInstrumentation struct {
 }
 
 // NewCWSInstrumentation parses the webhook config and returns a new instance of CWSInstrumentation
-func NewCWSInstrumentation(wmeta workloadmeta.Component, datadogConfig config.Component) (*CWSInstrumentation, error) {
+func NewCWSInstrumentation(wmeta workloadmeta.Component, datadogConfig config.Component, filterStore workloadfilter.Component) (*CWSInstrumentation, error) {
 	ci := CWSInstrumentation{
 		wmeta:   wmeta,
 		timeout: time.Duration(pkgconfigsetup.Datadog().GetInt32("admission_controller.cws_instrumentation.timeout")) * time.Second,
 	}
-	var err error
 
-	// Parse filters
-	ci.filter, err = containers.NewFilter(
-		containers.GlobalFilter,
-		pkgconfigsetup.Datadog().GetStringSlice("admission_controller.cws_instrumentation.include"),
-		pkgconfigsetup.Datadog().GetStringSlice("admission_controller.cws_instrumentation.exclude"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't initialize filter: %w", err)
+	// Build container filter from the workloadfilter component
+	ci.filter = filterStore.GetContainerCWSAdmissionFilters()
+	if errs := ci.filter.GetErrors(); len(errs) > 0 {
+		return nil, fmt.Errorf("couldn't initialize CWS admission filter: %w", errors.Join(errs...))
 	}
+
+	var err error
 
 	// Parse init container image
 	cwsInjectorImageName := pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_name")
@@ -519,7 +516,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	}
 
 	// is the namespace / container targeted by the instrumentation ?
-	if ci.filter.IsExcluded(nil, exec.Container, "", ns) {
+	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", exec.Container, "", workloadfilter.CreatePod("", "", ns, nil, nil))) {
 		metrics.CWSExecMutationAttempts.Inc(ci.mode.String(), "false", cwsExcludedResourceReason)
 		return false, nil
 	}
@@ -539,7 +536,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	}
 
 	// is the pod targeted by the instrumentation ?
-	if ci.filter.IsExcluded(pod.Annotations, "", "", "") {
+	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", "", "", workloadfilter.CreatePod("", "", "", pod.Annotations, nil))) {
 		metrics.CWSExecMutationAttempts.Inc(ci.mode.String(), "false", cwsExcludedByAnnotationReason)
 		return false, nil
 	}
@@ -694,7 +691,7 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 	}
 
 	// is the pod targeted by the instrumentation ?
-	if ci.filter.IsExcluded(pod.Annotations, "", "", ns) {
+	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", "", "", workloadfilter.CreatePod("", "", ns, pod.Annotations, nil))) {
 		metrics.CWSPodMutationAttempts.Inc(ci.mode.String(), "false", cwsExcludedResourceReason)
 		return false, nil
 	}

@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build !linux
+//go:build !linux && !aix
 
+// Package agent provides the Enabled function for the process agent component.
 package agent
 
 import (

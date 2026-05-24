@@ -17,13 +17,13 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -104,9 +104,9 @@ const subsystem = "language_detection"
 var buckets = []float64{5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000}
 
 var (
-	detectLanguageRuntimeMs = telemetry.NewHistogram(subsystem, "detect_language_ms", nil,
+	detectLanguageRuntimeMs = telemetryimpl.GetCompatComponent().NewHistogram(subsystem, "detect_language_ms", nil,
 		"The amount of time it took for the call to DetectLanguage to complete.", buckets)
-	systemProbeLanguageDetectionMs = telemetry.NewHistogram(subsystem, "system_probe_rpc_ms", nil,
+	systemProbeLanguageDetectionMs = telemetryimpl.GetCompatComponent().NewHistogram(subsystem, "system_probe_rpc_ms", nil,
 		"The amount of time it took for the process agent to message the system probe.", buckets)
 )
 

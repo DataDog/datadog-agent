@@ -23,14 +23,13 @@ import (
 type Component interface {
 	AddConfigProvider(provider types.ConfigProvider, shouldPoll bool, pollInterval time.Duration)
 	LoadAndRun(ctx context.Context)
-	GetAllConfigs() []integration.Config
 	GetUnresolvedConfigs() []integration.Config
 	AddListeners(listenerConfigs []pkgconfigsetup.Listeners)
 	AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool)
 	RemoveScheduler(name string)
 	GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) checkid.ID
 	GetAutodiscoveryErrors() map[string]map[string]types.ErrorMsgSet
-	GetProviderCatalog() map[string]types.ConfigProviderFactory
+	AddConfigProviderFromCatalog(cp pkgconfigsetup.ConfigurationProviders) error
 	GetTelemetryStore() *telemetry.Store
 	// TODO (component): once cluster agent uses the API component remove this function
 	GetConfigCheck() integration.ConfigCheckResponse

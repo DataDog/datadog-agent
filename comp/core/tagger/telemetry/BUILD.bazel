@@ -7,6 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/types",
-        "//comp/core/telemetry",
+        "//comp/core/telemetry/def",
     ],
 )

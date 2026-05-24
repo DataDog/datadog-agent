@@ -11,4 +11,5 @@ cgo_godefs(
     name = "types_godefs",
     src = "types.go",
     hdrs = ["//pkg/dyninst/ebpf:dyninst_ebpf_headers"],
+    visibility = ["//visibility:public"],
 )

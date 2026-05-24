@@ -60,6 +60,7 @@ const (
 	numAllowedPIDsToResolvePerPeriod = 1
 	procFallbackLimiterPeriod        = 30 * time.Second // proc fallback period by pid
 	tryReparentMaxForkDepth          = 3                // max ancestor fork levels to check in TryReparentFromProcfs (execs not counted)
+	tryReparentMaxIterations         = 64               // hard cap on total loop iterations in tryReparentFromProcfs to prevent hangs on ancestor cycles or long exec chains
 )
 
 // EBPFResolver resolved process context
@@ -80,11 +81,12 @@ type EBPFResolver struct {
 	envVarsResolver     *envvars.Resolver
 	userSessionResolver *usersessions.Resolver
 
-	inodeFileMap ebpf.Map
-	procCacheMap ebpf.Map
-	pidCacheMap  ebpf.Map
-	pathIDMap    ebpf.Map
-	opts         ResolverOpts
+	inodeFileMap        ebpf.Map
+	procCacheMap        ebpf.Map
+	pidCacheMap         ebpf.Map
+	pathIDMap           ebpf.Map
+	kernelThreadPidsMap ebpf.Map
+	opts                ResolverOpts
 
 	// stats
 	hitsStats                    map[string]*atomic.Int64
@@ -175,7 +177,13 @@ func (p *EBPFResolver) resolveParentFromProcfs(entry *model.ProcessCacheEntry, c
 func (p *EBPFResolver) tryReparentFromProcfs(entry *model.ProcessCacheEntry, callpathTag string, newEntryCb func(*model.ProcessCacheEntry, error)) {
 	var prev *model.ProcessCacheEntry
 	forkDepth := 0
+	iterations := 0
 	for pc := entry; pc != nil && pc.Pid != 1; prev, pc = pc, pc.Ancestor {
+		iterations++
+		if iterations > tryReparentMaxIterations {
+			break
+		}
+
 		if prev != nil && pc.Pid != prev.Pid {
 			forkDepth++
 
@@ -273,17 +281,33 @@ func (p *EBPFResolver) tryReparentChildrenFromProcfs(exitedEntry *model.ProcessC
 	copy(children, exitedEntry.Children)
 
 	for _, child := range children {
-		p.tryReparentEntryFromProcfs(child, exitedEntry.Pid, callpathTag, newEntryCb)
+		if child.Pid == exitedEntry.Pid {
+			// The child shares the PID with the exited entry: it is the exec
+			// continuation (pre-exec → post-exec link). Attempting to reparent
+			// it via procfs would read its real ppid (grandparent) and break
+			// the exec chain stored in the Ancestor pointer.  Skip it; the
+			// exec-chain link must be preserved.
+			continue
+		}
+		p.tryReparentEntryFromProcfs(child, exitedEntry, callpathTag, newEntryCb)
 	}
 }
 
 // tryReparentEntryFromProcfs reads the current ppid of a single entry from
 // procfs and updates its parent link. If procfs hasn't been updated yet (race)
 // or fails, the entry stays linked to the dead parent.
+// When the child is no longer visible in procfs at all (process fully reaped),
+// it is detached from exitedEntry.Children immediately so it is not re-visited
+// on subsequent reparent attempts.
 // Must be called with the lock held.
-func (p *EBPFResolver) tryReparentEntryFromProcfs(child *model.ProcessCacheEntry, exitedPid uint32, callpathTag string, newEntryCb func(*model.ProcessCacheEntry, error)) {
+func (p *EBPFResolver) tryReparentEntryFromProcfs(child *model.ProcessCacheEntry, exitedEntry *model.ProcessCacheEntry, callpathTag string, newEntryCb func(*model.ProcessCacheEntry, error)) {
 	proc, err := process.NewProcess(int32(child.Pid))
 	if err != nil {
+		// The child process is gone from procfs entirely: it has been fully
+		// reaped and its exit event has been (or will be) delivered separately.
+		// Remove it from the dead parent's Children list eagerly so that future
+		// calls to tryReparentChildrenFromProcfs do not keep re-visiting it.
+		exitedEntry.RemoveChild(child)
 		return
 	}
 
@@ -293,7 +317,7 @@ func (p *EBPFResolver) tryReparentEntryFromProcfs(child *model.ProcessCacheEntry
 	}
 
 	newPPidU32 := uint32(newPPid)
-	if newPPidU32 == 0 || newPPidU32 == exitedPid {
+	if newPPidU32 == 0 || newPPidU32 == exitedEntry.Pid {
 		p.reparentFailedStats[callpathTag].Inc()
 		return
 	}
@@ -520,7 +544,7 @@ func (p *EBPFResolver) AddForkEntry(event *model.Event, cgroupContext model.CGro
 	if event.ProcessCacheEntry.Pid == 0 {
 		return errors.New("no pid")
 	}
-	if IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
+	if IsKworker(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
 		return errors.New("process is kthread")
 	}
 
@@ -649,6 +673,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	entry.ForkTime = entry.ExecTime
 	entry.Comm = filledProc.Name
 	entry.PPid = uint32(filledProc.Ppid)
+	entry.SID = utils.PidSID(uint32(filledProc.Pid))
 	entry.TTYName = utils.PidTTY(uint32(filledProc.Pid))
 	entry.ProcessContext.Pid = pid
 	entry.ProcessContext.Tid = pid
@@ -828,9 +853,20 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, cgroupContext
 		if entry.ExecTime.After(createdAt) {
 			createdAt = entry.ExecTime
 		}
+		cgroupContext.CreatedAt = uint64(createdAt.UnixNano())
+
+		// resolve the cgroup source
+		switch source {
+		case model.ProcessCacheEntryFromEvent:
+			cgroupContext.CGroupSource = model.CGroupSourceEvent
+		case model.ProcessCacheEntryFromProcFS, model.ProcessCacheEntryFromSnapshot:
+			cgroupContext.CGroupSource = model.CGroupSourceProcFS
+		default:
+			cgroupContext.CGroupSource = model.CGroupSourceUnknown
+		}
 
 		// add the new PID in the right cgroup_resolver bucket
-		if cacheEntry := p.cgroupResolver.AddPID(entry.Pid, entry.PPid, createdAt, cgroupContext); cacheEntry != nil {
+		if cacheEntry := p.cgroupResolver.AddPID(entry.Pid, cgroupContext); cacheEntry != nil {
 			entry.CGroup = cacheEntry.GetCGroupContext()
 			entry.Process.ContainerContext = cacheEntry.GetContainerContext()
 		}
@@ -922,6 +958,15 @@ func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
 	if entry.Ancestor != nil {
 		entry.Ancestor.RemoveChild(entry)
 	}
+
+	// Release the Children backing array.  By the time deleteEntry is called
+	// (either directly on an exit event or via DequeueExited after ~1 minute),
+	// the lazy walker in TryReparentFromProcfs has had multiple chances to
+	// reparent any remaining children.  Setting Children to nil frees the
+	// backing array and breaks the parent→child direction of the cycle so the
+	// GC can reclaim the entry as soon as its last child exits and drops its
+	// Ancestor pointer.
+	entry.Children = nil
 
 	entry.Exit(exitTime)
 	delete(p.entryCache, entry.Pid)
@@ -1205,8 +1250,8 @@ func (p *EBPFResolver) resolveFromProcfs(pid uint32, inode uint64, maxDepth int,
 		return nil
 	}
 
-	// ignore kthreads
-	if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
+	// ignore kworker/kthreads
+	if IsKworker(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
 		return nil
 	}
 
@@ -1486,6 +1531,10 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 		return err
 	}
 
+	if p.kernelThreadPidsMap, err = managerhelper.Map(p.manager, "kernel_thread_pids"); err != nil {
+		return err
+	}
+
 	go p.cacheFlush(ctx)
 
 	return nil
@@ -1524,14 +1573,21 @@ func (p *EBPFResolver) cacheFlush(ctx context.Context) {
 
 // SyncCache snapshots /proc for the provided pid.
 func (p *EBPFResolver) SyncCache(proc *process.Process) {
-	// Only a R lock is necessary to check if the entry exists, but if it exists, we'll update it, so a RW lock is
-	// required.
 	p.Lock()
 	defer p.Unlock()
 
 	filledProc, err := utils.GetFilledProcess(proc)
 	if err != nil {
 		seclog.Tracef("unable to get a filled process for %d: %v", proc.Pid, err)
+		return
+	}
+
+	// ignore kworker/kthreads
+	if IsKworker(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
+		value := uint8(1)
+		if err = p.kernelThreadPidsMap.Put(uint32(filledProc.Pid), value); err != nil {
+			seclog.Errorf("couldn't push kernel_thread_pids entry to kernel space: %s", err)
+		}
 		return
 	}
 
@@ -1596,8 +1652,6 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 			p.inodeErrStats[inodeErrTagProcfsMismatch].Inc()
 		}
 	}
-
-	entry.IsKworker = filledProc.Ppid == 0 && filledProc.Pid != 1
 
 	parent := p.entryCache[entry.PPid]
 	if parent != nil {

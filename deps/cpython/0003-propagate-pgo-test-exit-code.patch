@@ -1,0 +1,23 @@
+diff --git a/PCbuild/build.bat b/PCbuild/build.bat
+--- a/PCbuild/build.bat
++++ b/PCbuild/build.bat
+@@ -142,14 +142,19 @@
+ rem %VARS% are evaluated eagerly, which would lose the ERRORLEVEL
+ rem value if we didn't split it out here.
+ if "%do_pgo%"=="true" if ERRORLEVEL 1 exit /B %ERRORLEVEL%
+ if "%do_pgo%"=="true" (
+     del /s "%dir%\*.pgc"
+     del /s "%dir%\..\Lib\*.pyc"
+     echo on
+     call "%dir%\..\python.bat" %pgo_job%
+     @echo off
++)
++rem Split out as above, this time to save PGO test result.
++set pgo_errorlevel=%ERRORLEVEL%
++if "%do_pgo%"=="true" (
+     call :Kill
++    if %pgo_errorlevel% NEQ 0 exit /B %pgo_errorlevel%
+     set conf=PGUpdate
+     set target=Build
+ )
+ goto :Build

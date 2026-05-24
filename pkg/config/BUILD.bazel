@@ -19,13 +19,6 @@ agent_config(
 )
 
 agent_config(
-    name = "security_agent_config",
-    out = "security-agent.yaml",
-    build_type = "security-agent",
-    template = "security-agent_template.yaml",
-)
-
-agent_config(
     name = "system_probe_config",
     out = "system-probe.yaml",
     build_type = "system-probe",

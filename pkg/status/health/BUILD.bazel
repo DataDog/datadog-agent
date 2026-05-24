@@ -15,6 +15,7 @@ go_test(
     name = "health_test",
     srcs = ["health_test.go"],
     embed = [":health"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

@@ -7,11 +7,12 @@
 package preprocessor
 
 import (
+	"regexp"
 	"strconv"
 	"time"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 // Sampler is the final stage of the Preprocessor. It receives one completed log
@@ -44,17 +45,23 @@ func (s *NoopSampler) Flush() *message.Message {
 	return nil
 }
 
-var tlmAdaptiveSamplerDropped = telemetry.NewCounter("logs_adaptive_sampler", "dropped",
+var tlmAdaptiveSamplerDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "dropped",
 	[]string{"source"}, "Number of log messages dropped by the adaptive sampler")
 
-var tlmAdaptiveSamplerKept = telemetry.NewCounter("logs_adaptive_sampler", "kept",
+var tlmAdaptiveSamplerBytesDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "bytes_dropped",
+	[]string{"source"}, "Number of bytes dropped by the adaptive sampler")
+
+var tlmAdaptiveSamplerKept = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "kept",
 	[]string{"source"}, "Number of log messages emitted by the adaptive sampler")
 
-var tlmAdaptiveSamplerNewPatterns = telemetry.NewCounter("logs_adaptive_sampler", "new_patterns",
+var tlmAdaptiveSamplerNewPatterns = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "new_patterns",
 	[]string{"source"}, "Number of new log patterns added to the adaptive sampler pattern table")
 
-var tlmAdaptiveSamplerEvictions = telemetry.NewCounter("logs_adaptive_sampler", "evictions",
+var tlmAdaptiveSamplerEvictions = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "evictions",
 	[]string{"source"}, "Number of pattern table evictions performed by the adaptive sampler")
+
+var tlmAdaptiveSamplerProtected = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "protected",
+	[]string{"source"}, "Number of important log messages that bypassed adaptive sampling")
 
 func adaptiveSamplerSampledCountTag(count int64) string {
 	return "adaptive_sampler_sampled_count:" + strconv.FormatInt(count, 10)
@@ -73,6 +80,25 @@ type AdaptiveSamplerConfig struct {
 	// MatchThreshold is the fraction of tokens that must match for two logs to be
 	// considered the same pattern. Range [0, 1].
 	MatchThreshold float64
+	// ProtectImportantLogs bypasses rate limiting for logs containing critical severity
+	// keywords (FATAL, ERROR, PANIC, etc.). Protected logs are never dropped.
+	ProtectImportantLogs bool
+	// Include limits adaptive sampling to messages matching at least one filter.
+	// When empty, all messages are eligible unless excluded.
+	Include []AdaptiveSamplerFilter
+	// IncludeConfigured records whether Include was explicitly configured, so an
+	// invalid or empty include list does not accidentally sample every message.
+	IncludeConfigured bool
+	// Exclude makes matching messages bypass adaptive sampling. Exclude takes
+	// precedence over Include.
+	Exclude []AdaptiveSamplerFilter
+}
+
+// AdaptiveSamplerFilter matches messages by raw-content regex, structural sample,
+// or both.
+type AdaptiveSamplerFilter struct {
+	Regex        *regexp.Regexp
+	SampleTokens []Token
 }
 
 // samplerEntry tracks the credit-based rate limiting state for a single log pattern.
@@ -109,9 +135,67 @@ func NewAdaptiveSampler(config AdaptiveSamplerConfig, source string) *AdaptiveSa
 	}
 }
 
+// isImportant reports whether the token sequence contains a critical severity keyword.
+// Logs matching this check are exempt from adaptive sampling and always passed through.
+func isImportant(tokens []Token) bool {
+	for _, t := range tokens {
+		switch t {
+		case Fatal, Error, Panic, Alert, Severe, Critical, Emergency, Warn,
+			Exception, Crash, Failure, Deadlock, Timeout:
+			return true
+		}
+	}
+	return false
+}
+
+func (f AdaptiveSamplerFilter) matches(msg *message.Message, tokens []Token, matchThreshold float64) bool {
+	matched := false
+	if f.Regex != nil {
+		if !f.Regex.Match(msg.GetContent()) {
+			return false
+		}
+		matched = true
+	}
+	if len(f.SampleTokens) > 0 {
+		if !IsMatch(f.SampleTokens, tokens, matchThreshold) {
+			return false
+		}
+		matched = true
+	}
+	return matched
+}
+
+func matchesAnyFilter(filters []AdaptiveSamplerFilter, msg *message.Message, tokens []Token, matchThreshold float64) bool {
+	for _, filter := range filters {
+		if filter.matches(msg, tokens, matchThreshold) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *AdaptiveSampler) shouldSample(msg *message.Message, tokens []Token) bool {
+	if matchesAnyFilter(s.config.Exclude, msg, tokens, s.config.MatchThreshold) {
+		return false
+	}
+	if len(s.config.Include) == 0 && !s.config.IncludeConfigured {
+		return true
+	}
+	return matchesAnyFilter(s.config.Include, msg, tokens, s.config.MatchThreshold)
+}
+
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
+	if !s.shouldSample(msg, tokens) {
+		tlmAdaptiveSamplerKept.Inc(s.source)
+		return msg
+	}
+	if s.config.ProtectImportantLogs && isImportant(tokens) {
+		tlmAdaptiveSamplerKept.Inc(s.source)
+		tlmAdaptiveSamplerProtected.Inc(s.source)
+		return msg
+	}
 	now := s.now()
 
 	for i := range s.entries {
@@ -128,11 +212,18 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		e.lastSeen = now
 		e.matchCount++
 
-		// Determine outcome before bubbling: bubbling swaps entries by value, so
-		// e (= &s.entries[i]) would alias a different entry after the first swap.
+		// All mutations to e must complete before bubbling: bubbling swaps
+		// entries by value, so e (= &s.entries[i]) aliases a different
+		// entry after the first swap.
 		allow := e.credits >= 1.0
 		if allow {
 			e.credits--
+			if e.sampled > 0 {
+				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerSampledCountTag(e.sampled))
+			}
+			e.sampled = 0
+		} else {
+			e.sampled++
 		}
 
 		// Bubble the matched entry toward the front to maintain descending order.
@@ -142,15 +233,11 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		}
 
 		if allow {
-			if e.sampled > 0 {
-				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerSampledCountTag(e.sampled))
-			}
-			e.sampled = 0
 			tlmAdaptiveSamplerKept.Inc(s.source)
 			return msg
 		}
 		tlmAdaptiveSamplerDropped.Inc(s.source)
-		e.sampled++
+		tlmAdaptiveSamplerBytesDropped.Add(float64(msg.RawDataLen), s.source)
 		return nil
 	}
 

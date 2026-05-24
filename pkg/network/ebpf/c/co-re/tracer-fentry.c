@@ -249,13 +249,6 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     return 0;
 }
 
-SEC("fexit/tcp_close")
-int BPF_PROG(tcp_close_exit, struct sock *sk, long timeout) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_close");
-    flush_conn_close_if_full(ctx);
-    return 0;
-}
-
 static __always_inline int handle_udp_send(struct sock *sk, int sent) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_tuple_t * t = bpf_map_lookup_elem(&udp_send_skb_args, &pid_tgid);
@@ -576,20 +569,6 @@ SEC("fentry/udpv6_destroy_sock")
 int BPF_PROG(udpv6_destroy_sock, struct sock *sk) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/udpv6_destroy_sock");
     return handle_udp_destroy_sock(ctx, sk);
-}
-
-SEC("fexit/udp_destroy_sock")
-int BPF_PROG(udp_destroy_sock_exit, struct sock *sk) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udp_destroy_sock");
-    flush_conn_close_if_full(ctx);
-    return 0;
-}
-
-SEC("fexit/udpv6_destroy_sock")
-int BPF_PROG(udpv6_destroy_sock_exit, struct sock *sk) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udpv6_destroy_sock");
-    flush_conn_close_if_full(ctx);
-    return 0;
 }
 
 SEC("fentry/inet_bind")

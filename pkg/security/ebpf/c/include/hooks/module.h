@@ -5,7 +5,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory, const char *uargs) {
+int __attribute__((always_inline)) trace_init_module(void *ctx, u32 loaded_from_memory, const char *uargs) {
     struct syscall_cache_t syscall = {
         .type = EVENT_INIT_MODULE,
         .init_module = {
@@ -18,16 +18,16 @@ int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory, con
         syscall.init_module.args_truncated = 1;
     }
 
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY3(init_module, void *, umod, unsigned long, len, const char *, uargs) {
-    return trace_init_module(1, uargs);
+    return trace_init_module(ctx, 1, uargs);
 }
 
 HOOK_SYSCALL_ENTRY3(finit_module, int, fd, const char *, uargs, int, flags) {
-    return trace_init_module(0, uargs);
+    return trace_init_module(ctx, 0, uargs);
 }
 
 int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f, enum TAIL_CALL_PROG_TYPE prog_type) {
@@ -131,8 +131,7 @@ SEC("tracepoint/module/module_load")
 int module_load(struct tracepoint_module_module_load_t *args) {
     // check if the tracepoint is hit by a kworker
     u32 pid = bpf_get_current_pid_tgid();
-    u32 *is_kworker = bpf_map_lookup_elem(&pid_ignored, &pid);
-    if (!is_kworker) {
+    if (!IS_KERNEL_THREAD(pid)) {
         return 0;
     }
 
@@ -163,7 +162,7 @@ HOOK_SYSCALL_ENTRY1(delete_module, const char *, name_user) {
         },
     };
 
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 

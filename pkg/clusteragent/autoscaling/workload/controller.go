@@ -393,10 +393,10 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 
 		// Fall through to normal scaling logic.
 	} else if podAutoscalerInternal.Spec().Owner == datadoghqcommon.DatadogPodAutoscalerLocalOwner {
-		// Implement sync logic for local ownership, source of truth is Kubernetes
-		if podAutoscalerInternal.Generation() != podAutoscaler.Generation {
-			podAutoscalerInternal.UpdateFromPodAutoscaler(podAutoscaler)
-		}
+		// Sync logic for local ownership: Kubernetes is the source of truth.
+		// UpdateFromPodAutoscaler internally short-circuits when neither .metadata.generation
+		// nor any of the watched labels/annotations has changed.
+		podAutoscalerInternal.UpdateFromPodAutoscaler(podAutoscaler)
 	}
 
 	// Reaching this point, we had no errors in processing, clearing up global error
@@ -492,6 +492,17 @@ func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInter
 				model.ProfileTemplateHashAnnotation: h,
 			}
 		}
+		if autoscalerObj.Annotations == nil {
+			autoscalerObj.Annotations = make(map[string]string)
+		}
+		// Forward preview annotation from the profile transparently.
+		// The profile owns this annotation for profile-managed DPAs; it entirely
+		// overrides whatever was previously set (profiles are injective: no merging).
+		if raw := podAutoscalerInternal.PreviewAnnotation(); raw != "" {
+			autoscalerObj.Annotations[model.PreviewAnnotationKey] = raw
+		} else {
+			delete(autoscalerObj.Annotations, model.PreviewAnnotationKey)
+		}
 	}
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)
@@ -526,6 +537,15 @@ func (c *Controller) updatePodAutoscalerSpec(ctx context.Context, podAutoscalerI
 				autoscalerObj.Annotations = make(map[string]string)
 			}
 			autoscalerObj.Annotations[model.ProfileTemplateHashAnnotation] = h
+		}
+		if autoscalerObj.Annotations == nil {
+			autoscalerObj.Annotations = make(map[string]string)
+		}
+		// Forward preview annotation from the profile transparently.
+		if raw := podAutoscalerInternal.PreviewAnnotation(); raw != "" {
+			autoscalerObj.Annotations[model.PreviewAnnotationKey] = raw
+		} else {
+			delete(autoscalerObj.Annotations, model.PreviewAnnotationKey)
 		}
 	}
 

@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ebpfless",
+    srcs = ["msg.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/security/secl/containerutils",
+        "//pkg/security/secl/model/sharedconsts",
+        "//pkg/security/secl/model/utils",
+    ],
+)

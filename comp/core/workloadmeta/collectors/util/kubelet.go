@@ -17,6 +17,7 @@ package util
 
 import (
 	stdErrors "errors"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -222,7 +223,7 @@ func parsePodContainers(
 		containerSpec := findContainerSpec(container.Name, containerSpecs)
 		if containerSpec != nil {
 			env = extractEnvFromSpec(containerSpec.Env)
-			resources = extractResources(containerSpec)
+			resources = extractResources(containerSpec, &container)
 			resizePolicy = extractResizePolicy(containerSpec)
 
 			podContainer.Image, err = workloadmeta.NewContainerImage(imageID, containerSpec.Image)
@@ -437,40 +438,37 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	return env
 }
 
-func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
+func extractResources(spec *kubelet.ContainerSpec, status *kubelet.ContainerStatus) workloadmeta.ContainerResources {
 	resources := workloadmeta.ContainerResources{}
 
-	if spec.Resources == nil {
+	requests, limits := mergeContainerResources(spec, status)
+	if len(requests) == 0 && len(limits) == 0 {
 		// Ephemeral containers do not have resources defined
 		return resources
 	}
 
-	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
+	if cpuReq, found := requests[kubelet.ResourceCPU]; found {
 		resources.CPURequest = kubernetes.FormatCPURequests(cpuReq)
-	}
-
-	if memoryReq, found := spec.Resources.Requests[kubelet.ResourceMemory]; found {
-		resources.MemoryRequest = kubernetes.FormatMemoryRequests(memoryReq)
-	}
-
-	if cpuLimit, found := spec.Resources.Limits[kubelet.ResourceCPU]; found {
-		resources.CPULimit = kubernetes.FormatCPURequests(cpuLimit)
-	}
-
-	if memoryLimit, found := spec.Resources.Limits[kubelet.ResourceMemory]; found {
-		resources.MemoryLimit = kubernetes.FormatMemoryRequests(memoryLimit)
-	}
-
-	// Check if the CPU Requested is a whole core or cores
-	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
 		if cpuReq.MilliValue()%1000 == 0 {
 			resources.RequestedWholeCores = pointer.Ptr(true)
 		}
 	}
 
+	if memoryReq, found := requests[kubelet.ResourceMemory]; found {
+		resources.MemoryRequest = kubernetes.FormatMemoryRequests(memoryReq)
+	}
+
+	if cpuLimit, found := limits[kubelet.ResourceCPU]; found {
+		resources.CPULimit = kubernetes.FormatCPURequests(cpuLimit)
+	}
+
+	if memoryLimit, found := limits[kubelet.ResourceMemory]; found {
+		resources.MemoryLimit = kubernetes.FormatMemoryRequests(memoryLimit)
+	}
+
 	// extract GPU resource info from the possible GPU sources
 	uniqueGPUVendor := make(map[string]struct{})
-	for resourceName := range spec.Resources.Requests {
+	for resourceName := range requests {
 		gpuName, found := gpu.ExtractSimpleGPUName(gpu.ResourceGPU(resourceName))
 		if found {
 			uniqueGPUVendor[gpuName] = struct{}{}
@@ -484,16 +482,53 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 	resources.GPUVendorList = gpuVendorList
 
 	resources.RawRequests = make(map[string]string)
-	for resourceName, quantity := range spec.Resources.Requests {
+	for resourceName, quantity := range requests {
 		resources.RawRequests[string(resourceName)] = quantity.String()
 	}
 
 	resources.RawLimits = make(map[string]string)
-	for resourceName, quantity := range spec.Resources.Limits {
+	for resourceName, quantity := range limits {
 		resources.RawLimits[string(resourceName)] = quantity.String()
 	}
 
 	return resources
+}
+
+// mergeContainerResources overlays live values from status.Resources
+// (in-place vertical scaling) on top of the pod spec. Spec keys missing
+// from status (GPU, custom resources) are preserved.
+func mergeContainerResources(spec *kubelet.ContainerSpec, status *kubelet.ContainerStatus) (kubelet.ResourceList, kubelet.ResourceList) {
+	var specRequests, specLimits kubelet.ResourceList
+	if spec != nil && spec.Resources != nil {
+		specRequests = spec.Resources.Requests
+		specLimits = spec.Resources.Limits
+	}
+
+	var statusRequests, statusLimits kubelet.ResourceList
+	if status != nil && status.Resources != nil {
+		statusRequests = status.Resources.Requests
+		statusLimits = status.Resources.Limits
+	}
+
+	return overlayResourceList(specRequests, statusRequests),
+		overlayResourceList(specLimits, statusLimits)
+}
+
+// overlayResourceList returns overlay overlaid on base. When one side is
+// empty the other is returned unchanged — the kubelet ResourceList is
+// JSON-unmarshalled and read-only downstream, so sharing is safe and
+// avoids an allocation on the pre-1.33 hot path.
+func overlayResourceList(base, overlay kubelet.ResourceList) kubelet.ResourceList {
+	if len(overlay) == 0 {
+		return base
+	}
+	if len(base) == 0 {
+		return overlay
+	}
+	out := make(kubelet.ResourceList, len(base)+len(overlay))
+	maps.Copy(out, base)
+	maps.Copy(out, overlay)
+	return out
 }
 
 func extractResizePolicy(spec *kubelet.ContainerSpec) workloadmeta.ContainerResizePolicy {

@@ -24,7 +24,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -34,8 +35,8 @@ var headerTelemetry = struct {
 	success telemetry.Counter
 	error   telemetry.Counter
 }{
-	success: telemetry.NewCounter("ebpf__runtime_compilation__header_download", "success", []string{"platform", "platform_version", "kernel", "arch", "result"}, "count of kernel header download successes"),
-	error:   telemetry.NewCounter("ebpf__runtime_compilation__header_download", "error", []string{"platform", "platform_version", "kernel", "arch", "result"}, "count of kernel header download errors"),
+	success: telemetryimpl.GetCompatComponent().NewCounter("ebpf__runtime_compilation__header_download", "success", []string{"platform", "platform_version", "kernel", "arch", "result"}, "count of kernel header download successes"),
+	error:   telemetryimpl.GetCompatComponent().NewCounter("ebpf__runtime_compilation__header_download", "error", []string{"platform", "platform_version", "kernel", "arch", "result"}, "count of kernel header download errors"),
 }
 
 const sysfsHeadersPath = "/sys/kernel/kheaders.tar.xz"

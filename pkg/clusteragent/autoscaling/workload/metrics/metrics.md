@@ -35,7 +35,7 @@ Every metric carries the following base tags.
   received. Can be used to detect stale recommendations by comparing this value over time or
   against an expected version.
 
-#### `datadog.cluster_agent.autoscaling.workload.local_fallback_enabled`
+#### `datadog.cluster_agent.autoscaling.workload.local.fallback_enabled`
 - **Type:** Gauge
 - **Tags:** base tags
 - **Description:** Indicates whether the local (in-cluster) fallback recommender is currently

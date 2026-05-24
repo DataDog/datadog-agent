@@ -86,7 +86,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", false),
 				}),
 				flare.Module(flareParams),
-				core.Bundle(core.WithSecrets()),
+				core.Bundle(),
 				// Provide empty option for workloadmeta (optional dependency)
 				fx.Supply(option.None[workloadmeta.Component]()),
 				// Provide required modules

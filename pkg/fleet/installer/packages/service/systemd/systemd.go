@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -25,7 +26,8 @@ import (
 )
 
 const (
-	userUnitsPath = "/etc/systemd/system"
+	// UserUnitsPath is the directory where systemd user unit files are stored
+	UserUnitsPath = "/etc/systemd/system"
 )
 
 func handleSystemdSelfStops(err error) error {
@@ -147,11 +149,11 @@ func WriteUnitOverride(ctx context.Context, unit string, name string, content st
 	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
 	span.SetTag("name", name)
-	err = os.MkdirAll(filepath.Join(userUnitsPath, unit+".d"), 0755)
+	err = os.MkdirAll(filepath.Join(UserUnitsPath, unit+".d"), 0755)
 	if err != nil {
 		return fmt.Errorf("error creating systemd directory: %w", err)
 	}
-	overridePath := filepath.Join(userUnitsPath, unit+".d", name+".conf")
+	overridePath := filepath.Join(UserUnitsPath, unit+".d", name+".conf")
 	return os.WriteFile(overridePath, []byte(content), 0644)
 }
 
@@ -168,8 +170,14 @@ func Reload(ctx context.Context) (err error) {
 	return telemetry.CommandContext(ctx, "systemctl", "daemon-reload").Run()
 }
 
-// IsRunning checks if systemd is running using the documented way
-// https://www.freedesktop.org/software/systemd/man/latest/sd_booted.html#Notes
+// IsRunning checks if systemd is running as PID 1.
+// It first checks the documented sd_booted() sentinel directory
+// (https://www.freedesktop.org/software/systemd/man/latest/sd_booted.html#Notes),
+// then confirms via /proc/1/comm that systemd is actually the init process.
+// The second check guards against container environments where
+// /run/systemd/system exists but systemd is not PID 1, which causes
+// systemctl to fail with "System has not been booted with systemd as init
+// system (PID 1). Can't operate."
 func IsRunning() (running bool, err error) {
 	_, err = os.Stat("/run/systemd/system")
 	if os.IsNotExist(err) {
@@ -177,6 +185,17 @@ func IsRunning() (running bool, err error) {
 		return false, nil
 	} else if err != nil {
 		return false, err
+	}
+	comm, readErr := os.ReadFile("/proc/1/comm")
+	if readErr != nil {
+		// Cannot confirm PID 1 is systemd — treat as not running to avoid
+		// systemctl calls failing with "not booted with systemd as init system".
+		log.Infof("Installer: cannot read /proc/1/comm (%v), assuming systemd is not PID 1", readErr)
+		return false, nil
+	}
+	if strings.TrimSpace(string(comm)) != "systemd" {
+		log.Infof("Installer: /run/systemd/system exists but PID 1 is %q (not systemd), skip unit setup", strings.TrimSpace(string(comm)))
+		return false, nil
 	}
 	return true, nil
 }

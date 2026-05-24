@@ -23,8 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -63,10 +62,10 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		milestones := buildTimelineMilestones(boot, ts)
 
-		assert.InDelta(t, 0.0, milestones[0].OffsetS, 0.001)
-		assert.InDelta(t, 10.0, milestones[1].OffsetS, 0.001)
-		assert.InDelta(t, 30.0, milestones[2].OffsetS, 0.001)
-		assert.InDelta(t, 90.0, milestones[3].OffsetS, 0.001)
+		assert.InDelta(t, 0.0, milestones[0].OffsetMs, 0.001)
+		assert.InDelta(t, 10000.0, milestones[1].OffsetMs, 0.001)
+		assert.InDelta(t, 30000.0, milestones[2].OffsetMs, 0.001)
+		assert.InDelta(t, 90000.0, milestones[3].OffsetMs, 0.001)
 	})
 
 	t.Run("computes correct durations between milestones", func(t *testing.T) {
@@ -78,10 +77,10 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		milestones := buildTimelineMilestones(boot, ts)
 
-		assert.InDelta(t, 10.0, milestones[0].DurationS, 0.001)
-		assert.InDelta(t, 20.0, milestones[1].DurationS, 0.001)
-		assert.InDelta(t, 60.0, milestones[2].DurationS, 0.001)
-		assert.InDelta(t, 0.0, milestones[3].DurationS, 0.001)
+		assert.InDelta(t, 10000.0, milestones[0].DurationMs, 0.001)
+		assert.InDelta(t, 0.0, milestones[1].DurationMs, 0.001)
+		assert.InDelta(t, 60000.0, milestones[2].DurationMs, 0.001)
+		assert.InDelta(t, 0.0, milestones[3].DurationMs, 0.001)
 	})
 
 	t.Run("formats timestamps correctly", func(t *testing.T) {
@@ -108,9 +107,9 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		milestones := buildTimelineMilestones(boot, ts)
 
-		assert.InDelta(t, 10.5, milestones[1].OffsetS, 0.001)
-		assert.InDelta(t, 30.25, milestones[2].OffsetS, 0.001)
-		assert.InDelta(t, 90.75, milestones[3].OffsetS, 0.001)
+		assert.InDelta(t, 10500.0, milestones[1].OffsetMs, 0.001)
+		assert.InDelta(t, 30250.0, milestones[2].OffsetMs, 0.001)
+		assert.InDelta(t, 90750.0, milestones[3].OffsetMs, 0.001)
 	})
 
 	t.Run("zero LoginWindowTime yields 0 durations and empty timestamp for dependent milestones", func(t *testing.T) {
@@ -122,14 +121,14 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		milestones := buildTimelineMilestones(boot, ts)
 
 		// Boot Start duration depends on LoginWindowTime
-		assert.InDelta(t, 0.0, milestones[0].DurationS, 0.001)
+		assert.InDelta(t, 0.0, milestones[0].DurationMs, 0.001)
 		// Login Window Ready: offset, duration, and timestamp all zero/empty
-		assert.InDelta(t, 0.0, milestones[1].OffsetS, 0.001)
-		assert.InDelta(t, 0.0, milestones[1].DurationS, 0.001)
+		assert.InDelta(t, 0.0, milestones[1].OffsetMs, 0.001)
+		assert.InDelta(t, 0.0, milestones[1].DurationMs, 0.001)
 		assert.Equal(t, "", milestones[1].Timestamp)
 		// User Login: offset and duration still computed from their own timestamps
-		assert.InDelta(t, 30.0, milestones[2].OffsetS, 0.001)
-		assert.InDelta(t, 60.0, milestones[2].DurationS, 0.001)
+		assert.InDelta(t, 30000.0, milestones[2].OffsetMs, 0.001)
+		assert.InDelta(t, 60000.0, milestones[2].DurationMs, 0.001)
 	})
 
 	t.Run("zero LoginTime yields 0 durations and empty timestamp for dependent milestones", func(t *testing.T) {
@@ -141,10 +140,10 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		milestones := buildTimelineMilestones(boot, ts)
 
 		// Login Window Ready duration depends on LoginTime
-		assert.InDelta(t, 0.0, milestones[1].DurationS, 0.001)
+		assert.InDelta(t, 0.0, milestones[1].DurationMs, 0.001)
 		// User Login: offset, duration, and timestamp all zero/empty
-		assert.InDelta(t, 0.0, milestones[2].OffsetS, 0.001)
-		assert.InDelta(t, 0.0, milestones[2].DurationS, 0.001)
+		assert.InDelta(t, 0.0, milestones[2].OffsetMs, 0.001)
+		assert.InDelta(t, 0.0, milestones[2].DurationMs, 0.001)
 		assert.Equal(t, "", milestones[2].Timestamp)
 	})
 
@@ -157,9 +156,9 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		milestones := buildTimelineMilestones(boot, ts)
 
 		// User Login duration depends on DesktopReadyTime
-		assert.InDelta(t, 0.0, milestones[2].DurationS, 0.001)
+		assert.InDelta(t, 0.0, milestones[2].DurationMs, 0.001)
 		// Desktop Ready: offset and timestamp zero/empty
-		assert.InDelta(t, 0.0, milestones[3].OffsetS, 0.001)
+		assert.InDelta(t, 0.0, milestones[3].OffsetMs, 0.001)
 		assert.Equal(t, "", milestones[3].Timestamp)
 	})
 }
@@ -362,7 +361,7 @@ func TestSubmitEvent_MessageIncludesLogonDuration(t *testing.T) {
 
 	data := payload["data"].(map[string]interface{})
 	attrs := data["attributes"].(map[string]interface{})
-	assert.Equal(t, "macOS logon took 60000 ms", attrs["message"])
+	assert.Equal(t, "Total boot duration took 70000 ms.", attrs["message"])
 }
 
 func TestSubmitEvent_IncludesSystemNotableEventsMetadata(t *testing.T) {
@@ -398,7 +397,7 @@ func TestSubmitEvent_IncludesSystemNotableEventsMetadata(t *testing.T) {
 
 	sne, ok := attrs["system-notable-events"].(map[string]interface{})
 	require.True(t, ok)
-	assert.Equal(t, "Logon duration", sne["event_type"])
+	assert.Equal(t, "logon_duration", sne["event_type"])
 }
 
 func TestSubmitEvent_TimestampFormat(t *testing.T) {
@@ -525,7 +524,7 @@ func newFixture(t *testing.T, enabled bool) *testFixture {
 	configComp := config.NewMock(t)
 	configComp.SetWithoutSource("logon_duration.enabled", enabled)
 
-	sysprobeConfigComp := fxutil.Test[sysprobeconfig.Component](t, sysprobeconfigimpl.MockModule())
+	sysprobeConfigComp := sysprobeconfigmock.NewMock(t)
 
 	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
 	compressionComp := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())

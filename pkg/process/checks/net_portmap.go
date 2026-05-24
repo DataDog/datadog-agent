@@ -8,8 +8,10 @@
 package checks
 
 import (
+	"maps"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/network/remoteservice"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/port/portlist"
 )
@@ -17,17 +19,21 @@ import (
 var (
 	portPollerOnce sync.Once
 	portPoller     *portlist.Poller
-	cachedPortMap  map[int32]int32
+	cachedPortMap  map[remoteservice.ListenKey]int32
 )
 
-// getListeningPortToPIDMap returns a map of listening port -> PID using a
+// getListeningPortToPIDMap returns a map of listening (IP, port) -> PID using a
 // long-lived portlist.Poller. The Poller is created once and reused across
 // calls so that it can benefit from scratch-buffer reuse. When the port list
 // has not changed since the last poll the cached map is returned.
 //
+// The map is keyed by (IP, port) rather than port alone so that two processes
+// listening on the same port via different interfaces (e.g. one on 127.0.0.1
+// and another on a LAN IP) are recorded separately.
+//
 // This function is not safe for concurrent use. It is only called from
 // ConnectionsCheck.Run, which is invoked sequentially by the check runner.
-func getListeningPortToPIDMap() map[int32]int32 {
+func getListeningPortToPIDMap() map[remoteservice.ListenKey]int32 {
 	portPollerOnce.Do(func() {
 		portPoller = &portlist.Poller{IncludeLocalhost: true}
 	})
@@ -41,13 +47,13 @@ func getListeningPortToPIDMap() map[int32]int32 {
 		return cachedPortMap
 	}
 
-	result := make(map[int32]int32, len(ports))
+	result := make(map[remoteservice.ListenKey]int32, len(ports))
 	for _, p := range ports {
 		// USM supports TCP only; skip UDP ports.
 		if p.Pid > 0 && p.Proto == "tcp" {
-			result[int32(p.Port)] = int32(p.Pid)
+			result[remoteservice.ListenKey{IP: p.IP, Port: int32(p.Port)}] = int32(p.Pid)
 		}
 	}
 	cachedPortMap = result
-	return result
+	return maps.Clone(result)
 }

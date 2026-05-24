@@ -14,9 +14,10 @@ import (
 
 	"github.com/google/gopacket/layers"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 const ebpflessModuleName = "ebpfless_network_tracer"
@@ -70,14 +71,14 @@ var statsTelemetry = struct {
 	tcpRstAndSyn            telemetry.Counter
 	tcpRstAndFin            telemetry.Counter
 }{
-	expiredPendingConns:     telemetry.NewCounter(ebpflessModuleName, "expired_pending_conns", nil, "Counter measuring the number of TCP connections which expired because it took too long to complete the handshake"),
-	droppedPendingConns:     telemetry.NewCounter(ebpflessModuleName, "dropped_pending_conns", nil, "Counter measuring the number of TCP connections which were dropped during the handshake (because the map was full)"),
-	droppedEstablishedConns: telemetry.NewCounter(ebpflessModuleName, "dropped_established_conns", nil, "Counter measuring the number of TCP connections which were dropped while established (because the map was full)"),
-	missedTCPHandshakes:     telemetry.NewCounter(ebpflessModuleName, "missed_tcp_handshakes", nil, "Counter measuring the number of TCP connections where we missed the SYN handshake"),
-	missingTCPFlags:         telemetry.NewCounter(ebpflessModuleName, "missing_tcp_flags", nil, "Counter measuring packets encountered with none of SYN, FIN, ACK, RST set"),
-	tcpSynAndFin:            telemetry.NewCounter(ebpflessModuleName, "tcp_syn_and_fin", nil, "Counter measuring packets encountered with SYN+FIN together"),
-	tcpRstAndSyn:            telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_syn", nil, "Counter measuring packets encountered with RST+SYN together"),
-	tcpRstAndFin:            telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_fin", nil, "Counter measuring packets encountered with RST+FIN together"),
+	expiredPendingConns:     telemetryimpl.GetCompatComponent().NewCounter(ebpflessModuleName, "expired_pending_conns", nil, "Counter measuring the number of TCP connections which expired because it took too long to complete the handshake"),
+	droppedPendingConns:     telemetryimpl.GetCompatComponent().NewCounter(ebpflessModuleName, "dropped_pending_conns", nil, "Counter measuring the number of TCP connections which were dropped during the handshake (because the map was full)"),
+	droppedEstablishedConns: telemetryimpl.GetCompatComponent().NewCounter(ebpflessModuleName, "dropped_established_conns", nil, "Counter measuring the number of TCP connections which were dropped while established (because the map was full)"),
+	missedTCPHandshakes:     telemetryimpl.GetCompatComponent().NewCounter(ebpflessModuleName, "missed_tcp_handshakes", nil, "Counter measuring the number of TCP connections where we missed the SYN handshake"),
+	missingTCPFlags:         telemetryimpl.GetCompatComponent().NewCounter(ebpflessModuleName, "missing_tcp_flags", nil, "Counter measuring packets encountered with none of SYN, FIN, ACK, RST set"),
+	tcpSynAndFin:            telemetryimpl.GetCompatComponent().NewCounter(ebpflessModuleName, "tcp_syn_and_fin", nil, "Counter measuring packets encountered with SYN+FIN together"),
+	tcpRstAndSyn:            telemetryimpl.GetCompatComponent().NewCounter(ebpflessModuleName, "tcp_rst_and_syn", nil, "Counter measuring packets encountered with RST+SYN together"),
+	tcpRstAndFin:            telemetryimpl.GetCompatComponent().NewCounter(ebpflessModuleName, "tcp_rst_and_fin", nil, "Counter measuring packets encountered with RST+FIN together"),
 }
 
 const tcpSeqMidpoint = 0x80000000

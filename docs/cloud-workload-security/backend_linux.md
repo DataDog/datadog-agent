@@ -228,6 +228,15 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "CGroup manager"
                 },
+                "source": {
+                    "type": "string",
+                    "description": "Source of the cgroup entry (event or procfs)"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Timestamp of the creation of the cgroup"
+                },
                 "variables": {
                     "$ref": "#/$defs/Variables",
                     "description": "Variable values"
@@ -302,6 +311,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "id": {
                     "type": "string",
                     "description": "Container ID"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Source of the container entry (event or procfs)"
                 },
                 "created_at": {
                     "type": "string",
@@ -1330,6 +1343,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "integer",
                     "description": "Parent Process ID"
                 },
+                "sid": {
+                    "type": "integer",
+                    "description": "Session ID"
+                },
                 "tid": {
                     "type": "integer",
                     "description": "Thread ID"
@@ -1492,6 +1509,7 @@ Workload Protection events for Linux systems have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "required": [
+                "sid",
                 "fork_flags",
                 "uid",
                 "gid"
@@ -1507,6 +1525,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "ppid": {
                     "type": "integer",
                     "description": "Parent Process ID"
+                },
+                "sid": {
+                    "type": "integer",
+                    "description": "Session ID"
                 },
                 "tid": {
                     "type": "integer",
@@ -1685,6 +1707,7 @@ Workload Protection events for Linux systems have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "required": [
+                "sid",
                 "fork_flags",
                 "uid",
                 "gid"
@@ -2870,6 +2893,15 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "CGroup manager"
         },
+        "source": {
+            "type": "string",
+            "description": "Source of the cgroup entry (event or procfs)"
+        },
+        "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp of the creation of the cgroup"
+        },
         "variables": {
             "$ref": "#/$defs/Variables",
             "description": "Variable values"
@@ -2886,6 +2918,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `id` | CGroup ID |
 | `manager` | CGroup manager |
+| `source` | Source of the cgroup entry (event or procfs) |
+| `created_at` | Timestamp of the creation of the cgroup |
 | `variables` | Variable values |
 
 | References |
@@ -3003,6 +3037,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "Container ID"
         },
+        "source": {
+            "type": "string",
+            "description": "Source of the container entry (event or procfs)"
+        },
         "created_at": {
             "type": "string",
             "format": "date-time",
@@ -3023,6 +3061,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `id` | Container ID |
+| `source` | Source of the container entry (event or procfs) |
 | `created_at` | Creation time of the container |
 | `variables` | Variable values |
 
@@ -4525,6 +4564,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "integer",
             "description": "Parent Process ID"
         },
+        "sid": {
+            "type": "integer",
+            "description": "Session ID"
+        },
         "tid": {
             "type": "integer",
             "description": "Thread ID"
@@ -4687,6 +4730,7 @@ Workload Protection events for Linux systems have the following JSON schema:
     "additionalProperties": false,
     "type": "object",
     "required": [
+        "sid",
         "fork_flags",
         "uid",
         "gid"
@@ -4700,6 +4744,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `pid` | Process ID |
 | `ppid` | Parent Process ID |
+| `sid` | Session ID |
 | `tid` | Thread ID |
 | `fork_flags` | ForkFlags |
 | `uid` | User ID |
@@ -4760,6 +4805,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "ppid": {
             "type": "integer",
             "description": "Parent Process ID"
+        },
+        "sid": {
+            "type": "integer",
+            "description": "Session ID"
         },
         "tid": {
             "type": "integer",
@@ -4938,6 +4987,7 @@ Workload Protection events for Linux systems have the following JSON schema:
     "additionalProperties": false,
     "type": "object",
     "required": [
+        "sid",
         "fork_flags",
         "uid",
         "gid"
@@ -4951,6 +5001,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `pid` | Process ID |
 | `ppid` | Parent Process ID |
+| `sid` | Session ID |
 | `tid` | Thread ID |
 | `fork_flags` | ForkFlags |
 | `uid` | User ID |

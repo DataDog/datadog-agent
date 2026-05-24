@@ -38,14 +38,15 @@ type ConnStats struct {
 	Recv_bytes     uint64
 	Sent_packets   uint32
 	Recv_packets   uint32
-	Timestamp_ms   NetTimeMs
-	Duration_ms    NetTimeMs
+	Timestamp      uint64
+	Duration       uint64
 	Cookie         uint32
 	Protocol_stack ProtocolStack
 	Flags          uint8
 	Direction      uint8
 	Tls_tags       TLSTags
 	Cert_id        uint32
+	Pad_cgo_0      [4]byte
 }
 type Conn struct {
 	Tup        ConnTuple
@@ -60,20 +61,8 @@ type PidTs struct {
 	Tgid      uint64
 	Timestamp uint64
 }
-type Batch struct {
-	Id    uint64
-	Cpu   uint32
-	Len   uint16
-	X_pad uint16
-	C0    Conn
-	C1    Conn
-	C2    Conn
-	C3    Conn
-}
 type Telemetry struct {
 	Tcp_sent_miscounts              uint64
-	Unbatched_tcp_close             uint64
-	Unbatched_udp_close             uint64
 	Udp_sends_processed             uint64
 	Udp_sends_missed                uint64
 	Udp_dropped_conns               uint64
@@ -125,9 +114,6 @@ type TLSTagsWrapper struct {
 	Info      TLSTags
 	Pad_cgo_0 [2]byte
 }
-type NetTimeMs struct {
-	Timestamp [3]uint16
-}
 type CertItem struct {
 	Timestamp uint64
 	Serial    CertSerial
@@ -172,10 +158,7 @@ const (
 	Assured ConnFlags = 0x4
 )
 
-const BatchSize = 0x4
-const SizeofBatch = 0x270
-
-const SizeofConn = 0x98
+const SizeofConn = 0xa0
 
 type ClassificationProgram = uint32
 type ClassificationTLSProgram = uint32

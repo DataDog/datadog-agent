@@ -239,6 +239,106 @@ func TestDBMRdsListener(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "changed non-hashed instance fields are picked up on rediscovery",
+			config: map[string]interface{}{
+				"discoveryInterval": 1,
+				"region":            "us-east-1",
+				"tags":              []string{defaultADTag},
+				"dbmTag":            defaultDbmTag,
+			},
+			numDiscoveryIntervals: 0,
+			initialServices: map[string]Service{
+				"36740c31448ee889": &DBMRdsService{
+					adIdentifier: dbmPostgresADIdentifier,
+					entityID:     "36740c31448ee889",
+					checkName:    "postgres",
+					region:       "us-east-1",
+					instance: &aws.Instance{
+						ID: "my-instance-1", Endpoint: "my-endpoint", Port: 5432,
+						IamEnabled: true, Engine: "postgres", DbmEnabled: true, DbName: "",
+					},
+				},
+			},
+			rdsClientConfigurer: func(k *aws.MockRdsClient) {
+				// Discovery returns same instance with changed non-hashed fields
+				k.EXPECT().GetRdsInstancesFromTags(gomock.Any(), gomock.Any()).Return(
+					[]aws.Instance{
+						{
+							ID: "my-instance-1", Endpoint: "my-endpoint", Port: 5432,
+							IamEnabled: true, Engine: "postgres", DbmEnabled: false, DbName: "mydb",
+						},
+					}, nil).AnyTimes()
+			},
+			// Only the updated service should be emitted as new
+			expectedServices: []*DBMRdsService{
+				{
+					adIdentifier: dbmPostgresADIdentifier, entityID: "36740c31448ee889",
+					checkName: "postgres", region: "us-east-1",
+					instance: &aws.Instance{
+						ID: "my-instance-1", Endpoint: "my-endpoint", Port: 5432,
+						IamEnabled: true, Engine: "postgres", DbmEnabled: false, DbName: "mydb",
+					},
+				},
+			},
+			// The original service should be deleted
+			expectedDelServices: []*DBMRdsService{
+				{
+					adIdentifier: dbmPostgresADIdentifier, entityID: "36740c31448ee889",
+					checkName: "postgres", region: "us-east-1",
+					instance: &aws.Instance{
+						ID: "my-instance-1", Endpoint: "my-endpoint", Port: 5432,
+						IamEnabled: true, Engine: "postgres", DbmEnabled: true, DbName: "",
+					},
+				},
+			},
+		},
+		{
+			name: "previously discovered services are deleted when no instances found",
+			config: map[string]interface{}{
+				"discoveryInterval": 1,
+				"region":            "us-east-1",
+				"tags":              []string{defaultADTag},
+				"dbmTag":            defaultDbmTag,
+			},
+			numDiscoveryIntervals: 0,
+			initialServices: map[string]Service{
+				"36740c31448ee889": &DBMRdsService{
+					adIdentifier: dbmPostgresADIdentifier,
+					entityID:     "36740c31448ee889",
+					checkName:    "postgres",
+					region:       "us-east-1",
+					instance: &aws.Instance{
+						ID:         "my-instance-1",
+						Endpoint:   "my-endpoint",
+						Port:       5432,
+						IamEnabled: true,
+						Engine:     "postgres",
+						DbmEnabled: true,
+					},
+				},
+			},
+			rdsClientConfigurer: func(k *aws.MockRdsClient) {
+				k.EXPECT().GetRdsInstancesFromTags(gomock.Any(), gomock.Any()).Return([]aws.Instance{}, nil).AnyTimes()
+			},
+			expectedServices: []*DBMRdsService{},
+			expectedDelServices: []*DBMRdsService{
+				{
+					adIdentifier: dbmPostgresADIdentifier,
+					entityID:     "36740c31448ee889",
+					checkName:    "postgres",
+					region:       "us-east-1",
+					instance: &aws.Instance{
+						ID:         "my-instance-1",
+						Endpoint:   "my-endpoint",
+						Port:       5432,
+						IamEnabled: true,
+						Engine:     "postgres",
+						DbmEnabled: true,
+					},
+				},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

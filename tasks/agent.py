@@ -14,7 +14,7 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks import doc
+from tasks import core_checks, doc
 from tasks.build_tags import (
     compute_build_tags_for_flavor,
     get_default_build_tags,
@@ -41,6 +41,7 @@ from tasks.rtloader import clean as rtloader_clean
 from tasks.rtloader import install as rtloader_install
 from tasks.rtloader import install_with_bazel as rtloader_install_with_bazel
 from tasks.rtloader import make as rtloader_make
+from tasks.schema.generate import compress as schema_compress
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
@@ -55,70 +56,6 @@ if sys.platform == "win32":
     AWS_CMD = "aws.exe"
 else:
     AWS_CMD = "aws"
-
-AGENT_CORECHECKS = [
-    "container",
-    "containerd",
-    "container_image",
-    "container_lifecycle",
-    "cpu",
-    "cri",
-    "snmp",
-    "docker",
-    "file_handle",
-    "go_expvar",
-    "io",
-    "jmx",
-    "kubernetes_apiserver",
-    "load",
-    "memory",
-    "ntp",
-    "oom_kill",
-    "oracle",
-    "oracle-dbm",
-    "sbom",
-    "systemd",
-    "tcp_queue_length",
-    "uptime",
-    "jetson",
-    "telemetry",
-    "orchestrator_pod",
-    "orchestrator_kubelet_config",
-    "orchestrator_ecs",
-    "cisco_sdwan",
-    "network_path",
-    "gpu",
-    "wlan",
-    "discovery",
-    "versa",
-    "network_config_management",
-    "battery",
-    "cloud_hostinfo",
-]
-
-WINDOWS_CORECHECKS = [
-    "agentcrashdetect",
-    "sbom",
-    "windows_registry",
-    "winkmem",
-    "wincrashdetect",
-    "windows_certificate",
-    "winproc",
-    "win32_event_log",
-]
-
-IOT_AGENT_CORECHECKS = [
-    "cpu",
-    "disk",
-    "io",
-    "load",
-    "memory",
-    "network",
-    "ntp",
-    "uptime",
-    "systemd",
-    "jetson",
-]
 
 CACHED_WHEEL_FILENAME_PATTERN = "datadog_{integration}-*.whl"
 CACHED_WHEEL_DIRECTORY_PATTERN = "integration-wheels/{branch}/{hash}/{python_version}/"
@@ -161,7 +98,8 @@ def build(
     """
     flavor = AgentFlavor[flavor]
 
-    if not exclude_rtloader and not flavor.is_iot():
+    if not exclude_rtloader and not flavor.is_iot() and sys.platform != "aix":
+        # On AIX, rtloader is built natively in advance as a prerequisite.
         with gitlab_section("Install embedded rtloader", collapsed=True):
             if enable_bazel:
                 bazel_embedded = rtloader_install_with_bazel(ctx)
@@ -225,6 +163,12 @@ def build(
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
 
     flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
+
+    # AIX build hosts do not have bazel; the compressed schema files are
+    # committed to the repo and do not need regeneration there.
+    if sys.platform != "aix":
+        schema_compress(ctx)
+
     with gitlab_section("Build agent", collapsed=True):
         go_build(
             ctx,
@@ -301,8 +245,6 @@ def render_config(ctx, env, flavor, skip_assets, build_tags, development, window
     if sys.platform != 'win32' or windows_sysprobe:
         generate_config(ctx, build_type="system-probe", output_file="./cmd/agent/dist/system-probe.yaml", env=env)
 
-    generate_config(ctx, build_type="security-agent", output_file="./cmd/agent/dist/security-agent.yaml", env=env)
-
     if not skip_assets:
         refresh_assets(ctx, build_tags, development=development, flavor=flavor.name, windows_sysprobe=windows_sysprobe)
 
@@ -313,9 +255,8 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     Clean up and refresh Collector's assets and config files
     """
     flavor = AgentFlavor[flavor]
-    # ensure BIN_PATH exists
-    if not os.path.exists(BIN_PATH):
-        os.mkdir(BIN_PATH)
+    # ensure BIN_PATH exists (makedirs handles missing parents, e.g. on AIX build hosts)
+    os.makedirs(BIN_PATH, exist_ok=True)
 
     dist_folder = os.path.join(BIN_PATH, "dist")
     if os.path.exists(dist_folder):
@@ -347,9 +288,13 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
-    shutil.copy("./cmd/agent/dist/security-agent.yaml", os.path.join(dist_folder, "security-agent.yaml"))
-
-    for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
+    if sys.platform.startswith('aix'):
+        checks_to_copy = core_checks.AIX_CORECHECKS
+    elif flavor.is_iot():
+        checks_to_copy = core_checks.IOT_AGENT_CORECHECKS
+    else:
+        checks_to_copy = core_checks.AGENT_CORECHECKS
+    for check in checks_to_copy:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
         shutil.copytree(
             f"./cmd/agent/dist/conf.d/{check}.d/",
@@ -363,7 +308,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     # add additional windows-only corechecks, only on windows. Otherwise the check loader
     # on linux will throw an error because the module is not found, but the config is.
     if sys.platform == 'win32':
-        for check in WINDOWS_CORECHECKS:
+        for check in core_checks.WINDOWS_CORECHECKS:
             check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
             shutil.copytree(
                 f"./cmd/agent/dist/conf.d/{check}.d/",
@@ -380,7 +325,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         )
 
     shutil.copytree(
-        "./comp/core/gui/guiimpl/views/private",
+        "./comp/core/gui/impl/views/private",
         os.path.join(dist_folder, "views"),
         ignore=shutil.ignore_patterns("BUILD.bazel"),
         dirs_exist_ok=True,
@@ -645,7 +590,7 @@ RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embe
 
 FROM golang:latest AS dlv
 
-RUN go install github.com/go-delve/delve/cmd/dlv@latest
+RUN go install github.com/go-delve/delve/cmd/dlv@v1.26.0
 
 FROM {base_image} AS bash_completion
 
@@ -756,6 +701,24 @@ def check_supports_python_version(check_dir, python):
         return False
 
 
+def _load_manifest_platform_overrides(integrations_dir):
+    """
+    Read [overrides.manifest.platforms] from <integrations_dir>/.ddev/config.toml.
+
+    Returns a mapping of integration folder -> list of supported platform strings
+    (e.g. "linux", "windows", "mac_os"). Used as a fallback for integrations that
+    no longer ship a manifest.json.
+    """
+    import toml
+
+    config_path = os.path.join(integrations_dir, '.ddev', 'config.toml')
+    if not os.path.isfile(config_path):
+        return {}
+    with open(config_path) as f:
+        config = toml.load(f)
+    return config.get('overrides', {}).get('manifest', {}).get('platforms', {}) or {}
+
+
 @task
 def collect_integrations(_, integrations_dir, python_version, target_os, excluded):
     """
@@ -765,6 +728,7 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
     """
     import json
 
+    manifest_overrides = _load_manifest_platform_overrides(integrations_dir)
     integrations = []
 
     for entry in os.listdir(integrations_dir):
@@ -774,21 +738,24 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
 
         manifest_file_path = os.path.join(int_path, "manifest.json")
 
-        # If there is no manifest file, then we should assume the folder does not
-        # contain a working check and move onto the next
-        if not os.path.exists(manifest_file_path):
-            continue
+        if os.path.exists(manifest_file_path):
+            with open(manifest_file_path) as f:
+                manifest = json.load(f)
 
-        with open(manifest_file_path) as f:
-            manifest = json.load(f)
+            # Figure out whether the integration is supported on the target OS
+            if target_os == 'mac_os':
+                tag = 'Supported OS::macOS'
+            else:
+                tag = f'Supported OS::{target_os.capitalize()}'
 
-        # Figure out whether the integration is supported on the target OS
-        if target_os == 'mac_os':
-            tag = 'Supported OS::macOS'
+            if tag not in manifest['tile']['classifier_tags']:
+                continue
+        elif entry in manifest_overrides:
+            # No manifest.json; fall back to .ddev/config.toml [overrides.manifest.platforms]
+            if target_os not in manifest_overrides[entry]:
+                continue
         else:
-            tag = f'Supported OS::{target_os.capitalize()}'
-
-        if tag not in manifest['tile']['classifier_tags']:
+            # No manifest file and no override -> assume the folder is not a working check
             continue
 
         if not check_supports_python_version(int_path, python_version):

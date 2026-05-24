@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "certreloader",
+    srcs = [
+        "ca_reloader.go",
+        "cert_reloader.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs-library/utils/tls/certreloader",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log"],
+)
+
+go_test(
+    name = "certreloader_test",
+    srcs = ["cert_reloader_test.go"],
+    embed = [":certreloader"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

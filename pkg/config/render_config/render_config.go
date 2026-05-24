@@ -8,11 +8,11 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"html/template"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"text/template"
 
 	"github.com/pmezard/go-difflib/difflib"
 	"go.yaml.in/yaml/v3"
@@ -103,11 +103,6 @@ func mkContext(buildType string, osName string) context {
 			ClusterChecks: true,
 			CloudFoundry:  true,
 		}
-	// security-agent and system-probe use their own templating file, they only require OS
-	case "security-agent":
-		return context{
-			OS: osName,
-		}
 	case "system-probe":
 		return context{
 			OS: osName,
@@ -118,41 +113,37 @@ func mkContext(buildType string, osName string) context {
 }
 
 func render(destFile string, tplFile string, component string, osName string) {
-	f, err := os.Create(destFile)
-	if err != nil {
-		panic(err)
-	}
-
 	tplFilename := filepath.Base(tplFile)
 
 	t := template.Must(template.New(tplFilename).ParseFiles(tplFile))
-	err = t.Execute(f, mkContext(component, osName))
-	if err != nil {
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, mkContext(component, osName)); err != nil {
 		panic(err)
 	}
 
-	if err := f.Close(); err != nil {
+	rendered := append(bytes.TrimRight(buf.Bytes(), "\n\r \t"), '\n')
+
+	if err := os.WriteFile(destFile, rendered, 0644); err != nil {
 		panic(err)
 	}
 }
 
 func renderAll(destFolder string, tplFolder string) {
 	for component, templateName := range map[string]string{
-		"agent-py3":      "config_template.yaml",
-		"iot-agent":      "config_template.yaml",
-		"dogstatsd":      "config_template.yaml",
-		"dca":            "config_template.yaml",
-		"dcacf":          "config_template.yaml",
-		"system-probe":   "system-probe_template.yaml",
-		"security-agent": "security-agent_template.yaml",
+		"agent-py3":    "config_template.yaml",
+		"iot-agent":    "config_template.yaml",
+		"dogstatsd":    "config_template.yaml",
+		"dca":          "config_template.yaml",
+		"dcacf":        "config_template.yaml",
+		"system-probe": "system-probe_template.yaml",
 	} {
 		for _, osName := range []string{"windows", "darwin", "linux"} {
 			destFile := filepath.Join(destFolder, component+"_"+osName+".yaml")
 			render(destFile, filepath.Join(tplFolder, templateName), component, osName)
+			fmt.Println("Successfully wrote", destFile)
 			if err := lint(destFile); err != nil {
 				panic(err)
 			}
-			fmt.Println("Successfully wrote", destFile)
 		}
 	}
 }

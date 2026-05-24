@@ -1,8 +1,9 @@
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(default_package_metadata = [":license"], default_visibility = ["//visibility:public"])
 
@@ -18,26 +19,29 @@ filegroup(
     srcs = glob(["src/**/*"]),
 )
 
-SHARED_LIBS = {
-    "krb5/plugins/tls/k5tls.so": "",
-    "krb5/plugins/kdb/db2.so": "",
-    "krb5/plugins/preauth/test.so": "",
-    "krb5/plugins/preauth/spake.so": "",
-    "krb5/plugins/preauth/pkinit.so": "",
-    "krb5/plugins/preauth/otp.so": "",
-    "libcom_err.so": "3.0",
-    "libgssapi_krb5.so": "2.2",
-    "libgssrpc.so": "4.2",
-    "libk5crypto.so": "3.1",
-    "libkadm5clnt.so": "",
-    "libkadm5clnt_mit.so": "12.0",
-    "libkadm5srv.so": "",
-    "libkadm5srv_mit.so": "12.0",
-    "libkdb5.so": "10.0",
-    "libkrad.so": "0.0",
-    "libkrb5.so": "3.3",
-    "libkrb5support.so": "0.1",
-    "libverto.so": "0.0",
+# Maps lib_filter name -> {"version": ..., "prefix": ...}.
+# - version: full version string ("" for unversioned plugins).
+# - prefix: subdirectory under lib/ where the file lands ("" means directly in lib/).
+LIBS = {
+    "k5tls": {"version": "", "prefix": "krb5/plugins/tls"},
+    "db2": {"version": "", "prefix": "krb5/plugins/kdb"},
+    "test": {"version": "", "prefix": "krb5/plugins/preauth"},
+    "spake": {"version": "", "prefix": "krb5/plugins/preauth"},
+    "pkinit": {"version": "", "prefix": "krb5/plugins/preauth"},
+    "otp": {"version": "", "prefix": "krb5/plugins/preauth"},
+    "libcom_err": {"version": "3.0", "prefix": ""},
+    "libgssapi_krb5": {"version": "2.2", "prefix": ""},
+    "libgssrpc": {"version": "4.2", "prefix": ""},
+    "libk5crypto": {"version": "3.1", "prefix": ""},
+    "libkadm5clnt": {"version": "", "prefix": ""},
+    "libkadm5clnt_mit": {"version": "12.0", "prefix": ""},
+    "libkadm5srv": {"version": "", "prefix": ""},
+    "libkadm5srv_mit": {"version": "12.0", "prefix": ""},
+    "libkdb5": {"version": "10.0", "prefix": ""},
+    "libkrad": {"version": "0.0", "prefix": ""},
+    "libkrb5": {"version": "3.3", "prefix": ""},
+    "libkrb5support": {"version": "0.1", "prefix": ""},
+    "libverto": {"version": "0.0", "prefix": ""},
 }
 
 configure_make(
@@ -64,55 +68,34 @@ configure_make(
     out_binaries = [
         "kinit",
     ],
-    out_shared_libs = SHARED_LIBS.keys(),
+    out_shared_libs = [
+        "{}/{}.so".format(spec["prefix"], libname) if spec["prefix"] else "{}.so".format(libname)
+        for libname, spec in LIBS.items()
+    ],
 )
 
-# Unversioned lib handling:
-# Create a filegroup refering to configure_make's output_group
-# Expose this single file filegroup as a pkg_file target with a common `lib_$foo` name
 [
-    filegroup(
-        name = "_unversioned_lib_" + libname,
-        srcs = [":krb5"],
-        output_group = libname.rpartition("/")[2],
+    foreign_cc_shared_wrapper(
+        name = "{}_shared".format(libname),
+        input = ":krb5",
+        lib_filter = libname,
     )
-    for (libname, libversion) in SHARED_LIBS.items()
-    if not libversion
+    for libname in LIBS.keys()
 ]
 
 [
-    pkg_files(
-        name = "_lib_" + libname,
-        srcs = [":_unversioned_lib_" + libname],
-        prefix = "lib/" + libname.rpartition("/")[0],
+    dd_cc_packaged(
+        name = "{}_pkg".format(libname),
+        input = ":{}_shared".format(libname),
+        libname = libname,
+        prefix = spec["prefix"],
+        version = spec["version"],
+        # kinit rides along with libkrb5 so its rpath gets patched via dd_cc_packaged.
+        installed_executables = {":_bins": "bin"} if libname == "libkrb5" else {},
+        # Headers ride along with libkrb5 so they flow through dd_collect_dependencies.
+        installed_files = [":hdr_files"] if libname == "libkrb5" else [],
     )
-    for (libname, libversion) in SHARED_LIBS.items()
-    if not libversion
-]
-
-# Now the same for versioned libs, except instead of an explicit pkg_file
-# we leverage the one created by so_symlink
-[
-    filegroup(
-        name = "_symlink_src_" + libname,
-        srcs = [":krb5"],
-        output_group = libname,
-    )
-    for (libname, libversion) in SHARED_LIBS.items()
-    if libversion
-]
-
-[
-    so_symlink(
-        name = "_lib_" + libname,
-        src = "_symlink_src_" + libname,
-        libname = libname.removesuffix(".so"),
-        version = libversion,
-        # so_symlink already adds a lib/ folder
-        prefix = libname.rpartition("/")[0],
-    )
-    for (libname, libversion) in SHARED_LIBS.items()
-    if libversion
+    for libname, spec in LIBS.items()
 ]
 
 filegroup(
@@ -132,34 +115,10 @@ pkg_files(
     srcs = [":_headers"],
 )
 
-pkg_files(
-    name = "bin_files",
-    srcs = [
-        ":_bins",
-    ],
-    prefix = "bin",
-    attributes = pkg_attributes("0755"),
-)
-
-pkg_filegroup(
-    name = "all_libs",
-    srcs = [":_lib_" + libname for libname in SHARED_LIBS.keys()],
-)
-
-pkg_filegroup(
-    name = "all_files",
-    srcs = [
-        ":hdr_files",
-        ":bin_files",
-        ":all_libs",
-    ],
-    prefix = "embedded",
-    visibility = ["@@//packages:__subpackages__", "@@//deps/msodbcsql18:__pkg__"],
-)
-
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
+# Single public entry point for "ship all krb5 libraries". Consumers reference
+# this; the embedded/ prefix is applied at the consumption site, not here.
+dd_collect_dependencies(
+    name = "installed_libs",
+    srcs = [":{}_pkg".format(libname) for libname in LIBS.keys()],
+    visibility = ["@@//packages:__subpackages__"],
 )

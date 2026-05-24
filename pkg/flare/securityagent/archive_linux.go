@@ -8,6 +8,7 @@
 package securityagent
 
 import (
+	"context"
 	"path/filepath"
 
 	"github.com/DataDog/ebpf-manager/tracefs"
@@ -19,7 +20,7 @@ import (
 // only used in tests when running on linux
 var linuxKernelSymbols = getLinuxKernelSymbols
 
-func addSecurityAgentPlatformSpecificEntries(fb flaretypes.FlareBuilder) {
+func addSecurityAgentPlatformSpecificEntries(_ context.Context, fb flaretypes.FlareBuilder) {
 	linuxKernelSymbols(fb)                                 //nolint:errcheck
 	getLinuxPid1MountInfo(fb)                              //nolint:errcheck
 	fb.AddFileFromFunc("dmesg", priviledged.GetLinuxDmesg) //nolint:errcheck

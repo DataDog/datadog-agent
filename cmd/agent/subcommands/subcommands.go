@@ -14,6 +14,7 @@ import (
 	cmdconfigcheck "github.com/DataDog/datadog-agent/cmd/agent/subcommands/configcheck"
 	cmdcontrolsvc "github.com/DataDog/datadog-agent/cmd/agent/subcommands/controlsvc"
 	cmdcoverage "github.com/DataDog/datadog-agent/cmd/agent/subcommands/coverage"
+	cmdcreateschema "github.com/DataDog/datadog-agent/cmd/agent/subcommands/createschema"
 	cmddiagnose "github.com/DataDog/datadog-agent/cmd/agent/subcommands/diagnose"
 	cmddogstatsd "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsd"
 	cmddogstatsdcapture "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdcapture"
@@ -27,6 +28,7 @@ import (
 	cmdintegrations "github.com/DataDog/datadog-agent/cmd/agent/subcommands/integrations"
 	cmdjmx "github.com/DataDog/datadog-agent/cmd/agent/subcommands/jmx"
 	cmdlaunchgui "github.com/DataDog/datadog-agent/cmd/agent/subcommands/launchgui"
+	cmdotel "github.com/DataDog/datadog-agent/cmd/agent/subcommands/otel"
 	cmdprocesschecks "github.com/DataDog/datadog-agent/cmd/agent/subcommands/processchecks"
 	cmdremoteconfig "github.com/DataDog/datadog-agent/cmd/agent/subcommands/remoteconfig"
 	cmdrun "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
@@ -52,6 +54,7 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdconfigcheck.Commands,
 		cmdconfig.Commands,
 		cmdexperimental.Commands,
+		cmdcreateschema.Commands,
 		cmddiagnose.Commands,
 		cmddogstatsd.Commands,
 		cmddogstatsdcapture.Commands,
@@ -62,6 +65,7 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdhostname.Commands,
 		cmdimport.Commands,
 		cmdlaunchgui.Commands,
+		cmdotel.Commands,
 		cmdanalyzelogs.Commands,
 		cmdremoteconfig.Commands,
 		cmdrun.Commands,

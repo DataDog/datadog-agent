@@ -100,13 +100,22 @@ func (s *baseAgentMSISuite) AfterTest(suiteName, testName string) {
 
 	vm := s.Env().RemoteHost
 
-	// Look for and download crash dumps
+	// Look for and download crash dumps. Dumps from processes in
+	// DefaultIgnoredCrashDumpImages are still downloaded as artifacts but do
+	// not fail the test.
 	dumps, err := windowsCommon.DownloadAllWERDumps(vm, s.dumpFolder, s.SessionOutputDir())
 	s.Assert().NoError(err, "should download crash dumps")
-	if !s.Assert().Empty(dumps, "should not have crash dumps") {
-		s.T().Logf("Found crash dumps:")
-		for _, dump := range dumps {
-			s.T().Logf("  %s", dump)
+	failing, ignored := windowsCommon.PartitionDownloadedWERDumps(dumps, windowsCommon.DefaultIgnoredCrashDumpImages)
+	if len(ignored) > 0 {
+		s.T().Logf("Ignoring %d crash dumps from known-noisy processes:", len(ignored))
+		for _, dump := range ignored {
+			s.T().Logf("  %s -> %s", dump.Source.FileName, dump.LocalPath)
+		}
+	}
+	if !s.Assert().Empty(failing, "should not have crash dumps") {
+		s.T().Logf("Found unexpected crash dumps:")
+		for _, dump := range failing {
+			s.T().Logf("  %s -> %s", dump.Source.FileName, dump.LocalPath)
 		}
 	}
 
@@ -124,6 +133,36 @@ func (s *baseAgentMSISuite) AfterTest(suiteName, testName string) {
 				s.T().Logf("Errors and warnings from %s event log:\n%s", logName, out)
 			}
 		}
+		// collect agent logs
+		s.collectAgentLogs(vm)
+	}
+}
+
+// collectAgentLogs downloads the agent log folder from the remote host into the session output dir.
+// Best-effort: missing logs (e.g. on a failed install) are surfaced as assertion failures but do
+// not abort the test cleanup.
+func (s *baseAgentMSISuite) collectAgentLogs(vm *components.RemoteHost) {
+	s.T().Logf("Collecting agent logs")
+	logsFolder, err := vm.GetLogsFolder()
+	if !s.Assert().NoError(err, "should get logs folder") {
+		return
+	}
+	entries, err := vm.ReadDir(logsFolder)
+	if !s.Assert().NoError(err, "should read log folder") {
+		return
+	}
+	for _, entry := range entries {
+		sourcePath := filepath.Join(logsFolder, entry.Name())
+		destPath := filepath.Join(s.SessionOutputDir(), entry.Name())
+
+		if entry.IsDir() {
+			s.T().Logf("Found log directory: %s", entry.Name())
+			err = vm.GetFolder(sourcePath, destPath)
+		} else {
+			s.T().Logf("Found log file: %s", entry.Name())
+			err = vm.GetFile(sourcePath, destPath)
+		}
+		s.Assert().NoError(err, "should download %s", entry.Name())
 	}
 }
 

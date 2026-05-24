@@ -27,15 +27,17 @@ import (
 	"go4.org/intern"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
@@ -47,7 +49,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -61,9 +62,9 @@ var senderTelemetry = struct {
 	queueBytes      telemetry.Gauge
 	connectionCount telemetry.Counter
 }{
-	telemetry.NewGauge(telemetrySubsystem, "queue_size", nil, ""),
-	telemetry.NewGauge(telemetrySubsystem, "queue_bytes", nil, ""),
-	telemetry.NewCounter(telemetrySubsystem, "connection_count", nil, ""),
+	telemetryimpl.GetCompatComponent().NewGauge(telemetrySubsystem, "queue_size", nil, ""),
+	telemetryimpl.GetCompatComponent().NewGauge(telemetrySubsystem, "queue_bytes", nil, ""),
+	telemetryimpl.GetCompatComponent().NewCounter(telemetrySubsystem, "connection_count", nil, ""),
 }
 
 // New creates a direct sender
@@ -142,16 +143,10 @@ func New(
 		tracer: tr,
 
 		hostTagProvider: hosttags.NewHostTagProviderWithDuration(syscfg.GetDuration("system_probe_config.expected_tags_duration")),
-		agentCfg: &model.AgentConfiguration{
-			NpmEnabled:  syscfg.GetBool("network_config.enabled"),
-			UsmEnabled:  syscfg.GetBool("service_monitoring_config.enabled"),
-			CcmEnabled:  syscfg.GetBool("ccm_network_config.enabled"),
-			CsmEnabled:  syscfg.GetBool("runtime_security_config.enabled"),
-			EudmEnabled: deps.Config.GetString("infrastructure_mode") == "end_user_device",
-		},
-		ctx:        ctx,
-		cancelFunc: cancel,
-		resolver:   newContainerResolver(deps.Wmeta, syscfg.GetDuration("system_probe_config.expected_tags_duration")),
+		agentCfg:        marshal.NewAgentConfiguration(syscfg, deps.Config),
+		ctx:             ctx,
+		cancelFunc:      cancel,
+		resolver:        newContainerResolver(deps.Wmeta, syscfg.GetDuration("system_probe_config.expected_tags_duration")),
 
 		sysprobeconfig: syscfg,
 		tagger:         deps.Tagger,
@@ -318,6 +313,9 @@ func (d *directSender) collect() {
 	defer network.Reclaim(conns)
 
 	if dsc := directSenderConsumerInstance.Load(); dsc != nil {
+		if err := dsc.collectProcesses(); err != nil {
+			d.log.Warnf("error getting processes: %s", err)
+		}
 		dsc.proxyFilter.FilterProxies(conns)
 		defer dsc.cleanupProcesses()
 	}
@@ -361,12 +359,13 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 	d.resolver.resolveDestinationContainerIDs(conns)
 
 	// Build remote service resolver for intra-host connection enrichment.
-	portToPID := make(map[int32]int32)
+	listeners := make(map[remoteservice.ListenKey]int32)
 	for _, c := range conns.Conns {
 		// USM supports TCP only; skip UDP connections.
 		if c.IntraHost && c.Pid > 0 && c.SPort > 0 && c.Type == network.TCP {
-			if _, exists := portToPID[int32(c.SPort)]; !exists {
-				portToPID[int32(c.SPort)] = int32(c.Pid)
+			key := remoteservice.ListenKey{IP: c.Source.String(), Port: int32(c.SPort)}
+			if _, exists := listeners[key]; !exists {
+				listeners[key] = int32(c.Pid)
 			}
 		}
 	}
@@ -385,7 +384,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			}
 			return tags
 		},
-		PortToPID: portToPID,
+		Listeners: listeners,
 	}
 
 	// Sort connections by remote IP/PID for more efficient resolution

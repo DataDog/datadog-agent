@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "defaultscript",
+    srcs = [
+        "apm_ssi.go",
+        "default_script.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/defaultscript",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/setup/common",
+        "//pkg/fleet/installer/setup/config",
+        "//pkg/version",
+    ],
+)

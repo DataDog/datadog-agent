@@ -6,6 +6,7 @@
 package snmpscanmanagerimpl
 
 import (
+	"context"
 	"path/filepath"
 
 	flare "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -17,7 +18,7 @@ const (
 	flareFileName = "snmp_scanned_devices"
 )
 
-func (m *snmpScanManagerImpl) fillFlare(fb flare.FlareBuilder) error {
+func (m *snmpScanManagerImpl) fillFlare(_ context.Context, fb flare.FlareBuilder) error {
 	if !persistentcache.Exists(cacheKey) {
 		return nil
 	}

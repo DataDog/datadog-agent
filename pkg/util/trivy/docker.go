@@ -20,7 +20,7 @@ import (
 	containersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 )
 
 // DockerCollector defines the docker collector name
@@ -34,16 +34,16 @@ func convertDockerImage(ctx context.Context, client client.ImageAPIClient, imgMe
 	// or
 	// <image_name>@<digest> pattern like "alpine@sha256:21a3deaa0d32a8057914f36584b5288d2e5ecc984380bc0118285c70fa8c9300"
 	imageID := imgMeta.Name
-	inspect, err := client.ImageInspect(ctx, imageID)
+	inspectResult, err := client.ImageInspect(ctx, imageID)
 	if err != nil {
 		imageID = imgMeta.ID // <image_id> pattern like `5ac716b05a9c`
-		inspect, err = client.ImageInspect(ctx, imageID)
+		inspectResult, err = client.ImageInspect(ctx, imageID)
 		if err != nil {
 			return nil, cleanup, fmt.Errorf("unable to inspect the image (%s): %w", imageID, err)
 		}
 	}
 
-	history, err := client.ImageHistory(ctx, imageID)
+	historyResult, err := client.ImageHistory(ctx, imageID)
 	if err != nil {
 		return nil, cleanup, fmt.Errorf("unable to get history (%s): %w", imageID, err)
 	}
@@ -60,8 +60,8 @@ func convertDockerImage(ctx context.Context, client client.ImageAPIClient, imgMe
 
 	img := &image{
 		opener:  imageOpener(ctx, DockerCollector, imageID, f, client.ImageSave),
-		inspect: inspect,
-		history: configHistory(history),
+		inspect: inspectResult.InspectResponse,
+		history: configHistory(historyResult.Items),
 	}
 
 	return img, cleanup, nil
@@ -96,9 +96,13 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 	}
 
 	if scanOptions.OverlayFsScan && fanalImage.inspect.GraphDriver.Name == "overlay2" {
+		// LowerDir is top-down without the topmost layer; UpperDir is the topmost.
 		var layers []string
 		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["LowerDir"]; ok {
-			layers = append(layers, strings.Split(layerDirs, ":")...)
+			parts := strings.Split(layerDirs, ":")
+			for i := len(parts) - 1; i >= 0; i-- {
+				layers = append(layers, parts[i])
+			}
 		}
 
 		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["UpperDir"]; ok {
@@ -111,13 +115,13 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 			}
 		}
 
+		fc, err := newFakeContainer(layers, imgMeta, fanalImage.inspect.RootFS.Layers)
+		if err != nil {
+			return nil, "overlayfs", err
+		}
 		fakeContainer := &fakeDockerContainer{
-			image: fanalImage,
-			fakeContainer: &fakeContainer{
-				layerIDs:   fanalImage.inspect.RootFS.Layers,
-				layerPaths: layers,
-				imgMeta:    imgMeta,
-			},
+			image:         fanalImage,
+			fakeContainer: fc,
 		}
 
 		report, err := c.scanOverlayFS(ctx, layers, fakeContainer, imgMeta, scanOptions)

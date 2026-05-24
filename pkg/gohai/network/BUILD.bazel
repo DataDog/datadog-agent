@@ -12,6 +12,7 @@ go_test(
     name = "network_test",
     srcs = ["network_test.go"],
     embed = [":network"],
+    gotags = ["test"],
     deps = [
         "//pkg/gohai/utils",
         "@com_github_stretchr_testify//assert",

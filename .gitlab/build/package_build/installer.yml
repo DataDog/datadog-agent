@@ -3,7 +3,9 @@
 # Datadog installer payloads
 #
 .common_build_oci:
-  extends: .bazel:defs:cache:omnibus-transition
+  extends:
+    - .bazel:defs:cache:omnibus-transition
+    - .rust_internal_registry
   script:
     - AGENT_VERSION="$(dda inv agent.version -u)-1" || exit $?
     - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/"$AGENT_VERSION"
@@ -21,7 +23,7 @@
     - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
     # NOTE: for now, we consider "ociru" to be a "redhat_target" in omnibus/lib/ostools.rb
     # if we ever start building on a different platform, that might need to change
-    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --host-distribution=ociru --install-directory="$INSTALL_DIR"
+    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --host-distribution=ociru --flavor "$FLAVOR" --install-directory="$INSTALL_DIR"
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:
@@ -34,7 +36,7 @@
       - $OMNIBUS_PACKAGE_DIR
 
 datadog-agent-oci-x64-a7:
-  extends: .common_build_oci
+  extends: [.common_build_oci, .agent_base_flavor]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -53,7 +55,45 @@ datadog-agent-oci-x64-a7:
     DD_CXX: "x86_64-unknown-linux-gnu-g++"
 
 datadog-agent-oci-arm64-a7:
-  extends: .common_build_oci
+  extends: [.common_build_oci, .agent_base_flavor]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  stage: package_build
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64", "specific:true"]
+  needs:
+    [
+      "build_system-probe-arm64",
+      "go_deps",
+      "generate_minimized_btfs_arm64",
+    ]
+  variables:
+    PACKAGE_ARCH: arm64
+    DD_CC: "aarch64-unknown-linux-gnu-gcc"
+    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+
+datadog-agent-oci-x64-a7-fips:
+  extends: [.common_build_oci, .agent_fips_flavor]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  stage: package_build
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs:
+    [
+      "build_system-probe-x64",
+      "go_deps",
+      "generate_minimized_btfs_x64",
+    ]
+  variables:
+    PACKAGE_ARCH: amd64
+    DD_CC: "x86_64-unknown-linux-gnu-gcc"
+    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+
+datadog-agent-oci-arm64-a7-fips:
+  extends: [.common_build_oci, .agent_fips_flavor]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success

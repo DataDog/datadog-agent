@@ -17,26 +17,26 @@ import (
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/docker/docker/api/types/events"
-	"github.com/docker/docker/api/types/filters"
+	"github.com/moby/moby/api/types/events"
+	"github.com/moby/moby/client"
 )
 
 // openEventChannel just wraps the client.Event call with saner argument types.
 func (d *DockerUtil) openEventChannel(ctx context.Context, since, until time.Time, filter map[string]string) (<-chan events.Message, <-chan error) {
 	// Event since/until string can be formatted or hold a timestamp,
 	// see https://github.com/moby/moby/blob/7cbbbb95097f065757d38bcccdb1bbef81d10ddb/api/types/time/timestamp.go#L95
-	queryFilter := filters.NewArgs()
+	queryFilter := make(client.Filters)
 	for k, v := range filter {
 		queryFilter.Add(k, v)
 	}
-	options := events.ListOptions{
+	options := client.EventsListOptions{
 		Since:   fmt.Sprintf("%d.%09d", since.Unix(), int64(since.Nanosecond())),
 		Until:   fmt.Sprintf("%d.%09d", until.Unix(), int64(until.Nanosecond())),
 		Filters: queryFilter,
 	}
 
-	msgChan, errorChan := d.cli.Events(ctx, options)
-	return msgChan, errorChan
+	result := d.cli.Events(ctx, options)
+	return result.Messages, result.Err
 }
 
 // processContainerEvent formats the events from a channel.

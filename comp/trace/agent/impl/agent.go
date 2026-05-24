@@ -98,6 +98,7 @@ type component struct {
 	*pkgagent.Agent
 
 	cancel             context.CancelFunc
+	ctx                context.Context
 	config             traceconfigdef.Component
 	secrets            secrets.Component
 	params             *Params
@@ -121,6 +122,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
 	c = component{
 		cancel:             cancel,
+		ctx:                ctx,
 		config:             deps.Config,
 		secrets:            deps.Secrets,
 		params:             deps.Params,

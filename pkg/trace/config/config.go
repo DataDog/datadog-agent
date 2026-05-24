@@ -152,6 +152,13 @@ func obfuscationMode(conf *AgentConfig, sqllexerEnabled bool) obfuscate.Obfuscat
 	return ""
 }
 
+// EffectiveSQLObfuscationMode returns the SQL obfuscation mode the agent
+// actually uses at runtime. When SQLObfuscationMode is not explicitly set,
+// the mode is derived from feature flags (e.g. sqllexer → obfuscate_only).
+func (c *AgentConfig) EffectiveSQLObfuscationMode() obfuscate.ObfuscationMode {
+	return obfuscationMode(c, c.HasFeature("sqllexer"))
+}
+
 // Export returns an obfuscate.Config matching o.
 func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 	return obfuscate.Config{
@@ -160,7 +167,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
 			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
 			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
-			ObfuscationMode:  obfuscationMode(conf, conf.HasFeature("sqllexer")),
+			ObfuscationMode:  conf.EffectiveSQLObfuscationMode(),
 		},
 		ES:                   o.ES,
 		OpenSearch:           o.OpenSearch,
@@ -267,6 +274,9 @@ type ProfilingProxyConfig struct {
 	AdditionalEndpoints map[string][]string
 	// ReceiverTimeout is the timeout in seconds for profile upload requests
 	ReceiverTimeout int
+	// MaxRequestBytes is the maximum body size buffered when fanning out to
+	// multiple profiling endpoints. Defaults to 50 MB.
+	MaxRequestBytes int64
 }
 
 // EVPProxy contains the settings for the EVPProxy proxy.
@@ -285,6 +295,8 @@ type EVPProxy struct {
 	MaxPayloadSize int64
 	// ReceiverTimeout indicates the maximum time an EVPProxy request can take. Value in seconds.
 	ReceiverTimeout int
+	// ReceiverTimeoutDuration overrides ReceiverTimeout when non-zero; allows sub-second values in tests.
+	ReceiverTimeoutDuration time.Duration
 }
 
 // OpenLineageProxy contains the settings for the OpenLineageProxy proxy.
@@ -358,12 +370,15 @@ type AgentConfig struct {
 	Endpoints []*Endpoint
 
 	// Concentrator
-	BucketInterval            time.Duration // the size of our pre-aggregation per bucket
-	ExtraAggregators          []string      // DEPRECATED
-	PeerTagsAggregation       bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
-	ComputeStatsBySpanKind    bool          // enables/disables the computing of stats based on a span's `span.kind` field
-	PeerTags                  []string      // additional tags to use for peer entity stats aggregation
-	SpanDerivedPrimaryTagKeys []string      // tag keys to use for span-derived primary tag stats aggregation
+	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
+	ExtraAggregators       []string      // DEPRECATED
+	PeerTagsAggregation    bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
+	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
+	PeerTags               []string      // additional tags to use for peer entity stats aggregation
+	// Deprecated/Experimental: only populated when the agent runs in a serverless
+	// context (Datadog AAS extension or cmd/serverless-init). See
+	// ConfiguredSpanDerivedPrimaryTagKeys.
+	SpanDerivedPrimaryTagKeys []string
 
 	// Sampler configuration
 	ExtraSampleRate float64
@@ -387,18 +402,19 @@ type AgentConfig struct {
 	ErrorTrackingStandalone bool
 
 	// Receiver
-	ReceiverEnabled     bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
-	ReceiverHost        string
-	ReceiverPort        int
-	ReceiverSocket      string // if not empty, UDS will be enabled on unix://<receiver_socket>
-	ConnectionLimit     int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
-	ReceiverTimeout     int
-	ReceiverIdleTimeout time.Duration // idle timeout for keepalive connections.
-	MaxRequestBytes     int64         // specifies the maximum allowed request size for incoming trace payloads
-	TraceBuffer         int           // specifies the number of traces to buffer before blocking.
-	Decoders            int           // specifies the number of traces that can be concurrently decoded.
-	MaxConnections      int           // specifies the maximum number of concurrent incoming connections allowed.
-	DecoderTimeout      int           // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
+	ReceiverEnabled         bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
+	ReceiverHost            string
+	ReceiverPort            int
+	ReceiverSocket          string // if not empty, UDS will be enabled on unix://<receiver_socket>
+	ConnectionLimit         int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
+	ReceiverTimeout         int
+	ReceiverTimeoutDuration time.Duration // overrides ReceiverTimeout when non-zero; allows sub-second values in tests
+	ReceiverIdleTimeout     time.Duration // idle timeout for keepalive connections.
+	MaxRequestBytes         int64         // specifies the maximum allowed request size for incoming trace payloads
+	TraceBuffer             int           // specifies the number of traces to buffer before blocking.
+	Decoders                int           // specifies the number of traces that can be concurrently decoded.
+	MaxConnections          int           // specifies the maximum number of concurrent incoming connections allowed.
+	DecoderTimeout          int           // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
 
 	WindowsPipeName        string
 	PipeBufferSize         int
@@ -502,6 +518,11 @@ type AgentConfig struct {
 	// DebuggerIntakeProxy contains the settings for the Live Debugger intake proxy.
 	DebuggerIntakeProxy DebuggerProxyConfig
 
+	// DebuggerLogsEnabled indicates whether logs are enabled at the agent level.
+	// When false, debugger proxy endpoints drop incoming data to respect the
+	// customer's intent of having the Logs product disabled.
+	DebuggerLogsEnabled bool
+
 	// SymDBProxy contains the settings for the Symbol Database proxy.
 	SymDBProxy SymDBProxyConfig
 
@@ -529,6 +550,10 @@ type AgentConfig struct {
 
 	// ContainerIDFromOriginInfo ...
 	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-"`
+
+	// HasContainerFeatures indicates whether any container feature is present in the environment.
+	// When false, the trace API uses a noop IDProvider that does not read HTTP headers or call ContainerIDFromOriginInfo.
+	HasContainerFeatures bool
 
 	// ContainerProcRoot is the root dir for `proc` info
 	ContainerProcRoot string
@@ -566,6 +591,17 @@ type AgentConfig struct {
 	// OTelGateway indicates whether the agent is configured as an OTel gateway.
 	// When true, the tag "_dd.otel.gateway" will be attached to the AgentPayload.
 	OTelGateway bool
+
+	// EnableOPMFetch controls whether the trace-agent will make a background
+	// request to the /api/v2/validate intake endpoint to derive an Org
+	// Propagation Marker (OPM) and expose it in the /info endpoint.
+	// Disabled by default so library users of pkg/trace are unaffected.
+	EnableOPMFetch bool
+
+	// OPMValidateURL is the full URL of the /api/v2/validate endpoint used by
+	// the OPM background fetch. Derived from dd_url / site via utils.GetMainEndpoint.
+	// Empty when EnableOPMFetch is false.
+	OPMValidateURL string
 
 	// SecretsRefreshFn is called when a 403 response is received to trigger
 	// API key refresh from the secrets backend. It blocks until the refresh
@@ -618,11 +654,14 @@ func New() *AgentConfig {
 
 		ErrorTrackingStandalone: false,
 
-		ReceiverEnabled:        true,
-		ReceiverHost:           "localhost",
-		ReceiverPort:           8126,
-		ReceiverIdleTimeout:    60 * time.Second,
-		MaxRequestBytes:        25 * 1024 * 1024, // 25MB
+		ReceiverEnabled:     true,
+		ReceiverHost:        "localhost",
+		ReceiverPort:        8126,
+		ReceiverIdleTimeout: 60 * time.Second,
+		MaxRequestBytes:     25 * 1024 * 1024, // 25MB
+		ProfilingProxy: ProfilingProxyConfig{
+			MaxRequestBytes: 50 * 1024 * 1024, // 50MB
+		},
 		PipeBufferSize:         1_000_000,
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",
@@ -657,6 +696,8 @@ func New() *AgentConfig {
 		ContainerTagsWithCompleteness: noopContainerTagsWithCompletenessFunc,
 		ContainerTagsBuffer:           false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
 		ContainerIDFromOriginInfo:     NoopContainerIDFromOriginInfoFunc,
+		HasContainerFeatures:          true, // default so remote/standalone trace-agent keeps full container ID resolution until setup sets it from env
+
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
@@ -785,12 +826,15 @@ func (c *AgentConfig) ConfiguredPeerTags() []string {
 	if !c.PeerTagsAggregation {
 		return nil
 	}
-	return preparePeerTags(append(basePeerTags, c.PeerTags...))
+	return preparePeerTags(append(basePeerTags(), c.PeerTags...))
 }
 
-// ConfiguredSpanDerivedPrimaryTagKeys returns the set of span-derived primary tag keys that should be used
-// for stats aggregation. These tag keys will be used to extract tags from spans
-// for use in aggregation keys, similar to peer tags.
+// ConfiguredSpanDerivedPrimaryTagKeys returns the configured span-derived primary
+// tag keys used for stats aggregation.
+//
+// Deprecated/Experimental: this is only populated in serverless contexts (the
+// Datadog AAS extension, or cmd/serverless-init for Cloud Run / Container Apps /
+// Cloud Run Functions). Tracers should send additional_metric_tags instead.
 func (c *AgentConfig) ConfiguredSpanDerivedPrimaryTagKeys() []string {
 	if len(c.SpanDerivedPrimaryTagKeys) == 0 {
 		return nil

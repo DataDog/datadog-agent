@@ -127,6 +127,8 @@ func defaultMetricTransformers(k *KSMCheck) map[string]metricTransformerFunc {
 		"kube_persistentvolume_status_phase":              pvPhaseTransformer,
 		"kube_service_spec_type":                          serviceTypeTransformer,
 		"kube_ingress_tls":                                removeSecretTransformer,
+		"kube_endpoint_address":                           endpointAddressTransformer,
+		"kube_endpointslice_endpoints":                    endpointSliceEndpointsTransformer,
 	}
 
 	// Only add rollout transformers if k is not nil (skip in tests)
@@ -612,6 +614,45 @@ func removeSecretTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric
 		tags = lo.Filter(tags, func(x string, _ int) bool { return !strings.HasPrefix(x, "secret:") })
 	}
 	s.Gauge(ksmMetricPrefix+"ingress.tls", metric.Val, hostname, tags)
+}
+
+// endpointAddressTransformer splits the unified kube_endpoint_address metric
+// (which has a "ready" label) into the legacy endpoint.address_available and
+// endpoint.address_not_ready Datadog metrics for backward compatibility.
+// In KSM v2.14 the separate kube_endpoint_address_available and
+// kube_endpoint_address_not_ready metrics were removed and replaced by
+// kube_endpoint_address with a "ready" label ("true" or "false").
+func endpointAddressTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	ready, found := metric.Labels["ready"]
+	if !found {
+		return
+	}
+	// Remove the "ready" tag to match the legacy metric shape — the ready/not-ready
+	// distinction is encoded in the metric name, not as a tag.
+	tags = lo.Filter(tags, func(x string, _ int) bool { return !strings.HasPrefix(x, "ready:") })
+	switch ready {
+	case "true":
+		s.Gauge(ksmMetricPrefix+"endpoint.address_available", metric.Val, hostname, tags)
+	case "false":
+		s.Gauge(ksmMetricPrefix+"endpoint.address_not_ready", metric.Val, hostname, tags)
+	}
+}
+
+// endpointSliceEndpointsTransformer splits the kube_endpointslice_endpoints
+// metric into endpointslice.address_available and
+// endpointslice.address_not_ready based on the "ready" label, mirroring
+// the legacy endpoint.address_available / endpoint.address_not_ready split.
+// Per the Kubernetes API, a nil Ready condition means the endpoint is ready,
+// and KSM surfaces nil as an empty string — treat it as "true".
+func endpointSliceEndpointsTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	ready := metric.Labels["ready"]
+	tags = lo.Filter(tags, func(x string, _ int) bool { return !strings.HasPrefix(x, "ready:") })
+	switch ready {
+	case "true", "":
+		s.Gauge(ksmMetricPrefix+"endpointslice.address_available", metric.Val, hostname, tags)
+	case "false":
+		s.Gauge(ksmMetricPrefix+"endpointslice.address_not_ready", metric.Val, hostname, tags)
+	}
 }
 
 // transformKubeDeploymentRolloutDurationWithTracker transforms rollout duration metrics using instance rollout tracker

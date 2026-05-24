@@ -601,6 +601,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					errs = appendRuleLoadError(errs, rule, fmt.Errorf("invalid type '%s' for variable '%s' (%+v): %w", reflect.TypeOf(variableValue), actionDef.Set.Name, actionDef.Set, err))
 					continue
 				}
+				variable.SetVariableOpts(opts)
 
 				if existingVariable := rs.evalOpts.VariableStore.Get(varName); existingVariable != nil && reflect.TypeOf(variable) != reflect.TypeOf(existingVariable) {
 					errs = appendRuleLoadError(errs, rule, fmt.Errorf("conflicting types for variable '%s': %s != %s", varName, reflect.TypeOf(variable), reflect.TypeOf(existingVariable)))

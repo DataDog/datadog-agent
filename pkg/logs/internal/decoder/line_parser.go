@@ -73,6 +73,9 @@ type MultiLineParser struct {
 	buffer      *bytes.Buffer
 	rawDataLen  int
 
+	// truncation tracking
+	isBufferTruncated bool
+
 	// configuration attributes
 
 	flushTimeout time.Duration
@@ -128,6 +131,12 @@ func (p *MultiLineParser) process(input *message.Message, rawDataLen int) {
 	p.buffer.Write(msg.GetContent())
 	p.bufferedMsg = msg
 
+	if p.buffer.Len() >= p.lineLimit {
+		// buffer exceeds size cap — mark as truncated and let SingleLineHandler
+		// handle the ...TRUNCATED... byte markers and metric downstream
+		p.isBufferTruncated = true
+	}
+
 	if !msg.ParsingExtra.IsPartial || p.buffer.Len() >= p.lineLimit {
 		// the current chunk marks the end of an aggregated line
 		p.sendLine()
@@ -148,6 +157,7 @@ func (p *MultiLineParser) sendLine() {
 		p.buffer.Reset()
 		p.bufferedMsg = nil
 		p.rawDataLen = 0
+		p.isBufferTruncated = false
 	}()
 
 	if p.bufferedMsg == nil || p.buffer.Len() == 0 {
@@ -159,6 +169,7 @@ func (p *MultiLineParser) sendLine() {
 	if len(content) > 0 || p.rawDataLen > 0 {
 		p.bufferedMsg.RawDataLen = p.rawDataLen
 		p.bufferedMsg.SetContent(content)
+		p.bufferedMsg.ParsingExtra.IsTruncated = p.bufferedMsg.ParsingExtra.IsTruncated || p.isBufferTruncated
 		p.lineHandler.process(p.bufferedMsg)
 	}
 }

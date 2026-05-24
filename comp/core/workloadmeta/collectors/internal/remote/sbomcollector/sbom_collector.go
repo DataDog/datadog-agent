@@ -32,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -80,7 +80,8 @@ func (s *stream) Recv() (interface{}, error) {
 }
 
 type streamHandler struct {
-	model.Reader
+	agentConfig       model.Reader
+	systemProbeConfig model.Reader
 }
 
 // workloadmetaEventFromSBOMEventSet converts the given SBOM message into a workloadmeta event
@@ -120,40 +121,59 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 	log.Debugf("Container %s uses image %s, updating image SBOM", event.ID, imageID)
 
 	// Get existing image to merge SBOM data
-	var finalBom *cyclonedx_v1_4.Bom
-	var finalCompressedSBOM *workloadmeta.CompressedSBOM
-
 	existingImage, err := store.GetImage(imageID)
-	if err == nil && existingImage != nil && existingImage.SBOM != nil {
-		// Decompress existing image SBOM to get CycloneDXBOM
-		existingSBOM, err := sbomutil.UncompressSBOM(existingImage.SBOM)
-		if err == nil && existingSBOM != nil && existingSBOM.CycloneDXBOM != nil {
-			// Merge runtime properties from new BOM into existing image SBOM
-			finalBom = mergeRuntimeProperties(existingSBOM.CycloneDXBOM, &newBom)
-			log.Debugf("Merged runtime properties for image %s SBOM", imageID)
-		} else {
-			// Decompression failed or no CycloneDXBOM, use the new one directly
-			finalBom = &newBom
-			if err != nil {
-				log.Warnf("Failed to decompress existing SBOM for image %s: %v, using new SBOM", imageID, err)
-			} else {
-				log.Debugf("No existing CycloneDXBOM for image %s, using new SBOM", imageID)
+	if err != nil || existingImage == nil {
+		// Kubelet reports Image.ID as the manifest/repo digest (e.g. "docker.io/foo@sha256:9fb3...")
+		// but images are stored by config digest. Fall back to a linear search on RepoDigests.
+		for _, img := range store.ListImages() {
+			for _, digest := range img.RepoDigests {
+				if digest == imageID {
+					existingImage = img
+					break
+				}
+			}
+			if existingImage != nil {
+				break
 			}
 		}
-	} else {
-		// No existing SBOM on image, use the new one directly
-		finalBom = &newBom
-		if err != nil {
-			log.Debugf("Could not get image %s from store: %v, using new SBOM", imageID, err)
-		} else {
-			log.Debugf("No existing SBOM for image %s, using new SBOM", imageID)
-		}
+	}
+	if existingImage == nil {
+		log.Debugf("Ignoring system-probe SBOM for image %s: image not found in workloadmeta", imageID)
+		return workloadmeta.Event{}, nil
 	}
 
-	// Compress the final merged SBOM for storage
-	finalCompressedSBOM, err = sbomutil.CompressSBOM(&workloadmeta.SBOM{
-		CycloneDXBOM: finalBom,
-	})
+	if existingImage.SBOM == nil {
+		log.Debugf("Existing image %s has no SBOM, skipping", imageID)
+		return workloadmeta.Event{}, fmt.Errorf("existing image %s has no SBOM to merge with", imageID)
+	}
+
+	if existingImage.SBOM.Status == workloadmeta.Pending || existingImage.SBOM.Status == "" {
+		log.Debugf("Image %s SBOM is still in state '%s', skipping merge for now", imageID, existingImage.SBOM.Status)
+		return workloadmeta.Event{}, fmt.Errorf("image %s SBOM is still pending", imageID)
+	}
+
+	// Decompress existing image SBOM to get CycloneDXBOM
+	existingSBOM, err := sbomutil.UncompressSBOM(existingImage.SBOM)
+	if err != nil || existingSBOM == nil || existingSBOM.CycloneDXBOM == nil {
+		return workloadmeta.Event{}, fmt.Errorf("Failed to decompress existing SBOM for image %s: %v, using new SBOM", imageID, err)
+	}
+
+	// Merge runtime properties from new BOM into existing image SBOM
+	finalBom := mergeRuntimeProperties(existingSBOM.CycloneDXBOM, &newBom)
+	log.Debugf("Merged runtime properties for image %s SBOM", imageID)
+
+	// Compress the final merged SBOM, preserving scan metadata from the existing
+	// SBOM so Status/GenerationTime/etc. survive the runtime-enrichment update.
+	sbomToCompress := &workloadmeta.SBOM{
+		CycloneDXBOM:       finalBom,
+		Status:             existingImage.SBOM.Status,
+		GenerationTime:     existingImage.SBOM.GenerationTime,
+		GenerationDuration: existingImage.SBOM.GenerationDuration,
+		GenerationMethod:   existingImage.SBOM.GenerationMethod,
+		Error:              existingImage.SBOM.Error,
+	}
+
+	finalCompressedSBOM, err := sbomutil.CompressSBOM(sbomToCompress)
 	if err != nil {
 		return workloadmeta.Event{}, fmt.Errorf("failed to compress SBOM for image %s: %w", imageID, err)
 	}
@@ -318,7 +338,8 @@ func NewCollector(ipc ipc.Component) (workloadmeta.CollectorProvider, error) {
 		Collector: &remote.GenericCollector{
 			CollectorID: collectorID,
 			// TODO(components): make sure StreamHandler uses the config component not pkg/config
-			StreamHandler: &streamHandler{Reader: pkgconfigsetup.SystemProbe()},
+			StreamHandler: &streamHandler{agentConfig: pkgconfigsetup.Datadog(), systemProbeConfig: pkgconfigsetup.SystemProbe()},
+			Config:        pkgconfigsetup.Datadog(), //nolint:depguard
 			Catalog:       workloadmeta.NodeAgent,
 			IPC:           ipc,
 		},
@@ -341,13 +362,13 @@ func (s *streamHandler) Port() int {
 
 func (s *streamHandler) Address() string {
 	// SBOM collector service is on the command socket, not the main runtime security socket
-	cmdSocket := s.GetString("runtime_security_config.cmd_socket")
+	cmdSocket := s.systemProbeConfig.GetString("runtime_security_config.cmd_socket")
 	if cmdSocket != "" {
 		return cmdSocket
 	}
 
 	// If cmd_socket not explicitly set, derive it from main socket (adds "cmd-" prefix)
-	mainSocket := s.GetString("runtime_security_config.socket")
+	mainSocket := s.systemProbeConfig.GetString("runtime_security_config.socket")
 	if mainSocket == "" {
 		return ""
 	}
@@ -371,10 +392,10 @@ func (s *streamHandler) IsEnabled() bool {
 		return false
 	}
 
-	runtimeSecurityEnabled := s.Reader.GetBool("runtime_security_config.enabled")
-	runtimeSecuritySBOMEnabled := s.Reader.GetBool("runtime_security_config.sbom.enabled")
+	sbomEnrichmentEnabled := s.agentConfig.GetBool("sbom.enrichment.usage.enabled")
+	runtimeSecuritySBOMDisabled := s.systemProbeConfig.IsConfigured("runtime_security_config.sbom.enabled") && !s.systemProbeConfig.GetBool("runtime_security_config.sbom.enabled")
 
-	return runtimeSecurityEnabled && runtimeSecuritySBOMEnabled
+	return sbomEnrichmentEnabled && !runtimeSecuritySBOMDisabled
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
@@ -403,6 +424,9 @@ func handleEvents(store workloadmeta.Component, collectorEvents []workloadmeta.C
 			log.Warnf("error converting workloadmeta event: %v", err)
 			continue
 		}
+		if workloadmetaEvent.Entity == nil {
+			continue
+		}
 
 		collectorEvent := workloadmeta.CollectorEvent{
 			Type:   workloadmetaEvent.Type,
@@ -413,6 +437,12 @@ func handleEvents(store workloadmeta.Component, collectorEvents []workloadmeta.C
 		collectorEvents = append(collectorEvents, collectorEvent)
 	}
 	return collectorEvents
+}
+
+// IsResyncComplete always returns true because the SBOM collector does not
+// use chunked snapshots.
+func (s *streamHandler) IsResyncComplete(_ interface{}) bool {
+	return true
 }
 
 func (s *streamHandler) HandleResync(_ workloadmeta.Component, _ []workloadmeta.CollectorEvent) {

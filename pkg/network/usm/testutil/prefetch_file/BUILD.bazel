@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "prefetch_file_lib",
+    srcs = ["prefetch_file.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/testutil/prefetch_file",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "prefetch_file",
+    embed = [":prefetch_file_lib"],
+    visibility = ["//visibility:public"],
+)

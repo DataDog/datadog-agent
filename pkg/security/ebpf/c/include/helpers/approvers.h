@@ -6,6 +6,9 @@
 #include "maps.h"
 #include "rate_limiter.h"
 
+// has to be in sync with the userspace definition
+#define PATTERN_PREFIX_SIZE 3
+
 struct approver_stats_t * __attribute__((always_inline)) get_active_approver_stats(u64 event_type) {
     struct bpf_map_def *approver_stats = select_buffer(&fb_approver_stats, &bb_approver_stats, APPROVER_MONITOR_KEY);
     if (approver_stats == NULL) {
@@ -84,6 +87,11 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(u32 pid, u
         return DISCARDED;
     }
 
+    // ignore kworkers
+    if (IS_KERNEL_THREAD(pid)) {
+        return DISCARDED;
+    }
+
     monitor_event_sample_total(EVENT_BIND);
 
     struct bind_connect_sample_key_t key;
@@ -119,6 +127,11 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 pid) {
         return DISCARDED;
     }
 
+    // ignore kworkers
+    if (IS_KERNEL_THREAD(pid)) {
+        return DISCARDED;
+    }
+
     monitor_event_sample_total(EVENT_DNS);
 
     if (event_sampling_dns_rate > 0 && !global_limiter_allow(DNS_SAMPLE_LIMITER, event_sampling_dns_rate, 1)) {
@@ -140,6 +153,11 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(u32 pid
     }
 
     if (family != AF_INET && family != AF_INET6) {
+        return DISCARDED;
+    }
+
+    // ignore kworkers
+    if (IS_KERNEL_THREAD(pid)) {
         return DISCARDED;
     }
 
@@ -211,6 +229,28 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_by_basename(struct den
         monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
         return APPROVED;
     }
+
+    // Wildcard fallback: build a key from the first PATTERN_PREFIX_SIZE bytes
+    // of the basename + '*'. Userspace inserts the same shape for any rule
+    // whose basename contains '*' (e.g. rule "abcd*xyz" -> key "abcd*"), so
+    // this matches every event whose basename shares that prefix — broader
+    // than the rule. The userspace re-evaluation rejects the false positives;
+    // distinct rules sharing a N-byte prefix collide on a single map entry.
+    struct basename_t wildcard = {};
+    #ifndef USE_FENTRY
+    #pragma unroll
+    #endif
+    for (int i = 0; i != PATTERN_PREFIX_SIZE; i++) {
+        wildcard.value[i] = basename.value[i];
+    }
+
+    wildcard.value[PATTERN_PREFIX_SIZE] = '*';
+    filter = bpf_map_lookup_elem(&basename_approvers, &wildcard);
+    if (filter && filter->event_mask & (1 << (event_type - 1))) {
+        monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
+        return APPROVED;
+    }
+
     return DISCARDED;
 }
 
@@ -403,13 +443,15 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
         return DISCARDED;
     }
 
-    // Track total open events that hit the sampling logic
-    monitor_event_sample_total(EVENT_OPEN);
-
     u32 pid = bpf_get_current_pid_tgid() >> 32;
-    if (IS_KTHREAD(pid, pid)) {
+
+    // ignore kworkers
+    if (IS_KERNEL_THREAD(pid)) {
         return DISCARDED;
     }
+
+    // Track total open events that hit the sampling logic
+    monitor_event_sample_total(EVENT_OPEN);
 
     // Discard sampled open events from procfs, sysfs, cgroupfs, or devpts
     if (is_procfs(dentry) || is_sysfs(dentry) || is_cgroupfs(dentry) || is_cgroup2fs(dentry) || is_devpts(dentry)) {
@@ -634,7 +676,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 
             // is this event type traced ?
             if (mask_has_event(config->event_mask, syscall->type) && activity_dump_rate_limiter_allow(config->events_rate, *cookie, now, 0)) {
                 if (syscall->state == DISCARDED) {
-                    syscall->resolver.flags |= SAVED_BY_ACTIVITY_DUMP;
+                    syscall->resolver.flags |= RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP;
                 }
 
                 // force to be accepted as this event will be part of a dump
@@ -644,7 +686,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 
     }
 
     if (syscall->state == SAMPLED) {
-        syscall->resolver.flags |= SAVED_BY_ACTIVITY_DUMP;
+        syscall->resolver.flags |= RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP;
 
         // force to be accepted as this event will be part of a dump
         syscall->state = ACCEPTED;

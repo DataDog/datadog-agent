@@ -1,3 +1,4 @@
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
@@ -82,12 +83,6 @@ cc_shared_library(
 )
 
 pkg_files(
-    name = "lib_files",
-    srcs = [":sepol"],
-    prefix = "lib",
-)
-
-pkg_files(
     name = "hdr_files",
     srcs = glob(["include/sepol/*.h", "cil/include/cil/*.h"]),
     prefix = "include/sepol",
@@ -99,12 +94,21 @@ pkg_files(
     prefix = "include/sepol/policydb",
 )
 
+dd_cc_packaged(
+    name = "sepol_pkg",
+    input = ":sepol",
+    installed_files = [
+        ":hdr_files",
+        ":policy_hdr_files",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":hdr_files",
         ":policy_hdr_files",
-        ":lib_files",
     ],
     prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types/events"
+	"github.com/moby/moby/api/types/events"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"

@@ -6,6 +6,7 @@
 package defaultforwarder
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,12 +15,14 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
@@ -30,6 +33,13 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+// resolveKey applies the transaction's resolver at its stored index and returns the DD-Api-Key value.
+func resolveKey(txn *transaction.HTTPTransaction, log log.Component) string {
+	h := make(http.Header)
+	txn.Resolver.Authorize(txn.APIKeyIndex, h, log)
+	return h.Get("DD-Api-Key")
+}
 
 var (
 	testDomain           = "http://app.datadoghq.com"
@@ -196,6 +206,7 @@ func TestSubmitIfStopped(t *testing.T) {
 	assert.NotNil(t, forwarder.SubmitV1Series(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitSeries(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1Intake(nil, transaction.Series, make(http.Header)))
+	assert.NotNil(t, forwarder.SubmitV1IntakeDirect(context.Background(), nil, transaction.Series, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1CheckRuns(nil, make(http.Header)))
 }
 
@@ -225,8 +236,9 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, endpoint.Route, transactions[1].Endpoint.Route)
 	assert.Equal(t, endpoint.Route, transactions[2].Endpoint.Route)
 	assert.Equal(t, endpoint.Route, transactions[3].Endpoint.Route)
-	assert.Len(t, transactions[0].Headers, 4)
-	assert.NotEmpty(t, transactions[0].Headers.Get("DD-Api-Key"))
+	assert.Len(t, transactions[0].Headers, 3)
+	assert.NotEmpty(t, resolveKey(transactions[0], log))
+	assert.Empty(t, transactions[0].Headers.Get("DD-Api-Key"))
 	assert.NotEmpty(t, transactions[0].Headers.Get("HTTP-MAGIC"))
 	assert.Equal(t, version.AgentVersion, transactions[0].Headers.Get("DD-Agent-Version"))
 	assert.Equal(t, "datadog-agent/"+version.AgentVersion, transactions[0].Headers.Get("User-Agent"))
@@ -268,15 +280,17 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	assert.Equal(t, len(txNormal), 2, "Two transactions should target the normal domain")
 	assert.Equal(t, len(txBar), 1, "One transactions should target the normal domain")
 
-	if txNormal[0].Headers.Get("DD-Api-Key") == "api-key-1" {
-		assert.Equal(t, txNormal[0].Headers.Get("DD-Api-Key"), "api-key-1")
-		assert.Equal(t, txNormal[1].Headers.Get("DD-Api-Key"), "api-key-2")
+	key0 := resolveKey(txNormal[0], log)
+	key1 := resolveKey(txNormal[1], log)
+	if key0 == "api-key-1" {
+		assert.Equal(t, "api-key-1", key0)
+		assert.Equal(t, "api-key-2", key1)
 	} else {
-		assert.Equal(t, txNormal[0].Headers.Get("DD-Api-Key"), "api-key-2")
-		assert.Equal(t, txNormal[1].Headers.Get("DD-Api-Key"), "api-key-1")
+		assert.Equal(t, "api-key-2", key0)
+		assert.Equal(t, "api-key-1", key1)
 	}
 
-	assert.Equal(t, txBar[0].Headers.Get("DD-Api-Key"), "api-key-3")
+	assert.Equal(t, "api-key-3", resolveKey(txBar[0], log))
 }
 
 func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
@@ -317,15 +331,17 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 	assert.Equal(t, len(txNormal), 2, "Two transactions should target the normal domain")
 	assert.Equal(t, len(txBar), 1, "One transactions should target the normal domain")
 
-	if txNormal[0].Headers.Get("DD-Api-Key") == "api-key-1" {
-		assert.Equal(t, txNormal[0].Headers.Get("DD-Api-Key"), "api-key-1")
-		assert.Equal(t, txNormal[1].Headers.Get("DD-Api-Key"), "api-key-2")
+	key0 := resolveKey(txNormal[0], log)
+	key1 := resolveKey(txNormal[1], log)
+	if key0 == "api-key-1" {
+		assert.Equal(t, "api-key-1", key0)
+		assert.Equal(t, "api-key-2", key1)
 	} else {
-		assert.Equal(t, txNormal[0].Headers.Get("DD-Api-Key"), "api-key-2")
-		assert.Equal(t, txNormal[1].Headers.Get("DD-Api-Key"), "api-key-1")
+		assert.Equal(t, "api-key-2", key0)
+		assert.Equal(t, "api-key-1", key1)
 	}
-	assert.Equal(t, txBar[0].Headers.Get("DD-Api-Key"), "api-key-3")
-	assert.Equal(t, txVector[0].Headers.Get("DD-Api-Key"), "api-key-4")
+	assert.Equal(t, "api-key-3", resolveKey(txBar[0], log))
+	assert.Equal(t, "api-key-4", resolveKey(txVector[0], log))
 }
 
 func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
@@ -437,6 +453,48 @@ func TestSubmitV1Intake(t *testing.T) {
 		assert.Equal(t, "application/json", httpTr.Headers.Get("Content-Type"))
 	case <-time.After(1 * time.Second):
 		require.Fail(t, "highPrio queue should contain a transaction")
+	}
+}
+
+func TestSubmitV1IntakeDirect(t *testing.T) {
+	payloadReceived := make(chan string, 1)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/intake/" {
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+			payloadReceived <- string(body)
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	mockConfig := mock.New(t)
+	mockConfig.SetWithoutSource("dd_url", ts.URL)
+	log := logmock.New(t)
+	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{
+		ts.URL: {configUtils.NewAPIKeys("path", "monokey")},
+	})
+	require.NoError(t, err)
+	secrets := secretsmock.New(t)
+	options := NewOptionsWithResolvers(mockConfig, log, r)
+	options.Secrets = secrets
+	forwarder := NewDefaultForwarder(mockConfig, log, options)
+	forwarder.Start()
+	defer forwarder.Stop()
+
+	payload := []byte("lifecycle event payload")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.NoError(t, forwarder.SubmitV1IntakeDirect(ctx, transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload}), transaction.Events, make(http.Header)))
+
+	select {
+	case got := <-payloadReceived:
+		assert.Equal(t, string(payload), got)
+	case <-time.After(time.Second):
+		require.Fail(t, "expected lifecycle event payload to be sent synchronously")
 	}
 }
 
@@ -576,13 +634,13 @@ func TestTransactionEventHandlers(t *testing.T) {
 }
 
 func TestTransactionEventHandlersOnRetry(t *testing.T) {
+	synctest.Test(t, syncTestTransactionEventHandlersOnRetry)
+}
+
+func syncTestTransactionEventHandlersOnRetry(t *testing.T) {
 	requests := atomic.NewInt64(0)
 
-	mux := http.NewServeMux()
-	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	mux.HandleFunc(endpoints.SeriesEndpoint.Route, func(w http.ResponseWriter, _ *http.Request) {
+	transport := handlerTransport(func(w http.ResponseWriter, _ *http.Request) {
 		if v := requests.Inc(); v == 1 {
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
@@ -590,18 +648,15 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 		}
 	})
 
-	ts := httptest.NewServer(mux)
-	defer ts.Close()
-
 	mockConfig := mock.New(t)
-	mockConfig.SetWithoutSource("dd_url", ts.URL)
-
 	log := logmock.New(t)
-	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1")}})
+	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{"http://test.invalid": {configUtils.NewAPIKeys("path", "api_key1")}})
 	require.NoError(t, err)
 	secrets := secretsmock.New(t)
 	options := NewOptionsWithResolvers(mockConfig, log, r)
+	options.DisableAPIKeyChecking = true // Disable API key checking so no health check goroutine is started
 	options.Secrets = secrets
+	options.transport = transport
 	f := NewDefaultForwarder(mockConfig, log, options)
 
 	_ = f.Start()
@@ -695,27 +750,19 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 }
 
 func TestProcessLikePayloadResponseTimeout(t *testing.T) {
-	requests := atomic.NewInt64(0)
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		requests.Inc()
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer ts.Close()
-	mockConfig := mock.New(t)
-	responseTimeout := defaultResponseTimeout
+	synctest.Test(t, syncTestProcessLikePayloadResponseTimeout)
+}
 
-	defaultResponseTimeout = 5 * time.Second
-	mockConfig.SetWithoutSource("dd_url", ts.URL)
+func syncTestProcessLikePayloadResponseTimeout(t *testing.T) {
+	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("forwarder_num_workers", 0) // Set the number of workers to 0 so the txn goes nowhere
-	defer func() {
-		defaultResponseTimeout = responseTimeout
-	}()
 
 	log := logmock.New(t)
-	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1")}})
+	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{"http://test.invalid": {configUtils.NewAPIKeys("path", "api_key1")}})
 	require.NoError(t, err)
 	secrets := secretsmock.New(t)
 	options := NewOptionsWithResolvers(mockConfig, log, r)
+	options.DisableAPIKeyChecking = true // Disable API key checking so no health check goroutine is started
 	options.Secrets = secrets
 	f := NewDefaultForwarder(mockConfig, log, options)
 
@@ -741,11 +788,15 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 // are sent in a separate go func, the actual order they get sent will depend on the go scheduler.
 // This test ensures that we still on average send high priority transactions before low priority.
 func TestHighPriorityTransactionTendency(t *testing.T) {
+	synctest.Test(t, syncTestHighPriorityTransactionTendency)
+}
+
+func syncTestHighPriorityTransactionTendency(t *testing.T) {
 	var receivedRequests = make(map[string]struct{})
 	var mutex sync.Mutex
 	var requestChan = make(chan (string), 100)
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	transport := handlerTransport(func(w http.ResponseWriter, r *http.Request) {
 		mutex.Lock()
 		defer mutex.Unlock()
 		defer r.Body.Close()
@@ -761,21 +812,19 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			requestChan <- bodyStr
 		}
-	}))
+	})
 
 	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("forwarder_backoff_max", 0.5)
 	mockConfig.SetWithoutSource("forwarder_max_concurrent_requests", 10)
 
-	oldFlushInterval := flushInterval
-	flushInterval = 500 * time.Millisecond
-	defer func() { flushInterval = oldFlushInterval }()
-
 	log := logmock.New(t)
-	r, _ := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1")}})
+	r, _ := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{"http://test.invalid": {configUtils.NewAPIKeys("path", "api_key1")}})
 	secrets := secretsmock.New(t)
 	options := NewOptionsWithResolvers(mockConfig, log, r)
+	options.DisableAPIKeyChecking = true // Disable API key checking so no health check goroutine is started
 	options.Secrets = secrets
+	options.transport = transport
 	f := NewDefaultForwarder(mockConfig, log, options)
 
 	f.Start()
@@ -816,13 +865,14 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 }
 
 func TestHighPriorityTransaction(t *testing.T) {
+	synctest.Test(t, syncTestHighPriorityTransaction)
+}
+
+func syncTestHighPriorityTransaction(t *testing.T) {
 	var receivedRequests = make(map[string]struct{})
-	var mutex sync.Mutex
 	var requestChan = make(chan (string))
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mutex.Lock()
-		defer mutex.Unlock()
+	transport := handlerTransport(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 		body, err := io.ReadAll(r.Body)
 		assert.NoError(t, err)
@@ -836,23 +886,21 @@ func TestHighPriorityTransaction(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			requestChan <- bodyStr
 		}
-	}))
+	})
 
 	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("forwarder_backoff_max", 0.5)
 	mockConfig.SetWithoutSource("forwarder_max_concurrent_requests", 1)
 
-	oldFlushInterval := flushInterval
-	flushInterval = 500 * time.Millisecond
-	defer func() { flushInterval = oldFlushInterval }()
-
 	log := logmock.New(t)
-	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1")}})
+	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{"http://test.invalid": {configUtils.NewAPIKeys("path", "api_key1")}})
 	require.NoError(t, err)
 
 	secrets := secretsmock.New(t)
 	options := NewOptionsWithResolvers(mockConfig, log, r)
+	options.DisableAPIKeyChecking = true // Disable API key checking so no health check goroutine is started
 	options.Secrets = secrets
+	options.transport = transport
 	f := NewDefaultForwarder(mockConfig, log, options)
 
 	f.Start()

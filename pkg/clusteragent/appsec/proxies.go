@@ -14,6 +14,7 @@ import (
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/envoygateway"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/istio"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/nginx"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/record"
 )
@@ -29,6 +30,7 @@ var proxyConstructorMap = map[appsecconfig.ProxyType]ProxyConstructor{
 	appsecconfig.ProxyTypeEnvoyGateway: envoygateway.New,
 	appsecconfig.ProxyTypeIstio:        istio.New,
 	appsecconfig.ProxyTypeIstioGateway: istio.NewGateway,
+	appsecconfig.ProxyTypeIngressNginx: nginx.New,
 }
 
 // ProxyDetector is the type of function that detects if a given proxy is installed in the cluster
@@ -42,4 +44,5 @@ var proxyDetectionMap = map[appsecconfig.ProxyType]ProxyDetector{
 	appsecconfig.ProxyTypeEnvoyGateway: envoygateway.Detect,
 	appsecconfig.ProxyTypeIstio:        istio.Detect,
 	appsecconfig.ProxyTypeIstioGateway: istio.Detect,
+	appsecconfig.ProxyTypeIngressNginx: nginx.Detect,
 }

@@ -109,47 +109,52 @@ func (l *DBMAuroraListener) run() {
 func (l *DBMAuroraListener) discoverAuroraClusters() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(l.config.QueryTimeout)*time.Second)
 	defer cancel()
-	ids, err := l.awsRdsClient.GetAuroraClustersFromTags(ctx, l.config.Tags)
+	clusters, err := l.awsRdsClient.GetAuroraClustersFromTags(ctx, l.config.Tags)
 	if err != nil {
 		_ = log.Error(err)
 		return
 	}
-	if len(ids) == 0 {
+	if len(clusters) == 0 {
 		log.Debugf("no aurora clusters found with provided tags %v", l.config.Tags)
 	}
-	auroraCluster, err := l.awsRdsClient.GetAuroraClusterEndpoints(ctx, ids, l.config)
+	instances, err := l.awsRdsClient.GetAuroraClusterEndpoints(ctx, clusters, l.config)
 	if err != nil {
 		_ = log.Error(err)
 		return
 	}
 	discoveredServices := make(map[string]struct{})
-	for id, c := range auroraCluster {
-		for _, instance := range c.Instances {
-			if instance == nil {
-				_ = log.Warnf("received malformed instance response for cluster %s, skipping", id)
-				continue
-			}
-			entityID := instance.Digest(engineToIntegrationType[instance.Engine], id)
-			discoveredServices[entityID] = struct{}{}
-			l.createService(entityID, id, instance)
-		}
+	for _, instance := range instances {
+		entityID := instance.Digest(engineToIntegrationType[instance.Engine], instance.ID)
+		discoveredServices[entityID] = struct{}{}
+		l.createService(entityID, instance.ClusterID, instance)
 	}
+
 	deletedServices := findDeletedServices(l.services, discoveredServices)
 	l.deleteServices(deletedServices)
 }
 
-func (l *DBMAuroraListener) createService(entityID, clusterID string, instance *aws.Instance) {
-	if _, present := l.services[entityID]; present {
-		return
-	}
+func (l *DBMAuroraListener) createService(entityID, clusterID string, instance aws.Instance) {
 	svc := &DBMAuroraService{
 		adIdentifier: engineToAuroraADIdentifier[instance.Engine],
 		entityID:     entityID,
 		checkName:    engineToIntegrationType[instance.Engine],
-		instance:     instance,
+		instance:     &instance,
 		region:       l.config.Region,
 		clusterID:    clusterID,
 	}
+	log.Debugf("creating aurora service %v", svc)
+	if existing, present := l.services[entityID]; present {
+		if existingSvc, ok := existing.(*DBMAuroraService); ok && existingSvc.Equal(svc) {
+			log.Debugf("aurora service %v already exists", svc)
+			return
+		}
+		log.Debugf("aurora service %v already exists but is not equal to the new service", svc)
+		// If the cached service is not equal to the new service then metadata has changed
+		// Delete the cached service first and then send the updated one to the newSvc channel.
+		l.delService <- existing
+		delete(l.services, entityID)
+	}
+	log.Debugf("adding aurora service %v", svc)
 	l.services[entityID] = svc
 	l.newService <- svc
 }

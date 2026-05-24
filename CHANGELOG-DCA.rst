@@ -2,6 +2,221 @@
 Release Notes
 =============
 
+.. _Release Notes_7.79.0:
+
+7.79.0
+======
+
+.. _Release Notes_7.79.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-05-20
+Pinned to datadog-agent v7.79.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7790>`_.
+
+
+.. _Release Notes_7.79.0_New Features:
+
+New Features
+------------
+
+- Add AppSec injection support for ingress-nginx controllers. The Cluster Agent
+  now automatically injects the Datadog nginx-datadog module into ingress-nginx
+  controller pods, enabling AppSec protection without manual ``extraModules``
+  configuration. Configurable via ``admission_controller.appsec.nginx.init_image``
+  and ``admission_controller.appsec.nginx.module_mount_path``.
+
+- Add spot scheduling. When enabled, the Cluster Agent assigns eligible workload pods to
+  spot nodes and maintains configured percentage of spot replicas and minimum on-demand replica count.
+  It automatically falls back to on-demand scheduling when spot pods remain pending longer than configured timeout.
+
+- Add namespace-level batch onboarding for workload autoscaling profiles.
+  The Cluster Agent now discovers all workloads in namespaces labeled with
+  ``autoscaling.datadoghq.com/profile=<profile-name>`` and automatically
+  manages ``DatadogPodAutoscaler`` entries for them. Individual workloads
+  can opt out by setting ``autoscaling.datadoghq.com/profile=excluded``.
+
+
+.. _Release Notes_7.79.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The ``datadog-cluster-agent clusterchecks`` CLI command now displays
+  check execution status for checks running on Cluster Level Check (CLC)
+  runners, matching the node agent ``agent status collector`` output format.
+  This includes OK/ERROR status, total runs, metric samples, events,
+  service checks, average execution time, last execution date, last
+  successful execution date, and last error message.
+
+- The cluster agent metadata payload now includes a
+  ``clustercheck_integration_status`` field reporting check execution
+  status (OK/ERROR) for cluster checks running on CLC runners. This enables
+  the backend to populate ``datadog_agent_integration_status`` for cluster
+  checks. The ``clustercheck_metadata`` field now also reports all instances
+  for multi-instance checks and uses precomputed instance IDs for consistency.
+
+- Add OOTB CRD collection for Gateway API, service mesh (Istio, Envoy Gateway,
+  Traefik, Linkerd, Consul, Kuma), and ingress controller (NGINX, Traefik, Kong,
+  HAProxy) custom resources. Three new per-family config flags allow operators to
+  enable collection independently:
+  ``orchestrator_explorer.custom_resources.ootb.gateway_api``,
+  ``orchestrator_explorer.custom_resources.ootb.service_mesh``, and
+  ``orchestrator_explorer.custom_resources.ootb.ingress_controllers``
+  (all default to false).
+
+
+.. _Release Notes_7.79.0_Security Notes:
+
+Security Notes
+--------------
+
+- Upgrade the Docker SDK dependency from ``github.com/docker/docker`` v28.5.2
+  to ``github.com/moby/moby`` v29 (``moby/moby/api`` v1.54.1,
+  ``moby/moby/client`` v0.4.0) to fix CVE-2026-34040 (High, CVSS 7.8)
+  and CVE-2026-33997 (Medium, CVSS 8.1).
+
+
+.. _Release Notes_7.79.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a deadlock in the orchestrator check that caused ``Cancel`` to hang
+  indefinitely, leaking goroutines and preventing the check from being
+  rescheduled. The issue occurred when ``TerminatedResourceBundle.Disable``
+  tried to flush manifests through a channel whose consumer goroutine had
+  already stopped.
+
+- Honor label and annotation as tags configuration options for all Kubernetes resources.
+
+
+.. _Release Notes_7.78.4:
+
+7.78.4
+======
+
+.. _Release Notes_7.78.4_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-05-14
+Pinned to datadog-agent v7.78.4: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7784>`_.
+
+
+.. _Release Notes_7.78.3:
+
+7.78.3
+======
+
+.. _Release Notes_7.78.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-05-07
+Pinned to datadog-agent v7.78.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7783>`_.
+
+
+.. _Release Notes_7.78.2:
+
+7.78.2
+======
+
+.. _Release Notes_7.78.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-04-29
+Pinned to datadog-agent v7.78.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7782>`_.
+
+
+.. _Release Notes_7.78.1:
+
+7.78.1
+======
+
+.. _Release Notes_7.78.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-04-23
+Pinned to datadog-agent v7.78.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7781>`_.
+
+
+.. _Release Notes_7.78.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed a Cluster Agent issue where container-targeted APM library injection could mount a tracing library into all application containers in a pod instead of only the annotated container.
+
+
+.. _Release Notes_7.78.0:
+
+7.78.0
+======
+
+.. _Release Notes_7.78.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-04-15
+Pinned to datadog-agent v7.78.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7780>`_.
+
+
+.. _Release Notes_7.78.0_New Features:
+
+New Features
+------------
+
+- Added an admission controller connectivity probe that periodically verifies
+  the admission webhook is reachable from the Kubernetes API server. When a
+  connectivity issue is detected, the probe logs environment-specific guidance
+  for EKS, GKE, and AKS. Probe results are visible in the ``agent status``
+  output under the Admission Controller section. The probe is disabled by
+  default and can be enabled by setting ``admission_controller.probe.enabled``
+  to ``true``. The probe uses dry-run ConfigMap creation requests in the
+  cluster agent's namespace.
+
+- Add Remote Configuration status section to ``datadog-cluster-agent status`` output and flares.
+  This displays whether RC is enabled for the organization, whether the API key is authorized
+  for Remote Configuration, and any last errors, matching the node agent's existing behavior.
+
+
+.. _Release Notes_7.78.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Configurable support for TLS communication between the sidecar Agent 
+  and the Cluster Agent via the agent-sidecar mutation webhook. Requires 
+  elevated permissions for Cluster Agent to copy the certificate authority 
+  to the target namespace as a secret.
+
+- Single Step Instrumentation volumes are now mounted as read-only to prevent accidental writes to SSI artifacts.
+
+
+
+.. _Release Notes_7.77.3:
+
+7.77.3
+======
+
+.. _Release Notes_7.77.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-04-08
+Pinned to datadog-agent v7.77.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7773>`_.
+
+
 .. _Release Notes_7.77.2:
 
 7.77.2

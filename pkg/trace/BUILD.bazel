@@ -1,2 +1,8 @@
-# gazelle:ignore
-# Not yet migrated to Bazel. Only pkg/trace/log is migrated.
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "trace",
+    srcs = ["doc.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace",
+    visibility = ["//visibility:public"],
+)

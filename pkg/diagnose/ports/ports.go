@@ -32,9 +32,9 @@ func DiagnosePortSuite() []diagnose.Diagnosis {
 		}}
 	}
 
-	portMap := make(map[uint16]port.Port)
-	for _, port := range ports {
-		portMap[port.Port] = port
+	portMap := make(map[uint16][]port.Port)
+	for _, p := range ports {
+		portMap[p.Port] = append(portMap[p.Port], p)
 	}
 
 	var diagnoses []diagnose.Diagnosis
@@ -50,7 +50,7 @@ func DiagnosePortSuite() []diagnose.Diagnosis {
 			continue
 		}
 
-		port, ok := portMap[uint16(value)]
+		binds, ok := portMap[uint16(value)]
 		// if the port is used for several protocols, add a diagnose for each
 		if !ok {
 			diagnoses = append(diagnoses, diagnose.Diagnosis{
@@ -61,19 +61,20 @@ func DiagnosePortSuite() []diagnose.Diagnosis {
 			continue
 		}
 
+		worst, sev, processName := worstBind(binds)
+
 		// TODO: check process user/group
-		processName, ok := isAgentProcess(port.Pid, port.Process)
-		if ok {
+		if sev == severityAgent {
 			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Name:      key,
 				Status:    diagnose.DiagnosisSuccess,
-				Diagnosis: fmt.Sprintf("Required port %d is used by '%s' process (PID=%d) for %s", value, processName, port.Pid, port.Proto),
+				Diagnosis: fmt.Sprintf("Required port %d is used by '%s' process (PID=%d) for %s", value, processName, worst.Pid, worst.Proto),
 			})
 			continue
 		}
 
 		// if the port is used by a process that is not run by the same user as the agent, we cannot retrieve the proc id
-		if port.Pid == 0 {
+		if worst.Pid == 0 {
 			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Name:      key,
 				Status:    diagnose.DiagnosisWarning,
@@ -85,11 +86,45 @@ func DiagnosePortSuite() []diagnose.Diagnosis {
 		diagnoses = append(diagnoses, diagnose.Diagnosis{
 			Name:      key,
 			Status:    diagnose.DiagnosisFail,
-			Diagnosis: fmt.Sprintf("Required port %d is already used by '%s' process (PID=%d) for %s.", value, processName, port.Pid, port.Proto),
+			Diagnosis: fmt.Sprintf("Required port %d is already used by '%s' process (PID=%d) for %s.", value, processName, worst.Pid, worst.Proto),
 		})
 	}
 
 	return diagnoses
+}
+
+const (
+	severityAgent   = 0 // agent-owned bind
+	severityUnknown = 1 // Pid == 0 (different user, can't retrieve process)
+	severityForeign = 2 // non-agent process with known PID — real conflict
+)
+
+// bindSeverity ranks a bind by how bad it is for the agent and returns the
+// process name when known. Returning both avoids a second isAgentProcess
+// lookup on the winning bind — on Windows that's a redundant syscall.
+func bindSeverity(p port.Port) (int, string) {
+	if p.Pid == 0 {
+		return severityUnknown, ""
+	}
+	name, ok := isAgentProcess(p.Pid, p.Process)
+	if ok {
+		return severityAgent, name
+	}
+	return severityForeign, name
+}
+
+// worstBind picks the bind with the highest severity. A foreign conflict
+// on one IP must not be masked by an agent bind on another.
+func worstBind(binds []port.Port) (port.Port, int, string) {
+	worst := binds[0]
+	sev, name := bindSeverity(worst)
+	for _, b := range binds[1:] {
+		s, n := bindSeverity(b)
+		if s > sev {
+			worst, sev, name = b, s, n
+		}
+	}
+	return worst, sev, name
 }
 
 // isAgentProcess checks if the given pid corresponds to an agent process

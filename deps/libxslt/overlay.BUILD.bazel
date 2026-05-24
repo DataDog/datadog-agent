@@ -1,4 +1,4 @@
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
@@ -112,7 +112,7 @@ cc_shared_library(
     name = "xslt",
     deps = [":libxslt"],
     # Ensure we don't statically link with libxml2
-    dynamic_deps = ["@libxml2//:xml2"],
+    dynamic_deps = ["@libxml2//:xml2_pkg"],
     additional_linker_inputs = ["libxslt/libxslt.syms"],
     user_link_flags = [
         "-Wl,--version-script=$(location libxslt/libxslt.syms)",
@@ -120,17 +120,18 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-so_symlink(
-    name = "xslt_lib_files",
-    src = ":xslt",
-    libname = "libxslt",
-    version = "1.1.43",
-)
-
 pkg_files(
     name = "xslt_headers",
     srcs = _PUBLIC_XSLT_HDRS,
     prefix = "include/libxslt",
+)
+
+dd_cc_packaged(
+    name = "xslt_pkg",
+    input = ":xslt",
+    version = XSLT_VERSION,
+    installed_files = [":xslt_headers"],
+    visibility = ["//visibility:public"],
 )
 
 expand_template(
@@ -187,15 +188,8 @@ cc_library(
 cc_shared_library(
     name = "exslt",
     deps = [":libexslt"],
-    dynamic_deps = ["@libxml2//:xml2", ":xslt"],
+    dynamic_deps = ["@libxml2//:xml2_pkg", ":xslt_pkg"],
     visibility = ["//visibility:public"],
-)
-
-so_symlink(
-    name = "exslt_lib_files",
-    src = ":exslt",
-    libname = "libexslt",
-    version = "0.8.24",
 )
 
 pkg_files(
@@ -204,13 +198,19 @@ pkg_files(
     prefix = "include/libexslt",
 )
 
+dd_cc_packaged(
+    name = "exslt_pkg",
+    input = ":exslt",
+    version = "0.8.24",
+    installed_files = [":exslt_headers"],
+    visibility = ["//visibility:public"],
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":xslt_headers",
         ":exslt_headers",
-        ":xslt_lib_files",
-        ":exslt_lib_files",
     ],
     prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],

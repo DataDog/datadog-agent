@@ -19,7 +19,8 @@ import (
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -28,12 +29,12 @@ import (
 	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-process"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
+	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -44,21 +45,21 @@ import (
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	compstatsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
 	"github.com/DataDog/datadog-agent/comp/networkpath"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/comp/process"
-	"github.com/DataDog/datadog-agent/comp/process/agent"
+	agent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
-	"github.com/DataDog/datadog-agent/comp/process/expvars"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
+	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/def"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	profiler "github.com/DataDog/datadog-agent/comp/process/profiler/def"
-	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
+	processstatusfx "github.com/DataDog/datadog-agent/comp/process/status/fx"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -151,7 +152,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		remoteconfig.Bundle(),
 
 		// Provide status modules
-		statusimpl.Module(),
+		processstatusfx.Module(),
 		coreStatusImpl.Module(),
 
 		// Provide statsd client module
@@ -161,7 +162,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		}),
 
 		// Provide configsync module
-		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
+		configsyncfx.Module(configsync.NewDefaultParams()),
 
 		// Provide autoexit module
 		autoexitfx.Module(),
@@ -222,7 +223,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 				Config: c,
 			}
 		}),
-		settingsimpl.Module(),
+		settingsfx.Module(),
 		ipcfx.ModuleReadWrite(),
 		remoteagentfx.Module(),
 	)

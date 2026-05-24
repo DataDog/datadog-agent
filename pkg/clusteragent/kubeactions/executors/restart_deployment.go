@@ -1,0 +1,74 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build kubeapiserver
+
+package executors
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+)
+
+// RestartDeploymentExecutor executes restart deployment actions
+type RestartDeploymentExecutor struct {
+	clientset kubernetes.Interface
+}
+
+var _ Executor = (*RestartDeploymentExecutor)(nil)
+
+// NewRestartDeploymentExecutor creates a new RestartDeploymentExecutor
+func NewRestartDeploymentExecutor(clientset kubernetes.Interface) *RestartDeploymentExecutor {
+	return &RestartDeploymentExecutor{
+		clientset: clientset,
+	}
+}
+
+// Execute restarts a deployment by updating its restart annotation
+func (e *RestartDeploymentExecutor) Execute(ctx context.Context, action *kubeactions.KubeAction) ExecutionResult {
+	resource := action.Resource
+	namespace := resource.Namespace
+	name := resource.Name
+	resourceID := resource.ResourceId
+
+	// Get the deployment and verify UID matches resource_id
+	deployment, err := e.clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return ExecutionResult{
+			Status:  StatusFailed,
+			Message: fmt.Sprintf("failed to get deployment: %v", err),
+		}
+	}
+
+	if string(deployment.UID) != resourceID {
+		return ExecutionResult{
+			Status:  StatusFailed,
+			Message: fmt.Sprintf("deployment UID mismatch: expected %s, got %s - deployment may have been replaced since action was created", resourceID, deployment.UID),
+		}
+	}
+
+	// Add or update the restart annotation
+	if deployment.Spec.Template.ObjectMeta.Annotations == nil {
+		deployment.Spec.Template.ObjectMeta.Annotations = make(map[string]string)
+	}
+	deployment.Spec.Template.ObjectMeta.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
+
+	if _, err := e.clientset.AppsV1().Deployments(namespace).Update(ctx, deployment, metav1.UpdateOptions{}); err != nil {
+		return ExecutionResult{
+			Status:  StatusFailed,
+			Message: fmt.Sprintf("failed to restart deployment: %v", err),
+		}
+	}
+
+	return ExecutionResult{
+		Status:  StatusSuccess,
+		Message: fmt.Sprintf("deployment %s/%s restarted", namespace, name),
+	}
+}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/preprocessor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
@@ -120,12 +121,12 @@ func NewNoopDecoder() Decoder {
 
 // NewDecoderWithFraming initialize a decoder with given endline strategy.
 func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry) Decoder {
-	maxMessageSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
+	maxMessageSize := source.Config().GetMaxMessageSizeBytes(pkgconfigsetup.Datadog())
 	inputChan := make(chan *message.Message)
 	outputChan := make(chan *message.Message)
 	detectedPattern := &DetectedPattern{}
 
-	tokenizerMaxInputBytes, labelerMaxBytes := resolveTokenizerAndLabelerMaxInputBytes(source.Config().AutoMultiLineOptions)
+	tokenizerMaxInputBytes, labelerMaxBytes := resolveTokenizerAndLabelerMaxInputBytes(source.Config().AutoMultiLineOptions, source.Config().ExperimentalAdaptiveSampling)
 	tok := preprocessor.NewTokenizer(tokenizerMaxInputBytes)
 	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern, tok, labelerMaxBytes)
 
@@ -145,15 +146,19 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 // The labeler uses the effective auto-multiline tokenizer window (global, optionally overridden per source).
 // The tokenizer can be widened beyond that when adaptive sampling is enabled, so the sampler
 // can observe more context without changing labeler behavior.
-func resolveTokenizerAndLabelerMaxInputBytes(sourceAutoMLSettings *config.SourceAutoMultiLineOptions) (tokenizerMaxInputBytes int, labelerMaxBytes int) {
+func resolveTokenizerAndLabelerMaxInputBytes(sourceAutoMLSettings *config.SourceAutoMultiLineOptions, sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions) (tokenizerMaxInputBytes int, labelerMaxBytes int) {
 	labelerMaxBytes = pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
 	if sourceAutoMLSettings != nil && sourceAutoMLSettings.TokenizerMaxInputBytes != nil {
 		labelerMaxBytes = *sourceAutoMLSettings.TokenizerMaxInputBytes
 	}
 
 	tokenizerMaxInputBytes = labelerMaxBytes
-	if pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.enabled") {
-		if samplerMin := pkgconfigsetup.Datadog().GetInt("logs_config.experimental_adaptive_sampling.tokenizer_max_input_bytes"); samplerMin > tokenizerMaxInputBytes {
+	if resolveAdaptiveSamplerEnabled(sourceAdaptiveSampling) {
+		samplerMin := pkgconfigsetup.Datadog().GetInt("logs_config.experimental_adaptive_sampling.tokenizer_max_input_bytes")
+		if sourceAdaptiveSampling != nil && sourceAdaptiveSampling.TokenizerMaxInputBytes != nil {
+			samplerMin = *sourceAdaptiveSampling.TokenizerMaxInputBytes
+		}
+		if samplerMin > tokenizerMaxInputBytes {
 			tokenizerMaxInputBytes = samplerMin
 		}
 	}
@@ -161,18 +166,115 @@ func resolveTokenizerAndLabelerMaxInputBytes(sourceAutoMLSettings *config.Source
 	return tokenizerMaxInputBytes, labelerMaxBytes
 }
 
+func resolveAdaptiveSamplerEnabled(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions) bool {
+	if sourceAdaptiveSampling != nil && sourceAdaptiveSampling.Enabled != nil {
+		return *sourceAdaptiveSampling.Enabled
+	}
+
+	return pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.enabled")
+}
+
+func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, tok *preprocessor.Tokenizer) preprocessor.AdaptiveSamplerConfig {
+	includeFilters, includeConfigured := resolveGlobalAdaptiveSamplerFilters("logs_config.experimental_adaptive_sampling.include", tok)
+	excludeFilters, _ := resolveGlobalAdaptiveSamplerFilters("logs_config.experimental_adaptive_sampling.exclude", tok)
+
+	c := preprocessor.AdaptiveSamplerConfig{
+		MaxPatterns:          pkgconfigsetup.Datadog().GetInt("logs_config.experimental_adaptive_sampling.max_patterns"),
+		RateLimit:            pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.rate_limit"),
+		BurstSize:            pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.burst_size"),
+		MatchThreshold:       pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.match_threshold"),
+		ProtectImportantLogs: pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.protect_important_logs"),
+		Include:              includeFilters,
+		IncludeConfigured:    includeConfigured,
+		Exclude:              excludeFilters,
+	}
+
+	if sourceAdaptiveSampling != nil {
+		if sourceAdaptiveSampling.MaxPatterns != nil {
+			c.MaxPatterns = *sourceAdaptiveSampling.MaxPatterns
+		}
+		if sourceAdaptiveSampling.RateLimit != nil {
+			c.RateLimit = *sourceAdaptiveSampling.RateLimit
+		}
+		if sourceAdaptiveSampling.BurstSize != nil {
+			c.BurstSize = *sourceAdaptiveSampling.BurstSize
+		}
+		if sourceAdaptiveSampling.MatchThreshold != nil {
+			c.MatchThreshold = *sourceAdaptiveSampling.MatchThreshold
+		}
+		if sourceAdaptiveSampling.ProtectImportantLogs != nil {
+			c.ProtectImportantLogs = *sourceAdaptiveSampling.ProtectImportantLogs
+		}
+		if sourceAdaptiveSampling.Include != nil {
+			c.Include = resolveAdaptiveSamplerFilters(sourceAdaptiveSampling.Include, tok)
+			c.IncludeConfigured = true
+		}
+		if sourceAdaptiveSampling.Exclude != nil {
+			c.Exclude = resolveAdaptiveSamplerFilters(sourceAdaptiveSampling.Exclude, tok)
+		}
+	}
+
+	return validateAdaptiveSamplerConfig(c)
+}
+
+func resolveGlobalAdaptiveSamplerFilters(key string, tok *preprocessor.Tokenizer) ([]preprocessor.AdaptiveSamplerFilter, bool) {
+	cfg := pkgconfigsetup.Datadog()
+	if !cfg.IsConfigured(key) {
+		return nil, false
+	}
+
+	var rules []*config.AdaptiveSamplingRule
+	if err := structure.UnmarshalKey(cfg, key, &rules, structure.EnableStringUnmarshal); err != nil {
+		log.Warnf("Failed to unmarshal adaptive sampler filters from %s, skipping: %v", key, err)
+		return nil, true
+	}
+
+	return resolveAdaptiveSamplerFilters(rules, tok), true
+}
+
+func resolveAdaptiveSamplerFilters(rules []*config.AdaptiveSamplingRule, tok *preprocessor.Tokenizer) []preprocessor.AdaptiveSamplerFilter {
+	if len(rules) == 0 {
+		return nil
+	}
+	if tok == nil {
+		tok = preprocessor.NewTokenizer(0)
+	}
+
+	filters := make([]preprocessor.AdaptiveSamplerFilter, 0, len(rules))
+	for _, rule := range rules {
+		if rule == nil {
+			continue
+		}
+
+		filter := preprocessor.AdaptiveSamplerFilter{}
+		if rule.Regex != "" {
+			compiled, err := regexp.Compile(rule.Regex)
+			if err != nil {
+				log.Warnf("Invalid adaptive sampler filter regex %q, skipping rule: %v", rule.Regex, err)
+				continue
+			}
+			filter.Regex = compiled
+		}
+		if rule.Sample != "" {
+			filter.SampleTokens, _ = tok.Tokenize([]byte(rule.Sample))
+		}
+		if filter.Regex == nil && len(filter.SampleTokens) == 0 {
+			log.Warn("Adaptive sampler filter rule is empty, skipping")
+			continue
+		}
+
+		filters = append(filters, filter)
+	}
+	return filters
+}
+
 func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern, tok *preprocessor.Tokenizer, labelerMaxBytes int) LineHandler {
 	maxContentSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 	flushTimeout := config.AggregationTimeout(pkgconfigsetup.Datadog())
 
 	var sampler preprocessor.Sampler
-	if pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.enabled") {
-		sampler = preprocessor.NewAdaptiveSampler(validateAdaptiveSamplerConfig(preprocessor.AdaptiveSamplerConfig{
-			MaxPatterns:    pkgconfigsetup.Datadog().GetInt("logs_config.experimental_adaptive_sampling.max_patterns"),
-			RateLimit:      pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.rate_limit"),
-			BurstSize:      pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.burst_size"),
-			MatchThreshold: pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.match_threshold"),
-		}), source.UnderlyingSource().Name)
+	if resolveAdaptiveSamplerEnabled(source.Config().ExperimentalAdaptiveSampling) {
+		sampler = preprocessor.NewAdaptiveSampler(resolveAdaptiveSamplerConfig(source.Config().ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name)
 	} else {
 		sampler = preprocessor.NewNoopSampler()
 	}
@@ -318,8 +420,11 @@ func (d *decoderImpl) Stop() {
 
 func (d *decoderImpl) run() {
 	defer func() {
-		// flush any remaining output in component order, and then close the
-		// output channel
+		// Flush any remaining output in component order, and then close the
+		// output channel. The framer flush gives the FrameMatcher a chance to
+		// emit buffered data that was waiting for a delimiter that never
+		// arrived (e.g. non-transparent syslog without a trailing LF).
+		d.framer.Flush()
 		d.lineParser.flush()
 		d.lineHandler.flush()
 		close(d.outputChan)

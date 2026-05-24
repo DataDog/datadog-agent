@@ -266,6 +266,8 @@ type ProcessSerializer struct {
 	Pid uint32 `json:"pid,omitempty"`
 	// Parent Process ID
 	PPid *uint32 `json:"ppid,omitempty"`
+	// Session ID
+	SID uint32 `json:"sid"`
 	// Thread ID
 	Tid uint32 `json:"tid,omitempty"`
 	// ForkFlags
@@ -962,6 +964,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			Pid:             ps.Pid,
 			Tid:             ps.Tid,
 			PPid:            createNumPointer(ps.PPid),
+			SID:             ps.SID,
 			ForkFlags:       int(ps.ForkFlags),
 			Comm:            ps.Comm,
 			TTY:             ps.TTYName,
@@ -1014,13 +1017,16 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 		if len(ps.ContainerContext.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        string(ps.ContainerContext.ContainerID),
+				Source:    ps.ContainerContext.ContainerSource.String(),
 				CreatedAt: utils.NewEasyjsonTimeIfNotZero(ps.ContainerContext.UnixCreatedAt()),
 			}
 		}
 
 		if len(ps.CGroup.CGroupID) > 0 {
 			psSerializer.CGroup = &CGroupContextSerializer{
-				ID: string(ps.CGroup.CGroupID),
+				ID:        string(ps.CGroup.CGroupID),
+				Source:    ps.CGroup.CGroupSource.String(),
+				CreatedAt: utils.NewEasyjsonTimeIfNotZero(ps.CGroup.UnixCreatedAt()),
 			}
 		}
 
@@ -1029,6 +1035,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 	return &ProcessSerializer{
 		Pid:             ps.Pid,
 		Tid:             ps.Tid,
+		SID:             ps.SID,
 		IsKworker:       ps.IsKworker,
 		IsExec:          ps.IsExec,
 		IsExecExec:      ps.IsExecExec,
@@ -1596,6 +1603,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	if !event.ProcessContext.ContainerContext.IsNull() {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        string(event.ProcessContext.ContainerContext.ContainerID),
+			Source:    event.ProcessContext.ContainerContext.ContainerSource.String(),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(event.ProcessContext.ContainerContext.CreatedAt))),
 			Variables: newVariablesContext(event, rule, "container."),
 		}
@@ -1604,6 +1612,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	if !event.ProcessContext.CGroup.IsNull() {
 		s.CGroupContextSerializer = &CGroupContextSerializer{
 			ID:        string(event.ProcessContext.CGroup.CGroupID),
+			Source:    event.ProcessContext.CGroup.CGroupSource.String(),
+			CreatedAt: utils.NewEasyjsonTimeIfNotZero(event.ProcessContext.CGroup.UnixCreatedAt()),
 			Variables: newVariablesContext(event, rule, "cgroup."),
 		}
 	}

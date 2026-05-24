@@ -75,6 +75,7 @@ enum event_type
     EVENT_TRACER_MEMFD_CREATE,
     EVENT_TRACER_MEMFD_SEAL,
     EVENT_PIVOT_ROOT,
+    EVENT_SETSID,
     EVENT_NOP,
     EVENT_MAX, // has to be the last one
 
@@ -88,6 +89,7 @@ enum
     EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE = 1 << 2, // event is a AD sample
     // EventFlagsSecurityProfileInProfile = 1<<3 isn't used in kernel space
     EVENT_FLAGS_ANOMALY_DETECTION_EVENT = 1 << 4, // event is an anomaly detection event
+    EVENT_FLAGS_INTERNAL = 1 << 5, // event used to keep track of internal caches & resources
 };
 
 enum file_flags
@@ -104,8 +106,8 @@ enum
 
 enum
 {
-    ACTIVITY_DUMP_RUNNING = 1 << 0, // defines if an activity dump is running
-    SAVED_BY_ACTIVITY_DUMP = 1 << 1, // defines if the dentry should have been discarded, but was saved because of an activity dump
+    RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING = 1 << 0, // defines if an activity dump is running
+    RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP = 1 << 1, // defines if the dentry should have been discarded, but was saved because of an activity dump
 };
 
 enum policy_mode

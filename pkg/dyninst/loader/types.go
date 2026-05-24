@@ -67,6 +67,8 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_PROCESS_GO_EMPTY_INTERFACE
 	case compiler.OpcodeProcessGoInterface:
 		return C.SM_OP_PROCESS_GO_INTERFACE
+	case compiler.OpcodeProcessGoDictType:
+		return C.SM_OP_PROCESS_GO_DICT_TYPE
 	case compiler.OpcodeProcessGoHmap:
 		return C.SM_OP_PROCESS_GO_HMAP
 	case compiler.OpcodeProcessGoSwissMap:
@@ -83,14 +85,68 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_EXPR_LOAD_LITERAL
 	case compiler.OpcodeExprReadString:
 		return C.SM_OP_EXPR_READ_STRING
-	case compiler.OpcodeExprCmpEqBase:
-		return C.SM_OP_EXPR_CMP_EQ_BASE
-	case compiler.OpcodeExprCmpEqString:
-		return C.SM_OP_EXPR_CMP_EQ_STRING
+	case compiler.OpcodeExprCmpBase:
+		return C.SM_OP_EXPR_CMP_BASE
+	case compiler.OpcodeExprCmpString:
+		return C.SM_OP_EXPR_CMP_STRING
 	case compiler.OpcodeConditionCheck:
 		return C.SM_OP_CONDITION_CHECK
 	case compiler.OpcodeConditionBegin:
 		return C.SM_OP_CONDITION_BEGIN
+	case compiler.OpcodeCallDictResolved:
+		return C.SM_OP_CALL_DICT_RESOLVED
+	case compiler.OpcodeExprSliceBoundsCheck:
+		return C.SM_OP_EXPR_SLICE_BOUNDS_CHECK
+	case compiler.OpcodeSwissMapSetup:
+		return C.SM_OP_SWISS_MAP_SETUP
+	case compiler.OpcodeSwissMapAesenc:
+		return C.SM_OP_SWISS_MAP_AESENC
+	case compiler.OpcodeSwissMapHashFinish:
+		return C.SM_OP_SWISS_MAP_HASH_FINISH
+	case compiler.OpcodeSwissMapProbe:
+		return C.SM_OP_SWISS_MAP_PROBE
+	case compiler.OpcodeSwissMapCheckSlot:
+		return C.SM_OP_SWISS_MAP_CHECK_SLOT
+	case compiler.OpcodeCondNot:
+		return C.SM_OP_COND_NOT
+	case compiler.OpcodeCondJumpIfFalse:
+		return C.SM_OP_COND_JUMP_IF_FALSE
+	case compiler.OpcodeCondJumpIfTrue:
+		return C.SM_OP_COND_JUMP_IF_TRUE
+	case compiler.OpcodeExprLoadDuration:
+		return C.SM_OP_EXPR_LOAD_DURATION
+	case compiler.OpcodeConditionStateInit:
+		return C.SM_OP_CONDITION_STATE_INIT
+	case compiler.OpcodeConditionLeafRecord:
+		return C.SM_OP_CONDITION_LEAF_RECORD
+	case compiler.OpcodeConditionLeafLoad:
+		return C.SM_OP_CONDITION_LEAF_LOAD
+	case compiler.OpcodeConditionCheckPreserveError:
+		return C.SM_OP_CONDITION_CHECK_PRESERVE_ERROR
+	case compiler.OpcodeConditionLeafComplete:
+		return C.SM_OP_CONDITION_LEAF_COMPLETE
+	case compiler.OpcodeGoContextChainInit:
+		return C.SM_OP_GO_CONTEXT_CHAIN_INIT
+	case compiler.OpcodeGoContextChainHop:
+		return C.SM_OP_GO_CONTEXT_CHAIN_HOP
+	case compiler.OpcodeProcessGoTime:
+		return C.SM_OP_PROCESS_GO_TIME
+	case compiler.OpcodeExprLoadAddress:
+		return C.SM_OP_EXPR_LOAD_ADDRESS
+	case compiler.OpcodeArrayLoopBegin:
+		return C.SM_OP_ARRAY_LOOP_BEGIN
+	case compiler.OpcodeArrayLoopEnd:
+		return C.SM_OP_ARRAY_LOOP_END
+	case compiler.OpcodeSliceLoopBegin:
+		return C.SM_OP_SLICE_LOOP_BEGIN
+	case compiler.OpcodeSliceLoopEnd:
+		return C.SM_OP_SLICE_LOOP_END
+	case compiler.OpcodeSwissMapLoopBegin:
+		return C.SM_OP_SWISS_MAP_LOOP_BEGIN
+	case compiler.OpcodeSwissMapLoopEnd:
+		return C.SM_OP_SWISS_MAP_LOOP_END
+	case compiler.OpcodeExprAdvanceOffset:
+		return C.SM_OP_EXPR_ADVANCE_OFFSET
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}

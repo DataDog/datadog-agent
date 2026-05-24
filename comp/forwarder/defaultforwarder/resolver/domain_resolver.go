@@ -10,6 +10,7 @@ package resolver
 
 import (
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -99,8 +100,8 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 
 			log.Infof("rotating API key for '%s': %s -> %s",
 				setting,
-				scrubber.HideKeyExceptLastFourChars(oldAPIKey),
-				scrubber.HideKeyExceptLastFourChars(newAPIKey),
+				scrubber.HideKeyExceptLastChars(oldAPIKey),
+				scrubber.HideKeyExceptLastChars(newAPIKey),
 			)
 
 			return
@@ -233,7 +234,7 @@ func missing(a []string, b []string) []string {
 // scrubKeys scrubs the API key to avoid leaking the key when logging.
 func scrubKeys(keys []string) []string {
 	for i, key := range keys {
-		keys[i] = scrubber.HideKeyExceptLastFourChars(key)
+		keys[i] = scrubber.HideKeyExceptLastChars(key)
 	}
 	return keys
 }
@@ -408,9 +409,9 @@ type authHeader struct {
 	key, value string
 }
 
-// Authorize configures required headers on a transaction.
-func (ah authHeader) Authorize(t *transaction.HTTPTransaction) {
-	t.Headers.Set(ah.key, ah.value)
+// Authorize sets the auth header on the provided headers map.
+func (ah authHeader) Authorize(headers http.Header) {
+	headers.Set(ah.key, ah.value)
 }
 
 // GetAuthHeaders returns
@@ -429,6 +430,16 @@ func (r *domainResolver) GetAuthorizers() (res []authHeader) {
 		}
 	}
 	return
+}
+
+func (r *domainResolver) Authorize(apiKeyIdx uint, headers http.Header, log log.Component) {
+	authorizers := r.GetAuthorizers()
+
+	if apiKeyIdx >= uint(len(authorizers)) {
+		log.Errorf("API key index %d is greater than the number of available authorizers (%d)", apiKeyIdx, len(authorizers))
+	} else {
+		authorizers[apiKeyIdx].Authorize(headers)
+	}
 }
 
 // GetConfigName returns the base url as it was originally written in the config.

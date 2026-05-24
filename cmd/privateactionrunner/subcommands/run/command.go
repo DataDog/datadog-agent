@@ -19,15 +19,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
+	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	rcclientfx "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/fx"
 	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -65,11 +65,11 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 				Config: c,
 			}
 		}),
-		settingsimpl.Module(),
+		settingsfx.Module(),
 		remotehostnameimpl.Module(),
 		ipcfx.ModuleReadWrite(),
 		rcservicefx.Module(),
-		rcclientimpl.Module(),
+		rcclientfx.Module(),
 		fx.Supply(rcclient.Params{AgentName: "private-action-runner", AgentVersion: version.AgentVersion}),
 		getTaggerModule(),
 		remotetraceroute.Module(),

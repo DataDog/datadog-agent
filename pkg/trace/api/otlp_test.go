@@ -918,7 +918,13 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("1234cid", out.ContainerID)
+				if !enableReceiveResourceSpansV2 {
+					// V1 receiver uses k8s.pod.uid as a fallback for container ID.
+					require.Equal("1234cid", out.ContainerID)
+				} else {
+					// V2 receiver with container tags v2 (default) does not.
+					require.Empty(out.ContainerID)
+				}
 				require.Equal(map[string]string{
 					"kube_job":   "kubejob",
 					"image_name": "lorem-ipsum",
@@ -941,6 +947,8 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 			fn: func(out *pb.TracerPayload) {
 				if !enableReceiveResourceSpansV2 {
 					require.Equal("123cid", out.ContainerID)
+				} else {
+					require.Empty(out.ContainerID)
 				}
 			},
 		},
@@ -958,6 +966,8 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 			fn: func(out *pb.TracerPayload) {
 				if !enableReceiveResourceSpansV2 {
 					require.Equal("23cid", out.ContainerID)
+				} else {
+					require.Empty(out.ContainerID)
 				}
 			},
 		},
@@ -2352,10 +2362,11 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"otelcol.component.id":   "otlp",
 					"otelcol.component.kind": "Receiver",
 
-					"net.sock.peer.addr": "127.0.0.1",
-					"rpc.method":         "Export",
-					"rpc.service":        "opentelemetry.proto.collector.trace.v1.TraceService",
-					"rpc.system":         "grpc",
+					"net.sock.peer.addr":   "127.0.0.1",
+					"rpc.method":           "Export",
+					"rpc.service":          "opentelemetry.proto.collector.trace.v1.TraceService",
+					"rpc.system":           "grpc",
+					"rpc.grpc.status_code": "0",
 
 					"span.kind":        "server",
 					"otel.status_code": "Unset",

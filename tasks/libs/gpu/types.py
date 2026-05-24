@@ -3,94 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-DEVICE_MODES = ("physical", "mig", "vgpu")
-
-
-class Support(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    unsupported_architectures: list[str] = Field(default_factory=list)
-    device_modes: dict[str, bool] = Field(default_factory=dict)
-
-    @field_validator("device_modes")
-    @classmethod
-    def validate_device_modes(cls, value: dict[str, bool]) -> dict[str, bool]:
-        allowed_modes = set(DEVICE_MODES)
-        invalid_modes = sorted(set(value.keys()) - allowed_modes)
-        if invalid_modes:
-            raise ValueError(
-                f"invalid device modes: {', '.join(invalid_modes)} (expected {', '.join(sorted(allowed_modes))})"
-            )
-        return value
-
-
-class Metric(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    type: str | None = None
-    tagsets: list[str]
-    custom_tags: list[str] = Field(default_factory=list)
-    support: Support = Field(default_factory=Support)
-    deprecated: bool = False
-
-
-class Tagset(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    tags: list[str]
-
-
-class Spec(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    metric_prefix: str
-    tagsets: dict[str, Tagset]
-    metrics: dict[str, Metric]
-
-
-class Architecture(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    unsupported_device_modes: list[str] = Field(default_factory=list)
-
-
-@dataclass(slots=True)
-class GPUConfig:
-    architecture: str
-    device_mode: str
-    is_known: bool = True
-
-    def to_tag_filter(self) -> str:
-        parts = [f"gpu_architecture:{self.architecture}"]
-        if self.device_mode == "mig":
-            parts.append("gpu_slicing_mode:mig")
-        elif self.device_mode == "vgpu":
-            parts.append("gpu_virtualization_mode:vgpu")
-        else:
-            parts.append("gpu_virtualization_mode:passthrough")
-        return ",".join(parts)
-
-    def to_filter_expression(self) -> str:
-        parts = [f"gpu_architecture:{self.architecture}"]
-        if self.device_mode == "mig":
-            parts.append("gpu_slicing_mode:mig")
-        elif self.device_mode == "vgpu":
-            parts.append("gpu_virtualization_mode:vgpu")
-        else:
-            parts.append("gpu_virtualization_mode:passthrough")
-        return " AND ".join(parts)
-
-
-class ArchitecturesSpec(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    architectures: dict[str, Architecture]
-
-    def build_combinations(self) -> list[GPUConfig]:
-        combos: list[GPUConfig] = []
-        for arch_name, arch in self.architectures.items():
-            unsupported = {x.lower() for x in arch.unsupported_device_modes}
-            for mode in DEVICE_MODES:
-                if mode not in unsupported:
-                    combos.append(GPUConfig(architecture=arch_name.lower(), device_mode=mode, is_known=True))
-        return combos
-
 
 class GPUConfigValidationState(Enum):
     FAIL = 0
@@ -99,38 +11,145 @@ class GPUConfigValidationState(Enum):
     MISSING = 3
 
 
+STATE_BY_NAME = {
+    "fail": GPUConfigValidationState.FAIL,
+    "ok": GPUConfigValidationState.OK,
+    "unknown": GPUConfigValidationState.UNKNOWN,
+    "missing": GPUConfigValidationState.MISSING,
+}
+
+
+@dataclass(slots=True)
+class GPUConfig:
+    architecture: str
+    device_mode: str
+
+
+@dataclass(slots=True)
+class TagSummary:
+    workload_only: bool = False
+    found: int = 0
+    missing: int = 0
+    unknown: int = 0
+    invalid_value: int = 0
+    invalid_value_samples: list[str] = field(default_factory=list)
+
+    @property
+    def has_failures(self) -> bool:
+        effective_missing = self.missing
+        if self.workload_only and self.found > 0:
+            effective_missing = 0
+        return effective_missing > 0 or self.unknown > 0 or self.invalid_value > 0
+
+
+@dataclass(slots=True)
+class MetricStatus:
+    missing: int = 0
+    unknown: int = 0
+    unsupported: int = 0
+    invalid_value: int = 0
+    invalid_value_samples: list[str] = field(default_factory=list)
+    tag_results: dict[str, TagSummary] = field(default_factory=dict)
+
+    @property
+    def has_failures(self) -> bool:
+        return (
+            self.missing > 0
+            or self.unknown > 0
+            or self.unsupported > 0
+            or self.invalid_value > 0
+            or self.has_tag_failures
+        )
+
+    @property
+    def has_tag_failures(self) -> bool:
+        return any(tag_result.has_failures for tag_result in self.tag_results.values())
+
+    def update(self, other: MetricStatus) -> None:
+        self.missing += other.missing
+        self.unknown += other.unknown
+        self.unsupported += other.unsupported
+        self.invalid_value += other.invalid_value
+        remaining_sample_capacity = max(0, 5 - len(self.invalid_value_samples))
+        if remaining_sample_capacity > 0:
+            self.invalid_value_samples.extend(other.invalid_value_samples[:remaining_sample_capacity])
+        for tag_name, other_tag_result in other.tag_results.items():
+            if tag_name not in self.tag_results:
+                self.tag_results[tag_name] = TagSummary()
+            current = self.tag_results[tag_name]
+            current.workload_only = current.workload_only or other_tag_result.workload_only
+            current.found += other_tag_result.found
+            current.missing += other_tag_result.missing
+            current.unknown += other_tag_result.unknown
+            current.invalid_value += other_tag_result.invalid_value
+            for sample in other_tag_result.invalid_value_samples:
+                if sample in current.invalid_value_samples:
+                    continue
+                if len(current.invalid_value_samples) >= 5:
+                    break
+                current.invalid_value_samples.append(sample)
+
+
+@dataclass(slots=True)
+class DetailedValidationResult:
+    metrics: dict[str, MetricStatus] = field(default_factory=dict)
+
+    def update(self, other: DetailedValidationResult) -> None:
+        for metric_name, other_metric_status in other.metrics.items():
+            if metric_name not in self.metrics:
+                self.metrics[metric_name] = MetricStatus()
+            self.metrics[metric_name].update(other_metric_status)
+
+
 @dataclass(slots=True)
 class GPUConfigValidationResult:
     config: GPUConfig
     device_count: int
-    expected_metrics: set[str]
+    detailed_result: DetailedValidationResult
     state: GPUConfigValidationState = GPUConfigValidationState.UNKNOWN
-    present_metrics: set[str] = field(default_factory=set)
-    unknown_metrics: set[str] = field(default_factory=set)
-    tag_failures: dict[str, list[str]] = field(default_factory=dict)
-
-    @property
-    def missing_metrics(self) -> set[str]:
-        return self.expected_metrics - self.present_metrics
-
-    @property
-    def has_failures(self) -> bool:
-        return self.device_count > 0 and (
-            len(self.missing_metrics) + len(self.unknown_metrics) + len(self.tag_failures) > 0
-        )
 
     def update(self, other: GPUConfigValidationResult) -> None:
         if other.state.value < self.state.value:
             self.state = other.state
 
-        self.present_metrics.update(other.present_metrics)
-        self.unknown_metrics.update(other.unknown_metrics)
-        self.tag_failures.update(other.tag_failures)
         self.device_count += other.device_count
+        self.detailed_result.update(other.detailed_result)
 
     @property
     def index_key(self) -> tuple[str, str]:
         return (self.config.architecture, self.config.device_mode)
+
+    @property
+    def missing_metrics(self) -> int:
+        return sum(1 for metric_status in self.detailed_result.metrics.values() if metric_status.missing > 0)
+
+    @property
+    def unknown_metrics(self) -> int:
+        return sum(
+            1
+            for metric_status in self.detailed_result.metrics.values()
+            if metric_status.unknown > 0 or metric_status.unsupported > 0
+        )
+
+    @property
+    def present_metrics(self) -> int:
+        return len(self.detailed_result.metrics) - self.missing_metrics - self.unknown_metrics
+
+    @property
+    def tag_failures(self) -> int:
+        return sum(1 for metric_status in self.detailed_result.metrics.values() if metric_status.has_tag_failures)
+
+    @property
+    def invalid_values(self) -> int:
+        metric_invalid_values = sum(
+            metric_status.invalid_value for metric_status in self.detailed_result.metrics.values()
+        )
+        tag_invalid_values = sum(
+            tag_result.invalid_value
+            for metric_status in self.detailed_result.metrics.values()
+            for tag_result in metric_status.tag_results.values()
+        )
+        return metric_invalid_values + tag_invalid_values
 
 
 @dataclass
@@ -139,12 +158,10 @@ class ValidationResults:
     site: str
     metrics_count: int
     architectures_count: int
-    failing_count: int
 
     def update(self, other: ValidationResults) -> None:
         self.metrics_count = max(self.metrics_count, other.metrics_count)
         self.architectures_count = max(self.architectures_count, other.architectures_count)
-        self.failing_count += other.failing_count
 
         result_index = {result.index_key: result for result in self.results}
         for other_result in other.results:
@@ -154,3 +171,52 @@ class ValidationResults:
                 result_index[other_result.index_key] = other_result
 
         self.results = list(result_index.values())
+
+    @property
+    def failing_count(self) -> int:
+        return sum(
+            1 for result in self.results if result.device_count > 0 and result.state is GPUConfigValidationState.FAIL
+        )
+
+
+def validation_results_from_dict(payload: dict, *, site: str) -> ValidationResults:
+    results = [
+        GPUConfigValidationResult(
+            config=GPUConfig(
+                architecture=item["config"]["architecture"],
+                device_mode=item["config"]["device_mode"],
+            ),
+            device_count=item["device_count"],
+            detailed_result=DetailedValidationResult(
+                metrics={
+                    metric_name: MetricStatus(
+                        missing=int(metric_status.get("missing", 0)),
+                        unknown=int(metric_status.get("unknown", 0)),
+                        unsupported=int(metric_status.get("unsupported", 0)),
+                        invalid_value=int(metric_status.get("invalid_value", 0)),
+                        invalid_value_samples=list(metric_status.get("invalid_value_samples", []))[:5],
+                        tag_results={
+                            tag: TagSummary(
+                                workload_only=bool(tag_result.get("workload_only", False)),
+                                found=int(tag_result.get("found", 0)),
+                                missing=int(tag_result.get("missing", 0)),
+                                unknown=int(tag_result.get("unknown", 0)),
+                                invalid_value=int(tag_result.get("invalid_value", 0)),
+                                invalid_value_samples=(tag_result.get("invalid_value_samples") or []),
+                            )
+                            for tag, tag_result in (metric_status.get("tag_results") or {}).items()
+                        },
+                    )
+                    for metric_name, metric_status in ((item.get("detailed_result") or {}).get("metrics") or {}).items()
+                }
+            ),
+            state=STATE_BY_NAME[item["state"]],
+        )
+        for item in payload.get("results", [])
+    ]
+    return ValidationResults(
+        results=results,
+        site=site,
+        metrics_count=payload["metrics_count"],
+        architectures_count=payload["architectures_count"],
+    )

@@ -11,12 +11,12 @@ import (
 	"runtime"
 	"sync"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -63,11 +63,11 @@ type ProcessCacheDiff struct {
 }
 
 var (
-	cacheSizeGauge = telemetry.NewGauge(
+	cacheSizeGauge = telemetryimpl.GetCompatComponent().NewGauge(
 		subsystem, "cache_size", nil, "The cache size for the WorkloadMetaExtractor")
-	staleDiffsCounter = telemetry.NewSimpleCounter(
+	staleDiffsCounter = telemetryimpl.GetCompatComponent().NewSimpleCounter(
 		subsystem, "stale_diffs", "The number of stale diffs discarded instead of consumed")
-	diffsDroppedCounter = telemetry.NewSimpleCounter(
+	diffsDroppedCounter = telemetryimpl.GetCompatComponent().NewSimpleCounter(
 		subsystem, "diffs_dropped", "The number of diffs dropped due to channel contention")
 )
 

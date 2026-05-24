@@ -14,7 +14,6 @@ import (
 	"unsafe"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/hashicorp/go-multierror"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -24,32 +23,20 @@ import (
 
 // nvlinkSample handles NVLink metrics collection logic
 func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
-	// Get total number of NVLinks dynamically
-	fields := []nvml.FieldValue{
-		{
-			FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
-			ScopeId: 0,
-		},
-	}
-
-	if err := device.GetFieldValues(fields); err != nil {
+	totalNVLinks, err := getNVLinkCount(device)
+	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get nvlink count: %w", err)
 	}
 
-	totalNVLinks, convErr := fieldValueToNumber[int](nvml.ValueType(fields[0].ValueType), fields[0].Value)
-	if convErr != nil {
-		return nil, 0, fmt.Errorf("failed to convert number of nvlinks to integer: %w", convErr)
-	}
-
 	// Collect NVLink states
-	var multiErr error
+	var multiErr []error
 	active, inactive := 0, 0
 
 	// Iterate over all existing nvlinks for the device
 	for i := 0; i < totalNVLinks; i++ {
 		state, err := device.GetNvLinkState(i)
 		if err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to get NVLink state for link %d: %w", i, err))
+			multiErr = append(multiErr, fmt.Errorf("failed to get NVLink state for link %d: %w", i, err))
 			continue
 		}
 
@@ -80,7 +67,7 @@ func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
 		},
 	}
 
-	return allMetrics, 0, multiErr
+	return allMetrics, 0, errors.Join(multiErr...)
 }
 
 type processMemoryUsageData struct {
@@ -210,6 +197,139 @@ func processDetailListSample(device ddnvml.Device) ([]Metric, uint64, error) {
 	return processMemoryUsage(device, usage, High), 0, err
 }
 
+func shouldSkipLegacyEccMetric(device ddnvml.Device, errorType nvml.MemoryErrorType, memoryLocation nvml.MemoryLocation) bool {
+	if device.GetDeviceInfo().Architecture < nvml.DEVICE_ARCH_AMPERE {
+		return false
+	}
+
+	if memoryLocation == nvml.MEMORY_LOCATION_SRAM {
+		return true
+	}
+
+	return errorType == nvml.MEMORY_ERROR_TYPE_UNCORRECTED && memoryLocation == nvml.MEMORY_LOCATION_L2_CACHE
+}
+
+func sramEccErrorStatusSample(device ddnvml.Device) ([]Metric, uint64, error) {
+	// SRAM ECC error status is only supported on Ampere and later. Some of the metrics
+	// overlap with the legacy ECC metrics, so we need to check the architecture and return an error
+	if device.GetDeviceInfo().Architecture < nvml.DEVICE_ARCH_AMPERE {
+		return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetSramEccErrorStatus", nvml.ERROR_NOT_SUPPORTED)
+	}
+
+	status, err := device.GetSramEccErrorStatus()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	metricsOut := []Metric{
+		{
+			Name:  "errors.ecc.corrected.total",
+			Value: float64(status.AggregateCor),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:sram"},
+		},
+		{
+			Name:  "errors.ecc.sram.uncorrected_by_subtype.total",
+			Value: float64(status.AggregateUncParity),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:sram", "error_subtype:parity"},
+		},
+		{
+			Name:  "errors.ecc.sram.uncorrected_by_subtype.total",
+			Value: float64(status.AggregateUncSecDed),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:sram", "error_subtype:secded"},
+		},
+		{
+			Name:  "errors.ecc.uncorrected.total",
+			Value: float64(status.AggregateUncBucketL2),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:l2_cache"},
+		},
+		{
+			Name:  "errors.ecc.uncorrected.total",
+			Value: float64(status.AggregateUncBucketSm),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:sm"},
+		},
+		{
+			Name:  "errors.ecc.uncorrected.total",
+			Value: float64(status.AggregateUncBucketPcie),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:pcie"},
+		},
+		{
+			Name:  "errors.ecc.uncorrected.total",
+			Value: float64(status.AggregateUncBucketMcu),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:microcontroller"},
+		},
+		{
+			Name:  "errors.ecc.uncorrected.total",
+			Value: float64(status.AggregateUncBucketOther),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:other"},
+		},
+		{
+			Name:  "errors.ecc.sram.threshold_exceeded",
+			Value: boolToFloat(status.BThresholdExceeded != 0),
+			Type:  metrics.GaugeType,
+		},
+	}
+
+	return metricsOut, 0, nil
+}
+
+// pcieGenSpec describes the physical-layer characteristics of a PCIe generation. Values come from the PCI-SIG base
+// specification and are fixed by the standard.
+type pcieGenSpec struct {
+	// gtPerSecondPerLane is the raw per-lane transfer rate in GT/s.
+	gtPerSecondPerLane float64
+	// encodedBytesPerTransfer is the useful data bytes carried per raw transfer,
+	// accounting for line-coding overhead (8b/10b, 128b/130b, etc.).
+	encodedBytesPerTransfer float64
+}
+
+// pcieGenTable provides a lookup for encoding keyed off of the PCIe generation.
+var pcieGenTable = map[uint32]pcieGenSpec{
+	// Source: PCI Express Base Specification 1.0a (PCI-SIG, 2003).
+	// 2.5 GT/s per lane, 8b/10b encoding → 250 MB/s per lane.
+	1: {gtPerSecondPerLane: 2.5, encodedBytesPerTransfer: 8.0 / 10.0 / 8.0},
+	// Source: PCI Express Base Specification 2.0 (PCI-SIG, 2007).
+	// 5.0 GT/s per lane, 8b/10b encoding → 500 MB/s per lane.
+	2: {gtPerSecondPerLane: 5.0, encodedBytesPerTransfer: 8.0 / 10.0 / 8.0},
+	// Source: PCI Express Base Specification 3.0 (PCI-SIG, 2010).
+	// 8.0 GT/s per lane, 128b/130b encoding → 985 MB/s per lane.
+	3: {gtPerSecondPerLane: 8.0, encodedBytesPerTransfer: 128.0 / 130.0 / 8.0},
+	// Source: PCI Express Base Specification 4.0 (PCI-SIG, 2017).
+	// 16.0 GT/s per lane, 128b/130b encoding → ~1.969 GB/s per lane.
+	4: {gtPerSecondPerLane: 16.0, encodedBytesPerTransfer: 128.0 / 130.0 / 8.0},
+	// Source: PCI Express Base Specification 5.0 (PCI-SIG, 2019).
+	// 32.0 GT/s per lane, 128b/130b NRZ encoding → ~3.938 GB/s per lane.
+	5: {gtPerSecondPerLane: 32.0, encodedBytesPerTransfer: 128.0 / 130.0 / 8.0},
+	// Source: PCI Express Base Specification 6.0 (PCI-SIG, 2022).
+	// 64.0 GT/s per lane with PAM4 signaling, no line-coding overhead (1b/1b).
+	// FLIT mode frames data as 256-byte FLITs with 14 bytes of CRC+FEC+framing
+	// overhead, giving 242 bytes of usable payload per 256 wire bytes
+	// → ~7.563 GB/s per lane of usable bandwidth.
+	6: {gtPerSecondPerLane: 64.0, encodedBytesPerTransfer: 242.0 / 256.0 / 8.0},
+}
+
+// pcieLinkBytesPerSecond returns the usable bandwidth for a given generation and lane width.
+func pcieLinkBytesPerSecond(gen int, width int) (float64, error) {
+	spec, ok := pcieGenTable[uint32(gen)]
+	if !ok {
+		return 0, fmt.Errorf("unknown PCIe generation %d (extend pcieGenTable)", gen)
+	}
+	if width < 1 {
+		return 0, fmt.Errorf("invalid PCIe link width: %d", width)
+	}
+
+	// bytes/sec = GT/s/lane * 1e9 transfers/sec/GT * bytes/transfer * lanes
+	bps := spec.gtPerSecondPerLane * 1e9 * spec.encodedBytesPerTransfer * float64(width)
+	return bps, nil
+}
+
 // createStatelessAPIs creates API call definitions for all stateless metrics on demand
 func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 	apis := []apiCallInfo{
@@ -275,6 +395,42 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			},
 		},
 		{
+			Name: "pci_link_speed_current",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				gen, err := device.GetCurrPcieLinkGeneration()
+				if err != nil {
+					return nil, 0, err
+				}
+				width, err := device.GetCurrPcieLinkWidth()
+				if err != nil {
+					return nil, 0, err
+				}
+				speed, err := pcieLinkBytesPerSecond(gen, width)
+				if err != nil {
+					return nil, 0, err
+				}
+				return []Metric{{Name: "pci.link.speed.current", Value: speed, Type: metrics.GaugeType}}, 0, nil
+			},
+		},
+		{
+			Name: "pci_link_speed_max",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				gen, err := device.GetMaxPcieLinkGeneration()
+				if err != nil {
+					return nil, 0, err
+				}
+				width, err := device.GetMaxPcieLinkWidth()
+				if err != nil {
+					return nil, 0, err
+				}
+				speed, err := pcieLinkBytesPerSecond(gen, width)
+				if err != nil {
+					return nil, 0, err
+				}
+				return []Metric{{Name: "pci.link.speed.max", Value: speed, Type: metrics.GaugeType}}, 0, nil
+			},
+		},
+		{
 			Name: "fan_speed",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				speed, err := device.GetFanSpeed()
@@ -293,11 +449,11 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 					return nil, 0, fmt.Errorf("failed to get number of fans: %w", err)
 				}
 
-				var multiErr error
+				var multiErr []error
 				for i := 0; i < numFans; i++ {
 					speed, err := device.GetFanSpeed_v2(i)
 					if err != nil {
-						multiErr = errors.Join(multiErr, fmt.Errorf("failed to get fan speed for fan %d: %w", i, err))
+						multiErr = append(multiErr, fmt.Errorf("failed to get fan speed for fan %d: %w", i, err))
 					} else {
 						output = append(output, Metric{
 							Name:     "fan_speed",
@@ -309,7 +465,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 					}
 				}
 
-				return output, 0, multiErr
+				return output, 0, errors.Join(multiErr...)
 			},
 		},
 		{
@@ -514,6 +670,34 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				}, 0, nil
 			},
 		},
+		{
+			Name: "repair_status",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				repairStatus, err := device.GetRepairStatus()
+				if err != nil {
+					return nil, 0, err
+				}
+
+				return []Metric{
+					{
+						Name:  "ecc.repair_pending.channel",
+						Value: float64(repairStatus.BChannelRepairPending),
+						Type:  metrics.GaugeType,
+					},
+					{
+						Name:  "ecc.repair_pending.tpc",
+						Value: float64(repairStatus.BTpcRepairPending),
+						Type:  metrics.GaugeType,
+					},
+				}, 0, nil
+			},
+		},
+		{
+			Name: "sram_ecc_error_status",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				return sramEccErrorStatusSample(device)
+			},
+		},
 		// Process memory APIs (stateless - just current snapshot)
 		{
 			Name: "process_memory_usage",
@@ -543,6 +727,10 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			apis = append(apis, apiCallInfo{
 				Name: fmt.Sprintf("ecc_errors.%s.%s", errorTypeName, memoryLocationName),
 				Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+					if shouldSkipLegacyEccMetric(device, errorType, memoryLocation) {
+						return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetMemoryErrorCounter", nvml.ERROR_NOT_SUPPORTED)
+					}
+
 					count, err := device.GetMemoryErrorCounter(errorType, nvml.AGGREGATE_ECC, memoryLocation)
 					if err != nil {
 						return nil, 0, err

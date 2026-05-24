@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config/buildschema"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/DataDog/datadog-agent/pkg/config/teeconfig"
@@ -38,6 +39,9 @@ func NewConfig(name string, configLib string) model.BuildableConfig {
 
 	lib = strings.Trim(lib, " ")
 
+	if len(os.Args) >= 2 && os.Args[1] == "createschema" {
+		return buildschema.NewSchemaBuilder(name, "DD", strings.NewReplacer(".", "_"))
+	}
 	if lib == "viper" {
 		return viperconfig.NewViperConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	} else if lib == "enable" {

@@ -56,7 +56,7 @@ func TestRemoteServiceTags_IIS(t *testing.T) {
 		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, 10, 0,
 			[]*model.Connection{conn}, nil, "nid", nil, nil,
 			model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil,
-			ex, nil, iisTags, nil, nil)
+			ex, nil, nil, iisTags, nil, nil)
 
 		require.Len(t, chunks, 1)
 		cc := chunks[0].(*model.CollectorConnections)
@@ -84,7 +84,7 @@ func TestRemoteServiceTags_IIS(t *testing.T) {
 		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, 10, 0,
 			[]*model.Connection{conn}, nil, "nid", nil, nil,
 			model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil,
-			ex, nil, iisTags, nil, nil)
+			ex, nil, nil, iisTags, nil, nil)
 
 		require.Len(t, chunks, 1)
 		cc := chunks[0].(*model.CollectorConnections)

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !unix && !windows
+//go:build !linux && !darwin && !windows
 
 package config
 
@@ -29,6 +29,11 @@ func eBPFMapPreallocationSupported() bool {
 
 // ProcessEventDataStreamSupported returns true if process event data stream is supported
 func ProcessEventDataStreamSupported() bool {
+	return false
+}
+
+// DirectSendSupported returns true if sending data CNM/USM directly from system-probe is supported
+func DirectSendSupported() bool {
 	return false
 }
 

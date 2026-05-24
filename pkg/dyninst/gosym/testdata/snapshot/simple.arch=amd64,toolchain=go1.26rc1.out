@@ -1,297 +1,393 @@
-LocatePC: 0x4c2b80
-	main.intArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:160
-LocatePC: 0x4c2bb1
+LocatePC: 0x4c67e0
+	main.intArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:503
+LocatePC: 0x4c6811
 	fmt.Println@fmt/print.go:315
-	main.intArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:161
-LocatePC: 0x4c2c00
-	main.stringArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:165
-LocatePC: 0x4c2c38
+	main.intArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:504
+LocatePC: 0x4c6860
+	main.stringArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:508
+LocatePC: 0x4c6898
 	fmt.Println@fmt/print.go:315
-	main.stringArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:166
-LocatePC: 0x4c2c80
-	main.intSliceArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:170
-LocatePC: 0x4c2cbd
+	main.stringArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:509
+LocatePC: 0x4c68e0
+	main.intSliceArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:513
+LocatePC: 0x4c691d
 	fmt.Println@fmt/print.go:315
-	main.intSliceArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:171
-LocatePC: 0x4c2d00
-	main.intArrayArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:175
-LocatePC: 0x4c2d33
-	main.intArrayArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:176
-LocatePC: 0x4c2d80
-	main.stringSliceArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:180
-LocatePC: 0x4c2dbd
+	main.intSliceArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:514
+LocatePC: 0x4c6960
+	main.intArrayArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:518
+LocatePC: 0x4c6993
+	main.intArrayArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:519
+LocatePC: 0x4c69e0
+	main.stringSliceArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:523
+LocatePC: 0x4c6a1d
 	fmt.Println@fmt/print.go:315
-	main.stringSliceArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:181
-LocatePC: 0x4c2e00
-	main.stringArrayArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:185
-LocatePC: 0x4c2e33
-	main.stringArrayArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:186
-LocatePC: 0x4c2e80
-	main.stringArrayArgFrameless@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:191
-LocatePC: 0x4c2e80
-	main.stringArrayArgFrameless@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:191
-LocatePC: 0x4c2f60
-	main.mapArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:203
-LocatePC: 0x4c2f8b
+	main.stringSliceArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:524
+LocatePC: 0x4c6a60
+	main.stringArrayArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:528
+LocatePC: 0x4c6a93
+	main.stringArrayArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:529
+LocatePC: 0x4c6ae0
+	main.stringArrayArgFrameless@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:534
+LocatePC: 0x4c6ae0
+	main.stringArrayArgFrameless@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:534
+LocatePC: 0x4c6bc0
+	main.mapArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:546
+LocatePC: 0x4c6beb
 	fmt.Println@fmt/print.go:315
-	main.mapArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:204
-LocatePC: 0x4c2fc0
-	main.bigMapArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:220
-LocatePC: 0x4c2ffb
-	main.bigMapArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:225
-LocatePC: 0x4c3040
-	main.noArgs@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:237
-LocatePC: 0x4c3069
+	main.mapArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:547
+LocatePC: 0x4c6c20
+	main.bigMapArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:563
+LocatePC: 0x4c6c5b
+	main.bigMapArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:568
+LocatePC: 0x4c6ca0
+	main.noArgs@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:580
+LocatePC: 0x4c6cc9
 	fmt.Println@fmt/print.go:315
-	main.noArgs@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:238
-LocatePC: 0x4c30a0
-	main.condInt8@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:267
-LocatePC: 0x4c30f4
-	main.condInt8@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:268
-LocatePC: 0x4c3160
-	main.condInt16@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:272
-LocatePC: 0x4c31b5
-	main.condInt16@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:273
-LocatePC: 0x4c3220
-	main.condInt32@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:277
-LocatePC: 0x4c3274
-	main.condInt32@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:278
-LocatePC: 0x4c32e0
-	main.condInt64@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:282
-LocatePC: 0x4c3335
-	main.condInt64@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:283
-LocatePC: 0x4c33a0
-	main.condUint8@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:287
-LocatePC: 0x4c33f4
-	main.condUint8@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:288
-LocatePC: 0x4c3460
-	main.condUint16@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:292
-LocatePC: 0x4c34b5
-	main.condUint16@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:293
-LocatePC: 0x4c3520
-	main.condUint32@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:297
-LocatePC: 0x4c3574
-	main.condUint32@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:298
-LocatePC: 0x4c35e0
-	main.condUint64@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:302
-LocatePC: 0x4c3635
-	main.condUint64@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:303
-LocatePC: 0x4c36a0
-	main.condFloat32@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:307
-LocatePC: 0x4c36fd
-	main.condFloat32@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:308
-LocatePC: 0x4c3760
-	main.condFloat64@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:312
-LocatePC: 0x4c37bd
-	main.condFloat64@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:313
-LocatePC: 0x4c3820
-	main.condBool@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:317
-LocatePC: 0x4c3874
-	main.condBool@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:318
-LocatePC: 0x4c38e0
-	main.condString@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:322
-LocatePC: 0x4c393f
-	main.condString@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:323
-LocatePC: 0x4c39a0
-	main.condStructArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:330
-LocatePC: 0x4c3a3a
-	main.condStructArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:331
-LocatePC: 0x4c3ae0
-	main.condPtrStructArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:338
-LocatePC: 0x4c3b82
-	main.condPtrStructArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:339
-LocatePC: 0x4c3c40
-	main.condNilPtrStruct@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:348
-LocatePC: 0x4c3c9e
-	main.condNilPtrStruct@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:349
-LocatePC: 0x4c3d00
-	main.condReturnAndLocal@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:357
-LocatePC: 0x4c3d4f
-	main.condReturnAndLocal@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:359
-LocatePC: 0x4c3da0
-	main.condOnly@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:369
-LocatePC: 0x4c3df5
-	main.condOnly@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:370
-LocatePC: 0x4c3e60
-	main.condLine@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:378
-LocatePC: 0x4c3ecc
-	main.condLine@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:382
-LocatePC: 0x4c41c0
-	main.lenString@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:416
-LocatePC: 0x4c425b
-	main.lenString@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:418
-LocatePC: 0x4c4300
-	main.lenSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:422
-LocatePC: 0x4c43a7
-	main.lenSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:424
-LocatePC: 0x4c4460
-	main.lenMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:428
-LocatePC: 0x4c44ee
-	main.lenMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:430
-LocatePC: 0x4c4580
-	main.lenPtrString@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:434
-LocatePC: 0x4c4604
-	main.lenPtrString@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:436
-LocatePC: 0x4c46a0
-	main.lenStructFields@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:452
-LocatePC: 0x4c4782
-	main.lenStructFields@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:454
-LocatePC: 0x4c4880
-	main.lenPtrStructFields@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:458
-LocatePC: 0x4c493e
-	main.lenPtrStructFields@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:460
-LocatePC: 0x4c4a00
-	main.lenErrInt@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:466
-LocatePC: 0x4c4a8e
-	main.lenErrInt@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:468
-LocatePC: 0x4c4b20
-	main.lenErrStruct@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:474
-LocatePC: 0x4c4bcb
-	main.lenErrStruct@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:475
-LocatePC: 0x4c4c80
-	main.usesMapsOfMapsThatDoNotAppearAsArguments@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:488
-LocatePC: 0x4c4d79
-	main.usesMapsOfMapsThatDoNotAppearAsArguments@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:494
-LocatePC: 0x4c2ea0
-	main.inlined@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:193
-LocatePC: 0x4c2ed1
+	main.noArgs@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:581
+LocatePC: 0x4c6d00
+	main.condInt8@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:610
+LocatePC: 0x4c6d54
+	main.condInt8@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:611
+LocatePC: 0x4c6dc0
+	main.condInt16@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:615
+LocatePC: 0x4c6e15
+	main.condInt16@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:616
+LocatePC: 0x4c6e80
+	main.condInt32@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:620
+LocatePC: 0x4c6ed4
+	main.condInt32@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:621
+LocatePC: 0x4c6f40
+	main.condInt64@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:625
+LocatePC: 0x4c6f95
+	main.condInt64@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:626
+LocatePC: 0x4c7000
+	main.condUint8@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:630
+LocatePC: 0x4c7054
+	main.condUint8@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:631
+LocatePC: 0x4c70c0
+	main.condUint16@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:635
+LocatePC: 0x4c7115
+	main.condUint16@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:636
+LocatePC: 0x4c7180
+	main.condUint32@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:640
+LocatePC: 0x4c71d4
+	main.condUint32@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:641
+LocatePC: 0x4c7240
+	main.condUint64@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:645
+LocatePC: 0x4c7295
+	main.condUint64@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:646
+LocatePC: 0x4c7300
+	main.condFloat32@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:650
+LocatePC: 0x4c735d
+	main.condFloat32@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:651
+LocatePC: 0x4c73c0
+	main.condFloat64@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:655
+LocatePC: 0x4c741d
+	main.condFloat64@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:656
+LocatePC: 0x4c7480
+	main.condBool@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:660
+LocatePC: 0x4c74d4
+	main.condBool@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:661
+LocatePC: 0x4c7540
+	main.condString@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:665
+LocatePC: 0x4c759f
+	main.condString@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:666
+LocatePC: 0x4c7600
+	main.condStructArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:673
+LocatePC: 0x4c769a
+	main.condStructArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:674
+LocatePC: 0x4c7740
+	main.condPtrStructArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:681
+LocatePC: 0x4c77e2
+	main.condPtrStructArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:682
+LocatePC: 0x4c78a0
+	main.condNilPtrStruct@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:691
+LocatePC: 0x4c78fe
+	main.condNilPtrStruct@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:692
+LocatePC: 0x4c7960
+	main.condGuarded@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:702
+LocatePC: 0x4c7a17
 	fmt.Println@fmt/print.go:315
-	main.inlined@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:194
-LocatePC: 0x4c1c4a
-	main.inlined@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:194
-	main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:26
-LocatePC: 0x4c1c6a
+	main.condGuarded@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:707
+LocatePC: 0x4c7ae0
+	main.condReturnAndLocal@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:716
+LocatePC: 0x4c7b2f
+	main.condReturnAndLocal@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:718
+LocatePC: 0x4c7b80
+	main.condOnly@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:728
+LocatePC: 0x4c7bd5
+	main.condOnly@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:729
+LocatePC: 0x4c7c40
+	main.condLine@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:737
+LocatePC: 0x4c7cac
+	main.condLine@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:741
+LocatePC: 0x4c7f80
+	main.condNullPtr@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:769
+LocatePC: 0x4c8004
+	main.condNullPtr@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:771
+LocatePC: 0x4c80a0
+	main.condNullSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:777
+LocatePC: 0x4c8155
+	main.condNullSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:779
+LocatePC: 0x4c8220
+	main.condNullMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:785
+LocatePC: 0x4c82a4
+	main.condNullMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:787
+LocatePC: 0x4c8340
+	main.condNullIface@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:793
+LocatePC: 0x4c83e7
+	main.condNullIface@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:794
+LocatePC: 0x4c84a0
+	main.condNullUnsafePtr@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:801
+LocatePC: 0x4c8524
+	main.condNullUnsafePtr@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:803
+LocatePC: 0x4c85c0
+	main.condContainsMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:811
+LocatePC: 0x4c8672
+	main.condContainsMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:813
+LocatePC: 0x4c8760
+	main.lenString@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:825
+LocatePC: 0x4c87fb
+	main.lenString@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:827
+LocatePC: 0x4c88a0
+	main.lenSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:831
+LocatePC: 0x4c8947
+	main.lenSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:833
+LocatePC: 0x4c8a00
+	main.lenMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:837
+LocatePC: 0x4c8a8e
+	main.lenMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:839
+LocatePC: 0x4c8b20
+	main.lenPtrString@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:843
+LocatePC: 0x4c8ba4
+	main.lenPtrString@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:845
+LocatePC: 0x4c8c40
+	main.lenStructFields@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:861
+LocatePC: 0x4c8d22
+	main.lenStructFields@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:863
+LocatePC: 0x4c8e20
+	main.lenPtrStructFields@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:867
+LocatePC: 0x4c8ede
+	main.lenPtrStructFields@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:869
+LocatePC: 0x4c8fa0
+	main.lenErrInt@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:875
+LocatePC: 0x4c902e
+	main.lenErrInt@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:877
+LocatePC: 0x4c90c0
+	main.lenErrStruct@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:883
+LocatePC: 0x4c916b
+	main.lenErrStruct@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:884
+LocatePC: 0x4c9220
+	main.indexNilPtrSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:894
+LocatePC: 0x4c927e
+	main.indexNilPtrSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:895
+LocatePC: 0x4c92e0
+	main.usesMapsOfMapsThatDoNotAppearAsArguments@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:907
+LocatePC: 0x4c93d9
+	main.usesMapsOfMapsThatDoNotAppearAsArguments@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:913
+LocatePC: 0x4c94e0
+	main.bigArrayArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:932
+LocatePC: 0x4c9525
+	main.bigArrayArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:933
+LocatePC: 0x4c9580
+	main.bigArrayStructArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:939
+LocatePC: 0x4c95c9
+	main.bigArrayStructArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:940
+LocatePC: 0x4c9620
+	main.structSliceArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:969
+LocatePC: 0x4c9692
+	main.structSliceArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:970
+LocatePC: 0x4c9720
+	main.structArrayArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:976
+LocatePC: 0x4c977a
+	main.structArrayArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:977
+LocatePC: 0x4c97e0
+	main.ptrStructSliceArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:984
+LocatePC: 0x4c9852
+	main.ptrStructSliceArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:985
+LocatePC: 0x4c98e0
+	main.ptrStructArrayArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:992
+LocatePC: 0x4c9935
+	main.ptrStructArrayArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:993
+LocatePC: 0x4c99a0
+	main.indexMemberWrapperArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1000
+LocatePC: 0x4c9a12
+	main.indexMemberWrapperArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1001
+LocatePC: 0x4c9aa0
+	main.mapIndexIntKey@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1007
+LocatePC: 0x4c9acb
 	fmt.Println@fmt/print.go:315
-	main.inlined@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:194
-	main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:26
-LocatePC: 0x4c1f34
-	main.PointerChainArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:229
-	main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:37
-LocatePC: 0x4c1f51
+	main.mapIndexIntKey@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1008
+LocatePC: 0x4c9b00
+	main.mapIndexStringKey@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1014
+LocatePC: 0x4c9b2b
 	fmt.Println@fmt/print.go:315
-	main.PointerChainArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:229
-	main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:37
-LocatePC: 0x4c1f79
-	main.PointerSmallChainArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:233
-	main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:38
-LocatePC: 0x4c1f96
+	main.mapIndexStringKey@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1015
+LocatePC: 0x4c9b60
+	main.mapIndexLargeMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1022
+LocatePC: 0x4c9b98
+	main.mapIndexLargeMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1023
+LocatePC: 0x4c9be0
+	main.mapIndexMissing@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1029
+LocatePC: 0x4c9c0b
 	fmt.Println@fmt/print.go:315
-	main.PointerSmallChainArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:233
-	main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:38
-FunctionLines: 0x4c1f79
-	fmt.Println
-		[0x4c1c68, 0x4c1c8b) fmt.Println@fmt/print.go:315
-		[0x4c1f4b, 0x4c1f6e) fmt.Println@fmt/print.go:315
-		[0x4c1f90, 0x4c1fb3) fmt.Println@fmt/print.go:315
-	fmt.Scanln
-		[0x4c1abd, 0x4c1ac4) fmt.Scanln@fmt/scan.go:70
-		[0x4c1ac5, 0x4c1ad8) fmt.Scanln@fmt/scan.go:70
-	main.PointerChainArg
-		[0x4c1f34, 0x4c1f4b) main.PointerChainArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:229
-	main.PointerSmallChainArg
-		[0x4c1f79, 0x4c1f90) main.PointerSmallChainArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:233
-	main.inlined
-		[0x4c1c4a, 0x4c1c68) main.inlined@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:194
-	main.main
-		[0x4c1aa0, 0x4c1abd) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:14
-		[0x4c1ac4, 0x4c1ac5) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:15
-		[0x4c1ad8, 0x4c1add) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:16
-		[0x4c1add, 0x4c1b1d) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:17
-		[0x4c1b1d, 0x4c1b2c) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:19
-		[0x4c1b2c, 0x4c1b3d) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:20
-		[0x4c1b3d, 0x4c1b77) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:21
-		[0x4c1b77, 0x4c1b98) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:22
-		[0x4c1b98, 0x4c1bf3) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:23
-		[0x4c1bf3, 0x4c1c1e) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:24
-		[0x4c1c1e, 0x4c1c49) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:25
-		[0x4c1c49, 0x4c1c4a) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:26
-		[0x4c1c8b, 0x4c1c97) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:28
-		[0x4c1c97, 0x4c1cd3) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:29
-		[0x4c1cd3, 0x4c1e07) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:30
-		[0x4c1e07, 0x4c1e22) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:31
-		[0x4c1e22, 0x4c1e67) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:32
-		[0x4c1e67, 0x4c1eab) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:33
-		[0x4c1eab, 0x4c1ef3) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:34
-		[0x4c1ef3, 0x4c1f33) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:35
-		[0x4c1f33, 0x4c1f34) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:37
-		[0x4c1f6e, 0x4c1f79) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:38
-		[0x4c1fb3, 0x4c1fb8) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:39
-		[0x4c1fb8, 0x4c1fbd) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:40
-		[0x4c1fbd, 0x4c1fd3) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:46
-		[0x4c1fd3, 0x4c1fe9) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:47
-		[0x4c1fe9, 0x4c1fff) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:48
-		[0x4c1fff, 0x4c2015) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:49
-		[0x4c2015, 0x4c202b) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:50
-		[0x4c202b, 0x4c2045) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:51
-		[0x4c2045, 0x4c205b) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:52
-		[0x4c205b, 0x4c2071) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:53
-		[0x4c2071, 0x4c2087) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:54
-		[0x4c2087, 0x4c209d) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:55
-		[0x4c209d, 0x4c20b3) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:56
-		[0x4c20b3, 0x4c20c9) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:57
-		[0x4c20c9, 0x4c20df) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:58
-		[0x4c20df, 0x4c20f5) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:59
-		[0x4c20f5, 0x4c210b) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:60
-		[0x4c210b, 0x4c2125) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:61
-		[0x4c2125, 0x4c213e) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:62
-		[0x4c213e, 0x4c2157) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:63
-		[0x4c2157, 0x4c2170) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:64
-		[0x4c2170, 0x4c2189) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:65
-		[0x4c2189, 0x4c219f) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:66
-		[0x4c219f, 0x4c21b2) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:67
-		[0x4c21b2, 0x4c21cd) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:68
-		[0x4c21cd, 0x4c21ea) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:69
-		[0x4c21ea, 0x4c2235) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:73
-		[0x4c2235, 0x4c2285) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:78
-		[0x4c2285, 0x4c22a5) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:85
-		[0x4c22a5, 0x4c22ce) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:86
-		[0x4c22ce, 0x4c22f7) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:87
-		[0x4c22f7, 0x4c2337) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:88
-		[0x4c2337, 0x4c2348) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:85
-		[0x4c2348, 0x4c2368) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:90
-		[0x4c2368, 0x4c2391) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:91
-		[0x4c2391, 0x4c23ba) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:92
-		[0x4c23ba, 0x4c23fa) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:93
-		[0x4c23fa, 0x4c240b) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:90
-		[0x4c240b, 0x4c241a) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:97
-		[0x4c241a, 0x4c2427) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:98
-		[0x4c2427, 0x4c243d) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:101
-		[0x4c243d, 0x4c2450) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:102
-		[0x4c2450, 0x4c2466) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:105
-		[0x4c2466, 0x4c2479) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:106
-		[0x4c2479, 0x4c24a7) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:111
-		[0x4c24a7, 0x4c24ba) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:112
-		[0x4c24ba, 0x4c2500) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:115
-		[0x4c2500, 0x4c2548) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:116
-		[0x4c2548, 0x4c2593) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:117
-		[0x4c2593, 0x4c25ae) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:121
-		[0x4c25ae, 0x4c25c5) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:122
-		[0x4c25c5, 0x4c2625) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:123
-		[0x4c2625, 0x4c263d) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:124
-		[0x4c263d, 0x4c273f) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:125
-		[0x4c273f, 0x4c2752) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:126
-		[0x4c2752, 0x4c2782) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:127
-		[0x4c2782, 0x4c2793) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:128
-		[0x4c2793, 0x4c27b1) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:129
-		[0x4c27b1, 0x4c27c5) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:130
-		[0x4c27c5, 0x4c2843) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:133
-		[0x4c2843, 0x4c2899) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:134
-		[0x4c2899, 0x4c28d8) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:137
-		[0x4c28d8, 0x4c2913) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:136
-		[0x4c2913, 0x4c292b) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:137
-		[0x4c292b, 0x4c296f) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:135
-		[0x4c296f, 0x4c29ae) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:141
-		[0x4c29ae, 0x4c29c0) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:140
-		[0x4c29c0, 0x4c29dc) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:141
-		[0x4c29dc, 0x4c2a25) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:139
-		[0x4c2a25, 0x4c2a45) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:145
-		[0x4c2a45, 0x4c2a9b) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:146
-		[0x4c2a9b, 0x4c2ab3) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:147
-		[0x4c2ab3, 0x4c2ac5) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:145
-		[0x4c2ac5, 0x4c2ae5) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:149
-		[0x4c2ae5, 0x4c2af5) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:151
-		[0x4c2af5, 0x4c2b06) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:149
-		[0x4c2b06, 0x4c2b1c) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:155
-		[0x4c2b1c, 0x4c2b67) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:156
-		[0x4c2b67, 0x4c2b70) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:157
-		[0x4c2b70, 0x4c2b7a) main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:14
+	main.mapIndexMissing@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1030
+LocatePC: 0x4c9d60
+	main.mapIndexKeyLen8@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1056
+LocatePC: 0x4c9d98
+	main.mapIndexKeyLen8@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1057
+LocatePC: 0x4c9de0
+	main.mapIndexKeyLen24@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1063
+LocatePC: 0x4c9e18
+	main.mapIndexKeyLen24@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1064
+LocatePC: 0x4c9e60
+	main.mapIndexKeyLen48@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1070
+LocatePC: 0x4c9e98
+	main.mapIndexKeyLen48@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1071
+LocatePC: 0x4c9ee0
+	main.mapIndexKeyLen96@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1077
+LocatePC: 0x4c9f18
+	main.mapIndexKeyLen96@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1078
+LocatePC: 0x4c9f60
+	main.mapIndexKeyLen200@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1084
+LocatePC: 0x4c9f98
+	main.mapIndexKeyLen200@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1085
+LocatePC: 0x4c9fe0
+	main.mapIndexStructVal@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1092
+LocatePC: 0x4ca01f
+	main.mapIndexStructVal@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1093
+LocatePC: 0x4ca060
+	main.mapIndexPtrStructVal@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1100
+LocatePC: 0x4ca0a2
+	main.mapIndexPtrStructVal@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1101
+LocatePC: 0x4ca100
+	main.mapIndexEmptyKey@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1107
+LocatePC: 0x4ca13e
+	main.mapIndexEmptyKey@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1108
+LocatePC: 0x4ca180
+	main.mapIndexKeyLen16@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1114
+LocatePC: 0x4ca1b8
+	main.mapIndexKeyLen16@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1115
+LocatePC: 0x4ca200
+	main.mapIndexKeyLen17@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1121
+LocatePC: 0x4ca238
+	main.mapIndexKeyLen17@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1122
+LocatePC: 0x4ca280
+	main.mapIndexBoolKey@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1128
+LocatePC: 0x4ca2ab
+	fmt.Println@fmt/print.go:315
+	main.mapIndexBoolKey@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1129
+LocatePC: 0x4ca2e0
+	main.mapIndexZeroValue@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1135
+LocatePC: 0x4ca30b
+	fmt.Println@fmt/print.go:315
+	main.mapIndexZeroValue@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1136
+LocatePC: 0x4ca340
+	main.mapIndexNilPtrVal@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1143
+LocatePC: 0x4ca36b
+	fmt.Println@fmt/print.go:315
+	main.mapIndexNilPtrVal@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1144
+LocatePC: 0x4ca3a0
+	main.mapIndexLargeValue@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1151
+LocatePC: 0x4ca3df
+	main.mapIndexLargeValue@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1152
+LocatePC: 0x4ca4a0
+	main.condMultiReturn@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1190
+LocatePC: 0x4ca50b
+	main.condMultiReturn@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1193
+LocatePC: 0x4ca580
+	main.condReturnPtr@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1204
+LocatePC: 0x4ca5f2
+	fmt.Println@fmt/print.go:315
+	main.condReturnPtr@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1205
+LocatePC: 0x4ca8c0
+	main.anyAllIntSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1255
+LocatePC: 0x4ca938
+	main.anyAllIntSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1256
+LocatePC: 0x4ca9c0
+	main.anyAllStructSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1263
+LocatePC: 0x4caa3c
+	main.anyAllStructSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1264
+LocatePC: 0x4caac0
+	main.anyAllPtrSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1272
+LocatePC: 0x4cab3c
+	main.anyAllPtrSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1273
+LocatePC: 0x4cabc0
+	main.anyAllIntArray@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1280
+LocatePC: 0x4cac2d
+	main.anyAllIntArray@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1281
+LocatePC: 0x4caca0
+	main.anyAllIntMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1288
+LocatePC: 0x4cad0f
+	main.anyAllIntMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1289
+LocatePC: 0x4cad80
+	main.anyAllPtrMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1296
+LocatePC: 0x4cadef
+	main.anyAllPtrMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1297
+LocatePC: 0x4cae60
+	main.anyAllPtrStrSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1305
+LocatePC: 0x4caedc
+	main.anyAllPtrStrSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1306
+LocatePC: 0x4caf60
+	main.anyAllPtrIntSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1313
+LocatePC: 0x4cafdc
+	main.anyAllPtrIntSlice@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1314
+LocatePC: 0x4cb160
+	main.anyAllStructKeyMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1342
+LocatePC: 0x4cb1cf
+	main.anyAllStructKeyMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1343
+LocatePC: 0x4cb240
+	main.anyAllPtrStructKeyMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1350
+LocatePC: 0x4cb2af
+	main.anyAllPtrStructKeyMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1351
+LocatePC: 0x4cb320
+	main.anyAllBigValMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1362
+LocatePC: 0x4cb38f
+	main.anyAllBigValMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1363
+LocatePC: 0x4cb400
+	main.anyAllBigKeyMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1370
+LocatePC: 0x4cb46f
+	main.anyAllBigKeyMap@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1371
+LocatePC: 0x4cb4e0
+	main.genericIdentity[go.shape.string]@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1160
+LocatePC: 0x4cb52e
+	fmt.Println@fmt/print.go:315
+	main.genericIdentity[go.shape.string]@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1161
+LocatePC: 0x4cb580
+	main.genericIdentity[go.shape.int]@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1160
+LocatePC: 0x4cb5bf
+	fmt.Println@fmt/print.go:315
+	main.genericIdentity[go.shape.int]@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1161
+LocatePC: 0x4c6b00
+	main.inlined@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:536
+LocatePC: 0x4c6b31
+	fmt.Println@fmt/print.go:315
+	main.inlined@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:537
+LocatePC: 0x4c2866
+	main.inlined@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:537
+	main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:29
+LocatePC: 0x4c2886
+	fmt.Println@fmt/print.go:315
+	main.inlined@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:537
+	main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:29
+LocatePC: 0x4c2b58
+	main.PointerChainArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:572
+	main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:40
+LocatePC: 0x4c2b75
+	fmt.Println@fmt/print.go:315
+	main.PointerChainArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:572
+	main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:40
+LocatePC: 0x4c2b9d
+	main.PointerSmallChainArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:576
+	main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:41
+LocatePC: 0x4c2bba
+	fmt.Println@fmt/print.go:315
+	main.PointerSmallChainArg@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:576
+	main.main@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:41
+LocatePC: 0x4cb604
+	main.(*methodValueReceiver).inlinedMethod@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1177
+LocatePC: 0x4cb605
+	main.(*methodValueReceiver).inlinedMethod@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1177
+FunctionLines: 0x4cb604
+	main.(*methodValueReceiver).inlinedMethod
+		[0x4cb604, 0x4cb607) main.(*methodValueReceiver).inlinedMethod@github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go:1177

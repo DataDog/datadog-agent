@@ -13,14 +13,15 @@ import (
 
 	"github.com/go-viper/mapstructure/v2"
 
-	"github.com/DataDog/agent-payload/v5/healthplatform"
-
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -59,25 +60,25 @@ var EventPlatformNameTranslations = map[string]string{
 }
 
 var (
-	tlmRuns = telemetry.NewCounter("checks", "runs",
+	tlmRuns = telemetryimpl.GetCompatComponent().NewCounter("checks", "runs",
 		[]string{"check_name", "state"}, "Check runs")
-	tlmWarnings = telemetry.NewCounter("checks", "warnings",
+	tlmWarnings = telemetryimpl.GetCompatComponent().NewCounter("checks", "warnings",
 		[]string{"check_name"}, "Check warnings")
-	tlmMetricsSamples = telemetry.NewCounter("checks", "metrics_samples",
+	tlmMetricsSamples = telemetryimpl.GetCompatComponent().NewCounter("checks", "metrics_samples",
 		[]string{"check_name"}, "Metrics count")
-	tlmEvents = telemetry.NewCounter("checks", "events",
+	tlmEvents = telemetryimpl.GetCompatComponent().NewCounter("checks", "events",
 		[]string{"check_name"}, "Events count")
-	tlmServices = telemetry.NewCounter("checks", "services_checks",
+	tlmServices = telemetryimpl.GetCompatComponent().NewCounter("checks", "services_checks",
 		[]string{"check_name"}, "Service checks count")
-	tlmHistogramBuckets = telemetry.NewCounter("checks", "histogram_buckets",
+	tlmHistogramBuckets = telemetryimpl.GetCompatComponent().NewCounter("checks", "histogram_buckets",
 		[]string{"check_name"}, "Histogram buckets count")
-	tlmExecutionTime = telemetry.NewGauge("checks", "execution_time",
+	tlmExecutionTime = telemetryimpl.GetCompatComponent().NewGauge("checks", "execution_time",
 		[]string{"check_name", "check_loader"}, "Check execution time")
-	tlmCheckDelay = telemetry.NewGauge("checks",
+	tlmCheckDelay = telemetryimpl.GetCompatComponent().NewGauge("checks",
 		"delay",
 		[]string{"check_name"},
 		"Check start time delay relative to the previous check run")
-	tlmHaAgentIntegrationRuns = telemetry.NewCounterWithOpts(
+	tlmHaAgentIntegrationRuns = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		"ha_agent",
 		"integration_runs",
 		[]string{"integration", "config_id"},
@@ -307,8 +308,6 @@ func (cs *Stats) reportToHealthPlatform(err error) {
 		return
 	}
 
-	// Build context for the issue report
-	// Format totalErrors without importing strconv to reduce binary size
 	totalErrorsStr := formatUint64(cs.TotalErrors)
 	context := map[string]string{
 		"checkName":    cs.CheckName,
@@ -318,18 +317,20 @@ func (cs *Stats) reportToHealthPlatform(err error) {
 		"checkVersion": cs.CheckVersion,
 	}
 
-	// Report the issue to health platform
-	reportErr := cs.healthPlatform.ReportIssue(
-		string(cs.CheckID),
-		cs.CheckName,
-		&healthplatform.IssueReport{
-			IssueId: "check-execution-failure",
-			Context: context,
-			Tags:    []string{cs.CheckName, cs.CheckLoader},
-		},
-	)
+	issueID := "check-execution-failure:" + string(cs.CheckID)
+	issue, buildErr := checkfailure.NewCheckFailureIssue().BuildIssue(context)
+	if buildErr != nil {
+		issue = &healthplatformpayload.Issue{
+			Id:        issueID,
+			IssueName: "check-execution-failure",
+			Source:    cs.CheckName,
+		}
+	} else {
+		issue.Id = issueID
+		issue.Tags = append(issue.Tags, cs.CheckName, cs.CheckLoader)
+	}
 
-	if reportErr != nil {
+	if reportErr := cs.healthPlatform.ReportIssue(issue); reportErr != nil {
 		log.Warnf("Failed to report check failure to health platform for check %s: %v", cs.CheckName, reportErr)
 	} else {
 		log.Debugf("Reported check failure to health platform for check %s", cs.CheckName)
@@ -342,18 +343,8 @@ func (cs *Stats) clearHealthPlatformIssue() {
 		return
 	}
 
-	// Report nil to clear the issue (issue resolution)
-	err := cs.healthPlatform.ReportIssue(
-		string(cs.CheckID),
-		cs.CheckName,
-		nil,
-	)
-
-	if err != nil {
-		log.Warnf("Failed to clear health platform issue for %s: %v", cs.CheckName, err)
-	} else {
-		log.Debugf("Cleared health platform issue for %s", cs.CheckName)
-	}
+	cs.healthPlatform.ResolveIssue("check-execution-failure:" + string(cs.CheckID))
+	log.Debugf("Cleared health platform issue for %s", cs.CheckName)
 }
 
 type aggStats struct {

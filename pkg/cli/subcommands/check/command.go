@@ -27,12 +27,13 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
+	collectornoopimpl "github.com/DataDog/datadog-agent/comp/collector/collector/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -43,30 +44,30 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
+	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
+	inventorychecksfx "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/fx"
+	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -77,7 +78,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
+	sharedlibrarycheck "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -144,7 +145,7 @@ type GlobalParams struct {
 }
 
 // MakeCommand returns a `check` command to be used by agent binaries.
-func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
+func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *cobra.Command {
 	cliParams := &cliParams{}
 	cmd := &cobra.Command{
 		Use:   "check <check_name>",
@@ -175,7 +176,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				hostnameimpl.Module(),
 
 				// workloadmeta setup
-				wmcatalog.GetCatalog(),
+				wmCatalog,
 				workloadmetafx.Module(defaults.DefaultParams()),
 				apiimpl.Module(),
 				grpcNonefx.Module(),
@@ -183,14 +184,15 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				workloadfilterfx.Module(),
 				autodiscoveryimpl.Module(),
+				healthplatform.Bundle(),
 				defaultforwarder.NoopModule(),
-				inventorychecksimpl.Module(),
+				inventorychecksfx.Module(),
 				logscompression.Module(),
 				metricscompression.Module(),
 				filterlistfx.Module(),
 				// inventorychecksimpl depends on a collector and serializer when created to send payload.
 				// Here we just want to collect metadata to be displayed, so we don't need a collector.
-				collector.NoneModule(),
+				collectornoopimpl.NoneModule(),
 				fx.Supply(status.NewInformationProvider(statuscollector.Provider{})),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
@@ -262,7 +264,6 @@ func run(
 	filterStore workloadfilter.Component,
 	tagger tagger.Component,
 	ac autodiscovery.Component,
-	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
 	statusComponent status.Component,
@@ -311,9 +312,9 @@ func run(
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,
 	//  so the subcommand can't read the RC database if the agent is also running.
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute)
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute, option.None[networkconfigmanagement.Component]())
 
-	common.LoadComponents(secretResolver, wmeta, tagger, filterStore, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+	common.LoadComponents(ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to

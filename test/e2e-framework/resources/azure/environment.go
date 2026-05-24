@@ -12,10 +12,11 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
 	sdkazure "github.com/pulumi/pulumi-azure-native-sdk/v2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	config "github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
 )
 
 const (
@@ -25,6 +26,7 @@ const (
 	// Azure Infra
 	DDInfraDefaultSubscriptionID           = "az/defaultSubscriptionID"
 	DDInfraDefaultContainerRegistry        = "az/defaultContainerRegistry"
+	DDInfraDefaultKubeletIdentityID        = "az/defaultKubeletIdentityID"
 	DDInfraDefaultResourceGroup            = "az/defaultResourceGroup"
 	DDInfraDefaultVNetParamName            = "az/defaultVNet"
 	DDInfraDefaultSubnetParamName          = "az/defaultSubnet"

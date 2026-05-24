@@ -26,13 +26,15 @@ import (
 
 const (
 	eventSetMask                  = uint64(nvml.EventTypeXidCriticalError)
-	eventSetWaitTimeout           = 1000 * time.Millisecond
+	defaultEventSetWaitTimeout    = 1000 * time.Millisecond
 	devicePendingEventQueueSize   = 1000
 	deviceMaxRegistrationAttempts = 5
 	xidOriginDriver               = "driver"
 	xidOriginHardware             = "hardware"
 	xidOriginUnknown              = "unknown"
 )
+
+var eventSetWaitTimeout = defaultEventSetWaitTimeout
 
 // helps mocking an actual events gatherer in tests
 type deviceEventsCollectorCache interface {
@@ -80,7 +82,7 @@ func (c *deviceEventsCollector) Name() CollectorName {
 	return deviceEvents
 }
 
-func (c *deviceEventsCollector) Collect() ([]Metric, error) {
+func (c *deviceEventsCollector) Collect() ([]*Metric, error) {
 	if !c.ensureDeviceRegistered() {
 		return nil, nil
 	}
@@ -115,9 +117,9 @@ func (c *deviceEventsCollector) Collect() ([]Metric, error) {
 		c.metricsByXidCode[evt.EventData].Value++
 	}
 
-	var metrics []Metric
+	var metrics []*Metric
 	for _, m := range c.metricsByXidCode {
-		metrics = append(metrics, *m)
+		metrics = append(metrics, m)
 	}
 	return metrics, nil
 }

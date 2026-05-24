@@ -7,18 +7,25 @@
 package rcserviceimpl
 
 import (
+	"bytes"
 	"context"
 	"expvar"
 	"fmt"
+	"strings"
 	"time"
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rctelemetryreporter "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/def"
+	rcflare "github.com/DataDog/datadog-agent/pkg/config/remote/flare"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -46,13 +53,15 @@ type Dependencies struct {
 	Hostname              hostname.Component
 	Cfg                   cfgcomp.Component
 	Logger                log.Component
+	Tagger                option.Option[tagger.Component]
 }
 
 // Provides defines the output of the rcservice component.
 type Provides struct {
 	compdef.Out
 
-	Comp option.Option[rcservice.Component]
+	Comp          option.Option[rcservice.Component]
+	FlareProvider flaretypes.Provider
 }
 
 // NewRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
@@ -68,7 +77,10 @@ func NewRemoteConfigServiceOptional(deps Dependencies) Provides {
 		return Provides{Comp: none}
 	}
 
-	return Provides{Comp: option.New[rcservice.Component](configService)}
+	return Provides{
+		Comp:          option.New[rcservice.Component](configService),
+		FlareProvider: flaretypes.NewProvider(rcFillFlare(configService, deps.Cfg.GetString("run_path"))),
+	}
 }
 
 // newRemoteConfigService creates and configures a new remote config service
@@ -78,6 +90,7 @@ func newRemoteConfigService(deps Dependencies) (rcservice.Component, error) {
 		apiKey = deps.Cfg.GetString("remote_configuration.api_key")
 	}
 	apiKey = configUtils.SanitizeAPIKey(apiKey)
+
 	baseRawURL := configUtils.GetMainEndpoint(deps.Cfg, "https://config.", "remote_configuration.rc_dd_url")
 	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(deps.Cfg)
 
@@ -112,7 +125,7 @@ func newRemoteConfigService(deps Dependencies) (rcservice.Component, error) {
 		"Remote Config",
 		baseRawURL,
 		deps.Hostname.GetSafe(context.Background()),
-		getHostTags(deps.Cfg),
+		getTags(deps.Cfg, deps.Tagger),
 		deps.DdRcTelemetryReporter,
 		version.AgentVersion,
 		options...,
@@ -141,7 +154,7 @@ func newRemoteConfigService(deps Dependencies) (rcservice.Component, error) {
 	return configService, nil
 }
 
-func getHostTags(config cfgcomp.Component) func() []string {
+func getTags(config cfgcomp.Component, taggerOpt option.Option[tagger.Component]) func() []string {
 	return func() []string {
 		// Host tags are cached on host, but we add a timeout to avoid blocking the RC request
 		// if the host tags are not available yet and need to be fetched. They will be fetched
@@ -149,6 +162,39 @@ func getHostTags(config cfgcomp.Component) func() []string {
 		ctx, cc := context.WithTimeout(context.Background(), time.Second)
 		defer cc()
 		hostTags := hosttags.Get(ctx, true, config)
-		return append(hostTags.System, hostTags.GoogleCloudPlatform...)
+		tags := append(hostTags.System, hostTags.GoogleCloudPlatform...)
+
+		// On ECS Fargate, the task_arn tag is not part of host tags but is
+		// needed for RC predicate targeting. Fetch it from the tagger's global
+		// tags at orchestrator cardinality.
+		if taggerComp, ok := taggerOpt.Get(); ok {
+			globalTags, err := taggerComp.GlobalTags(taggertypes.OrchestratorCardinality)
+			if err == nil {
+				taskARNPrefix := taggertags.TaskARN + ":"
+				for _, t := range globalTags {
+					if strings.HasPrefix(t, taskARNPrefix) {
+						tags = append(tags, t)
+						break
+					}
+				}
+			}
+		}
+
+		return tags
+	}
+}
+
+func rcFillFlare(svc rcservice.Component, runPath string) func(context.Context, flaretypes.FlareBuilder) error {
+	return func(_ context.Context, fb flaretypes.FlareBuilder) error {
+		if err := rcflare.CopyRemoteConfigDB(fb, runPath); err != nil {
+			return err
+		}
+		state, err := svc.ConfigGetState()
+		if err != nil {
+			return fmt.Errorf("couldn't get the repositories state: %v", err)
+		}
+		var buf bytes.Buffer
+		rcservice.PrintRemoteConfigStates(&buf, state, nil)
+		return fb.AddFile("remote-config-state.log", buf.Bytes())
 	}
 }

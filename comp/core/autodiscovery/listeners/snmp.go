@@ -57,11 +57,12 @@ type SNMPListener struct {
 	sync.RWMutex
 	newService     chan<- Service
 	delService     chan<- Service
-	stop           chan bool
+	stop           chan struct{}
 	config         snmp.ListenerConfig
 	services       map[string]*SNMPService
 	deviceDeduper  devicededuper.DeviceDeduper
 	sessionFactory snmpSessionFactory
+	workerFunc     snmpWorkerFunc
 }
 
 // SNMPService implements and store results from the Service interface for the SNMP listener
@@ -93,6 +94,8 @@ type snmpJob struct {
 	currentIP net.IP
 }
 
+type snmpWorkerFunc func(l *SNMPListener, jobs <-chan snmpJob)
+
 type deviceCache struct {
 	IP        net.IP `json:"ip"`
 	AuthIndex int    `json:"auth_index"`
@@ -107,10 +110,11 @@ func NewSNMPListener(ServiceListernerDeps) (ServiceListener, error) {
 	}
 	return &SNMPListener{
 		services:       map[string]*SNMPService{},
-		stop:           make(chan bool),
+		stop:           make(chan struct{}),
 		config:         snmpConfig,
 		deviceDeduper:  devicededuper.NewDeviceDeduper(snmpConfig),
 		sessionFactory: newGosnmpSession,
+		workerFunc:     defaultWorker,
 	}, nil
 }
 
@@ -133,30 +137,50 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 		return
 	}
 
-	// Try to unmarshal with the old cache format
-	var deviceIPs []net.IP
-	err = json.Unmarshal([]byte(cacheValue), &deviceIPs)
-	if err == nil {
-		for _, deviceIP := range deviceIPs {
-			entityID := subnet.config.Digest(deviceIP.String())
-			deviceInfo := l.checkDeviceInfo(subnet.config.Authentications[0], subnet.config.Port, deviceIP.String())
-
-			l.createService(entityID, subnet, deviceIP.String(), deviceInfo, 0, 0, true)
-		}
-		return
-	}
-
 	var devices []deviceCache
-	err = json.Unmarshal([]byte(cacheValue), &devices)
-	if err != nil {
+	var deviceIPs []net.IP
+
+	// Try to unmarshal with the old cache format
+	if err = json.Unmarshal([]byte(cacheValue), &deviceIPs); err == nil {
+		for _, deviceIP := range deviceIPs {
+			devices = append(devices, deviceCache{IP: deviceIP, AuthIndex: 0})
+		}
+	} else if err = json.Unmarshal([]byte(cacheValue), &devices); err != nil {
 		log.Errorf("Couldn't unmarshal cache for %s: %s", subnet.cacheKey, err)
 		return
 	}
-	for _, device := range devices {
-		entityID := subnet.config.Digest(device.IP.String())
-		deviceInfo := l.checkDeviceInfo(subnet.config.Authentications[device.AuthIndex], subnet.config.Port, device.IP.String())
 
-		l.createService(entityID, subnet, device.IP.String(), deviceInfo, device.AuthIndex, device.Failures, true)
+	// Probe devices concurrently to collect device info
+	deviceInfos := make([]devicededuper.DeviceInfo, len(devices))
+
+	workers := l.config.Workers
+	var wg sync.WaitGroup
+	loadJob := make(chan struct{}, workers)
+	for i, device := range devices {
+		select {
+		case <-l.stop:
+			wg.Wait()
+			return
+		case loadJob <- struct{}{}:
+		}
+		wg.Add(1)
+		go func(i int, device deviceCache) {
+			defer wg.Done()
+			defer func() { <-loadJob }()
+			select {
+			case <-l.stop:
+				return
+			default:
+			}
+			deviceInfos[i] = l.checkDeviceInfo(subnet.config.Authentications[device.AuthIndex], subnet.config.Port, device.IP.String())
+		}(i, device)
+	}
+	wg.Wait()
+
+	// Create services sequentially
+	for i, device := range devices {
+		entityID := subnet.config.Digest(device.IP.String())
+		l.createService(entityID, subnet, device.IP.String(), deviceInfos[i], device.AuthIndex, device.Failures, true)
 	}
 }
 
@@ -178,8 +202,7 @@ func (l *SNMPListener) writeCache(subnet *snmpSubnet) {
 	}
 }
 
-// Don't make it a method, to be overridden in tests
-var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
+var defaultWorker snmpWorkerFunc = func(l *SNMPListener, jobs <-chan snmpJob) {
 	for {
 		select {
 		case <-l.stop:
@@ -390,8 +413,6 @@ func migrateCache(config snmp.Config) string {
 }
 
 func (l *SNMPListener) checkDevices() {
-	subnets := l.initializeSubnets()
-
 	if l.config.Workers == 0 {
 		l.config.Workers = defaultWorkers
 	}
@@ -404,9 +425,16 @@ func (l *SNMPListener) checkDevices() {
 		l.config.DiscoveryInterval = defaultDiscoveryInterval
 	}
 
+	subnets := l.initializeSubnets()
+
 	jobs := make(chan snmpJob)
 	for w := 0; w < l.config.Workers; w++ {
-		go worker(l, jobs)
+		workerFunc := l.workerFunc
+		if workerFunc == nil {
+			// Fallback to defaultWorker if l.workerFunc isn't set
+			workerFunc = defaultWorker
+		}
+		go workerFunc(l, jobs)
 	}
 
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
@@ -580,7 +608,7 @@ func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
 
 // Stop queues a shutdown of SNMPListener
 func (l *SNMPListener) Stop() {
-	l.stop <- true
+	close(l.stop)
 }
 
 // Equal returns whether the two SNMPService are equal

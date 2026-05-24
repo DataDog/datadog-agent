@@ -8,14 +8,15 @@
 package cluster
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/model"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -41,6 +43,12 @@ var (
 	// Supported node class GVRs, tried in order during discovery
 	ec2NodeClassGVR = schema.GroupVersionResource{Group: "karpenter.k8s.aws", Version: "v1", Resource: "ec2nodeclasses"}
 	eksNodeClassGVR = schema.GroupVersionResource{Group: "eks.amazonaws.com", Version: "v1", Resource: "nodeclasses"}
+
+	// nodeClassGVRByGroup maps a NodeClassReference Group to its GVR
+	nodeClassGVRByGroup = map[string]schema.GroupVersionResource{
+		ec2NodeClassGVR.Group: ec2NodeClassGVR,
+		eksNodeClassGVR.Group: eksNodeClassGVR,
+	}
 
 	controllerID autoscaling.SenderID = "dca-c"
 )
@@ -198,62 +206,136 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, datadogNp *k
 func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.NodePool, npi model.NodePoolInternal) error {
 	log.Infof("Creating NodePool: %s", npi.Name())
 
-	var np *karpenterv1.NodePool
-
-	// Create replica of original NodePool if Target exists; otherwise use NodePoolInternal to create a NodePool
-	if targetNp != nil {
-		log.Debugf("Building replica of NodePool: %s", npi.TargetName())
-		np = model.BuildReplicaNodePool(targetNp, npi)
-	} else {
-		nodeClassRef, err := c.discoverNodeClass(ctx)
-		if err != nil {
-			return err
-		}
-		np = model.ConvertToKarpenterNodePool(npi, nodeClassRef)
+	knp := npi.KarpenterNodePool()
+	if knp == nil {
+		return fmt.Errorf("NodePool %s has no manifest, cannot create", npi.Name())
 	}
-
-	npUnstr, err := convertNodePoolToUnstructured(np)
+	knp = knp.DeepCopy()
+	// If the manifest omits NodeClassRef and a target NodePool exists, prefer its NodeClassRef
+	if knp.Spec.Template.Spec.NodeClassRef == nil && targetNp != nil {
+		knp.Spec.Template.Spec.NodeClassRef = targetNp.Spec.Template.Spec.NodeClassRef.DeepCopy()
+	}
+	var err error
+	knp, err = c.checkValidNodeClass(ctx, knp)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to update NodePool with node class: %s, err: %v", npi.Name(), err)
+	}
+	// Update the weight if replica NodePool
+	if knp.Spec.Weight == nil && targetNp != nil {
+		knp.Spec.Weight = model.GetNodePoolWeight(targetNp)
+	}
+	// Ensure Datadog autoscaling node label is always present
+	if knp.Spec.Template.ObjectMeta.Labels == nil {
+		knp.Spec.Template.ObjectMeta.Labels = make(map[string]string)
+	}
+	knp.Spec.Template.ObjectMeta.Labels[kubernetes.AutoscalingLabelKey] = "true"
+	// add Datadog labels and annotations
+	if knp.Labels == nil {
+		knp.Labels = make(map[string]string)
+	}
+	knp.Labels[model.DatadogCreatedLabelKey] = "true"
+	if knp.Annotations == nil {
+		knp.Annotations = make(map[string]string)
+	}
+	if npi.TargetName() != "" {
+		knp.Annotations[model.DatadogReplicaAnnotationKey] = npi.TargetName()
 	}
 
+	npUnstr, err := convertNodePoolToUnstructured(knp)
+	if err != nil {
+		return fmt.Errorf("unable to convert NodePool to unstructured: %s, err: %v", npi.Name(), err)
+	}
 	_, err = c.Client.Resource(nodePoolGVR).Create(ctx, npUnstr, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("unable to create NodePool: %s, err: %v", npi.Name(), err)
 	}
-
-	c.eventRecorder.Eventf(np, corev1.EventTypeNormal, model.SuccessfulNodepoolCreateEventReason, "Created NodePool with instances %q", npi.RecommendedInstanceTypes())
-
+	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolCreateEventReason, "Created NodePool %q", npi.Name())
 	return nil
 }
 
-func (c *Controller) updateNodePool(ctx context.Context, targetNp, datadogNp *karpenterv1.NodePool, npi model.NodePoolInternal) error {
+func (c *Controller) updateNodePool(ctx context.Context, targetNp *karpenterv1.NodePool, datadogNp *karpenterv1.NodePool, npi model.NodePoolInternal) error {
+	desired := npi.KarpenterNodePool()
+	if desired == nil {
+		return fmt.Errorf("NodePool %s has no manifest, cannot update", npi.Name())
+	}
+	desired = desired.DeepCopy()
+	if desired.Labels == nil {
+		desired.Labels = make(map[string]string)
+	}
+	desired.Labels[model.DatadogCreatedLabelKey] = "true"
 
-	// Apply updates from NodePoolInternal to the NodePool object
-	desiredNp := model.UpdateNodePoolObject(targetNp, datadogNp, npi)
-	// Compare entire Spec
-	if equality.Semantic.DeepEqual(datadogNp.Spec, desiredNp.Spec) && maps.Equal(datadogNp.GetLabels(), desiredNp.GetLabels()) {
-		log.Debugf("NodePool: %s spec and labels have not changed, no action will be applied.", npi.Name())
+	// Use the NodeClass in the live NodePool if the manifest omits it
+	if desired.Spec.Template.Spec.NodeClassRef == nil && datadogNp.Spec.Template.Spec.NodeClassRef != nil {
+		desired.Spec.Template.Spec.NodeClassRef = datadogNp.Spec.Template.Spec.NodeClassRef.DeepCopy()
+	}
+	var err error
+	desired, err = c.checkValidNodeClass(ctx, desired)
+	if err != nil {
+		return fmt.Errorf("unable to update NodePool with node class: %s, err: %v", npi.Name(), err)
+	}
+
+	// Update the weight if replica NodePool
+	if desired.Spec.Weight == nil && targetNp != nil {
+		desired.Spec.Weight = model.GetNodePoolWeight(targetNp)
+	}
+
+	// Ensure Datadog autoscaling node label is always present
+	if desired.Spec.Template.ObjectMeta.Labels == nil {
+		desired.Spec.Template.ObjectMeta.Labels = make(map[string]string)
+	}
+	desired.Spec.Template.ObjectMeta.Labels[kubernetes.AutoscalingLabelKey] = "true"
+
+	// Use merge-patch for spec comparison so fields added to NodePool by default do not trigger unnecessary updates
+	liveSpecJSON, err := json.Marshal(datadogNp.Spec)
+	if err != nil {
+		return fmt.Errorf("unable to marshal live NodePool spec: %s, err: %v", npi.Name(), err)
+	}
+	desiredSpecJSON, err := json.Marshal(desired.Spec)
+	if err != nil {
+		return fmt.Errorf("unable to marshal desired NodePool spec: %s, err: %v", npi.Name(), err)
+	}
+	mergedSpecJSON, err := jsonpatch.MergePatch(liveSpecJSON, desiredSpecJSON)
+	if err != nil {
+		return fmt.Errorf("unable to compute spec merge patch for NodePool: %s, err: %v", npi.Name(), err)
+	}
+
+	// Ensure DatadogReplicaAnnotationKey is always present when a target exists
+	if desired.Annotations == nil {
+		desired.Annotations = make(map[string]string)
+	}
+	if npi.TargetName() != "" {
+		desired.Annotations[model.DatadogReplicaAnnotationKey] = npi.TargetName()
+	}
+
+	// Ignore any annotations managed by Karpenter
+	annotationsMatch := true
+	for k, v := range desired.Annotations {
+		if datadogNp.Annotations[k] != v {
+			annotationsMatch = false
+			break
+		}
+	}
+
+	if bytes.Equal(liveSpecJSON, mergedSpecJSON) &&
+		maps.Equal(datadogNp.Labels, desired.Labels) &&
+		annotationsMatch {
+		log.Debugf("NodePool: %s has not changed, no action will be applied.", npi.Name())
 		return nil
 	}
 
 	log.Infof("Updating NodePool: %s", npi.Name())
-
-	// Convert to unstructured
-	updatedUnstr, err := convertNodePoolToUnstructured(&desiredNp)
+	desired.ResourceVersion = datadogNp.ResourceVersion
+	updatedUnstr, err := convertNodePoolToUnstructured(desired)
 	if err != nil {
 		c.eventRecorder.Eventf(datadogNp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to convert NodePool: %v", err)
 		return fmt.Errorf("error converting NodePool to unstructured: %s, err: %v", npi.Name(), err)
 	}
-
-	// Update the NodePool
 	_, err = c.Client.Resource(nodePoolGVR).Update(ctx, updatedUnstr, metav1.UpdateOptions{})
 	if err != nil {
 		c.eventRecorder.Eventf(datadogNp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool: %v", err)
 		return fmt.Errorf("unable to update NodePool: %s, err: %v", npi.Name(), err)
 	}
-
-	c.eventRecorder.Eventf(datadogNp, corev1.EventTypeNormal, model.SuccessfulNodepoolUpdateEventReason, "Updated NodePool with instances %q", npi.RecommendedInstanceTypes())
+	c.eventRecorder.Eventf(datadogNp, corev1.EventTypeNormal, model.SuccessfulNodepoolUpdateEventReason, "Updated NodePool %q", npi.Name())
 	return nil
 }
 
@@ -268,6 +350,32 @@ func (c *Controller) deleteNodePool(ctx context.Context, name string, knp *karpe
 
 	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolDeleteEventReason, "Deleted NodePool: %s", name)
 	return nil
+}
+
+func (c *Controller) checkValidNodeClass(ctx context.Context, knp *karpenterv1.NodePool) (*karpenterv1.NodePool, error) {
+	nc := knp.Spec.Template.Spec.NodeClassRef
+	if nc != nil {
+		gvr, ok := nodeClassGVRByGroup[nc.Group]
+		if !ok {
+			return nil, fmt.Errorf("unknown NodeClassRef group %q", nc.Group)
+		}
+		_, err := c.Client.Resource(gvr).Get(ctx, nc.Name, metav1.GetOptions{})
+		if err == nil { // nodeClassRef is valid, keep it
+			return knp, nil
+		}
+		if !apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf("unable to validate NodeClassRef %q: %w", nc.Name, err)
+		}
+		log.Debugf("NodeClass %s not found, falling back to an existing NodeClass", nc.Name)
+	}
+
+	// Get NodeClass. If there's none or more than one, then we should not create the NodePool
+	nodeClassRef, err := c.discoverNodeClass(ctx)
+	if err != nil {
+		return nil, err
+	}
+	knp.Spec.Template.Spec.NodeClassRef = nodeClassRef
+	return knp, nil
 }
 
 // discoverNodeClass attempts to find a single node class from supported providers.
@@ -318,14 +426,14 @@ func isCreatedByDatadog(labels map[string]string) bool {
 // Helper function to convert a typed Karpenter NodePool object to unstructured. Handles custom Go types gracefully
 func convertNodePoolToUnstructured(np interface{}) (*unstructured.Unstructured, error) {
 	// Marshal the structured object to JSON bytes.
-	bytes, err := json.Marshal(np)
+	jsonBytes, err := json.Marshal(np)
 	if err != nil {
 		return nil, err
 	}
 
 	// Unmarshal the JSON bytes into a map[string]interface{}.
 	var unstructuredMap map[string]interface{}
-	if err := json.Unmarshal(bytes, &unstructuredMap); err != nil {
+	if err := json.Unmarshal(jsonBytes, &unstructuredMap); err != nil {
 		return nil, err
 	}
 

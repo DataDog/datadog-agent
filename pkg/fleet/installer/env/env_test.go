@@ -304,6 +304,19 @@ func TestToEnv(t *testing.T) {
 			},
 		},
 		{
+			name: "PAR enabled without app key",
+			env: &Env{
+				APIKey:              "123456",
+				PAREnabled:          true,
+				PARActionsAllowlist: "action1,action2",
+			},
+			expected: []string{
+				"DD_API_KEY=123456",
+				"DD_PRIVATE_ACTION_RUNNER_ENABLED=true",
+				"DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST=action1,action2",
+			},
+		},
+		{
 			name: "PAR disabled does not emit PAR env vars",
 			env: &Env{
 				APIKey:              "123456",
@@ -323,6 +336,31 @@ func TestToEnv(t *testing.T) {
 			assert.ElementsMatch(t, tt.expected, result)
 		})
 	}
+}
+
+func TestFromEnvFIPSMode(t *testing.T) {
+	tests := []struct {
+		value    string
+		expected bool
+	}{
+		{"true", true},
+		{"True", true},
+		{"TRUE", true},
+		{"false", false},
+		{"", false},
+		{"1", false}, // we explicitly require "true" (case-insensitive)
+	}
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			t.Setenv("DD_FIPS_MODE", tt.value)
+			assert.Equal(t, tt.expected, FromEnv().FIPSMode)
+		})
+	}
+}
+
+func TestToEnvFIPSMode(t *testing.T) {
+	assert.NotContains(t, (&Env{FIPSMode: false}).ToEnv(), "DD_FIPS_MODE=true")
+	assert.Contains(t, (&Env{FIPSMode: true}).ToEnv(), "DD_FIPS_MODE=true")
 }
 
 func TestAgentUserVars(t *testing.T) {

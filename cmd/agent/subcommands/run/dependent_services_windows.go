@@ -99,6 +99,15 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			serviceInit:    otelInit,
 			shouldShutdown: true, // NOTE: not really ncessary with SCM dependency in place
 		},
+		{
+			name: "procmgr",
+			configKeys: map[string]model.Reader{
+				"process_manager.enabled": coreConf,
+			},
+			serviceName:    "dd-procmgr-service",
+			serviceInit:    procmgrInit,
+			shouldShutdown: true,
+		},
 	}
 }
 
@@ -127,6 +136,10 @@ func otelInit() error {
 }
 
 func parInit() error {
+	return nil
+}
+
+func procmgrInit() error {
 	return nil
 }
 

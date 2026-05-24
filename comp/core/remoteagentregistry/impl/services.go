@@ -65,7 +65,7 @@ func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregistr
 	return callAgentsForService(ra, StatusServiceName, client, processor)
 }
 
-func (ra *remoteAgentRegistry) fillFlare(builder flarebuilder.FlareBuilder) error {
+func (ra *remoteAgentRegistry) fillFlare(_ context.Context, builder flarebuilder.FlareBuilder) error {
 	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetFlareFilesResponse, error) {
 		return remoteAgent.GetFlareFiles(ctx, &pb.GetFlareFilesRequest{}, opts...)
 	}
@@ -89,7 +89,7 @@ func (ra *remoteAgentRegistry) fillFlare(builder flarebuilder.FlareBuilder) erro
 			// The flare builder already logs errors, so we can ignore them here.
 			// an error here should not prevent the flare from being created.
 			//nolint:errcheck
-			builder.AddFile(fmt.Sprintf("%s/%s", flareData.RegisteredAgent.String(), registryutil.SanitizeFileName(fileName)), fileData)
+			builder.AddFile(fmt.Sprintf("%s/%s", flareData.RegisteredAgent.SanitizedDisplayName, registryutil.SanitizeFileName(fileName)), fileData)
 		}
 	}
 

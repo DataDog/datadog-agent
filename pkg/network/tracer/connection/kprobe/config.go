@@ -87,15 +87,9 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manage
 		enableProbe(enabled, probes.TCPReadSock)
 		enableProbe(enabled, probes.TCPReadSockReturn)
 		enableProbe(enabled, probes.TCPClose)
-		if c.CustomBatchingEnabled {
-			enableProbe(enabled, probes.TCPCloseFlushReturn)
-		}
 
 		enableProbe(enabled, probes.TCPConnect)
 		enableProbe(enabled, probes.TCPDone)
-		if c.CustomBatchingEnabled {
-			enableProbe(enabled, probes.TCPDoneFlushReturn)
-		}
 		enableProbe(enabled, probes.TCPFinishConnect)
 		enableProbe(enabled, probes.InetCskAcceptReturn)
 		enableProbe(enabled, probes.InetCskListenStop)
@@ -114,9 +108,6 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manage
 
 	if c.CollectUDPv4Conns {
 		enableProbe(enabled, probes.UDPDestroySock)
-		if c.CustomBatchingEnabled {
-			enableProbe(enabled, probes.UDPDestroySockReturn)
-		}
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IPMakeSkb, probes.IPMakeSkbPre4180, kv4180))
 		enableProbe(enabled, probes.IPMakeSkbReturn)
 		enableProbe(enabled, probes.InetBind)
@@ -139,9 +130,6 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manage
 
 	if c.CollectUDPv6Conns {
 		enableProbe(enabled, probes.UDPv6DestroySock)
-		if c.CustomBatchingEnabled {
-			enableProbe(enabled, probes.UDPv6DestroySockReturn)
-		}
 		if kv >= kv5180 || runtimeTracer {
 			// prebuilt shouldn't arrive here with 5.18+ and UDPv6 enabled
 			if !coreTracer && !runtimeTracer {
@@ -186,7 +174,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manage
 	return enabled, nil
 }
 
-func protocolClassificationTailCalls(cfg *config.Config) []manager.TailCallRoute {
+func protocolClassificationTailCalls() []manager.TailCallRoute {
 	tcs := []manager.TailCallRoute{
 		{
 			ProgArrayName: probes.ClassificationProgsMap,
@@ -228,16 +216,6 @@ func protocolClassificationTailCalls(cfg *config.Config) []manager.TailCallRoute
 				UID:          probeUID,
 			},
 		},
-	}
-	if cfg.CustomBatchingEnabled {
-		tcs = append(tcs, manager.TailCallRoute{
-			ProgArrayName: probes.TCPCloseProgsMap,
-			Key:           0,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.TCPCloseFlushReturn,
-				UID:          probeUID,
-			},
-		})
 	}
 	return tcs
 }

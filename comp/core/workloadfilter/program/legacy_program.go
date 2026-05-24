@@ -7,14 +7,14 @@ package program
 
 import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/legacy"
 )
 
 // LegacyFilterProgram implements the legacy filtering system using
-// containers.Filter as the underlying filter implementation.
+// legacy.Filter as the underlying filter implementation.
 type LegacyFilterProgram struct {
 	Name                 string
-	Filter               *containers.Filter
+	Filter               *legacy.Filter
 	InitializationErrors []error
 }
 

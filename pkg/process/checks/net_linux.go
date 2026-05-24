@@ -10,14 +10,15 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/pkg/network/remoteservice"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // fetchRemoteServiceData returns remote service enrichment data. On Linux,
-// IIS tags and process cache tags are not applicable; only portToPID is fetched.
-func fetchRemoteServiceData(_ *http.Client) (map[string][]string, map[uint32][]string, map[int32]int32) {
+// IIS tags and process cache tags are not applicable; only the listener map is fetched.
+func fetchRemoteServiceData(_ *http.Client) (map[string][]string, map[uint32][]string, map[remoteservice.ListenKey]int32) {
 	return nil, nil, getListeningPortToPIDMap()
 }
 

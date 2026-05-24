@@ -24,8 +24,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -34,14 +35,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type collectorTest struct {
 	collector             *collector
 	probe                 *mocks.Probe
-	mockSystemProbeConfig sysprobeconfig.Mock
+	mockSystemProbeConfig sysprobeconfig.Component
 	mockClock             *clock.Mock
 	mockStore             workloadmetamock.Mock
 	mockContainerProvider *proccontainers.MockContainerProvider
@@ -50,7 +50,7 @@ type collectorTest struct {
 func (c collectorTest) cleanup() {
 	// when service discovery is enabled, we need to reset the global telemetry registry
 	// since the start function registers a new gauge every time that errors
-	telemetry.GetCompatComponent().Reset()
+	telemetryimpl.GetCompatComponent().Reset()
 }
 
 // TestBasicCreatedProcessesCollection tests the collector capturing new processes without language + container data
@@ -882,13 +882,20 @@ func TestContainerIDRaceCondition(t *testing.T) {
 	err := c.collector.Start(ctx, c.mockStore)
 	assert.NoError(t, err)
 
+	// Wait for cycle 1 to complete: process exists but without container ID
+	require.EventuallyWithT(t, func(cT *assert.CollectT) {
+		actualProc, err := c.mockStore.GetProcess(pid1)
+		require.NoError(cT, err)
+		assert.Empty(cT, actualProc.ContainerID)
+	}, time.Second, time.Millisecond*100)
+
 	// Advance clock to trigger cycle 2
 	c.mockClock.Add(collectionInterval)
 
-	// After both cycles: process should have the container ID from cycle 2
+	// After cycle 2: process should have the container ID
 	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
 		actualProc, err := c.mockStore.GetProcess(pid1)
-		assert.NoError(cT, err)
+		require.NoError(cT, err)
 		assert.Equal(cT, "container-abc", actualProc.ContainerID)
 		assert.Equal(cT, &workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
@@ -915,10 +922,10 @@ func setUpCollectorTest(t *testing.T, cfg config.Component, sysProbeConfigOverri
 	mockProbe := mocks.NewProbe(t)
 
 	// mock language detection system probe config
-	mockSystemProbeConfig := fxutil.Test[sysprobeconfig.Component](t, fx.Options(
-		sysprobeconfigimpl.MockModule(),
-		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysProbeConfigOverrides}),
-	))
+	mockSystemProbeConfig := sysprobeconfigmock.NewMock(t)
+	for k, v := range sysProbeConfigOverrides {
+		mockSystemProbeConfig.SetWithoutSource(k, v)
+	}
 	processCollector := newProcessCollector(collectorID, workloadmeta.NodeAgent, mockClock, mockProbe, cfg, mockSystemProbeConfig)
 	processCollector.containerProvider = mockContainerProvider
 

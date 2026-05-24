@@ -79,7 +79,7 @@ func (d *directSender) addRemoteServiceTags(builder *model.ConnectionBuilder, nc
 	srcContainerID := getInternedString(nc.ContainerID.Source)
 	// USM supports TCP only; skip UDP connections.
 	if nc.IntraHost && srcContainerID == "" && nc.Type == network.TCP {
-		if remoteTags := resolver.Resolve(int32(nc.Pid), int32(nc.DPort), int32(nc.SPort)); len(remoteTags) > 0 {
+		if remoteTags := resolver.Resolve(int32(nc.Pid), nc.Dest.String(), int32(nc.DPort), int32(nc.SPort)); len(remoteTags) > 0 {
 			builder.SetRemoteServiceTagsIdx(int32(tagsEncoder.Encode(remoteTags)))
 			return
 		}
@@ -105,6 +105,9 @@ func (d *directSender) addTags(builder *model.ConnectionBuilder, nc network.Conn
 		var serviceTags []string
 		if dsc := directSenderConsumerInstance.Load(); dsc != nil {
 			serviceTags = dsc.extractor.GetServiceContext(int32(nc.Pid))
+			if processName := dsc.processNameExtractor.GetProcessName(int32(nc.Pid)); processName != "" {
+				tagsStr = append(tagsStr, "process_name:"+processName)
+			}
 		}
 		tagsStr = append(tagsStr, serviceTags...)
 		processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(nc.Pid)))

@@ -55,6 +55,8 @@ func TestDeviceEventsGatherer_GetWithUnregistered(t *testing.T) {
 }
 
 func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
+	WithDeviceEventsSetWaitTimeoutForTest(t, time.Millisecond)
+
 	// by controlling this, we can influence the gathered device events
 	gatheredDeviceEvents := make(chan nvml.EventData, 10)
 	t.Cleanup(func() { close(gatheredDeviceEvents) })
@@ -104,10 +106,12 @@ func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
 	assert.Empty(t, events)
 
 	// after refreshing, the event should be present
-	require.NoError(t, gatherer.Refresh())
-	events, err = gatherer.GetEvents(uuid)
-	require.NoError(t, err)
-	require.Len(t, events, 1)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		require.NoError(c, gatherer.Refresh())
+		events, err = gatherer.GetEvents(uuid)
+		require.NoError(c, err)
+		require.Len(c, events, 1)
+	}, 200*time.Millisecond, 2*time.Millisecond)
 	assert.Equal(t, safenvml.DeviceEventData{
 		DeviceUUID: uuid,
 		EventType:  sampleDeviceEvent.EventType,
@@ -202,7 +206,7 @@ func TestDeviceEventsCollector(t *testing.T) {
 	mm, err = collector.Collect()
 	require.NoError(t, err)
 	require.Len(t, mm, 1)
-	assert.Equal(t, Metric{
+	assert.Equal(t, &Metric{
 		Name:     xidErrorsMetricName,
 		Value:    1,
 		Type:     metrics.GaugeType,
@@ -226,7 +230,7 @@ func TestDeviceEventsCollector(t *testing.T) {
 	mm2, err := collector.Collect()
 	require.NoError(t, err)
 	require.Len(t, mm2, 2)
-	assert.ElementsMatch(t, []Metric{
+	assert.ElementsMatch(t, []*Metric{
 		{
 			Name:     xidErrorsMetricName,
 			Value:    1,

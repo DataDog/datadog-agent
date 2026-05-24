@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 // Package converters implements OTEL collector configuration converters for the host profiler.
 //
 // Converters normalize user-provided OTEL collector configs by adding required Datadog-specific
@@ -32,19 +30,21 @@ type confMap = map[string]any
 
 // Component type names for OTEL configuration
 const (
-	componentTypeInfraAttributes   = "infraattributes"
-	componentTypeResourceDetection = "resourcedetection"
-	componentTypeProfiling         = "profiling"
-	componentTypeOtlpHTTP          = "otlphttp"
-	componentTypeDDProfiling       = "ddprofiling"
-	componentTypeHPFlare           = "hpflare"
+	componentTypeInfraAttributes     = "infraattributes"
+	componentTypeResourceDetection   = "resourcedetection"
+	componentTypeDDHostNameProcessor = "ddhostname"
+	componentTypeProfiling           = "profiling"
+	componentTypeOtlpHTTP            = "otlphttp"
+	componentTypeDDProfiling         = "ddprofiling"
+	componentTypeHPFlare             = "hpflare"
 )
 
 // Default component names
 const (
-	defaultInfraAttributesName   = "infraattributes/default"
-	defaultResourceDetectionName = "resourcedetection/default"
-	defaultProfilingName         = "profiling"
+	defaultInfraAttributesName     = "infraattributes/default"
+	defaultResourceDetectionName   = "resourcedetection/default"
+	defaultDDHostNameProcessorName = "ddhostname/default"
+	defaultProfilingName           = "profiling"
 )
 
 // Reserved component names for internal metrics pipeline
@@ -63,12 +63,11 @@ const (
 
 // Configuration field names used multiple times
 const (
-	fieldAllowHostnameOverride = "allow_hostname_override"
-	fieldDDAPIKey              = "dd-api-key"
-	fieldDDEVPOrigin           = "dd-evp-origin"
-	fieldDDEVPOriginVersion    = "dd-evp-origin-version"
-	fieldAPIKey                = "api_key"
-	fieldAppKey                = "app_key"
+	fieldDDAPIKey           = "dd-api-key"
+	fieldDDEVPOrigin        = "dd-evp-origin"
+	fieldDDEVPOriginVersion = "dd-evp-origin-version"
+	fieldAPIKey             = "api_key"
+	fieldAppKey             = "app_key"
 )
 
 // OTEL config path prefixes
@@ -235,6 +234,7 @@ func ensureKeyStringValue(config confMap, key string) bool {
 
 // addProfilerMetadataTags always creates a dedicated resource/profiler-metadata processor
 // without searching for existing resource processors.
+// This function emits OTel semantic convention tags and must only be called from the standalone (no-agent) path.
 func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, error) {
 	const resourceProcessorName = "resource/dd-profiler-internal-metadata"
 
@@ -261,12 +261,12 @@ func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, err
 	}
 
 	profilerNameElement := confMap{
-		"key":    "profiler_name",
-		"value":  version.ProfilerName,
+		"key":    version.OTelProfilerNameKey,
+		"value":  version.StandaloneProfilerName,
 		"action": "upsert",
 	}
 	profilerVersionElement := confMap{
-		"key":    "profiler_version",
+		"key":    version.OTelProfilerVersionKey,
 		"value":  version.ProfilerVersion,
 		"action": "upsert",
 	}
@@ -298,8 +298,13 @@ func inferMetricsEndpoint(profilesEndpoint string) (string, error) {
 }
 
 // PrometheusReceiverConfig returns the default configuration for the internal prometheus receiver
-// that scrapes OTel collector's internal telemetry metrics.
+// that scrapes OTel collector's internal telemetry metrics from 127.0.0.1:8889.
 func PrometheusReceiverConfig() map[string]any {
+	return PrometheusReceiverConfigWithTarget("127.0.0.1:8889")
+}
+
+// PrometheusReceiverConfigWithTarget returns a prometheus receiver config that scrapes the given target.
+func PrometheusReceiverConfigWithTarget(target string) map[string]any {
 	return confMap{
 		"config": confMap{
 			"scrape_configs": []any{
@@ -312,7 +317,7 @@ func PrometheusReceiverConfig() map[string]any {
 					"fallback_scrape_protocol":      "PrometheusText0.0.4",
 					"static_configs": []any{
 						confMap{
-							"targets": []any{"127.0.0.1:8888"},
+							"targets": []any{target},
 						},
 					},
 				},

@@ -72,7 +72,6 @@ var (
 	agentDirectories = file.Directories{
 		{Path: "/etc/datadog-agent", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/etc/datadog-agent/managed", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
-		{Path: "/etc/datadog-agent/processes.d", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/var/log/datadog", Mode: 0750, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/opt/datadog-packages/run", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/opt/datadog-packages/tmp", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
@@ -168,6 +167,10 @@ func installFilesystem(ctx HookContext) (err error) {
 	agentRunPath := file.Directory{Path: filepath.Join(ctx.PackagePath, "run"), Mode: 0755, Owner: "dd-agent", Group: "dd-agent"}
 	if err = agentRunPath.Ensure(ctx); err != nil {
 		return fmt.Errorf("failed to create run directory: %v", err)
+	}
+	processesDir := file.Directory{Path: filepath.Join(ctx.PackagePath, "processes.d"), Mode: 0755, Owner: "dd-agent", Group: "dd-agent"}
+	if err = processesDir.Ensure(ctx); err != nil {
+		return fmt.Errorf("failed to create processes.d directory: %v", err)
 	}
 
 	// 3. Create symlinks

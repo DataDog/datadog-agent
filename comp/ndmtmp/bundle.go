@@ -9,7 +9,7 @@
 package ndmtmp
 
 import (
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
+	forwarderfx "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -20,5 +20,5 @@ import (
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		forwarderimpl.Module())
+		forwarderfx.Module())
 }

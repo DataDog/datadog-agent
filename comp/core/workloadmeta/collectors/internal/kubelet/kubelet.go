@@ -42,6 +42,7 @@ type collector struct {
 	catalog                    workloadmeta.AgentType
 	store                      workloadmeta.Component
 	collectEphemeralContainers bool
+	pullInterval               time.Duration
 
 	kubeUtil             kubelet.KubeUtilInterface
 	lastSeenPodUIDs      map[string]time.Time
@@ -58,6 +59,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 			id:                         collectorID,
 			catalog:                    workloadmeta.NodeAgent,
 			collectEphemeralContainers: deps.Config.GetBool("include_ephemeral_containers"),
+			pullInterval:               time.Duration(deps.Config.GetInt("kubelet_collector_pull_interval")) * time.Second,
 		},
 	}, nil
 }
@@ -65,6 +67,10 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 // GetFxOptions returns the FX framework options for the collector
 func GetFxOptions() fx.Option {
 	return fx.Provide(NewCollector)
+}
+
+func (c *collector) GetPullInterval() time.Duration {
+	return c.pullInterval
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {

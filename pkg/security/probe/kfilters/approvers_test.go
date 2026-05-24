@@ -135,6 +135,34 @@ func TestApproverGlob(t *testing.T) {
 	assert.Equal(t, eval.GlobValueType, approvers["open.file.path"][0].Type)
 }
 
+func TestApproverGlobWithWildcard(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/var/run/secrets/eks.amazonaws.com/serviceaccount/*/token*" && process.file.path not in ["/bin/kubectl"]`)
+	capabilities, exists := allCapabilities["open"]
+	if !exists {
+		t.Fatal("no capabilities for open")
+	}
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values, exists := approvers["open.file.path"]; !exists || len(values) != 1 {
+		t.Fatalf("expected approver not found: %v", values)
+	}
+
+	valueString, ok := approvers["open.file.path"][0].Value.(string)
+	if !ok {
+		t.Fatalf("expected string value, got %v", approvers["open.file.path"][0].Value)
+	}
+
+	assert.Equal(t, "/var/run/secrets/eks.amazonaws.com/serviceaccount/*/token*", valueString)
+	assert.Equal(t, eval.GlobValueType, approvers["open.file.path"][0].Type)
+}
+
 func TestApproverFlags(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 

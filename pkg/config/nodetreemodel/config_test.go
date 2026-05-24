@@ -7,7 +7,6 @@ package nodetreemodel
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
@@ -354,16 +354,17 @@ func TestAllSettingsBySource(t *testing.T) {
 		model.SourceFile: map[string]interface{}{
 			"a": 987,
 		},
-		model.SourceEnvVar:        map[string]interface{}{},
-		model.SourceFleetPolicies: map[string]interface{}{},
+		model.SourceEnvVar:             map[string]interface{}{},
+		model.SourceFleetPolicies:      map[string]interface{}{},
+		model.SourceConfigPostInit:     map[string]interface{}{},
+		model.SourceLocalConfigProcess: map[string]interface{}{},
 		model.SourceAgentRuntime: map[string]interface{}{
 			"b": map[string]interface{}{
 				"c": 123,
 			},
 		},
-		model.SourceLocalConfigProcess: map[string]interface{}{},
-		model.SourceRC:                 map[string]interface{}{},
-		model.SourceCLI:                map[string]interface{}{},
+		model.SourceRC:  map[string]interface{}{},
+		model.SourceCLI: map[string]interface{}{},
 		model.SourceProvided: map[string]interface{}{
 			"a": 987,
 			"b": map[string]interface{}{
@@ -372,6 +373,47 @@ func TestAllSettingsBySource(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, cfg.AllSettingsBySource())
+}
+
+func TestAllSettingsWithoutSecrets(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.BuildSchema()
+
+	cfg.Set("a", "file_value", model.SourceFile)
+	cfg.Set("a", "secret_value", model.SourceSecret)
+	cfg.Set("b", 42, model.SourceAgentRuntime)
+
+	// includes secrets
+	all := cfg.AllSettings()
+	assert.Equal(t, "secret_value", all["a"])
+	assert.Equal(t, 42, all["b"])
+
+	// excludes secrets layer, "a" falls back to file layer value
+	withoutSecrets := cfg.AllSettingsWithoutSecrets()
+	assert.Equal(t, "file_value", withoutSecrets["a"])
+	assert.Equal(t, 42, withoutSecrets["b"])
+}
+
+func TestAllSettingsWithoutDefaultOrSecrets(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.SetDefault("c", 0)
+	cfg.BuildSchema()
+
+	cfg.Set("a", "file_value", model.SourceFile)
+	cfg.Set("a", "secret_value", model.SourceSecret)
+	cfg.Set("b", 42, model.SourceAgentRuntime)
+
+	result := cfg.AllSettingsWithoutDefaultOrSecrets()
+	// "a" has a fallback file value
+	assert.Equal(t, "file_value", result["a"])
+	assert.Equal(t, 42, result["b"])
+	// "c" is only a default, excluded
+	_, found := result["c"]
+	assert.False(t, found)
 }
 
 func TestIsSet(t *testing.T) {
@@ -1465,6 +1507,40 @@ func TestOnUpdate(t *testing.T) {
 	assert.Equal(t, 2, gotNewValue)
 }
 
+// TestUnsetForSourceListenerCanReadConfig reproduces a deadlock where
+// UnsetForSource notified OnUpdate subscribers while still holding the
+// write lock. Any subscriber that read the config (via the read side of
+// the RWMutex) would block against the held write lock forever.
+func TestUnsetForSourceListenerCanReadConfig(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("log_level", "info")
+	cfg.BuildSchema()
+
+	observed := []string{}
+	cfg.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64) {
+		// A realistic listener reads the current config. Before the fix
+		// this call deadlocked because UnsetForSource still held the
+		// config write lock.
+		observed = append(observed, cfg.GetString("log_level"))
+	})
+
+	cfg.Set("log_level", "debug", model.SourceRC)
+
+	done := make(chan struct{})
+	go func() {
+		cfg.UnsetForSource("log_level", model.SourceRC)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("UnsetForSource deadlocked while notifying listeners")
+	}
+
+	assert.Equal(t, []string{"debug", "info"}, observed)
+}
+
 func TestSetInvalidSource(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 1)
@@ -1526,32 +1602,16 @@ func TestEnvVarTransformers(t *testing.T) {
 	cfg.BindEnvAndSetDefault("tag_set", []map[string]string{}, "TEST_TAG_SET")
 	cfg.BindEnvAndSetDefault("list_keypairs", map[string]interface{}{}, "TEST_LIST_KEYPAIRS")
 
-	t.Setenv("TEST_LIST_OF_NUMS", "34,67.5,901.125")
+	t.Setenv("TEST_LIST_OF_NUMS", "[34,67.5,901.125]")
 	t.Setenv("TEST_LIST_OF_FRUIT", "apple,banana,cherry")
 	t.Setenv("TEST_TAG_SET", `[{"cat":"meow"},{"dog":"bark"}]`)
 	t.Setenv("TEST_LIST_KEYPAIRS", `a=1,b=2,c=3`)
 
-	cfg.ParseEnvAsSlice("list_of_nums", func(in string) []interface{} {
-		vals := []interface{}{}
-		for str := range strings.SplitSeq(in, ",") {
-			f, err := strconv.ParseFloat(str, 64)
-			if err != nil {
-				continue
-			}
-			vals = append(vals, f)
-		}
-		return vals
-	})
+	cfg.ParseEnvJSON("list_of_nums", []float64{})
 	cfg.ParseEnvAsStringSlice("list_of_fruit", func(in string) []string {
 		return strings.Split(in, ",")
 	})
-	cfg.ParseEnvAsSliceMapString("tag_set", func(in string) []map[string]string {
-		var out []map[string]string
-		if err := json.Unmarshal([]byte(in), &out); err != nil {
-			assert.Fail(t, "failed to json.Unmarshal", err)
-		}
-		return out
-	})
+	cfg.ParseEnvJSON("tag_set", []map[string]string{})
 	cfg.ParseEnvAsMapStringInterface("list_keypairs", func(in string) map[string]interface{} {
 		parts := strings.Split(in, ",")
 		res := map[string]interface{}{}
@@ -1667,6 +1727,91 @@ func TestSequenceID(t *testing.T) {
 
 	config.UnsetForSource("a", model.SourceAgentRuntime)
 	assert.Equal(t, uint64(3), config.GetSequenceID())
+}
+
+func TestParseEnvSplitComma(t *testing.T) {
+	t.Setenv("TEST_MY_LIST", "a,b,c")
+	t.Setenv("TEST_MY_LIST_2", "")
+
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.BindEnvAndSetDefault("my_list", []string{"a"}, "TEST_MY_LIST")
+	cfg.BindEnvAndSetDefault("my_list_2", []string{"a"}, "TEST_MY_LIST_2")
+	cfg.ParseEnvSplitComma("my_list")
+	cfg.ParseEnvSplitComma("my_list_2")
+	cfg.BuildSchema()
+
+	assert.Equal(t, []string{"a", "b", "c"}, cfg.GetStringSlice("my_list"))
+	assert.Equal(t, model.SourceEnvVar, cfg.GetSource("my_list"))
+	assert.Equal(t, []string{"a"}, cfg.GetStringSlice("my_list_2"))
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("my_list_2"))
+
+	assert.PanicsWithValue(t, "env transform for my_list already exists", func() {
+		cfg2 := NewNodeTreeConfig("test", "TEST", nil)
+		cfg2.BindEnvAndSetDefault("my_list", []string{})
+		cfg2.ParseEnvSplitComma("my_list")
+		cfg2.ParseEnvSplitComma("my_list")
+	})
+}
+
+func TestParseEnvSplitSpace(t *testing.T) {
+	t.Setenv("TEST_MY_LIST", "a b c")
+	t.Setenv("TEST_MY_LIST_2", "")
+
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.BindEnvAndSetDefault("my_list", []string{"a"}, "TEST_MY_LIST")
+	cfg.BindEnvAndSetDefault("my_list_2", []string{"a"}, "TEST_MY_LIST_2")
+	cfg.ParseEnvSplitSpace("my_list")
+	cfg.ParseEnvSplitComma("my_list_2")
+	cfg.BuildSchema()
+
+	assert.Equal(t, []string{"a", "b", "c"}, cfg.GetStringSlice("my_list"))
+	assert.Equal(t, model.SourceEnvVar, cfg.GetSource("my_list"))
+	assert.Equal(t, []string{"a"}, cfg.GetStringSlice("my_list_2"))
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("my_list_2"))
+
+	assert.PanicsWithValue(t, "env transform for my_list already exists", func() {
+		cfg2 := NewNodeTreeConfig("test", "TEST", nil)
+		cfg2.BindEnvAndSetDefault("my_list", []string{})
+		cfg2.ParseEnvSplitSpace("my_list")
+		cfg2.ParseEnvSplitSpace("my_list")
+	})
+}
+
+func TestParseEnvJSON(t *testing.T) {
+	t.Run("parses string slice", func(t *testing.T) {
+		t.Setenv("TEST_MY_LIST", `["a","b","c"]`)
+
+		cfg := NewNodeTreeConfig("test", "TEST", nil)
+		cfg.BindEnvAndSetDefault("my_list", []string{}, "TEST_MY_LIST")
+		cfg.ParseEnvJSON("my_list", []string{})
+		cfg.BuildSchema()
+
+		assert.Equal(t, []string{"a", "b", "c"}, cfg.GetStringSlice("my_list"))
+		assert.Equal(t, model.SourceEnvVar, cfg.GetSource("my_list"))
+	})
+
+	t.Run("parses slice of map[string]string", func(t *testing.T) {
+		t.Setenv("TEST_MY_TAGS", `[{"key":"val"},{"foo":"bar"}]`)
+
+		cfg := NewNodeTreeConfig("test", "TEST", nil)
+		cfg.BindEnvAndSetDefault("my_tags", []map[string]string{}, "TEST_MY_TAGS")
+		cfg.ParseEnvJSON("my_tags", []map[string]string{})
+		cfg.BuildSchema()
+
+		val := cfg.Get("my_tags")
+		tags, ok := val.([]map[string]string)
+		require.True(t, ok)
+		assert.Equal(t, []map[string]string{{"key": "val"}, {"foo": "bar"}}, tags)
+	})
+
+	t.Run("panics on duplicate registration", func(t *testing.T) {
+		assert.PanicsWithValue(t, "env transform for my_list already exists", func() {
+			cfg := NewNodeTreeConfig("test", "TEST", nil)
+			cfg.BindEnvAndSetDefault("my_list", []string{})
+			cfg.ParseEnvJSON("my_list", []string{})
+			cfg.ParseEnvJSON("my_list", []string{})
+		})
+	})
 }
 
 func TestMultipleTransformersRaisesError(t *testing.T) {
@@ -1858,4 +2003,45 @@ func TestEnvVarLayerConvertsToDefaultType(t *testing.T) {
 > my_int_setting
     leaf(#ptr<000002>), val:789, source:environment-variable`
 	assert.Equal(t, expect, txt)
+}
+
+// TestCheckKnownKeyConcurrentAccess verifies that concurrent getter calls with
+// unknown config keys do not crash the agent with "fatal error: concurrent map writes".
+// This reproduces the race condition where multiple goroutines call GetBool (or other
+// getters) simultaneously, each writing to the unknownKeys map under only an RLock.
+func TestCheckKnownKeyConcurrentAccess(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("known_key", true)
+	cfg.BuildSchema()
+
+	const numGoroutines = 200
+
+	// Use a barrier so all goroutines start at the same instant,
+	// maximizing the chance of concurrent map writes.
+	var ready sync.WaitGroup
+	ready.Add(1)
+
+	var done sync.WaitGroup
+	done.Add(numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			defer done.Done()
+			ready.Wait() // all goroutines wait here until released
+
+			// Use a mix of getters with unknown keys to trigger checkKnownKey writes
+			key := fmt.Sprintf("unknown_key_%d", id)
+			cfg.GetBool(key)
+			cfg.GetString(key)
+			cfg.GetInt(key)
+		}(i)
+	}
+
+	// Release all goroutines simultaneously
+	ready.Done()
+	// Wait for all goroutines to finish (if there's a concurrent map write, the process crashes before this)
+	done.Wait()
+
+	// If we reach here without a fatal "concurrent map writes" crash, the test passed
+	assert.True(t, cfg.GetBool("known_key"))
 }

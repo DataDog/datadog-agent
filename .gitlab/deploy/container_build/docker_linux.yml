@@ -268,7 +268,6 @@ docker_build_fips_agent7_arm64_jmx:
 .docker_build_base_image:
   extends: .docker_build_job_definition
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   needs: []
   variables:
@@ -290,7 +289,6 @@ docker_build_base_image_arm64:
     - cp cmd/host-profiler/dist/host-profiler-config.yaml $BUILD_CONTEXT/
     - ls -l $BUILD_CONTEXT/
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/ddot-ebpf
@@ -305,6 +303,8 @@ docker_build_host_profiler_standalone_amd64:
   needs:
     - job: docker_build_base_image_amd64
     - job: build_host_profiler_binary_x64
+  variables:
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_host_profiler_amd64"
 
 docker_build_host_profiler_standalone_arm64:
   extends:
@@ -312,6 +312,8 @@ docker_build_host_profiler_standalone_arm64:
   needs:
     - job: docker_build_base_image_arm64
     - job: build_host_profiler_binary_arm64
+  variables:
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_host_profiler_arm64"
 
 .docker_build_ot_agent_standalone:
   extends: .docker_build_job_definition

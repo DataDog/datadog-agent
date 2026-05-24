@@ -8,20 +8,6 @@ else
   flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
 end
 
-# Linux-specific dependencies
-if linux_target?
-  build do
-    command_on_repo_root "bazelisk run #{flavor_flag} -- @nghttp2//:install --destdir='#{install_dir}'"
-    command_on_repo_root "bazelisk run #{flavor_flag} -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-      " #{install_dir}/embedded/lib/libnghttp2.so"
-
-    command_on_repo_root "bazelisk run #{flavor_flag} -- @curl//:install --destdir='#{install_dir}'"
-    command_on_repo_root "bazelisk run #{flavor_flag} -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-      " #{install_dir}/embedded/lib/libcurl.so" \
-      " #{install_dir}/embedded/bin/curl"
-  end
-end
-
 dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 
 # Used for memory profiling with the `status py` agent subcommand

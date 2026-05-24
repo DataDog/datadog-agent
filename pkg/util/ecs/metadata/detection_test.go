@@ -9,11 +9,12 @@ package metadata
 
 import (
 	"context"
+	"net/netip"
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/network"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -84,14 +85,13 @@ func TestGetAgentV1ContainerURLs(t *testing.T) {
 
 	// Setting mocked data in cache
 	nets := make(map[string]*network.EndpointSettings)
-	nets["bridge"] = &network.EndpointSettings{IPAddress: "172.17.0.2"}
-	nets["foo"] = &network.EndpointSettings{IPAddress: "172.17.0.3"}
+	nets["bridge"] = &network.EndpointSettings{IPAddress: netip.MustParseAddr("172.17.0.2")}
+	nets["foo"] = &network.EndpointSettings{IPAddress: netip.MustParseAddr("172.17.0.3")}
 
 	co := container.InspectResponse{
 		Config: &container.Config{
 			Hostname: "ip-172-29-167-5",
 		},
-		ContainerJSONBase: &container.ContainerJSONBase{},
 		NetworkSettings: &container.NetworkSettings{
 			Networks: nets,
 		},

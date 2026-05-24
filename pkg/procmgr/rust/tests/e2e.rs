@@ -5,6 +5,7 @@
 
 mod helpers;
 
+use dd_procmgrd::test_helpers;
 use helpers::{CliRunner, TestEnv, pid_is_alive, wait_for_pid_gone, write_config};
 use std::path::Path;
 use std::time::Duration;
@@ -47,7 +48,7 @@ fn test_cli_fails_with_invalid_socket() {
 #[test]
 fn test_cli_config_basic() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
 
     let config_dir = env.config_dir().display().to_string();
@@ -63,8 +64,8 @@ fn test_cli_config_basic() {
 #[test]
 fn test_cli_config_json() {
     let env = TestEnv::new()
-        .with_config("svc-a", "command: /bin/sleep\nargs:\n  - '300'\n")
-        .with_config("svc-b", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("svc-a", test_helpers::sleep_config_yaml())
+        .with_config("svc-b", test_helpers::sleep_config_yaml())
         .start();
 
     let config_dir = env.config_dir().display().to_string();
@@ -82,7 +83,7 @@ fn test_cli_config_json() {
 #[test]
 fn test_cli_status_basic() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
@@ -103,11 +104,11 @@ fn test_cli_status_basic() {
 #[test]
 fn test_cli_status_counts() {
     let env = TestEnv::new()
-        .with_config("runner-a", "command: /bin/sleep\nargs:\n  - '300'\n")
-        .with_config("runner-b", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("runner-a", test_helpers::sleep_config_yaml())
+        .with_config("runner-b", test_helpers::sleep_config_yaml())
         .with_config(
             "idle",
-            "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
+            &test_helpers::sleep_config_with("auto_start: false\n"),
         )
         .start();
 
@@ -127,10 +128,10 @@ fn test_cli_status_counts() {
 #[test]
 fn test_cli_status_json() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .with_config(
             "idle",
-            "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
+            &test_helpers::sleep_config_with("auto_start: false\n"),
         )
         .start();
 
@@ -156,8 +157,8 @@ fn test_cli_status_json() {
 #[test]
 fn test_cli_status_after_stop() {
     let env = TestEnv::new()
-        .with_config("svc-a", "command: /bin/sleep\nargs:\n  - '300'\n")
-        .with_config("svc-b", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("svc-a", test_helpers::sleep_config_yaml())
+        .with_config("svc-b", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[svc-a] spawned");
@@ -184,12 +185,12 @@ fn test_cli_status_after_stop() {
 #[test]
 fn test_cli_status_mixed_states() {
     let env = TestEnv::new()
-        .with_config("runner", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("runner", test_helpers::sleep_config_yaml())
         .with_config("bad", "command: /nonexistent/binary\n")
-        .with_config("quick", "command: /usr/bin/true\nrestart: never\n")
+        .with_config("quick", test_helpers::true_config_yaml())
         .with_config(
             "idle",
-            "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
+            &test_helpers::sleep_config_with("auto_start: false\n"),
         )
         .start();
 
@@ -220,7 +221,7 @@ fn test_cli_status_mixed_states() {
 #[test]
 fn test_cli_config_with_runtime_processes() {
     let env = TestEnv::new()
-        .with_config("loaded", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("loaded", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[loaded] spawned");
@@ -230,16 +231,7 @@ fn test_cli_config_with_runtime_processes() {
         .assert_field("Loaded Processes", "1")
         .assert_field("Runtime Processes", "0");
 
-    env.cli(&[
-        "create",
-        "--name",
-        "dynamic",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-    ])
-    .assert_success();
+    env.create_sleep("dynamic", &[]).assert_success();
 
     env.cli(&["config"])
         .assert_success()
@@ -259,7 +251,7 @@ fn test_cli_list_empty() {
 #[test]
 fn test_cli_list_one_running() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
@@ -268,7 +260,10 @@ fn test_cli_list_one_running() {
     out.assert_success()
         .assert_table_row(
             "sleeper",
-            &[("STATE", "Running"), ("COMMAND", "/bin/sleep")],
+            &[
+                ("STATE", "Running"),
+                ("COMMAND", test_helpers::sleep_cmd(300).0),
+            ],
         )
         .assert_table_row_count(1);
 
@@ -279,8 +274,8 @@ fn test_cli_list_one_running() {
 #[test]
 fn test_cli_list_multiple_processes() {
     let env = TestEnv::new()
-        .with_config("alpha", "command: /bin/sleep\nargs:\n  - '300'\n")
-        .with_config("beta", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("alpha", test_helpers::sleep_config_yaml())
+        .with_config("beta", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[alpha] spawned");
@@ -301,10 +296,10 @@ fn test_cli_list_multiple_processes() {
 #[test]
 fn test_cli_list_mixed_states() {
     let env = TestEnv::new()
-        .with_config("runner", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("runner", test_helpers::sleep_config_yaml())
         .with_config(
             "idle",
-            "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
+            &test_helpers::sleep_config_with("auto_start: false\n"),
         )
         .start();
 
@@ -337,7 +332,7 @@ fn test_cli_list_spawn_failure() {
 #[test]
 fn test_cli_list_exited_state() {
     let env = TestEnv::new()
-        .with_config("quick", "command: /usr/bin/true\nrestart: never\n")
+        .with_config("quick", test_helpers::true_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[quick] exited with");
@@ -354,9 +349,9 @@ fn test_cli_list_exited_state() {
 #[test]
 fn test_cli_list_last_exit_column() {
     let env = TestEnv::new()
-        .with_config("ok", "command: /usr/bin/true\nrestart: never\n")
-        .with_config("fail", "command: /usr/bin/false\nrestart: never\n")
-        .with_config("alive", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("ok", test_helpers::true_config_yaml())
+        .with_config("fail", test_helpers::false_config_yaml())
+        .with_config("alive", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[ok] exited with");
@@ -372,7 +367,7 @@ fn test_cli_list_last_exit_column() {
 #[test]
 fn test_cli_list_json() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
@@ -386,8 +381,8 @@ fn test_cli_list_json() {
     let entry = &arr[0];
     assert_eq!(entry["name"], "sleeper");
     assert_eq!(entry["state"], "Running");
-    assert_eq!(entry["command"], "/bin/sleep");
-    assert_eq!(entry["args"], serde_json::json!(["300"]));
+    assert_eq!(entry["command"], test_helpers::sleep_cmd(300).0);
+    assert_eq!(entry["args"], test_helpers::sleep_args_json());
     assert_eq!(entry["restart_count"], 0);
     assert!(!entry["uuid"].as_str().unwrap_or("").is_empty());
     assert!(entry["last_exit_code"].is_null());
@@ -412,7 +407,10 @@ fn test_cli_list_json_empty() {
 #[test]
 fn test_cli_list_shows_restart_count() {
     let env = TestEnv::new()
-        .with_config("crasher", "command: /usr/bin/false\nrestart: always\n")
+        .with_config(
+            "crasher",
+            &test_helpers::false_config_with("restart: always\n"),
+        )
         .start();
 
     assert!(
@@ -437,7 +435,7 @@ fn test_cli_list_shows_restart_count() {
 #[test]
 fn test_cli_describe_by_name() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
@@ -446,8 +444,8 @@ fn test_cli_describe_by_name() {
     out.assert_success()
         .assert_field("Name", "sleeper")
         .assert_field("State", "Running")
-        .assert_field("Command", "/bin/sleep")
-        .assert_field("Args", "300")
+        .assert_field("Command", test_helpers::sleep_cmd(300).0)
+        .assert_field("Args", &test_helpers::sleep_args_display())
         .assert_has_field("UUID");
 
     let pid = out.pid_from_field("PID");
@@ -457,7 +455,7 @@ fn test_cli_describe_by_name() {
 #[test]
 fn test_cli_describe_by_uuid() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
@@ -483,18 +481,13 @@ fn test_cli_describe_by_uuid() {
 
 #[test]
 fn test_cli_describe_shows_all_fields() {
+    let tmp = test_helpers::temp_dir_str();
     let env = TestEnv::new()
         .with_config(
             "full",
-            concat!(
-                "command: /bin/sleep\n",
-                "args:\n  - '300'\n",
-                "description: a test process\n",
-                "working_dir: /tmp\n",
-                "env:\n  MY_VAR: hello\n",
-                "restart: always\n",
-                "after:\n  - other\n",
-            ),
+            &test_helpers::sleep_config_with(&format!(
+                "description: a test process\nworking_dir: {tmp}\nenv:\n  MY_VAR: hello\nrestart: always\nafter:\n  - other\n"
+            )),
         )
         .start();
 
@@ -504,10 +497,10 @@ fn test_cli_describe_shows_all_fields() {
     out.assert_success()
         .assert_field("Name", "full")
         .assert_field("State", "Running")
-        .assert_field("Command", "/bin/sleep")
-        .assert_field("Args", "300")
+        .assert_field("Command", test_helpers::sleep_cmd(300).0)
+        .assert_field("Args", &test_helpers::sleep_args_display())
         .assert_field("Description", "a test process")
-        .assert_field("Working Dir", "/tmp")
+        .assert_field("Working Dir", &tmp)
         .assert_field("Restart Policy", "always")
         .assert_field("Auto Start", "true")
         .assert_has_field("UUID")
@@ -521,7 +514,7 @@ fn test_cli_describe_shows_all_fields() {
 #[test]
 fn test_cli_describe_after_exit() {
     let env = TestEnv::new()
-        .with_config("quick", "command: /usr/bin/false\nrestart: never\n")
+        .with_config("quick", test_helpers::false_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[quick] exited with");
@@ -537,7 +530,10 @@ fn test_cli_describe_after_exit() {
 #[test]
 fn test_cli_describe_after_restart() {
     let env = TestEnv::new()
-        .with_config("crasher", "command: /usr/bin/false\nrestart: always\n")
+        .with_config(
+            "crasher",
+            &test_helpers::false_config_with("restart: always\n"),
+        )
         .start();
 
     assert!(
@@ -565,7 +561,7 @@ fn test_cli_describe_not_found() {
 #[test]
 fn test_cli_describe_json() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
@@ -576,8 +572,8 @@ fn test_cli_describe_json() {
 
     assert_eq!(json["name"], "sleeper");
     assert_eq!(json["state"], "Running");
-    assert_eq!(json["command"], "/bin/sleep");
-    assert_eq!(json["args"], serde_json::json!(["300"]));
+    assert_eq!(json["command"], test_helpers::sleep_cmd(300).0);
+    assert_eq!(json["args"], test_helpers::sleep_args_json());
     assert!(!json["uuid"].as_str().unwrap_or("").is_empty());
 
     let pid = json["pid"].as_u64().expect("pid should be a number") as u32;
@@ -590,7 +586,7 @@ fn test_cli_start_stopped_process() {
     let env = TestEnv::new()
         .with_config(
             "sleeper",
-            "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
+            &test_helpers::sleep_config_with("auto_start: false\n"),
         )
         .start();
 
@@ -616,7 +612,7 @@ fn test_cli_start_by_uuid() {
     let env = TestEnv::new()
         .with_config(
             "sleeper",
-            "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
+            &test_helpers::sleep_config_with("auto_start: false\n"),
         )
         .start();
 
@@ -639,7 +635,7 @@ fn test_cli_start_by_uuid() {
 #[test]
 fn test_cli_start_already_running() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
@@ -663,7 +659,7 @@ fn test_cli_start_json() {
     let env = TestEnv::new()
         .with_config(
             "sleeper",
-            "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
+            &test_helpers::sleep_config_with("auto_start: false\n"),
         )
         .start();
 
@@ -684,7 +680,7 @@ fn test_cli_start_then_verify_list() {
     let env = TestEnv::new()
         .with_config(
             "sleeper",
-            "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
+            &test_helpers::sleep_config_with("auto_start: false\n"),
         )
         .start();
 
@@ -706,7 +702,7 @@ fn test_cli_start_then_verify_list() {
 #[test]
 fn test_cli_stop_running_process() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
@@ -719,7 +715,7 @@ fn test_cli_stop_running_process() {
 #[test]
 fn test_cli_stop_by_uuid() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
@@ -738,7 +734,7 @@ fn test_cli_stop_by_uuid() {
 #[test]
 fn test_cli_stop_already_stopped() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
@@ -763,7 +759,7 @@ fn test_cli_stop_not_found() {
 #[test]
 fn test_cli_stop_json() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
@@ -779,7 +775,7 @@ fn test_cli_stop_json() {
 #[test]
 fn test_cli_stop_then_verify_list() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
@@ -795,7 +791,7 @@ fn test_cli_stop_then_verify_list() {
 #[test]
 fn test_cli_stop_kills_child() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
@@ -815,15 +811,7 @@ fn test_cli_stop_kills_child() {
 fn test_cli_create_minimal() {
     let env = TestEnv::new().start();
 
-    let out = env.cli(&[
-        "create",
-        "--name",
-        "foo",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-    ]);
+    let out = env.create_sleep("foo", &[]);
     out.assert_success().assert_has_field("UUID");
 
     env.daemon().wait_for_log_default("[foo] spawned");
@@ -836,16 +824,7 @@ fn test_cli_create_minimal() {
 fn test_cli_create_with_auto_start() {
     let env = TestEnv::new().start();
 
-    env.cli(&[
-        "create",
-        "--name",
-        "svc",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-    ])
-    .assert_success();
+    env.create_sleep("svc", &[]).assert_success();
 
     env.daemon().wait_for_log_default("[svc] spawned");
 
@@ -861,17 +840,8 @@ fn test_cli_create_with_auto_start() {
 fn test_cli_create_no_auto_start() {
     let env = TestEnv::new().start();
 
-    env.cli(&[
-        "create",
-        "--name",
-        "manual",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-        "--no-auto-start",
-    ])
-    .assert_success();
+    env.create_sleep("manual", &["--no-auto-start"])
+        .assert_success();
 
     env.cli(&["list"])
         .assert_success()
@@ -881,32 +851,29 @@ fn test_cli_create_no_auto_start() {
 #[test]
 fn test_cli_create_with_all_options() {
     let env = TestEnv::new()
-        .with_config("dep", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("dep", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[dep] spawned");
 
-    env.cli(&[
-        "create",
-        "--name",
+    let tmp = test_helpers::temp_dir_str();
+    env.create_sleep(
         "full",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-        "--env",
-        "KEY1=val1",
-        "--env",
-        "KEY2=val2",
-        "--working-dir",
-        "/tmp",
-        "--restart-policy",
-        "always",
-        "--description",
-        "full test",
-        "--after",
-        "dep",
-    ])
+        &[
+            "--env",
+            "KEY1=val1",
+            "--env",
+            "KEY2=val2",
+            "--working-dir",
+            &tmp,
+            "--restart-policy",
+            "always",
+            "--description",
+            "full test",
+            "--after",
+            "dep",
+        ],
+    )
     .assert_success();
 
     env.daemon().wait_for_log_default("[full] spawned");
@@ -914,8 +881,8 @@ fn test_cli_create_with_all_options() {
     let out = env.cli(&["describe", "full"]);
     out.assert_success()
         .assert_field("Name", "full")
-        .assert_field("Command", "/bin/sleep")
-        .assert_field("Working Dir", "/tmp")
+        .assert_field("Command", test_helpers::sleep_cmd(300).0)
+        .assert_field("Working Dir", &tmp)
         .assert_field("Restart Policy", "always")
         .assert_field("Description", "full test");
 }
@@ -924,24 +891,15 @@ fn test_cli_create_with_all_options() {
 fn test_cli_create_then_describe() {
     let env = TestEnv::new().start();
 
-    env.cli(&[
-        "create",
-        "--name",
-        "svc",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-        "--no-auto-start",
-    ])
-    .assert_success();
+    env.create_sleep("svc", &["--no-auto-start"])
+        .assert_success();
 
     let out = env.cli(&["describe", "svc"]);
     out.assert_success()
         .assert_field("Name", "svc")
         .assert_field("State", "Created")
-        .assert_field("Command", "/bin/sleep")
-        .assert_field("Args", "300")
+        .assert_field("Command", test_helpers::sleep_cmd(300).0)
+        .assert_field("Args", &test_helpers::sleep_args_display())
         .assert_field("PID", "-")
         .assert_has_field("UUID");
 }
@@ -950,30 +908,13 @@ fn test_cli_create_then_describe() {
 fn test_cli_create_duplicate_name() {
     let env = TestEnv::new().start();
 
-    env.cli(&[
-        "create",
-        "--name",
-        "dup",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-    ])
-    .assert_success();
+    env.create_sleep("dup", &[]).assert_success();
 
     env.daemon().wait_for_log_default("[dup] spawned");
 
-    env.cli(&[
-        "create",
-        "--name",
-        "dup",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-    ])
-    .assert_failure()
-    .assert_stderr_contains("already exists");
+    env.create_sleep("dup", &[])
+        .assert_failure()
+        .assert_stderr_contains("already exists");
 }
 
 #[test]
@@ -989,33 +930,16 @@ fn test_cli_create_empty_command() {
 fn test_cli_create_invalid_name() {
     let env = TestEnv::new().start();
 
-    env.cli(&[
-        "create",
-        "--name",
-        "bad name!",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-    ])
-    .assert_failure()
-    .assert_stderr_contains("name must only contain");
+    env.create_sleep("bad name!", &[])
+        .assert_failure()
+        .assert_stderr_contains("name must only contain");
 }
 
 #[test]
 fn test_cli_create_json() {
     let env = TestEnv::new().start();
 
-    let out = env.cli(&[
-        "create",
-        "--json",
-        "--name",
-        "svc",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-    ]);
+    let out = env.create_sleep("svc", &["--json"]);
     out.assert_success();
     let json = out.stdout_json();
 
@@ -1027,20 +951,10 @@ fn test_cli_create_json() {
 fn test_cli_create_env_vars() {
     let env = TestEnv::new().start();
 
-    env.cli(&[
-        "create",
-        "--name",
+    env.create_sleep(
         "env-svc",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-        "--env",
-        "FOO=bar",
-        "--env",
-        "BAZ=qux",
-        "--no-auto-start",
-    ])
+        &["--env", "FOO=bar", "--env", "BAZ=qux", "--no-auto-start"],
+    )
     .assert_success();
 
     let out = env.cli(&["describe", "--json", "env-svc"]);
@@ -1055,7 +969,7 @@ fn test_cli_create_env_vars() {
 #[test]
 fn test_cli_reload_no_changes() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
@@ -1068,7 +982,7 @@ fn test_cli_reload_no_changes() {
 #[test]
 fn test_cli_reload_add_process() {
     let env = TestEnv::new()
-        .with_config("existing", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("existing", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[existing] spawned");
@@ -1076,7 +990,7 @@ fn test_cli_reload_add_process() {
     write_config(
         env.config_dir(),
         "new-svc",
-        "command: /bin/sleep\nargs:\n  - '300'\n",
+        test_helpers::sleep_config_yaml(),
     );
 
     env.cli(&["reload"])
@@ -1106,8 +1020,8 @@ fn test_cli_reload_add_process() {
 #[test]
 fn test_cli_reload_remove_process() {
     let env = TestEnv::new()
-        .with_config("keeper", "command: /bin/sleep\nargs:\n  - '300'\n")
-        .with_config("doomed", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("keeper", test_helpers::sleep_config_yaml())
+        .with_config("doomed", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[keeper] spawned");
@@ -1136,17 +1050,18 @@ fn test_cli_reload_remove_process() {
 #[test]
 fn test_cli_reload_modify_process() {
     let env = TestEnv::new()
-        .with_config("svc", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("svc", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[svc] spawned");
 
     let old_pid = env.cli(&["list"]).pid_from_table_row("svc");
 
+    let (cmd, args) = dd_procmgrd::test_helpers::sleep_cmd(600);
     write_config(
         env.config_dir(),
         "svc",
-        "command: /bin/sleep\nargs:\n  - '600'\n",
+        &test_helpers::cmd_yaml(cmd, &args, ""),
     );
 
     env.cli(&["reload"])
@@ -1172,7 +1087,7 @@ fn test_cli_reload_modify_process() {
 #[test]
 fn test_cli_reload_add_and_remove() {
     let env = TestEnv::new()
-        .with_config("old", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("old", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[old] spawned");
@@ -1180,11 +1095,7 @@ fn test_cli_reload_add_and_remove() {
     let old_pid = env.cli(&["list"]).pid_from_table_row("old");
 
     std::fs::remove_file(env.config_dir().join("old.yaml")).expect("failed to remove old.yaml");
-    write_config(
-        env.config_dir(),
-        "new",
-        "command: /bin/sleep\nargs:\n  - '300'\n",
-    );
+    write_config(env.config_dir(), "new", test_helpers::sleep_config_yaml());
 
     let out = env.cli(&["reload"]);
     out.assert_success()
@@ -1205,16 +1116,12 @@ fn test_cli_reload_add_and_remove() {
 #[test]
 fn test_cli_reload_json() {
     let env = TestEnv::new()
-        .with_config("existing", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("existing", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[existing] spawned");
 
-    write_config(
-        env.config_dir(),
-        "added",
-        "command: /bin/sleep\nargs:\n  - '300'\n",
-    );
+    write_config(env.config_dir(), "added", test_helpers::sleep_config_yaml());
 
     let out = env.cli(&["reload", "--json"]);
     out.assert_success();
@@ -1242,11 +1149,7 @@ fn test_cli_reload_json() {
 fn test_cli_reload_new_process_starts() {
     let env = TestEnv::new().start();
 
-    write_config(
-        env.config_dir(),
-        "late",
-        "command: /bin/sleep\nargs:\n  - '300'\n",
-    );
+    write_config(env.config_dir(), "late", test_helpers::sleep_config_yaml());
 
     env.cli(&["reload"]).assert_success();
     env.daemon().wait_for_log_default("[late] spawned");
@@ -1262,7 +1165,7 @@ fn test_cli_reload_new_process_starts() {
 #[test]
 fn test_cli_reload_removed_process_stopped() {
     let env = TestEnv::new()
-        .with_config("ephemeral", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("ephemeral", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[ephemeral] spawned");
@@ -1288,17 +1191,8 @@ fn test_cli_reload_removed_process_stopped() {
 fn test_cli_full_lifecycle() {
     let env = TestEnv::new().start();
 
-    env.cli(&[
-        "create",
-        "--name",
-        "svc",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-        "--no-auto-start",
-    ])
-    .assert_success();
+    env.create_sleep("svc", &["--no-auto-start"])
+        .assert_success();
 
     env.cli(&["list"])
         .assert_success()
@@ -1329,16 +1223,7 @@ fn test_cli_full_lifecycle() {
 fn test_cli_create_stop_start_cycle() {
     let env = TestEnv::new().start();
 
-    env.cli(&[
-        "create",
-        "--name",
-        "svc",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-    ])
-    .assert_success();
+    env.create_sleep("svc", &[]).assert_success();
     env.daemon().wait_for_log_default("[svc] spawned");
 
     env.cli(&["describe", "svc"])
@@ -1381,7 +1266,7 @@ fn test_cli_reload_then_start() {
     write_config(
         env.config_dir(),
         "late",
-        "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
+        &test_helpers::sleep_config_with("auto_start: false\n"),
     );
 
     env.cli(&["reload"])
@@ -1402,8 +1287,8 @@ fn test_cli_reload_then_start() {
 #[test]
 fn test_cli_status_reflects_operations() {
     let env = TestEnv::new()
-        .with_config("svc-a", "command: /bin/sleep\nargs:\n  - '300'\n")
-        .with_config("svc-b", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("svc-a", test_helpers::sleep_config_yaml())
+        .with_config("svc-b", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[svc-a] spawned");
@@ -1429,16 +1314,7 @@ fn test_cli_status_reflects_operations() {
         .assert_field("Failed", "0")
         .assert_field("Exited", "0");
 
-    env.cli(&[
-        "create",
-        "--name",
-        "svc-c",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-    ])
-    .assert_success();
+    env.create_sleep("svc-c", &[]).assert_success();
     env.daemon().wait_for_log_default("[svc-c] spawned");
 
     env.cli(&["status"])
@@ -1455,31 +1331,11 @@ fn test_cli_status_reflects_operations() {
 fn test_cli_create_with_dependencies() {
     let env = TestEnv::new().start();
 
-    env.cli(&[
-        "create",
-        "--name",
-        "backend",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-        "--no-auto-start",
-    ])
-    .assert_success();
+    env.create_sleep("backend", &["--no-auto-start"])
+        .assert_success();
 
-    env.cli(&[
-        "create",
-        "--name",
-        "frontend",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-        "--after",
-        "backend",
-        "--no-auto-start",
-    ])
-    .assert_success();
+    env.create_sleep("frontend", &["--after", "backend", "--no-auto-start"])
+        .assert_success();
 
     env.cli(&["list"])
         .assert_success()
@@ -1517,17 +1373,7 @@ fn test_cli_create_with_dependencies() {
 fn test_cli_create_nonexistent_dependency_ignored() {
     let env = TestEnv::new().start();
 
-    let out = env.cli(&[
-        "create",
-        "--name",
-        "svc",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-        "--after",
-        "does-not-exist",
-    ]);
+    let out = env.create_sleep("svc", &["--after", "does-not-exist"]);
     out.assert_success();
     out.assert_stderr_contains("not found, ignoring");
 
@@ -1553,18 +1399,7 @@ fn test_cli_create_nonexistent_dependency_ignored() {
 fn test_cli_create_nonexistent_dependency_json_warnings() {
     let env = TestEnv::new().start();
 
-    let out = env.cli(&[
-        "create",
-        "--name",
-        "svc",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-        "--after",
-        "ghost",
-        "--json",
-    ]);
+    let out = env.create_sleep("svc", &["--after", "ghost", "--json"]);
     out.assert_success();
     let json = out.stdout_json();
     let warnings = json["warnings"]
@@ -1582,7 +1417,7 @@ fn test_cli_create_nonexistent_dependency_json_warnings() {
 #[test]
 fn test_cli_all_commands_json_parseable() {
     let env = TestEnv::new()
-        .with_config("svc", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("svc", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[svc] spawned");
@@ -1607,24 +1442,14 @@ fn test_cli_all_commands_json_parseable() {
         .assert_success()
         .stdout_json();
 
-    env.cli(&[
-        "create",
-        "--json",
-        "--name",
-        "dyn",
-        "--command",
-        "/bin/sleep",
-        "--args",
-        "300",
-        "--no-auto-start",
-    ])
-    .assert_success()
-    .stdout_json();
+    env.create_sleep("dyn", &["--json", "--no-auto-start"])
+        .assert_success()
+        .stdout_json();
 
     write_config(
         env.config_dir(),
         "extra",
-        "command: /bin/sleep\nargs:\n  - '300'\nauto_start: false\n",
+        &test_helpers::sleep_config_with("auto_start: false\n"),
     );
     env.cli(&["reload", "--json"])
         .assert_success()
@@ -1656,7 +1481,7 @@ fn test_cli_errors_on_stderr() {
 #[test]
 fn test_cli_exit_codes() {
     let env = TestEnv::new()
-        .with_config("svc", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("svc", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[svc] spawned");
@@ -1682,7 +1507,10 @@ fn test_cli_exit_codes() {
 #[test]
 fn test_cli_restart_on_failure_ignores_success_exit() {
     let env = TestEnv::new()
-        .with_config("ok", "command: /usr/bin/true\nrestart: on-failure\n")
+        .with_config(
+            "ok",
+            &test_helpers::true_config_with("restart: on-failure\n"),
+        )
         .start();
 
     env.daemon().wait_for_log_default("[ok] exited with");
@@ -1718,7 +1546,7 @@ fn test_cli_daemon_nonexistent_config_dir() {
 #[test]
 fn test_cli_daemon_shutdown_stops_children() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
@@ -1734,10 +1562,11 @@ fn test_cli_daemon_shutdown_stops_children() {
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn test_cli_daemon_shutdown_via_sigint() {
     let env = TestEnv::new()
-        .with_config("sleeper", "command: /bin/sleep\nargs:\n  - '300'\n")
+        .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
@@ -1764,7 +1593,10 @@ fn test_cli_daemon_shutdown_via_sigint() {
 #[test]
 fn test_cli_restart_on_success_restarts_on_exit_zero() {
     let env = TestEnv::new()
-        .with_config("ok-loop", "command: /usr/bin/true\nrestart: on-success\n")
+        .with_config(
+            "ok-loop",
+            &test_helpers::true_config_with("restart: on-success\n"),
+        )
         .start();
 
     assert!(
@@ -1781,7 +1613,10 @@ fn test_cli_restart_on_success_restarts_on_exit_zero() {
 #[test]
 fn test_cli_restart_on_failure_restarts_on_exit_nonzero() {
     let env = TestEnv::new()
-        .with_config("crasher", "command: /usr/bin/false\nrestart: on-failure\n")
+        .with_config(
+            "crasher",
+            &test_helpers::false_config_with("restart: on-failure\n"),
+        )
         .start();
 
     assert!(
@@ -1800,7 +1635,7 @@ fn test_cli_restart_on_success_ignores_failure_exit() {
     let env = TestEnv::new()
         .with_config(
             "fail-once",
-            "command: /usr/bin/false\nrestart: on-success\n",
+            &test_helpers::false_config_with("restart: on-success\n"),
         )
         .start();
 
@@ -1816,14 +1651,13 @@ fn test_cli_burst_limiting_stops_restarts() {
     let env = TestEnv::new()
         .with_config(
             "burst",
-            concat!(
-                "command: /usr/bin/false\n",
+            &test_helpers::false_config_with(concat!(
                 "restart: always\n",
                 "restart_sec: 2\n",
                 "restart_max_delay_sec: 2\n",
                 "start_limit_burst: 4\n",
                 "start_limit_interval_sec: 60\n",
-            ),
+            )),
         )
         .start();
 
@@ -1840,14 +1674,13 @@ fn test_cli_burst_interval_allows_spaced_restarts() {
     let env = TestEnv::new()
         .with_config(
             "spaced",
-            concat!(
-                "command: /usr/bin/false\n",
+            &test_helpers::false_config_with(concat!(
                 "restart: always\n",
                 "restart_sec: 0.6\n",
                 "restart_max_delay_sec: 0.6\n",
                 "start_limit_burst: 2\n",
                 "start_limit_interval_sec: 1\n",
-            ),
+            )),
         )
         .start();
 
@@ -1886,6 +1719,7 @@ fn test_cli_condition_path_exists_not_met() {
     assert_eq!(json[0]["pid"], 0);
 }
 
+#[cfg(unix)]
 #[test]
 fn test_cli_environment_file_loading() {
     let env = TestEnv::new();
@@ -1916,6 +1750,7 @@ fn test_cli_environment_file_loading() {
     assert_eq!(json[0]["last_exit_code"], 0);
 }
 
+#[cfg(unix)]
 #[test]
 fn test_cli_env_overrides_environment_file() {
     let env = TestEnv::new();
@@ -1949,6 +1784,7 @@ fn test_cli_env_overrides_environment_file() {
     assert_eq!(json[0]["last_exit_code"], 0);
 }
 
+#[cfg(unix)]
 #[test]
 fn test_cli_child_does_not_inherit_parent_env() {
     let env = TestEnv::new()
@@ -1973,16 +1809,14 @@ fn test_cli_child_does_not_inherit_parent_env() {
 
 #[test]
 fn test_cli_optional_environment_file_skipped_when_missing() {
+    let (sh, flag) = test_helpers::shell_cmd();
     let env = TestEnv::new()
         .with_config(
             "opt-env",
-            concat!(
-                "command: /bin/sh\n",
-                "args:\n",
-                "  - '-c'\n",
-                "  - 'exit 0'\n",
-                "environment_file: -/nonexistent/env\n",
-                "restart: never\n",
+            &test_helpers::cmd_yaml(
+                sh,
+                &[flag.to_string(), "exit 0".to_string()],
+                "environment_file: -/nonexistent/env\nrestart: never\n",
             ),
         )
         .start();
@@ -1998,7 +1832,7 @@ fn test_cli_optional_environment_file_skipped_when_missing() {
 
 #[test]
 fn test_cli_invalid_yaml_skipped() {
-    let env = TestEnv::new().with_config("good", "command: /bin/sleep\nargs:\n  - '300'\n");
+    let env = TestEnv::new().with_config("good", test_helpers::sleep_config_yaml());
 
     std::fs::write(env.config_dir().join("bad.yaml"), "not: valid: yaml: [").unwrap();
 
@@ -2011,6 +1845,7 @@ fn test_cli_invalid_yaml_skipped() {
     assert_eq!(json[0]["name"], "good");
 }
 
+#[cfg(unix)]
 fn render_ddot_template(
     install_dir: &str,
     etc_dir: &str,
@@ -2034,6 +1869,7 @@ fn render_ddot_template(
     )
 }
 
+#[cfg(unix)]
 #[test]
 fn test_ddot_template_starts_with_env_and_optional_envfile() {
     let dir = tempfile::tempdir().unwrap();
@@ -2108,6 +1944,7 @@ fn test_ddot_template_starts_with_env_and_optional_envfile() {
     assert!(status.success());
 }
 
+#[cfg(unix)]
 #[test]
 fn test_ddot_template_skipped_when_binary_missing() {
     let dir = tempfile::tempdir().unwrap();

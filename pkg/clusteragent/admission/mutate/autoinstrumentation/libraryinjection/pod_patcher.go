@@ -46,9 +46,18 @@ func (p *PodPatcher) AddVolume(vol corev1.Volume) {
 // AddVolumeMount adds a volume mount to all application containers (filtered by ContainerFilter).
 // If a mount with the same name and path exists, it replaces it.
 func (p *PodPatcher) AddVolumeMount(mount corev1.VolumeMount) {
+	p.AddVolumeMountWithTarget(mount, "")
+}
+
+// AddVolumeMountWithTarget adds a volume mount to filtered application containers.
+// If containerName is non-empty, only the matching container is mutated.
+func (p *PodPatcher) AddVolumeMountWithTarget(mount corev1.VolumeMount, containerName string) {
 	for i := range p.pod.Spec.Containers {
 		ctr := &p.pod.Spec.Containers[i]
 		if p.filter != nil && !p.filter(ctr) {
+			continue
+		}
+		if containerName != "" && ctr.Name != containerName {
 			continue
 		}
 		p.addVolumeMountToContainer(ctr, mount)

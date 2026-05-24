@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    Upgraded JMXFetch to `0.52.0 <https://github.com/DataDog/jmxfetch/releases/tag/0.52.0>`_,
+    which adds JMX metrics mappings for Generational Shenandoah GC and introduces the
+    ``use_canonical_bean_name`` option to guarantee consistent key property ordering in bean names.
+    See `0.52.0 <https://github.com/DataDog/jmxfetch/releases/tag/0.52.0>`_ for more details.

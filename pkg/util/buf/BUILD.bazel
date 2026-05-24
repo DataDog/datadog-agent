@@ -11,6 +11,7 @@ go_test(
     name = "buf_test",
     srcs = ["buffered_chan_test.go"],
     embed = [":buf"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

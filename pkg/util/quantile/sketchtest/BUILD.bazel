@@ -11,5 +11,6 @@ go_test(
     name = "sketchtest_test",
     srcs = ["quantile_test.go"],
     embed = [":sketchtest"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

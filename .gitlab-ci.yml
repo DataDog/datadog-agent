@@ -54,7 +54,14 @@
   - cmd/systray/**/*
   - cmd/otel-agent/**/*
 
-# Windows-specific comp/, tools, omnibus, containers, tasks, and cross-cutting (27 paths)
+# Bazel build system paths - single source of truth for all Bazel-related change detection.
+# Covers MODULE.bazel, MODULE.bazel.lock, BUILD.bazel, REPO.bazel, .bazelrc, .bazelversion.
+.bazel_paths: &bazel_paths
+  - "*.bazel*"
+  - deps/**/*
+  - bazel/**/*
+
+# Windows-specific comp/, tools, omnibus, containers, tasks, and cross-cutting paths
 .windows_path_2: &windows_path_2
   # Windows-specific comp/ components
   - comp/systray/**/*
@@ -73,13 +80,9 @@
   - tools/windows/**/*
 
   # Build/packaging
-  - .bazel*
-  - MODULE.bazel*
   - omnibus/**/*
   - packages/**/*
-  - deps/**/*
   - rtloader/**/*
-  - bazel/**/*
 
   # Windows containers
   - Dockerfiles/agent/windows/**/*
@@ -108,6 +111,7 @@
   - test/new-e2e/tests/windows/**/*
   - test/new-e2e/tests/sysprobe-functional/**/*
   - test/new-e2e/tests/process/**/*
+  - test/new-e2e/tests/agent-runtimes/**/*
 
 include:
   - local: .adms/**/*.yaml
@@ -136,6 +140,9 @@ include:
           compare_to: main
       - changes:
           paths: *windows_path_3
+          compare_to: main
+      - changes:
+          paths: *bazel_paths
           compare_to: main
       - when: never
 
@@ -186,7 +193,6 @@ stages:
   - dynamic_test
   - junit_upload
   - internal_kubernetes_deploy
-  - post_rc_build
   - check_merge
   - .post
 
@@ -262,25 +268,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v104474088-0c9dfdf4
+  CI_IMAGE_BTF_GEN: v114075546-22e66b98
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v104474088-0c9dfdf4
+  CI_IMAGE_DOCKER_X64: v114075546-22e66b98
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v104474088-0c9dfdf4
+  CI_IMAGE_DOCKER_ARM64: v114075546-22e66b98
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v104474088-0c9dfdf4
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v114075546-22e66b98
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v104474088-0c9dfdf4
+  CI_IMAGE_LINUX: v114075546-22e66b98
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v104474088-0c9dfdf4
+  CI_IMAGE_RPM_X64: v114075546-22e66b98
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v104474088-0c9dfdf4
+  CI_IMAGE_RPM_ARM64: v114075546-22e66b98
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v104474088-0c9dfdf4
+  CI_IMAGE_RPM_ARMHF: v114075546-22e66b98
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v102144341-64dad9f8
+  CI_IMAGE_WIN_LTSC2022_X64: v114471858-795a98da
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v102144341-64dad9f8
+  CI_IMAGE_WIN_LTSC2025_X64: v114471858-795a98da
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -311,8 +317,6 @@ variables:
   CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key # windows-products
   CODECOV_TOKEN: ci.datadog-agent.codecov_token # agent-devx
   CRC_PULL_SECRET: ci.datadog-agent.crc-pull-secret # container-integrations
-  DOCKER_REGISTRY_LOGIN: ci.datadog-agent.docker_hub_login # container-integrations
-  DOCKER_REGISTRY_PWD: ci.datadog-agent.docker_hub_pwd # container-integrations
   VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url # windows-products
   WINGET_PAT: ci.datadog-agent.winget_pat # windows-products
   # End aws ssm variables
@@ -320,17 +324,14 @@ variables:
   # Start vault variables
   AGENT_API_KEY_ORG2: agent-api-key-org-2 # agent-devx
   AGENT_APP_KEY_ORG2: agent-app-key-org-2 # agent-devx
-  AGENT_GITHUB_APP: agent-github-app # agent-devx
   AGENT_QA_E2E: agent-qa-e2e # agent-devx
-  ATLASSIAN_WRITE: atlassian-write # agent-devx
+  ATLASSIAN_WRITE: atlassian-write # agent-delivery
   CODECOV: codecov # agent-devx
   DOCKER_REGISTRY_RO: dockerhub-readonly # agent-delivery
   DYNAMIC_TESTS_BREAKGLASS: dynamic-tests-breakglass # agent-devx
   E2E_AZURE: e2e-azure # agent-devx
   E2E_GCP: e2e-gcp # agent-devx
   INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2 # agent-devx
-  MACOS_GITHUB_APP_1: macos-github-app-one # agent-devx
-  MACOS_GITHUB_APP_2: macos-github-app-two # agent-devx
   MACOS_APPLE_APPLICATION_SIGNING: apple-application-signing # agent-delivery
   MACOS_APPLE_DEVELOPER_ACCOUNT: apple-developer-account # agent-delivery
   MACOS_APPLE_INSTALLER_SIGNING: apple-installer-signing # agent-delivery
@@ -455,7 +456,7 @@ variables:
 # Paths that impact the final build artifacts (rpm, deb, docker images, etc.)
 # Used to conditionally skip expensive tests like SMP when only non-artifact files change
 # like documentation, CI config, e2e tests.
-.artifacts_build_impacting_paths: &artifacts_build_impacting_paths
+.on_smp_trigger_paths: &on_smp_trigger_paths
   paths:
     # agent source code
     - go.mod
@@ -467,13 +468,7 @@ variables:
     - rtloader/**/*
     # Build system
     - tasks/**/*.py
-    - deps/**/*
     - omnibus/**/*
-    - .bazelrc
-    - .bazelversion
-    - bazel/**/*
-    - BUILD.bazel
-    - MODULE.bazel
     - release.json
     # SMP regression detector experiments
     - test/regression/**/*
@@ -488,7 +483,6 @@ variables:
     paths:
       - omnibus/**/*
       - pkg/config/config_template.yaml
-      - pkg/config/security-agent_template.yaml
       - pkg/config/system-probe_template.yaml
     compare_to: $COMPARE_TO_BRANCH
 
@@ -498,6 +492,12 @@ variables:
 #
 workflow:
   rules:
+    - <<: *if_scheduled_main
+      variables:
+        WINDOWS_SIGNING_CERT: "s3://windows-code-signing-certificates/certs/beta/kms-signed.crt"
+        WINDOWS_SIGNING_CONFIG: "s3://windows-code-signing-certificates/certs/beta/config.json"
+        BAZEL_CACHE_POLICY_SUFFIX: "-push"
+        GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_triggered_pipeline
     - <<: *if_main_branch
       variables:
@@ -520,6 +520,11 @@ workflow:
         SKIP_WINDOWS: "false"
     - changes:
         paths: *windows_path_3
+        compare_to: main
+      variables:
+        SKIP_WINDOWS: "false"
+    - changes:
+        paths: *bazel_paths
         compare_to: main
       variables:
         SKIP_WINDOWS: "false"
@@ -658,13 +663,21 @@ workflow:
 .on_dev_branches_with_artifact_changes:
   - !reference [.on_dev_branches]
   - changes:
-      <<: *artifacts_build_impacting_paths
+      <<: *on_smp_trigger_paths
+      compare_to: $COMPARE_TO_BRANCH
+  - changes:
+      paths: *bazel_paths
       compare_to: $COMPARE_TO_BRANCH
 
 .on_dev_branches_with_artifact_changes_manual:
   - !reference [.on_dev_branches]
   - changes:
-      <<: *artifacts_build_impacting_paths
+      <<: *on_smp_trigger_paths
+      compare_to: $COMPARE_TO_BRANCH
+    when: manual
+    allow_failure: true
+  - changes:
+      paths: *bazel_paths
       compare_to: $COMPARE_TO_BRANCH
     when: manual
     allow_failure: true
@@ -1201,7 +1214,6 @@ workflow:
       paths:
         - cmd/otel-agent/**/*
         - comp/otelcol/**/*
-        - test/otel/testdata/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1367,11 +1379,11 @@ workflow:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
       paths:
-        - comp/core/gui/guiimpl/systray/**/*
+        - comp/core/gui/impl/systray/**/*
         - "**/*.m"
       compare_to: $COMPARE_TO_BRANCH
 
-.on_packaging_change:
+.on_macos_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
       paths:
@@ -1379,6 +1391,9 @@ workflow:
         - .gitlab-ci.yml
         - release.json
         - .gitlab/build/package_build/**/*
+      compare_to: $COMPARE_TO_BRANCH
+  - changes:
+      paths: *bazel_paths
       compare_to: $COMPARE_TO_BRANCH
 
 .on_go-version_change:
@@ -1457,6 +1472,14 @@ workflow:
         - pkg/collector/corechecks/gpu/**/*
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
         - comp/core/autodiscovery/listeners/staticconfig.go
+      compare_to: $COMPARE_TO_BRANCH
+
+.on_autoscaling_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/autoscaling/**/*
+        - pkg/clusteragent/autoscaling/cluster/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 .on_gpu_integration_tests:

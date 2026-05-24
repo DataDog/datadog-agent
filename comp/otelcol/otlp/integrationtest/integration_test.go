@@ -48,9 +48,9 @@ import (
 	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	fxnoop "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
@@ -59,15 +59,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
 	collectorimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	converterfx "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx"
-	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
-	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
+	logsagentpipeline "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
+	logsagentpipelinefx "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
@@ -95,7 +95,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		forwarder.Bundle(defaultforwarder.NewParams()),
 		delegatedauthnoopfx.Module(),
 		logtrace.Module(),
-		inventoryagentimpl.Module(),
+		inventoryagentfx.Module(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
@@ -134,7 +134,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		fx.Provide(func() logconfig.IntakeOrigin {
 			return logconfig.DDOTIntakeOrigin
 		}),
-		logsagentpipelineimpl.Module(),
+		logsagentpipelinefx.Module(),
 		logscompressionfx.Module(),
 		metricscompressionfx.Module(),
 		// For FX to provide the compression.Compressor interface (used by serializer.NewSerializer)
@@ -157,7 +157,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component], _ pid.Component) {
 		}),
 		taggerfx.Module(),
-		noopsimpl.Module(),
+		fxnoop.Module(),
 		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),

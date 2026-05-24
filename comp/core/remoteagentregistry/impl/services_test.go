@@ -45,19 +45,20 @@ func TestFlareProvider(t *testing.T) {
 	component := provides.Comp
 	flareProvider := provides.FlareProvider
 
-	remoteAgent := buildAndRegisterRemoteAgent(t, ipcComp, component, "test-agent", "Test Agent", "123",
+	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "test-agent", "Test Agent", "123",
 		WithFlareProvider(map[string][]byte{
 			"test_file.yaml": []byte("test_content"),
 		}),
 	)
 
-	fb := helpers.NewFlareBuilderMock(t, false)
-	fb.AssertNoFileExists("test-agent/test_file.yaml")
+	flareFilePath := "test-agent/test_file.yaml"
 
-	err := flareProvider.FlareFiller.Callback(fb)
+	fb := helpers.NewFlareBuilderMock(t, false)
+	fb.AssertNoFileExists(flareFilePath)
+
+	err := flareProvider.FlareFiller.Callback(context.Background(), fb)
 	require.NoError(t, err)
 
-	flareFilePath := remoteAgent.RegistrationData.AgentDisplayName + "-" + remoteAgent.RegistrationData.AgentFlavor + "-" + remoteAgent.registeredSessionID + "/test_file.yaml"
 	fb.AssertFileExists(flareFilePath)
 	fb.AssertFileContent("test_content", flareFilePath)
 }

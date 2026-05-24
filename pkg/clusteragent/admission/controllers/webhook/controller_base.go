@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/version"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers/admissionregistration"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -24,8 +25,9 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
@@ -35,9 +37,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoscaling"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/ncclprofiler"
+	admspot "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/datadoginstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/kubernetesadmissionevents"
+	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	kubecommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -49,23 +56,11 @@ type Controller interface {
 }
 
 // NewController returns the adequate implementation of the Controller interface.
-func NewController(
-	client kubernetes.Interface,
-	secretInformer coreinformers.SecretInformer,
-	validatingInformers admissionregistration.Interface,
-	mutatingInformers admissionregistration.Interface,
-	isLeaderFunc func() bool,
-	leadershipStateNotif <-chan struct{},
-	config Config,
-	wmeta workloadmeta.Component,
-	pa workload.PodPatcher,
-	datadogConfig config.Component,
-	demultiplexer demultiplexer.Component,
-) Controller {
+func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, validatingInformers admissionregistration.Interface, mutatingInformers admissionregistration.Interface, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, config Config, wmeta workloadmeta.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, datadogConfig config.Component, demultiplexer demultiplexer.Component, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
+		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pp, sh, datadogConfig, demultiplexer, filterStore, handlers, informerFactory)
 	}
-	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
+	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pp, sh, datadogConfig, demultiplexer, filterStore, handlers, informerFactory)
 }
 
 // Webhook represents an admission webhook
@@ -78,10 +73,8 @@ type Webhook interface {
 	IsEnabled() bool
 	// Endpoint returns the endpoint of the webhook
 	Endpoint() string
-	// Resources returns the kubernetes resources for which the webhook should
-	// be invoked.
-	// The key is the API group, and the value is a list of resources.
-	Resources() map[string][]string
+	// Resources returns the kubernetes resources for which the webhook should be invoked.
+	Resources() []common.WebhookResourceRule
 	// Operations returns the operations on the resources specified for which
 	// the webhook should be invoked
 	Operations() []admiv1.OperationType
@@ -103,15 +96,15 @@ type Webhook interface {
 // The reason is that the volume mount for the APM socket added by the configWebhook webhook
 // doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
 // the agent sidecar webhook needs to remove it.
-func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component, demultiplexer demultiplexer.Component) []Webhook {
+func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta workloadmeta.Component, demultiplexer demultiplexer.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory) []Webhook {
 	var webhooks []Webhook
 	var validatingWebhooks []Webhook
 
 	// Add Validating webhooks.
 	if c.config.isValidationEnabled() {
-		// Future validating webhooks can be added here.
 		validatingWebhooks = []Webhook{
 			kubernetesadmissionevents.NewWebhook(datadogConfig, demultiplexer, c.config.supportsMatchConditions()),
+			datadoginstrumentation.NewWebhook(datadogConfig, handlers, informerFactory),
 		}
 		webhooks = append(webhooks, validatingWebhooks...)
 	}
@@ -142,8 +135,12 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	webhooks = append(webhooks, agentsWebhook)
 
 	// Setup autoscaling webhook.
-	autoscalingWebhook := autoscaling.NewWebhook(pa, datadogConfig)
+	autoscalingWebhook := autoscaling.NewWebhook(pp, datadogConfig)
 	webhooks = append(webhooks, autoscalingWebhook)
+
+	// Setup spot scheduling webhook.
+	spotWebhook := admspot.NewWebhook(datadogConfig, sh)
+	webhooks = append(webhooks, spotWebhook)
 
 	// Setup appsec proxy webhook.
 	appsecWebhook := appsec.NewWebhook(datadogConfig)
@@ -169,13 +166,17 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 
 	isCWSInstrumentationEnabled := datadogConfig.GetBool("admission_controller.cws_instrumentation.enabled")
 	if isCWSInstrumentationEnabled {
-		cws, err := cwsinstrumentation.NewCWSInstrumentation(wmeta, datadogConfig)
+		cws, err := cwsinstrumentation.NewCWSInstrumentation(wmeta, datadogConfig, filterStore)
 		if err == nil {
 			webhooks = append(webhooks, cws.WebhookForPods(), cws.WebhookForCommands())
 		} else {
 			log.Errorf("failed to register CWS Instrumentation webhook: %v", err)
 		}
 	}
+
+	// Setup NCCL profiler injection webhook.
+	ncclWebhook := ncclprofiler.NewWebhook(datadogConfig)
+	webhooks = append(webhooks, ncclWebhook)
 
 	return webhooks
 }

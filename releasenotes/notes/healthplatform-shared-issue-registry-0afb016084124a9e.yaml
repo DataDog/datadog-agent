@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    The health platform now uses a single shared issue registry component,
+    eliminating duplicate registry construction and improving consistency of
+    issue template lookups.

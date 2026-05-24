@@ -32,6 +32,7 @@ go_test(
         "testingutils_test.go",
     ],
     embed = [":state"],
+    gotags = ["test"],
     deps = [
         "//pkg/remoteconfig/state/products/apmsampling",
         "@com_github_datadog_go_tuf//data",

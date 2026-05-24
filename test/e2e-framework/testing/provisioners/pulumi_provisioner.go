@@ -123,7 +123,7 @@ func (pp *PulumiProvisioner[Env]) Diagnose(ctx context.Context, stackName string
 	if pp.diagnoseFunc != nil {
 		return pp.diagnoseFunc(ctx, stackName)
 	}
-	return "", nil
+	return "\n\n--- No Diagnose function set ---\n\n", nil
 }
 
 // SetDiagnoseFunc sets the diagnose function.

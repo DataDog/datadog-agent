@@ -8,23 +8,22 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/syndtr/gocapability/capability"
 	"golang.org/x/sys/unix"
 )
 
 // RunOscapExec executes oscap-io with dropped capabilities
 func RunOscapExec(args []string) error {
-	if len(args) < 1 {
-		return errors.New("oscap-exec requires at least one argument (binary path)")
+	binaryPath, err := getOSCAPIODefaultBinPath()
+	if err != nil {
+		return err
 	}
-
-	binaryPath := args[0]
-	execArgs := args // args[0] will be the binary path (used as argv[0])
 
 	// Verify the binary exists
 	if _, err := os.Stat(binaryPath); err != nil {
@@ -43,12 +42,26 @@ func RunOscapExec(args []string) error {
 
 	// Execute oscap-io (replaces current process)
 	// Note: syscall.Exec never returns on success
+	execArgs := append([]string{binaryPath}, args...)
 	if err := syscall.Exec(binaryPath, execArgs, os.Environ()); err != nil {
 		return fmt.Errorf("failed to exec oscap-io at %s: %w", binaryPath, err)
 	}
 
 	// This line should never be reached
 	return nil
+}
+
+func getOSCAPIODefaultBinPath() (string, error) {
+	here, err := executable.Folder()
+	if err != nil {
+		return "", err
+	}
+
+	binPath := filepath.Join(here, "..", "..", "embedded", "bin", "oscap-io")
+	if _, err := os.Stat(binPath); err == nil {
+		return binPath, nil
+	}
+	return binPath, fmt.Errorf("can't access the default oscap-io binary at %s", binPath)
 }
 
 // dropCapabilities drops all capabilities except CAP_SYS_CHROOT and CAP_DAC_OVERRIDE
