@@ -27,6 +27,18 @@
           <add name="dd_version" value="lower-version" />
         </environmentVariables>
       </add>
+      <add name="poolWithRemove">
+        <environmentVariables>
+          <remove name="DD_ENV" />
+          <add name="DD_SERVICE" value="remove-pool-service" />
+        </environmentVariables>
+      </add>
+      <add name="poolWithClear">
+        <environmentVariables>
+          <clear />
+          <add name="DD_SERVICE" value="clear-pool-service" />
+        </environmentVariables>
+      </add>
     </applicationPools>
     <sites>
       <applicationDefaults applicationPool="poolB" />
@@ -50,6 +62,12 @@
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
         <application path="/h">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/i" applicationPool="poolWithRemove">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/j" applicationPool="poolWithClear">
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
       </site>

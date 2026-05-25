@@ -113,9 +113,15 @@ type iisEnvVar struct {
 	Name  string `xml:"name,attr"`
 	Value string `xml:"value,attr"`
 }
+type iisEnvVarRemove struct {
+	Name string `xml:"name,attr"`
+}
+type iisEnvVarClear struct{}
 type iisEnvironmentVariables struct {
-	XMLName xml.Name    `xml:"environmentVariables"`
-	Adds    []iisEnvVar `xml:"add"`
+	XMLName xml.Name          `xml:"environmentVariables"`
+	Adds    []iisEnvVar       `xml:"add"`
+	Removes []iisEnvVarRemove `xml:"remove"`
+	Clears  []iisEnvVarClear  `xml:"clear"`
 }
 type iisApplication struct {
 	XMLName     xml.Name              `xml:"application"`

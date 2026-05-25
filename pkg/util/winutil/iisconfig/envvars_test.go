@@ -105,6 +105,24 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		assert.Equal(t, "default-env", env.DDEnv)
 		assert.Equal(t, "1.0.0", env.DDVersion)
 	})
+
+	t.Run("<remove> drops an inherited applicationPoolDefaults entry", func(t *testing.T) {
+		// poolWithRemove sets DD_SERVICE and removes the inherited DD_ENV
+		// from applicationPoolDefaults.
+		_, _, env := iisCfg.GetAPMTags(10, "/i")
+		assert.Equal(t, "remove-pool-service", env.DDService)
+		assert.Equal(t, "", env.DDEnv)
+		assert.Equal(t, "", env.DDVersion)
+	})
+
+	t.Run("<clear/> wipes all inherited applicationPoolDefaults entries", func(t *testing.T) {
+		// poolWithClear resets the inherited defaults and then adds DD_SERVICE.
+		_, _, env := iisCfg.GetAPMTags(10, "/j")
+		assert.Equal(t, "clear-pool-service", env.DDService)
+		// DD_ENV was inherited from applicationPoolDefaults; <clear/> drops it.
+		assert.Equal(t, "", env.DDEnv)
+		assert.Equal(t, "", env.DDVersion)
+	})
 }
 
 func TestOverlayAPMTags(t *testing.T) {
