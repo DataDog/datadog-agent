@@ -1,0 +1,10 @@
+# Datadog Automated Remediation Placeholder
+# Case: CMVOT-153
+# CVE: CVE-2026-42208
+# Package: litellm
+# Image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/dd-analytics
+# Status: pending-human-triage
+#
+# This file was created by the automated remediation agent as a tracked placeholder.
+# The source repository for the affected image could not be auto-identified.
+# Please see the PR description and PR comments for full remediation details.
