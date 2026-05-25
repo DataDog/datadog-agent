@@ -28,7 +28,6 @@ cd "${repo_dir}"
 DDA_NO_DYNAMIC_DEPS=0 dda inv install-tools 2>&1 | tee "${HOME}/.install-tools.log"
 
 # Create the workspace state directory
-(umask 077 && mkdir -p ~/.local/state/workspaces)
 
 ddtool auth helpers install
 ln -s workspaces-tool-helper ~/.local/bin/xdg-open

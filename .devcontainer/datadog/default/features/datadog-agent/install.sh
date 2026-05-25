@@ -18,13 +18,19 @@ curl --no-progress-meter --retry 10 --retry-max-time 60 -Lo /usr/local/bin/updat
 chmod +x /usr/local/bin/update-tool
 
 su - bits <<EOF
+(umask 077 && mkdir -p ~/.local/state/workspaces)
+touch ~/state-done
 mkdir -p ~/.local/bin
-update-tool ddtool@1.101.0
+touch ~/bin-done
+update-tool ddtool@1.101.0 > ~/ddtool-install.log 2>&1
+touch ~/ddtool-done
 
-ddtool auth helpers install
+ddtool auth helpers install > ~/helpers-install.log 2>&1
+touch ~/helpers-done
 
 # Activate xdg-open functionality
 ln -s workspaces-tool-helper ~/.local/bin/xdg-open
+touch ~/xdg-open-done
 EOF
 
 # Configure PATH for interactive shells.
