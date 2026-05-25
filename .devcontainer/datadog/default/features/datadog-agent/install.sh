@@ -18,6 +18,7 @@ curl --no-progress-meter --retry 10 --retry-max-time 60 -Lo /usr/local/bin/updat
 chmod +x /usr/local/bin/update-tool
 
 su - bits <<EOF
+export PATH="~/.local/bin:\$PATH"
 (umask 077 && mkdir -p ~/.local/state/workspaces)
 touch ~/state-done
 mkdir -p ~/.local/bin
