@@ -98,7 +98,7 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 	// Inject XID events for each device to ensure the errors.xid.total metric is emitted.
 	for _, device := range devices {
 		deviceUUID := device.GetDeviceInfo().UUID
-		require.NoError(t, checkInternal.DeviceEvtGatherer.InjectEventsForTest(deviceUUID, []safenvml.DeviceEventData{{
+		require.NoError(t, checkInternal.InjectXIDEventsForTest(deviceUUID, []safenvml.DeviceEventData{{
 			DeviceUUID: deviceUUID,
 			EventType:  nvml.EventTypeXidCriticalError,
 			EventData:  31,

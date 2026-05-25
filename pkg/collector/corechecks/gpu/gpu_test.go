@@ -1101,7 +1101,7 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 		// XID events are injected between runs, after collectors have registered devices.
 		require.NoError(t, check.Run())
 		if config.DeviceMode == gpuspec.DeviceModePhysical {
-			require.NoError(t, check.DeviceEvtGatherer.InjectEventsForTest(testutil.DefaultGpuUUID, []ddnvml.DeviceEventData{{
+			require.NoError(t, check.deviceEvtGatherer.InjectEventsForTest(testutil.DefaultGpuUUID, []ddnvml.DeviceEventData{{
 				DeviceUUID: testutil.DefaultGpuUUID,
 				EventType:  nvml.EventTypeXidCriticalError,
 				EventData:  31,
