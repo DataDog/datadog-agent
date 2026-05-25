@@ -12,6 +12,7 @@
 #   - support:
 #       - unsupported_architectures: [<architecture_name>, ...] (the list of architectures that do not support the metric)
 #       - device_modes: {mig: bool, physical: bool, vgpu: bool} (a map describing whether each device mode supports the metric)
+#       - capabilities_required (optional): {nvlink: <min_generation>, c2c: <bool>} (hardware capabilities required for the metric)
 metric_prefix: gpu
 metrics:
   clock.speed.graphics:
@@ -19,6 +20,7 @@ metrics:
       metric_type: gauge
       unit: megahertz
       description: Current clock speed for the graphics domain
+      aggregation: sensor_data
     tagsets:
       - device
     support:
@@ -32,6 +34,7 @@ metrics:
       metric_type: gauge
       unit: megahertz
       description: Maximum clock speed for the graphics domain
+      aggregation: sensor_data
     tagsets:
       - device
     support:
@@ -45,6 +48,7 @@ metrics:
       metric_type: gauge
       unit: megahertz
       description: Current clock speed for the memory
+      aggregation: sensor_data
     tagsets:
       - device
     support:
@@ -58,6 +62,7 @@ metrics:
       metric_type: gauge
       unit: megahertz
       description: Maximum clock speed for the memory
+      aggregation: sensor_data
     tagsets:
       - device
     support:
@@ -71,6 +76,7 @@ metrics:
       metric_type: gauge
       unit: megahertz
       description: Current clock speed for the Streaming Multiprocessor
+      aggregation: sensor_data
     tagsets:
       - device
     support:
@@ -84,6 +90,7 @@ metrics:
       metric_type: gauge
       unit: megahertz
       description: Maximum clock speed for the Streaming Multiprocessor
+      aggregation: sensor_data
     tagsets:
       - device
     support:
@@ -97,6 +104,7 @@ metrics:
       metric_type: gauge
       unit: megahertz
       description: Current clock speed for the video encoder/decoder
+      aggregation: sensor_data
     tagsets:
       - device
     support:
@@ -111,6 +119,7 @@ metrics:
       metric_type: gauge
       unit: megahertz
       description: Maximum clock speed for the video encoder/decoder
+      aggregation: sensor_data
     tagsets:
       - device
     support:
@@ -124,6 +133,7 @@ metrics:
     metadata:
       metric_type: gauge
       description: GPU clocks that are throttled due to application settings
+      aggregation: sensor_data
     tagsets:
       - device
     validator:
@@ -139,6 +149,7 @@ metrics:
     metadata:
       metric_type: gauge
       description: GPU clocks that are throttled due to display clock settings
+      aggregation: sensor_data
     tagsets:
       - device
     validator:
@@ -154,6 +165,7 @@ metrics:
     metadata:
       metric_type: gauge
       description: GPU clocks that are throttled due to the GPU being idle
+      aggregation: sensor_data
     tagsets:
       - device
     validator:
@@ -169,6 +181,7 @@ metrics:
     metadata:
       metric_type: gauge
       description: GPU clocks that are not throttled
+      aggregation: sensor_data
     tagsets:
       - device
     validator:
@@ -184,6 +197,7 @@ metrics:
     metadata:
       metric_type: gauge
       description: GPU clocks that are throttled to avoid exceeding power limits
+      aggregation: sensor_data
     tagsets:
       - device
     validator:
@@ -199,6 +213,7 @@ metrics:
     metadata:
       metric_type: gauge
       description: GPU clocks that are throttled to avoid exceeding temperature limits
+      aggregation: sensor_data
     tagsets:
       - device
     validator:
@@ -213,7 +228,9 @@ metrics:
   clock.throttle_reasons.sync_boost:
     metadata:
       metric_type: gauge
-      description: GPU clocks that are throttled to match clock speed of another GPU in the current sync boost group
+      description: GPU clocks that are throttled to match clock speed of another GPU
+        in the current sync boost group
+      aggregation: sensor_data
     tagsets:
       - device
     validator:
@@ -230,6 +247,8 @@ metrics:
       metric_type: gauge
       unit: core
       description: Number of GPU cores that the process/container/device has available
+      used_in_dd_ui: true
+      aggregation: absolute_usage
     tagsets:
       - device
       - process
@@ -249,6 +268,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: Percentage of time the decoder was active
+      aggregation: relative_activity
     tagsets:
       - device
     support:
@@ -262,6 +282,8 @@ metrics:
     metadata:
       metric_type: gauge
       description: Number of GPU devices found in the host
+      used_in_dd_ui: true
+      aggregation: absolute_usage
     tagsets:
       - device
     validator:
@@ -276,6 +298,7 @@ metrics:
     metadata:
       metric_type: gauge
       description: Whether the GPU device is unhealthy
+      aggregation: absolute_usage
     tagsets:
       - device
     validator:
@@ -291,6 +314,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: Percentage of time the DRAM was active
+      aggregation: relative_activity
     tagsets:
       - device
     support:
@@ -305,6 +329,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: Percentage of time the encoder was active
+      aggregation: relative_activity
     tagsets:
       - device
     support:
@@ -322,7 +347,9 @@ metrics:
         corruption that was detected and successfully corrected by the hardware.
         While these errors do not immediately impact application correctness,
         recurring corrected errors can be an early sign of degrading memory or
-        underlying hardware issues.
+        underlying hardware issues. The counter reports errors seen for the entire
+        lifetime of the device.
+      aggregation: lifetime_error
     tagsets:
       - device
     custom_tags:
@@ -336,11 +363,13 @@ metrics:
   errors.ecc.uncorrected.total:
     metadata:
       metric_type: gauge
+      used_in_dd_ui: true
       description: >-
         Uncorrectable ECC (Error Correcting Code) errors indicate GPU memory
         corruption that could not be automatically fixed. These errors can lead
         to data corruption, application crashes, or incorrect computation
-        results.
+        results. The counter reports errors seen for the entire lifetime of the device.
+      aggregation: lifetime_error
     tagsets:
       - device
     custom_tags:
@@ -372,7 +401,9 @@ metrics:
   errors.ecc.sram.uncorrected_by_subtype.total:
     metadata:
       metric_type: gauge
-      description: Aggregate SRAM uncorrectable ECC errors split by subtype
+      description: >-
+        Aggregate SRAM uncorrectable ECC errors split by subtype. The counter reports errors seen for the entire
+        lifetime of the device.
     tagsets:
       - device
     custom_tags:
@@ -423,11 +454,14 @@ metrics:
   errors.xid.total:
     metadata:
       metric_type: gauge
+      used_in_dd_ui: true
       description: >-
         XID errors are NVIDIA driver error codes that indicate GPU hardware or
         software issues like thermal throttling to hardware defects.
         Investigate these errors immediately as they often precede total GPU
-        failures.
+        failures. The counter reports XID errors received since the Agent started
+        collecting events for this device.
+      aggregation: lifetime_error
     tagsets:
       - device
     custom_tags:
@@ -444,6 +478,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: Configured fan speed as a percentage of its maximum
+      aggregation: sensor_data
     tagsets:
       - device
     support:
@@ -456,7 +491,9 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the 16-bit floating point calculation engine was active. Only for Hopper and newer GPUs
+      description: Percentage of the time that the 16-bit floating point calculation
+        engine was active. Only for Hopper and newer GPUs
+      aggregation: relative_activity
     tagsets:
       - device
     support:
@@ -477,7 +514,9 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the 32-bit floating point calculation engine was active. Only for Hopper and newer GPUs
+      description: Percentage of the time that the 32-bit floating point calculation
+        engine was active. Only for Hopper and newer GPUs
+      aggregation: relative_activity
     tagsets:
       - device
     support:
@@ -498,7 +537,9 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the 64-bit floating point calculation engine was active. Only for Hopper and newer GPUs
+      description: Percentage of the time that the 64-bit floating point calculation
+        engine was active. Only for Hopper and newer GPUs
+      aggregation: relative_activity
     tagsets:
       - device
     support:
@@ -520,6 +561,8 @@ metrics:
       metric_type: gauge
       unit: percent
       description: Percentage of time that the graphics engine was active
+      used_in_dd_ui: true
+      aggregation: relative_activity
     tagsets:
       - device
     support:
@@ -533,7 +576,9 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the integer calculation engine was active. Only for Hopper and newer GPUs
+      description: Percentage of the time that the integer calculation engine was
+        active. Only for Hopper and newer GPUs
+      aggregation: relative_activity
     tagsets:
       - device
     support:
@@ -555,6 +600,7 @@ metrics:
       metric_type: gauge
       unit: byte
       description: Unallocated BAR1 memory (in bytes)
+      aggregation: absolute_usage
     tagsets:
       - device
     support:
@@ -569,6 +615,7 @@ metrics:
       metric_type: gauge
       unit: byte
       description: Total BAR1 memory (in bytes).
+      aggregation: absolute_usage
     tagsets:
       - device
     support:
@@ -583,6 +630,7 @@ metrics:
       metric_type: gauge
       unit: byte
       description: Allocated used memory (in bytes)
+      aggregation: absolute_usage
     tagsets:
       - device
     support:
@@ -597,6 +645,7 @@ metrics:
       metric_type: gauge
       unit: byte
       description: Unallocated device memory (in bytes).
+      aggregation: absolute_usage
     tagsets:
       - device
     support:
@@ -613,6 +662,8 @@ metrics:
       metric_type: gauge
       unit: byte
       description: The maximum amount of memory a process/container/device could allocate
+      used_in_dd_ui: true
+      aggregation: absolute_usage
     tagsets:
       - device
       - process
@@ -632,6 +683,7 @@ metrics:
       metric_type: gauge
       unit: byte
       description: Device memory (in bytes) reserved for system use (driver or firmware)..
+      aggregation: absolute_usage
     tagsets:
       - device
     support:
@@ -648,6 +700,7 @@ metrics:
       metric_type: gauge
       unit: degree celsius
       description: Temperature of the memory chip
+      aggregation: sensor_data
     tagsets:
       - device
     support:
@@ -667,68 +720,62 @@ metrics:
     metadata:
       metric_type: gauge
       description: Number of active nvlinks for the device
+      aggregation: absolute_usage
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: true
+      capabilities_required:
+        nvlink: 1
   nvlink.count.inactive:
     metadata:
       metric_type: gauge
       description: Number of inactive nvlinks for the device
+      aggregation: absolute_usage
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: true
+      capabilities_required:
+        nvlink: 1
   nvlink.count.total:
     metadata:
       metric_type: gauge
       description: Number of total nvlinks for the device
+      aggregation: absolute_usage
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: true
+      capabilities_required:
+        nvlink: 1
   nvlink.ber.effective:
     metadata:
       metric_type: gauge
       description: Effective bit error rate for all NVLINK links
+      aggregation: lifetime_error
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.ber.symbol:
     metadata:
       metric_type: gauge
@@ -736,24 +783,19 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.errors.crc.data:
     metadata:
       metric_type: gauge
-      description: NVLink data CRC error counter total for all links
+      description: >-
+        NVLink data CRC error counter total for all links. The counter reports
+        the device lifetime total reported by NVML.
     tagsets:
       - device
     validator:
@@ -761,19 +803,19 @@ metrics:
         min: 0
         max: 1000000000000000
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.errors.crc.flit:
     metadata:
       metric_type: gauge
-      description: NVLink flow control CRC error counter total for all links
+      description: >-
+        NVLink flow control CRC error counter total for all links. The counter
+        reports the device lifetime total reported by NVML.
     tagsets:
       - device
     validator:
@@ -781,40 +823,37 @@ metrics:
         min: 0
         max: 1000000000000000
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.errors.buffer.overrun:
     metadata:
       metric_type: gauge
-      description: NVLink buffer overrun error counter total for all links
+      description: >-
+        NVLink buffer overrun error counter total for all links. The counter
+        reports the device lifetime total reported by NVML.
+      aggregation: lifetime_error
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.errors.ecc:
     metadata:
       metric_type: gauge
-      description: NVLink ECC error counter total for all links
+      description: >-
+        NVLink ECC error counter total for all links. The counter reports the
+        device lifetime total reported by NVML.
+      aggregation: lifetime_error
     tagsets:
       - device
     validator:
@@ -822,82 +861,68 @@ metrics:
         min: 0
         max: 1000000000000000
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.errors.effective:
     metadata:
       metric_type: gauge
-      description: NVLink effective error counter total for all links
+      description: >-
+        NVLink effective error counter total for all links. The counter reports
+        the device lifetime total reported by NVML.
+      aggregation: lifetime_error
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.errors.local.link.integrity:
     metadata:
       metric_type: gauge
-      description: NVLink local link integrity error counter total for all links
+      description: >-
+        NVLink local link integrity error counter total for all links. The
+        counter reports the device lifetime total reported by NVML.
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.errors.malformed.packet:
     metadata:
       metric_type: gauge
-      description: NVLink malformed packet error counter total for all links
+      description: >-
+        NVLink malformed packet error counter total for all links. The counter
+        reports the device lifetime total reported by NVML.
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.errors.recovery:
     metadata:
       metric_type: gauge
-      description: NVLink recovery error counter total for all links
+      description: >-
+        NVLink recovery error counter total for all links. The counter reports
+        the device lifetime total reported by NVML.
     tagsets:
       - device
     validator:
@@ -905,19 +930,20 @@ metrics:
         min: 0
         max: 1000000000000000
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.errors.replay:
     metadata:
       metric_type: gauge
-      description: NVLink replay error counter total for all links
+      description: >-
+        NVLink replay error counter total for all links. The counter reports the
+        device lifetime total reported by NVML.
+      aggregation: lifetime_error
     tagsets:
       - device
     validator:
@@ -925,103 +951,82 @@ metrics:
         min: 0
         max: 1000000000000000
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.errors.rx:
     metadata:
       metric_type: gauge
-      description: NVLink receive error counter total for all links
+      description: >-
+        NVLink receive error counter total for all links. The counter reports
+        the device lifetime total reported by NVML.
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.errors.rx.general:
     metadata:
       metric_type: gauge
-      description: NVLink general receive error counter total for all links
+      description: >-
+        NVLink general receive error counter total for all links. The counter
+        reports the device lifetime total reported by NVML.
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.errors.rx.remote:
     metadata:
       metric_type: gauge
-      description: NVLink remote receive error counter total for all links
+      description: >-
+        NVLink remote receive error counter total for all links. The counter
+        reports the device lifetime total reported by NVML.
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.errors.symbol:
     metadata:
       metric_type: gauge
-      description: NVLink symbol error counter total for all links
+      description: >-
+        NVLink symbol error counter total for all links. The counter reports the
+        device lifetime total reported by NVML.
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.nvswitch_connected:
     metadata:
       metric_type: gauge
       description: Number of NVLinks connected to the NVSwitch
+      aggregation: absolute_usage
     tagsets:
       - device
     support:
@@ -1034,29 +1039,25 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 3
   nvlink.plr.codes_loss:
     metadata:
       metric_type: gauge
       description: NVLink PLR codes loss counter for the port
+      aggregation: sensor_data
     tagsets:
       - device
     custom_tags:
       - nvlink_port
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - ada
-        - hopper
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.plr.rx.code_err:
     metadata:
       metric_type: gauge
@@ -1066,20 +1067,13 @@ metrics:
     custom_tags:
       - nvlink_port
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - ada
-        - hopper
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.plr.rx.codes:
     metadata:
       metric_type: gauge
@@ -1089,20 +1083,13 @@ metrics:
     custom_tags:
       - nvlink_port
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - ada
-        - hopper
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.plr.rx.uncorrectable_code:
     metadata:
       metric_type: gauge
@@ -1112,20 +1099,13 @@ metrics:
     custom_tags:
       - nvlink_port
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - ada
-        - hopper
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.plr.tx.sync_events:
     metadata:
       metric_type: gauge
@@ -1135,20 +1115,13 @@ metrics:
     custom_tags:
       - nvlink_port
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - ada
-        - hopper
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.plr.tx.codes:
     metadata:
       metric_type: gauge
@@ -1158,20 +1131,13 @@ metrics:
     custom_tags:
       - nvlink_port
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - ada
-        - hopper
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.plr.tx.retry_codes:
     metadata:
       metric_type: gauge
@@ -1181,20 +1147,13 @@ metrics:
     custom_tags:
       - nvlink_port
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - ada
-        - hopper
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.plr.tx.retry_events:
     metadata:
       metric_type: gauge
@@ -1204,43 +1163,30 @@ metrics:
     custom_tags:
       - nvlink_port
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - ada
-        - hopper
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.plr.tx.retry_events_within_t_sec_max:
     metadata:
       metric_type: gauge
-      description: Maximum NVLink PLR TX retry events within the configured time window for the port
+      description: Maximum NVLink PLR TX retry events within the configured time
+        window for the port
     tagsets:
       - device
     custom_tags:
       - nvlink_port
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - ada
-        - hopper
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.errors.fec:
     metadata:
       metric_type: histogram
@@ -1252,25 +1198,19 @@ metrics:
     custom_tags:
       - nvlink_port
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.speed:
     metadata:
       metric_type: gauge
       unit: megabit/second
       description: common speed of all NVLINK links
+      aggregation: sensor_data
     tagsets:
       - device
     validator:
@@ -1278,57 +1218,47 @@ metrics:
         min: 0
         max: 5000000000000 # 5 TB/s (bytes/second)
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.recovery.events.failed:
     metadata:
       metric_type: gauge
-      description: Failed NVLink recovery events total for all links
+      description: >-
+        Failed NVLink recovery events total for all links. The counter reports
+        the device lifetime total reported by NVML.
+      aggregation: lifetime_error
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.recovery.events.successful:
     metadata:
       metric_type: gauge
-      description: Successful NVLink recovery events total for all links
+      description: >-
+        Successful NVLink recovery events total for all links. The counter
+        reports the device lifetime total reported by NVML.
+      aggregation: lifetime_error
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.rx.packets:
     metadata:
       metric_type: gauge
@@ -1336,20 +1266,13 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.throughput.data.rx:
     metadata:
       metric_type: gauge
@@ -1362,20 +1285,19 @@ metrics:
         min: 0
         max: 3000000000000 # 3 TB/s (bytes/second)
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.throughput.data.tx:
     metadata:
       metric_type: gauge
       unit: kilobyte/second
       description: Total TX data throughput of all NVLINK links
+      aggregation: absolute_usage
     tagsets:
       - device
     validator:
@@ -1383,20 +1305,20 @@ metrics:
         min: 0
         max: 3000000000000 # 3 TB/s (bytes/second)
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.throughput.raw.rx:
     metadata:
       metric_type: gauge
       unit: kilobyte/second
       description: Total RX of all NVLINK links
+      used_in_dd_ui: true
+      aggregation: absolute_usage
     tagsets:
       - device
     validator:
@@ -1404,20 +1326,20 @@ metrics:
         min: 0
         max: 3000000000000 # 3 TB/s (bytes/second)
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.throughput.raw.tx:
     metadata:
       metric_type: gauge
       unit: kilobyte/second
       description: Total TX of all NVLINK links
+      used_in_dd_ui: true
+      aggregation: absolute_usage
     tagsets:
       - device
     validator:
@@ -1425,36 +1347,28 @@ metrics:
         min: 0
         max: 3000000000000 # 3 TB/s (bytes/second)
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 1
   nvlink.tx.discards:
     metadata:
       metric_type: gauge
       description: NVLink transmitted discard counter total for all links
+      aggregation: lifetime_error
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.tx.packets:
     metadata:
       metric_type: gauge
@@ -1462,86 +1376,61 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - fermi
-        - kepler
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - hopper
-        - maxwell
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 5
   c2c.errors.interrupt:
     metadata:
       metric_type: gauge
-      description: C2C interrupt error counter total
+      description: >-
+        C2C interrupt error counter total. The counter reports the device
+        lifetime total reported by NVML.
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - blackwell
-        - hopper
-        - fermi
-        - kepler
-        - maxwell
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        c2c: true
   c2c.errors.replay:
     metadata:
       metric_type: gauge
-      description: C2C replay error counter total
+      description: >-
+        C2C replay error counter total. The counter reports the device lifetime
+        total reported by NVML.
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - blackwell
-        - hopper
-        - fermi
-        - kepler
-        - maxwell
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        c2c: true
   c2c.errors.replay.b2b:
     metadata:
       metric_type: gauge
-      description: C2C back-to-back replay error counter total
+      description: >-
+        C2C back-to-back replay error counter total. The counter reports the
+        device lifetime total reported by NVML.
     tagsets:
       - device
     support:
-      unsupported_architectures:
-        - blackwell
-        - hopper
-        - fermi
-        - kepler
-        - maxwell
-        - pascal
-        - volta
-        - turing
-        - ampere
-        - ada
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        c2c: true
   pci.replay_counter:
     metadata:
       metric_type: gauge
@@ -1564,6 +1453,8 @@ metrics:
       metric_type: gauge
       unit: byte/second
       description: Bytes received through PCI to the GPU device per second
+      used_in_dd_ui: true
+      aggregation: absolute_usage
     tagsets:
       - device
     validator:
@@ -1582,6 +1473,8 @@ metrics:
       metric_type: gauge
       unit: byte/second
       description: Bytes transmitted through PCI from the GPU device per second
+      used_in_dd_ui: true
+      aggregation: absolute_usage
     tagsets:
       - device
     validator:
@@ -1631,6 +1524,7 @@ metrics:
     metadata:
       metric_type: gauge
       description: Returns the current performance state of the device
+      aggregation: sensor_data
     tagsets:
       - device
     support:
@@ -1644,6 +1538,7 @@ metrics:
       metric_type: gauge
       unit: milliwatt
       description: Upper boundary for the device power draw.
+      aggregation: absolute_usage
     tagsets:
       - device
     support:
@@ -1657,9 +1552,11 @@ metrics:
       metric_type: gauge
       unit: milliwatt
       description: >-
-        Power usage for the GPU device. On GA100 and older architectures this
-        is the instantaneous power at that moment, in newer ones it represents
-        the average power draw over one second
+        Power usage for the GPU device. On GA100 and older architectures this is
+        the instantaneous power at that moment, in newer ones it represents the
+        average power draw over one second
+      used_in_dd_ui: true
+      aggregation: absolute_usage
     tagsets:
       - device
     support:
@@ -1672,7 +1569,10 @@ metrics:
     metadata:
       metric_type: gauge
       unit: core
-      description: Average number of GPU cores that a process was using in the interval. Only emitted when processes are active.
+      description: Average number of GPU cores that a process was using in the
+        interval. Only emitted when processes are active.
+      used_in_dd_ui: true
+      aggregation: absolute_usage
     workload_only: true
     tagsets:
       - device
@@ -1693,6 +1593,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: Percentage of time the decoder was active for a specific process
+      aggregation: relative_activity
     workload_only: true
     tagsets:
       - device
@@ -1710,6 +1611,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: Percentage of time the DRAM was active for a specific process
+      aggregation: relative_activity
     workload_only: true
     tagsets:
       - device
@@ -1727,6 +1629,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: Percentage of time the encoder was active for a specific process
+      aggregation: relative_activity
     workload_only: true
     tagsets:
       - device
@@ -1743,7 +1646,10 @@ metrics:
     metadata:
       metric_type: gauge
       unit: byte
-      description: The memory used by this process at the point the metric was given. Only emitted when processes are active.
+      description: The memory used by this process at the point the metric was given.
+        Only emitted when processes are active.
+      used_in_dd_ui: true
+      aggregation: absolute_usage
     workload_only: true
     tagsets:
       - device
@@ -1763,7 +1669,9 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of time the streaming multiprocessor was active for a specific process
+      description: Percentage of time the streaming multiprocessor was active for a
+        specific process
+      aggregation: relative_activity
     workload_only: true
     tagsets:
       - device
@@ -1782,7 +1690,10 @@ metrics:
   remapped_rows.correctable:
     metadata:
       metric_type: gauge
-      description: Number of rows remapped due to correctable errors
+      description: >-
+        Number of rows remapped due to correctable errors. The counter reports
+        the device lifetime total reported by NVML.
+      aggregation: lifetime_error
     tagsets:
       - device
     validator:
@@ -1804,7 +1715,10 @@ metrics:
   remapped_rows.failed:
     metadata:
       metric_type: gauge
-      description: Number of rows that failed remapping
+      description: >-
+        Whether row remapping has failed. This value reflects the current
+        remapping status reported by NVML.
+      aggregation: absolute_usage
     tagsets:
       - device
     validator:
@@ -1824,7 +1738,10 @@ metrics:
   remapped_rows.pending:
     metadata:
       metric_type: gauge
-      description: Number of rows pending remapping
+      description: >-
+        Whether row remapping is pending. This value reflects the current
+        remapping status reported by NVML.
+      aggregation: absolute_usage
     tagsets:
       - device
     validator:
@@ -1844,7 +1761,10 @@ metrics:
   remapped_rows.uncorrectable:
     metadata:
       metric_type: gauge
-      description: Number of rows remapped due to uncorrectable errors
+      description: >-
+        Number of rows remapped due to uncorrectable errors. The counter reports
+        the device lifetime total reported by NVML.
+      aggregation: lifetime_error
     tagsets:
       - device
     validator:
@@ -1868,6 +1788,7 @@ metrics:
       metric_type: gauge
       unit: degree celsius
       description: Slowdown temperature
+      aggregation: sensor_data
     tagsets:
       - device
     support:
@@ -1882,6 +1803,8 @@ metrics:
       metric_type: gauge
       unit: percent
       description: Percentage of time the streaming multiprocessor was active
+      used_in_dd_ui: true
+      aggregation: relative_activity
     tagsets:
       - device
     validator:
@@ -1898,7 +1821,10 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the Streaming Multiprocessors that were active in the interval
+      description: Percentage of the Streaming Multiprocessors that were active in the
+        interval
+      used_in_dd_ui: true
+      aggregation: relative_activity
     tagsets:
       - device
     support:
@@ -1919,7 +1845,9 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the Streaming Multiprocessors that were in use in the interval
+      description: Percentage of the Streaming Multiprocessors that were in use in the
+        interval
+      aggregation: relative_activity
     tagsets:
       - device
     support:
@@ -1941,6 +1869,8 @@ metrics:
       metric_type: gauge
       unit: degree celsius
       description: Temperature of the GPU device
+      used_in_dd_ui: true
+      aggregation: sensor_data
     tagsets:
       - device
     validator:
@@ -1957,7 +1887,9 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the tensor calculation engine was active. Only for Hopper and newer GPUs
+      description: Percentage of the time that the tensor calculation engine was
+        active. Only for Hopper and newer GPUs
+      aggregation: relative_activity
     tagsets:
       - device
     support:
@@ -1979,6 +1911,7 @@ metrics:
       metric_type: gauge
       unit: millijoule
       description: Total energy consumed by the device since the driver was reloaded
+      aggregation: absolute_usage
     tagsets:
       - device
     support:

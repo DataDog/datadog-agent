@@ -161,6 +161,7 @@ func TestAddAgentStartupTelemetrySendsShutdownEventOnFinalStop(t *testing.T) {
 	case <-time.After(time.Second):
 		require.FailNow(t, "timed out waiting for Agent Shutdown event")
 	}
+	require.Equal(t, "Agent Shutdown", shutdownEvent.Title)
 	require.Equal(t, "Version 7.0.0", shutdownEvent.Text)
 	require.Equal(t, "System", shutdownEvent.SourceTypeName)
 	require.Equal(t, "hostname", shutdownEvent.Host)
