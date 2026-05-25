@@ -18,6 +18,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -134,7 +135,13 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 		deviceMetrics := metricsByUUID[deviceUUID]
 		require.NotEmpty(t, deviceMetrics, "expected emitted metrics for GPU %s", deviceUUID)
 
-		gpuConfig := gpuspec.GPUConfig{Architecture: archName, DeviceMode: gpuspec.DeviceModePhysical}
+		capabilities := archSpec.EffectiveCapabilities(gpuspec.DeviceModePhysical)
+		capabilities.NVLink = archSpec.SupportedNVLinkGeneration()
+		nvlinkLinkCount := linkCount(t, device, "NVLink", nvidia.GetNVLinkCount)
+		if linkCount(t, device, "C2C", nvidia.GetC2CLinkCount) == 0 {
+			capabilities.C2C = false
+		}
+		gpuConfig := gpuspec.GPUConfig{Architecture: archName, DeviceMode: gpuspec.DeviceModePhysical, Capabilities: capabilities, NVLinkLinkCount: nvlinkLinkCount}
 		validationOptions := gpuspec.ValidationOptions{
 			WorkloadActive: false,
 		}
@@ -142,4 +149,18 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 			gpu.ValidateEmittedMetricsAgainstSpec(t, specs, gpuConfig, deviceMetrics, nil, validationOptions)
 		})
 	}
+}
+
+func linkCount(t *testing.T, device safenvml.Device, name string, countFunc func(safenvml.Device) (int, error)) int {
+	t.Helper()
+
+	count, err := countFunc(device)
+	if err != nil {
+		if safenvml.IsAPIUnsupportedOnDevice(err, device) {
+			return 0
+		}
+		require.NoError(t, err, "%s link count probe failed for GPU %s", name, device.GetDeviceInfo().UUID)
+		return 0
+	}
+	return count
 }
