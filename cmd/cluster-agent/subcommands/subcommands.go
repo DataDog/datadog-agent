@@ -20,6 +20,7 @@ import (
 	cmddiagnose "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/diagnose"
 	cmdflare "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/flare"
 	cmdhealth "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/health"
+	cmdhelm "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/helm"
 	cmdmetamap "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/metamap"
 	cmdrotateparidentity "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/rotateparidentity"
 	cmdsecrethelper "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/secrethelper"
@@ -44,6 +45,7 @@ func ClusterAgentSubcommands() []command.SubcommandFactory {
 		cmdclusterchecks.Commands,
 		cmdcompliance.Commands,
 		cmdflare.Commands,
+		cmdhelm.Commands,
 		cmddiagnose.Commands,
 		cmdmetamap.Commands,
 		cmdsecrethelper.Commands,
