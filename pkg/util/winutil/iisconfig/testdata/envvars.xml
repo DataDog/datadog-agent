@@ -21,6 +21,12 @@
       </add>
       <add name="poolC">
       </add>
+      <add name="poolMixedCase">
+        <environmentVariables>
+          <add name="Dd_Service" value="mixed-case-service" />
+          <add name="dd_version" value="lower-version" />
+        </environmentVariables>
+      </add>
     </applicationPools>
     <sites>
       <site name="envsite" id="10">
@@ -44,6 +50,9 @@
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
         <application path="/f" applicationPool="DefaultAppPool">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/g" applicationPool="poolMixedCase">
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
       </site>

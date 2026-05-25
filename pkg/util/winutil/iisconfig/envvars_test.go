@@ -86,6 +86,16 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		assert.Equal(t, "default-env", env.DDEnv)
 		assert.Equal(t, "", env.DDVersion)
 	})
+
+	t.Run("env var names matched case-insensitively", func(t *testing.T) {
+		// /g uses poolMixedCase which declares Dd_Service and dd_version
+		// (mixed/lowercase). Windows env vars are case-insensitive so these
+		// must still populate DD_SERVICE / DD_VERSION.
+		_, _, env := iisCfg.GetAPMTags(10, "/g")
+		assert.Equal(t, "mixed-case-service", env.DDService)
+		assert.Equal(t, "default-env", env.DDEnv)
+		assert.Equal(t, "lower-version", env.DDVersion)
+	})
 }
 
 func TestOverlayAPMTags(t *testing.T) {

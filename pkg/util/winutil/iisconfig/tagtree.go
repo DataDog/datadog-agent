@@ -157,10 +157,14 @@ func overlayAPMTags(base, override APMTags) APMTags {
 }
 
 // apmTagsFromEnvVars extracts UST fields from an IIS environmentVariables list.
+// Name matching is case-insensitive: Windows env var names are case-insensitive,
+// so <add name="Dd_Service"> in applicationHost.config produces an env var that
+// Environment.GetEnvironmentVariable("DD_SERVICE") resolves successfully in
+// w3wp.exe.
 func apmTagsFromEnvVars(vars []iisEnvVar) APMTags {
 	var tags APMTags
 	for _, v := range vars {
-		switch v.Name {
+		switch strings.ToUpper(v.Name) {
 		case "DD_SERVICE":
 			tags.DDService = v.Value
 		case "DD_ENV":

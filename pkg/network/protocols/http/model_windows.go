@@ -123,24 +123,24 @@ func (tx *WinHttpTransaction) DynamicTags() []string {
 
 	// tag precedence per field is applicationHost.config environmentVariables ->
 	// web.config -> datadog.json. Each UST field falls through independently.
-	if len(tx.TagsFromEnv.DDEnv) > 0 {
-		tags = append(tags, fmt.Sprintf("env:%v", tx.TagsFromEnv.DDEnv))
+	if len(tx.TagsFromAppHost.DDEnv) > 0 {
+		tags = append(tags, fmt.Sprintf("env:%v", tx.TagsFromAppHost.DDEnv))
 	} else if len(tx.TagsFromConfig.DDEnv) > 0 {
 		tags = append(tags, fmt.Sprintf("env:%v", tx.TagsFromConfig.DDEnv))
 	} else if len(tx.TagsFromJson.DDEnv) > 0 {
 		tags = append(tags, fmt.Sprintf("env:%v", tx.TagsFromJson.DDEnv))
 	}
 
-	if len(tx.TagsFromEnv.DDService) > 0 {
-		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromEnv.DDService))
+	if len(tx.TagsFromAppHost.DDService) > 0 {
+		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromAppHost.DDService))
 	} else if len(tx.TagsFromConfig.DDService) > 0 {
 		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromConfig.DDService))
 	} else if len(tx.TagsFromJson.DDService) > 0 {
 		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromJson.DDService))
 	}
 
-	if len(tx.TagsFromEnv.DDVersion) > 0 {
-		tags = append(tags, fmt.Sprintf("version:%v", tx.TagsFromEnv.DDVersion))
+	if len(tx.TagsFromAppHost.DDVersion) > 0 {
+		tags = append(tags, fmt.Sprintf("version:%v", tx.TagsFromAppHost.DDVersion))
 	} else if len(tx.TagsFromConfig.DDVersion) > 0 {
 		tags = append(tags, fmt.Sprintf("version:%v", tx.TagsFromConfig.DDVersion))
 	} else if len(tx.TagsFromJson.DDVersion) > 0 {
