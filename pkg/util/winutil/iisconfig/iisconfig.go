@@ -124,11 +124,22 @@ type iisApplication struct {
 	VirtualDirs []iisVirtualDirectory   `xml:"virtualDirectory"`
 	EnvVars     iisEnvironmentVariables `xml:"environmentVariables"`
 }
+
+// iisApplicationDefaults captures <applicationDefaults> elements that supply
+// the inherited applicationPool for <application> entries that omit the
+// applicationPool attribute. Appears under both <sites> (global) and each
+// <site> (per-site); per-site wins over global.
+type iisApplicationDefaults struct {
+	XMLName xml.Name `xml:"applicationDefaults"`
+	AppPool string   `xml:"applicationPool,attr"`
+}
+
 type iisSite struct {
-	Name         string           `xml:"name,attr"`
-	SiteID       string           `xml:"id,attr"`
-	Applications []iisApplication `xml:"application"`
-	Bindings     []iisBinding     `xml:"bindings>binding"`
+	Name         string                 `xml:"name,attr"`
+	SiteID       string                 `xml:"id,attr"`
+	Applications []iisApplication       `xml:"application"`
+	Bindings     []iisBinding           `xml:"bindings>binding"`
+	AppDefaults  iisApplicationDefaults `xml:"applicationDefaults"`
 }
 type iisApplicationPool struct {
 	XMLName xml.Name                `xml:"add"`
@@ -145,9 +156,10 @@ type iisApplicationPools struct {
 	Pools    []iisApplicationPool       `xml:"add"`
 }
 type iisSystemApplicationHost struct {
-	XMLName          xml.Name            `xml:"system.applicationHost"`
-	Sites            []iisSite           `xml:"sites>site"`
-	ApplicationPools iisApplicationPools `xml:"applicationPools"`
+	XMLName          xml.Name               `xml:"system.applicationHost"`
+	Sites            []iisSite              `xml:"sites>site"`
+	SitesAppDefaults iisApplicationDefaults `xml:"sites>applicationDefaults"`
+	ApplicationPools iisApplicationPools    `xml:"applicationPools"`
 }
 
 type iisConfiguration struct {

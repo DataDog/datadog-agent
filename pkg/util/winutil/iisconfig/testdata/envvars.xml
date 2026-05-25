@@ -29,6 +29,7 @@
       </add>
     </applicationPools>
     <sites>
+      <applicationDefaults applicationPool="poolB" />
       <site name="envsite" id="10">
         <application path="/" applicationPool="poolA">
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
@@ -53,6 +54,15 @@
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
         <application path="/g" applicationPool="poolMixedCase">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/h">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+      </site>
+      <site name="sitedefaults" id="11">
+        <applicationDefaults applicationPool="poolA" />
+        <application path="/">
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
       </site>

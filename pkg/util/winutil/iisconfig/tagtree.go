@@ -202,15 +202,26 @@ func poolEnvFor(perPool map[string]APMTags, defaults APMTags, poolName string) A
 func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 	pathTrees := make(map[uint32]*pathTreeEntry)
 	perPool, defaults := buildPoolEnvTags(xmlcfg.ApplicationHost.ApplicationPools)
+	sitesDefaultPool := xmlcfg.ApplicationHost.SitesAppDefaults.AppPool
 
 	for _, site := range xmlcfg.ApplicationHost.Sites {
+		siteDefaultPool := site.AppDefaults.AppPool
+		if siteDefaultPool == "" {
+			siteDefaultPool = sitesDefaultPool
+		}
 		for _, app := range site.Applications {
 			// applicationHost.config supports environmentVariables at two
 			// levels: the application pool (with applicationPoolDefaults
 			// underneath it) and the application itself. App-level entries
 			// override pool-level entries for the worker hosting this
-			// application.
-			envvars := overlayAPMTags(poolEnvFor(perPool, defaults, app.AppPool), apmTagsFromEnvVars(app.EnvVars.Adds))
+			// application. When the application omits applicationPool, IIS
+			// inherits it from <site><applicationDefaults> or
+			// <sites><applicationDefaults>.
+			appPool := app.AppPool
+			if appPool == "" {
+				appPool = siteDefaultPool
+			}
+			envvars := overlayAPMTags(poolEnvFor(perPool, defaults, appPool), apmTagsFromEnvVars(app.EnvVars.Adds))
 			hasenv := !envvars.isEmpty()
 
 			var ddjson APMTags

@@ -96,6 +96,25 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		assert.Equal(t, "default-env", env.DDEnv)
 		assert.Equal(t, "lower-version", env.DDVersion)
 	})
+
+	t.Run("app inherits applicationPool from <sites><applicationDefaults>", func(t *testing.T) {
+		// /h omits applicationPool; the <sites><applicationDefaults applicationPool="poolB"/>
+		// supplies it, so DD_SERVICE/DD_ENV must come from poolB.
+		_, _, env := iisCfg.GetAPMTags(10, "/h")
+		assert.Equal(t, "poolB-service", env.DDService)
+		assert.Equal(t, "poolB-env", env.DDEnv)
+		assert.Equal(t, "", env.DDVersion)
+	})
+
+	t.Run("app inherits applicationPool from per-site <applicationDefaults>", func(t *testing.T) {
+		// site 11 has <site><applicationDefaults applicationPool="poolA"/>;
+		// its "/" application omits applicationPool. Per-site default wins
+		// over the <sites>-level default (which would have chosen poolB).
+		_, _, env := iisCfg.GetAPMTags(11, "/")
+		assert.Equal(t, "poolA-service", env.DDService)
+		assert.Equal(t, "default-env", env.DDEnv)
+		assert.Equal(t, "1.0.0", env.DDVersion)
+	})
 }
 
 func TestOverlayAPMTags(t *testing.T) {
