@@ -23,6 +23,8 @@ type GPUConfig struct {
 // ValidationOptions controls which spec failures should be enforced.
 type ValidationOptions struct {
 	WorkloadActive bool `json:"workload_active"`
+	// IgnoreMetrics is a list of metric names that should be ignored during validation.
+	IgnoreMetrics map[string]bool `json:"ignore_metrics,omitempty"`
 }
 
 // Equals checks if two GPU configs are equal.
@@ -198,6 +200,9 @@ func ExpectedMetricsForConfig(specs *Specs, config GPUConfig, options Validation
 			continue
 		}
 		if metricSpec.WorkloadOnly && !options.WorkloadActive {
+			continue
+		}
+		if options.IgnoreMetrics[metricName] {
 			continue
 		}
 		expected[metricName] = metricSpec
