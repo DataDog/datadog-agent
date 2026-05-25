@@ -75,8 +75,6 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 				agentclientparams.WithAuthTokenPath(authTokenFilePath),
 				agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
 				agentclientparams.WithProcessAgentOnPort(processCmdPort),
-				// Default 1m readiness wait has timed out repeatedly here when
-				// trace/process-agent are slow to bind after an UpdateEnv re-provision.
 				agentclientparams.WithWaitForDuration(3*time.Minute),
 			)),
 	))
