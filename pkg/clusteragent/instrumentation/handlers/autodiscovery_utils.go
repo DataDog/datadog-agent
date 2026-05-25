@@ -32,6 +32,9 @@ type ServiceCheckTemplateStore struct {
 	mu sync.RWMutex
 	// entries maps DDI CR key (namespace/name) to the target service and templates.
 	entries map[string]serviceTemplateEntry
+	// trackedServices maps "namespace/name" service keys to the number of DDI CRs
+	// targeting that service, enabling lookups for HasService calls.
+	trackedServices map[string]int
 	// onChange is called when templates are added or removed.
 	onChange func()
 }
@@ -39,7 +42,8 @@ type ServiceCheckTemplateStore struct {
 // NewServiceCheckTemplateStore creates a new ServiceCheckTemplateStore.
 func NewServiceCheckTemplateStore() *ServiceCheckTemplateStore {
 	return &ServiceCheckTemplateStore{
-		entries: make(map[string]serviceTemplateEntry),
+		entries:         make(map[string]serviceTemplateEntry),
+		trackedServices: make(map[string]int),
 	}
 }
 
@@ -52,16 +56,25 @@ func (s *ServiceCheckTemplateStore) SetOnChange(fn func()) {
 
 // writeTemplates stores templates keyed by DDI CR,
 // associating them with the target service from the CR's TargetRef.
-func (s *ServiceCheckTemplateStore) writeTemplates(key string, cr *datadoghq.DatadogInstrumentation, configs []integration.Config) {
+func (s *ServiceCheckTemplateStore) writeTemplates(crKey string, cr *datadoghq.DatadogInstrumentation, configs []integration.Config) {
 	s.mu.Lock()
+	// Remove old entry from the service index if it exists.
+	if old, exists := s.entries[crKey]; exists {
+		svcKey := old.serviceNamespace + "/" + old.serviceName
+		if s.trackedServices[svcKey]--; s.trackedServices[svcKey] <= 0 {
+			delete(s.trackedServices, svcKey)
+		}
+	}
 	if len(configs) == 0 {
-		delete(s.entries, key)
+		delete(s.entries, crKey)
 	} else {
-		s.entries[key] = serviceTemplateEntry{
+		s.entries[crKey] = serviceTemplateEntry{
 			serviceNamespace: cr.Namespace,
 			serviceName:      cr.Spec.TargetRef.Name,
 			templates:        configs,
 		}
+		svcKey := cr.Namespace + "/" + cr.Spec.TargetRef.Name
+		s.trackedServices[svcKey]++
 	}
 	onChange := s.onChange
 	s.mu.Unlock()
@@ -71,9 +84,15 @@ func (s *ServiceCheckTemplateStore) writeTemplates(key string, cr *datadoghq.Dat
 }
 
 // deleteTemplates removes templates keyed by DDI CR.
-func (s *ServiceCheckTemplateStore) deleteTemplates(key string) {
+func (s *ServiceCheckTemplateStore) deleteTemplates(crKey string) {
 	s.mu.Lock()
-	delete(s.entries, key)
+	if old, exists := s.entries[crKey]; exists {
+		svcKey := old.serviceNamespace + "/" + old.serviceName
+		if s.trackedServices[svcKey]--; s.trackedServices[svcKey] <= 0 {
+			delete(s.trackedServices, svcKey)
+		}
+		delete(s.entries, crKey)
+	}
 	onChange := s.onChange
 	s.mu.Unlock()
 	if onChange != nil {
@@ -85,12 +104,7 @@ func (s *ServiceCheckTemplateStore) deleteTemplates(key string) {
 func (s *ServiceCheckTemplateStore) HasService(namespace, name string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	for _, entry := range s.entries {
-		if entry.serviceNamespace == namespace && entry.serviceName == name {
-			return true
-		}
-	}
-	return false
+	return s.trackedServices[namespace+"/"+name] > 0
 }
 
 // AllTemplatesByService returns all templates grouped by "namespace/name" service key
@@ -185,5 +199,5 @@ func (c *CheckStore) hashStates() uint64 {
 }
 
 func isService(cr *datadoghq.DatadogInstrumentation) bool {
-	return cr.Spec.TargetRef.Kind == "Service"
+	return cr != nil && cr.Spec.TargetRef.Kind == "Service"
 }

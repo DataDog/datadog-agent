@@ -27,8 +27,8 @@ import (
 )
 
 type serviceTemplateStore interface {
-	SetOnChange(func())
-	HasService(string, string) bool
+	SetOnChange(fn func())
+	HasService(namespace string, name string) bool
 	AllTemplatesByService() map[string][]integration.Config
 }
 
