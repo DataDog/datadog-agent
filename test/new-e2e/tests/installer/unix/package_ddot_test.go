@@ -19,11 +19,16 @@ import (
 
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/internal/procmgrtest"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
 type packageDDOTSuite struct {
 	packageBaseSuite
+}
+
+func (s *packageDDOTSuite) ExecuteCommand(command string) (string, error) {
+	return s.Env().RemoteHost.Execute(command)
 }
 
 func testDDOT(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
@@ -66,25 +71,23 @@ func (s *packageDDOTSuite) RunInstallScript(params ...string) {
 }
 
 func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
-	// Install agent and DDOT together via environment variable
 	s.RunInstallScript("DD_REMOTE_UPDATES=true", "DD_OTELCOLLECTOR_ENABLED=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 
-	// Verify agent is installed
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 
-	// Wait for services to be active
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, ddotUnit)
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
+	procmgrtest.WaitForDDOTRunning(s.T(), s, procmgrtest.DDOTOtelAgentFleetStableExtensionBinary)
 
 	state := s.host.State()
 	s.assertCoreUnits(state, false)
-	s.assertDDOTUnits(state, false)
+	state.AssertUnitsLoaded(procmgrUnit)
+	state.AssertUnitsRunning(procmgrUnit)
+	state.AssertUnitsLoaded(ddotUnit)
+	state.AssertUnitsDead(ddotUnit)
 
-	// Verify configuration files exist
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
-
-	// Verify otelcollector configuration is present in datadog.yaml
 	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
 }
 
