@@ -86,18 +86,18 @@ func NewRemoteQueryExecuteEndpointProvider(reqs Requires) api.AgentEndpointProvi
 
 type remoteQueryExecuteHandler struct {
 	service   *RemoteQueryExecuteService
-	collector remoteQueryCollector
+	collector RemoteQueryCollector
 	enabled   bool
 }
 
 // RemoteQueryExecuteService executes credential-free Remote Queries requests through loaded checks.
 type RemoteQueryExecuteService struct {
-	collector remoteQueryCollector
+	collector RemoteQueryCollector
 	enabled   bool
 }
 
 // NewRemoteQueryExecuteService creates the shared executor used by the HTTP POC endpoint and AgentSecure RPC.
-func NewRemoteQueryExecuteService(collector remoteQueryCollector, enabled bool) *RemoteQueryExecuteService {
+func NewRemoteQueryExecuteService(collector RemoteQueryCollector, enabled bool) *RemoteQueryExecuteService {
 	return &RemoteQueryExecuteService{collector: collector, enabled: enabled}
 }
 

@@ -46,6 +46,7 @@ import (
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	remotequeriesfx "github.com/DataDog/datadog-agent/comp/remotequeries/fx"
+	remotequeriesimpl "github.com/DataDog/datadog-agent/comp/remotequeries/impl"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	snmpscanmanagerfx "github.com/DataDog/datadog-agent/comp/snmpscanmanager/fx"
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
@@ -580,6 +581,7 @@ func getSharedFxOption() fx.Option {
 		remoteagentregistryfx.Module(),
 		haagentfx.Module(),
 		doqueryactionsfx.Module(),
+		fx.Provide(func(c collector.Component) remotequeriesimpl.RemoteQueryCollector { return c }),
 		remotequeriesfx.Module(),
 		metricscompressorfx.Module(),
 		diagnosefx.Module(),

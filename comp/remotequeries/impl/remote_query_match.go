@@ -42,7 +42,7 @@ type Requires struct {
 	fx.In
 
 	Cfg       config.Component
-	Collector remoteQueryCollector
+	Collector RemoteQueryCollector
 }
 
 // NewRemoteQueryMatchEndpointProvider registers the remote query match endpoint on the internal Agent API.
@@ -55,13 +55,14 @@ func NewRemoteQueryMatchEndpointProvider(reqs Requires) api.AgentEndpointProvide
 }
 
 type remoteQueryMatchHandler struct {
-	collector remoteQueryCollector
+	collector RemoteQueryCollector
 	enabled   bool
 }
 
-// remoteQueryCollector is the narrow collector surface Remote Queries needs.
-// Keep this local so the POC endpoint does not force Bazel onboarding for the full collector component package.
-type remoteQueryCollector interface {
+// RemoteQueryCollector is the narrow collector surface Remote Queries needs.
+// The Agent command provides its collector.Component as this interface at the application boundary
+// so this package does not force Bazel onboarding for the full collector component package.
+type RemoteQueryCollector interface {
 	GetChecks() []check.Check
 }
 
@@ -318,7 +319,7 @@ func (h *remoteQueryMatchHandler) findMatches(integration string, target remoteQ
 	return findIntegrationMatches(h.collector, integration, target)
 }
 
-func findIntegrationMatches(collector remoteQueryCollector, integration string, target remoteQueryTarget) []integrationCheckMatch {
+func findIntegrationMatches(collector RemoteQueryCollector, integration string, target remoteQueryTarget) []integrationCheckMatch {
 	checks := collector.GetChecks()
 	matches := make([]integrationCheckMatch, 0, 1)
 	for _, chk := range checks {
