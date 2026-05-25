@@ -155,7 +155,7 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 		gpuConfig := gpuspec.GPUConfig{Architecture: archName, DeviceMode: gpuspec.DeviceModePhysical, Capabilities: capabilities, NVLinkLinkCount: nvlinkLinkCount}
 		validationOptions := gpuspec.ValidationOptions{
 			WorkloadActive: false,
-			IgnoreMetrics:  map[string]bool{"fan_speed": true}, // not all devices have fans
+			IgnoreMetrics:  map[string]bool{"fan_speed": true, "memory.temperature": true}, // not all devices have fans or memory temperature sensors
 		}
 		t.Run("gpu="+deviceUUID, func(t *testing.T) {
 			gpu.ValidateEmittedMetricsAgainstSpec(t, specs, gpuConfig, deviceMetrics, nil, validationOptions)
