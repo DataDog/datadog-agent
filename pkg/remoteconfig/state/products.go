@@ -16,6 +16,7 @@ var validProducts = map[string]struct{}{
 	ProductAgentTask:                    {},
 	ProductAgentIntegrations:            {},
 	ProductAPMSampling:                  {},
+	ProductAPMSemanticCoreDD:            {},
 	ProductCWSDD:                        {},
 	ProductCWSCustom:                    {},
 	ProductCWSRemediation:               {},
@@ -70,6 +71,11 @@ const (
 	ProductAgentTask = "AGENT_TASK"
 	// ProductAPMSampling is the apm sampling product
 	ProductAPMSampling = "APM_SAMPLING"
+	// ProductAPMSemanticCoreDD is the employee-signed product that pushes
+	// semantic-core mapping updates (span tag equivalences, peer tag mappings)
+	// to the trace-agent. A future API-signed per-org variant will be
+	// ProductAPMSemanticCore (without the _DD suffix).
+	ProductAPMSemanticCoreDD = "APM_SEMANTIC_CORE_DD"
 	// ProductCWSDD is the cloud workload security product managed by datadog employees
 	ProductCWSDD = "CWS_DD"
 	// ProductCWSCustom is the cloud workload security product managed by datadog customers

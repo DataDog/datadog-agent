@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
@@ -108,8 +109,31 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	if p := pkgconfigsetup.Datadog().GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
-	if utils.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote(c, ipcAddress, ipc)
+	rcEnabled := utils.IsRemoteConfigEnabled(coreConfigObject)
+	cfg.RemoteConfigAPMSamplingEnabled = rcEnabled && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled")
+	cfg.RemoteConfigAPMSemanticsEnabled = rcEnabled && coreConfigObject.GetBool("remote_configuration.apm_semantics.enabled")
+
+	// agent_config.enabled has no static default. If unset, inherit
+	// apm_sampling.enabled to preserve historical behavior (where
+	// apm_sampling.enabled implicitly gated the AGENT_CONFIG subscription
+	// by virtue of bundling them onto the same RC client).
+	cfg.RemoteConfigAgentConfigEnabled = cfg.RemoteConfigAPMSamplingEnabled
+	if coreConfigObject.IsConfigured("remote_configuration.agent_config.enabled") {
+		cfg.RemoteConfigAgentConfigEnabled = rcEnabled && coreConfigObject.GetBool("remote_configuration.agent_config.enabled")
+	}
+
+	var products []string
+	if cfg.RemoteConfigAPMSamplingEnabled {
+		products = append(products, state.ProductAPMSampling)
+	}
+	if cfg.RemoteConfigAgentConfigEnabled {
+		products = append(products, state.ProductAgentConfig)
+	}
+	if cfg.RemoteConfigAPMSemanticsEnabled {
+		products = append(products, state.ProductAPMSemanticCoreDD)
+	}
+	if len(products) > 0 {
+		client, err := remote(c, ipcAddress, ipc, products)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {

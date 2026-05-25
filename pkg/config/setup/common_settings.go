@@ -1394,6 +1394,14 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_configuration.clients.cache_bypass_limit", 5)
 	// Remote config products
 	config.BindEnvAndSetDefault("remote_configuration.apm_sampling.enabled", true)
+	// agent_config.enabled has no static default. If the user has not set it,
+	// the trace-agent inherits remote_configuration.apm_sampling.enabled at
+	// read time to preserve historical behavior (where apm_sampling.enabled
+	// bundled the AGENT_CONFIG subscription too).
+	config.BindEnv("remote_configuration.agent_config.enabled") //nolint:forbidigo // No static default by design: trace-agent inherits apm_sampling.enabled when unset.
+	// apm_semantics.enabled gates the trace-agent's APM_SEMANTIC_CORE_DD
+	// subscription. Opt-in during initial rollout.
+	config.BindEnvAndSetDefault("remote_configuration.apm_semantics.enabled", false)
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.enabled", false)
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_list", defaultAllowedRCIntegrations)
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.block_list", []string{})

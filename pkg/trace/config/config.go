@@ -539,6 +539,15 @@ type AgentConfig struct {
 	// MRFRemoteConfigClient retrieves MRF updates from the remote config DC.
 	MRFRemoteConfigClient RemoteClient `json:"-"`
 
+	// RemoteConfigAPMSamplingEnabled gates the trace-agent's APM_SAMPLING subscription.
+	RemoteConfigAPMSamplingEnabled bool
+	// RemoteConfigAgentConfigEnabled gates the trace-agent's AGENT_CONFIG subscription.
+	// When the user has not set remote_configuration.agent_config.enabled explicitly,
+	// this is initialised by inheriting remote_configuration.apm_sampling.enabled.
+	RemoteConfigAgentConfigEnabled bool
+	// RemoteConfigAPMSemanticsEnabled gates the trace-agent's APM_SEMANTIC_CORE_DD subscription.
+	RemoteConfigAPMSemanticsEnabled bool
+
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
 	// ContainerTagsWithCompleteness returns the tags for a given container ID
@@ -822,11 +831,10 @@ func (c *AgentConfig) MRFFailoverAPM() bool {
 
 // ConfiguredPeerTags returns the set of peer tags that should be used
 // for aggregation based on the various config values and the base set of tags.
+// For callers that need to cache the result against the live semantic registry
+// version (e.g. the Concentrator's hot path), use PeerTagsCache instead.
 func (c *AgentConfig) ConfiguredPeerTags() []string {
-	if !c.PeerTagsAggregation {
-		return nil
-	}
-	return preparePeerTags(append(basePeerTags(), c.PeerTags...))
+	return c.PeerTagsCache().Keys
 }
 
 // ConfiguredSpanDerivedPrimaryTagKeys returns the configured span-derived primary
