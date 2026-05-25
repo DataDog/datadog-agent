@@ -39,4 +39,5 @@ EOF
 # /etc/zsh/zshenv sources these files.
 cat > /etc/profile.d/10-ddagent-workspace-env.sh << 'EOF'
 export PATH="/usr/local/go/bin:$HOME/go/bin:$PATH"
+export PASSWORD_STORE_GPG_OPTS="--homedir $HOME/.config/password-store/gpg"
 EOF
