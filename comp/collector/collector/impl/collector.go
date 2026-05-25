@@ -14,17 +14,17 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
+	"github.com/DataDog/datadog-agent/comp/collector/collector/impl/internal/middleware"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	metadata "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
@@ -48,9 +48,9 @@ const (
 )
 
 type dependencies struct {
-	fx.In
+	compdef.In
 
-	Lc             fx.Lifecycle
+	Lc             compdef.Lifecycle
 	Config         config.Component
 	Log            log.Component
 	HaAgent        haagent.Component
@@ -90,7 +90,7 @@ type collectorImpl struct {
 }
 
 type provides struct {
-	fx.Out
+	compdef.Out
 
 	Comp             collector.Component
 	StatusProvider   status.InformationProvider
@@ -101,10 +101,8 @@ type provides struct {
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newProvides),
-		fx.Provide(func(c collector.Component) option.Option[collector.Component] {
-			return option.New[collector.Component](c)
-		}),
+		fxutil.ProvideComponentConstructor(newProvides),
+		fxutil.ProvideOptional[collector.Component](),
 	)
 }
 
@@ -150,7 +148,7 @@ func newCollector(deps dependencies) *collectorImpl {
 		sharedlibrarycheck.InitSharedLibraryChecksLoader()
 	}
 
-	deps.Lc.Append(fx.Hook{
+	deps.Lc.Append(compdef.Hook{
 		OnStart: c.start,
 		OnStop:  c.stop,
 	})

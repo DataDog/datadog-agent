@@ -465,7 +465,7 @@ func (h *healthPlatformImpl) handleIssueStateChange(source string, oldIssue, new
 	}
 
 	if newIssue != nil && oldIssue == nil {
-		h.log.Info("Health platform: NEW issue from " + source + ": " + newIssue.Title + " (" + newIssue.Severity + ")")
+		h.log.Info("Health platform: NEW issue from " + source + ": " + newIssue.Title + " (" + newIssue.Severity.String() + ")")
 		return
 	}
 
@@ -477,7 +477,7 @@ func (h *healthPlatformImpl) handleIssueStateChange(source string, oldIssue, new
 	if oldIssue.Title != newIssue.Title ||
 		oldIssue.Severity != newIssue.Severity ||
 		oldIssue.Description != newIssue.Description {
-		h.log.Info("Health platform: issue CHANGED from " + source + ": " + newIssue.Title + " (" + newIssue.Severity + ")")
+		h.log.Info("Health platform: issue CHANGED from " + source + ": " + newIssue.Title + " (" + newIssue.Severity.String() + ")")
 	}
 }
 
@@ -530,7 +530,7 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 		persisted.Description = issue.Description
 		persisted.Category = issue.Category
 		persisted.Location = issue.Location
-		persisted.Severity = issue.Severity
+		persisted.Severity = issue.Severity.String()
 		persisted.Source = issue.Source
 		persisted.Tags = issue.Tags
 		if issue.Extra != nil {
@@ -596,7 +596,7 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 				Description: persisted.Description,
 				Category:    persisted.Category,
 				Location:    persisted.Location,
-				Severity:    persisted.Severity,
+				Severity:    healthplatform.IssueSeverity(healthplatform.IssueSeverity_value[persisted.Severity]),
 				Source:      persisted.Source,
 				Tags:        persisted.Tags,
 			}
