@@ -11438,7 +11438,7 @@
       "name": "socket",
       "definition": "A socket was created",
       "type": "Network",
-      "from_agent_version": "7.80",
+      "from_agent_version": "7.81",
       "experimental": false,
       "properties": [
         {

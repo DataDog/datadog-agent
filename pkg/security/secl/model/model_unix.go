@@ -125,7 +125,7 @@ type Event struct {
 	Connect    ConnectEvent    `field:"connect" event:"connect"`       // [7.60] [Network] A connect was executed
 	Accept     AcceptEvent     `field:"accept" event:"accept"`         // [7.63] [Network] An accept was executed
 	SetSockOpt SetSockOptEvent `field:"setsockopt" event:"setsockopt"` // [7.68] [Network] A setsockopt was executed
-	Socket     SocketEvent     `field:"socket" event:"socket"`         // [7.80] [Network] A socket was created
+	Socket     SocketEvent     `field:"socket" event:"socket"`         // [7.81] [Network] A socket was created
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run

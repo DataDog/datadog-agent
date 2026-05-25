@@ -21,7 +21,7 @@ var socketCapabilities = rules.FieldCapabilities{
 	},
 	{
 		Field:        "socket.type",
-		TypeBitmask:  eval.ScalarValueType | eval.BitmaskValueType,
+		TypeBitmask:  eval.ScalarValueType,
 		FilterWeight: 60,
 	},
 	{

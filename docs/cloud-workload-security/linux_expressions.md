@@ -64,7 +64,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `setuid` | Process | A process changed its effective uid | 7.27 |
 | `setxattr` | File | Set exteneded attributes | 7.27 |
 | `signal` | Process | A signal was sent | 7.35 |
-| `socket` | Network | A socket was created | 7.80 |
+| `socket` | Network | A socket was created | 7.81 |
 | `splice` | File | A splice command was executed | 7.36 |
 | `sysctl` | Kernel | A sysctl parameter was read or modified | 7.65 |
 | `unlink` | File | A file was deleted | 7.27 |

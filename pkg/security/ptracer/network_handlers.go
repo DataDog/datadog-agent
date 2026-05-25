@@ -206,6 +206,9 @@ func handleSocket(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs sys
 	// Cache socket metadata for every family so later syscalls on the same fd
 	// (bind, connect, setsockopt, ...) can correlate family/type/protocol from
 	// process.FdToSocket regardless of the address family.
+	// For AF_INET/AF_INET6 sockets opened with protocol=0, infer TCP/UDP from
+	// the socket type to mirror the kernel's own resolution (sk->sk_protocol)
+	// and stay consistent with the eBPF path, which reads the resolved value.
 	internalProtocol := protocol
 	if internalProtocol == 0 && (domain == unix.AF_INET || domain == unix.AF_INET6) {
 		switch sockType {
