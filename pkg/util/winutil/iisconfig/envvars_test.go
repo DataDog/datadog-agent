@@ -125,15 +125,47 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 	})
 }
 
-func TestOverlayAPMTags(t *testing.T) {
-	base := APMTags{DDService: "base-svc", DDEnv: "base-env", DDVersion: "base-ver"}
-	override := APMTags{DDService: "ovr-svc", DDVersion: ""}
+// TestApplyEnvVarsOver_OrderSensitivity verifies that <add>/<remove>/<clear>
+// inside a single <environmentVariables> block are evaluated in document
+// order — so an <add> followed by <clear/> ends up empty, and a <remove>
+// after the matching <add> wipes the just-added field.
+func TestApplyEnvVarsOver_OrderSensitivity(t *testing.T) {
+	t.Run("add then clear yields empty", func(t *testing.T) {
+		vars := iisEnvironmentVariables{Ops: []iisEnvVarOp{
+			{kind: iisEnvVarOpAdd, name: "DD_SERVICE", value: "x"},
+			{kind: iisEnvVarOpClear},
+		}}
+		out := applyEnvVarsOver(APMTags{DDEnv: "inherited"}, vars)
+		assert.Equal(t, APMTags{}, out)
+	})
 
-	out := overlayAPMTags(base, override)
-	assert.Equal(t, "ovr-svc", out.DDService)
-	assert.Equal(t, "base-env", out.DDEnv)
-	// empty override field must not clear the base value
-	assert.Equal(t, "base-ver", out.DDVersion)
+	t.Run("add then remove yields empty for that field", func(t *testing.T) {
+		vars := iisEnvironmentVariables{Ops: []iisEnvVarOp{
+			{kind: iisEnvVarOpAdd, name: "DD_SERVICE", value: "x"},
+			{kind: iisEnvVarOpRemove, name: "DD_SERVICE"},
+		}}
+		out := applyEnvVarsOver(APMTags{}, vars)
+		assert.Equal(t, "", out.DDService)
+	})
+
+	t.Run("clear then add keeps the new value", func(t *testing.T) {
+		vars := iisEnvironmentVariables{Ops: []iisEnvVarOp{
+			{kind: iisEnvVarOpClear},
+			{kind: iisEnvVarOpAdd, name: "DD_SERVICE", value: "x"},
+		}}
+		out := applyEnvVarsOver(APMTags{DDEnv: "inherited"}, vars)
+		assert.Equal(t, "x", out.DDService)
+		assert.Equal(t, "", out.DDEnv)
+	})
+
+	t.Run("remove then re-add restores the field", func(t *testing.T) {
+		vars := iisEnvironmentVariables{Ops: []iisEnvVarOp{
+			{kind: iisEnvVarOpRemove, name: "DD_SERVICE"},
+			{kind: iisEnvVarOpAdd, name: "DD_SERVICE", value: "new"},
+		}}
+		out := applyEnvVarsOver(APMTags{DDService: "old"}, vars)
+		assert.Equal(t, "new", out.DDService)
+	})
 }
 
 func TestAPMTagsIsEmpty(t *testing.T) {
@@ -155,9 +187,9 @@ func TestPoolDefaultsToDefaultAppPool(t *testing.T) {
 					{
 						Name: "DefaultAppPool",
 						EnvVars: iisEnvironmentVariables{
-							Adds: []iisEnvVar{
-								{Name: "DD_SERVICE", Value: "default-app-pool-svc"},
-								{Name: "DD_VERSION", Value: "0.1"},
+							Ops: []iisEnvVarOp{
+								{kind: iisEnvVarOpAdd, name: "DD_SERVICE", value: "default-app-pool-svc"},
+								{kind: iisEnvVarOpAdd, name: "DD_VERSION", value: "0.1"},
 							},
 						},
 					},

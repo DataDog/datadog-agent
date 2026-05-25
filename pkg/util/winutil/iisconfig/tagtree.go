@@ -144,105 +144,52 @@ func (t APMTags) isEmpty() bool {
 	return t.DDService == "" && t.DDEnv == "" && t.DDVersion == ""
 }
 
-// overlayAPMTags returns base with any non-empty fields from override applied
-// on top. Empty fields in override do not clear base values; IIS provides
-// <remove>/<clear> for that, which is not yet parsed here.
-func overlayAPMTags(base, override APMTags) APMTags {
-	out := base
-	if override.DDService != "" {
-		out.DDService = override.DDService
-	}
-	if override.DDEnv != "" {
-		out.DDEnv = override.DDEnv
-	}
-	if override.DDVersion != "" {
-		out.DDVersion = override.DDVersion
-	}
-	return out
-}
-
-// apmTagsMask flags which UST fields are explicitly removed by a
-// <remove name="..."/> entry in an environmentVariables block.
-type apmTagsMask struct {
-	service, env, version bool
-}
-
-// envVarBlock captures the three operations IIS allows inside an
-// <environmentVariables> collection: <add>, <remove name="..."/>, and
-// <clear/>. Order between <add>/<remove>/<clear> within a single block is
-// not preserved by encoding/xml; we apply them as <clear/> first (reset
-// inherited), then <remove> (drop specific inherited), then <add> (set
-// new). That covers the common admin patterns; mixing them in a single
-// block in a way that depends on document order is rare in IIS configs.
-type envVarBlock struct {
-	cleared bool
-	removed apmTagsMask
-	adds    APMTags
-}
-
-// apmTagsFromEnvVars parses an <environmentVariables> block. Name matching
-// is case-insensitive: Windows env var names are case-insensitive, so
-// <add name="Dd_Service"> in applicationHost.config produces an env var
-// that Environment.GetEnvironmentVariable("DD_SERVICE") resolves
-// successfully in w3wp.exe.
-func apmTagsFromEnvVars(vars iisEnvironmentVariables) envVarBlock {
-	var b envVarBlock
-	if len(vars.Clears) > 0 {
-		b.cleared = true
-	}
-	for _, r := range vars.Removes {
-		switch strings.ToUpper(r.Name) {
-		case "DD_SERVICE":
-			b.removed.service = true
-		case "DD_ENV":
-			b.removed.env = true
-		case "DD_VERSION":
-			b.removed.version = true
+// applyEnvVarsOver returns base with each <environmentVariables> directive
+// applied in document order: <clear/> resets to empty, <remove name="X"/>
+// wipes the named field, and <add name="X" value="V"/> sets it. Name
+// matching is case-insensitive because Windows treats env var names that
+// way: <add name="Dd_Service"> in applicationHost.config yields an env var
+// that Environment.GetEnvironmentVariable("DD_SERVICE") resolves in
+// w3wp.exe. Names other than DD_SERVICE/DD_ENV/DD_VERSION are ignored.
+func applyEnvVarsOver(base APMTags, vars iisEnvironmentVariables) APMTags {
+	state := base
+	for _, op := range vars.Ops {
+		switch op.kind {
+		case iisEnvVarOpClear:
+			state = APMTags{}
+		case iisEnvVarOpRemove:
+			switch strings.ToUpper(op.name) {
+			case "DD_SERVICE":
+				state.DDService = ""
+			case "DD_ENV":
+				state.DDEnv = ""
+			case "DD_VERSION":
+				state.DDVersion = ""
+			}
+		case iisEnvVarOpAdd:
+			switch strings.ToUpper(op.name) {
+			case "DD_SERVICE":
+				state.DDService = op.value
+			case "DD_ENV":
+				state.DDEnv = op.value
+			case "DD_VERSION":
+				state.DDVersion = op.value
+			}
 		}
 	}
-	for _, a := range vars.Adds {
-		switch strings.ToUpper(a.Name) {
-		case "DD_SERVICE":
-			b.adds.DDService = a.Value
-		case "DD_ENV":
-			b.adds.DDEnv = a.Value
-		case "DD_VERSION":
-			b.adds.DDVersion = a.Value
-		}
-	}
-	return b
-}
-
-// applyOver returns base with this block's clear/remove/add operations
-// applied in that order.
-func (b envVarBlock) applyOver(base APMTags) APMTags {
-	out := base
-	if b.cleared {
-		out = APMTags{}
-	}
-	if b.removed.service {
-		out.DDService = ""
-	}
-	if b.removed.env {
-		out.DDEnv = ""
-	}
-	if b.removed.version {
-		out.DDVersion = ""
-	}
-	return overlayAPMTags(out, b.adds)
+	return state
 }
 
 // buildPoolEnvTags returns a map keyed by lowercased pool name to UST tags
 // derived from applicationHost.config applicationPools. Per-pool
-// environmentVariables apply on top of applicationPoolDefaults using the
-// envVarBlock semantics (<clear/> wipes inherited, <remove> drops specific
-// inherited, <add> sets new). IIS treats pool names case-insensitively, so
-// the lookup side must also lowercase.
+// environmentVariables directives are applied in document order on top of
+// the resolved applicationPoolDefaults state. IIS treats pool names
+// case-insensitively, so the lookup side must also lowercase.
 func buildPoolEnvTags(pools iisApplicationPools) (perPool map[string]APMTags, defaults APMTags) {
-	defaults = apmTagsFromEnvVars(pools.Defaults.EnvVars).applyOver(APMTags{})
+	defaults = applyEnvVarsOver(APMTags{}, pools.Defaults.EnvVars)
 	perPool = make(map[string]APMTags, len(pools.Pools))
 	for _, p := range pools.Pools {
-		perPool[strings.ToLower(p.Name)] = apmTagsFromEnvVars(p.EnvVars).applyOver(defaults)
+		perPool[strings.ToLower(p.Name)] = applyEnvVarsOver(defaults, p.EnvVars)
 	}
 	return perPool, defaults
 }

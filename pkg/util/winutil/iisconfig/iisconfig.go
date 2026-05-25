@@ -109,20 +109,79 @@ type iisBinding struct {
 	Protocol    string `xml:"protocol,attr"`
 	BindingInfo string `xml:"bindingInformation,attr"`
 }
-type iisEnvVar struct {
-	Name  string `xml:"name,attr"`
-	Value string `xml:"value,attr"`
+
+// iisEnvVarOpKind identifies which collection directive a parsed entry
+// came from inside an <environmentVariables> block.
+type iisEnvVarOpKind int
+
+const (
+	iisEnvVarOpAdd iisEnvVarOpKind = iota
+	iisEnvVarOpRemove
+	iisEnvVarOpClear
+)
+
+// iisEnvVarOp is one parsed <add>/<remove>/<clear> directive. Ops are
+// stored in document order so that order-dependent inheritance behavior
+// (e.g. <add name=X/><clear/>) is preserved.
+type iisEnvVarOp struct {
+	kind  iisEnvVarOpKind
+	name  string
+	value string
 }
-type iisEnvVarRemove struct {
-	Name string `xml:"name,attr"`
-}
-type iisEnvVarClear struct{}
+
 type iisEnvironmentVariables struct {
-	XMLName xml.Name          `xml:"environmentVariables"`
-	Adds    []iisEnvVar       `xml:"add"`
-	Removes []iisEnvVarRemove `xml:"remove"`
-	Clears  []iisEnvVarClear  `xml:"clear"`
+	XMLName xml.Name      `xml:"environmentVariables"`
+	Ops     []iisEnvVarOp `xml:"-"`
 }
+
+// UnmarshalXML walks the <environmentVariables> children in document order
+// and records each <add>/<remove>/<clear> directive. encoding/xml's default
+// decoder collapses children into per-tag slices, which loses the ordering
+// IIS uses to evaluate these collections.
+func (e *iisEnvironmentVariables) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	e.XMLName = start.Name
+	for {
+		tok, err := d.Token()
+		if err != nil {
+			return err
+		}
+		switch se := tok.(type) {
+		case xml.StartElement:
+			op := iisEnvVarOp{}
+			switch se.Name.Local {
+			case "add":
+				op.kind = iisEnvVarOpAdd
+				for _, a := range se.Attr {
+					switch a.Name.Local {
+					case "name":
+						op.name = a.Value
+					case "value":
+						op.value = a.Value
+					}
+				}
+				e.Ops = append(e.Ops, op)
+			case "remove":
+				op.kind = iisEnvVarOpRemove
+				for _, a := range se.Attr {
+					if a.Name.Local == "name" {
+						op.name = a.Value
+					}
+				}
+				e.Ops = append(e.Ops, op)
+			case "clear":
+				e.Ops = append(e.Ops, iisEnvVarOp{kind: iisEnvVarOpClear})
+			}
+			if err := d.Skip(); err != nil {
+				return err
+			}
+		case xml.EndElement:
+			if se.Name == start.Name {
+				return nil
+			}
+		}
+	}
+}
+
 type iisApplication struct {
 	XMLName     xml.Name              `xml:"application"`
 	Path        string                `xml:"path,attr"`
