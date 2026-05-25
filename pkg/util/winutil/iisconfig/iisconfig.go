@@ -118,11 +118,10 @@ type iisEnvironmentVariables struct {
 	Adds    []iisEnvVar `xml:"add"`
 }
 type iisApplication struct {
-	XMLName     xml.Name                `xml:"application"`
-	Path        string                  `xml:"path,attr"`
-	AppPool     string                  `xml:"applicationPool,attr"`
-	VirtualDirs []iisVirtualDirectory   `xml:"virtualDirectory"`
-	EnvVars     iisEnvironmentVariables `xml:"environmentVariables"`
+	XMLName     xml.Name              `xml:"application"`
+	Path        string                `xml:"path,attr"`
+	AppPool     string                `xml:"applicationPool,attr"`
+	VirtualDirs []iisVirtualDirectory `xml:"virtualDirectory"`
 }
 
 // iisApplicationDefaults captures <applicationDefaults> elements that supply

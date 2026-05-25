@@ -37,13 +37,6 @@
         <application path="/b" applicationPool="poolB">
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
-        <application path="/c" applicationPool="poolC">
-          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
-          <environmentVariables>
-            <add name="DD_SERVICE" value="app-c-service" />
-            <add name="DD_VERSION" value="9.9.9" />
-          </environmentVariables>
-        </application>
         <application path="/d" applicationPool="poolC">
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>

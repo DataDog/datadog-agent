@@ -16,8 +16,8 @@ import (
 )
 
 // TestAPMTagsFromEnvVars covers the applicationHost.config environment
-// variable sources: applicationPoolDefaults, per-pool, and per-application
-// overrides.
+// variable sources: applicationPoolDefaults and per-pool overrides, plus
+// inherited applicationPool resolution.
 func TestAPMTagsFromEnvVars(t *testing.T) {
 	path, err := os.Getwd()
 	require.Nil(t, err)
@@ -49,16 +49,6 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		assert.Equal(t, "poolB-env", env.DDEnv)
 		// DD_VERSION not set anywhere applicable -> empty.
 		assert.Equal(t, "", env.DDVersion)
-	})
-
-	t.Run("app env overrides pool env", func(t *testing.T) {
-		// poolC defines no env vars; app /c sets SERVICE and VERSION at the
-		// application level.
-		_, _, env := iisCfg.GetAPMTags(10, "/c")
-		assert.Equal(t, "app-c-service", env.DDService)
-		// DD_ENV comes from applicationPoolDefaults.
-		assert.Equal(t, "default-env", env.DDEnv)
-		assert.Equal(t, "9.9.9", env.DDVersion)
 	})
 
 	t.Run("app inherits only applicationPoolDefaults when pool has nothing", func(t *testing.T) {
