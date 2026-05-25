@@ -582,14 +582,46 @@ func TestOnSemanticCoreUpdate_SameVersionNoOp(t *testing.T) {
 	assert.Equal(t, state.ApplyStateAcknowledged, statuses["datadog/2/APM_SEMANTIC_CORE_DD/cfg/config"].State)
 }
 
-func TestOnSemanticCoreUpdate_EmptyUpdates(t *testing.T) {
+// TestOnSemanticCoreUpdate_EmptyUpdatesWhileEmbedded verifies that an empty
+// update is a no-op when the embedded registry is already live (i.e. there is
+// nothing to revert).
+func TestOnSemanticCoreUpdate_EmptyUpdatesWhileEmbedded(t *testing.T) {
 	restoreEmbeddedRegistry(t)
 	h := newSemanticTestHandler(t)
+	embedded, err := semantics.NewEmbeddedRegistry()
+	require.NoError(t, err)
+	semantics.UpdateRegistry(embedded)
 	beforeVersion := semantics.DefaultRegistry().Version()
 
 	called := 0
 	h.onSemanticCoreUpdate(map[string]state.RawConfig{}, func(string, state.ApplyStatus) { called++ })
 
-	assert.Equal(t, beforeVersion, semantics.DefaultRegistry().Version())
+	assert.Equal(t, beforeVersion, semantics.DefaultRegistry().Version(), "registry must remain on the embedded version")
 	assert.Equal(t, 0, called, "no applyStateCallback invocations on empty updates")
+}
+
+// TestOnSemanticCoreUpdate_EmptyUpdatesRevertToEmbedded verifies that an empty
+// updates map after a prior RC-applied registry reverts back to the embedded
+// mappings, so a backend untargeting/rollback is reflected without an agent
+// restart.
+func TestOnSemanticCoreUpdate_EmptyUpdatesRevertToEmbedded(t *testing.T) {
+	restoreEmbeddedRegistry(t)
+	h := newSemanticTestHandler(t)
+	embedded, err := semantics.NewEmbeddedRegistry()
+	require.NoError(t, err)
+
+	// First, push a custom RC registry so that the live registry differs from embedded.
+	_, cb := captureStatuses()
+	h.onSemanticCoreUpdate(map[string]state.RawConfig{
+		"datadog/2/APM_SEMANTIC_CORE_DD/cfg/config": {Config: []byte(semanticTestJSON)},
+	}, cb)
+	require.Equal(t, "test-1.0", semantics.DefaultRegistry().Version())
+
+	// Now deliver an empty update (RC removed the config or untargeted us).
+	// The handler must revert to the embedded registry.
+	called := 0
+	h.onSemanticCoreUpdate(map[string]state.RawConfig{}, func(string, state.ApplyStatus) { called++ })
+
+	assert.Equal(t, embedded.Version(), semantics.DefaultRegistry().Version(), "live registry must be the embedded version after revert")
+	assert.Equal(t, 0, called, "no applyStateCallback invocations on empty updates (no cfgPaths to ack)")
 }

@@ -296,6 +296,22 @@ func (h *RemoteConfigHandler) onSemanticCoreUpdate(
 	applyStateCallback func(string, state.ApplyStatus),
 ) {
 	if len(updates) == 0 {
+		// RC has nothing for us under this product: either the publisher has
+		// not pushed anything yet, or a previously-applied config was deleted
+		// or unassigned. In either case, revert to the embedded mappings so a
+		// backend rollback/untargeting is reflected immediately rather than
+		// leaving the agent stuck on the last RC payload until restart.
+		embedded, err := semantics.NewEmbeddedRegistry()
+		if err != nil {
+			// Should not happen — the embedded mappings.json is validated at
+			// process start. Log and leave the live registry in place.
+			pkglog.Errorf("semantic-core RC: failed to load embedded registry while reverting: %v", err)
+			return
+		}
+		if !semantics.RegistryEqual(embedded, semantics.DefaultRegistry()) {
+			semantics.UpdateRegistry(embedded)
+			pkglog.Infof("semantic-core RC: empty payload received; reverted to embedded registry version=%s", embedded.Version())
+		}
 		return
 	}
 

@@ -8,8 +8,10 @@ features:
     this subscription. The Concentrator picks up updated peer-tag keys on its
     next stat-span invocation by comparing its cached snapshot's version
     against the live registry's version, so stats aggregation reflects the new
-    mappings without an agent restart. Existing deployments see no behavior
-    change with default settings; opt in by setting
+    mappings without an agent restart. If a previously-applied RC payload is
+    later removed or untargeted by the backend, the trace-agent reverts to the
+    embedded mappings rather than holding the last-applied registry. Existing
+    deployments see no behavior change with default settings; opt in by setting
     ``remote_configuration.apm_semantics.enabled: true``.
   - |
     APM: ``remote_configuration.agent_config.enabled`` is now a settable
