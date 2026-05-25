@@ -1,0 +1,46 @@
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+# Hermetic MSYS2 sh_toolchain lives in @msys2_base//: (see msys2.BUILD.bazel,
+# loaded by the MSYS2 repository rule). This package additionally owns the
+# bash_shim wired into .bazelrc as --shell_executable on Windows: the
+# checked-in bash_shim.exe is the runtime artifact (Bazel reads it at startup);
+# the cc_binary below is the source of truth for how to rebuild it, and the
+# write_source_file target keeps the two in sync.
+
+exports_files(["bash_shim.exe"])
+
+cc_binary(
+    name = "bash_shim_bin",
+    srcs = ["bash_shim.c"],
+    copts = [
+        "-O2",
+        "-municode",
+    ],
+    linkopts = [
+        "-municode",
+        "-static",
+        "-s",
+        # Zero out the PE timestamp so two builds of the same source produce
+        # byte-identical output and the diff_test below stays stable.
+        "-Wl,--no-insert-timestamp",
+    ],
+    target_compatible_with = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+# `bazel run //bazel/toolchains/msys2:bash_shim` rebuilds bash_shim.exe in
+# place. `bazel test //bazel/toolchains/msys2:bash_shim_test` (auto-generated)
+# fails CI if the in-tree binary drifts from what bash_shim.c would produce.
+write_source_file(
+    name = "bash_shim",
+    in_file = ":bash_shim_bin",
+    out_file = "bash_shim.exe",
+    target_compatible_with = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+    visibility = ["//visibility:public"],
+)

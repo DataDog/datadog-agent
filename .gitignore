@@ -24,6 +24,8 @@ target
 *.pyc
 *.swp
 *.exe
+# Checked-in MSYS2 bash shim used by the Windows Bazel toolchain
+!bazel/toolchains/msys2/bash_shim.exe
 *.syso
 *.log
 /main
