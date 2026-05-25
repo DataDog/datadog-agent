@@ -29,7 +29,7 @@ ddtool auth helpers install > ~/helpers-install.log 2>&1
 touch ~/helpers-done
 
 # Activate xdg-open functionality
-ln -s workspaces-tool-helper ~/.local/bin/xdg-open
+ln -s /usr/local/bin/workspaces-tool-helper ~/.local/bin/xdg-open
 touch ~/xdg-open-done
 EOF
 
