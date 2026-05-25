@@ -15,6 +15,11 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
+// iisDefaultAppPoolName is the hard-coded pool name IIS assigns to an
+// <application> that omits applicationPool when no <applicationDefaults>
+// supplies one.
+const iisDefaultAppPoolName = "DefaultAppPool"
+
 /*
 	 IIS can have multiple sites.  Each site can have multiple applications.
 	   each application can have its own config.
@@ -269,10 +274,14 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 			// live under <location path="Site/App"><system.webServer>
 			// <aspNetCore><environmentVariables>, which is not parsed here.
 			// When the application omits applicationPool, IIS inherits it
-			// from <site><applicationDefaults> or <sites><applicationDefaults>.
+			// from <site><applicationDefaults>, then <sites><applicationDefaults>,
+			// and finally hard-codes "DefaultAppPool" if neither is set.
 			appPool := app.AppPool
 			if appPool == "" {
 				appPool = siteDefaultPool
+			}
+			if appPool == "" {
+				appPool = iisDefaultAppPoolName
 			}
 			envvars := poolEnvFor(perPool, defaults, appPool)
 			hasenv := !envvars.isEmpty()

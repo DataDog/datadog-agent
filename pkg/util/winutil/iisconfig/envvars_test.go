@@ -142,3 +142,46 @@ func TestAPMTagsIsEmpty(t *testing.T) {
 	assert.False(t, APMTags{DDEnv: "x"}.isEmpty())
 	assert.False(t, APMTags{DDVersion: "x"}.isEmpty())
 }
+
+// TestPoolDefaultsToDefaultAppPool verifies that an <application> with no
+// applicationPool, and no <applicationDefaults> at site or sites level,
+// resolves to IIS's hard-coded "DefaultAppPool" — so env vars configured
+// on a pool literally named "DefaultAppPool" are picked up.
+func TestPoolDefaultsToDefaultAppPool(t *testing.T) {
+	cfg := &iisConfiguration{
+		ApplicationHost: iisSystemApplicationHost{
+			ApplicationPools: iisApplicationPools{
+				Pools: []iisApplicationPool{
+					{
+						Name: "DefaultAppPool",
+						EnvVars: iisEnvironmentVariables{
+							Adds: []iisEnvVar{
+								{Name: "DD_SERVICE", Value: "default-app-pool-svc"},
+								{Name: "DD_VERSION", Value: "0.1"},
+							},
+						},
+					},
+				},
+			},
+			Sites: []iisSite{
+				{
+					SiteID: "100",
+					Applications: []iisApplication{
+						{
+							Path: "/",
+							// applicationPool omitted on purpose; no <applicationDefaults> set.
+							VirtualDirs: []iisVirtualDirectory{
+								{Path: "/", PhysicalPath: "C:\\does-not-exist"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	trees := buildPathTagTree(cfg)
+	_, _, env := findInPathTree(trees, 100, "/")
+	assert.Equal(t, "default-app-pool-svc", env.DDService)
+	assert.Equal(t, "0.1", env.DDVersion)
+}
