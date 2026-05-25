@@ -74,6 +74,9 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 			agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
 			agentclientparams.WithProcessAgentOnPort(processCmdPort),
 			agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
+			// Default 1m readiness wait has timed out repeatedly here when
+			// trace/process-agent are slow to bind after an UpdateEnv re-provision.
+			agentclientparams.WithWaitForDuration(3*time.Minute),
 		)),
 	))
 
@@ -143,6 +146,9 @@ func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
 			agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
 			agentclientparams.WithProcessAgentOnPort(processCmdPort),
 			agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
+			// Default 1m readiness wait has timed out repeatedly here when
+			// trace/process-agent are slow to bind after an UpdateEnv re-provision.
+			agentclientparams.WithWaitForDuration(3*time.Minute),
 		)),
 	))
 
