@@ -227,35 +227,61 @@ func buildLocationEnvOps(locations []iisLocation) map[string][]iisEnvVarOp {
 	return out
 }
 
-// applyLocationEnvOverlay walks the <location> hierarchy from least to most
-// specific (site root, then each application path segment) and overlays each
-// matching block's env var ops on top of base. This mirrors how the IIS
-// configuration system inherits <location> blocks into nested paths, so an
-// app-level <location path="Site/App"> can build on -- or override via
-// <clear/>/<remove> -- a site-level <location path="Site">.
+// applyLocationEnvOverlay returns base with any <location><aspNetCore>
+// <environmentVariables> values overlaid for (siteName, appPath).
+//
+// IIS evaluates these two scopes independently. applicationPools env vars are
+// pushed into the w3wp.exe process environment when the worker starts.
+// <aspNetCore> env vars are a separate IIS collection that the ASP.NET Core
+// Module then adds on top of that process environment when launching the
+// managed app -- they overwrite per key but cannot unset values the worker
+// process already inherited. <clear/> and <remove> inside an aspNetCore block
+// therefore operate on the aspNetCore collection itself (across <location>
+// inheritance), not on the pool-resolved state.
+//
+// We mirror that by building the effective aspNetCore collection from empty,
+// applying each ancestor <location>'s ops in increasing specificity (site,
+// then each app-path segment), and finally overlaying only the non-empty
+// fields onto base. The .NET tracer reads from the merged process env, so
+// agreeing on this order is what keeps USM tags aligned with tracer UST.
 func applyLocationEnvOverlay(base APMTags, locOps map[string][]iisEnvVarOp, siteName, appPath string) APMTags {
 	if len(locOps) == 0 {
 		return base
 	}
-	state := base
+	aspNetCore := APMTags{}
+	applied := false
+	apply := func(key string) {
+		if ops, ok := locOps[key]; ok {
+			aspNetCore = applyEnvVarsOver(aspNetCore, iisEnvironmentVariables{Ops: ops})
+			applied = true
+		}
+	}
 	prefix := strings.ToLower(siteName)
-	if ops, ok := locOps[prefix]; ok {
-		state = applyEnvVarsOver(state, iisEnvironmentVariables{Ops: ops})
-	}
+	apply(prefix)
 	cleaned := strings.Trim(appPath, "/")
-	if cleaned == "" {
-		return state
-	}
-	for _, seg := range strings.Split(cleaned, "/") {
-		if seg == "" {
-			continue
-		}
-		prefix = prefix + "/" + strings.ToLower(seg)
-		if ops, ok := locOps[prefix]; ok {
-			state = applyEnvVarsOver(state, iisEnvironmentVariables{Ops: ops})
+	if cleaned != "" {
+		for _, seg := range strings.Split(cleaned, "/") {
+			if seg == "" {
+				continue
+			}
+			prefix = prefix + "/" + strings.ToLower(seg)
+			apply(prefix)
 		}
 	}
-	return state
+	if !applied {
+		return base
+	}
+	result := base
+	if aspNetCore.DDService != "" {
+		result.DDService = aspNetCore.DDService
+	}
+	if aspNetCore.DDEnv != "" {
+		result.DDEnv = aspNetCore.DDEnv
+	}
+	if aspNetCore.DDVersion != "" {
+		result.DDVersion = aspNetCore.DDVersion
+	}
+	return result
 }
 
 func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {

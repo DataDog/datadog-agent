@@ -88,6 +88,12 @@
         <application path="/loccascade/child" applicationPool="poolA">
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
+        <application path="/loccascadeclear" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/loccascadeclear/child" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
       </site>
       <site name="sitedefaults" id="11">
         <applicationDefaults applicationPool="poolA" />
@@ -152,6 +158,24 @@
       <aspNetCore>
         <environmentVariables>
           <add name="DD_SERVICE" value="cascade-child-service" />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
+  <location path="envsite/loccascadeclear">
+    <system.webServer>
+      <aspNetCore>
+        <environmentVariables>
+          <add name="DD_SERVICE" value="parent-clear-service" />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
+  <location path="envsite/loccascadeclear/child">
+    <system.webServer>
+      <aspNetCore>
+        <environmentVariables>
+          <clear />
         </environmentVariables>
       </aspNetCore>
     </system.webServer>

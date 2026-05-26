@@ -146,22 +146,26 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		assert.Equal(t, "1.0.0", env.DDVersion)
 	})
 
-	t.Run("<location><aspNetCore> <clear/> wipes inherited pool env", func(t *testing.T) {
-		// /locclear's location clears the pool-resolved env before adding
-		// DD_SERVICE. Pool-level DD_SERVICE/DD_VERSION/DD_ENV are all dropped.
+	t.Run("<location><aspNetCore> <clear/> does not wipe pool env", func(t *testing.T) {
+		// /locclear's <aspNetCore> block <clear/>s its inherited collection
+		// and then adds DD_SERVICE. <clear/> operates on the aspNetCore
+		// collection only -- it does not unset pool env vars on the worker
+		// process. So DD_ENV/DD_VERSION from poolA still flow through.
 		_, _, env := iisCfg.GetAPMTags(10, "/locclear")
 		assert.Equal(t, "loc-clear-service", env.DDService)
-		assert.Equal(t, "", env.DDEnv)
-		assert.Equal(t, "", env.DDVersion)
+		assert.Equal(t, "default-env", env.DDEnv)
+		assert.Equal(t, "1.0.0", env.DDVersion)
 	})
 
-	t.Run("<location><aspNetCore> <remove> drops one inherited pool field", func(t *testing.T) {
-		// /locremove's location removes DD_ENV (inherited from
-		// applicationPoolDefaults via poolA) and overrides DD_VERSION;
-		// DD_SERVICE keeps the poolA value.
+	t.Run("<location><aspNetCore> <remove> is a no-op against pool env", func(t *testing.T) {
+		// /locremove's <aspNetCore> block <remove>s DD_ENV (which was never
+		// added at the aspNetCore scope) and adds DD_VERSION. Because
+		// <remove> here only touches the aspNetCore collection, DD_ENV from
+		// applicationPoolDefaults still flows through; DD_VERSION is
+		// overridden by the location and DD_SERVICE keeps the poolA value.
 		_, _, env := iisCfg.GetAPMTags(10, "/locremove")
 		assert.Equal(t, "poolA-service", env.DDService)
-		assert.Equal(t, "", env.DDEnv)
+		assert.Equal(t, "default-env", env.DDEnv)
 		assert.Equal(t, "3.0.0", env.DDVersion)
 	})
 
@@ -173,6 +177,18 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		assert.Equal(t, "cascade-child-service", env.DDService)
 		assert.Equal(t, "cascade-parent-env", env.DDEnv)
 		// DD_VERSION still flows through from poolA.
+		assert.Equal(t, "1.0.0", env.DDVersion)
+	})
+
+	t.Run("nested <clear/> drops inherited aspNetCore adds, pool env shows through", func(t *testing.T) {
+		// envsite/loccascadeclear inherits a parent <location>'s aspNetCore
+		// <add name="DD_SERVICE"> and then <clear/>s its own aspNetCore
+		// collection. The effective aspNetCore set becomes empty, so the
+		// pool-level DD_SERVICE (poolA-service) shows through -- matching
+		// what the ASP.NET Core Module would actually apply to the process.
+		_, _, env := iisCfg.GetAPMTags(10, "/loccascadeclear/child")
+		assert.Equal(t, "poolA-service", env.DDService)
+		assert.Equal(t, "default-env", env.DDEnv)
 		assert.Equal(t, "1.0.0", env.DDVersion)
 	})
 }
