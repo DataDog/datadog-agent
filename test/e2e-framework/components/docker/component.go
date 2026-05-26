@@ -231,12 +231,31 @@ func (d *Manager) install() (command.Command, error) {
 
 func (d *Manager) installCompose() (command.Command, error) {
 	opts := append(d.opts, pulumi.Parent(d))
-	installCompose := pulumi.Sprintf("bash -c '(docker-compose version | grep %s) || (curl --retry 10 -fsSLo /usr/local/bin/docker-compose https://github.com/docker/compose/releases/download/%s/docker-compose-linux-$(uname -p) && sudo chmod 755 /usr/local/bin/docker-compose)'", composeVersion, composeVersion)
+
+	// uname -p returns "unknown" on some Linux kernels; fall back to uname -m.
+	archCmd, err := d.Host.OS.Runner().Command(
+		d.namer.ResourceName("detect-arch"),
+		&command.Args{
+			Create: pulumi.String(`ARCH=$(uname -p); [ "$ARCH" = "unknown" ] && echo $(uname -m) || echo $ARCH`),
+		},
+		opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	arch := archCmd.StdoutOutput().ApplyT(func(s string) string {
+		return strings.TrimSpace(s)
+	}).(pulumi.StringOutput)
+
+	installCompose := pulumi.Sprintf(
+		"bash -c '(docker-compose version | grep %s) || (curl --retry 10 -fsSLo /usr/local/bin/docker-compose https://github.com/docker/compose/releases/download/%s/docker-compose-linux-%s && sudo chmod 755 /usr/local/bin/docker-compose)'",
+		composeVersion, composeVersion, arch)
+
 	return d.Host.OS.Runner().Command(
 		d.namer.ResourceName("install-compose"),
 		&command.Args{
 			Create: installCompose,
 			Sudo:   true,
 		},
-		opts...)
+		utils.MergeOptions(opts, utils.PulumiDependsOn(archCmd))...)
 }

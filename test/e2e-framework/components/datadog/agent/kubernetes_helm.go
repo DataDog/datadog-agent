@@ -721,8 +721,11 @@ func BuildOpenShiftHelmValues() HelmValues {
 				"tlsVerify": pulumi.Bool(false),
 			},
 			// https://docs.datadoghq.com/containers/troubleshooting/admission-controller/?tab=helm#openshift
+			// socketEnabled must be false to prevent the admission controller from injecting
+			// a UDS socket volume that conflicts with OpenShift SCCs.
 			"apm": pulumi.Map{
-				"portEnabled": pulumi.Bool(true),
+				"portEnabled":   pulumi.Bool(true),
+				"socketEnabled": pulumi.Bool(false),
 			},
 			"sbom": pulumi.Map{
 				"containerImage": pulumi.Map{
