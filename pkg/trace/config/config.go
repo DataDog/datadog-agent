@@ -555,6 +555,15 @@ type AgentConfig struct {
 	// MRFRemoteConfigClient retrieves MRF updates from the remote config DC.
 	MRFRemoteConfigClient RemoteClient `json:"-"`
 
+	// RemoteConfigAPMSamplingEnabled gates the trace-agent's APM_SAMPLING subscription.
+	RemoteConfigAPMSamplingEnabled bool
+	// RemoteConfigAgentConfigEnabled gates the trace-agent's AGENT_CONFIG subscription.
+	// When the user has not set remote_configuration.agent_config.enabled explicitly,
+	// this is initialised by inheriting remote_configuration.apm_sampling.enabled.
+	RemoteConfigAgentConfigEnabled bool
+	// RemoteConfigAPMSemanticsEnabled gates the trace-agent's APM_SEMANTIC_CORE_DD subscription.
+	RemoteConfigAPMSemanticsEnabled bool
+
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
 	// ContainerTagsWithCompleteness returns the tags for a given container ID

@@ -1085,6 +1085,16 @@ properties:
         tags:
         - template_section:Common
         comment: Remote config
+      agent_config:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            tags:
+            - TODO:fix-no-default
+            comment: No static default; inherits remote_configuration.apm_sampling.enabled when unset.
       agent_integrations:
         node_type: section
         type: object
@@ -1123,6 +1133,15 @@ properties:
             type: boolean
             default: true
             comment: Remote config products
+      apm_semantics:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Gates the trace-agent's APM_SEMANTIC_CORE_DD subscription. Opt-in during initial rollout.
       clients:
         node_type: section
         type: object
