@@ -9,8 +9,10 @@
 package admissionprobe
 
 import (
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 func init() {
@@ -18,10 +20,12 @@ func init() {
 }
 
 const (
-	// IssueType is the template type identifier for admission controller connectivity issues.
-	IssueType = "admission-controller-connectivity-failure"
+	// IssueName is the identifier for admission controller connectivity issues,
+	// used as the template registry key and the proto IssueName field.
+	IssueName = "admission_controller_unreachable"
 	// IssueID is the unique instance id used when reporting this issue.
-	IssueID = IssueType
+	// Note: kept separate from IssueName — probe.go and E2E tests use this value for issue.Id.
+	IssueID = "admission-controller-connectivity-failure"
 )
 
 type admissionProbeModule struct {
@@ -35,20 +39,20 @@ func NewModule(config.Component) issues.Module {
 	}
 }
 
-func (m *admissionProbeModule) IssueType() string {
-	return IssueType
+func (m *admissionProbeModule) IssueName() string {
+	return IssueName
 }
 
-func (m *admissionProbeModule) IssueTemplate() issues.IssueTemplate {
-	return m.template
+func (m *admissionProbeModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+	return m.template.BuildIssue(context)
 }
 
 // BuiltInPeriodicHealthCheck returns nil — probe failures are reported by the admission controller probe.
-func (m *admissionProbeModule) BuiltInPeriodicHealthCheck() *issues.BuiltInPeriodicHealthCheck {
+func (m *admissionProbeModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
 	return nil
 }
 
 // BuiltInStartupHealthCheck returns nil — no startup-time check for this module.
-func (m *admissionProbeModule) BuiltInStartupHealthCheck() *issues.BuiltInStartupHealthCheck {
+func (m *admissionProbeModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
 	return nil
 }

@@ -152,7 +152,9 @@ exports_files(glob(
 # gazelle:exclude comp/dogstatsd/server/mock
 # gazelle:exclude comp/dogstatsd/status/fx
 # gazelle:exclude comp/dogstatsd/status/impl
-# gazelle:exclude comp/forwarder/eventplatform/eventplatformimpl
+# gazelle:exclude comp/forwarder/eventplatform/fx
+# gazelle:exclude comp/forwarder/eventplatform/impl
+# gazelle:exclude comp/forwarder/eventplatform/mock
 # gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
 # gazelle:exclude comp/haagent/fx
 # gazelle:exclude comp/haagent/impl
@@ -648,7 +650,15 @@ exports_files(glob(
 # gazelle:exclude pkg/util/kubernetes/clusterinfo
 # gazelle:exclude pkg/util/kubernetes/clustername
 # gazelle:exclude pkg/util/kubernetes/hostinfo
+# TODO(agent-build): re-include the following files once their unmigrated deps are
+#   reachable from Bazel-migrated targets:
+#     - hostname.go      -> pkg/util/kubernetes/apiserver, pkg/util/kubernetes/clustername
+#     - resource.go      -> k8s.io/apimachinery/pkg/api/resource
+#     - resource_test.go -> k8s.io/apimachinery/pkg/api/resource
+# gazelle:exclude pkg/util/kubernetes/hostname.go
 # gazelle:exclude pkg/util/kubernetes/kubelet
+# gazelle:exclude pkg/util/kubernetes/resource.go
+# gazelle:exclude pkg/util/kubernetes/resource_test.go
 # gazelle:exclude pkg/util/tags
 # gazelle:exclude tasks/unit_tests
 # gazelle:exclude test/benchmarks
