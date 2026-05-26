@@ -76,10 +76,6 @@ type ForwarderV2 interface {
 }
 
 // Component is the component type.
-//
-// New code should import this def package directly. The root package
-// (comp/forwarder/defaultforwarder) re-exports this type for backward
-// compatibility while the V2 migration is in progress.
 type Component interface {
 	Forwarder
 }
