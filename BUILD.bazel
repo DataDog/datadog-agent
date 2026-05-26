@@ -538,7 +538,13 @@ exports_files(glob(
 # gazelle:exclude pkg/network/usm/tests
 # gazelle:exclude pkg/network/usm/testutil/grpc
 # gazelle:exclude pkg/network/usm/utils
-# gazelle:exclude pkg/networkconfigmanagement
+# gazelle:exclude pkg/networkconfigmanagement/config
+# gazelle:exclude pkg/networkconfigmanagement/profile
+# gazelle:exclude pkg/networkconfigmanagement/remote
+# gazelle:exclude pkg/networkconfigmanagement/report
+# gazelle:exclude pkg/networkconfigmanagement/sender
+# gazelle:exclude pkg/networkconfigmanagement/store
+# gazelle:exclude pkg/networkconfigmanagement/test
 # gazelle:exclude pkg/networkdevice/pinger
 # gazelle:exclude pkg/networkdevice/sender
 # gazelle:exclude pkg/networkdevice/utils
