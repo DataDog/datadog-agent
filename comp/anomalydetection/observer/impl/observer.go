@@ -403,12 +403,12 @@ type seriesDetectorAdapter struct {
 	// bounding per-call cost to O(windowSec) instead of O(totalPoints).
 	windowSec int64
 
-	// cachedSeries / cachedGen mirror the pattern used by BOCPDDetector,
+	// cachedRefs / cachedGen mirror the pattern used by BOCPDDetector,
 	// ScanWelchDetector, and ScanMWDetector: storage.SeriesGeneration() only
 	// advances when a brand-new series key is created, so we can avoid the
-	// per-Detect full-map ListSeries scan on steady-state cardinality.
-	cachedSeries []observerdef.SeriesMeta
-	cachedGen    uint64
+	// per-Detect full-map series scan on steady-state cardinality.
+	cachedRefs []observerdef.SeriesRef
+	cachedGen  uint64
 
 	// lastVisibleCount is keyed by the storage's compact SeriesRef so we
 	// avoid rebuilding a string key per series per Detect call. SeriesRefs
@@ -433,7 +433,7 @@ func (a *seriesDetectorAdapter) Name() string {
 // Reset clears adapter-local caches and resets the wrapped detector when supported.
 func (a *seriesDetectorAdapter) Reset() {
 	a.lastVisibleCount = make(map[observerdef.SeriesRef]int)
-	a.cachedSeries = nil
+	a.cachedRefs = nil
 	a.cachedGen = 0
 	if resetter, ok := a.detector.(interface{ Reset() }); ok {
 		resetter.Reset()
@@ -448,7 +448,7 @@ func (a *seriesDetectorAdapter) Reset() {
 // Concurrency invariant: this method runs on the single observerImpl.run()
 // goroutine that drives every other adapter callback (Detect, Reset). The
 // engine's fanOutSeriesRemoval is the only caller. Mutating lastVisibleCount
-// and cachedSeries without a lock is safe under that invariant only.
+// and cachedRefs without a lock is safe under that invariant only.
 func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 	if len(refs) == 0 {
 		return
@@ -458,7 +458,7 @@ func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 			delete(a.lastVisibleCount, ref)
 		}
 	}
-	a.cachedSeries = nil
+	a.cachedRefs = nil
 	a.cachedGen = 0
 	if remover, ok := a.detector.(observerdef.SeriesRemover); ok {
 		remover.RemoveSeries(refs)
@@ -467,27 +467,27 @@ func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 
 func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	gen := storage.SeriesGeneration()
-	if a.cachedSeries == nil || gen != a.cachedGen {
-		a.cachedSeries = storage.ListSeries(observerdef.WorkloadSeriesFilter())
+	if a.cachedRefs == nil || gen != a.cachedGen {
+		a.cachedRefs = workloadSeriesRefs(storage, a.cachedRefs)
 		a.cachedGen = gen
 	}
 
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
 
-	for _, meta := range a.cachedSeries {
-		visibleCount := storage.PointCountUpTo(meta.Ref, dataTime)
-		if prev, ok := a.lastVisibleCount[meta.Ref]; ok && prev == visibleCount {
+	for _, ref := range a.cachedRefs {
+		visibleCount := storage.PointCountUpTo(ref, dataTime)
+		if prev, ok := a.lastVisibleCount[ref]; ok && prev == visibleCount {
 			continue
 		}
-		a.lastVisibleCount[meta.Ref] = visibleCount
+		a.lastVisibleCount[ref] = visibleCount
 
 		for _, agg := range a.aggregations {
 			start := int64(0)
 			if a.windowSec > 0 {
 				start = dataTime - a.windowSec
 			}
-			series := storage.GetSeriesRange(meta.Ref, start, dataTime, agg)
+			series := storage.GetSeriesRange(ref, start, dataTime, agg)
 			if series == nil || len(series.Points) == 0 {
 				continue
 			}
@@ -506,7 +506,7 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 					Aggregate: agg,
 				}
 				result.Anomalies[j].SourceRef = &observerdef.QueryHandle{
-					Ref:       meta.Ref,
+					Ref:       ref,
 					Aggregate: agg,
 				}
 			}
