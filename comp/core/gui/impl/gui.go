@@ -122,7 +122,7 @@ func NewComponent(deps Requires) Provides {
 	g.auth = newAuthenticator(authToken, sessionExpiration)
 
 	// register the public routes
-	publicRouter.HandleFunc("GET /", renderIndexPage)
+	publicRouter.HandleFunc("GET /{$}", renderIndexPage)
 	publicRouter.HandleFunc("GET /auth", g.getAccessToken)
 	// Mount our filesystem at the view/{path} route
 	publicRouter.Handle("/view/", http.StripPrefix("/view/", http.HandlerFunc(serveAssets)))
@@ -130,11 +130,14 @@ func NewComponent(deps Requires) Provides {
 	// Set up handlers for the API, guarded by auth middleware
 	agentMux := http.NewServeMux()
 	agentHandler(agentMux, deps.Flare, deps.Status, deps.Config, deps.Hostname, g.startTimestamp)
-	publicRouter.Handle("/agent/", g.authMiddleware(http.StripPrefix("/agent", agentMux)))
 
 	checkMux := http.NewServeMux()
 	checkHandler(checkMux)
-	publicRouter.Handle("/checks/", g.authMiddleware(http.StripPrefix("/checks", checkMux)))
+
+	securedMux := http.NewServeMux()
+	securedMux.Handle("/agent/", http.StripPrefix("/agent", agentMux))
+	securedMux.Handle("/checks/", http.StripPrefix("/checks", checkMux))
+	publicRouter.Handle("/", g.authMiddleware(securedMux))
 
 	g.router = publicRouter
 
