@@ -30,6 +30,7 @@ go_test(
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/fixtures",
         "//pkg/fleet/installer/oci",
+        "//pkg/fleet/installer/paths",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_etcd_go_bbolt//:bbolt",
