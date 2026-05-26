@@ -1,0 +1,28 @@
+# Custom Python check reads the OpenMetrics-shaped response body.
+optimization_goal: cpu
+erratic: false
+
+target:
+  name: datadog-agent
+  cpu_allotment: 4
+  memory_allotment: 4GiB
+
+  environment:
+    DD_API_KEY: a0000001
+    DD_HOSTNAME: smp-openmetrics-python-contrast
+    DD_CHECK_RUNNERS: "4"
+
+  profiling_environment:
+    DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
+    DD_INTERNAL_PROFILING_CPU_DURATION: 1m
+    DD_INTERNAL_PROFILING_DELTA_PROFILES: true
+    DD_INTERNAL_PROFILING_ENABLED: true
+    DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
+    DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION: 10
+    DD_INTERNAL_PROFILING_PERIOD: 1m
+    DD_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
+    DD_PROFILING_EXECUTION_TRACE_ENABLED: true
+    DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
+    DD_PROFILING_WAIT_PROFILE: true
+    DD_APM_INTERNAL_PROFILING_ENABLED: true
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: "experiment:openmetrics_python_contrast_io_read_samples0962_t0200_r04,workload:openmetrics_python_contrast,scenario:io_read,target_count:200,check_runners:4,response_delay_ms:100,payload_samples:962"
