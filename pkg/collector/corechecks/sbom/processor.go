@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/procfs"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
+	pkgimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -391,7 +392,10 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 		repos[strings.SplitN(repoDigest, "@sha256:", 2)[0]] = struct{}{}
 	}
 	for _, repoTag := range img.RepoTags {
-		repos[strings.SplitN(repoTag, ":", 2)[0]] = struct{}{}
+		// Split on the last colon (after the last slash) so registries that
+		// include a port are parsed correctly.
+		repoName, _ := pkgimage.SplitRepoTag(repoTag)
+		repos[repoName] = struct{}{}
 	}
 
 	inUse := false
@@ -420,8 +424,9 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 
 		repoTags := make([]string, 0, len(img.RepoTags))
 		for _, repoTag := range img.RepoTags {
-			if strings.HasPrefix(repoTag, repo+":") {
-				repoTags = append(repoTags, strings.SplitN(repoTag, ":", 2)[1])
+			repoName, tag := pkgimage.SplitRepoTag(repoTag)
+			if repoName == repo && tag != "" {
+				repoTags = append(repoTags, tag)
 			}
 		}
 
