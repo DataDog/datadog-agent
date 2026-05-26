@@ -287,6 +287,14 @@ const (
 	fleetAgentExperimentPath = "/opt/datadog-packages/datadog-agent/experiment"
 )
 
+// isFleetAgentSlotPath reports whether root is the fleet stable/experiment slot symlink.
+// These paths must not be canonicalized: procmgr process YAML should reference the slot
+// so promote/upgrade can retarget the symlink without rewriting processes.d.
+func isFleetAgentSlotPath(root string) bool {
+	clean := filepath.Clean(root)
+	return clean == fleetAgentStablePath || clean == fleetAgentExperimentPath
+}
+
 func ddotAgentInstallRoot(ctx HookContext) (string, error) {
 	roots := []string{}
 	if ctx.PackagePath != "" {
@@ -301,8 +309,10 @@ func ddotAgentInstallRoot(ctx HookContext) (string, error) {
 	roots = append(roots, filepath.Join(paths.PackagesPath, "datadog-agent", agentVersionForExtensions()))
 	for _, root := range roots {
 		installRoot := root
-		if resolved, err := filepath.EvalSymlinks(root); err == nil {
-			installRoot = resolved
+		if !isFleetAgentSlotPath(root) {
+			if resolved, err := filepath.EvalSymlinks(root); err == nil {
+				installRoot = resolved
+			}
 		}
 		if _, err := os.Stat(filepath.Join(installRoot, "ext", "ddot")); err == nil {
 			return installRoot, nil
