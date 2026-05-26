@@ -83,7 +83,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
-		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath, coreconfig.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath))),
+		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath, subcommands.AgentParamsOptions(cliParams.GlobalParams)...)),
 		secretsfx.Module(),
 		delegatedauthfx.Module(),
 		telemetryfx.Module(),
