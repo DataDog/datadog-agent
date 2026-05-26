@@ -103,6 +103,7 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 		// Interval: TODO: investigate
 		Points:     points,
 		ContextKey: ck,
+		Source:     ctx.source,
 	}
 
 	return ss
