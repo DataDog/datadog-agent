@@ -67,6 +67,13 @@ type ConfigResponse struct {
 	Configs    []integration.Config `json:"configs"`
 }
 
+// InstrumentationStatusResponse holds the DCA response for an instrumentation status query.
+// It carries only the timestamp of the most recent config change, allowing node agents
+// to decide whether to fetch the full config payload.
+type InstrumentationStatusResponse struct {
+	LastChange int64 `json:"last_change"`
+}
+
 // StateResponse holds the DCA response for a dispatching state query
 type StateResponse struct {
 	NotRunning string               `json:"not_running"` // Reason why not running, empty if leading

@@ -29,6 +29,7 @@ type InstrumentationChecksConfigProvider struct {
 	degradedDuration time.Duration
 	heartbeat        time.Time
 	flushedConfigs   bool
+	lastChange       int64
 }
 
 // NewInstrumentationChecksConfigProvider returns a new ConfigProvider collecting
@@ -53,9 +54,18 @@ func (c *InstrumentationChecksConfigProvider) String() string {
 	return names.InstrumentationChecks
 }
 
-// IsUpToDate always returns false so that Collect is called on every poll cycle.
-func (c *InstrumentationChecksConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
-	return false, nil
+// IsUpToDate polls the cluster agent's /instrumentation/status endpoint and
+// compares the returned timestamp against the provider's last known change.
+func (c *InstrumentationChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
+	if c.dcaClient == nil {
+		return false, nil
+	}
+	status, err := c.dcaClient.GetInstrumentationStatus(ctx)
+	if err != nil {
+		// On error, fall through to Collect so the provider can handle degraded mode.
+		return false, nil
+	}
+	return status.LastChange == c.lastChange, nil
 }
 
 func (c *InstrumentationChecksConfigProvider) withinDegradedModePeriod() bool {
@@ -95,6 +105,7 @@ func (c *InstrumentationChecksConfigProvider) Collect(ctx context.Context) ([]in
 	// restarts from this successful response.
 	c.flushedConfigs = false
 	c.heartbeat = time.Now()
+	c.lastChange = reply.LastChange
 
 	return reply.Configs, nil
 }

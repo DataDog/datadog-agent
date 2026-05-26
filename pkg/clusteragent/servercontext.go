@@ -14,6 +14,7 @@ import (
 // ConfigLister exposes integration.Configs derived from DatadogInstrumentation CRs.
 type ConfigLister interface {
 	ListConfigs() []integration.Config
+	LastChange() int64
 }
 
 // ServerContext holds business logic classes required to setup API endpoints

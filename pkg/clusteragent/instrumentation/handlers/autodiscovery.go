@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
@@ -33,8 +34,9 @@ const (
 )
 
 type CheckStore struct {
-	mu      sync.RWMutex
-	configs map[string][]integration.Config
+	mu         sync.RWMutex
+	configs    map[string][]integration.Config
+	lastChange int64
 }
 
 func NewCheckStore() *CheckStore {
@@ -164,12 +166,6 @@ func (h *AutodiscoveryHandler) Handle(_ context.Context, event instrumentation.E
 	}, nil
 }
 
-// ListConfigs returns a snapshot of all stored integration.Config entries
-// across all DatadogInstrumentation CRs handled by this instance.
-func (h *AutodiscoveryHandler) ListConfigs() []integration.Config {
-	return h.checkStore.ListConfigs()
-}
-
 func (c *CheckStore) ListConfigs() []integration.Config {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -180,20 +176,29 @@ func (c *CheckStore) ListConfigs() []integration.Config {
 	return out
 }
 
+// LastChange returns the Unix nanosecond timestamp of the most recent mutation.
+func (c *CheckStore) LastChange() int64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.lastChange
+}
+
 func (c *CheckStore) setConfigs(key string, configs []integration.Config) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if len(configs) == 0 {
 		delete(c.configs, key)
-		return
+	} else {
+		c.configs[key] = configs
 	}
-	c.configs[key] = configs
+	c.lastChange = time.Now().UnixNano()
 }
 
 func (c *CheckStore) deleteConfigs(key string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.configs, key)
+	c.lastChange = time.Now().UnixNano()
 }
 
 func translateCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.DatadogInstrumentationCheckConfig) (integration.Config, error) {

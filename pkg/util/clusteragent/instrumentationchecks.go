@@ -13,12 +13,14 @@ import (
 
 const (
 	dcaInstrumentationConfigsPath = "api/v1/instrumentation/configs"
+	dcaInstrumentationStatusPath  = "api/v1/instrumentation/status"
 )
 
 // InstrumentationCheckClient is the interface used by the instrumentation
 // checks config provider to retrieve AD configurations from the cluster agent.
 type InstrumentationCheckClient interface {
 	GetInstrumentationConfigs(ctx context.Context) (types.ConfigResponse, error)
+	GetInstrumentationStatus(ctx context.Context) (types.InstrumentationStatusResponse, error)
 }
 
 // GetInstrumentationConfigs is called by the instrumentation checks config provider
@@ -27,4 +29,13 @@ func (c *DCAClient) GetInstrumentationConfigs(ctx context.Context) (types.Config
 	var configs types.ConfigResponse
 	err := c.doJSONQuery(ctx, dcaInstrumentationConfigsPath, "GET", nil, &configs, false)
 	return configs, err
+}
+
+// GetInstrumentationStatus returns the timestamp of the most recent instrumentation
+// config change. Node agents use this to avoid fetching the full config payload
+// when nothing has changed.
+func (c *DCAClient) GetInstrumentationStatus(ctx context.Context) (types.InstrumentationStatusResponse, error) {
+	var status types.InstrumentationStatusResponse
+	err := c.doJSONQuery(ctx, dcaInstrumentationStatusPath, "GET", nil, &status, false)
+	return status, err
 }

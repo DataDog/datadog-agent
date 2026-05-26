@@ -18,6 +18,7 @@ import (
 
 func installInstrumentationCheckEndpoints(r *http.ServeMux, confLister clusteragent.ConfigLister) {
 	r.HandleFunc("GET /instrumentation/configs", api.WithTelemetryWrapper("getInstrumentationConfigs", getInstrumentationConfigs(confLister)))
+	r.HandleFunc("GET /instrumentation/status", api.WithTelemetryWrapper("getInstrumentationStatus", getInstrumentationStatus(confLister)))
 }
 
 func getInstrumentationConfigs(confLister clusteragent.ConfigLister) func(w http.ResponseWriter, r *http.Request) {
@@ -29,7 +30,29 @@ func getInstrumentationConfigs(confLister clusteragent.ConfigLister) func(w http
 
 	return func(w http.ResponseWriter, _ *http.Request) {
 		response := cctypes.ConfigResponse{
-			Configs: confLister.ListConfigs(),
+			LastChange: confLister.LastChange(),
+			Configs:    confLister.ListConfigs(),
+		}
+		slcB, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write(slcB) //nolint:errcheck
+	}
+}
+
+func getInstrumentationStatus(confLister clusteragent.ConfigLister) func(w http.ResponseWriter, r *http.Request) {
+	if confLister == nil {
+		return func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "instrumentation config provider not available", http.StatusServiceUnavailable)
+		}
+	}
+
+	return func(w http.ResponseWriter, _ *http.Request) {
+		response := cctypes.InstrumentationStatusResponse{
+			LastChange: confLister.LastChange(),
 		}
 		slcB, err := json.Marshal(response)
 		if err != nil {
