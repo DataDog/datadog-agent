@@ -256,14 +256,14 @@ func TestHandle_Delete(t *testing.T) {
 	// First create checkStore
 	_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
 	require.NoError(t, err)
-	assert.Len(t, h.ListConfigs(), 1)
+	assert.Len(t, h.checkStore.ListConfigs(), 1)
 
 	// Then delete
 	status, err := h.Handle(context.Background(), instrumentation.EventDelete, cr)
 	require.NoError(t, err)
 	assert.Equal(t, metav1.ConditionTrue, status.Status)
 	assert.Equal(t, "Deleted", status.Reason)
-	assert.Empty(t, h.ListConfigs())
+	assert.Empty(t, h.checkStore.ListConfigs())
 }
 
 func TestHandle_CreateAndUpdate(t *testing.T) {
@@ -282,7 +282,7 @@ func TestHandle_CreateAndUpdate(t *testing.T) {
 	assert.Equal(t, "Configured", status.Reason)
 	assert.Contains(t, status.Message, "1 check(s) configured")
 
-	configs := h.ListConfigs()
+	configs := h.checkStore.ListConfigs()
 	require.Len(t, configs, 1)
 	assert.Equal(t, "redisdb", configs[0].Name)
 	assert.Equal(t, "datadoginstrumentation:default/test", configs[0].Source)
@@ -296,7 +296,7 @@ func TestHandle_CreateAndUpdate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, metav1.ConditionTrue, status.Status)
 	assert.Contains(t, status.Message, "2 check(s) configured")
-	assert.Len(t, h.ListConfigs(), 2)
+	assert.Len(t, h.checkStore.ListConfigs(), 2)
 }
 
 func TestHandle_MultipleCRs(t *testing.T) {
@@ -312,12 +312,12 @@ func TestHandle_MultipleCRs(t *testing.T) {
 	require.NoError(t, err)
 	_, err = h.Handle(context.Background(), instrumentation.EventCreate, cr2)
 	require.NoError(t, err)
-	assert.Len(t, h.ListConfigs(), 2)
+	assert.Len(t, h.checkStore.ListConfigs(), 2)
 
 	// Delete first CR; second should remain
 	_, err = h.Handle(context.Background(), instrumentation.EventDelete, cr1)
 	require.NoError(t, err)
-	configs := h.ListConfigs()
+	configs := h.checkStore.ListConfigs()
 	require.Len(t, configs, 1)
 	assert.Equal(t, "nginx", configs[0].Name)
 }
@@ -404,7 +404,7 @@ func TestTranslateCheck(t *testing.T) {
 			_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
 			require.NoError(t, err)
 
-			configs := h.ListConfigs()
+			configs := h.checkStore.ListConfigs()
 			require.Len(t, configs, 1)
 			assert.Equal(t, tt.expectedInit, string(configs[0].InitConfig))
 			require.Len(t, configs[0].Instances, tt.expectedInstLen)

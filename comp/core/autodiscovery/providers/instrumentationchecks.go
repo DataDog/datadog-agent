@@ -60,6 +60,14 @@ func (c *InstrumentationChecksConfigProvider) IsUpToDate(ctx context.Context) (b
 	if c.dcaClient == nil {
 		return false, nil
 	}
+
+	// If configs were flushed due to a transient error, force a Collect so checks
+	// get rescheduled once the cluster agent recovers — even if LastChange hasn't
+	// advanced (no config mutations occurred during the outage).
+	if c.flushedConfigs {
+		return false, nil
+	}
+
 	status, err := c.dcaClient.GetInstrumentationStatus(ctx)
 	if err != nil {
 		// On error, fall through to Collect so the provider can handle degraded mode.
