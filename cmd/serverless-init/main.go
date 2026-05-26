@@ -50,6 +50,7 @@ import (
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -59,6 +60,7 @@ import (
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const datadogConfigPath = "datadog.yaml"
@@ -171,8 +173,10 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 		return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, nil, false
 	}
 
+	rcService := setupRemoteConfig(hostname)
+
 	traceTags := serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags)
-	traceAgent := setupTraceAgent(traceTags, tagConfig.ConfiguredTags, tagger, origin)
+	traceAgent := setupTraceAgent(traceTags, tagConfig.ConfiguredTags, tagger, origin, rcService)
 
 	tracingCtx := &cloudservice.TracingContext{
 		TraceAgent: traceAgent,
@@ -261,7 +265,7 @@ var serverlessProfileTags = []string{
 	"_dd.origin",
 }
 
-func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tagger.Component, origin string) trace.ServerlessTraceAgent {
+func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tagger.Component, origin string, rcService *remoteconfig.CoreAgentService) trace.ServerlessTraceAgent {
 	profileTags := make(map[string]string)
 	for _, serverlessProfileTag := range serverlessProfileTags {
 		if value, ok := tags[serverlessProfileTag]; ok {
@@ -292,6 +296,7 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
 		AdditionalProfileTags: profileTags,
 		FunctionTags:          functionTags,
+		RCService:             rcService,
 	})
 	traceAgent.SetTags(tags)
 	go func() {
@@ -300,6 +305,107 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 		}
 	}()
 	return traceAgent
+}
+
+// noopRcTelemetryReporter satisfies the RcTelemetryReporter interface that
+// remoteconfig.NewService requires, without emitting any metrics.
+//
+// The full Datadog Agent passes DdRcTelemetryReporter from
+// comp/remote-config/rctelemetryreporter/impl, which is backed by
+// comp/core/telemetry (Prometheus). That component is explicitly disabled on
+// serverless builds (comp/core/telemetry/fx/fx.go has //go:build !serverless),
+// and serverless-init already wires in comp/core/telemetry/fx-noop above. So
+// pulling the real reporter is not just heavy — it isn't compiled at all in
+// our build configuration.
+//
+// What we lose: six metrics about RC's own internals (none functional). Every
+// callsite in pkg/config/remote/service/service.go treats the reporter as
+// fire-and-forget, so RC delivers configs identically with the no-op. The
+// metrics and their callsites:
+//
+//   IncRateLimit                            datadog.remoteconfig.cache_bypass_ratelimiter_skip
+//                                           Tracer cache-bypass request was throttled by the
+//                                           rate limiter. service.go:725, 750.
+//   IncTimeout                              datadog.remoteconfig.cache_bypass_timeout
+//                                           Tracer's blocking refresh request timed out before
+//                                           configs arrived from the RC backend. service.go:997.
+//   IncConfigSubscriptionsConnectedCounter  datadog.remoteconfig.config_subscriptions_connected_counter
+//                                           New (client, product) subscription created.
+//   IncConfigSubscriptionsDisconnectedCounter
+//                                           datadog.remoteconfig.config_subscriptions_disconnected_counter
+//                                           Subscription torn down.
+//   SetConfigSubscriptionsActive            datadog.remoteconfig.config_subscriptions_active
+//                                           Current live subscription count.
+//   SetConfigSubscriptionClientsTracked     datadog.remoteconfig.config_subscription_clients_tracked
+//                                           Distinct tracer clients across all subscriptions.
+//
+// These observe RC's own health (throughput, churn, throttling) and are
+// primarily useful to whoever runs the RC backend, not to a customer using
+// serverless-init for tracing. If they become desirable later, the cheap path
+// is to back this type with the ServerlessMetricAgent (pkg/serverless/metrics)
+// that we already start in setupMetricAgent — six calls to AddEnhancedMetric,
+// no new fx wiring, no new dependency. Trying to use comp/core/telemetry
+// directly is a multi-week refactor (would require dropping the `serverless`
+// build tag).
+type noopRcTelemetryReporter struct{}
+
+func (noopRcTelemetryReporter) IncTimeout()                                {}
+func (noopRcTelemetryReporter) IncRateLimit()                              {}
+func (noopRcTelemetryReporter) IncConfigSubscriptionsConnectedCounter()    {}
+func (noopRcTelemetryReporter) IncConfigSubscriptionsDisconnectedCounter() {}
+func (noopRcTelemetryReporter) SetConfigSubscriptionsActive(int)           {}
+func (noopRcTelemetryReporter) SetConfigSubscriptionClientsTracked(int)    {}
+
+// setupRemoteConfig instantiates and starts the embedded RemoteConfig
+// service. The trace-agent's /v0.7/config proxy endpoint depends on this
+// service to forward configurations to in-process tracers (e.g. dd-trace
+// in the customer's process running under serverless-init).
+//
+// Returns nil if RC is disabled or initialization fails — the trace agent's
+// proxy endpoint is gated on a non-nil service.
+func setupRemoteConfig(hostname hostnameinterface.Component) *remoteconfig.CoreAgentService {
+	cfg := pkgconfigsetup.Datadog()
+	if !configUtils.IsRemoteConfigEnabled(cfg) {
+		log.Debug("Remote Config is disabled, skipping RC service setup")
+		return nil
+	}
+
+	apiKey := configUtils.SanitizeAPIKey(cfg.GetString("api_key"))
+	if cfg.IsSet("remote_configuration.api_key") {
+		apiKey = configUtils.SanitizeAPIKey(cfg.GetString("remote_configuration.api_key"))
+	}
+	if apiKey == "" {
+		log.Warn("Remote Config requires DD_API_KEY; service not started")
+		return nil
+	}
+
+	baseRawURL := configUtils.GetMainEndpoint(cfg, "https://config.", "remote_configuration.rc_dd_url")
+
+	opts := []remoteconfig.Option{
+		remoteconfig.WithAPIKey(apiKey),
+		remoteconfig.WithConfigRootOverride(cfg.GetString("site"), cfg.GetString("remote_configuration.config_root")),
+		remoteconfig.WithDirectorRootOverride(cfg.GetString("site"), cfg.GetString("remote_configuration.director_root")),
+		remoteconfig.WithRcKey(cfg.GetString("remote_configuration.key")),
+	}
+
+	svc, err := remoteconfig.NewService(
+		cfg,
+		"Remote Config",
+		baseRawURL,
+		hostname.GetSafe(context.Background()),
+		func() []string { return nil },
+		noopRcTelemetryReporter{},
+		version.AgentVersion,
+		opts...,
+	)
+	if err != nil {
+		log.Warnf("Failed to start Remote Config service: %v", err)
+		return nil
+	}
+
+	svc.Start()
+	log.Info("Remote Config service started")
+	return svc
 }
 
 func setupMetricAgent(tags map[string]string, enhancedMetricTags map[string]string, enhancedUsageMetricTags map[string]string, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) *metrics.ServerlessMetricAgent {
