@@ -18,7 +18,7 @@ import (
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

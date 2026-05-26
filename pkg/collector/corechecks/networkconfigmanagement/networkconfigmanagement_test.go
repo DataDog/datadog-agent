@@ -8,6 +8,8 @@
 package networkconfigmanagement
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,7 +31,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	ncmcomp "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -317,6 +319,8 @@ func TestCheck_Run_Success(t *testing.T) {
 				Timestamp:    1754043600,
 				Tags:         expectedTags,
 				Content:      runningOutput,
+				ID:           "87b2343a-56d9-43bc-a35a-4d842dec9586",
+				ConfigHash:   hashConfigForTest(runningOutput),
 			},
 			{
 				DeviceID:     "default:10.0.0.1",
@@ -326,6 +330,8 @@ func TestCheck_Run_Success(t *testing.T) {
 				Timestamp:    1754043600, // timestamp taken from agent collection (could not be extracted from config)
 				Tags:         expectedTags,
 				Content:      startupOutput,
+				ID:           "d348e53f-db31-47ed-8d50-11462d7a15e5",
+				ConfigHash:   hashConfigForTest(startupOutput),
 			},
 		},
 		Inventories: []report.InventoryEntry{
@@ -366,10 +372,49 @@ func TestCheck_Run_Success(t *testing.T) {
 
 	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 2)
 	mockSender.AssertEventPlatformEvent(t, expectedConfigEvent, eventplatform.EventTypeNetworkConfigManagement)
+
+	// ID is randomly generated per store call, so unmarshal the actual NCM
+	// payload, capture the IDs, and assert the rest of the payload matches.
+	actualNCMPayload := findEventPlatformEventPayload(t, mockSender, eventplatform.EventTypeNetworkConfigManagement)
+	require.Len(t, actualNCMPayload.Configs, len(expectedConfigPayload.Configs))
+	uuidRe := regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	for i := range actualNCMPayload.Configs {
+		assert.Regexp(t, uuidRe, actualNCMPayload.Configs[i].ID, "config[%d] should have a valid UUID", i)
+		expectedConfigPayload.Configs[i].ID = actualNCMPayload.Configs[i].ID
+	}
+	assert.Equal(t, expectedConfigPayload, actualNCMPayload)
+
 	mockSender.AssertEventPlatformEvent(t, expectedDeviceMetadata, eventplatform.EventTypeNetworkDevicesMetadata)
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "datadog.ncm.check_duration", expectedTags)
 	mockSender.AssertMetric(t, "Count", "datadog.ncm.inventory.entries_sent", 2, "test-agent-host", []string{"agent_host:test-agent-host"})
 	mockSender.AssertExpectations(t)
+}
+
+// hashConfigForTest mirrors the SHA-256 hashing done by the config store, so tests
+// can predict the ConfigHash field of stored configs without depending on the store package.
+func hashConfigForTest(raw string) string {
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
+}
+
+// findEventPlatformEventPayload returns the unmarshalled NCMPayload from the mock sender's
+// EventPlatformEvent call matching the given event type. Fails the test if no matching call exists.
+func findEventPlatformEventPayload(t *testing.T, m *mocksender.MockSender, eventType string) report.NCMPayload {
+	t.Helper()
+	for _, call := range m.Mock.Calls {
+		if call.Method != "EventPlatformEvent" {
+			continue
+		}
+		if got, _ := call.Arguments[1].(string); got != eventType {
+			continue
+		}
+		raw, _ := call.Arguments[0].([]byte)
+		var payload report.NCMPayload
+		require.NoError(t, json.Unmarshal(raw, &payload))
+		return payload
+	}
+	t.Fatalf("no EventPlatformEvent call found for event type %s", eventType)
+	return report.NCMPayload{}
 }
 
 func TestCheck_Run_ConnectionFailure(t *testing.T) {

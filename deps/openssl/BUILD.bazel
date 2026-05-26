@@ -3,6 +3,10 @@ load("@rules_shell//shell:sh_test.bzl", "sh_test")
 sh_test(
     name = "check_no_sandbox_paths",
     srcs = ["check_no_sandbox_paths.sh"],
+    args = [
+        "$(rlocationpath @openssl//:libcrypto_shared_file)",
+        "$(rlocationpath @openssl//:libssl_shared_file)",
+    ],
     data = [
         "@openssl//:libcrypto_shared_file",
         "@openssl//:libssl_shared_file",

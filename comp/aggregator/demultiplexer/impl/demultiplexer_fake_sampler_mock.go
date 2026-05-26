@@ -58,15 +58,20 @@ func (f *fakeSamplerMock) Stop(flush bool) {
 }
 
 func newFakeSamplerMock(deps fakeSamplerMockDependencies) demultiplexerComp.FakeSamplerMock {
-	demux := initTestAgentDemultiplexerWithFlushInterval(deps.Log, deps.Hostname, deps.LogsCompression, deps.MetricsCompression, time.Hour)
-	mock := &fakeSamplerMock{
-		TestAgentDemultiplexer: demux,
-	}
-
+	mock := NewFakeSamplerMock(deps.Log, deps.Hostname, deps.LogsCompression, deps.MetricsCompression)
 	deps.Lc.Append(fx.Hook{
 		OnStop: func(_ context.Context) error {
 			mock.Stop(false)
 			return nil
 		}})
 	return mock
+}
+
+// NewFakeSamplerMock creates a FakeSamplerMock directly without fx, suitable for use in tests
+// that need to avoid uberfx dependencies.
+func NewFakeSamplerMock(logComp log.Component, hostnameComp hostname.Component, logsCompressor logscompression.Component, metricsCompressor metricscompression.Component) demultiplexerComp.FakeSamplerMock {
+	demux := initTestAgentDemultiplexerWithFlushInterval(logComp, hostnameComp, logsCompressor, metricsCompressor, time.Hour)
+	return &fakeSamplerMock{
+		TestAgentDemultiplexer: demux,
+	}
 }

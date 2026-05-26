@@ -23,7 +23,7 @@ import (
 
 // nvlinkSample handles NVLink metrics collection logic
 func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
-	totalNVLinks, err := getNVLinkCount(device)
+	totalNVLinks, err := GetNVLinkCount(device)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get nvlink count: %w", err)
 	}
@@ -355,9 +355,15 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				if err != nil {
 					return nil, 0, err
 				}
+				// Prevent division by zero if the total is zero.
+				memoryUtilization := 0.0
+				if memInfo.Total > 0 {
+					memoryUtilization = float64(memInfo.Used) / float64(memInfo.Total)
+				}
 				return []Metric{
 					{Name: "memory.free", Value: float64(memInfo.Free), Priority: Medium, Type: metrics.GaugeType},
 					{Name: "memory.reserved", Value: float64(memInfo.Reserved), Type: metrics.GaugeType},
+					{Name: "memory.utilization", Value: memoryUtilization, Type: metrics.GaugeType},
 				}, 0, nil
 			},
 		},

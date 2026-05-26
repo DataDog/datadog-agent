@@ -132,13 +132,13 @@ func Module() fxutil.Module {
 }
 
 func newProvides(deps dependencies) provides {
-	c := newAutoConfig(deps)
+	ac := newAutoConfig(deps)
 	return provides{
-		Comp:           c,
-		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c, deps.FilterStore)),
+		Comp:           ac,
+		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(ac, deps.FilterStore)),
 
-		Endpoint:      api.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheck, "/config-check", "GET"),
-		FlareProvider: flaretypes.NewProvider(c.(*AutoConfig).fillFlare),
+		Endpoint:      api.NewAgentEndpointProvider(ac.writeConfigCheck, "/config-check", "GET"),
+		FlareProvider: flaretypes.NewProvider(ac.fillFlare),
 	}
 }
 
@@ -154,7 +154,7 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 }
 
 // newAutoConfig creates an AutoConfig instance and starts it.
-func newAutoConfig(deps dependencies) autodiscovery.Component {
+func newAutoConfig(deps dependencies) *AutoConfig {
 	schController := scheduler.NewController()
 	// Non-blocking start of the scheduler controller
 	go func() {

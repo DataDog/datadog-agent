@@ -44,10 +44,9 @@ func buildReceivers(conf confMap, agent configManager) []any {
 
 func buildExporters(conf confMap, agent configManager) []any {
 	const (
-		profilesEndpointFormat = "https://intake.profile.%s/v1development/profiles"
-		metricsEndpointFormat  = "https://otlp.%s/v1/metrics"
-		otlpHTTPNameFormat     = "otlphttp/%s_%d"
-		debugExporterName      = "debug"
+		endpointFormat     = "https://otlp.%s"
+		otlpHTTPNameFormat = "otlphttp/%s_%d"
+		debugExporterName  = "debug"
 	)
 
 	exporters := make(confMap)
@@ -62,10 +61,9 @@ func buildExporters(conf confMap, agent configManager) []any {
 		headers["dd-evp-origin"] = version.BundledProfilerName
 		headers["dd-evp-origin-version"] = version.ProfilerVersion
 		return confMap{
-			"profiles_endpoint": fmt.Sprintf(profilesEndpointFormat, site),
-			"metrics_endpoint":  fmt.Sprintf(metricsEndpointFormat, site),
-			"compression":       "zstd",
-			"headers":           headers,
+			"endpoint":    fmt.Sprintf(endpointFormat, site),
+			"compression": "zstd",
+			"headers":     headers,
 		}
 	}
 

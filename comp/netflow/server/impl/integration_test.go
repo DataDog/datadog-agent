@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
 	"github.com/netsampler/goflow2/decoders/netflow/templates"

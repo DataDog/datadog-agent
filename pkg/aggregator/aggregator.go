@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"

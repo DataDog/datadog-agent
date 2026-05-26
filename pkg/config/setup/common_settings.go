@@ -285,8 +285,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// Network Config Management
-	bindEnvAndSetLogsConfigKeys(config, "network_config_management.forwarder.")
-	config.BindEnvAndSetDefault("network_config_management.rollback.enabled", false)
+	bindEnvAndSetLogsConfigKeys(config, "network_devices.config_management.forwarder.")
+	config.BindEnvAndSetDefault("network_devices.config_management.rollback.enabled", false)
 
 	// HA Agent
 	config.BindEnvAndSetDefault("ha_agent.enabled", false)

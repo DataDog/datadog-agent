@@ -21,7 +21,7 @@ import (
 	"go.uber.org/atomic"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"

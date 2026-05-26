@@ -22,7 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"

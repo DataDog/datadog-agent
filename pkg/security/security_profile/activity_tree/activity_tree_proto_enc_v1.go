@@ -24,12 +24,12 @@ func ToProto(at *ActivityTree) []*adproto.ProcessActivityNode {
 	out := make([]*adproto.ProcessActivityNode, 0, len(at.ProcessNodes))
 
 	for _, node := range at.ProcessNodes {
-		out = append(out, processActivityNodeToProto(node))
+		out = append(out, processActivityNodeToProto(node, at.GetTagFromID))
 	}
 	return out
 }
 
-func processActivityNodeToProto(pan *ProcessNode) *adproto.ProcessActivityNode {
+func processActivityNodeToProto(pan *ProcessNode, tagIDToImageTag func(id uint64) string) *adproto.ProcessActivityNode {
 	if pan == nil {
 		return nil
 	}
@@ -44,7 +44,7 @@ func processActivityNodeToProto(pan *ProcessNode) *adproto.ProcessActivityNode {
 		DnsNames:        make([]*adproto.DNSNode, 0, len(pan.DNSNames)),
 		ImdsEvents:      make([]*adproto.IMDSNode, 0, len(pan.IMDSEvents)),
 		Sockets:         make([]*adproto.SocketNode, 0, len(pan.Sockets)),
-		NodeBase:        nodeBaseToProto(&pan.NodeBase),
+		NodeBase:        nodeBaseToProto(&pan.NodeBase, tagIDToImageTag),
 		SyscallNodes:    make([]*adproto.SyscallNode, 0, len(pan.Syscalls)),
 		NetworkDevices:  make([]*adproto.NetworkDeviceNode, 0, len(pan.NetworkDevices)),
 		CapabilityNodes: make([]*adproto.CapabilityNode, 0, len(pan.Capabilities)),
@@ -55,41 +55,41 @@ func processActivityNodeToProto(pan *ProcessNode) *adproto.ProcessActivityNode {
 	}
 
 	for _, child := range pan.Children {
-		ppan.Children = append(ppan.Children, processActivityNodeToProto(child))
+		ppan.Children = append(ppan.Children, processActivityNodeToProto(child, tagIDToImageTag))
 	}
 
 	for _, fan := range pan.Files {
-		ppan.Files = append(ppan.Files, fileActivityNodeToProto(fan))
+		ppan.Files = append(ppan.Files, fileActivityNodeToProto(fan, tagIDToImageTag))
 	}
 
 	for _, dns := range pan.DNSNames {
-		ppan.DnsNames = append(ppan.DnsNames, dnsNodeToProto(dns))
+		ppan.DnsNames = append(ppan.DnsNames, dnsNodeToProto(dns, tagIDToImageTag))
 	}
 
 	for _, imds := range pan.IMDSEvents {
-		ppan.ImdsEvents = append(ppan.ImdsEvents, imdsNodeToProto(imds))
+		ppan.ImdsEvents = append(ppan.ImdsEvents, imdsNodeToProto(imds, tagIDToImageTag))
 	}
 
 	for _, socket := range pan.Sockets {
-		ppan.Sockets = append(ppan.Sockets, socketNodeToProto(socket))
+		ppan.Sockets = append(ppan.Sockets, socketNodeToProto(socket, tagIDToImageTag))
 	}
 
 	for _, sysc := range pan.Syscalls {
-		ppan.SyscallNodes = append(ppan.SyscallNodes, syscallNodeToProto(sysc))
+		ppan.SyscallNodes = append(ppan.SyscallNodes, syscallNodeToProto(sysc, tagIDToImageTag))
 	}
 
 	for _, networkDevice := range pan.NetworkDevices {
-		ppan.NetworkDevices = append(ppan.NetworkDevices, networkDeviceToProto(networkDevice))
+		ppan.NetworkDevices = append(ppan.NetworkDevices, networkDeviceToProto(networkDevice, tagIDToImageTag))
 	}
 
 	for _, capNode := range pan.Capabilities {
-		ppan.CapabilityNodes = append(ppan.CapabilityNodes, capabilityNodeToProto(capNode))
+		ppan.CapabilityNodes = append(ppan.CapabilityNodes, capabilityNodeToProto(capNode, tagIDToImageTag))
 	}
 
 	return ppan
 }
 
-func networkDeviceToProto(device *NetworkDeviceNode) *adproto.NetworkDeviceNode {
+func networkDeviceToProto(device *NetworkDeviceNode, tagIDToImageTag func(id uint64) string) *adproto.NetworkDeviceNode {
 	if device == nil {
 		return nil
 	}
@@ -107,15 +107,15 @@ func networkDeviceToProto(device *NetworkDeviceNode) *adproto.NetworkDeviceNode 
 	}
 
 	for _, flowNode := range device.FlowNodes {
-		ndn.FlowNodes = append(ndn.FlowNodes, flowNodeToProto(flowNode.Flow, &flowNode.NodeBase))
+		ndn.FlowNodes = append(ndn.FlowNodes, flowNodeToProto(flowNode.Flow, &flowNode.NodeBase, tagIDToImageTag))
 	}
 
 	return ndn
 }
 
-func flowNodeToProto(flow model.Flow, nodeBase *NodeBase) *adproto.FlowNode {
+func flowNodeToProto(flow model.Flow, nodeBase *NodeBase, tagIDToImageTag func(id uint64) string) *adproto.FlowNode {
 	return &adproto.FlowNode{
-		NodeBase:    nodeBaseToProto(nodeBase),
+		NodeBase:    nodeBaseToProto(nodeBase, tagIDToImageTag),
 		L3Protocol:  uint32(flow.L3Protocol),
 		L4Protocol:  uint32(flow.L4Protocol),
 		Source:      ipPortContextToProto(&flow.Source),
@@ -145,13 +145,13 @@ func networkStatsToProto(stats *model.NetworkStats) *adproto.NetworkStats {
 	}
 }
 
-func syscallNodeToProto(sysc *SyscallNode) *adproto.SyscallNode {
+func syscallNodeToProto(sysc *SyscallNode, tagIDToImageTag func(id uint64) string) *adproto.SyscallNode {
 	if sysc == nil {
 		return nil
 	}
 
 	return &adproto.SyscallNode{
-		NodeBase: nodeBaseToProto(&sysc.NodeBase),
+		NodeBase: nodeBaseToProto(&sysc.NodeBase, tagIDToImageTag),
 		Syscall:  int32(sysc.Syscall),
 	}
 }
@@ -250,7 +250,7 @@ func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 	return fi
 }
 
-func fileActivityNodeToProto(fan *FileNode) *adproto.FileActivityNode {
+func fileActivityNodeToProto(fan *FileNode, tagIDToImageTag func(id uint64) string) *adproto.FileActivityNode {
 	if fan == nil {
 		return nil
 	}
@@ -263,7 +263,7 @@ func fileActivityNodeToProto(fan *FileNode) *adproto.FileActivityNode {
 		GenerationType: adproto.GenerationType(fan.GenerationType),
 		Open:           openNodeToProto(fan.Open),
 		Children:       make([]*adproto.FileActivityNode, 0, len(fan.Children)),
-		NodeBase:       nodeBaseToProto(&fan.NodeBase),
+		NodeBase:       nodeBaseToProto(&fan.NodeBase, tagIDToImageTag),
 	}
 
 	for _, rule := range fan.MatchedRules {
@@ -271,7 +271,7 @@ func fileActivityNodeToProto(fan *FileNode) *adproto.FileActivityNode {
 	}
 
 	for _, child := range fan.Children {
-		pfan.Children = append(pfan.Children, fileActivityNodeToProto(child))
+		pfan.Children = append(pfan.Children, fileActivityNodeToProto(child, tagIDToImageTag))
 	}
 
 	return pfan
@@ -291,7 +291,7 @@ func openNodeToProto(openNode *OpenNode) *adproto.OpenNode {
 	return pon
 }
 
-func dnsNodeToProto(dn *DNSNode) *adproto.DNSNode {
+func dnsNodeToProto(dn *DNSNode, tagIDToImageTag func(id uint64) string) *adproto.DNSNode {
 	if dn == nil {
 		return nil
 	}
@@ -309,7 +309,7 @@ func dnsNodeToProto(dn *DNSNode) *adproto.DNSNode {
 		pdn.Requests = append(pdn.Requests, dnsEventToProto(&req))
 	}
 
-	pdn.NodeBase = nodeBaseToProto(&dn.NodeBase)
+	pdn.NodeBase = nodeBaseToProto(&dn.NodeBase, tagIDToImageTag)
 
 	return pdn
 }
@@ -328,14 +328,14 @@ func dnsEventToProto(ev *model.DNSEvent) *adproto.DNSInfo {
 	}
 }
 
-func imdsNodeToProto(in *IMDSNode) *adproto.IMDSNode {
+func imdsNodeToProto(in *IMDSNode, tagIDToImageTag func(id uint64) string) *adproto.IMDSNode {
 	if in == nil {
 		return nil
 	}
 
 	pin := &adproto.IMDSNode{
 		MatchedRules: make([]*adproto.MatchedRule, 0, len(in.MatchedRules)),
-		NodeBase:     nodeBaseToProto(&in.NodeBase),
+		NodeBase:     nodeBaseToProto(&in.NodeBase, tagIDToImageTag),
 		Event:        imdsEventToProto(in.Event),
 	}
 
@@ -370,7 +370,7 @@ func awsIMDSEventToProto(event model.IMDSEvent) *adproto.AWSIMDSEvent {
 	}
 }
 
-func socketNodeToProto(sn *SocketNode) *adproto.SocketNode {
+func socketNodeToProto(sn *SocketNode, tagIDToImageTag func(id uint64) string) *adproto.SocketNode {
 	if sn == nil {
 		return nil
 	}
@@ -386,7 +386,7 @@ func socketNodeToProto(sn *SocketNode) *adproto.SocketNode {
 			Port:         uint32(bn.Port),
 			Ip:           bn.IP,
 			Protocol:     uint32(bn.Protocol),
-			NodeBase:     nodeBaseToProto(&bn.NodeBase),
+			NodeBase:     nodeBaseToProto(&bn.NodeBase, tagIDToImageTag),
 		}
 
 		for _, rule := range bn.MatchedRules {
@@ -437,32 +437,38 @@ func escape(in string) string {
 	return transformer.String(in)
 }
 
-func nodeBaseToProto(nb *NodeBase) *adproto.NodeBase {
+func nodeBaseToProto(nb *NodeBase, tagIDToImageTag func(id uint64) string) *adproto.NodeBase {
 	if nb == nil {
 		return nil
 	}
 
 	pnb := &adproto.NodeBase{
-		Seen: make(map[string]*adproto.ImageTagTimes, len(nb.Seen)),
+		Seen: make(map[string]*adproto.ImageTagTimes, nb.SeenLen()),
 	}
 
-	for imageTag, times := range nb.Seen {
-		pnb.Seen[imageTag] = &adproto.ImageTagTimes{
+	nb.EachSeen(func(id uint64, times ImageTagTimes) {
+		tag := tagIDToImageTag(id)
+		if tag == "" {
+			// ID is stale (slot was freed before this node was evicted); skip to avoid
+			// writing an empty key into the proto map.
+			return
+		}
+		pnb.Seen[tag] = &adproto.ImageTagTimes{
 			FirstSeen: TimestampToProto(&times.FirstSeen),
 			LastSeen:  TimestampToProto(&times.LastSeen),
 		}
-	}
+	})
 
 	return pnb
 }
 
-func capabilityNodeToProto(cap *CapabilityNode) *adproto.CapabilityNode {
+func capabilityNodeToProto(cap *CapabilityNode, tagIDToImageTag func(id uint64) string) *adproto.CapabilityNode {
 	if cap == nil {
 		return nil
 	}
 
 	return &adproto.CapabilityNode{
-		NodeBase:   nodeBaseToProto(&cap.NodeBase),
+		NodeBase:   nodeBaseToProto(&cap.NodeBase, tagIDToImageTag),
 		Capability: cap.Capability,
 		IsCapable:  cap.Capable,
 	}

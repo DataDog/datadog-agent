@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	defaultDogstatsdImageRepo = "gcr.io/datadoghq/dogstatsd"
+	defaultDogstatsdImageRepo = "registry.datadoghq.com/dogstatsd"
 	defaultDogstatsdImageTag  = "latest"
 )
 

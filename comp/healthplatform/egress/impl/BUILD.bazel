@@ -28,7 +28,6 @@ go_test(
     deps = [
         "//comp/core/log/mock",
         "//comp/healthplatform/forwarder/def",
-        "//comp/healthplatform/store/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	collectorcomp "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -125,7 +125,7 @@ func TestGetChecksFromConfigs(t *testing.T) {
 	}, actualChecks)
 }
 
-// MockCollector is a mock implementation of collector.Component for testing
+// MockCollector is a mock implementation of collectorcomp.Component for testing
 type MockCollector struct {
 	RunCheckCalls []check.Check // Track which checks were run
 	RunCheckError error         // Error to return from RunCheck
@@ -155,14 +155,14 @@ func (m *MockCollector) MapOverChecks(cb func([]check.Info)) {
 	cb(nil)
 }
 
-func (m *MockCollector) AddEventReceiver(_ collector.EventReceiver) {
+func (m *MockCollector) AddEventReceiver(_ collectorcomp.EventReceiver) {
 }
 
 func TestSchedule_AllChecksAllowed(t *testing.T) {
 	// Test that when not in basic mode, all checks are scheduled
 	mockCollector := &MockCollector{}
 	s := &CheckScheduler{
-		collector:      option.New[collector.Component](mockCollector),
+		collector:      option.New[collectorcomp.Component](mockCollector),
 		configToChecks: make(map[string][]checkid.ID),
 	}
 	s.addLoader(&MockCoreLoader{})

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	sortutil "github.com/DataDog/datadog-agent/pkg/util/sort"

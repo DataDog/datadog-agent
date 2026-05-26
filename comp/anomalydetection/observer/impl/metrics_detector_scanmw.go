@@ -135,11 +135,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 
 	gen := storage.SeriesGeneration()
 	if d.cachedRefs == nil || gen != d.cachedGen {
-		metas := storage.ListSeries(observer.WorkloadSeriesFilter())
-		d.cachedRefs = make([]observer.SeriesRef, len(metas))
-		for i, m := range metas {
-			d.cachedRefs[i] = m.Ref
-		}
+		d.cachedRefs = workloadSeriesRefs(storage, d.cachedRefs)
 		d.cachedGen = gen
 	}
 

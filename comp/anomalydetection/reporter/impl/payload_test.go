@@ -39,7 +39,7 @@ func TestBuildChangeEventPayload_WireShape(t *testing.T) {
 		},
 	}
 
-	payload := buildChangeEventPayload(c, "hello", "2024-01-01T00:00:00Z", "observer:kernel_bottleneck")
+	payload := buildChangeEventPayload(c, "hello", "2024-01-01T00:00:00Z", "observer:kernel_bottleneck", "my-test-host")
 
 	// Round-trip through JSON so we exercise the same marshalling path as send().
 	blob, err := json.Marshal(payload)
@@ -59,6 +59,9 @@ func TestBuildChangeEventPayload_WireShape(t *testing.T) {
 	assert.Equal(t, "change", attrs["category"])
 	assert.Equal(t, "2024-01-01T00:00:00Z", attrs["timestamp"])
 	assert.Equal(t, "observer:kernel_bottleneck", attrs["aggregation_key"])
+
+	// host is required by the event-management intake (mirrors notableevents and logonduration).
+	assert.Equal(t, "my-test-host", attrs["host"])
 
 	// edge-intelligence routing: must be present and locked to the registered
 	// values from integrations-internal-core#3240.
@@ -110,13 +113,13 @@ func TestBuildChangeEventPayload_TruncatesChangedResourceName(t *testing.T) {
 	}
 	c := observerdef.ActiveCorrelation{Pattern: string(long), Title: "t"}
 
-	payload := buildChangeEventPayload(c, "m", "2024-01-01T00:00:00Z", "k")
+	payload := buildChangeEventPayload(c, "m", "2024-01-01T00:00:00Z", "k", "")
 
 	inner := payload["data"].(map[string]any)["attributes"].(map[string]any)["attributes"].(map[string]any)
 	changed := inner["changed_resource"].(map[string]any)
 	name := changed["name"].(string)
 	assert.Equal(t, changedResourceNameMaxLen, utf8.RuneCountInString(name), "truncated name should be exactly maxChars runes long")
-	assert.True(t, strings.HasSuffix(name, "\u2026"), "truncated name should end with an ellipsis")
+	assert.True(t, strings.HasSuffix(name, "…"), "truncated name should end with an ellipsis")
 }
 
 // TestBuildChangeEventPayload_TruncatesAtRuneBoundary checks that a pattern
@@ -131,13 +134,13 @@ func TestBuildChangeEventPayload_TruncatesAtRuneBoundary(t *testing.T) {
 	}
 	c := observerdef.ActiveCorrelation{Pattern: b.String(), Title: "t"}
 
-	payload := buildChangeEventPayload(c, "m", "2024-01-01T00:00:00Z", "k")
+	payload := buildChangeEventPayload(c, "m", "2024-01-01T00:00:00Z", "k", "")
 
 	inner := payload["data"].(map[string]any)["attributes"].(map[string]any)["attributes"].(map[string]any)
 	name := inner["changed_resource"].(map[string]any)["name"].(string)
 	assert.True(t, utf8.ValidString(name), "truncated name must remain valid UTF-8")
 	assert.Equal(t, changedResourceNameMaxLen, utf8.RuneCountInString(name), "truncated name should be exactly maxChars runes long")
-	assert.True(t, strings.HasSuffix(name, "\u2026"), "truncated name should end with an ellipsis")
+	assert.True(t, strings.HasSuffix(name, "…"), "truncated name should end with an ellipsis")
 }
 
 // TestBuildChangeEventPayload_AnomalyInventoryAlwaysPresent asserts that both
@@ -167,7 +170,7 @@ func TestBuildChangeEventPayload_AnomalyInventoryAlwaysPresent(t *testing.T) {
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			payload := buildChangeEventPayload(c, "m", "2024-01-01T00:00:00Z", "k")
+			payload := buildChangeEventPayload(c, "m", "2024-01-01T00:00:00Z", "k", "")
 			inner := payload["data"].(map[string]any)["attributes"].(map[string]any)["attributes"].(map[string]any)
 			meta := inner["change_metadata"].(map[string]any)
 			assert.Contains(t, meta, "metric_anomalies", "metric_anomalies must be present")
@@ -191,11 +194,24 @@ func TestBuildChangeEventPayload_AnomalyInventoryAlwaysPresent(t *testing.T) {
 func TestBuildChangeEventPayload_NoImpactedResourcesWhenEmpty(t *testing.T) {
 	c := observerdef.ActiveCorrelation{Pattern: "p", Title: "t"}
 
-	payload := buildChangeEventPayload(c, "m", "2024-01-01T00:00:00Z", "k")
+	payload := buildChangeEventPayload(c, "m", "2024-01-01T00:00:00Z", "k", "")
 
 	inner := payload["data"].(map[string]any)["attributes"].(map[string]any)["attributes"].(map[string]any)
 	_, present := inner["impacted_resources"]
 	assert.False(t, present, "impacted_resources should be omitted when no services are impacted")
+}
+
+// TestBuildChangeEventPayload_HostOmittedWhenEmpty verifies that when no host
+// is available (empty string), the field is not present in the payload so the
+// intake does not receive a blank host value.
+func TestBuildChangeEventPayload_HostOmittedWhenEmpty(t *testing.T) {
+	c := observerdef.ActiveCorrelation{Pattern: "p", Title: "t"}
+
+	payload := buildChangeEventPayload(c, "m", "2024-01-01T00:00:00Z", "k", "")
+
+	attrs := payload["data"].(map[string]any)["attributes"].(map[string]any)
+	_, present := attrs["host"]
+	assert.False(t, present, "host should be omitted when empty")
 }
 
 // --- classifyCorrelationSubCategory ---

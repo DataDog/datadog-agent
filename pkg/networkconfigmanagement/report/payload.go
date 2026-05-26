@@ -20,7 +20,9 @@ type NCMPayload struct {
 	AgentHostname    string                `json:"agent_hostname"`
 }
 
-// NetworkDeviceConfig contains network device configuration for a single device
+// NetworkDeviceConfig contains network device configuration for a single device.
+// ID and ConfigHash are populated when the agent was able to persist the
+// config in the local store; both are omitted from the payload otherwise.
 type NetworkDeviceConfig struct {
 	DeviceID     string             `json:"device_id"`
 	DeviceIP     string             `json:"device_ip"`
@@ -29,6 +31,8 @@ type NetworkDeviceConfig struct {
 	Timestamp    int64              `json:"timestamp"`
 	Tags         []string           `json:"tags"`
 	Content      string             `json:"content"`
+	ID           string             `json:"id,omitempty"`
+	ConfigHash   string             `json:"config_hash,omitempty"`
 }
 
 // InventoryEntry contains the metadata about the configs stored locally on the agent
@@ -57,7 +61,8 @@ func ToNCMPayload(namespace string, agentHostname string, configs []NetworkDevic
 }
 
 // ToNetworkDeviceConfig converts the given parameters into a NetworkDeviceConfig, representing a single device's configuration in a point in time.
-func ToNetworkDeviceConfig(deviceID, deviceIP string, configType types.ConfigType, extractedMetadata *profile.ExtractedMetadata, tags []string, content []byte) NetworkDeviceConfig {
+// id and configHash are optional — pass empty strings when the config could not be persisted in the local store.
+func ToNetworkDeviceConfig(deviceID, deviceIP string, configType types.ConfigType, extractedMetadata *profile.ExtractedMetadata, tags []string, content []byte, uuid string, configHash string) NetworkDeviceConfig {
 	var ts int64
 	if extractedMetadata != nil && extractedMetadata.Timestamp != 0 {
 		ts = extractedMetadata.Timestamp
@@ -72,5 +77,7 @@ func ToNetworkDeviceConfig(deviceID, deviceIP string, configType types.ConfigTyp
 		Timestamp:    ts,
 		Tags:         tags,
 		Content:      string(content),
+		ID:           uuid,
+		ConfigHash:   configHash,
 	}
 }

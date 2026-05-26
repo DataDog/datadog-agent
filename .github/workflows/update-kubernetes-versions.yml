@@ -83,7 +83,7 @@ jobs:
 
       - name: Configure AWS credentials
         if: steps.fetch-versions.outputs.has_new_rc_versions == 'true' && steps.build-rc-images.outputs.built_count > 0
-        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6.1.0
+        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
         with:
           role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/datadog-agent-kind-image-publisher-oidc
           aws-region: us-east-1

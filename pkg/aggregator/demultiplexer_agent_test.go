@@ -28,8 +28,8 @@ import (
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -161,6 +161,7 @@ func TestAddAgentStartupTelemetrySendsShutdownEventOnFinalStop(t *testing.T) {
 	case <-time.After(time.Second):
 		require.FailNow(t, "timed out waiting for Agent Shutdown event")
 	}
+	require.Equal(t, "Agent Shutdown", shutdownEvent.Title)
 	require.Equal(t, "Version 7.0.0", shutdownEvent.Text)
 	require.Equal(t, "System", shutdownEvent.SourceTypeName)
 	require.Equal(t, "hostname", shutdownEvent.Host)
@@ -563,7 +564,7 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		orchestratorimpl.MockModule(),
-		eventplatformimpl.MockModule(),
+		eventplatformmock.MockModule(),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		haagentmock.Module(),

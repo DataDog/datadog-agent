@@ -7,7 +7,7 @@
 package forwarder
 
 import (
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 )
 
 // team: network-device-monitoring-core

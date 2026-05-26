@@ -36,7 +36,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
@@ -67,7 +68,8 @@ import (
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	npcollectorfx "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/fx"
 	localtraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-local"
@@ -199,13 +201,13 @@ func getSharedFxOption() fx.Option {
 			remotehostnameimpl.WithMaxAttempts(10),
 			remotehostnameimpl.WithMaxRetryDelay(15*time.Second),
 		),
-		configsyncimpl.Module(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
+		configsyncfx.Module(configsync.NewParams(configSyncTimeout, true, configSyncTimeout)),
 		remoteagentfx.Module(),
 		fxinstrumentation.Module(),
 		localtraceroute.Module(),
 		connectionsforwarderfx.Module(),
 		eventplatformreceiverimpl.Module(),
-		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 		rdnsquerierfx.Module(),
 		npcollectorfx.Module(),
 	)

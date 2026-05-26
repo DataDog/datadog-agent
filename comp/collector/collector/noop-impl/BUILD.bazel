@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "noop-impl",
+    srcs = ["noop.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/collector/collector/noop-impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/collector/collector/def",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@org_uber_go_fx//:fx",
+    ],
+)

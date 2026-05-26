@@ -490,9 +490,18 @@ func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, p
 			continue
 		}
 
+		// If a top-level endpoint is set, otlphttp derives the metrics URL by appending
+		// /v1/metrics. We check this before profiles_endpoint so a bare endpoint takes
+		// precedence over a profiles_endpoint override.
+		if _, hasEndpoint := Get[string](exporterConf, "endpoint"); hasEndpoint {
+			slog.Debug("endpoint set, reusing exporter for metrics", slog.String("exporter", exporterName))
+			metricsExporterNames = append(metricsExporterNames, exporterName)
+			continue
+		}
+
 		profilesEndpoint, ok := Get[string](exporterConf, "profiles_endpoint")
 		if !ok {
-			slog.Warn("otlphttp exporter missing profiles_endpoint, cannot infer metrics endpoint",
+			slog.Warn("otlphttp exporter missing endpoint and profiles_endpoint, cannot infer metrics endpoint",
 				slog.String("exporter", exporterName))
 			continue
 		}

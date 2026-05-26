@@ -10,7 +10,7 @@ import (
 	"net/http"
 
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstream "github.com/DataDog/datadog-agent/comp/core/configstream/def"

@@ -427,7 +427,7 @@ func (a *APIServer) start(ctx context.Context) {
 				SendCustomEventKillAction(a.probe, msg.tags, msg.actionReports)
 				if a.containerFilter != nil {
 					containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
-					if a.containerFilter.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil))) {
+					if a.containerFilter.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil))) {
 						// similar return value as if we had sent the message
 						return true
 					}

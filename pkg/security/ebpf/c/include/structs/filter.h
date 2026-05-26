@@ -26,6 +26,7 @@ struct event_sample_stats_t {
 };
 
 struct basename_t {
+    u8 type; // enum BASENAME_APPROVER_TYPE
     char value[BASENAME_FILTER_SIZE]; // including \0
 };
 

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -697,9 +698,8 @@ func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
 	expectedIssueID := "ad-template:postgres:docker://abc123:" + tpl.Digest()
 	issue := issues[expectedIssueID]
 	require.NotNil(t, issue, "expected health issue at issue id %s", expectedIssueID)
-	// In the new model, issue.Id is the unique instance id and issue.Title is the template type.
 	assert.Equal(t, expectedIssueID, issue.Id)
-	assert.Equal(t, storedef.ADMisconfigurationIssueType, issue.Title)
+	assert.Equal(t, storedef.ADMisconfigurationSource, issue.Source)
 }
 
 func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
@@ -721,11 +721,10 @@ func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 	}
 
 	// Pre-populate a health issue using the same IssueId format the code uses.
-	hp.ReportIssue(storedef.IssueReport{
-		IssueID:   "ad-template:redis:docker://def456:" + tpl.Digest(),
-		IssueType: storedef.ADMisconfigurationIssueType,
+	hp.ReportIssue(&healthplatformpayload.Issue{
+		Id:        "ad-template:redis:docker://def456:" + tpl.Digest(),
+		IssueName: storedef.ADMisconfigurationIssueName,
 		Source:    storedef.ADMisconfigurationSource,
-		Context:   map[string]string{"entityName": "redis"},
 	})
 	count, _ := hp.GetAllIssues()
 	require.Equal(t, 1, count)

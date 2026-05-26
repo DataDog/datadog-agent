@@ -131,6 +131,9 @@ type deviceOptions struct {
 	computeMinor       int
 	processInfoCB      func(uuid string) ([]nvml.ProcessInfo, nvml.Return)
 	gpmSupported       *bool
+	nvlinkGeneration   int
+	nvlinkLinkCount    int
+	c2cSupported       bool
 	unsupportedFields  map[uint32]struct{}
 	migChildCount      int
 }
@@ -161,6 +164,10 @@ func (o deviceOptions) hasUnsupportedField(fieldID uint32) bool {
 	}
 	_, found := o.unsupportedFields[fieldID]
 	return found
+}
+
+func (o deviceOptions) nvlinkSupported() bool {
+	return o.nvlinkGeneration > 0
 }
 
 func (o deviceOptions) effectiveArchitecture() (nvml.DeviceArchitecture, int, int) {
@@ -421,19 +428,22 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return nvml.RepairStatus{}, nvml.SUCCESS
 		},
 		GetNvLinkStateFunc: func(_ int) (nvml.EnableState, nvml.Return) {
-			if isMIGUnsupported {
+			if isMIGUnsupported || !opts.nvlinkSupported() {
 				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			if opts.nvlinkLinkCount == 0 {
+				return nvml.FEATURE_DISABLED, nvml.SUCCESS
 			}
 			return nvml.FEATURE_ENABLED, nvml.SUCCESS
 		},
 		GetNvLinkUtilizationCounterFunc: func(_, _ int) (uint64, uint64, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGOrVGPUUnsupported || !opts.nvlinkSupported() || opts.nvlinkLinkCount == 0 {
 				return 0, 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 100, 200, nvml.SUCCESS
 		},
 		GetNvLinkErrorCounterFunc: func(_ int, _ nvml.NvLinkErrorCounter) (uint64, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGOrVGPUUnsupported || !opts.nvlinkSupported() || opts.nvlinkLinkCount == 0 {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 0, nvml.SUCCESS
@@ -520,6 +530,9 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 				value := fieldValuesCounter + uint64(i)
 				if defaultValue, ok := DefaultFieldValues[values[i].FieldId]; ok {
 					value = defaultValue
+				}
+				if values[i].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
+					value = uint64(opts.nvlinkLinkCount)
 				}
 
 				var encoded [8]byte
@@ -778,8 +791,11 @@ func WithDeviceFeatureMode(mode DeviceFeatureMode) NvmlMockOption {
 // (e.g. from spec/architectures.yaml capabilities).
 // process_detail_list is derived from architecture (Hopper+ only) and is not a capability.
 type Capabilities struct {
-	GPM               bool
-	UnsupportedFields []uint32
+	GPM                       bool
+	NvLinkGenerationSupported int
+	NvLinkLinkCount           int
+	C2C                       bool
+	UnsupportedFields         []uint32
 }
 
 // WithCapabilities configures the mock so that architecture-gated APIs return
@@ -787,6 +803,9 @@ type Capabilities struct {
 func WithCapabilities(caps Capabilities) NvmlMockOption {
 	return func(o *nvmlMockOptions) {
 		o.deviceOptions.gpmSupported = &caps.GPM
+		o.deviceOptions.nvlinkGeneration = caps.NvLinkGenerationSupported
+		o.deviceOptions.nvlinkLinkCount = caps.NvLinkLinkCount
+		o.deviceOptions.c2cSupported = caps.C2C
 		if len(caps.UnsupportedFields) == 0 {
 			o.deviceOptions.unsupportedFields = nil
 			return

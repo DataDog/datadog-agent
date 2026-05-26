@@ -3,12 +3,11 @@ exporters:
         verbosity: detailed
     otlphttp/datadoghq.com_0:
         compression: zstd
+        endpoint: https://otlp.datadoghq.com
         headers:
             dd-api-key: test_api_key_123
             dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
-        metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
-        profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
 extensions:
     hpflare/default:
         endpoint: localhost:7778

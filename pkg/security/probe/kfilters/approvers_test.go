@@ -206,6 +206,26 @@ func TestApproverWildcardBasename(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if values, exists := approvers["open.file.path"]; !exists || len(values) != 1 {
+		t.Fatalf("expected approver not found: %v", values)
+	}
+}
+
+func TestApproverParentWildcardBasename(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/var/run/test-*/*"`)
+	capabilities, exists := allCapabilities["open"]
+	if !exists {
+		t.Fatal("no capabilities for open")
+	}
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if values, exists := approvers["open.file.path"]; exists || len(values) != 0 {
 		t.Fatalf("unexpected approver found: %v", values)
 	}
@@ -324,27 +344,27 @@ func TestApproverAUIDRange(t *testing.T) {
 		}
 	}
 
-	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid > 1000 && process.auid < 2000`}, 0, maxAUID)
-	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid > 1000`}, 1001, maxAUID)
-	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid < 1000`}, 0, 999)
-	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid >= 1000 && process.auid <= 2000`}, 0, maxAUID)
-	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid >= 1000`}, 1000, maxAUID)
-	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid <= 1000`}, 0, 1000)
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid > 1000 && process.auid < 2000`}, 0, maxAUID)
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid > 1000`}, 1001, maxAUID)
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid < 1000`}, 0, 999)
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid >= 1000 && process.auid <= 2000`}, 0, maxAUID)
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid >= 1000`}, 1000, maxAUID)
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid <= 1000`}, 0, 1000)
 
 	assert(t, []string{
-		`open.file.path =~ "/tmp/*" && process.auid > 1000`,
-		`open.file.path =~ "/tmp/*" && process.auid < 500`,
+		`open.file.path =~ "/*mp/*" && process.auid > 1000`,
+		`open.file.path =~ "/*mp/*" && process.auid < 500`,
 	}, 0, maxAUID)
 	assert(t, []string{
-		`open.file.path =~ "/tmp/*" && process.auid >= 1000`,
-		`open.file.path =~ "/tmp/*" && process.auid > 1500`,
+		`open.file.path =~ "/*mp/*" && process.auid >= 1000`,
+		`open.file.path =~ "/*mp/*" && process.auid > 1500`,
 	}, 1000, maxAUID)
 	assert(t, []string{
-		`open.file.path =~ "/tmp/*" && process.auid < 1000`,
-		`open.file.path =~ "/tmp/*" && process.auid < 500`,
+		`open.file.path =~ "/*mp/*" && process.auid < 1000`,
+		`open.file.path =~ "/*mp/*" && process.auid < 500`,
 	}, 0, 999)
 	assert(t, []string{
-		`open.file.path =~ "/tmp/*" && process.auid != AUDIT_AUID_UNSET`,
+		`open.file.path =~ "/*mp/*" && process.auid != AUDIT_AUID_UNSET`,
 	}, 0, maxAUID)
 }
 

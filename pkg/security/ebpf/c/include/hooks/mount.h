@@ -211,7 +211,8 @@ void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_c
     if(!detached) {
         syscall->resolver.key = syscall->mount.root_key;
         syscall->resolver.dentry = root_dentry;
-        syscall->resolver.discarder_event_type = 0;
+        syscall->resolver.event_type = 0;
+        syscall->resolver.flags = 0;
         syscall->resolver.callback = select_dr_key(prog_type, DR_MOUNT_STAGE_ONE_CALLBACK_KPROBE_KEY, DR_MOUNT_STAGE_ONE_CALLBACK_TRACEPOINT_KEY);
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
@@ -233,7 +234,8 @@ int __attribute__((always_inline)) dr_mount_stage_one_callback(void *ctx, enum T
 
     syscall->resolver.key = syscall->mount.mountpoint_key;
     syscall->resolver.dentry = syscall->mount.mountpoint_dentry;
-    syscall->resolver.discarder_event_type = 0;
+    syscall->resolver.event_type = 0;
+    syscall->resolver.flags = 0;
     syscall->resolver.callback = select_dr_key(prog_type, DR_MOUNT_STAGE_TWO_CALLBACK_KPROBE_KEY, DR_MOUNT_STAGE_TWO_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;

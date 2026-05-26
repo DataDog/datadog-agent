@@ -14,14 +14,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
 func TestReportIssueReturnsNilError(t *testing.T) {
 	provides := NewComponent()
-	err := provides.Comp.ReportIssue(storedef.IssueReport{
-		IssueID:   "check-1:instance-1",
-		IssueType: "test-issue",
+	err := provides.Comp.ReportIssue(&healthplatformpayload.Issue{
+		Id:        "check-1:instance-1",
+		IssueName: "test-issue",
 		Source:    "mycheck",
 	})
 	require.NoError(t, err)

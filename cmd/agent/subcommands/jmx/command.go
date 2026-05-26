@@ -21,8 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/agent"
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
+	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
@@ -39,7 +38,7 @@ import (
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -128,7 +127,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			dualTaggerfx.Module(common.DualTaggerParams()),
 			autodiscoveryimpl.Module(),
 			healthplatform.Bundle(),
-			agent.Bundle(jmxloggerimpl.NewCliParams(cliParams.logFile)),
+			agent.Bundle(jmxlogger.NewCliParams(cliParams.logFile)),
 			// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 			// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 			// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component

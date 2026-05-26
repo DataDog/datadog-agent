@@ -36,7 +36,7 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.9.3
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.196
+	github.com/DataDog/agent-payload/v5 v5.0.198
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4
@@ -243,7 +243,7 @@ require (
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/golang/protobuf v1.5.4
 	github.com/google/btree v1.1.3
-	github.com/google/cel-go v0.27.0
+	github.com/google/cel-go v0.28.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.21.5
 	github.com/google/gofuzz v1.2.0
@@ -340,7 +340,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/yusufpapurcu/wmi v1.2.4
 	go.etcd.io/bbolt v1.4.3
-	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
+	go.etcd.io/etcd/client/v3 v3.6.11 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0
 	go.opentelemetry.io/collector/component v1.58.0
 	go.opentelemetry.io/collector/component/componenttest v0.152.0
@@ -383,17 +383,17 @@ require (
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
 	golang.org/x/arch v0.27.0
-	golang.org/x/crypto v0.51.0
+	golang.org/x/crypto v0.52.0
 	golang.org/x/exp v0.0.0-20260508232706-74f9aab9d74a
 	golang.org/x/mod v0.36.0
-	golang.org/x/net v0.54.0
+	golang.org/x/net v0.55.0
 	golang.org/x/sync v0.20.0
-	golang.org/x/sys v0.44.0
+	golang.org/x/sys v0.45.0
 	golang.org/x/text v0.37.0
 	golang.org/x/time v0.15.0
 	golang.org/x/tools v0.45.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
-	google.golang.org/grpc v1.81.0
+	google.golang.org/grpc v1.81.1
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -428,7 +428,7 @@ require (
 	cel.dev/expr v0.25.1 // indirect
 	cloud.google.com/go/auth v0.18.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	cloud.google.com/go/compute v1.62.0 // indirect
+	cloud.google.com/go/compute v1.63.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	code.cloudfoundry.org/cfhttp/v2 v2.0.0 // indirect
 	code.cloudfoundry.org/clock v1.0.0 // indirect
@@ -809,9 +809,8 @@ require (
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
 	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
-	go.etcd.io/etcd/api/v3 v3.6.5 // indirect
-	go.etcd.io/etcd/client/pkg/v3 v3.6.5 // indirect
-	go.etcd.io/etcd/client/v3 v3.6.5 // indirect
+	go.etcd.io/etcd/api/v3 v3.6.11 // indirect
+	go.etcd.io/etcd/client/pkg/v3 v3.6.11 // indirect
 	go.mongodb.org/mongo-driver v1.17.6
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
@@ -956,7 +955,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostport v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5
-	github.com/DataDog/rshell v0.0.18
+	github.com/DataDog/rshell v0.0.20
 	github.com/aptly-dev/aptly v1.6.3-0.20260504093056-0d31298f3709
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.6
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.68.5
@@ -982,6 +981,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.9.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	gitlab.com/gitlab-org/api/client-go v1.46.0
+	go.etcd.io/etcd/client/v2 v2.305.17
 	go.opentelemetry.io/collector/otelcol/otelcoltest v0.152.0
 	go.temporal.io/api v1.62.2
 	go.temporal.io/sdk v1.39.0
@@ -1272,7 +1272,7 @@ replace github.com/iceber/iouring-go => github.com/lebauce/iouring-go v0.0.0-202
 // Fork to remove some text/template usage, https://github.com/DataDog/opa/tree/lightweight-1.7.1
 replace github.com/open-policy-agent/opa => github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816
 
-replace github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 v5.0.196
+replace github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 v5.0.198
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 

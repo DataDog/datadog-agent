@@ -33,15 +33,15 @@ func NewNetworkDeviceNode(ctx *model.NetworkDeviceContext, generationType NodeGe
 	return node
 }
 
-func (netdevice *NetworkDeviceNode) appendImageTag(imageTag string, timestamp time.Time) {
+func (netdevice *NetworkDeviceNode) appendImageTag(imageTagID uint64, timestamp time.Time) {
 	for _, flow := range netdevice.FlowNodes {
-		flow.AppendImageTag(imageTag, timestamp)
+		flow.AppendImageTagID(imageTagID, timestamp)
 	}
 }
 
-func (netdevice *NetworkDeviceNode) evictImageTag(imageTag string) bool {
+func (netdevice *NetworkDeviceNode) evictImageTag(imageTagID uint64) bool {
 	for key, flow := range netdevice.FlowNodes {
-		if flow.EvictImageTag(imageTag) {
+		if flow.EvictImageTag(imageTagID) {
 			delete(netdevice.FlowNodes, key)
 		}
 	}
@@ -49,7 +49,7 @@ func (netdevice *NetworkDeviceNode) evictImageTag(imageTag string) bool {
 	return len(netdevice.FlowNodes) == 0
 }
 
-func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.NetworkFlowMonitorEvent, evt *model.Event, dryRun bool, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string, stats *Stats) bool {
+func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.NetworkFlowMonitorEvent, evt *model.Event, dryRun bool, rules []*model.MatchedRule, generationType NodeGenerationType, imageTagID uint64, stats *Stats) bool {
 	if len(rules) > 0 {
 		netdevice.MatchedRules = model.AppendMatchedRule(netdevice.MatchedRules, rules)
 	}
@@ -59,7 +59,7 @@ func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.N
 		existingNode, ok := netdevice.FlowNodes[flow.GetFiveTuple()]
 		if ok {
 			if !dryRun {
-				existingNode.addFlow(flow, evt, imageTag)
+				existingNode.addFlow(flow, evt, imageTagID)
 			}
 		} else {
 			newFlow = true
@@ -68,7 +68,7 @@ func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.N
 				return newFlow
 			}
 			// create new entry
-			netdevice.FlowNodes[flow.GetFiveTuple()] = NewFlowNode(flow, evt, generationType, imageTag)
+			netdevice.FlowNodes[flow.GetFiveTuple()] = NewFlowNode(flow, evt, generationType, imageTagID)
 			stats.FlowNodes++
 		}
 	}

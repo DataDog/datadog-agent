@@ -90,8 +90,8 @@ func bootstrapBuiltInHealthChecks(
 					for _, id := range newIDs {
 						newSet[id] = struct{}{}
 					}
-					for _, t := range once.IssueTypes {
-						for _, id := range store.GetActiveIssueIDsByIssueType(t) {
+					for _, t := range once.IssueNames {
+						for _, id := range store.GetActiveIssueIDsByIssueName(t) {
 							if _, still := newSet[id]; !still {
 								store.ResolveIssue(id)
 							}
@@ -101,8 +101,8 @@ func bootstrapBuiltInHealthChecks(
 			}
 			for _, check := range registry.GetBuiltInPeriodicHealthChecks() {
 				var initialIDs []string
-				for _, t := range check.IssueTypes {
-					initialIDs = append(initialIDs, store.GetActiveIssueIDsByIssueType(t)...)
+				for _, t := range check.IssueNames {
+					initialIDs = append(initialIDs, store.GetActiveIssueIDsByIssueName(t)...)
 				}
 				if err := scheduler.Schedule(check.Source, check.Fn, check.Interval, initialIDs); err != nil {
 					logger.Warnf("failed to schedule built-in health check %q: %v", check.Source, err)

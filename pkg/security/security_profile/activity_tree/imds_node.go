@@ -21,14 +21,14 @@ type IMDSNode struct {
 }
 
 // NewIMDSNode creates a new IMDSNode instance
-func NewIMDSNode(event *model.IMDSEvent, evt *model.Event, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string) *IMDSNode {
+func NewIMDSNode(event *model.IMDSEvent, evt *model.Event, rules []*model.MatchedRule, generationType NodeGenerationType, imageTagID uint64) *IMDSNode {
 	node := &IMDSNode{
 		MatchedRules:   rules,
 		GenerationType: generationType,
 		Event:          *event,
 	}
 	node.NodeBase = NewNodeBase()
-	node.AppendImageTag(imageTag, evt.ResolveEventTime())
+	node.AppendImageTagID(imageTagID, evt.ResolveEventTime())
 
 	return node
 }

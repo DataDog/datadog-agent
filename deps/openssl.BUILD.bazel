@@ -95,14 +95,22 @@ configure_make(
         ],
         "//conditions:default": [],
     }) + select({
-        # Set OPENSSLDIR and ENGINESDIR/MODULESDIR (via --runtime-dir) to their
-        # actual runtime locations at configure time, so no binary patching is
-        # needed after the build.  $(INSTALL_DIR) is provided by //:install_dir
-        # via the toolchains attribute below.
+        # Bake OPENSSLDIR and ENGINESDIR/MODULESDIR to their actual runtime
+        # locations at configure time via --prefix, so no binary patching is
+        # needed after the build. --install-prefix redirects the install
+        # destination into the Bazel sandbox without affecting the baked paths.
+        # rules_foreign_cc auto-injects --prefix=$$BUILD_TMPDIR$$/...; configure
+        # processes args sequentially and the later --prefix wins, so our
+        # --prefix below overrides the sandbox path for the baked locations.
+        # $(INSTALL_DIR) is provided by //:install_dir via the toolchains
+        # attribute below.
+        # The four-`$` escaping yields `$$INSTALLDIR$$` after Bazel's
+        # make-variable substitution, which is the shell-variable placeholder
+        # rules_foreign_cc expands to the sandbox install dir.
         "@platforms//os:windows": [],
         "//conditions:default": [
-            "--runtime-openssldir=$(INSTALL_DIR)/embedded/ssl",
-            "--runtime-dir=$(INSTALL_DIR)/embedded",
+            "--prefix=$(INSTALL_DIR)/embedded",
+            "--install-prefix=$$$$INSTALLDIR$$$$",
         ],
     }),
     build_data = select({

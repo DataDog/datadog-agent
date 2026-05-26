@@ -45,6 +45,8 @@ go_test(
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/telemetry/mock",
+        "//comp/healthplatform/issues",
+        "//comp/healthplatform/runner/def",
         "//comp/healthplatform/scheduler/def",
         "//comp/healthplatform/store/def",
         "//pkg/util/fxutil",

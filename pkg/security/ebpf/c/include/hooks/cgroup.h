@@ -154,8 +154,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         bpf_map_update_elem(&pid_cache, &pid, &new_pid_entry, BPF_ANY);
     }
 
-    resolver->type = EVENT_CGROUP_WRITE;
-    resolver->discarder_event_type = 0;
+    resolver->event_type = EVENT_CGROUP_WRITE;
     resolver->callback = DR_CGROUP_WRITE_CALLBACK_KPROBE_KEY;
     resolver->iteration = 0;
     resolver->ret = 0;

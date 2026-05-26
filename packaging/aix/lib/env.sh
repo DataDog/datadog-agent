@@ -108,16 +108,23 @@ GOPROXY=https://proxy.golang.org,direct
 # toolchain version (go.mod may require a newer patch than is installed).
 # Auto-download spawns extra processes and consumes significant memory on AIX.
 GOTOOLCHAIN=local
-# -p=1: one package compiled at a time; prevents multiple 3-4 GB Go compiler
-# processes from competing for RAM on the 4 GB AIX build host and causing
-# thrashing or OOM kills.
-GOFLAGS="-p=1"
+# On hosts with less than 6 GiB of RAM, restrict Go compilation to one package
+# at a time and cap the heap to prevent swap thrash. Each compile process can
+# use 3-4 GiB; without -p=1 multiple would compete for the same RAM.
+# On larger hosts, the default parallelism is fine.
+_mem_kb=$(lsattr -El sys0 -a realmem 2>/dev/null | awk '{print $2}')
+if [ -n "$_mem_kb" ] && [ "$_mem_kb" -lt 6291456 ]; then
+    GOFLAGS="-p=1"
+    GOMEMLIMIT=2GiB
+    export GOFLAGS GOMEMLIMIT
+fi
+unset _mem_kb
 # Redirect the Go build cache off /tmp (which is only 12 GB) to the larger
 # build volume so that large packages like datadogV2 don't exhaust /tmp.
 GOCACHE=/opt/dd-build/gocache
 mkdir -p "$GOCACHE"
 
-export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOFLAGS GOCACHE
+export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOCACHE
 
 # ── Utility functions ─────────────────────────────────────────────────────────
 
