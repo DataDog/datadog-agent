@@ -152,6 +152,7 @@ type Client struct {
 	ncmAggregator                  aggregator.NCMAggregator
 	hostAggregator                 aggregator.HostTagsAggregator
 	agentHealthAggregator          aggregator.AgentHealthAggregator
+	agentTelemetryLogAggregator    aggregator.AgentTelemetryLogAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -186,6 +187,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		ncmAggregator:                  aggregator.NewNCMAggregator(),
 		hostAggregator:                 aggregator.NewHostTagsAggregator(),
 		agentHealthAggregator:          aggregator.NewAgentHealthAggregator(),
+		agentTelemetryLogAggregator:    aggregator.NewAgentTelemetryLogAggregator(),
 	}
 	for _, opt := range opts {
 		opt(client)
@@ -375,6 +377,14 @@ func (c *Client) getAgentHealth() error {
 		return err
 	}
 	return c.agentHealthAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getAgentTelemetryLogs() error {
+	payloads, err := c.getFakePayloads(apmTelemetryEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.agentTelemetryLogAggregator.UnmarshallPayloads(payloads)
 }
 
 // FilterMetrics fetches fakeintake on `/api/v2/series` endpoint and returns
@@ -714,6 +724,7 @@ func (c *Client) FlushServerAndResetAggregators() error {
 	c.logAggregator.Reset()
 	c.apmStatsAggregator.Reset()
 	c.traceAggregator.Reset()
+	c.agentTelemetryLogAggregator.Reset()
 	return nil
 }
 
@@ -1157,6 +1168,21 @@ func (c *Client) GetHosts() ([]string, error) {
 	}
 
 	return c.hostAggregator.GetNames(), nil
+}
+
+// GetAgentTelemetryLogs fetches fakeintake on `/api/v2/apmtelemetry` and returns
+// all agent-logs telemetry records received since the last flush. Each call
+// fetches the server's full accumulated state (UnmarshallPayloads replaces, not
+// appends). Payloads whose request_type is not "agent-logs" are silently skipped.
+func (c *Client) GetAgentTelemetryLogs() ([]*aggregator.AgentTelemetryLog, error) {
+	if err := c.getAgentTelemetryLogs(); err != nil {
+		return nil, err
+	}
+	var logs []*aggregator.AgentTelemetryLog
+	for _, name := range c.agentTelemetryLogAggregator.GetNames() {
+		logs = append(logs, c.agentTelemetryLogAggregator.GetPayloadsByName(name)...)
+	}
+	return logs, nil
 }
 
 // GetAgentHealth fetches fakeintake on `/api/v2/agenthealth` endpoint and returns all received agent health payloads
