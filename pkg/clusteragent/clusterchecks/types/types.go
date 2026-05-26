@@ -67,11 +67,17 @@ type ConfigResponse struct {
 	Configs    []integration.Config `json:"configs"`
 }
 
+// InstrumentationConfigResponse holds the DCA response for an instrumentation config query.
+type InstrumentationConfigResponse struct {
+	ConfigHash int64                `json:"config_hash"`
+	Configs    []integration.Config `json:"configs"`
+}
+
 // InstrumentationStatusResponse holds the DCA response for an instrumentation status query.
-// It carries only the timestamp of the most recent config change, allowing node agents
-// to decide whether to fetch the full config payload.
+// It carries only the config hash, allowing node agents to decide whether to fetch the
+// full config payload.
 type InstrumentationStatusResponse struct {
-	LastChange int64 `json:"last_change"`
+	ConfigHash int64 `json:"config_hash"`
 }
 
 // StateResponse holds the DCA response for a dispatching state query

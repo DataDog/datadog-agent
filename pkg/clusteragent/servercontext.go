@@ -11,10 +11,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 )
 
-// ConfigLister exposes integration.Configs derived from DatadogInstrumentation CRs.
+// ConfigLister exposes check configs derived from DatadogInstrumentation CRs.
 type ConfigLister interface {
 	ListConfigs() []integration.Config
-	LastChange() int64
+	// ConfigHash returns a deterministic hash of the current instrumentation config state.
+	ConfigHash() int64
 }
 
 // ServerContext holds business logic classes required to setup API endpoints

@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 )
 
@@ -29,10 +30,15 @@ func newHandler() *AutodiscoveryHandler {
 }
 
 func newCR(name, namespace string, targetKind, targetName string, checks []datadoghq.DatadogInstrumentationCheckConfig) *datadoghq.DatadogInstrumentation {
+	return newCRWithGeneration(name, namespace, targetKind, targetName, checks, 1)
+}
+
+func newCRWithGeneration(name, namespace string, targetKind, targetName string, checks []datadoghq.DatadogInstrumentationCheckConfig, generation int64) *datadoghq.DatadogInstrumentation {
 	return &datadoghq.DatadogInstrumentation{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name:       name,
+			Namespace:  namespace,
+			Generation: generation,
 		},
 		Spec: datadoghq.DatadogInstrumentationSpec{
 			TargetRef: autoscalingv2.CrossVersionObjectReference{
@@ -423,6 +429,41 @@ func TestTranslateCheck(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConfigHash(t *testing.T) {
+	store := NewCheckStore()
+	cfg := []integration.Config{{Name: "check1"}}
+
+	baseline := store.ConfigHash()
+
+	// Adding a key changes the hash.
+	store.setConfigs("ns/cr1", cfg, 1)
+	after1 := store.ConfigHash()
+	assert.NotEqual(t, baseline, after1)
+
+	// Generation bump changes the hash.
+	store.setConfigs("ns/cr1", cfg, 2)
+	after2 := store.ConfigHash()
+	assert.NotEqual(t, after1, after2)
+
+	// Same generation is idempotent — hash is stable.
+	store.setConfigs("ns/cr1", cfg, 2)
+	assert.Equal(t, after2, store.ConfigHash())
+
+	// Second key changes the hash.
+	store.setConfigs("ns/cr2", cfg, 1)
+	after3 := store.ConfigHash()
+	assert.NotEqual(t, after2, after3)
+
+	// Delete changes the hash.
+	store.deleteConfigs("ns/cr1")
+	after4 := store.ConfigHash()
+	assert.NotEqual(t, after3, after4)
+
+	// Back to empty — hash matches baseline.`
+	store.deleteConfigs("ns/cr2")
+	assert.Equal(t, baseline, store.ConfigHash())
 }
 
 func TestBuildCELSelector(t *testing.T) {

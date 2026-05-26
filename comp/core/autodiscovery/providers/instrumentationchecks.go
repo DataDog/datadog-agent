@@ -29,7 +29,7 @@ type InstrumentationChecksConfigProvider struct {
 	degradedDuration time.Duration
 	heartbeat        time.Time
 	flushedConfigs   bool
-	lastChange       int64
+	configHash       int64
 }
 
 // NewInstrumentationChecksConfigProvider returns a new ConfigProvider collecting
@@ -55,15 +55,16 @@ func (c *InstrumentationChecksConfigProvider) String() string {
 }
 
 // IsUpToDate polls the cluster agent's /instrumentation/status endpoint and
-// compares the returned timestamp against the provider's last known change.
+// compares the returned config hash against the provider's last known hash.
+// Returns true (skip Collect) only when the cluster agent confirms no new changes.
 func (c *InstrumentationChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	if c.dcaClient == nil {
 		return false, nil
 	}
 
 	// If configs were flushed due to a transient error, force a Collect so checks
-	// get rescheduled once the cluster agent recovers — even if LastChange hasn't
-	// advanced (no config mutations occurred during the outage).
+	// get rescheduled once the cluster agent recovers — even if the config hash
+	// hasn't changed (no config mutations occurred during the outage).
 	if c.flushedConfigs {
 		return false, nil
 	}
@@ -73,7 +74,7 @@ func (c *InstrumentationChecksConfigProvider) IsUpToDate(ctx context.Context) (b
 		// On error, fall through to Collect so the provider can handle degraded mode.
 		return false, nil
 	}
-	return status.LastChange == c.lastChange, nil
+	return status.ConfigHash == c.configHash, nil
 }
 
 func (c *InstrumentationChecksConfigProvider) withinDegradedModePeriod() bool {
@@ -113,7 +114,7 @@ func (c *InstrumentationChecksConfigProvider) Collect(ctx context.Context) ([]in
 	// restarts from this successful response.
 	c.flushedConfigs = false
 	c.heartbeat = time.Now()
-	c.lastChange = reply.LastChange
+	c.configHash = reply.ConfigHash
 
 	return reply.Configs, nil
 }

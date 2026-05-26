@@ -25,13 +25,13 @@ import (
 
 // mockInstrumentationClient implements InstrumentationCheckClient.
 type mockInstrumentationClient struct {
-	configs   types.ConfigResponse
+	configs   types.InstrumentationConfigResponse
 	err       error
 	status    types.InstrumentationStatusResponse
 	statusErr error
 }
 
-func (m *mockInstrumentationClient) GetInstrumentationConfigs(_ context.Context) (types.ConfigResponse, error) {
+func (m *mockInstrumentationClient) GetInstrumentationConfigs(_ context.Context) (types.InstrumentationConfigResponse, error) {
 	return m.configs, m.err
 }
 
@@ -55,13 +55,13 @@ func TestInstrumentationChecksCollect(t *testing.T) {
 		wantErrVal       error
 		wantFlushed      bool
 		wantHeartbeat    bool  // whether heartbeat should be non-zero after Collect
-		wantLastChange   int64 // expected lastChange saved after Collect
+		wantConfigHash   int64 // expected configHash saved after Collect
 	}{
 		{
 			name: "success with configs",
 			client: &mockInstrumentationClient{
-				configs: types.ConfigResponse{
-					LastChange: 12345,
+				configs: types.InstrumentationConfigResponse{
+					ConfigHash: 12345,
 					Configs: []integration.Config{
 						{Name: "check1"},
 						{Name: "check2"},
@@ -71,28 +71,28 @@ func TestInstrumentationChecksCollect(t *testing.T) {
 			wantConfigs:      []integration.Config{{Name: "check1"}, {Name: "check2"}},
 			wantFlushed:      false,
 			wantHeartbeat:    true,
-			wantLastChange:   12345,
+			wantConfigHash:   12345,
 		},
 		{
 			name: "success resets flushedConfigs and updates heartbeat",
 			client: &mockInstrumentationClient{
-				configs: types.ConfigResponse{LastChange: 99999, Configs: []integration.Config{{Name: "check1"}}},
+				configs: types.InstrumentationConfigResponse{ConfigHash: 99999, Configs: []integration.Config{{Name: "check1"}}},
 			},
 			degradedDuration: defaultDegradedDeadline,
 			flushedConfigs:   true,
 			wantConfigs:      []integration.Config{{Name: "check1"}},
 			wantFlushed:      false,
 			wantHeartbeat:    true,
-			wantLastChange:   99999,
+			wantConfigHash:   99999,
 		},
 		{
 			name:             "empty response still updates heartbeat",
-			client:           &mockInstrumentationClient{configs: types.ConfigResponse{LastChange: 1, Configs: []integration.Config{}}},
+			client:           &mockInstrumentationClient{configs: types.InstrumentationConfigResponse{ConfigHash: 1, Configs: []integration.Config{}}},
 			degradedDuration: defaultDegradedDeadline,
 			wantConfigs:      []integration.Config{},
 			wantFlushed:      false,
 			wantHeartbeat:    true,
-			wantLastChange:   1,
+			wantConfigHash:   1,
 		},
 		{
 			name:             "remote error within infinite degraded mode returns error",
@@ -171,7 +171,7 @@ func TestInstrumentationChecksCollect(t *testing.T) {
 				assert.Equal(t, names.InstrumentationChecks, cfg.Provider)
 			}
 			assert.Equal(t, tt.wantFlushed, provider.flushedConfigs)
-			assert.Equal(t, tt.wantLastChange, provider.lastChange)
+			assert.Equal(t, tt.wantConfigHash, provider.configHash)
 			if tt.wantHeartbeat {
 				assert.False(t, provider.heartbeat.IsZero())
 			}
@@ -194,45 +194,45 @@ func TestInstrumentationChecksIsUpToDate(t *testing.T) {
 	tests := []struct {
 		name           string
 		client         clusteragent.InstrumentationCheckClient
-		lastChange     int64
+		configHash     int64
 		flushedConfigs bool
 		wantResult     bool
 	}{
 		{
 			name:       "timestamps match — up to date",
-			client:     &mockInstrumentationClient{status: types.InstrumentationStatusResponse{LastChange: 100}},
-			lastChange: 100,
+			client:     &mockInstrumentationClient{status: types.InstrumentationStatusResponse{ConfigHash: 100}},
+			configHash: 100,
 			wantResult: true,
 		},
 		{
 			name:       "server timestamp is newer — not up to date",
-			client:     &mockInstrumentationClient{status: types.InstrumentationStatusResponse{LastChange: 200}},
-			lastChange: 100,
+			client:     &mockInstrumentationClient{status: types.InstrumentationStatusResponse{ConfigHash: 200}},
+			configHash: 100,
 			wantResult: false,
 		},
 		{
 			name:       "no changes yet — both zero",
-			client:     &mockInstrumentationClient{status: types.InstrumentationStatusResponse{LastChange: 0}},
-			lastChange: 0,
+			client:     &mockInstrumentationClient{status: types.InstrumentationStatusResponse{ConfigHash: 0}},
+			configHash: 0,
 			wantResult: true,
 		},
 		{
 			name:           "flushed configs — force Collect even if timestamps match",
-			client:         &mockInstrumentationClient{status: types.InstrumentationStatusResponse{LastChange: 100}},
-			lastChange:     100,
+			client:         &mockInstrumentationClient{status: types.InstrumentationStatusResponse{ConfigHash: 100}},
+			configHash:     100,
 			flushedConfigs: true,
 			wantResult:     false,
 		},
 		{
 			name:       "status endpoint error — fall through to Collect",
 			client:     &mockInstrumentationClient{statusErr: errors.New("connection refused")},
-			lastChange: 100,
+			configHash: 100,
 			wantResult: false,
 		},
 		{
 			name:       "nil client — fall through to Collect",
 			client:     nil,
-			lastChange: 0,
+			configHash: 0,
 			wantResult: false,
 		},
 	}
@@ -241,7 +241,7 @@ func TestInstrumentationChecksIsUpToDate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			provider := &InstrumentationChecksConfigProvider{
 				dcaClient:      tt.client,
-				lastChange:     tt.lastChange,
+				configHash:     tt.configHash,
 				flushedConfigs: tt.flushedConfigs,
 			}
 			upToDate, err := provider.IsUpToDate(context.Background())

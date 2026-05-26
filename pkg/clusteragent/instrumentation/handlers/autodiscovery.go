@@ -11,9 +11,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
+	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
@@ -34,14 +35,16 @@ const (
 )
 
 type CheckStore struct {
-	mu         sync.RWMutex
-	configs    map[string][]integration.Config
-	lastChange int64
+	mu          sync.RWMutex
+	configs     map[string][]integration.Config
+	generations map[string]int64
+	configHash  int64
 }
 
 func NewCheckStore() *CheckStore {
 	return &CheckStore{
-		configs: make(map[string][]integration.Config),
+		configs:     make(map[string][]integration.Config),
+		generations: make(map[string]int64),
 	}
 }
 
@@ -156,7 +159,7 @@ func (h *AutodiscoveryHandler) Handle(_ context.Context, event instrumentation.E
 		configs = append(configs, cfg)
 	}
 
-	h.checkStore.setConfigs(key, configs)
+	h.checkStore.setConfigs(key, configs, cr.Generation)
 
 	return instrumentation.HandlerStatus{
 		Type:    checksReadyConditionType,
@@ -176,29 +179,48 @@ func (c *CheckStore) ListConfigs() []integration.Config {
 	return out
 }
 
-// LastChange returns the Unix nanosecond timestamp of the most recent mutation.
-func (c *CheckStore) LastChange() int64 {
+// ConfigHash returns a deterministic hash of the current set of (key, generation) pairs,
+// consistent across all cluster agent replicas for the same CR state.
+func (c *CheckStore) ConfigHash() int64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.lastChange
+	return c.configHash
 }
 
-func (c *CheckStore) setConfigs(key string, configs []integration.Config) {
+func (c *CheckStore) setConfigs(key string, configs []integration.Config, generation int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if len(configs) == 0 {
 		delete(c.configs, key)
+		delete(c.generations, key)
 	} else {
 		c.configs[key] = configs
+		c.generations[key] = generation
 	}
-	c.lastChange = time.Now().UnixNano()
+	c.configHash = c.hashGenerations()
 }
 
 func (c *CheckStore) deleteConfigs(key string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.configs, key)
-	c.lastChange = time.Now().UnixNano()
+	delete(c.generations, key)
+	c.configHash = c.hashGenerations()
+}
+
+// hashGenerations computes a deterministic int64 from the sorted (key, generation)
+// pairs currently in the store. Must be called under the write lock.
+func (c *CheckStore) hashGenerations() int64 {
+	keys := make([]string, 0, len(c.generations))
+	for k := range c.generations {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	h := fnv.New64a()
+	for _, k := range keys {
+		fmt.Fprintf(h, "%s:%d\n", k, c.generations[k]) //nolint:errcheck
+	}
+	return int64(h.Sum64())
 }
 
 func translateCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.DatadogInstrumentationCheckConfig) (integration.Config, error) {
