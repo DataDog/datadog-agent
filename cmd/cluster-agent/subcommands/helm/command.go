@@ -38,6 +38,7 @@ type rollbackCliParams struct {
 	jobNamespace     string
 	serviceAccount   string
 	image            string
+	driver           string
 }
 
 // Commands returns the 'helm' command tree for the cluster-agent CLI.
@@ -79,6 +80,7 @@ must already have the RBAC permissions helm needs to act on the release.`,
 	cmd.Flags().StringVar(&params.jobNamespace, "job-namespace", "", "Namespace where the rollback Job is created (required)")
 	cmd.Flags().StringVar(&params.serviceAccount, "service-account", "", "ServiceAccount the rollback Job runs as (required)")
 	cmd.Flags().StringVar(&params.image, "image", "", "Helm container image (default: "+helmactions.DefaultHelmImage+")")
+	cmd.Flags().StringVar(&params.driver, "driver", "", "Helm storage driver (secret|configmap|sql); empty inherits helm's default (secret)")
 
 	for _, name := range []string{"release", "namespace", "job-namespace", "service-account"} {
 		_ = cmd.MarkFlagRequired(name)
@@ -101,6 +103,7 @@ func runRollback(_ log.Component, _ config.Component, params *rollbackCliParams)
 		JobNamespace:       params.jobNamespace,
 		ServiceAccountName: params.serviceAccount,
 		Image:              params.image,
+		Driver:             params.driver,
 	})
 	if err != nil {
 		return err

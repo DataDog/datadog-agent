@@ -88,6 +88,23 @@ func TestBuildRollbackJob_ExplicitRevision(t *testing.T) {
 	assert.Equal(t, []string{"rollback", "myrel", "5", "--namespace", "prod"}, job.Spec.Template.Spec.Containers[0].Args)
 }
 
+func TestBuildRollbackJob_Driver(t *testing.T) {
+	t.Run("unset omits HELM_DRIVER", func(t *testing.T) {
+		job := buildRollbackJob(validOptions())
+		assert.Empty(t, job.Spec.Template.Spec.Containers[0].Env)
+	})
+
+	t.Run("set propagates as env var", func(t *testing.T) {
+		opts := validOptions()
+		opts.Driver = "configmap"
+		job := buildRollbackJob(opts)
+		env := job.Spec.Template.Spec.Containers[0].Env
+		require.Len(t, env, 1)
+		assert.Equal(t, "HELM_DRIVER", env[0].Name)
+		assert.Equal(t, "configmap", env[0].Value)
+	})
+}
+
 func TestBuildRollbackJob_Overrides(t *testing.T) {
 	backoff := int32(3)
 	ttl := int32(60)
