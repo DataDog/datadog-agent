@@ -94,6 +94,8 @@ linters:
             - "!**/comp/core/autodiscovery/providers/endpointschecks_nop.go"
             - "!**/comp/core/autodiscovery/providers/etcd.go"
             - "!**/comp/core/autodiscovery/providers/etcd_nop.go"
+            - "!**/comp/core/autodiscovery/providers/instrumentationchecks.go"
+            - "!**/comp/core/autodiscovery/providers/instrumentationchecks_nop.go"
             - "!**/comp/core/autodiscovery/providers/kube_endpoints.go"
             - "!**/comp/core/autodiscovery/providers/kube_endpoints_file.go"
             - "!**/comp/core/autodiscovery/providers/kube_endpoints_file_nop.go"
@@ -397,9 +399,6 @@ linters:
       text: "name will be used as .* by other packages, and that stutters"
     - path: pkg/util/containerd
       text: "name will be used as .* by other packages, and that stutters"
-    # Should be replaced by google.golang.org/protobuf but is not a drop-in replacement
-    - text: "\"github.com/golang/protobuf/proto\" is deprecated"
-      linters: [staticcheck]
     # Can't rely on getting the same elements after calling Seed because dependencies could be using
     # it too. Should be replaced by using a local source, but there are too many uses in the repo.
     - text: "rand.Seed has been deprecated since Go 1.20"

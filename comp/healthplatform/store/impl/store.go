@@ -27,8 +27,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
-	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	noopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -43,7 +41,6 @@ type Requires struct {
 	Log       log.Component
 	Telemetry telemetry.Component
 	Hostname  hostnameinterface.Component
-	Forwarder forwarderdef.Component
 }
 
 // Provides defines the output of the health-platform component
@@ -67,18 +64,12 @@ type healthPlatformImpl struct {
 
 	// Issue tracking
 	issues       map[string]*healthplatform.Issue // IssueID → active Issue
-	issuesByType map[string]map[string]struct{}   // IssueType → set of active IssueIDs
+	issuesByName map[string]map[string]struct{}   // IssueName → set of active IssueIDs
 	issuesMux    sync.RWMutex                     // Mutex for thread-safe access to issues
 
 	// Persistence
 	persistedIssues map[string]*PersistedIssue // Persisted issues with status tracking
 	persistence     issuesPersistence          // Persistence strategy (disk or noop)
-
-	// Issue module registry (combines checks + remediations)
-	issueRegistry *issuesmod.Registry
-
-	// Forwarder for sending reports to Datadog intake
-	forwarder forwarderdef.Component
 
 	// Metrics
 	metrics telemetryMetrics // Telemetry metrics for health platform
@@ -251,12 +242,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		persistence = newDiskPersistence(persistencePath, reqs.Log)
 	}
 
-	// Create unified issue registry and register all self-registered modules
-	issueRegistry := issuesmod.NewRegistry()
-	for _, module := range issuesmod.GetAllModules(reqs.Config) {
-		issueRegistry.RegisterModule(module)
-	}
-
 	// Initialize the health platform implementation
 	comp := &healthPlatformImpl{
 		// Core dependencies
@@ -266,15 +251,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 		hostnameProvider: reqs.Hostname,
 		agentFlavor:      flavor.GetFlavor(),
 
-		// Sub-components injected by fx
-		forwarder: reqs.Forwarder,
-
-		// Issue module registry
-		issueRegistry: issueRegistry,
-
 		// Issue tracking
 		issues:       make(map[string]*healthplatform.Issue),
-		issuesByType: make(map[string]map[string]struct{}),
+		issuesByName: make(map[string]map[string]struct{}),
 		issuesMux:    sync.RWMutex{},
 
 		// Persistence
@@ -323,8 +302,6 @@ func (h *healthPlatformImpl) start(_ context.Context) error {
 		h.log.Warn("Failed to load persisted issues: " + err.Error())
 	}
 
-	h.forwarder.SetProvider(h)
-
 	return nil
 }
 
@@ -338,54 +315,28 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 // Core Public API
 // ============================================================================
 
-// ReportIssue records a new or ongoing issue. The issue is keyed by
-// report.IssueID (unique instance id). If a template is registered for
-// report.IssueType it enriches the proto (title, severity, remediation, etc.);
-// otherwise a minimal proto is built from the report fields.
-func (h *healthPlatformImpl) ReportIssue(report healthplatformdef.IssueReport) error {
-	if report.IssueID == "" {
+// ReportIssue records a new or ongoing issue keyed by issue.Id. The caller is
+// responsible for building the complete proto Issue (template lookup, field
+// population). issue.IssueName is used as the issue-type key for telemetry and
+// persistence.
+func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
+	if issue == nil {
+		return errors.New("issue cannot be nil")
+	}
+	if issue.Id == "" {
 		return errors.New("issue id cannot be empty")
 	}
-	if report.IssueType == "" {
-		return errors.New("issue type cannot be empty")
-	}
-
-	issue, err := h.toProto(report)
-	if err != nil {
-		return err
+	if issue.IssueName == "" {
+		return errors.New("issue name cannot be empty")
 	}
 
 	h.issuesMux.RLock()
-	previousIssue := h.issues[report.IssueID]
+	previousIssue := h.issues[issue.Id]
 	h.issuesMux.RUnlock()
 
 	h.handleIssueStateChange(issue.Source, previousIssue, issue)
-	h.storeIssue(report.IssueType, issue)
+	h.storeIssue(issue.IssueName, issue)
 	return nil
-}
-
-// toProto converts an IssueReport to a proto Issue. If a template is registered
-// for the issue type it enriches the proto with the template's metadata; the
-// template's Source field takes precedence. If no template is registered a
-// minimal proto is built from the report fields directly.
-func (h *healthPlatformImpl) toProto(report healthplatformdef.IssueReport) (*healthplatform.Issue, error) {
-	if template, exists := h.issueRegistry.GetTemplate(report.IssueType); exists {
-		issue, err := template.BuildIssue(report.Context)
-		if err != nil {
-			return nil, fmt.Errorf("failed to build issue %s: %w", report.IssueType, err)
-		}
-		issue.Id = report.IssueID
-		if len(report.Tags) > 0 {
-			issue.Tags = append(issue.Tags, report.Tags...)
-		}
-		return issue, nil
-	}
-	return &healthplatform.Issue{
-		Id:        report.IssueID,
-		IssueName: report.IssueType,
-		Source:    report.Source,
-		Tags:      report.Tags,
-	}, nil
 }
 
 // ============================================================================
@@ -441,9 +392,9 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	}
 	delete(h.issues, issueID)
 
-	// Remove from type index
+	// Remove from name index
 	if persisted := h.persistedIssues[issueID]; persisted != nil {
-		delete(h.issuesByType[persisted.IssueType], issueID)
+		delete(h.issuesByName[persisted.IssueType], issueID)
 	}
 
 	// Update persisted issue status to resolved
@@ -477,7 +428,7 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 	}
 
 	h.issues = make(map[string]*healthplatform.Issue)
-	h.issuesByType = make(map[string]map[string]struct{})
+	h.issuesByName = make(map[string]map[string]struct{})
 	h.log.Info("Cleared all issues")
 
 	h.issuesMux.Unlock()
@@ -488,13 +439,13 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 	}
 }
 
-// GetActiveIssueIDsByIssueType returns the IDs of all currently active issues
-// of the given template type. Used by bundle.go to compute the initial set of
+// GetActiveIssueIDsByIssueName returns the IDs of all currently active issues
+// with the given IssueName. Used by bundle.go to compute the initial set of
 // issue IDs for the scheduler after an agent restart.
-func (h *healthPlatformImpl) GetActiveIssueIDsByIssueType(issueType string) []string {
+func (h *healthPlatformImpl) GetActiveIssueIDsByIssueName(issueName string) []string {
 	h.issuesMux.RLock()
 	defer h.issuesMux.RUnlock()
-	ids := h.issuesByType[issueType]
+	ids := h.issuesByName[issueName]
 	result := make([]string, 0, len(ids))
 	for id := range ids {
 		result = append(result, id)
@@ -514,7 +465,7 @@ func (h *healthPlatformImpl) handleIssueStateChange(source string, oldIssue, new
 	}
 
 	if newIssue != nil && oldIssue == nil {
-		h.log.Info("Health platform: NEW issue from " + source + ": " + newIssue.Title + " (" + newIssue.Severity + ")")
+		h.log.Info("Health platform: NEW issue from " + source + ": " + newIssue.Title + " (" + newIssue.Severity.String() + ")")
 		return
 	}
 
@@ -526,7 +477,7 @@ func (h *healthPlatformImpl) handleIssueStateChange(source string, oldIssue, new
 	if oldIssue.Title != newIssue.Title ||
 		oldIssue.Severity != newIssue.Severity ||
 		oldIssue.Description != newIssue.Description {
-		h.log.Info("Health platform: issue CHANGED from " + source + ": " + newIssue.Title + " (" + newIssue.Severity + ")")
+		h.log.Info("Health platform: issue CHANGED from " + source + ": " + newIssue.Title + " (" + newIssue.Severity.String() + ")")
 	}
 }
 
@@ -541,10 +492,10 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 	h.metrics.issuesCounter.Add(1, issueType)
 
 	h.issues[issueID] = issue
-	if h.issuesByType[issueType] == nil {
-		h.issuesByType[issueType] = make(map[string]struct{})
+	if h.issuesByName[issueType] == nil {
+		h.issuesByName[issueType] = make(map[string]struct{})
 	}
-	h.issuesByType[issueType][issueID] = struct{}{}
+	h.issuesByName[issueType][issueID] = struct{}{}
 
 	existing := h.persistedIssues[issueID]
 	if existing == nil {
@@ -579,7 +530,7 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 		persisted.Description = issue.Description
 		persisted.Category = issue.Category
 		persisted.Location = issue.Location
-		persisted.Severity = issue.Severity
+		persisted.Severity = issue.Severity.String()
 		persisted.Source = issue.Source
 		persisted.Tags = issue.Tags
 		if issue.Extra != nil {
@@ -645,7 +596,7 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 				Description: persisted.Description,
 				Category:    persisted.Category,
 				Location:    persisted.Location,
-				Severity:    persisted.Severity,
+				Severity:    healthplatform.IssueSeverity(healthplatform.IssueSeverity_value[persisted.Severity]),
 				Source:      persisted.Source,
 				Tags:        persisted.Tags,
 			}
@@ -664,20 +615,26 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 				}
 			}
 		} else {
-			var err error
-			issue, err = h.issueRegistry.BuildIssue(persisted.IssueType, nil)
-			if err != nil {
-				h.log.Warn(fmt.Sprintf("Failed to rebuild issue %s for %s: %v", persisted.IssueType, issueID, err))
-				continue
+			// Version-2 files always cache proto fields; this handles the edge
+			// case of a file written before caching was introduced.
+			issue = &healthplatform.Issue{
+				Id:        issueID,
+				IssueName: persisted.IssueType,
+				Source:    persisted.Source,
 			}
 		}
 		issue.Id = issueID
 		issue.PersistedIssue = persistedIssueToProto(persisted)
 		h.issues[issueID] = issue
-		if h.issuesByType[persisted.IssueType] == nil {
-			h.issuesByType[persisted.IssueType] = make(map[string]struct{})
+		// Prefer IssueName (written by current code); fall back to IssueType for old JSON files.
+		nameKey := persisted.IssueName
+		if nameKey == "" {
+			nameKey = persisted.IssueType
 		}
-		h.issuesByType[persisted.IssueType][issueID] = struct{}{}
+		if h.issuesByName[nameKey] == nil {
+			h.issuesByName[nameKey] = make(map[string]struct{})
+		}
+		h.issuesByName[nameKey][issueID] = struct{}{}
 		activeCount++
 	}
 

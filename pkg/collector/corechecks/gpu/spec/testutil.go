@@ -82,35 +82,31 @@ func unsupportedFieldIDsFromNames(t *testing.T, names []string) []uint32 {
 	return ids
 }
 
+// UnsupportedFieldIDsForConfig computes unsupported NVML field IDs for an architecture+mode.
+func UnsupportedFieldIDsForConfig(t *testing.T, archSpecs *ArchitecturesSpec, archSpec ArchitectureSpec, mode DeviceMode) []uint32 {
+	t.Helper()
+
+	return unsupportedFieldIDsFromNames(t, archSpec.UnsupportedFieldsForMode(mode, archSpecs))
+}
+
 // UnsupportedFieldIDsForMode computes unsupported NVML field IDs for an architecture+mode.
 func UnsupportedFieldIDsForMode(t *testing.T, archSpec ArchitectureSpec, mode DeviceMode) []uint32 {
 	t.Helper()
 
-	unsupportedNameSet := make(map[string]struct{})
-	for _, group := range archSpec.Capabilities.UnsupportedFieldsByDeviceMode {
-		if len(group.DeviceModes) > 0 && !slices.Contains(group.DeviceModes, mode) {
-			continue
-		}
-		for _, name := range group.Fields {
-			unsupportedNameSet[name] = struct{}{}
-		}
-	}
-
-	unsupportedNames := make([]string, 0, len(unsupportedNameSet))
-	for name := range unsupportedNameSet {
-		unsupportedNames = append(unsupportedNames, name)
-	}
-	return unsupportedFieldIDsFromNames(t, unsupportedNames)
+	return unsupportedFieldIDsFromNames(t, archSpec.UnsupportedFieldsForMode(mode, nil))
 }
 
 // BuildMockOptionsForArchAndMode creates canonical NVML mock options from spec capabilities.
-func BuildMockOptionsForConfig(t *testing.T, config GPUConfig, archSpec ArchitectureSpec) []testutil.NvmlMockOption {
+func BuildMockOptionsForConfig(t *testing.T, config GPUConfig, archSpecs *ArchitecturesSpec, archSpec ArchitectureSpec) []testutil.NvmlMockOption {
 	t.Helper()
 
 	testMode := testutil.DeviceFeatureMode(config.DeviceMode)
 	caps := testutil.Capabilities{
-		GPM:               archSpec.Capabilities.GPM,
-		UnsupportedFields: UnsupportedFieldIDsForMode(t, archSpec, config.DeviceMode),
+		GPM:                       archSpec.EffectiveCapabilities(config.DeviceMode).GPM,
+		NvLinkGenerationSupported: config.Capabilities.NVLink,
+		NvLinkLinkCount:           config.NVLinkLinkCount,
+		C2C:                       config.Capabilities.C2C,
+		UnsupportedFields:         UnsupportedFieldIDsForConfig(t, archSpecs, archSpec, config.DeviceMode),
 	}
 	opts := []testutil.NvmlMockOption{
 		testutil.WithArchitecture(config.Architecture),

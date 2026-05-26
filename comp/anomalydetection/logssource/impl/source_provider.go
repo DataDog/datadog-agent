@@ -176,6 +176,20 @@ func isAgentContainer(c *workloadmeta.Container) bool {
 	return strings.Contains(strings.ToLower(c.Image.ShortName), "agent")
 }
 
+// isAgentContainerID returns true when workloadmeta identifies containerID as
+// an Agent container. Lookup failures are treated as non-Agent so AD collection
+// is not accidentally disabled while workloadmeta is still catching up.
+func (sp *sourceProvider) isAgentContainerID(containerID string) bool {
+	if sp == nil || sp.wmeta == nil || containerID == "" {
+		return false
+	}
+	container, err := sp.wmeta.GetContainer(containerID)
+	if err != nil {
+		return false
+	}
+	return isAgentContainer(container)
+}
+
 // suppressIdentifier marks containerID as owned by an AD source.
 // If a generic source for that container is already active, it is removed so
 // the AD source becomes the sole collector for this container.

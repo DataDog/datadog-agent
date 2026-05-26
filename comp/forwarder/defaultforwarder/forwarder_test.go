@@ -6,6 +6,7 @@
 package defaultforwarder
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -205,6 +206,7 @@ func TestSubmitIfStopped(t *testing.T) {
 	assert.NotNil(t, forwarder.SubmitV1Series(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitSeries(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1Intake(nil, transaction.Series, make(http.Header)))
+	assert.NotNil(t, forwarder.SubmitV1IntakeDirect(context.Background(), nil, transaction.Series, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1CheckRuns(nil, make(http.Header)))
 }
 
@@ -451,6 +453,48 @@ func TestSubmitV1Intake(t *testing.T) {
 		assert.Equal(t, "application/json", httpTr.Headers.Get("Content-Type"))
 	case <-time.After(1 * time.Second):
 		require.Fail(t, "highPrio queue should contain a transaction")
+	}
+}
+
+func TestSubmitV1IntakeDirect(t *testing.T) {
+	payloadReceived := make(chan string, 1)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/intake/" {
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+			payloadReceived <- string(body)
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	mockConfig := mock.New(t)
+	mockConfig.SetWithoutSource("dd_url", ts.URL)
+	log := logmock.New(t)
+	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{
+		ts.URL: {configUtils.NewAPIKeys("path", "monokey")},
+	})
+	require.NoError(t, err)
+	secrets := secretsmock.New(t)
+	options := NewOptionsWithResolvers(mockConfig, log, r)
+	options.Secrets = secrets
+	forwarder := NewDefaultForwarder(mockConfig, log, options)
+	forwarder.Start()
+	defer forwarder.Stop()
+
+	payload := []byte("lifecycle event payload")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.NoError(t, forwarder.SubmitV1IntakeDirect(ctx, transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload}), transaction.Events, make(http.Header)))
+
+	select {
+	case got := <-payloadReceived:
+		assert.Equal(t, string(payload), got)
+	case <-time.After(time.Second):
+		require.Fail(t, "expected lifecycle event payload to be sent synchronously")
 	}
 }
 
