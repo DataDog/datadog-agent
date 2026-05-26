@@ -17,6 +17,10 @@ import (
 
 const (
 	patternPrefixSize = 3 // has to be in sync with the kernel side of the approvers
+	// minParentBasenameSize avoids registering a parent-basename approver on a very short directory name
+	// (e.g. "a"), which would match files in any same-named directory across the filesystem and make the
+	// kernel approver too coarse to filter anything useful.
+	minParentBasenameSize = 3
 )
 
 func validateBasenameFilter(pattern string) bool {
@@ -32,13 +36,26 @@ func validateBasenameFilter(pattern string) bool {
 	return len(els[0]) >= patternPrefixSize
 }
 
+func validateParentBasenameFilter(pattern string) bool {
+	return !strings.Contains(pattern, "*")
+}
+
 // validatePathFilter validates that the path can be handled by the basename filter
 func validatePathFilter(value rules.FilterValue) bool {
 	switch value.Type {
 	case eval.ScalarValueType:
 		return true
 	case eval.GlobValueType, eval.PatternValueType:
-		return validateBasenameFilter(path.Base(value.Value.(string)))
+		if validateBasenameFilter(path.Base(value.Value.(string))) {
+			return true
+		}
+
+		parentBasename := path.Base(path.Dir(value.Value.(string)))
+		if len(parentBasename) < minParentBasenameSize {
+			return false
+		}
+
+		return validateParentBasenameFilter(parentBasename)
 	}
 
 	return false
