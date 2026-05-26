@@ -37,6 +37,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c" //nolint:staticcheck // SA1019: test-only; release branch keeps h2c (no partial #50747)
 	"golang.org/x/net/http2/hpack"
 	"golang.org/x/sys/unix"
 
@@ -1946,14 +1947,11 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 	http2TargetAddress := net.JoinHostPort(targetHost, http2Port)
 	http2Server := &nethttp.Server{
 		Addr: ":" + http2Port,
-		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, _ *nethttp.Request) {
+		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, _ *nethttp.Request) {
 			w.WriteHeader(200)
 			w.Write([]byte("test"))
-		}),
-		Protocols: new(nethttp.Protocols),
+		}), &http2.Server{}),
 	}
-	http2Server.Protocols.SetHTTP1(true)
-	http2Server.Protocols.SetUnencryptedHTTP2(true)
 
 	go func() {
 		if err := http2Server.ListenAndServe(); err != nethttp.ErrServerClosed {

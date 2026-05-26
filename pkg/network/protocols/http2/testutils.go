@@ -17,6 +17,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c" //nolint:staticcheck // SA1019: test-only; release branch keeps h2c (no partial #50747)
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
@@ -25,7 +26,7 @@ import (
 func StartH2CServer(t *testing.T, address string, isTLS bool) func() {
 	srv := &http.Server{
 		Addr: address,
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		Handler: h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			statusCode := testutil.StatusFromPath(r.URL.Path)
 			if statusCode == 0 {
 				w.WriteHeader(http.StatusOK)
@@ -34,14 +35,8 @@ func StartH2CServer(t *testing.T, address string, isTLS bool) func() {
 			}
 			defer func() { _ = r.Body.Close() }()
 			_, _ = io.Copy(w, r.Body)
-		}),
+		}), &http2.Server{}),
 		IdleTimeout: 2 * time.Second,
-		Protocols:   new(http.Protocols),
-	}
-	srv.Protocols.SetHTTP1(true)
-	srv.Protocols.SetUnencryptedHTTP2(true)
-	if isTLS {
-		srv.Protocols.SetHTTP2(true)
 	}
 
 	require.NoError(t, http2.ConfigureServer(srv, nil), "could not configure server")
