@@ -180,6 +180,7 @@ type HookContext struct {
 	Upgrade         bool        `json:"upgrade"`
 	WindowsArgs     []string    `json:"windows_args"`
 	Extension       string      `json:"extension"`
+	IsExperiment    bool        `json:"is_experiment"`
 }
 
 // StartSpan starts a new span with the given operation name.
@@ -256,14 +257,15 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 		}
 	}
 	hookCtx := HookContext{
-		Context:     ctx,
-		Hook:        name,
-		Package:     pkg,
-		PackagePath: pkgPath,
-		PackageType: packageType,
-		Upgrade:     upgrade,
-		WindowsArgs: windowsArgs,
-		Extension:   extension,
+		Context:      ctx,
+		Hook:         name,
+		Package:      pkg,
+		PackagePath:  pkgPath,
+		PackageType:  packageType,
+		Upgrade:      upgrade,
+		WindowsArgs:  windowsArgs,
+		Extension:    extension,
+		IsExperiment: experiment,
 	}
 	serializedHookCtx, err := json.Marshal(hookCtx)
 	if err != nil {
