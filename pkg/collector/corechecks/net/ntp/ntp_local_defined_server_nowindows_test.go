@@ -135,3 +135,16 @@ func TestGetNTPServersFromFileNoServer(t *testing.T) {
 		assert.Equal(t, []string(nil), servers)
 	})
 }
+
+func TestGetNTPServersFromTimesyncdConfig(t *testing.T) {
+	config := `[Time]
+NTP=time1.example.com time2.example.com
+FallbackNTP=0.pool.ntp.org 1.pool.ntp.org
+`
+	createTempFile(t, config, func(f1 string) {
+		servers, err := getNTPServersFromFiles([]string{f1})
+		assert.NoError(t, err)
+		sort.Strings(servers)
+		assert.Equal(t, []string{"0.pool.ntp.org", "1.pool.ntp.org", "time1.example.com", "time2.example.com"}, servers)
+	})
+}
