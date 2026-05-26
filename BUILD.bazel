@@ -700,7 +700,6 @@ exports_files(glob(
 # gazelle:exclude test/e2e-framework/testing/utils/e2e/client/agentclientparams
 # gazelle:exclude test/e2e-framework/testing/utils/infra
 # gazelle:exclude test/fakeintake/cmd/client/main.go
-# gazelle:exclude test/fakeintake/cmd/server
 # gazelle:exclude test/files
 # gazelle:exclude test/integration
 # gazelle:exclude test/new-e2e/examples
