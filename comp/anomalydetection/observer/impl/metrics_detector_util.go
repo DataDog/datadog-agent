@@ -25,6 +25,37 @@ type bulkStatusReader interface {
 	BulkSeriesStatus(refs []observer.SeriesRef, endTime int64) []seriesStatus
 }
 
+// seriesRefLister is an optional optimization interface for StorageReader
+// implementations that can list matching series refs without materializing
+// full SeriesMeta values. The dst slice may be reused for the returned refs.
+type seriesRefLister interface {
+	ListSeriesRefsInto(filter observer.SeriesFilter, dst []observer.SeriesRef) []observer.SeriesRef
+}
+
+// workloadSeriesRefs returns the workload series refs used by detector hot
+// paths. It avoids the metadata-heavy ListSeries allocation when the storage
+// implementation provides a ref-only listing.
+func workloadSeriesRefs(storage observer.StorageReader, dst []observer.SeriesRef) []observer.SeriesRef {
+	return listSeriesRefs(storage, observer.WorkloadSeriesFilter(), dst)
+}
+
+func listSeriesRefs(storage observer.StorageReader, filter observer.SeriesFilter, dst []observer.SeriesRef) []observer.SeriesRef {
+	if lister, ok := storage.(seriesRefLister); ok {
+		return lister.ListSeriesRefsInto(filter, dst)
+	}
+
+	metas := storage.ListSeries(filter)
+	if cap(dst) < len(metas) {
+		dst = make([]observer.SeriesRef, 0, len(metas))
+	} else {
+		dst = dst[:0]
+	}
+	for _, meta := range metas {
+		dst = append(dst, meta.Ref)
+	}
+	return dst
+}
+
 // bulkSeriesStatus returns the point count and write generation for each ref.
 // If storage implements bulkStatusReader (e.g. timeSeriesStorage), it uses a
 // single lock acquisition. Otherwise falls back to individual PointCountUpTo +

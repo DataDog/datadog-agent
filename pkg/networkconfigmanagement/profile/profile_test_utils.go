@@ -231,6 +231,16 @@ func IOSProfile() *NCMProfile {
 	return prof
 }
 
+// ASAProfile parses the test profile for Cisco ASA devices to test with
+func ASAProfile() *NCMProfile {
+	b, _ := defaultProfilesFS.ReadFile(path.Join(defaultProfilesFolder, "cisco-asa.json"))
+	prof, err := parseNCMProfileFromBytes(b, "cisco-asa")
+	if err != nil {
+		panic(fmt.Sprintf("could not parse profile for cisco-asa: %s", err))
+	}
+	return prof
+}
+
 // JunOSProfile parses the test profile for junOS devices to test with
 func JunOSProfile() *NCMProfile {
 	b, _ := defaultProfilesFS.ReadFile(path.Join(defaultProfilesFolder, "junos.json"))
