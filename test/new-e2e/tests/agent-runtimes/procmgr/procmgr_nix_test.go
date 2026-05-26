@@ -24,10 +24,11 @@ import (
 )
 
 const (
-	linuxDaemonBin = "/opt/datadog-agent/embedded/bin/dd-procmgrd"
-	linuxCLIBin    = "/opt/datadog-agent/embedded/bin/dd-procmgr"
-	linuxSocket    = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
-	linuxConfigDir = "/opt/datadog-agent/processes.d"
+	linuxDaemonBin   = "/opt/datadog-agent/embedded/bin/dd-procmgrd"
+	linuxCLIBin      = "/opt/datadog-agent/embedded/bin/dd-procmgr"
+	linuxSocket      = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
+	linuxConfigDir   = "/opt/datadog-agent/processes.d"
+	linuxProcmgrUnit = "datadog-agent-procmgr.service"
 
 	ddotPkgBinaryPath = "/opt/datadog-agent/embedded/bin/otel-agent"
 	ddotExtBinaryPath = "/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent"
@@ -56,7 +57,7 @@ var linuxPlatform = platformConfig{
 	testProcessYAML:   linuxTestProcessConfig,
 	missingBinaryYAML: linuxMissingBinaryConfig,
 	checkBinCmd:       func(path string) string { return "test -f " + path },
-	checkSvcRunning:   "systemctl is-active datadog-agent-procmgrd",
+	checkSvcRunning:   "systemctl is-active datadog-agent-procmgr",
 	svcRunningOutput:  "active",
 	cliCmd:            func(args string) string { return linuxCLIBin + " " + args },
 }
@@ -138,7 +139,7 @@ func (s *procmgrLinuxSuite) installRealDDOT() bool {
 	s.Env().RemoteHost.MustExecute("sudo chown dd-agent:dd-agent /etc/datadog-agent/otel-config.yaml && sudo chmod 640 /etc/datadog-agent/otel-config.yaml")
 
 	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent.service")
-	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent-procmgrd")
+	s.Env().RemoteHost.MustExecute("sudo systemctl restart " + linuxProcmgrUnit)
 
 	return true
 }
@@ -150,11 +151,11 @@ func (s *procmgrLinuxSuite) TestDDOTProcessRunning() {
 
 	pidFileContent := strings.TrimSpace(
 		s.Env().RemoteHost.MustExecute("cat /opt/datadog-agent/run/otel-agent.pid"))
-	assert.Equal(s.T(), pid, pidFileContent, "PID file should match procmgrd-reported PID")
+	assert.Equal(s.T(), pid, pidFileContent, "PID file should match procmgr-reported PID")
 
 	unitState := strings.TrimSpace(
 		s.Env().RemoteHost.MustExecute("systemctl is-active datadog-agent-ddot.service || true"))
-	assert.NotEqual(s.T(), "active", unitState, "systemd unit should not be active; procmgrd manages DDOT")
+	assert.NotEqual(s.T(), "active", unitState, "systemd unit should not be active; procmgr manages DDOT")
 }
 
 func (s *procmgrLinuxSuite) TestDDOTRestartAfterKill() {
