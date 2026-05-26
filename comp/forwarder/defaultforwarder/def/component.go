@@ -83,8 +83,3 @@ type ForwarderV2 interface {
 type Component interface {
 	Forwarder
 }
-
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-}
