@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    The ``trace-agent`` binary can now start without a ``datadog.yaml`` file
+    on disk when ``--config`` is not passed and no file exists at the default
+    location (``/opt/datadog-agent/etc/datadog.yaml`` on Linux,
+    ``c:\programdata\datadog\datadog.yaml`` on Windows). In this mode all
+    configuration must be supplied via environment variables (at minimum
+    ``DD_API_KEY``). When ``--config`` is passed explicitly, a missing file
+    is still a fatal error, as before.
