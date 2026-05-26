@@ -13,7 +13,6 @@ go_library(
         "//cmd/secret-generic-connector/backend/aws",
         "//cmd/secret-generic-connector/backend/azure",
         "//cmd/secret-generic-connector/backend/docker",
-        "//cmd/secret-generic-connector/backend/env",
         "//cmd/secret-generic-connector/backend/file",
         "//cmd/secret-generic-connector/backend/gcp",
         "//cmd/secret-generic-connector/backend/hashicorp",
