@@ -5,7 +5,8 @@
       "go": "1.25.10"
     },
     "constraintsFiltering": "strict",
-    "minimumReleaseAge": "7 days",
+    "minimumReleaseAge": "4 days",
+    "prConcurrentLimit": 20,
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
     "gitIgnoredAuthors": ["200755185+dd-octo-sts[bot]@users.noreply.github.com"],
