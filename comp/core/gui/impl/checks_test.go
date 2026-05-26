@@ -6,6 +6,8 @@
 package guiimpl
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"sort"
 	"testing"
 
@@ -69,7 +71,11 @@ func TestGetFileNameAndFolder(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotFileName, gotCheckFolder, err := getFileNameAndFolder(tt.vars)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			for k, v := range tt.vars {
+				req.SetPathValue(k, v)
+			}
+			gotFileName, gotCheckFolder, err := getFileNameAndFolder(req)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getFileNameAndFolder() error = %v, wantErr %v", err, tt.wantErr)
 				return
