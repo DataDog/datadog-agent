@@ -296,6 +296,80 @@ func (s *upgradeSuite) TestIntegrationPreservationStableToOCIExperiment() {
 	s.Assert().NoError(showErr, "integration show should succeed after promotion")
 }
 
+// runIntegrationOwnershipTest is the shared body for TestIntegrationPreservationRootInstall
+// and TestIntegrationPreservationDDAgentInstall. It installs the agent, installs the
+// third-party integration as installUser, runs a stable→pipeline-experiment→promote cycle,
+// and asserts that the restored integration files are owned by dd-agent in both the
+// experiment and stable locations.
+func (s *upgradeSuite) runIntegrationOwnershipTest(installUser, label string) {
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
+	defer s.Agent.MustUninstall()
+	s.snapshotIntegrationState(label + ": after MustInstall (released OCI stable)")
+
+	err := s.Agent.InstallIntegrationAs(installUser, thirdPartyIntegration)
+	s.Require().NoError(err)
+	s.snapshotIntegrationState(label + ": after InstallIntegrationAs " + installUser)
+
+	installedIntegrations, err := s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Require().Equal("1.0.2", installedIntegrations["ping"], "integration should be installed before experiment")
+
+	testingVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
+	err = s.Backend.StartExperiment("datadog-agent", testingVersion)
+	s.Require().NoError(err)
+	s.snapshotIntegrationState(label + ": after StartExperiment to pipeline testing")
+
+	installedIntegrations, err = s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved in experiment")
+
+	showOut, showErr := s.Agent.IntegrationShow("datadog-ping")
+	s.Assert().NoError(showErr, "integration show should succeed after restoration in experiment")
+	s.Assert().Contains(showOut, "1.0.2", "integration show should report the restored version")
+
+	s.Assert().Equal("dd-agent", s.integrationDistInfoOwner("experiment", "ping"),
+		"dist-info should be owned by dd-agent after restoration (installed as "+installUser+")")
+	s.Assert().Equal("dd-agent", s.integrationCheckDirOwner("experiment", "ping"),
+		"datadog_checks/ping should be owned by dd-agent after restoration (installed as "+installUser+")")
+
+	err = s.Backend.PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+	s.snapshotIntegrationState(label + ": after PromoteExperiment")
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		packageVersion, err := s.Agent.PackageVersion()
+		require.NoError(c, err)
+		require.Equal(c, testingVersion, packageVersion)
+	}, 300*time.Second, 30*time.Second)
+
+	installedIntegrations, err = s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved after promotion")
+
+	s.Assert().Equal("dd-agent", s.integrationDistInfoOwner("stable", "ping"),
+		"dist-info should be owned by dd-agent in stable after promotion (installed as "+installUser+")")
+	s.Assert().Equal("dd-agent", s.integrationCheckDirOwner("stable", "ping"),
+		"datadog_checks/ping should be owned by dd-agent in stable after promotion (installed as "+installUser+")")
+
+	_, showErr = s.Agent.IntegrationShow("datadog-ping")
+	s.Assert().NoError(showErr, "integration show should succeed after promotion")
+}
+
+// TestIntegrationPreservationRootInstall verifies that an integration initially installed
+// by root survives a stable→pipeline-experiment→promote cycle with dd-agent ownership
+// restored. This is the adversarial ownership case: pre-upgrade files are root-owned,
+// so post.py must chown them (or run pip as dd-agent) to avoid blocking future installs.
+func (s *upgradeSuite) TestIntegrationPreservationRootInstall() {
+	s.runIntegrationOwnershipTest("root", "RootInstall")
+}
+
+// TestIntegrationPreservationDDAgentInstall verifies that an integration initially installed
+// by dd-agent retains dd-agent ownership after a stable→pipeline-experiment→promote cycle.
+// This is the baseline / regression-guard case for the standard install path.
+func (s *upgradeSuite) TestIntegrationPreservationDDAgentInstall() {
+	s.runIntegrationOwnershipTest("dd-agent", "DDAgentInstall")
+}
+
 // TestIntegrationPreservationOnExperimentRollback verifies that a third-party integration
 // installed on the released OCI stable survives an experiment that gets stopped and rolled
 // back. Mirrors TestUpgradeFailureHealth but installs the integration first and asserts it

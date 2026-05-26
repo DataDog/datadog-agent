@@ -107,6 +107,18 @@ func (a *Agent) InstallIntegration(name string) error {
 	return err
 }
 
+// InstallIntegrationAs installs a custom integration running the agent CLI as the specified
+// Unix user (e.g. "root" or "dd-agent"). Linux-only.
+func (a *Agent) InstallIntegrationAs(user, name string) error {
+	if a.host.RemoteHost.OSFamily != e2eos.LinuxFamily {
+		return fmt.Errorf("InstallIntegrationAs is only supported on Linux")
+	}
+	_, err := a.host.RemoteHost.Execute(
+		fmt.Sprintf("sudo -u %s datadog-agent integration install -t %s", user, name),
+	)
+	return err
+}
+
 // IntegrationShow runs integration show for the given integration name and returns its output.
 func (a *Agent) IntegrationShow(name string) (string, error) {
 	return a.runCommand("integration", "show", name)
