@@ -70,11 +70,11 @@ func (c *nvlinkGpmCollector) getOrCreateGpmCollector(port int) (*gpmCollector, e
 		return collector, nil
 	}
 
-	portGpmMetrics := allGpmMetrics
-
 	if port >= maxNvlinkPorts {
 		return nil, fmt.Errorf("%w: port %d is out of range", errUnsupportedDevice, port)
 	}
+
+	portGpmMetrics := make(map[nvml.GpmMetricId]gpmMetric, 2)
 
 	// GPM metric IDs are offset by 2 for each port, we have NVML_GPM_METRIC_NVLINK_L0_RX_PER_SEC = 62, then NVML_GPM_METRIC_NVLINK_L1_RX_PER_SEC = 64, etc.
 	// so we can calculate the metric ID for the RX and TX metrics for the given port by adding 2*port to the base metric ID.
@@ -90,7 +90,7 @@ func (c *nvlinkGpmCollector) getOrCreateGpmCollector(port int) (*gpmCollector, e
 		metricType: metrics.GaugeType,
 	}
 
-	collector, err := newGPMCollectorWithMetrics(c.device, allGpmMetrics, c.deps)
+	collector, err := newGPMCollectorWithMetrics(c.device, portGpmMetrics, c.deps)
 	if err != nil {
 		return nil, err
 	}
