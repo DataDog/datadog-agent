@@ -172,6 +172,12 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// return as handled (constant patched at probe load). Defaults to false.
 	cfg.BindEnvAndSetDefault("runtime_security_config.syscalls.capture_all_errors.enabled", false)
 
+	// CWS - APM correlation
+	// When enabled, the eBPF probe also consults the legacy Datadog proprietary
+	// TLS span context (populated via eRPC) when building a span context. Disabled
+	// by default; OTel and Go pprof-label paths are always enabled.
+	cfg.BindEnvAndSetDefault("runtime_security_config.apm_correlation.legacy_enabled", false)
+
 	// CWS -eBPF Less
 	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.socket", constants.DefaultEBPFLessProbeAddr)

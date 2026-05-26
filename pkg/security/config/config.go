@@ -407,6 +407,11 @@ type RuntimeSecurityConfig struct {
 	// IS_UNHANDLED_ERROR treats every negative syscall return as handled.
 	CaptureAllSyscallErrorsEnabled bool
 
+	// LegacyAPMCorrelationEnabled, when true, sets the eBPF load-time constant
+	// so fill_span_context also consults the legacy Datadog proprietary TLS map
+	// (span_tls) populated via eRPC RegisterSpanTLSOP.
+	LegacyAPMCorrelationEnabled bool
+
 	// EBPFLessEnabled enables the ebpfless probe
 	EBPFLessEnabled bool
 	// EBPFLessSocket defines the socket used for the communication between system-probe and the ebpfless source
@@ -681,6 +686,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// Capture all syscall errors
 		CaptureAllSyscallErrorsEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.syscalls.capture_all_errors.enabled"),
+
+		// APM correlation
+		LegacyAPMCorrelationEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.apm_correlation.legacy_enabled"),
 
 		// ebpf less
 		EBPFLessEnabled: IsEBPFLessModeEnabled(),

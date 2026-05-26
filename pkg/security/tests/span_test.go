@@ -39,7 +39,13 @@ func TestSpan(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs)
+	// TestSpan exercises the legacy Datadog proprietary TLS path (eRPC
+	// RegisterSpanTLSOP populates span_tls; the eBPF probe reads back the
+	// trace_id/span_id via that map). That path is gated off by default; opt in
+	// here so the runtime constant patches the eBPF program to consult it.
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
+		legacyAPMCorrelationEnabled: true,
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -75,6 +75,7 @@ type testOpts struct {
 	traceSystemdCgroups                        bool
 	capabilitiesMonitoringEnabled              bool
 	captureAllSyscallErrorsEnabled             bool
+	legacyAPMCorrelationEnabled                bool
 }
 
 type dynamicTestOpts struct {

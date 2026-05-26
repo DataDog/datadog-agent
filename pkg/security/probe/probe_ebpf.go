@@ -2919,6 +2919,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.CaptureAllSyscallErrorsEnabled),
 		},
 		manager.ConstantEditor{
+			Name:  "legacy_apm_correlation_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.LegacyAPMCorrelationEnabled),
+		},
+		manager.ConstantEditor{
 			Name:  "imds_ip",
 			Value: uint64(p.config.RuntimeSecurity.IMDSIPv4),
 		},
