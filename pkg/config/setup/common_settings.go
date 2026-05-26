@@ -1289,6 +1289,9 @@ func agent(config pkgconfigmodel.Setup) {
 	// Core agent (disabled for Error Tracking Standalone, Logs Collection Only)
 	config.BindEnvAndSetDefault("core_agent.enabled", true)
 
+	// Config files discovery
+	config.BindEnvAndSetDefault("config_files_discovery.enabled", false)
+
 	// Software Inventory
 	config.BindEnvAndSetDefault("software_inventory.enabled", false)
 	config.BindEnvAndSetDefault("software_inventory.jitter", 60)

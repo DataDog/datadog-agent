@@ -1,0 +1,41 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "configfilesdiscovery.go",
+        "scheduler.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/scheduler",
+        "//comp/core/configfilesdiscovery/def",
+        "//comp/core/workloadmeta/def",
+        "//comp/def",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["configfilesdiscovery_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/scheduler",
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/mock",
+        "//comp/def",
+        "@//comp/core/workloadmeta/impl",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
