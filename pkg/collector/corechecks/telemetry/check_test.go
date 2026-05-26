@@ -71,11 +71,11 @@ func TestCollectAndMergeRegularRegistryMetrics(t *testing.T) {
 		gaugeMetricFamily(
 			"point__sent",
 			gaugeMetric(map[string]string{
-				domainLabel:      "https://api.datadoghq.com",
+				domainLabel:  "https://api.datadoghq.com",
 				emitterLabel: "agent-data-plane",
 			}, 12),
 			gaugeMetric(map[string]string{
-				domainLabel:      "https://api.datadoghq.eu",
+				domainLabel:  "https://api.datadoghq.eu",
 				emitterLabel: "other-remote-agent",
 			}, 5),
 			gaugeMetric(map[string]string{domainLabel: "https://api.datadoghq.com"}, 100),
@@ -83,7 +83,7 @@ func TestCollectAndMergeRegularRegistryMetrics(t *testing.T) {
 		gaugeMetricFamily(
 			"point__dropped",
 			gaugeMetric(map[string]string{
-				domainLabel:      "https://api.datadoghq.com",
+				domainLabel:  "https://api.datadoghq.com",
 				emitterLabel: "agent-data-plane",
 			}, 3),
 		),
@@ -123,7 +123,7 @@ func TestDiscoverMergeLabelsFallsBackToRegularRegistry(t *testing.T) {
 		gaugeMetricFamily(
 			pointSentMetric,
 			gaugeMetric(map[string]string{
-				domainLabel:      "https://api.datadoghq.com",
+				domainLabel:  "https://api.datadoghq.com",
 				emitterLabel: "agent-data-plane",
 			}, 12),
 		),
