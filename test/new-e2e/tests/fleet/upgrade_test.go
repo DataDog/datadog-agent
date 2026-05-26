@@ -333,21 +333,66 @@ func (s *upgradeSuite) TestIntegrationPreservationMultiHop() {
 	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should still be preserved after hop 2 promote")
 }
 
-// TODO(blind-spots #5): coverage of the multi-package-diff and version-upgrade
-// branches of omnibus/python-scripts/packages.py:create_diff_installed_packages_file
-// is still missing. Initial attempt installed datadog-temporal==2.0.0 as a second
-// third-party integration, but datadog-temporal turned out to be a *bundled* core
-// integration (ships with the agent), and `agent integration install` refuses any
-// version lower than what ships (4.5.1 at time of writing) — see the min-version
-// check at cmd/agent/subcommands/integrations/command.go:453. A working test
-// requires either:
-//   - a second integration that is genuinely extras-only (not in
-//     requirements-agent-release.txt), discovered from the integrations-extras
-//     registry rather than guessed; or
-//   - a bundled integration upgraded to a newer-than-shipped version whose wheel
-//     is also published on the extras feed, because post.py:install_datadog_package
-//     hardcodes `-t` (extras layout) on restore.
-// Tracked separately; not added in this change.
+// secondaryThirdPartyIntegration is a second third-party integration used alongside
+// datadog-ping in TestIntegrationPreservationMixedCustomization to exercise the
+// multi-package branch of omnibus/python-scripts/packages.py:create_diff_installed_packages_file.
+// Must be an extras-only integration (i.e., not in requirements-agent-release.txt) so
+// `agent integration install` does not refuse it via the min-version guard at
+// cmd/agent/subcommands/integrations/command.go:453.
+//
+// TODO(blind-spots #5): the version-upgrade branch of create_diff_installed_packages_file
+// (customer upgrades a *bundled* integration to a newer version) is still not covered.
+// Requires picking a core integration whose newer wheel is also published on the extras
+// feed, because post.py:install_datadog_package hardcodes `-t` (extras layout) on
+// restore. Tracked separately.
+const secondaryThirdPartyIntegration = "datadog-puma==2.0.0"
+
+// TestIntegrationPreservationMixedCustomization verifies that two third-party
+// integrations installed on the released stable both survive an experiment-and-promote
+// to the pipeline testing version. This exercises the multi-package-diff branch of
+// create_diff_installed_packages_file: a single .diff_python_installed_packages.txt
+// containing multiple entries, all of which must be reinstalled by post.py.
+func (s *upgradeSuite) TestIntegrationPreservationMixedCustomization() {
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
+	defer s.Agent.MustUninstall()
+	s.snapshotIntegrationState("MixedCustomization: after MustInstall (released OCI stable)")
+
+	err := s.Agent.InstallIntegration(thirdPartyIntegration)
+	s.Require().NoError(err)
+	err = s.Agent.InstallIntegration(secondaryThirdPartyIntegration)
+	s.Require().NoError(err)
+	s.snapshotIntegrationState("MixedCustomization: after both integration installs")
+
+	installedIntegrations, err := s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Require().Equal("1.0.2", installedIntegrations["ping"], "ping should be installed before experiment")
+	s.Require().Equal("2.0.0", installedIntegrations["puma"], "puma should be installed before experiment")
+
+	testingVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
+	err = s.Backend.StartExperiment("datadog-agent", testingVersion)
+	s.Require().NoError(err)
+	s.snapshotIntegrationState("MixedCustomization: after StartExperiment to pipeline testing")
+
+	installedIntegrations, err = s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "ping should be preserved in experiment")
+	s.Assert().Equal("2.0.0", installedIntegrations["puma"], "puma should be preserved in experiment")
+
+	err = s.Backend.PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+	s.snapshotIntegrationState("MixedCustomization: after PromoteExperiment")
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		packageVersion, err := s.Agent.PackageVersion()
+		require.NoError(c, err)
+		require.Equal(c, testingVersion, packageVersion)
+	}, 300*time.Second, 30*time.Second)
+
+	installedIntegrations, err = s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "ping should be preserved after promotion")
+	s.Assert().Equal("2.0.0", installedIntegrations["puma"], "puma should be preserved after promotion")
+}
 
 func (s *upgradeSuite) TestUpgradeFailureTimeout() {
 	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
