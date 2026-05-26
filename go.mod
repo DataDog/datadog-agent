@@ -955,7 +955,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostport v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5
-	github.com/DataDog/rshell v0.0.19
+	github.com/DataDog/rshell v0.0.20
 	github.com/aptly-dev/aptly v1.6.3-0.20260504093056-0d31298f3709
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.6
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.68.5
