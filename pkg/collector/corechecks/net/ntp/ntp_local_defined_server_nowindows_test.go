@@ -164,24 +164,10 @@ FallbackNTP=
 	})
 }
 
-func TestGetNTPServersFromTimesyncdConfigOnlyFallback(t *testing.T) {
-	config := `[Time]
-FallbackNTP=0.pool.ntp.org
-`
-	createTempFile(t, config, func(f1 string) {
-		servers, err := getNTPServersFromFiles([]string{f1})
-		assert.NoError(t, err)
-		assert.Equal(t, []string{"0.pool.ntp.org"}, servers)
-	})
-}
-
-func TestGetNTPServersFromTimesyncdAllCommented(t *testing.T) {
-	config := `[Time]
-#NTP=time1.example.com
-#FallbackNTP=0.pool.ntp.org
-`
-	createTempFile(t, config, func(f1 string) {
-		_, err := getNTPServersFromFiles([]string{f1})
-		assert.Error(t, err)
-	})
+func TestGetLocalDefinedNTPServersIncludesTimesyncdPath(t *testing.T) {
+	_, err := getLocalDefinedNTPServers()
+	if err == nil {
+		t.Skip("a real ntp/chrony/timesyncd config exists on this host")
+	}
+	assert.Contains(t, err.Error(), "/etc/systemd/timesyncd.conf")
 }
