@@ -20,14 +20,16 @@ int __attribute__((always_inline)) get_resolver_flags(struct syscall_cache_t *sy
 }
 
 void __attribute__((always_inline)) apply_dentry_resolution_outcome(struct syscall_cache_t *syscall, u64 event_type) {
-    // approver wins over the inode-level discarder so a parent-basename approval
-    // is not suppressed by a discarder set on one of the parent inodes.
-    if (syscall->resolver.flags & RESOLVER_FLAG_BASENAME_APPROVED) {
-        syscall->state = APPROVED;
-        monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
-    } else if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        syscall->state = DISCARDED;
-        monitor_discarded(event_type);
+    if (syscall->state != ACCEPTED) {
+        // Discarders take priority over basename approvers: a parent basename may match an approver,
+        // but a discarder set on any ancestor inode must still discard the whole path.
+        if (syscall->resolver.ret == DENTRY_DISCARDED) {
+            syscall->state = DISCARDED;
+            monitor_discarded(event_type);
+        } else if (syscall->resolver.flags & RESOLVER_FLAG_BASENAME_APPROVED) {
+            syscall->state = APPROVED;
+            monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
+        }
     }
 }
 
