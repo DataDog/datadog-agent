@@ -1,7 +1,7 @@
 {
     // Trigger build: 2026-05-25 23:32
     "name": "Datadog Agent Development Container",
-    "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace_test_only:v115053508-3940230e",
+    "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace_test_only:v114982950-87b35a20",
     "features": {
         "./features/datadog-agent": {},
         "ghcr.io/devcontainers/features/docker-in-docker:2.12.1": {
