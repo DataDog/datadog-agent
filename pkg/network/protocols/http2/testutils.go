@@ -17,7 +17,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
+	"golang.org/x/net/http2/h2c" //nolint:staticcheck
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
@@ -26,7 +26,7 @@ import (
 func StartH2CServer(t *testing.T, address string, isTLS bool) func() {
 	srv := &http.Server{
 		Addr: address,
-		//nolint:staticcheck // SA1019: test-only; release branch keeps h2c (no partial #50747)
+		//nolint:staticcheck
 		Handler: h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			statusCode := testutil.StatusFromPath(r.URL.Path)
 			if statusCode == 0 {
