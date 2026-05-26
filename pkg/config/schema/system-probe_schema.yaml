@@ -1849,6 +1849,13 @@ properties:
                 - connect
                 items:
                   type: string
+              excluded_images:
+                node_type: setting
+                type: array
+                default:
+                - datadog-agent:*
+                items:
+                  type: string
           watch_dir:
             node_type: setting
             type: boolean
