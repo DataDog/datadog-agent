@@ -1274,6 +1274,9 @@ func agent(config pkgconfigmodel.Setup) {
 	// Keep in sync with pkg/metricpipelines/allowlist.DefaultCloudCostMetrics.
 	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics", defaultCloudCostMetrics)
 	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics_match_prefix", true)
+	// integration.cloud_cost_only.metric_filtering.enabled: opt-in to metric name filtering in cloud_cost_only mode.
+	// When false (default), only tagging is applied; no integration metrics are dropped.
+	config.BindEnvAndSetDefault("integration.cloud_cost_only.metric_filtering.enabled", false)
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")

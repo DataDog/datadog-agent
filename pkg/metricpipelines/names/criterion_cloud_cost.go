@@ -21,7 +21,8 @@ func (cloudCostMetricsCriterion) id() CriterionID {
 }
 
 func (cloudCostMetricsCriterion) active(cfg pkgconfigmodel.Reader) bool {
-	return cfg.GetString("infrastructure_mode") == cloudCostOnlyMode
+	return cfg.GetString("infrastructure_mode") == cloudCostOnlyMode &&
+		cfg.GetBool("integration.cloud_cost_only.metric_filtering.enabled")
 }
 
 func (cloudCostMetricsCriterion) matchers(cfg pkgconfigmodel.Reader, _ filterlist.Component) (utilstrings.Matcher, utilstrings.Matcher) {
