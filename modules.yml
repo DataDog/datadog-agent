@@ -395,3 +395,11 @@ modules:
     independent: false
     should_tag: false
     should_test_condition: never
+  tools/snmpsim/crashing:
+    independent: false
+    should_tag: false
+    should_test_condition: never
+  tools/snmpsim/misbehaving:
+    independent: false
+    should_tag: false
+    should_test_condition: never
