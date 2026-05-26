@@ -113,8 +113,15 @@ func (a *Agent) InstallIntegrationAs(user, name string) error {
 	if a.host.RemoteHost.OSFamily != e2eos.LinuxFamily {
 		return fmt.Errorf("InstallIntegrationAs is only supported on Linux")
 	}
+	// --allow-root is required when running as root: the CLI rejects root execution by
+	// default to prevent root-owned integration files. Tests use it deliberately to cover
+	// the adversarial case where an operator force-installs as root.
+	allowRoot := ""
+	if user == "root" {
+		allowRoot = "--allow-root "
+	}
 	_, err := a.host.RemoteHost.Execute(
-		fmt.Sprintf("sudo -u %s datadog-agent integration install -t %s", user, name),
+		fmt.Sprintf("sudo -u %s datadog-agent integration install %s-t %s", user, allowRoot, name),
 	)
 	return err
 }
