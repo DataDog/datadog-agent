@@ -32,7 +32,7 @@ exports_files(glob(
 # gazelle:exclude cmd/otel-agent/subcommands/controlsvc
 # gazelle:exclude cmd/otel-agent/subcommands/flare
 # gazelle:exclude cmd/otel-agent/subcommands/run
-# gazelle:exclude cmd/privateactionrunner/subcommands/run
+# gazelle:exclude cmd/privateactionrunner/subcommands
 # gazelle:exclude cmd/process-agent/api
 # gazelle:exclude cmd/process-agent/command
 # gazelle:exclude cmd/process-agent/subcommands
