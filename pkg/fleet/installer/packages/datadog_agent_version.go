@@ -12,6 +12,8 @@ import (
 )
 
 // getCurrentAgentVersion returns the current agent version in URL-safe format with -1 suffix.
+//
+//nolint:unused // Used in platform-specific files
 func getCurrentAgentVersion() string {
 	v := version.AgentVersionURLSafe
 	if strings.HasSuffix(v, "-1") {
