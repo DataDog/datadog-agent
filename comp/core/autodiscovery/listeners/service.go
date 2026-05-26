@@ -148,6 +148,7 @@ func (s *WorkloadService) FilterTemplates(configs map[string]integration.Config)
 	// comp/core/autodiscovery/configresolver/configresolver.go
 	s.filterTemplatesEmptyOverrides(configs)
 	s.filterTemplatesOverriddenChecks(configs)
+	s.filterTemplatesInstrumentationOverFile(configs)
 	filterTemplatesMatched(s, configs)
 
 	// Drop discovery templates when another config source already covers
@@ -197,8 +198,8 @@ func (s *WorkloadService) filterTemplatesEmptyOverrides(configs map[string]integ
 // labels/annotations specify a check of the same name.
 func (s *WorkloadService) filterTemplatesOverriddenChecks(configs map[string]integration.Config) {
 	for digest, config := range configs {
-		if config.Provider != names.File {
-			continue // only override file configs
+		if config.Provider != names.File && config.Provider != names.InstrumentationChecks {
+			continue // only override file & instrumentation configs
 		}
 		for _, checkName := range s.checkNames {
 			if config.Name == checkName {
@@ -209,6 +210,28 @@ func (s *WorkloadService) filterTemplatesOverriddenChecks(configs map[string]int
 					config.Source, s.GetServiceID(), config.Name)
 				delete(configs, digest)
 			}
+		}
+	}
+}
+
+// filterTemplatesInstrumentationOverFile drops file-based templates when an
+// instrumentation check of the same name exists, giving instrumentation checks
+// priority over file-based ones.
+func (s *WorkloadService) filterTemplatesInstrumentationOverFile(configs map[string]integration.Config) {
+	instrumentationCheckNames := make(map[string]bool)
+	for _, config := range configs {
+		if config.Provider == names.InstrumentationChecks {
+			instrumentationCheckNames[config.Name] = true
+		}
+	}
+	for digest, config := range configs {
+		if config.Provider != names.File {
+			continue
+		}
+		if instrumentationCheckNames[config.Name] {
+			log.Debugf("Ignoring config from %s: instrumentation check overrides file check %s",
+				config.Source, config.Name)
+			delete(configs, digest)
 		}
 	}
 }

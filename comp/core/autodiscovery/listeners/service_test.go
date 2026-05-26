@@ -82,6 +82,7 @@ func TestServiceFilterTemplatesOverriddenChecks(t *testing.T) {
 	entity := &workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: "container", ID: "testy"}}
 	fooTpl := integration.Config{Name: "foo", Provider: names.File, LogsConfig: []byte(`{"source":"foo"}`)}
 	barTpl := integration.Config{Name: "bar", Provider: names.File, LogsConfig: []byte(`{"source":"bar"}`)}
+	fooInstrTpl := integration.Config{Name: "foo", Provider: names.InstrumentationChecks, LogsConfig: []byte(`{"source":"foo-instr"}`)}
 	fooNonFileTpl := integration.Config{Name: "foo", Provider: "xxx", LogsConfig: []byte(`{"source":"foo-nf"}`)}
 	barNonFileTpl := integration.Config{Name: "bar", Provider: "xxx", LogsConfig: []byte(`{"source":"bar-nf"}`)}
 	nothingDropped := []integration.Config{}
@@ -104,6 +105,54 @@ func TestServiceFilterTemplatesOverriddenChecks(t *testing.T) {
 	t.Run("some checkNames, partial match", func(t *testing.T) {
 		assert.Equal(t, []integration.Config{barTpl},
 			filterDrops(&WorkloadService{entity: entity, checkNames: []string{"bing", "bar"}}, fooTpl, barTpl, fooNonFileTpl, barNonFileTpl))
+	})
+
+	t.Run("annotation overrides instrumentation check", func(t *testing.T) {
+		assert.Equal(t, []integration.Config{fooInstrTpl},
+			filterDrops(&WorkloadService{entity: entity, checkNames: []string{"foo"}}, fooInstrTpl, barTpl))
+	})
+
+	t.Run("annotation overrides both file and instrumentation check", func(t *testing.T) {
+		assert.Equal(t, []integration.Config{fooTpl, fooInstrTpl},
+			filterDrops(&WorkloadService{entity: entity, checkNames: []string{"foo"}}, fooTpl, fooInstrTpl, barTpl))
+	})
+}
+
+func TestServiceFilterTemplatesInstrumentationOverFile(t *testing.T) {
+	filterDrops := func(svc *WorkloadService, configs ...integration.Config) (dropped []integration.Config) {
+		return filterConfigsDropped(svc.filterTemplatesInstrumentationOverFile, configs...)
+	}
+
+	entity := &workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: "container", ID: "testy"}}
+	fooFileTpl := integration.Config{Name: "foo", Provider: names.File, LogsConfig: []byte(`{"source":"foo-file"}`)}
+	fooInstrTpl := integration.Config{Name: "foo", Provider: names.InstrumentationChecks, LogsConfig: []byte(`{"source":"foo-instr"}`)}
+	barFileTpl := integration.Config{Name: "bar", Provider: names.File, LogsConfig: []byte(`{"source":"bar-file"}`)}
+	nothingDropped := []integration.Config{}
+
+	t.Run("file dropped when instrumentation check has same name", func(t *testing.T) {
+		assert.Equal(t, []integration.Config{fooFileTpl},
+			filterDrops(&WorkloadService{entity: entity}, fooFileTpl, fooInstrTpl))
+	})
+
+	t.Run("instrumentation check is kept", func(t *testing.T) {
+		assert.NotContains(t,
+			filterDrops(&WorkloadService{entity: entity}, fooFileTpl, fooInstrTpl),
+			fooInstrTpl)
+	})
+
+	t.Run("file kept when no instrumentation check exists", func(t *testing.T) {
+		assert.Equal(t, nothingDropped,
+			filterDrops(&WorkloadService{entity: entity}, fooFileTpl, barFileTpl))
+	})
+
+	t.Run("file kept when instrumentation check has different name", func(t *testing.T) {
+		assert.Equal(t, nothingDropped,
+			filterDrops(&WorkloadService{entity: entity}, barFileTpl, fooInstrTpl))
+	})
+
+	t.Run("multiple files, only matching one dropped", func(t *testing.T) {
+		assert.Equal(t, []integration.Config{fooFileTpl},
+			filterDrops(&WorkloadService{entity: entity}, fooFileTpl, barFileTpl, fooInstrTpl))
 	})
 }
 
