@@ -134,6 +134,45 @@ func (s *upgradeSuite) TestIntegrationPreservationOCIToOCI() {
 	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved after OCI promotion")
 }
 
+// TestIntegrationPreservationStableToOCIExperiment verifies that a third-party integration
+// installed against a released OCI stable survives an experiment to the pipeline's testing
+// version and the subsequent promotion. This exercises the released stable's preStartExperiment
+// (old save) handing off to the pipeline build's postStartExperiment (new restore), which is the
+// production upgrade path customers follow. The existing TestIntegrationPreservationOCIToOCI
+// inverts that direction by promoting the pipeline build to stable first.
+func (s *upgradeSuite) TestIntegrationPreservationStableToOCIExperiment() {
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
+	defer s.Agent.MustUninstall()
+
+	err := s.Agent.InstallIntegration(thirdPartyIntegration)
+	s.Require().NoError(err)
+
+	installedIntegrations, err := s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Require().Equal("1.0.2", installedIntegrations["ping"], "integration should be installed on released stable before experiment")
+
+	testingVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
+	err = s.Backend.StartExperiment("datadog-agent", testingVersion)
+	s.Require().NoError(err)
+
+	installedIntegrations, err = s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved in experiment to pipeline version")
+
+	err = s.Backend.PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		packageVersion, err := s.Agent.PackageVersion()
+		require.NoError(c, err)
+		require.Equal(c, testingVersion, packageVersion)
+	}, 300*time.Second, 30*time.Second)
+
+	installedIntegrations, err = s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved after promotion to pipeline version")
+}
+
 func (s *upgradeSuite) TestUpgradeFailureTimeout() {
 	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
