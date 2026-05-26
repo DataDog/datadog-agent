@@ -401,7 +401,7 @@ func run(log log.Component,
 		"Establish if the agent is running",
 	)
 
-	// agentStarted and agentRunning are metrics used for Cross-org Agent Telemetry (COAT)
+	// agentStarted and agentRunning are metrics used for internal agent telemetry
 	// for more details on the scheduling config check comp/core/agenttelemetry/impl/config.go
 	agentStarted.Inc()
 	agentRunning.Set(1)

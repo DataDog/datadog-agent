@@ -24,7 +24,7 @@ type Component interface {
 
 	// SubmitErrorLog accepts a single error log record from the
 	// pkg/util/log slog handler and enqueues it for asynchronous flush
-	// to the Cross-Org Agent Telemetry (COAT) intake. Implementations
+	// to the internal agent telemetry intake. Implementations
 	// MUST be non-blocking on the hot path: enqueue to a bounded buffer
 	// and drop silently on overflow.
 	//
