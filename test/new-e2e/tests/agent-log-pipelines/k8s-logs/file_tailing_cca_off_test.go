@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	k8sutils "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/k8s"
-	kindfilelogger "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/kindfilelogging"
 )
 
 type k8sCCAOffSuite struct {
