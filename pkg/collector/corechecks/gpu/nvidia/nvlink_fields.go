@@ -32,7 +32,7 @@ type nvlinkFieldValueMetric struct {
 	rateCalculationMode              RateCalculationMode
 	priority                         MetricPriority
 	addTotalMetric                   bool
-	forceScopeIdValue                *uint32
+	forceScopeIDValue                *uint32
 }
 
 func intToPointer(i uint32) *uint32 {
@@ -55,7 +55,7 @@ var nvlinkFieldsMetrics = []nvlinkFieldValueMetric{
 	// -- NVLink speed --
 	// MediumLow: newer field (164), uses per-link speeds. Older field return the same per-link speed for all links, lower priority (default).
 	{name: "nvlink.speed", fieldValueID: nvml.FI_DEV_NVLINK_GET_SPEED, priority: MediumLow, metricType: metrics.GaugeType},
-	{name: "nvlink.speed", fieldValueID: nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON, metricType: metrics.GaugeType, forceScopeIdValue: intToPointer(0)},
+	{name: "nvlink.speed", fieldValueID: nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON, metricType: metrics.GaugeType, forceScopeIDValue: intToPointer(0)},
 
 	// -- NVLink connection info --
 	{name: "nvlink.nvswitch_connected", fieldValueID: nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT, metricType: metrics.GaugeType},
@@ -165,8 +165,8 @@ func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]*Metric, error) {
 	for i, metric := range c.metrics {
 		fields[i].FieldId = metric.fieldValueID
 
-		if metric.forceScopeIdValue != nil {
-			fields[i].ScopeId = *metric.forceScopeIdValue
+		if metric.forceScopeIDValue != nil {
+			fields[i].ScopeId = *metric.forceScopeIDValue
 		} else {
 			fields[i].ScopeId = uint32(port - 1)
 		}
