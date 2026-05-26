@@ -8,8 +8,10 @@
 package dockerpermissions
 
 import (
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 func init() {
@@ -41,20 +43,22 @@ func (m *dockerPermissionsModule) IssueName() string {
 	return IssueName
 }
 
-func (m *dockerPermissionsModule) IssueTemplate() issues.IssueTemplate {
-	return m.template
+func (m *dockerPermissionsModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+	return m.template.BuildIssue(context)
 }
 
 // BuiltInPeriodicHealthCheck returns the periodic health check configuration.
 // Interval is 0 to use the default (15 minutes).
-func (m *dockerPermissionsModule) BuiltInPeriodicHealthCheck() *issues.BuiltInPeriodicHealthCheck {
-	return &issues.BuiltInPeriodicHealthCheck{
-		Source: "docker",
-		Fn:     Check,
+func (m *dockerPermissionsModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
+	return &runnerdef.BuiltInPeriodicHealthCheck{
+		BuiltInHealthCheck: runnerdef.BuiltInHealthCheck{
+			Source: "docker",
+			Fn:     Check,
+		},
 	}
 }
 
 // BuiltInStartupHealthCheck returns nil — docker permission checks run periodically.
-func (m *dockerPermissionsModule) BuiltInStartupHealthCheck() *issues.BuiltInStartupHealthCheck {
+func (m *dockerPermissionsModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
 	return nil
 }
