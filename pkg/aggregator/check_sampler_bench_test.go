@@ -24,7 +24,8 @@ import (
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 
 	//nolint:revive // TODO(AML) Fix revive linter
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	forwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -55,13 +56,13 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	deps := fxutil.Test[benchmarkDeps](b, core.MockBundle(), hostnameimpl.MockModule())
 	taggerComponent := taggerfxmock.SetupFakeTagger(b)
 	resolver, _ := resolver.NewSingleDomainResolvers(map[string][]utils.APIKeys{"hello": {utils.NewAPIKeys("", "world")}})
-	forwarderOpts := forwarder.NewOptionsWithResolvers(mockConfig, deps.Log, resolver)
+	forwarderOpts := forwarderimpl.NewOptionsWithResolvers(mockConfig, deps.Log, resolver)
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
 	secrets := secretsmock.New(b)
 	forwarderOpts.Secrets = secrets
-	sharedForwarder := forwarder.NewDefaultForwarder(mockConfig, deps.Log, forwarderOpts)
-	orchestratorForwarder := option.New[forwarder.Forwarder](forwarder.NoopForwarder{})
+	sharedForwarder := forwarderimpl.NewDefaultForwarder(mockConfig, deps.Log, forwarderOpts)
+	orchestratorForwarder := option.New[forwarder.Forwarder](forwarderimpl.NoopForwarder{})
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, logscompressionmock.NewMockCompressor()))
 	haAgent := haagentmock.NewMockHaAgent()
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)

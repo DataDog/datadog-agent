@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/fx",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/forwarder/defaultforwarder/def",
         "//comp/forwarder/defaultforwarder/impl",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",

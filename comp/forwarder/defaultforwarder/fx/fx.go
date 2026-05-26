@@ -9,14 +9,15 @@ package fx
 import (
 	"go.uber.org/fx"
 
+	defaultforwarderdef "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Module defines the fx options for this component.
-func Module(params defaultforwarderimpl.Params) fxutil.Module {
+func Module(params defaultforwarderdef.Params) fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(defaultforwarderimpl.NewForwarderFromDeps),
+		fxutil.ProvideComponentConstructor(defaultforwarderimpl.NewForwarderFromDeps),
 		fx.Supply(params),
 	)
 }
@@ -25,14 +26,7 @@ func Module(params defaultforwarderimpl.Params) fxutil.Module {
 // Deprecated: will be removed once configsync cleanup is done.
 func ModuleWithOptionTMP(option fx.Option) fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(defaultforwarderimpl.NewForwarderFromDeps),
+		fxutil.ProvideComponentConstructor(defaultforwarderimpl.NewForwarderFromDeps),
 		option,
-	)
-}
-
-// NoopModule provides a no-op forwarder component.
-func NoopModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(defaultforwarderimpl.NewNoopForwarder),
 	)
 }

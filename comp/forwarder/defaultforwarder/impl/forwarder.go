@@ -29,7 +29,7 @@ type dependencies struct {
 	Config  config.Component
 	Log     log.Component
 	Lc      compdef.Lifecycle
-	Params  Params
+	Params  defaultforwarderdef.Params
 	Secrets secrets.Component
 }
 
@@ -49,7 +49,7 @@ func newForwarder(dep dependencies) (provides, error) {
 	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options), nil
 }
 
-func createOptions(params Params, config config.Component, log log.Component, secrets secrets.Component) (*Options, error) {
+func createOptions(params defaultforwarderdef.Params, config config.Component, log log.Component, secrets secrets.Component) (*Options, error) {
 	var options *Options
 	endpoints, err := utils.GetMultipleEndpoints(config)
 	if err != nil {
@@ -57,7 +57,7 @@ func createOptions(params Params, config config.Component, log log.Component, se
 		return nil, fmt.Errorf("Misconfiguration of agent endpoints: %s", err)
 	}
 
-	if !params.withResolver {
+	if !params.Resolver() {
 		options, err = NewOptionsWithOPW(config, log, endpoints)
 		if err != nil {
 			log.Error("Error creating forwarder options: ", err)
@@ -72,12 +72,13 @@ func createOptions(params Params, config config.Component, log log.Component, se
 		options = NewOptionsWithResolvers(config, log, r)
 	}
 	// Override the DisableAPIKeyChecking only if WithFeatures was called
-	if disableAPIKeyChecking, ok := params.disableAPIKeyCheckingOverride.Get(); ok {
+	disableOverride := params.APIKeyCheckingDisabledOverride()
+	if disableAPIKeyChecking, ok := disableOverride.Get(); ok {
 		options.DisableAPIKeyChecking = disableAPIKeyChecking
 	}
 	// set the secrets component from the dependencies
 	options.Secrets = secrets
-	options.SetEnabledFeatures(params.features)
+	options.SetEnabledFeatures(params.EnabledFeatures())
 
 	log.Infof("starting forwarder with %d endpoints", len(options.DomainResolvers))
 	for _, resolver := range options.DomainResolvers {

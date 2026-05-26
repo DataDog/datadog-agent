@@ -9,7 +9,8 @@
 package orchestratormock
 
 import (
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarderdef "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	orchestrator "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -23,6 +24,6 @@ func MockModule() fxutil.Module {
 
 // NewMockOrchestratorForwarder returns a mock orchestratorForwarder.
 func NewMockOrchestratorForwarder() orchestrator.Component {
-	forwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	forwarder := option.New[defaultforwarderdef.Forwarder](defaultforwarderimpl.NoopForwarder{})
 	return &forwarder
 }

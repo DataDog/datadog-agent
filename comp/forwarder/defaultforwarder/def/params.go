@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package defaultforwarderimpl
+package defaultforwarder
 
 import "github.com/DataDog/datadog-agent/pkg/util/option"
 
@@ -53,3 +53,14 @@ func WithFeatures(features ...Features) optionParams {
 		p.features = features
 	}
 }
+
+// Resolver returns whether the forwarder should use resolvers
+func (p Params) Resolver() bool { return p.withResolver }
+
+// APIKeyCheckingDisabledOverride returns the override for DisableAPIKeyChecking
+func (p Params) APIKeyCheckingDisabledOverride() option.Option[bool] {
+	return p.disableAPIKeyCheckingOverride
+}
+
+// EnabledFeatures returns the features to enable on the forwarder
+func (p Params) EnabledFeatures() []Features { return p.features }
