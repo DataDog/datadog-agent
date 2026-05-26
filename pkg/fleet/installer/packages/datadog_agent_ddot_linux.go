@@ -385,6 +385,27 @@ func writeDDOTProcmgrConfig(ctx HookContext, agentInstallRoot string) error {
 	return systemd.RestartUnit(ctx, procmgrUnit)
 }
 
+func removeDDOTProcmgrConfig(ctx HookContext) error {
+	procmgrRoot := procmgrAgentInstallRoot(ctx)
+	if procmgrRoot == "" {
+		return nil
+	}
+
+	yamlPath := filepath.Join(procmgrRoot, "processes.d", ddotProcmgrYAMLName)
+	if err := os.Remove(yamlPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	procmgrUnit := procmgrUnitStable
+	if ctx.IsExperiment {
+		procmgrUnit = procmgrUnitExperiment
+	}
+	if err := systemd.RestartUnit(ctx, procmgrUnit); err != nil {
+		log.Warnf("failed to restart %s after DDOT removal: %v", procmgrUnit, err)
+	}
+	return nil
+}
+
 // preRemoveDDOTExtension stops and disables the DDOT service before extension removal
 func preRemoveDDOTExtension(ctx HookContext) error {
 	span, _ := ctx.StartSpan("pre_remove_extension_ddot")
@@ -394,6 +415,10 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	// During an upgrade, this will be re-enabled by the post-install hook. This gives us flexibility to change the config during upgrade.
 	if err := disableOtelCollectorConfigCommon(datadogYamlPath); err != nil {
 		log.Warnf("failed to disable otelcollector config: %s", err)
+	}
+
+	if err := removeDDOTProcmgrConfig(ctx); err != nil {
+		log.Warnf("failed to remove ddot procmgr process definition: %v", err)
 	}
 
 	return nil
