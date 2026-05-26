@@ -130,6 +130,8 @@ func TestOTelSpan(t *testing.T) {
 		t.Skip("OTel TLSDESC span test only supported on amd64 and arm64")
 	}
 
+	executable := which(t, "touch")
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_otel_span_rule_open",
@@ -142,6 +144,12 @@ func TestOTelSpan(t *testing.T) {
 		{
 			ID:         "test_otel_span_rule_open_null_ptr",
 			Expression: `open.file.path == "{{.Root}}/test-otel-span-null-ptr"`,
+		},
+		{
+			// Shared exec rule for all OTel exec sub-tests. Each sub-test runs
+			// sequentially and waits for its own match.
+			ID:         "test_otel_span_rule_exec",
+			Expression: fmt.Sprintf(`exec.file.path in [ "/usr/bin/touch", "%s" ] && exec.args_flags == "reference"`, executable),
 		},
 	}
 
@@ -157,6 +165,17 @@ func TestOTelSpan(t *testing.T) {
 	}
 
 	fakeTraceID128b := "136272290892501783905308705057321818530"
+
+	// otelExecArgs returns the touch invocation that the exec rule matches.
+	// The std and docker modes use a different touch binary path; the rule
+	// covers both via `exec.file.path in [ "/usr/bin/touch", "<which>" ]`.
+	otelExecArgs := func(kind wrapperType, testFile string) []string {
+		touchPath := "/usr/bin/touch"
+		if kind == stdWrapperType {
+			touchPath = executable
+		}
+		return []string{touchPath, "--reference", "/etc/passwd", testFile}
+	}
 
 	t.Run("valid_record", func(t *testing.T) {
 		test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -259,6 +278,88 @@ func TestOTelSpan(t *testing.T) {
 			}, "test_otel_span_rule_open_null_ptr")
 		})
 	})
+
+	t.Run("valid_record_exec", func(t *testing.T) {
+		// Exec path: the TLS record is set before execv. fill_exec_context →
+		// fill_span_context runs at prepare_binprm, before the new image
+		// takes over, so the TLS read still succeeds.
+		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path("test-otel-span-exec")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := append([]string{"otel-span-exec", fakeTraceID128b, "204"}, otelExecArgs(kind, testFile)...)
+
+			test.WaitSignalFromRule(t, func() error {
+				cmd := cmdFunc(syscallTester, args, []string{})
+				if out, err := cmd.CombinedOutput(); err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_otel_span_rule_exec")
+
+				test.validateSpanSchema(t, event)
+
+				assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
+				assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
+			}, "test_otel_span_rule_exec")
+		})
+	})
+
+	t.Run("invalid_record_exec", func(t *testing.T) {
+		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path("test-otel-span-exec-invalid")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := append([]string{"otel-span-exec-invalid", fakeTraceID128b, "204"}, otelExecArgs(kind, testFile)...)
+
+			test.WaitSignalFromRule(t, func() error {
+				cmd := cmdFunc(syscallTester, args, []string{})
+				if out, err := cmd.CombinedOutput(); err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_otel_span_rule_exec")
+
+				// valid=0 → no span context.
+				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
+				assert.Equal(t, "0", event.SpanContext.TraceID.String())
+			}, "test_otel_span_rule_exec")
+		})
+	})
+
+	t.Run("null_pointer_exec", func(t *testing.T) {
+		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path("test-otel-span-exec-null-ptr")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := append([]string{"otel-span-exec-null-ptr"}, otelExecArgs(kind, testFile)...)
+
+			test.WaitSignalFromRule(t, func() error {
+				cmd := cmdFunc(syscallTester, args, []string{})
+				if out, err := cmd.CombinedOutput(); err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_otel_span_rule_exec")
+
+				// NULL TLS pointer → no span context.
+				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
+				assert.Equal(t, "0", event.SpanContext.TraceID.String())
+			}, "test_otel_span_rule_exec")
+		})
+	})
 }
 
 // TestGoSpan tests Go pprof label-based span context collection.
@@ -267,10 +368,20 @@ func TestOTelSpan(t *testing.T) {
 func TestGoSpan(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	executable := which(t, "touch")
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_go_span_rule_open",
 			Expression: `open.file.path == "{{.Root}}/test-go-span"`,
+		},
+		{
+			ID:         "test_go_span_rule_open_no_labels",
+			Expression: `open.file.path == "{{.Root}}/test-go-span-no-labels"`,
+		},
+		{
+			ID:         "test_go_span_rule_exec",
+			Expression: fmt.Sprintf(`exec.file.path in [ "/usr/bin/touch", "%s" ] && exec.args_flags == "reference"`, executable),
 		},
 	}
 
@@ -283,6 +394,15 @@ func TestGoSpan(t *testing.T) {
 	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// touchPathFor picks the touch binary path the wrapper-mode expects so the
+	// exec rule's `in [ "/usr/bin/touch", "<which>" ]` clause matches.
+	touchPathFor := func(kind wrapperType) string {
+		if kind == stdWrapperType {
+			return executable
+		}
+		return "/usr/bin/touch"
 	}
 
 	t.Run("valid_span", func(t *testing.T) {
@@ -313,11 +433,111 @@ func TestGoSpan(t *testing.T) {
 			}, func(event *model.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, "test_go_span_rule_open")
 
+				test.validateSpanSchema(t, event)
+
 				assert.Equal(t, uint64(987654321), event.SpanContext.SpanID,
 					"span ID should match the pprof label value")
 				assert.Equal(t, uint64(123456789), event.SpanContext.TraceID.Lo,
 					"trace ID lo should match the local root span ID label value")
 			}, "test_go_span_rule_open")
+		})
+	})
+
+	t.Run("valid_span_exec", func(t *testing.T) {
+		// Set pprof labels then execv touch. fill_span_context_go runs at
+		// prepare_binprm — before the image switch — so the goroutine's
+		// labels are still readable.
+		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path("test-go-span-exec")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := []string{
+				"-go-span-exec-test",
+				"-go-span-span-id", "987654321",
+				"-go-span-local-root-span-id", "123456789",
+				"-go-span-file-path", testFile,
+				"-go-span-exec-target", touchPathFor(kind),
+			}
+
+			test.WaitSignalFromRule(t, func() error {
+				cmd := cmdFunc(goSyscallTester, args, []string{})
+				if out, err := cmd.CombinedOutput(); err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_go_span_rule_exec")
+
+				test.validateSpanSchema(t, event)
+
+				assert.Equal(t, uint64(987654321), event.SpanContext.SpanID,
+					"span ID should match the pprof label value")
+				assert.Equal(t, uint64(123456789), event.SpanContext.TraceID.Lo,
+					"trace ID lo should match the local root span ID label value")
+			}, "test_go_span_rule_exec")
+		})
+	})
+
+	t.Run("no_labels", func(t *testing.T) {
+		// Memfd is registered (so the agent resolves Go label offsets) but
+		// pprof labels are never set. The eBPF reader should yield an empty
+		// span context.
+		test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path("test-go-span-no-labels")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := []string{
+				"-go-span-no-labels-test",
+				"-go-span-file-path", testFile,
+			}
+
+			test.WaitSignalFromRule(t, func() error {
+				cmd := cmdFunc(goSyscallTester, args, []string{})
+				if out, err := cmd.CombinedOutput(); err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_go_span_rule_open_no_labels")
+
+				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
+				assert.Equal(t, "0", event.SpanContext.TraceID.String())
+			}, "test_go_span_rule_open_no_labels")
+		})
+	})
+
+	t.Run("no_labels_exec", func(t *testing.T) {
+		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path("test-go-span-no-labels-exec")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := []string{
+				"-go-span-no-labels-exec-test",
+				"-go-span-file-path", testFile,
+				"-go-span-exec-target", touchPathFor(kind),
+			}
+
+			test.WaitSignalFromRule(t, func() error {
+				cmd := cmdFunc(goSyscallTester, args, []string{})
+				if out, err := cmd.CombinedOutput(); err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_go_span_rule_exec")
+
+				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
+				assert.Equal(t, "0", event.SpanContext.TraceID.String())
+			}, "test_go_span_rule_exec")
 		})
 	})
 }
@@ -328,10 +548,20 @@ func TestGoSpan(t *testing.T) {
 func TestDDTraceGoSpan(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	executable := which(t, "touch")
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_ddtrace_span_rule_open",
 			Expression: `open.file.path == "{{.Root}}/test-ddtrace-span"`,
+		},
+		{
+			ID:         "test_ddtrace_span_rule_open_no_span",
+			Expression: `open.file.path == "{{.Root}}/test-ddtrace-span-no-span"`,
+		},
+		{
+			ID:         "test_ddtrace_span_rule_exec",
+			Expression: fmt.Sprintf(`exec.file.path in [ "/usr/bin/touch", "%s" ] && exec.args_flags == "reference"`, executable),
 		},
 	}
 
@@ -346,6 +576,30 @@ func TestDDTraceGoSpan(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	touchPathFor := func(kind wrapperType) string {
+		if kind == stdWrapperType {
+			return executable
+		}
+		return "/usr/bin/touch"
+	}
+
+	// parseDDTraceIDs scans the tester's stdout for the span/local-root-span
+	// IDs that dd-trace-go generated at runtime. Returns (0, 0) when not
+	// found (used by the no-span negative path).
+	parseDDTraceIDs := func(out []byte) (spanID, lrsID uint64) {
+		for _, line := range strings.Split(string(out), "\n") {
+			if strings.HasPrefix(line, "ddtrace_span_id=") {
+				val := strings.TrimPrefix(line, "ddtrace_span_id=")
+				spanID, _ = strconv.ParseUint(strings.TrimSpace(val), 10, 64)
+			}
+			if strings.HasPrefix(line, "ddtrace_local_root_span_id=") {
+				val := strings.TrimPrefix(line, "ddtrace_local_root_span_id=")
+				lrsID, _ = strconv.ParseUint(strings.TrimSpace(val), 10, 64)
+			}
+		}
+		return spanID, lrsID
+	}
+
 	t.Run("ddtrace_span", func(t *testing.T) {
 		test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 			testFile, _, err := test.Path("test-ddtrace-span")
@@ -358,45 +612,129 @@ func TestDDTraceGoSpan(t *testing.T) {
 				"-ddtrace-span-test",
 				"-ddtrace-span-file-path", testFile,
 			}
-			envs := []string{}
 
-			// Capture the tester's stdout to extract the span IDs
-			// that dd-trace-go generated at runtime.
 			var expectedSpanID, expectedLocalRootSpanID uint64
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(goSyscallTester, args, envs)
+				cmd := cmdFunc(goSyscallTester, args, []string{})
 				out, err := cmd.CombinedOutput()
-
 				if err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
-
-				// Parse the span IDs from the tester's output.
-				for _, line := range strings.Split(string(out), "\n") {
-					if strings.HasPrefix(line, "ddtrace_span_id=") {
-						val := strings.TrimPrefix(line, "ddtrace_span_id=")
-						expectedSpanID, _ = strconv.ParseUint(strings.TrimSpace(val), 10, 64)
-					}
-					if strings.HasPrefix(line, "ddtrace_local_root_span_id=") {
-						val := strings.TrimPrefix(line, "ddtrace_local_root_span_id=")
-						expectedLocalRootSpanID, _ = strconv.ParseUint(strings.TrimSpace(val), 10, 64)
-					}
-				}
-
+				expectedSpanID, expectedLocalRootSpanID = parseDDTraceIDs(out)
 				if expectedSpanID == 0 {
 					return fmt.Errorf("failed to parse ddtrace_span_id from output: %s", out)
 				}
-
 				return nil
 			}, func(event *model.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, "test_ddtrace_span_rule_open")
+
+				test.validateSpanSchema(t, event)
 
 				assert.Equal(t, expectedSpanID, event.SpanContext.SpanID,
 					"span ID should match the dd-trace-go generated value")
 				assert.Equal(t, expectedLocalRootSpanID, event.SpanContext.TraceID.Lo,
 					"trace ID lo should match the dd-trace-go local root span ID")
 			}, "test_ddtrace_span_rule_open")
+		})
+	})
+
+	t.Run("ddtrace_span_exec", func(t *testing.T) {
+		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path("test-ddtrace-span-exec")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := []string{
+				"-ddtrace-span-exec-test",
+				"-ddtrace-span-file-path", testFile,
+				"-ddtrace-span-exec-target", touchPathFor(kind),
+			}
+
+			var expectedSpanID, expectedLocalRootSpanID uint64
+
+			test.WaitSignalFromRule(t, func() error {
+				cmd := cmdFunc(goSyscallTester, args, []string{})
+				out, err := cmd.CombinedOutput()
+				if err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				expectedSpanID, expectedLocalRootSpanID = parseDDTraceIDs(out)
+				if expectedSpanID == 0 {
+					return fmt.Errorf("failed to parse ddtrace_span_id from output: %s", out)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_ddtrace_span_rule_exec")
+
+				test.validateSpanSchema(t, event)
+
+				assert.Equal(t, expectedSpanID, event.SpanContext.SpanID,
+					"span ID should match the dd-trace-go generated value")
+				assert.Equal(t, expectedLocalRootSpanID, event.SpanContext.TraceID.Lo,
+					"trace ID lo should match the dd-trace-go local root span ID")
+			}, "test_ddtrace_span_rule_exec")
+		})
+	})
+
+	t.Run("no_span", func(t *testing.T) {
+		// dd-trace-go is started but no active span is created. The eBPF
+		// reader should yield an empty span context.
+		test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path("test-ddtrace-span-no-span")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := []string{
+				"-ddtrace-no-span-test",
+				"-ddtrace-span-file-path", testFile,
+			}
+
+			test.WaitSignalFromRule(t, func() error {
+				cmd := cmdFunc(goSyscallTester, args, []string{})
+				if out, err := cmd.CombinedOutput(); err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_ddtrace_span_rule_open_no_span")
+
+				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
+				assert.Equal(t, "0", event.SpanContext.TraceID.String())
+			}, "test_ddtrace_span_rule_open_no_span")
+		})
+	})
+
+	t.Run("no_span_exec", func(t *testing.T) {
+		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path("test-ddtrace-span-no-span-exec")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := []string{
+				"-ddtrace-no-span-exec-test",
+				"-ddtrace-span-file-path", testFile,
+				"-ddtrace-span-exec-target", touchPathFor(kind),
+			}
+
+			test.WaitSignalFromRule(t, func() error {
+				cmd := cmdFunc(goSyscallTester, args, []string{})
+				if out, err := cmd.CombinedOutput(); err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_ddtrace_span_rule_exec")
+
+				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
+				assert.Equal(t, "0", event.SpanContext.TraceID.String())
+			}, "test_ddtrace_span_rule_exec")
 		})
 	})
 }
