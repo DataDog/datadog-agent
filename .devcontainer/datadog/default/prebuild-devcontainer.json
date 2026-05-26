@@ -3,17 +3,7 @@
     "name": "Datadog Agent Development Container",
     "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace_test_only:v114982950-87b35a20",
     "features": {
-        "./features/datadog-agent": {},
-        "ghcr.io/devcontainers/features/docker-in-docker:2.12.1": {
-            "dockerDashComposeVersion": "v2",
-            "version": "28.5.1",
-            // Use the upper half of the IP range allocated to docker by fabric
-            // ... this conflicts with the range used by the workspaces remote host
-            // , which claims the whole range, until that can be updated, but
-            // it is unlikely (famous last words) that 128 docker subnets will be
-            // created there... or on local hosts for that matter.
-            "dockerDefaultAddressPool": "base=172.17.128.0/17,size=24"
-          }
+        "./features/datadog-agent": {}
     },
     "mounts": [
         {
