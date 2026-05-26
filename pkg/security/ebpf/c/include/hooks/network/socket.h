@@ -1,7 +1,7 @@
 #ifndef _HOOKS_SOCKET_H_
 #define _HOOKS_SOCKET_H_
 
-long __attribute__((always_inline)) trace__sys_socket(void *ctx, u8 async, u16 domain, u16 type, u16 protocol) {
+static long __attribute__((always_inline)) trace__sys_socket(void *ctx, u8 async, u16 domain, u16 type, u16 protocol) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -23,7 +23,7 @@ long __attribute__((always_inline)) trace__sys_socket(void *ctx, u8 async, u16 d
     return 0;
 }
 
-int __attribute__((always_inline)) sys_socket_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) sys_socket_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_SOCKET);
     if (!syscall) {
         return 0;
@@ -69,7 +69,7 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_socket_exit, struct tracepoint_raw_syscalls_
 }
 
 SEC("cgroup/sock_create")
-int hook_sock_create(struct bpf_sock *ctx) {
+static int hook_sock_create(struct bpf_sock *ctx) {
     if (ctx->family != AF_INET && ctx->family != AF_INET6) {
         return 1;
     }
@@ -91,7 +91,7 @@ int hook_sock_create(struct bpf_sock *ctx) {
 }
 
 SEC("cgroup/sock_release")
-int hook_sock_release(struct bpf_sock *ctx)
+static int hook_sock_release(struct bpf_sock *ctx)
 {
     u64 cookie = bpf_get_socket_cookie(ctx);
     bpf_map_delete_elem(&sock_cookie_pid, &cookie);
