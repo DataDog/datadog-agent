@@ -5,7 +5,6 @@ go_library(
     srcs = [
         "component.go",
         "constants.go",
-        "issue_report.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/store/def",
     visibility = ["//visibility:public"],

@@ -223,6 +223,7 @@
 /cmd/agent/subcommands/run/internal/clcrunnerapi/       @DataDog/container-platform
 /cmd/agent/windows                      @DataDog/windows-products
 /cmd/agent/windows_resources            @DataDog/windows-products
+/cmd/agent/dist/conf.d/                 @DataDog/agent-integrations
 /cmd/agent/dist/conf.d/container.d/     @DataDog/container-integrations
 /cmd/agent/dist/conf.d/containerd.d/    @DataDog/container-integrations
 /cmd/agent/dist/conf.d/container_image.d/      @DataDog/container-integrations
@@ -238,7 +239,7 @@
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-products
 /cmd/agent/dist/conf.d/windows_certificate.d/ @DataDog/windows-products
 /cmd/agent/install*.sh                  @DataDog/agent-build
-/cmd/agent/macos/                       @DataDog/windows-products @DataDog/telemetry-onboarding
+/cmd/agent/macos/                       @DataDog/windows-products
 /cmd/ai_prompt_logger/                  @DataDog/windows-products
 /cmd/cluster-agent/                     @DataDog/container-platform
 /cmd/cluster-agent/subcommands/autoscalerlist   @DataDog/container-autoscaling @DataDog/container-integrations
