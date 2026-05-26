@@ -307,6 +307,13 @@ func (k *ContainerConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet
 	return errors
 }
 
+// adAnnotationIssueID returns the health-platform issue id for an AD annotation
+// error on the given entity. The build and resolve paths must use the same id,
+// so both call this helper rather than inlining the string.
+func adAnnotationIssueID(entityName string) string {
+	return "ad-annotation:" + entityName
+}
+
 // reportConfigurationError reports the AD configuration errors to the health platform.
 func (k *ContainerConfigProvider) reportConfigurationError(entityName string, errMsgSet types.ErrorMsgSet, errorSource types.ErrorSource) {
 	if k.healthPlatform == nil {
@@ -321,7 +328,7 @@ func (k *ContainerConfigProvider) reportConfigurationError(entityName string, er
 	sort.Strings(errMsgs)
 	errorMsg := strings.Join(errMsgs, ", ")
 
-	issueID := "ad-annotation:" + entityName
+	issueID := adAnnotationIssueID(entityName)
 	context := map[string]string{
 		"entityName":   entityName,
 		"errorMessage": errorMsg,
@@ -347,7 +354,7 @@ func (k *ContainerConfigProvider) clearConfigurationErrors(entityName string) {
 	if k.healthPlatform == nil {
 		return
 	}
-	k.healthPlatform.ResolveIssue("ad-annotation:" + entityName)
+	k.healthPlatform.ResolveIssue(adAnnotationIssueID(entityName))
 }
 
 // buildEntityName is also used as display key in `agent status` "Configuration Errors" display.
