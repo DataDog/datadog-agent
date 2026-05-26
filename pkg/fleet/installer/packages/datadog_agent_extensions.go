@@ -36,6 +36,15 @@ func getCurrentAgentVersion() string {
 	return v + "-1"
 }
 
+//nolint:unused // Used in platform-specific files
+func agentVersionForExtensions() string {
+	ver := getCurrentAgentVersion()
+	if override := env.FromEnv().DefaultPackagesVersionOverride[agentPackage]; override != "" {
+		return override
+	}
+	return ver
+}
+
 // Config structs for reading installer registry configuration from datadog.yaml
 
 //nolint:unused // Used in platform-specific files

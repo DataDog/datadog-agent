@@ -55,6 +55,20 @@ func CLIBinForLinuxHost(t *testing.T, executor CommandExecutor) string {
 	return path
 }
 
+// DDOTOtelAgentExtensionBinaryForHost returns the extension otel-agent path for fleet stable or deb layout.
+func DDOTOtelAgentExtensionBinaryForHost(t *testing.T, executor CommandExecutor) string {
+	t.Helper()
+	cmd := fmt.Sprintf(`if sudo test -x %q; then echo %q; elif sudo test -x %q; then echo %q; else echo ""; fi`,
+		DDOTOtelAgentFleetStableExtensionBinary, DDOTOtelAgentFleetStableExtensionBinary,
+		DDOTOtelAgentExtensionBinary, DDOTOtelAgentExtensionBinary)
+	out, err := executor.ExecuteCommand(cmd)
+	require.NoError(t, err)
+	path := strings.TrimSpace(out)
+	require.NotEmpty(t, path, "otel-agent extension binary not found (checked %s and %s)",
+		DDOTOtelAgentFleetStableExtensionBinary, DDOTOtelAgentExtensionBinary)
+	return path
+}
+
 // StableDDOTProcmgrYAMLPath returns the on-disk path to stable DDOT procmgr YAML, preferring
 // the fleet OCI layout when present, otherwise the classic deb/rpm path.
 func StableDDOTProcmgrYAMLPath(t *testing.T, executor CommandExecutor) string {

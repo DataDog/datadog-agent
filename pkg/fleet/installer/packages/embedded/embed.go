@@ -35,6 +35,30 @@ var systemdUnits embed.FS
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
 var DDOTProcessConfig string
 
+//go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
+//go:embed tmpl/gen/debrpm/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot.yaml
+//go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/oci/datadog-agent-ddot.yaml
+//go:embed tmpl/gen/oci/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/oci-nocap/datadog-agent-ddot.yaml
+//go:embed tmpl/gen/oci-nocap/datadog-agent-ddot-exp.yaml
+var ddotProcessYAML embed.FS
+
+// GetDDOTProcessConfig returns embedded DDOT extension process YAML (OCI or deb/rpm layout).
+func GetDDOTProcessConfig(unitType SystemdUnitType, stable bool, ambiantCapabilitiesSupported bool) ([]byte, error) {
+	dir := string(unitType)
+	if !ambiantCapabilitiesSupported {
+		dir += "-nocap"
+	}
+	exp := ""
+	if !stable {
+		exp = "-exp"
+	}
+	name := "datadog-agent-ddot" + exp + ".yaml"
+	return ddotProcessYAML.ReadFile(filepath.Join("tmpl/gen", dir, name))
+}
+
 // SystemdUnitType is the type of systemd unit.
 type SystemdUnitType string
 

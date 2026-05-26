@@ -11,10 +11,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -246,8 +248,11 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 		span.Finish(err)
 	}()
 
-	// extensionPath is the path to the DDOT extension. It is already scoped to stable / experiment per the Agent package.
-	extensionPath := filepath.Join(ctx.PackagePath, "ext", "ddot")
+	installDir := ddotExtensionInstallDir(ctx)
+	if installDir == "" {
+		return fmt.Errorf("ddot extension not found under agent install roots")
+	}
+	extensionPath := filepath.Join(installDir, "ext", "ddot")
 
 	// Copy the example file to the configuration directory
 	// XXX: Maybe we should always embed the example file in the Agent package?
@@ -270,7 +275,70 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
-	return nil
+	return writeDDOTProcmgrConfig(ctx, installDir)
+}
+
+const (
+	ddotProcmgrYAMLName  = "datadog-agent-ddot.yaml"
+	procmgrUnitStable    = "datadog-agent-procmgr.service"
+	fleetAgentStablePath = "/opt/datadog-packages/datadog-agent/stable"
+)
+
+func ddotExtensionInstallDir(ctx HookContext) string {
+	roots := []string{ctx.PackagePath, "/opt/datadog-agent", fleetAgentStablePath}
+	roots = append(roots, filepath.Join(paths.PackagesPath, "datadog-agent", agentVersionForExtensions()))
+	for _, root := range roots {
+		installRoot := root
+		if resolved, err := filepath.EvalSymlinks(root); err == nil {
+			installRoot = resolved
+		}
+		if _, err := os.Stat(filepath.Join(installRoot, "ext", "ddot")); err == nil {
+			return installRoot
+		}
+	}
+	return ""
+}
+
+func procmgrAgentInstallRoot() string {
+	if _, err := os.Stat(filepath.Join(fleetAgentStablePath, "embedded/bin/dd-procmgrd")); err == nil {
+		return fleetAgentStablePath
+	}
+	if _, err := os.Stat(filepath.Join("/opt/datadog-agent", "embedded/bin/dd-procmgrd")); err == nil {
+		return "/opt/datadog-agent"
+	}
+	return ""
+}
+
+func writeDDOTProcmgrConfig(ctx HookContext, installDir string) error {
+	procmgrRoot := procmgrAgentInstallRoot()
+	if procmgrRoot == "" {
+		return nil
+	}
+	ambientCapabilitiesSupported, err := isAmbiantCapabilitiesSupported()
+	if err != nil {
+		log.Warnf("failed to check ambient capabilities support: %v", err)
+		ambientCapabilitiesSupported = false
+	}
+	unitType := embedded.SystemdUnitTypeDebRpm
+	if ctx.PackageType == PackageTypeOCI || strings.HasPrefix(procmgrRoot, paths.PackagesPath) {
+		unitType = embedded.SystemdUnitTypeOCI
+	}
+	raw, err := embedded.GetDDOTProcessConfig(unitType, true, ambientCapabilitiesSupported)
+	if err != nil {
+		return fmt.Errorf("ddot procmgr yaml: %w", err)
+	}
+	yaml := string(raw)
+	if installDir != fleetAgentStablePath {
+		yaml = strings.ReplaceAll(yaml, fleetAgentStablePath, installDir)
+	}
+	processesDir := filepath.Join(procmgrRoot, "processes.d")
+	if err := os.MkdirAll(processesDir, 0755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(processesDir, ddotProcmgrYAMLName), []byte(yaml), 0644); err != nil {
+		return err
+	}
+	return systemd.RestartUnit(ctx, procmgrUnitStable)
 }
 
 // preRemoveDDOTExtension stops and disables the DDOT service before extension removal

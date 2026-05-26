@@ -36,6 +36,12 @@ func GetServiceManagerType() Type {
 	return serviceManagerType
 }
 
+// IsSystemdHost reports whether systemctl is available on the host.
+func IsSystemdHost() bool {
+	_, err := exec.LookPath("systemctl")
+	return err == nil
+}
+
 func getServiceManagerType() Type {
 	_, err := exec.LookPath("systemctl")
 	if err == nil {

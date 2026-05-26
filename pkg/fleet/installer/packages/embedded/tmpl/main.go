@@ -121,7 +121,7 @@ func mustRenderYAMLConfig(name string, data systemdTemplateData) []byte {
 	return mustRenderTemplate(name+".tmpl", data, false)
 }
 
-func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
+func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSupported, withDDOTProcessYAML bool) map[string][]byte {
 	units := map[string][]byte{
 		"datadog-agent.service":                mustReadSystemdUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-exp.service":            mustReadSystemdUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported),
@@ -141,12 +141,12 @@ func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSu
 		"datadog-agent-ddot-exp.service":       mustReadSystemdUnit("datadog-agent-ddot.service", expData, ambiantCapabilitiesSupported),
 		"datadog-agent-action.service":         mustReadSystemdUnit("datadog-agent-action.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-action-exp.service":     mustReadSystemdUnit("datadog-agent-action.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-procmgrd.service":       mustReadSystemdUnit("datadog-agent-procmgrd.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-procmgrd-exp.service":   mustReadSystemdUnit("datadog-agent-procmgrd.service", expData, ambiantCapabilitiesSupported),
-
-		// dd-procmgrd process configs
-		"datadog-agent-ddot.yaml":     mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData),
-		"datadog-agent-ddot-exp.yaml": mustRenderYAMLConfig("datadog-agent-ddot.yaml", expData),
+		"datadog-agent-procmgr.service":        mustReadSystemdUnit("datadog-agent-procmgr.service", stableData, ambiantCapabilitiesSupported),
+		"datadog-agent-procmgr-exp.service":    mustReadSystemdUnit("datadog-agent-procmgr.service", expData, ambiantCapabilitiesSupported),
+	}
+	if withDDOTProcessYAML {
+		units["datadog-agent-ddot.yaml"] = mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData)
+		units["datadog-agent-ddot-exp.yaml"] = mustRenderYAMLConfig("datadog-agent-ddot.yaml", expData)
 	}
 	return units
 }
@@ -182,9 +182,9 @@ var (
 		Stable:           false,
 	}
 
-	systemdUnitsOCI    = systemdUnits(stableDataOCI, expDataOCI, true)
-	systemdUnitsDebRpm = systemdUnits(stableDataDebRpm, expDataDebRpm, true)
+	systemdUnitsOCI    = systemdUnits(stableDataOCI, expDataOCI, true, true)
+	systemdUnitsDebRpm = systemdUnits(stableDataDebRpm, expDataDebRpm, true, true)
 
-	systemdUnitsOCILegacyKernel    = systemdUnits(stableDataOCI, expDataOCI, false)
-	systemdUnitsDebRpmLegacyKernel = systemdUnits(stableDataDebRpm, expDataDebRpm, false)
+	systemdUnitsOCILegacyKernel    = systemdUnits(stableDataOCI, expDataOCI, false, true)
+	systemdUnitsDebRpmLegacyKernel = systemdUnits(stableDataDebRpm, expDataDebRpm, false, true)
 )
