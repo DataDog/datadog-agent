@@ -7,6 +7,7 @@
 package defaultforwarder
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -65,6 +66,7 @@ type Forwarder interface {
 	SubmitConnectionChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) error
 	SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) error
+	SubmitV1IntakeDirect(ctx context.Context, payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error
 
 	ForwarderV2
 }

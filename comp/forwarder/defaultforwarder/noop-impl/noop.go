@@ -7,6 +7,7 @@
 package defaultforwardernoop
 
 import (
+	"context"
 	"net/http"
 
 	defaultforwarderdef "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
@@ -85,6 +86,10 @@ func (f *noopForwarder) SubmitOrchestratorChecks(_ transaction.BytesPayloads, _ 
 }
 
 func (f *noopForwarder) SubmitOrchestratorManifests(_ transaction.BytesPayloads, _ http.Header) error {
+	return nil
+}
+
+func (f *noopForwarder) SubmitV1IntakeDirect(_ context.Context, _ transaction.BytesPayloads, _ transaction.Kind, _ http.Header) error {
 	return nil
 }
 
