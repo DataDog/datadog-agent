@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import json
 import os
 from collections import Counter
@@ -114,7 +115,7 @@ def update_windows_runner_version(
 
 
 @task
-def lint_codeowner(_, owners_file=".github/CODEOWNERS"):
+def lint_codeowner(ctx, owners_file=".github/CODEOWNERS"):
     """
     Run multiple checks on the provided CODEOWNERS file
     """
@@ -129,7 +130,11 @@ def lint_codeowner(_, owners_file=".github/CODEOWNERS"):
     owners = read_owners(owners_file)
 
     # Define linters
-    linters = [directory_has_packages_without_owner, codeowner_has_orphans, ai_artefacts_have_owner]
+    linters = [
+        directory_has_packages_without_owner,
+        codeowner_has_orphans,
+        functools.partial(ai_artefacts_have_owner, ctx=ctx),
+    ]
 
     # Execute linters
     for linter in linters:

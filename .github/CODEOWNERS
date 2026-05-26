@@ -68,7 +68,6 @@
 /CHANGELOG-AIX.md                       @DataDog/agent-runtimes
 /AGENTS.md                              @DataDog/agent-devx
 /CLAUDE.md                              @DataDog/agent-devx
-/GEMINI.md                              @DataDog/agent-devx
 /NOTICE                                 @DataDog/agent-delivery
 
 /LICENSE*                               # do not notify anyone

@@ -1,5 +1,4 @@
 import os
-import subprocess
 import sys
 
 from tasks.libs.common.color import color_message
@@ -68,7 +67,7 @@ _CATCH_ALL_PATTERNS = frozenset(["/.*", "/*.md"])
 _AI_ARTEFACT_NAMES = frozenset(["AGENTS.md", "CLAUDE.md", "GEMINI.md"])
 
 
-def ai_artefacts_have_owner(owners):
+def ai_artefacts_have_owner(owners, ctx=None):
     """Check that every AI artefact file has an explicit owner in CODEOWNERS — i.e. is not
     solely covered by a broad catch-all rule like /.*  or /*.md, and has a non-empty owner list.
 
@@ -79,7 +78,7 @@ def ai_artefacts_have_owner(owners):
 
     # Collect all AI artefact paths from tracked files only (respects .gitignore).
     # Symlinks point to external targets and are excluded — only regular files are checked.
-    tracked = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+    tracked = ctx.run("git ls-files", hide=True).stdout.splitlines()
     ai_files = [
         p
         for p in tracked
