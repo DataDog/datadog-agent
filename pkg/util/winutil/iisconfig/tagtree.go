@@ -204,10 +204,65 @@ func poolEnvFor(perPool map[string]APMTags, defaults APMTags, poolName string) A
 	return defaults
 }
 
+// buildLocationEnvOps returns a map keyed by lowercased <location> path to
+// the ordered <environmentVariables> ops parsed from that location's
+// <system.webServer><aspNetCore>. IIS matches location paths
+// case-insensitively, so the lookup side must lowercase too.
+func buildLocationEnvOps(locations []iisLocation) map[string][]iisEnvVarOp {
+	out := make(map[string][]iisEnvVarOp, len(locations))
+	for _, loc := range locations {
+		if loc.Path == "" {
+			continue
+		}
+		ops := loc.SystemWebServer.AspNetCore.EnvVars.Ops
+		if len(ops) == 0 {
+			continue
+		}
+		key := strings.ToLower(strings.Trim(loc.Path, "/"))
+		// Later definitions for the same path replace earlier ones, matching
+		// the last-wins semantics IIS applies when applicationHost.config
+		// declares the same <location path> twice.
+		out[key] = ops
+	}
+	return out
+}
+
+// applyLocationEnvOverlay walks the <location> hierarchy from least to most
+// specific (site root, then each application path segment) and overlays each
+// matching block's env var ops on top of base. This mirrors how the IIS
+// configuration system inherits <location> blocks into nested paths, so an
+// app-level <location path="Site/App"> can build on -- or override via
+// <clear/>/<remove> -- a site-level <location path="Site">.
+func applyLocationEnvOverlay(base APMTags, locOps map[string][]iisEnvVarOp, siteName, appPath string) APMTags {
+	if len(locOps) == 0 {
+		return base
+	}
+	state := base
+	prefix := strings.ToLower(siteName)
+	if ops, ok := locOps[prefix]; ok {
+		state = applyEnvVarsOver(state, iisEnvironmentVariables{Ops: ops})
+	}
+	cleaned := strings.Trim(appPath, "/")
+	if cleaned == "" {
+		return state
+	}
+	for _, seg := range strings.Split(cleaned, "/") {
+		if seg == "" {
+			continue
+		}
+		prefix = prefix + "/" + strings.ToLower(seg)
+		if ops, ok := locOps[prefix]; ok {
+			state = applyEnvVarsOver(state, iisEnvironmentVariables{Ops: ops})
+		}
+	}
+	return state
+}
+
 func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 	pathTrees := make(map[uint32]*pathTreeEntry)
 	perPool, defaults := buildPoolEnvTags(xmlcfg.ApplicationHost.ApplicationPools)
 	sitesDefaultPool := xmlcfg.ApplicationHost.SitesAppDefaults.AppPool
+	locationOps := buildLocationEnvOps(xmlcfg.Locations)
 
 	for _, site := range xmlcfg.ApplicationHost.Sites {
 		siteDefaultPool := site.AppDefaults.AppPool
@@ -215,11 +270,15 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 			siteDefaultPool = sitesDefaultPool
 		}
 		for _, app := range site.Applications {
-			// applicationHost.config exposes environmentVariables at the
-			// application pool level (under <applicationPools><add> and
-			// <applicationPoolDefaults>). Real per-application overrides
-			// live under <location path="Site/App"><system.webServer>
-			// <aspNetCore><environmentVariables>, which is not parsed here.
+			// applicationHost.config exposes environmentVariables at two
+			// scopes: the application pool (under <applicationPools><add>
+			// and <applicationPoolDefaults>) and the application itself
+			// (under <location path="Site/App"><system.webServer>
+			// <aspNetCore><environmentVariables>). Pool env vars resolve
+			// first, then location overlays apply in increasing specificity
+			// so an app-level <location> can override the pool value or
+			// drop it via <clear/>/<remove name="..."/>.
+			//
 			// When the application omits applicationPool, IIS inherits it
 			// from <site><applicationDefaults>, then <sites><applicationDefaults>,
 			// and finally hard-codes "DefaultAppPool" if neither is set.
@@ -231,6 +290,7 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 				appPool = iisDefaultAppPoolName
 			}
 			envvars := poolEnvFor(perPool, defaults, appPool)
+			envvars = applyLocationEnvOverlay(envvars, locationOps, site.Name, app.Path)
 			hasenv := !envvars.isEmpty()
 
 			var ddjson APMTags

@@ -135,9 +135,15 @@ type iisEnvironmentVariables struct {
 }
 
 // UnmarshalXML walks the <environmentVariables> children in document order
-// and records each <add>/<remove>/<clear> directive. encoding/xml's default
-// decoder collapses children into per-tag slices, which loses the ordering
-// IIS uses to evaluate these collections.
+// and records each addition/<remove>/<clear> directive. encoding/xml's
+// default decoder collapses children into per-tag slices, which loses the
+// ordering IIS uses to evaluate these collections.
+//
+// IIS uses two different addElement names in this schema: applicationPools
+// env vars use <add>, while <location><system.webServer><aspNetCore> env
+// vars use <environmentVariable> (singular). Both are recognized here so the
+// same parser serves both call sites; the surrounding XML context makes only
+// the schema-valid form appear in real configs.
 func (e *iisEnvironmentVariables) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	e.XMLName = start.Name
 	for {
@@ -149,7 +155,7 @@ func (e *iisEnvironmentVariables) UnmarshalXML(d *xml.Decoder, start xml.StartEl
 		case xml.StartElement:
 			op := iisEnvVarOp{}
 			switch se.Name.Local {
-			case "add":
+			case "add", "environmentVariable":
 				op.kind = iisEnvVarOpAdd
 				for _, a := range se.Attr {
 					switch a.Name.Local {
@@ -226,10 +232,39 @@ type iisSystemApplicationHost struct {
 	ApplicationPools iisApplicationPools    `xml:"applicationPools"`
 }
 
+// iisAspNetCore mirrors the <aspNetCore> element inside
+// <system.webServer>. Only its <environmentVariables> child is used here;
+// processPath, arguments, and the rest do not feed UST tags.
+type iisAspNetCore struct {
+	XMLName xml.Name                `xml:"aspNetCore"`
+	EnvVars iisEnvironmentVariables `xml:"environmentVariables"`
+}
+
+// iisLocationSystemWebServer captures the subset of <system.webServer> we
+// read out of a <location> block. Real IIS configs put many siblings here
+// (handlers, modules, security, ...) but only aspNetCore env vars contribute
+// to UST tagging.
+type iisLocationSystemWebServer struct {
+	XMLName    xml.Name      `xml:"system.webServer"`
+	AspNetCore iisAspNetCore `xml:"aspNetCore"`
+}
+
+// iisLocation captures a single <location path="Site/App"> block at the
+// configuration root. The path attribute is the IIS configuration path:
+// "SiteName" for the site root, "SiteName/sub/app" for a nested application.
+// Empty path means the location applies globally; we ignore that case for
+// per-app tag derivation.
+type iisLocation struct {
+	XMLName         xml.Name                   `xml:"location"`
+	Path            string                     `xml:"path,attr"`
+	SystemWebServer iisLocationSystemWebServer `xml:"system.webServer"`
+}
+
 type iisConfiguration struct {
 	XMLName         xml.Name `xml:"configuration"`
 	ApplicationHost iisSystemApplicationHost
 	AppSettings     iisAppSettings
+	Locations       []iisLocation `xml:"location"`
 }
 
 func (iiscfg *DynamicIISConfig) readXMLConfig() error {

@@ -70,6 +70,24 @@
         <application path="/j" applicationPool="poolWithClear">
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
+        <application path="/loc" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/locsingular" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/locclear" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/locremove" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/loccascade" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/loccascade/child" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
       </site>
       <site name="sitedefaults" id="11">
         <applicationDefaults applicationPool="poolA" />
@@ -79,4 +97,63 @@
       </site>
     </sites>
   </system.applicationHost>
+  <location path="envsite/loc">
+    <system.webServer>
+      <aspNetCore>
+        <environmentVariables>
+          <add name="DD_SERVICE" value="loc-app-service" />
+          <add name="DD_VERSION" value="2.5.0" />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
+  <location path="envsite/locsingular">
+    <system.webServer>
+      <aspNetCore>
+        <environmentVariables>
+          <environmentVariable name="DD_SERVICE" value="singular-service" />
+          <environmentVariable name="DD_ENV" value="singular-env" />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
+  <location path="envsite/locclear">
+    <system.webServer>
+      <aspNetCore>
+        <environmentVariables>
+          <clear />
+          <add name="DD_SERVICE" value="loc-clear-service" />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
+  <location path="envsite/locremove">
+    <system.webServer>
+      <aspNetCore>
+        <environmentVariables>
+          <remove name="DD_ENV" />
+          <add name="DD_VERSION" value="3.0.0" />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
+  <location path="envsite/loccascade">
+    <system.webServer>
+      <aspNetCore>
+        <environmentVariables>
+          <add name="DD_ENV" value="cascade-parent-env" />
+          <add name="DD_SERVICE" value="cascade-parent-service" />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
+  <location path="envsite/loccascade/child">
+    <system.webServer>
+      <aspNetCore>
+        <environmentVariables>
+          <add name="DD_SERVICE" value="cascade-child-service" />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
 </configuration>

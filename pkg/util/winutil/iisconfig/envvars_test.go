@@ -123,6 +123,58 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		assert.Equal(t, "", env.DDEnv)
 		assert.Equal(t, "", env.DDVersion)
 	})
+
+	t.Run("<location><aspNetCore> env overrides pool env", func(t *testing.T) {
+		// /loc uses poolA (DD_SERVICE=poolA-service, DD_VERSION=1.0.0,
+		// DD_ENV=default-env from applicationPoolDefaults). The matching
+		// <location path="envsite/loc"> overrides DD_SERVICE and DD_VERSION;
+		// DD_ENV stays at the pool-defaulted value.
+		_, _, env := iisCfg.GetAPMTags(10, "/loc")
+		assert.Equal(t, "loc-app-service", env.DDService)
+		assert.Equal(t, "default-env", env.DDEnv)
+		assert.Equal(t, "2.5.0", env.DDVersion)
+	})
+
+	t.Run("<location><aspNetCore> accepts singular <environmentVariable>", func(t *testing.T) {
+		// The aspNetCore schema uses <environmentVariable> as the addElement
+		// (vs <add> for applicationPools). /locsingular's location uses the
+		// singular form for DD_SERVICE/DD_ENV; we must still pick them up.
+		_, _, env := iisCfg.GetAPMTags(10, "/locsingular")
+		assert.Equal(t, "singular-service", env.DDService)
+		assert.Equal(t, "singular-env", env.DDEnv)
+		// DD_VERSION still flows through from poolA.
+		assert.Equal(t, "1.0.0", env.DDVersion)
+	})
+
+	t.Run("<location><aspNetCore> <clear/> wipes inherited pool env", func(t *testing.T) {
+		// /locclear's location clears the pool-resolved env before adding
+		// DD_SERVICE. Pool-level DD_SERVICE/DD_VERSION/DD_ENV are all dropped.
+		_, _, env := iisCfg.GetAPMTags(10, "/locclear")
+		assert.Equal(t, "loc-clear-service", env.DDService)
+		assert.Equal(t, "", env.DDEnv)
+		assert.Equal(t, "", env.DDVersion)
+	})
+
+	t.Run("<location><aspNetCore> <remove> drops one inherited pool field", func(t *testing.T) {
+		// /locremove's location removes DD_ENV (inherited from
+		// applicationPoolDefaults via poolA) and overrides DD_VERSION;
+		// DD_SERVICE keeps the poolA value.
+		_, _, env := iisCfg.GetAPMTags(10, "/locremove")
+		assert.Equal(t, "poolA-service", env.DDService)
+		assert.Equal(t, "", env.DDEnv)
+		assert.Equal(t, "3.0.0", env.DDVersion)
+	})
+
+	t.Run("nested <location> blocks cascade by specificity", func(t *testing.T) {
+		// envsite/loccascade sets DD_ENV+DD_SERVICE; envsite/loccascade/child
+		// overrides DD_SERVICE. The child app must see the child's service
+		// but the parent's env -- mirroring how IIS merges nested locations.
+		_, _, env := iisCfg.GetAPMTags(10, "/loccascade/child")
+		assert.Equal(t, "cascade-child-service", env.DDService)
+		assert.Equal(t, "cascade-parent-env", env.DDEnv)
+		// DD_VERSION still flows through from poolA.
+		assert.Equal(t, "1.0.0", env.DDVersion)
+	})
 }
 
 // TestApplyEnvVarsOver_OrderSensitivity verifies that <add>/<remove>/<clear>
