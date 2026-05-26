@@ -16,7 +16,7 @@ import (
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
-	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
+	defaultforwardernoop "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/noop-impl"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 
@@ -42,8 +42,8 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
 	log := logimpl.NewTemporaryLoggerWithoutInit()
-	sharedForwarder := defaultforwarderimpl.NoopForwarder{}
-	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarderimpl.NoopForwarder{})
+	sharedForwarder := defaultforwardernoop.NewComponent()
+	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwardernoop.NewComponent())
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService(), logscompressionmock.NewMockCompressor()))
 	taggerComponent := nooptagger.NewComponent()
 	filterList := filterlist.NewNoopFilterList()

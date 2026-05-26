@@ -8,8 +8,6 @@ go_library(
         "domain_forwarder.go",
         "forwarder.go",
         "forwarder_health.go",
-        "noop_forwarder.go",
-        "params_compat.go",
         "shared_connection.go",
         "status.go",
         "sync_forwarder.go",
@@ -51,7 +49,6 @@ go_library(
         "@com_github_stretchr_testify//mock",
         "@org_golang_x_sync//semaphore",
         "@org_uber_go_atomic//:atomic",
-        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -73,6 +70,7 @@ go_test(
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/secrets/mock",
+        "//comp/forwarder/defaultforwarder/def",
         "//comp/forwarder/defaultforwarder/endpoints",
         "//comp/forwarder/defaultforwarder/internal/retry",
         "//comp/forwarder/defaultforwarder/resolver",

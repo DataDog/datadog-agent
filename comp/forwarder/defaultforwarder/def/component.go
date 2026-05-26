@@ -4,19 +4,6 @@
 // Copyright 2023-present Datadog, Inc.
 
 // Package defaultforwarder defines the interface for the default forwarder component.
-//
-// # V2 migration status: WIP
-//
-// This package is the start of a migration of comp/forwarder/defaultforwarder
-// to the V2 component architecture (def/fx/impl pattern).
-//
-// Current state: the implementation still lives in the root package. This def/
-// package defines the Component interface, and impl/ will contain the
-// implementation once the full migration is complete.
-//
-// See the root package for the full set of exported types (Forwarder, Response,
-// Features, Options, etc.) that callers depend on. Those will be moved to
-// def/ as part of follow-up work.
 package defaultforwarder
 
 import (

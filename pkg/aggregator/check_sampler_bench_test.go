@@ -26,6 +26,7 @@ import (
 	//nolint:revive // TODO(AML) Fix revive linter
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	forwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
+	forwardernoop "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -62,7 +63,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	secrets := secretsmock.New(b)
 	forwarderOpts.Secrets = secrets
 	sharedForwarder := forwarderimpl.NewDefaultForwarder(mockConfig, deps.Log, forwarderOpts)
-	orchestratorForwarder := option.New[forwarder.Forwarder](forwarderimpl.NoopForwarder{})
+	orchestratorForwarder := option.New[forwarder.Forwarder](forwardernoop.NewComponent())
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, logscompressionmock.NewMockCompressor()))
 	haAgent := haagentmock.NewMockHaAgent()
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)

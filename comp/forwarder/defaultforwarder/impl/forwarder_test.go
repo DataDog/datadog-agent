@@ -25,6 +25,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
+	defaultforwarderdef "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -937,7 +938,7 @@ func TestCreateTransactionsWithLocal(t *testing.T) {
 	mockConfig.SetWithoutSource("cluster_agent.url", "https://cluster.agent.svc")
 	mockConfig.SetWithoutSource("cluster_agent.auth_token", "01234567890123456789012345678901")
 
-	opts, err := createOptions(NewParams(), mockConfig, log, secrets)
+	opts, err := createOptions(defaultforwarderdef.NewParams(), mockConfig, log, secrets)
 	require.NoError(t, err)
 	f := NewDefaultForwarder(mockConfig, log, opts)
 

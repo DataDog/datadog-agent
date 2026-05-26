@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"strings"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -25,7 +23,6 @@ import (
 )
 
 type dependencies struct {
-	fx.In
 	Config  config.Component
 	Log     log.Component
 	Lc      compdef.Lifecycle
@@ -34,8 +31,6 @@ type dependencies struct {
 }
 
 type provides struct {
-	fx.Out
-
 	Comp           defaultforwarderdef.Component
 	StatusProvider status.InformationProvider
 }
@@ -124,13 +119,6 @@ func newMockForwarder(config config.Component, log log.Component, secrets secret
 // NewForwarderFromDeps is an exported wrapper around newForwarder for use with fx.
 func NewForwarderFromDeps(dep dependencies) (provides, error) {
 	return newForwarder(dep)
-}
-
-// NewNoopForwarder provides a no-op forwarder component for use with fx.
-func NewNoopForwarder() provides {
-	return provides{
-		Comp: NoopForwarder{},
-	}
 }
 
 // NewMockForwarder provides a mock forwarder component for use with fx.
