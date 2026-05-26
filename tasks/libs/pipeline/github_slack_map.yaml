@@ -34,11 +34,11 @@
     id: 'C08SK57TL1M'
 '@datadog/agent-configuration':
   notification:
-    name: ''
-    id: ''
-  review:
     name: '#agent-configuration-ops'
     id: 'C08A85VGC8P'
+  review:
+    name: ''
+    id: ''
 '@datadog/agent-cspm':
   notification:
     name: '#security-and-compliance-agent-ops'
