@@ -27,7 +27,7 @@ func (m *mockModuleWithCheck) BuildIssue(context map[string]string) (*healthplat
 	return &healthplatform.Issue{
 		Title:       "Test Issue: " + m.id,
 		Description: "Context value: " + context["key"],
-		Severity:    "medium",
+		Severity:    healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
 	}, nil
 }
 func (m *mockModuleWithCheck) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {

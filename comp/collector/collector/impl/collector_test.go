@@ -16,24 +16,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	tmock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
-	"go.uber.org/fx"
 
-	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
-	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
+	"github.com/DataDog/datadog-agent/comp/collector/collector/impl/internal/middleware"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -100,24 +96,18 @@ type CollectorTestSuite struct {
 }
 
 func (suite *CollectorTestSuite) SetupTest() {
-	suite.c = newCollector(fxutil.Test[dependencies](suite.T(),
-		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
-		fx.Provide(func() config.Component {
-			return config.NewMockWithOverrides(suite.T(), map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond})
-		}),
-		hostnameimpl.MockModule(),
-		demultiplexerimpl.MockModule(),
-		haagentmock.Module(),
-		fx.Provide(func() option.Option[serializer.MetricSerializer] {
-			return option.None[serializer.MetricSerializer]()
-		}),
-		fx.Provide(func() option.Option[agenttelemetry.Component] {
-			return option.None[agenttelemetry.Component]()
-		}),
-		fx.Provide(func() healthplatform.Component {
-			return healthplatformnoopimpl.NewNoopComponent()
-		}),
-	))
+	hostname, _ := hostnameinterface.NewMock("my-hostname")
+	suite.c = newCollector(dependencies{
+		Lc:               compdef.NewTestLifecycle(suite.T()),
+		Config:           config.NewMockWithOverrides(suite.T(), map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond}),
+		Log:              logmock.New(suite.T()),
+		HaAgent:          haagentmock.NewMockHaAgent(),
+		HealthPlatform:   healthplatformnoopimpl.NewNoopComponent(),
+		Hostname:         hostname,
+		SenderManager:    aggregator.NewNoOpSenderManager(),
+		MetricSerializer: option.None[serializer.MetricSerializer](),
+		AgentTelemetry:   option.None[agenttelemetry.Component](),
+	})
 	suite.c.start(context.TODO())
 }
 
