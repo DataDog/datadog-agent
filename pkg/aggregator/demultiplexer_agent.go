@@ -343,6 +343,7 @@ func (d *AgentDemultiplexer) agentLifecycleEvent(agentVersion string, eventType 
 	}
 
 	return event.Event{
+		Title:          eventType,
 		Text:           "Version " + agentVersion,
 		SourceTypeName: "System",
 		Host:           d.aggregator.hostname,

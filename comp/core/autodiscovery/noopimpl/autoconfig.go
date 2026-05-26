@@ -37,10 +37,6 @@ func (n *noopAutoConfig) AddConfigProvider(types.ConfigProvider, bool, time.Dura
 
 func (n *noopAutoConfig) LoadAndRun(context.Context) {}
 
-func (n *noopAutoConfig) GetAllConfigs() []integration.Config {
-	return []integration.Config{}
-}
-
 func (n *noopAutoConfig) GetUnresolvedConfigs() []integration.Config {
 	return []integration.Config{}
 }

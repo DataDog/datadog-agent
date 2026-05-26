@@ -30,8 +30,8 @@ func NewModule(config.Component) issues.Module {
 	}
 }
 
-func (m *adMisconfigurationModule) IssueType() string {
-	return healthplatform.ADMisconfigurationIssueType
+func (m *adMisconfigurationModule) IssueName() string {
+	return healthplatform.ADMisconfigurationIssueName
 }
 
 // IssueTemplate returns the template for building complete issues

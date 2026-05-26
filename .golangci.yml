@@ -94,6 +94,8 @@ linters:
             - "!**/comp/core/autodiscovery/providers/endpointschecks_nop.go"
             - "!**/comp/core/autodiscovery/providers/etcd.go"
             - "!**/comp/core/autodiscovery/providers/etcd_nop.go"
+            - "!**/comp/core/autodiscovery/providers/instrumentationchecks.go"
+            - "!**/comp/core/autodiscovery/providers/instrumentationchecks_nop.go"
             - "!**/comp/core/autodiscovery/providers/kube_endpoints.go"
             - "!**/comp/core/autodiscovery/providers/kube_endpoints_file.go"
             - "!**/comp/core/autodiscovery/providers/kube_endpoints_file_nop.go"
