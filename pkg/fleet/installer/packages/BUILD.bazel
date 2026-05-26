@@ -11,6 +11,7 @@ go_library(
         "datadog_agent_ddot_windows.go",
         "datadog_agent_extensions.go",
         "datadog_agent_linux.go",
+        "datadog_agent_version.go",
         "datadog_agent_windows.go",
         "otel_config_common.go",
         "packages.go",

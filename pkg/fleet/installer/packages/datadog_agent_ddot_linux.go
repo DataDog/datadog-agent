@@ -249,11 +249,11 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 		span.Finish(err)
 	}()
 
-	installDir := ddotExtensionInstallDir(ctx)
-	if installDir == "" {
-		return errors.New("ddot extension not found under agent install roots")
+	agentRoot, err := ddotAgentInstallRoot(ctx)
+	if err != nil {
+		return err
 	}
-	extensionPath := filepath.Join(installDir, "ext", "ddot")
+	extensionPath := ddotExtensionPathFromRoot(agentRoot)
 
 	// Copy the example file to the configuration directory
 	// XXX: Maybe we should always embed the example file in the Agent package?
@@ -276,7 +276,7 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
-	return writeDDOTProcmgrConfig(ctx, installDir)
+	return writeDDOTProcmgrConfig(ctx, agentRoot)
 }
 
 const (
@@ -287,8 +287,17 @@ const (
 	fleetAgentExperimentPath = "/opt/datadog-packages/datadog-agent/experiment"
 )
 
-func ddotExtensionInstallDir(ctx HookContext) string {
-	roots := []string{ctx.PackagePath, "/opt/datadog-agent", fleetAgentStablePath}
+func ddotAgentInstallRoot(ctx HookContext) (string, error) {
+	roots := []string{}
+	if ctx.PackagePath != "" {
+		roots = append(roots, ctx.PackagePath)
+	}
+	if ctx.IsExperiment {
+		roots = append(roots, fleetAgentExperimentPath)
+	} else {
+		roots = append(roots, fleetAgentStablePath)
+	}
+	roots = append(roots, "/opt/datadog-agent")
 	roots = append(roots, filepath.Join(paths.PackagesPath, "datadog-agent", agentVersionForExtensions()))
 	for _, root := range roots {
 		installRoot := root
@@ -296,10 +305,14 @@ func ddotExtensionInstallDir(ctx HookContext) string {
 			installRoot = resolved
 		}
 		if _, err := os.Stat(filepath.Join(installRoot, "ext", "ddot")); err == nil {
-			return installRoot
+			return installRoot, nil
 		}
 	}
-	return ""
+	return "", errors.New("ddot extension not found under agent install roots")
+}
+
+func ddotExtensionPathFromRoot(agentRoot string) string {
+	return filepath.Join(agentRoot, "ext", "ddot")
 }
 
 func procmgrAgentInstallRoot(ctx HookContext) string {
@@ -321,7 +334,7 @@ func procmgrAgentInstallRoot(ctx HookContext) string {
 	return ""
 }
 
-func writeDDOTProcmgrConfig(ctx HookContext, installDir string) error {
+func writeDDOTProcmgrConfig(ctx HookContext, agentInstallRoot string) error {
 	procmgrRoot := procmgrAgentInstallRoot(ctx)
 	if procmgrRoot == "" {
 		return nil
@@ -345,8 +358,8 @@ func writeDDOTProcmgrConfig(ctx HookContext, installDir string) error {
 		fleetTemplateRoot = fleetAgentExperimentPath
 	}
 	yaml := string(raw)
-	if installDir != fleetTemplateRoot {
-		yaml = strings.ReplaceAll(yaml, fleetTemplateRoot, installDir)
+	if agentInstallRoot != fleetTemplateRoot {
+		yaml = strings.ReplaceAll(yaml, fleetTemplateRoot, agentInstallRoot)
 	}
 	processesDir := filepath.Join(procmgrRoot, "processes.d")
 	if err := os.MkdirAll(processesDir, 0755); err != nil {

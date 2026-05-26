@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -19,31 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-//nolint:unused // Used in platform-specific files
 const agentPackage = "datadog-agent"
-
-// getCurrentAgentVersion returns the current agent version in URL-safe format with -1 suffix
-//
-//nolint:unused // Used in platform-specific files
-func getCurrentAgentVersion() string {
-	v := version.AgentVersionURLSafe
-	if strings.HasSuffix(v, "-1") {
-		return v
-	}
-	return v + "-1"
-}
-
-//nolint:unused // Used in platform-specific files
-func agentVersionForExtensions() string {
-	ver := getCurrentAgentVersion()
-	if override := env.FromEnv().DefaultPackagesVersionOverride[agentPackage]; override != "" {
-		return override
-	}
-	return ver
-}
 
 // Config structs for reading installer registry configuration from datadog.yaml
 

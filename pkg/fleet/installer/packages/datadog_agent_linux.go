@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
@@ -31,6 +32,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func agentVersionForExtensions() string {
+	ver := getCurrentAgentVersion()
+	if override := env.FromEnv().DefaultPackagesVersionOverride[agentPackage]; override != "" {
+		return override
+	}
+	return ver
+}
 
 var datadogAgentPackage = hooks{
 	preInstall:  preInstallDatadogAgent,
