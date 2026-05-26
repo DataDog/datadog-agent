@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -36,6 +37,15 @@ func filterConfigsDropped(filter func(map[string]integration.Config), configs ..
 		}
 	}
 	return
+}
+
+// neverMatchProgram is a MatchingProgram that always returns false, used in
+// tests to simulate a config that does not match the current service's entity.
+type neverMatchProgram struct{}
+
+func (neverMatchProgram) IsMatched(workloadfilter.Filterable) bool { return false }
+func (neverMatchProgram) GetTargetType() workloadfilter.ResourceType {
+	return workloadfilter.ContainerType
 }
 
 func TestServiceFilterTemplatesEmptyOverrides(t *testing.T) {
@@ -256,6 +266,53 @@ func TestServiceFilterTemplatesDiscovery(t *testing.T) {
 			"discovery template should be kept when the sibling is logs-only")
 		assert.Contains(t, configs, logsOnlySibling.Digest(),
 			"logs-only sibling should be kept")
+	})
+
+	t.Run("instrumentation check overrides matched file check", func(t *testing.T) {
+		fileTpl := integration.Config{
+			Name:      "redis",
+			Provider:  names.File,
+			Instances: []integration.Data{[]byte("port: 6379")},
+			Source:    "file:redis/conf.yaml",
+		}
+		instrTpl := integration.Config{
+			Name:      "redis",
+			Provider:  names.InstrumentationChecks,
+			Instances: []integration.Data{[]byte("{}")},
+			Source:    "instrumentation:redis",
+		}
+		configs := map[string]integration.Config{
+			fileTpl.Digest():  fileTpl,
+			instrTpl.Digest(): instrTpl,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.NotContains(t, configs, fileTpl.Digest(), "file template should be dropped in favour of the instrumentation check")
+		assert.Contains(t, configs, instrTpl.Digest(), "instrumentation template should be kept")
+	})
+
+	t.Run("file kept when instrumentation check does not match service", func(t *testing.T) {
+		fileTpl := integration.Config{
+			Name:      "redis",
+			Provider:  names.File,
+			Instances: []integration.Data{[]byte("port: 6379")},
+			Source:    "file:redis/conf.yaml",
+		}
+		instrTpl := integration.Config{
+			Name:      "redis",
+			Provider:  names.InstrumentationChecks,
+			Instances: []integration.Data{[]byte("{}")},
+			Source:    "instrumentation:redis",
+		}
+		instrTpl.SetMatchingPrograms(map[workloadfilter.ResourceType]integration.MatchingProgram{
+			workloadfilter.ContainerType: neverMatchProgram{},
+		})
+		configs := map[string]integration.Config{
+			fileTpl.Digest():  fileTpl,
+			instrTpl.Digest(): instrTpl,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.Contains(t, configs, fileTpl.Digest(), "file template should be kept when instrumentation check does not match the service")
+		assert.NotContains(t, configs, instrTpl.Digest(), "non-matching instrumentation template should be dropped")
 	})
 }
 

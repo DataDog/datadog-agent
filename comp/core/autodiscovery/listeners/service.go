@@ -148,8 +148,11 @@ func (s *WorkloadService) FilterTemplates(configs map[string]integration.Config)
 	// comp/core/autodiscovery/configresolver/configresolver.go
 	s.filterTemplatesEmptyOverrides(configs)
 	s.filterTemplatesOverriddenChecks(configs)
-	s.filterTemplatesInstrumentationOverFile(configs)
 	filterTemplatesMatched(s, configs)
+
+	// Runs after matching so only instrumentation configs that are actually
+	// bound to this service override file-based configs.
+	s.filterTemplatesInstrumentationOverFile(configs)
 
 	// Drop discovery templates when another config source already covers
 	// the same integration for this service. Runs after AD-identifier and
@@ -203,7 +206,7 @@ func (s *WorkloadService) filterTemplatesOverriddenChecks(configs map[string]int
 		}
 		for _, checkName := range s.checkNames {
 			if config.Name == checkName {
-				// Ignore config from file when the same check is activated on
+				// Ignore config from file or CRD when the same check is activated on
 				// the same service via other config providers (k8s annotations
 				// or container labels)
 				log.Debugf("Ignoring config from %s: the service %s overrides check %s",
