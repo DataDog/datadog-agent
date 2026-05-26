@@ -13,10 +13,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 
+	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
 func TestJMXLog(t *testing.T) {
@@ -26,21 +26,20 @@ func TestJMXLog(t *testing.T) {
 	assert.NoError(t, err)
 	defer f.Close()
 
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
-		fx.Supply(NewCliParams(filePath)),
-	))
-
-	jmxLogger, err := newJMXLogger(deps)
+	provides, err := NewComponent(Requires{
+		Lc:     compdef.NewTestLifecycle(t),
+		Config: config.NewMock(t),
+		Params: jmxlogger.NewCliParams(filePath),
+	})
 
 	assert.NoError(t, err)
 
-	jmxLogger.JMXError("jmx error message")
-	jmxLogger.JMXInfo("jmx info message")
+	provides.Comp.JMXError("jmx error message")
+	provides.Comp.JMXInfo("jmx info message")
 
-	jmxLogger.Flush()
+	provides.Comp.Flush()
 
-	jmxLoggerInternal := jmxLogger.(logger)
+	jmxLoggerInternal := provides.Comp.(logger)
 	jmxLoggerInternal.close()
 
 	bytes, err := os.ReadFile(filePath)

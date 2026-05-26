@@ -6,11 +6,11 @@
 // Package eventplatform contains the logic for forwarding events to the event platform
 package eventplatform
 
+// team: agent-log-pipelines
+
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
-
-// team: agent-log-pipelines
 
 const (
 	// EventTypeNetworkDevicesMetadata is the event type for network devices metadata
