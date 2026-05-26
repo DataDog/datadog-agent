@@ -52,7 +52,7 @@ func (m *mockModuleWithOnce) IssueName() string { return m.id }
 func (m *mockModuleWithOnce) BuildIssue(_ map[string]string) (*healthplatform.Issue, error) {
 	return &healthplatform.Issue{
 		Title:    "Test Issue: " + m.id,
-		Severity: "medium",
+		Severity: healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
 	}, nil
 }
 func (m *mockModuleWithOnce) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
@@ -74,7 +74,7 @@ func (m *mockModuleWithoutCheck) IssueName() string { return m.id }
 func (m *mockModuleWithoutCheck) BuildIssue(_ map[string]string) (*healthplatform.Issue, error) {
 	return &healthplatform.Issue{
 		Title:    "Test Issue: " + m.id,
-		Severity: "medium",
+		Severity: healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
 	}, nil
 }
 func (m *mockModuleWithoutCheck) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
