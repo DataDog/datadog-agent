@@ -84,10 +84,11 @@ func ConnectToDocker(ctx context.Context) (*client.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Looks like docker is not actually doing a call to server when `NewClient` is called
-	// Forcing it to verify server availability by calling Info()
-	_, err = cli.Info(ctx, client.InfoOptions{})
-	if err != nil {
+	// client.New does not actually contact the daemon. Force a round-trip
+	// to verify availability. safeInfo tolerates daemons that emit invalid
+	// CIDRs in /info's DefaultAddressPools, which would otherwise fail the
+	// strict netip.Prefix decoding introduced by the moby v29 client.
+	if _, err := cli.Ping(ctx, client.PingOptions{}); err != nil {
 		return nil, err
 	}
 
