@@ -55,6 +55,7 @@ type Spec struct {
 	Containers          []ContainerSpec         `json:"containers,omitempty"`
 	EphemeralContainers []ContainerSpec         `json:"ephemeralContainers,omitempty"`
 	Volumes             []VolumeSpec            `json:"volumes,omitempty"`
+	Resources           *ContainerResourcesSpec `json:"resources,omitempty"`
 	PriorityClassName   string                  `json:"priorityClassName,omitempty"`
 	SecurityContext     *PodSecurityContextSpec `json:"securityContext,omitempty"`
 	RuntimeClassName    *string                 `json:"runtimeClassName,omitempty"`

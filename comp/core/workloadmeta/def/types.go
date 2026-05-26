@@ -829,6 +829,7 @@ type KubernetesPod struct {
 	NamespaceAnnotations       map[string]string   `proto:"ignore"`
 	FinishedAt                 time.Time           `proto:"ignore"`
 	SecurityContext            *PodSecurityContext `proto:"ignore"`
+	Resources                  ContainerResources `proto:"ignore"`
 
 	// The following fields are only needed for the kubelet check or KSM check
 	// when configured to emit pod metrics from the node agent. That means only
