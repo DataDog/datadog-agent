@@ -7,6 +7,8 @@
 package command
 
 import (
+	"os"
+
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
@@ -38,7 +40,7 @@ func MakeRootCommand() *cobra.Command {
 func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	globalConfGetter := func() *subcommands.GlobalParams {
 		return &subcommands.GlobalParams{
-			ConfPath:             globalParams.ConfPath,
+			ConfPath:             resolveConfPath(globalParams.ConfPath),
 			ConfigName:           globalParams.ConfigName,
 			LoggerName:           LoggerName,
 			FleetPoliciesDirPath: globalParams.FleetPoliciesDirPath,
@@ -63,9 +65,26 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 
 	coverage.SetupCoverageCommand(globalConfGetter, &traceAgentCmd)
 
-	traceAgentCmd.PersistentFlags().StringVarP(&globalParams.ConfPath, "config", "c", defaultConfigPath, "path to directory containing datadog.yaml")
+	traceAgentCmd.PersistentFlags().StringVarP(&globalParams.ConfPath, "config", "c", "",
+		"path to datadog.yaml (or a directory containing it); defaults to "+defaultConfigPath+" when that file exists, otherwise the agent runs with environment-variable configuration only")
 	traceAgentCmd.PersistentFlags().StringVarP(&globalParams.FleetPoliciesDirPath, "fleetcfgpath", "", "", "path to the directory containing fleet policies")
 	_ = traceAgentCmd.PersistentFlags().MarkHidden("fleetcfgpath")
 
 	return &traceAgentCmd
+}
+
+// resolveConfPath returns the config path that should be passed to the
+// configuration component. When the user did not pass --config explicitly
+// (confPath is empty), the platform default path is used only if a file
+// actually exists there. Otherwise the empty string is returned, which
+// signals comp/core/config to tolerate a missing config file and rely on
+// environment variables and built-in defaults.
+func resolveConfPath(confPath string) string {
+	if confPath != "" {
+		return confPath
+	}
+	if _, err := os.Stat(defaultConfigPath); err == nil {
+		return defaultConfigPath
+	}
+	return ""
 }
