@@ -148,7 +148,6 @@ func (s *WorkloadService) FilterTemplates(configs map[string]integration.Config)
 	// comp/core/autodiscovery/configresolver/configresolver.go
 	s.filterTemplatesEmptyOverrides(configs)
 	s.filterTemplatesOverriddenChecks(configs)
-	s.filterTemplatesInstrumentationOverFile(configs)
 	filterTemplatesMatched(s, configs)
 
 	// Runs after matching so only instrumentation configs that are actually
