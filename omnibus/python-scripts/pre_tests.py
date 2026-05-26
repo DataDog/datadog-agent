@@ -66,6 +66,40 @@ class TestPre(unittest.TestCase):
         os.rmdir(install_directory)
         os.rmdir(storage_location)
 
+    def test_pre_with_orphaned_integration(self):
+        # Simulate a partial pip install: datadog_checks/myplugin/ exists on disk but
+        # no dist-info was written, so importlib.metadata cannot see the package.
+        install_directory = tempfile.mkdtemp()
+        storage_location = tempfile.mkdtemp()
+
+        # Create a fake site-packages tree with an orphaned integration dir
+        site_packages = tempfile.mkdtemp()
+        checks_dir = os.path.join(site_packages, 'datadog_checks')
+        os.makedirs(os.path.join(checks_dir, 'myplugin'))
+
+        post_file = os.path.join(storage_location, '.post_python_installed_packages.txt')
+        with open(post_file, 'w', encoding='utf-8') as f:
+            f.write("# DO NOT REMOVE/MODIFY\n")
+            # myplugin is absent from the post-file (was never successfully installed)
+
+        result = pre(install_directory, storage_location,
+                     _orphan_site_packages_dir=site_packages)
+
+        self.assertEqual(result, 0)
+
+        diff_file = os.path.join(storage_location, '.diff_python_installed_packages.txt')
+        self.assertTrue(os.path.exists(diff_file))
+        with open(diff_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        self.assertIn('datadog-myplugin', content)
+
+        # Cleanup
+        os.remove(diff_file)
+        import shutil
+        shutil.rmtree(site_packages)
+        os.rmdir(install_directory)
+        os.rmdir(storage_location)
+
     def test_pre_with_populated_pre_file(self):
         install_directory = tempfile.mkdtemp()
         storage_location = tempfile.mkdtemp()

@@ -10,7 +10,7 @@ import os
 import sys
 import packages
 
-def pre(install_directory, storage_location):
+def pre(install_directory, storage_location, _orphan_site_packages_dir=None):
     try:
         if os.path.exists(install_directory) and os.path.exists(storage_location):
             post_python_installed_packages_file = packages.post_python_installed_packages_file(storage_location)
@@ -22,6 +22,20 @@ def pre(install_directory, storage_location):
                 packages.create_python_installed_packages_file(pre_python_installed_packages_file)
                 packages.create_diff_installed_packages_file(storage_location, post_python_installed_packages_file, pre_python_installed_packages_file)
                 packages.cleanup_files(post_python_installed_packages_file, pre_python_installed_packages_file)
+                # Append any integrations whose module files exist but whose dist-info was never
+                # written (e.g. pip interrupted mid-install). Without this, the diff would be empty
+                # for those integrations and they would be permanently lost on the next upgrade.
+                orphaned = packages.find_orphaned_integration_names(_orphan_site_packages_dir)
+                if orphaned:
+                    diff_file_path = packages.diff_python_installed_packages_file(storage_location)
+                    existing_diff = packages.load_requirements(diff_file_path)
+                    existing_names = {k.lower() for k in existing_diff}
+                    with open(diff_file_path, 'a', encoding='utf-8') as f:
+                        for name in orphaned:
+                            pkg = f'datadog-{name}'
+                            if pkg.lower() not in existing_names:
+                                print(f"Orphaned integration detected (module present, no dist-info): {pkg}")
+                                f.write(f'{pkg}\n')
             else:
                 print(f"File {post_python_installed_packages_file} does not exist.")
                 return 1

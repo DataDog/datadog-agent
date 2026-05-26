@@ -268,6 +268,50 @@ def load_requirements(filename):
         for req_stripped, req in zip(valid_requirements, (packaging.requirements.Requirement(r) for r in valid_requirements))
     }
 
+def find_orphaned_integration_names(site_packages_dir=None):
+    """
+    Return the short names of integrations that have a datadog_checks/<name>/
+    module directory but no corresponding dist-info visible to importlib.metadata.
+
+    This state arises when pip is interrupted after writing .py files but before
+    writing dist-info, leaving the integration importable but invisible to the
+    tracking system. On the next pre.py run these integrations would be missed
+    by the diff and permanently dropped from future upgrades.
+
+    site_packages_dir: explicit path for testing; defaults to the first entry on
+    sys.path that contains a datadog_checks/ subdirectory.
+    """
+    if site_packages_dir is None:
+        import sys
+        for p in sys.path:
+            if os.path.isdir(os.path.join(p, 'datadog_checks')):
+                site_packages_dir = p
+                break
+    if not site_packages_dir:
+        return []
+
+    checks_dir = os.path.join(site_packages_dir, 'datadog_checks')
+    if not os.path.isdir(checks_dir):
+        return []
+
+    installed = {
+        dist.metadata['Name'].lower()
+        for dist in importlib.metadata.distributions()
+        if dist.metadata['Name']
+    }
+
+    orphaned = []
+    for entry in os.scandir(checks_dir):
+        if not entry.is_dir():
+            continue
+        name = entry.name
+        # Skip __pycache__, hidden dirs, and the shared base package
+        if name.startswith(('_', '.')) or name == 'base':
+            continue
+        if f'datadog-{name}'.lower() not in installed:
+            orphaned.append(name)
+    return orphaned
+
 def cleanup_files(*files):
     """
     Remove the specified files.
