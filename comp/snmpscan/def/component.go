@@ -35,4 +35,17 @@ type ScanParams struct {
 	// MaxCallCount limits the total number of SNMP calls in a scan.
 	// A value of 0 means there is no limit.
 	MaxCallCount int
+
+	// UseGetBulk selects the GetBulk-based walk introduced in PR #49734.
+	// When false (default), the scan uses the existing SkipOIDRowsNaive-based
+	// gatherPDUs path. When true, the scan uses gatherPDUsWithBulk, which never
+	// fabricates OIDs and is required to scan devices that previously caused
+	// infinite loops or crashes.
+	UseGetBulk bool
+
+	// BulkMaxRepetitions is the starting max-repetitions value for GetBulk
+	// when UseGetBulk is true. A value of 0 selects the default (10, matching
+	// net-snmp's snmpbulkwalk -Cr). Halves on timeout, recovers on success.
+	// Ignored when UseGetBulk is false.
+	BulkMaxRepetitions int
 }

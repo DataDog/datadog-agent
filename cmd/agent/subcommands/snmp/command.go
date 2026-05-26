@@ -48,6 +48,14 @@ const (
 // argsType is an alias so we can inject the args via fx.
 type argsType []string
 
+// scanFlags carries flags specific to the `agent snmp scan` subcommand.
+// Wrapped in a struct so fx can inject it without colliding with the int args
+// the rest of the bundle already supplies.
+type scanFlags struct {
+	useGetBulk bool
+	bulkMaxRep int
+}
+
 // configErr wraps any error caused by invalid configuration.
 // If the main script returns a configErr it will print the usage string along
 // with the error message.
@@ -144,7 +152,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	logLevelDefaultOff := command.LogLevelDefaultOff{}
 
-	// This command does nothing until the backend supports it, so it isn't visible yet.
+	var (
+		useGetBulk bool
+		bulkMaxRep int
+	)
+
+	// Scan results are reported to the NDM backend via the EventPlatformForwarder
+	// and surface in the Profile Manager "All Metrics" table.
 	snmpScanCmd := &cobra.Command{
 		Hidden: true,
 		Use:    "scan <ipaddress>[:port]",
@@ -154,7 +168,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 
 			err := fxutil.OneShot(scanDevice,
-				fx.Supply(connParams, globalParams, cmd),
+				fx.Supply(connParams, globalParams, cmd, scanFlags{useGetBulk: useGetBulk, bulkMaxRep: bulkMaxRep}),
 				fx.Provide(func() argsType { return args }),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
@@ -206,7 +220,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	snmpScanCmd.Flags().IntVarP(&connParams.Retries, "retries", "r", defaultRetries, "Set the number of retries")
 	snmpScanCmd.Flags().IntVarP(&connParams.Timeout, "timeout", "t", defaultTimeout, "Set the request timeout (in seconds)")
 
-	// This command does nothing until the backend supports it, so it isn't enabled yet.
+	// GetBulk-based walk (experimental). Required for devices that previously caused
+	// infinite loops or crashes with the default SkipOIDRowsNaive-based walk.
+	snmpScanCmd.Flags().BoolVar(&useGetBulk, "use-getbulk", false, "Use the GetBulk-based scan walk (experimental). Required to scan devices that previously caused infinite loops or crashes.")
+	snmpScanCmd.Flags().IntVar(&bulkMaxRep, "bulk-max-rep", 0, "Starting max-repetitions for GetBulk during scan (0 = default 10, matching snmpbulkwalk -Cr). Halves on timeout, recovers on success. Only used when --use-getbulk is set.")
+
 	snmpCmd.AddCommand(snmpScanCmd)
 
 	return []*cobra.Command{snmpCmd}
@@ -264,7 +282,7 @@ func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, agentParams *snmppar
 	}
 }
 
-func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, client ipc.HTTPClient) error {
+func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, flags scanFlags, snmpScanner snmpscan.Component, conf config.Component, client ipc.HTTPClient) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
@@ -288,7 +306,9 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 	fmt.Printf("Launching scan for device: %s\n", deviceID)
 	err := snmpScanner.ScanDeviceAndSendData(context.Background(), connParams, namespace,
 		snmpscan.ScanParams{
-			ScanType: metadata.ManualScan,
+			ScanType:           metadata.ManualScan,
+			UseGetBulk:         flags.useGetBulk,
+			BulkMaxRepetitions: flags.bulkMaxRep,
 		})
 	if err != nil {
 		fmt.Printf("Unable to perform device scan for device %s: %v\n", deviceID, err)
