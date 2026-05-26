@@ -10,6 +10,8 @@
 # Same for go workspace files (root and testdata)
 *go.work text eol=lf
 go.sum -diff -merge linguist-generated=true
+# Merge changelog entries without conflicts when multiple PRs add lines simultaneously
+CHANGELOG-AIX.md merge=union
 *.pb.go -diff -merge
 *.pb.go linguist-generated=true
 *.pb.gw.go -diff -merge
