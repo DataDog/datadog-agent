@@ -22,9 +22,7 @@ exports_files(glob(
 # gazelle:exclude cmd/cluster-agent
 # gazelle:exclude cmd/cluster-agent-cloudfoundry
 # gazelle:exclude cmd/dogstatsd
-# gazelle:exclude cmd/host-profiler/command
-# gazelle:exclude cmd/host-profiler/dist
-# gazelle:exclude cmd/host-profiler/subcommands
+# gazelle:exclude cmd/host-profiler
 # gazelle:exclude cmd/installer/subcommands
 # gazelle:exclude cmd/iot-agent
 # gazelle:exclude cmd/otel-agent/command
