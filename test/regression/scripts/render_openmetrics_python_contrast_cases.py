@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 CASES = ROOT / "test/regression/cases"
-TARGET_COUNT = 200
+TARGET_COUNTS = (200, 500, 1500)
 RUNNERS = 4
 DELAY_MS = 100
 SCRAPE_INTERVAL_SECONDS = 15
@@ -53,12 +53,11 @@ class Scenario:
     check_name: str
     description: str
 
-    def case_name(self, shape: Shape) -> str:
-        return f"openmetrics_python_contrast_{self.slug}_{shape.slug}_t{TARGET_COUNT:04d}_r{RUNNERS:02d}"
+    def case_name(self, shape: Shape, target_count: int) -> str:
+        return f"openmetrics_python_contrast_{self.slug}_{shape.slug}_t{target_count:04d}_r{RUNNERS:02d}"
 
 
 SHAPES = [
-    Shape("samples0100", gauges=98),
     Shape("samples0962", gauges=960),
 ]
 
@@ -82,8 +81,8 @@ def list_yaml(values: list[str]) -> str:
     return "[" + ", ".join(f'"{value}"' for value in values) + "]"
 
 
-def experiment_yaml(scenario: Scenario, shape: Shape) -> str:
-    case_name = scenario.case_name(shape)
+def experiment_yaml(scenario: Scenario, shape: Shape, target_count: int) -> str:
+    case_name = scenario.case_name(shape, target_count)
     return f'''# {scenario.description}
 optimization_goal: cpu
 erratic: false
@@ -111,7 +110,7 @@ target:
     DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
     DD_PROFILING_WAIT_PROFILE: true
     DD_APM_INTERNAL_PROFILING_ENABLED: true
-    DD_INTERNAL_PROFILING_EXTRA_TAGS: "experiment:{case_name},workload:openmetrics_python_contrast,scenario:{scenario.slug},target_count:{TARGET_COUNT},check_runners:{RUNNERS},response_delay_ms:{DELAY_MS},payload_samples:{shape.sample_count}"
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: "experiment:{case_name},workload:openmetrics_python_contrast,scenario:{scenario.slug},target_count:{target_count},check_runners:{RUNNERS},response_delay_ms:{DELAY_MS},payload_samples:{shape.sample_count}"
 '''
 
 
@@ -132,7 +131,7 @@ dogstatsd_socket: '/tmp/dsd.socket'
 '''
 
 
-def lading_yaml(scenario: Scenario, shape: Shape) -> str:
+def lading_yaml(scenario: Scenario, shape: Shape, target_count: int) -> str:
     return f'''blackhole:
   - http:
       binding_addr: "127.0.0.1:9091"
@@ -174,17 +173,17 @@ target_metrics:
         sub_agent: "core"
         workload: "openmetrics_python_contrast"
         scenario: "{scenario.slug}"
-        target_count: "{TARGET_COUNT}"
+        target_count: "{target_count}"
         check_runners: "{RUNNERS}"
         response_delay_ms: "{DELAY_MS}"
         payload_samples: "{shape.sample_count}"
 '''
 
 
-def instance_config(check_name: str) -> str:
+def instance_config(check_name: str, target_count: int) -> str:
     endpoint_key = "openmetrics_endpoint" if check_name == "openmetrics" else "endpoint"
     parts = ["init_config:", "", "instances:"]
-    for target in range(1, TARGET_COUNT + 1):
+    for target in range(1, target_count + 1):
         parts.extend(
             [
                 f"  - {endpoint_key}: http://127.0.0.1:9100/metrics?target={target:04d}",
@@ -237,7 +236,8 @@ CHECK_CONTENT = {
 
 def readme() -> str:
     case_lines = "\n".join(
-        f"* `{scenario.case_name(shape)}` — {scenario.slug}, {shape.sample_count} OpenMetrics samples"
+        f"* `{scenario.case_name(shape, target_count)}` — {scenario.slug}, {target_count} targets, {shape.sample_count} OpenMetrics samples"
+        for target_count in TARGET_COUNTS
         for shape in SHAPES
         for scenario in SCENARIOS
     )
@@ -246,7 +246,7 @@ def readme() -> str:
 These cases provide a small, reviewable proof that the OpenMetrics scale problem
 is not caused by Python checks being inherently slow.
 
-The suite runs four scenarios at two payload sizes:
+The suite runs four scenarios at three target counts, using the same 962-sample payload:
 
 1. `noop`: a custom Python check dispatches and submits one gauge.
 2. `io_read`: a custom Python check performs HTTP IO and reads an
@@ -256,7 +256,7 @@ The suite runs four scenarios at two payload sizes:
 4. `real`: the real OpenMetrics v2 integration scrapes the same endpoint and
    payload shape.
 
-Each case uses {TARGET_COUNT} file-configured instances, `DD_CHECK_RUNNERS={RUNNERS}`,
+Cases use `target_count in {200, 500, 1500}`, `DD_CHECK_RUNNERS={RUNNERS}`,
 `min_collection_interval={SCRAPE_INTERVAL_SECONDS}s`, and lading response delay
 {DELAY_MS}ms. The expected story is that `noop` and `io_read` stay near
 scheduler throughput, `parse_submit` shows the controlled cost of Python
@@ -278,7 +278,7 @@ so SMP runs use a lading build that includes the generator.
 
 ```bash
 smp local-run --experiment-dir test/regression \\
-  --case openmetrics_python_contrast_real_samples0962_t0200_r04 \\
+  --case openmetrics_python_contrast_real_samples0962_t1500_r04 \\
   --target-image <agent-dev-image>
 ```
 
@@ -295,27 +295,34 @@ def write(path: Path, content: str) -> None:
     path.write_text(content)
 
 
-def render_case(scenario: Scenario, shape: Shape) -> None:
-    case_dir = CASES / scenario.case_name(shape)
+def render_case(scenario: Scenario, shape: Shape, target_count: int) -> None:
+    case_dir = CASES / scenario.case_name(shape, target_count)
     if case_dir.exists():
         shutil.rmtree(case_dir)
-    write(case_dir / "experiment.yaml", experiment_yaml(scenario, shape))
-    write(case_dir / "lading/lading.yaml", lading_yaml(scenario, shape))
+    write(case_dir / "experiment.yaml", experiment_yaml(scenario, shape, target_count))
+    write(case_dir / "lading/lading.yaml", lading_yaml(scenario, shape, target_count))
     write(case_dir / "datadog-agent/datadog.yaml", datadog_yaml())
-    write(case_dir / f"datadog-agent/conf.d/{scenario.check_name}.d/conf.yaml", instance_config(scenario.check_name))
+    write(
+        case_dir / f"datadog-agent/conf.d/{scenario.check_name}.d/conf.yaml",
+        instance_config(scenario.check_name, target_count),
+    )
     if scenario.check_name in CHECK_CONTENT:
         write(case_dir / f"datadog-agent/checks.d/{scenario.check_name}.py", CHECK_CONTENT[scenario.check_name])
 
 
 def main() -> None:
-    for shape in SHAPES:
-        for scenario in SCENARIOS:
-            render_case(scenario, shape)
+    for target_count in TARGET_COUNTS:
+        for shape in SHAPES:
+            for scenario in SCENARIOS:
+                render_case(scenario, shape, target_count)
     write(ROOT / "test/regression/openmetrics_python_contrast.md", readme())
     print("Rendered OpenMetrics Python contrast cases:")
-    for shape in SHAPES:
-        for scenario in SCENARIOS:
-            print(f"  {scenario.case_name(shape)} samples={shape.sample_count}")
+    for target_count in TARGET_COUNTS:
+        for shape in SHAPES:
+            for scenario in SCENARIOS:
+                print(
+                    f"  {scenario.case_name(shape, target_count)} targets={target_count} samples={shape.sample_count}"
+                )
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@
 These cases provide a small, reviewable proof that the OpenMetrics scale problem
 is not caused by Python checks being inherently slow.
 
-The suite runs four scenarios at two payload sizes:
+The suite runs four scenarios at three target counts, using the same 962-sample payload:
 
 1. `noop`: a custom Python check dispatches and submits one gauge.
 2. `io_read`: a custom Python check performs HTTP IO and reads an
@@ -13,7 +13,7 @@ The suite runs four scenarios at two payload sizes:
 4. `real`: the real OpenMetrics v2 integration scrapes the same endpoint and
    payload shape.
 
-Each case uses 200 file-configured instances, `DD_CHECK_RUNNERS=4`,
+Cases use `target_count in (200, 500, 1500)`, `DD_CHECK_RUNNERS=4`,
 `min_collection_interval=15s`, and lading response delay
 100ms. The expected story is that `noop` and `io_read` stay near
 scheduler throughput, `parse_submit` shows the controlled cost of Python
@@ -29,20 +29,24 @@ so SMP runs use a lading build that includes the generator.
 
 ## Cases
 
-* `openmetrics_python_contrast_noop_samples0100_t0200_r04` — noop, 100 OpenMetrics samples
-* `openmetrics_python_contrast_io_read_samples0100_t0200_r04` — io_read, 100 OpenMetrics samples
-* `openmetrics_python_contrast_parse_submit_samples0100_t0200_r04` — parse_submit, 100 OpenMetrics samples
-* `openmetrics_python_contrast_real_samples0100_t0200_r04` — real, 100 OpenMetrics samples
-* `openmetrics_python_contrast_noop_samples0962_t0200_r04` — noop, 962 OpenMetrics samples
-* `openmetrics_python_contrast_io_read_samples0962_t0200_r04` — io_read, 962 OpenMetrics samples
-* `openmetrics_python_contrast_parse_submit_samples0962_t0200_r04` — parse_submit, 962 OpenMetrics samples
-* `openmetrics_python_contrast_real_samples0962_t0200_r04` — real, 962 OpenMetrics samples
+* `openmetrics_python_contrast_noop_samples0962_t0200_r04` — noop, 200 targets, 962 OpenMetrics samples
+* `openmetrics_python_contrast_io_read_samples0962_t0200_r04` — io_read, 200 targets, 962 OpenMetrics samples
+* `openmetrics_python_contrast_parse_submit_samples0962_t0200_r04` — parse_submit, 200 targets, 962 OpenMetrics samples
+* `openmetrics_python_contrast_real_samples0962_t0200_r04` — real, 200 targets, 962 OpenMetrics samples
+* `openmetrics_python_contrast_noop_samples0962_t0500_r04` — noop, 500 targets, 962 OpenMetrics samples
+* `openmetrics_python_contrast_io_read_samples0962_t0500_r04` — io_read, 500 targets, 962 OpenMetrics samples
+* `openmetrics_python_contrast_parse_submit_samples0962_t0500_r04` — parse_submit, 500 targets, 962 OpenMetrics samples
+* `openmetrics_python_contrast_real_samples0962_t0500_r04` — real, 500 targets, 962 OpenMetrics samples
+* `openmetrics_python_contrast_noop_samples0962_t1500_r04` — noop, 1500 targets, 962 OpenMetrics samples
+* `openmetrics_python_contrast_io_read_samples0962_t1500_r04` — io_read, 1500 targets, 962 OpenMetrics samples
+* `openmetrics_python_contrast_parse_submit_samples0962_t1500_r04` — parse_submit, 1500 targets, 962 OpenMetrics samples
+* `openmetrics_python_contrast_real_samples0962_t1500_r04` — real, 1500 targets, 962 OpenMetrics samples
 
 ## Running locally
 
 ```bash
 smp local-run --experiment-dir test/regression \
-  --case openmetrics_python_contrast_real_samples0962_t0200_r04 \
+  --case openmetrics_python_contrast_real_samples0962_t1500_r04 \
   --target-image <agent-dev-image>
 ```
 
