@@ -11,10 +11,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	"go.uber.org/goleak"
 
+	compConfig "github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func newTestSourceProvider() (*sourceProvider, *sources.LogSources) {
@@ -169,6 +176,16 @@ func (s *stubWmeta) Subscribe(_ string, _ workloadmeta.SubscriberPriority, _ *wo
 func (s *stubWmeta) Unsubscribe(ch chan workloadmeta.EventBundle) { close(ch) }
 func (s *stubWmeta) GetContainer(_ string) (*workloadmeta.Container, error) {
 	return nil, nil
+}
+
+func newWMetaMock(t *testing.T) workloadmetamock.Mock {
+	t.Helper()
+	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
 }
 
 func TestSourceProvider_GoRoutineExitsCleanly(t *testing.T) {
