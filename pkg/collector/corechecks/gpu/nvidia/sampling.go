@@ -173,7 +173,6 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Met
 				Metric{Name: "process.dram_active", Value: float64(sample.MemUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
 				Metric{Name: "process.encoder_active", Value: float64(sample.EncUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
 				Metric{Name: "process.decoder_active", Value: float64(sample.DecUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
-				Metric{Name: "sm_active.dist", Value: float64(sample.SmUtil), Type: ddmetrics.DistributionType, Priority: Medium},
 			)
 
 			if sample.SmUtil > maxSmUtil {
@@ -191,6 +190,7 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Met
 
 	allMetrics = append(allMetrics,
 		Metric{Name: "sm_active", Value: deviceSmActive, Type: ddmetrics.GaugeType, Priority: Medium}, // There's an ebpf based fallback for this metric which should have lower priority
+		Metric{Name: "sm_active.dist", Value: deviceSmActive, Type: ddmetrics.DistributionType, Priority: Medium},
 		Metric{Name: "core.limit", Value: float64(device.GetDeviceInfo().CoreCount), Type: ddmetrics.GaugeType, AssociatedWorkloads: allWorkloadIDs},
 	)
 
