@@ -250,6 +250,10 @@ func serveAssets(w http.ResponseWriter, req *http.Request) {
 }
 
 func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
 	// intentToken is present in the query when the GUI is opened from the CLI
 	intentToken := r.URL.Query().Get("intent")
