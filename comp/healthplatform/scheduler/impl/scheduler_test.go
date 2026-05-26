@@ -9,6 +9,7 @@ package schedulerimpl
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -18,188 +19,216 @@ import (
 	"github.com/stretchr/testify/require"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
-
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
-// mockReporter is a simple mock for testing health check scheduling/validation.
-type mockReporter struct {
-	reportCount  int32
-	resolveCount int32
-	mu           sync.Mutex
-	lastReport   storedef.IssueReport
+// mockRunner records Run calls and returns the configured response.
+type mockRunner struct {
+	mu       sync.Mutex
+	calls    []string
+	response func(source string) ([]string, error)
 }
 
-func newMockReporter() *mockReporter {
-	return &mockReporter{}
-}
-
-func (m *mockReporter) ReportIssue(r storedef.IssueReport) error {
+func (m *mockRunner) Run(source string, _ runnerdef.HealthCheckFunc) ([]string, error) {
 	m.mu.Lock()
-	m.lastReport = r
+	m.calls = append(m.calls, source)
+	resp := m.response
 	m.mu.Unlock()
-	atomic.AddInt32(&m.reportCount, 1)
-	return nil
+	if resp != nil {
+		return resp(source)
+	}
+	return nil, nil
 }
 
-func (m *mockReporter) ResolveIssue(_ string) {
-	atomic.AddInt32(&m.resolveCount, 1)
+// mockStore records ResolveIssue calls.
+type mockStore struct {
+	mu          sync.Mutex
+	resolvedIDs []string
 }
 
-// newTestRunner creates a checkRunner with reporter wired for testing
-func newTestRunner(t *testing.T) (*checkRunner, *mockReporter) {
+func (m *mockStore) ResolveIssue(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.resolvedIDs = append(m.resolvedIDs, id)
+}
+func (m *mockStore) ReportIssue(_ *healthplatformpayload.Issue) error             { return nil }
+func (m *mockStore) ResolveAllIssues()                                            {}
+func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue               { return nil }
+func (m *mockStore) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) { return 0, nil }
+func (m *mockStore) GetActiveIssueIDsByIssueName(_ string) []string               { return nil }
+
+func newTestScheduler(t *testing.T, runner runnerdef.Component, store storedef.Component) *scheduler {
 	t.Helper()
-	reporter := newMockReporter()
-	r := &checkRunner{
+	return &scheduler{
 		log:    logmock.New(t),
-		checks: make(map[string]*registeredCheck),
+		runner: runner,
+		store:  store,
+		checks: make(map[string]*registeredHealthCheck),
 	}
-	r.SetReporter(reporter)
-	return r, reporter
 }
 
-// TestCheckRunnerScheduleHealthCheck tests registering a health check
-func TestCheckRunnerScheduleHealthCheck(t *testing.T) {
-	runner, _ := newTestRunner(t)
+func TestScheduleRegisters(t *testing.T) {
+	s := newTestScheduler(t, &mockRunner{}, &mockStore{})
+	fn := func() ([]runnerdef.IssueReport, error) { return nil, nil }
 
-	checkCalled := false
-	checkFn := func() (*healthplatformpayload.IssueReport, error) {
-		checkCalled = true
-		return nil, nil
-	}
+	require.NoError(t, s.Schedule("mycomp", fn, time.Minute, nil))
 
-	err := runner.ScheduleHealthCheck("test-check", "Test Check", checkFn, 1*time.Minute)
-	require.NoError(t, err)
-
-	// Verify check is registered
-	runner.checkMux.RLock()
-	_, exists := runner.checks["test-check"]
-	runner.checkMux.RUnlock()
+	s.checkMux.RLock()
+	_, exists := s.checks["mycomp"]
+	s.checkMux.RUnlock()
 	assert.True(t, exists)
-
-	// Verify check hasn't been called yet (runner not started)
-	assert.False(t, checkCalled)
 }
 
-// TestCheckRunnerScheduleHealthCheckValidation tests validation of ScheduleHealthCheck
-func TestCheckRunnerScheduleHealthCheckValidation(t *testing.T) {
-	runner, _ := newTestRunner(t)
+func TestScheduleValidation(t *testing.T) {
+	s := newTestScheduler(t, &mockRunner{}, &mockStore{})
+	fn := func() ([]runnerdef.IssueReport, error) { return nil, nil }
 
-	// Empty check ID
-	err := runner.ScheduleHealthCheck("", "Test Check", func() (*healthplatformpayload.IssueReport, error) { return nil, nil }, 0)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "check ID cannot be empty")
-
-	// Nil check function
-	err = runner.ScheduleHealthCheck("test-check", "Test Check", nil, 0)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "check function cannot be nil")
-
-	// Duplicate registration
-	checkFn := func() (*healthplatformpayload.IssueReport, error) { return nil, nil }
-	err = runner.ScheduleHealthCheck("test-check", "Test Check", checkFn, 0)
-	require.NoError(t, err)
-
-	err = runner.ScheduleHealthCheck("test-check", "Test Check 2", checkFn, 0)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "already registered")
+	assert.Error(t, s.Schedule("", fn, time.Minute, nil))
+	assert.Error(t, s.Schedule("mycomp", nil, time.Minute, nil))
 }
 
-// TestCheckRunnerDefaultInterval tests that default interval is used when not specified
-func TestCheckRunnerDefaultInterval(t *testing.T) {
-	runner, _ := newTestRunner(t)
+func TestScheduleDuplicateSource(t *testing.T) {
+	s := newTestScheduler(t, &mockRunner{}, &mockStore{})
+	fn := func() ([]runnerdef.IssueReport, error) { return nil, nil }
 
-	checkFn := func() (*healthplatformpayload.IssueReport, error) { return nil, nil }
+	require.NoError(t, s.Schedule("mycomp", fn, time.Minute, nil))
+	assert.Error(t, s.Schedule("mycomp", fn, time.Minute, nil))
+}
 
-	// Zero interval should use default
-	err := runner.ScheduleHealthCheck("test-check", "Test Check", checkFn, 0)
-	require.NoError(t, err)
+func TestScheduleDefaultInterval(t *testing.T) {
+	s := newTestScheduler(t, &mockRunner{}, &mockStore{})
+	fn := func() ([]runnerdef.IssueReport, error) { return nil, nil }
 
-	runner.checkMux.RLock()
-	check := runner.checks["test-check"]
-	runner.checkMux.RUnlock()
+	require.NoError(t, s.Schedule("mycomp", fn, 0, nil))
 
+	s.checkMux.RLock()
+	check := s.checks["mycomp"]
+	s.checkMux.RUnlock()
 	assert.Equal(t, defaultCheckInterval, check.interval)
 }
 
-// TestCheckRunnerRunsChecks tests that registered checks are executed
-func TestCheckRunnerRunsChecks(t *testing.T) {
-	runner, reporter := newTestRunner(t)
-
-	callCount := int32(0)
-	checkFn := func() (*healthplatformpayload.IssueReport, error) {
-		atomic.AddInt32(&callCount, 1)
-		return nil, nil
+func TestTickDiffResolveDisappeared(t *testing.T) {
+	mr := &mockRunner{
+		response: func(_ string) ([]string, error) { return []string{"A", "B"}, nil },
 	}
+	ms := &mockStore{}
+	s := newTestScheduler(t, mr, ms)
 
-	// Register with very short interval for testing
-	err := runner.ScheduleHealthCheck("test-check", "Test Check", checkFn, 50*time.Millisecond)
-	require.NoError(t, err)
+	check := &registeredHealthCheck{
+		source:       "mycomp",
+		fn:           func() ([]runnerdef.IssueReport, error) { return nil, nil },
+		lastIssueIDs: make(map[string]struct{}),
+		stopCh:       make(chan struct{}),
+	}
+	s.checks["mycomp"] = check
 
-	// Start the runner
-	runner.start(context.Background())      //nolint:errcheck
-	defer runner.stop(context.Background()) //nolint:errcheck
+	// Tick 1: emits A, B — no resolves yet.
+	s.tick(check)
+	ms.mu.Lock()
+	assert.Empty(t, ms.resolvedIDs)
+	ms.mu.Unlock()
 
-	// The check returns nil so ResolveIssue (not ReportIssue) is called each tick.
-	assert.Eventually(t, func() bool {
-		return atomic.LoadInt32(&callCount) >= 2 && atomic.LoadInt32(&reporter.resolveCount) >= 2
-	}, 500*time.Millisecond, 10*time.Millisecond)
+	// Tick 2: emits only A — B should be resolved.
+	mr.mu.Lock()
+	mr.response = func(_ string) ([]string, error) { return []string{"A"}, nil }
+	mr.mu.Unlock()
+
+	s.tick(check)
+	ms.mu.Lock()
+	assert.Equal(t, []string{"B"}, ms.resolvedIDs)
+	ms.mu.Unlock()
 }
 
-// TestCheckRunnerStartStop tests graceful start/stop
-func TestCheckRunnerStartStop(t *testing.T) {
-	runner, reporter := newTestRunner(t)
-
-	checkFn := func() (*healthplatformpayload.IssueReport, error) {
-		return nil, nil
+func TestTickEmptyResultResolvesAll(t *testing.T) {
+	mr := &mockRunner{
+		response: func(_ string) ([]string, error) { return []string{"A", "B"}, nil },
 	}
+	ms := &mockStore{}
+	s := newTestScheduler(t, mr, ms)
 
-	err := runner.ScheduleHealthCheck("test-check", "Test Check", checkFn, 10*time.Millisecond)
-	require.NoError(t, err)
+	check := &registeredHealthCheck{
+		source:       "mycomp",
+		fn:           func() ([]runnerdef.IssueReport, error) { return nil, nil },
+		lastIssueIDs: make(map[string]struct{}),
+		stopCh:       make(chan struct{}),
+	}
+	s.checks["mycomp"] = check
 
-	// Start and stop should complete gracefully
-	runner.start(context.Background()) //nolint:errcheck
+	s.tick(check)
 
-	// Check returns nil, so ResolveIssue is called each tick (not ReportIssue).
-	assert.Eventually(t, func() bool {
-		return atomic.LoadInt32(&reporter.resolveCount) >= 1
-	}, 100*time.Millisecond, 5*time.Millisecond)
+	mr.mu.Lock()
+	mr.response = func(_ string) ([]string, error) { return nil, nil }
+	mr.mu.Unlock()
 
-	runner.stop(context.Background()) //nolint:errcheck // Stop blocks until all goroutines finish
+	s.tick(check)
 
-	// Verify runner is no longer running
-	runner.checkMux.RLock()
-	assert.False(t, runner.started)
-	runner.checkMux.RUnlock()
+	ms.mu.Lock()
+	assert.ElementsMatch(t, []string{"A", "B"}, ms.resolvedIDs)
+	ms.mu.Unlock()
 }
 
-// TestExecuteCheckDoesNotOverrideSource verifies that the scheduler never sets Source
-// in the IssueReport forwarded to the reporter. Issue templates own the Source field;
-// setting it from checkName would shadow the template's value (e.g. "logs" becomes
-// "Docker Socket Permissions").
-func TestExecuteCheckDoesNotOverrideSource(t *testing.T) {
-	runner, reporter := newTestRunner(t)
-
-	checkFn := func() (*healthplatformpayload.IssueReport, error) {
-		return &healthplatformpayload.IssueReport{
-			IssueId: "some-issue-type",
-		}, nil
+func TestTickErrorDoesNotResolveActiveIssues(t *testing.T) {
+	// First tick succeeds and records A, B as active.
+	mr := &mockRunner{
+		response: func(_ string) ([]string, error) { return []string{"A", "B"}, nil },
 	}
+	ms := &mockStore{}
+	s := newTestScheduler(t, mr, ms)
 
-	runner.executeCheck(&registeredCheck{
-		checkID:   "my-check-id",
-		checkName: "My Check Display Name",
-		checkFn:   checkFn,
-		stopCh:    make(chan struct{}),
-	})
+	check := &registeredHealthCheck{
+		source:       "mycomp",
+		fn:           func() ([]runnerdef.IssueReport, error) { return nil, nil },
+		lastIssueIDs: make(map[string]struct{}),
+		stopCh:       make(chan struct{}),
+	}
+	s.checks["mycomp"] = check
 
-	require.Equal(t, int32(1), atomic.LoadInt32(&reporter.reportCount))
-	reporter.mu.Lock()
-	got := reporter.lastReport
-	reporter.mu.Unlock()
+	s.tick(check)
+	ms.mu.Lock()
+	assert.Empty(t, ms.resolvedIDs)
+	ms.mu.Unlock()
 
-	assert.Empty(t, got.Source, "scheduler must not set Source; issue template owns that field")
-	assert.Equal(t, "my-check-id", got.IssueID)
-	assert.Equal(t, "some-issue-type", got.IssueType)
+	// Second tick errors — lastIssueIDs must not be updated and no resolves fired.
+	mr.mu.Lock()
+	mr.response = func(_ string) ([]string, error) {
+		return nil, errors.New("transient probe failure")
+	}
+	mr.mu.Unlock()
+
+	s.tick(check)
+
+	ms.mu.Lock()
+	assert.Empty(t, ms.resolvedIDs, "a transient error must not resolve active issues")
+	ms.mu.Unlock()
+
+	// Confirm lastIssueIDs is still {A, B} (not cleared by the error tick).
+	s.checkMux.RLock()
+	assert.Equal(t, map[string]struct{}{"A": {}, "B": {}}, check.lastIssueIDs)
+	s.checkMux.RUnlock()
+}
+
+func TestSchedulerLifecycle(t *testing.T) {
+	var callCount int32
+	mr := &mockRunner{
+		response: func(_ string) ([]string, error) {
+			atomic.AddInt32(&callCount, 1)
+			return nil, nil
+		},
+	}
+	s := newTestScheduler(t, mr, &mockStore{})
+
+	fn := func() ([]runnerdef.IssueReport, error) { return nil, nil }
+	require.NoError(t, s.Schedule("mycomp", fn, 20*time.Millisecond, nil))
+
+	require.NoError(t, s.start(context.Background()))
+
+	assert.Eventually(t, func() bool { return atomic.LoadInt32(&callCount) >= 2 },
+		500*time.Millisecond, 10*time.Millisecond)
+
+	require.NoError(t, s.stop(context.Background()))
+	// stop() calls wg.Wait() so all goroutines have exited.
+	// Any tick in-flight when stopCh closed has now completed; count is frozen.
+	assert.GreaterOrEqual(t, atomic.LoadInt32(&callCount), int32(2))
 }
