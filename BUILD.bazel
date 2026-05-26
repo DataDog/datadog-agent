@@ -114,7 +114,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/tagger/fx-mock
 # gazelle:exclude comp/core/tagger/impl
 # gazelle:exclude comp/core/tagger/impl-dual
-# gazelle:exclude comp/core/tagger/kubetags
 # gazelle:exclude comp/core/tagger/mock
 # gazelle:exclude comp/core/tagger/tagstore
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog
@@ -141,7 +140,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/workloadmeta/fx-mock
 # gazelle:exclude comp/core/workloadmeta/impl
 # gazelle:exclude comp/core/workloadmeta/init
-# gazelle:exclude comp/core/workloadmeta/proto
 # gazelle:exclude comp/core/workloadmeta/server
 # gazelle:exclude comp/dogstatsd/http/fx
 # gazelle:exclude comp/dogstatsd/http/impl/*.go
@@ -161,7 +159,6 @@ exports_files(glob(
 # gazelle:exclude comp/host-profiler/collector/fx
 # gazelle:exclude comp/host-profiler/collector/impl/agentprovider
 # gazelle:exclude comp/host-profiler/collector/impl/processor
-# gazelle:exclude comp/host-profiler/collector/impl/receiver
 # gazelle:exclude comp/host-profiler/flare
 # gazelle:exclude comp/languagedetection/client/fx
 # gazelle:exclude comp/languagedetection/client/impl
@@ -283,9 +280,6 @@ exports_files(glob(
 # gazelle:exclude comp/syntheticstestscheduler/impl
 # gazelle:exclude comp/systray/systray/fx
 # gazelle:exclude comp/systray/systray/impl
-# gazelle:exclude comp/trace/agent/fx
-# gazelle:exclude comp/trace/agent/fx-mock
-# gazelle:exclude comp/trace/agent/impl
 # gazelle:exclude comp/trace/config/fx
 # gazelle:exclude comp/trace/config/impl
 # gazelle:exclude comp/trace/config/mock
@@ -388,10 +382,7 @@ exports_files(glob(
 # gazelle:exclude pkg/collector/worker
 # gazelle:exclude pkg/commonchecks
 # gazelle:exclude pkg/compliance/cli
-# gazelle:exclude pkg/compliance/dbconfig
-# gazelle:exclude pkg/compliance/k8sconfig
 # gazelle:exclude pkg/compliance/tests
-# gazelle:exclude pkg/compliance/tools/k8s_schema_generator
 # gazelle:exclude pkg/config/autodiscovery
 # gazelle:exclude pkg/config/legacy
 # gazelle:exclude pkg/databasemonitoring
@@ -487,7 +478,6 @@ exports_files(glob(
 # gazelle:exclude pkg/kubestatemetrics
 # gazelle:exclude pkg/languagedetection/internal/detectors/privileged
 # gazelle:exclude pkg/languagedetection/privileged
-# gazelle:exclude pkg/languagedetection/util
 # gazelle:exclude pkg/logs/client/http
 # gazelle:exclude pkg/logs/client/tcp
 # gazelle:exclude pkg/logs/internal/tag
@@ -506,8 +496,6 @@ exports_files(glob(
 # gazelle:exclude pkg/logs/tailers/container
 # gazelle:exclude pkg/logs/tailers/file
 # gazelle:exclude pkg/logs/tailers/journald
-# gazelle:exclude pkg/logs/tailers/socket
-# gazelle:exclude pkg/logs/tailers/windowsevent
 # gazelle:exclude pkg/network/containers
 # gazelle:exclude pkg/network/dns
 # gazelle:exclude pkg/network/encoding
@@ -625,7 +613,6 @@ exports_files(glob(
 # gazelle:exclude pkg/system-probe/api/server/testutil
 # gazelle:exclude pkg/util/cloudproviders/kubernetes
 # gazelle:exclude pkg/util/cloudproviders/network
-# gazelle:exclude pkg/util/clusteragent
 # gazelle:exclude pkg/util/containers/metadata
 # gazelle:exclude pkg/util/containers/metrics/containerd
 # gazelle:exclude pkg/util/containers/metrics/docker
@@ -666,20 +653,17 @@ exports_files(glob(
 # gazelle:exclude test/e2e-framework/components/activedirectory
 # gazelle:exclude test/e2e-framework/components/command
 # gazelle:exclude test/e2e-framework/components/datadog/agent/helm
-# gazelle:exclude test/e2e-framework/components/datadog/agentparams/msi
 # gazelle:exclude test/e2e-framework/components/datadog/agentwithoperatorparams
 # gazelle:exclude test/e2e-framework/components/datadog/apps
 # gazelle:exclude test/e2e-framework/components/datadog/csi-driver
 # gazelle:exclude test/e2e-framework/components/datadog/dockeragentparams
 # gazelle:exclude test/e2e-framework/components/datadog/dogstatsd-standalone
-# gazelle:exclude test/e2e-framework/components/datadog/fakeintake
 # gazelle:exclude test/e2e-framework/components/datadog/kubernetesagentparams
 # gazelle:exclude test/e2e-framework/components/datadog/operator
 # gazelle:exclude test/e2e-framework/components/datadog/operatorparams
 # gazelle:exclude test/e2e-framework/components/datadog/otel-standalone
 # gazelle:exclude test/e2e-framework/components/datadog/updater
 # gazelle:exclude test/e2e-framework/components/docker
-# gazelle:exclude test/e2e-framework/components/ecs
 # gazelle:exclude test/e2e-framework/components/iis
 # gazelle:exclude test/e2e-framework/components/kubernetes
 # gazelle:exclude test/e2e-framework/components/os
@@ -722,7 +706,6 @@ exports_files(glob(
 # gazelle:exclude test/new-e2e/system-probe/config
 # gazelle:exclude test/new-e2e/system-probe/test
 # gazelle:exclude test/new-e2e/system-probe/test-json-review
-# gazelle:exclude test/new-e2e/system-probe/vm-metrics
 # gazelle:exclude test/new-e2e/test-infra-definition
 # gazelle:exclude test/new-e2e/tests/agent-configuration
 # gazelle:exclude test/new-e2e/tests/agent-devx
