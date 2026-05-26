@@ -8,6 +8,7 @@ package agent
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -111,7 +112,7 @@ func (a *Agent) InstallIntegration(name string) error {
 // Unix user (e.g. "root" or "dd-agent"). Linux-only.
 func (a *Agent) InstallIntegrationAs(user, name string) error {
 	if a.host.RemoteHost.OSFamily != e2eos.LinuxFamily {
-		return fmt.Errorf("InstallIntegrationAs is only supported on Linux")
+		return errors.New("InstallIntegrationAs is only supported on Linux")
 	}
 	// --allow-root is required when running as root: the CLI rejects root execution by
 	// default to prevent root-owned integration files. Tests use it deliberately to cover
