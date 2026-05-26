@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    Removed support for the ``DSM_LIVE_MESSAGES`` remote configuration product, which re-scheduled the
+    ``kafka_consumer`` integration to fetch messages from Kafka. This functionality has been replaced by
+    the ``DSM_KAFKA_ACTIONS`` product, which schedules one-off ``kafka_actions`` checks instead.
