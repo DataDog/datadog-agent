@@ -146,3 +146,11 @@ func TestAddToString(t *testing.T) {
 	oldStr = "0"
 	assert.Equal(t, "0:1", addToString(oldStr, ":", "1"))
 }
+
+func TestDetectModeDoesNotForceDisableRemoteConfig(t *testing.T) {
+	conf := DetectMode()
+	_, rcPresent := conf.EnvDefaults["DD_REMOTE_CONFIGURATION_ENABLED"]
+	_, telPresent := conf.EnvDefaults["DD_INSTRUMENTATION_TELEMETRY_ENABLED"]
+	assert.False(t, rcPresent, "DD_REMOTE_CONFIGURATION_ENABLED must not be overridden by serverless-init")
+	assert.False(t, telPresent, "DD_INSTRUMENTATION_TELEMETRY_ENABLED must not be overridden by serverless-init")
+}

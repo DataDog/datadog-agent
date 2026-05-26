@@ -133,6 +133,31 @@ func TestSetupWithoutAPIKey(t *testing.T) {
 	})
 }
 
+func TestSetupRemoteConfigReturnsNilWhenDisabled(t *testing.T) {
+	configmock.New(t)
+	t.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
+	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t), nil)
+
+	assert.Nil(t, setupRemoteConfig(nil))
+}
+
+func TestSetupRemoteConfigReturnsNilWithoutPreviewFlag(t *testing.T) {
+	configmock.New(t)
+	// RC is enabled by default but preview flag defaults to false
+	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t), nil)
+
+	assert.Nil(t, setupRemoteConfig(nil))
+}
+
+func TestSetupRemoteConfigReturnsNilWithNoAPIKey(t *testing.T) {
+	configmock.New(t)
+	t.Setenv("DD_REMOTE_CONFIGURATION_ENABLED_SERVERLESS_PREVIEW", "true")
+	t.Setenv("DD_API_KEY", "")
+	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t), nil)
+
+	assert.Nil(t, setupRemoteConfig(nil))
+}
+
 // TestSetupOtlpAgentNoPanic ensures setupOtlpAgent does not panic when OTLP is enabled.
 func TestSetupOtlpAgentNoPanic(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_LOGS_ENABLED", "true")
