@@ -16,10 +16,11 @@ import (
 
 // PathPatternMatchOpts PathPatternMatch options
 type PathPatternMatchOpts struct {
-	WildcardLimit      int // max number of wildcard in the pattern
-	PrefixNodeRequired int // number of prefix nodes required
-	SuffixNodeRequired int // number of suffix nodes required
-	NodeSizeLimit      int // min size required to substitute with a wildcard
+	WildcardLimit           int // max number of wildcard in the pattern
+	PrefixNodeRequired      int // number of prefix nodes required
+	SuffixNodeRequired      int // number of suffix nodes required
+	NodeSizeLimit           int // min size required to substitute with a wildcard
+	NodeCommonCharsRequired int // min number of common characters required for two differing nodes to be considered equal
 }
 
 // PathPatternMatch pattern builder for files
@@ -27,6 +28,7 @@ func PathPatternMatch(pattern string, path string, opts PathPatternMatchOpts) bo
 	var (
 		i, j, offsetPath                     = 0, 0, 0
 		wildcardCount, nodeCount, suffixNode = 0, 0, 0
+		nodeCommonChars                      = 0
 		patternLen, pathLen                  = len(pattern), len(path)
 		wildcard                             bool
 
@@ -42,6 +44,9 @@ func PathPatternMatch(pattern string, path string, opts PathPatternMatchOpts) bo
 				if opts.NodeSizeLimit != 0 && j-offsetPath < opts.NodeSizeLimit {
 					return false
 				}
+				if opts.NodeCommonCharsRequired != 0 && nodeCommonChars < opts.NodeCommonCharsRequired {
+					return false
+				}
 
 				suffixNode = 0
 			} else {
@@ -49,6 +54,7 @@ func PathPatternMatch(pattern string, path string, opts PathPatternMatchOpts) bo
 			}
 
 			offsetPath = j
+			nodeCommonChars = 0
 
 			if i > 0 {
 				nodeCount++
@@ -80,6 +86,8 @@ func PathPatternMatch(pattern string, path string, opts PathPatternMatchOpts) bo
 
 		if pn != ph {
 			wildcard = true
+		} else if pn != '/' {
+			nodeCommonChars++
 		}
 		if pn != '/' {
 			i++
@@ -128,6 +136,7 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternMatchOpts) 
 	var (
 		i, j                                 = 0, 0
 		wildcardCount, nodeCount, suffixNode = 0, 0, 0
+		nodeCommonChars                      = 0
 		offsetPattern, offsetPath, size      = 0, 0, 0
 		patternLen, pathLen                  = len(pattern), len(path)
 		wildcard                             bool
@@ -145,6 +154,9 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternMatchOpts) 
 				if opts.NodeSizeLimit != 0 && j-offsetPath < opts.NodeSizeLimit {
 					return false
 				}
+				if opts.NodeCommonCharsRequired != 0 && nodeCommonChars < opts.NodeCommonCharsRequired {
+					return false
+				}
 
 				result[size], result[size+1] = '/', '*'
 				size += 2
@@ -158,6 +170,7 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternMatchOpts) 
 			}
 
 			offsetPath = j
+			nodeCommonChars = 0
 
 			if i > 0 {
 				nodeCount++
@@ -189,6 +202,8 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternMatchOpts) 
 
 		if pn != ph {
 			wildcard = true
+		} else if pn != '/' {
+			nodeCommonChars++
 		}
 		if pn != '/' {
 			i++

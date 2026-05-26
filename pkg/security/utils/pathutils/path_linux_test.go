@@ -234,6 +234,42 @@ func TestPathPatternMatch(t *testing.T) {
 			Opts:           PathPatternMatchOpts{WildcardLimit: 1, SuffixNodeRequired: 1},
 			ExpectedResult: false,
 		},
+		{
+			Pattern:        "/bin/baz2",
+			Path:           "/bin/baz",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 3},
+			ExpectedResult: true,
+		},
+		{
+			Pattern:        "/bin/baz2",
+			Path:           "/bin/baz",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 4},
+			ExpectedResult: false,
+		},
+		{
+			Pattern:        "/var/run/abcdef/runc.pid",
+			Path:           "/var/run/abcxyz/runc.pid",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 3},
+			ExpectedResult: true,
+		},
+		{
+			Pattern:        "/var/run/abcdef/runc.pid",
+			Path:           "/var/run/abcxyz/runc.pid",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 4},
+			ExpectedResult: false,
+		},
+		{
+			Pattern:        "/var/run/12345/runc.pid",
+			Path:           "/var/run/67890/runc.pid",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 1},
+			ExpectedResult: false,
+		},
+		{
+			Pattern:        "/etc/passwd",
+			Path:           "/etc/passwd",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 100},
+			ExpectedResult: true,
+		},
 	}
 
 	for _, test := range tests {
@@ -503,6 +539,34 @@ func TestPathPatternBuilder(t *testing.T) {
 			Opts:            PathPatternMatchOpts{WildcardLimit: 1, SuffixNodeRequired: 1},
 			ExpectedResult:  false,
 			ExpectedPattern: "",
+		},
+		{
+			Pattern:         "/bin/baz2",
+			Path:            "/bin/baz",
+			Opts:            PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 3},
+			ExpectedResult:  true,
+			ExpectedPattern: "/bin/*",
+		},
+		{
+			Pattern:         "/bin/baz2",
+			Path:            "/bin/baz",
+			Opts:            PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 4},
+			ExpectedResult:  false,
+			ExpectedPattern: "",
+		},
+		{
+			Pattern:         "/var/run/12345/runc.pid",
+			Path:            "/var/run/67890/runc.pid",
+			Opts:            PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 1},
+			ExpectedResult:  false,
+			ExpectedPattern: "",
+		},
+		{
+			Pattern:         "/etc/passwd",
+			Path:            "/etc/passwd",
+			Opts:            PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 100},
+			ExpectedResult:  true,
+			ExpectedPattern: "/etc/passwd",
 		},
 	}
 
