@@ -148,3 +148,40 @@ FallbackNTP=0.pool.ntp.org 1.pool.ntp.org
 		assert.Equal(t, []string{"0.pool.ntp.org", "1.pool.ntp.org", "time1.example.com", "time2.example.com"}, servers)
 	})
 }
+
+func TestGetNTPServersFromTimesyncdConfigEdgeCases(t *testing.T) {
+	config := `# vendor defaults
+[Time]
+#NTP=
+NTP=time1.example.com  time2.example.com   # trailing comment
+FallbackNTP=
+`
+	createTempFile(t, config, func(f1 string) {
+		servers, err := getNTPServersFromFiles([]string{f1})
+		assert.NoError(t, err)
+		sort.Strings(servers)
+		assert.Equal(t, []string{"time1.example.com", "time2.example.com"}, servers)
+	})
+}
+
+func TestGetNTPServersFromTimesyncdConfigOnlyFallback(t *testing.T) {
+	config := `[Time]
+FallbackNTP=0.pool.ntp.org
+`
+	createTempFile(t, config, func(f1 string) {
+		servers, err := getNTPServersFromFiles([]string{f1})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"0.pool.ntp.org"}, servers)
+	})
+}
+
+func TestGetNTPServersFromTimesyncdAllCommented(t *testing.T) {
+	config := `[Time]
+#NTP=time1.example.com
+#FallbackNTP=0.pool.ntp.org
+`
+	createTempFile(t, config, func(f1 string) {
+		_, err := getNTPServersFromFiles([]string{f1})
+		assert.Error(t, err)
+	})
+}
