@@ -217,10 +217,10 @@ var defaultProfiles = `
         zero_metric: true
       metrics:
         - name: dogstatsd.udp_packets_bytes
-          aggregate_tags:
+          preserve_tags:
             - remote_agent
         - name: dogstatsd.uds_packets_bytes
-          aggregate_tags:
+          preserve_tags:
             - remote_agent
         - name: logs.bytes_missed
         - name: logs.bytes_sent

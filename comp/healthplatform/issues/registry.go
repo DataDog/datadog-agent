@@ -36,14 +36,14 @@ func (r *Registry) RegisterModule(module Module) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.templates[module.IssueType()] = module.IssueTemplate()
+	r.templates[module.IssueName()] = module.IssueTemplate()
 
 	if check := module.BuiltInPeriodicHealthCheck(); check != nil {
-		check.IssueTypes = append(check.IssueTypes, module.IssueType())
+		check.IssueNames = append(check.IssueNames, module.IssueName())
 		r.periodicChecks = append(r.periodicChecks, check)
 	}
 	if once := module.BuiltInStartupHealthCheck(); once != nil {
-		once.IssueTypes = append(once.IssueTypes, module.IssueType())
+		once.IssueNames = append(once.IssueNames, module.IssueName())
 		r.startupChecks = append(r.startupChecks, once)
 	}
 }

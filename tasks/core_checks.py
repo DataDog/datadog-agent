@@ -9,6 +9,7 @@ AGENT_CORECHECKS = [
     "container_lifecycle",
     "cpu",
     "cri",
+    "datadog_csi_driver",
     "snmp",
     "docker",
     "file_handle",
@@ -44,15 +45,21 @@ AGENT_CORECHECKS = [
 ]
 
 AIX_CORECHECKS = [
+    "cisco_sdwan",
+    "cloud_hostinfo",
     "cpu",
     "disk",
+    "discovery",
     "io",
     "load",
     "memory",
     "network",
     "ntp",
     "oracle",
+    "snmp",
+    "telemetry",
     "uptime",
+    "versa",
 ]
 
 WINDOWS_CORECHECKS = [
