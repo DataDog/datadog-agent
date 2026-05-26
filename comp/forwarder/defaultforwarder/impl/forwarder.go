@@ -117,11 +117,15 @@ func newMockForwarder(config config.Component, log log.Component, secrets secret
 }
 
 // NewForwarderFromDeps is an exported wrapper around newForwarder for use with fx.
+//
+//nolint:revive
 func NewForwarderFromDeps(dep dependencies) (provides, error) {
 	return newForwarder(dep)
 }
 
 // NewMockForwarder provides a mock forwarder component for use with fx.
+//
+//nolint:revive
 func NewMockForwarder(config config.Component, log log.Component, secrets secrets.Component) provides {
 	return newMockForwarder(config, log, secrets)
 }
