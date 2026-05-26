@@ -1583,6 +1583,10 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 		return err
 	}
 
+	if p.kernelThreadPidsMap, err = managerhelper.Map(p.manager, "kernel_thread_pids"); err != nil {
+		return err
+	}
+
 	// otel_tls and go_labels_procs maps are optional — non-fatal if not found.
 	p.otelTLSMap, _ = managerhelper.Map(p.manager, "otel_tls")
 	p.goLabelsMap, _ = managerhelper.Map(p.manager, "go_labels_procs")
