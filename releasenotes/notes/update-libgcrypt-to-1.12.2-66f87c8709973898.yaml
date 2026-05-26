@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Update ``libgcrypt`` to 1.12.2.
