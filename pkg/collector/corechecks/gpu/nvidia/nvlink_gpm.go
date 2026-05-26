@@ -78,14 +78,14 @@ func (c *nvlinkGpmCollector) getOrCreateGpmCollector(port int) (*gpmCollector, e
 
 	// GPM metric IDs are offset by 2 for each port, we have NVML_GPM_METRIC_NVLINK_L0_RX_PER_SEC = 62, then NVML_GPM_METRIC_NVLINK_L1_RX_PER_SEC = 64, etc.
 	// so we can calculate the metric ID for the RX and TX metrics for the given port by adding 2*port to the base metric ID.
-	rxMetricId := int(baseNvlinkRxGpm) + 2*port
-	txMetricId := int(baseNvlinkTxGpm) + 2*port
+	rxMetricID := int(baseNvlinkRxGpm) + 2*port
+	txMetricID := int(baseNvlinkTxGpm) + 2*port
 
-	portGpmMetrics[nvml.GpmMetricId(rxMetricId)] = gpmMetric{
+	portGpmMetrics[nvml.GpmMetricId(rxMetricID)] = gpmMetric{
 		name:       "nvlink.throughput.data.rx",
 		metricType: metrics.GaugeType,
 	}
-	portGpmMetrics[nvml.GpmMetricId(txMetricId)] = gpmMetric{
+	portGpmMetrics[nvml.GpmMetricId(txMetricID)] = gpmMetric{
 		name:       "nvlink.throughput.data.tx",
 		metricType: metrics.GaugeType,
 	}
@@ -96,7 +96,7 @@ func (c *nvlinkGpmCollector) getOrCreateGpmCollector(port int) (*gpmCollector, e
 	}
 	gpmCollector, ok := collector.(*gpmCollector)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast collector to gpmCollector")
+		return nil, errors.New("failed to cast collector to gpmCollector")
 	}
 	c.perPortCollector[port] = gpmCollector
 
