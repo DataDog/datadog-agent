@@ -17,7 +17,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -32,11 +32,11 @@ func newChecker(cfg config.Component) *checker {
 	return &checker{cfg: cfg}
 }
 
-func (c *checker) Run() ([]storedef.IssueReport, error) {
+func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 	return c.validate()
 }
 
-func (c *checker) validate() ([]storedef.IssueReport, error) {
+func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	// AllSettingsWithoutDefaultOrSecrets returns only values the customer actually set
 	raw := c.cfg.AllSettingsWithoutDefaultOrSecrets()
 	if len(raw) == 0 {
@@ -54,10 +54,10 @@ func (c *checker) validate() ([]storedef.IssueReport, error) {
 	if len(errs) == 0 {
 		return nil, nil
 	}
-	return []storedef.IssueReport{
+	return []runnerdef.IssueReport{
 		{
 			IssueID:   IssueID,
-			IssueType: IssueID,
+			IssueName: IssueID,
 			Source:    "agent",
 			Context: map[string]string{
 				contextKeyConfigPath: c.cfg.ConfigFileUsed(),

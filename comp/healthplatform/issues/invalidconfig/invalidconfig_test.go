@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/agent-payload/v5/healthplatform"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 )
 
@@ -24,7 +26,7 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, IssueID, issue.GetId())
-	assert.Equal(t, "medium", issue.GetSeverity())
+	assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.GetSeverity())
 	assert.Contains(t, issue.GetTitle(), "3 schema violations")
 	assert.Equal(t, float64(3),
 		issue.GetExtra().GetFields()[contextKeyErrorCount].GetNumberValue())
@@ -55,7 +57,7 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	reports, err := newChecker(cfg).Run()
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
-	assert.Equal(t, IssueID, reports[0].IssueType)
+	assert.Equal(t, IssueID, reports[0].IssueName)
 	assert.Equal(t, IssueID, reports[0].IssueID)
 	assert.Contains(t, reports[0].Context[contextKeyErrors], "agent_ipc/port")
 }

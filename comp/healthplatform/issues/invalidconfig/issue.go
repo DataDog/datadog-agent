@@ -60,7 +60,7 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 		Description: desc,
 		Category:    "configuration",
 		Location:    "agent",
-		Severity:    "medium",
+		Severity:    healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
 		Source:      "config",
 		Extra:       extra,
 		Tags:        []string{"config", "schema"},
