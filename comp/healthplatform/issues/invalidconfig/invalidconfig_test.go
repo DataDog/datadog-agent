@@ -25,7 +25,8 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 		contextKeyErrors:     "/agent_ipc/port: expected integer\n/tags: expected array",
 	})
 	require.NoError(t, err)
-	assert.Equal(t, IssueID, issue.GetId())
+	assert.Empty(t, issue.GetId(), "Id is set by the runner (ReportIssue), not by the template")
+	assert.Equal(t, IssueID, issue.GetIssueName())
 	assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.GetSeverity())
 	assert.Contains(t, issue.GetTitle(), "3 schema violations")
 	assert.Equal(t, float64(3),
