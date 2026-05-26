@@ -82,8 +82,8 @@ func (r *runner) Run(source string, fn runnerdef.HealthCheckFunc) (issueIDs []st
 // template for report.IssueName, that template is used to populate the proto
 // fields; otherwise a minimal proto is built from the report fields directly.
 func (r *runner) toProto(report runnerdef.IssueReport) *healthplatformpayload.Issue {
-	if r.registry.HasTemplate(report.IssueName) {
-		issue, err := r.registry.BuildIssue(report.IssueName, report.Context)
+	if tmpl, ok := r.registry.GetTemplate(report.IssueName); ok {
+		issue, err := tmpl.BuildIssue(report.Context)
 		if err == nil && issue != nil {
 			issue.Id = report.IssueID
 			if len(report.Tags) > 0 {
