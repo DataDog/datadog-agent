@@ -283,6 +283,11 @@ func TestConverterWithoutAgent(t *testing.T) {
 			provided: "no_agent/int-metrics-mixed/in.yaml",
 			expected: "no_agent/int-metrics-mixed/out.yaml",
 		},
+		{
+			name:     "deprecated-otlphttp-name-accepted",
+			provided: "no_agent/deprecated-otlphttp/in.yaml",
+			expected: "no_agent/deprecated-otlphttp/out.yaml",
+		},
 	}
 
 	runSuccessTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)

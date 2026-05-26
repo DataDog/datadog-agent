@@ -352,7 +352,7 @@ func (c *converterWithoutAgent) ensureOtlpHTTPExporterConfig(conf confMap, expor
 	// for each otlp_http exporter used, check if necessary api key is present
 	hasOtlpHTTP := false
 	for _, nameAny := range exporterNames {
-		if name, ok := nameAny.(string); ok && isComponentType(name, componentTypeOtlpHTTP) {
+		if name, ok := nameAny.(string); ok && isComponentTypeOtlpHTTP(name) {
 			hasOtlpHTTP = true
 
 			if _, err := SetDefault(conf, pathPrefixExporters+name+"::compression", "zstd"); err != nil {
@@ -474,7 +474,7 @@ func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, p
 			continue
 		}
 
-		if !isComponentType(exporterName, componentTypeOtlpHTTP) {
+		if !isComponentTypeOtlpHTTP(exporterName) {
 			continue
 		}
 

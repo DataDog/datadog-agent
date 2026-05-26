@@ -39,9 +39,14 @@ const (
 	componentTypeResourceDetection   = "resourcedetection"
 	componentTypeDDHostNameProcessor = "ddhostname"
 	componentTypeProfiling           = "profiling"
-	componentTypeOtlpHTTP            = "otlp_http"
 	componentTypeDDProfiling         = "ddprofiling"
 	componentTypeHPFlare             = "hpflare"
+)
+
+// Component type names for otlp_http
+const (
+	componentTypeOtlpHTTP           = "otlp_http"
+	componentTypeOtlpHTTPDeprecated = "otlphttp"
 )
 
 // Default component names
@@ -87,6 +92,11 @@ const (
 // Examples: "otlp_http", "otlp_http/prod", "profiling/custom"
 func isComponentType(name, componentType string) bool {
 	return name == componentType || strings.HasPrefix(name, componentType+"/")
+}
+
+// isComponentTypeOtlpHTTP checks for both the current ("otlp_http") and deprecated ("otlphttp") component names.
+func isComponentTypeOtlpHTTP(name string) bool {
+	return isComponentType(name, componentTypeOtlpHTTP) || isComponentType(name, componentTypeOtlpHTTPDeprecated)
 }
 
 // Get retrieves a value of type T from the confMap at the given path.
