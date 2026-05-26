@@ -22,7 +22,7 @@ import (
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
-	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
+	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
@@ -76,7 +76,22 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		remotetraceroute.Module(),
 		logscompressionfx.Module(),
 		eventplatformreceiverimpl.Module(),
-		eventplatformfx.Module(eventplatform.NewDefaultParams()),
+		// Inlined equivalent of eventplatformfx.Module that picks Params from the
+		// config at construction time instead of taking a static value. When PAR
+		// is disabled, NewDisabledParams() makes newEventPlatformForwarder skip
+		// pipeline construction; otherwise the pipelines would initialize a zstd
+		// compressor that the PAR binary build cannot satisfy (no zstd/zlib tags)
+		// and log "invalid compression set" before PAR's own enabled-check runs.
+		// Kept in sync with comp/forwarder/eventplatform/fx/fx.go.
+		fx.Module("comp/forwarder/eventplatform/fx",
+			fxutil.ProvideComponentConstructor(eventplatformimpl.NewComponent),
+			fx.Provide(func(c config.Component) eventplatform.Params {
+				if c.GetBool(privateactionrunner.PAREnabled) {
+					return eventplatform.NewDefaultParams()
+				}
+				return eventplatform.NewDisabledParams()
+			}),
+		),
 		privateactionrunnerfx.Module(),
 	}
 

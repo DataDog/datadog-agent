@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fixes a spurious ``invalid compression set`` error logged to
+    ``private-action-runner.log`` at startup when the Private Action Runner is
+    disabled. The event platform forwarder's passthrough pipelines (which
+    initialize a ``zstd`` compressor unsupported by the PAR binary build) are
+    now skipped when ``private_action_runner.enabled`` is ``false``.
