@@ -193,3 +193,99 @@ func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
 	require.Contains(t, requestedFieldsByScope[0], uint32(nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS))
 	require.NotContains(t, requestedFieldsByScope[1], uint32(nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS))
 }
+
+func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
+	tests := []struct {
+		name             string
+		unsupportedField uint32 // field ID to mark as unsupported; 0 means all supported
+		expectPriority   MetricPriority
+		expectValue      float64
+	}{
+		{
+			name:           "both supported, newer wins after dedup",
+			expectPriority: MediumLow,
+			expectValue:    float64(mockFieldValues[nvml.FI_DEV_NVLINK_GET_SPEED]),
+		},
+		{
+			name:             "newer unsupported, legacy selected",
+			unsupportedField: nvml.FI_DEV_NVLINK_GET_SPEED,
+			expectPriority:   Low,
+			expectValue:      float64(mockFieldValues[nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON]),
+		},
+		{
+			name:             "legacy unsupported, newer selected",
+			unsupportedField: nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON,
+			expectPriority:   MediumLow,
+			expectValue:      float64(mockFieldValues[nvml.FI_DEV_NVLINK_GET_SPEED]),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			returnValues := copyMockFieldValues()
+			returnValues[nvml.FI_DEV_NVLINK_LINK_COUNT] = 1
+			device := setupMockDevice(t, func(d *mock.Device) *mock.Device {
+				d.GetFieldValuesFunc = fieldValuesMockFunc(returnValues, tt.unsupportedField)
+				return d
+			})
+
+			collector, err := newNVLinkFieldsCollector(device, nil)
+			require.NoError(t, err)
+
+			collected, err := collector.Collect()
+			require.NoError(t, err)
+
+			// Run through RemoveDuplicateMetrics, same as the real check
+			deduped := RemoveDuplicateMetrics(map[CollectorName][]*Metric{
+				field: collected,
+			})
+
+			var nvlinkSpeed []*Metric
+			for _, m := range deduped {
+				if m.Name == "nvlink.speed" {
+					nvlinkSpeed = append(nvlinkSpeed, m)
+				}
+			}
+
+			require.Len(t, nvlinkSpeed, 1, "exactly one nvlink.speed metric should survive dedup")
+			require.Equal(t, tt.expectPriority, nvlinkSpeed[0].Priority)
+			require.Equal(t, tt.expectValue, nvlinkSpeed[0].Value)
+		})
+	}
+}
+
+func TestNVlinkFieldsCollectorTreatsInvalidArgumentAsUnsupportedOnlyWhenConfigured(t *testing.T) {
+	returnValues := copyMockFieldValues()
+	device := setupMockDevice(t, func(d *mock.Device) *mock.Device {
+		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
+			for i := range fv {
+				switch fv[i].FieldId {
+				case nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS:
+					fv[i].NvmlReturn = uint32(nvml.ERROR_INVALID_ARGUMENT)
+				default:
+					fv[i].NvmlReturn = uint32(nvml.SUCCESS)
+					fv[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
+					binary.LittleEndian.PutUint32(fv[i].Value[:], returnValues[fv[i].FieldId])
+				}
+			}
+			return nvml.SUCCESS
+		}
+		return d
+	})
+
+	collector, err := newFieldsCollector(device, nil)
+	require.NoError(t, err)
+
+	fc, ok := collector.(*fieldsCollector)
+	require.True(t, ok, "expected *fieldsCollector")
+
+	foundNvlinkEffective := false
+	for _, metric := range fc.fieldMetrics {
+		switch metric.name {
+		case "nvlink.errors.effective":
+			foundNvlinkEffective = true
+		}
+	}
+
+	require.False(t, foundNvlinkEffective, "nvlink.errors.effective should be removed when INVALID_ARGUMENT is explicitly mapped to unsupported")
+}

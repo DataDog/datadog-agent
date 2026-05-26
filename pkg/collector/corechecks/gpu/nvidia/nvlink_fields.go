@@ -49,8 +49,8 @@ var nvlinkFieldsMetrics = []nvlinkFieldValueMetric{
 	{name: "nvlink.throughput.raw.tx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX, addTotalMetric: true, metricType: metrics.GaugeType, rateCalculationMode: PerSecondRateCalculation},
 
 	// Alternative throughput fields
-	{name: "nvlink.throughput.data.rx", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_RCV_BYTES, metricType: metrics.GaugeType, rateCalculationMode: PerSecondRateCalculation},
-	{name: "nvlink.throughput.data.tx", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_XMIT_BYTES, metricType: metrics.GaugeType, rateCalculationMode: PerSecondRateCalculation},
+	{name: "nvlink.throughput.data.rx", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_RCV_BYTES, metricType: metrics.GaugeType, priority: Medium, rateCalculationMode: PerSecondRateCalculation},
+	{name: "nvlink.throughput.data.tx", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_XMIT_BYTES, metricType: metrics.GaugeType, priority: Medium, rateCalculationMode: PerSecondRateCalculation},
 
 	// -- NVLink speed --
 	// MediumLow: newer field (164), uses per-link speeds. Older field return the same per-link speed for all links, lower priority (default).
@@ -77,7 +77,7 @@ var nvlinkFieldsMetrics = []nvlinkFieldValueMetric{
 	{name: "nvlink.errors.local.link.integrity", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_LOCAL_LINK_INTEGRITY_ERRORS, metricType: metrics.GaugeType},
 	{name: "nvlink.recovery.events.successful", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_SUCCESSFUL_EVENTS, metricType: metrics.GaugeType},
 	{name: "nvlink.recovery.events.failed", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_FAILED_EVENTS, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.effective", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS, metricType: metrics.GaugeType},
+	{name: "nvlink.errors.effective", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS, markUnsupportedOnInvalidArgument: true, metricType: metrics.GaugeType},
 	{name: "nvlink.ber.effective", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER, metricType: metrics.GaugeType},
 	{name: "nvlink.errors.symbol", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS, metricType: metrics.GaugeType},
 	{name: "nvlink.ber.symbol", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER, metricType: metrics.GaugeType},
