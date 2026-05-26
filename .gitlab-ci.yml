@@ -284,9 +284,9 @@ variables:
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
   CI_IMAGE_RPM_ARMHF: v114075546-22e66b98
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v112652147-27dacf01
+  CI_IMAGE_WIN_LTSC2022_X64: v114471858-795a98da
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v112652147-27dacf01
+  CI_IMAGE_WIN_LTSC2025_X64: v114471858-795a98da
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -1482,7 +1482,6 @@ workflow:
 
 .on_gpu_integration_tests:
   - !reference [.on_scheduled_main]
-  - !reference [.manual]
   # Run on GPU-related changes
   - changes:
       paths:
@@ -1492,6 +1491,7 @@ workflow:
         - .gitlab/build/source_test/linux.yml
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
+  - !reference [.manual]
 
 .on_installer_systemd_changes:
   - <<: *if_main_branch

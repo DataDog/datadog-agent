@@ -351,8 +351,9 @@ It is built once at startup from all registered issue modules and shared by the 
 ### [comp/healthplatform/runner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/runner)
 
 Package runner defines the interface for the health platform runner component.
-The runner executes a single HealthCheckFunc once, forwards each emitted
-IssueReport to the store, and returns the set of IssueIds that were reported.
+The runner executes a single HealthCheckFunc once, translates each emitted
+IssueReport into a proto Issue (via the issue registry), forwards it to the
+store, and returns the set of IssueIds that were reported.
 
 ### [comp/healthplatform/scheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/scheduler)
 
@@ -800,13 +801,6 @@ Package telemetry provides the installer telemetry component.
 ### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
 
 Package updater is the updater component.
-
-### [comp/anomalydetection/hfrunner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner)
-
-*Datadog Team*: q-branch
-
-Package hfrunner provides a component that runs system and container checks at
-1-second intervals and routes their output directly into the observer pipeline.
 
 ### [comp/anomalydetection/logssource](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/logssource)
 

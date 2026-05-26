@@ -17,8 +17,9 @@ func init() {
 }
 
 const (
-	// IssueType is the template identifier for Docker permission issues
-	IssueType = "docker-file-tailing-disabled"
+	// IssueName is the identifier for Docker permission issues,
+	// used as the template registry key and the proto IssueName field.
+	IssueName = "docker_file_tailing_disabled"
 
 	// IssueID is the unique instance id used when reporting this issue
 	IssueID = "docker-socket-permissions"
@@ -36,8 +37,8 @@ func NewModule(config.Component) issues.Module {
 	}
 }
 
-func (m *dockerPermissionsModule) IssueType() string {
-	return IssueType
+func (m *dockerPermissionsModule) IssueName() string {
+	return IssueName
 }
 
 func (m *dockerPermissionsModule) IssueTemplate() issues.IssueTemplate {

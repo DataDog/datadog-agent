@@ -116,7 +116,6 @@ components_classic_style = [
     'comp/core/configsync/configsyncimpl',
     'comp/core/hostname/hostnameimpl',
     'comp/core/pid/pidimpl',
-    'comp/core/settings/settingsimpl',
     'comp/core/status/statusimpl',
     'comp/dogstatsd/pidmap/pidmapimpl',
     'comp/dogstatsd/serverDebug/serverdebugimpl',
@@ -179,6 +178,9 @@ components_missing_implementation_folder = [
 ]
 
 ignore_fx_import = [
+    "comp/aggregator/demultiplexer",
+    "comp/collector/collector",
+    "comp/forwarder/eventplatformreceiver",
     "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/rdnsquerier",
@@ -187,9 +189,13 @@ ignore_fx_import = [
 ]
 
 ignore_provide_component_constructor_missing = [
+    "comp/aggregator/demultiplexer",
+    "comp/collector/collector",
+    "comp/forwarder/eventplatformreceiver",
     "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/trace/agent",
+    "comp/core/configsync",
 ]
 
 mock_definitions = [
