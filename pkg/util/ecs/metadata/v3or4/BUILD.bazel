@@ -12,8 +12,8 @@ go_library(
     deps = [
         "//pkg/util/ecs/common",
         "//pkg/util/ecs/telemetry",
-        "//pkg/util/log",
-        "@com_github_cenkalti_backoff_v5//:backoff",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/cenkalti/backoff/v5:backoff",
     ],
 )
 
@@ -25,7 +25,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/util/ecs/metadata/testutil",
-        "//pkg/util/pointer",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/pointer",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

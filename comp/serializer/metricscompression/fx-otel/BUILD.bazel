@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/serializer/metricscompression/impl",
-        "//pkg/util/fxutil",
+        "//vendor/github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
     ],
 )

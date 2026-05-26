@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/ssh",
     visibility = ["//visibility:public"],
     deps = [
-        "@org_golang_x_crypto//ssh",
-        "@org_golang_x_crypto//ssh/agent",
+        "//vendor/golang.org/x/crypto/ssh",
+        "//vendor/golang.org/x/crypto/ssh/agent",
     ],
 )

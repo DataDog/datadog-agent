@@ -10,7 +10,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/aws/creds",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/util/aws/creds/internal"],
+    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/util/aws/creds/internal"],
 )
 
 go_test(
@@ -22,8 +22,8 @@ go_test(
     embed = [":creds"],
     gotags = ["test"],
     deps = [
-        "//pkg/util/aws/creds/internal",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/aws/creds/internal",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

@@ -30,8 +30,8 @@ go_test(
     embed = [":gosymname"],
     gotags = ["test"],
     deps = [
-        "@com_github_goccy_go_yaml//:go-yaml",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/goccy/go-yaml",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

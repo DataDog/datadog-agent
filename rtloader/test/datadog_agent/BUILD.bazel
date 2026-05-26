@@ -8,9 +8,9 @@ rtloader_test_go_library(
     tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/obfuscate",
         "//rtloader/test/common",
         "//rtloader/test/helpers",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/obfuscate",
     ],
 )
 

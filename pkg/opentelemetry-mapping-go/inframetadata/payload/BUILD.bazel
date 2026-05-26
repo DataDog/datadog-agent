@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/payload",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/opentelemetry-mapping-go/inframetadata/gohai",
-        "//pkg/serializer/marshaler",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/gohai",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/serializer/marshaler",
     ],
 )

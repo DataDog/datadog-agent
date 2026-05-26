@@ -11,8 +11,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/types",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/tagger/origindetection",
-        "//comp/core/tagger/utils",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/tagger/origindetection",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/tagger/utils",
     ],
 )
 
@@ -25,5 +25,5 @@ go_test(
     ],
     embed = [":types"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

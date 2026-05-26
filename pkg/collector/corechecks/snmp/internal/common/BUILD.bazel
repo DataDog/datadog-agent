@@ -11,7 +11,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common",
     visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
-    deps = ["//pkg/util/log"],
+    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/util/log"],
 )
 
 go_test(
@@ -22,5 +22,5 @@ go_test(
     ],
     embed = [":common"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

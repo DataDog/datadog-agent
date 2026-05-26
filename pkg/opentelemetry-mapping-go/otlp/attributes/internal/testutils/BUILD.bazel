@@ -8,5 +8,5 @@ go_library(
         "//pkg/opentelemetry-mapping-go/otlp/attributes:__subpackages__",
         "@com_github_datadog_datadog_agent_pkg_opentelemetry_mapping_go_otlp_attributes//:__subpackages__",
     ],
-    deps = ["@io_opentelemetry_go_collector_pdata//pcommon"],
+    deps = ["//vendor/go.opentelemetry.io/collector/pdata/pcommon"],
 )

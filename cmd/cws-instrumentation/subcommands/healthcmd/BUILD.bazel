@@ -10,10 +10,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "@com_github_spf13_cobra//:cobra",
+            "//vendor/github.com/spf13/cobra",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_spf13_cobra//:cobra",
+            "//vendor/github.com/spf13/cobra",
         ],
         "//conditions:default": [],
     }),

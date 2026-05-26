@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/ckey",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/tagset",
-        "@com_github_twmb_murmur3//:murmur3",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/tagset",
+        "//vendor/github.com/twmb/murmur3",
     ],
 )
 
@@ -20,8 +20,8 @@ go_test(
     embed = [":ckey"],
     gotags = ["test"],
     deps = [
-        "//pkg/tagset",
-        "//pkg/util/sort",
-        "@com_github_stretchr_testify//assert",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/tagset",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/sort",
+        "//vendor/github.com/stretchr/testify/assert",
     ],
 )

@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/tailers/channel",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/logs/agent/config",
-        "//pkg/logs/message",
-        "//pkg/logs/sources",
+        "//vendor/github.com/DataDog/datadog-agent/comp/logs/agent/config",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/message",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/sources",
     ],
 )
 
@@ -18,8 +18,8 @@ go_test(
     embed = [":channel"],
     gotags = ["test"],
     deps = [
-        "//comp/logs/agent/config",
-        "//pkg/logs/message",
-        "@com_github_stretchr_testify//assert",
+        "//vendor/github.com/DataDog/datadog-agent/comp/logs/agent/config",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/message",
+        "//vendor/github.com/stretchr/testify/assert",
     ],
 )

@@ -7,9 +7,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/secret-generic-connector/secret",
-        "@com_github_mitchellh_mapstructure//:mapstructure",
-        "@org_golang_x_oauth2//:oauth2",
-        "@org_golang_x_oauth2//google",
+        "//vendor/github.com/mitchellh/mapstructure",
+        "//vendor/golang.org/x/oauth2",
+        "//vendor/golang.org/x/oauth2/google",
     ],
 )
 
@@ -18,5 +18,5 @@ go_test(
     srcs = ["secrets_test.go"],
     embed = [":gcp"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

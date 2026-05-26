@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/config/remote/flare",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/flare/types",
-        "//pkg/util/filesystem",
-        "@io_etcd_go_bbolt//:bbolt",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/flare/types",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
+        "//vendor/go.etcd.io/bbolt",
     ],
 )

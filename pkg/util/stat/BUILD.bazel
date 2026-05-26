@@ -5,7 +5,7 @@ go_library(
     srcs = ["stat.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/stat",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/util/log"],
+    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/util/log"],
 )
 
 go_test(
@@ -14,7 +14,7 @@ go_test(
     embed = [":stat"],
     gotags = ["test"],
     deps = [
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

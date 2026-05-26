@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pipeline",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_jonboulle_clockwork//:clockwork",
-        "@org_golang_x_sync//semaphore",
+        "//vendor/github.com/jonboulle/clockwork",
+        "//vendor/golang.org/x/sync/semaphore",
     ],
 )
 
@@ -17,7 +17,7 @@ go_test(
     embed = [":pipeline"],
     gotags = ["test"],
     deps = [
-        "@com_github_jonboulle_clockwork//:clockwork",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/jonboulle/clockwork",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

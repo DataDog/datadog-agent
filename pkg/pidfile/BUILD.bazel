@@ -12,7 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//pkg/util/winutil",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil",
         ],
         "//conditions:default": [],
     }),
@@ -23,5 +23,5 @@ go_test(
     srcs = ["pidfile_test.go"],
     embed = [":pidfile"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

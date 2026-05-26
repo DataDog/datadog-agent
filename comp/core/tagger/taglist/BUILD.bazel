@@ -5,7 +5,7 @@ go_library(
     srcs = ["taglist.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/taglist",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/config/setup"],
+    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/config/setup"],
 )
 
 go_test(
@@ -13,5 +13,5 @@ go_test(
     srcs = ["taglist_test.go"],
     embed = [":taglist"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//require"],
+    deps = ["//vendor/github.com/stretchr/testify/require"],
 )

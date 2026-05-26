@@ -9,9 +9,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
         "//comp/healthplatform/issues",
-        "@com_github_datadog_agent_payload_v5//healthplatform",
-        "@org_golang_google_protobuf//types/known/structpb",
+        "//vendor/github.com/DataDog/agent-payload/v5/healthplatform",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
+        "//vendor/google.golang.org/protobuf/types/known/structpb",
     ],
 )

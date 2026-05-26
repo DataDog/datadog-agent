@@ -11,7 +11,7 @@ go_library(
     deps = [
         "//pkg/dyninst/ir",
         "//pkg/dyninst/output",
-        "//pkg/util/log",
-        "@com_github_cilium_ebpf//ringbuf",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/cilium/ebpf/ringbuf",
     ],
 )

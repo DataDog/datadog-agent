@@ -15,8 +15,8 @@ go_library(
         "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
-        "//pkg/util/log",
-        "@com_github_mohae_deepcopy//:deepcopy",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/mohae/deepcopy",
     ],
 )
 
@@ -37,7 +37,7 @@ go_test(
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
         "//pkg/collector/check/stub",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

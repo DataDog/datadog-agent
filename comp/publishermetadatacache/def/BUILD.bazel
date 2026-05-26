@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//pkg/util/winutil/eventlog/api",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api",
         ],
         "//conditions:default": [],
     }),

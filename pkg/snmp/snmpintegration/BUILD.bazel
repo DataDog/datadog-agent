@@ -13,7 +13,7 @@ go_test(
     embed = [":snmpintegration"],
     gotags = ["test"],
     deps = [
-        "@com_github_stretchr_testify//assert",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/go.yaml.in/yaml/v2:yaml",
     ],
 )

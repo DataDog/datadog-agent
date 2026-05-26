@@ -17,10 +17,10 @@ go_test(
     embed = [":parse"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
         "//comp/core/workloadfilter/def",
-        "//pkg/config/structure",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/structure",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

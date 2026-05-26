@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/fx",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/logs-library/kubehealth/impl",
-        "//pkg/util/fxutil",
+        "//vendor/github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/impl",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
     ],
 )

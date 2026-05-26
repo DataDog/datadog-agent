@@ -18,8 +18,8 @@ go_library(
         "//pkg/privateactionrunner/util",
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
         "//pkg/proto/pbgo/privateactionrunner/privateactions",
-        "//pkg/remoteconfig/state",
-        "//pkg/util/log",
-        "@org_golang_google_protobuf//proto",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/remoteconfig/state",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/google.golang.org/protobuf/proto",
     ],
 )

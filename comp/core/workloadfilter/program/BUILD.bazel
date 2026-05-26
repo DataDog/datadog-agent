@@ -13,17 +13,17 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/program",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/log/def",
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadfilter/legacy",
         "//comp/core/workloadfilter/proto",
         "//comp/core/workloadfilter/telemetry",
-        "//pkg/proto/pbgo/core",
-        "//pkg/util/log",
-        "@com_github_cespare_xxhash_v2//:xxhash",
-        "@com_github_google_cel_go//cel:go_default_library",
-        "@com_github_patrickmn_go_cache//:go-cache",
-        "@org_golang_google_grpc//metadata",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/def",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/cespare/xxhash/v2:xxhash",
+        "//vendor/github.com/google/cel-go/cel",
+        "//vendor/github.com/patrickmn/go-cache",
+        "//vendor/google.golang.org/grpc/metadata",
     ],
 )
 
@@ -38,8 +38,8 @@ go_test(
     deps = [
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadfilter/mock",
-        "@com_github_google_cel_go//cel:go_default_library",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/google/cel-go/cel",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

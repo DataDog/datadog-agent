@@ -25,18 +25,18 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:darwin": [
-            "//pkg/util/log",
-            "@com_github_mattn_go_sqlite3//:go-sqlite3",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+            "//vendor/github.com/mattn/go-sqlite3",
         ],
         "@rules_go//go/platform:ios": [
-            "//pkg/util/log",
-            "@com_github_mattn_go_sqlite3//:go-sqlite3",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+            "//vendor/github.com/mattn/go-sqlite3",
         ],
         "@rules_go//go/platform:windows": [
-            "//pkg/util/winutil",
-            "//pkg/util/winutil/datadoginterop",
-            "@org_golang_x_sys//windows",
-            "@org_golang_x_sys//windows/registry",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil/datadoginterop",
+            "//vendor/golang.org/x/sys/windows",
+            "//vendor/golang.org/x/sys/windows/registry",
         ],
         "//conditions:default": [],
     }),
@@ -71,18 +71,18 @@ go_test(
     gotags = ["test"],
     tags = ["manual"],  # keep
     deps = [
-        "@com_github_stretchr_testify//assert",
+        "//vendor/github.com/stretchr/testify/assert",
     ] + select({
         "@rules_go//go/platform:darwin": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:ios": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:windows": [
-            "//pkg/config/mock",
-            "@com_github_stretchr_testify//require",
-            "@org_golang_x_sys//windows/registry",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
+            "//vendor/github.com/stretchr/testify/require",
+            "//vendor/golang.org/x/sys/windows/registry",
         ],
         "//conditions:default": [],
     }),

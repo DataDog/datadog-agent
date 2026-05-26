@@ -17,7 +17,7 @@ go_test(
     embed = [":trietest"],
     gotags = ["test"],
     deps = [
-        "@com_github_stretchr_testify//require",
-        "@net_pgregory_rapid//:rapid",
+        "//vendor/github.com/stretchr/testify/require",
+        "//vendor/pgregory.net/rapid",
     ],
 )

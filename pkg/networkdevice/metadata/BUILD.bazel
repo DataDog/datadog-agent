@@ -12,7 +12,7 @@ go_library(
     deps = [
         "//pkg/networkdevice/integrations",
         "//pkg/snmp/gosnmplib",
-        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "//vendor/github.com/gosnmp/gosnmp",
     ],
 )
 
@@ -23,7 +23,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/networkdevice/integrations",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

@@ -11,12 +11,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "//pkg/util/log",
-            "@com_github_shirou_gopsutil_v4//process",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+            "//vendor/github.com/shirou/gopsutil/v4/process",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/util/log",
-            "@com_github_shirou_gopsutil_v4//process",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+            "//vendor/github.com/shirou/gopsutil/v4/process",
         ],
         "//conditions:default": [],
     }),

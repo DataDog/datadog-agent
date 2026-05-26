@@ -5,5 +5,5 @@ go_library(
     srcs = ["k8s_user_session_context.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/utils/k8sutils",
     visibility = ["//visibility:public"],
-    deps = ["@io_k8s_api//authentication/v1:authentication"],
+    deps = ["//vendor/k8s.io/api/authentication/v1:authentication"],
 )

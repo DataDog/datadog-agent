@@ -32,10 +32,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:darwin": [
-            "//pkg/util/log",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
         ],
         "@rules_go//go/platform:ios": [
-            "//pkg/util/log",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
         ],
         "//conditions:default": [],
     }),

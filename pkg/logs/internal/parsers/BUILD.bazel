@@ -15,5 +15,5 @@ go_library(
         "@com_github_datadog_datadog_agent_pkg_logs_types//:__subpackages__",
         "@com_github_datadog_datadog_agent_pkg_logs_util_testutils//:__subpackages__",
     ],
-    deps = ["//pkg/logs/message"],
+    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/logs/message"],
 )

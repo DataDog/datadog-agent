@@ -9,7 +9,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/json",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_json_iterator_go//:go"],
+    deps = ["//vendor/github.com/json-iterator/go"],
 )
 
 go_test(
@@ -22,8 +22,8 @@ go_test(
     embed = [":json"],
     gotags = ["test"],
     deps = [
-        "@com_github_json_iterator_go//:go",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/json-iterator/go",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

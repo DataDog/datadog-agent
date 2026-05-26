@@ -18,11 +18,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/quantile",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/util/quantile/summary",
-        "@com_github_datadog_sketches_go//ddsketch",
-        "@com_github_datadog_sketches_go//ddsketch/mapping",
-        "@com_github_datadog_sketches_go//ddsketch/store",
-        "@com_github_dustin_go_humanize//:go-humanize",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/quantile/summary",
+        "//vendor/github.com/DataDog/sketches-go/ddsketch",
+        "//vendor/github.com/DataDog/sketches-go/ddsketch/mapping",
+        "//vendor/github.com/DataDog/sketches-go/ddsketch/store",
+        "//vendor/github.com/dustin/go-humanize",
     ],
 )
 
@@ -43,11 +43,11 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/util/quantile/sketchtest",
-        "//pkg/util/quantile/summary",
-        "@com_github_datadog_sketches_go//ddsketch",
-        "@com_github_datadog_sketches_go//ddsketch/mapping",
-        "@com_github_datadog_sketches_go//ddsketch/store",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/quantile/summary",
+        "//vendor/github.com/DataDog/sketches-go/ddsketch",
+        "//vendor/github.com/DataDog/sketches-go/ddsketch/mapping",
+        "//vendor/github.com/DataDog/sketches-go/ddsketch/store",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

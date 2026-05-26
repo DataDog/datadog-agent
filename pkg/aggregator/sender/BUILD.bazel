@@ -8,8 +8,8 @@ go_library(
     deps = [
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
-        "//pkg/metrics/event",
-        "//pkg/metrics/servicecheck",
-        "//pkg/serializer/types",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/metrics/event",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/metrics/servicecheck",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/serializer/types",
     ],
 )

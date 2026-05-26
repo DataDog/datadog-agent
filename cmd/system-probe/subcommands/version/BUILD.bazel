@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//cmd/system-probe/command",
         "//pkg/cli/subcommands/version",
-        "@com_github_spf13_cobra//:cobra",
+        "//vendor/github.com/spf13/cobra",
     ],
 )

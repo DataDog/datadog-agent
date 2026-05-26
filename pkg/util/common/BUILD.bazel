@@ -17,5 +17,5 @@ go_test(
     srcs = ["common_test.go"],
     embed = [":common"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

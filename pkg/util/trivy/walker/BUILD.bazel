@@ -6,11 +6,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/trivy/walker",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_aquasecurity_trivy//pkg/fanal/utils",
-        "@com_github_aquasecurity_trivy//pkg/fanal/walker",
-        "@com_github_aquasecurity_trivy//pkg/x/io",
-        "@com_github_samber_lo//:lo",
-        "@org_golang_x_xerrors//:xerrors",
+        "//vendor/github.com/aquasecurity/trivy/pkg/fanal/utils",
+        "//vendor/github.com/aquasecurity/trivy/pkg/fanal/walker",
+        "//vendor/github.com/aquasecurity/trivy/pkg/x/io",
+        "//vendor/github.com/samber/lo",
+        "//vendor/golang.org/x/xerrors",
     ],
 )
 
@@ -24,9 +24,9 @@ go_test(
     embed = [":walker"],
     gotags = ["test"],
     deps = [
-        "@com_github_aquasecurity_trivy//pkg/fanal/analyzer",
-        "@com_github_aquasecurity_trivy//pkg/fanal/walker",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/aquasecurity/trivy/pkg/fanal/analyzer",
+        "//vendor/github.com/aquasecurity/trivy/pkg/fanal/walker",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

@@ -10,8 +10,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/profiling",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/util/log",
-        "//pkg/version",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/version",
         "@com_github_datadog_dd_trace_go_v2//profiler",
     ],
 )
@@ -21,5 +21,5 @@ go_test(
     srcs = ["profiling_test.go"],
     embed = [":profiling"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

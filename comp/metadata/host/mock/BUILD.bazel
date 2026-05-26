@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/host/mock",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/def",
         "//comp/metadata/host/def",
-        "//pkg/util/fxutil",
+        "//vendor/github.com/DataDog/datadog-agent/comp/def",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
     ],
 )

@@ -22,9 +22,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//pkg/util/winutil",
             "//pkg/windowsdriver/driver",
             "//pkg/windowsdriver/olreader",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil",
         ],
         "//conditions:default": [],
     }),

@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/impl/metrics",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/metrics",
-        "//pkg/tagset",
-        "@io_opentelemetry_go_collector_component//:component",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/metrics",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/tagset",
+        "//vendor/go.opentelemetry.io/collector/component",
     ],
 )
 
@@ -18,9 +18,9 @@ go_test(
     embed = [":metrics"],
     gotags = ["test"],
     deps = [
-        "//pkg/metrics",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@io_opentelemetry_go_collector_component//:component",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/metrics",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
+        "//vendor/go.opentelemetry.io/collector/component",
     ],
 )

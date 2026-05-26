@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
         "//comp/core/workloadmeta/def",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
     ],
 )

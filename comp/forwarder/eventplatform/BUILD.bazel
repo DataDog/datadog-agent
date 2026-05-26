@@ -8,5 +8,5 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/logs/message"],
+    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/logs/message"],
 )

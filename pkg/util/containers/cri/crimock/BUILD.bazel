@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/containers/cri/crimock",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_stretchr_testify//mock",
-        "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+        "//vendor/github.com/stretchr/testify/mock",
+        "//vendor/k8s.io/cri-api/pkg/apis/runtime/v1:runtime",
     ],
 )

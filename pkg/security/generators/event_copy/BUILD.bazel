@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/generators/event_copy",
     visibility = ["//visibility:private"],
     deps = [
-        "@com_github_fatih_structtag//:structtag",
-        "@org_golang_x_tools//go/packages",
+        "//vendor/github.com/fatih/structtag",
+        "//vendor/golang.org/x/tools/go/packages",
     ],
 )
 

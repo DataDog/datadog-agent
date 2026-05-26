@@ -5,7 +5,7 @@ go_library(
     srcs = ["certificate.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate",
     visibility = ["//visibility:public"],
-    deps = ["@io_k8s_client_go//listers/core/v1:core"],
+    deps = ["//vendor/k8s.io/client-go/listers/core/v1:core"],
 )
 
 go_test(

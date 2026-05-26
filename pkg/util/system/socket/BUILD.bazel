@@ -12,10 +12,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/system/socket",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_mdlayher_vsock//:vsock",
+        "//vendor/github.com/mdlayher/vsock",
     ] + select({
         "@rules_go//go/platform:windows": [
-            "@com_github_microsoft_go_winio//:go-winio",
+            "//vendor/github.com/Microsoft/go-winio",
         ],
         "//conditions:default": [],
     }),

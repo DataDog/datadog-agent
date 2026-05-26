@@ -16,7 +16,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection",
     visibility = ["//visibility:public"],
     deps = [
-        "@org_golang_google_protobuf//reflect/protoreflect",
-        "@org_golang_google_protobuf//runtime/protoimpl",
+        "//vendor/google.golang.org/protobuf/reflect/protoreflect",
+        "//vendor/google.golang.org/protobuf/runtime/protoimpl",
     ],
 )

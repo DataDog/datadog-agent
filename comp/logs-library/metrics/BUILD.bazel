@@ -12,7 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/impl",
-        "@com_github_benbjohnson_clock//:clock",
+        "//vendor/github.com/benbjohnson/clock",
     ],
 )
 
@@ -27,8 +27,8 @@ go_test(
     embed = [":metrics"],
     gotags = ["test"],
     deps = [
-        "@com_github_benbjohnson_clock//:clock",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/benbjohnson/clock",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

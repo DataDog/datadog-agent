@@ -15,7 +15,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_tinylib_msgp//msgp"],
+    deps = ["//vendor/github.com/tinylib/msgp/msgp"],
 )
 
 go_test(
@@ -27,7 +27,7 @@ go_test(
     embed = [":model"],
     gotags = ["test"],
     deps = [
-        "@com_github_stretchr_testify//assert",
-        "@com_github_tinylib_msgp//msgp",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/tinylib/msgp/msgp",
     ],
 )

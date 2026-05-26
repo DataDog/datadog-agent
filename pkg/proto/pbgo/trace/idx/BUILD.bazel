@@ -24,9 +24,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_tinylib_msgp//msgp",
-        "@org_golang_google_protobuf//reflect/protoreflect",
-        "@org_golang_google_protobuf//runtime/protoimpl",
+        "//vendor/github.com/tinylib/msgp/msgp",
+        "//vendor/google.golang.org/protobuf/reflect/protoreflect",
+        "//vendor/google.golang.org/protobuf/runtime/protoimpl",
     ],
 )
 
@@ -42,9 +42,9 @@ go_test(
     embed = [":idx"],
     gotags = ["test"],
     deps = [
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@com_github_tinylib_msgp//msgp",
-        "@com_github_vmihailenco_msgpack_v4//:msgpack",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
+        "//vendor/github.com/tinylib/msgp/msgp",
+        "//vendor/github.com/vmihailenco/msgpack/v4:msgpack",
     ],
 )

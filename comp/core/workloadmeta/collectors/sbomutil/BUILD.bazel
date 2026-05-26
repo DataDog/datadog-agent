@@ -12,11 +12,11 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/workloadmeta/def",
-        "@com_github_aquasecurity_trivy//pkg/sbom/core",
-        "@com_github_aquasecurity_trivy//pkg/sbom/cyclonedx",
-        "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
-        "@com_github_mohae_deepcopy//:deepcopy",
-        "@org_golang_google_protobuf//proto",
+        "//vendor/github.com/DataDog/agent-payload/v5/cyclonedx_v1_4",
+        "//vendor/github.com/aquasecurity/trivy/pkg/sbom/core",
+        "//vendor/github.com/aquasecurity/trivy/pkg/sbom/cyclonedx",
+        "//vendor/github.com/mohae/deepcopy",
+        "//vendor/google.golang.org/protobuf/proto",
     ],
 )
 
@@ -30,10 +30,10 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/workloadmeta/def",
-        "//pkg/util/pointer",
-        "@com_github_aquasecurity_trivy//pkg/sbom/core",
-        "@com_github_aquasecurity_trivy//pkg/sbom/cyclonedx",
-        "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
-        "@com_github_stretchr_testify//assert",
+        "//vendor/github.com/DataDog/agent-payload/v5/cyclonedx_v1_4",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/pointer",
+        "//vendor/github.com/aquasecurity/trivy/pkg/sbom/core",
+        "//vendor/github.com/aquasecurity/trivy/pkg/sbom/cyclonedx",
+        "//vendor/github.com/stretchr/testify/assert",
     ],
 )

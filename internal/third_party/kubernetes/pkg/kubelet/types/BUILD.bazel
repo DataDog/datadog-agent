@@ -5,7 +5,7 @@ go_library(
     srcs = ["pod_update.go"],
     importpath = "github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/types",
     visibility = ["//visibility:public"],
-    deps = ["@io_k8s_api//core/v1:core"],
+    deps = ["//vendor/k8s.io/api/core/v1:core"],
 )
 
 go_test(
@@ -14,8 +14,8 @@ go_test(
     embed = [":types"],
     gotags = ["test"],
     deps = [
-        "@com_github_stretchr_testify//assert",
-        "@io_k8s_api//core/v1:core",
-        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/k8s.io/api/core/v1:core",
+        "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:meta",
     ],
 )

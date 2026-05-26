@@ -7,10 +7,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/retry",
-        "@com_github_containerd_containerd//:containerd",
-        "@com_github_containerd_containerd//containers",
-        "@com_github_containerd_containerd//mount",
-        "@com_github_containerd_containerd//oci",
-        "@com_github_containerd_containerd_api//types",
+        "//vendor/github.com/containerd/containerd",
+        "//vendor/github.com/containerd/containerd/api/types",
+        "//vendor/github.com/containerd/containerd/containers",
+        "//vendor/github.com/containerd/containerd/mount",
+        "//vendor/github.com/containerd/containerd/oci",
     ],
 )

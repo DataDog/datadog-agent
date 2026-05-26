@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/process/runner/endpoint",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config/model",
-        "//pkg/config/utils",
-        "//pkg/process/util/api/config",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/utils",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/process/util/api/config",
     ],
 )

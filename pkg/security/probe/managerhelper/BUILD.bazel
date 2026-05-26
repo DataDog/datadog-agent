@@ -7,12 +7,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "@com_github_cilium_ebpf//:ebpf",
-            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "//vendor/github.com/DataDog/ebpf-manager",
+            "//vendor/github.com/cilium/ebpf",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_cilium_ebpf//:ebpf",
-            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "//vendor/github.com/DataDog/ebpf-manager",
+            "//vendor/github.com/cilium/ebpf",
         ],
         "//conditions:default": [],
     }),

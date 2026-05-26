@@ -18,5 +18,5 @@ go_test(
     ],
     embed = [":summary"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//require"],
+    deps = ["//vendor/github.com/stretchr/testify/require"],
 )

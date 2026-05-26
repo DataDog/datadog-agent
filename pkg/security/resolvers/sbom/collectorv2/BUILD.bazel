@@ -12,19 +12,19 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/collectorv2",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_mattn_go_sqlite3//:go-sqlite3",
+        "//vendor/github.com/mattn/go-sqlite3",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/security/resolvers/sbom/types",
             "//pkg/security/seclog",
-            "@com_github_knqyf263_go_deb_version//:go-deb-version",
-            "@com_github_knqyf263_go_rpmdb//pkg",
+            "//vendor/github.com/knqyf263/go-deb-version",
+            "//vendor/github.com/knqyf263/go-rpmdb/pkg",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/resolvers/sbom/types",
             "//pkg/security/seclog",
-            "@com_github_knqyf263_go_deb_version//:go-deb-version",
-            "@com_github_knqyf263_go_rpmdb//pkg",
+            "//vendor/github.com/knqyf263/go-deb-version",
+            "//vendor/github.com/knqyf263/go-rpmdb/pkg",
         ],
         "//conditions:default": [],
     }),
@@ -37,12 +37,12 @@ go_test(
     gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/assert",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/assert",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "//conditions:default": [],
     }),

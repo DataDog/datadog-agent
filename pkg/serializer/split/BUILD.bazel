@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/serializer/split",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/serializer/metricscompression/def",
-        "//pkg/serializer/marshaler",
+        "//vendor/github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/serializer/marshaler",
     ],
 )

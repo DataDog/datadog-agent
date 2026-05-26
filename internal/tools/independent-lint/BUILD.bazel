@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/internal/tools/independent-lint",
     visibility = ["//visibility:private"],
     deps = [
-        "@org_golang_x_mod//modfile",
-        "@org_golang_x_mod//module",
+        "//vendor/golang.org/x/mod/modfile",
+        "//vendor/golang.org/x/mod/module",
     ],
 )
 

@@ -9,5 +9,5 @@ rtloader_test_go_library(
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/rtloader/test/helpers",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

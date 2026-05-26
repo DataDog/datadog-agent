@@ -11,7 +11,7 @@ go_library(
     deps = [
         "//cmd/secret-generic-connector/backend/file",
         "//cmd/secret-generic-connector/secret",
-        "@com_github_mitchellh_mapstructure//:mapstructure",
+        "//vendor/github.com/mitchellh/mapstructure",
     ],
 )
 
@@ -24,7 +24,7 @@ go_test(
     embed = [":kubernetes"],
     gotags = ["test"],
     deps = [
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

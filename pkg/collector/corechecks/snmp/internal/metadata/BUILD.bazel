@@ -10,7 +10,7 @@ go_library(
     visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
     deps = [
         "//pkg/collector/corechecks/snmp/internal/valuestore",
-        "//pkg/util/log",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
     ],
 )
 
@@ -21,6 +21,6 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/collector/corechecks/snmp/internal/valuestore",
-        "@com_github_stretchr_testify//assert",
+        "//vendor/github.com/stretchr/testify/assert",
     ],
 )

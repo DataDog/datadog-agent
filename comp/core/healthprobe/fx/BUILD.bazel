@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//comp/core/healthprobe/def",
         "//comp/core/healthprobe/impl",
-        "//pkg/util/fxutil",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
     ],
 )

@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/config/mock",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config/create",
-        "//pkg/config/model",
-        "//pkg/config/setup",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/create",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

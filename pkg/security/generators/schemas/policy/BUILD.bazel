@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/generators/schemas/policy",
     visibility = ["//visibility:private"],
     deps = [
-        "//pkg/security/secl/rules",
-        "@com_github_invopop_jsonschema//:jsonschema",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/security/secl/rules",
+        "//vendor/github.com/invopop/jsonschema",
     ],
 )
 

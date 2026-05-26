@@ -16,8 +16,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/template/text",
-        "//pkg/util/log/types",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/template/text",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/types",
     ],
 )
 
@@ -35,8 +35,8 @@ go_test(
     embed = [":formatters"],
     gotags = ["test"],
     deps = [
-        "//pkg/util/log/types",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/types",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

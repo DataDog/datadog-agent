@@ -7,13 +7,13 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//comp/core/log/def",
-            "//comp/def",
             "//comp/etw/def",
             "//comp/trace/etwtracer/def",
-            "@com_github_alecthomas_units//:units",
-            "@com_github_microsoft_go_winio//:go-winio",
-            "@org_golang_x_sys//windows",
+            "//vendor/github.com/DataDog/datadog-agent/comp/core/log/def",
+            "//vendor/github.com/DataDog/datadog-agent/comp/def",
+            "//vendor/github.com/Microsoft/go-winio",
+            "//vendor/github.com/alecthomas/units",
+            "//vendor/golang.org/x/sys/windows",
         ],
         "//conditions:default": [],
     }),

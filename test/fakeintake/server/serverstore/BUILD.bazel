@@ -12,7 +12,7 @@ go_library(
     deps = [
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
-        "@com_github_prometheus_client_golang//prometheus",
+        "//vendor/github.com/prometheus/client_golang/prometheus",
     ],
 )
 
@@ -26,8 +26,8 @@ go_test(
     gotags = ["test"],
     deps = [
         "//test/fakeintake/api",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@com_github_stretchr_testify//suite",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
+        "//vendor/github.com/stretchr/testify/suite",
     ],
 )

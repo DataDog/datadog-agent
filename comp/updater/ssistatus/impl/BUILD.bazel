@@ -14,59 +14,59 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/updater/ssistatus/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/log/def",
-        "//comp/core/status",
-        "//comp/def",
         "//comp/metadata/inventoryagent/def",
         "//comp/updater/ssistatus/def",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/def",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/status",
+        "//vendor/github.com/DataDog/datadog-agent/comp/def",
     ] + select({
         "@rules_go//go/platform:aix": [
-            "//pkg/fleet/installer/packages/ssi",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi",
         ],
         "@rules_go//go/platform:android": [
-            "//pkg/fleet/installer/packages/ssi",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi",
         ],
         "@rules_go//go/platform:darwin": [
-            "//pkg/fleet/installer/packages/ssi",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi",
         ],
         "@rules_go//go/platform:dragonfly": [
-            "//pkg/fleet/installer/packages/ssi",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi",
         ],
         "@rules_go//go/platform:freebsd": [
-            "//pkg/fleet/installer/packages/ssi",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi",
         ],
         "@rules_go//go/platform:illumos": [
-            "//pkg/fleet/installer/packages/ssi",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi",
         ],
         "@rules_go//go/platform:ios": [
-            "//pkg/fleet/installer/packages/ssi",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi",
         ],
         "@rules_go//go/platform:js": [
-            "//pkg/fleet/installer/packages/ssi",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/fleet/installer/packages/ssi",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi",
         ],
         "@rules_go//go/platform:netbsd": [
-            "//pkg/fleet/installer/packages/ssi",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi",
         ],
         "@rules_go//go/platform:openbsd": [
-            "//pkg/fleet/installer/packages/ssi",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi",
         ],
         "@rules_go//go/platform:osx": [
-            "//pkg/fleet/installer/packages/ssi",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi",
         ],
         "@rules_go//go/platform:plan9": [
-            "//pkg/fleet/installer/packages/ssi",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi",
         ],
         "@rules_go//go/platform:qnx": [
-            "//pkg/fleet/installer/packages/ssi",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi",
         ],
         "@rules_go//go/platform:solaris": [
-            "//pkg/fleet/installer/packages/ssi",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi",
         ],
         "@rules_go//go/platform:windows": [
-            "//pkg/fleet/installer/packages/ssi",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi",
         ],
         "//conditions:default": [],
     }),

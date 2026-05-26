@@ -7,10 +7,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/secret-generic-connector/secret",
-        "@com_github_azure_azure_sdk_for_go_sdk_azcore//:azcore",
-        "@com_github_azure_azure_sdk_for_go_sdk_azidentity//:azidentity",
-        "@com_github_azure_azure_sdk_for_go_sdk_security_keyvault_azsecrets//:azsecrets",
-        "@com_github_mitchellh_mapstructure//:mapstructure",
+        "//vendor/github.com/Azure/azure-sdk-for-go/sdk/azcore",
+        "//vendor/github.com/Azure/azure-sdk-for-go/sdk/azidentity",
+        "//vendor/github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets",
+        "//vendor/github.com/mitchellh/mapstructure",
     ],
 )
 
@@ -21,7 +21,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//cmd/secret-generic-connector/secret",
-        "@com_github_azure_azure_sdk_for_go_sdk_security_keyvault_azsecrets//:azsecrets",
-        "@com_github_stretchr_testify//assert",
+        "//vendor/github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets",
+        "//vendor/github.com/stretchr/testify/assert",
     ],
 )

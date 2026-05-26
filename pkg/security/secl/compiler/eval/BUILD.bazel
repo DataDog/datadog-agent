@@ -49,17 +49,17 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/security/secl/compiler/ast",
-        "//pkg/security/secl/utils",
-        "@com_github_alecthomas_participle//lexer",
-        "@com_github_charlievieth_strcase//:strcase",
-        "@com_github_jellydator_ttlcache_v3//:ttlcache",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/security/secl/utils",
+        "//vendor/github.com/alecthomas/participle/lexer",
+        "//vendor/github.com/charlievieth/strcase",
+        "//vendor/github.com/jellydator/ttlcache/v3:ttlcache",
     ] + select({
         "@rules_go//go/platform:android": [
-            "@com_github_weppos_publicsuffix_go//publicsuffix",
+            "//vendor/github.com/weppos/publicsuffix-go/publicsuffix",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_weppos_publicsuffix_go//publicsuffix",
+            "//vendor/github.com/weppos/publicsuffix-go/publicsuffix",
         ],
         "//conditions:default": [],
     }),
@@ -80,16 +80,16 @@ go_test(
     embed = [":eval"],
     gotags = ["test"],
     deps = [
-        "//pkg/security/secl/compiler/ast",
-        "@com_github_stretchr_testify//assert",
-        "@org_golang_x_text//cases",
-        "@org_golang_x_text//language",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/golang.org/x/text/cases",
+        "//vendor/golang.org/x/text/language",
     ] + select({
         "@rules_go//go/platform:android": [
-            "@com_github_weppos_publicsuffix_go//publicsuffix",
+            "//vendor/github.com/weppos/publicsuffix-go/publicsuffix",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_weppos_publicsuffix_go//publicsuffix",
+            "//vendor/github.com/weppos/publicsuffix-go/publicsuffix",
         ],
         "//conditions:default": [],
     }),

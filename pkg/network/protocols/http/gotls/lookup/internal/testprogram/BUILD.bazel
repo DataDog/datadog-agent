@@ -5,7 +5,7 @@ go_library(
     srcs = ["program.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup/internal/testprogram",
     visibility = ["//visibility:private"],
-    deps = ["@org_golang_x_net//netutil"],
+    deps = ["//vendor/golang.org/x/net/netutil"],
 )
 
 go_binary(

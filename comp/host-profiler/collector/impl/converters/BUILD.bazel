@@ -10,10 +10,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/host-profiler/version",
-        "//pkg/config/utils",
-        "@io_opentelemetry_go_collector_confmap//:confmap",
-        "@io_opentelemetry_go_collector_confmap_xconfmap//:xconfmap",
-        "@org_uber_go_zap_exp//zapslog",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/utils",
+        "//vendor/go.opentelemetry.io/collector/confmap",
+        "//vendor/go.opentelemetry.io/collector/confmap/xconfmap",
+        "//vendor/go.uber.org/zap/exp/zapslog",
     ],
 )
 
@@ -28,13 +28,13 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/host-profiler/version",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v3//:yaml",
-        "@io_opentelemetry_go_collector_confmap//:confmap",
-        "@io_opentelemetry_go_collector_confmap_xconfmap//:xconfmap",
-        "@org_uber_go_zap//:zap",
-        "@org_uber_go_zap//zapcore",
-        "@org_uber_go_zap//zaptest/observer",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
+        "//vendor/go.opentelemetry.io/collector/confmap",
+        "//vendor/go.opentelemetry.io/collector/confmap/xconfmap",
+        "//vendor/go.uber.org/zap",
+        "//vendor/go.uber.org/zap/zapcore",
+        "//vendor/go.uber.org/zap/zaptest/observer",
+        "//vendor/go.yaml.in/yaml/v3:yaml",
     ],
 )

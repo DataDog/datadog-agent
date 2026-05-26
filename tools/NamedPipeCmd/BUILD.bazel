@@ -8,7 +8,7 @@ go_library(
     visibility = ["//visibility:private"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "@com_github_microsoft_go_winio//:go-winio",
+            "//vendor/github.com/Microsoft/go-winio",
         ],
         "//conditions:default": [],
     }),

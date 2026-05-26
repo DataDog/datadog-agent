@@ -9,8 +9,8 @@ go_library(
         "@com_github_datadog_datadog_agent_pkg_opentelemetry_mapping_go_otlp_metrics//:__subpackages__",
     ],
     deps = [
-        "//pkg/opentelemetry-mapping-go/otlp/metrics/internal/utils",
-        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/internal/utils",
+        "//vendor/go.opentelemetry.io/collector/pdata/pcommon",
     ],
 )
 
@@ -22,7 +22,7 @@ go_test(
     # keep
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
-        "@com_github_stretchr_testify//assert",
-        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/go.opentelemetry.io/collector/pdata/pcommon",
     ],
 )

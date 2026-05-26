@@ -10,16 +10,16 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/util/windowsevent",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/logs/message",
-        "//pkg/logs/sources",
-        "//pkg/util/log",
         "//pkg/util/strings",
-        "@com_github_clbanning_mxj//:mxj",
-        "@org_golang_x_text//encoding/unicode",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/message",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/sources",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/clbanning/mxj",
+        "//vendor/golang.org/x/text/encoding/unicode",
     ] + select({
         "@rules_go//go/platform:windows": [
             "//comp/publishermetadatacache/def",
-            "//pkg/util/winutil/eventlog/api",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api",
         ],
         "//conditions:default": [],
     }),
@@ -34,9 +34,9 @@ go_test(
     embed = [":windowsevent"],
     gotags = ["test"],
     deps = [
-        "//comp/logs/agent/config",
-        "//pkg/logs/message",
-        "//pkg/logs/sources",
-        "@com_github_stretchr_testify//assert",
+        "//vendor/github.com/DataDog/datadog-agent/comp/logs/agent/config",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/message",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/sources",
+        "//vendor/github.com/stretchr/testify/assert",
     ],
 )

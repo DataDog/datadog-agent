@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/serializer/metricscompression/def",
-        "//pkg/util/compression",
-        "//pkg/util/compression/selector",
-        "//pkg/util/fxutil",
+        "//vendor/github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/compression",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/compression/selector",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
     ],
 )

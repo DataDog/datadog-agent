@@ -6,14 +6,14 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/delegatedauth/api/cloudauth/config",
-        "//comp/core/delegatedauth/common",
-        "//pkg/config/model",
-        "//pkg/util/aws/creds",
-        "//pkg/util/log",
-        "//pkg/version",
-        "@com_github_aws_aws_sdk_go_v2//aws",
-        "@com_github_aws_aws_sdk_go_v2//aws/signer/v4:signer",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/delegatedauth/common",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/aws/creds",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/version",
+        "//vendor/github.com/aws/aws-sdk-go-v2/aws",
+        "//vendor/github.com/aws/aws-sdk-go-v2/aws/signer/v4:signer",
     ],
 )
 
@@ -23,8 +23,8 @@ go_test(
     embed = [":aws"],
     gotags = ["test"],
     deps = [
-        "//pkg/util/aws/creds",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/aws/creds",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

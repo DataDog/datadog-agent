@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/serializer/logscompression/def",
-        "//pkg/util/compression",
-        "//pkg/util/compression/selector",
+        "//vendor/github.com/DataDog/datadog-agent/comp/serializer/logscompression/def",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/compression",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/compression/selector",
     ],
 )

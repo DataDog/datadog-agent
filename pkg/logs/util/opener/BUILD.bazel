@@ -11,7 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/logs/internal/util/opener",
-        "//pkg/util/filesystem",
-        "@com_github_spf13_afero//:afero",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
+        "//vendor/github.com/spf13/afero",
     ],
 )

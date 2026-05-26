@@ -14,8 +14,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/ssi/testutils",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_stretchr_testify//require",
-        "@io_k8s_api//core/v1:core",
+        "//vendor/github.com/stretchr/testify/require",
+        "//vendor/k8s.io/api/core/v1:core",
     ],
 )
 
@@ -28,8 +28,8 @@ go_test(
     ],
     gotags = ["test"],
     deps = [
-        ":testutils",
-        "@io_k8s_api//core/v1:core",
-        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/ssi/testutils",
+        "//vendor/k8s.io/api/core/v1:core",
+        "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:meta",
     ],
 )

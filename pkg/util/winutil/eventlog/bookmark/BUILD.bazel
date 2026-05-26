@@ -12,10 +12,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//pkg/util/log",
-            "//pkg/util/winutil/eventlog/api",
-            "@com_github_stretchr_testify//mock",
-            "@org_golang_x_sys//windows",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api",
+            "//vendor/github.com/stretchr/testify/mock",
+            "//vendor/golang.org/x/sys/windows",
         ],
         "//conditions:default": [],
     }),

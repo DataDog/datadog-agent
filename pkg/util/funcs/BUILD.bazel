@@ -19,5 +19,5 @@ go_test(
     srcs = ["memoize_test.go"],
     embed = [":funcs"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

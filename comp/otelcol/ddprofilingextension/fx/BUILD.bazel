@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/fx",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/otelcol/ddprofilingextension/def",
-        "//comp/otelcol/ddprofilingextension/impl",
-        "//pkg/util/fxutil",
+        "//vendor/github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def",
+        "//vendor/github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
     ],
 )

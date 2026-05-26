@@ -18,6 +18,6 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/autodiscovery/integration",
-        "@com_github_stretchr_testify//assert",
+        "//vendor/github.com/stretchr/testify/assert",
     ],
 )

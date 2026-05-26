@@ -8,7 +8,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/utilizationtracker",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_benbjohnson_clock//:clock"],
+    deps = ["//vendor/github.com/benbjohnson/clock"],
 )
 
 go_test(
@@ -17,8 +17,8 @@ go_test(
     embed = [":utilizationtracker"],
     gotags = ["test"],
     deps = [
-        "@com_github_benbjohnson_clock//:clock",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/benbjohnson/clock",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

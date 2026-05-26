@@ -8,7 +8,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/networkpath/payload"],
+    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/networkpath/payload"],
 )
 
 go_test(
@@ -16,5 +16,5 @@ go_test(
     srcs = ["pathtest_test.go"],
     embed = [":common"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

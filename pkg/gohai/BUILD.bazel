@@ -6,14 +6,14 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/gohai",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/gohai/cpu",
-        "//pkg/gohai/filesystem",
-        "//pkg/gohai/memory",
-        "//pkg/gohai/network",
-        "//pkg/gohai/platform",
-        "//pkg/gohai/processes",
-        "//pkg/gohai/utils",
-        "//pkg/util/log",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/gohai/cpu",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/gohai/filesystem",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/gohai/memory",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/gohai/network",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/gohai/platform",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/gohai/processes",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/gohai/utils",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
     ],
 )
 
@@ -22,5 +22,5 @@ go_test(
     srcs = ["gohai_test.go"],
     embed = [":gohai"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

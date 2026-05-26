@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config/remote/data",
-        "//pkg/remoteconfig/state",
-        "//pkg/util/fxutil",
-        "@org_uber_go_fx//:fx",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/remote/data",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/remoteconfig/state",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//vendor/go.uber.org/fx",
     ],
 )

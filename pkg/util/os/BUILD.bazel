@@ -23,10 +23,10 @@ go_test(
     gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "//conditions:default": [],
     }),

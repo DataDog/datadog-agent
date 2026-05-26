@@ -9,7 +9,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/orchestrator/model",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/util/log",
-        "@com_github_patrickmn_go_cache//:go-cache",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/patrickmn/go-cache",
     ],
 )

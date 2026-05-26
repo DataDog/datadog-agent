@@ -11,11 +11,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/podman",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/util/log",
-        "@com_github_containernetworking_cni//pkg/types/100",
-        "@com_github_cri_o_ocicni//pkg/ocicni",
-        "@com_github_mattn_go_sqlite3//:go-sqlite3",
-        "@com_github_opencontainers_runtime_spec//specs-go",
-        "@io_etcd_go_bbolt//:bbolt",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/containernetworking/cni/pkg/types/100",
+        "//vendor/github.com/cri-o/ocicni/pkg/ocicni",
+        "//vendor/github.com/mattn/go-sqlite3",
+        "//vendor/github.com/opencontainers/runtime-spec/specs-go",
+        "//vendor/go.etcd.io/bbolt",
     ],
 )

@@ -10,5 +10,5 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/testutil/docker",
     tags = ["test"],
     visibility = ["//visibility:public"],
-    deps = ["//pkg/util/testutil"],
+    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/util/testutil"],
 )

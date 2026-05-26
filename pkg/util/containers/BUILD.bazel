@@ -14,7 +14,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/workloadfilter/legacy",
-        "//pkg/config/setup",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
     ],
 )
 
@@ -28,5 +28,5 @@ go_test(
     ],
     embed = [":containers"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

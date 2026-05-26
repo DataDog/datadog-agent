@@ -18,12 +18,12 @@ go_library(
     deps = [
         "//comp/forwarder/eventplatform",
         "//pkg/clusteragent/kubeactions/executors",
-        "//pkg/logs/message",
-        "//pkg/remoteconfig/state",
-        "//pkg/util/log",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/message",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/remoteconfig/state",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/google.golang.org/protobuf/encoding/protojson",
+        "//vendor/k8s.io/client-go/kubernetes",
         "@com_github_datadog_agent_payload_v5//kubeactions",
-        "@io_k8s_client_go//kubernetes",
-        "@org_golang_google_protobuf//encoding/protojson",
     ],
 )
 

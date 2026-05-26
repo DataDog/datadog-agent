@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/metadata/inventorychecks/def",
-        "//pkg/util/fxutil",
-        "@org_uber_go_fx//:fx",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//vendor/go.uber.org/fx",
     ],
 )

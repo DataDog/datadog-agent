@@ -11,10 +11,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/fargate",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config/env",
-        "//pkg/config/setup",
         "//pkg/util/ecs/metadata",
-        "//pkg/util/log",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/env",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
     ],
 )
 
@@ -23,5 +23,5 @@ go_test(
     srcs = ["hostname_process_test.go"],
     embed = [":fargate"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

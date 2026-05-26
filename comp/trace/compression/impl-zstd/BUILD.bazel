@@ -8,7 +8,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/trace/compression/def",
-        "@com_github_datadog_zstd//:zstd",
+        "//vendor/github.com/DataDog/datadog-agent/comp/trace/compression/def",
+        "//vendor/github.com/DataDog/zstd",
     ],
 )

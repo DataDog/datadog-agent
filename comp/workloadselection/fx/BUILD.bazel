@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//comp/workloadselection/def",
         "//comp/workloadselection/impl",
-        "//pkg/util/fxutil",
-        "@org_uber_go_fx//:fx",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//vendor/go.uber.org/fx",
     ],
 )

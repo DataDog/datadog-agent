@@ -5,7 +5,7 @@ go_library(
     srcs = ["version.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/version",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/proto/pbgo/trace"],
+    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"],
 )
 
 go_test(
@@ -14,8 +14,8 @@ go_test(
     embed = [":version"],
     gotags = ["test"],
     deps = [
-        "//pkg/proto/pbgo/trace",
-        "//pkg/trace/traceutil",
-        "@com_github_stretchr_testify//assert",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/traceutil",
+        "//vendor/github.com/stretchr/testify/assert",
     ],
 )

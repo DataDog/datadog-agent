@@ -5,5 +5,5 @@ go_library(
     srcs = ["connection.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_datadog_agent_payload_v5//process"],
+    deps = ["//vendor/github.com/DataDog/agent-payload/v5/process"],
 )

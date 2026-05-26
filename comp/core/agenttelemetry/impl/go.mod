@@ -18,6 +18,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo v0.0.0-20251027120702-0e91eee9852f
 	github.com/DataDog/datadog-agent/pkg/util/http v0.75.4
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery v0.0.0-20251027120702-0e91eee9852f
+	github.com/DataDog/datadog-agent/pkg/util/log v0.75.4
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.75.4
 	github.com/DataDog/datadog-agent/pkg/version v0.75.4
 	github.com/DataDog/zstd v1.5.7
@@ -57,7 +59,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.75.4 // indirect

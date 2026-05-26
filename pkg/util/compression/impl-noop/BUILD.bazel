@@ -5,5 +5,5 @@ go_library(
     srcs = ["no_strategy.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/compression/impl-noop",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/util/compression"],
+    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/util/compression"],
 )

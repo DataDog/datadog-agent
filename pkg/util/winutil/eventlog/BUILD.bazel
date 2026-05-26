@@ -7,12 +7,12 @@ go_test(
     target_compatible_with = ["@platforms//os:windows"],  # keep
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//pkg/util/winutil/eventlog/api",
-            "//pkg/util/winutil/eventlog/subscription",
-            "//pkg/util/winutil/eventlog/test",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-            "@org_golang_x_sys//windows",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test",
+            "//vendor/github.com/stretchr/testify/assert",
+            "//vendor/github.com/stretchr/testify/require",
+            "//vendor/golang.org/x/sys/windows",
         ],
         "//conditions:default": [],
     }),

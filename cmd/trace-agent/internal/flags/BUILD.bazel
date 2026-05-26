@@ -10,7 +10,7 @@ go_library(
     visibility = ["//cmd/trace-agent:__subpackages__"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//pkg/util/winutil",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil",
         ],
         "//conditions:default": [],
     }),

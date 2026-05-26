@@ -8,10 +8,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//pkg/util/winutil",
-            "//pkg/util/winutil/messagestrings",
-            "@org_golang_x_sys//windows",
-            "@org_golang_x_sys//windows/svc",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings",
+            "//vendor/golang.org/x/sys/windows",
+            "//vendor/golang.org/x/sys/windows/svc",
         ],
         "//conditions:default": [],
     }),

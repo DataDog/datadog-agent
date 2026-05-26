@@ -5,7 +5,7 @@ go_library(
     srcs = ["config.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/config",
     visibility = ["//visibility:public"],
-    deps = ["//comp/core/config"],
+    deps = ["//vendor/github.com/DataDog/datadog-agent/comp/core/config"],
 )
 
 go_test(
@@ -14,7 +14,7 @@ go_test(
     embed = [":config"],
     gotags = ["test"],
     deps = [
-        "//pkg/config/mock",
-        "@com_github_stretchr_testify//assert",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
+        "//vendor/github.com/stretchr/testify/assert",
     ],
 )

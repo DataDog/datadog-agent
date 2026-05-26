@@ -18,5 +18,5 @@ go_test(
     srcs = ["payload_test.go"],
     embed = [":payload"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//require"],
+    deps = ["//vendor/github.com/stretchr/testify/require"],
 )

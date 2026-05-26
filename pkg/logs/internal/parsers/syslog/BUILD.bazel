@@ -21,7 +21,7 @@ go_library(
     ],
     deps = [
         "//pkg/logs/internal/parsers",
-        "//pkg/logs/message",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/message",
     ],
 )
 
@@ -36,10 +36,10 @@ go_test(
     embed = [":syslog"],
     gotags = ["test"],
     deps = [
-        "//comp/logs/agent/config",
-        "//pkg/logs/message",
-        "//pkg/logs/sources",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/DataDog/datadog-agent/comp/logs/agent/config",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/message",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/sources",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

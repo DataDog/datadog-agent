@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/api/util",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/api/security",
-        "//pkg/config/model",
-        "//pkg/util/log",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/api/security",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
     ],
 )
 
@@ -17,5 +17,5 @@ go_test(
     srcs = ["util_test.go"],
     embed = [":util"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

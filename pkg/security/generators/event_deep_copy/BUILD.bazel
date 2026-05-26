@@ -8,7 +8,7 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/security/generators/accessors/common",
-        "@com_github_masterminds_sprig_v3//:sprig",
+        "//vendor/github.com/Masterminds/sprig/v3:sprig",
     ],
 )
 

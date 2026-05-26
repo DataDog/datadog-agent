@@ -8,8 +8,8 @@ go_library(
     deps = [
         "//comp/healthplatform/store/def",
         "//comp/healthplatform/store/impl",
-        "//pkg/util/fxutil",
-        "//pkg/util/option",
-        "@org_uber_go_fx//:fx",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/option",
+        "//vendor/go.uber.org/fx",
     ],
 )

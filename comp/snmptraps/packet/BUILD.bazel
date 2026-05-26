@@ -8,7 +8,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/packet",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_gosnmp_gosnmp//:gosnmp"],
+    deps = ["//vendor/github.com/gosnmp/gosnmp"],
 )
 
 go_test(
@@ -16,5 +16,5 @@ go_test(
     srcs = ["packet_test.go"],
     embed = [":packet"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

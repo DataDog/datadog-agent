@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/delegatedauth/common",
-        "//pkg/config/model",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/delegatedauth/common",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
     ],
 )

@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/proto",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/tagger/types",
-        "//pkg/proto/pbgo/core",
-        "@org_golang_google_grpc//codes",
-        "@org_golang_google_grpc//status",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/tagger/types",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
+        "//vendor/google.golang.org/grpc/codes",
+        "//vendor/google.golang.org/grpc/status",
     ],
 )

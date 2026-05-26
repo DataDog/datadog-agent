@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs-library/utils/tls/certreloader",
-        "//pkg/util/log",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
     ],
 )
 
@@ -16,5 +16,5 @@ go_test(
     srcs = ["server_config_test.go"],
     embed = [":tls"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

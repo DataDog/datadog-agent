@@ -5,7 +5,7 @@ go_library(
     srcs = ["persistentcache.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/persistentcache",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/config/setup"],
+    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/config/setup"],
 )
 
 go_test(
@@ -14,8 +14,8 @@ go_test(
     embed = [":persistentcache"],
     gotags = ["test"],
     deps = [
-        "//pkg/config/mock",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

@@ -13,6 +13,6 @@ go_library(
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/adapters/modes",
         "//pkg/proto/pbgo/privateactionrunner/actionsclient",
-        "@com_github_datadog_datadog_go_v5//statsd",
+        "//vendor/github.com/DataDog/datadog-go/v5/statsd",
     ],
 )

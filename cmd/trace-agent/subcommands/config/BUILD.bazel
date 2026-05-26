@@ -7,17 +7,17 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/trace-agent/subcommands",
-        "//comp/core/config",
-        "//comp/core/delegatedauth/fx-noop",
-        "//comp/core/ipc/def",
         "//comp/core/ipc/fx",
-        "//comp/core/log/def",
-        "//comp/core/log/fx",
         "//comp/core/secrets/fx-noop",
         "//pkg/config/fetcher",
-        "//pkg/util/fxutil",
-        "@com_github_spf13_cobra//:cobra",
-        "@org_uber_go_fx//:fx",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/ipc/def",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/def",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/fx",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//vendor/github.com/spf13/cobra",
+        "//vendor/go.uber.org/fx",
     ],
 )
 
@@ -28,7 +28,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//cmd/trace-agent/subcommands",
-        "//pkg/util/fxutil",
-        "@com_github_spf13_cobra//:cobra",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//vendor/github.com/spf13/cobra",
     ],
 )

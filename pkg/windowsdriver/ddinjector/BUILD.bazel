@@ -15,8 +15,8 @@ go_library(
     deps = select({
         "@rules_go//go/platform:windows": [
             "//comp/core/telemetry/def",
-            "//pkg/util/log",
-            "@org_golang_x_sys//windows",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+            "//vendor/golang.org/x/sys/windows",
         ],
         "//conditions:default": [],
     }),
@@ -30,8 +30,8 @@ go_test(
     target_compatible_with = ["@platforms//os:windows"],  # keep
     deps = select({
         "@rules_go//go/platform:windows": [
-            "@com_github_stretchr_testify//assert",
-            "@org_golang_x_sys//windows",
+            "//vendor/github.com/stretchr/testify/assert",
+            "//vendor/golang.org/x/sys/windows",
         ],
         "//conditions:default": [],
     }),

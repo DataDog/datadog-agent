@@ -19,13 +19,13 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/fxutil",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/def",
-        "//pkg/util/fxutil/logging",
-        "//pkg/util/option",
-        "@com_github_spf13_cobra//:cobra",
-        "@com_github_stretchr_testify//require",
-        "@org_uber_go_fx//:fx",
-        "@org_uber_go_fx//fxtest",
+        "//vendor/github.com/DataDog/datadog-agent/comp/def",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil/logging",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/option",
+        "//vendor/github.com/spf13/cobra",
+        "//vendor/github.com/stretchr/testify/require",
+        "//vendor/go.uber.org/fx",
+        "//vendor/go.uber.org/fx/fxtest",
     ],
 )
 
@@ -41,10 +41,10 @@ go_test(
     embed = [":fxutil"],
     gotags = ["test"],
     deps = [
-        "//comp/def",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@org_uber_go_fx//:fx",
-        "@org_uber_go_fx//fxtest",
+        "//vendor/github.com/DataDog/datadog-agent/comp/def",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
+        "//vendor/go.uber.org/fx",
+        "//vendor/go.uber.org/fx/fxtest",
     ],
 )

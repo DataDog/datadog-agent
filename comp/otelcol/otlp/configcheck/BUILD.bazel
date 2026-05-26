@@ -10,10 +10,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config/helper",
-        "//pkg/config/model",
-        "//pkg/config/setup",
-        "@io_opentelemetry_go_collector_confmap//:confmap",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/helper",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
+        "//vendor/go.opentelemetry.io/collector/confmap",
     ],
 )
 
@@ -23,9 +23,9 @@ go_test(
     embed = [":configcheck"],
     gotags = ["test"],
     deps = [
-        "//pkg/config/mock",
-        "//pkg/config/setup",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

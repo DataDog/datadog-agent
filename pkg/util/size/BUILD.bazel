@@ -8,5 +8,5 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/size",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_spf13_cast//:cast"],
+    deps = ["//vendor/github.com/spf13/cast"],
 )

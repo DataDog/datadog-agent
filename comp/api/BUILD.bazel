@@ -5,7 +5,7 @@ go_library(
     srcs = ["bundle.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/api",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/util/fxutil"],
+    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil"],
 )
 
 go_test(
@@ -13,5 +13,5 @@ go_test(
     srcs = ["bundle_test.go"],
     embed = [":api"],
     gotags = ["test"],
-    deps = ["//pkg/util/fxutil"],
+    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil"],
 )

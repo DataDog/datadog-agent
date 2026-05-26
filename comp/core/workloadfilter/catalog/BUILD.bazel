@@ -18,19 +18,19 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
-        "//comp/core/log/def",
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadfilter/impl/parse",
         "//comp/core/workloadfilter/legacy",
         "//comp/core/workloadfilter/program",
         "//comp/core/workloadfilter/telemetry",
         "//comp/core/workloadfilter/util/celprogram",
-        "//pkg/config/setup",
-        "//pkg/config/structure",
-        "//pkg/util/log",
-        "@com_github_fatih_color//:color",
-        "@com_github_patrickmn_go_cache//:go-cache",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/def",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/structure",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/fatih/color",
+        "//vendor/github.com/patrickmn/go-cache",
     ],
 )
 
@@ -41,8 +41,8 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/workloadfilter/def",
-        "//pkg/config/mock",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

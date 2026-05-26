@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/security/secl/containerutils",
-        "//pkg/security/secl/model/sharedconsts",
-        "//pkg/security/secl/model/utils",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/security/secl/containerutils",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/security/secl/model/utils",
     ],
 )

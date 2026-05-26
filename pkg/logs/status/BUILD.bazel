@@ -11,13 +11,13 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs-library/metrics",
-        "//comp/logs/agent/config",
-        "//pkg/config/model",
-        "//pkg/logs/sources",
-        "//pkg/logs/status/utils",
         "//pkg/logs/tailers",
         "//pkg/util/procfilestats",
-        "@org_uber_go_atomic//:atomic",
+        "//vendor/github.com/DataDog/datadog-agent/comp/logs/agent/config",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/sources",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/status/utils",
+        "//vendor/go.uber.org/atomic",
     ],
 )
 
@@ -28,10 +28,10 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/logs-library/metrics",
-        "//comp/logs/agent/config",
-        "//pkg/config/mock",
-        "//pkg/logs/sources",
-        "//pkg/logs/util/testutils",
-        "@com_github_stretchr_testify//assert",
+        "//vendor/github.com/DataDog/datadog-agent/comp/logs/agent/config",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/sources",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/util/testutils",
+        "//vendor/github.com/stretchr/testify/assert",
     ],
 )

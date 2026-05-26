@@ -22,9 +22,9 @@ go_library(
         "@com_github_datadog_datadog_agent_pkg_logs_util_testutils//:__subpackages__",
     ],
     deps = [
-        "//comp/core/tagger/types",
-        "//pkg/util/log",
-        "@com_github_benbjohnson_clock//:clock",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/tagger/types",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/benbjohnson/clock",
     ],
 )
 
@@ -37,8 +37,8 @@ go_test(
     embed = [":util"],
     gotags = ["test"],
     deps = [
-        "//comp/core/tagger/types",
-        "@com_github_benbjohnson_clock//:clock",
-        "@com_github_stretchr_testify//assert",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/tagger/types",
+        "//vendor/github.com/benbjohnson/clock",
+        "//vendor/github.com/stretchr/testify/assert",
     ],
 )

@@ -11,10 +11,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/sources",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/logs/agent/config",
-        "//pkg/logs/status/utils",
-        "//pkg/util/log",
-        "//pkg/util/statstracker",
+        "//vendor/github.com/DataDog/datadog-agent/comp/logs/agent/config",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/status/utils",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/statstracker",
     ],
 )
 
@@ -28,8 +28,8 @@ go_test(
     embed = [":sources"],
     gotags = ["test"],
     deps = [
-        "//comp/logs/agent/config",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//suite",
+        "//vendor/github.com/DataDog/datadog-agent/comp/logs/agent/config",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/suite",
     ],
 )

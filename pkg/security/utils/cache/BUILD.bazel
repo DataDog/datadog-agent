@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/security/utils/lru/simplelru",
-        "@org_uber_go_atomic//:atomic",
+        "//vendor/go.uber.org/atomic",
     ],
 )
 
@@ -16,5 +16,5 @@ go_test(
     srcs = ["lru_2layers_test.go"],
     embed = [":cache"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

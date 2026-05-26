@@ -9,8 +9,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/log/zap",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/util/log",
-        "@org_uber_go_zap//zapcore",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/go.uber.org/zap/zapcore",
     ],
 )
 
@@ -23,12 +23,12 @@ go_test(
     embed = [":zap"],
     gotags = ["test"],
     deps = [
-        "//pkg/util/log",
-        "//pkg/util/log/slog",
-        "//pkg/util/log/types",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@org_uber_go_zap//:zap",
-        "@org_uber_go_zap//zapcore",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/slog",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/types",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
+        "//vendor/go.uber.org/zap",
+        "//vendor/go.uber.org/zap/zapcore",
     ],
 )

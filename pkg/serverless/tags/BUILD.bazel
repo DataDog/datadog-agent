@@ -5,7 +5,7 @@ go_library(
     srcs = ["tags.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/serverless/tags",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/util/log"],
+    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/util/log"],
 )
 
 go_test(
@@ -13,5 +13,5 @@ go_test(
     srcs = ["tags_test.go"],
     embed = [":tags"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

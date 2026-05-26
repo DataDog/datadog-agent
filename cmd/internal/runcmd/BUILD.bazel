@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/cmd/internal/runcmd",
     visibility = ["//cmd:__subpackages__"],
     deps = [
-        "@com_github_spf13_cobra//:cobra",
-        "@org_uber_go_dig//:dig",
+        "//vendor/github.com/spf13/cobra",
+        "//vendor/go.uber.org/dig",
     ],
 )
 
@@ -17,8 +17,8 @@ go_test(
     embed = [":runcmd"],
     gotags = ["test"],
     deps = [
-        "@com_github_spf13_cobra//:cobra",
-        "@com_github_stretchr_testify//require",
-        "@org_uber_go_fx//:fx",
+        "//vendor/github.com/spf13/cobra",
+        "//vendor/github.com/stretchr/testify/require",
+        "//vendor/go.uber.org/fx",
     ],
 )

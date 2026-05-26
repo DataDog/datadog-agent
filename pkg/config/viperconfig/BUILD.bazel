@@ -10,12 +10,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/config/viperconfig",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config/basic",
-        "//pkg/config/model",
-        "//pkg/util/log",
-        "@com_github_datadog_viper//:viper",
-        "@com_github_mohae_deepcopy//:deepcopy",
-        "@org_uber_go_atomic//:atomic",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/basic",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/DataDog/viper",
+        "//vendor/github.com/mohae/deepcopy",
+        "//vendor/go.uber.org/atomic",
     ],
 )
 
@@ -25,8 +25,8 @@ go_test(
     embed = [":viperconfig"],
     gotags = ["test"],
     deps = [
-        "//pkg/config/model",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

@@ -9,10 +9,10 @@ go_library(
         "//comp/core/autodiscovery",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/proto",
-        "//pkg/proto/pbgo/core",
-        "//pkg/util/grpc",
-        "//pkg/util/log",
-        "@com_github_google_uuid//:uuid",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/grpc",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/google/uuid",
     ],
 )
 
@@ -26,9 +26,9 @@ go_test(
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/noopimpl",
         "//comp/core/autodiscovery/scheduler",
-        "//pkg/proto/pbgo/core",
-        "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//require",
-        "@org_golang_google_grpc//metadata",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//vendor/github.com/stretchr/testify/require",
+        "//vendor/google.golang.org/grpc/metadata",
     ],
 )

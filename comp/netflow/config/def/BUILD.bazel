@@ -9,11 +9,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/netflow/config/def",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
-        "//comp/core/log/def",
         "//comp/netflow/common",
-        "//pkg/config/structure",
         "//pkg/snmp/utils",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/def",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/structure",
     ],
 )
 
@@ -23,10 +23,10 @@ go_test(
     embed = [":def"],
     gotags = ["test"],
     deps = [
-        "//comp/core/log/mock",
         "//comp/netflow/common",
-        "//pkg/config/mock",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/mock",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

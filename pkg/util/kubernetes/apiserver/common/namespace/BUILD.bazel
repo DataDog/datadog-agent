@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config/setup",
-        "//pkg/util/log",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
     ],
 )

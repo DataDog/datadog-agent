@@ -13,14 +13,14 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/common/types",
-        "//comp/core/log/def",
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadfilter/util/celprogram",
-        "//pkg/util/log",
-        "//pkg/util/scrubber",
-        "@com_github_google_cel_go//cel:go_default_library",
-        "@com_github_twmb_murmur3//:murmur3",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/def",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/scrubber",
+        "//vendor/github.com/google/cel-go/cel",
+        "//vendor/github.com/twmb/murmur3",
+        "//vendor/go.yaml.in/yaml/v2:yaml",
     ],
 )
 
@@ -35,8 +35,8 @@ go_test(
     deps = [
         "//comp/core/autodiscovery/common/types",
         "//comp/core/workloadfilter/def",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
+        "//vendor/go.yaml.in/yaml/v2:yaml",
     ],
 )

@@ -8,10 +8,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "@com_github_shirou_gopsutil_v4//host",
+            "//vendor/github.com/shirou/gopsutil/v4/host",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_shirou_gopsutil_v4//host",
+            "//vendor/github.com/shirou/gopsutil/v4/host",
         ],
         "//conditions:default": [],
     }),

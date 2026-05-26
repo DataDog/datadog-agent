@@ -8,5 +8,5 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/validators",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_masterminds_semver_v3//:semver"],
+    deps = ["//vendor/github.com/Masterminds/semver/v3:semver"],
 )

@@ -13,10 +13,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/traceutil",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/proto/pbgo/trace",
         "//pkg/proto/pbgo/trace/idx",
-        "//pkg/trace/log",
-        "@com_github_tinylib_msgp//msgp",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/log",
+        "//vendor/github.com/tinylib/msgp/msgp",
     ],
 )
 
@@ -31,7 +31,7 @@ go_test(
     embed = [":traceutil"],
     gotags = ["test"],
     deps = [
-        "//pkg/proto/pbgo/trace",
-        "@com_github_stretchr_testify//assert",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace",
+        "//vendor/github.com/stretchr/testify/assert",
     ],
 )

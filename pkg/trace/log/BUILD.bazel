@@ -9,7 +9,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/log",
     visibility = ["//visibility:public"],
-    deps = ["@org_uber_go_atomic//:atomic"],
+    deps = ["//vendor/go.uber.org/atomic"],
 )
 
 go_test(
@@ -17,5 +17,5 @@ go_test(
     srcs = ["throttled_test.go"],
     embed = [":log"],
     gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["//vendor/github.com/stretchr/testify/assert"],
 )

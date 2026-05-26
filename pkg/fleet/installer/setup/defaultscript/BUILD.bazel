@@ -9,9 +9,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/defaultscript",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/fleet/installer/env",
-        "//pkg/fleet/installer/setup/common",
-        "//pkg/fleet/installer/setup/config",
-        "//pkg/version",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/env",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/version",
     ],
 )

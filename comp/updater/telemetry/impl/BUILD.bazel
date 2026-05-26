@@ -6,11 +6,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/updater/telemetry/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
-        "//comp/def",
         "//comp/updater/telemetry/def",
-        "//pkg/config/utils",
-        "//pkg/fleet/installer/telemetry",
-        "//pkg/util/http",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
+        "//vendor/github.com/DataDog/datadog-agent/comp/def",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/utils",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/http",
     ],
 )

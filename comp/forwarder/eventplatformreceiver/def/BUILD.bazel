@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/def",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/logs/diagnostic",
-        "//pkg/logs/message",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/diagnostic",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/message",
     ],
 )

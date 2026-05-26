@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/def",
         "//comp/dogstatsd/pidmap/def",
+        "//vendor/github.com/DataDog/datadog-agent/comp/def",
     ],
 )

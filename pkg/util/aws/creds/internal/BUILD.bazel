@@ -12,9 +12,9 @@ go_library(
         "@com_github_datadog_datadog_agent_pkg_util_aws_creds//:__subpackages__",
     ],
     deps = [
-        "//pkg/config/setup",
-        "//pkg/config/utils",
-        "//pkg/util/http",
-        "//pkg/util/log",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/utils",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/http",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
     ],
 )

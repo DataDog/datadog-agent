@@ -12,12 +12,12 @@ go_library(
     deps = [
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/reporter/def",
-        "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface",
-        "//comp/core/log/def",
         "//comp/forwarder/eventplatform",
-        "//pkg/logs/message",
         "//pkg/util/strings",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/def",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/message",
     ],
 )
 
@@ -31,6 +31,6 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/anomalydetection/observer/def",
-        "@com_github_stretchr_testify//assert",
+        "//vendor/github.com/stretchr/testify/assert",
     ],
 )

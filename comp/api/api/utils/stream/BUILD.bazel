@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/utils",
-        "//pkg/logs/diagnostic",
-        "//pkg/util/log",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/diagnostic",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
     ],
 )

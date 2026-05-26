@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zstd",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/util/compression",
-        "@com_github_datadog_zstd//:zstd",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/compression",
+        "//vendor/github.com/DataDog/zstd",
     ],
 )
 
@@ -16,5 +16,5 @@ go_test(
     srcs = ["zstd_strategy_test.go"],
     embed = [":impl-zstd"],
     gotags = ["test"],
-    deps = ["//pkg/util/compression"],
+    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/util/compression"],
 )

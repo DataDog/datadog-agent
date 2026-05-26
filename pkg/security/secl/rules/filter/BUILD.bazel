@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/rules/filter",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/security/secl/compiler/ast",
-        "//pkg/security/secl/compiler/eval",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval",
     ],
 )

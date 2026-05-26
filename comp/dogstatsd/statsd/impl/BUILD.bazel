@@ -10,9 +10,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/dogstatsd/statsd/def",
-        "//pkg/util/fxutil",
-        "@com_github_datadog_datadog_go_v5//statsd",
-        "@org_uber_go_fx//:fx",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//vendor/github.com/DataDog/datadog-go/v5/statsd",
+        "//vendor/go.uber.org/fx",
     ],
 )
 
@@ -26,10 +26,10 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/dogstatsd/statsd/def",
-        "//pkg/util/fxutil",
-        "@com_github_datadog_datadog_go_v5//statsd",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@org_uber_go_fx//:fx",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//vendor/github.com/DataDog/datadog-go/v5/statsd",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
+        "//vendor/go.uber.org/fx",
     ],
 )

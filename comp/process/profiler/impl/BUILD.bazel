@@ -6,12 +6,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/process/profiler/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
-        "//comp/def",
         "//comp/process/profiler/def",
-        "//pkg/config/setup",
-        "//pkg/util/log",
         "//pkg/util/profiling",
-        "//pkg/version",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
+        "//vendor/github.com/DataDog/datadog-agent/comp/def",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/version",
     ],
 )

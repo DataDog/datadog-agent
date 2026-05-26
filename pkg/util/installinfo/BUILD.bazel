@@ -10,58 +10,58 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/installinfo",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config/model",
-        "//pkg/config/setup",
-        "//pkg/config/utils",
-        "//pkg/util/log",
-        "//pkg/util/scrubber",
-        "//pkg/version",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/utils",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/scrubber",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/version",
+        "//vendor/go.yaml.in/yaml/v2:yaml",
     ] + select({
         "@rules_go//go/platform:aix": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:android": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:darwin": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:dragonfly": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:freebsd": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:illumos": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:ios": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:js": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:netbsd": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:openbsd": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:osx": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:plan9": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:qnx": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:solaris": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "//conditions:default": [],
     }),
@@ -76,53 +76,53 @@ go_test(
     embed = [":installinfo"],
     gotags = ["test"],
     deps = [
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ] + select({
         "@rules_go//go/platform:aix": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:android": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:darwin": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:dragonfly": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:freebsd": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:illumos": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:ios": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:js": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:netbsd": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:openbsd": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:osx": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:plan9": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:qnx": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "@rules_go//go/platform:solaris": [
-            "@com_github_google_uuid//:uuid",
+            "//vendor/github.com/google/uuid",
         ],
         "//conditions:default": [],
     }),

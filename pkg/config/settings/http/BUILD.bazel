@@ -9,9 +9,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/config/settings/http",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/ipc/def",
         "//comp/core/settings/def",
         "//pkg/config/settings",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/ipc/def",
     ],
 )
 
@@ -21,9 +21,9 @@ go_test(
     embed = [":http"],
     gotags = ["test"],
     deps = [
-        "//comp/core/ipc/def",
-        "//comp/core/ipc/httphelpers",
-        "//comp/core/ipc/mock",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/ipc/def",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/ipc/mock",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

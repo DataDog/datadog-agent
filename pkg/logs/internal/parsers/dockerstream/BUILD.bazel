@@ -16,9 +16,9 @@ go_library(
         "@com_github_datadog_datadog_agent_pkg_logs_util_testutils//:__subpackages__",
     ],
     deps = [
-        "//pkg/config/setup",
         "//pkg/logs/internal/parsers",
-        "//pkg/logs/message",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/message",
     ],
 )
 
@@ -31,7 +31,7 @@ go_test(
     embed = [":dockerstream"],
     gotags = ["test"],
     deps = [
-        "//pkg/logs/message",
-        "@com_github_stretchr_testify//assert",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/message",
+        "//vendor/github.com/stretchr/testify/assert",
     ],
 )

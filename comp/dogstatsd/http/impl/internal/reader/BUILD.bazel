@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/http/impl/internal/reader",
     visibility = ["//comp/dogstatsd/http/impl:__subpackages__"],
     deps = [
-        "//pkg/metrics",
-        "//pkg/proto/pbgo/dogstatsdhttp",
-        "@com_github_datadog_agent_payload_v5//gogen",
+        "//vendor/github.com/DataDog/agent-payload/v5/gogen",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/metrics",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp",
     ],
 )
 
@@ -19,8 +19,8 @@ go_test(
     embed = [":reader"],
     gotags = ["test"],
     deps = [
-        "//pkg/proto/pbgo/dogstatsdhttp",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

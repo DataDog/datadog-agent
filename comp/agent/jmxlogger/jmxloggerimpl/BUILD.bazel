@@ -10,11 +10,11 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/agent/jmxlogger",
-        "//comp/core/config",
-        "//pkg/util/defaultpaths",
-        "//pkg/util/fxutil",
-        "//pkg/util/log/setup",
-        "@org_uber_go_fx//:fx",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/defaultpaths",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/setup",
+        "//vendor/go.uber.org/fx",
     ],
 )
 
@@ -24,9 +24,9 @@ go_test(
     embed = [":jmxloggerimpl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
-        "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//assert",
-        "@org_uber_go_fx//:fx",
+        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/go.uber.org/fx",
     ],
 )

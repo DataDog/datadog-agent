@@ -10,10 +10,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/containertags",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config/env",
-        "//pkg/trace/config",
-        "//pkg/trace/log",
-        "@com_github_datadog_datadog_go_v5//statsd",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/env",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/config",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/log",
+        "//vendor/github.com/DataDog/datadog-go/v5/statsd",
     ],
 )
 
@@ -26,9 +26,9 @@ go_test(
     embed = [":containertags"],
     gotags = ["test"],
     deps = [
-        "//pkg/trace/config",
-        "@com_github_datadog_datadog_go_v5//statsd",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/config",
+        "//vendor/github.com/DataDog/datadog-go/v5/statsd",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

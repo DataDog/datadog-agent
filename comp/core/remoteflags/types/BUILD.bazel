@@ -7,6 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/remoteflags",
-        "@org_uber_go_fx//:fx",
+        "//vendor/go.uber.org/fx",
     ],
 )

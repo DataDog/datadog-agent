@@ -14,6 +14,6 @@ go_library(
         "//comp/core/autodiscovery/scheduler",
         "//comp/core/autodiscovery/telemetry",
         "//pkg/collector/check/id",
-        "//pkg/config/setup",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
     ],
 )

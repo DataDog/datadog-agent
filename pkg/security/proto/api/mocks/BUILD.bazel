@@ -14,8 +14,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/security/proto/api",
-        "@com_github_stretchr_testify//mock",
-        "@org_golang_google_grpc//:grpc",
-        "@org_golang_google_protobuf//types/known/emptypb",
+        "//vendor/github.com/stretchr/testify/mock",
+        "//vendor/google.golang.org/grpc",
+        "//vendor/google.golang.org/protobuf/types/known/emptypb",
     ],
 )

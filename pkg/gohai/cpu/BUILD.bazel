@@ -35,26 +35,26 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/gohai/cpu",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/gohai/utils",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/gohai/utils",
     ] + select({
         "@rules_go//go/platform:aix": [
-            "@com_github_shirou_gopsutil_v4//cpu",
+            "//vendor/github.com/shirou/gopsutil/v4/cpu",
         ],
         "@rules_go//go/platform:android": [
-            "//pkg/util/log",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
         ],
         "@rules_go//go/platform:darwin": [
-            "@org_golang_x_sys//unix",
+            "//vendor/golang.org/x/sys/unix",
         ],
         "@rules_go//go/platform:ios": [
-            "@org_golang_x_sys//unix",
+            "//vendor/golang.org/x/sys/unix",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/util/log",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
         ],
         "@rules_go//go/platform:windows": [
-            "//pkg/util/log",
-            "@org_golang_x_sys//windows/registry",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+            "//vendor/golang.org/x/sys/windows/registry",
         ],
         "//conditions:default": [],
     }),
@@ -70,57 +70,57 @@ go_test(
     embed = [":cpu"],
     gotags = ["test"],
     deps = [
-        "//pkg/gohai/utils",
-        "//pkg/util/log",
-        "@com_github_stretchr_testify//assert",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/gohai/utils",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/stretchr/testify/assert",
     ] + select({
         "@rules_go//go/platform:android_386": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:android_amd64": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:android_arm": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:android_arm64": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:linux_386": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:linux_amd64": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:linux_arm": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:linux_arm64": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:linux_mips": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:linux_mips64": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:linux_mips64le": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:linux_mipsle": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:linux_ppc64": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:linux_ppc64le": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:linux_riscv64": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "@rules_go//go/platform:linux_s390x": [
-            "@com_github_stretchr_testify//require",
+            "//vendor/github.com/stretchr/testify/require",
         ],
         "//conditions:default": [],
     }),

@@ -7,9 +7,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/taglist",
-        "//pkg/util/log",
         "//pkg/util/tmplvar",
-        "@com_github_gobwas_glob//:glob",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//vendor/github.com/gobwas/glob",
     ],
 )
 
@@ -20,6 +20,6 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/tagger/taglist",
-        "@com_github_stretchr_testify//assert",
+        "//vendor/github.com/stretchr/testify/assert",
     ],
 )

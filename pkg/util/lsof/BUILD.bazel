@@ -18,16 +18,16 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "//pkg/util/log",
-            "@com_github_prometheus_procfs//:procfs",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+            "//vendor/github.com/prometheus/procfs",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/util/log",
-            "@com_github_prometheus_procfs//:procfs",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+            "//vendor/github.com/prometheus/procfs",
         ],
         "@rules_go//go/platform:windows": [
-            "//pkg/util/winutil",
-            "@org_golang_x_sys//windows",
+            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil",
+            "//vendor/golang.org/x/sys/windows",
         ],
         "//conditions:default": [],
     }),
@@ -44,19 +44,19 @@ go_test(
     embed = [":lsof"],
     gotags = ["test"],
     deps = [
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/stretchr/testify/require",
     ] + select({
         "@rules_go//go/platform:android": [
-            "@com_github_prometheus_procfs//:procfs",
-            "@com_github_stretchr_testify//assert",
+            "//vendor/github.com/prometheus/procfs",
+            "//vendor/github.com/stretchr/testify/assert",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_prometheus_procfs//:procfs",
-            "@com_github_stretchr_testify//assert",
+            "//vendor/github.com/prometheus/procfs",
+            "//vendor/github.com/stretchr/testify/assert",
         ],
         "@rules_go//go/platform:windows": [
-            "@com_github_stretchr_testify//assert",
-            "@org_golang_x_sys//windows",
+            "//vendor/github.com/stretchr/testify/assert",
+            "//vendor/golang.org/x/sys/windows",
         ],
         "//conditions:default": [],
     }),

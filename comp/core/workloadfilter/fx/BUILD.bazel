@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadfilter/impl",
-        "//pkg/util/fxutil",
+        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
     ],
 )
