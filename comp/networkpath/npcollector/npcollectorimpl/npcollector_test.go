@@ -27,7 +27,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go4.org/netipx"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -491,7 +490,7 @@ func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 	var conns []npmodel.NetworkPathConnection
 	currentIP, _ := netip.ParseAddr("10.0.0.0")
 	for i := 0; i < 1000; i++ {
-		currentIP = netipx.AddrNext(currentIP)
+		currentIP = currentIP.Next()
 		conns = append(conns, npmodel.NetworkPathConnection{
 			Source:            netip.MustParseAddrPort("10.0.0.1:30000"),
 			SourceContainerID: "testId1",
