@@ -3,17 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build test && ncm
+//go:build test
 
 package report
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
@@ -101,24 +99,13 @@ func TestNetworkDevicesConfigPayload_Creation(t *testing.T) {
 		},
 	}
 
-	payload := ToNCMPayload(namespace, configs, timestamp)
+	payload := ToNCMPayload(namespace, "test-agent-host", configs, []InventoryEntry{}, timestamp)
 
 	assert.Equal(t, namespace, payload.Namespace)
+	assert.Equal(t, "test-agent-host", payload.AgentHostname)
 	assert.Equal(t, timestamp, payload.CollectTimestamp)
 	assert.Len(t, payload.Configs, 2)
 	assert.Equal(t, configs, payload.Configs)
-}
-
-func TestNetworkDevicesConfigPayload_EmptyConfigs(t *testing.T) {
-	payload := ToNCMPayload("test", []NetworkDeviceConfig{}, time.Now().Unix())
-
-	assert.Equal(t, "test", payload.Namespace)
-	assert.Empty(t, payload.Configs)
-
-	// Should still be valid JSON
-	jsonData, err := json.Marshal(payload)
-	require.NoError(t, err)
-	assert.Contains(t, string(jsonData), "\"configs\":[]")
 }
 
 func TestNetworkDevicesConfigPayload_EmptyTimestamps(t *testing.T) {
@@ -130,7 +117,7 @@ func TestNetworkDevicesConfigPayload_EmptyTimestamps(t *testing.T) {
 		ConfigSource: types.CLI,
 		Timestamp:    0,
 	}
-	payload := ToNCMPayload("test", []NetworkDeviceConfig{ndc}, agentTs)
+	payload := ToNCMPayload("test", "test-agent-host", []NetworkDeviceConfig{ndc}, []InventoryEntry{}, agentTs)
 
 	expected := NetworkDeviceConfig{
 		DeviceID:     "default:10.0.0.1",

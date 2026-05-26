@@ -93,6 +93,11 @@ func (f *SyncForwarder) SubmitV1Intake(payload transaction.BytesPayloads, kind t
 	return f.sendHTTPTransactions(transactions)
 }
 
+// SubmitV1IntakeDirect sends payloads synchronously to the universal `/intake/` endpoint.
+func (f *SyncForwarder) SubmitV1IntakeDirect(_ context.Context, payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error {
+	return f.SubmitV1Intake(payload, kind, extra)
+}
+
 // SubmitV1CheckRuns will send service checks to v1 endpoint (this will be removed once
 // the backend handles v2 endpoints).
 func (f *SyncForwarder) SubmitV1CheckRuns(payload transaction.BytesPayloads, extra http.Header) error {

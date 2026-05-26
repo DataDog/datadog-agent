@@ -27,6 +27,10 @@ type testInstallScriptOnDCSuite struct {
 // TestInstallScriptWithAgentUserOnDC tests tests the Datadog Install script with a custom user and password on a Domain Controller.
 func TestInstallScriptWithAgentUserOnDC(t *testing.T) {
 	e2e.Run(t, &testInstallScriptOnDCSuite{},
+		// Keep the stack alive on failure so the team can investigate Active Directory
+		// provisioning failures (see WINA-1853). A Datadog log monitor on the
+		// "SkipDeleteOnFailure feature is enabled" line notifies #windows-products-ops.
+		e2e.WithSkipDeleteOnFailure(),
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake(
 				winawshost.WithRunOptions(scenwin.WithActiveDirectoryOptions(

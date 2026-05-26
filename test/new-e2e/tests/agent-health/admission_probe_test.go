@@ -123,7 +123,7 @@ func (suite *admissionProbeSuite) TestAdmissionProbeIssueLifecycle() {
 		require.NotNil(t, detectedIssue)
 		assert.Equal(t, admissionProbeIssueID, detectedIssue.Id)
 		assert.Equal(t, "availability", detectedIssue.Category)
-		assert.Equal(t, "high", detectedIssue.Severity)
+		assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH, detectedIssue.Severity)
 		assert.Equal(t, "cluster-agent", detectedIssue.Source)
 		assert.NotNil(t, detectedIssue.Remediation)
 		assert.NotEmpty(t, detectedIssue.Remediation.Steps)

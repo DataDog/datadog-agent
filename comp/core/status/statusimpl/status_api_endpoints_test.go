@@ -17,8 +17,6 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/gorilla/mux"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -213,8 +211,8 @@ func TestStatusAPIEndpoints(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%s - %s [%s]", test.routerPath, test.method, test.testDesc), func(t *testing.T) {
-			r := mux.NewRouter()
-			r.HandleFunc(test.routerPath, test.httpHandler)
+			r := http.NewServeMux()
+			r.HandleFunc(test.method+" "+test.routerPath, test.httpHandler)
 
 			// Create a new HTTP request
 			req, err := http.NewRequest(test.method, test.testedPath, nil)

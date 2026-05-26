@@ -1450,7 +1450,6 @@ core,github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/la
 core,github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports,Apache-2.0,"Copyright 2012-2013 Rackspace, Inc | Copyright Gophercloud authors"
 core,github.com/gophercloud/gophercloud/v2/openstack/utils,Apache-2.0,"Copyright 2012-2013 Rackspace, Inc | Copyright Gophercloud authors"
 core,github.com/gophercloud/gophercloud/v2/pagination,Apache-2.0,"Copyright 2012-2013 Rackspace, Inc | Copyright Gophercloud authors"
-core,github.com/gorilla/handlers,BSD-3-Clause,Copyright (c) 2023 The Gorilla Authors. All rights reserved
 core,github.com/gorilla/mux,BSD-3-Clause,Copyright (c) 2023 The Gorilla Authors. All rights reserved
 core,github.com/gorilla/websocket,BSD-2-Clause,Copyright (c) 2013 The Gorilla WebSocket Authors. All rights reserved | Gary Burd <gary@beagledreams.com> | Google LLC (https://opensource.google.com/) | Joachim Bauch <mail@joachim-bauch.de>
 core,github.com/gosnmp/gosnmp,BSD-2-Clause,Copyright 2012-2020 The GoSNMP Authors. All rights reserved.
@@ -2356,6 +2355,7 @@ core,github.com/prometheus/sigv4,Apache-2.0,Copyright 2012-2015 The Prometheus A
 core,github.com/puzpuzpuz/xsync/v3,Apache-2.0,Copyright (c) 2021 Andrey Pechkurov
 core,github.com/puzpuzpuz/xsync/v4,Apache-2.0,Copyright (c) 2021 Andrey Pechkurov
 core,github.com/qri-io/jsonpointer,MIT,Copyright (c) 2017 Brendan O'Brien
+core,github.com/rabbitmq/amqp091-go,BSD-2-Clause,"Copyright (c) 2012-2021, Sean Treadway, SoundCloud Ltd | Copyright (c) 2021 VMware, Inc. or its affiliates. All Rights Reserved"
 core,github.com/rcrowley/go-metrics,BSD-2-Clause-Views,Copyright 2012 Richard Crowley. All rights reserved
 core,github.com/redis/go-redis/v9,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/auth,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
@@ -2394,7 +2394,6 @@ core,github.com/samber/lo/internal/xrand,MIT,Copyright (c) 2022-2025 Samuel Bert
 core,github.com/samber/lo/internal/xtime,MIT,Copyright (c) 2022-2025 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
 core,github.com/samber/lo/mutable,MIT,Copyright (c) 2022-2025 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
 core,github.com/samber/oops,MIT,Copyright (c) 2023 Samuel Berthe | Copyright © 2023 [Samuel Berthe](https://github.com/samber)
-core,github.com/samuel/go-zookeeper/zk,BSD-3-Clause,"Copyright (c) 2013, Samuel Stauffer <samuel@descolada.com>"
 core,github.com/santhosh-tekuri/jsonschema/v5,Apache-2.0,Copyright (c) 2017-2024 Santhosh Kumar Tekuri
 core,github.com/santhosh-tekuri/jsonschema/v6,Apache-2.0,Copyright (c) 2017-2024 Santhosh Kumar Tekuri
 core,github.com/santhosh-tekuri/jsonschema/v6/kind,Apache-2.0,Copyright (c) 2017-2024 Santhosh Kumar Tekuri
@@ -2480,7 +2479,6 @@ core,github.com/stackitcloud/stackit-sdk-go/core/config,Apache-2.0,Copyright 202
 core,github.com/stackitcloud/stackit-sdk-go/core/oapierror,Apache-2.0,Copyright 2024 - 2026 Schwarz IT KG
 core,github.com/stackitcloud/stackit-sdk-go/core/oidcadapters,Apache-2.0,Copyright 2024 - 2026 Schwarz IT KG
 core,github.com/stackitcloud/stackit-sdk-go/core/utils,Apache-2.0,Copyright 2024 - 2026 Schwarz IT KG
-core,github.com/streadway/amqp,BSD-2-Clause,"Copyright (c) 2012-2019, Sean Treadway, SoundCloud Ltd"
 core,github.com/stretchr/objx,MIT,"Copyright (c) 2014 Stretchr, Inc | Copyright (c) 2017-2018 objx contributors"
 core,github.com/stretchr/testify/assert,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/assert/yaml,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
@@ -2540,7 +2538,7 @@ core,github.com/uptrace/bun/internal/tagparser,BSD-2-Clause,Copyright (c) 2021 V
 core,github.com/uptrace/bun/migrate,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/migrate/sqlschema,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/schema,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
-core,github.com/urfave/negroni,MIT,Copyright (c) 2014 Jeremy Saenz
+core,github.com/urfave/negroni/v3,MIT,Copyright (c) 2014 Jeremy Saenz
 core,github.com/valyala/fastjson,MIT,Copyright (c) 2018 Aliaksandr Valialkin
 core,github.com/valyala/fastjson/fastfloat,MIT,Copyright (c) 2018 Aliaksandr Valialkin
 core,github.com/vbatts/tar-split/archive/tar,BSD-3-Clause,"Copyright (c) 2015 Vincent Batts, Raleigh, NC, USA"
