@@ -851,6 +851,7 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"NetworkFlowMonitorEnabled":                  opts.networkFlowMonitorEnabled,
 		"CapabilitiesMonitoringEnabled":              opts.capabilitiesMonitoringEnabled,
 		"CaptureAllSyscallErrorsEnabled":             opts.captureAllSyscallErrorsEnabled,
+		"LegacyAPMCorrelationEnabled":                opts.legacyAPMCorrelationEnabled,
 	}); err != nil {
 		return nil, nil, err
 	}
