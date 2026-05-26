@@ -6,6 +6,10 @@
 package fleet
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,6 +52,10 @@ func (s *upgradeSuite) snapshotIntegrationState(phase string) {
 		{".diff_python_installed_packages.txt", "sudo cat /opt/datadog-packages/tmp/.diff_python_installed_packages.txt 2>&1 || echo NOT_FOUND"},
 		{".post_python_installed_packages.txt", "sudo cat /opt/datadog-packages/tmp/.post_python_installed_packages.txt 2>&1 || echo NOT_FOUND"},
 		{"stable site-packages (datadog_* only)", "sudo ls /opt/datadog-packages/datadog-agent/stable/embedded/lib/python*/site-packages/ 2>/dev/null | grep -E '^datadog' || echo NONE"},
+		// Ownership of reinstalled integration files: root:root indicates post.py ran pip as root
+		// without a subsequent chown, which blocks dd-agent from writing __pycache__ later.
+		{"restored integration file ownership", "sudo find /opt/datadog-packages/datadog-agent/ -maxdepth 8 \\( -name 'datadog_ping-*.dist-info' -o -name 'datadog_puma-*.dist-info' -o -wholename '*/datadog_checks/ping' -o -wholename '*/datadog_checks/puma' \\) -printf '%u\\t%p\\n' 2>/dev/null || echo NONE"},
+		{"integration show datadog-ping", "sudo -u dd-agent datadog-agent integration show datadog-ping 2>&1 || echo FAILED"},
 	}
 	for _, c := range cmds {
 		out, err := s.Env().RemoteHost.Execute(c.command)
@@ -57,6 +65,43 @@ func (s *upgradeSuite) snapshotIntegrationState(phase string) {
 		}
 		s.T().Logf("[%s] %s:\n%s", phase, c.label, out)
 	}
+}
+
+// integrationDistInfoOwner returns the Unix owner of the named integration's dist-info
+// directory under the given OCI package location ("experiment" or "stable").
+// Returns empty string if the directory does not exist or the command fails.
+// A "root" result indicates the files were installed by post.py running as root
+// (failure mode 1: post.py calls pip without dropping privileges).
+func (s *upgradeSuite) integrationDistInfoOwner(location, integrationName string) string {
+	if s.Env().RemoteHost.OSFamily != e2eos.LinuxFamily {
+		return ""
+	}
+	out, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
+		`find /opt/datadog-packages/datadog-agent/%s/embedded/lib/ -maxdepth 5 -name 'datadog_%s-*.dist-info' -type d -printf '%%u\n' 2>/dev/null | sort -u`,
+		location, integrationName,
+	))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
+}
+
+// integrationCheckDirOwner returns the Unix owner of the datadog_checks/<name> directory
+// under the given OCI package location. If this directory is root-owned, dd-agent cannot
+// create or refresh __pycache__ inside it, causing silent bytecode-cache misses on every
+// import (failure mode 2: root-owned parent directory blocks dd-agent from writing .pyc).
+func (s *upgradeSuite) integrationCheckDirOwner(location, integrationName string) string {
+	if s.Env().RemoteHost.OSFamily != e2eos.LinuxFamily {
+		return ""
+	}
+	out, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
+		`find /opt/datadog-packages/datadog-agent/%s/embedded/lib/ -maxdepth 6 -wholename '*/datadog_checks/%s' -type d -printf '%%u\n' 2>/dev/null | sort -u`,
+		location, integrationName,
+	))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
 }
 
 func newUpgradeSuite() e2e.Suite[environments.Host] {
@@ -115,6 +160,8 @@ func (s *upgradeSuite) TestIntegrationPreservationDebToOCI() {
 	installedIntegrations, err = s.Agent.InstalledIntegrations()
 	s.Require().NoError(err)
 	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved in experiment")
+	_, showErr := s.Agent.IntegrationShow("datadog-ping")
+	s.Assert().NoError(showErr, "integration show should succeed after restoration in experiment")
 
 	err = s.Backend.PromoteExperiment("datadog-agent")
 	s.Require().NoError(err)
@@ -123,6 +170,8 @@ func (s *upgradeSuite) TestIntegrationPreservationDebToOCI() {
 	installedIntegrations, err = s.Agent.InstalledIntegrations()
 	s.Require().NoError(err)
 	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved after promotion")
+	_, showErr = s.Agent.IntegrationShow("datadog-ping")
+	s.Assert().NoError(showErr, "integration show should succeed after promotion")
 }
 
 // TestIntegrationPreservationOCIToOCI tests that integrations are preserved during an OCI→OCI upgrade.
@@ -166,6 +215,8 @@ func (s *upgradeSuite) TestIntegrationPreservationOCIToOCI() {
 	installedIntegrations, err = s.Agent.InstalledIntegrations()
 	s.Require().NoError(err)
 	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved in OCI experiment")
+	_, showErr := s.Agent.IntegrationShow("datadog-ping")
+	s.Assert().NoError(showErr, "integration show should succeed after restoration in OCI experiment")
 
 	err = s.Backend.PromoteExperiment("datadog-agent")
 	s.Require().NoError(err)
@@ -174,6 +225,8 @@ func (s *upgradeSuite) TestIntegrationPreservationOCIToOCI() {
 	installedIntegrations, err = s.Agent.InstalledIntegrations()
 	s.Require().NoError(err)
 	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved after OCI promotion")
+	_, showErr = s.Agent.IntegrationShow("datadog-ping")
+	s.Assert().NoError(showErr, "integration show should succeed after OCI promotion")
 }
 
 // TestIntegrationPreservationStableToOCIExperiment verifies that a third-party integration
@@ -204,6 +257,26 @@ func (s *upgradeSuite) TestIntegrationPreservationStableToOCIExperiment() {
 	s.Require().NoError(err)
 	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved in experiment to pipeline version")
 
+	// Failure mode 4: integration show must succeed — if post.py's pip install failed silently
+	// (run_command swallows CalledProcessError), dist-info is absent and show returns an error
+	// while the check may still run from a cached sys.modules entry.
+	showOut, showErr := s.Agent.IntegrationShow("datadog-ping")
+	s.Assert().NoError(showErr, "integration show should succeed after restoration in experiment")
+	s.Assert().Contains(showOut, "1.0.2", "integration show should report the restored version")
+
+	// Failure mode 1: dist-info files must be owned by dd-agent after restoration.
+	// post.py calls pip as root (no privilege drop in executePythonScript / install_datadog_package),
+	// so without a post-install chown the files land as root:root. installFilesystem chowns the
+	// experiment tree before post.py runs, but pip overwrites ownership for the reinstalled package.
+	s.Assert().Equal("dd-agent", s.integrationDistInfoOwner("experiment", "ping"),
+		"dist-info should be owned by dd-agent after restoration; root ownership blocks future 'agent integration install' from unlinking root-owned .pyc files")
+
+	// Failure mode 2: the datadog_checks/<name> directory must be dd-agent-owned so the running
+	// agent can create and refresh __pycache__ inside it. If root-owned (mode 0755), dd-agent
+	// has r-x but not w, so Python silently skips writing bytecode and re-parses source on every import.
+	s.Assert().Equal("dd-agent", s.integrationCheckDirOwner("experiment", "ping"),
+		"datadog_checks/ping should be owned by dd-agent after restoration; root ownership prevents dd-agent from writing __pycache__ entries")
+
 	err = s.Backend.PromoteExperiment("datadog-agent")
 	s.Require().NoError(err)
 	s.snapshotIntegrationState("StableToOCIExperiment: after PromoteExperiment")
@@ -217,6 +290,10 @@ func (s *upgradeSuite) TestIntegrationPreservationStableToOCIExperiment() {
 	installedIntegrations, err = s.Agent.InstalledIntegrations()
 	s.Require().NoError(err)
 	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved after promotion to pipeline version")
+
+	// Failure mode 4 (post-promote): integration show must still succeed after promotion.
+	_, showErr = s.Agent.IntegrationShow("datadog-ping")
+	s.Assert().NoError(showErr, "integration show should succeed after promotion")
 }
 
 // TestIntegrationPreservationOnExperimentRollback verifies that a third-party integration
@@ -253,6 +330,8 @@ func (s *upgradeSuite) TestIntegrationPreservationOnExperimentRollback() {
 	installedIntegrations, err = s.Agent.InstalledIntegrations()
 	s.Require().NoError(err)
 	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved while experiment is running")
+	_, showErr := s.Agent.IntegrationShow("datadog-ping")
+	s.Assert().NoError(showErr, "integration show should succeed while experiment is running")
 
 	err = s.Backend.StopExperiment("datadog-agent")
 	s.Require().NoError(err)
@@ -268,6 +347,8 @@ func (s *upgradeSuite) TestIntegrationPreservationOnExperimentRollback() {
 	installedIntegrations, err = s.Agent.InstalledIntegrations()
 	s.Require().NoError(err)
 	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should still be installed on the (reverted) stable after rollback")
+	_, showErr = s.Agent.IntegrationShow("datadog-ping")
+	s.Assert().NoError(showErr, "integration show should succeed after rollback")
 }
 
 // TestIntegrationPreservationMultiHop verifies that a third-party integration installed
@@ -277,8 +358,24 @@ func (s *upgradeSuite) TestIntegrationPreservationOnExperimentRollback() {
 // against the right baseline. A broken refresh would either drop the integration from
 // the diff (silent loss) or carry stale entries that the new agent can't reinstall.
 func (s *upgradeSuite) TestIntegrationPreservationMultiHop() {
-	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages(), agent.WithLogLevel("debug"))
 	defer s.Agent.MustUninstall()
+
+	// Enable debug log level on both agent and installer (persists through OCI upgrades).
+	_, setupErr := s.Env().RemoteHost.Execute(`printf '\nlog_level: debug\n' | sudo tee -a /etc/datadog-agent/datadog.yaml > /dev/null`)
+	s.Require().NoError(setupErr)
+	_, setupErr = s.Env().RemoteHost.Execute(`sudo systemctl restart datadog-agent datadog-agent-installer`)
+	s.Require().NoError(setupErr)
+
+	// Collect full agent and installer journal logs to a local file at test end.
+	defer func() {
+		logs, _ := s.Env().RemoteHost.Execute(`sudo journalctl -u datadog-agent -u 'datadog-agent-installer*.service' --no-pager --output=cat 2>&1`)
+		logPath := filepath.Join(s.SessionOutputDir(), "TestIntegrationPreservationMultiHop_debug.log")
+		if writeErr := os.WriteFile(logPath, []byte(logs), 0o644); writeErr == nil {
+			s.T().Logf("Debug logs written to: %s", logPath)
+		}
+	}()
+
 	s.snapshotIntegrationState("MultiHop: after MustInstall (released OCI stable)")
 
 	err := s.Agent.InstallIntegration(thirdPartyIntegration)
@@ -308,6 +405,8 @@ func (s *upgradeSuite) TestIntegrationPreservationMultiHop() {
 	installedIntegrations, err = s.Agent.InstalledIntegrations()
 	s.Require().NoError(err)
 	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved after hop 1 promote")
+	_, showErr := s.Agent.IntegrationShow("datadog-ping")
+	s.Assert().NoError(showErr, "integration show should succeed after hop 1 promote")
 
 	// Hop 2: now-stable pipeline testing -> a different released stable -> promote.
 	hop2Target := s.Backend.Catalog().Latest(backend.BranchStable, "datadog-agent")
@@ -331,6 +430,8 @@ func (s *upgradeSuite) TestIntegrationPreservationMultiHop() {
 	installedIntegrations, err = s.Agent.InstalledIntegrations()
 	s.Require().NoError(err)
 	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should still be preserved after hop 2 promote")
+	_, showErr = s.Agent.IntegrationShow("datadog-ping")
+	s.Assert().NoError(showErr, "integration show should succeed after hop 2 promote")
 }
 
 // secondaryThirdPartyIntegration is a second third-party integration used alongside
@@ -392,6 +493,10 @@ func (s *upgradeSuite) TestIntegrationPreservationMixedCustomization() {
 	s.Require().NoError(err)
 	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "ping should be preserved after promotion")
 	s.Assert().Equal("2.0.0", installedIntegrations["puma"], "puma should be preserved after promotion")
+	_, showErr := s.Agent.IntegrationShow("datadog-ping")
+	s.Assert().NoError(showErr, "integration show for ping should succeed after promotion")
+	_, showErr = s.Agent.IntegrationShow("datadog-puma")
+	s.Assert().NoError(showErr, "integration show for puma should succeed after promotion")
 }
 
 func (s *upgradeSuite) TestUpgradeFailureTimeout() {

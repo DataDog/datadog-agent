@@ -107,6 +107,11 @@ func (a *Agent) InstallIntegration(name string) error {
 	return err
 }
 
+// IntegrationShow runs integration show for the given integration name and returns its output.
+func (a *Agent) IntegrationShow(name string) (string, error) {
+	return a.runCommand("integration", "show", name)
+}
+
 // runCommand runs a command on the remote host.
 func (a *Agent) runCommand(command string, args ...string) (string, error) {
 	var baseCommand string

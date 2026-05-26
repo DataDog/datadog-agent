@@ -34,6 +34,7 @@ type installParams struct {
 	stagingPackages      string
 	pipelineID           string
 	otelCollectorEnabled bool
+	logLevel             string
 }
 
 var defaultInstallParams = &installParams{
@@ -67,6 +68,13 @@ func WithStagingPackages(version string) InstallOption {
 func WithPipelineID(pipelineID string) InstallOption {
 	return func(p *installParams) {
 		p.pipelineID = pipelineID
+	}
+}
+
+// WithLogLevel sets the DD_LOG_LEVEL environment variable during installation.
+func WithLogLevel(level string) InstallOption {
+	return func(p *installParams) {
+		p.logLevel = level
 	}
 }
 
@@ -133,6 +141,9 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 	}
 	if params.otelCollectorEnabled {
 		env["DD_OTELCOLLECTOR_ENABLED"] = "true"
+	}
+	if params.logLevel != "" {
+		env["DD_LOG_LEVEL"] = params.logLevel
 	}
 	if !params.stablePackages && params.stagingPackages == "" {
 		env["TESTING_KEYS_URL"] = "apttesting.datad0g.com/test-keys"
