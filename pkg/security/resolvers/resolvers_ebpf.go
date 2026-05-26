@@ -45,6 +45,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
+const (
+	basenameInternerCacheSize = 64
+	pathInternerCacheSize     = 128
+)
+
 // EBPFResolvers holds the list of the event attribute resolvers
 type EBPFResolvers struct {
 	manager              *manager.Manager
@@ -76,7 +81,13 @@ type EBPFResolvers struct {
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
-func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *utils.Scrubber, eRPC *erpc.ERPC, opts Opts, basenameInterner, pathInterner *utils.LRUStringInterner) (*EBPFResolvers, error) {
+func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *utils.Scrubber, eRPC *erpc.ERPC, opts Opts) (*EBPFResolvers, error) {
+	// String interners. Basenames are shared between the dentry resolver and the activity tree
+	// FileNode.Name. Full paths are stored only on activity tree FileNode leaves and have a much
+	// higher cardinality, so they get their own larger LRU to avoid evicting basenames.
+	basenameInterner := utils.NewLRUStringInterner(basenameInternerCacheSize, "basename")
+	pathInterner := utils.NewLRUStringInterner(pathInternerCacheSize, "path")
+
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC, basenameInterner)
 	if err != nil {
 		return nil, err

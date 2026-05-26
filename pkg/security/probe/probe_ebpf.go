@@ -3200,13 +3200,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		WorkloadMeta:             opts.WorkloadMeta,
 	}
 
-	// String interners. Basenames are shared between the dentry resolver and the activity tree
-	// FileNode.Name. Full paths are stored only on activity tree FileNode leaves and have a much
-	// higher cardinality, so they get their own larger LRU to avoid evicting basenames.
-	basenameInterner := utils.NewLRUStringInterner(16384, "basename")
-	pathInterner := utils.NewLRUStringInterner(65536, "path")
-
-	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts, basenameInterner, pathInterner)
+	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts)
 	if err != nil {
 		return nil, err
 	}
