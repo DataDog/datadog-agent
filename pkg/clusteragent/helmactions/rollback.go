@@ -55,6 +55,11 @@ type RollbackOptions struct {
 	ServiceAccountName string
 	// Image overrides the helm container image. Defaults to DefaultHelmImage.
 	Image string
+	// Driver selects the helm storage backend that holds the release state.
+	// When non-empty it is set as HELM_DRIVER on the Job container. Helm's
+	// default is "secret"; "configmap" and "sql" are the other in-tree drivers.
+	// Leave empty to inherit helm's default.
+	Driver string
 	// BackoffLimit overrides the Job's spec.backoffLimit. When nil, defaults to
 	// 0 — a failed rollback is surfaced as a failed Job rather than retried,
 	// because retrying produces another helm revision instead of being a no-op.
@@ -145,6 +150,11 @@ func buildRollbackJob(opts RollbackOptions) *batchv1.Job {
 		labels[k] = v
 	}
 
+	var env []corev1.EnvVar
+	if opts.Driver != "" {
+		env = append(env, corev1.EnvVar{Name: "HELM_DRIVER", Value: opts.Driver})
+	}
+
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: rollbackJobNamePrefix,
@@ -167,6 +177,7 @@ func buildRollbackJob(opts RollbackOptions) *batchv1.Job {
 							Image:   image,
 							Command: []string{"helm"},
 							Args:    args,
+							Env:     env,
 						},
 					},
 				},
