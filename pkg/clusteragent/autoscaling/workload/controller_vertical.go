@@ -127,10 +127,16 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 		podsPerDirectOwner[pod.Owners[0].ID] = podsPerDirectOwner[pod.Owners[0].ID] + 1
 	}
 
+	// Get the live pod UIDs, prune pod operations for pods that are no longer in the live set.
+	livePodUIDs := make(map[string]struct{}, len(pods))
+	for _, pod := range pods {
+		livePodUIDs[pod.EntityID.ID] = struct{}{}
+	}
+	autoscalerInternal.PrunePodOperations(recommendationID, livePodUIDs)
+
 	// Classify each non-terminating pod by resize status so we can set scaled replicas
 	// (completed pods count) accurately. Pass this slice to syncInternal to avoid
 	// a duplicate call to getPodResizeStatus.
-	autoscalerInternal.PrunePodOperations(recommendationID)
 	podsByResizeStatus := make(map[PodResizeStatus][]classifiedPod)
 	for _, pod := range pods {
 		if pod.DeletionTimestamp != nil {

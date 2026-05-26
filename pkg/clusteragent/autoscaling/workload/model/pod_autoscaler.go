@@ -927,10 +927,13 @@ func (p *PodAutoscalerInternal) ClearPodOperations() {
 }
 
 // PrunePodOperations removes entries whose stored recommendationID no longer matches
-// the current one, preventing unbounded growth during recommendation churn.
-func (p *PodAutoscalerInternal) PrunePodOperations(recommendationID string) {
+// the current one, and entries whose pod UID have been removed from the livePodUIDs map.
+func (p *PodAutoscalerInternal) PrunePodOperations(recommendationID string, livePodUIDs map[string]struct{}) {
 	for uid, rid := range p.submittedPodOps {
 		if rid != recommendationID {
+			delete(p.submittedPodOps, uid)
+		}
+		if _, ok := livePodUIDs[uid]; !ok {
 			delete(p.submittedPodOps, uid)
 		}
 	}
