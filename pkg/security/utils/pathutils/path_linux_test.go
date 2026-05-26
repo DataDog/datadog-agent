@@ -270,6 +270,54 @@ func TestPathPatternMatch(t *testing.T) {
 			Opts:           PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 100},
 			ExpectedResult: true,
 		},
+		{
+			Pattern:        "/var/log/syslog.1",
+			Path:           "/var/log/syslog.2",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult: true,
+		},
+		{
+			Pattern:        "/var/log/syslog",
+			Path:           "/var/log/syslog",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult: false,
+		},
+		{
+			Pattern:        "/var/log/syslog",
+			Path:           "/var/log/syslog.1",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult: true,
+		},
+		{
+			Pattern:        "/var/log/syslog.1",
+			Path:           "/var/log/syslog",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult: false,
+		},
+		{
+			Pattern:        "/home/user/.bashrc",
+			Path:           "/home/user/.bashrc",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult: false,
+		},
+		{
+			Pattern:        "/home/user/.bashrc",
+			Path:           "/home/user/.bashrc.bak",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult: true,
+		},
+		{
+			Pattern:        "/var/run/1234.pid/foo",
+			Path:           "/var/run/4321.pid/foo",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult: false,
+		},
+		{
+			Pattern:        "/etc/passwd",
+			Path:           "/etc/passwd",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1},
+			ExpectedResult: true,
+		},
 	}
 
 	for _, test := range tests {
@@ -567,6 +615,34 @@ func TestPathPatternBuilder(t *testing.T) {
 			Opts:            PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 100},
 			ExpectedResult:  true,
 			ExpectedPattern: "/etc/passwd",
+		},
+		{
+			Pattern:         "/var/log/syslog.1",
+			Path:            "/var/log/syslog.2",
+			Opts:            PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult:  true,
+			ExpectedPattern: "/var/log/*",
+		},
+		{
+			Pattern:         "/var/log/syslog",
+			Path:            "/var/log/syslog",
+			Opts:            PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult:  false,
+			ExpectedPattern: "",
+		},
+		{
+			Pattern:         "/home/user/.bashrc",
+			Path:            "/home/user/.bashrc",
+			Opts:            PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult:  false,
+			ExpectedPattern: "",
+		},
+		{
+			Pattern:         "/home/user/.bashrc",
+			Path:            "/home/user/.bashrc.bak",
+			Opts:            PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult:  true,
+			ExpectedPattern: "/home/user/*",
 		},
 	}
 
