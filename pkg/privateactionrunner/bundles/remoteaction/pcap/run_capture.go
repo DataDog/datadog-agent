@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -55,8 +56,7 @@ type RunCaptureResult struct {
 	AttachmentKey string `json:"attachmentKey,omitempty"`
 }
 
-// Run validates inputs and returns a stub RunCaptureResult.
-// Real capture logic will be added in a later phase.
+// Run validates inputs and performs a packet capture via the platform-specific doCapture helper.
 func (h *RunCaptureHandler) Run(
 	ctx context.Context,
 	task *types.Task,
@@ -83,11 +83,20 @@ func (h *RunCaptureHandler) Run(
 		inputs.MaxPackets = defaultMaxPackets
 	}
 
+	captureID := uuid.New().String()
+
+	packetCount, fileSizeBytes, actualDuration, err := doCapture(ctx, inputs)
+	if err != nil {
+		return nil, fmt.Errorf("capture failed: %w", err)
+	}
+
+	actualSecs := int(actualDuration.Round(time.Second).Seconds())
+
 	return &RunCaptureResult{
-		CaptureID:     uuid.New().String(),
-		PacketCount:   0,
-		FileSizeBytes: 0,
-		DurationSecs:  0,
+		CaptureID:     captureID,
+		PacketCount:   packetCount,
+		FileSizeBytes: fileSizeBytes,
+		DurationSecs:  actualSecs,
 		AttachmentKey: "",
 	}, nil
 }
