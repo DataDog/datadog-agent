@@ -12877,6 +12877,13 @@ properties:
     node_type: section
     type: object
     properties:
+      api_listen_address:
+        node_type: setting
+        type: string
+        default: tcp://0.0.0.0:5100
+        comment: |-
+          Listen addresses must use a URL scheme ("tcp://") so ADP's ListenAddress parser does not
+          misinterpret a bare "host:port" as a Unix socket path (see saluki-io ListenAddress::try_from).
       dogstatsd:
         node_type: section
         type: object
@@ -12890,6 +12897,10 @@ properties:
         type: boolean
         default: false
         comment: Data Plane
+      log_file:
+        node_type: setting
+        type: string
+        default: /opt/datadog-agent/logs/agent-data-plane.log
       otlp:
         node_type: section
         type: object
@@ -12906,6 +12917,22 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+              logs:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: true
+              metrics:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: true
               receiver:
                 node_type: section
                 type: object
@@ -12925,6 +12952,34 @@ properties:
                             comment: When the ADP OTLP proxy is enabled, ADP owns
                               the gRPC endpoint configured for the receiver (default
                               :4317) and the core agent uses the endpoint below
+              traces:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: true
+      remote_agent_enabled:
+        node_type: setting
+        type: boolean
+        default: true
+      secure_api_listen_address:
+        node_type: setting
+        type: string
+        default: tcp://0.0.0.0:5101
+      telemetry_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      telemetry_listen_addr:
+        node_type: setting
+        type: string
+        default: tcp://0.0.0.0:5102
+      use_new_config_stream_endpoint:
+        node_type: setting
+        type: boolean
+        default: true
   data_streams:
     node_type: section
     type: object
