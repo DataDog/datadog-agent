@@ -118,7 +118,7 @@ func TestOTelSyncForwarder_SubmitTransaction_ArbitraryTagsHeader(t *testing.T) {
 
 func TestOTelSyncForwarder_sendHTTPTransactions_PropagatesError(t *testing.T) {
 	client := &http.Client{
-		Transport: handlerTransport(func(w http.ResponseWriter, r *http.Request) {
+		Transport: handlerTransport(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}),
 	}
@@ -135,7 +135,7 @@ func TestOTelSyncForwarder_sendHTTPTransactions_PropagatesError(t *testing.T) {
 
 func TestOTelSyncForwarder_sendHTTPTransactions_SuccessOnOK(t *testing.T) {
 	client := &http.Client{
-		Transport: handlerTransport(func(w http.ResponseWriter, r *http.Request) {
+		Transport: handlerTransport(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}),
 	}
@@ -151,7 +151,7 @@ func TestOTelSyncForwarder_sendHTTPTransactions_SuccessOnOK(t *testing.T) {
 
 func TestOTelSyncForwarder_sendHTTPTransactions_CombinesMultipleErrors(t *testing.T) {
 	client := &http.Client{
-		Transport: handlerTransport(func(w http.ResponseWriter, r *http.Request) {
+		Transport: handlerTransport(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusBadGateway)
 		}),
 	}
