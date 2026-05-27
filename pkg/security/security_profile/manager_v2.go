@@ -603,19 +603,33 @@ func (m *ManagerV2) SendStats() error {
 		}
 	}
 
-	// Per-profile in-memory size
+	// Per-profile size (RAM and disk reported under the same metric, differentiated by storage tag)
+	diskSizes := m.localStorage.SizesBySelector()
+
 	m.profilesLock.Lock()
 	for selector, p := range m.profiles {
 		tags := []string{
 			"image_name:" + selector.Image,
 			"image_tag:" + selector.Tag,
+			"storage:ram",
 		}
-		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileInMemorySize, float64(p.ComputeInMemorySize()), tags, 1.0); err != nil {
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(p.ComputeInMemorySize()), tags, 1.0); err != nil {
 			m.profilesLock.Unlock()
 			return err
 		}
 	}
 	m.profilesLock.Unlock()
+
+	for selector, size := range diskSizes {
+		tags := []string{
+			"image_name:" + selector.Image,
+			"image_tag:" + selector.Tag,
+			"storage:disk",
+		}
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(size), tags, 1.0); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }

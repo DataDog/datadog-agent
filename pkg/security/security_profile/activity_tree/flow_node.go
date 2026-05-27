@@ -37,11 +37,10 @@ func NewFlowNode(flow model.Flow, event *model.Event, generationType NodeGenerat
 	return node
 }
 
-func (node *FlowNode) addFlow(flow model.Flow, event *model.Event, imageTagID uint64) {
-	node.AppendImageTagID(imageTagID, event.ResolveEventTime())
+func (fn *FlowNode) addFlow(flow model.Flow, event *model.Event, imageTagID uint64) {
+	fn.AppendImageTagID(imageTagID, event.ResolveEventTime())
 
 	// add metrics
-	node.Flow.Egress.Add(flow.Egress)
-	node.Flow.Ingress.Add(flow.Ingress)
-
+	fn.Flow.Egress.Add(flow.Egress)
+	fn.Flow.Ingress.Add(flow.Ingress)
 }

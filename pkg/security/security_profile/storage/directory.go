@@ -260,6 +260,25 @@ func (d *Directory) GetStorageType() config.StorageType {
 	return config.LocalStorage
 }
 
+// SizesBySelector returns the on-disk size in bytes of each stored profile, keyed by workload selector.
+// Multiple file formats for the same selector are summed together.
+func (d *Directory) SizesBySelector() map[cgroupModel.WorkloadSelector]int64 {
+	d.profilesLock.RLock()
+	defer d.profilesLock.RUnlock()
+
+	result := make(map[cgroupModel.WorkloadSelector]int64, d.profiles.Len())
+	for _, entry := range d.profiles.Values() {
+		var size int64
+		for _, filePath := range entry.filePaths {
+			if info, err := os.Stat(filePath); err == nil {
+				size += info.Size()
+			}
+		}
+		result[entry.selector] += size
+	}
+	return result
+}
+
 // SendTelemetry sends telemetry for the current storage
 func (d *Directory) SendTelemetry(sender statsd.ClientInterface) {
 	d.profilesLock.RLock()
