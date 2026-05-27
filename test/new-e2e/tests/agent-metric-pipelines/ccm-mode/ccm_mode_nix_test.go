@@ -93,21 +93,20 @@ func ccmAgentConfig(taggedChecks, metricsBlocked []string) string {
 infrastructure_mode: cloud_cost_only
 metric_filterlist:
   - e2e.ccm.blocked.by.filterlist
-`)
-	if len(taggedChecks) > 0 || len(metricsBlocked) > 0 {
-		cfg.WriteString(`integration:
+integration:
   cloud_cost_only:
+    metric_filtering:
+      enabled: true
 `)
-		if len(taggedChecks) > 0 {
-			cfg.WriteString(`    tagged:
+	if len(taggedChecks) > 0 {
+		cfg.WriteString(`    tagged:
 `)
-			cfg.WriteString(yamlIndentedList(taggedChecks))
-		}
-		if len(metricsBlocked) > 0 {
-			cfg.WriteString(`    metrics_blocked:
+		cfg.WriteString(yamlIndentedList(taggedChecks))
+	}
+	if len(metricsBlocked) > 0 {
+		cfg.WriteString(`    metrics_blocked:
 `)
-			cfg.WriteString(yamlIndentedList(metricsBlocked))
-		}
+		cfg.WriteString(yamlIndentedList(metricsBlocked))
 	}
 	return cfg.String()
 }
@@ -193,6 +192,8 @@ func ccmAgentConfigEmptyAllowlist() string {
 infrastructure_mode: cloud_cost_only
 integration:
   cloud_cost_only:
+    metric_filtering:
+      enabled: true
     metrics: []
 `
 }
@@ -275,6 +276,8 @@ func ccmAgentConfigCustomAllowlist(allowlist []string, matchPrefix bool) string 
 infrastructure_mode: cloud_cost_only
 integration:
   cloud_cost_only:
+    metric_filtering:
+      enabled: true
     metrics:
 `)
 	cfg.WriteString(yamlIndentedList(allowlist))

@@ -42,13 +42,48 @@ func TestFiltersExclusiveAllowlist(t *testing.T) {
 	assert.True(t, filters.ShouldDrop(FilterContext{Name: "system.disk.free"}))
 }
 
-func TestLoadCloudCostOnly(t *testing.T) {
+func cloudCostOverrides(base map[string]interface{}) map[string]interface{} {
+	if base == nil {
+		base = map[string]interface{}{}
+	}
+	if _, ok := base["integration.cloud_cost_only.metric_filtering.enabled"]; !ok {
+		base["integration.cloud_cost_only.metric_filtering.enabled"] = true
+	}
+	return base
+}
+
+func TestLoadCloudCostOnlyMetricFilteringDisabled(t *testing.T) {
 	cfg := map[string]interface{}{
+		"infrastructure_mode":                                  "cloud_cost_only",
+		"integration.cloud_cost_only.metrics":                  []string{},
+		"integration.cloud_cost_only.metrics_match_prefix":     true,
+		"integration.cloud_cost_only.metric_filtering.enabled": false,
+		"metric_filterlist":                                    []string{"blocked.metric"},
+	}
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	assert.True(t, configComponent.IsConfigured("integration.cloud_cost_only.metrics"))
+	assert.False(t, configComponent.GetBool("integration.cloud_cost_only.metric_filtering.enabled"))
+
+	fl := filterlistimpl.NewFilterList(logmock.New(t), configComponent, fxutil.Test[telemetry.Component](t, telemetrynoop.Module()))
+	filters := Load(configComponent, fl)
+
+	assert.False(t, cloudCostMetricsCriterion{}.active(configComponent))
+	assert.False(t, filters.ShouldDrop(FilterContext{Name: "system.cpu.user"}))
+	assert.False(t, filters.ShouldDrop(FilterContext{
+		Name:   "system.disk.free",
+		Source: metrics.MetricSourceDisk,
+	}))
+	assert.True(t, filters.ShouldDrop(FilterContext{Name: "blocked.metric"}),
+		"metric_filterlist still applies when cloud_cost metric filtering is disabled")
+}
+
+func TestLoadCloudCostOnly(t *testing.T) {
+	cfg := cloudCostOverrides(map[string]interface{}{
 		"metric_filterlist":                                []string{"blocked.metric"},
 		"infrastructure_mode":                              "cloud_cost_only",
 		"integration.cloud_cost_only.metrics":              []string{"system.cpu"},
 		"integration.cloud_cost_only.metrics_match_prefix": true,
-	}
+	})
 	configComponent := config.NewMockWithOverrides(t, cfg)
 	fl := filterlistimpl.NewFilterList(logmock.New(t), configComponent, fxutil.Test[telemetry.Component](t, telemetrynoop.Module()))
 
@@ -61,11 +96,11 @@ func TestLoadCloudCostOnly(t *testing.T) {
 }
 
 func TestLoadCloudCostOnlyExplicitEmptyMetricsDeniesAll(t *testing.T) {
-	cfg := map[string]interface{}{
+	cfg := cloudCostOverrides(map[string]interface{}{
 		"infrastructure_mode":                              "cloud_cost_only",
 		"integration.cloud_cost_only.metrics":              []string{},
 		"integration.cloud_cost_only.metrics_match_prefix": true,
-	}
+	})
 	configComponent := config.NewMockWithOverrides(t, cfg)
 	fl := filterlistimpl.NewFilterList(logmock.New(t), configComponent, fxutil.Test[telemetry.Component](t, telemetrynoop.Module()))
 
@@ -100,6 +135,8 @@ func TestLoadCloudCostOnlyExplicitEmptyMetricsDeniesAllFromYAML(t *testing.T) {
 infrastructure_mode: cloud_cost_only
 integration:
   cloud_cost_only:
+    metric_filtering:
+      enabled: true
     metrics: []
 `)
 	assert.True(t, configComponent.IsConfigured("integration.cloud_cost_only.metrics"))
@@ -193,17 +230,17 @@ func TestCloudCostMetricsCriterionMatchers(t *testing.T) {
 
 func loadCloudCostFilters(t *testing.T, overrides map[string]interface{}) Filters {
 	t.Helper()
-	configComponent := config.NewMockWithOverrides(t, overrides)
+	configComponent := config.NewMockWithOverrides(t, cloudCostOverrides(overrides))
 	fl := filterlistimpl.NewFilterList(logmock.New(t), configComponent, fxutil.Test[telemetry.Component](t, telemetrynoop.Module()))
 	return Load(configComponent, fl)
 }
 
 func TestLoadCloudCostOnlyExplicitBlock(t *testing.T) {
-	cfg := map[string]interface{}{
+	cfg := cloudCostOverrides(map[string]interface{}{
 		"infrastructure_mode":                              "cloud_cost_only",
 		"integration.cloud_cost_only.metrics_blocked":      []string{"system.disk"},
 		"integration.cloud_cost_only.metrics_match_prefix": true,
-	}
+	})
 	configComponent := config.NewMockWithOverrides(t, cfg)
 	fl := filterlistimpl.NewFilterList(logmock.New(t), configComponent, fxutil.Test[telemetry.Component](t, telemetrynoop.Module()))
 
@@ -214,12 +251,12 @@ func TestLoadCloudCostOnlyExplicitBlock(t *testing.T) {
 }
 
 func TestLoadCloudCostOnlyForwardsBypassMetrics(t *testing.T) {
-	cfg := map[string]interface{}{
+	cfg := cloudCostOverrides(map[string]interface{}{
 		"infrastructure_mode":                              "cloud_cost_only",
 		"integration.cloud_cost_only.metrics":              []string{"system.cpu"},
 		"integration.cloud_cost_only.metrics_match_prefix": true,
 		"integration.additional":                           []string{"my_additional_check"},
-	}
+	})
 	configComponent := config.NewMockWithOverrides(t, cfg)
 	fl := filterlistimpl.NewFilterList(logmock.New(t), configComponent, fxutil.Test[telemetry.Component](t, telemetrynoop.Module()))
 
