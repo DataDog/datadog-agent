@@ -44,11 +44,10 @@ var (
 	// BytesSent is the total number of sent bytes before encoding if any
 	BytesSent = expvar.Int{}
 	// TlmBytesSent is the total number of sent bytes before encoding if any
-	// The remote_agent tag identifies which agent sent the logs. Use GetAgentIdentityTag()
-	// to get the correct value for the current agent. This tag is used by COAT to partition
-	// log bytes by agent type.
+	// The emitter tag identifies which agent sent the logs (e.g. "agent", "system-probe").
+	// Use GetAgentIdentityTag() to get the correct value for the current agent.
 	TlmBytesSent = telemetryimpl.GetCompatComponent().NewCounter("logs", "bytes_sent",
-		[]string{"remote_agent", "source"}, "Total number of bytes sent before encoding if any")
+		[]string{"emitter", "source"}, "Total number of bytes sent before encoding if any")
 	// RetryCount is the total number of times we have retried payloads that failed to send
 	RetryCount = expvar.Int{}
 	// TlmRetryCount is the total number of times we have retried payloads that failed to send
@@ -59,11 +58,10 @@ var (
 	// EncodedBytesSent is the total number of sent bytes after encoding if any
 	EncodedBytesSent = expvar.Int{}
 	// TlmEncodedBytesSent is the total number of sent bytes after encoding if any
-	// The remote_agent tag identifies which agent sent the logs. Use GetAgentIdentityTag()
-	// to get the correct value for the current agent. This tag is used by COAT to partition
-	// encoded log bytes by agent type.
+	// The emitter tag identifies which agent sent the logs (e.g. "agent", "system-probe").
+	// Use GetAgentIdentityTag() to get the correct value for the current agent.
 	TlmEncodedBytesSent = telemetryimpl.GetCompatComponent().NewCounter("logs", "encoded_bytes_sent",
-		[]string{"remote_agent", "source", "compression_kind"}, "Total number of sent bytes after encoding if any")
+		[]string{"emitter", "source", "compression_kind"}, "Total number of sent bytes after encoding if any")
 	// BytesMissed is the number of bytes lost before they could be consumed by the agent, such as after a log rotation
 	BytesMissed = expvar.Int{}
 	// TlmBytesMissed is the number of bytes lost before they could be consumed by the agent, such as after log rotation
@@ -189,7 +187,7 @@ func init() {
 	LogsExpvars.Set("LogsTruncated", &LogsTruncated)
 }
 
-// agentIdentityTag holds the remote_agent tag value for this agent process.
+// agentIdentityTag holds the emitter tag value for this agent process.
 // It must be set once at startup via SetAgentIdentity before any log sending occurs.
 //
 // This mirrors the pattern used by pkg/util/flavor (SetFlavor/GetFlavor) rather than
@@ -198,14 +196,14 @@ func init() {
 // import pkg/logs/metrics.
 var agentIdentityTag = "agent"
 
-// SetAgentIdentity sets the remote_agent tag value for the current agent process.
+// SetAgentIdentity sets the emitter tag value for the current agent process.
 // This must be called once during agent startup, before any logs are sent.
 // Example values: "agent", "system-probe", "trace-agent", etc.
 func SetAgentIdentity(tag string) {
 	agentIdentityTag = tag
 }
 
-// GetAgentIdentityTag returns the remote_agent tag value for the current agent process.
+// GetAgentIdentityTag returns the emitter tag value for the current agent process.
 // The value is set at startup via SetAgentIdentity and defaults to "agent".
 func GetAgentIdentityTag() string {
 	return agentIdentityTag

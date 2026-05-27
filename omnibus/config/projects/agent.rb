@@ -334,9 +334,8 @@ if windows_target?
     windows_symbol_stripping_file bin
   end
 
-  # We need to strip the debug symbols from the rtloader files, from the installer, and from the compile policy binary
+  # We need to strip the debug symbols from the rtloader files and from the compile policy binary
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
-  windows_symbol_stripping_file "#{install_dir}\\datadog-installer.exe"
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-compile-policy.exe"
 
   # Rust binaries (not in GO_BINARIES — no Go symbol inspection needed)

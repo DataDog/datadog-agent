@@ -6,6 +6,7 @@ go_library(
         "doc.go",
         "elevated.go",
         "eventlog.go",
+        "ioctl.go",
         "msi.go",
         "pe_timestamp_windows.go",
         "process.go",
