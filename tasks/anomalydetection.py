@@ -448,3 +448,192 @@ def download_scenarios(
         else:
             shutil.rmtree(tmp_parquet_dir, ignore_errors=True)
             print(color_message(f"Download failed for '{name}', keeping existing data", Color.ORANGE))
+
+
+# --- Combination search ---
+
+
+@task
+def eval_combinations(
+    ctx,
+    n: int = 10,
+    output_dir: str = "/tmp/observer-eval-combinations",
+    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
+    sigma: float = 30.0,
+    seed: int = None,
+    build: bool = True,
+    overwrite: bool = False,
+    force_enable: str = "",
+    force_disable: str = "",
+):
+    """
+    Run Gaussian F1 eval on n component combinations and rank them.
+
+    The first combination (combo_000) always enables every detector and
+    correlator not listed in --force-disable (full stack). Remaining
+    combinations are random: each has at least 1 detector and 1 correlator.
+    All EXTRACTORS are enabled in each combo unless named in --force-disable.
+    A JSON config file is written per combination so enabled/disabled state is
+    precise (no auto-add side effects from --only).
+
+    Output layout:
+        <output_dir>/combo_NNN/config.json   - exact component config used
+        <output_dir>/combo_NNN/report.json   - per-scenario F1 scores
+        <output_dir>/report.json             - all combos ranked by score, plus best_combination
+
+    Args:
+        n: Total combinations to evaluate: one full-stack plus (n - 1) random
+            (default: 10). Use n=1 for only the full-stack baseline.
+        output_dir: Root directory for per-combo results and summary. If this
+            path already exists and contains report.json, the task aborts unless
+            overwrite is True; otherwise the directory is removed first.
+        overwrite: Allow replacing an existing output_dir that contains report.json.
+        scenarios_dir: Directory containing scenario subdirectories.
+        sigma: Gaussian width in seconds for F1 scoring.
+        seed: Random seed for reproducibility (default: None = random).
+        build: Whether to build anomalydetection-testbench and anomalydetection-scorer first.
+        force_enable: Comma-separated components always present in every combination.
+        force_disable: Comma-separated components never included in any combination.
+
+    Examples:
+        dda inv anomalydetection.eval-combinations --n 20 --seed 42
+        dda inv anomalydetection.eval-combinations --n 5 --output-dir /tmp/ablation
+        dda inv anomalydetection.eval-combinations --n 10 --force-enable bocpd --force-disable scanmw,scanwelch
+    """
+    if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
+        return
+
+    if build:
+        build_testbench(ctx)
+        build_scorer(ctx)
+
+    if seed is not None:
+        seed = int(seed)
+    else:
+        seed = random.randint(0, 2**32 - 1)
+
+    force_enable_list = [c.strip() for c in force_enable.split(",") if c.strip()]
+    force_disable_list = [c.strip() for c in force_disable.split(",") if c.strip()]
+
+    if force_enable_list:
+        print(color_message(f"Force-enabled:  {', '.join(force_enable_list)}", Color.BLUE))
+    if force_disable_list:
+        print(color_message(f"Force-disabled: {', '.join(force_disable_list)}", Color.BLUE))
+
+    full_combo = _full_stack_combo(force_disable_list)
+    full_key = (tuple(full_combo["detectors"]), tuple(full_combo["correlators"]))
+    random_count = max(0, n - 1)
+    random_combos = random_component_combinations(
+        random_count,
+        seed=seed,
+        force_enable=force_enable_list,
+        force_disable=force_disable_list,
+        exclude_combo_keys={full_key},
+    )
+    combos = [full_combo] + random_combos
+    print(color_message(
+        f"combo_000 = full stack; plus {len(random_combos)} random (seed={seed}, total={len(combos)})",
+        Color.BLUE,
+    ))
+
+    combo_logger = StepLogger(len(combos), "Combo")
+    summary_results = []
+    for i, combo in enumerate(combos):
+        combo_label = f"combo_{i:03d}"
+        combo_dir = os.path.join(output_dir, combo_label)
+        os.makedirs(combo_dir, exist_ok=True)
+
+        config_data = _combo_to_config(combo["detectors"], combo["correlators"], force_disable=force_disable_list)
+        config_path = os.path.join(combo_dir, "config.json")
+        with open(config_path, "w") as f:
+            json.dump(config_data, f, indent=4)
+
+        combo_title = f"{combo_label} (full stack)" if i == 0 else combo_label
+        combo_logger.step(combo_title)
+        combo_logger.detail(f"detectors:   {', '.join(combo['detectors'])}")
+        combo_logger.detail(f"correlators: {', '.join(combo['correlators'])}")
+        ext_on = [e for e in EXTRACTORS if e not in force_disable_list]
+        combo_logger.detail(f"extractors:  {', '.join(ext_on)}")
+
+        scenario_output_dir = os.path.join(combo_dir, "scenarios")
+        os.makedirs(scenario_output_dir, exist_ok=True)
+
+        report_path = os.path.join(combo_dir, "report.json")
+        try:
+            report = eval_scenarios(
+                ctx,
+                scenarios_dir=scenarios_dir,
+                sigma=sigma,
+                config=config_path,
+                build=False,
+                main_report_path=report_path,
+                scenario_output_dir=scenario_output_dir,
+                _logger=combo_logger.child(len(SCENARIOS), "Scenario"),
+            )
+        except Exception as e:
+            combo_logger.detail(f"eval_scenarios failed: {e}", Color.RED)
+            report = None
+
+        if report is not None:
+            combo_logger.detail(f"score: {report.get('score', 0.0):.4f}")
+            summary_results.append(
+                {
+                    "rank": 0,
+                    "combo": combo_label,
+                    "score": report.get("score", 0.0),
+                    "detectors": combo["detectors"],
+                    "correlators": combo["correlators"],
+                    "report_path": report_path,
+                    "config_path": config_path,
+                }
+            )
+
+    summary_results.sort(key=lambda x: x["score"], reverse=True)
+    for rank, r in enumerate(summary_results, 1):
+        r["rank"] = rank
+
+    if summary_results:
+        print(color_message(f"\n{'=' * 70}", Color.GREEN))
+        print(color_message("  Combinations Eval Summary", Color.GREEN))
+        print(color_message(f"{'=' * 70}\n", Color.GREEN))
+        header = f"{'Rank':<5}  {'Score':>6}  {'Detectors':<35}  Correlators"
+        print(header)
+        print("-" * 80)
+        for r in summary_results:
+            print(f"{r['rank']:<5}  {r['score']:>6.4f}  {', '.join(r['detectors']):<35}  {', '.join(r['correlators'])}")
+
+        best = summary_results[0]
+        print(color_message(f"\n{'=' * 70}", Color.GREEN))
+        print(color_message(f"  Best combination: {best['combo']}  (score={best['score']:.4f})", Color.GREEN))
+        print(color_message(f"    detectors:   {', '.join(best['detectors'])}", Color.GREEN))
+        print(color_message(f"    correlators: {', '.join(best['correlators'])}", Color.GREEN))
+        print(color_message(f"    config:      {best['config_path']}", Color.GREEN))
+        print(color_message(f"    report:      {best['report_path']}", Color.GREEN))
+        print(color_message(f"{'=' * 70}", Color.GREEN))
+
+    scores = [r["score"] for r in summary_results]
+    max_score = max(scores) if scores else 0.0
+    avg_score = sum(scores) / len(scores) if scores else 0.0
+    best_combination = summary_results[0] if summary_results else None
+
+    report_path = os.path.join(output_dir, "report.json")
+    with open(report_path, "w") as f:
+        json.dump(
+            {
+                "score": max_score,
+                "avg_eval_score": avg_score,
+                "seed": seed,
+                "force_enable": force_enable_list,
+                "force_disable": force_disable_list,
+                "combos": summary_results,
+                "best_combination": best_combination,
+            },
+            f,
+            indent=4,
+        )
+    print(color_message(f"\nReport: {report_path}", Color.GREEN))
+    print(color_message(f"  score (max):      {max_score:.4f}", Color.GREEN))
+    print(color_message(f"  avg_eval_score:   {avg_score:.4f}", Color.GREEN))
+    print(color_message(f"Per-combo reports: {output_dir}/combo_*/report.json", Color.GREEN))
+
+    return summary_results

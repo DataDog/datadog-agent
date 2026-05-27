@@ -1,17 +1,19 @@
 """Evaluation helpers for anomaly detection dev tasks.
 
-Contains non-@task symbols: constants, S3 helpers, StepLogger, and summary
-printers used by eval_scenarios / eval_tp in tasks/anomalydetection.py.
+Contains non-@task symbols: constants, S3 helpers, StepLogger, combo helpers,
+Optuna config builders, aggregation helpers, and summary printers used by the
+@task entry points in tasks/anomalydetection.py.
 
 Note: SCENARIOS and SCENARIO_EPISODE_NAMES are loaded from
 q_branch/gensim-eval-scenarios.json at import time. That file is not
 committed to this repo — it is expected to be present in developer environments
 where the q_branch/ directory has been checked out separately, or produced by
-dda inv anomalydetection.download-scenarios (a future Wave-4 task).
+dda inv anomalydetection.download-scenarios.
 """
 
 import json
 import os
+import random
 import shlex
 import shutil
 import tempfile
@@ -35,6 +37,27 @@ except (OSError, json.JSONDecodeError, KeyError):
 
 S3_BUCKET = "qbranch-gensim-recordings"
 AWS_PROFILE = "sso-agent-sandbox-account-admin"
+
+# All available detectors and correlators for ablation / combination search.
+# passthrough is intentionally excluded: it is designed for TP scoring (eval_tp),
+# not for Gaussian F1 eval (eval_scenarios / eval_combinations).
+DETECTORS = ["bocpd", "cusum", "rrcf", "scanmw", "scanwelch"]
+CORRELATORS = ["cross_signal", "time_cluster"]
+
+# Log metrics extractors. Not part of the random ablation grid: eval_combinations
+# always enables all of them unless force-disabled.
+EXTRACTORS = [
+    "log_metrics_extractor",
+    "connection_error_extractor",
+    "log_pattern_extractor",
+]
+
+# Fixed anchor subsets used by eval_component to anchor the evaluation at known
+# reference configurations regardless of the random seed.
+ANCHOR_COMBOS = [
+    {"detectors": ["bocpd"], "correlators": ["time_cluster"]},
+    {"detectors": ["bocpd", "rrcf"], "correlators": ["cross_signal", "time_cluster"]},
+]
 
 
 # --- StepLogger ---
@@ -286,3 +309,542 @@ def print_eval_tp_summary(results: list) -> None:
             print(f"    [{d['classification']}] {d['service']}/{d['metric']}: {status}")
 
     print("\nOutput JSONs: /tmp/observer-eval-*-tp.json")
+
+
+# --- Output-dir helper ---
+
+
+def _prepare_eval_output_dir(output_dir: str, *, overwrite: bool) -> bool:
+    """Ensure ``output_dir`` is empty and ready for a fresh eval run.
+
+    If the path exists and contains ``report.json``, the run is aborted unless
+    ``overwrite`` is True (avoids silently deleting completed experiments).
+
+    Returns True if the directory is ready, False if the caller should stop.
+    """
+    if os.path.isfile(output_dir):
+        print(color_message(f"Error: output path is a file, not a directory: {output_dir}", Color.RED))
+        return False
+    report_path = os.path.join(output_dir, "report.json")
+    if os.path.isfile(report_path) and not overwrite:
+        print(
+            color_message(
+                f"Error: output directory already contains report.json: {report_path}\n"
+                f"Use --overwrite to replace it, or choose a different --output-dir.",
+                Color.RED,
+            )
+        )
+        return False
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
+    return True
+
+
+# --- Combo helpers ---
+
+
+def _full_stack_combo(force_disable: list | None = None) -> dict:
+    """All detectors and correlators not in force_disable (for eval baseline)."""
+    fd = set(force_disable or [])
+    return {
+        "detectors": sorted(d for d in DETECTORS if d not in fd),
+        "correlators": sorted(c for c in CORRELATORS if c not in fd),
+    }
+
+
+def _anchor_combos(force_disable: list | None = None, force_enable: list | None = None) -> list[dict]:
+    """Fixed anchor subsets derived from ANCHOR_COMBOS after filtering force_disable."""
+    fd = set(force_disable or [])
+    fe_dets = sorted(d for d in (force_enable or []) if d in DETECTORS and d not in fd)
+    fe_cors = sorted(c for c in (force_enable or []) if c in CORRELATORS and c not in fd)
+    anchors = []
+    seen_keys: set = set()
+    for combo in ANCHOR_COMBOS:
+        dets = sorted({d for d in combo["detectors"] if d not in fd} | set(fe_dets))
+        cors = sorted({c for c in combo["correlators"] if c not in fd} | set(fe_cors))
+        if not dets or not cors:
+            continue
+        key = (tuple(dets), tuple(cors))
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        anchors.append({"detectors": dets, "correlators": cors})
+    return anchors
+
+
+def random_component_combinations(
+    n: int,
+    seed: int = None,
+    force_enable: list = None,
+    force_disable: list = None,
+    exclude_combo_keys: set | None = None,
+) -> list:
+    """Generate up to n distinct random component combinations.
+
+    Each combination is guaranteed to contain at least 1 detector (from DETECTORS)
+    and 1 correlator (from CORRELATORS).
+    """
+    force_enable = set(force_enable or [])
+    force_disable = set(force_disable or [])
+
+    det_pool = [d for d in DETECTORS if d not in force_disable]
+    cor_pool = [c for c in CORRELATORS if c not in force_disable]
+    forced_dets = sorted(d for d in force_enable if d in DETECTORS)
+    forced_cors = sorted(c for c in force_enable if c in CORRELATORS)
+
+    rng = random.Random(seed)
+    combos = []
+    seen: set = set(exclude_combo_keys or [])
+    max_attempts = n * 100
+    attempts = 0
+    while len(combos) < n and attempts < max_attempts:
+        attempts += 1
+
+        free_det_pool = [d for d in det_pool if d not in force_enable]
+        if forced_dets:
+            extra_dets = sorted(rng.sample(free_det_pool, rng.randint(0, len(free_det_pool)))) if free_det_pool else []
+        else:
+            if not free_det_pool:
+                break
+            extra_dets = sorted(rng.sample(free_det_pool, rng.randint(1, len(free_det_pool))))
+        dets = sorted(set(forced_dets + extra_dets))
+
+        free_cor_pool = [c for c in cor_pool if c not in force_enable]
+        if forced_cors:
+            extra_cors = sorted(rng.sample(free_cor_pool, rng.randint(0, len(free_cor_pool)))) if free_cor_pool else []
+        else:
+            if not free_cor_pool:
+                break
+            extra_cors = sorted(rng.sample(free_cor_pool, rng.randint(1, len(free_cor_pool))))
+        cors = sorted(set(forced_cors + extra_cors))
+
+        key = (tuple(dets), tuple(cors))
+        if key in seen:
+            continue
+        seen.add(key)
+        combos.append({"detectors": dets, "correlators": cors})
+    if attempts >= max_attempts:
+        print(
+            color_message(
+                f"Warning: Only generated {len(combos)} unique combinations (max attempts={max_attempts})",
+                Color.ORANGE,
+            )
+        )
+    return combos
+
+
+def _combo_to_config(
+    detectors: list,
+    correlators: list,
+    force_disable: list | None = None,
+) -> dict:
+    """Build a testbench JSON params config enabling exactly the listed detectors and correlators.
+
+    All EXTRACTORS are enabled unless listed in force_disable.
+    """
+    force_disable_set = set(force_disable or [])
+    enabled_set = set(detectors + correlators)
+    components = {}
+    for name in DETECTORS + CORRELATORS:
+        components[name] = {"enabled": name in enabled_set}
+    for name in EXTRACTORS:
+        components[name] = {"enabled": name not in force_disable_set}
+    return {"components": components}
+
+
+# --- Optuna helpers ---
+
+
+def _sample_component_params(trial, component: str) -> dict:
+    """Sample Optuna hyperparameters for a named component that supports parseJSON."""
+    space = {
+        "bocpd": lambda: {
+            # "warmup_points": trial.suggest_int("bocpd.warmup_points", 40, 300),
+            "hazard": trial.suggest_float("bocpd.hazard", 1e-3, 0.2, log=True),
+            "cp_threshold": trial.suggest_float("bocpd.cp_threshold", 0.35, 0.9),
+            # "short_run_length": trial.suggest_int("bocpd.short_run_length", 2, 20),
+            # "cp_mass_threshold": trial.suggest_float("bocpd.cp_mass_threshold", 0.4, 0.95),
+            # "max_run_length": trial.suggest_int("bocpd.max_run_length", 50, 400),
+            # "prior_variance_scale": trial.suggest_float("bocpd.prior_variance_scale", 1.0, 50.0),
+            # "min_variance": trial.suggest_float("bocpd.min_variance", 0.01, 5.0, log=True),
+            # "recovery_points": trial.suggest_int("bocpd.recovery_points", 3, 40),
+        },
+        "cusum": lambda: {
+            # "min_points": trial.suggest_int("cusum.min_points", 3, 30),
+            # "baseline_fraction": trial.suggest_float("cusum.baseline_fraction", 0.05, 0.5),
+            # "slack_factor": trial.suggest_float("cusum.slack_factor", 0.1, 2.0),
+            "threshold_factor": trial.suggest_float("cusum.threshold_factor", 2.0, 10.0),
+        },
+        "rrcf": lambda: {
+            # "num_trees": trial.suggest_int("rrcf.num_trees", 20, 200),
+            # "tree_size": trial.suggest_int("rrcf.tree_size", 64, 512),
+            "shingle_size": trial.suggest_int("rrcf.shingle_size", 1, 16),
+            "threshold_sigma": trial.suggest_float("rrcf.threshold_sigma", 0.5, 6.0),
+        },
+        "cross_signal": lambda: {
+            # "window_seconds": trial.suggest_int("cross_signal.window_seconds", 5, 180),
+        },
+        "time_cluster": lambda: {
+            # "proximity_seconds": trial.suggest_int("time_cluster.proximity_seconds", 2, 60),
+            # "window_seconds": trial.suggest_int("time_cluster.window_seconds", 30, 600),
+            # "min_cluster_size": trial.suggest_int("time_cluster.min_cluster_size", 1, 8),
+        },
+        "log_pattern_extractor": lambda: {
+            # "disable_optimizations": trial.suggest_categorical(...),
+            # "min_cluster_size_before_emit": trial.suggest_int(...),
+            # "max_tokenized_string_length": trial.suggest_int(...),
+            # "max_num_tokens": trial.suggest_int(...),
+            # "parse_hex_dump": trial.suggest_categorical(...),
+            "min_token_match_ratio": trial.suggest_float("log_pattern_extractor.min_token_match_ratio", 0.2, 0.95),
+            # "cluster_time_to_live_sec": trial.suggest_int(...),
+            # "garbage_collection_interval_sec": trial.suggest_int(...),
+        },
+    }
+    fn = space.get(component)
+    return fn() if fn else {}
+
+
+def _build_optuna_config(
+    trial,
+    components: list,
+    locked: set,
+) -> dict:
+    """Build a TestbenchParamsFile config dict for one Optuna trial."""
+    active_set = set(components)
+    result = {}
+
+    for name in DETECTORS + CORRELATORS + EXTRACTORS:
+        if name not in active_set:
+            result[name] = {"enabled": False}
+
+    for name in components:
+        params = {"enabled": True}
+        if name not in locked:
+            params.update(_sample_component_params(trial, name))
+        result[name] = params
+
+    return {"components": result}
+
+
+# --- Aggregation helpers ---
+
+
+def _scenario_f1_from_bayesian_report(report: dict | None) -> dict[str, float]:
+    """Per-scenario F1 from the best trial's eval_scenarios report (metadata)."""
+    if not report:
+        return {}
+    best = report.get("best_combination")
+    if not isinstance(best, dict):
+        return {}
+    path = best.get("report_path")
+    if not path or not os.path.isfile(path):
+        return {}
+    try:
+        with open(path) as f:
+            main = json.load(f)
+    except (OSError, json.JSONDecodeError, TypeError):
+        return {}
+    meta = main.get("metadata")
+    if not isinstance(meta, dict):
+        return {}
+    out: dict[str, float] = {}
+    for name, row in meta.items():
+        if isinstance(row, dict) and "f1" in row:
+            try:
+                out[str(name)] = float(row["f1"])
+            except (TypeError, ValueError):
+                continue
+    return out
+
+
+def _best_run_index(runs: list[dict]) -> int:
+    """Index of the run with highest best_score among non-failed runs (first on ties)."""
+    valid = [i for i, r in enumerate(runs) if not r.get("failed") and r.get("best_score") is not None]
+    if not valid:
+        return -1
+    return max(valid, key=lambda i: runs[i]["best_score"])
+
+
+def aggregate_eval_component_results(
+    variant_results: dict,
+    n_subsets: int,
+) -> dict:
+    """Aggregate per-subset and per-scenario comparison between without/with variants."""
+    per_subset = []
+    for si in range(n_subsets):
+        wo = variant_results["without"][si]
+        wi = variant_results["with"][si]
+        wo_max = wo["max_score"]
+        wi_max = wi["max_score"]
+        wo_mean = wo["mean_score"]
+        wi_mean = wi["mean_score"]
+        delta_max_ps = (wi_max - wo_max) if wo_max is not None and wi_max is not None else None
+        delta_mean_ps = (wi_mean - wo_mean) if wo_mean is not None and wi_mean is not None else None
+        failed_runs_total = wo["failed_runs"] + wi["failed_runs"]
+        per_subset.append(
+            {
+                "subset": wo["subset"],
+                "detectors": wo["detectors"],
+                "correlators": wo["correlators"],
+                "without_max": wo_max,
+                "with_max": wi_max,
+                "delta_max": delta_max_ps,
+                "without_mean": wo_mean,
+                "with_mean": wi_mean,
+                "delta_mean": delta_mean_ps,
+                "failed_runs": failed_runs_total,
+                "without_run_scores": wo["run_scores"],
+                "with_run_scores": wi["run_scores"],
+            }
+        )
+
+    per_subset_scenario: list[dict] = []
+    for si in range(n_subsets):
+        wo_runs = variant_results["without"][si]["runs"]
+        wi_runs = variant_results["with"][si]["runs"]
+        iwo = _best_run_index(wo_runs)
+        iwi = _best_run_index(wi_runs)
+        wo_f1 = wo_runs[iwo]["scenario_f1"] if iwo >= 0 else {}
+        wi_f1 = wi_runs[iwi]["scenario_f1"] if iwi >= 0 else {}
+        names = sorted(set(wo_f1.keys()) | set(wi_f1.keys()))
+        by_scenario: dict[str, dict] = {}
+        for s in names:
+            a = wo_f1.get(s)
+            b = wi_f1.get(s)
+            delta = (b - a) if a is not None and b is not None else None
+            by_scenario[s] = {"without_f1": a, "with_f1": b, "delta_f1": delta}
+        per_subset_scenario.append({"subset": variant_results["without"][si]["subset"], "by_scenario": by_scenario})
+
+    all_scenario_names: set[str] = set()
+    for pss in per_subset_scenario:
+        all_scenario_names.update(pss["by_scenario"].keys())
+
+    per_scenario_summary: dict[str, dict] = {}
+    for s in sorted(all_scenario_names):
+        deltas = []
+        for pss in per_subset_scenario:
+            row = pss["by_scenario"].get(s)
+            if row and row.get("delta_f1") is not None:
+                deltas.append(row["delta_f1"])
+        if not deltas:
+            per_scenario_summary[s] = {"mean_delta_f1": None, "min_delta_f1": None, "max_delta_f1": None, "n_subsets": 0}
+        else:
+            per_scenario_summary[s] = {
+                "mean_delta_f1": sum(deltas) / len(deltas),
+                "min_delta_f1": min(deltas),
+                "max_delta_f1": max(deltas),
+                "n_subsets": len(deltas),
+            }
+
+    valid_deltas_max = [ps["delta_max"] for ps in per_subset if ps["delta_max"] is not None]
+    valid_deltas_mean = [ps["delta_mean"] for ps in per_subset if ps["delta_mean"] is not None]
+    n_failed_subsets = sum(1 for ps in per_subset if ps["delta_max"] is None)
+    total_failed_runs = sum(ps["failed_runs"] for ps in per_subset)
+
+    if n_failed_subsets > 0:
+        print(color_message(
+            f"Warning: {n_failed_subsets}/{n_subsets} subsets had fully failed runs and are excluded from the final delta.",
+            Color.ORANGE,
+        ))
+    if total_failed_runs > 0 and n_failed_subsets == 0:
+        print(color_message(
+            f"Warning: {total_failed_runs} individual run(s) failed across subsets; "
+            "partial results were excluded from per-subset scores.",
+            Color.ORANGE,
+        ))
+
+    delta_max = sum(valid_deltas_max) / len(valid_deltas_max) if valid_deltas_max else None
+    delta_mean = sum(valid_deltas_mean) / len(valid_deltas_mean) if valid_deltas_mean else None
+
+    avg_max_without_vals = [ps["without_max"] for ps in per_subset if ps["without_max"] is not None]
+    avg_max_with_vals = [ps["with_max"] for ps in per_subset if ps["with_max"] is not None]
+    avg_mean_without_vals = [ps["without_mean"] for ps in per_subset if ps["without_mean"] is not None]
+    avg_mean_with_vals = [ps["with_mean"] for ps in per_subset if ps["with_mean"] is not None]
+
+    avg_max_without = sum(avg_max_without_vals) / len(avg_max_without_vals) if avg_max_without_vals else None
+    avg_max_with = sum(avg_max_with_vals) / len(avg_max_with_vals) if avg_max_with_vals else None
+    avg_mean_without = sum(avg_mean_without_vals) / len(avg_mean_without_vals) if avg_mean_without_vals else None
+    avg_mean_with = sum(avg_mean_with_vals) / len(avg_mean_with_vals) if avg_mean_with_vals else None
+
+    if delta_max is None:
+        recommendation = "inconclusive"
+        rec_clr = Color.ORANGE
+    elif delta_max > 0:
+        recommendation = "keep"
+        rec_clr = Color.GREEN
+    else:
+        recommendation = "discard"
+        rec_clr = Color.RED
+
+    return {
+        "per_subset": per_subset,
+        "per_subset_scenario": per_subset_scenario,
+        "per_scenario_summary": per_scenario_summary,
+        "valid_deltas_max": valid_deltas_max,
+        "valid_deltas_mean": valid_deltas_mean,
+        "n_failed_subsets": n_failed_subsets,
+        "total_failed_runs": total_failed_runs,
+        "delta_max": delta_max,
+        "delta_mean": delta_mean,
+        "avg_max_without": avg_max_without,
+        "avg_max_with": avg_max_with,
+        "avg_mean_without": avg_mean_without,
+        "avg_mean_with": avg_mean_with,
+        "recommendation": recommendation,
+        "rec_clr": rec_clr,
+    }
+
+
+def _scenario_sort_key(item: tuple[str, dict]) -> tuple:
+    m = item[1].get("mean_delta_f1")
+    if m is None:
+        return (1, 0.0)
+    return (0, -m)
+
+
+def _fmt(v: float | None, signed: bool = False) -> str:
+    if v is None:
+        return "n/a"
+    return f"{v:+.4f}" if signed else f"{v:.4f}"
+
+
+def _fmt_wall_dur(s: float) -> str:
+    """Format a duration in seconds into a human-readable h/m/s string."""
+    if s >= 3600:
+        return f"{int(s // 3600)}h {int((s % 3600) // 60)}m {s % 60:.1f}s"
+    if s >= 60:
+        return f"{int(s // 60)}m {s % 60:.1f}s"
+    return f"{s:.1f}s"
+
+
+# --- Additional summary printers ---
+
+
+def print_eval_bayesian_summary(
+    completed_trials: list,
+    best: dict | None,
+    max_score: float,
+    avg_score: float,
+    output_dir: str,
+    study_path: str,
+) -> None:
+    """Print the Bayesian Optimization Summary table and final report paths."""
+    if completed_trials:
+        print(color_message(f"\n{'=' * 70}", Color.GREEN))
+        print(color_message("  Bayesian Optimization Summary", Color.GREEN))
+        print(color_message(f"{'=' * 70}\n", Color.GREEN))
+        header = f"{'Rank':<5}  {'Trial':<12}  {'Score':>6}"
+        print(header)
+        print("-" * 30)
+        for rank, t in enumerate(completed_trials[:10], 1):
+            print(f"{rank:<5}  {t['label']:<12}  {t['score']:>6.4f}")
+        if len(completed_trials) > 10:
+            print(f"  ... {len(completed_trials) - 10} more trials")
+
+        if best:
+            print(color_message(f"\n  Best: {best['label']}  (score={best['score']:.4f})", Color.GREEN))
+            print(color_message("  Best parameters:", Color.GREEN))
+            for key, val in sorted(best["params"].items()):
+                print(color_message(f"    {key}: {val}", Color.GREEN))
+            print(color_message(f"  config: {best['config_path']}", Color.GREEN))
+            print(color_message(f"  report: {best['report_path']}", Color.GREEN))
+
+    print(color_message(f"\n  score (max):      {max_score:.4f}", Color.GREEN))
+    print(color_message(f"  avg_eval_score:   {avg_score:.4f}", Color.GREEN))
+    print(color_message(f"  study:            {study_path}", Color.GREEN))
+    print(color_message(f"  output_dir:       {output_dir}", Color.GREEN))
+
+
+def print_eval_component_summary(
+    component: str,
+    per_subset: list,
+    per_scenario_summary: dict,
+    aggregated: dict,
+    wall_str: str,
+) -> None:
+    """Print the full component evaluation summary to stdout."""
+    delta_max = aggregated["delta_max"]
+    delta_mean = aggregated["delta_mean"]
+    avg_max_without = aggregated["avg_max_without"]
+    avg_max_with = aggregated["avg_max_with"]
+    avg_mean_without = aggregated["avg_mean_without"]
+    avg_mean_with = aggregated["avg_mean_with"]
+    recommendation = aggregated["recommendation"]
+    rec_clr = aggregated["rec_clr"]
+
+    print(color_message(f"\n{'=' * 70}", Color.GREEN))
+    print(color_message("  Component Evaluation Summary", Color.GREEN))
+    print(color_message(f"{'=' * 70}\n", Color.GREEN))
+    print(color_message(f"  Component: {component}\n", Color.GREEN))
+
+    header = f"  {'Subset':<12}  {'Without':>8}  {'With':>8}  {'Delta':>8}"
+    print(header)
+    print(f"  {'-' * 44}")
+    for ps in per_subset:
+        wo_str = f"{ps['without_max']:>8.4f}" if ps["without_max"] is not None else f"{'FAILED':>8}"
+        wi_str = f"{ps['with_max']:>8.4f}" if ps["with_max"] is not None else f"{'FAILED':>8}"
+        if ps["delta_max"] is None:
+            delta_str = color_message(f"{'n/a':>8}", Color.ORANGE)
+        else:
+            delta_clr = Color.GREEN if ps["delta_max"] > 0 else Color.RED
+            delta_str = color_message(f"{ps['delta_max']:>+8.4f}", delta_clr)
+        fail_note = f"  [{ps['failed_runs']} run(s) failed]" if ps["failed_runs"] > 0 else ""
+        print(f"  {ps['subset']:<12}  {wo_str}  {wi_str}  {delta_str}{fail_note}")
+
+    print()
+    print(color_message(
+        "  Per-scenario Δ F1 (best Bayesian trial per run; best run per variant per subset)",
+        Color.BLUE,
+    ))
+    print(color_message(
+        "  Columns: mean / min / max of Δ across subsets (helps spot inconsistent scenarios)",
+        Color.BLUE,
+    ))
+    ps_header = f"  {'Scenario':<26}  {'mean Δ':>8}  {'min Δ':>8}  {'max Δ':>8}"
+    print(ps_header)
+    print(f"  {'-' * len(ps_header.strip())}")
+
+    for scen, row in sorted(per_scenario_summary.items(), key=_scenario_sort_key):
+        mean_d = row["mean_delta_f1"]
+        min_d = row["min_delta_f1"]
+        max_d = row["max_delta_f1"]
+        if mean_d is None:
+            print(color_message(f"  {scen:<26}  {'n/a':>8}  {'n/a':>8}  {'n/a':>8}", Color.ORANGE))
+        else:
+            mean_clr = Color.GREEN if mean_d > 0 else Color.RED if mean_d < 0 else Color.BLUE
+            msg = f"  {scen:<26}  {mean_d:>+8.4f}  {min_d:>+8.4f}  {max_d:>+8.4f}"
+            print(color_message(msg, mean_clr))
+
+    print()
+    print(color_message("  Secondary: mean of trial-mean scores (across subsets)", Color.BLUE))
+    print(color_message(f"  Avg mean score without: {_fmt(avg_mean_without)}", Color.BLUE))
+    print(color_message(f"  Avg mean score with:    {_fmt(avg_mean_with)}", Color.BLUE))
+    if delta_mean is None:
+        print(color_message("  Delta (mean):           n/a (no valid subsets)", Color.ORANGE))
+    else:
+        delta_clr = Color.GREEN if delta_mean > 0 else Color.RED
+        print(color_message(f"  Delta (mean):           {delta_mean:+.4f}", delta_clr))
+
+    print()
+    print(color_message(f"  {'-' * 66}", Color.GREEN))
+    print(color_message("  Primary metric — max best-trial score (avg across subsets)", Color.GREEN))
+    print(color_message(f"  {'-' * 66}", Color.GREEN))
+    print(color_message(f"  Avg max score without:  {_fmt(avg_max_without)}", Color.GREEN))
+    print(color_message(f"  Avg max score with:     {_fmt(avg_max_with)}", Color.GREEN))
+    if delta_max is None:
+        print(color_message("  Delta (max):            n/a (no valid subsets)", Color.ORANGE))
+    else:
+        delta_clr = Color.GREEN if delta_max > 0 else Color.RED
+        print(color_message(f"  Delta (max):            {delta_max:+.4f}", delta_clr))
+    print()
+    print(color_message(f"  Recommendation: {recommendation.upper()} {component}", rec_clr))
+    if recommendation == "inconclusive":
+        print(color_message("  All subsets failed — cannot make a reliable recommendation.", Color.ORANGE))
+    elif recommendation == "keep":
+        print(color_message("  Next step: tune the full pipeline with the new component:", Color.BOLD))
+        print(color_message(f"    dda inv anomalydetection.eval-pipeline --force-enable {component}", Color.BOLD))
+        print(color_message("  Or tune only this component's hyperparameters:", Color.BOLD))
+        print(color_message(f"    dda inv anomalydetection.eval-bayesian --only {component}", Color.BOLD))
+    print(color_message(f"  Full eval wall time: {wall_str}", Color.GREEN))
+    print(color_message(f"{'=' * 70}", Color.GREEN))
