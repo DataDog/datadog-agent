@@ -302,8 +302,7 @@ def _run_bazel_tests(
 
     for batch in batches:
         try:
-            # capture_stderr=True because Bazel writes test result lines to stderr.
-            output = bazel(ctx, *base_args, *batch, capture_output=True, capture_stderr=False)
+            output = bazel(ctx, *base_args, *batch, capture_output=True, capture_stderr=True)
         except UnexpectedExit as e:
             output = (e.result.stdout or "") + (e.result.stderr or "")
             run_failed = True
