@@ -254,11 +254,10 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
 	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
-	copied.SpanContext = deepCopySpanContext(fieldToCopy.SpanContext)
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
 	copied.SymlinkPathnameStr = fieldToCopy.SymlinkPathnameStr
 	copied.TTYName = fieldToCopy.TTYName
-	copied.TracerMetadata = deepCopyTracerMetadata(fieldToCopy.TracerMetadata)
+	copied.Tracer = deepCopyTracer(fieldToCopy.Tracer)
 	copied.UserSession = deepCopyUserSessionContext(fieldToCopy.UserSession)
 	return copied
 }
@@ -400,6 +399,28 @@ func deepCopyLinuxBinprm(fieldToCopy LinuxBinprm) LinuxBinprm {
 	copied.FileEvent = deepCopyFileEvent(fieldToCopy.FileEvent)
 	return copied
 }
+func deepCopyTracer(fieldToCopy Tracer) Tracer {
+	copied := Tracer{}
+	copied.Metadata = deepCopyTracerMetadata(fieldToCopy.Metadata)
+	copied.Trace = deepCopySpanContext(fieldToCopy.Trace)
+	return copied
+}
+func deepCopyTracerMetadata(fieldToCopy tracermetadata.TracerMetadata) tracermetadata.TracerMetadata {
+	copied := tracermetadata.TracerMetadata{}
+	copied.ContainerID = fieldToCopy.ContainerID
+	copied.Hostname = fieldToCopy.Hostname
+	copied.LogsCollected = fieldToCopy.LogsCollected
+	copied.ProcessTags = fieldToCopy.ProcessTags
+	copied.RuntimeID = fieldToCopy.RuntimeID
+	copied.SchemaVersion = fieldToCopy.SchemaVersion
+	copied.ServiceEnv = fieldToCopy.ServiceEnv
+	copied.ServiceName = fieldToCopy.ServiceName
+	copied.ServiceVersion = fieldToCopy.ServiceVersion
+	copied.ThreadlocalAttributeKeys = deepCopystringArr(fieldToCopy.ThreadlocalAttributeKeys)
+	copied.TracerLanguage = fieldToCopy.TracerLanguage
+	copied.TracerVersion = fieldToCopy.TracerVersion
+	return copied
+}
 func deepCopySpanContext(fieldToCopy SpanContext) SpanContext {
 	copied := SpanContext{}
 	copied.Attributes = deepCopystringMap(fieldToCopy.Attributes)
@@ -422,22 +443,6 @@ func deepCopyTraceID(fieldToCopy utils.TraceID) utils.TraceID {
 	copied := utils.TraceID{}
 	copied.Hi = fieldToCopy.Hi
 	copied.Lo = fieldToCopy.Lo
-	return copied
-}
-func deepCopyTracerMetadata(fieldToCopy tracermetadata.TracerMetadata) tracermetadata.TracerMetadata {
-	copied := tracermetadata.TracerMetadata{}
-	copied.ContainerID = fieldToCopy.ContainerID
-	copied.Hostname = fieldToCopy.Hostname
-	copied.LogsCollected = fieldToCopy.LogsCollected
-	copied.ProcessTags = fieldToCopy.ProcessTags
-	copied.RuntimeID = fieldToCopy.RuntimeID
-	copied.SchemaVersion = fieldToCopy.SchemaVersion
-	copied.ServiceEnv = fieldToCopy.ServiceEnv
-	copied.ServiceName = fieldToCopy.ServiceName
-	copied.ServiceVersion = fieldToCopy.ServiceVersion
-	copied.ThreadlocalAttributeKeys = deepCopystringArr(fieldToCopy.ThreadlocalAttributeKeys)
-	copied.TracerLanguage = fieldToCopy.TracerLanguage
-	copied.TracerVersion = fieldToCopy.TracerVersion
 	return copied
 }
 func deepCopyUserSessionContext(fieldToCopy UserSessionContext) UserSessionContext {
@@ -517,11 +522,10 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
 	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
-	copied.SpanContext = deepCopySpanContext(fieldToCopy.SpanContext)
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
 	copied.SymlinkPathnameStr = fieldToCopy.SymlinkPathnameStr
 	copied.TTYName = fieldToCopy.TTYName
-	copied.TracerMetadata = deepCopyTracerMetadata(fieldToCopy.TracerMetadata)
+	copied.Tracer = deepCopyTracer(fieldToCopy.Tracer)
 	copied.UserSession = deepCopyUserSessionContext(fieldToCopy.UserSession)
 	return copied
 }

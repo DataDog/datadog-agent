@@ -152,7 +152,7 @@ func (c *Credentials) Equals(o *Credentials) bool {
 // process. Used by AddForkEntry to persist the parent's span across fork.
 // Carries SpanID, TraceID, HasExtraAttrs and any OTel extra Attributes.
 func (p *Process) SetSpanContext(sc SpanContext) {
-	p.SpanContext = sc
+	p.Tracer.Trace = sc
 }
 
 // SetSpanContextAttributes updates only the Attributes field on the process's
@@ -161,7 +161,7 @@ func (p *Process) SetSpanContext(sc SpanContext) {
 // AddForkEntry / AddExecEntry, which only had the index→name-less event
 // SpanContext to copy from).
 func (p *Process) SetSpanContextAttributes(attrs map[string]string) {
-	p.SpanContext.Attributes = attrs
+	p.Tracer.Trace.Attributes = attrs
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one

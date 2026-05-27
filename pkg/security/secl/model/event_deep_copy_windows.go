@@ -97,7 +97,7 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
 	copied.PPid = fieldToCopy.PPid
 	copied.ScrubbedCmdLineResolved = fieldToCopy.ScrubbedCmdLineResolved
-	copied.TracerMetadata = deepCopyTracerMetadata(fieldToCopy.TracerMetadata)
+	copied.Tracer = deepCopyTracer(fieldToCopy.Tracer)
 	copied.User = fieldToCopy.User
 	return copied
 }
@@ -154,6 +154,12 @@ func deepCopyFileEvent(fieldToCopy FileEvent) FileEvent {
 	copied.PathnameStr = fieldToCopy.PathnameStr
 	return copied
 }
+func deepCopyTracer(fieldToCopy Tracer) Tracer {
+	copied := Tracer{}
+	copied.Metadata = deepCopyTracerMetadata(fieldToCopy.Metadata)
+	copied.Trace = deepCopySpanContext(fieldToCopy.Trace)
+	return copied
+}
 func deepCopyTracerMetadata(fieldToCopy tracermetadata.TracerMetadata) tracermetadata.TracerMetadata {
 	copied := tracermetadata.TracerMetadata{}
 	copied.ContainerID = fieldToCopy.ContainerID
@@ -169,6 +175,27 @@ func deepCopyTracerMetadata(fieldToCopy tracermetadata.TracerMetadata) tracermet
 	copied.TracerLanguage = fieldToCopy.TracerLanguage
 	copied.TracerVersion = fieldToCopy.TracerVersion
 	return copied
+}
+func deepCopySpanContext(fieldToCopy SpanContext) SpanContext {
+	copied := SpanContext{}
+	copied.Attributes = deepCopystringMap(fieldToCopy.Attributes)
+	copied.HasExtraAttrs = fieldToCopy.HasExtraAttrs
+	copied.SpanID = fieldToCopy.SpanID
+	copied.TraceID = deepCopyTraceID(fieldToCopy.TraceID)
+	return copied
+}
+func deepCopystringMap(fieldToCopy map[string]string) map[string]string {
+	if fieldToCopy == nil {
+		return nil
+	}
+	copied := make(map[string]string, len(fieldToCopy))
+	for k, v := range fieldToCopy {
+		copied[k] = v
+	}
+	return copied
+}
+func deepCopyTraceID(fieldToCopy utils.TraceID) utils.TraceID {
+	return fieldToCopy
 }
 func deepCopyProcess(fieldToCopy Process) Process {
 	copied := Process{}
@@ -187,7 +214,7 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
 	copied.PPid = fieldToCopy.PPid
 	copied.ScrubbedCmdLineResolved = fieldToCopy.ScrubbedCmdLineResolved
-	copied.TracerMetadata = deepCopyTracerMetadata(fieldToCopy.TracerMetadata)
+	copied.Tracer = deepCopyTracer(fieldToCopy.Tracer)
 	copied.User = fieldToCopy.User
 	return copied
 }
@@ -237,16 +264,6 @@ func deepCopyMatchedRulePtrArr(fieldToCopy []*MatchedRule) []*MatchedRule {
 	copied := make([]*MatchedRule, len(fieldToCopy))
 	for i := range fieldToCopy {
 		copied[i] = deepCopyMatchedRulePtr(fieldToCopy[i])
-	}
-	return copied
-}
-func deepCopystringMap(fieldToCopy map[string]string) map[string]string {
-	if fieldToCopy == nil {
-		return nil
-	}
-	copied := make(map[string]string, len(fieldToCopy))
-	for k, v := range fieldToCopy {
-		copied[k] = v
 	}
 	return copied
 }
