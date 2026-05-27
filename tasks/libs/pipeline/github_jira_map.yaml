@@ -2,7 +2,6 @@
 # The DEFAULT_JIRA_PROJECT value is interpreted as "AGNTR".
 # Note that keys must be quoted because the '@' symbol is reserved in YAML.
 '@datadog/action-platform': ACTP
-'@datadog/dd-agent-mcp': ACTP
 '@datadog/agent-platform': ACIX
 '@datadog/documentation': DOCS
 '@datadog/container-integrations': CONTINT
