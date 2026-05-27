@@ -468,7 +468,7 @@ exports_files(glob(
 # gazelle:exclude pkg/gpu/safenvml
 # gazelle:exclude pkg/gpu/testutil
 # gazelle:exclude pkg/hosttags
-# gazelle:exclude pkg/kubestatemetrics
+# gazelle:exclude pkg/kubestatemetrics/builder
 # gazelle:exclude pkg/languagedetection/internal/detectors/privileged
 # gazelle:exclude pkg/languagedetection/privileged
 # gazelle:exclude pkg/logs/client/http
