@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixed a regression in the ``kubernetes_state_core`` check where instances
+    without custom resource metrics could rebuild KSM stores after CRD update
+    events, causing intermittent runs with no emitted metrics.
