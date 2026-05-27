@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "iis",
+    srcs = [
+        "component.go",
+        "params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/iis",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common",
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/namer",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components",
+        "//test/e2e-framework/components/command",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/components/remote",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_pulumiverse_pulumi_time_sdk//go/time",
+    ],
+)
