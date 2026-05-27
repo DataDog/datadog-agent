@@ -232,9 +232,13 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 
 		// Build specTags: preserve_tags found in metric labels (emitter handled separately).
 		specTags := make([]*dto.LabelPair, 0, len(mCfg.preserveTagsMap)+1)
+		var emitterLabel *dto.LabelPair
 		for _, t := range tags {
 			if t.GetName() == "emitter" {
-				continue // always handled by getEmitterLabel below
+				if t.GetValue() != "" {
+					emitterLabel = t
+				}
+				continue
 			}
 			if _, ok := mCfg.preserveTagsMap[t.GetName()]; ok {
 				specTags = append(specTags, t)
@@ -242,7 +246,10 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 		}
 
 		// Always include emitter: use the metric's own non-empty value if present, else "agent".
-		specTags = append(specTags, getEmitterLabel(origTags))
+		if emitterLabel == nil {
+			emitterLabel = getEmitterLabel(nil)
+		}
+		specTags = append(specTags, emitterLabel)
 
 		// Sort specTags for a stable aggregation key (injection may break prior sort order)
 		slices.SortFunc(specTags, func(a, b *dto.LabelPair) int {
