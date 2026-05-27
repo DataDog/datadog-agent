@@ -1379,10 +1379,11 @@ func Test_buildInterfaceIndexByIDType(t *testing.T) {
 
 // Test_resolveLocalInterface_physicalPreferenceTiebreaker covers the
 // multi-match tiebreaker matrix from the PRD:
-//   (a) 1 physical + N virtual    → resolve to the physical
-//   (b) 0 physical (all-virtual)  → unchanged: empty + trace
-//   (c) ≥2 physical               → unchanged: empty + trace
-//   (d) 1 physical via different idType match (smart resolution)
+//
+//	(a) 1 physical + N virtual    → resolve to the physical
+//	(b) 0 physical (all-virtual)  → unchanged: empty + trace
+//	(c) ≥2 physical               → unchanged: empty + trace
+//	(d) 1 physical via different idType match (smart resolution)
 func Test_resolveLocalInterface_physicalPreferenceTiebreaker(t *testing.T) {
 	deviceID := "default:1.2.3.4"
 
