@@ -66,6 +66,8 @@ func (c *nvlinkGpmCollector) Collect() ([]*Metric, error) {
 }
 
 func (c *nvlinkGpmCollector) getOrCreateGpmCollector(port int) (*gpmCollector, error) {
+	port = port - 1 // We receive ports indexed from 1, but under the hood we use 0-based indexing.
+
 	if collector, ok := c.perPortCollector[port]; ok {
 		return collector, nil
 	}
@@ -114,10 +116,12 @@ func (c *nvlinkGpmCollector) getPortMetrics(port int) ([]*Metric, error) {
 	}
 
 	// GPM returns data in MiB/s, we need to convert to kB/s. Also, set priority high
-	// to override metrics from fields collectors.
+	// to override metrics from fields collectors and add the nvlink_port tag.
+	portTag := nvlinkPortTag(port)
 	for _, metric := range metrics {
 		metric.Value = metric.Value * 1024
 		metric.Priority = High
+		metric.Tags = append(metric.Tags, portTag)
 	}
 	return metrics, nil
 }
