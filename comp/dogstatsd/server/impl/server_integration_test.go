@@ -19,7 +19,35 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
+
+type stopFlushListener struct {
+	stop func()
+}
+
+func (l stopFlushListener) Listen() {}
+
+func (l stopFlushListener) Stop() {
+	l.stop()
+}
+
+func TestStopServerStopsIngressShardsAfterListeners(t *testing.T) {
+	shards := newPacketIngressLogShards(1, 1024*1024, nil)
+	s := &dsdServer{
+		Started:          true,
+		stopChan:         make(chan bool),
+		ingressLogShards: shards,
+		health:           health.RegisterLiveness("dogstatsd-stop-order-test"),
+	}
+	s.listeners = []listeners.StatsdListener{stopFlushListener{stop: func() {
+		shards.Write(packets.Packets{&packets.Packet{Contents: []byte("flushed.metric:1|c")}})
+	}}}
+
+	require.NoError(t, s.stop(context.Background()))
+	assert.Equal(t, 1, shards.Len(), "listener Stop flushes must still be accepted by ingress shards")
+}
 
 func TestStopServer(t *testing.T) {
 	cfg := make(map[string]interface{})

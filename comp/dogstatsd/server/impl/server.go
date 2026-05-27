@@ -608,6 +608,9 @@ func (s *dsdServer) stop(context.Context) error {
 		return nil
 	}
 
+	for _, l := range s.listeners {
+		l.Stop()
+	}
 	if s.ingressLogShards != nil {
 		s.ingressLogShards.stop()
 	}
@@ -616,9 +619,6 @@ func (s *dsdServer) stop(context.Context) error {
 	}
 	if s.compactRawIngressShards != nil {
 		s.compactRawIngressShards.Stop()
-	}
-	for _, l := range s.listeners {
-		l.Stop()
 	}
 	close(s.stopChan)
 
