@@ -2,7 +2,7 @@
 Description=Datadog Process Manager Daemon
 After=datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent.service
-Conflicts=datadog-agent-exp.service datadog-agent-procmgrd-exp.service
+Conflicts=datadog-agent-exp.service datadog-agent-procmgr-exp.service
 ConditionPathExists=/opt/datadog-packages/datadog-agent/stable/embedded/bin/dd-procmgrd
 
 [Service]
