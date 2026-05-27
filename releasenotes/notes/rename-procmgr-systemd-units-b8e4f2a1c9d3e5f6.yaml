@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    On Linux, the agent process manager systemd units were renamed from ``datadog-agent-procmgrd.service`` / ``datadog-agent-procmgrd-exp.service`` to ``datadog-agent-procmgr.service`` / ``datadog-agent-procmgr-exp.service``. The ``dd-procmgrd`` binary and its paths are unchanged.
+
+    On upgrade, the installer stops and removes the legacy ``procmgrd``-suffixed unit files so only one process manager daemon binds the socket. Update any custom automation that referenced the old unit names.

@@ -1,5 +1,5 @@
 exporters:
-    otlphttp/datadoghq.com_0:
+    otlp_http/datadoghq.com_0:
         compression: zstd
         endpoint: https://otlp.datadoghq.com
         headers:
@@ -7,10 +7,10 @@ exporters:
             dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
 extensions:
-    ddprofiling/default:
+    ddprofiling:
         profiler_options:
             period: 30
-    hpflare/default:
+    hpflare:
         endpoint: localhost:7778
 processors:
     cumulativetodelta: {}
@@ -22,7 +22,7 @@ processors:
                     - ^scrape_.*$
                     - ^up$
                     - ^promhttp_metric_handler_errors_total$
-    infraattributes/default:
+    infraattributes:
         allow_hostname_override: true
         cardinality: 2
     resource/dd-profiler-internal-metadata:
@@ -55,24 +55,24 @@ receivers:
                         - 127.0.0.1:8889
 service:
     extensions:
-        - hpflare/default
-        - ddprofiling/default
+        - hpflare
+        - ddprofiling
     pipelines:
         metrics:
             exporters:
-                - otlphttp/datadoghq.com_0
+                - otlp_http/datadoghq.com_0
             processors:
                 - filter
                 - cumulativetodelta
-                - infraattributes/default
+                - infraattributes
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - prometheus
         profiles:
             exporters:
-                - otlphttp/datadoghq.com_0
+                - otlp_http/datadoghq.com_0
             processors:
-                - infraattributes/default
+                - infraattributes
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling

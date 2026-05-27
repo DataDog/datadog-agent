@@ -10,7 +10,7 @@ processors:
         os.type:
           enabled: true
 exporters:
-  otlphttp:
+  otlp_http:
     headers:
       dd-api-key: "test-key"
 service:
@@ -18,4 +18,4 @@ service:
     profiles:
       receivers: [profiling]
       processors: [resourcedetection]
-      exporters: [otlphttp]
+      exporters: [otlp_http]
