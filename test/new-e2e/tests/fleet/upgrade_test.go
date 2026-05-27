@@ -7,8 +7,6 @@ package fleet
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -437,25 +435,8 @@ func (s *upgradeSuite) TestIntegrationPreservationOnExperimentRollback() {
 // against the right baseline. A broken refresh would either drop the integration from
 // the diff (silent loss) or carry stale entries that the new agent can't reinstall.
 func (s *upgradeSuite) TestIntegrationPreservationMultiHop() {
-	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages(), agent.WithLogLevel("debug"))
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
-
-	if s.Env().RemoteHost.OSFamily == e2eos.LinuxFamily {
-		// Enable debug log level on both agent and installer (persists through OCI upgrades).
-		_, setupErr := s.Env().RemoteHost.Execute(`printf '\nlog_level: debug\n' | sudo tee -a /etc/datadog-agent/datadog.yaml > /dev/null`)
-		s.Require().NoError(setupErr)
-		_, setupErr = s.Env().RemoteHost.Execute(`sudo systemctl restart datadog-agent datadog-agent-installer`)
-		s.Require().NoError(setupErr)
-
-		// Collect full agent and installer journal logs to a local file at test end.
-		defer func() {
-			logs, _ := s.Env().RemoteHost.Execute(`sudo journalctl -u datadog-agent -u 'datadog-agent-installer*.service' --no-pager --output=cat 2>&1`)
-			logPath := filepath.Join(s.SessionOutputDir(), "TestIntegrationPreservationMultiHop_debug.log")
-			if writeErr := os.WriteFile(logPath, []byte(logs), 0o644); writeErr == nil {
-				s.T().Logf("Debug logs written to: %s", logPath)
-			}
-		}()
-	}
 
 	s.snapshotIntegrationState("MultiHop: after MustInstall (released OCI stable)")
 
