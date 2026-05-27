@@ -5,6 +5,7 @@ members = [
     "comp/core/log/rust",
     "pkg/discovery/module/rust",
     "pkg/procmgr/rust",
+    "tools/tar_checksums",
 ]
 
 [workspace.package]
@@ -66,10 +67,13 @@ windows-sys = { version = "0.61", features = [] }
 
 # dev-dependencies
 dircpy = "0.3.19"
-regex = "1"
+lzma-rs = "0.3"
+md5 = "0.8"
 memmap2 = "0.9"
+regex = "1"
 nix = { version = "0.31", features = ["signal"] }
 scopeguard = "1.2"
+tar = "0.4"
 temp-env = "0.3"
 tempfile = "3.0"
 
