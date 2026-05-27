@@ -150,7 +150,7 @@ func TestReportIssueStoresProto(t *testing.T) {
 		IssueName: "check-failure",
 		Title:     "Check 'mysql' Failed",
 		Source:    "mysql",
-		Severity:  "medium",
+		Severity:  healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
 		Tags:      []string{"env:prod"},
 	})
 	require.NoError(t, err)
@@ -159,7 +159,7 @@ func TestReportIssueStoresProto(t *testing.T) {
 	require.NotNil(t, issue)
 	assert.Equal(t, "check-failure:mysql:abc", issue.Id)
 	assert.Equal(t, "mysql", issue.Source)
-	assert.Equal(t, "medium", issue.Severity)
+	assert.Equal(t, healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.Severity)
 	assert.Contains(t, issue.Tags, "env:prod")
 	assert.NotEmpty(t, issue.DetectedAt)
 	assert.NotNil(t, issue.PersistedIssue)

@@ -10,12 +10,13 @@ import (
 	"path"
 	"strings"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	perms "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 // Params defines the parameters for the Agent installation.
@@ -288,8 +289,8 @@ network_devices.netflow.forwarder.logs_dd_url: %[1]s:%[2]d
 network_devices.netflow.forwarder.logs_no_ssl: true
 network_path.forwarder.logs_dd_url: %[1]s:%[2]d
 network_path.forwarder.logs_no_ssl: true
-network_config_management.forwarder.logs_dd_url: %[1]s:%[2]d
-network_config_management.forwarder.logs_no_ssl: true
+network_devices.config_management.forwarder.logs_dd_url: %[1]s:%[2]d
+network_devices.config_management.forwarder.logs_no_ssl: true
 synthetics.forwarder.logs_dd_url: %[1]s:%[2]d
 synthetics.forwarder.logs_no_ssl: true
 container_lifecycle.logs_dd_url: %[1]s:%[2]d

@@ -87,7 +87,7 @@ func newTestEgress(t *testing.T, interval time.Duration, store *mockStore, fwd *
 func TestTickSendsReport(t *testing.T) {
 	store := &mockStore{
 		issues: map[string]*healthplatformpayload.Issue{
-			"issue-1": {Id: "issue-1", Title: "Test", Severity: "high"},
+			"issue-1": {Id: "issue-1", Title: "Test", Severity: healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_HIGH},
 		},
 	}
 	fwd := &mockForwarder{}

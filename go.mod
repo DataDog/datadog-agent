@@ -36,7 +36,7 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.9.3
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.196
+	github.com/DataDog/agent-payload/v5 v5.0.198
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4
@@ -204,7 +204,7 @@ require (
 	github.com/cloudflare/cbpfc v0.0.0-20260219140841-0661ad29132c
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/cgroups/v3 v3.1.3
-	github.com/containerd/containerd v1.7.31
+	github.com/containerd/containerd v1.7.32
 	github.com/containerd/containerd/api v1.9.0
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/typeurl/v2 v2.2.3
@@ -243,7 +243,7 @@ require (
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/golang/protobuf v1.5.4
 	github.com/google/btree v1.1.3
-	github.com/google/cel-go v0.27.0
+	github.com/google/cel-go v0.28.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.21.5
 	github.com/google/gofuzz v1.2.0
@@ -955,7 +955,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostport v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5
-	github.com/DataDog/rshell v0.0.18
+	github.com/DataDog/rshell v0.0.20
 	github.com/aptly-dev/aptly v1.6.3-0.20260504093056-0d31298f3709
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.6
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.68.5
@@ -1213,13 +1213,21 @@ require (
 // TODO(songy23): remove this once https://github.com/kubernetes/apiserver/commit/b887c9ebecf558a2001fc5c5dbd5c87fd672500c is brought to agent
 replace go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0
 
-// containerd v1.7.30 (latest v1.x) uses runtime-spec types with int64 fields (not *int64).
-// runtime-spec v1.3.0 changed LinuxPids.Limit to *int64, breaking containerd v1.7.30.
-// containerd/cgroups/v3 v3.1.2 also expects *int64 (runtime-spec v1.3.0), so we must
-// downgrade both: pin runtime-spec to v1.2.0 (int64) and cgroups/v3 to v3.0.5 (also int64).
+// containerd v1.7.x and containerd/v2 v2.0.x use runtime-spec types with
+// int64 fields, but runtime-spec v1.3.0 changed LinuxPids.Limit to *int64,
+// breaking those containerd lines. containerd/cgroups/v3 v3.1.x also requires
+// runtime-spec v1.3.0, so we pin both back: runtime-spec to v1.2.0 and
+// cgroups/v3 to v3.0.5.
 replace github.com/opencontainers/runtime-spec => github.com/opencontainers/runtime-spec v1.2.0
 
 replace github.com/containerd/cgroups/v3 => github.com/containerd/cgroups/v3 v3.0.5
+
+// CVE-2026-46680: containerd/v2 is pulled in transitively (Trivy imports
+// containerd/v2/client, and the OPA fork brings in v2.1.x). v2.1.x is EOL
+// with no fix; pin to v2.0.9, which still uses runtime-spec v1.2.0 and so
+// matches the pin above. v2.2.4+ would force runtime-spec v1.3.0, conflicting
+// with that pin.
+replace github.com/containerd/containerd/v2 => github.com/containerd/containerd/v2 v2.0.9
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 
@@ -1272,7 +1280,7 @@ replace github.com/iceber/iouring-go => github.com/lebauce/iouring-go v0.0.0-202
 // Fork to remove some text/template usage, https://github.com/DataDog/opa/tree/lightweight-1.7.1
 replace github.com/open-policy-agent/opa => github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816
 
-replace github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 v5.0.196
+replace github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 v5.0.198
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
