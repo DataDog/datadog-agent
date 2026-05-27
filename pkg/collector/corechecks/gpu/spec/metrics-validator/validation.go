@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"maps"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,7 +22,7 @@ import (
 
 const metricQueryConcurrency = 4
 
-func computeValidation(apiKey, appKey, site string, lookbackSeconds int64) (orgValidationResults, error) {
+func computeValidation(apiKey, appKey, site string, lookbackSeconds int64, metricFilter string) (orgValidationResults, error) {
 	specs, err := gpuspec.LoadSpecs()
 	if err != nil {
 		return orgValidationResults{}, fmt.Errorf("load specs: %w", err)
@@ -40,7 +41,7 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64) (orgV
 	var allErrors error
 	for _, config := range configs {
 		log.Printf("validating gpu config %s/%s", config.Architecture, config.DeviceMode)
-		result, err := validateGPUConfig(client, specs, config, fromTS, now)
+		result, err := validateGPUConfig(client, specs, config, metricFilter, fromTS, now)
 		if err != nil {
 			allErrors = errors.Join(allErrors, fmt.Errorf("validate gpu config %+v: %w", config, err))
 		}
@@ -54,7 +55,7 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64) (orgV
 	}, allErrors
 }
 
-func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpuspec.GPUConfig, fromTS, toTS int64) (gpuConfigValidationResult, error) {
+func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpuspec.GPUConfig, metricFilter string, fromTS, toTS int64) (gpuConfigValidationResult, error) {
 	result := gpuConfigValidationResult{
 		Config: config,
 		State:  validationStateMissing,
@@ -66,9 +67,10 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(specs, config, gpuspec.ValidationOptions{
 		WorkloadActive: true,
 	})
+	queryFilter := combineMetricFilters(config.TagFilter(), metricFilter)
 
 	var err error
-	result.DeviceCount, err = client.queryDeviceCount(config, fromTS, toTS)
+	result.DeviceCount, err = client.queryDeviceCount(config, queryFilter, fromTS, toTS)
 	if err != nil {
 		return result, fmt.Errorf("validate gpu config %+v: %w", config, err)
 	}
@@ -96,7 +98,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 
 		// Get the metric values
 		group.Go(func() error {
-			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, requiredTags, config.TagFilter(), fromTS, toTS, validatesValues)
+			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, requiredTags, queryFilter, fromTS, toTS, validatesValues)
 			if err != nil {
 				return fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
 			}
@@ -116,7 +118,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 
 		// Also get tag values for the metric
 		group.Go(func() error {
-			metricTags, err := client.fetchMetricAllTags(prefixedMetricName, requiredTags, tagLookbackSeconds, config.TagFilter())
+			metricTags, err := client.fetchMetricAllTags(prefixedMetricName, requiredTags, tagLookbackSeconds, queryFilter)
 			if err != nil {
 				return fmt.Errorf("fetch metric tags for %s: %w", metricName, err)
 			}
@@ -137,7 +139,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 				"gpu_": {},
 			}
 
-			allGpuTags, err := client.fetchMetricAllTags(prefixedMetricName, wantedTags, tagLookbackSeconds, config.TagFilter())
+			allGpuTags, err := client.fetchMetricAllTags(prefixedMetricName, wantedTags, tagLookbackSeconds, queryFilter)
 			if err != nil {
 				return fmt.Errorf("fetch metric tags for %s: %w", metricName, err)
 			}
@@ -169,7 +171,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 	}
 
 	// Get any other metrics that were emitted with the GPU prefix but aren't in the expected metrics
-	liveMetrics, err := client.listObservedGPUMetricsForGPUConfig(config, max(toTS-fromTS, int64(0)), specs.Metrics.MetricPrefix)
+	liveMetrics, err := client.listObservedGPUMetricsForGPUConfig(config, queryFilter, max(toTS-fromTS, int64(0)), specs.Metrics.MetricPrefix)
 	if err != nil {
 		allErrors = errors.Join(allErrors, fmt.Errorf("error listing observed gpu metrics: %w", err))
 	}
@@ -191,4 +193,16 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 	result.State = determineResultState(result)
 
 	return result, allErrors
+}
+
+func combineMetricFilters(filters ...string) string {
+	parts := make([]string, 0, len(filters))
+	for _, filter := range filters {
+		filter = strings.TrimSpace(filter)
+		if filter == "" {
+			continue
+		}
+		parts = append(parts, filter)
+	}
+	return strings.Join(parts, " AND ")
 }
