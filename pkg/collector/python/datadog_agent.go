@@ -232,12 +232,15 @@ func SendLog(logLine, checkID *C.char) {
 
 	lr, ok := cc.GetLogReceiver()
 	if !ok {
-		log.Error("Log submission failed: no receiver")
+		tlmDroppedLogsDisabled.Inc()
 		return
 	}
 
 	lr.SendLog(line, cid)
 }
+
+var tlmDroppedLogsDisabled = telemetryimpl.GetCompatComponent().NewCounter("logs", "dropped_disabled",
+	nil, "Number of logs dropped because log collection is disabled")
 
 var (
 	// one obfuscator instance is shared across all python checks. It is not threadsafe but that is ok because

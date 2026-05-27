@@ -42,3 +42,7 @@ func TestEmitAgentTelemetry(t *testing.T) {
 func TestObfuscaterConfig(t *testing.T) {
 	testObfuscaterConfig(t)
 }
+
+func TestSendLogLogsDisabled(t *testing.T) {
+	testSendLogLogsDisabled(t)
+}

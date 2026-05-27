@@ -19,12 +19,18 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v2"
 
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -172,4 +178,20 @@ func testObfuscaterConfig(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, obfuscaterConfig)
+}
+
+func testSendLogLogsDisabled(t *testing.T) {
+	before := tlmDroppedLogsDisabled.WithValues().Get()
+
+	sender := mocksender.NewMockSender("testID")
+	logReceiver := option.None[integrations.Component]()
+	taggerComp := nooptagger.NewComponent()
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
+	release := collectoraggregator.ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, taggerComp, filterStore)
+	defer release()
+
+	SendLog(C.CString(`{"message":"test"}`), C.CString("test:check:123"))
+
+	after := tlmDroppedLogsDisabled.WithValues().Get()
+	assert.Equal(t, before+1, after)
 }
