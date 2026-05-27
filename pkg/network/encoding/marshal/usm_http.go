@@ -24,6 +24,11 @@ import (
 
 const discoveryLatencyThresholdNs = float64(30 * time.Minute)
 
+// discoveryDiagnosticLogLimit rate-limits the encoder-side discovery
+// diagnostic so a single host with one persistently-bad bucket cannot flood
+// agent logs every flush. Matches the StatKeeper's oversizedLogLimit budget.
+var discoveryDiagnosticLogLimit = log.NewLogLimit(10, 10*time.Minute)
+
 type httpEncoder struct {
 	httpAggregationsBuilder *model.HTTPAggregationsBuilder
 	byConnection            *USMConnectionIndex[http.Key, *http.RequestStats]
@@ -85,7 +90,7 @@ func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64
 						w.SetCount(uint32(stats.Count))
 						if e.discoveryMode {
 							if stats.Count > 0 {
-								if avg := stats.LatencySum / float64(stats.Count); avg > discoveryLatencyThresholdNs {
+								if avg := stats.LatencySum / float64(stats.Count); avg > discoveryLatencyThresholdNs && discoveryDiagnosticLogLimit.ShouldLog() {
 									path := key.Path.Content.Get()
 									log.Warnf("discovery service map: average latency %s exceeds 30 minutes (sum=%s, count=%d, status=%d) for %s",
 										time.Duration(avg), time.Duration(stats.LatencySum), stats.Count, code, key.String())

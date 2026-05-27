@@ -328,12 +328,6 @@ func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) ([]byte, bool)
 	if !match && PathIsMalformed(path) {
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Debugf("http path malformed: %+v %s", tx.ConnTuple(), tx.String())
-			// TEMPORARY DIAGNOSTIC: parallel Warn line with raw latency so
-			// the same rejected transaction can be compared side-by-side
-			// with the discovery diagnostic in addDiscovery (see above).
-			// Remove together when the investigation is done.
-			log.Warnf("usm diagnostic: malformed path rejected latency=%s tx=%s",
-				time.Duration(tx.RequestLatency()), tx.String())
 		}
 		h.telemetry.nonPrintableCharacters.Add(1)
 		return nil, true
