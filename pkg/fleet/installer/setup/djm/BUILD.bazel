@@ -10,11 +10,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/djm",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/cloud.google.com/go/compute/metadata",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//pkg/fleet/installer/setup/common",
+        "//pkg/fleet/installer/setup/config",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/util/log",
+        "@com_google_cloud_go_compute_metadata//:metadata",
     ],
 )
 
@@ -34,11 +34,11 @@ go_test(
     ],
     gotags = ["test"],
     deps = [
-        "//vendor/cloud.google.com/go/compute/metadata",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/fleet/installer/setup/common",
+        "//pkg/fleet/installer/setup/config",
+        "//pkg/fleet/installer/telemetry",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_google_cloud_go_compute_metadata//:metadata",
     ],
 )

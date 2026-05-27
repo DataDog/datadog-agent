@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/tagger/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
-        "//vendor/go.uber.org/fx",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/impl-remote",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
     ],
 )

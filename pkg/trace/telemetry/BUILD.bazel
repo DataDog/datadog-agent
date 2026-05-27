@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/telemetry",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/config",
-        "//vendor/go.uber.org/atomic",
+        "//pkg/trace/config",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -17,8 +17,8 @@ go_test(
     embed = [":telemetry"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/config",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/trace/config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

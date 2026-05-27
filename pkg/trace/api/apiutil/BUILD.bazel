@@ -9,7 +9,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/api/apiutil",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/api/coverage"],
+    deps = ["//pkg/api/coverage"],
 )
 
 go_test(
@@ -17,5 +17,5 @@ go_test(
     srcs = ["limited_reader_test.go"],
     embed = [":apiutil"],
     gotags = ["test"],
-    deps = ["//vendor/github.com/stretchr/testify/assert"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

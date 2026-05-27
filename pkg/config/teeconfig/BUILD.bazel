@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/config/teeconfig",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//pkg/config/model",
+        "//pkg/util/log",
     ],
 )
 
@@ -16,5 +16,5 @@ go_test(
     srcs = ["teeconfig_test.go"],
     embed = [":teeconfig"],
     gotags = ["test"],
-    deps = ["//vendor/github.com/stretchr/testify/assert"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

@@ -11,14 +11,14 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/secret-generic-connector/secret",
-        "//vendor/github.com/aws/aws-sdk-go-v2/aws",
-        "//vendor/github.com/aws/aws-sdk-go-v2/config",
-        "//vendor/github.com/aws/aws-sdk-go-v2/credentials",
-        "//vendor/github.com/aws/aws-sdk-go-v2/credentials/stscreds",
-        "//vendor/github.com/aws/aws-sdk-go-v2/service/secretsmanager",
-        "//vendor/github.com/aws/aws-sdk-go-v2/service/ssm",
-        "//vendor/github.com/aws/aws-sdk-go-v2/service/sts",
-        "//vendor/github.com/mitchellh/mapstructure",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_credentials//:credentials",
+        "@com_github_aws_aws_sdk_go_v2_credentials//stscreds",
+        "@com_github_aws_aws_sdk_go_v2_service_secretsmanager//:secretsmanager",
+        "@com_github_aws_aws_sdk_go_v2_service_ssm//:ssm",
+        "@com_github_aws_aws_sdk_go_v2_service_sts//:sts",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
     ],
 )
 
@@ -32,10 +32,10 @@ go_test(
     gotags = ["test"],
     deps = [
         "//cmd/secret-generic-connector/secret",
-        "//vendor/github.com/aws/aws-sdk-go-v2/aws",
-        "//vendor/github.com/aws/aws-sdk-go-v2/service/secretsmanager",
-        "//vendor/github.com/aws/aws-sdk-go-v2/service/ssm",
-        "//vendor/github.com/aws/aws-sdk-go-v2/service/ssm/types",
-        "//vendor/github.com/stretchr/testify/assert",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_service_secretsmanager//:secretsmanager",
+        "@com_github_aws_aws_sdk_go_v2_service_ssm//:ssm",
+        "@com_github_aws_aws_sdk_go_v2_service_ssm//types",
+        "@com_github_stretchr_testify//assert",
     ],
 )

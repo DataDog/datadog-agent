@@ -10,7 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
-        "//vendor/google.golang.org/protobuf/proto",
+        "//pkg/proto/pbgo/core",
+        "@org_golang_google_protobuf//proto",
     ],
 )

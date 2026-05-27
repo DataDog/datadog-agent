@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//comp/rdnsquerier/def",
         "//comp/rdnsquerier/impl",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//pkg/util/fxutil",
     ],
 )

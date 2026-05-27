@@ -7,6 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/healthplatform/issues",
-        "//vendor/github.com/DataDog/agent-payload/v5/healthplatform",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
     ],
 )

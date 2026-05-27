@@ -23,52 +23,52 @@ go_library(
     ],
     deps = select({
         "@rules_go//go/platform:aix": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
+            "//pkg/util/filesystem",
         ],
         "@rules_go//go/platform:android": [
             "//pkg/privileged-logs/client",
         ],
         "@rules_go//go/platform:darwin": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
+            "//pkg/util/filesystem",
         ],
         "@rules_go//go/platform:dragonfly": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
+            "//pkg/util/filesystem",
         ],
         "@rules_go//go/platform:freebsd": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
+            "//pkg/util/filesystem",
         ],
         "@rules_go//go/platform:illumos": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
+            "//pkg/util/filesystem",
         ],
         "@rules_go//go/platform:ios": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
+            "//pkg/util/filesystem",
         ],
         "@rules_go//go/platform:js": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
+            "//pkg/util/filesystem",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/privileged-logs/client",
         ],
         "@rules_go//go/platform:netbsd": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
+            "//pkg/util/filesystem",
         ],
         "@rules_go//go/platform:openbsd": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
+            "//pkg/util/filesystem",
         ],
         "@rules_go//go/platform:osx": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
+            "//pkg/util/filesystem",
         ],
         "@rules_go//go/platform:plan9": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
+            "//pkg/util/filesystem",
         ],
         "@rules_go//go/platform:qnx": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
+            "//pkg/util/filesystem",
         ],
         "@rules_go//go/platform:solaris": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
+            "//pkg/util/filesystem",
         ],
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
+            "//pkg/util/filesystem",
         ],
         "//conditions:default": [],
     }),

@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//comp/updater/daemonchecker/def",
         "//comp/updater/daemonchecker/impl",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//pkg/util/fxutil",
     ],
 )

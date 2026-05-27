@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/miekg/dns",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_miekg_dns//:dns",
+        "@com_github_stretchr_testify//require",
     ],
 )

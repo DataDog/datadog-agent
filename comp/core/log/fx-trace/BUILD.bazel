@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/log/fx-trace",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/impl-trace",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//comp/core/log/impl-trace",
+        "//pkg/util/fxutil",
     ],
 )

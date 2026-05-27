@@ -13,8 +13,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/collector/corechecks/network-devices/cisco-sdwan/client/fixtures",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/go.uber.org/atomic",
+        "//pkg/util/log",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -29,6 +29,6 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/collector/corechecks/network-devices/cisco-sdwan/client/fixtures",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_stretchr_testify//require",
     ],
 )

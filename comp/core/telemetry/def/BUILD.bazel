@@ -24,9 +24,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/telemetry/def",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/prometheus/client_golang/prometheus",
-        "//vendor/github.com/prometheus/client_model/go",
-        "//vendor/go.uber.org/atomic",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_prometheus_client_model//go",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -35,5 +35,5 @@ go_test(
     srcs = ["gather_filters_test.go"],
     embed = [":def"],
     gotags = ["test"],
-    deps = ["//vendor/github.com/stretchr/testify/assert"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

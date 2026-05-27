@@ -179,9 +179,9 @@ go_library(
         "@com_github_datadog_datadog_agent_test_fakeintake//:__subpackages__",
     ],
     deps = [
-        "//vendor/k8s.io/api/core/v1:core",
-        "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:meta",
-        "//vendor/k8s.io/client-go/kubernetes/typed/core/v1:core",
-        "//vendor/k8s.io/client-go/tools/leaderelection/resourcelock",
+        "//vendor.x/k8s.io/api/core/v1:v1_go_proto",
+        "//vendor.x/k8s.io/apimachinery/pkg/apis/meta/v1:v1_go_proto",
+        "@io_k8s_client_go//kubernetes/typed/core/v1:core",
+        "@io_k8s_client_go//tools/leaderelection/resourcelock",
     ],
 )

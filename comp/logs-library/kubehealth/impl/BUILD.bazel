@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/status/health",
+        "//comp/logs-library/kubehealth/def",
+        "//pkg/status/health",
     ],
 )

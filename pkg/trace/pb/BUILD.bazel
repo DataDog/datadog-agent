@@ -5,5 +5,5 @@ go_library(
     srcs = ["util.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/pb",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/google.golang.org/protobuf/runtime/protoiface"],
+    deps = ["@org_golang_google_protobuf//runtime/protoiface"],
 )

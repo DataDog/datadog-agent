@@ -6,10 +6,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/log/def",
         "//comp/networkpath/npcollector/impl/common",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/def",
-        "//vendor/github.com/DataDog/datadog-go/v5/statsd",
-        "//vendor/golang.org/x/time/rate",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_golang_x_time//rate",
     ],
 )
 
@@ -19,10 +19,10 @@ go_test(
     embed = [":pathteststore"],
     gotags = ["test"],
     deps = [
+        "//comp/core/log/mock",
         "//comp/networkpath/npcollector/impl/common",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/mock",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/DataDog/datadog-go/v5/statsd",
-        "//vendor/github.com/stretchr/testify/assert",
+        "//pkg/util/log",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
     ],
 )

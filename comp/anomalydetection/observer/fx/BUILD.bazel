@@ -11,7 +11,7 @@ go_library(
     deps = [
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/observer/impl",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
-        "//vendor/go.uber.org/fx",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
     ],
 )

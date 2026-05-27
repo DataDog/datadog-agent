@@ -14,13 +14,13 @@ go_library(
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
+        "//pkg/config/setup",
         "//pkg/system-probe/config/types",
         "//pkg/util/funcs",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//pkg/util/log",
     ] + select({
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/Microsoft/go-winio",
+            "@com_github_microsoft_go_winio//:go-winio",
         ],
         "//conditions:default": [],
     }),

@@ -5,7 +5,7 @@ go_library(
     srcs = ["parse.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/testcommon/check",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/stretchr/testify/require"],
+    deps = ["@com_github_stretchr_testify//require"],
 )
 
 go_test(
@@ -14,7 +14,7 @@ go_test(
     embed = [":check"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

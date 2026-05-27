@@ -6,11 +6,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/utils/grpc",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/config/setup",
         "//pkg/security/seclog",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/grpc",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/system/socket",
-        "//vendor/github.com/mdlayher/vsock",
-        "//vendor/google.golang.org/grpc",
+        "//pkg/util/grpc",
+        "//pkg/util/system/socket",
+        "@com_github_mdlayher_vsock//:vsock",
+        "@org_golang_google_grpc//:grpc",
     ],
 )

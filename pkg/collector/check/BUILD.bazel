@@ -20,10 +20,10 @@ go_library(
         "//pkg/aggregator/sender",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/scrubber",
-        "//vendor/go.yaml.in/yaml/v2:yaml",
+        "//pkg/config/setup",
+        "//pkg/util/log",
+        "//pkg/util/scrubber",
+        "@in_yaml_go_yaml_v2//:yaml",
     ],
 )
 
@@ -42,7 +42,7 @@ go_test(
         "//comp/core/autodiscovery/integration",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stub",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/go.yaml.in/yaml/v2:yaml",
+        "@com_github_stretchr_testify//assert",
+        "@in_yaml_go_yaml_v2//:yaml",
     ],
 )

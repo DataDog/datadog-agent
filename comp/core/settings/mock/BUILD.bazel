@@ -8,8 +8,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/settings/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//comp/def",
+        "//pkg/config/model",
+        "//pkg/util/fxutil",
     ],
 )

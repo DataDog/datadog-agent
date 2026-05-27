@@ -13,7 +13,7 @@ go_library(
     deps = [
         "//pkg/collector/corechecks/network-devices/cisco-sdwan/client",
         "//pkg/networkdevice/metadata",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//pkg/util/log",
     ],
 )
 
@@ -30,6 +30,6 @@ go_test(
     deps = [
         "//pkg/collector/corechecks/network-devices/cisco-sdwan/client",
         "//pkg/networkdevice/metadata",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_stretchr_testify//require",
     ],
 )

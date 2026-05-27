@@ -11,7 +11,7 @@ go_library(
     deps = [
         "//comp/snmptraps/oidresolver/def",
         "//comp/snmptraps/oidresolver/impl",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
-        "//vendor/go.uber.org/fx",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
     ],
 )

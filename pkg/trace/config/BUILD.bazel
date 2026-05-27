@@ -10,13 +10,13 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/config",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/tagger/origindetection",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/obfuscate",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/remoteconfig/state",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/log",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/semantics",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/traceutil",
+        "//comp/core/tagger/origindetection",
+        "//pkg/obfuscate",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/remoteconfig/state",
+        "//pkg/trace/log",
+        "//pkg/trace/semantics",
+        "//pkg/trace/traceutil",
     ],
 )
 
@@ -30,9 +30,9 @@ go_test(
     embed = [":config"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/obfuscate",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/semantics",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/obfuscate",
+        "//pkg/trace/semantics",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

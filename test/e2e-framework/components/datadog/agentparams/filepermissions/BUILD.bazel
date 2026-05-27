@@ -10,7 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/util/option",
         "//test/e2e-framework/common",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/option",
     ],
 )

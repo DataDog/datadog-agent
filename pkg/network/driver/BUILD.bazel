@@ -36,10 +36,10 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//comp/core/telemetry/def",
             "//comp/core/telemetry/impl",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil",
-            "//vendor/go.uber.org/atomic",
-            "//vendor/golang.org/x/sys/windows",
+            "//pkg/util/log",
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
+            "@org_uber_go_atomic//:atomic",
         ],
         "//conditions:default": [],
     }),
@@ -52,8 +52,8 @@ go_test(
     gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/golang.org/x/sys/windows",
+            "@com_github_stretchr_testify//assert",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),

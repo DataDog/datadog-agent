@@ -7,11 +7,11 @@ go_library(
     visibility = ["//comp/api/api/apiimpl:__subpackages__"],
     deps = [
         "//comp/api/api/apiimpl/observability",
-        "//vendor/github.com/DataDog/datadog-agent/comp/api/api/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/common",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/json-iterator/go",
+        "//comp/api/api/def",
+        "//pkg/config/model",
+        "//pkg/util/common",
+        "//pkg/util/log",
+        "@com_github_json_iterator_go//:go",
     ],
 )
 
@@ -21,10 +21,10 @@ go_test(
     embed = [":config"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/api/api/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//comp/api/api/def",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -6,12 +6,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/healthprobe/impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/flare/types",
         "//comp/core/healthprobe/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/flare/types",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/status/health",
-        "//vendor/go.yaml.in/yaml/v2:yaml",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//pkg/status/health",
+        "@in_yaml_go_yaml_v2//:yaml",
     ],
 )
 
@@ -22,9 +22,9 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/healthprobe/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/mock",
-        "//vendor/github.com/DataDog/datadog-agent/comp/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/status/health",
-        "//vendor/github.com/stretchr/testify/assert",
+        "//comp/core/log/mock",
+        "//comp/def",
+        "//pkg/status/health",
+        "@com_github_stretchr_testify//assert",
     ],
 )

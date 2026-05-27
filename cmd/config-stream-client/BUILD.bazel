@@ -6,12 +6,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/cmd/config-stream-client",
     visibility = ["//visibility:private"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/grpc",
-        "//vendor/google.golang.org/grpc",
-        "//vendor/google.golang.org/grpc/credentials",
-        "//vendor/google.golang.org/grpc/metadata",
-        "//vendor/google.golang.org/protobuf/types/known/structpb",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/grpc",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//metadata",
+        "@org_golang_google_protobuf//types/known/structpb",
     ],
 )
 

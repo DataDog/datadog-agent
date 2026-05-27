@@ -15,10 +15,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/remoteconfig/state",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/go-tuf/client",
-        "//vendor/github.com/DataDog/go-tuf/data",
-        "//vendor/github.com/DataDog/go-tuf/util",
-        "//vendor/github.com/DataDog/go-tuf/verify",
+        "@com_github_datadog_go_tuf//client",
+        "@com_github_datadog_go_tuf//data",
+        "@com_github_datadog_go_tuf//util",
+        "@com_github_datadog_go_tuf//verify",
     ],
 )
 
@@ -34,13 +34,13 @@ go_test(
     embed = [":state"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling",
-        "//vendor/github.com/DataDog/go-tuf/data",
-        "//vendor/github.com/DataDog/go-tuf/pkg/keys",
-        "//vendor/github.com/DataDog/go-tuf/util",
-        "//vendor/github.com/secure-systems-lab/go-securesystemslib/cjson",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/remoteconfig/state/products/apmsampling",
+        "@com_github_datadog_go_tuf//data",
+        "@com_github_datadog_go_tuf//pkg/keys",
         "@com_github_datadog_go_tuf//sign",
+        "@com_github_datadog_go_tuf//util",
+        "@com_github_secure_systems_lab_go_securesystemslib//cjson",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

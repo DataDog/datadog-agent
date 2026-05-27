@@ -9,8 +9,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/flavor",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
+        "//pkg/config/model",
+        "//pkg/config/setup",
     ],
 )
 
@@ -26,7 +26,7 @@ go_test(
         "//conditions:default": [],
     }),
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
-        "//vendor/github.com/stretchr/testify/assert",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
     ],
 )

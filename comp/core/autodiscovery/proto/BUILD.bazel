@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
+        "//pkg/proto/pbgo/core",
     ],
 )
 
@@ -18,7 +18,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/autodiscovery/integration",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
-        "//vendor/github.com/stretchr/testify/assert",
+        "//pkg/proto/pbgo/core",
+        "@com_github_stretchr_testify//assert",
     ],
 )

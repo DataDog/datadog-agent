@@ -7,6 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/adapters/logging",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/version",
+        "//pkg/version",
     ],
 )

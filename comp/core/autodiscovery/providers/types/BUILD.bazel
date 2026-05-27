@@ -8,10 +8,10 @@ go_library(
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/telemetry",
+        "//comp/core/tagger/def",
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
         "//comp/healthplatform/store/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/tagger/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
+        "//pkg/config/setup",
     ],
 )

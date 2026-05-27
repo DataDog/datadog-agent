@@ -9,7 +9,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/testutil/flake",
     tags = ["test"],
     visibility = ["//visibility:public"],
-    deps = ["//vendor/go.yaml.in/yaml/v3:yaml"],
+    deps = ["@in_yaml_go_yaml_v3//:yaml"],
 )
 
 go_test(
@@ -21,7 +21,7 @@ go_test(
     embed = [":flake"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/diagnose/def",
-        "//vendor/github.com/fatih/color",
+        "@com_github_fatih_color//:color",
     ],
 )
 
@@ -18,6 +18,6 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/diagnose/def",
-        "//vendor/github.com/stretchr/testify/assert",
+        "@com_github_stretchr_testify//assert",
     ],
 )

@@ -6,11 +6,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/updater/localapi/impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/def",
         "//comp/updater/localapi/def",
         "//comp/updater/updater/def",
         "//pkg/fleet/daemon",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/def",
     ],
 )

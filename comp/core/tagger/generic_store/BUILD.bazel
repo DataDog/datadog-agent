@@ -8,7 +8,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/generic_store",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/DataDog/datadog-agent/comp/core/tagger/types"],
+    deps = ["//comp/core/tagger/types"],
 )
 
 go_test(
@@ -17,7 +17,7 @@ go_test(
     embed = [":generic_store"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/tagger/types",
-        "//vendor/github.com/stretchr/testify/assert",
+        "//comp/core/tagger/types",
+        "@com_github_stretchr_testify//assert",
     ],
 )

@@ -10,13 +10,13 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/status",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/template/html",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/template/text",
-        "//vendor/github.com/dustin/go-humanize",
-        "//vendor/github.com/fatih/color",
-        "//vendor/github.com/spf13/cast",
-        "//vendor/go.uber.org/fx",
-        "//vendor/golang.org/x/text/unicode/norm",
+        "//pkg/template/html",
+        "//pkg/template/text",
+        "@com_github_dustin_go_humanize//:go-humanize",
+        "@com_github_fatih_color//:color",
+        "@com_github_spf13_cast//:cast",
+        "@org_golang_x_text//unicode/norm",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -26,7 +26,7 @@ go_test(
     embed = [":status"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/compliance/types",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//pkg/util/log",
     ],
 )
 
@@ -17,5 +17,5 @@ go_test(
     data = glob(["testdata/**"]),
     embed = [":aptconfig"],
     gotags = ["test"],
-    deps = ["//vendor/github.com/stretchr/testify/assert"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

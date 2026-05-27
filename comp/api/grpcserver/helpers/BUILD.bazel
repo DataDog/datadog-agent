@@ -6,6 +6,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/grpc/context",
+        "//pkg/util/grpc/context",
     ],
 )

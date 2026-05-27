@@ -9,9 +9,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/clients",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/aws/aws-sdk-go-v2/aws",
-        "//vendor/github.com/aws/aws-sdk-go-v2/aws/retry",
-        "//vendor/github.com/aws/aws-sdk-go-v2/config",
-        "//vendor/github.com/aws/aws-sdk-go-v2/service/ssm",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2//aws/retry",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_service_ssm//:ssm",
     ],
 )

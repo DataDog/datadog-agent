@@ -19,11 +19,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/obfuscate",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-go/v5/statsd",
-        "//vendor/github.com/DataDog/go-sqllexer",
-        "//vendor/github.com/outcaste-io/ristretto",
-        "//vendor/github.com/outcaste-io/ristretto/z",
-        "//vendor/go.uber.org/atomic",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_datadog_go_sqllexer//:go-sqllexer",
+        "@com_github_outcaste_io_ristretto//:ristretto",
+        "@com_github_outcaste_io_ristretto//z",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -47,8 +47,8 @@ go_test(
     embed = [":obfuscate"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
-        "//vendor/go.uber.org/atomic",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
     ],
 )

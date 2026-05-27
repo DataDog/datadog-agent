@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/agent-payload/v5/process",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//process",
     ],
 )
 
@@ -18,7 +18,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/process/util",
-        "//vendor/github.com/DataDog/agent-payload/v5/process",
-        "//vendor/github.com/stretchr/testify/assert",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//assert",
     ],
 )

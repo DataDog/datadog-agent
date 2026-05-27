@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/prometheus",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/prometheus/common/model",
-        "//vendor/github.com/prometheus/prometheus/model/labels",
-        "//vendor/github.com/prometheus/prometheus/model/textparse",
+        "@com_github_prometheus_common//model",
+        "@com_github_prometheus_prometheus//model/labels",
+        "@com_github_prometheus_prometheus//model/textparse",
     ],
 )
 
@@ -18,7 +18,7 @@ go_test(
     embed = [":prometheus"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

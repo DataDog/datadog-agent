@@ -10,10 +10,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore",
     visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
     deps = [
+        "//pkg/networkdevice/profile/profiledefinition",
         "//pkg/snmp/gosnmplib",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/gosnmp/gosnmp",
+        "//pkg/util/log",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
     ],
 )
 
@@ -27,8 +27,8 @@ go_test(
     embed = [":valuestore"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition",
-        "//vendor/github.com/gosnmp/gosnmp",
-        "//vendor/github.com/stretchr/testify/assert",
+        "//pkg/networkdevice/profile/profiledefinition",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
     ],
 )

@@ -10,10 +10,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),
@@ -26,10 +26,10 @@ go_test(
     gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

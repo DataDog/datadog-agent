@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zstd-nocgo",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/compression",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/klauspost/compress/zstd",
+        "//pkg/util/compression",
+        "//pkg/util/log",
+        "@com_github_klauspost_compress//zstd",
     ],
 )
 
@@ -17,5 +17,5 @@ go_test(
     srcs = ["zstd_nocgo_strategy_test.go"],
     embed = [":impl-zstd-nocgo"],
     gotags = ["test"],
-    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/util/compression"],
+    deps = ["//pkg/util/compression"],
 )

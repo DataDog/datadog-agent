@@ -16,15 +16,15 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/log/setup",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/config/model",
+        "//pkg/util/log",
         "//pkg/util/log/errortracking",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/slog",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/slog/filewriter",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/syslog",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/types",
+        "//pkg/util/log/slog",
+        "//pkg/util/log/slog/filewriter",
+        "//pkg/util/log/slog/formatters",
+        "//pkg/util/log/slog/handlers",
+        "//pkg/util/log/syslog",
+        "//pkg/util/log/types",
     ],
 )
 
@@ -38,39 +38,39 @@ go_test(
     embed = [":setup"],
     gotags = ["test"],
     deps = [
+        "//pkg/config/setup",
+        "//pkg/util/log",
         "//pkg/util/log/errortracking",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/slog",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/util/log/slog",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ] + select({
         "@rules_go//go/platform:android": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
+            "//pkg/config/mock",
         ],
         "@rules_go//go/platform:darwin": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
+            "//pkg/config/mock",
         ],
         "@rules_go//go/platform:dragonfly": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
+            "//pkg/config/mock",
         ],
         "@rules_go//go/platform:freebsd": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
+            "//pkg/config/mock",
         ],
         "@rules_go//go/platform:ios": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
+            "//pkg/config/mock",
         ],
         "@rules_go//go/platform:linux": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
+            "//pkg/config/mock",
         ],
         "@rules_go//go/platform:netbsd": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
+            "//pkg/config/mock",
         ],
         "@rules_go//go/platform:openbsd": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
+            "//pkg/config/mock",
         ],
         "@rules_go//go/platform:solaris": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
+            "//pkg/config/mock",
         ],
         "//conditions:default": [],
     }),

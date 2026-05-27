@@ -7,8 +7,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/remoteflags/def",
+        "//comp/def",
         "//pkg/remoteflags",
-        "//vendor/github.com/DataDog/datadog-agent/comp/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//pkg/util/log",
     ],
 )

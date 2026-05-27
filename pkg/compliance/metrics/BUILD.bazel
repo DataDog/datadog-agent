@@ -11,8 +11,8 @@ go_library(
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
-        "//vendor/github.com/open-policy-agent/opa/v1/metrics",
-        "//vendor/github.com/prometheus/client_golang/prometheus",
-        "//vendor/github.com/spf13/cast",
+        "@com_github_open_policy_agent_opa//v1/metrics",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_spf13_cast//:cast",
     ],
 )

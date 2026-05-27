@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/healthplatform/store/def",
-        "//vendor/github.com/DataDog/agent-payload/v5/healthplatform",
-        "//vendor/google.golang.org/protobuf/proto",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@org_golang_google_protobuf//proto",
     ],
 )

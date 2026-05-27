@@ -7,6 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/def",
-        "//vendor/github.com/prometheus/client_golang/prometheus",
+        "@com_github_prometheus_client_golang//prometheus",
     ],
 )

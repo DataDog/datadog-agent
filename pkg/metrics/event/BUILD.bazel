@@ -5,5 +5,5 @@ go_library(
     srcs = ["event.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/metrics/event",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/tagger/types"],
+    deps = ["//pkg/tagger/types"],
 )

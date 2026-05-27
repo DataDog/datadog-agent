@@ -35,12 +35,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/pointer",
+            "//pkg/util/log",
+            "//pkg/util/pointer",
         ],
         "@rules_go//go/platform:linux": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/pointer",
+            "//pkg/util/log",
+            "//pkg/util/pointer",
         ],
         "//conditions:default": [],
     }),
@@ -72,16 +72,16 @@ go_test(
     target_compatible_with = ["@platforms//os:linux"],  # keep
     deps = select({
         "@rules_go//go/platform:android": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/pointer",
-            "//vendor/github.com/google/go-cmp/cmp",
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "//pkg/util/pointer",
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/pointer",
-            "//vendor/github.com/google/go-cmp/cmp",
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "//pkg/util/pointer",
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

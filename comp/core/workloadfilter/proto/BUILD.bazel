@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/workloadfilter/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
+        "//pkg/proto/pbgo/core",
     ],
 )
 
@@ -19,8 +19,8 @@ go_test(
     deps = [
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadfilter/mock",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/proto/pbgo/core",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -20,9 +20,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/planetscale/vtprotobuf/protohelpers",
-        "//vendor/google.golang.org/protobuf/proto",
-        "//vendor/google.golang.org/protobuf/reflect/protoreflect",
-        "//vendor/google.golang.org/protobuf/runtime/protoimpl",
+        "@com_github_planetscale_vtprotobuf//protohelpers",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
     ],
 )

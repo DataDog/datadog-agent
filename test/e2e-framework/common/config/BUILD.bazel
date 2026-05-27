@@ -11,7 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/common/namer",
-        "//vendor/github.com/Masterminds/semver/v3:semver",
+        "@com_github_masterminds_semver_v3//:semver",
         "@com_github_pulumi_pulumi_awsx_sdk_v3//go/awsx",
         "@com_github_pulumi_pulumi_command_sdk//go/command",
         "@com_github_pulumi_pulumi_docker_sdk_v4//go/docker",
@@ -30,7 +30,7 @@ go_test(
     embed = [":config"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/stretchr/testify/assert",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//assert",
     ],
 )

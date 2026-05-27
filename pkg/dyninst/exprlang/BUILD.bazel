@@ -5,7 +5,7 @@ go_library(
     srcs = ["exprlang.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/exprlang",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/go-json-experiment/json/jsontext"],
+    deps = ["@com_github_go_json_experiment_json//jsontext"],
 )
 
 go_test(
@@ -113,8 +113,8 @@ go_test(
     ],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/go-json-experiment/json",
-        "//vendor/github.com/go-json-experiment/json/jsontext",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_go_json_experiment_json//:json",
+        "@com_github_go_json_experiment_json//jsontext",
+        "@com_github_stretchr_testify//require",
     ],
 )

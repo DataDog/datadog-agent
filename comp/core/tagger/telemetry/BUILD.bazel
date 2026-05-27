@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/tagger/types",
         "//comp/core/telemetry/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/tagger/types",
     ],
 )

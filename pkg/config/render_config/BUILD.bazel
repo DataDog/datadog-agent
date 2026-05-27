@@ -14,7 +14,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/config/render_config",
     visibility = ["//visibility:private"],
     deps = [
-        "//vendor/github.com/pmezard/go-difflib/difflib",
-        "//vendor/go.yaml.in/yaml/v3:yaml",
+        "@com_github_pmezard_go_difflib//difflib",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

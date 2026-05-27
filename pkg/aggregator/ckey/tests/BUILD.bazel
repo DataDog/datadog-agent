@@ -6,8 +6,8 @@ go_test(
     data = ["random_sorted_uniq_contexts.csv"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/aggregator/ckey",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/tagset",
-        "//vendor/github.com/stretchr/testify/assert",
+        "//pkg/aggregator/ckey",
+        "//pkg/tagset",
+        "@com_github_stretchr_testify//assert",
     ],
 )

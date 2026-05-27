@@ -10,10 +10,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/impl",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/orchestrator/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/patrickmn/go-cache",
-        "//vendor/k8s.io/apimachinery/pkg/types",
+        "//pkg/orchestrator/model",
+        "//pkg/util/log",
+        "@com_github_patrickmn_go_cache//:go-cache",
+        "@io_k8s_apimachinery//pkg/types",
     ],
 )
 
@@ -23,7 +23,7 @@ go_test(
     embed = [":orchestrator"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/k8s.io/apimachinery/pkg/types",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_apimachinery//pkg/types",
     ],
 )

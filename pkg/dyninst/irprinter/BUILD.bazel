@@ -11,9 +11,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/dyninst/ir",
-        "//vendor/github.com/go-json-experiment/json",
-        "//vendor/github.com/go-json-experiment/json/jsontext",
-        "//vendor/go.yaml.in/yaml/v3:yaml",
+        "@com_github_go_json_experiment_json//:json",
+        "@com_github_go_json_experiment_json//jsontext",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 

@@ -6,10 +6,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/utils",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/http",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/util/http",
+        "//pkg/util/log",
     ],
 )
 
@@ -19,7 +19,7 @@ go_test(
     embed = [":telemetry"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
-        "//vendor/github.com/stretchr/testify/assert",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
     ],
 )

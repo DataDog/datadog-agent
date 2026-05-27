@@ -21,6 +21,6 @@ go_library(
         "//pkg/privateactionrunner/bundle-support/gitlab",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
-        "//vendor/gitlab.com/gitlab-org/api/client-go",
+        "@com_gitlab_gitlab_org_api_client_go//:client-go",
     ],
 )

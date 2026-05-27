@@ -13,11 +13,11 @@ go_library(
     deps = [
         "//comp/core/autodiscovery/common/types",
         "//comp/core/autodiscovery/integration",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/status/health",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/mohae/deepcopy",
-        "//vendor/k8s.io/apimachinery/pkg/util/wait",
-        "//vendor/k8s.io/client-go/util/workqueue",
+        "//pkg/status/health",
+        "//pkg/util/log",
+        "@com_github_mohae_deepcopy//:deepcopy",
+        "@io_k8s_apimachinery//pkg/util/wait",
+        "@io_k8s_client_go//util/workqueue",
     ],
 )
 
@@ -28,6 +28,6 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/autodiscovery/integration",
-        "//vendor/github.com/stretchr/testify/assert",
+        "@com_github_stretchr_testify//assert",
     ],
 )

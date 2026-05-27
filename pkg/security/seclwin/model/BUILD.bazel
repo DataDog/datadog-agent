@@ -55,10 +55,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/discovery/tracermetadata/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/security/secl/containerutils",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/security/secl/model/utils",
+        "//pkg/security/secl/compiler/eval",
+        "//pkg/security/secl/containerutils",
+        "//pkg/security/secl/model/sharedconsts",
+        "//pkg/security/secl/model/usersession",
+        "//pkg/security/secl/model/utils",
     ],
 )

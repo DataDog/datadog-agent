@@ -6,10 +6,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/process/forwarders/mock",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/secrets/def",
+        "//comp/core/secrets/mock",
         "//comp/process/forwarders/impl",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/secrets/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/secrets/mock",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
-        "//vendor/go.uber.org/fx",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
     ],
 )

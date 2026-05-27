@@ -7,6 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/updater/localapi/impl",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//pkg/util/fxutil",
     ],
 )

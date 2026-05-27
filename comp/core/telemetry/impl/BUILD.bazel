@@ -16,15 +16,15 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/telemetry/impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/flare/types",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl/noops",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/flare/types",
-        "//vendor/github.com/DataDog/datadog-agent/comp/def",
-        "//vendor/github.com/prometheus/client_golang/prometheus",
-        "//vendor/github.com/prometheus/client_golang/prometheus/collectors",
-        "//vendor/github.com/prometheus/client_golang/prometheus/promhttp",
-        "//vendor/github.com/prometheus/client_model/go",
-        "//vendor/github.com/prometheus/common/expfmt",
+        "//comp/def",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_prometheus_client_golang//prometheus/collectors",
+        "@com_github_prometheus_client_golang//prometheus/promhttp",
+        "@com_github_prometheus_client_model//go",
+        "@com_github_prometheus_common//expfmt",
     ],
 )
 
@@ -39,10 +39,10 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/telemetry/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
-        "//vendor/github.com/prometheus/client_golang/prometheus",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
-        "//vendor/go.uber.org/fx",
+        "//pkg/util/fxutil",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
     ],
 )

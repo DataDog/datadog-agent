@@ -14,10 +14,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/errors",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil",
-            "//vendor/golang.org/x/sys/windows",
-            "//vendor/golang.org/x/sys/windows/registry",
+            "//pkg/fleet/installer/errors",
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],
     }),
@@ -34,8 +34,8 @@ go_test(
     target_compatible_with = ["@platforms//os:windows"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

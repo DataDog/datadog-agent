@@ -5,7 +5,7 @@ go_library(
     srcs = ["gatewayusage.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/otel",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"],
+    deps = ["//pkg/opentelemetry-mapping-go/otlp/attributes"],
 )
 
 go_test(
@@ -13,5 +13,5 @@ go_test(
     srcs = ["gatewayusage_test.go"],
     embed = [":otel"],
     gotags = ["test"],
-    deps = ["//vendor/github.com/stretchr/testify/require"],
+    deps = ["@com_github_stretchr_testify//require"],
 )

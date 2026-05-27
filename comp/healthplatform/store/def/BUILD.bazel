@@ -8,5 +8,5 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/store/def",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/DataDog/agent-payload/v5/healthplatform"],
+    deps = ["@com_github_datadog_agent_payload_v5//healthplatform"],
 )

@@ -12,9 +12,9 @@ go_library(
     deps = [
         "//pkg/process/procutil",
         "//pkg/util/sync",
-        "//vendor/github.com/DataDog/agent-payload/v5/process",
-        "//vendor/github.com/gogo/protobuf/jsonpb",
-        "//vendor/github.com/gogo/protobuf/proto",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_gogo_protobuf//jsonpb",
+        "@com_github_gogo_protobuf//proto",
     ],
 )
 
@@ -25,8 +25,8 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/process/procutil",
-        "//vendor/github.com/DataDog/agent-payload/v5/process",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

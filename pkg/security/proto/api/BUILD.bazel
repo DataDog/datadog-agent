@@ -34,9 +34,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/proto/api",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/google.golang.org/grpc/encoding",
-        "//vendor/google.golang.org/grpc/encoding/proto",
-        "//vendor/google.golang.org/protobuf/proto",
+        "@org_golang_google_grpc//encoding",
+        "@org_golang_google_grpc//encoding/proto",
+        "@org_golang_google_protobuf//proto",
     ],
 )
 

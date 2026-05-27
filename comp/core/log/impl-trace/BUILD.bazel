@@ -6,12 +6,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/log/impl-trace",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/log",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/setup",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//pkg/trace/log",
+        "//pkg/util/log",
+        "//pkg/util/log/setup",
     ],
 )
 
@@ -21,11 +21,11 @@ go_test(
     embed = [":impl-trace"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/log",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//pkg/config/mock",
+        "//pkg/trace/log",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

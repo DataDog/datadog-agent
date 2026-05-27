@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/trace/compression/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//comp/trace/compression/def",
+        "//comp/trace/compression/impl-gzip",
+        "//pkg/util/fxutil",
     ],
 )

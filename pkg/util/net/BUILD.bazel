@@ -13,49 +13,49 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:aix": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:android": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:darwin": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:dragonfly": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:freebsd": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:illumos": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:ios": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:js": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:netbsd": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:openbsd": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:osx": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:plan9": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:qnx": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:solaris": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),
@@ -68,64 +68,64 @@ go_test(
     gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:aix": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:android": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:darwin": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:dragonfly": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:freebsd": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:illumos": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:ios": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:js": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:netbsd": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:openbsd": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:osx": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:plan9": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:qnx": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:solaris": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

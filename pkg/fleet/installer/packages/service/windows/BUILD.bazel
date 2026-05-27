@@ -12,12 +12,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil",
-            "//vendor/golang.org/x/sys/windows",
-            "//vendor/golang.org/x/sys/windows/registry",
-            "//vendor/golang.org/x/sys/windows/svc",
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
+            "@org_golang_x_sys//windows/svc",
         ],
         "//conditions:default": [],
     }),
@@ -34,10 +34,10 @@ go_test(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/mock",
-            "//vendor/golang.org/x/sys/windows",
-            "//vendor/golang.org/x/sys/windows/svc",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//mock",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/svc",
         ],
         "//conditions:default": [],
     }),

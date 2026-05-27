@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/delegatedauth/impl",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//comp/core/delegatedauth/impl",
+        "//pkg/util/fxutil",
     ],
 )

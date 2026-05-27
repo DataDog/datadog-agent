@@ -9,7 +9,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/serializer/marshaler",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/json-iterator/go"],
+    deps = ["@com_github_json_iterator_go//:go"],
 )
 
 go_test(
@@ -18,7 +18,7 @@ go_test(
     embed = [":marshaler"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/json-iterator/go",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_json_iterator_go//:go",
+        "@com_github_stretchr_testify//require",
     ],
 )

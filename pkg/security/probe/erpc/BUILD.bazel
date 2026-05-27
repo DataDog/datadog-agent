@@ -7,10 +7,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),

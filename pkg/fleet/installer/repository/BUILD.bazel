@@ -9,10 +9,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/repository",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/paths",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/shirou/gopsutil/v4/disk",
+        "//pkg/fleet/installer/paths",
+        "//pkg/fleet/installer/symlink",
+        "//pkg/util/log",
+        "@com_github_shirou_gopsutil_v4//disk",
     ],
 )
 
@@ -25,7 +25,7 @@ go_test(
     embed = [":repository"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink",
-        "//vendor/github.com/stretchr/testify/assert",
+        "//pkg/fleet/installer/symlink",
+        "@com_github_stretchr_testify//assert",
     ],
 )

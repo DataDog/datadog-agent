@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/common/namer",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/samber/lo",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_samber_lo//:lo",
     ],
 )
 
@@ -17,8 +17,8 @@ go_test(
     embed = [":namer"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/google/gofuzz",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_google_gofuzz//:gofuzz",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

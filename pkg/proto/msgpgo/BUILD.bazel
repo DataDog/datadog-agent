@@ -8,7 +8,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/msgpgo",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/tinylib/msgp/msgp"],
+    deps = ["@com_github_tinylib_msgp//msgp"],
 )
 
 go_test(
@@ -16,5 +16,5 @@ go_test(
     srcs = ["key_gen_test.go"],
     embed = [":msgpgo"],
     gotags = ["test"],
-    deps = ["//vendor/github.com/tinylib/msgp/msgp"],
+    deps = ["@com_github_tinylib_msgp//msgp"],
 )

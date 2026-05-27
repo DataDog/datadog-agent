@@ -10,6 +10,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/autoscaling/datadogclient/def",
-        "//vendor/gopkg.in/zorkian/go-datadog-api.v2:go-datadog-api_v2",
+        "@in_gopkg_zorkian_go_datadog_api_v2//:go-datadog-api_v2",
     ],
 )

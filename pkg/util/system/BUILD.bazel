@@ -29,61 +29,61 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/system",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/go.uber.org/atomic",
+        "//pkg/util/log",
+        "@org_uber_go_atomic//:atomic",
     ] + select({
         "@rules_go//go/platform:aix": [
-            "//vendor/github.com/shirou/gopsutil/v4/cpu",
+            "@com_github_shirou_gopsutil_v4//cpu",
         ],
         "@rules_go//go/platform:android": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/pointer",
-            "//vendor/github.com/shirou/gopsutil/v4/cpu",
+            "//pkg/util/filesystem",
+            "//pkg/util/pointer",
+            "@com_github_shirou_gopsutil_v4//cpu",
         ],
         "@rules_go//go/platform:darwin": [
-            "//vendor/github.com/shirou/gopsutil/v4/cpu",
+            "@com_github_shirou_gopsutil_v4//cpu",
         ],
         "@rules_go//go/platform:dragonfly": [
-            "//vendor/github.com/shirou/gopsutil/v4/cpu",
+            "@com_github_shirou_gopsutil_v4//cpu",
         ],
         "@rules_go//go/platform:freebsd": [
-            "//vendor/github.com/shirou/gopsutil/v4/cpu",
+            "@com_github_shirou_gopsutil_v4//cpu",
         ],
         "@rules_go//go/platform:illumos": [
-            "//vendor/github.com/shirou/gopsutil/v4/cpu",
+            "@com_github_shirou_gopsutil_v4//cpu",
         ],
         "@rules_go//go/platform:ios": [
-            "//vendor/github.com/shirou/gopsutil/v4/cpu",
+            "@com_github_shirou_gopsutil_v4//cpu",
         ],
         "@rules_go//go/platform:js": [
-            "//vendor/github.com/shirou/gopsutil/v4/cpu",
+            "@com_github_shirou_gopsutil_v4//cpu",
         ],
         "@rules_go//go/platform:linux": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/pointer",
-            "//vendor/github.com/shirou/gopsutil/v4/cpu",
+            "//pkg/util/filesystem",
+            "//pkg/util/pointer",
+            "@com_github_shirou_gopsutil_v4//cpu",
         ],
         "@rules_go//go/platform:netbsd": [
-            "//vendor/github.com/shirou/gopsutil/v4/cpu",
+            "@com_github_shirou_gopsutil_v4//cpu",
         ],
         "@rules_go//go/platform:openbsd": [
-            "//vendor/github.com/shirou/gopsutil/v4/cpu",
+            "@com_github_shirou_gopsutil_v4//cpu",
         ],
         "@rules_go//go/platform:osx": [
-            "//vendor/github.com/shirou/gopsutil/v4/cpu",
+            "@com_github_shirou_gopsutil_v4//cpu",
         ],
         "@rules_go//go/platform:plan9": [
-            "//vendor/github.com/shirou/gopsutil/v4/cpu",
+            "@com_github_shirou_gopsutil_v4//cpu",
         ],
         "@rules_go//go/platform:qnx": [
-            "//vendor/github.com/shirou/gopsutil/v4/cpu",
+            "@com_github_shirou_gopsutil_v4//cpu",
         ],
         "@rules_go//go/platform:solaris": [
-            "//vendor/github.com/shirou/gopsutil/v4/cpu",
+            "@com_github_shirou_gopsutil_v4//cpu",
         ],
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil/iphelper",
-            "//vendor/golang.org/x/sys/windows",
+            "//pkg/util/winutil/iphelper",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),
@@ -107,15 +107,15 @@ go_test(
         "//conditions:default": [],
     }),
     deps = [
-        "//vendor/github.com/stretchr/testify/assert",
+        "@com_github_stretchr_testify//assert",
     ] + select({
         "@rules_go//go/platform:android": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/testutil",
-            "//vendor/github.com/stretchr/testify/require",
+            "//pkg/util/testutil",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/testutil",
-            "//vendor/github.com/stretchr/testify/require",
+            "//pkg/util/testutil",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

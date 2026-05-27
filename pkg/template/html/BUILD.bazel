@@ -25,5 +25,5 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/template/html",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/template/text"],
+    deps = ["//pkg/template/text"],
 )

@@ -9,12 +9,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/ipc/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/system",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/system/socket",
-        "//vendor/github.com/mdlayher/vsock",
+        "//comp/core/ipc/def",
+        "//pkg/config/model",
+        "//pkg/util/log",
+        "//pkg/util/system",
+        "//pkg/util/system/socket",
+        "@com_github_mdlayher_vsock//:vsock",
     ],
 )
 
@@ -24,11 +24,11 @@ go_test(
     embed = [":httphelpers"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/ipc/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/api/security/cert",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//pkg/api/security/cert",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -9,9 +9,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/config",
         "//comp/healthplatform/runner/def",
-        "//vendor/github.com/DataDog/agent-payload/v5/healthplatform",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
     ],
 )
 
@@ -22,8 +22,8 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/healthplatform/runner/def",
-        "//vendor/github.com/DataDog/agent-payload/v5/healthplatform",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

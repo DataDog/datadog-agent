@@ -10,8 +10,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/serializer/types",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/agent-payload/v5/process",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/process/util/api",
-        "//vendor/google.golang.org/protobuf/reflect/protoreflect",
+        "//pkg/process/util/api",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@org_golang_google_protobuf//reflect/protoreflect",
     ],
 )

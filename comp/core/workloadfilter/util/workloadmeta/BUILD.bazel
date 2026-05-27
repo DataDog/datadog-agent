@@ -8,8 +8,8 @@ go_library(
     deps = [
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
+        "//pkg/proto/pbgo/core",
         "//pkg/util/kubernetes",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
     ],
 )
 
@@ -20,7 +20,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/workloadmeta/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
-        "//vendor/github.com/stretchr/testify/assert",
+        "//pkg/proto/pbgo/core",
+        "@com_github_stretchr_testify//assert",
     ],
 )

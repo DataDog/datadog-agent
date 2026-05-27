@@ -19,6 +19,6 @@ go_test(
     deps = [
         "//comp/core/diagnose/def",
         "//pkg/networkdevice/metadata",
-        "//vendor/github.com/stretchr/testify/assert",
+        "@com_github_stretchr_testify//assert",
     ],
 )

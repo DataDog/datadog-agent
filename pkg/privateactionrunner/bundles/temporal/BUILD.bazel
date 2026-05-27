@@ -15,8 +15,8 @@ go_library(
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
-        "//vendor/go.temporal.io/api/workflow/v1:workflow",
-        "//vendor/go.temporal.io/api/workflowservice/v1:workflowservice",
-        "//vendor/go.temporal.io/sdk/client",
+        "@io_temporal_go_api//workflow/v1:workflow",
+        "@io_temporal_go_api//workflowservice/v1:workflowservice",
+        "@io_temporal_go_sdk//client",
     ],
 )

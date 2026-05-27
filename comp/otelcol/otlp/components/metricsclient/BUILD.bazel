@@ -10,9 +10,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-go/v5/statsd",
-        "//vendor/go.opentelemetry.io/otel/attribute",
-        "//vendor/go.opentelemetry.io/otel/metric",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel_metric//:metric",
     ],
 )
 
@@ -22,15 +22,15 @@ go_test(
     embed = [":metricsclient"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/timing",
-        "//vendor/github.com/DataDog/datadog-go/v5/statsd",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
-        "//vendor/go.opentelemetry.io/otel/attribute",
-        "//vendor/go.opentelemetry.io/otel/metric",
-        "//vendor/go.opentelemetry.io/otel/metric/embedded",
-        "//vendor/go.opentelemetry.io/otel/sdk/metric",
-        "//vendor/go.opentelemetry.io/otel/sdk/metric/metricdata",
+        "//pkg/trace/timing",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel_metric//:metric",
+        "@io_opentelemetry_go_otel_metric//embedded",
+        "@io_opentelemetry_go_otel_sdk_metric//:metric",
+        "@io_opentelemetry_go_otel_sdk_metric//metricdata",
         "@io_opentelemetry_go_otel_sdk_metric//metricdata/metricdatatest",
     ],
 )

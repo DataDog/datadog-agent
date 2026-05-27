@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/pid/impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/log/def",
         "//comp/core/pid/def",
+        "//comp/def",
         "//pkg/pidfile",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/def",
     ],
 )

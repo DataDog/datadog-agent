@@ -10,8 +10,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/compiler",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/config/setup",
         "//pkg/util/kernel",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//pkg/util/log",
     ],
 )

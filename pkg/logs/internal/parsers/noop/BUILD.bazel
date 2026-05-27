@@ -17,7 +17,7 @@ go_library(
     ],
     deps = [
         "//pkg/logs/internal/parsers",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/message",
+        "//pkg/logs/message",
     ],
 )
 
@@ -27,7 +27,7 @@ go_test(
     embed = [":noop"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/message",
-        "//vendor/github.com/stretchr/testify/assert",
+        "//pkg/logs/message",
+        "@com_github_stretchr_testify//assert",
     ],
 )

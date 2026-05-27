@@ -8,5 +8,5 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/api/api/def",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/go.uber.org/fx"],
+    deps = ["@org_uber_go_fx//:fx"],
 )

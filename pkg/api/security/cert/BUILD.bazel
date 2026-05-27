@@ -10,12 +10,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/api/security/cert",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/utils",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/flavor",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//pkg/config/model",
+        "//pkg/config/utils",
+        "//pkg/util/filesystem",
+        "//pkg/util/flavor",
+        "//pkg/util/kubernetes/apiserver/common/namespace",
+        "//pkg/util/log",
     ],
 )
 
@@ -28,10 +28,10 @@ go_test(
     embed = [":cert"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/flavor",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/util/flavor",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/remote/data",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/remoteconfig/state",
+        "//pkg/config/remote/data",
+        "//pkg/remoteconfig/state",
     ],
 )

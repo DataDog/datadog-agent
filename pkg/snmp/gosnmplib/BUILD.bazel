@@ -15,8 +15,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/gosnmp/gosnmp",
+        "//pkg/util/log",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
     ],
 )
 
@@ -33,9 +33,9 @@ go_test(
     embed = [":gosnmplib"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/gosnmp/gosnmp",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/util/log",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

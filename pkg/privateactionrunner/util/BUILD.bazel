@@ -17,9 +17,9 @@ go_library(
     deps = [
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
-        "//vendor/github.com/cenkalti/backoff/v5:backoff",
-        "//vendor/github.com/go-jose/go-jose/v4:go-jose",
-        "//vendor/github.com/golang-jwt/jwt/v5:jwt",
+        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_go_jose_go_jose_v4//:go-jose",
+        "@com_github_golang_jwt_jwt_v5//:jwt",
     ],
 )
 
@@ -32,7 +32,7 @@ go_test(
     embed = [":util"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

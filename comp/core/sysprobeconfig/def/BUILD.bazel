@@ -6,10 +6,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/config/model",
         "//pkg/system-probe/config/types",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/option",
-        "//vendor/go.uber.org/fx",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@org_uber_go_fx//:fx",
     ],
 )

@@ -5,7 +5,7 @@ go_library(
     srcs = ["types.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/k8s.io/apimachinery/pkg/util/sets"],
+    deps = ["@io_k8s_apimachinery//pkg/util/sets"],
 )
 
 go_test(
@@ -14,8 +14,8 @@ go_test(
     embed = [":api"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
-        "//vendor/k8s.io/apimachinery/pkg/util/sets",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/util/sets",
     ],
 )

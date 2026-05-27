@@ -6,11 +6,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/log/def",
+        "//comp/def",
         "//comp/healthplatform/runner/def",
         "//comp/healthplatform/scheduler/def",
         "//comp/healthplatform/store/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/def",
     ],
 )
 
@@ -20,11 +20,11 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
+        "//comp/core/log/mock",
         "//comp/healthplatform/runner/def",
         "//comp/healthplatform/store/def",
-        "//vendor/github.com/DataDog/agent-payload/v5/healthplatform",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/mock",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

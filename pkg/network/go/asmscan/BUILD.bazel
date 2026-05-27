@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/safeelf",
-        "//vendor/golang.org/x/arch/arm64/arm64asm",
-        "//vendor/golang.org/x/arch/x86/x86asm",
+        "@org_golang_x_arch//arm64/arm64asm",
+        "@org_golang_x_arch//x86/x86asm",
     ],
 )

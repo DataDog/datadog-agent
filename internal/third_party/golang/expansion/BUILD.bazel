@@ -13,5 +13,5 @@ go_test(
     embed = [":expansion"],
     gotags = ["test"],
     tags = ["manual"],  # keep (pre-existing test bug in vendored third-party code)
-    deps = ["//vendor/k8s.io/api/core/v1:core"],
+    deps = ["//vendor.x/k8s.io/api/core/v1:v1_go_proto"],
 )

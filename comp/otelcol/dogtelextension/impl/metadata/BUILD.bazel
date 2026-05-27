@@ -5,5 +5,5 @@ go_library(
     srcs = ["metadata.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/impl/metadata",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/go.opentelemetry.io/collector/component"],
+    deps = ["@io_opentelemetry_go_collector_component//:component"],
 )

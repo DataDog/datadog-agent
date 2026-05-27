@@ -7,8 +7,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/anomalydetection/recorder/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/option",
-        "//vendor/go.uber.org/fx",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@org_uber_go_fx//:fx",
     ],
 )

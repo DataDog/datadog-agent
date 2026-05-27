@@ -18,11 +18,11 @@ go_library(
     tags = ["test"],
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/slog",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/types",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/scrubber",
-        "//vendor/go.uber.org/atomic",
-        "//vendor/golang.org/x/time/rate",
+        "//pkg/util/log/slog",
+        "//pkg/util/log/types",
+        "//pkg/util/scrubber",
+        "@org_golang_x_time//rate",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -40,9 +40,9 @@ go_test(
     embed = [":log"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/scrubber",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
-        "//vendor/go.uber.org/atomic",
+        "//pkg/util/scrubber",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
     ],
 )

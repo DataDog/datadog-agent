@@ -12,9 +12,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-            "//vendor/github.com/fsnotify/fsnotify",
-            "//vendor/golang.org/x/sys/windows/registry",
+            "//pkg/util/log",
+            "@com_github_fsnotify_fsnotify//:fsnotify",
+            "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],
     }),
@@ -33,8 +33,8 @@ go_test(
     target_compatible_with = ["@platforms//os:windows"],  # keep
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/stretchr/testify/assert",
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

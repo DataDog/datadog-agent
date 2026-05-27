@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//comp/otelcol/dogtelextension/def",
         "//comp/otelcol/dogtelextension/impl",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//pkg/util/fxutil",
     ],
 )

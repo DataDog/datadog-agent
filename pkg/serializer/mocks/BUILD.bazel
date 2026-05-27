@@ -6,11 +6,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/serializer/mocks",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/metrics",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/metrics/event",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/metrics/servicecheck",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/serializer/marshaler",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/serializer/types",
-        "//vendor/github.com/stretchr/testify/mock",
+        "//pkg/metrics",
+        "//pkg/metrics/event",
+        "//pkg/metrics/servicecheck",
+        "//pkg/serializer/marshaler",
+        "//pkg/serializer/types",
+        "@com_github_stretchr_testify//mock",
     ],
 )

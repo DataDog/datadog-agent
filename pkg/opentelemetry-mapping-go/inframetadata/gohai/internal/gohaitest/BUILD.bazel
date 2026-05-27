@@ -7,12 +7,12 @@ go_test(
     # TODO(ABLD-468): Make sysctl available in macos sandbox.
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/gohai",
-        "//vendor/github.com/DataDog/gohai/cpu",
-        "//vendor/github.com/DataDog/gohai/filesystem",
-        "//vendor/github.com/DataDog/gohai/memory",
-        "//vendor/github.com/DataDog/gohai/network",
-        "//vendor/github.com/DataDog/gohai/platform",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/opentelemetry-mapping-go/inframetadata/gohai",
+        "@com_github_datadog_gohai//cpu",
+        "@com_github_datadog_gohai//filesystem",
+        "@com_github_datadog_gohai//memory",
+        "@com_github_datadog_gohai//network",
+        "@com_github_datadog_gohai//platform",
+        "@com_github_stretchr_testify//require",
     ],
 )

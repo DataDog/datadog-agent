@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/internal/tools/modformatter",
     visibility = ["//visibility:private"],
     deps = [
-        "//vendor/golang.org/x/mod/modfile",
-        "//vendor/golang.org/x/mod/module",
+        "@org_golang_x_mod//modfile",
+        "@org_golang_x_mod//module",
     ],
 )
 

@@ -10,7 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/libs/privateconnection",
-        "//vendor/github.com/hashicorp/go-retryablehttp",
-        "//vendor/gitlab.com/gitlab-org/api/client-go",
+        "@com_github_hashicorp_go_retryablehttp//:go-retryablehttp",
+        "@com_gitlab_gitlab_org_api_client_go//:client-go",
     ],
 )

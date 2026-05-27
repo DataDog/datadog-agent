@@ -12,12 +12,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/fake",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows",
-            "//vendor/github.com/stretchr/testify/require",
-            "//vendor/golang.org/x/sys/windows",
-            "//vendor/golang.org/x/sys/windows/registry",
+            "//pkg/util/winutil/eventlog/api",
+            "//pkg/util/winutil/eventlog/api/fake",
+            "//pkg/util/winutil/eventlog/api/windows",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],
     }),

@@ -10,7 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/fxutil/logging",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/go.uber.org/fx",
-        "//vendor/go.uber.org/fx/fxevent",
+        "@org_uber_go_fx//:fx",
+        "@org_uber_go_fx//fxevent",
     ],
 )

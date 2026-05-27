@@ -10,14 +10,14 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//pkg/config/setup",
             "//pkg/privileged-logs/common",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+            "//pkg/util/log",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/config/setup",
             "//pkg/privileged-logs/common",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+            "//pkg/util/log",
         ],
         "//conditions:default": [],
     }),

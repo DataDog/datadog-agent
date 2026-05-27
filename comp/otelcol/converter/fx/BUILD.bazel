@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/otelcol/converter/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/otelcol/converter/impl",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
+        "//comp/otelcol/converter/def",
+        "//comp/otelcol/converter/impl",
+        "//pkg/util/fxutil",
     ],
 )

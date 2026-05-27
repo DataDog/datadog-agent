@@ -10,9 +10,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/log/slog",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/types",
+        "//pkg/util/log/slog/formatters",
+        "//pkg/util/log/slog/handlers",
+        "//pkg/util/log/types",
     ],
 )
 
@@ -25,8 +25,8 @@ go_test(
     embed = [":slog"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log/types",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/util/log/types",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

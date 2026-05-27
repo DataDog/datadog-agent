@@ -7,12 +7,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/buildschema",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/nodetreemodel",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/teeconfig",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/viperconfig",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/version",
+        "//pkg/config/model",
+        "//pkg/config/nodetreemodel",
+        "//pkg/config/teeconfig",
+        "//pkg/config/viperconfig",
+        "//pkg/util/log",
+        "//pkg/version",
     ],
 )
 
@@ -22,7 +22,7 @@ go_test(
     embed = [":create"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/version",
-        "//vendor/github.com/stretchr/testify/assert",
+        "//pkg/version",
+        "@com_github_stretchr_testify//assert",
     ],
 )

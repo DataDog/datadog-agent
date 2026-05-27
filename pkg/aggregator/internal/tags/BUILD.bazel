@@ -11,10 +11,10 @@ go_library(
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
+        "//pkg/aggregator/ckey",
+        "//pkg/tagset",
         "//pkg/util/size",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/aggregator/ckey",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/tagset",
-        "//vendor/go.uber.org/atomic",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -24,8 +24,8 @@ go_test(
     embed = [":tags"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/aggregator/ckey",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/tagset",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/aggregator/ckey",
+        "//pkg/tagset",
+        "@com_github_stretchr_testify//require",
     ],
 )

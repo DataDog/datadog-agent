@@ -12,7 +12,7 @@ go_test(
     srcs = ["compression_test.go"],
     gotags = ["test"],
     deps = [
+        "//pkg/util/compression/impl-zstd",
         "//pkg/util/compression/impl-zstd-nocgo",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/compression/impl-zstd",
     ],
 )

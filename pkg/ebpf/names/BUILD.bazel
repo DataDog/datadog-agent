@@ -8,7 +8,7 @@ go_library(
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/ebpf-manager",
-        "//vendor/github.com/cilium/ebpf",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
     ],
 )

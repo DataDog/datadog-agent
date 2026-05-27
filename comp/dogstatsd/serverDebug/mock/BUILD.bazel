@@ -7,9 +7,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/dogstatsd/serverDebug/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/metrics",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
-        "//vendor/go.uber.org/atomic",
-        "//vendor/go.uber.org/fx",
+        "//pkg/metrics",
+        "//pkg/util/fxutil",
+        "@org_uber_go_atomic//:atomic",
+        "@org_uber_go_fx//:fx",
     ],
 )

@@ -5,5 +5,5 @@ go_library(
     srcs = ["component.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/util/compression"],
+    deps = ["//pkg/util/compression"],
 )

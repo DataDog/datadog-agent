@@ -10,9 +10,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/diagnostic",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/message",
+        "//comp/core/hostname/hostnameinterface",
+        "//pkg/config/model",
+        "//pkg/logs/message",
     ],
 )
 
@@ -22,12 +22,12 @@ go_test(
     embed = [":diagnostic"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface",
-        "//vendor/github.com/DataDog/datadog-agent/comp/logs/agent/config",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/message",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/sources",
-        "//vendor/github.com/stretchr/testify/assert",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/logs/agent/config",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "@com_github_stretchr_testify//assert",
     ],
 )

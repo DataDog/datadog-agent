@@ -19,15 +19,15 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/config/settings",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/config",
         "//comp/core/settings/def",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/util/log",
         "//pkg/util/profiling",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/utils",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/fatih/color",
-        "//vendor/github.com/spf13/cobra",
+        "@com_github_fatih_color//:color",
+        "@com_github_spf13_cobra//:cobra",
     ],
 )
 
@@ -41,7 +41,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/settings/def",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

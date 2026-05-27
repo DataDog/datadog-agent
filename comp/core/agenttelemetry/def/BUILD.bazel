@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/fleet/installer/telemetry",
         "//pkg/util/log/errortracking",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry",
     ],
 )

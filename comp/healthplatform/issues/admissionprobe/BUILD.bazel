@@ -9,10 +9,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/config",
         "//comp/healthplatform/issues",
-        "//vendor/github.com/DataDog/agent-payload/v5/healthplatform",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
-        "//vendor/google.golang.org/protobuf/types/known/structpb",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@org_golang_google_protobuf//types/known/structpb",
     ],
 )
 
@@ -22,8 +22,8 @@ go_test(
     embed = [":admissionprobe"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/agent-payload/v5/healthplatform",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

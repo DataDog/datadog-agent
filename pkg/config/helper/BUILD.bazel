@@ -10,8 +10,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/config/helper",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//pkg/config/model",
+        "//pkg/util/log",
     ],
 )
 
@@ -24,10 +24,10 @@ go_test(
     embed = [":helper"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/nodetreemodel",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/viperconfig",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/config/model",
+        "//pkg/config/nodetreemodel",
+        "//pkg/config/viperconfig",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -8,8 +8,8 @@ go_library(
     deps = [
         "//comp/trace/payload-modifier/def",
         "//comp/trace/payload-modifier/impl",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/agent",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
-        "//vendor/go.uber.org/fx",
+        "//pkg/trace/agent",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
     ],
 )

@@ -10,11 +10,11 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/diagnose/def",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
         "//pkg/util/cachedfetch",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/setup",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/utils",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/http",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//pkg/util/http",
+        "//pkg/util/log",
     ],
 )
 
@@ -24,7 +24,7 @@ go_test(
     embed = [":ibm"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

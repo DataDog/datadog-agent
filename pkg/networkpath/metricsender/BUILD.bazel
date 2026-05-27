@@ -12,7 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/aggregator/sender",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/metrics",
-        "//vendor/github.com/DataDog/datadog-go/v5/statsd",
+        "//pkg/metrics",
+        "@com_github_datadog_datadog_go_v5//statsd",
     ],
 )

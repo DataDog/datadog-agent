@@ -5,5 +5,5 @@ go_library(
     srcs = ["test_utils.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/util/testutils",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/logs/sources"],
+    deps = ["//pkg/logs/sources"],
 )

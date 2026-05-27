@@ -15,10 +15,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
+            "//comp/def",
             "//comp/etw/def",
-            "//vendor/github.com/DataDog/datadog-agent/comp/def",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil",
-            "//vendor/golang.org/x/sys/windows",
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),

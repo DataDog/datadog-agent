@@ -8,7 +8,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/tailers",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/logs/status/utils"],
+    deps = ["//pkg/logs/status/utils"],
 )
 
 go_test(
@@ -17,7 +17,7 @@ go_test(
     embed = [":tailers"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/status/utils",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/logs/status/utils",
+        "@com_github_stretchr_testify//require",
     ],
 )

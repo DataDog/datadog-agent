@@ -7,6 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/security/proto/api",
-        "//vendor/github.com/stretchr/testify/mock",
+        "@com_github_stretchr_testify//mock",
     ],
 )

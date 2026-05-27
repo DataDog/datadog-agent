@@ -25,18 +25,18 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:darwin": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-            "//vendor/github.com/mattn/go-sqlite3",
+            "//pkg/util/log",
+            "@com_github_mattn_go_sqlite3//:go-sqlite3",
         ],
         "@rules_go//go/platform:ios": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-            "//vendor/github.com/mattn/go-sqlite3",
+            "//pkg/util/log",
+            "@com_github_mattn_go_sqlite3//:go-sqlite3",
         ],
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil/datadoginterop",
-            "//vendor/golang.org/x/sys/windows",
-            "//vendor/golang.org/x/sys/windows/registry",
+            "//pkg/util/winutil",
+            "//pkg/util/winutil/datadoginterop",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],
     }),
@@ -71,18 +71,18 @@ go_test(
     gotags = ["test"],
     tags = ["manual"],  # keep
     deps = [
-        "//vendor/github.com/stretchr/testify/assert",
+        "@com_github_stretchr_testify//assert",
     ] + select({
         "@rules_go//go/platform:darwin": [
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:ios": [
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
-            "//vendor/github.com/stretchr/testify/require",
-            "//vendor/golang.org/x/sys/windows/registry",
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],
     }),

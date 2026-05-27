@@ -5,5 +5,5 @@ go_library(
     srcs = ["ipc.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/ipc/impl-none",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/DataDog/datadog-agent/comp/core/ipc/def"],
+    deps = ["//comp/core/ipc/def"],
 )

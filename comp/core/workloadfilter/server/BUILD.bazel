@@ -8,8 +8,8 @@ go_library(
     deps = [
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadfilter/proto",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
-        "//vendor/google.golang.org/grpc/codes",
-        "//vendor/google.golang.org/grpc/status",
+        "//pkg/proto/pbgo/core",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
     ],
 )

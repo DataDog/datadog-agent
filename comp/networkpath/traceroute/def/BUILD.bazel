@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/networkpath/payload",
         "//pkg/networkpath/traceroute/config",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/networkpath/payload",
     ],
 )

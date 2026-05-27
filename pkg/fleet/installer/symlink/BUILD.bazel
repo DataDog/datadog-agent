@@ -11,7 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//vendor/golang.org/x/sys/windows",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),
@@ -22,5 +22,5 @@ go_test(
     srcs = ["link_test.go"],
     embed = [":symlink"],
     gotags = ["test"],
-    deps = ["//vendor/github.com/stretchr/testify/assert"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

@@ -9,12 +9,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/errors",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/oci",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/paths",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/go.etcd.io/bbolt",
+        "//pkg/fleet/installer/errors",
+        "//pkg/fleet/installer/oci",
+        "//pkg/fleet/installer/paths",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/util/log",
+        "@io_etcd_go_bbolt//:bbolt",
     ],
 )
 
@@ -27,11 +27,11 @@ go_test(
     embed = [":extensions"],
     gotags = ["test"],
     deps = [
+        "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/fixtures",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/env",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/oci",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
-        "//vendor/go.etcd.io/bbolt",
+        "//pkg/fleet/installer/oci",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_etcd_go_bbolt//:bbolt",
     ],
 )

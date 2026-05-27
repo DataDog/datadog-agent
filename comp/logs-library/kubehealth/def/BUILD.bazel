@@ -5,5 +5,5 @@ go_library(
     srcs = ["component.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/status/health"],
+    deps = ["//pkg/status/health"],
 )

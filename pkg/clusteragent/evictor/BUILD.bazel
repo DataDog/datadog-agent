@@ -6,11 +6,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/evictor",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/k8s.io/api/policy/v1:policy",
-        "//vendor/k8s.io/apimachinery/pkg/api/errors",
-        "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:meta",
-        "//vendor/k8s.io/client-go/kubernetes",
+        "//pkg/util/log",
+        "//vendor.x/k8s.io/api/policy/v1:v1_go_proto",
+        "//vendor.x/k8s.io/apimachinery/pkg/apis/meta/v1:v1_go_proto",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_client_go//kubernetes",
     ],
 )
 
@@ -20,13 +20,13 @@ go_test(
     embed = [":evictor"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
-        "//vendor/k8s.io/api/core/v1:core",
-        "//vendor/k8s.io/apimachinery/pkg/api/errors",
-        "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:meta",
-        "//vendor/k8s.io/apimachinery/pkg/runtime",
-        "//vendor/k8s.io/client-go/kubernetes/fake",
-        "//vendor/k8s.io/client-go/testing",
+        "//vendor.x/k8s.io/api/core/v1:v1_go_proto",
+        "//vendor.x/k8s.io/apimachinery/pkg/apis/meta/v1:v1_go_proto",
+        "//vendor.x/k8s.io/apimachinery/pkg/runtime:runtime_go_proto",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_client_go//testing",
     ],
 )

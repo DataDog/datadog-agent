@@ -5,5 +5,5 @@ go_library(
     srcs = ["types.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/tagger/types",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"],
+    deps = ["//comp/core/tagger/origindetection"],
 )

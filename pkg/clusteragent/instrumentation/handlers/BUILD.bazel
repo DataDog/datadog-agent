@@ -12,10 +12,10 @@ go_library(
         "//comp/core/autodiscovery/integration",
         "//comp/core/workloadfilter/def",
         "//pkg/clusteragent/instrumentation",
-        "//vendor/github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1",
-        "//vendor/k8s.io/api/autoscaling/v2:autoscaling",
-        "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:meta",
-        "//vendor/k8s.io/apimachinery/pkg/runtime",
+        "//vendor.x/k8s.io/api/autoscaling/v2:v2_go_proto",
+        "//vendor.x/k8s.io/apimachinery/pkg/apis/meta/v1:v1_go_proto",
+        "//vendor.x/k8s.io/apimachinery/pkg/runtime:runtime_go_proto",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
     ],
 )
 
@@ -29,11 +29,11 @@ go_test(
     ],
     deps = [
         "//pkg/clusteragent/instrumentation",
-        "//vendor/github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
-        "//vendor/k8s.io/api/autoscaling/v2:autoscaling",
-        "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:meta",
-        "//vendor/k8s.io/apimachinery/pkg/runtime",
+        "//vendor.x/k8s.io/api/autoscaling/v2:v2_go_proto",
+        "//vendor.x/k8s.io/apimachinery/pkg/apis/meta/v1:v1_go_proto",
+        "//vendor.x/k8s.io/apimachinery/pkg/runtime:runtime_go_proto",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

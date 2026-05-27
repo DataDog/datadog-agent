@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/delegatedauth/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/status",
+        "//comp/core/delegatedauth/def",
+        "//comp/core/status",
     ],
 )
 
@@ -17,8 +17,8 @@ go_test(
     embed = [":noop-impl"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/delegatedauth/def",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//comp/core/delegatedauth/def",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

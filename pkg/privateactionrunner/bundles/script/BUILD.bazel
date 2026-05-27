@@ -28,8 +28,8 @@ go_library(
         "//pkg/privateactionrunner/bundle-support",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
-        "//vendor/github.com/santhosh-tekuri/jsonschema/v5:jsonschema",
-        "//vendor/go.yaml.in/yaml/v3:yaml",
+        "@com_github_santhosh_tekuri_jsonschema_v5//:jsonschema",
+        "@in_yaml_go_yaml_v3//:yaml",
     ] + select({
         "@rules_go//go/platform:aix": [
             "//pkg/privateactionrunner/adapters/logging",
@@ -104,7 +104,7 @@ go_test(
     embed = [":script"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

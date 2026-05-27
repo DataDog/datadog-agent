@@ -6,12 +6,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/config/remote/api",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/http",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/version",
-        "//vendor/google.golang.org/protobuf/proto",
+        "//pkg/config/model",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "//pkg/version",
+        "@org_golang_google_protobuf//proto",
     ],
 )
 
@@ -21,8 +21,8 @@ go_test(
     embed = [":api"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/mock",
-        "//vendor/github.com/coreos/go-semver/semver",
-        "//vendor/github.com/stretchr/testify/assert",
+        "//pkg/config/mock",
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_stretchr_testify//assert",
     ],
 )

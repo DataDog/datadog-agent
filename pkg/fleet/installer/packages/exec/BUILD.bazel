@@ -11,8 +11,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/errors",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry",
+            "//pkg/fleet/installer/errors",
+            "//pkg/fleet/installer/telemetry",
         ],
         "//conditions:default": [],
     }),

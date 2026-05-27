@@ -13,10 +13,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/version",
-        "//vendor/github.com/shirou/gopsutil/v4/host",
-        "//vendor/go.uber.org/atomic",
+        "//pkg/util/log",
+        "//pkg/version",
+        "@com_github_shirou_gopsutil_v4//host",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -26,8 +26,8 @@ go_test(
     embed = [":telemetry"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/errors",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/fleet/installer/errors",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

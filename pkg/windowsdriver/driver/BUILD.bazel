@@ -7,9 +7,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil",
-            "//vendor/golang.org/x/sys/windows",
+            "//pkg/util/log",
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),

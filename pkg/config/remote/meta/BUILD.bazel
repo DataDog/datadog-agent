@@ -14,8 +14,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/config/remote/meta",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/DataDog/go-tuf/data",
+        "//pkg/util/log",
+        "@com_github_datadog_go_tuf//data",
     ],
 )
 
@@ -24,5 +24,5 @@ go_test(
     srcs = ["meta_test.go"],
     embed = [":meta"],
     gotags = ["test"],
-    deps = ["//vendor/github.com/stretchr/testify/require"],
+    deps = ["@com_github_stretchr_testify//require"],
 )

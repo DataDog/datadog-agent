@@ -7,10 +7,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
+            "//comp/def",
             "//comp/publishermetadatacache/def",
-            "//vendor/github.com/DataDog/datadog-agent/comp/def",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache",
+            "//pkg/util/winutil/eventlog/api/windows",
+            "//pkg/util/winutil/eventlog/publishermetadatacache",
         ],
         "//conditions:default": [],
     }),

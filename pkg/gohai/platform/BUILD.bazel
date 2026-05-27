@@ -14,29 +14,29 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/gohai/platform",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/gohai/utils",
+        "//pkg/gohai/utils",
     ] + select({
         "@rules_go//go/platform:aix": [
-            "//vendor/github.com/shirou/gopsutil/v4/host",
-            "//vendor/golang.org/x/sys/unix",
+            "@com_github_shirou_gopsutil_v4//host",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:android": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:darwin": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-            "//vendor/golang.org/x/sys/unix",
+            "//pkg/util/log",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:ios": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-            "//vendor/golang.org/x/sys/unix",
+            "//pkg/util/log",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
-            "//vendor/golang.org/x/sys/unix",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:windows": [
-            "//vendor/golang.org/x/sys/windows",
-            "//vendor/golang.org/x/sys/windows/registry",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],
     }),
@@ -52,24 +52,24 @@ go_test(
     embed = [":platform"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/gohai/utils",
-        "//vendor/github.com/stretchr/testify/assert",
+        "//pkg/gohai/utils",
+        "@com_github_stretchr_testify//assert",
     ] + select({
         "@rules_go//go/platform:android": [
-            "//vendor/github.com/stretchr/testify/require",
-            "//vendor/golang.org/x/sys/unix",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:darwin": [
-            "//vendor/github.com/stretchr/testify/require",
-            "//vendor/golang.org/x/sys/unix",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:ios": [
-            "//vendor/github.com/stretchr/testify/require",
-            "//vendor/golang.org/x/sys/unix",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
-            "//vendor/github.com/stretchr/testify/require",
-            "//vendor/golang.org/x/sys/unix",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),

@@ -11,8 +11,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/secret-generic-connector/secret",
-        "//vendor/github.com/mitchellh/mapstructure",
-        "//vendor/go.yaml.in/yaml/v2:yaml",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
+        "@in_yaml_go_yaml_v2//:yaml",
     ],
 )
 
@@ -27,6 +27,6 @@ go_test(
     gotags = ["test"],
     deps = [
         "//cmd/secret-generic-connector/secret",
-        "//vendor/github.com/stretchr/testify/assert",
+        "@com_github_stretchr_testify//assert",
     ],
 )

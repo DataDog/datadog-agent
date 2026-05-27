@@ -5,7 +5,7 @@ go_library(
     srcs = ["network.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/gohai/network",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/gohai/utils"],
+    deps = ["//pkg/gohai/utils"],
 )
 
 go_test(
@@ -14,8 +14,8 @@ go_test(
     embed = [":network"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/gohai/utils",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/gohai/utils",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

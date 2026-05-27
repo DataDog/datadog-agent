@@ -14,21 +14,21 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/config/env",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/filesystem",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//pkg/config/model",
+        "//pkg/util/filesystem",
+        "//pkg/util/log",
     ] + select({
         "@rules_go//go/platform:android": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/system",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/system/socket",
+            "//pkg/util/system",
+            "//pkg/util/system/socket",
         ],
         "@rules_go//go/platform:linux": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/system",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/system/socket",
+            "//pkg/util/system",
+            "//pkg/util/system/socket",
         ],
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/system",
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/system/socket",
+            "//pkg/util/system",
+            "//pkg/util/system/socket",
         ],
         "//conditions:default": [],
     }),
@@ -43,16 +43,16 @@ go_test(
     embed = [":env"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/stretchr/testify/assert",
+        "@com_github_stretchr_testify//assert",
     ] + select({
         "@rules_go//go/platform:android": [
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/stretchr/testify/require",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

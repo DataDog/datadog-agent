@@ -5,5 +5,5 @@ go_library(
     srcs = ["gzip.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/DataDog/datadog-agent/comp/trace/compression/def"],
+    deps = ["//comp/trace/compression/def"],
 )

@@ -11,8 +11,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/benbjohnson/clock",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
         "@com_github_urfave_negroni_v3//:negroni",
     ],
 )
@@ -29,9 +29,9 @@ go_test(
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/mock",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
-        "//vendor/github.com/benbjohnson/clock",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/util/fxutil",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

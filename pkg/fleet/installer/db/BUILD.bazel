@@ -5,7 +5,7 @@ go_library(
     srcs = ["db.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/db",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/go.etcd.io/bbolt"],
+    deps = ["@io_etcd_go_bbolt//:bbolt"],
 )
 
 go_test(
@@ -14,7 +14,7 @@ go_test(
     embed = [":db"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/go.etcd.io/bbolt/errors",
+        "@com_github_stretchr_testify//assert",
+        "@io_etcd_go_bbolt//errors",
     ],
 )

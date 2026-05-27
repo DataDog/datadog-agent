@@ -11,9 +11,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api",
-            "//vendor/github.com/Masterminds/semver/v3:semver",
-            "//vendor/go.yaml.in/yaml/v3:yaml",
+            "//pkg/util/winutil/eventlog/api",
+            "@com_github_masterminds_semver_v3//:semver",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "//conditions:default": [],
     }),
@@ -30,7 +30,7 @@ go_test(
     target_compatible_with = ["@platforms//os:windows"],  # keep
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/stretchr/testify/assert",
+            "@com_github_stretchr_testify//assert",
         ],
         "//conditions:default": [],
     }),

@@ -8,8 +8,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery",
+        "//comp/core/status",
         "//comp/core/workloadfilter/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/status",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/env",
+        "//pkg/config/env",
     ],
 )

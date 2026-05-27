@@ -6,10 +6,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/config/structure",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/helper",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/nodetreemodel",
-        "//vendor/github.com/go-viper/mapstructure/v2:mapstructure",
+        "//pkg/config/helper",
+        "//pkg/config/model",
+        "//pkg/config/nodetreemodel",
+        "@com_github_go_viper_mapstructure_v2//:mapstructure",
     ],
 )
 
@@ -22,11 +22,11 @@ go_test(
     embed = [":structure"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/create",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/model",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/nodetreemodel",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/viperconfig",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/config/create",
+        "//pkg/config/model",
+        "//pkg/config/nodetreemodel",
+        "//pkg/config/viperconfig",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

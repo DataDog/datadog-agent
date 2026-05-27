@@ -10,14 +10,14 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/workloadselection/impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
         "//comp/remote-config/rcclient/types",
         "//comp/workloadselection/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/remoteconfig/state",
+        "//pkg/remoteconfig/state",
     ] + select({
         "@rules_go//go/platform:windows": [
-            "//vendor/golang.org/x/sys/windows",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),
@@ -34,19 +34,19 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/log/mock",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ] + select({
         "@rules_go//go/platform:android": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/remoteconfig/state",
+            "//pkg/remoteconfig/state",
         ],
         "@rules_go//go/platform:linux": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/remoteconfig/state",
+            "//pkg/remoteconfig/state",
         ],
         "@rules_go//go/platform:windows": [
-            "//vendor/github.com/DataDog/datadog-agent/pkg/remoteconfig/state",
+            "//pkg/remoteconfig/state",
         ],
         "//conditions:default": [],
     }),

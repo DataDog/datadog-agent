@@ -9,9 +9,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/subscriber",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/tagger/telemetry",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/tagger/types",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
+        "//comp/core/tagger/telemetry",
+        "//comp/core/tagger/types",
+        "//pkg/util/log",
     ],
 )
 
@@ -21,12 +21,12 @@ go_test(
     embed = [":subscriber"],
     gotags = ["test"],
     deps = [
+        "//comp/core/tagger/telemetry",
+        "//comp/core/tagger/types",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/mock",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/tagger/telemetry",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/tagger/types",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/fxutil",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -7,9 +7,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/fleetstatus/impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/config",
+        "//comp/core/status",
         "//comp/updater/daemonchecker/def",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/status",
     ],
 )
 
@@ -19,9 +19,9 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
+        "//comp/core/config",
         "//comp/updater/daemonchecker/mock",
-        "//vendor/github.com/DataDog/datadog-agent/comp/core/config",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

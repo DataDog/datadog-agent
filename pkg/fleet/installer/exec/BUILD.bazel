@@ -11,11 +11,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/exec",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/config",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/env",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/errors",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/paths",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/repository",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry",
+        "//pkg/fleet/installer/config",
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/errors",
+        "//pkg/fleet/installer/paths",
+        "//pkg/fleet/installer/repository",
+        "//pkg/fleet/installer/telemetry",
     ],
 )

@@ -17,11 +17,11 @@ go_library(
     ],
     deps = [
         "//pkg/logs/internal/parsers",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/message",
-        "//vendor/golang.org/x/text/encoding",
-        "//vendor/golang.org/x/text/encoding/japanese",
-        "//vendor/golang.org/x/text/encoding/unicode",
-        "//vendor/golang.org/x/text/transform",
+        "//pkg/logs/message",
+        "@org_golang_x_text//encoding",
+        "@org_golang_x_text//encoding/japanese",
+        "@org_golang_x_text//encoding/unicode",
+        "@org_golang_x_text//transform",
     ],
 )
 
@@ -34,7 +34,7 @@ go_test(
     embed = [":encodedtext"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/DataDog/datadog-agent/pkg/logs/message",
-        "//vendor/github.com/stretchr/testify/assert",
+        "//pkg/logs/message",
+        "@com_github_stretchr_testify//assert",
     ],
 )

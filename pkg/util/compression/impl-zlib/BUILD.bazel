@@ -5,7 +5,7 @@ go_library(
     srcs = ["zlib_strategy.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/DataDog/datadog-agent/pkg/util/compression"],
+    deps = ["//pkg/util/compression"],
 )
 
 go_test(

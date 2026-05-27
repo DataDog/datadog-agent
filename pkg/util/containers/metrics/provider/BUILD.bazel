@@ -18,10 +18,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/workloadmeta/def",
+        "//pkg/config/env",
+        "//pkg/util/log",
+        "//pkg/util/option",
         "//pkg/util/retry",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/env",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/log",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/option",
     ],
 )
 
@@ -37,8 +37,8 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/workloadmeta/def",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/option",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/pointer",
-        "//vendor/github.com/stretchr/testify/assert",
+        "//pkg/util/option",
+        "//pkg/util/pointer",
+        "@com_github_stretchr_testify//assert",
     ],
 )

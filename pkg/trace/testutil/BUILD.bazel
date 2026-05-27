@@ -15,14 +15,14 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/testutil",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/proto/pbgo/trace",
         "//pkg/proto/pbgo/trace/idx",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/sampler",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/stats",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/trace/traceutil",
-        "//vendor/go.opentelemetry.io/collector/pdata/pcommon",
-        "//vendor/go.opentelemetry.io/collector/pdata/ptrace",
-        "//vendor/go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp",
+        "//pkg/trace/sampler",
+        "//pkg/trace/stats",
+        "//pkg/trace/traceutil",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_collector_pdata//ptrace/ptraceotlp",
     ],
 )
 
@@ -36,7 +36,7 @@ go_test(
     embed = [":testutil"],
     gotags = ["test"],
     deps = [
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/go.opentelemetry.io/collector/pdata/ptrace",
+        "@com_github_stretchr_testify//assert",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
     ],
 )

@@ -10,13 +10,13 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/fakeintake/client",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/metrics/event",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
         "//test/fakeintake/client/flare",
-        "//vendor/github.com/DataDog/agent-payload/v5/process",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/metrics/event",
-        "//vendor/github.com/cenkalti/backoff/v5:backoff",
-        "//vendor/github.com/samber/lo",
+        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_samber_lo//:lo",
     ],
 )
 
@@ -48,9 +48,9 @@ go_test(
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
         "//test/fakeintake/fixtures",
-        "//vendor/github.com/DataDog/agent-payload/v5/healthplatform",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/github.com/stretchr/testify/require",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ] + select({
         "@rules_go//go/platform:aix": [
             "//test/fakeintake/server",

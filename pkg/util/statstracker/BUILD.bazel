@@ -12,5 +12,5 @@ go_test(
     srcs = ["stats_tracker_test.go"],
     embed = [":statstracker"],
     gotags = ["test"],
-    deps = ["//vendor/github.com/stretchr/testify/assert"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

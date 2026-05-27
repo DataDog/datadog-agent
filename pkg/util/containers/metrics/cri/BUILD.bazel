@@ -10,12 +10,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/workloadmeta/def",
+        "//pkg/config/env",
         "//pkg/util/containers/cri",
         "//pkg/util/containers/metrics/provider",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/config/env",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/option",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/pointer",
-        "//vendor/k8s.io/cri-api/pkg/apis/runtime/v1:runtime",
+        "//pkg/util/option",
+        "//pkg/util/pointer",
+        "//vendor.x/k8s.io/cri-api/pkg/apis/runtime/v1:v1_go_proto",
     ],
 )
 
@@ -26,8 +26,8 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/util/containers/cri/crimock",
-        "//vendor/github.com/DataDog/datadog-agent/pkg/util/pointer",
-        "//vendor/github.com/stretchr/testify/assert",
-        "//vendor/k8s.io/cri-api/pkg/apis/runtime/v1:runtime",
+        "//pkg/util/pointer",
+        "//vendor.x/k8s.io/cri-api/pkg/apis/runtime/v1:v1_go_proto",
+        "@com_github_stretchr_testify//assert",
     ],
 )
