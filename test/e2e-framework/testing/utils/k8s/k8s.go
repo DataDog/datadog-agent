@@ -226,7 +226,7 @@ func WaitForJobPodRunning(ctx context.Context, client kubernetes.Interface, name
 				}
 
 				if transientWaitingReasons[reason] {
-					key := pod.Name + "/" + cs.Name
+					key := pod.Name + "/" + cs.Name + "/" + reason
 					if firstSeen, ok := transientFirstSeen[key]; ok {
 						if now.Sub(firstSeen) >= transientGracePeriod {
 							return nil, fmt.Errorf("job %s pod %s container %s: %s - %s (persisted for %s)",
