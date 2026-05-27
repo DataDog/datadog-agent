@@ -24,7 +24,7 @@ package_metadata(
     ],
     purl = purl_for_generic(
         download_url = "https://www.gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-{version}.tar.bz2",
-        package = "gpg-error",
+        package = "libgcrypt",
         version = VERSION,
     ),
 )
