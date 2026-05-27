@@ -651,7 +651,6 @@ exports_files(glob(
 # gazelle:exclude test/e2e-framework/components/docker
 # gazelle:exclude test/e2e-framework/components/iis
 # gazelle:exclude test/e2e-framework/components/kubernetes
-# gazelle:exclude test/e2e-framework/components/remote
 # gazelle:exclude test/e2e-framework/components/windows/defender
 # gazelle:exclude test/e2e-framework/components/windows/fipsmode
 # gazelle:exclude test/e2e-framework/components/windows/testsigning
