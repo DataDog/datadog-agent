@@ -1852,8 +1852,7 @@ properties:
               excluded_images:
                 node_type: setting
                 type: array
-                default:
-                - datadog-agent:*
+                default: []
                 items:
                   type: string
           watch_dir:
