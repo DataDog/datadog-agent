@@ -140,9 +140,9 @@ func TestDiscoveryMode_LatencySumAccumulates(t *testing.T) {
 func TestDiscoveryMode_LogsSuspiciousTx(t *testing.T) {
 	var buf bytes.Buffer
 	w := bufio.NewWriter(&buf)
-	l, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, log.WarnLvl)
+	l, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, log.DebugLvl)
 	require.NoError(t, err)
-	log.SetupLogger(l, log.WarnStr)
+	log.SetupLogger(l, log.DebugStr)
 
 	sk := newDiscoveryStatkeeper(t)
 	tx := generateIPv4HTTPTransaction(

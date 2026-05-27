@@ -27,6 +27,12 @@ var (
 	// emptyInternedPath is the shared interned representation of an empty
 	// path used in discovery mode, where the path is not part of the key.
 	emptyInternedPath = Interner.Get([]byte{})
+
+	// discoveryDiagnosticLogLimit caps the addDiscovery diagnostic at 100
+	// lines per 10 minutes — a safety net for the staging investigation so
+	// a runaway transaction stream cannot fill the disk even with debug
+	// logging enabled.
+	discoveryDiagnosticLogLimit = log.NewLogLimit(100, 10*time.Minute)
 )
 
 const (
@@ -261,12 +267,16 @@ func (h *StatKeeper) addDiscovery(tx Transaction) {
 	// (>30m). Helps explain outlier latencies seen only in discovery mode,
 	// since addDiscovery otherwise skips processHTTPPath's malformed
 	// rejection. The path bytes are read into the local buffer for the check
-	// only; they are not propagated into the aggregation Key below.
-	if rawPath, _ := tx.Path(h.buffer); rawPath != nil {
-		malformed := PathIsMalformed(rawPath)
-		if (malformed || latency > float64(30*time.Minute)) && h.oversizedLogLimit.ShouldLog() {
-			log.Warnf("discovery diagnostic: suspicious tx malformed=%t latency=%s tx=%s",
-				malformed, time.Duration(latency), tx.String())
+	// only; they are not propagated into the aggregation Key below. Gated on
+	// Debug level so this is a no-op in production until someone explicitly
+	// enables debug logging on the affected host.
+	if log.ShouldLog(log.DebugLvl) {
+		if rawPath, _ := tx.Path(h.buffer); rawPath != nil {
+			malformed := PathIsMalformed(rawPath)
+			if (malformed || latency > float64(30*time.Minute)) && discoveryDiagnosticLogLimit.ShouldLog() {
+				log.Debugf("discovery diagnostic: suspicious tx malformed=%t latency=%s tx=%s",
+					malformed, time.Duration(latency), tx.String())
+			}
 		}
 	}
 

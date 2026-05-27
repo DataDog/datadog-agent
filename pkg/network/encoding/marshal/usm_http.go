@@ -24,10 +24,10 @@ import (
 
 const discoveryLatencyThresholdNs = float64(30 * time.Minute)
 
-// discoveryDiagnosticLogLimit rate-limits the encoder-side discovery
-// diagnostic so a single host with one persistently-bad bucket cannot flood
-// agent logs every flush. Matches the StatKeeper's oversizedLogLimit budget.
-var discoveryDiagnosticLogLimit = log.NewLogLimit(10, 10*time.Minute)
+// discoveryDiagnosticLogLimit caps the encoder-side diagnostic at 100 lines
+// per 10 minutes — a safety net for the staging investigation so a runaway
+// bucket cannot fill the disk even with debug logging enabled.
+var discoveryDiagnosticLogLimit = log.NewLogLimit(100, 10*time.Minute)
 
 type httpEncoder struct {
 	httpAggregationsBuilder *model.HTTPAggregationsBuilder
@@ -89,13 +89,13 @@ func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64
 					w.SetValue(func(w *model.HTTPStats_DataBuilder) {
 						w.SetCount(uint32(stats.Count))
 						if e.discoveryMode {
-							if stats.Count > 0 {
+							if stats.Count > 0 && log.ShouldLog(log.DebugLvl) {
 								if avg := stats.LatencySum / float64(stats.Count); avg > discoveryLatencyThresholdNs && discoveryDiagnosticLogLimit.ShouldLog() {
 									path := key.Path.Content.Get()
-									log.Warnf("discovery service map: average latency %s exceeds 30 minutes (sum=%s, count=%d, status=%d) for %s",
+									log.Debugf("discovery service map: average latency %s exceeds 30 minutes (sum=%s, count=%d, status=%d) for %s",
 										time.Duration(avg), time.Duration(stats.LatencySum), stats.Count, code, key.String())
 									if http.PathIsMalformed([]byte(path)) {
-										log.Warnf("discovery service map: malformed path %q for %s", path, key.String())
+										log.Debugf("discovery service map: malformed path %q for %s", path, key.String())
 									}
 								}
 							}
