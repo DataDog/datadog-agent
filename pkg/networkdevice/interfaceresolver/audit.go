@@ -14,9 +14,9 @@ package interfaceresolver
 // IfIndex to 0 means "the oracle says this MAC has no canonical
 // interface" — the resolver is expected to return OutcomeUnmatched.
 type OracleEntry struct {
-	MAC      string
-	Hint     ContextHint
-	IfIndex  int32
+	MAC     string
+	Hint    ContextHint
+	IfIndex int32
 }
 
 // AuditReport summarises the audit job's findings. Counts are

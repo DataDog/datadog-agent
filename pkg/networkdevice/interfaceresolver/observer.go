@@ -17,20 +17,20 @@ package interfaceresolver
 // Stable label semantics (do NOT rename without checking dashboards):
 //
 //   - vendor          : the device vendor as known to the caller
-//                       (e.g. "cisco", "juniper", "arista"). Empty
-//                       string is acceptable but discouraged.
+//     (e.g. "cisco", "juniper", "arista"). Empty
+//     string is acceptable but discouraged.
 //   - outcome         : one of OutcomeMatchedUnique,
-//                       OutcomeMatchedAmbiguous,
-//                       OutcomeUnresolvedAmbiguous, OutcomeUnmatched.
+//     OutcomeMatchedAmbiguous,
+//     OutcomeUnresolvedAmbiguous, OutcomeUnmatched.
 //   - rule            : one of the Rule* constants in resolver.go;
-//                       empty string when no tiebreaker was needed.
+//     empty string when no tiebreaker was needed.
 //   - candidate_count : the bucketed N from the resolution attempt
-//                       (see CandidateCountBucket). High-cardinality
-//                       integers are not safe as metric labels in
-//                       Datadog, so the resolver buckets first.
+//     (see CandidateCountBucket). High-cardinality
+//     integers are not safe as metric labels in
+//     Datadog, so the resolver buckets first.
 //   - if_type         : the IF-MIB ifType integer (used by
-//                       ObserveIfTypeDistribution only). Cardinality
-//                       is bounded by the IANAifType registry.
+//     ObserveIfTypeDistribution only). Cardinality
+//     is bounded by the IANAifType registry.
 type Observer interface {
 	// ObserveResolution is called exactly once per Resolve() call.
 	ObserveResolution(vendor string, result Result)
@@ -69,7 +69,7 @@ func CandidateCountBucket(n int) string {
 // silent but still correct.
 type noopObserver struct{}
 
-func (noopObserver) ObserveResolution(string, Result)          {}
+func (noopObserver) ObserveResolution(string, Result)              {}
 func (noopObserver) ObserveIfTypeDistribution(string, IfType, int) {}
 
 // NoopObserver returns an Observer that does nothing. Useful in unit

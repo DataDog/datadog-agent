@@ -48,9 +48,9 @@ func (f *fakeObserver) ObserveIfTypeDistribution(vendor string, t IfType, count 
 func TestCandidateCountBucket(t *testing.T) {
 	cases := map[int]string{
 		-1: "0", 0: "0",
-		1:  "1",
-		2:  "2",
-		3:  "3-5", 4: "3-5", 5: "3-5",
+		1: "1",
+		2: "2",
+		3: "3-5", 4: "3-5", 5: "3-5",
 		6: "6-10", 10: "6-10",
 		11: "11+", 1000: "11+",
 	}
