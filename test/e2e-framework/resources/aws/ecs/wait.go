@@ -20,9 +20,7 @@ import (
 // in the ECS cluster before returning. Returns the cluster ARN as a StringOutput so it can be
 // used as an implicit dependency for downstream resources.
 func WaitForContainerInstances(e aws.Environment, clusterArn pulumi.StringOutput, minInstances int) pulumi.StringOutput {
-	return pulumi.All(clusterArn).ApplyT(func(args []interface{}) (string, error) {
-		clusterArnStr := args[0].(string)
-
+	return clusterArn.ApplyT(func(clusterArnStr string) (string, error) {
 		cfg, err := awsconfig.LoadDefaultConfig(e.Ctx().Context(),
 			awsconfig.WithRegion(e.Region()),
 			awsconfig.WithSharedConfigProfile(e.Profile()),
