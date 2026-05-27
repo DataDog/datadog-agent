@@ -4,6 +4,7 @@ go_library(
     name = "interfaceresolver",
     srcs = [
         "doc.go",
+        "observer.go",
         "resolver.go",
         "types.go",
     ],
@@ -13,7 +14,10 @@ go_library(
 
 go_test(
     name = "interfaceresolver_test",
-    srcs = ["resolver_test.go"],
+    srcs = [
+        "observer_test.go",
+        "resolver_test.go",
+    ],
     embed = [":interfaceresolver"],
     gotags = ["test"],
     deps = [

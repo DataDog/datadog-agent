@@ -25,8 +25,37 @@ const (
 // is read-only after construction (NewResolver builds the index in one
 // pass) and therefore safe to share across goroutines.
 type Resolver struct {
+	// vendor is the device vendor as known to the caller. Used as
+	// a telemetry label only. Empty string is acceptable but
+	// discouraged.
+	vendor string
+	// observer receives instrumentation events. Never nil — defaults
+	// to NoopObserver.
+	observer Observer
 	// byMAC maps lowercase MAC address → all candidates carrying it.
 	byMAC map[string][]Candidate
+}
+
+// Option configures a Resolver at construction time.
+type Option func(*Resolver)
+
+// WithVendor sets the device vendor label used by the Observer.
+// Vendor strings should be lowercase and short (e.g. "cisco",
+// "juniper", "arista"). Cardinality is bounded by the number of
+// supported vendors.
+func WithVendor(vendor string) Option {
+	return func(r *Resolver) { r.vendor = vendor }
+}
+
+// WithObserver attaches an Observer for instrumentation. Nil is
+// accepted and treated as NoopObserver.
+func WithObserver(o Observer) Option {
+	return func(r *Resolver) {
+		if o == nil {
+			o = NoopObserver()
+		}
+		r.observer = o
+	}
 }
 
 // NewResolver builds a Resolver over the given candidates. Duplicate
@@ -34,11 +63,21 @@ type Resolver struct {
 // occurrence. Candidates with empty MAC are tolerated but not indexed.
 // MAC normalisation is canonical-lowercase, colon-separated; callers
 // are expected to already use formatColonSepBytes from internal/report.
-func NewResolver(candidates []Candidate) *Resolver {
+//
+// Instrumentation: during construction, the resolver emits one
+// ObserveIfTypeDistribution event per (ifType, count) pair seen.
+// This is the per-device snapshot the PRD calls for in step 1 of
+// scope ("instrument ifType value distribution per vendor").
+func NewResolver(candidates []Candidate, opts ...Option) *Resolver {
 	r := &Resolver{
-		byMAC: make(map[string][]Candidate, len(candidates)),
+		observer: NoopObserver(),
+		byMAC:    make(map[string][]Candidate, len(candidates)),
+	}
+	for _, opt := range opts {
+		opt(r)
 	}
 	seenIdx := make(map[int32]struct{}, len(candidates))
+	typeHist := make(map[IfType]int)
 	for _, c := range candidates {
 		if c.Index <= 0 {
 			continue
@@ -47,12 +86,16 @@ func NewResolver(candidates []Candidate) *Resolver {
 			continue
 		}
 		seenIdx[c.Index] = struct{}{}
+		typeHist[c.Type]++
 		mac := normalizeMAC(c.MAC)
 		if mac == "" {
 			continue
 		}
 		c.MAC = mac
 		r.byMAC[mac] = append(r.byMAC[mac], c)
+	}
+	for t, n := range typeHist {
+		r.observer.ObserveIfTypeDistribution(r.vendor, t, n)
 	}
 	return r
 }
@@ -76,6 +119,14 @@ func NewResolver(candidates []Candidate) *Resolver {
 // different fields of ContextHint). If neither rule (a/b) nor rule (c)
 // can break the tie, the result is unresolved.
 func (r *Resolver) Resolve(mac string, hint ContextHint) Result {
+	res := r.resolve(mac, hint)
+	r.observer.ObserveResolution(r.vendor, res)
+	return res
+}
+
+// resolve is the pure tiebreaker logic — no instrumentation. Exposed
+// privately so tests can exercise it without a fake Observer.
+func (r *Resolver) resolve(mac string, hint ContextHint) Result {
 	mac = normalizeMAC(mac)
 	candidates := r.byMAC[mac]
 	switch len(candidates) {
