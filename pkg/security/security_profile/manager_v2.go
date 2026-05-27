@@ -838,7 +838,8 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		return nil, false
 	}
 
-	// Profile was loaded successfully
+	// Profile was loaded successfully; recompute stats so SizeBytes reflects the loaded tree.
+	secprof.ActivityTree.ComputeActivityTreeStats()
 	secprof.SetTreeType(secprof, "security_profile")
 
 	// Update metadata with current event context for proper matching
