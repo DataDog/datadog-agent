@@ -154,7 +154,7 @@ func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
 	mods := issues.GetAllModules(cfg)
 	require.NotEmpty(t, mods, "no modules registered")
 	for _, mod := range mods {
-		issue, err := mod.IssueTemplate().BuildIssue(map[string]string{})
+		issue, err := mod.BuildIssue(map[string]string{})
 		require.NoError(t, err, "module %s: BuildIssue failed", mod.IssueName())
 		assert.Equal(t, mod.IssueName(), issue.IssueName,
 			"module IssueName() %q must equal BuildIssue().IssueName %q",

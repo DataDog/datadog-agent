@@ -179,6 +179,7 @@ components_missing_implementation_folder = [
 
 ignore_fx_import = [
     "comp/aggregator/demultiplexer",
+    "comp/forwarder/eventplatform",
     "comp/collector/collector",
     "comp/forwarder/eventplatformreceiver",
     "comp/otelcol/logsagentpipeline",
@@ -190,6 +191,7 @@ ignore_fx_import = [
 
 ignore_provide_component_constructor_missing = [
     "comp/aggregator/demultiplexer",
+    "comp/forwarder/eventplatform",
     "comp/collector/collector",
     "comp/forwarder/eventplatformreceiver",
     "comp/otelcol/logsagentpipeline",

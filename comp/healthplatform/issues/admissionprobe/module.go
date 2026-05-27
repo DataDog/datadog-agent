@@ -9,8 +9,10 @@
 package admissionprobe
 
 import (
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 func init() {
@@ -41,16 +43,16 @@ func (m *admissionProbeModule) IssueName() string {
 	return IssueName
 }
 
-func (m *admissionProbeModule) IssueTemplate() issues.IssueTemplate {
-	return m.template
+func (m *admissionProbeModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+	return m.template.BuildIssue(context)
 }
 
 // BuiltInPeriodicHealthCheck returns nil — probe failures are reported by the admission controller probe.
-func (m *admissionProbeModule) BuiltInPeriodicHealthCheck() *issues.BuiltInPeriodicHealthCheck {
+func (m *admissionProbeModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
 	return nil
 }
 
 // BuiltInStartupHealthCheck returns nil — no startup-time check for this module.
-func (m *admissionProbeModule) BuiltInStartupHealthCheck() *issues.BuiltInStartupHealthCheck {
+func (m *admissionProbeModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
 	return nil
 }
