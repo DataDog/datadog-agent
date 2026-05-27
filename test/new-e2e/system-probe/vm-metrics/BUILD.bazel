@@ -4,7 +4,10 @@ go_library(
     name = "vm-metrics_lib",
     srcs = ["vm-metrics.go"],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/system-probe/vm-metrics",
-    target_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:private"],
     deps = select({
         "@rules_go//go/platform:aix": [
@@ -89,7 +92,10 @@ go_library(
 go_binary(
     name = "vm-metrics",
     embed = [":vm-metrics_lib"],
-    target_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
 )
 
@@ -98,7 +104,10 @@ go_test(
     srcs = ["vm-metrics_test.go"],
     embed = [":vm-metrics_lib"],
     gotags = ["test"],
-    target_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/trace/teststatsd",
