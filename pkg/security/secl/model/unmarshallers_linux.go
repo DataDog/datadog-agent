@@ -1561,6 +1561,25 @@ func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
+func (e *SocketEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+	data = data[read:]
+
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+	e.Domain = binary.NativeEndian.Uint16(data[0:2])
+	e.Type = binary.NativeEndian.Uint16(data[2:4])
+	e.Protocol = binary.NativeEndian.Uint16(data[4:6])
+	// data[6:8] is a u16 padding in the kernel struct to keep 4-byte alignment
+
+	return read + 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *SetrlimitEvent) UnmarshalBinary(data []byte) (int, error) {
 	read, err := e.SyscallEvent.UnmarshalBinary(data)
 	if err != nil {

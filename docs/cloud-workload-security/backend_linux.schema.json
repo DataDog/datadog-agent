@@ -2058,6 +2058,30 @@
       ],
       "description": "SignalEventSerializer serializes a signal event to JSON"
     },
+    "SocketEvent": {
+      "properties": {
+        "domain": {
+          "type": "string",
+          "description": "Socket domain"
+        },
+        "type": {
+          "type": "string",
+          "description": "Socket type"
+        },
+        "protocol": {
+          "type": "string",
+          "description": "Socket protocol"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "domain",
+        "type",
+        "protocol"
+      ],
+      "description": "SocketEventSerializer serializes a socket event to JSON"
+    },
     "SpliceEvent": {
       "properties": {
         "pipe_entry_flag": {
@@ -2492,6 +2516,9 @@
     },
     "setrlimit": {
       "$ref": "#/$defs/SetrlimitEvent"
+    },
+    "socket": {
+      "$ref": "#/$defs/SocketEvent"
     }
   },
   "additionalProperties": false,

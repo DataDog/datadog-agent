@@ -74,6 +74,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestSpan",
 			"~TestChdir",
 			"~TestBindEvent",
+			"~TestSocketEvent",
 			"~TestAccept",
 			"~TestConnect",
 			"TestMountEvent",
