@@ -54,8 +54,8 @@ func TestInstrumentationChecksCollect(t *testing.T) {
 		wantErr          bool
 		wantErrVal       error
 		wantFlushed      bool
-		wantHeartbeat    bool  // whether heartbeat should be non-zero after Collect
-		wantConfigHash   int64 // expected configHash saved after Collect
+		wantHeartbeat    bool
+		wantConfigHash   uint64
 	}{
 		{
 			name: "success with configs",

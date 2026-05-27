@@ -31,8 +31,8 @@ func (c *DCAClient) GetInstrumentationConfigs(ctx context.Context) (types.Instru
 	return configs, err
 }
 
-// GetInstrumentationStatus returns the timestamp of the most recent instrumentation
-// config change. Node agents use this to avoid fetching the full config payload
+// GetInstrumentationStatus returns the hash of the latest instrumentation
+// config state. Node agents use this to avoid fetching the full config payload
 // when nothing has changed.
 func (c *DCAClient) GetInstrumentationStatus(ctx context.Context) (types.InstrumentationStatusResponse, error) {
 	var status types.InstrumentationStatusResponse

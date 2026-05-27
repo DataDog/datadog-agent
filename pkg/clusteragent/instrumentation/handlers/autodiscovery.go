@@ -173,19 +173,19 @@ func (h *AutodiscoveryHandler) Handle(_ context.Context, event instrumentation.E
 	}, nil
 }
 
-func (c *CheckStore) ListConfigs() []integration.Config {
+func (c *CheckStore) ListConfigs() ([]integration.Config, uint64) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	out := make([]integration.Config, 0)
 	for _, cfgs := range c.configs {
 		out = append(out, cfgs...)
 	}
-	return out
+	return out, c.configHash
 }
 
 // ConfigHash returns a deterministic hash of the current set of (key, generation) pairs,
 // consistent across all cluster agent replicas for the same CR state.
-func (c *CheckStore) ConfigHash() uint64 {
+func (c *CheckStore) Hash() uint64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.configHash

@@ -13,9 +13,10 @@ import (
 
 // ConfigLister exposes check configs derived from DatadogInstrumentation CRs.
 type ConfigLister interface {
-	ListConfigs() []integration.Config
-	// ConfigHash returns a deterministic hash of the current instrumentation config state.
-	ConfigHash() uint64
+	// ListConfigs returns all check configs and the state hash.
+	ListConfigs() ([]integration.Config, uint64)
+	// Hash returns a deterministic hash of the current instrumentation config state.
+	Hash() uint64
 }
 
 // ServerContext holds business logic classes required to setup API endpoints

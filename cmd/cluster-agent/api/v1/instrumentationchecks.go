@@ -29,9 +29,10 @@ func getInstrumentationConfigs(confLister clusteragent.ConfigLister) func(w http
 	}
 
 	return func(w http.ResponseWriter, _ *http.Request) {
+		configs, hash := confLister.ListConfigs()
 		response := cctypes.InstrumentationConfigResponse{
-			ConfigHash: confLister.ConfigHash(),
-			Configs:    confLister.ListConfigs(),
+			ConfigHash: hash,
+			Configs:    configs,
 		}
 		slcB, err := json.Marshal(response)
 		if err != nil {
@@ -52,7 +53,7 @@ func getInstrumentationStatus(confLister clusteragent.ConfigLister) func(w http.
 
 	return func(w http.ResponseWriter, _ *http.Request) {
 		response := cctypes.InstrumentationStatusResponse{
-			ConfigHash: confLister.ConfigHash(),
+			ConfigHash: confLister.Hash(),
 		}
 		slcB, err := json.Marshal(response)
 		if err != nil {
