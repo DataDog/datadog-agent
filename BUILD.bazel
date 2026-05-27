@@ -641,7 +641,6 @@ exports_files(glob(
 # gazelle:exclude test/benchmarks
 # gazelle:exclude test/e2e-framework/components/activedirectory
 # gazelle:exclude test/e2e-framework/components/datadog/agent/helm
-# gazelle:exclude test/e2e-framework/components/datadog/agentwithoperatorparams
 # gazelle:exclude test/e2e-framework/components/datadog/apps
 # gazelle:exclude test/e2e-framework/components/datadog/csi-driver
 # gazelle:exclude test/e2e-framework/components/datadog/dockeragentparams
