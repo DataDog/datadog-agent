@@ -2069,6 +2069,30 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "SignalEventSerializer serializes a signal event to JSON"
         },
+        "SocketEvent": {
+            "properties": {
+                "domain": {
+                    "type": "string",
+                    "description": "Socket domain"
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Socket type"
+                },
+                "protocol": {
+                    "type": "string",
+                    "description": "Socket protocol"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "domain",
+                "type",
+                "protocol"
+            ],
+            "description": "SocketEventSerializer serializes a socket event to JSON"
+        },
         "SpliceEvent": {
             "properties": {
                 "pipe_entry_flag": {
@@ -2503,6 +2527,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "setrlimit": {
             "$ref": "#/$defs/SetrlimitEvent"
+        },
+        "socket": {
+            "$ref": "#/$defs/SocketEvent"
         }
     },
     "additionalProperties": false,
@@ -2555,6 +2582,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `capabilities` | $ref | Please see [CapabilitiesEvent](#capabilitiesevent) |
 | `prctl` | $ref | Please see [PrCtlEvent](#prctlevent) |
 | `setrlimit` | $ref | Please see [SetrlimitEvent](#setrlimitevent) |
+| `socket` | $ref | Please see [SocketEvent](#socketevent) |
 
 ## `AWSIMDSEvent`
 
@@ -5594,6 +5622,44 @@ Workload Protection events for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [ProcessContext](#processcontext) |
+
+## `SocketEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "domain": {
+            "type": "string",
+            "description": "Socket domain"
+        },
+        "type": {
+            "type": "string",
+            "description": "Socket type"
+        },
+        "protocol": {
+            "type": "string",
+            "description": "Socket protocol"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "domain",
+        "type",
+        "protocol"
+    ],
+    "description": "SocketEventSerializer serializes a socket event to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `domain` | Socket domain |
+| `type` | Socket type |
+| `protocol` | Socket protocol |
+
 
 ## `SpliceEvent`
 
