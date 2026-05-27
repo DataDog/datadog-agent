@@ -9,11 +9,13 @@ go_library(
         "score_tp.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-scorer",
+    tags = ["manual"],
     visibility = ["//visibility:private"],
 )
 
 go_binary(
     name = "anomalydetection-scorer",
     embed = [":anomalydetection-scorer_lib"],
+    tags = ["manual"],
     visibility = ["//visibility:private"],
 )

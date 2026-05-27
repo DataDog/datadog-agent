@@ -13,17 +13,15 @@ import time
 from invoke import Exit, task
 
 from tasks.libs.anomalydetection.eval import (
-    DETECTORS,
     CORRELATORS,
+    DETECTORS,
     EXTRACTORS,
     SCENARIOS,
     StepLogger,
     _anchor_combos,
-    _best_run_index,
     _build_optuna_config,
     _combo_to_config,
     _ensure_parquets,
-    _fmt,
     _fmt_wall_dur,
     _full_stack_combo,
     _prepare_eval_output_dir,
