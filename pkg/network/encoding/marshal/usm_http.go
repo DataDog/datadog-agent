@@ -86,12 +86,8 @@ func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64
 						if e.discoveryMode {
 							if stats.Count > 0 && log.ShouldLog(log.DebugLvl) {
 								if avg := stats.LatencySum / float64(stats.Count); avg > discoveryLatencyThresholdNs {
-									path := key.Path.Content.Get()
 									log.Debugf("discovery service map: average latency %s exceeds 30 minutes (sum=%s, count=%d, status=%d) for %s",
 										time.Duration(avg), time.Duration(stats.LatencySum), stats.Count, code, key.String())
-									if http.PathIsMalformed([]byte(path)) {
-										log.Debugf("discovery service map: malformed path %q for %s", path, key.String())
-									}
 								}
 							}
 							w.SetLatencySum(stats.LatencySum)
