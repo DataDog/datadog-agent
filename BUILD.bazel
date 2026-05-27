@@ -299,7 +299,6 @@ exports_files(glob(
 # gazelle:exclude pkg/clusteragent/autoscaling/cluster
 # gazelle:exclude pkg/clusteragent/autoscaling/externalmetrics
 # gazelle:exclude pkg/clusteragent/autoscaling/workload/external
-# gazelle:exclude pkg/clusteragent/autoscaling/workload/loadstore
 # gazelle:exclude pkg/clusteragent/autoscaling/workload/local
 # gazelle:exclude pkg/clusteragent/autoscaling/workload/metrics
 # gazelle:exclude pkg/clusteragent/autoscaling/workload/model
