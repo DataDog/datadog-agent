@@ -324,9 +324,11 @@ func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) ([]byte, bool)
 	// Otherwise, we don't want the custom path to be rejected by our path formatting check.
 	if !match && pathIsMalformed(path) {
 		if h.oversizedLogLimit.ShouldLog() {
-			// TEMPORARY DIAGNOSTIC: bumped from Debug to Warn and enriched
-			// with raw latency so this log can be compared side-by-side with
-			// the discovery diagnostic in addDiscovery (see above).
+			log.Debugf("http path malformed: %+v %s", tx.ConnTuple(), tx.String())
+			// TEMPORARY DIAGNOSTIC: parallel Warn line with raw latency and
+			// cmdline so the same rejected transaction can be compared
+			// side-by-side with the discovery diagnostic in addDiscovery
+			// (see above). Remove together when the investigation is done.
 			log.Warnf("usm diagnostic: malformed path rejected latency=%s cmdline=%q",
 				time.Duration(tx.RequestLatency()), txCmdline(tx))
 		}
