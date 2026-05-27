@@ -52,8 +52,13 @@ func (s *pythonRemoteTagsLinuxSuite) SetupSuite() {
 	// Write and start socket-based HTTP servers on ports 8081 and 8082.
 	_, err = host.WriteFile("/tmp/httpserver.py", []byte(httpServerScript))
 	require.NoError(s.T(), err, "failed to write HTTP server script")
-	host.MustExecute("nohup python3 /tmp/httpserver.py 8081 > /tmp/http8081.log 2>&1 </dev/null &")
-	host.MustExecute("nohup python3 /tmp/httpserver.py 8082 > /tmp/http8082.log 2>&1 </dev/null &")
+	// Raise FD soft limit on the server process — the default ~1024 is
+	// exhausted by 4000 concurrent keep-alive connections per port and
+	// accept() starts returning EMFILE. `&` is kept outside `bash -c '...'`
+	// so the SSH session sees the background marker on the foreground
+	// command and returns immediately instead of waiting on the subshell.
+	host.MustExecute("nohup bash -c 'ulimit -n 16384 && exec python3 /tmp/httpserver.py 8081' > /tmp/http8081.log 2>&1 </dev/null &")
+	host.MustExecute("nohup bash -c 'ulimit -n 16384 && exec python3 /tmp/httpserver.py 8082' > /tmp/http8082.log 2>&1 </dev/null &")
 
 	waitForHTTPServer(s.T(), host, `python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:%d/')"`, 8081)
 	waitForHTTPServer(s.T(), host, `python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:%d/')"`, 8082)

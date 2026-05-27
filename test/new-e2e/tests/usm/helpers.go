@@ -101,7 +101,10 @@ import http.client, time
 conns = []
 for port in [8081, 8082]:
     for i in range(%d):
-        c = http.client.HTTPConnection(\"127.0.0.1\", port)
+        # 10s timeout on connect/read/write — without this, a wedged server
+        # (e.g. FD-exhausted accept queue) hangs the script indefinitely
+        # and the CI job dies on the 2h limit instead of failing fast.
+        c = http.client.HTTPConnection(\"127.0.0.1\", port, timeout=10)
         c.request(\"GET\", \"/\")
         c.getresponse()
         conns.append(c)
