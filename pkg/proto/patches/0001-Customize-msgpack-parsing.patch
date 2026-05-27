@@ -1,6 +1,6 @@
 --- pkg/proto/pbgo/trace/span_gen.go.clean	2025-09-09 16:31:31
 +++ pkg/proto/pbgo/trace/span_gen.go	2025-09-09 16:33:41
-@@ -581,60 +581,110 @@
+@@ -615,60 +615,110 @@
  		}
  		switch msgp.UnsafeString(field) {
  		case "service":
@@ -122,7 +122,7 @@
  			var zb0002 uint32
  			zb0002, bts, err = msgp.ReadMapHeaderBytes(bts)
  			if err != nil {
-@@ -650,12 +700,12 @@
+@@ -688,12 +738,12 @@
  				var za0002 string
  				zb0002--
  				var za0001 string
@@ -137,7 +137,7 @@
  				if err != nil {
  					err = msgp.WrapError(err, "Meta", za0001)
  					return
-@@ -663,6 +713,11 @@
+@@ -701,6 +751,11 @@
  				z.Meta[za0001] = za0002
  			}
  		case "metrics":
@@ -149,7 +149,7 @@
  			var zb0003 uint32
  			zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
  			if err != nil {
-@@ -678,12 +733,12 @@
+@@ -720,12 +775,12 @@
  				var za0004 float64
  				zb0003--
  				var za0003 string
@@ -164,7 +164,7 @@
  				if err != nil {
  					err = msgp.WrapError(err, "Metrics", za0003)
  					return
-@@ -691,7 +746,12 @@
+@@ -733,7 +788,12 @@
  				z.Metrics[za0003] = za0004
  			}
  		case "type":
@@ -178,7 +178,7 @@
  			if err != nil {
  				err = msgp.WrapError(err, "Type")
  				return
-@@ -712,7 +772,7 @@
+@@ -758,7 +818,7 @@
  				var za0006 []byte
  				zb0004--
  				var za0005 string
@@ -187,7 +187,7 @@
  				if err != nil {
  					err = msgp.WrapError(err, "MetaStruct")
  					return
-@@ -891,7 +951,12 @@
+@@ -965,7 +1025,12 @@
  				return
  			}
  		case "name":
@@ -201,7 +201,7 @@
  			if err != nil {
  				err = msgp.WrapError(err, "Name")
  				return
-@@ -1045,7 +1110,12 @@
+@@ -1127,7 +1192,12 @@
  		}
  		switch msgp.UnsafeString(field) {
  		case "trace_id":
@@ -215,7 +215,7 @@
  			if err != nil {
  				err = msgp.WrapError(err, "TraceID")
  				return
-@@ -1057,7 +1127,12 @@
+@@ -1139,7 +1209,12 @@
  				return
  			}
  		case "span_id":

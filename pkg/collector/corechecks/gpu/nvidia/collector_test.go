@@ -142,7 +142,7 @@ func TestAllCollectorsWork(t *testing.T) {
 
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
 		testutil.WithMIGDisabled(),
-		testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithMockAllFunctions(),
 		testutil.WithArchitecture("blackwell")) // Ensure all functions are marked as supported
 
@@ -244,7 +244,7 @@ func TestDisabledCollectors(t *testing.T) {
 			nvmlMock := testutil.GetBasicNvmlMockWithOptions(
 				testutil.WithDeviceCount(1),
 				testutil.WithMIGDisabled(),
-				testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
+				testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 				testutil.WithMockAllFunctions(),
 				testutil.WithArchitecture("blackwell"),
 			)
