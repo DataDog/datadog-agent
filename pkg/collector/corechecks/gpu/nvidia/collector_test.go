@@ -183,7 +183,7 @@ func TestAllCollectorsWork(t *testing.T) {
 }
 
 func TestDisabledCollectors(t *testing.T) {
-	numCollectors := len(factory)
+	numCollectors := NumCollectors()
 	allCollectorNames := make([]string, 0, numCollectors)
 	for name := range factory {
 		allCollectorNames = append(allCollectorNames, string(name))
