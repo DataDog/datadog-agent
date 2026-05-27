@@ -116,12 +116,12 @@ type LibraryInjectionConfig struct {
 	// An empty list allows all registries (default).
 	RegistryAllowList []string
 
-	// CSIAutoDetectionEnabled is a temporary feature flag gating the CSI
-	// auto-detection logic in the AutoProvider: when true, AutoProvider may
-	// switch to the CSI provider if the Datadog CSI driver is registered in
-	// the cluster (per workloadmeta); when false, AutoProvider always falls
-	// back to the init-container provider.
-	CSIAutoDetectionEnabled bool
+	// CSIDriverWatcher caches the Datadog CSI driver state observed via
+	// workloadmeta. AutoProvider consults it to decide between CSI and
+	// init-container injection without hitting workloadmeta on every
+	// admission request. A nil value disables CSI auto-detection and
+	// makes AutoProvider behave as if the feature did not exist.
+	CSIDriverWatcher CSIDriverWatcher
 }
 
 // LibraryInjectionProvider defines the strategy for injecting APM libraries into pods.
