@@ -531,10 +531,12 @@ def eval_combinations(
         exclude_combo_keys={full_key},
     )
     combos = [full_combo] + random_combos
-    print(color_message(
-        f"combo_000 = full stack; plus {len(random_combos)} random (seed={seed}, total={len(combos)})",
-        Color.BLUE,
-    ))
+    print(
+        color_message(
+            f"combo_000 = full stack; plus {len(random_combos)} random (seed={seed}, total={len(combos)})",
+            Color.BLUE,
+        )
+    )
 
     combo_logger = StepLogger(len(combos), "Combo")
     summary_results = []
@@ -789,6 +791,7 @@ def eval_bayesian(
         import optuna
     except Exception:
         import sys
+
         print(color_message('Please use dda inv --dep optuna ... to run this task', Color.RED), file=sys.stderr)
         raise Exit(1) from None
 
@@ -810,10 +813,12 @@ def eval_bayesian(
         else:
             unknown_only_in_subset = set(only_list) - set(components_list)
             if unknown_only_in_subset:
-                print(color_message(
-                    f"Error: --only targets not in --components: {', '.join(sorted(unknown_only_in_subset))}",
-                    Color.RED,
-                ))
+                print(
+                    color_message(
+                        f"Error: --only targets not in --components: {', '.join(sorted(unknown_only_in_subset))}",
+                        Color.RED,
+                    )
+                )
                 return
         locked_set = {c for c in components_list if c not in set(only_list)}
     else:
@@ -945,11 +950,13 @@ def eval_bayesian(
     if n_failed > 0:
         fail_pct = 100 * n_failed / n_trials
         clr = Color.RED if not completed_trials else Color.ORANGE
-        print(color_message(
-            f"Warning: {n_failed}/{n_trials} trials failed ({fail_pct:.0f}%).  "
-            "Failed trials are excluded from scoring.",
-            clr,
-        ))
+        print(
+            color_message(
+                f"Warning: {n_failed}/{n_trials} trials failed ({fail_pct:.0f}%).  "
+                "Failed trials are excluded from scoring.",
+                clr,
+            )
+        )
         for ft in failed_trials:
             print(color_message(f"  [{ft['label']}] {ft['reason']}", clr))
         if not completed_trials:
@@ -1182,7 +1189,9 @@ def eval_pipeline(
     print(color_message(f"\n{'=' * 70}", Color.BLUE))
     print(color_message("  Pipeline Eval — Step 2/2: Fine-Tuning on Winner", Color.BLUE))
     print(color_message(f"{'=' * 70}", Color.BLUE))
-    print(color_message(f"  Winner:     {best_combo['combo']}  (search score={best_combo['max_score']:.4f})", Color.BLUE))
+    print(
+        color_message(f"  Winner:     {best_combo['combo']}  (search score={best_combo['max_score']:.4f})", Color.BLUE)
+    )
     print(color_message(f"  Components: {', '.join(best_combo['components'])}", Color.BLUE))
 
     tune_dir = os.path.join(output_dir, "tune")
@@ -1231,10 +1240,12 @@ def eval_pipeline(
     print(color_message(f"\n{'=' * 70}", Color.GREEN))
     print(color_message("  Pipeline Eval — Final Summary", Color.GREEN))
     print(color_message(f"{'=' * 70}", Color.GREEN))
-    print(color_message(
-        f"  Winner:        {best_combo['combo']}  ({', '.join(best_combo['detectors'] + best_combo['correlators'])})",
-        Color.GREEN,
-    ))
+    print(
+        color_message(
+            f"  Winner:        {best_combo['combo']}  ({', '.join(best_combo['detectors'] + best_combo['correlators'])})",
+            Color.GREEN,
+        )
+    )
     print(color_message(f"  Search score:  {best_combo['max_score']:.4f}", Color.GREEN))
     print(color_message(f"  Final score:   {final_score:.4f}", Color.GREEN))
     print(color_message(f"  Best config:   {best_config_path}", Color.GREEN))
@@ -1311,10 +1322,12 @@ def eval_component(
     scenario_names = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else list(SCENARIOS)
     unknown_scenarios = set(scenario_names) - set(SCENARIOS)
     if unknown_scenarios:
-        print(color_message(
-            f"Error: unknown scenarios: {', '.join(sorted(unknown_scenarios))}. Known: {', '.join(SCENARIOS)}",
-            Color.RED,
-        ))
+        print(
+            color_message(
+                f"Error: unknown scenarios: {', '.join(sorted(unknown_scenarios))}. Known: {', '.join(SCENARIOS)}",
+                Color.RED,
+            )
+        )
         return
 
     force_enable_list = [c.strip() for c in enable.split(",") if c.strip()]
@@ -1359,10 +1372,12 @@ def eval_component(
     )
     subsets = fixed_subsets + random_subsets
     if len(subsets) < n_subsets:
-        print(color_message(
-            f"Warning: only {len(subsets)} unique subsets generated (requested {n_subsets})",
-            Color.ORANGE,
-        ))
+        print(
+            color_message(
+                f"Warning: only {len(subsets)} unique subsets generated (requested {n_subsets})",
+                Color.ORANGE,
+            )
+        )
         n_subsets = len(subsets)
     elif len(subsets) > n_subsets:
         for variant in ("without", "with"):
@@ -1404,10 +1419,12 @@ def eval_component(
     if extra_lock_list:
         print(color_message(f"  extra locked HPs:      {', '.join(extra_lock_list)}", Color.BLUE))
     if timeout:
-        print(color_message(
-            f"  timeout:               {timeout}s/scenario ({timeout * n_scenarios}s total budget per run)",
-            Color.BLUE,
-        ))
+        print(
+            color_message(
+                f"  timeout:               {timeout}s/scenario ({timeout * n_scenarios}s total budget per run)",
+                Color.BLUE,
+            )
+        )
     if tune_evaluated_component:
         print(color_message("  target component HPs:  tuned (Optuna search on 'with')", Color.ORANGE))
     else:
@@ -1535,9 +1552,7 @@ def eval_component(
     print(color_message(f"  Wall time:   {wall_str}", Color.GREEN))
     if best_config_path:
         score_str = (
-            f"{best_with_run['best_score']:.4f}"
-            if best_with_run and best_with_run["best_score"] is not None
-            else "n/a"
+            f"{best_with_run['best_score']:.4f}" if best_with_run and best_with_run["best_score"] is not None else "n/a"
         )
         print(color_message(f"  Best config: {best_config_path}  (score={score_str})", Color.GREEN))
 

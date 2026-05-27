@@ -628,7 +628,12 @@ def aggregate_eval_component_results(
             if row and row.get("delta_f1") is not None:
                 deltas.append(row["delta_f1"])
         if not deltas:
-            per_scenario_summary[s] = {"mean_delta_f1": None, "min_delta_f1": None, "max_delta_f1": None, "n_subsets": 0}
+            per_scenario_summary[s] = {
+                "mean_delta_f1": None,
+                "min_delta_f1": None,
+                "max_delta_f1": None,
+                "n_subsets": 0,
+            }
         else:
             per_scenario_summary[s] = {
                 "mean_delta_f1": sum(deltas) / len(deltas),
@@ -643,16 +648,20 @@ def aggregate_eval_component_results(
     total_failed_runs = sum(ps["failed_runs"] for ps in per_subset)
 
     if n_failed_subsets > 0:
-        print(color_message(
-            f"Warning: {n_failed_subsets}/{n_subsets} subsets had fully failed runs and are excluded from the final delta.",
-            Color.ORANGE,
-        ))
+        print(
+            color_message(
+                f"Warning: {n_failed_subsets}/{n_subsets} subsets had fully failed runs and are excluded from the final delta.",
+                Color.ORANGE,
+            )
+        )
     if total_failed_runs > 0 and n_failed_subsets == 0:
-        print(color_message(
-            f"Warning: {total_failed_runs} individual run(s) failed across subsets; "
-            "partial results were excluded from per-subset scores.",
-            Color.ORANGE,
-        ))
+        print(
+            color_message(
+                f"Warning: {total_failed_runs} individual run(s) failed across subsets; "
+                "partial results were excluded from per-subset scores.",
+                Color.ORANGE,
+            )
+        )
 
     delta_max = sum(valid_deltas_max) / len(valid_deltas_max) if valid_deltas_max else None
     delta_mean = sum(valid_deltas_mean) / len(valid_deltas_mean) if valid_deltas_mean else None
@@ -793,14 +802,18 @@ def print_eval_component_summary(
         print(f"  {ps['subset']:<12}  {wo_str}  {wi_str}  {delta_str}{fail_note}")
 
     print()
-    print(color_message(
-        "  Per-scenario Δ F1 (best Bayesian trial per run; best run per variant per subset)",
-        Color.BLUE,
-    ))
-    print(color_message(
-        "  Columns: mean / min / max of Δ across subsets (helps spot inconsistent scenarios)",
-        Color.BLUE,
-    ))
+    print(
+        color_message(
+            "  Per-scenario Δ F1 (best Bayesian trial per run; best run per variant per subset)",
+            Color.BLUE,
+        )
+    )
+    print(
+        color_message(
+            "  Columns: mean / min / max of Δ across subsets (helps spot inconsistent scenarios)",
+            Color.BLUE,
+        )
+    )
     ps_header = f"  {'Scenario':<26}  {'mean Δ':>8}  {'min Δ':>8}  {'max Δ':>8}"
     print(ps_header)
     print(f"  {'-' * len(ps_header.strip())}")
