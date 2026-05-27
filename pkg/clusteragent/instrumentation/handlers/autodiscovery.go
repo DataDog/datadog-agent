@@ -35,16 +35,20 @@ const (
 )
 
 type CheckStore struct {
-	mu          sync.RWMutex
-	configs     map[string][]integration.Config
-	generations map[string]int64
-	configHash  int64
+	mu      sync.RWMutex
+	configs map[string][]integration.Config
+	// states maps namespace/name → "uid:generation". Including the UID ensures that a
+	// delete+recreate of a CR with the same name is detected even when the new CR
+	// starts at generation 1.
+	states     map[string]string
+	configHash uint64
 }
 
 func NewCheckStore() *CheckStore {
 	return &CheckStore{
-		configs:     make(map[string][]integration.Config),
-		generations: make(map[string]int64),
+		configs:    make(map[string][]integration.Config),
+		states:     make(map[string]string),
+		configHash: fnv.New64a().Sum64(),
 	}
 }
 
@@ -159,7 +163,7 @@ func (h *AutodiscoveryHandler) Handle(_ context.Context, event instrumentation.E
 		configs = append(configs, cfg)
 	}
 
-	h.checkStore.setConfigs(key, configs, cr.Generation)
+	h.checkStore.setConfigs(key, configs, cr.Generation, string(cr.UID))
 
 	return instrumentation.HandlerStatus{
 		Type:    checksReadyConditionType,
@@ -181,46 +185,48 @@ func (c *CheckStore) ListConfigs() []integration.Config {
 
 // ConfigHash returns a deterministic hash of the current set of (key, generation) pairs,
 // consistent across all cluster agent replicas for the same CR state.
-func (c *CheckStore) ConfigHash() int64 {
+func (c *CheckStore) ConfigHash() uint64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.configHash
 }
 
-func (c *CheckStore) setConfigs(key string, configs []integration.Config, generation int64) {
+func (c *CheckStore) setConfigs(key string, configs []integration.Config, generation int64, uid string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if len(configs) == 0 {
 		delete(c.configs, key)
-		delete(c.generations, key)
+		delete(c.states, key)
 	} else {
 		c.configs[key] = configs
-		c.generations[key] = generation
+		c.states[key] = fmt.Sprintf("%s:%d", uid, generation)
 	}
-	c.configHash = c.hashGenerations()
+	c.configHash = c.hashStates()
 }
 
 func (c *CheckStore) deleteConfigs(key string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.configs, key)
-	delete(c.generations, key)
-	c.configHash = c.hashGenerations()
+	delete(c.states, key)
+	c.configHash = c.hashStates()
 }
 
-// hashGenerations computes a deterministic int64 from the sorted (key, generation)
-// pairs currently in the store. Must be called under the write lock.
-func (c *CheckStore) hashGenerations() int64 {
-	keys := make([]string, 0, len(c.generations))
-	for k := range c.generations {
+// hashStates computes a deterministic hash from the sorted set of
+// "key:uid:generation" entries in the store. Including the UID ensures that a
+// recreation of a CR with the same namespace/name is detected even when
+// the new CR starts at generation 1.
+func (c *CheckStore) hashStates() uint64 {
+	keys := make([]string, 0, len(c.states))
+	for k := range c.states {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	h := fnv.New64a()
 	for _, k := range keys {
-		fmt.Fprintf(h, "%s:%d\n", k, c.generations[k]) //nolint:errcheck
+		fmt.Fprintf(h, "%s:%s\n", k, c.states[k]) //nolint:errcheck
 	}
-	return int64(h.Sum64())
+	return h.Sum64()
 }
 
 func translateCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.DatadogInstrumentationCheckConfig) (integration.Config, error) {

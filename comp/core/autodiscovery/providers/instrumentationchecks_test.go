@@ -194,7 +194,7 @@ func TestInstrumentationChecksIsUpToDate(t *testing.T) {
 	tests := []struct {
 		name           string
 		client         clusteragent.InstrumentationCheckClient
-		configHash     int64
+		configHash     uint64
 		flushedConfigs bool
 		wantResult     bool
 	}{

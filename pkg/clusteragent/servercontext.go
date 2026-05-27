@@ -15,7 +15,7 @@ import (
 type ConfigLister interface {
 	ListConfigs() []integration.Config
 	// ConfigHash returns a deterministic hash of the current instrumentation config state.
-	ConfigHash() int64
+	ConfigHash() uint64
 }
 
 // ServerContext holds business logic classes required to setup API endpoints

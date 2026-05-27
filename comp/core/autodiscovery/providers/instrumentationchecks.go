@@ -29,7 +29,7 @@ type InstrumentationChecksConfigProvider struct {
 	degradedDuration time.Duration
 	heartbeat        time.Time
 	flushedConfigs   bool
-	configHash       int64
+	configHash       uint64
 }
 
 // NewInstrumentationChecksConfigProvider returns a new ConfigProvider collecting

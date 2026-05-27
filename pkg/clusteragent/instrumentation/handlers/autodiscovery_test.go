@@ -18,6 +18,7 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
@@ -39,6 +40,7 @@ func newCRWithGeneration(name, namespace string, targetKind, targetName string, 
 			Name:       name,
 			Namespace:  namespace,
 			Generation: generation,
+			UID:        k8stypes.UID(namespace + "/" + name),
 		},
 		Spec: datadoghq.DatadogInstrumentationSpec{
 			TargetRef: autoscalingv2.CrossVersionObjectReference{
@@ -437,33 +439,45 @@ func TestConfigHash(t *testing.T) {
 
 	baseline := store.ConfigHash()
 
-	// Adding a key changes the hash.
-	store.setConfigs("ns/cr1", cfg, 1)
+	t.Run("create changes hash", func(t *testing.T) {
+		store.setConfigs("ns/cr1", cfg, 1, "uid-a")
+		assert.NotEqual(t, baseline, store.ConfigHash())
+	})
 	after1 := store.ConfigHash()
-	assert.NotEqual(t, baseline, after1)
 
-	// Generation bump changes the hash.
-	store.setConfigs("ns/cr1", cfg, 2)
+	t.Run("generation bump changes hash", func(t *testing.T) {
+		store.setConfigs("ns/cr1", cfg, 2, "uid-a")
+		assert.NotEqual(t, after1, store.ConfigHash())
+	})
 	after2 := store.ConfigHash()
-	assert.NotEqual(t, after1, after2)
 
-	// Same generation is idempotent — hash is stable.
-	store.setConfigs("ns/cr1", cfg, 2)
-	assert.Equal(t, after2, store.ConfigHash())
+	t.Run("same generation and UID is idempotent", func(t *testing.T) {
+		store.setConfigs("ns/cr1", cfg, 2, "uid-a")
+		assert.Equal(t, after2, store.ConfigHash())
+	})
 
-	// Second key changes the hash.
-	store.setConfigs("ns/cr2", cfg, 1)
+	t.Run("recreate with same generation but new UID changes hash", func(t *testing.T) {
+		store.deleteConfigs("ns/cr1")
+		store.setConfigs("ns/cr1", cfg, 1, "uid-b")
+		assert.NotEqual(t, after1, store.ConfigHash())
+	})
+	afterRecreate := store.ConfigHash()
+
+	t.Run("adding a second key changes hash", func(t *testing.T) {
+		store.setConfigs("ns/cr2", cfg, 1, "uid-c")
+		assert.NotEqual(t, afterRecreate, store.ConfigHash())
+	})
 	after3 := store.ConfigHash()
-	assert.NotEqual(t, after2, after3)
 
-	// Delete changes the hash.
-	store.deleteConfigs("ns/cr1")
-	after4 := store.ConfigHash()
-	assert.NotEqual(t, after3, after4)
+	t.Run("delete changes hash", func(t *testing.T) {
+		store.deleteConfigs("ns/cr1")
+		assert.NotEqual(t, after3, store.ConfigHash())
+	})
 
-	// Back to empty — hash matches baseline.`
-	store.deleteConfigs("ns/cr2")
-	assert.Equal(t, baseline, store.ConfigHash())
+	t.Run("empty store returns to baseline", func(t *testing.T) {
+		store.deleteConfigs("ns/cr2")
+		assert.Equal(t, baseline, store.ConfigHash())
+	})
 }
 
 func TestBuildCELSelector(t *testing.T) {
