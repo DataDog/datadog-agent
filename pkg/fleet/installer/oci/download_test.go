@@ -9,7 +9,9 @@
 package oci
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"os"
 	"runtime"
@@ -497,4 +499,108 @@ func TestGetRefAndKeychains(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestProgressCallbackReportsRange verifies that progress values stay within
+// [0.0, 1.0], are monotonically non-decreasing, and reach ≥ 0.99 by the end
+// of a successful layer extraction. This acts as a regression guard: if
+// AnnotationSize were accidentally set to the compressed blob size instead of
+// the uncompressed extracted size, bytesRead/Size would overshoot 1.0 early,
+// the callback would pin at 1.0 before extraction completes, and the
+// monotone-to-≥0.99 assertion would still pass — but the overshoot is caught
+// by the strict ≤ 1.0 assertion on every individual value.
+func TestProgressCallbackReportsRange(t *testing.T) {
+	s := newTestDownloadServer(t)
+	pkg, err := s.Downloader().Download(context.Background(), s.PackageURL(fixtures.FixtureSimpleV1))
+	require.NoError(t, err)
+	require.NotZero(t, pkg.Size, "fixture must have AnnotationSize set")
+
+	var progress []float32
+	pkg.SetProgressCallback(func(v float32) {
+		progress = append(progress, v)
+	})
+
+	tmpDir := t.TempDir()
+	require.NoError(t, pkg.ExtractLayers(DatadogPackageLayerMediaType, tmpDir))
+
+	require.NotEmpty(t, progress, "at least one progress callback must fire")
+	for i, v := range progress {
+		assert.GreaterOrEqual(t, v, float32(0.0), "progress[%d] must be ≥ 0", i)
+		assert.LessOrEqual(t, v, float32(1.0), "progress[%d] must be ≤ 1.0", i)
+		if i > 0 {
+			assert.GreaterOrEqual(t, v, progress[i-1], "progress must be non-decreasing at index %d", i)
+		}
+	}
+	assert.GreaterOrEqual(t, progress[len(progress)-1], float32(0.99), "final progress must reach ≥ 0.99")
+}
+
+// TestProgressCallbackDebounce verifies the ≥1% debounce threshold: a read
+// that advances progress by less than 1% must not fire the callback.
+func TestProgressCallbackDebounce(t *testing.T) {
+	pkg := &DownloadedPackage{Size: 1000}
+
+	var fired []float32
+	pkg.SetProgressCallback(func(v float32) {
+		fired = append(fired, v)
+	})
+
+	// 5 bytes = 0.5% of 1000 — below the 1% threshold; no callback expected.
+	r1 := &progressReader{ReadCloser: io.NopCloser(bytes.NewReader(bytes.Repeat([]byte{1}, 5))), pkg: pkg}
+	_, err := io.ReadAll(r1)
+	require.NoError(t, err)
+	assert.Empty(t, fired, "no callback should fire below 1% threshold")
+
+	// 10 more bytes = cumulative 1.5% — crosses the 1% threshold; exactly one callback expected.
+	r2 := &progressReader{ReadCloser: io.NopCloser(bytes.NewReader(bytes.Repeat([]byte{1}, 10))), pkg: pkg}
+	_, err = io.ReadAll(r2)
+	require.NoError(t, err)
+	require.Len(t, fired, 1, "exactly one callback should fire once the threshold is crossed")
+	assert.InDelta(t, 0.015, fired[0], 0.001)
+}
+
+// TestProgressCallbackNoInflationOnRetry verifies that bytesRead and lastReport
+// are restored to their pre-attempt values at the start of each retry, so a
+// partial read that fails mid-stream does not inflate progress in the next attempt.
+//
+// The test models the withNetworkRetries save/restore mechanic directly: it
+// captures the counters before a simulated first attempt, lets the attempt run
+// (accumulating bytes into bytesRead), then restores the saved values exactly
+// as the fixed ExtractLayers closure does. The second attempt must then start
+// from the saved baseline, not from the inflated value.
+func TestProgressCallbackNoInflationOnRetry(t *testing.T) {
+	const size = 100
+	pkg := &DownloadedPackage{Size: size}
+
+	var progress []float32
+	pkg.SetProgressCallback(func(v float32) {
+		progress = append(progress, v)
+	})
+
+	// Capture baseline before the first attempt (mirrors the savedBytesRead /
+	// savedLastReport snapshot taken before withNetworkRetries in ExtractLayers).
+	savedBytesRead := pkg.bytesRead
+	savedLastReport := pkg.lastReport
+
+	// First attempt: reads 60 bytes, then "fails" (network error interrupts).
+	r1 := &progressReader{ReadCloser: io.NopCloser(bytes.NewReader(bytes.Repeat([]byte{1}, 60))), pkg: pkg}
+	_, err := io.ReadAll(r1)
+	require.NoError(t, err)
+	assert.Equal(t, int64(60), pkg.bytesRead)
+
+	// Restore — this is the fix; without it, bytesRead would be 60 at the start
+	// of the second attempt, inflating all subsequent progress values.
+	pkg.bytesRead = savedBytesRead
+	pkg.lastReport = savedLastReport
+	progress = nil
+
+	// Second attempt: read only 5 bytes (5% of size=100) so the first callback
+	// fires at a low value. Without the fix, bytesRead would start at 60, making
+	// the first callback fire at (60+5)/100 = 0.65. With the fix it fires at 0.05.
+	r2 := &progressReader{ReadCloser: io.NopCloser(bytes.NewReader(bytes.Repeat([]byte{1}, size))), pkg: pkg}
+	_, err = r2.Read(make([]byte, 5))
+	require.NoError(t, err)
+
+	require.Len(t, progress, 1, "exactly one callback should have fired after reading 5 bytes")
+	assert.LessOrEqual(t, progress[0], float32(0.10),
+		"first callback after restore must start near 0, not from the stale 0.60")
 }

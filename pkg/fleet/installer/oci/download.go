@@ -53,7 +53,10 @@ const (
 	AnnotationPackage = "com.datadoghq.package.name"
 	// AnnotationVersion is the annotiation used to identify the package version.
 	AnnotationVersion = "com.datadoghq.package.version"
-	// AnnotationSize is the annotiation used to identify the package size.
+	// AnnotationSize is the annotation used to identify the uncompressed (extracted)
+	// package size. It is the denominator for byte-counted download progress (see
+	// SetProgressCallback) and MUST represent the sum of uncompressed layer sizes,
+	// not the compressed OCI blob size.
 	AnnotationSize = "com.datadoghq.package.size"
 
 	// VariantFIPS is the value used in oci.Platform.Variant to mark a FIPS-compliant
@@ -109,8 +112,9 @@ type DownloadedPackage struct {
 }
 
 // SetProgressCallback registers fn to be called during ExtractLayers with the
-// fraction of d.Size read so far (cumulative across calls), capped at 1.0.
-// fn is called at most once per 1% change. No-op if d.Size == 0.
+// fraction of d.Size (the uncompressed package size from AnnotationSize) read so
+// far, cumulative across calls, capped at 1.0. fn fires at most once per 1% change.
+// No-op if d.Size == 0.
 func (d *DownloadedPackage) SetProgressCallback(fn func(float32)) {
 	d.onProgress = fn
 }
@@ -429,8 +433,12 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string,
 		if err != nil {
 			return fmt.Errorf("could not get layer: %w", err)
 		}
+		savedBytesRead := d.bytesRead
+		savedLastReport := d.lastReport
 		err = withNetworkRetries(
 			func() error {
+				d.bytesRead = savedBytesRead
+				d.lastReport = savedLastReport
 				var err error
 				defer func() {
 					if err != nil {
