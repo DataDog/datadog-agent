@@ -23,6 +23,7 @@ import (
 
 	"github.com/cilium/ebpf/btf"
 
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
@@ -130,9 +131,37 @@ type orderedBTFLoader struct {
 	rcclient       rcclient.Component
 	rcTimeout      time.Duration
 	rcDownloadHost string
+
+	platform        btfPlatform
+	platformVersion string
+	kernelVersion   string
+	arch            string
+	fixedtags       []string
+	telemetry       struct {
+		rcSuccess telemetry.Counter
+		rcErrors  telemetry.Counter
+	}
 }
 
-func initBTFLoader(cfg *Config, rcclient rcclient.Component) *orderedBTFLoader {
+func initBTFLoader(cfg *Config, rcclient rcclient.Component, telemetrycomp telemetry.Component) (*orderedBTFLoader, error) {
+	var err error
+	platform, err := getBTFPlatform()
+	if err != nil {
+		return nil, err
+	}
+	platformVersion, err := kernel.PlatformVersion()
+	if err != nil {
+		return nil, err
+	}
+	kernelVersion, err := kernel.Release()
+	if err != nil {
+		return nil, err
+	}
+	arch, err := kernel.Machine()
+	if err != nil {
+		return nil, err
+	}
+
 	btfLoader := &orderedBTFLoader{
 		userBTFPath:    cfg.BTFPath,
 		embeddedDir:    filepath.Join(cfg.BPFDir, "co-re", "btf"),
@@ -142,10 +171,23 @@ func initBTFLoader(cfg *Config, rcclient rcclient.Component) *orderedBTFLoader {
 		rcclient:       rcclient,
 		rcTimeout:      cfg.RemoteConfigBTFTimeout,
 		rcDownloadHost: cfg.RemoteConfigBTFDownloadHost,
+
+		platform:        platform,
+		platformVersion: platformVersion,
+		kernelVersion:   kernelVersion,
+		arch:            arch,
+		fixedtags:       []string{platform.String(), platformVersion, kernelVersion, arch},
+		telemetry: struct {
+			rcSuccess telemetry.Counter
+			rcErrors  telemetry.Counter
+		}{
+			rcSuccess: telemetrycomp.NewCounter("ebpf__core__remoteconfig", "success", []string{"platform", "platform_version", "kernel", "arch"}, "count of CO-RE remote config BTF successes"),
+			rcErrors:  telemetrycomp.NewCounter("ebpf__core__remoteconfig", "error", []string{"platform", "platform_version", "kernel", "arch", "error_type"}, "count of CO-RE remote config BTF errors"),
+		},
 	}
 	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, loadKernelSpec.Flush)
 	btfLoader.delayedFlusher = time.AfterFunc(btfFlushDelay, btfLoader.Flush)
-	return btfLoader
+	return btfLoader, nil
 }
 
 type btfLoaderFunc func(context.Context) (*returnBTF, error)
