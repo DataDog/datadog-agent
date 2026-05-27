@@ -603,6 +603,20 @@ func (m *ManagerV2) SendStats() error {
 		}
 	}
 
+	// Per-profile in-memory size
+	m.profilesLock.Lock()
+	for selector, p := range m.profiles {
+		tags := []string{
+			"image_name:" + selector.Image,
+			"image_tag:" + selector.Tag,
+		}
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileInMemorySize, float64(p.ComputeInMemorySize()), tags, 1.0); err != nil {
+			m.profilesLock.Unlock()
+			return err
+		}
+	}
+	m.profilesLock.Unlock()
+
 	return nil
 }
 

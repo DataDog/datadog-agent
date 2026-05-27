@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"time"
+	"unsafe"
 )
 
 // SyscallNode is used to store a syscall node
@@ -17,6 +18,11 @@ type SyscallNode struct {
 	NodeBase
 	GenerationType NodeGenerationType
 	Syscall        int
+}
+
+// size returns the shallow heap size of this node.
+func (sn *SyscallNode) size() int64 {
+	return int64(unsafe.Sizeof(*sn))
 }
 
 // NewSyscallNode returns a new SyscallNode instance

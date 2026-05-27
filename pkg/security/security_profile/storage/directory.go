@@ -255,36 +255,6 @@ func (d *Directory) Load(wls *cgroupModel.WorkloadSelector, p *profile.Profile) 
 	return false, nil
 }
 
-func (d *Directory) getProfilesSizeOnDisk() uint64 {
-	var ret uint64
-
-	files, err := os.ReadDir(d.directoryPath)
-	if err != nil {
-		seclog.Warnf("couldn't list the files in %s. The %s metric is reporting incorrect data for this host", d.directoryPath, metrics.MetricActivityDumpLocalStorageSizeOnDisk)
-		return 0
-	}
-
-	for _, file := range files {
-		fullpath := filepath.Join(d.directoryPath, file.Name())
-
-		_, err := config.ParseStorageFormat(filepath.Ext(fullpath))
-		// skip files that don't have any of our storage formats
-		if err != nil {
-			continue
-		}
-
-		s, err := os.Stat(fullpath)
-		if err != nil {
-			seclog.Warnf("couldn't stat the file %s. The %s metric is likely to be reporting incorrect data for this host", fullpath, metrics.MetricActivityDumpLocalStorageSizeOnDisk)
-			continue
-		}
-
-		ret += uint64(s.Size())
-	}
-
-	return ret
-}
-
 // GetStorageType returns the storage type
 func (d *Directory) GetStorageType() config.StorageType {
 	return config.LocalStorage
@@ -293,20 +263,32 @@ func (d *Directory) GetStorageType() config.StorageType {
 // SendTelemetry sends telemetry for the current storage
 func (d *Directory) SendTelemetry(sender statsd.ClientInterface) {
 	d.profilesLock.RLock()
-	// send the count of dumps stored locally
 	if count := d.profiles.Len(); count > 0 {
 		_ = sender.Gauge(metrics.MetricActivityDumpLocalStorageCount, float64(count), nil, 1.0)
 	}
+
+	var totalSizeOnDisk int64
+	for _, entry := range d.profiles.Values() {
+		var profileSize int64
+		for _, filePath := range entry.filePaths {
+			if info, err := os.Stat(filePath); err == nil {
+				profileSize += info.Size()
+			}
+		}
+		totalSizeOnDisk += profileSize
+		tags := []string{
+			"image_name:" + entry.selector.Image,
+			"image_tag:" + entry.selector.Tag,
+		}
+		_ = sender.Gauge(metrics.MetricSecurityProfileV2LocalStorageProfileSizeOnDisk, float64(profileSize), tags, 1.0)
+	}
 	d.profilesLock.RUnlock()
 
-	// send the count of recently deleted dumps
 	if count := d.deletedCount.Swap(0); count > 0 {
 		_ = sender.Count(metrics.MetricActivityDumpLocalStorageDeleted, int64(count), nil, 1.0)
 	}
 
-	// send the total size on disk used by the profiles
-	sizeOnDisk := d.getProfilesSizeOnDisk()
-	_ = sender.Gauge(metrics.MetricActivityDumpLocalStorageSizeOnDisk, float64(sizeOnDisk), nil, 1.0)
+	_ = sender.Gauge(metrics.MetricActivityDumpLocalStorageSizeOnDisk, float64(totalSizeOnDisk), nil, 1.0)
 }
 
 func compressWithGZip(filename string, rawBuf []byte) (*bytes.Buffer, error) {

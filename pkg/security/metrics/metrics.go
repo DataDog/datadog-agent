@@ -584,6 +584,16 @@ var (
 	// Tags: -
 	MetricSecurityProfileV2CleanupProfilesRemoved = newRuntimeMetric(".security_profile_v2.cleanup.profiles_removed")
 
+	// MetricSecurityProfileV2LocalStorageProfileSizeOnDisk is the name of the metric used to report the on-disk size of each
+	// individual security profile stored locally.
+	// Tags: image_name, image_tag
+	MetricSecurityProfileV2LocalStorageProfileSizeOnDisk = newAgentMetric(".security_profile_v2.local_storage.profile_size_on_disk")
+
+	// MetricSecurityProfileV2ProfileInMemorySize is the name of the metric used to report the estimated in-memory size
+	// of each active security profile.
+	// Tags: image_name, image_tag
+	MetricSecurityProfileV2ProfileInMemorySize = newRuntimeMetric(".security_profile_v2.profile_in_memory_size")
+
 	// Event sampling metrics (kernel-side)
 
 	// MetricEventSampleTotal is the name of the metric used to report total events that hit the sampling logic in kernel

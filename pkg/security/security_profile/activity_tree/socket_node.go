@@ -9,6 +9,8 @@
 package activitytree
 
 import (
+	"unsafe"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -31,6 +33,13 @@ type SocketNode struct {
 	Family         string
 	GenerationType NodeGenerationType
 	Bind           []*BindNode
+}
+
+// size returns the shallow heap size of this node.
+func (sn *SocketNode) size() int64 {
+	s := int64(unsafe.Sizeof(*sn))
+	s += int64(len(sn.Family))
+	return s
 }
 
 // Matches returns true if BindNodes matches

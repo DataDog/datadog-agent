@@ -9,6 +9,8 @@
 package activitytree
 
 import (
+	"unsafe"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -18,6 +20,15 @@ type IMDSNode struct {
 	MatchedRules   []*model.MatchedRule
 	GenerationType NodeGenerationType
 	Event          model.IMDSEvent
+}
+
+// size returns the shallow heap size of this node.
+func (in *IMDSNode) size() int64 {
+	s := int64(unsafe.Sizeof(*in))
+	s += int64(len(in.Event.CloudProvider))
+	s += int64(len(in.Event.Type))
+	s += int64(len(in.Event.URL))
+	return s
 }
 
 // NewIMDSNode creates a new IMDSNode instance

@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"golang.org/x/sys/unix"
 
@@ -52,6 +53,15 @@ type ProcessNode struct {
 	Syscalls     []*SyscallNode
 	Capabilities []*CapabilityNode
 	Children     []*ProcessNode
+}
+
+// size returns the shallow heap size of this node: struct overhead plus key string fields.
+func (pn *ProcessNode) size() int64 {
+	s := int64(unsafe.Sizeof(*pn))
+	s += int64(len(pn.Process.FileEvent.PathnameStr))
+	s += int64(len(pn.Process.FileEvent.BasenameStr))
+	s += int64(len(pn.Process.Argv0))
+	return s
 }
 
 // NewProcessNode returns a new ProcessNode instance
@@ -236,9 +246,11 @@ newSyscallLoop:
 			// exit early
 			break
 		}
-		pn.Syscalls = append(pn.Syscalls, NewSyscallNode(int(newSyscall), e.ResolveEventTime(), imageTagID, Runtime))
+		sn := NewSyscallNode(int(newSyscall), e.ResolveEventTime(), imageTagID, Runtime)
+		pn.Syscalls = append(pn.Syscalls, sn)
 		syscallMask[int(newSyscall)] = int(newSyscall)
 		stats.SyscallNodes++
+		stats.SizeBytes += sn.size()
 	}
 
 	return hasNewSyscalls
@@ -275,6 +287,7 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 			node := NewFileNode(fileEvent, event, parent, imageTagID, generationType, filePath, resolvers)
 			node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 			stats.FileNodes++
+			stats.SizeBytes += node.size()
 			pn.Files[parent] = node
 		} else {
 			// This is an intermediary node in the branch that leads to the leaf we want to add. Create a node without the
@@ -282,6 +295,7 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 			newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, filePath, resolvers)
 			newChild.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], imageTagID, generationType, stats, dryRun, filePath, resolvers)
 			stats.FileNodes++
+			stats.SizeBytes += newChild.size()
 			pn.Files[parent] = newChild
 		}
 	}
@@ -334,8 +348,10 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, gener
 		return true
 	}
 
-	pn.DNSNames[evt.DNS.Question.Name] = NewDNSNode(&evt.DNS, evt, evt.Rules, generationType, imageTagID)
+	dnsNode = NewDNSNode(&evt.DNS, evt, evt.Rules, generationType, imageTagID)
+	pn.DNSNames[evt.DNS.Question.Name] = dnsNode
 	stats.DNSNodes++
+	stats.SizeBytes += dnsNode.size()
 	return true
 }
 
@@ -350,8 +366,10 @@ func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTagID uint64, gene
 
 	if !dryRun {
 		// create new node
-		pn.IMDSEvents[evt.IMDS] = NewIMDSNode(&evt.IMDS, evt, evt.Rules, generationType, imageTagID)
+		imdsNode := NewIMDSNode(&evt.IMDS, evt, evt.Rules, generationType, imageTagID)
+		pn.IMDSEvents[evt.IMDS] = imdsNode
 		stats.IMDSNodes++
+		stats.SizeBytes += imdsNode.size()
 	}
 	return true
 }
@@ -390,6 +408,7 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTagID uint64, gene
 		sock = NewSocketNode(evtFamily, generationType)
 		if !dryRun {
 			stats.SocketNodes++
+			stats.SizeBytes += sock.size()
 			pn.Sockets = append(pn.Sockets, sock)
 		}
 		newNode = true
@@ -429,6 +448,7 @@ nextCapability:
 		capabilityNode := NewCapabilityNode(capability, capable, evt.ResolveEventTime(), imageTagID, Runtime)
 		pn.Capabilities = append(pn.Capabilities, capabilityNode)
 		stats.CapabilityNodes++
+		stats.SizeBytes += capabilityNode.size()
 	}
 
 	return hasNewCapabilitiesUsage

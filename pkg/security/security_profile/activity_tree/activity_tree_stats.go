@@ -10,7 +10,6 @@ package activitytree
 
 import (
 	"fmt"
-	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
@@ -29,6 +28,10 @@ type Stats struct {
 	SyscallNodes    int64
 	FlowNodes       int64
 	CapabilityNodes int64
+
+	// SizeBytes is an incremental estimate of the tree's heap size in bytes.
+	// It is updated at every insertion and recomputed from scratch after evictions.
+	SizeBytes int64
 
 	counts map[model.EventType]*statsPerEventType
 }
@@ -67,18 +70,10 @@ func NewActivityTreeNodeStats() *Stats {
 	return ats
 }
 
-// ApproximateSize returns an approximation of the size of the tree
+// ApproximateSize returns the tracked in-memory size of the tree in bytes.
+// This value is updated incrementally at insertion time and recomputed after evictions.
 func (stats *Stats) ApproximateSize() int64 {
-	var total int64
-	total += stats.ProcessNodes * int64(unsafe.Sizeof(ProcessNode{})) // 1024
-	total += stats.FileNodes * int64(unsafe.Sizeof(FileNode{}))       // 80
-	total += stats.DNSNodes * int64(unsafe.Sizeof(DNSNode{}))         // 24
-	total += stats.SocketNodes * int64(unsafe.Sizeof(SocketNode{}))   // 40
-	total += stats.IMDSNodes * int64(unsafe.Sizeof(IMDSNode{}))
-	total += stats.SyscallNodes * int64(unsafe.Sizeof(SyscallNode{}))
-	total += stats.FlowNodes * int64(unsafe.Sizeof(FlowNode{}))
-	total += stats.CapabilityNodes * int64(unsafe.Sizeof(CapabilityNode{}))
-	return total
+	return stats.SizeBytes
 }
 
 // SendStats sends metrics to Datadog

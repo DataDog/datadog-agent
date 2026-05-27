@@ -68,8 +68,10 @@ func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.N
 				return newFlow
 			}
 			// create new entry
-			netdevice.FlowNodes[flow.GetFiveTuple()] = NewFlowNode(flow, evt, generationType, imageTagID)
+			flowNode := NewFlowNode(flow, evt, generationType, imageTagID)
+			netdevice.FlowNodes[flow.GetFiveTuple()] = flowNode
 			stats.FlowNodes++
+			stats.SizeBytes += flowNode.size()
 		}
 	}
 

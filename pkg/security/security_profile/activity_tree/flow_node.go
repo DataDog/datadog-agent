@@ -9,6 +9,8 @@
 package activitytree
 
 import (
+	"unsafe"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -17,6 +19,11 @@ type FlowNode struct {
 	NodeBase
 	GenerationType NodeGenerationType
 	Flow           model.Flow
+}
+
+// size returns the shallow heap size of this node.
+func (fn *FlowNode) size() int64 {
+	return int64(unsafe.Sizeof(*fn))
 }
 
 // NewFlowNode returns a new FlowNode instance

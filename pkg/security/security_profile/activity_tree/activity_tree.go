@@ -345,6 +345,8 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 
 		fnodes = fnodes[1:]
 	}
+
+	at.recomputeSizeBytes()
 }
 
 // IsEmpty returns true if the tree is empty
@@ -719,6 +721,7 @@ func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []
 			// insert the new node in the list of children
 			at.Stats.counts[model.ExecEventType].addedCount[generationType].Inc()
 			at.Stats.ProcessNodes++
+			at.Stats.SizeBytes += matchingNode.size()
 
 			parent = matchingNode
 		}
@@ -847,6 +850,7 @@ func (at *ActivityTree) rebaseTree(parent ProcessNodeParent, childIndexToRebase 
 			childrenCursor.AppendChild(n)
 		}
 		at.Stats.ProcessNodes++
+		at.Stats.SizeBytes += n.size()
 		at.Stats.counts[model.ExecEventType].addedCount[generationType].Inc()
 
 		childrenCursor = n
@@ -970,6 +974,53 @@ func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 	}
 }
 
+// recomputeSizeBytes walks the full tree and resets Stats.SizeBytes to the accurate current value.
+// This is called after evictions where tracking incremental decrements would be too complex.
+func (at *ActivityTree) recomputeSizeBytes() {
+	var total int64
+	openList := make([]*ProcessNode, len(at.ProcessNodes))
+	copy(openList, at.ProcessNodes)
+	for len(openList) > 0 {
+		pn := openList[len(openList)-1]
+		openList = openList[:len(openList)-1]
+		total += pn.size()
+		for _, fn := range pn.Files {
+			total += fileSubtreeSizeBytes(fn)
+		}
+		for _, dns := range pn.DNSNames {
+			total += dns.size()
+		}
+		for _, imds := range pn.IMDSEvents {
+			total += imds.size()
+		}
+		for _, sock := range pn.Sockets {
+			total += sock.size()
+		}
+		for _, sc := range pn.Syscalls {
+			total += sc.size()
+		}
+		for _, cap := range pn.Capabilities {
+			total += cap.size()
+		}
+		for _, device := range pn.NetworkDevices {
+			for _, flow := range device.FlowNodes {
+				total += flow.size()
+			}
+		}
+		openList = append(openList, pn.Children...)
+	}
+	at.Stats.SizeBytes = total
+}
+
+// fileSubtreeSizeBytes recursively sums the size of a FileNode and all its descendants.
+func fileSubtreeSizeBytes(fn *FileNode) int64 {
+	total := fn.size()
+	for _, child := range fn.Children {
+		total += fileSubtreeSizeBytes(child)
+	}
+	return total
+}
+
 // EvictImageTag will remove every trace of the given image tag from the tree
 func (at *ActivityTree) EvictImageTag(imageTag string) {
 	// purge the cookies which todays are never set. TODO: once they'll get used, recompute them here
@@ -991,6 +1042,7 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 	}
 	at.ProcessNodes = newProcessNodes
 	at.removeImageTag(imageTag)
+	at.recomputeSizeBytes()
 }
 
 func (at *ActivityTree) visitProcessNode(processNode *ProcessNode, cb func(processNode *ProcessNode)) {
@@ -1118,6 +1170,10 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 			at.ProcessNodes = append(at.ProcessNodes[:i], at.ProcessNodes[i+1:]...)
 			totalEvicted++
 		}
+	}
+
+	if totalEvicted > 0 {
+		at.recomputeSizeBytes()
 	}
 
 	return totalEvicted

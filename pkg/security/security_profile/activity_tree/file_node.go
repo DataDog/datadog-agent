@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -38,6 +39,17 @@ type OpenNode struct {
 	model.SyscallEvent
 	Flags uint32
 	Mode  uint32
+}
+
+// size returns the shallow heap size of this node: struct overhead plus key string fields.
+func (fn *FileNode) size() int64 {
+	s := int64(unsafe.Sizeof(*fn))
+	s += int64(len(fn.Name))
+	if fn.File != nil {
+		s += int64(len(fn.File.PathnameStr))
+		s += int64(len(fn.File.BasenameStr))
+	}
+	return s
 }
 
 // NewFileNode returns a new FileActivityNode instance
@@ -174,8 +186,10 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 			break
 		}
 		if len(currentPath) <= nextParentIndex+1 {
-			currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, imageTagID, generationType, reducedPath, resolvers)
+			leafNode := NewFileNode(fileEvent, event, parent, imageTagID, generationType, reducedPath, resolvers)
+			currentFn.Children[parent] = leafNode
 			stats.FileNodes++
+			stats.SizeBytes += leafNode.size()
 			break
 		}
 		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, "", resolvers)
