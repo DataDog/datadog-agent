@@ -1,7 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
 
-# gazelle:resolve go github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/nvml @//comp/core/workloadmeta/collectors/internal/nvml
-
 go_library(
     name = "collectors",
     srcs = ["testutil.go"],
