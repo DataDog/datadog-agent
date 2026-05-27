@@ -31,7 +31,7 @@ func LoadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.O
 func GetBTFLoaderInfo() (string, error) {
 	loader, err := coreLoader(NewConfig(), nil, telemetryimpl.GetCompatComponent())
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	metadataStr := loader.btfLoader.resultMetadata.String()
