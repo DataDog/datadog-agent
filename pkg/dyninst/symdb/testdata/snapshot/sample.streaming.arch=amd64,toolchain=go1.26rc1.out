@@ -1363,15 +1363,57 @@ Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
 			Arg: w: .param2 (declared at line 30, available: [30-31])
 			Arg: ~r0: .param3 (declared at line 30, available: )
 === yield 4 [final=true] ===
-Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2
-	Function: FooV2 (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.FooV2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [21:30] injectible: [21-21], [29-30]
-	Function: UseV2GenericBox (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.UseV2GenericBox) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [54:57] injectible: [54-54], [56-57]
-		Var: b: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2GenericBox[int] (declared at line 55, available: )
-	Type: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2GenericBox[...]
+Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
+	Function: Filter[...] (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[...]) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [113:120] injectible: [113-113], [115-117], [120-120]
+		Arg: items: <T> (declared at line 113, available: [113-115])
+		Arg: pred: <T> (declared at line 113, available: [113-120])
+		Arg: ~r0: <T> (declared at line 113, available: )
+		Var: result: <T> (declared at line 114, available: [115-120])
+		Scope: 115-120
+			Var: item: <T> (declared at line 115, available: [115-120])
+	Function: Foo (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Foo) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [13:14] injectible: [13-14]
+	Function: InlinedFunc (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [16:17] injectible: [17-17]
+	Function: InlinedInLaterCU (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedInLaterCU) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [27:28] injectible: [28-28]
+	Function: Map[...] (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[...]) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [105:106] injectible: [105-106]
+		Arg: box: <T> (declared at line 105, available: [105-106])
+		Arg: f: <T> (declared at line 105, available: [105-106])
+		Arg: ~r0: <T> (declared at line 105, available: )
+	Function: NewImmutableSet[...] (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.NewImmutableSet[go.shape.string]) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [40:41] injectible: [41-41]
+	Function: Reduce[...] (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Reduce[...]) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [126:131] injectible: [126-126], [128-129], [131-131]
+		Arg: items: <T> (declared at line 126, available: [126-128])
+		Arg: init: <T> (declared at line 126, available: [126-128])
+		Arg: f: <T> (declared at line 126, available: [126-131])
+		Arg: ~r0: <T> (declared at line 126, available: )
+		Var: acc: <T> (declared at line 127, available: [126-131])
+		Scope: 128-131
+			Var: item: <T> (declared at line 128, available: [128-129])
+	Type: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Box[...]
 		Field: Value: <T>
-		Function: Get (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.V2GenericBox[...].Get) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [51:51] injectible: [51-51]
-			Arg: b: .param0 (declared at line 51, available: [51-51])
-			Arg: ~r0: .param1 (declared at line 51, available: )
-	Type: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type
-		Function: MyMethod (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.(*V2Type).MyMethod) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [34:36] injectible: [34-36]
-			Arg: v: *github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.V2Type (declared at line 34, available: [34-35])
+		Function: Set (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.(*Box[...]).Set) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [83:85] injectible: [83-85]
+			Arg: b: <T> (declared at line 83, available: [83-85])
+			Arg: val: <T> (declared at line 83, available: [83-85])
+		Function: Get (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Box[...].Get) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [76:77] injectible: [76-77]
+			Arg: b: <T> (declared at line 76, available: [76-77])
+			Arg: ~r0: <T> (declared at line 76, available: )
+	Type: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.ImmutableSet[...]
+		Field: items: <T>
+		Function: Contains (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.(*ImmutableSet[...]).Contains) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [62:63] injectible: [62-63]
+			Arg: s: <T> (declared at line 62, available: [62-63])
+			Arg: item: <T> (declared at line 62, available: [62-63])
+			Arg: ~r0: bool (declared at line 62, available: )
+		Function: Insert (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.(*ImmutableSet[...]).Insert) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [49:56] injectible: [49-53], [55-56]
+			Arg: s: <T> (declared at line 49, available: [49-56])
+			Arg: item: <T> (declared at line 49, available: [49-56])
+			Arg: ~r0: <T> (declared at line 49, available: )
+			Arg: ~r1: bool (declared at line 49, available: )
+			Var: existed: bool (declared at line 50, available: [49-56])
+			Var: newItems: <T> (declared at line 51, available: [49-56])
+			Scope: 52-55
+				Var: v: bool (declared at line 52, available: [52-52], [53-53])
+				Var: k: <T> (declared at line 52, available: [53-53])
+	Type: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Pair[...]
+		Field: First: <T>
+		Field: Second: <T>
+		Function: Swap (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Pair[...].Swap) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [97:98] injectible: [97-98]
+			Arg: p: <T> (declared at line 97, available: [97-98])
+			Arg: ~r0: <T> (declared at line 97, available: )
