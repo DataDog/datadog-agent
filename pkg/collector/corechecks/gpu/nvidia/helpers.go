@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"golang.org/x/exp/constraints"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -50,9 +49,11 @@ func boolToFloat(val bool) float64 {
 	return 0
 }
 
-// number interface for numeric type constraints
+// number is the set of all integer and floating-point types.
 type number interface {
-	constraints.Integer | constraints.Float
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr |
+		~float32 | ~float64
 }
 
 // readNumberFromBuffer reads a number from a binary reader and converts it to the target type

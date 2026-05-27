@@ -6,7 +6,11 @@
 // Package maps provides utility functions for dealing with maps
 package maps
 
-import "golang.org/x/exp/constraints"
+// integer is the set of all integer types, mirroring constraints.Integer from golang.org/x/exp.
+type integer interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
+}
 
 // Map transforms keys and values from the provided into map into a copy using the given mapping functions.
 func Map[K1, K2 comparable, V1, V2 any](m map[K1]V1, kmap func(x K1) K2, vmap func(x V1) V2) map[K2]V2 {
@@ -33,7 +37,7 @@ func MapKeys[K1, K2 comparable, V any](m map[K1]V, kmap func(x K1) K2) map[K2]V 
 }
 
 // CastIntegerKeys transforms keys from the provided map into a copy using integer casting.
-func CastIntegerKeys[K1, K2 constraints.Integer, V any](m map[K1]V) map[K2]V {
+func CastIntegerKeys[K1, K2 integer, V any](m map[K1]V) map[K2]V {
 	if m == nil {
 		return nil
 	}
