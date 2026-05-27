@@ -780,6 +780,7 @@ exports_files(glob(
 # gazelle:exclude test/regression
 # gazelle:exclude test/required_files
 # gazelle:exclude test/static
+# gazelle:exclude internal/qbranch/anomalydetection-testbench
 # gazelle:exclude tools/agent_QA
 # gazelle:exclude tools/ci
 # gazelle:exclude tools/ebpf
