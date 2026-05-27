@@ -36,7 +36,7 @@ def build_binary(ctx, package: str, output_path: str, label: str) -> str:
     help={
         "lookback_seconds": "Metrics lookback window in seconds",
         "org": "Datadog org filter: prod, staging. If not provided, use all configured orgs",
-        "metric_filter": "Additional Datadog metric filter expression, ANDed with the GPU config filter",
+        "metric_filter": "Datadog metric filter expression. Defaults to the GPU config filter",
     },
 )
 def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None, metric_filter: str | None = None):
