@@ -639,7 +639,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/tags
 # gazelle:exclude tasks/unit_tests
 # gazelle:exclude test/benchmarks
-# gazelle:exclude test/e2e-framework/components/activedirectory
 # gazelle:exclude test/e2e-framework/components/datadog/agent/helm
 # gazelle:exclude test/e2e-framework/components/datadog/apps
 # gazelle:exclude test/e2e-framework/components/datadog/csi-driver
