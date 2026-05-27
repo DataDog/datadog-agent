@@ -264,18 +264,20 @@ func (s *upgradeSuite) TestIntegrationPreservationStableToOCIExperiment() {
 	s.Assert().NoError(showErr, "integration show should succeed after restoration in experiment")
 	s.Assert().Contains(showOut, "1.0.2", "integration show should report the restored version")
 
-	// Failure mode 1: dist-info files must be owned by dd-agent after restoration.
-	// post.py calls pip as root (no privilege drop in executePythonScript / install_datadog_package),
-	// so without a post-install chown the files land as root:root. installFilesystem chowns the
-	// experiment tree before post.py runs, but pip overwrites ownership for the reinstalled package.
-	s.Assert().Equal("dd-agent", s.integrationDistInfoOwner("experiment", "ping"),
-		"dist-info should be owned by dd-agent after restoration; root ownership blocks future 'agent integration install' from unlinking root-owned .pyc files")
+	if s.Env().RemoteHost.OSFamily == e2eos.LinuxFamily {
+		// Failure mode 1: dist-info files must be owned by dd-agent after restoration.
+		// post.py calls pip as root (no privilege drop in executePythonScript / install_datadog_package),
+		// so without a post-install chown the files land as root:root. installFilesystem chowns the
+		// experiment tree before post.py runs, but pip overwrites ownership for the reinstalled package.
+		s.Assert().Equal("dd-agent", s.integrationDistInfoOwner("experiment", "ping"),
+			"dist-info should be owned by dd-agent after restoration; root ownership blocks future 'agent integration install' from unlinking root-owned .pyc files")
 
-	// Failure mode 2: the datadog_checks/<name> directory must be dd-agent-owned so the running
-	// agent can create and refresh __pycache__ inside it. If root-owned (mode 0755), dd-agent
-	// has r-x but not w, so Python silently skips writing bytecode and re-parses source on every import.
-	s.Assert().Equal("dd-agent", s.integrationCheckDirOwner("experiment", "ping"),
-		"datadog_checks/ping should be owned by dd-agent after restoration; root ownership prevents dd-agent from writing __pycache__ entries")
+		// Failure mode 2: the datadog_checks/<name> directory must be dd-agent-owned so the running
+		// agent can create and refresh __pycache__ inside it. If root-owned (mode 0755), dd-agent
+		// has r-x but not w, so Python silently skips writing bytecode and re-parses source on every import.
+		s.Assert().Equal("dd-agent", s.integrationCheckDirOwner("experiment", "ping"),
+			"datadog_checks/ping should be owned by dd-agent after restoration; root ownership prevents dd-agent from writing __pycache__ entries")
+	}
 
 	err = s.Backend.PromoteExperiment("datadog-agent")
 	s.Require().NoError(err)
@@ -302,6 +304,9 @@ func (s *upgradeSuite) TestIntegrationPreservationStableToOCIExperiment() {
 // and asserts that the restored integration files are owned by dd-agent in both the
 // experiment and stable locations.
 func (s *upgradeSuite) runIntegrationOwnershipTest(installUser, label string) {
+	if s.Env().RemoteHost.OSFamily != e2eos.LinuxFamily {
+		s.T().Skip("ownership checks require Linux: InstallIntegrationAs and find -printf are not available on other platforms")
+	}
 	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
 	s.snapshotIntegrationState(label + ": after MustInstall (released OCI stable)")
@@ -435,20 +440,22 @@ func (s *upgradeSuite) TestIntegrationPreservationMultiHop() {
 	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages(), agent.WithLogLevel("debug"))
 	defer s.Agent.MustUninstall()
 
-	// Enable debug log level on both agent and installer (persists through OCI upgrades).
-	_, setupErr := s.Env().RemoteHost.Execute(`printf '\nlog_level: debug\n' | sudo tee -a /etc/datadog-agent/datadog.yaml > /dev/null`)
-	s.Require().NoError(setupErr)
-	_, setupErr = s.Env().RemoteHost.Execute(`sudo systemctl restart datadog-agent datadog-agent-installer`)
-	s.Require().NoError(setupErr)
+	if s.Env().RemoteHost.OSFamily == e2eos.LinuxFamily {
+		// Enable debug log level on both agent and installer (persists through OCI upgrades).
+		_, setupErr := s.Env().RemoteHost.Execute(`printf '\nlog_level: debug\n' | sudo tee -a /etc/datadog-agent/datadog.yaml > /dev/null`)
+		s.Require().NoError(setupErr)
+		_, setupErr = s.Env().RemoteHost.Execute(`sudo systemctl restart datadog-agent datadog-agent-installer`)
+		s.Require().NoError(setupErr)
 
-	// Collect full agent and installer journal logs to a local file at test end.
-	defer func() {
-		logs, _ := s.Env().RemoteHost.Execute(`sudo journalctl -u datadog-agent -u 'datadog-agent-installer*.service' --no-pager --output=cat 2>&1`)
-		logPath := filepath.Join(s.SessionOutputDir(), "TestIntegrationPreservationMultiHop_debug.log")
-		if writeErr := os.WriteFile(logPath, []byte(logs), 0o644); writeErr == nil {
-			s.T().Logf("Debug logs written to: %s", logPath)
-		}
-	}()
+		// Collect full agent and installer journal logs to a local file at test end.
+		defer func() {
+			logs, _ := s.Env().RemoteHost.Execute(`sudo journalctl -u datadog-agent -u 'datadog-agent-installer*.service' --no-pager --output=cat 2>&1`)
+			logPath := filepath.Join(s.SessionOutputDir(), "TestIntegrationPreservationMultiHop_debug.log")
+			if writeErr := os.WriteFile(logPath, []byte(logs), 0o644); writeErr == nil {
+				s.T().Logf("Debug logs written to: %s", logPath)
+			}
+		}()
+	}
 
 	s.snapshotIntegrationState("MultiHop: after MustInstall (released OCI stable)")
 
