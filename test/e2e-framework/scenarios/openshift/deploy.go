@@ -39,12 +39,6 @@ func DeployComponents(
 	fakeIntake *fakeintakeComp.Fakeintake,
 	extraAgentOptions ...kubernetesagentparams.Option,
 ) error {
-	vpaCrd, err := vpa.DeployCRD(env, kubeProvider)
-	if err != nil {
-		return err
-	}
-	dependsOnVPA := utils.PulumiDependsOn(vpaCrd)
-
 	var dependsOnDDAgent pulumi.ResourceOption
 
 	if env.AgentDeploy() {
@@ -73,6 +67,12 @@ func DeployComponents(
 	}
 
 	if env.TestingWorkloadDeploy() {
+		vpaCrd, err := vpa.DeployCRD(env, kubeProvider)
+		if err != nil {
+			return err
+		}
+		dependsOnVPA := utils.PulumiDependsOn(vpaCrd)
+
 		if _, err := redis.K8sAppDefinition(env, kubeProvider, "workload-redis", true, dependsOnDDAgent, dependsOnVPA); err != nil {
 			return err
 		}
