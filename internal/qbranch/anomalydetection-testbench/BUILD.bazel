@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
+# gazelle:resolve go github.com/DataDog/datadog-agent/comp/core //comp/core
+
 go_library(
     name = "anomalydetection-testbench_lib",
     srcs = ["main.go"],
@@ -20,7 +22,7 @@ go_library(
         "//internal/qbranch/anomalydetection-testbench/bench",
         "//pkg/util/fxutil",
         "//pkg/util/option",
-        "@com_github_datadog_datadog_agent//comp/core",
+        "//comp/core",
         "@org_uber_go_fx//:fx",
     ],
 )
@@ -220,7 +222,7 @@ go_test(
         "//comp/core/workloadmeta/def",
         "//pkg/util/fxutil",
         "//pkg/util/option",
-        "@com_github_datadog_datadog_agent//comp/core",
+        "//comp/core",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
     ],
