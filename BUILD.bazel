@@ -640,7 +640,6 @@ exports_files(glob(
 # gazelle:exclude tasks/unit_tests
 # gazelle:exclude test/benchmarks
 # gazelle:exclude test/e2e-framework/components/activedirectory
-# gazelle:exclude test/e2e-framework/components/command
 # gazelle:exclude test/e2e-framework/components/datadog/agent/helm
 # gazelle:exclude test/e2e-framework/components/datadog/agentwithoperatorparams
 # gazelle:exclude test/e2e-framework/components/datadog/apps
