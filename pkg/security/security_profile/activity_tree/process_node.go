@@ -500,26 +500,31 @@ func (pn *ProcessNode) TagAllNodes(imageTagID uint64, timestamp time.Time) {
 }
 
 // EvictImageTag will remove every trace of this image tag, and returns true if the process node should be removed
-// also, recompute the list of dnsnames and syscalls
-func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKeys, SyscallsMask map[int]int) bool {
+// (along with the number of bytes freed) also, recompute the list of dnsnames and syscalls
+func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKeys, SyscallsMask map[int]int) (bool, int64) {
 	if !pn.HasImageTag(imageTagID) {
-		return false // this node doesn't have the tag, and all its children/files/dns/etc shouldn't have it either
+		return false, 0 // this node doesn't have the tag, and all its children/files/dns/etc shouldn't have it either
 	}
 	IsNodeEmpty := pn.NodeBase.EvictImageTag(imageTagID)
 	if IsNodeEmpty {
 		// if we removed the last tag, remove entirely the process node from the tree
-		return true
+		return true, processSubtreeSizeBytes(pn)
 	}
 
+	var removed int64
+
 	for filename, file := range pn.Files {
-		if shouldRemoveNode := file.evictImageTag(imageTagID); shouldRemoveNode {
+		shouldRemove, fileRemoved := file.evictImageTag(imageTagID)
+		if shouldRemove {
 			delete(pn.Files, filename)
 		}
+		removed += fileRemoved
 	}
 
 	// Evict image tag from dns nodes
 	for question, dns := range pn.DNSNames {
 		if shouldRemoveNode := dns.evictImageTag(imageTagID, DNSNames); shouldRemoveNode {
+			removed += dns.size()
 			delete(pn.DNSNames, question)
 		}
 	}
@@ -527,21 +532,26 @@ func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKe
 	// Evict image tag from IMDS nodes
 	for key, imds := range pn.IMDSEvents {
 		if shouldRemoveNode := imds.EvictImageTag(imageTagID); shouldRemoveNode {
+			removed += imds.size()
 			delete(pn.IMDSEvents, key)
 		}
 	}
 
 	// Evict image tag from network device nodes
 	for key, device := range pn.NetworkDevices {
-		if shouldRemoveNode := device.evictImageTag(imageTagID); shouldRemoveNode {
+		shouldRemove, deviceRemoved := device.evictImageTag(imageTagID)
+		if shouldRemove {
 			delete(pn.NetworkDevices, key)
 		}
+		removed += deviceRemoved
 	}
 
 	newSockets := []*SocketNode{}
 	for _, sock := range pn.Sockets {
 		if shouldRemoveNode := sock.evictImageTag(imageTagID); !shouldRemoveNode {
 			newSockets = append(newSockets, sock)
+		} else {
+			removed += sock.size()
 		}
 	}
 	pn.Sockets = newSockets
@@ -551,6 +561,8 @@ func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKe
 		if shouldRemove := scall.EvictImageTag(imageTagID); !shouldRemove {
 			newSyscalls = append(newSyscalls, scall)
 			SyscallsMask[scall.Syscall] = scall.Syscall
+		} else {
+			removed += scall.size()
 		}
 	}
 	pn.Syscalls = newSyscalls
@@ -559,25 +571,31 @@ func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKe
 	for _, capabilityNode := range pn.Capabilities {
 		if shouldRemove := capabilityNode.EvictImageTag(imageTagID); !shouldRemove {
 			newCapabilities = append(newCapabilities, capabilityNode)
+		} else {
+			removed += capabilityNode.size()
 		}
 	}
 	pn.Capabilities = newCapabilities
 
 	newChildren := []*ProcessNode{}
 	for _, child := range pn.Children {
-		if shouldRemoveNode := child.EvictImageTag(imageTagID, DNSNames, SyscallsMask); !shouldRemoveNode {
+		shouldRemoveNode, childRemoved := child.EvictImageTag(imageTagID, DNSNames, SyscallsMask)
+		if !shouldRemoveNode {
 			newChildren = append(newChildren, child)
 		}
+		removed += childRemoved
 	}
 	pn.Children = newChildren
-	return false
+	return false, removed
 }
 
 // EvictUnusedNodes evicts all child nodes that haven't been touched since the given timestamp
-// and returns the total number of process nodes evicted, a node is only evicted if all its children are evictable.
+// and returns the total number of process nodes evicted and the total bytes freed.
+// A node is only evicted if all its children are evictable.
 // profileImageTagID is the pre-resolved internal ID for the profile's image tag (0 means unknown/no tag).
-func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName string, profileImageTag string, profileImageTagID uint64) int {
+func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName string, profileImageTag string, profileImageTagID uint64) (int, int64) {
 	totalEvicted := 0
+	var removedBytes int64
 
 	key := ImageProcessKey{
 		ImageName: profileImageName,
@@ -587,11 +605,15 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	// First, recursively evict unused nodes from children
 	for i := len(pn.Children) - 1; i >= 0; i-- {
 		child := pn.Children[i]
-		evicted := child.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag, profileImageTagID)
+		evicted, childRemoved := child.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag, profileImageTagID)
 		totalEvicted += evicted
+		removedBytes += childRemoved
 
-		// If the child process node itself has no image tags left after eviction, remove it entirely
+		// If the child process node itself has no image tags left after eviction, remove it entirely.
+		// EvictUnusedNodes returns early for such nodes without evicting their own activity nodes,
+		// so we account for those here.
 		if child.SeenIsEmpty() {
+			removedBytes += child.size() + processNodeOwnActivitySize(child)
 			pn.Children = append(pn.Children[:i], pn.Children[i+1:]...)
 			totalEvicted++
 		}
@@ -612,11 +634,10 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 
 	_ = pn.NodeBase.EvictBeforeTimestamp(before)
 
-	// If the process node itself can be evicted
+	// If the process node itself can be evicted, return early.
+	// The caller will subtract pn.size() + processNodeOwnActivitySize(pn) when it removes this node.
 	if len(pn.Children) == 0 && pn.SeenIsEmpty() {
-		return totalEvicted
-		// No need to evict the activity nodes, since this process node will be removed entirely
-
+		return totalEvicted, removedBytes
 	}
 
 	// Evict unused syscall nodes
@@ -624,6 +645,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 		syscallNode := pn.Syscalls[i]
 		if syscallNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
 			if syscallNode.SeenIsEmpty() {
+				removedBytes += syscallNode.size()
 				pn.Syscalls = append(pn.Syscalls[:i], pn.Syscalls[i+1:]...)
 			}
 		}
@@ -633,6 +655,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	for path, fileNode := range pn.Files {
 		if fileNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
 			if fileNode.SeenIsEmpty() {
+				removedBytes += fileSubtreeSizeBytes(fileNode)
 				delete(pn.Files, path)
 			}
 		}
@@ -642,6 +665,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	for name, dnsNode := range pn.DNSNames {
 		if dnsNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
 			if dnsNode.SeenIsEmpty() {
+				removedBytes += dnsNode.size()
 				delete(pn.DNSNames, name)
 			}
 		}
@@ -651,6 +675,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	for event, imdsNode := range pn.IMDSEvents {
 		if imdsNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
 			if imdsNode.SeenIsEmpty() {
+				removedBytes += imdsNode.size()
 				delete(pn.IMDSEvents, event)
 			}
 		}
@@ -663,6 +688,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 		socketNode := pn.Sockets[i]
 		if socketNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
 			if socketNode.SeenIsEmpty() {
+				removedBytes += socketNode.size()
 				pn.Sockets = append(pn.Sockets[:i], pn.Sockets[i+1:]...)
 			}
 		}
@@ -673,10 +699,11 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 		capabilityNode := pn.Capabilities[i]
 		if capabilityNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
 			if capabilityNode.SeenIsEmpty() {
+				removedBytes += capabilityNode.size()
 				pn.Capabilities = append(pn.Capabilities[:i], pn.Capabilities[i+1:]...)
 			}
 		}
 	}
 
-	return totalEvicted
+	return totalEvicted, removedBytes
 }

@@ -39,14 +39,15 @@ func (netdevice *NetworkDeviceNode) appendImageTag(imageTagID uint64, timestamp 
 	}
 }
 
-func (netdevice *NetworkDeviceNode) evictImageTag(imageTagID uint64) bool {
+func (netdevice *NetworkDeviceNode) evictImageTag(imageTagID uint64) (bool, int64) {
+	var removed int64
 	for key, flow := range netdevice.FlowNodes {
 		if flow.EvictImageTag(imageTagID) {
+			removed += flow.size()
 			delete(netdevice.FlowNodes, key)
 		}
 	}
-
-	return len(netdevice.FlowNodes) == 0
+	return len(netdevice.FlowNodes) == 0, removed
 }
 
 func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.NetworkFlowMonitorEvent, evt *model.Event, dryRun bool, rules []*model.MatchedRule, generationType NodeGenerationType, imageTagID uint64, stats *Stats) bool {

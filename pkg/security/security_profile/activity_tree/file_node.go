@@ -207,18 +207,20 @@ func (fn *FileNode) tagAllNodes(imageTagID uint64, timestamp time.Time) {
 	}
 }
 
-func (fn *FileNode) evictImageTag(imageTagID uint64) bool {
+func (fn *FileNode) evictImageTag(imageTagID uint64) (bool, int64) {
 	if !fn.HasImageTag(imageTagID) {
-		return false
+		return false, 0
 	}
-	evicted := fn.EvictImageTag(imageTagID)
-	if evicted {
-		return true
+	if fn.EvictImageTag(imageTagID) {
+		return true, fileSubtreeSizeBytes(fn)
 	}
+	var removed int64
 	for filename, child := range fn.Children {
-		if shouldRemoveNode := child.evictImageTag(imageTagID); shouldRemoveNode {
+		shouldRemove, childRemoved := child.evictImageTag(imageTagID)
+		if shouldRemove {
 			delete(fn.Children, filename)
 		}
+		removed += childRemoved
 	}
-	return false
+	return false, removed
 }

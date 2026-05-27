@@ -975,7 +975,7 @@ func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 }
 
 // recomputeSizeBytes walks the full tree and resets Stats.SizeBytes to the accurate current value.
-// This is called after evictions where tracking incremental decrements would be too complex.
+// Called only from ComputeActivityTreeStats to periodically correct any accumulated drift.
 func (at *ActivityTree) recomputeSizeBytes() {
 	var total int64
 	openList := make([]*ProcessNode, len(at.ProcessNodes))
@@ -1021,6 +1021,47 @@ func fileSubtreeSizeBytes(fn *FileNode) int64 {
 	return total
 }
 
+// processNodeOwnActivitySize returns the size of all activity nodes directly owned by pn,
+// excluding child process nodes. Used when a process node is removed entirely and its
+// activity nodes were not individually evicted (early-return path in EvictUnusedNodes).
+func processNodeOwnActivitySize(pn *ProcessNode) int64 {
+	var total int64
+	for _, fn := range pn.Files {
+		total += fileSubtreeSizeBytes(fn)
+	}
+	for _, dns := range pn.DNSNames {
+		total += dns.size()
+	}
+	for _, imds := range pn.IMDSEvents {
+		total += imds.size()
+	}
+	for _, sock := range pn.Sockets {
+		total += sock.size()
+	}
+	for _, sc := range pn.Syscalls {
+		total += sc.size()
+	}
+	for _, cap := range pn.Capabilities {
+		total += cap.size()
+	}
+	for _, device := range pn.NetworkDevices {
+		for _, flow := range device.FlowNodes {
+			total += flow.size()
+		}
+	}
+	return total
+}
+
+// processSubtreeSizeBytes returns the total size of pn plus all its descendants (activity nodes and child
+// process nodes recursively). Used when an entire process subtree is removed at once.
+func processSubtreeSizeBytes(pn *ProcessNode) int64 {
+	total := pn.size() + processNodeOwnActivitySize(pn)
+	for _, child := range pn.Children {
+		total += processSubtreeSizeBytes(child)
+	}
+	return total
+}
+
 // EvictImageTag will remove every trace of the given image tag from the tree
 func (at *ActivityTree) EvictImageTag(imageTag string) {
 	// purge the cookies which todays are never set. TODO: once they'll get used, recompute them here
@@ -1034,15 +1075,18 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 	// recompute also the full list of DNSNames and Syscalls when evicting nodes
 	DNSNames := utils.NewStringKeys(nil)
 	SyscallsMask := make(map[int]int)
+	var removedBytes int64
 	newProcessNodes := []*ProcessNode{}
 	for _, node := range at.ProcessNodes {
-		if shouldRemoveNode := node.EvictImageTag(imageTagID, DNSNames, SyscallsMask); !shouldRemoveNode {
+		shouldRemoveNode, nodeRemoved := node.EvictImageTag(imageTagID, DNSNames, SyscallsMask)
+		if !shouldRemoveNode {
 			newProcessNodes = append(newProcessNodes, node)
 		}
+		removedBytes += nodeRemoved
 	}
 	at.ProcessNodes = newProcessNodes
 	at.removeImageTag(imageTag)
-	at.recomputeSizeBytes()
+	at.Stats.SizeBytes -= removedBytes
 }
 
 func (at *ActivityTree) visitProcessNode(processNode *ProcessNode, cb func(processNode *ProcessNode)) {
@@ -1160,20 +1204,18 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 			continue
 		}
 
-		// Evict unused nodes
-		evicted := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag, profileImageTagID)
+		evicted, removedBytes := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag, profileImageTagID)
 		totalEvicted += evicted
+		at.Stats.SizeBytes -= removedBytes
 
-		// If the process node itself has no image tags left after eviction, remove it entirely
+		// If the process node itself has no image tags left after eviction, remove it entirely.
+		// EvictUnusedNodes returns early for such nodes without evicting their own activity nodes,
+		// so we account for those here.
 		if node.SeenIsEmpty() {
-			// Remove the node
+			at.Stats.SizeBytes -= node.size() + processNodeOwnActivitySize(node)
 			at.ProcessNodes = append(at.ProcessNodes[:i], at.ProcessNodes[i+1:]...)
 			totalEvicted++
 		}
-	}
-
-	if totalEvicted > 0 {
-		at.recomputeSizeBytes()
 	}
 
 	return totalEvicted
