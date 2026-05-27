@@ -616,7 +616,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/containers/metadata
 # gazelle:exclude pkg/util/containers/metrics/containerd
 # gazelle:exclude pkg/util/containers/metrics/docker
-# gazelle:exclude pkg/util/containers/metrics/ecsfargate
 # gazelle:exclude pkg/util/containers/metrics/ecsmanagedinstances
 # gazelle:exclude pkg/util/containers/metrics/kubelet
 # gazelle:exclude pkg/util/containers/metrics/mock
