@@ -6,13 +6,13 @@ A standalone tool for iterating on observer anomaly detection and correlation al
 
 ```bash
 # Build + launch backend and UI in one command (recommended)
-dda inv -- q.launch-testbench --build
+dda inv -- anomalydetection.launch-testbench --build
 
 # Just launch (if already built)
-dda inv -- q.launch-testbench
+dda inv -- anomalydetection.launch-testbench
 
 # Use a custom scenarios directory
-dda inv -- q.launch-testbench --scenarios-dir /path/to/scenarios
+dda inv -- anomalydetection.launch-testbench --scenarios-dir /path/to/scenarios
 ```
 
 Then open http://localhost:5173 in your browser.
@@ -23,7 +23,7 @@ The `--build` flag rebuilds the binary before launching. Omit it after the first
 
 ```bash
 # Build only
-dda inv -- q.build-testbench
+dda inv -- anomalydetection.build-testbench
 
 # Run the backend
 ./bin/anomalydetection-testbench --scenarios-dir ./comp/anomalydetection/observer/scenarios
@@ -48,7 +48,7 @@ $ dda inv --dep=optuna q.eval-component bocpd # or any other component
 $ dda inv workspaces.tmux-attach evals
 # You can see the live evaluation
 <C-b> d
-$ dda inv q.eval-component-workspace-report evals # This will fetch the results to /tmp/workspace-observer-component-eval
+$ dda inv anomalydetection.eval-component-workspace-report evals # This will fetch the results to /tmp/workspace-observer-component-eval
 ```
 
 ## Command Line Flags
@@ -108,19 +108,19 @@ Extractors are always enabled and convert raw observations into timeseries:
 
 ```bash
 # Run with all defaults (bocpd + rrcf + time_cluster)
-dda inv -- q.launch-testbench
+dda inv -- anomalydetection.launch-testbench
 
 # Only BOCPD + TimeCluster
-dda inv -- q.launch-testbench --only bocpd,time_cluster
+dda inv -- anomalydetection.launch-testbench --only bocpd,time_cluster
 
 # Enable CUSUM on top of defaults
-dda inv -- q.launch-testbench --enable cusum
+dda inv -- anomalydetection.launch-testbench --enable cusum
 
 # Run on a different port
-dda inv -- q.launch-testbench --http :9090
+dda inv -- anomalydetection.launch-testbench --http :9090
 
 # Log anomaly focus: skip parquet metrics and trace stats (faster)
-dda inv -- q.launch-testbench --logs-only
+dda inv -- anomalydetection.launch-testbench --logs-only
 ```
 
 ## Headless Mode
@@ -129,9 +129,9 @@ Run a scenario without the HTTP server — load data, run the full detector→co
 
 ```bash
 # Via invoke (builds automatically with --build)
-dda inv -- q.launch-testbench --headless-scenario <scenario-name>
-dda inv -- q.launch-testbench --headless-scenario <scenario-name> --headless-output /tmp/out.json
-dda inv -- q.launch-testbench --headless-scenario <scenario-name> --profile  # write heap profile
+dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name>
+dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --headless-output /tmp/out.json
+dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --profile  # write heap profile
 
 # Direct binary
 ./bin/anomalydetection-testbench \
@@ -146,7 +146,7 @@ dda inv -- q.launch-testbench --headless-scenario <scenario-name> --profile  # w
   --output results-logs.json \
   --scenarios-dir ./comp/anomalydetection/observer/scenarios
 
-dda inv -- q.launch-testbench --headless-scenario <scenario-name> --logs-only
+dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --logs-only
 
 # Verbose output (includes anomaly detail, member series, titles)
 ./bin/anomalydetection-testbench \
