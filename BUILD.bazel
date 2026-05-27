@@ -729,7 +729,6 @@ exports_files(glob(
 # gazelle:exclude test/new-e2e/tests/sysprobe-functional
 # gazelle:exclude test/new-e2e/tests/usm
 # gazelle:exclude test/new-e2e/tests/windows/common/fixtures
-# gazelle:exclude test/new-e2e/tests/windows/components
 # gazelle:exclude test/new-e2e/tests/windows/domain-test
 # gazelle:exclude test/new-e2e/tests/windows/fips-test
 # gazelle:exclude test/new-e2e/tests/windows/install-test
