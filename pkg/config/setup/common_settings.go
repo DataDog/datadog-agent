@@ -285,8 +285,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// Network Config Management
-	bindEnvAndSetLogsConfigKeys(config, "network_config_management.forwarder.")
-	config.BindEnvAndSetDefault("network_config_management.rollback.enabled", false)
+	bindEnvAndSetLogsConfigKeys(config, "network_devices.config_management.forwarder.")
+	config.BindEnvAndSetDefault("network_devices.config_management.rollback.enabled", false)
 
 	// HA Agent
 	config.BindEnvAndSetDefault("ha_agent.enabled", false)
@@ -949,25 +949,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
 	config.BindEnvAndSetDefault("runtime_security_config.event_grpc_server", "")
-
-	// trace-agent's evp_proxy
-	config.BindEnvAndSetDefault("evp_proxy_config.enabled", true)
-	config.BindEnvAndSetDefault("evp_proxy_config.dd_url", "")
-	config.BindEnvAndSetDefault("evp_proxy_config.api_key", "")
-	config.BindEnvAndSetDefault("evp_proxy_config.additional_endpoints", map[string][]string{})
-	config.BindEnvAndSetDefault("evp_proxy_config.max_payload_size", int64(10*1024*1024))
-	config.BindEnvAndSetDefault("evp_proxy_config.receiver_timeout", 0)
-	// Delegated authentication for evp_proxy
-	bindDelegatedAuthConfig(config, "evp_proxy_config")
-
-	// trace-agent's ol_proxy
-	config.BindEnvAndSetDefault("ol_proxy_config.enabled", true)
-	config.BindEnvAndSetDefault("ol_proxy_config.dd_url", "")
-	config.BindEnvAndSetDefault("ol_proxy_config.api_key", "")
-	config.BindEnvAndSetDefault("ol_proxy_config.additional_endpoints", map[string][]string{})
-	config.BindEnvAndSetDefault("ol_proxy_config.api_version", 2)
-	// Delegated authentication for ol_proxy_config
-	bindDelegatedAuthConfig(config, "ol_proxy_config")
 
 	// command line options
 	config.SetDefault("cmd.check.fullsketches", false)
@@ -2096,6 +2077,8 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	// Log ingestion gate. When false, container/journald logs are not routed
 	// into the anomaly detection pipeline (recording is unaffected).
 	config.BindEnvAndSetDefault("anomaly_detection.logs.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.enabled", true)
 
 	// Metrics ingestion gate. When false, externally-ingested metrics
 	// (DogStatsD, check samplers) are dropped at the handle factory.
@@ -2116,11 +2099,6 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.recording.output_dir", "/var/run/datadog/anomaly_detection")
 	config.BindEnvAndSetDefault("anomaly_detection.recording.flush_interval", 60)
 	config.BindEnvAndSetDefault("anomaly_detection.recording.retention", "24h")
-
-	// High-frequency check overrides. Increases resolution at the cost of
-	// higher CPU/memory usage.
-	config.BindEnvAndSetDefault("anomaly_detection.checks.high_frequency_system", false)
-	config.BindEnvAndSetDefault("anomaly_detection.checks.high_frequency_containers", false)
 
 	// Debug tooling: internal state dump. Leave empty/zero in production.
 	config.BindEnvAndSetDefault("anomaly_detection.debug.dump_path", "")

@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 
 	"net/http"
+	"sync"
+	"time"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -40,11 +42,14 @@ type Requires struct {
 type networkDeviceConfigImpl struct {
 	log   log.Component
 	store ncmstore.ConfigStore
+
+	inventoryLock         sync.Mutex
+	lastInventoryReportAt time.Time
 }
 
 // NewComponent creates a new networkconfigmanagement component
 func NewComponent(reqs Requires) (Provides, error) {
-	enabled := reqs.Config.GetBool("network_config_management.rollback.enabled")
+	enabled := reqs.Config.GetBool("network_devices.config_management.rollback.enabled")
 	if !enabled {
 		return NewNoopComponent()
 	}
@@ -91,4 +96,22 @@ func NewNoopComponent() (Provides, error) {
 		GetConfigEndpoint: endpoint.Provider,
 	}
 	return provides, nil
+}
+
+// MeetsInventoryReportRequirements returns true if the caller should send an inventory report
+// — either because hasNewConfigs is true, or because maxInterval has elapsed since the
+// last report.
+func (n *networkDeviceConfigImpl) MeetsInventoryReportRequirements(hasNewConfigs bool, maxInterval time.Duration, now time.Time) bool {
+	n.inventoryLock.Lock()
+	defer n.inventoryLock.Unlock()
+	if !hasNewConfigs && now.Sub(n.lastInventoryReportAt) < maxInterval {
+		return false
+	}
+	return true
+}
+
+func (n *networkDeviceConfigImpl) MarkInventoryReportSent(now time.Time) {
+	n.inventoryLock.Lock()
+	defer n.inventoryLock.Unlock()
+	n.lastInventoryReportAt = now
 }
