@@ -178,7 +178,7 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 
 // Name returns the detector name.
 func (b *BOCPDDetector) Name() string {
-	return "bocpd_detector"
+	return "bocpd"
 }
 
 // Detect implements Detector. It discovers series, reads only newly visible

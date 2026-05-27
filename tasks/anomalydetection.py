@@ -17,7 +17,7 @@ def build_testbench(ctx):
     Builds the anomalydetection-testbench binary to bin/anomalydetection-testbench.
     """
     ctx.run(
-        "GOWORK=off go build -C internal/qbranch/anomalydetection-testbench -tags python -o ../../../bin/anomalydetection-testbench ."
+        "go build -C internal/qbranch/anomalydetection-testbench -tags python -o ../../../bin/anomalydetection-testbench ."
     )
 
 
