@@ -192,7 +192,6 @@ func deepCopyPIDContext(fieldToCopy PIDContext) PIDContext {
 	copied.MntNS = fieldToCopy.MntNS
 	copied.NSID = fieldToCopy.NSID
 	copied.NetNS = fieldToCopy.NetNS
-	copied.PPid = fieldToCopy.PPid
 	copied.Pid = fieldToCopy.Pid
 	copied.SID = fieldToCopy.SID
 	copied.Tid = fieldToCopy.Tid
@@ -205,6 +204,8 @@ func deepCopyProcessCacheEntryPtr(fieldToCopy *ProcessCacheEntry) *ProcessCacheE
 	}
 	copied := &ProcessCacheEntry{}
 	copied.ProcessContext = deepCopyProcessContext(fieldToCopy.ProcessContext)
+	copied.SnapshottedBoundSockets = deepCopySnapshottedBoundSocketArr(fieldToCopy.SnapshottedBoundSockets)
+	copied.SnapshottedMmapedFiles = deepCopySnapshottedMmapedFileArr(fieldToCopy.SnapshottedMmapedFiles)
 	return copied
 }
 func deepCopyProcessContext(fieldToCopy ProcessContext) ProcessContext {
@@ -253,6 +254,7 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
+	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
 	copied.SpanID = fieldToCopy.SpanID
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
@@ -497,6 +499,7 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
+	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
 	copied.SpanID = fieldToCopy.SpanID
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
@@ -505,6 +508,42 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.TraceID = deepCopyTraceID(fieldToCopy.TraceID)
 	copied.TracerMetadata = deepCopyTracerMetadata(fieldToCopy.TracerMetadata)
 	copied.UserSession = deepCopyUserSessionContext(fieldToCopy.UserSession)
+	return copied
+}
+func deepCopySnapshottedBoundSocketArr(fieldToCopy []SnapshottedBoundSocket) []SnapshottedBoundSocket {
+	if fieldToCopy == nil {
+		return nil
+	}
+	copied := make([]SnapshottedBoundSocket, len(fieldToCopy))
+	for i := range fieldToCopy {
+		copied[i] = deepCopySnapshottedBoundSocket(fieldToCopy[i])
+	}
+	return copied
+}
+func deepCopyIP(fieldToCopy net.IP) net.IP {
+	return fieldToCopy
+}
+func deepCopySnapshottedBoundSocket(fieldToCopy SnapshottedBoundSocket) SnapshottedBoundSocket {
+	copied := SnapshottedBoundSocket{}
+	copied.Family = fieldToCopy.Family
+	copied.IP = deepCopyIP(fieldToCopy.IP)
+	copied.Port = fieldToCopy.Port
+	copied.Protocol = fieldToCopy.Protocol
+	return copied
+}
+func deepCopySnapshottedMmapedFileArr(fieldToCopy []SnapshottedMmapedFile) []SnapshottedMmapedFile {
+	if fieldToCopy == nil {
+		return nil
+	}
+	copied := make([]SnapshottedMmapedFile, len(fieldToCopy))
+	for i := range fieldToCopy {
+		copied[i] = deepCopySnapshottedMmapedFile(fieldToCopy[i])
+	}
+	return copied
+}
+func deepCopySnapshottedMmapedFile(fieldToCopy SnapshottedMmapedFile) SnapshottedMmapedFile {
+	copied := SnapshottedMmapedFile{}
+	copied.Path = fieldToCopy.Path
 	return copied
 }
 func deepCopyProcessContextPtr(fieldToCopy *ProcessContext) *ProcessContext {
