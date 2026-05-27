@@ -219,7 +219,7 @@ func installFilesystem(ctx HookContext) (err error) {
 // instances (socket and processes.d conflicts).
 func retireLegacyProcmgrUnits(ctx HookContext) error {
 	switch service.GetServiceManagerType() {
-	case service.SystemdType, service.ProcmgrType:
+	case service.SystemdType:
 	default:
 		return nil
 	}

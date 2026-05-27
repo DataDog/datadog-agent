@@ -138,7 +138,7 @@ func (s *procmgrLinuxSuite) installRealDDOT() bool {
 	s.Env().RemoteHost.MustExecute("sudo chown dd-agent:dd-agent /etc/datadog-agent/otel-config.yaml && sudo chmod 640 /etc/datadog-agent/otel-config.yaml")
 
 	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent.service")
-	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent-procmgrd")
+	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent-procmgr")
 
 	return true
 }
