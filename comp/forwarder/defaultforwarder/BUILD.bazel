@@ -67,6 +67,7 @@ go_test(
         "domain_forwarder_test.go",
         "forwarder_health_test.go",
         "forwarder_test.go",
+        "otel_sync_forwarder_test.go",
         "status_test.go",
         "worker_test.go",
     ],
