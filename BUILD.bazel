@@ -613,7 +613,6 @@ exports_files(glob(
 # gazelle:exclude pkg/status/collector
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
 # gazelle:exclude pkg/system-probe/api/module
-# gazelle:exclude pkg/system-probe/api/server/testutil
 # gazelle:exclude pkg/util/cloudproviders/kubernetes
 # gazelle:exclude pkg/util/cloudproviders/network
 # gazelle:exclude pkg/util/containers/metadata
