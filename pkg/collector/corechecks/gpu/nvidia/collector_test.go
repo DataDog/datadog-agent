@@ -533,7 +533,7 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 // TestConfiguredMetricPriority ensures that the priority is as defined for certain critical metrics
 func TestConfiguredMetricPriority(t *testing.T) {
 	const pid = 123
-	device := setupMockDeviceWithLibOpts(t, func(device *nvmlmock.Device) *nvmlmock.Device {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(device *nvmlmock.Device) {
 		device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
 			return []nvml.ProcessUtilizationSample{
 				{
@@ -551,8 +551,7 @@ func TestConfiguredMetricPriority(t *testing.T) {
 		device.GpmSampleGetFunc = func(_ nvml.GpmSample) nvml.Return {
 			return nvml.SUCCESS
 		}
-		return device
-	}, testutil.WithCapabilities(testutil.Capabilities{GPM: true}), testutil.WithMockAllFunctions())
+	}), testutil.WithCapabilities(testutil.Capabilities{GPM: true}), testutil.WithMockAllFunctions())
 	deviceUUID := device.GetDeviceInfo().UUID
 
 	spCache := &SystemProbeCache{

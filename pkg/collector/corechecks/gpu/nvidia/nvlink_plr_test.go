@@ -44,15 +44,7 @@ func (f *fakePRMCache) GetCounters(_ string, port int) (map[string]uint64, error
 }
 
 func TestNVLinkPLRCollectorWithPRMCache(t *testing.T) {
-	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-			require.Len(t, values, 1)
-			values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-			values[0].Value = [8]byte{2, 0, 0, 0, 0, 0, 0, 0}
-			return nvml.SUCCESS
-		}
-		return device
-	})
+	mockDevice := setupMockDevice(t, testutil.WithNVLinkLinkCount(2))
 
 	cache := &fakePRMCache{
 		responses: map[int]map[string]uint64{
@@ -86,15 +78,7 @@ func TestNVLinkPLRCollectorWithPRMCache(t *testing.T) {
 }
 
 func TestNVLinkPLRCollectorCachePartialError(t *testing.T) {
-	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-			require.Len(t, values, 1)
-			values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-			values[0].Value = [8]byte{2, 0, 0, 0, 0, 0, 0, 0}
-			return nvml.SUCCESS
-		}
-		return device
-	})
+	mockDevice := setupMockDevice(t, testutil.WithNVLinkLinkCount(2))
 
 	cache := &fakePRMCache{
 		responses: map[int]map[string]uint64{
@@ -116,15 +100,7 @@ func TestNVLinkPLRCollectorCachePartialError(t *testing.T) {
 }
 
 func TestNVLinkCollectorNilCacheReturnsUnsupported(t *testing.T) {
-	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-			require.Len(t, values, 1)
-			values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-			values[0].Value = [8]byte{2, 0, 0, 0, 0, 0, 0, 0}
-			return nvml.SUCCESS
-		}
-		return device
-	})
+	mockDevice := setupMockDevice(t, testutil.WithNVLinkLinkCount(2))
 
 	_, err := newNVLinkPLRCollector(mockDevice, nil)
 	require.ErrorIs(t, err, errUnsupportedDevice)
@@ -136,41 +112,35 @@ func TestNVLinkCollectorNilCacheReturnsUnsupported(t *testing.T) {
 func TestNVLinkPLRCollectorUnsupportedDevice(t *testing.T) {
 	tests := []struct {
 		name      string
-		customize func(*mock.Device) *mock.Device
+		customize []testutil.NvmlMockOption
 	}{
 		{
 			name: "field API unsupported",
-			customize: func(device *mock.Device) *mock.Device {
-				testutil.WithMockAllDeviceFunctions()(device)
-				device.GetFieldValuesFunc = func(_ []nvml.FieldValue) nvml.Return {
-					return nvml.ERROR_NOT_SUPPORTED
-				}
-				return device
+			customize: []testutil.NvmlMockOption{
+				testutil.WithMockAllFunctions(),
+				testutil.WithCustomHook(func(device *mock.Device) {
+					device.GetFieldValuesFunc = func(_ []nvml.FieldValue) nvml.Return {
+						return nvml.ERROR_NOT_SUPPORTED
+					}
+				}),
 			},
 		},
 		{
 			name: "no nvlink ports",
-			customize: func(device *mock.Device) *mock.Device {
-				testutil.WithMockAllDeviceFunctions()(device)
-				device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-					require.Len(t, values, 1)
-					values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-					values[0].Value = [8]byte{}
-					return nvml.SUCCESS
-				}
-				return device
+			customize: []testutil.NvmlMockOption{
+				testutil.WithMockAllFunctions(),
+				testutil.WithNVLinkLinkCount(0),
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
-				device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
-					return nvml.DEVICE_ARCH_BLACKWELL, nvml.SUCCESS
-				}
-				return tt.customize(device)
-			})
+			opts := []testutil.NvmlMockOption{
+				testutil.WithArchitecture("blackwell"),
+			}
+			opts = append(opts, tt.customize...)
+			mockDevice := setupMockDevice(t, opts...)
 			_, err := newNVLinkPLRCollector(mockDevice, &CollectorDependencies{PRMCache: &PRMCache{}})
 			require.ErrorIs(t, err, errUnsupportedDevice)
 		})
@@ -178,18 +148,7 @@ func TestNVLinkPLRCollectorUnsupportedDevice(t *testing.T) {
 }
 
 func TestNVLinkPLRCollectorPreBlackwellUnsupported(t *testing.T) {
-	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
-			return nvml.DEVICE_ARCH_HOPPER, nvml.SUCCESS
-		}
-		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-			require.Len(t, values, 1)
-			values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-			values[0].Value = [8]byte{2, 0, 0, 0, 0, 0, 0, 0}
-			return nvml.SUCCESS
-		}
-		return device
-	})
+	mockDevice := setupMockDevice(t, testutil.WithArchitecture("hopper"), testutil.WithNVLinkLinkCount(2))
 
 	_, err := newNVLinkPLRCollector(mockDevice, &CollectorDependencies{PRMCache: &PRMCache{}})
 	require.ErrorIs(t, err, errUnsupportedDevice)

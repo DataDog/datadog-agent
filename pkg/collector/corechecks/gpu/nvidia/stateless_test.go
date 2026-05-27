@@ -24,26 +24,24 @@ import (
 )
 
 func TestSramEccErrorStatusSample(t *testing.T) {
-	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
-		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
-			return nvml.DEVICE_ARCH_AMPERE, nvml.SUCCESS
-		}
-		device.GetSramEccErrorStatusFunc = func() (nvml.EccSramErrorStatus, nvml.Return) {
-			return nvml.EccSramErrorStatus{
-				AggregateCor:            11,
-				AggregateUncParity:      13,
-				AggregateUncSecDed:      17,
-				AggregateUncBucketL2:    19,
-				AggregateUncBucketSm:    23,
-				AggregateUncBucketPcie:  29,
-				AggregateUncBucketMcu:   31,
-				AggregateUncBucketOther: 37,
-				BThresholdExceeded:      1,
-			}, nvml.SUCCESS
-		}
-		return device
-	})
+	mockDevice := setupMockDevice(t,
+		testutil.WithArchitecture("ampere"),
+		testutil.WithCustomHook(func(device *mock.Device) {
+			device.GetSramEccErrorStatusFunc = func() (nvml.EccSramErrorStatus, nvml.Return) {
+				return nvml.EccSramErrorStatus{
+					AggregateCor:            11,
+					AggregateUncParity:      13,
+					AggregateUncSecDed:      17,
+					AggregateUncBucketL2:    19,
+					AggregateUncBucketSm:    23,
+					AggregateUncBucketPcie:  29,
+					AggregateUncBucketMcu:   31,
+					AggregateUncBucketOther: 37,
+					BThresholdExceeded:      1,
+				}, nvml.SUCCESS
+			}
+		}),
+	)
 
 	metricsOut, _, err := sramEccErrorStatusSample(mockDevice)
 	require.NoError(t, err)
@@ -73,13 +71,7 @@ func TestSramEccErrorStatusSample(t *testing.T) {
 }
 
 func TestSramEccErrorStatusSampleArchitectureSupport(t *testing.T) {
-	device := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
-		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
-			return nvml.DEVICE_ARCH_TURING, nvml.SUCCESS
-		}
-		return device
-	})
+	device := setupMockDevice(t, testutil.WithArchitecture("turing"))
 
 	metricsOut, _, err := sramEccErrorStatusSample(device)
 	require.Error(t, err)
@@ -88,13 +80,7 @@ func TestSramEccErrorStatusSampleArchitectureSupport(t *testing.T) {
 }
 
 func TestLegacyEccMetricOverlapRules(t *testing.T) {
-	ampereDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
-		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
-			return nvml.DEVICE_ARCH_AMPERE, nvml.SUCCESS
-		}
-		return device
-	})
+	ampereDevice := setupMockDevice(t, testutil.WithArchitecture("ampere"))
 
 	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM))
 	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_SRAM))
@@ -102,13 +88,7 @@ func TestLegacyEccMetricOverlapRules(t *testing.T) {
 	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
 	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_DEVICE_MEMORY))
 
-	preAmpereDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
-		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
-			return nvml.DEVICE_ARCH_TURING, nvml.SUCCESS
-		}
-		return device
-	})
+	preAmpereDevice := setupMockDevice(t, testutil.WithArchitecture("turing"))
 
 	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM))
 	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
@@ -116,7 +96,7 @@ func TestLegacyEccMetricOverlapRules(t *testing.T) {
 
 // TestNewStatelessCollector tests stateless collector-specific initialization with dynamic API creation
 func TestNewStatelessCollector(t *testing.T) {
-	device := setupMockDevice(t, nil)
+	device := setupMockDevice(t)
 
 	// Test that the stateless collector creates the expected dynamic API set
 	collector, err := newStatelessCollector(device, &CollectorDependencies{Workloadmeta: testutil.GetWorkloadMetaMockWithDefaultGPUs(t)})
@@ -138,24 +118,24 @@ func TestNewStatelessCollector(t *testing.T) {
 func TestCollectProcessMemory(t *testing.T) {
 	tests := []struct {
 		name          string
-		processes     []nvml.ProcessInfo
+		processes     testutil.MockProcessInfoList
 		expectedCount int
 	}{
 		{
 			name:          "NoProcesses",
-			processes:     []nvml.ProcessInfo{},
+			processes:     testutil.MockProcessInfoList{},
 			expectedCount: 1, // Only memory.limit
 		},
 		{
 			name: "SingleProcess",
-			processes: []nvml.ProcessInfo{
+			processes: testutil.MockProcessInfoList{
 				{Pid: 1234, UsedGpuMemory: 536870912}, // 512MB
 			},
 			expectedCount: 2, // process.memory.usage + memory.limit
 		},
 		{
 			name: "MultipleProcesses",
-			processes: []nvml.ProcessInfo{
+			processes: testutil.MockProcessInfoList{
 				{Pid: 1001, UsedGpuMemory: 1073741824}, // 1GB
 				{Pid: 1002, UsedGpuMemory: 2147483648}, // 2GB
 				{Pid: 1003, UsedGpuMemory: 536870912},  // 512MB
@@ -181,12 +161,7 @@ func TestCollectProcessMemory(t *testing.T) {
 				}
 			}
 
-			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-				device.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
-					return tt.processes, nvml.SUCCESS
-				}
-				return device
-			})
+			mockDevice := setupMockDevice(t, testutil.WithProcessData(tt.processes, nvml.SUCCESS))
 
 			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
@@ -215,12 +190,7 @@ func TestCollectProcessMemory_Error(t *testing.T) {
 		}
 	}
 
-	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		device.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
-			return nil, nvml.ERROR_UNKNOWN
-		}
-		return device
-	})
+	mockDevice := setupMockDevice(t, testutil.WithProcessData(nil, nvml.ERROR_UNKNOWN))
 
 	collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 	require.NoError(t, err)
@@ -249,17 +219,11 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 		}
 	}
 
-	processes := []nvml.ProcessInfo{
+	processes := testutil.MockProcessInfoList{
 		{Pid: 1001, UsedGpuMemory: 1073741824}, // 1GB
 		{Pid: 1002, UsedGpuMemory: 2147483648}, // 2GB
 	}
-
-	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		device.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
-			return processes, nvml.SUCCESS
-		}
-		return device
-	})
+	mockDevice := setupMockDevice(t, testutil.WithProcessData(processes, nvml.SUCCESS))
 
 	collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 	require.NoError(t, err)
@@ -328,8 +292,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 					require.Len(t, values, 1, "Expected one field value for total number of links, got %d", len(values))
 					require.Equal(t, values[0].FieldId, uint32(nvml.FI_DEV_NVLINK_LINK_COUNT), "Expected field ID to be FI_DEV_NVLINK_LINK_COUNT, got %d", values[0].FieldId)
 					require.Equal(t, values[0].ScopeId, uint32(0), "Expected scope ID to be 0, got %d", values[0].ScopeId)
-					values[0].ValueType = uint32(nvml.VALUE_TYPE_SIGNED_INT)
-					values[0].Value = [8]byte{4, 0, 0, 0, 0, 0, 0, 0} // 4 links
+					testutil.ApplyMockFieldValue(&values[0], testutil.SignedIntFieldValue(4))
 					return nvml.SUCCESS
 				}
 				device.GetUUIDFunc = func() (string, nvml.Return) {
@@ -370,7 +333,9 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 				}
 			}
 
-			mockDevice := setupMockDevice(t, tt.customSetup)
+			mockDevice := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
+				tt.customSetup(device)
+			}))
 			c, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 
 			if tt.wantError {
@@ -450,10 +415,9 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 			}
 
 			// Create collector with mock device
-			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+			mockDevice := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
 				device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-					values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-					values[0].Value = [8]byte{byte(len(tt.nvlinkStates)), 0, 0, 0, 0, 0, 0, 0}
+					testutil.ApplyMockFieldValue(&values[0], testutil.UIntFieldValue(uint64(len(tt.nvlinkStates))))
 					return nvml.SUCCESS
 				}
 				device.GetNvLinkStateFunc = func(link int) (nvml.EnableState, nvml.Return) {
@@ -468,8 +432,7 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 				device.GetUUIDFunc = func() (string, nvml.Return) {
 					return "GPU-123", nvml.SUCCESS
 				}
-				return device
-			})
+			}))
 
 			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
@@ -524,7 +487,7 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		architecture     nvml.DeviceArchitecture
+		architecture     string
 		detailListErr    nvml.Return
 		expectPid        uint32
 		expectMemory     float64
@@ -532,21 +495,21 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 	}{
 		{
 			name:          "PreHopper uses GetComputeRunningProcesses",
-			architecture:  nvml.DEVICE_ARCH_AMPERE,
+			architecture:  "ampere",
 			detailListErr: nvml.ERROR_ARGUMENT_VERSION_MISMATCH,
 			expectPid:     legacyPid,
 			expectMemory:  float64(legacyMemory),
 		},
 		{
 			name:          "Hopper uses GetRunningProcessDetailList",
-			architecture:  nvml.DEVICE_ARCH_HOPPER,
+			architecture:  "hopper",
 			detailListErr: nvml.SUCCESS,
 			expectPid:     detailPid,
 			expectMemory:  float64(detailMemory),
 		},
 		{
 			name:             "Hopper fallback on detail list error",
-			architecture:     nvml.DEVICE_ARCH_HOPPER,
+			architecture:     "hopper",
 			detailListErr:    nvml.ERROR_UNKNOWN,
 			expectPid:        legacyPid,
 			expectMemory:     float64(legacyMemory),
@@ -554,7 +517,7 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 		},
 		{
 			name:             "Hopper fallback on detail list insufficient size",
-			architecture:     nvml.DEVICE_ARCH_HOPPER,
+			architecture:     "hopper",
 			detailListErr:    nvml.ERROR_INSUFFICIENT_SIZE,
 			expectPid:        legacyPid,
 			expectMemory:     float64(legacyMemory),
@@ -584,28 +547,23 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 				}
 			}
 
-			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-				testutil.WithMockAllDeviceFunctions()(device)
-
-				device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
-					return tt.architecture, nvml.SUCCESS
-				}
-				device.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
-					return []nvml.ProcessInfo{
-						{Pid: legacyPid, UsedGpuMemory: legacyMemory},
-					}, nvml.SUCCESS
-				}
-				device.GetRunningProcessDetailListFunc = func() (nvml.ProcessDetailList, nvml.Return) {
-					if tt.detailListErr != nvml.SUCCESS {
-						return nvml.ProcessDetailList{}, tt.detailListErr
+			mockDevice := setupMockDevice(t,
+				testutil.WithArchitecture(tt.architecture),
+				testutil.WithProcessData(testutil.MockProcessInfoList{
+					{Pid: legacyPid, UsedGpuMemory: legacyMemory},
+				}, nvml.SUCCESS),
+				testutil.WithCustomHook(func(device *mock.Device) {
+					device.GetRunningProcessDetailListFunc = func() (nvml.ProcessDetailList, nvml.Return) {
+						if tt.detailListErr != nvml.SUCCESS {
+							return nvml.ProcessDetailList{}, tt.detailListErr
+						}
+						return nvml.ProcessDetailList{
+							NumProcArrayEntries: 1,
+							ProcArray:           &detailProc,
+						}, nvml.SUCCESS
 					}
-					return nvml.ProcessDetailList{
-						NumProcArrayEntries: 1,
-						ProcArray:           &detailProc,
-					}, nvml.SUCCESS
-				}
-				return device
-			})
+				}),
+			)
 
 			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
@@ -649,44 +607,34 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 
 func TestProcessDetailListArchitectureSupport(t *testing.T) {
 	tests := []struct {
-		name         string
-		architecture nvml.DeviceArchitecture
-		supported    bool
+		name      string
+		supported bool
 	}{
 		{
-			name:         "Hopper",
-			architecture: nvml.DEVICE_ARCH_HOPPER,
-			supported:    true,
+			name:      "hopper",
+			supported: true,
 		},
 		{
-			name:         "Blackwell",
-			architecture: 10,
-			supported:    true,
+			name:      "blackwell",
+			supported: true,
 		},
 		{
-			name:         "Ampere",
-			architecture: nvml.DEVICE_ARCH_AMPERE,
-			supported:    false,
+			name:      "ampere",
+			supported: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-				testutil.WithMockAllDeviceFunctions()(device)
-
-				device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
-					return tt.architecture, nvml.SUCCESS
-				}
+			mockDevice := setupMockDevice(t, testutil.WithArchitecture(tt.name), testutil.WithCustomHook(func(device *mock.Device) {
 				device.GetRunningProcessDetailListFunc = func() (nvml.ProcessDetailList, nvml.Return) {
 					if tt.supported {
 						return nvml.ProcessDetailList{}, nvml.SUCCESS
 					}
 					return nvml.ProcessDetailList{}, nvml.ERROR_ARGUMENT_VERSION_MISMATCH
 				}
-				return device
-			})
+			}))
 
 			wmeta := testutil.GetWorkloadMetaMockWithDefaultGPUs(t) // used only to avoid nil pointer dereferences in initialization
 			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{Workloadmeta: wmeta})
@@ -728,7 +676,7 @@ func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			env.SetFeatures(t, tt.features...)
 
-			device := setupMockDevice(t, nil)
+			device := setupMockDevice(t)
 			wmeta := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 			apis := createStatelessAPIs(&CollectorDependencies{Workloadmeta: wmeta})
 			deviceUnhealthyAPI := findAPICallByName(t, apis, "device_unhealthy_count")

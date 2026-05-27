@@ -17,13 +17,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
 // TestNewSampleCollector tests sampling collector initialization
 func TestNewSampleCollector(t *testing.T) {
 	tests := []struct {
 		name                  string
-		customSetup           func(*mock.Device) *mock.Device
+		customSetup           testutil.NvmlMockOption
 		expectError           bool
 		expectedSupportedAPIs int
 	}{
@@ -35,7 +36,7 @@ func TestNewSampleCollector(t *testing.T) {
 		},
 		{
 			name: "Unsupported",
-			customSetup: func(device *mock.Device) *mock.Device {
+			customSetup: testutil.WithCustomHook(func(device *mock.Device) {
 				// Make all sampling APIs return ERROR_NOT_SUPPORTED
 				device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
 					return nil, nvml.ERROR_NOT_SUPPORTED
@@ -43,8 +44,7 @@ func TestNewSampleCollector(t *testing.T) {
 				device.GetSamplesFunc = func(_ nvml.SamplingType, _ uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
 					return nvml.ValueType(0), nil, nvml.ERROR_NOT_SUPPORTED
 				}
-				return device
-			},
+			}),
 			expectError:           true,
 			expectedSupportedAPIs: 0, // Not relevant when error expected
 		},
@@ -52,7 +52,11 @@ func TestNewSampleCollector(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDevice := setupMockDevice(t, tt.customSetup)
+			var opts []testutil.NvmlMockOption
+			if tt.customSetup != nil {
+				opts = append(opts, tt.customSetup)
+			}
+			mockDevice := setupMockDevice(t, opts...)
 
 			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 
@@ -123,12 +127,11 @@ func TestCollectProcessUtilization(t *testing.T) {
 				}
 			}
 
-			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+			mockDevice := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
 				device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
 					return tt.samples, nvml.SUCCESS
 				}
-				return device
-			})
+			}))
 
 			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
@@ -179,7 +182,7 @@ func TestCollectProcessUtilization_Error(t *testing.T) {
 				}
 			}
 
-			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+			mockDevice := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
 				device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
 					var nvmlErr *safenvml.NvmlAPIError
 					if errors.As(tt.apiError, &nvmlErr) {
@@ -187,8 +190,7 @@ func TestCollectProcessUtilization_Error(t *testing.T) {
 					}
 					return nil, nvml.ERROR_UNKNOWN
 				}
-				return device
-			})
+			}))
 
 			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
@@ -253,7 +255,7 @@ func TestProcessUtilizationTimestampUpdate(t *testing.T) {
 				}
 			}
 
-			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+			mockDevice := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
 				device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
 					if tt.apiError != nil {
 						var nvmlErr *safenvml.NvmlAPIError
@@ -264,8 +266,7 @@ func TestProcessUtilizationTimestampUpdate(t *testing.T) {
 					}
 					return tt.samples, nvml.SUCCESS
 				}
-				return device
-			})
+			}))
 
 			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
@@ -367,12 +368,11 @@ func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 				}
 			}
 
-			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+			mockDevice := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
 				device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
 					return tt.samples, nvml.SUCCESS
 				}
-				return device
-			})
+			}))
 
 			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)

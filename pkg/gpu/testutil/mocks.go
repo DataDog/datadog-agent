@@ -9,7 +9,9 @@ package testutil
 
 import (
 	"encoding/binary"
+	"maps"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -94,8 +96,143 @@ var DefaultMaxClockRates = map[nvml.ClockType]uint32{
 	nvml.CLOCK_VIDEO:    4000,
 }
 
-var DefaultFieldValues = map[uint32]uint64{
-	nvml.FI_DEV_NVLINK_LINK_COUNT: 2,
+// MockFieldValue is a single NVML field value response.
+type MockFieldValue struct {
+	Value     uint64
+	ValueType nvml.ValueType
+	Return    nvml.Return
+}
+
+// DefaultFieldValues are deterministic values for NVML fields used by GPU tests.
+// Capability/topology fields can still be overridden by mock options such as
+// WithCapabilities.
+var DefaultFieldValues = map[uint32]MockFieldValue{
+	nvml.FI_DEV_MEMORY_TEMP:                                  UIntFieldValue(42),
+	nvml.FI_DEV_PCIE_REPLAY_COUNTER:                          UIntFieldValue(7),
+	nvml.FI_DEV_PERF_POLICY_THERMAL:                          UIntFieldValue(85),
+	nvml.FI_DEV_NVLINK_LINK_COUNT:                            UIntFieldValue(2),
+	nvml.FI_DEV_C2C_LINK_COUNT:                               UIntFieldValue(0),
+	nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX:                    UIntFieldValue(1000),
+	nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX:                    UIntFieldValue(2000),
+	nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX:                     UIntFieldValue(3000),
+	nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX:                     UIntFieldValue(4000),
+	nvml.FI_DEV_NVLINK_COUNT_RCV_BYTES:                       UIntFieldValue(5000),
+	nvml.FI_DEV_NVLINK_COUNT_XMIT_BYTES:                      UIntFieldValue(6000),
+	nvml.FI_DEV_NVLINK_GET_SPEED:                             UIntFieldValue(25000),
+	nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON:                     UIntFieldValue(24000),
+	nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT:                UIntFieldValue(16),
+	nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL:            UIntFieldValue(1),
+	nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL:            UIntFieldValue(2),
+	nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL:            UIntFieldValue(3),
+	nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL:            UIntFieldValue(4),
+	nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL:              UIntFieldValue(5),
+	nvml.FI_DEV_NVLINK_COUNT_XMIT_PACKETS:                    UIntFieldValue(6),
+	nvml.FI_DEV_NVLINK_COUNT_RCV_PACKETS:                     UIntFieldValue(7),
+	nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS:                   UIntFieldValue(8),
+	nvml.FI_DEV_NVLINK_COUNT_MALFORMED_PACKET_ERRORS:         UIntFieldValue(9),
+	nvml.FI_DEV_NVLINK_COUNT_BUFFER_OVERRUN_ERRORS:           UIntFieldValue(10),
+	nvml.FI_DEV_NVLINK_COUNT_RCV_ERRORS:                      UIntFieldValue(11),
+	nvml.FI_DEV_NVLINK_COUNT_RCV_REMOTE_ERRORS:               UIntFieldValue(12),
+	nvml.FI_DEV_NVLINK_COUNT_RCV_GENERAL_ERRORS:              UIntFieldValue(13),
+	nvml.FI_DEV_NVLINK_COUNT_LOCAL_LINK_INTEGRITY_ERRORS:     UIntFieldValue(14),
+	nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_SUCCESSFUL_EVENTS: UIntFieldValue(15),
+	nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_FAILED_EVENTS:     UIntFieldValue(16),
+	nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS:                UIntFieldValue(17),
+	nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER:                   UIntFieldValue(18),
+	nvml.FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS:                   UIntFieldValue(19),
+	nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER:                      UIntFieldValue(20),
+	nvml.FI_DEV_C2C_LINK_ERROR_INTR:                          UIntFieldValue(37),
+	nvml.FI_DEV_C2C_LINK_ERROR_REPLAY:                        UIntFieldValue(38),
+	nvml.FI_DEV_C2C_LINK_ERROR_REPLAY_B2B:                    UIntFieldValue(39),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_0:                   ULongLongFieldValue(100),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_1:                   ULongLongFieldValue(101),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_2:                   ULongLongFieldValue(102),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_3:                   ULongLongFieldValue(103),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_4:                   ULongLongFieldValue(104),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_5:                   ULongLongFieldValue(105),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_6:                   ULongLongFieldValue(106),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_7:                   ULongLongFieldValue(107),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_8:                   ULongLongFieldValue(108),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_9:                   ULongLongFieldValue(109),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_10:                  ULongLongFieldValue(110),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_11:                  ULongLongFieldValue(111),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_12:                  ULongLongFieldValue(112),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_13:                  ULongLongFieldValue(113),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_14:                  ULongLongFieldValue(114),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_15:                  ULongLongFieldValue(115),
+}
+
+// UIntFieldValue returns a successful unsigned-int NVML field value.
+func UIntFieldValue(value uint64) MockFieldValue {
+	return MockFieldValue{Value: value, ValueType: nvml.VALUE_TYPE_UNSIGNED_INT, Return: nvml.SUCCESS}
+}
+
+// ULongLongFieldValue returns a successful unsigned-long-long NVML field value.
+func ULongLongFieldValue(value uint64) MockFieldValue {
+	return MockFieldValue{Value: value, ValueType: nvml.VALUE_TYPE_UNSIGNED_LONG_LONG, Return: nvml.SUCCESS}
+}
+
+// SignedIntFieldValue returns a successful signed-int NVML field value.
+func SignedIntFieldValue(value int32) MockFieldValue {
+	return MockFieldValue{Value: uint64(uint32(value)), ValueType: nvml.VALUE_TYPE_SIGNED_INT, Return: nvml.SUCCESS}
+}
+
+// FieldError returns an NVML field value with the given field-level return.
+func FieldError(ret nvml.Return) MockFieldValue {
+	return MockFieldValue{Return: ret}
+}
+
+// CopyFieldValues returns a mutable copy of field values.
+func CopyFieldValues(values map[uint32]MockFieldValue) map[uint32]MockFieldValue {
+	copied := make(map[uint32]MockFieldValue, len(values))
+	for fieldID, value := range values {
+		copied[fieldID] = value
+	}
+	return copied
+}
+
+// MockFieldValueFunc returns a GetFieldValuesFunc backed by the provided field values.
+func MockFieldValueFunc(values map[uint32]MockFieldValue) func([]nvml.FieldValue) nvml.Return {
+	return MockFieldValueFuncWithOptions(values, nil, nil)
+}
+
+// MockFieldValueFuncWithOptions returns a GetFieldValuesFunc backed by the provided values and per-field returns.
+func MockFieldValueFuncWithOptions(values map[uint32]MockFieldValue, unsupportedFields map[uint32]struct{}, invalidArgumentFields map[uint32]struct{}) func([]nvml.FieldValue) nvml.Return {
+	return func(fv []nvml.FieldValue) nvml.Return {
+		for i := range fv {
+			switch {
+			case unsupportedFields != nil && hasField(unsupportedFields, fv[i].FieldId):
+				ApplyMockFieldValue(&fv[i], FieldError(nvml.ERROR_NOT_SUPPORTED))
+			case invalidArgumentFields != nil && hasField(invalidArgumentFields, fv[i].FieldId):
+				ApplyMockFieldValue(&fv[i], FieldError(nvml.ERROR_INVALID_ARGUMENT))
+			default:
+				ApplyMockFieldValue(&fv[i], values[fv[i].FieldId])
+			}
+		}
+		return nvml.SUCCESS
+	}
+}
+
+// MockScopedFieldValueFunc returns a GetFieldValuesFunc backed by field ID and scope ID values.
+func MockScopedFieldValueFunc(values map[uint32]map[uint32]MockFieldValue) func([]nvml.FieldValue) nvml.Return {
+	return func(fv []nvml.FieldValue) nvml.Return {
+		for i := range fv {
+			ApplyMockFieldValue(&fv[i], values[fv[i].FieldId][fv[i].ScopeId])
+		}
+		return nvml.SUCCESS
+	}
+}
+
+// ApplyMockFieldValue writes a mock value into an NVML FieldValue.
+func ApplyMockFieldValue(fv *nvml.FieldValue, value MockFieldValue) {
+	fv.NvmlReturn = uint32(value.Return)
+	fv.ValueType = uint32(value.ValueType)
+	binary.LittleEndian.PutUint64(fv.Value[:], value.Value)
+}
+
+func hasField(fields map[uint32]struct{}, fieldID uint32) bool {
+	_, ok := fields[fieldID]
+	return ok
 }
 
 const (
@@ -105,37 +242,47 @@ const (
 	mockDwordSizeBytes        = 4
 )
 
-// DevicesWithMIGChildren is a list of device indexes that have MIG children.
-var DevicesWithMIGChildren = []int{5, 6}
-
-// MIGChildrenPerDevice is a map of device index to the number of MIG children for that device.
-var MIGChildrenPerDevice = map[int]int{
-	5: 2,
-	6: 4,
+var MIGUUIDs = map[int]string{
+	0: "MIG-00000000-1234-1234-1234-123456789012",
+	1: "MIG-11111111-1234-1234-1234-123456789013",
+	2: "MIG-22222222-1234-1234-1234-123456789014",
+	3: "MIG-33333333-1234-1234-1234-123456789015",
+	4: "MIG-44444444-1234-1234-1234-123456789016",
 }
 
+const DefaultMIGParentDeviceIdx = 5
+
 // MIGChildrenUUIDs is a map of device index to the UUIDs of the MIG children for that device.
-var MIGChildrenUUIDs = map[int][]string{
-	5: {"MIG-00000000-1234-1234-1234-123456789012", "MIG-11111111-1234-1234-1234-123456789013"},
-	6: {"MIG-22222222-1234-1234-1234-123456789014", "MIG-33333333-1234-1234-1234-123456789015", "MIG-44444444-1234-1234-1234-123456789016", "MIG-55555555-1234-1234-1234-123456789017"},
+var MIGChildrenUUIDs = map[int]map[int]string{
+	DefaultMIGParentDeviceIdx: {0: MIGUUIDs[0], 1: MIGUUIDs[1]},
+	6:                         {0: MIGUUIDs[2], 1: MIGUUIDs[3], 2: MIGUUIDs[4]},
+}
+
+func DefaultDevicesWithMIGChildren() []int {
+	return slices.Collect(maps.Keys(MIGChildrenUUIDs))
 }
 
 type deviceOptions struct {
-	compatibilityHooks []func(*nvmlmock.Device)
-	mode               DeviceFeatureMode
-	migDisabled        bool
-	migChildIndex      *int
-	archSet            bool
-	architecture       nvml.DeviceArchitecture
-	computeMajor       int
-	computeMinor       int
-	processInfoCB      func(uuid string) ([]nvml.ProcessInfo, nvml.Return)
-	gpmSupported       *bool
-	nvlinkGeneration   int
-	nvlinkLinkCount    int
-	c2cSupported       bool
-	unsupportedFields  map[uint32]struct{}
-	migChildCount      int
+	compatibilityHooks    []func(*nvmlmock.Device)
+	mode                  DeviceFeatureMode
+	migDisabled           bool
+	migChildIndex         *int
+	archSet               bool
+	architecture          nvml.DeviceArchitecture
+	computeMajor          int
+	computeMinor          int
+	processData           MockProcessInfoList
+	processDataReturnCode nvml.Return
+	gpmSupported          *bool
+	nvlinkGeneration      int
+	nvlinkLinkCount       int
+	c2cSupported          bool
+	fieldValues           map[uint32]MockFieldValue
+	scopedFieldValues     map[uint32]map[uint32]MockFieldValue
+	nvlinkStates          []nvml.EnableState
+	nvlinkStateErrors     map[int]nvml.Return
+	migChildUUIDs         map[int]string
+	parentUUIDs           []string
 }
 
 func (o deviceOptions) isMIGChild() bool {
@@ -158,14 +305,6 @@ func (o deviceOptions) shouldMarkMIGOrVGPUUnsupported() bool {
 	return o.shouldMarkMIGUnsupported() || o.isVGPU()
 }
 
-func (o deviceOptions) hasUnsupportedField(fieldID uint32) bool {
-	if o.unsupportedFields == nil {
-		return false
-	}
-	_, found := o.unsupportedFields[fieldID]
-	return found
-}
-
 func (o deviceOptions) nvlinkSupported() bool {
 	return o.nvlinkGeneration > 0
 }
@@ -175,6 +314,25 @@ func (o deviceOptions) effectiveArchitecture() (nvml.DeviceArchitecture, int, in
 		return o.architecture, o.computeMajor, o.computeMinor
 	}
 	return DefaultGPUArch, DefaultGPUComputeCapMajor, DefaultGPUComputeCapMinor
+}
+
+// getFieldValue returns the MockFieldValue for the given field ID and scope ID, or nil if not found on any of the maps
+func (o deviceOptions) getFieldValue(fieldID uint32, scopeID uint32) *MockFieldValue {
+	if o.scopedFieldValues != nil {
+		if scopedValues, ok := o.scopedFieldValues[fieldID]; ok {
+			if value, ok := scopedValues[scopeID]; ok {
+				return &value
+			}
+		}
+	}
+
+	if o.fieldValues != nil {
+		if value, ok := o.fieldValues[fieldID]; ok {
+			return &value
+		}
+	}
+
+	return nil
 }
 
 func withMIGChild(deviceIdx int, migDeviceIdx int, opts deviceOptions) deviceOptions {
@@ -193,7 +351,7 @@ func withMIGChild(deviceIdx int, migDeviceIdx int, opts deviceOptions) deviceOpt
 	}
 
 	// Ensure the parent has MIG children and the index is valid.
-	if migDeviceIdx >= MIGChildrenPerDevice[deviceIdx] {
+	if _, ok := opts.migChildUUIDs[migDeviceIdx]; !ok {
 		childOpts.migChildIndex = nil
 	}
 
@@ -205,6 +363,7 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 	return getDeviceMockWithOptions(deviceIdx, deviceOptions{
 		mode:               DeviceFeaturePhysical,
 		compatibilityHooks: append([]func(*nvmlmock.Device){}, opts...),
+		fieldValues:        mergeFieldValues(nil, DefaultFieldValues),
 	})
 }
 
@@ -230,9 +389,9 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 		},
 		GetUUIDFunc: func() (string, nvml.Return) {
 			if opts.isMIGChild() {
-				return MIGChildrenUUIDs[deviceIdx][*opts.migChildIndex], nvml.SUCCESS
+				return opts.migChildUUIDs[*opts.migChildIndex], nvml.SUCCESS
 			}
-			return GPUUUIDs[deviceIdx], nvml.SUCCESS
+			return opts.parentUUIDs[deviceIdx], nvml.SUCCESS
 		},
 		GetNameFunc: func() (string, nvml.Return) {
 			if opts.isMIGChild() {
@@ -248,12 +407,11 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 		},
 		GetAttributesFunc: func() (nvml.DeviceAttributes, nvml.Return) {
 			if opts.isMIGChild() {
-				numMigChildrenForParent, ok := MIGChildrenPerDevice[deviceIdx]
-				if !ok || numMigChildrenForParent == 0 {
+				if len(opts.migChildUUIDs) == 0 {
 					return nvml.DeviceAttributes{}, nvml.ERROR_NOT_SUPPORTED
 				}
 
-				profileInfo := getGpuInstanceProfileInfo(deviceIdx)
+				profileInfo := getGpuInstanceProfileInfo(deviceIdx, len(opts.migChildUUIDs))
 				return nvml.DeviceAttributes{
 					MultiprocessorCount: profileInfo.MultiprocessorCount,
 					MemorySizeMB:        profileInfo.MemorySizeMB,
@@ -265,7 +423,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			if opts.isMIGChild() || opts.migDisabled {
 				return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
 			}
-			if children, ok := MIGChildrenPerDevice[deviceIdx]; ok && children > 0 {
+			if opts.migChildUUIDs != nil {
 				return nvml.DEVICE_MIG_ENABLE, 0, nvml.SUCCESS
 			}
 			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
@@ -274,29 +432,22 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			if opts.isMIGChild() || opts.migDisabled {
 				return 0, nvml.SUCCESS
 			}
-			if opts.migChildCount > 0 {
-				return opts.migChildCount, nvml.SUCCESS
-			}
-			return MIGChildrenPerDevice[deviceIdx], nvml.SUCCESS
+			return len(opts.migChildUUIDs), nvml.SUCCESS
 		},
 		GetMigDeviceHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
 			if opts.isMIGChild() || opts.migDisabled {
 				return nil, nvml.ERROR_INVALID_ARGUMENT
 			}
-			if index >= MIGChildrenPerDevice[deviceIdx] {
+			if _, ok := opts.migChildUUIDs[index]; !ok {
 				return nil, nvml.ERROR_INVALID_ARGUMENT
 			}
-
 			return getMIGDeviceMockWithOptions(deviceIdx, index, opts), nvml.SUCCESS
 		},
 		GetComputeRunningProcessesFunc: func() ([]nvml.ProcessInfo, nvml.Return) {
-			if opts.processInfoCB != nil {
-				uuid := GPUUUIDs[deviceIdx]
-				if opts.isMIGChild() {
-					uuid = MIGChildrenUUIDs[deviceIdx][*opts.migChildIndex]
-				}
-				return opts.processInfoCB(uuid)
+			if opts.processData != nil {
+				return opts.processData.ProcessInfo(), opts.processDataReturnCode
 			}
+
 			return DefaultProcessInfo, nvml.SUCCESS
 		},
 		GetMemoryInfoFunc: func() (nvml.Memory, nvml.Return) {
@@ -427,9 +578,18 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}
 			return nvml.RepairStatus{}, nvml.SUCCESS
 		},
-		GetNvLinkStateFunc: func(_ int) (nvml.EnableState, nvml.Return) {
+		GetNvLinkStateFunc: func(link int) (nvml.EnableState, nvml.Return) {
 			if isMIGUnsupported || !opts.nvlinkSupported() {
 				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			if ret, ok := opts.nvlinkStateErrors[link]; ok && ret != nvml.SUCCESS {
+				return 0, ret
+			}
+			if opts.nvlinkStates != nil {
+				if link >= len(opts.nvlinkStates) {
+					return 0, nvml.ERROR_INVALID_ARGUMENT
+				}
+				return opts.nvlinkStates[link], nvml.SUCCESS
 			}
 			if opts.nvlinkLinkCount == 0 {
 				return nvml.FEATURE_DISABLED, nvml.SUCCESS
@@ -479,12 +639,12 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			if isMIGUnsupported {
 				return nil, nvml.ERROR_NOT_FOUND
 			}
-			if opts.processInfoCB != nil {
-				uuid := GPUUUIDs[deviceIdx]
+			if opts.processData != nil {
+				uuid := opts.parentUUIDs[deviceIdx]
 				if opts.isMIGChild() {
-					uuid = MIGChildrenUUIDs[deviceIdx][*opts.migChildIndex]
+					uuid = opts.migChildUUIDs[*opts.migChildIndex]
 				}
-				processes, ret := opts.processInfoCB(uuid)
+				processes, ret := opts.processData(uuid)
 				if ret != nvml.SUCCESS {
 					return nil, ret
 				}
@@ -520,20 +680,19 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			fieldValuesCounter += 1000
 			for i := range values {
 				values[i].Timestamp = int64(time.Now().UnixMilli())
-				if opts.hasUnsupportedField(values[i].FieldId) {
-					values[i].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
-				} else {
-					values[i].NvmlReturn = uint32(nvml.SUCCESS)
-				}
-				values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_LONG_LONG)
 
-				value := fieldValuesCounter + uint64(i)
-				if defaultValue, ok := DefaultFieldValues[values[i].FieldId]; ok {
-					value = defaultValue
+				var value uint64
+				if mockFieldValue := opts.getFieldValue(values[i].FieldId, values[i].ScopeId); mockFieldValue != nil {
+					values[i].NvmlReturn = uint32(mockFieldValue.Return)
+					value = mockFieldValue.Value
+				} else {
+					value = fieldValuesCounter + uint64(i)
+					if values[i].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
+						value = uint64(opts.nvlinkLinkCount)
+					}
 				}
-				if values[i].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
-					value = uint64(opts.nvlinkLinkCount)
-				}
+
+				values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_LONG)
 
 				var encoded [8]byte
 				binary.LittleEndian.PutUint64(encoded[:], value)
@@ -572,10 +731,12 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return nvml.EventTypeAll, nvml.SUCCESS
 		},
 		GetGpuInstanceProfileInfoFunc: func(profile int) (nvml.GpuInstanceProfileInfo, nvml.Return) {
-			if _, isMig := MIGChildrenPerDevice[deviceIdx]; !isMig || profile != 0 {
+			// TODO: handle the case where there are no MIG children but the device is MIG enabled.
+			// Related ticket: EBPF-1118
+			if profile != 0 {
 				return nvml.GpuInstanceProfileInfo{}, nvml.ERROR_INVALID_ARGUMENT
 			}
-			return getGpuInstanceProfileInfo(deviceIdx), nvml.SUCCESS
+			return getGpuInstanceProfileInfo(deviceIdx, max(1, len(opts.migChildUUIDs))), nvml.SUCCESS
 		},
 		ReadWritePRM_v1Func: func(buffer *nvml.PRMTLV_v1) nvml.Return {
 			if opts.isVGPU() || opts.isMIGMode() || opts.architecture < nvml.DEVICE_ARCH_BLACKWELL {
@@ -618,19 +779,18 @@ func fillMockPLRPRMResponse(buffer *nvml.PRMTLV_v1) {
 	}
 }
 
-func getGpuInstanceProfileInfo(deviceIdx int) nvml.GpuInstanceProfileInfo {
+func getGpuInstanceProfileInfo(deviceIdx int, migChildCount int) nvml.GpuInstanceProfileInfo {
 	// build a profile info consistent with the number of cores per multiprocessor
 	// and the mig children count for this device
 	// Hopper has 128 cores per multiprocessor, and that's the default arch we have.
 	// If this is wrong, unit tests will fail as they ensure the core count is correct.
 	parentMultiprocessorCount := uint32(GPUCores[deviceIdx]) / 128
 	parentMemorySizeMB := DefaultTotalMemory / 1024 / 1024
-	instanceCount := MIGChildrenPerDevice[deviceIdx]
 
 	return nvml.GpuInstanceProfileInfo{
-		MemorySizeMB:        parentMemorySizeMB / uint64(instanceCount),
-		InstanceCount:       uint32(instanceCount),
-		MultiprocessorCount: parentMultiprocessorCount / uint32(instanceCount),
+		MemorySizeMB:        parentMemorySizeMB / uint64(migChildCount),
+		InstanceCount:       uint32(migChildCount),
+		MultiprocessorCount: parentMultiprocessorCount / uint32(migChildCount),
 	}
 }
 
@@ -639,6 +799,7 @@ func GetMIGDeviceMock(deviceIdx int, migDeviceIdx int, opts ...func(*nvmlmock.De
 	return getMIGDeviceMockWithOptions(deviceIdx, migDeviceIdx, deviceOptions{
 		mode:               DeviceFeatureMIG,
 		compatibilityHooks: append([]func(*nvmlmock.Device){}, opts...),
+		fieldValues:        mergeFieldValues(nil, DefaultFieldValues),
 	})
 }
 
@@ -660,13 +821,20 @@ func WithMIGDisabled() NvmlMockOption {
 
 // WithDeviceCount influences the return value of DeviceGetCount for the nvml mock
 func WithDeviceCount(count int) NvmlMockOption {
+	return WithDeviceCountFunc(func() int {
+		return count
+	})
+}
+
+// WithDeviceCountFunc allows setting a dynamic device count function for the nvml mock.
+func WithDeviceCountFunc(fn func() int) NvmlMockOption {
 	return func(o *nvmlMockOptions) {
 		o.libOptions = append(o.libOptions, func(lib *nvmlmock.Interface) {
 			lib.DeviceGetCountFunc = func() (int, nvml.Return) {
-				return count, nvml.SUCCESS
+				return fn(), nvml.SUCCESS
 			}
 			lib.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-				if index >= count {
+				if index >= fn() {
 					return nil, nvml.ERROR_INVALID_ARGUMENT
 				}
 				return getDeviceMockWithOptions(index, o.deviceOptions), nvml.SUCCESS
@@ -675,10 +843,111 @@ func WithDeviceCount(count int) NvmlMockOption {
 	}
 }
 
-func WithMIGChildCount(count int) NvmlMockOption {
+// WithMIGChildUUIDs sets the UUIDs of the MIG children for the nvml mock. Use it to customize the MIG children returned and their UUIDs
+func WithMIGChildUUIDs(uuids map[int]string) NvmlMockOption {
 	return func(o *nvmlMockOptions) {
-		o.deviceOptions.migChildCount = count
+		o.deviceOptions.migChildUUIDs = uuids
 	}
+}
+
+// WithDeviceUUID overrides the UUID returned by device mocks built from this option.
+func WithDeviceUUID(uuid string) func(*nvmlmock.Device) {
+	return func(d *nvmlmock.Device) {
+		d.GetUUIDFunc = func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		}
+	}
+}
+
+// WithFieldValues sets field values returned by GetFieldValues for all mock devices. Overrides the entire default set of field values.
+func WithFieldValuesFullOverride(values map[uint32]MockFieldValue) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions.fieldValues = values
+	}
+}
+
+// WithFieldValuesPartialOverride sets field values returned by GetFieldValues for all mock devices. Only updates the provided field values, leaving the rest unchanged.
+func WithFieldValuesPartialOverride(values map[uint32]MockFieldValue) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		for fieldID, value := range values {
+			o.deviceOptions.fieldValues[fieldID] = value
+		}
+	}
+}
+
+// WithUnsupportedFields marks fields as unsupported in GetFieldValues responses.
+func WithUnsupportedFields(fields ...uint32) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		for _, fieldID := range fields {
+			o.deviceOptions.fieldValues[fieldID] = FieldError(nvml.ERROR_NOT_SUPPORTED)
+		}
+	}
+}
+
+// WithInvalidArgumentFields marks fields as invalid arguments in GetFieldValues responses.
+func WithInvalidArgumentFields(fields ...uint32) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		for _, fieldID := range fields {
+			o.deviceOptions.fieldValues[fieldID] = FieldError(nvml.ERROR_INVALID_ARGUMENT)
+		}
+	}
+}
+
+// WithScopedFieldValues sets per-scope field values returned by GetFieldValues for all mock devices.
+func WithScopedFieldValues(values map[uint32]map[uint32]MockFieldValue) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		if o.deviceOptions.scopedFieldValues == nil {
+			o.deviceOptions.scopedFieldValues = make(map[uint32]map[uint32]MockFieldValue, len(values))
+		}
+		for fieldID, scopedValues := range values {
+			if o.deviceOptions.scopedFieldValues[fieldID] == nil {
+				o.deviceOptions.scopedFieldValues[fieldID] = make(map[uint32]MockFieldValue, len(scopedValues))
+			}
+			for scopeID, value := range scopedValues {
+				o.deviceOptions.scopedFieldValues[fieldID][scopeID] = value
+			}
+		}
+	}
+}
+
+// WithNVLinkLinkCount configures the number of NVLink ports returned by field queries.
+func WithNVLinkLinkCount(count int) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions.nvlinkLinkCount = count
+		o.deviceOptions.fieldValues[nvml.FI_DEV_NVLINK_LINK_COUNT] = UIntFieldValue(uint64(count))
+	}
+}
+
+// WithC2CLinkCount configures the number of C2C links returned by field queries.
+func WithC2CLinkCount(count int) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions.fieldValues[nvml.FI_DEV_C2C_LINK_COUNT] = UIntFieldValue(uint64(count))
+	}
+}
+
+// WithNVLinkStates configures GetNvLinkState responses by port.
+func WithNVLinkStates(states []nvml.EnableState, errors map[int]nvml.Return) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions.nvlinkStates = append([]nvml.EnableState(nil), states...)
+		o.deviceOptions.nvlinkLinkCount = len(states)
+		o.deviceOptions.fieldValues[nvml.FI_DEV_NVLINK_LINK_COUNT] = UIntFieldValue(uint64(len(states)))
+		if len(errors) > 0 {
+			o.deviceOptions.nvlinkStateErrors = make(map[int]nvml.Return, len(errors))
+			for port, ret := range errors {
+				o.deviceOptions.nvlinkStateErrors[port] = ret
+			}
+		}
+	}
+}
+
+func mergeFieldValues(dst map[uint32]MockFieldValue, src map[uint32]MockFieldValue) map[uint32]MockFieldValue {
+	if dst == nil {
+		dst = make(map[uint32]MockFieldValue, len(src))
+	}
+	for fieldID, value := range src {
+		dst[fieldID] = value
+	}
+	return dst
 }
 
 // WithEventSetCreate influences the definition of EventSetCreateFunc
@@ -690,10 +959,45 @@ func WithEventSetCreate(eventSetCreate func() (nvml.EventSet, nvml.Return)) Nvml
 	}
 }
 
+type MockProcessData struct {
+	Pid           uint32
+	UsedGpuMemory uint64
+}
+
+func (m *MockProcessData) ProcessInfo() nvml.ProcessInfo {
+	return nvml.ProcessInfo{
+		Pid:           m.Pid,
+		UsedGpuMemory: m.UsedGpuMemory,
+	}
+}
+
+type MockProcessInfoList []MockProcessData
+
+func (m MockProcessInfoList) ProcessInfo() []nvml.ProcessInfo {
+	processInfo := make([]nvml.ProcessInfo, len(m))
+	for i, process := range m {
+		processInfo[i] = process.ProcessInfo()
+	}
+	return processInfo
+}
+
+func WithProcessData(processData []MockProcessData, returnCode nvml.Return) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions.processData = processData
+		o.deviceOptions.processDataReturnCode = returnCode
+	}
+}
+
 // WithProcessInfoCallback influences the return value of GetComputeRunningProcessesFunc for the nvml mock
 func WithProcessInfoCallback(callback func(uuid string) ([]nvml.ProcessInfo, nvml.Return)) NvmlMockOption {
 	return func(o *nvmlMockOptions) {
 		o.deviceOptions.processInfoCB = callback
+	}
+}
+
+func WithCustomHook(hook func(*nvmlmock.Device)) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions.compatibilityHooks = append(o.deviceOptions.compatibilityHooks, hook)
 	}
 }
 
@@ -761,22 +1065,14 @@ func WithDeviceFeatureMode(mode DeviceFeatureMode) NvmlMockOption {
 			o.deviceOptions.migDisabled = true
 		}
 	case DeviceFeatureMIG:
-		parentIdx := DevicesWithMIGChildren[0]
-		return func(o *nvmlMockOptions) {
-			o.deviceOptions.mode = DeviceFeatureMIG
-			o.deviceOptions.migDisabled = false
-			o.libOptions = append(o.libOptions, func(lib *nvmlmock.Interface) {
-				lib.DeviceGetCountFunc = func() (int, nvml.Return) {
-					return 1, nvml.SUCCESS
-				}
-				lib.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-					if index != 0 {
-						return nil, nvml.ERROR_INVALID_ARGUMENT
-					}
-					return getDeviceMockWithOptions(parentIdx, o.deviceOptions), nvml.SUCCESS
-				}
-			})
-		}
+		return WithCombinedOptions(
+			WithDeviceCount(1),
+			WithMIGChildUUIDs(MIGChildrenUUIDs[DefaultMIGParentDeviceIdx]),
+			func(o *nvmlMockOptions) {
+				o.deviceOptions.migDisabled = false
+				o.deviceOptions.mode = DeviceFeatureMIG
+			},
+		)
 	case DeviceFeatureVGPU:
 		return func(o *nvmlMockOptions) {
 			o.deviceOptions.mode = DeviceFeatureVGPU
@@ -784,6 +1080,21 @@ func WithDeviceFeatureMode(mode DeviceFeatureMode) NvmlMockOption {
 		}
 	default:
 		return func(*nvmlMockOptions) {}
+	}
+}
+
+func WithCombinedOptions(options ...NvmlMockOption) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		for _, opt := range options {
+			opt(o)
+		}
+	}
+}
+
+// WithDeviceUUIDs configures the mock so that the device UUIDs are the given UUIDs.
+func WithDeviceUUIDs(uuids []string) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions.parentUUIDs = uuids
 	}
 }
 
@@ -801,26 +1112,45 @@ type Capabilities struct {
 // WithCapabilities configures the mock so that architecture-gated APIs return
 // NOT_SUPPORTED or equivalent when a capability is false.
 func WithCapabilities(caps Capabilities) NvmlMockOption {
-	return func(o *nvmlMockOptions) {
-		o.deviceOptions.gpmSupported = &caps.GPM
-		o.deviceOptions.nvlinkGeneration = caps.NvLinkGenerationSupported
-		o.deviceOptions.nvlinkLinkCount = caps.NvLinkLinkCount
-		o.deviceOptions.c2cSupported = caps.C2C
-		if len(caps.UnsupportedFields) == 0 {
-			o.deviceOptions.unsupportedFields = nil
-			return
-		}
-		unsupported := make(map[uint32]struct{}, len(caps.UnsupportedFields))
-		for _, id := range caps.UnsupportedFields {
-			unsupported[id] = struct{}{}
-		}
-		o.deviceOptions.unsupportedFields = unsupported
+	opts := []NvmlMockOption{
+		func(o *nvmlMockOptions) {
+			o.deviceOptions.gpmSupported = &caps.GPM
+			o.deviceOptions.nvlinkGeneration = caps.NvLinkGenerationSupported
+			o.deviceOptions.c2cSupported = caps.C2C
+		},
+		WithNVLinkLinkCount(caps.NvLinkLinkCount),
 	}
+
+	if len(caps.UnsupportedFields) > 0 {
+		opts = append(opts, WithUnsupportedFields(caps.UnsupportedFields...))
+	}
+
+	return WithCombinedOptions(opts...)
 }
 
 // GetBasicNvmlMock returns a mock of the nvml.Interface with the default devices and options.
 func GetBasicNvmlMock() *nvmlmock.Interface {
 	return GetBasicNvmlMockWithOptions()
+}
+
+func newNvmlMockOptions(options ...NvmlMockOption) *nvmlMockOptions {
+	opts := &nvmlMockOptions{
+		deviceOptions: deviceOptions{
+			fieldValues: mergeFieldValues(nil, DefaultFieldValues),
+		},
+	}
+	for _, opt := range options {
+		opt(opts)
+	}
+
+	if opts.deviceOptions.parentUUIDs == nil {
+		opts.deviceOptions.parentUUIDs = GPUUUIDs
+	}
+	if opts.deviceOptions.migChildUUIDs == nil {
+		opts.deviceOptions.migChildUUIDs = MIGChildrenUUIDs[DefaultMIGParentDeviceIdx]
+	}
+
+	return opts
 }
 
 // GetBasicNvmlMockWithOptions returns a mock of the nvml.Interface with the default devices and options,
@@ -832,14 +1162,11 @@ func GetBasicNvmlMockWithOptions(options ...NvmlMockOption) *nvmlmock.Interface 
 		panic("GPUUUIDs and GPUCores must have the same length, please fix it")
 	}
 
-	opts := &nvmlMockOptions{}
-	for _, opt := range options {
-		opt(opts)
-	}
+	opts := newNvmlMockOptions(options...)
 
 	mockNvml := &nvmlmock.Interface{
 		DeviceGetCountFunc: func() (int, nvml.Return) {
-			return len(GPUUUIDs), nvml.SUCCESS
+			return len(opts.deviceOptions.parentUUIDs), nvml.SUCCESS
 		},
 		DeviceGetHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
 			return getDeviceMockWithOptions(index, opts.deviceOptions), nvml.SUCCESS
@@ -994,8 +1321,8 @@ func GetTelemetryMock(t testing.TB) telemetry.Mock {
 func GetTotalExpectedDevices() int {
 	numPhysical := len(GPUUUIDs)
 	numMIG := 0
-	for _, count := range MIGChildrenPerDevice {
-		numMIG += count
+	for _, children := range MIGChildrenUUIDs {
+		numMIG += len(children)
 	}
 	return numPhysical + numMIG
 }

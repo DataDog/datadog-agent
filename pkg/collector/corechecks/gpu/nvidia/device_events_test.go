@@ -22,19 +22,18 @@ import (
 )
 
 func TestDeviceEventsGatherer_RegisterBeforeStart(t *testing.T) {
-	device := setupMockDevice(t, nil)
+	device := setupMockDevice(t)
 
 	gatherer := NewDeviceEventsGatherer()
 	assert.Error(t, gatherer.RegisterDevice(device))
 }
 
 func TestDeviceEventsGatherer_RegisterWithUnsupportedEvents(t *testing.T) {
-	device := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
 		device.GetSupportedEventTypesFunc = func() (uint64, nvml.Return) {
 			return 0, nvml.SUCCESS
 		}
-		return device
-	})
+	}))
 
 	gatherer := NewDeviceEventsGatherer()
 	assert.Error(t, gatherer.RegisterDevice(device))
@@ -62,7 +61,7 @@ func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
 	t.Cleanup(func() { close(gatheredDeviceEvents) })
 
 	// setup mock device, and the nvml lib to return events at our command
-	device := setupMockDeviceWithLibOpts(t, nil,
+	device := setupMockDevice(t,
 		testutil.WithSymbolsMock(map[string]struct{}{"nvmlDeviceGetUUID": {}}),
 		testutil.WithEventSetCreate(func() (nvml.EventSet, nvml.Return) {
 			return &mock.EventSet{
@@ -162,7 +161,7 @@ func (m *mockDeviceEventsCollectorCache) GetEvents(_ string) ([]safenvml.DeviceE
 
 func TestDeviceEventsCollector(t *testing.T) {
 	cache := mockDeviceEventsCollectorCache{}
-	device := setupMockDevice(t, nil)
+	device := setupMockDevice(t)
 	uuid := device.GetDeviceInfo().UUID
 
 	collector, err := newDeviceEventsCollectorWithCache(device, &cache)

@@ -8,7 +8,6 @@
 package gpu
 
 import (
-	"encoding/binary"
 	"fmt"
 	"slices"
 	"strconv"
@@ -44,23 +43,6 @@ import (
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 )
-
-func mockNVLinkLinkCount(count uint64) func(*nvmlmock.Device) {
-	return func(d *nvmlmock.Device) {
-		getFieldValues := d.GetFieldValuesFunc
-		d.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-			ret := getFieldValues(values)
-			for i := range values {
-				if values[i].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
-					values[i].NvmlReturn = uint32(nvml.SUCCESS)
-					values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_LONG_LONG)
-					binary.LittleEndian.PutUint64(values[i].Value[:], count)
-				}
-			}
-			return ret
-		}
-	}
-}
 
 func newMockContainerProvider(t *testing.T, pidToContainerID map[int]string) *mock_containers.MockContainerProvider {
 	t.Helper()
@@ -335,6 +317,8 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 	numSupportedCollectorTypes := nvidia.NumCollectors() - 1 // -1 for nvlink_plr, which is not supported by the basic mock
 
 	// mock up device count so that we can check when check collectors are created/destroyed
+	curDeviceCount := atomic.Int32{}
+	curDeviceCount.Store(int32(len(testutil.GPUUUIDs)) - 2)
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
 		testutil.WithMockAllFunctions(),
 		testutil.WithProcessInfoCallback(func(_ string) ([]nvml.ProcessInfo, nvml.Return) {
@@ -343,11 +327,11 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithMIGDisabled(),
 		testutil.WithArchitecture("blackwell"),
+		testutil.WithDeviceCountFunc(func() int {
+			return int(curDeviceCount.Load())
+		}),
 	)
 	ddnvml.WithMockNVML(t, nvmlMock)
-	curDeviceCount := atomic.Int32{}
-	curDeviceCount.Store(int32(len(testutil.GPUUUIDs)) - 2)
-	nvmlMock.DeviceGetCountFunc = func() (int, nvml.Return) { return int(curDeviceCount.Load()), nvml.SUCCESS }
 
 	// assert function to be used below, checking that the created collectors map to the current devices
 	assertCollectors := func(collectors []nvidia.Collector) {
@@ -399,40 +383,8 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// PLR is not supported by this mock, so it is filtered out during collector creation.
 	numSupportedCollectorTypes := nvidia.NumCollectors() - 1 // -1 for nvlink_plr, which is not supported by MIG
 
-	// Use device index 5 which has MIG support in testutil
-	deviceIdx := 5
-	parentUUID := testutil.GPUUUIDs[deviceIdx]
-
 	// Track the number of MIG children dynamically
-	curMIGChildCount := atomic.Int32{}
-	curMIGChildCount.Store(0) // Start with MIG disabled
-
-	// Create the parent device mock
-	parentDevice := testutil.GetDeviceMock(deviceIdx, testutil.WithMockAllDeviceFunctions(), func(d *nvmlmock.Device) {
-		// Override MIG-related functions to be dynamic
-		d.GetMigModeFunc = func() (int, int, nvml.Return) {
-			if curMIGChildCount.Load() > 0 {
-				return nvml.DEVICE_MIG_ENABLE, 0, nvml.SUCCESS
-			}
-			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
-		}
-		d.GetMaxMigDeviceCountFunc = func() (int, nvml.Return) {
-			return int(curMIGChildCount.Load()), nvml.SUCCESS
-		}
-		d.GetMigDeviceHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-			if index >= int(curMIGChildCount.Load()) {
-				return nil, nvml.ERROR_NOT_FOUND
-			}
-			return testutil.GetMIGDeviceMock(deviceIdx, index, testutil.WithMockAllDeviceFunctions(), mockNVLinkLinkCount(2)), nvml.SUCCESS
-		}
-		d.GpmMigSampleGetFunc = func(_ int, _ nvml.GpmSample) nvml.Return {
-			return nvml.SUCCESS
-		}
-		d.GpmSampleGetFunc = func(_ nvml.GpmSample) nvml.Return {
-			return nvml.SUCCESS
-		}
-		mockNVLinkLinkCount(2)(d)
-	})
+	migChildren := make(map[int]string)
 
 	// Setup NVML mock with single parent device
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
@@ -442,19 +394,15 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 		}),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithArchitecture("blackwell"),
+		testutil.WithMIGChildUUIDs(migChildren),
+		testutil.WithDeviceCount(1),
 	)
-	nvmlMock.DeviceGetCountFunc = func() (int, nvml.Return) { return 1, nvml.SUCCESS }
-	nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-		if index == 0 {
-			return parentDevice, nvml.SUCCESS
-		}
-		return nil, nvml.ERROR_INVALID_ARGUMENT
-	}
 	ddnvml.WithMockNVML(t, nvmlMock)
+	parentUUID := testutil.GPUUUIDs[0] // First device is used as the parent
 
 	// Assert function to check collectors match current device state
 	assertCollectors := func(collectors []nvidia.Collector) {
-		migCount := int(curMIGChildCount.Load())
+		migCount := len(migChildren)
 		expectedCollectorCount := numSupportedCollectorTypes + (migCount * numSupportedCollectorTypes)
 		assert.Len(t, collectors, expectedCollectorCount,
 			"Expected %d collectors (1 parent*%d + %d mig*%d), got %d",
@@ -470,8 +418,7 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 		expectedUUIDs := map[string]int{
 			parentUUID: numSupportedCollectorTypes,
 		}
-		for i := 0; i < migCount; i++ {
-			migUUID := testutil.MIGChildrenUUIDs[deviceIdx][i]
+		for _, migUUID := range migChildren {
 			expectedUUIDs[migUUID] = numSupportedCollectorTypes
 		}
 
@@ -496,22 +443,22 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	assertCollectors(check.collectors)
 
 	// Enable MIG with 1 child
-	curMIGChildCount.Store(1)
+	migChildren[0] = testutil.MIGUUIDs[0]
 	require.NoError(t, check.Run())
 	assertCollectors(check.collectors)
 
 	// Increase MIG children count to 2 (max for device index 5)
-	curMIGChildCount.Store(2)
+	migChildren[1] = testutil.MIGUUIDs[1]
 	require.NoError(t, check.Run())
 	assertCollectors(check.collectors)
 
 	// Decrease MIG children count back to 1
-	curMIGChildCount.Store(1)
+	delete(migChildren, 1)
 	require.NoError(t, check.Run())
 	assertCollectors(check.collectors)
 
 	// Disable MIG completely
-	curMIGChildCount.Store(0)
+	delete(migChildren, 0)
 	require.NoError(t, check.Run())
 	assertCollectors(check.collectors)
 }
@@ -1052,8 +999,7 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 	// cache data for every device shape used by the mode.
 	cacheDeviceUUIDs := []string{testutil.DefaultGpuUUID}
 	if config.DeviceMode == gpuspec.DeviceModeMIG {
-		parentIdx := testutil.DevicesWithMIGChildren[0]
-		cacheDeviceUUIDs = append([]string{testutil.GPUUUIDs[parentIdx]}, testutil.MIGChildrenUUIDs[parentIdx]...)
+		cacheDeviceUUIDs = append(cacheDeviceUUIDs, testutil.MIGUUIDs[0])
 	}
 	processMetrics := make([]model.ProcessStatsTuple, 0, len(cacheDeviceUUIDs))
 	deviceMetrics := make([]model.DeviceStatsTuple, 0, len(cacheDeviceUUIDs))
