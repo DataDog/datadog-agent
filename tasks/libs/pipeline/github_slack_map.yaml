@@ -249,6 +249,13 @@
   review:
     name: '#database-monitoring'
     id: 'C011QG8MJBA'
+'@datadog/dd-agent-mcp':
+  notification:
+    name: '#dd-agent-mcp'
+    id: 'C0A9L3290GZ'
+  review:
+    name: '#dd-agent-mcp'
+    id: 'C0A9L3290GZ'
 '@datadog/debugger':
   notification:
     name: '#debugger-ops-prod'
