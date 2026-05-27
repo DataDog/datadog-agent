@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "interfaceresolver",
     srcs = [
+        "audit.go",
         "doc.go",
         "observer.go",
         "resolver.go",
@@ -15,6 +16,7 @@ go_library(
 go_test(
     name = "interfaceresolver_test",
     srcs = [
+        "audit_test.go",
         "observer_test.go",
         "resolver_test.go",
     ],
