@@ -14,14 +14,13 @@ import (
 	"strings"
 	"sync"
 
-	"go.uber.org/fx"
-
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformreceiver "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/def"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
@@ -37,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -46,9 +44,25 @@ import (
 
 //go:generate go run github.com/golang/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go
 
-// Module defines the fx options for this component.
-func Module(params Params) fxutil.Module {
-	return fxutil.Component(fx.Provide(newEventPlatformForwarder), fx.Supply(params))
+// Requires defines the component's dependencies.
+type Requires struct {
+	Params                eventplatform.Params
+	Config                configcomp.Component
+	Lc                    compdef.Lifecycle
+	EventPlatformReceiver eventplatformreceiver.Component
+	Hostname              hostnameinterface.Component
+	Compression           logscompression.Component
+	Secrets               secrets.Component
+}
+
+// Provides defines the component's output.
+type Provides struct {
+	Comp eventplatform.Component
+}
+
+// NewComponent creates a new EventPlatformForwarder component.
+func NewComponent(reqs Requires) Provides {
+	return Provides{Comp: newEventPlatformForwarder(reqs)}
 }
 
 const (
@@ -216,7 +230,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			eventType:                     eventplatform.EventTypeNetworkConfigManagement,
 			category:                      "Network Config Management",
 			contentType:                   logshttp.JSONContentType,
-			endpointsConfigPrefix:         "network_config_management.forwarder.",
+			endpointsConfigPrefix:         "network_devices.config_management.forwarder.",
 			hostnameEndpointPrefix:        "ndm-intake.",
 			intakeTrackType:               "ndmconfig",
 			defaultBatchMaxConcurrentSend: 10,
@@ -733,31 +747,19 @@ func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver
 	}
 }
 
-type dependencies struct {
-	fx.In
-	Params                Params
-	Config                configcomp.Component
-	Lc                    fx.Lifecycle
-	EventPlatformReceiver eventplatformreceiver.Component
-	Hostname              hostnameinterface.Component
-	Compression           logscompression.Component
-	Secrets               secrets.Component
-}
-
-// newEventPlatformForwarder creates a new EventPlatformForwarder
-func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
+func newEventPlatformForwarder(reqs Requires) eventplatform.Component {
 	var forwarder *defaultEventPlatformForwarder
 
-	if deps.Params.UseNoopEventPlatformForwarder {
-		forwarder = newNoopEventPlatformForwarder(deps.Hostname, deps.Compression)
-	} else if deps.Params.UseEventPlatformForwarder {
-		hostnameStr := deps.Hostname.GetSafe(context.Background())
-		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver, deps.Compression, hostnameStr, deps.Secrets)
+	if reqs.Params.UseNoopEventPlatformForwarder {
+		forwarder = newNoopEventPlatformForwarder(reqs.Hostname, reqs.Compression)
+	} else if reqs.Params.UseEventPlatformForwarder {
+		hostnameStr := reqs.Hostname.GetSafe(context.Background())
+		forwarder = newDefaultEventPlatformForwarder(reqs.Config, reqs.EventPlatformReceiver, reqs.Compression, hostnameStr, reqs.Secrets)
 	}
 	if forwarder == nil {
 		return option.NonePtr[eventplatform.Forwarder]()
 	}
-	deps.Lc.Append(fx.Hook{
+	reqs.Lc.Append(compdef.Hook{
 		OnStart: func(context.Context) error {
 			forwarder.Start()
 			return nil
@@ -777,9 +779,8 @@ func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, compres
 }
 
 func newNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
-	config := pkgconfigsetup.Datadog()
 	hostnameStr := hostname.GetSafe(context.Background())
-	f := newDefaultEventPlatformForwarder(config, eventplatformreceiverimpl.NewReceiver(hostname, config).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp)
+	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname, pkgconfigsetup.Datadog()).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp)
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil

@@ -108,6 +108,8 @@ enum
 {
     RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING = 1 << 0, // defines if an activity dump is running
     RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP = 1 << 1, // defines if the dentry should have been discarded, but was saved because of an activity dump
+    RESOLVER_FLAG_APPLY_DISCARDERS = 1 << 2, // defines whether to apply the discarders or not
+    RESOLVER_FLAG_BASENAME_APPROVED = 1 << 3, // defines that the dentry was approved by basename during the dentry resolution
 };
 
 enum policy_mode
@@ -126,9 +128,17 @@ enum APPROVER_TYPE
     IN_UPPER_LAYER_APPROVER_TYPE,
 };
 
+// values must mirror pkg/security/probe/kfilters/approvers.go
+enum BASENAME_APPROVER_TYPE
+{
+    LEAF_BASENAME = 0,
+    LEAF_BASENAME_PREFIX = 1,
+    PARENT_BASENAME = 2,
+};
+
 enum SYSCALL_STATE
 {
-    ACCEPTED = 0,    // approved and can't be discarded later
+    ACCEPTED = 0,    // accepted, can't be discarded later
     APPROVED,        // approved but can be discarded later
     DISCARDED,       // discarded
     SAMPLED,         // sampled

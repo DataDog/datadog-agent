@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package jmxloggerimpl
+package jmxlogger
 
 // Params defines the parameters for the JMX logger.
 type Params struct {
@@ -26,3 +26,9 @@ func NewDefaultParams() Params {
 		logFile: "",
 	}
 }
+
+// IsFromCLI returns true if the logger was created for CLI usage.
+func (p Params) IsFromCLI() bool { return p.fromCLI }
+
+// GetLogFile returns the log file path.
+func (p Params) GetLogFile() string { return p.logFile }

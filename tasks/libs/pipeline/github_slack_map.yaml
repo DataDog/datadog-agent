@@ -37,8 +37,8 @@
     name: '#agent-configuration-ops'
     id: 'C08A85VGC8P'
   review:
-    name: '#agent-configuration-ops'
-    id: 'C08A85VGC8P'
+    name: ''
+    id: ''
 '@datadog/agent-cspm':
   notification:
     name: '#security-and-compliance-agent-ops'
