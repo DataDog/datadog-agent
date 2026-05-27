@@ -106,24 +106,39 @@ func (fn *FileNode) buildNodeRow(prefix string) string {
 	return out
 }
 
-// Matches returns true if the file event used to generate the file node matches the provided model.FileEvent.
-// When normalize is true, paths are compared via PathPatternMatch so that paths differing only in numeric or rotated
-// suffixes (e.g. /var/log/syslog.1 vs /var/log/syslog.2) are considered equal; the path is also required to carry an
-// extension, to avoid collapsing unrelated files.
-func (fn *FileNode) Matches(entry *model.FileEvent, normalize bool) bool {
+// Matches returns the unified path and true if the file event used to generate the file node matches the provided
+// model.FileEvent. When normalize is true, paths are compared via PathPatternBuilder so that paths differing only in
+// numeric or rotated suffixes (e.g. /var/log/syslog.1 vs /var/log/syslog.2) are unified into a wildcard pattern; the
+// path is required to carry an extension, to avoid collapsing unrelated files. When normalize is false, the literal
+// path is returned only when both sides are byte-equal.
+func (fn *FileNode) Matches(entry *model.FileEvent, normalize bool) (string, bool) {
 	if fn.File == nil || entry == nil {
-		return false
+		return "", false
 	}
 	if normalize {
-		return pathutils.PathPatternMatch(fn.File.PathnameStr, entry.PathnameStr, pathutils.PathPatternMatchOpts{
+		var (
+			nodeCommonCharsRequired = 3
+			extensionRequired       = true
+		)
+
+		// relax a bit for /tmp files
+		if strings.HasPrefix(fn.File.PathnameStr, "/tmp") {
+			nodeCommonCharsRequired = 5
+			extensionRequired = false
+		}
+
+		return pathutils.PathPatternBuilder(fn.File.PathnameStr, entry.PathnameStr, pathutils.PathPatternMatchOpts{
 			WildcardLimit:           3,
 			PrefixNodeRequired:      1,
 			NodeSizeLimit:           8,
-			NodeCommonCharsRequired: 3,
-			ExtensionRequired:       true,
+			NodeCommonCharsRequired: nodeCommonCharsRequired,
+			ExtensionRequired:       extensionRequired,
 		})
 	}
-	return fn.File.PathnameStr == entry.PathnameStr
+	if fn.File.PathnameStr == entry.PathnameStr {
+		return fn.File.PathnameStr, true
+	}
+	return "", false
 }
 
 func (fn *FileNode) enrichFromEvent(event *model.Event) {
@@ -195,9 +210,11 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 			// leaf: look for an existing sibling that matches the new file event by pattern
 			// before creating a fresh node
 			for _, sibling := range currentFn.Children {
-				if sibling.Matches(fileEvent, true) {
+				if pattern, ok := sibling.Matches(fileEvent, true); ok {
 					newEntry = false
 					if !dryRun {
+						sibling.File.PathnameStr = pattern
+						sibling.IsPattern = strings.Contains(pattern, "*")
 						sibling.enrichFromEvent(event)
 						sibling.AppendImageTagID(imageTagID, event.ResolveEventTime())
 					}

@@ -272,8 +272,10 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 	// before creating a fresh node
 	if len(filePath) <= nextParentIndex+1 {
 		for _, sibling := range pn.Files {
-			if sibling.Matches(fileEvent, true) {
+			if pattern, ok := sibling.Matches(fileEvent, true); ok {
 				if !dryRun {
+					sibling.File.PathnameStr = pattern
+					sibling.IsPattern = strings.Contains(pattern, "*")
 					sibling.enrichFromEvent(event)
 					sibling.AppendImageTagID(imageTagID, event.ResolveEventTime())
 				}
