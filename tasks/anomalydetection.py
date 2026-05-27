@@ -1555,3 +1555,129 @@ def eval_component(
         print(color_message(f"  Best config: {best_config_path}  (score={score_str})", Color.GREEN))
 
     return final_report
+
+
+# --- Workspace report retrieval ---
+
+
+@task
+def eval_component_workspace_report(
+    ctx,
+    workspace_name: str,
+    output_dir: str = "/tmp/observer-component-eval",
+    local_dir: str = "",
+    only_report: bool = False,
+):
+    """
+    After ``anomalydetection.eval-component`` on a remote dev workspace, copy results to your machine.
+
+    SSH host is ``workspace-<workspace_name>`` (same as ``workspaces.create``). If
+    ``report.json`` exists under ``output_dir``, copies the tree to ``local_dir``
+    via ``scp -r`` (or only ``report.json`` with ``--only-report``). If the report
+    is missing, eval may still be running — reattach to the tmux session on the host.
+
+    Args:
+        workspace_name: Workspace name (SSH: ``workspace-<name>``).
+        output_dir:     Remote directory passed to ``anomalydetection.eval-component`` (default: ``/tmp/observer-component-eval``).
+        local_dir:      Local destination (default: ``./eval-results/<workspace_name>``).
+        only_report:    Copy only ``report.json`` instead of the full output directory.
+
+    Examples:
+        dda inv anomalydetection.eval-component-workspace-report --workspace-name eval-bocpd
+        dda inv anomalydetection.eval-component-workspace-report --workspace-name eval-bocpd --only-report
+    """
+    ws_name = workspace_name.strip()
+    if not ws_name:
+        raise Exit("workspace_name is required")
+
+    ssh_host = f"workspace-{ws_name}"
+    remote_report = f"{output_dir}/report.json"
+
+    check = ctx.run(
+        f"ssh {shlex.quote(ssh_host)} test -f {shlex.quote(remote_report)}",
+        warn=True,
+        hide=True,
+    )
+    if check is None or check.failed:
+        print(
+            color_message(
+                f"Report not found at {remote_report} on {ssh_host} — eval may still be running.",
+                Color.ORANGE,
+            )
+        )
+        print(color_message("  Reattach to the workspace tmux session to watch progress:", Color.BLUE))
+        print(color_message(f"    dda inv workspaces.tmux-attach --name {ws_name}", Color.BLUE))
+        return
+
+    dest = local_dir.strip() or os.path.join("eval-results", ws_name)
+    os.makedirs(dest, exist_ok=True)
+
+    print(color_message(f"Copying report from {ssh_host}:{remote_report} to {dest}...", Color.BLUE))
+
+    if only_report:
+        ctx.run(f"scp {shlex.quote(f'{ssh_host}:{remote_report}')} {shlex.quote(dest)}/")
+        print(color_message(f"report.json copied to {dest}/report.json", Color.GREEN))
+    else:
+        ctx.run(f"scp -r {shlex.quote(f'{ssh_host}:{output_dir}/.')} {shlex.quote(dest)}/")
+        print(color_message(f"Results copied to {dest}/", Color.GREEN))
+
+    print(color_message(f"  report.json: {os.path.join(dest, 'report.json')}", Color.GREEN))
+
+
+@task
+def eval_pipeline_workspace_report(
+    ctx,
+    workspace_name: str,
+    output_dir: str = "/tmp/observer-pipeline-eval",
+    local_dir: str = "",
+    only_report: bool = False,
+):
+    """
+    After ``anomalydetection.eval-pipeline`` on a remote dev workspace, copy results to your machine.
+
+    Args:
+        workspace_name: Workspace name (SSH: ``workspace-<name>``).
+        output_dir:     Remote directory passed to ``anomalydetection.eval-pipeline`` (default: ``/tmp/observer-pipeline-eval``).
+        local_dir:      Local destination (default: ``./eval-results/<workspace_name>``).
+        only_report:    Copy only ``report.json`` instead of the full output directory.
+
+    Examples:
+        dda inv anomalydetection.eval-pipeline-workspace-report --workspace-name finetune
+        dda inv anomalydetection.eval-pipeline-workspace-report --workspace-name finetune --only-report
+    """
+    ws_name = workspace_name.strip()
+    if not ws_name:
+        raise Exit("workspace_name is required")
+
+    ssh_host = f"workspace-{ws_name}"
+    remote_report = f"{output_dir}/report.json"
+
+    check = ctx.run(
+        f"ssh {shlex.quote(ssh_host)} test -f {shlex.quote(remote_report)}",
+        warn=True,
+        hide=True,
+    )
+    if check is None or check.failed:
+        print(
+            color_message(
+                f"Report not found at {remote_report} on {ssh_host} — eval may still be running.",
+                Color.ORANGE,
+            )
+        )
+        print(color_message("  Reattach to the workspace tmux session to watch progress:", Color.BLUE))
+        print(color_message(f"    dda inv workspaces.tmux-attach --name {ws_name}", Color.BLUE))
+        return
+
+    dest = local_dir.strip() or os.path.join("eval-results", ws_name)
+    os.makedirs(dest, exist_ok=True)
+
+    print(color_message(f"Copying report from {ssh_host}:{output_dir} to {dest}...", Color.BLUE))
+
+    if only_report:
+        ctx.run(f"scp {shlex.quote(f'{ssh_host}:{remote_report}')} {shlex.quote(dest)}/")
+        print(color_message(f"report.json copied to {dest}/report.json", Color.GREEN))
+    else:
+        ctx.run(f"scp -r {shlex.quote(f'{ssh_host}:{output_dir}/.')} {shlex.quote(dest)}/")
+        print(color_message(f"Results copied to {dest}/", Color.GREEN))
+
+    print(color_message(f"  report.json: {os.path.join(dest, 'report.json')}", Color.GREEN))
