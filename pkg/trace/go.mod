@@ -21,7 +21,7 @@ require (
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/golang/mock v1.7.0-rc.1
+	github.com/golang/mock v1.7.0-rc.1 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
@@ -56,6 +56,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/shirou/gopsutil/v4 v4.26.4
 	go.opentelemetry.io/collector/component/componenttest v0.152.0
+	go.uber.org/mock v0.6.0
 )
 
 require go.opentelemetry.io/collector/processor v1.58.0 // indirect

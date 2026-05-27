@@ -17,9 +17,9 @@ package proto
 
 import (
 	_ "github.com/favadi/protoc-go-inject-tag"
-	_ "github.com/golang/mock/mockgen"
 	_ "github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto"
 	_ "github.com/tinylib/msgp"
+	_ "go.uber.org/mock/mockgen"
 	_ "google.golang.org/grpc"
 	_ "google.golang.org/grpc/cmd/protoc-gen-go-grpc"
 	_ "google.golang.org/protobuf/cmd/protoc-gen-go"

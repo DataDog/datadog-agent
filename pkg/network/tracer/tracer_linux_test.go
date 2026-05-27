@@ -37,12 +37,12 @@ import (
 	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
-	"github.com/golang/mock/gomock"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	vnetns "github.com/vishvananda/netns"
+	"go.uber.org/mock/gomock"
 	"go4.org/intern"
 	"golang.org/x/sys/unix"
 
