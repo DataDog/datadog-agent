@@ -13,11 +13,10 @@ import (
 )
 
 // doCapture is a stub for platforms that do not support eBPF-based packet
-// capture (i.e. anything other than linux+pcap+cgo). It returns zero stats
-// and no error so that the caller returns a valid RunCaptureResult with
-// empty capture data rather than a hard failure.
-//
-// Note: deployments targeting real capture must use the linux+pcap+cgo build.
+// capture (i.e. anything other than linux+pcap+cgo). Returns zero stats
+// and nil error to allow unit tests and non-Linux builds to pass input
+// validation tests. The PAR binary is only built for Linux, so this stub
+// is never used in production.
 func doCapture(_ context.Context, _ RunCaptureInputs) (int, int64, time.Duration, error) {
 	return 0, 0, 0, nil
 }

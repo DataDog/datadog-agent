@@ -10,6 +10,7 @@ package com_datadoghq_remoteaction_pcap
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"time"
@@ -30,10 +31,7 @@ func doCapture(ctx context.Context, inputs RunCaptureInputs) (packetCount int, f
 		return 0, 0, 0, fmt.Errorf("creating temp file: %w", err)
 	}
 	tmpPath := tmpFile.Name()
-	defer func() {
-		tmpFile.Close()
-		os.Remove(tmpPath)
-	}()
+	defer os.Remove(tmpPath)
 
 	cfg := capture.CaptureConfig{
 		Filter:     inputs.BPFFilter,
@@ -50,36 +48,44 @@ func doCapture(ctx context.Context, inputs RunCaptureInputs) (packetCount int, f
 		return 0, 0, 0, fmt.Errorf("creating capturer: %w", err)
 	}
 
-	startTime := time.Now()
-
 	if err = capturer.Start(ctx); err != nil {
+		tmpFile.Close()
 		return 0, 0, 0, fmt.Errorf("starting capture: %w", err)
 	}
 
 	// Wait for the capture duration to elapse or for the context to be cancelled.
-	// The drain loop inside the capturer already respects Duration and MaxPackets,
-	// so we just need to wait for whichever fires first.
+	// The capturer internally enforces Duration and MaxPackets, but we add a
+	// generous timeout here as a safety net (duration + 5s buffer for drain).
 	select {
 	case <-ctx.Done():
-	case <-time.After(time.Duration(inputs.DurationSecs) * time.Second):
+	case <-time.After(time.Duration(inputs.DurationSecs)*time.Second + 5*time.Second):
 	}
 
 	if stopErr := capturer.Stop(); stopErr != nil {
-		// Best-effort: log but don't override any earlier error.
-		_ = stopErr
+		log.Printf("warning: capturer.Stop() returned error: %v", stopErr)
 	}
 
 	stats := capturer.Stats()
-	actualDuration = time.Since(startTime)
 
-	// Flush and stat the temp file to get the written size.
+	// Use capturer's own timestamps for accurate duration measurement.
+	if !stats.EndTime.IsZero() && !stats.StartTime.IsZero() {
+		actualDuration = stats.EndTime.Sub(stats.StartTime)
+	}
+
+	// Flush and close the temp file before stat'ing it.
 	if flushErr := tmpFile.Sync(); flushErr != nil {
+		tmpFile.Close()
 		return 0, 0, 0, fmt.Errorf("flushing temp file: %w", flushErr)
 	}
 
 	fi, err := tmpFile.Stat()
 	if err != nil {
+		tmpFile.Close()
 		return 0, 0, 0, fmt.Errorf("stat temp file: %w", err)
+	}
+
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		return 0, 0, 0, fmt.Errorf("closing temp file: %w", closeErr)
 	}
 
 	return int(stats.PacketsCaptured), fi.Size(), actualDuration, nil
