@@ -211,7 +211,6 @@ exports_files(glob(
 # gazelle:exclude comp/netflow/testutil
 # gazelle:exclude comp/netflow/topn
 # gazelle:exclude comp/networkconfigmanagement/fx
-# gazelle:exclude comp/networkconfigmanagement/mock
 # gazelle:exclude comp/networkpath/npcollector/fx
 # gazelle:exclude comp/networkpath/npcollector/mock
 # gazelle:exclude comp/networkpath/traceroute/fx-local
