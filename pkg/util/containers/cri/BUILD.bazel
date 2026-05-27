@@ -16,7 +16,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/util/log",
         "//pkg/util/retry",
-        "//vendor.x/k8s.io/cri-api/pkg/apis/runtime/v1:v1_go_proto",
+        "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
         "@io_k8s_cri_client//pkg/util",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//credentials/insecure",

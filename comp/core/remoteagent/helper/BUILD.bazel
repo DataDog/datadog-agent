@@ -36,7 +36,6 @@ go_test(
         "//pkg/config/mock",
         "//pkg/proto/pbgo/core",
         "//pkg/util/grpc",
-        "//vendor.x/google.golang.org/grpc/examples/features/proto/echo",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//:grpc",
@@ -44,5 +43,6 @@ go_test(
         "@org_golang_google_grpc//credentials",
         "@org_golang_google_grpc//metadata",
         "@org_golang_google_grpc//status",
+        "@org_golang_google_grpc_examples//features/proto/echo",
     ],
 )

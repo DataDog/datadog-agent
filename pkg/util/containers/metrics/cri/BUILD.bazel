@@ -15,7 +15,7 @@ go_library(
         "//pkg/util/containers/metrics/provider",
         "//pkg/util/option",
         "//pkg/util/pointer",
-        "//vendor.x/k8s.io/cri-api/pkg/apis/runtime/v1:v1_go_proto",
+        "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
     ],
 )
 
@@ -27,7 +27,7 @@ go_test(
     deps = [
         "//pkg/util/containers/cri/crimock",
         "//pkg/util/pointer",
-        "//vendor.x/k8s.io/cri-api/pkg/apis/runtime/v1:v1_go_proto",
         "@com_github_stretchr_testify//assert",
+        "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
     ],
 )

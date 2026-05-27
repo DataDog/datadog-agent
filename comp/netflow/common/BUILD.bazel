@@ -11,7 +11,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/netflow/common",
     visibility = ["//visibility:public"],
-    deps = ["//vendor.x/github.com/netsampler/goflow2/pb"],
+    deps = ["@com_github_netsampler_goflow2//pb"],
 )
 
 go_test(

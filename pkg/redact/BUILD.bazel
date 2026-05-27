@@ -12,7 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",
-        "//vendor.x/k8s.io/api/core/v1:v1_go_proto",
+        "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
     ],
 )
@@ -28,9 +28,9 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/util/scrubber",
-        "//vendor.x/k8s.io/api/core/v1:v1_go_proto",
-        "//vendor.x/k8s.io/apimachinery/pkg/apis/meta/v1:v1_go_proto",
         "@com_github_stretchr_testify//assert",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
     ],
 )
