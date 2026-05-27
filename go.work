@@ -80,6 +80,7 @@ use (
 	comp/trace/compression/impl-gzip
 	comp/trace/compression/impl-zstd
 	internal/qbranch/anomalydetection-scorer
+	internal/qbranch/anomalydetection-testbench
 	internal/tools
 	internal/tools/gotest-custom
 	internal/tools/independent-lint
