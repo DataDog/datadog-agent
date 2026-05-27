@@ -547,12 +547,21 @@ api_key:
 ## @env DD_COLLECT_GPU_TAGS - boolean - optional - default: true
 ## Collect GPU related host tags
 #
-# collect_gpu_tags: false
+# collect_gpu_tags: true
 
 ## @param gpu - custom object - optional
-## GPU monitoring configuration.
+## Configuration for GPU Monitoring on non-containerized Linux hosts.
+## Both this section and the gpu_monitoring section in system-probe.yaml must be configured.
 #
 # gpu:
+
+#   # @param enabled - boolean - optional - default: false
+#   # @env DD_GPU_ENABLED - boolean - optional - default: false
+#   # Set to true to enable the GPU check in the core Agent.
+#   # Required for GPU monitoring on non-containerized Linux hosts.
+#   # Must be used together with gpu_monitoring.enabled: true in system-probe.yaml.
+#
+#   enabled: false
 
 #   # @param nccl - custom object - optional
 #   # NCCL collective communication metrics. When enabled, the Agent listens on a
