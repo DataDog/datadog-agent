@@ -15,11 +15,13 @@ import (
 	agentComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dogstatsd"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/mutatedbyadmissioncontroller"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/prometheus"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/tracegen"
+	dogstatsdstandalone "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
@@ -88,6 +90,23 @@ func DeployComponents(
 		}
 		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(env, kubeProvider, "workload-mutated", "workload-mutated-lib-injection", dependsOnDDAgent); err != nil {
 			return err
+		}
+
+		if env.DogstatsdDeploy() {
+			// Standalone dogstatsd
+			if _, err := dogstatsdstandalone.K8sAppDefinition(env, kubeProvider, "dogstatsd-standalone", "/run/crio/crio.sock", fakeIntake, true, ""); err != nil {
+				return err
+			}
+
+			// Dogstatsd clients that report to the standalone dogstatsd deployment
+			if _, err := dogstatsd.K8sAppDefinition(env, kubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, "/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
+				return err
+			}
+
+			// Dogstatsd clients that report to the Agent
+			if _, err := dogstatsd.K8sAppDefinition(env, kubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
+				return err
+			}
 		}
 	}
 
