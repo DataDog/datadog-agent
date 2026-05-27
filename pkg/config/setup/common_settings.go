@@ -2021,7 +2021,7 @@ func cri(config pkgconfigmodel.Setup) {
 
 func kubernetes(config pkgconfigmodel.Setup) {
 	// Kubernetes
-	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
+	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "", "DD_KUBERNETES_KUBELET_HOST", "K8S_NODE_IP")
 	config.BindEnvAndSetDefault("kubernetes_kubelet_nodename", "")
 	config.BindEnvAndSetDefault("eks_fargate", false)
 	config.BindEnvAndSetDefault("kubelet_use_api_server", false)

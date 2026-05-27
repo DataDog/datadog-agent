@@ -8882,6 +8882,9 @@ properties:
     title: Kubernetes kubelet connectivity Configuration
     type: string
     default: ''
+    env_vars:
+    - DD_KUBERNETES_KUBELET_HOST
+    - K8S_NODE_IP
     visibility: public
     description: |-
       The kubelet host should be autodetected when running inside a pod.

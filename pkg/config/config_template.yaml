@@ -3740,6 +3740,7 @@ api_key:
 
 ## @param kubernetes_kubelet_host - string - optional - default: ""
 ## @env DD_KUBERNETES_KUBELET_HOST - string - optional - default: ""
+## @env K8S_NODE_IP - string - optional - default: ""
 ## The kubelet host should be autodetected when running inside a pod.
 ## If you run into connectivity issues, set the host here according to your cluster setup.
 #
