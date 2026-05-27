@@ -4,6 +4,7 @@ members = [
     "cmd/ai_prompt_logger",
     "comp/core/log/rust",
     "pkg/discovery/module/rust",
+    "pkg/logs/internal/decoder/preprocessor/rust",
     "pkg/procmgr/rust",
 ]
 
@@ -13,6 +14,7 @@ license = "Apache-2.0"
 rust-version = "1.91"
 
 [workspace.dependencies]
+aho-corasick = "1"
 anyhow = "1.0.98"
 cap-std = "4.0"
 caps = "0.5"
@@ -64,10 +66,12 @@ uuid = { version = "1", features = ["v4"] }
 windows-sys = { version = "0.61", features = [] }
 
 # dev-dependencies
+criterion = { version = "0.5", features = ["html_reports"] }
 dircpy = "0.3.19"
 regex = "1"
 memmap2 = "0.9"
 nix = { version = "0.31", features = ["signal"] }
+proptest = "1"
 scopeguard = "1.2"
 temp-env = "0.3"
 tempfile = "3.0"
