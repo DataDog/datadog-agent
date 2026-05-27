@@ -503,7 +503,6 @@ exports_files(glob(
 # gazelle:exclude pkg/network/protocols/http/debugging
 # gazelle:exclude pkg/network/protocols/http/gotls/lookup/luts.go
 # gazelle:exclude pkg/network/protocols/http/gotls/lookup/main.go
-# gazelle:exclude pkg/network/protocols/http/testutil
 # gazelle:exclude pkg/network/protocols/kafka/debugging
 # gazelle:exclude pkg/network/protocols/mongo
 # gazelle:exclude pkg/network/protocols/mysql
