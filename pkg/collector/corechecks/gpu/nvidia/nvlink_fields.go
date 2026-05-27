@@ -49,8 +49,8 @@ var nvlinkFieldsMetrics = []nvlinkFieldValueMetric{
 	{name: "nvlink.throughput.raw.tx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX, addTotalMetric: true, metricType: metrics.GaugeType, rateCalculationMode: PerSecondRateCalculation},
 
 	// Alternative throughput fields
-	{name: "nvlink.throughput.data.rx", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_RCV_BYTES, metricType: metrics.GaugeType, priority: Medium, rateCalculationMode: PerSecondRateCalculation},
-	{name: "nvlink.throughput.data.tx", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_XMIT_BYTES, metricType: metrics.GaugeType, priority: Medium, rateCalculationMode: PerSecondRateCalculation},
+	{name: "nvlink.throughput.data.rx", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_RCV_BYTES, addTotalMetric: true, metricType: metrics.GaugeType, priority: Medium, rateCalculationMode: PerSecondRateCalculation},
+	{name: "nvlink.throughput.data.tx", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_XMIT_BYTES, addTotalMetric: true, metricType: metrics.GaugeType, priority: Medium, rateCalculationMode: PerSecondRateCalculation},
 
 	// -- NVLink speed --
 	// MediumLow: newer field (164), uses per-link speeds. Older field return the same per-link speed for all links, lower priority (default).
@@ -87,11 +87,13 @@ type nvlinkFieldsCollector struct {
 	device  ddnvml.Device
 	metrics []nvlinkFieldValueMetric
 	ports   []int
+	totals  map[uint32]float64
 }
 
 func newNVLinkFieldsCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
 	c := &nvlinkFieldsCollector{
 		device: device,
+		totals: make(map[uint32]float64),
 	}
 
 	c.metrics = append(c.metrics, nvlinkFieldsMetrics...) // copy all metrics to avoid modifying the original slice
@@ -118,6 +120,11 @@ func (c *nvlinkFieldsCollector) Name() CollectorName {
 func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
 	var metrics []*Metric
 	var errs []error
+
+	// Prepare the totals map with the field value IDs of the metrics that require a total calculation.
+	// We need to do this with the field value IDs to avoid issues with duplicates (different fields providing the same metric)
+	c.totals = make(map[uint32]float64)
+
 	for _, port := range c.ports {
 		portMetrics, err := c.getPortMetrics(port)
 		if err != nil {
@@ -129,20 +136,6 @@ func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
 		metrics = append(metrics, portMetrics...)
 	}
 
-	// Add up values for metrics that require a total calculation.
-	totals := make(map[string]float64)
-	for _, metric := range c.metrics {
-		if metric.addTotalMetric {
-			totals[metric.name] = 0
-		}
-	}
-
-	for _, metric := range metrics {
-		if _, ok := totals[metric.Name]; ok {
-			totals[metric.Name] += metric.Value
-		}
-	}
-
 	for _, metric := range c.metrics {
 		if !metric.addTotalMetric {
 			continue
@@ -150,7 +143,7 @@ func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
 
 		metrics = append(metrics, &Metric{
 			Name:                metric.name + ".total",
-			Value:               totals[metric.name],
+			Value:               c.totals[metric.fieldValueID],
 			Type:                metric.metricType,
 			Priority:            metric.priority,
 			RateCalculationMode: metric.rateCalculationMode,
@@ -194,6 +187,7 @@ func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]*Metric, error) {
 		// this metric from the collector, even if it's after a later run. The assumption here
 		// is that unsupported fields are returned from the start, and their status does not change.
 		// This way, we avoid having different functions to collect metrics and to check for support.
+		// We also assume that if a field is not supported for a port, it's not supported for any other port.
 		if val.NvmlReturn == uint32(nvml.ERROR_NOT_SUPPORTED) || (val.NvmlReturn == uint32(nvml.ERROR_INVALID_ARGUMENT) && fieldValueMetric.markUnsupportedOnInvalidArgument) {
 			c.metrics = slices.Delete(c.metrics, metricIdx, metricIdx+1)
 			log.Warnf("nvlink: fields collector removing metric %s for port %d because it's not supported, error: %s", fieldValueMetric.name, port, nvml.ErrorString(nvml.Return(val.NvmlReturn)))
@@ -217,6 +211,10 @@ func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]*Metric, error) {
 			RateCalculationMode: fieldValueMetric.rateCalculationMode,
 			Tags:                []string{portTag},
 		})
+
+		if fieldValueMetric.addTotalMetric {
+			c.totals[fieldValueMetric.fieldValueID] += value
+		}
 	}
 
 	return metrics, errors.Join(errs...)
