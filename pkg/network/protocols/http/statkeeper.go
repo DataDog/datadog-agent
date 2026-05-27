@@ -263,7 +263,7 @@ func (h *StatKeeper) addDiscovery(tx Transaction) {
 	// rejection. The path bytes are read into the local buffer for the check
 	// only; they are not propagated into the aggregation Key below.
 	if rawPath, _ := tx.Path(h.buffer); rawPath != nil {
-		malformed := pathIsMalformed(rawPath)
+		malformed := PathIsMalformed(rawPath)
 		if (malformed || latency > float64(30*time.Minute)) && h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("discovery diagnostic: suspicious tx malformed=%t latency=%s tx=%s",
 				malformed, time.Duration(latency), tx.String())
@@ -296,7 +296,10 @@ func (h *StatKeeper) addDiscovery(tx Transaction) {
 	stats.AddDiscoveryRequest(statusCode, latency, tx.StaticTags(), dynamicTagsSet)
 }
 
-func pathIsMalformed(fullPath []byte) bool {
+// PathIsMalformed reports whether the path contains any non-printable byte,
+// using the same byte-by-byte check as the USM regular path. Exported so the
+// encoder can apply the same gate at flush time.
+func PathIsMalformed(fullPath []byte) bool {
 	for _, r := range fullPath {
 		if !strconv.IsPrint(rune(r)) {
 			return true
@@ -322,7 +325,7 @@ func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) ([]byte, bool)
 
 	// If the user didn't specify a rule matching this particular path, we can check for its format.
 	// Otherwise, we don't want the custom path to be rejected by our path formatting check.
-	if !match && pathIsMalformed(path) {
+	if !match && PathIsMalformed(path) {
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Debugf("http path malformed: %+v %s", tx.ConnTuple(), tx.String())
 			// TEMPORARY DIAGNOSTIC: parallel Warn line with raw latency so

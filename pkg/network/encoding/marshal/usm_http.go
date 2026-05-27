@@ -10,7 +10,6 @@ package marshal
 import (
 	"bytes"
 	"io"
-	"strconv"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -90,7 +89,7 @@ func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64
 									path := key.Path.Content.Get()
 									log.Warnf("discovery service map: average latency %s exceeds 30 minutes (sum=%s, count=%d, status=%d) for %s",
 										time.Duration(avg), time.Duration(stats.LatencySum), stats.Count, code, key.String())
-									if pathIsMalformed(path) {
+									if http.PathIsMalformed([]byte(path)) {
 										log.Warnf("discovery service map: malformed path %q for %s", path, key.String())
 									}
 								}
@@ -116,19 +115,6 @@ func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64
 
 	}
 	return staticTags, dynamicTags
-}
-
-// pathIsMalformed mirrors the byte-by-byte check used by the USM statkeeper
-// (see pkg/network/protocols/http/statkeeper.go pathIsMalformed): each byte
-// is treated as a rune so any non-printable-ASCII byte (including UTF-8
-// continuation bytes) flags the path as malformed.
-func pathIsMalformed(p string) bool {
-	for i := 0; i < len(p); i++ {
-		if !strconv.IsPrint(rune(p[i])) {
-			return true
-		}
-	}
-	return false
 }
 
 func (e *httpEncoder) Close() {
