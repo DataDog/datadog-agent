@@ -263,6 +263,11 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternMatchOpts) 
 	}
 
 	if opts.SuffixNodeRequired == 0 || suffixNode >= opts.SuffixNodeRequired {
+		if wildcardCount == 0 {
+			// no wildcard substitution — pattern equals the built result, return it
+			// directly to skip the string conversion allocation
+			return pattern, true
+		}
 		return string(result[:size]), true
 	}
 

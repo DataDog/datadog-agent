@@ -268,6 +268,20 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 		return child.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], imageTagID, generationType, stats, dryRun, filePath, resolvers)
 	}
 
+	// at the leaf, look for an existing sibling that matches the new file event by pattern
+	// before creating a fresh node
+	if len(filePath) <= nextParentIndex+1 {
+		for _, sibling := range pn.Files {
+			if sibling.Matches(fileEvent, true) {
+				if !dryRun {
+					sibling.enrichFromEvent(event)
+					sibling.AppendImageTagID(imageTagID, event.ResolveEventTime())
+				}
+				return false
+			}
+		}
+	}
+
 	if !dryRun {
 		// create new child
 		if len(filePath) <= nextParentIndex+1 {

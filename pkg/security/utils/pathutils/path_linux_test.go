@@ -672,3 +672,33 @@ func BenchmarkPathPatternMatch(b *testing.B) {
 		}
 	})
 }
+
+func BenchmarkPathPatternBuilder(b *testing.B) {
+	b.Run("pattern", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			PathPatternBuilder("/var/run/1234/runc.pid", "/var/run/54321/runc.pid", PathPatternMatchOpts{WildcardLimit: 1, PrefixNodeRequired: 2, SuffixNodeRequired: 2})
+		}
+	})
+
+	b.Run("exact_match", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			PathPatternBuilder("/var/run/1234/runc.pid", "/var/run/1234/runc.pid", PathPatternMatchOpts{WildcardLimit: 1, PrefixNodeRequired: 2})
+		}
+	})
+
+	b.Run("wildcard_emit", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			PathPatternBuilder("/var/run/1234/runc.pid", "/var/run/54321/runc.pid", PathPatternMatchOpts{WildcardLimit: 1})
+		}
+	})
+
+	b.Run("standard", func(b *testing.B) {
+		equal := func(a, b string) bool {
+			return a == b
+		}
+
+		for i := 0; i < b.N; i++ {
+			equal("/var/run/1234/runc.pid", "/var/run/54321/runc.pid")
+		}
+	})
+}

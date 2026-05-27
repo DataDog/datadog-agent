@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 )
 
 // FileNode holds a tree representation of a list of files
@@ -105,6 +106,26 @@ func (fn *FileNode) buildNodeRow(prefix string) string {
 	return out
 }
 
+// Matches returns true if the file event used to generate the file node matches the provided model.FileEvent.
+// When normalize is true, paths are compared via PathPatternMatch so that paths differing only in numeric or rotated
+// suffixes (e.g. /var/log/syslog.1 vs /var/log/syslog.2) are considered equal; the path is also required to carry an
+// extension, to avoid collapsing unrelated files.
+func (fn *FileNode) Matches(entry *model.FileEvent, normalize bool) bool {
+	if fn.File == nil || entry == nil {
+		return false
+	}
+	if normalize {
+		return pathutils.PathPatternMatch(fn.File.PathnameStr, entry.PathnameStr, pathutils.PathPatternMatchOpts{
+			WildcardLimit:           3,
+			PrefixNodeRequired:      1,
+			NodeSizeLimit:           8,
+			NodeCommonCharsRequired: 3,
+			ExtensionRequired:       true,
+		})
+	}
+	return fn.File.PathnameStr == entry.PathnameStr
+}
+
 func (fn *FileNode) enrichFromEvent(event *model.Event) {
 	if event == nil {
 		return
@@ -170,12 +191,26 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 
 		// create new child
 		newEntry = true
-		if dryRun {
+		if len(currentPath) <= nextParentIndex+1 {
+			// leaf: look for an existing sibling that matches the new file event by pattern
+			// before creating a fresh node
+			for _, sibling := range currentFn.Children {
+				if sibling.Matches(fileEvent, true) {
+					newEntry = false
+					if !dryRun {
+						sibling.enrichFromEvent(event)
+						sibling.AppendImageTagID(imageTagID, event.ResolveEventTime())
+					}
+					break
+				}
+			}
+			if newEntry && !dryRun {
+				currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, imageTagID, generationType, reducedPath, resolvers)
+				stats.FileNodes++
+			}
 			break
 		}
-		if len(currentPath) <= nextParentIndex+1 {
-			currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, imageTagID, generationType, reducedPath, resolvers)
-			stats.FileNodes++
+		if dryRun {
 			break
 		}
 		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, "", resolvers)
