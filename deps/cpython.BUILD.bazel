@@ -277,7 +277,9 @@ configure_make(
         # Build in parallel but install without parallel execution
         # (see https://github.com/python/cpython/issues/109796)
         "-j 16",
-        "install",
+        # Set compileall options for improved reproducibility of pyc files by enabling hash-based invalidation
+        # and removing the sandbox path from the paths recorded in them.
+        'install COMPILEALL_OPTS="--invalidation-mode checked-hash -s $$BUILD_TMPDIR$$/$$INSTALL_PREFIX$$"',
     ],
     target_compatible_with = select({
         "@platforms//os:macos": [],
@@ -449,19 +451,6 @@ pkg_files(
     srcs = [":headers_unix"],
 )
 
-# Stdlib dir + stable API lib only — the versioned shared lib is handled by python_pkg/dd_cc_packaged.
-pkg_files(
-    name = "install_stdlib_unix",
-    srcs = [
-        ":python_lib_dir_unix",
-    ] + select({
-        "@platforms//os:linux": [":python_stable_lib_linux"],
-        "//conditions:default": [],
-    }),
-    attributes = pkg_attributes("0755"),
-    prefix = "lib",
-)
-
 pkg_files(
     name = "install_pip_unix",
     srcs = [":patch_pip_interpreter"],
@@ -474,7 +463,6 @@ pkg_files(
 pkg_filegroup(
     name = "_python_pkg_common_files",
     srcs = [
-        ":install_stdlib_unix",
         ":install_headers_unix",
         ":install_pip_unix",
     ] + [":python_bin_symlink_" + name for name in BIN_SYMLINKS.values()] + select({
@@ -487,7 +475,13 @@ dd_cc_packaged(
     name = "python_pkg",
     input = ":python_unix_shared",
     installed_files = [":_python_pkg_common_files"],
-    installed_executables = {":python3_bin": "bin"},
+    installed_executables = {
+        ":python3_bin": "bin",
+        ":python_lib_dir_unix": "lib/python{}".format(VERSION_STR),
+    } | select({
+        "@platforms//os:linux": {":python_stable_lib_linux": "lib"},
+        "//conditions:default": {},
+    }),
     visibility = ["//visibility:public"],
 )
 
@@ -499,7 +493,6 @@ pkg_filegroup(
             ":_openssl_deps_win",
         ],
         "//conditions:default": [
-            ":install_stdlib_unix",
             ":install_headers_unix",
             ":install_pip_unix",
         ] + [":python_bin_symlink_" + name for name in BIN_SYMLINKS.values()],

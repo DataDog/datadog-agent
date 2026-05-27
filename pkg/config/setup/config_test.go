@@ -33,6 +33,26 @@ func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfi
 	return conf
 }
 
+// can be used to ensure proxy tests are isolated from proxy env vars set by CI
+func unsetProxyEnvForTest(t *testing.T) {
+	t.Helper()
+
+	for _, key := range []string{
+		"DD_PROXY_HTTP",
+		"DD_PROXY_HTTPS",
+		"DD_PROXY_NO_PROXY",
+		"HTTP_PROXY",
+		"HTTPS_PROXY",
+		"NO_PROXY",
+		"http_proxy",
+		"https_proxy",
+		"no_proxy",
+	} {
+		t.Setenv(key, "")
+		require.NoError(t, os.Unsetenv(key))
+	}
+}
+
 func TestDefaults(t *testing.T) {
 	config := newTestConf(t)
 
@@ -433,6 +453,7 @@ func TestProxy(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			unsetProxyEnvForTest(t)
 
 			config := newTestConf(t)
 			config.SetWithoutSource("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
@@ -1488,6 +1509,13 @@ func TestServerlessConfigInit(t *testing.T) {
 	// ensure some non-serverless configs are not declared
 	assert.False(t, conf.IsKnown("sbom.enabled"))
 	assert.False(t, conf.IsKnown("inventories_enabled"))
+
+	// comp/trace/config reads these unconditionally; serverless builds only run
+	// initCommonConfigComponents, so the defaults must be reachable from here.
+	assert.True(t, conf.GetBool("evp_proxy_config.enabled"))
+	assert.Equal(t, int64(10*1024*1024), conf.GetInt64("evp_proxy_config.max_payload_size"))
+	assert.True(t, conf.GetBool("ol_proxy_config.enabled"))
+	assert.Equal(t, 2, conf.GetInt("ol_proxy_config.api_version"))
 }
 
 func TestDisableCoreAgent(t *testing.T) {

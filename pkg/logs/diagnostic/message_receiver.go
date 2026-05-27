@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -26,10 +26,11 @@ type messagePair struct {
 
 // BufferedMessageReceiver handles in coming log messages and makes them available for diagnostics
 type BufferedMessageReceiver struct {
-	inputChan chan messagePair
-	enabled   bool
-	m         sync.RWMutex
-	formatter Formatter
+	inputChan          chan messagePair
+	enabled            bool
+	m                  sync.RWMutex
+	formatter          Formatter
+	messageChannelSize int
 }
 
 // Filters for processing log messages
@@ -42,21 +43,23 @@ type Filters struct {
 
 // NewBufferedMessageReceiver creates a new MessageReceiver. It takes an optional Formatter as a parameter, and defaults
 // to using logFormatter if not supplied.
-func NewBufferedMessageReceiver(f Formatter, hostname hostnameinterface.Component) *BufferedMessageReceiver {
+func NewBufferedMessageReceiver(f Formatter, hostname hostnameinterface.Component, config pkgconfigmodel.Reader) *BufferedMessageReceiver {
 	if f == nil {
 		f = &logFormatter{
 			hostname: hostname,
 		}
 	}
+	channelSize := config.GetInt("logs_config.message_channel_size")
 	return &BufferedMessageReceiver{
-		inputChan: make(chan messagePair, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size")),
-		formatter: f,
+		inputChan:          make(chan messagePair, channelSize),
+		formatter:          f,
+		messageChannelSize: channelSize,
 	}
 }
 
 // Start opens new input channel
 func (b *BufferedMessageReceiver) Start() {
-	b.inputChan = make(chan messagePair, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
+	b.inputChan = make(chan messagePair, b.messageChannelSize)
 }
 
 // Stop closes the input channel
@@ -109,7 +112,7 @@ func (b *BufferedMessageReceiver) HandleMessage(m *message.Message, rendered []b
 
 // Filter writes the buffered events from the input channel formatted as a string to the output channel
 func (b *BufferedMessageReceiver) Filter(filters *Filters, done <-chan struct{}) <-chan string {
-	out := make(chan string, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
+	out := make(chan string, b.messageChannelSize)
 	go func() {
 		defer close(out)
 		for {

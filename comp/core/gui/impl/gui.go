@@ -23,7 +23,6 @@ import (
 	"time"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
-	"github.com/gorilla/mux"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -45,7 +44,7 @@ type gui struct {
 
 	address  string
 	listener net.Listener
-	router   *mux.Router
+	router   *http.ServeMux
 
 	auth         authenticator
 	intentTokens map[string]bool
@@ -110,8 +109,7 @@ func NewComponent(deps Requires) Provides {
 		intentTokens: make(map[string]bool),
 	}
 
-	// Instantiate the gorilla/mux publicRouter
-	publicRouter := mux.NewRouter()
+	publicRouter := http.NewServeMux()
 
 	// Fetch the authentication token (persists across sessions)
 	authToken, e := security.FetchAuthToken(deps.Config)
@@ -124,21 +122,22 @@ func NewComponent(deps Requires) Provides {
 	g.auth = newAuthenticator(authToken, sessionExpiration)
 
 	// register the public routes
-	publicRouter.HandleFunc("/", renderIndexPage).Methods("GET")
-	publicRouter.HandleFunc("/auth", g.getAccessToken).Methods("GET")
+	publicRouter.HandleFunc("GET /{$}", renderIndexPage)
+	publicRouter.HandleFunc("GET /auth", g.getAccessToken)
 	// Mount our filesystem at the view/{path} route
-	publicRouter.PathPrefix("/view/").Handler(http.StripPrefix("/view/", http.HandlerFunc(serveAssets)))
+	publicRouter.Handle("/view/", http.StripPrefix("/view/", http.HandlerFunc(serveAssets)))
 
-	// Create a subrouter to handle routes that needs authentication
-	securedRouter := publicRouter.PathPrefix("/").Subrouter()
-	// Set up handlers for the API
-	agentRouter := securedRouter.PathPrefix("/agent").Subrouter().StrictSlash(true)
-	agentHandler(agentRouter, deps.Flare, deps.Status, deps.Config, deps.Hostname, g.startTimestamp)
-	checkRouter := securedRouter.PathPrefix("/checks").Subrouter().StrictSlash(true)
-	checkHandler(checkRouter)
+	// Set up handlers for the API, guarded by auth middleware
+	agentMux := http.NewServeMux()
+	agentHandler(agentMux, deps.Flare, deps.Status, deps.Config, deps.Hostname, g.startTimestamp)
 
-	// Check token on every securedRouter endpoints
-	securedRouter.Use(g.authMiddleware)
+	checkMux := http.NewServeMux()
+	checkHandler(checkMux)
+
+	securedMux := http.NewServeMux()
+	securedMux.Handle("/agent/", http.StripPrefix("/agent", agentMux))
+	securedMux.Handle("/checks/", http.StripPrefix("/checks", checkMux))
+	publicRouter.Handle("/", g.authMiddleware(securedMux))
 
 	g.router = publicRouter
 
@@ -251,6 +250,10 @@ func serveAssets(w http.ResponseWriter, req *http.Request) {
 }
 
 func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
 	// intentToken is present in the query when the GUI is opened from the CLI
 	intentToken := r.URL.Query().Get("intent")

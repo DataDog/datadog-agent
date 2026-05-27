@@ -259,6 +259,16 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/int-metrics-infer-ep/out.yaml",
 		},
 		{
+			name:     "internal-metrics-reuses-exporter-with-bare-endpoint",
+			provided: "no_agent/int-metrics-bare-ep/in.yaml",
+			expected: "no_agent/int-metrics-bare-ep/out.yaml",
+		},
+		{
+			name:     "internal-metrics-endpoint-takes-precedence-over-profiles-endpoint",
+			provided: "no_agent/int-metrics-prefer-ep/in.yaml",
+			expected: "no_agent/int-metrics-prefer-ep/out.yaml",
+		},
+		{
 			name:     "internal-metrics-preserves-user-metrics-endpoint",
 			provided: "no_agent/int-metrics-existing-ep/in.yaml",
 			expected: "no_agent/int-metrics-existing-ep/out.yaml",
@@ -269,7 +279,7 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/int-metrics-level-none/out.yaml",
 		},
 		{
-			name:     "internal-metrics-only-includes-exporters-with-profiles-endpoint",
+			name:     "internal-metrics-skips-exporters-without-any-endpoint",
 			provided: "no_agent/int-metrics-mixed/in.yaml",
 			expected: "no_agent/int-metrics-mixed/out.yaml",
 		},
@@ -329,6 +339,11 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 			name:          "reserved-processor-empty",
 			provided:      "no_agent/reserved-proc-empty/in.yaml",
 			expectedError: "reserved resource processor name",
+		},
+		{
+			name:          "multiple-ddprofiling-extensions",
+			provided:      "no_agent/multi-ddprofiling-ext/in.yaml",
+			expectedError: "only one ddprofiling extension can be enabled in standalone mode",
 		},
 	}
 
