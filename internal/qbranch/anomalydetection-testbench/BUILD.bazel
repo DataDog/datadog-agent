@@ -1,7 +1,5 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
-# gazelle:resolve go github.com/DataDog/datadog-agent/comp/core //comp/core
-
 go_library(
     name = "anomalydetection-testbench_lib",
     srcs = ["main.go"],
