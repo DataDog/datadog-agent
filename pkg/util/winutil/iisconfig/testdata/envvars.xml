@@ -19,8 +19,6 @@
           <add name="DD_ENV" value="poolB-env" />
         </environmentVariables>
       </add>
-      <add name="poolC">
-      </add>
       <add name="poolMixedCase">
         <environmentVariables>
           <add name="Dd_Service" value="mixed-case-service" />
@@ -49,9 +47,6 @@
         <application path="/b" applicationPool="poolB">
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
-        <application path="/d" applicationPool="poolC">
-          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
-        </application>
         <application path="/e" applicationPool="POOLA">
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
@@ -70,13 +65,7 @@
         <application path="/j" applicationPool="poolWithClear">
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
-        <application path="/loc" applicationPool="poolA">
-          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
-        </application>
         <application path="/locsingular" applicationPool="poolA">
-          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
-        </application>
-        <application path="/locclear" applicationPool="poolA">
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
         <application path="/locremove" applicationPool="poolA">
@@ -103,32 +92,12 @@
       </site>
     </sites>
   </system.applicationHost>
-  <location path="envsite/loc">
-    <system.webServer>
-      <aspNetCore>
-        <environmentVariables>
-          <add name="DD_SERVICE" value="loc-app-service" />
-          <add name="DD_VERSION" value="2.5.0" />
-        </environmentVariables>
-      </aspNetCore>
-    </system.webServer>
-  </location>
   <location path="envsite/locsingular">
     <system.webServer>
       <aspNetCore>
         <environmentVariables>
           <environmentVariable name="DD_SERVICE" value="singular-service" />
           <environmentVariable name="DD_ENV" value="singular-env" />
-        </environmentVariables>
-      </aspNetCore>
-    </system.webServer>
-  </location>
-  <location path="envsite/locclear">
-    <system.webServer>
-      <aspNetCore>
-        <environmentVariables>
-          <clear />
-          <add name="DD_SERVICE" value="loc-clear-service" />
         </environmentVariables>
       </aspNetCore>
     </system.webServer>

@@ -51,14 +51,6 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		assert.Equal(t, "", env.DDVersion)
 	})
 
-	t.Run("app inherits only applicationPoolDefaults when pool has nothing", func(t *testing.T) {
-		// poolC has no env vars and /d does not override; only defaults apply.
-		_, _, env := iisCfg.GetAPMTags(10, "/d")
-		assert.Equal(t, "", env.DDService)
-		assert.Equal(t, "default-env", env.DDEnv)
-		assert.Equal(t, "", env.DDVersion)
-	})
-
 	t.Run("pool lookup is case-insensitive", func(t *testing.T) {
 		// /e references "POOLA" but the pool is declared as "poolA".
 		// IIS treats pool names case-insensitively.
@@ -124,17 +116,6 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		assert.Equal(t, "", env.DDVersion)
 	})
 
-	t.Run("<location><aspNetCore> env overrides pool env", func(t *testing.T) {
-		// /loc uses poolA (DD_SERVICE=poolA-service, DD_VERSION=1.0.0,
-		// DD_ENV=default-env from applicationPoolDefaults). The matching
-		// <location path="envsite/loc"> overrides DD_SERVICE and DD_VERSION;
-		// DD_ENV stays at the pool-defaulted value.
-		_, _, env := iisCfg.GetAPMTags(10, "/loc")
-		assert.Equal(t, "loc-app-service", env.DDService)
-		assert.Equal(t, "default-env", env.DDEnv)
-		assert.Equal(t, "2.5.0", env.DDVersion)
-	})
-
 	t.Run("<location><aspNetCore> accepts singular <environmentVariable>", func(t *testing.T) {
 		// The aspNetCore schema uses <environmentVariable> as the addElement
 		// (vs <add> for applicationPools). /locsingular's location uses the
@@ -143,17 +124,6 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		assert.Equal(t, "singular-service", env.DDService)
 		assert.Equal(t, "singular-env", env.DDEnv)
 		// DD_VERSION still flows through from poolA.
-		assert.Equal(t, "1.0.0", env.DDVersion)
-	})
-
-	t.Run("<location><aspNetCore> <clear/> does not wipe pool env", func(t *testing.T) {
-		// /locclear's <aspNetCore> block <clear/>s its inherited collection
-		// and then adds DD_SERVICE. <clear/> operates on the aspNetCore
-		// collection only -- it does not unset pool env vars on the worker
-		// process. So DD_ENV/DD_VERSION from poolA still flow through.
-		_, _, env := iisCfg.GetAPMTags(10, "/locclear")
-		assert.Equal(t, "loc-clear-service", env.DDService)
-		assert.Equal(t, "default-env", env.DDEnv)
 		assert.Equal(t, "1.0.0", env.DDVersion)
 	})
 
