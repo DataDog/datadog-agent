@@ -663,7 +663,6 @@ exports_files(glob(
 # gazelle:exclude test/e2e-framework/scenarios/aws/kindvm
 # gazelle:exclude test/e2e-framework/scenarios/aws/microVMs/config
 # gazelle:exclude test/e2e-framework/scenarios/aws/microVMs/microvms/files
-# gazelle:exclude test/e2e-framework/scenarios/aws/microVMs/microvms/resources
 # gazelle:exclude test/e2e-framework/scenarios/aws/test
 # gazelle:exclude test/e2e-framework/scenarios/azure
 # gazelle:exclude test/e2e-framework/scenarios/gcp
