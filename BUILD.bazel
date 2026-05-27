@@ -63,7 +63,6 @@ exports_files(glob(
 # gazelle:exclude comp/api/api/apiimpl/api.go
 # gazelle:exclude comp/api/api/apiimpl/api_mock.go
 # gazelle:exclude comp/api/api/apiimpl/api_test.go
-# gazelle:exclude comp/api/api/apiimpl/internal/agent
 # gazelle:exclude comp/api/api/apiimpl/server.go
 # gazelle:exclude comp/api/api/apiimpl/server_cmd.go
 # gazelle:exclude comp/api/api/apiimpl/server_ipc.go
