@@ -543,7 +543,6 @@ exports_files(glob(
 # gazelle:exclude pkg/networkconfigmanagement/remote
 # gazelle:exclude pkg/networkconfigmanagement/report
 # gazelle:exclude pkg/networkconfigmanagement/sender
-# gazelle:exclude pkg/networkconfigmanagement/store
 # gazelle:exclude pkg/networkconfigmanagement/test
 # gazelle:exclude pkg/networkdevice/pinger
 # gazelle:exclude pkg/networkdevice/sender
