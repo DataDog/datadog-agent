@@ -117,20 +117,22 @@ func (fn *FileNode) Matches(entry *model.FileEvent, normalize bool) bool {
 	}
 	if normalize {
 		var (
+			prefixNodeRequired      = 1
 			nodeCommonCharsRequired = 5
 			extensionRequired       = true
 		)
 
 		// relax a bit for /tmp files
 		if strings.HasPrefix(entry.PathnameStr, "/tmp") {
-			nodeCommonCharsRequired = 8
+			prefixNodeRequired = 2
+			nodeCommonCharsRequired = 4
 			extensionRequired = false
 		}
 
 		return pathutils.PathPatternMatch(fn.File.PathnameStr, entry.PathnameStr, pathutils.PathPatternMatchOpts{
 			WildcardLimit:           3,
-			PrefixNodeRequired:      1,
-			NodeSizeLimit:           8,
+			PrefixNodeRequired:      prefixNodeRequired,
+			NodeSizeLimit:           4,
 			NodeCommonCharsRequired: nodeCommonCharsRequired,
 			ExtensionRequired:       extensionRequired,
 		})
