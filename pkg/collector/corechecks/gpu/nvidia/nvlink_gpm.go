@@ -54,13 +54,13 @@ func (c *nvlinkGpmCollector) Name() CollectorName {
 func (c *nvlinkGpmCollector) Collect() ([]*Metric, error) {
 	metrics := make([]*Metric, 0)
 	var errs []error
-	for port, collector := range c.perPortCollector {
-		collectorMetrics, err := collector.Collect()
+	for port := range c.perPortCollector {
+		portMetrics, err := c.getPortMetrics(port)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("collect metrics for port %d: %w", port, err))
+			errs = append(errs, fmt.Errorf("get port metrics for port %d: %w", port, err))
 			continue
 		}
-		metrics = append(metrics, collectorMetrics...)
+		metrics = append(metrics, portMetrics...)
 	}
 	return metrics, errors.Join(errs...)
 }
