@@ -27,12 +27,6 @@ var (
 	// emptyInternedPath is the shared interned representation of an empty
 	// path used in discovery mode, where the path is not part of the key.
 	emptyInternedPath = Interner.Get([]byte{})
-
-	// discoveryDiagnosticLogLimit caps the addDiscovery diagnostic at 100
-	// lines per 10 minutes — a safety net for the staging investigation so
-	// a runaway transaction stream cannot fill the disk even with debug
-	// logging enabled.
-	discoveryDiagnosticLogLimit = log.NewLogLimit(100, 10*time.Minute)
 )
 
 const (
@@ -273,7 +267,7 @@ func (h *StatKeeper) addDiscovery(tx Transaction) {
 	if log.ShouldLog(log.DebugLvl) {
 		if rawPath, _ := tx.Path(h.buffer); rawPath != nil {
 			malformed := PathIsMalformed(rawPath)
-			if (malformed || latency > float64(30*time.Minute)) && discoveryDiagnosticLogLimit.ShouldLog() {
+			if malformed || latency > float64(30*time.Minute) {
 				log.Debugf("discovery diagnostic: suspicious tx malformed=%t latency=%s tx=%s",
 					malformed, time.Duration(latency), tx.String())
 			}
