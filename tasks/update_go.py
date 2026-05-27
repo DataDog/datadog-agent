@@ -33,6 +33,7 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     ("./.wwhrd.yml", "raw.githubusercontent.com/golang/go/go", "/LICENSE", True),
     ("./renovate.json", '"go": "', '"', True),
     ("./go.work", "go ", "", True),
+    ("./Dockerfiles/agent-ddot/Dockerfile.agent-otel", "ARG GO_VERSION=", "", True),
 ]
 
 PATTERN_MAJOR_MINOR = r'1\.\d+'

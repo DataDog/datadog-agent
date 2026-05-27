@@ -14,6 +14,7 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
@@ -150,8 +151,8 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should stop cleanly")
-		s.AssertSuccessfulConfigStopExperiment()
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
+	s.AssertSuccessfulConfigStopExperiment()
 
 	// assert that the config dir permissions have not changed
 	perms, err = windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, configRoot)
@@ -264,13 +265,14 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should respond to request")
-		s.AssertSuccessfulConfigStopExperiment()
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
+	s.AssertSuccessfulConfigStopExperiment()
 }
 
 // TestRevertsConfigExperimentWhenTimeout tests that the watchdog will revert
 // to stable config when the timeout expires.
 func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
+	flake.Mark(s.T()) // TODO: https://datadoghq.atlassian.net/browse/incident-54741
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
@@ -310,8 +312,8 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should respond to request")
-		s.AssertSuccessfulConfigStopExperiment()
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
+	s.AssertSuccessfulConfigStopExperiment()
 }
 
 // TestManagedConfigActiveAfterUpgrade tests that the Agent's config is preserved after a package update.

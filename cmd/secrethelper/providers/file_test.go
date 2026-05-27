@@ -7,17 +7,16 @@ package providers
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-var testDataPath = "../testdata"
-var testSecretsPath = testDataPath + "/read-secrets"
-
-// All these are defined according to the test files in testSecretsDir
+// All these are defined according to the layout materialised by setupReadSecretFileTree.
 var fileThatExists = "secret1"
 var contentsOfFileThatExists = "secret1-value"
 var fileThatDoesNotExist = "secret2"
@@ -25,11 +24,39 @@ var fileThatExceedsMaxSize = "secret3"
 var fileThatIsASymlinkToSameDir = "secret4" // Points to "secret1"
 var fileThatIsASymlinkToOtherDir = "secret5"
 
+// setupReadSecretFileTree materialises the read-secrets layout in a temp dir.
+// We build it from code instead of reading checked-in testdata so the test
+// behaves identically under `go test` and `bazel test` (Bazel stages testdata
+// via symlinks, which trips the symlink-safety check in ReadSecretFile).
+func setupReadSecretFileTree(t *testing.T) (testDataAbsPath, testSecretsAbsPath string) {
+	t.Helper()
+
+	testDataAbsPath = t.TempDir()
+	testSecretsAbsPath = filepath.Join(testDataAbsPath, "read-secrets")
+	require.NoError(t, os.Mkdir(testSecretsAbsPath, 0o755))
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(testSecretsAbsPath, fileThatExists),
+		[]byte(contentsOfFileThatExists), 0o600))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(testSecretsAbsPath, fileThatExceedsMaxSize),
+		make([]byte, maxSecretFileSize+1), 0o600))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(testDataAbsPath, "read-secrets-secret5-target"),
+		[]byte("symlink-target-value"), 0o600))
+
+	if runtime.GOOS == "windows" {
+		return
+	}
+	require.NoError(t, os.Symlink(fileThatExists,
+		filepath.Join(testSecretsAbsPath, fileThatIsASymlinkToSameDir)))
+	require.NoError(t, os.Symlink("../read-secrets-secret5-target",
+		filepath.Join(testSecretsAbsPath, fileThatIsASymlinkToOtherDir)))
+	return
+}
+
 func TestReadSecretFile(t *testing.T) {
-	testDataAbsPath, err := filepath.Abs(testDataPath)
-	assert.NoError(t, err)
-	testSecretsAbsPath, err := filepath.Abs(testSecretsPath)
-	assert.NoError(t, err)
+	testDataAbsPath, testSecretsAbsPath := setupReadSecretFileTree(t)
 
 	tests := []struct {
 		name                string

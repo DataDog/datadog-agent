@@ -31,7 +31,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	settingsmock "github.com/DataDog/datadog-agent/comp/core/settings/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
@@ -104,7 +104,7 @@ func setupProcessAPIServer(t *testing.T) {
 		),
 		taggerfx.Module(),
 		statusimpl.Module(),
-		settingsimpl.MockModule(),
+		settingsmock.MockModule(),
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	))

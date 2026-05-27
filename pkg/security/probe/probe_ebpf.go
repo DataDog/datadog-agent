@@ -193,6 +193,14 @@ type EBPFProbe struct {
 
 	// PrCtl and name truncation
 	MetricNameTruncated *atomic.Uint64
+
+	// per-event scratch state — only safe because handleEvent is single-goroutine.
+	// onNewPCE / onCgroupUpdate are stored as function values rather than declared as
+	// methods because a `p.method` expression allocates a fresh method value on every
+	// call; binding them once at probe init keeps the per-event hot path allocation-free.
+	relatedEvents  []*model.Event
+	onNewPCE       func(*model.ProcessCacheEntry, error)
+	onCgroupUpdate func(*model.ProcessCacheEntry)
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -567,7 +575,7 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname)
+		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname, p.opts.FilterStore)
 		if err != nil {
 			return err
 		}
@@ -1112,9 +1120,51 @@ func (p *EBPFProbe) triggerNopEvent() error {
 	return p.Erpc.Request(req)
 }
 
+func (p *EBPFProbe) newRelatedProcessEvent(pce *model.ProcessCacheEntry, err error) *model.Event {
+	// all Execs are forwarded since used by AD. Forks are forwarded only if there are consumers
+	if !pce.IsExec && p.probe.eventConsumers[model.ForkEventType] == nil {
+		return nil
+	}
+
+	var errResolution *path.ErrPathResolution
+	if err != nil && !errors.As(err, &errResolution) {
+		return nil
+	}
+
+	relatedEvent := p.newEBPFPooledEventFromPCE(pce)
+	relatedEvent.Source = model.EventSourceRelated
+
+	if errResolution != nil {
+		relatedEvent.SetPathResolutionError(&relatedEvent.ProcessCacheEntry.FileEvent, err)
+	}
+
+	p.Resolvers.ProcessResolver.TryReparentFromProcfsLocked(pce, metrics.ReparentCallpathRelatedEvent, nil)
+
+	return relatedEvent
+}
+
+// newRelatedCGroupWriteEvent synthesizes a cgroup_write event when a process is
+// observed in a cgroup that differs from the cached one. It backstops cgroup
+// migrations that bypass cgroup.procs and therefore never trigger the real
+// cgroup_write tracepoint (notably CLONE_INTO_CGROUP).
+func (p *EBPFProbe) newRelatedCGroupWriteEvent(pce *model.ProcessCacheEntry) *model.Event {
+	relatedEvent := p.getPoolEvent()
+
+	relatedEvent.Type = uint32(model.CgroupWriteEventType)
+	relatedEvent.Source = model.EventSourceRelated
+	relatedEvent.Timestamp = time.Now()
+	relatedEvent.TimestampRaw = uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(relatedEvent.Timestamp))
+	relatedEvent.ProcessCacheEntry = pce
+	relatedEvent.ProcessContext = &pce.ProcessContext
+	relatedEvent.CgroupWrite.File.PathKey = pce.CGroup.CGroupPathKey
+	relatedEvent.CgroupWrite.Pid = pce.Pid
+
+	return relatedEvent
+}
+
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
-func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, cgroupContext model.CGroupContext, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
-	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, newEntryCb)
+func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, cgroupContext model.CGroupContext) bool {
+	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, p.onNewPCE)
 	event.ProcessCacheEntry = entry
 	if event.ProcessCacheEntry == nil {
 		panic("should always return a process cache entry")
@@ -1135,7 +1185,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			// cache, the process was reparented (e.g. subreaper). Update
 			// the cache tree immediately using the authoritative kernel value.
 			if event.PIDContext.PPid != 0 {
-				p.Resolvers.ProcessResolver.TryReparentFromKernelPPid(entry, event.PIDContext.PPid, newEntryCb)
+				p.Resolvers.ProcessResolver.TryReparentFromKernelPPid(entry, event.PIDContext.PPid, p.onNewPCE)
 			}
 
 			// If the kernel reports a different SID than the one in our
@@ -1147,7 +1197,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			// Attempt to repair the lineage of processes that were orphaned
 			// during subreaper reparenting (the exit tracepoint may fire
 			// before the kernel has completed forget_original_parent).
-			p.Resolvers.ProcessResolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext, newEntryCb)
+			p.Resolvers.ProcessResolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext, p.onNewPCE)
 
 			if _, err := entry.HasValidLineage(); err != nil {
 				event.Error = &model.ErrProcessBrokenLineage{Err: err}
@@ -1163,6 +1213,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 					seclog.Debugf("Failed to resolve cgroup for pid %d: %+v", entry.Pid, cgroupContext.CGroupPathKey)
 				} else {
 					p.Resolvers.ProcessResolver.UpdateProcessContexts(entry, cacheEntry.GetCGroupContext(), cacheEntry.GetContainerContext())
+					p.onCgroupUpdate(entry)
 				}
 			}
 		}
@@ -1218,34 +1269,22 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		p.replayEvents(false)
 	}
 
+	// Return any related events to the pool on every exit path (success, early
+	// return, or panic). Nil-out the backing slots so completed entries don't
+	// pin pool memory between calls.
+	defer func() {
+		for i, re := range p.relatedEvents {
+			p.putBackPoolEvent(re)
+			p.relatedEvents[i] = nil
+		}
+		p.relatedEvents = p.relatedEvents[:0]
+	}()
+
 	var (
 		offset        = 0
 		event         = p.zeroEvent()
 		dataLen       = uint64(len(data))
-		relatedEvents []*model.Event
 		cgroupContext model.CGroupContext
-		newEntryCb    = func(entry *model.ProcessCacheEntry, err error) {
-			// all Execs will be forwarded since used by AD. Forks will be forwarded all if there are consumers
-			if !entry.IsExec && p.probe.eventConsumers[model.ForkEventType] == nil {
-				return
-			}
-
-			relatedEvent := p.newEBPFPooledEventFromPCE(entry)
-			relatedEvent.Source = model.EventSourceRelated
-
-			if err != nil {
-				var errResolution *path.ErrPathResolution
-				if errors.As(err, &errResolution) {
-					relatedEvent.SetPathResolutionError(&relatedEvent.ProcessCacheEntry.FileEvent, err)
-				} else {
-					return
-				}
-			}
-
-			p.Resolvers.ProcessResolver.TryReparentFromProcfsLocked(entry, metrics.ReparentCallpathRelatedEvent, nil)
-
-			relatedEvents = append(relatedEvents, relatedEvent)
-		}
 	)
 
 	read, err := event.UnmarshalBinary(data)
@@ -1286,25 +1325,23 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	}()
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
-	if !p.handleBeforeProcessContext(event, data, offset, dataLen, cgroupContext, newEntryCb) {
+	if !p.handleBeforeProcessContext(event, data, offset, dataLen, cgroupContext) {
 		return
 	}
 	// resolve process context
-	if !p.setProcessContext(eventType, event, cgroupContext, newEntryCb) {
+	if !p.setProcessContext(eventType, event, cgroupContext) {
 		return
 	}
 
 	// handle regular events
-	if !p.handleRegularEvent(event, offset, dataLen, data, newEntryCb) {
+	if !p.handleRegularEvent(event, offset, dataLen, data) {
 		return
 	}
 
-	// send related events
-	for _, relatedEvent := range relatedEvents {
+	// send related events; pool return is handled by the deferred drain.
+	for _, relatedEvent := range p.relatedEvents {
 		p.DispatchEvent(relatedEvent, true)
-		p.putBackPoolEvent(relatedEvent)
 	}
-	relatedEvents = relatedEvents[0:0]
 
 	p.DispatchEvent(event, true)
 
@@ -1319,7 +1356,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 // handleRegularEvent performs the standard unmarshaling process common to all events.
 // It returns false if an error occurs during processing, indicating the event should be dropped.
-func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen uint64, data []byte) bool {
 	var err error
 	var read int
 	eventType := event.GetEventType()
@@ -1463,7 +1500,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Exit, eventType, offset, dataLen, data) {
 			return false
 		}
-		exists := p.Resolvers.ProcessResolver.ApplyExitEntry(event, newEntryCb)
+		exists := p.Resolvers.ProcessResolver.ApplyExitEntry(event, p.onNewPCE)
 		if exists {
 			// update action reports
 			p.processKiller.HandleProcessExited(event)
@@ -1520,7 +1557,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.PTrace, eventType, offset, dataLen, data) {
 			return false
 		}
-		ok := resolveTraceProcessContext(event, p, newEntryCb)
+		ok := resolveTraceProcessContext(event, p)
 		if !ok {
 			return false
 		}
@@ -1556,7 +1593,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Signal, eventType, offset, dataLen, data) {
 			return false
 		}
-		event.Signal.Target = resolveTargetProcessContext(event.Signal.PID, p, newEntryCb)
+		event.Signal.Target = resolveTargetProcessContext(event.Signal.PID, p)
 	case model.SpliceEventType:
 		if !p.regularUnmarshalEvent(&event.Splice, eventType, offset, dataLen, data) {
 			return false
@@ -1728,11 +1765,17 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if event.SetSockOpt.IsFilterTruncated {
 			p.BPFFilterTruncated.Add(1)
 		}
+
+	case model.SocketEventType:
+		if !p.regularUnmarshalEvent(&event.Socket, eventType, offset, dataLen, data) {
+			return false
+		}
+
 	case model.SetrlimitEventType:
 		if !p.regularUnmarshalEvent(&event.Setrlimit, eventType, offset, dataLen, data) {
 			return false
 		}
-		event.Setrlimit.Target = resolveTargetProcessContext(event.Setrlimit.TargetPid, p, newEntryCb)
+		event.Setrlimit.Target = resolveTargetProcessContext(event.Setrlimit.TargetPid, p)
 	case model.CapabilitiesEventType:
 		if !p.regularUnmarshalEvent(&event.CapabilitiesUsage, eventType, offset, dataLen, data) {
 			return false
@@ -1766,7 +1809,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 		pid := event.CgroupWrite.Pid
 
-		pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, true, newEntryCb)
+		pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, true, p.onNewPCE)
 		if pce == nil {
 			seclog.Debugf("failed to resolve process: %d", pid)
 			return false
@@ -1794,7 +1837,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 
 // handleBeforeProcessContext unmarshals and populates the process cache entry for fork and exec events before setting the process context.
 // It returns false if the event should be dropped due to processing errors.
-func (p *EBPFProbe) handleBeforeProcessContext(event *model.Event, data []byte, offset int, dataLen uint64, cgroupContext model.CGroupContext, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+func (p *EBPFProbe) handleBeforeProcessContext(event *model.Event, data []byte, offset int, dataLen uint64, cgroupContext model.CGroupContext) bool {
 	var err error
 	eventType := event.GetEventType()
 	switch eventType {
@@ -1804,7 +1847,7 @@ func (p *EBPFProbe) handleBeforeProcessContext(event *model.Event, data []byte, 
 			return false
 		}
 
-		if err := p.Resolvers.ProcessResolver.AddForkEntry(event, cgroupContext, newEntryCb); err != nil {
+		if err := p.Resolvers.ProcessResolver.AddForkEntry(event, cgroupContext, p.onNewPCE); err != nil {
 			seclog.Errorf("failed to insert fork event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
 			return false
 		}
@@ -1901,7 +1944,7 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 
 // resolveTraceProcessContext resolves the process context of a ptrace event.
 // It returns false if an error occurs, true otherwise.
-func resolveTraceProcessContext(event *model.Event, p *EBPFProbe, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+func resolveTraceProcessContext(event *model.Event, p *EBPFProbe) bool {
 	var pce *model.ProcessCacheEntry
 	if event.PTrace.Request == unix.PTRACE_TRACEME { // pid can be 0 for a PTRACE_TRACEME request
 		pce = newPlaceholderProcessCacheEntryPTraceMe()
@@ -1933,7 +1976,7 @@ func resolveTraceProcessContext(event *model.Event, p *EBPFProbe, newEntryCb fun
 			}
 		}
 
-		pce = p.Resolvers.ProcessResolver.Resolve(pidToResolve, pidToResolve, 0, false, newEntryCb)
+		pce = p.Resolvers.ProcessResolver.Resolve(pidToResolve, pidToResolve, 0, false, p.onNewPCE)
 		if pce == nil {
 			pce = model.NewPlaceholderProcessCacheEntry(pidToResolve, pidToResolve, false)
 		}
@@ -1942,10 +1985,10 @@ func resolveTraceProcessContext(event *model.Event, p *EBPFProbe, newEntryCb fun
 	return true
 }
 
-func resolveTargetProcessContext(pid uint32, p *EBPFProbe, newEntryCb func(entry *model.ProcessCacheEntry, err error)) *model.ProcessContext {
+func resolveTargetProcessContext(pid uint32, p *EBPFProbe) *model.ProcessContext {
 	var pce *model.ProcessCacheEntry
 	if pid > 0 { // Linux accepts a kill syscall with both negative and zero pid
-		pce = p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, newEntryCb)
+		pce = p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, p.onNewPCE)
 	}
 	if pce == nil {
 		pce = model.NewPlaceholderProcessCacheEntry(pid, pid, false)
@@ -2791,6 +2834,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.probe.Opts.SyscallsMonitorEnabled),
 		},
 		manager.ConstantEditor{
+			Name:  "capture_all_errors_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.CaptureAllSyscallErrorsEnabled),
+		},
+		manager.ConstantEditor{
 			Name:  "imds_ip",
 			Value: uint64(p.config.RuntimeSecurity.IMDSIPv4),
 		},
@@ -3088,6 +3135,15 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		MetricNameTruncated:  atomic.NewUint64(0),
 		activeRemediations:   make(map[string]*Remediation),
 		pid:                  utils.Getpid(),
+	}
+
+	p.onNewPCE = func(pce *model.ProcessCacheEntry, err error) {
+		if e := p.newRelatedProcessEvent(pce, err); e != nil {
+			p.relatedEvents = append(p.relatedEvents, e)
+		}
+	}
+	p.onCgroupUpdate = func(pce *model.ProcessCacheEntry) {
+		p.relatedEvents = append(p.relatedEvents, p.newRelatedCGroupWriteEvent(pce))
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
