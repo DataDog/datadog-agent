@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const discoveryLatencyThresholdNs = float64(time.Hour)
+const discoveryLatencyThresholdNs = float64(30 * time.Minute)
 
 type httpEncoder struct {
 	httpAggregationsBuilder *model.HTTPAggregationsBuilder
@@ -88,7 +88,7 @@ func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64
 							if stats.Count > 0 {
 								if avg := stats.LatencySum / float64(stats.Count); avg > discoveryLatencyThresholdNs {
 									path := key.Path.Content.Get()
-									log.Warnf("discovery service map: average latency %s exceeds 1 hour (sum=%s, count=%d, status=%d) for %s",
+									log.Warnf("discovery service map: average latency %s exceeds 30 minutes (sum=%s, count=%d, status=%d) for %s",
 										time.Duration(avg), time.Duration(stats.LatencySum), stats.Count, code, key.String())
 									if pathIsMalformed(path) {
 										log.Warnf("discovery service map: malformed path %q for %s", path, key.String())

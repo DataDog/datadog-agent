@@ -258,13 +258,13 @@ func (h *StatKeeper) addDiscovery(tx Transaction) {
 
 	// TEMPORARY DIAGNOSTIC: surface transactions that the regular USM path
 	// would have rejected as malformed, or whose latency is implausibly large
-	// (>1h). Helps explain outlier latencies seen only in discovery mode,
+	// (>30m). Helps explain outlier latencies seen only in discovery mode,
 	// since addDiscovery otherwise skips processHTTPPath's malformed
 	// rejection. The path bytes are read into the local buffer for the check
 	// only; they are not propagated into the aggregation Key below.
 	if rawPath, _ := tx.Path(h.buffer); rawPath != nil {
 		malformed := pathIsMalformed(rawPath)
-		if (malformed || latency > float64(time.Hour)) && h.oversizedLogLimit.ShouldLog() {
+		if (malformed || latency > float64(30*time.Minute)) && h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("discovery diagnostic: suspicious tx malformed=%t latency=%s cmdline=%q",
 				malformed, time.Duration(latency), txCmdline(tx))
 		}
