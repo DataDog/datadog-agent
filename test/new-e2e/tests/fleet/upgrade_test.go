@@ -536,10 +536,14 @@ func (s *upgradeSuite) TestIntegrationPreservationMixedCustomization() {
 	s.Require().NoError(err)
 	s.snapshotIntegrationState("MixedCustomization: after StartExperiment to pipeline testing")
 
-	installedIntegrations, err = s.Agent.InstalledIntegrations()
-	s.Require().NoError(err)
-	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "ping should be preserved in experiment")
-	s.Assert().Equal("2.0.0", installedIntegrations["puma"], "puma should be preserved in experiment")
+	// post.py reinstalls both integrations asynchronously after the daemon restarts;
+	// poll until it finishes rather than asserting synchronously.
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "ping should be preserved in experiment")
+		assert.Equal(c, "2.0.0", intgs["puma"], "puma should be preserved in experiment")
+	}, 60*time.Second, 5*time.Second)
 
 	err = s.Backend.PromoteExperiment("datadog-agent")
 	s.Require().NoError(err)
@@ -551,10 +555,13 @@ func (s *upgradeSuite) TestIntegrationPreservationMixedCustomization() {
 		require.Equal(c, testingVersion, packageVersion)
 	}, 300*time.Second, 30*time.Second)
 
-	installedIntegrations, err = s.Agent.InstalledIntegrations()
-	s.Require().NoError(err)
-	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "ping should be preserved after promotion")
-	s.Assert().Equal("2.0.0", installedIntegrations["puma"], "puma should be preserved after promotion")
+	// Same race after promotion: poll until post.py has reinstalled both integrations.
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "ping should be preserved after promotion")
+		assert.Equal(c, "2.0.0", intgs["puma"], "puma should be preserved after promotion")
+	}, 60*time.Second, 5*time.Second)
 	_, showErr := s.Agent.IntegrationShow("datadog-ping")
 	s.Assert().NoError(showErr, "integration show for ping should succeed after promotion")
 	_, showErr = s.Agent.IntegrationShow("datadog-puma")
