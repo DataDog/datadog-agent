@@ -10,9 +10,10 @@
 package rofspermissions
 
 import (
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 )
 
@@ -23,8 +24,9 @@ func init() {
 }
 
 const (
-	// IssueType is the template identifier for ROFS permission issues
-	IssueType = "read-only-filesystem-error"
+	// IssueName is the identifier for ROFS permission issues,
+	// used as the template registry key and the proto IssueName field.
+	IssueName = "read-only-filesystem-error"
 
 	// IssueID is the unique instance id used when reporting this issue
 	IssueID = "rofs-permissions"
@@ -43,24 +45,24 @@ func NewModule(conf config.Component) issues.Module {
 	}
 }
 
-func (r *rofsPermissionsModule) IssueType() string {
-	return IssueType
+func (r *rofsPermissionsModule) IssueName() string {
+	return IssueName
 }
 
-func (r *rofsPermissionsModule) IssueTemplate() issues.IssueTemplate {
-	return r.template
+func (r *rofsPermissionsModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+	return r.template.BuildIssue(context)
 }
 
 // BuiltInPeriodicHealthCheck returns nil — filesystem permission checks run once at startup, not periodically.
-func (r *rofsPermissionsModule) BuiltInPeriodicHealthCheck() *issues.BuiltInPeriodicHealthCheck {
+func (r *rofsPermissionsModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
 	return nil
 }
 
 // BuiltInStartupHealthCheck runs the filesystem permission check once at agent startup.
-func (r *rofsPermissionsModule) BuiltInStartupHealthCheck() *issues.BuiltInStartupHealthCheck {
-	return &issues.BuiltInStartupHealthCheck{
+func (r *rofsPermissionsModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
+	return &runnerdef.BuiltInHealthCheck{
 		Source: "agent",
-		Fn: func() ([]storedef.IssueReport, error) {
+		Fn: func() ([]runnerdef.IssueReport, error) {
 			return Check(r.conf)
 		},
 	}
