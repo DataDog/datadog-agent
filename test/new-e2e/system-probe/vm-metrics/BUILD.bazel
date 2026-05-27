@@ -83,11 +83,13 @@ go_library(
         ],
         "//conditions:default": [],
     }),
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 go_binary(
     name = "vm-metrics",
     embed = [":vm-metrics_lib"],
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )
 
@@ -174,4 +176,5 @@ go_test(
         ],
         "//conditions:default": [],
     }),
+    target_compatible_with = ["@platforms//os:linux"],
 )
