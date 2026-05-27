@@ -180,6 +180,48 @@ int span_open(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+// span_fork_exec exercises the legacy fork+exec propagation path. The parent
+// registers a legacy span TLS, writes span_id/trace_id into the slot for its
+// own gettid(), then fork()s. At sched_process_fork the eBPF probe runs in
+// the parent's context, fill_span_context_legacy reads span_tls[parent_tgid]
+// + parent's TLS slot, and the captured span/trace land on the child's PCE
+// via AddForkEntry. The child then execv()s the target — its own exec event
+// has an empty SpanContext, but newDDContextSerializer surfaces the parent's
+// span by walking the ancestor chain.
+int span_fork_exec(int argc, char **argv) {
+    if (argc < 4) {
+        fprintf(stderr, "Usage: span-fork-exec <trace_id> <span_id> <exec_path> [args...]\n");
+        return EXIT_FAILURE;
+    }
+
+    struct span_tls_t *tls = register_tls();
+    if (!tls) {
+        fprintf(stderr, "Failed to register TLS\n");
+        return EXIT_FAILURE;
+    }
+
+    __int128_t trace_id = atouint128(argv[1]);
+    unsigned span_id = atoi(argv[2]);
+    register_span(tls, trace_id, span_id);
+
+    pid_t child = fork();
+    if (child < 0) {
+        fprintf(stderr, "fork failed\n");
+        return EXIT_FAILURE;
+    }
+    if (child == 0) {
+        // Child: brand-new tgid, no span_tls entry. The exec event will have
+        // an empty SpanContext; ancestor lineage carries the parent's span.
+        execv(argv[3], argv + 3);
+        fprintf(stderr, "execv failed in child: %s\n", argv[3]);
+        _exit(EXIT_FAILURE);
+    }
+
+    int status;
+    waitpid(child, &status, 0);
+    return EXIT_SUCCESS;
+}
+
 // --- OTel Thread Local Context Record (per OTel spec PR #4947) ---
 // Native application implementation using ELF TLSDESC.
 // The agent discovers this TLS symbol via ELF dynsym parsing, triggered when the
@@ -691,6 +733,81 @@ int otel_span_exec_null_ptr(int argc, char **argv) {
 
     if (opts.memfd >= 0) close(opts.memfd);
     return EXIT_SUCCESS;
+}
+
+// otel_span_fork_exec exercises the OTel fork+exec propagation path. The
+// parent sets up its tracer-info memfd (so the agent resolves the OTel TLS
+// symbol and populates otel_tls[parent_tgid]), publishes a valid record via
+// the otel_thread_ctx_v1 TLS pointer, and then fork()s. At sched_process_fork
+// the eBPF probe runs in the parent's context, fill_span_context_otel walks
+// the parent's task_struct → thread.fsbase + tls_offset to read the record,
+// and the captured span/trace land on the child's PCE via AddForkEntry.
+// The child execv()s the target; its own exec event has an empty SpanContext
+// (new tgid has no otel_tls entry) but the ancestor lineage carries the span.
+int otel_span_fork_exec(int argc, char **argv) {
+    if (argc < 4) {
+        fprintf(stderr, "Usage: otel-span-fork-exec <trace_id> <span_id> <exec_path> [args...]\n");
+        return EXIT_FAILURE;
+    }
+
+#if !defined(__x86_64__) && !defined(__aarch64__)
+    fprintf(stderr, "OTel TLS test not supported on this architecture\n");
+    return EXIT_FAILURE;
+#else
+    int memfd = create_tracer_memfd();
+    if (memfd < 0) {
+        fprintf(stderr, "Failed to create tracer memfd\n");
+        return EXIT_FAILURE;
+    }
+    // Give the agent time to resolve the OTel TLS symbol and populate
+    // otel_tls[parent_tgid] before we fork.
+    usleep(500000);
+
+    otel_thread_ctx_v1 = NULL;
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+
+    __int128_t trace_id = atouint128(argv[1]);
+    uint64_t span_id = (uint64_t)atol(argv[2]);
+
+    struct otel_record_with_attrs full_record;
+    memset(&full_record, 0, sizeof(full_record));
+
+    uint64_t trace_hi = (uint64_t)(trace_id >> 64);
+    uint64_t trace_lo = (uint64_t)(trace_id);
+    u64_to_be_bytes(trace_hi, &full_record.header.trace_id[0]);
+    u64_to_be_bytes(trace_lo, &full_record.header.trace_id[8]);
+    u64_to_be_bytes(span_id, full_record.header.span_id);
+    full_record.header.attrs_data_size = 0;
+
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+    full_record.header.valid = 1;
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+    otel_thread_ctx_v1 = &full_record.header;
+    __atomic_signal_fence(__ATOMIC_SEQ_CST);
+
+    pid_t child = fork();
+    if (child < 0) {
+        fprintf(stderr, "fork failed\n");
+        otel_thread_ctx_v1 = NULL;
+        close(memfd);
+        return EXIT_FAILURE;
+    }
+    if (child == 0) {
+        // Child: brand-new tgid, no otel_tls entry. The exec event will
+        // carry an empty SpanContext; the ancestor lineage holds the
+        // parent's captured span/trace from the fork event.
+        execv(argv[3], argv + 3);
+        fprintf(stderr, "execv failed in child: %s\n", argv[3]);
+        _exit(EXIT_FAILURE);
+    }
+
+    int status;
+    waitpid(child, &status, 0);
+
+    otel_thread_ctx_v1 = NULL;
+    close(memfd);
+    return EXIT_SUCCESS;
+#endif
 }
 
 int ptrace_traceme() {
@@ -2783,6 +2900,8 @@ int main(int argc, char **argv) {
             exit_code = EXIT_SUCCESS;
         } else if (strcmp(cmd, "span-exec") == 0) {
             exit_code = span_exec(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "span-fork-exec") == 0) {
+            exit_code = span_fork_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "ptrace-traceme") == 0) {
             exit_code = ptrace_traceme();
         } else if (strcmp(cmd, "ptrace-attach") == 0) {
@@ -2809,6 +2928,8 @@ int main(int argc, char **argv) {
             exit_code = otel_span_exec_invalid(sub_argc, sub_argv);
         } else if (strcmp(cmd, "otel-span-exec-null-ptr") == 0) {
             exit_code = otel_span_exec_null_ptr(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "otel-span-fork-exec") == 0) {
+            exit_code = otel_span_fork_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "pipe-chown") == 0) {
             exit_code = test_pipe_chown();
         } else if (strcmp(cmd, "signal") == 0) {
