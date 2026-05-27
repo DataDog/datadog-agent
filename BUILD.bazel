@@ -283,7 +283,6 @@ exports_files(glob(
 # gazelle:exclude comp/trace/config/impl
 # gazelle:exclude comp/trace/config/mock
 # gazelle:exclude pkg/aggregator/mocksender
-# gazelle:exclude pkg/cli/standalone
 # gazelle:exclude pkg/cli/subcommands/autoscalerlist
 # gazelle:exclude pkg/cli/subcommands/check
 # gazelle:exclude pkg/cli/subcommands/clusterchecks
