@@ -43,7 +43,7 @@ def build_scorer(ctx):
     """
     Builds the anomalydetection-scorer binary to bin/anomalydetection-scorer.
     """
-    ctx.run("GOWORK=off go build -C internal/qbranch/anomalydetection-scorer -o ../../../bin/anomalydetection-scorer .")
+    ctx.run("go build -C internal/qbranch/anomalydetection-scorer -o ../../../bin/anomalydetection-scorer .")
 
 
 @task
@@ -791,7 +791,7 @@ def eval_bayesian(
         import sys
 
         print(color_message('Please use dda inv --dep optuna ... to run this task', Color.RED), file=sys.stderr)
-        raise Exit(1) from None
+        raise Exit from None
 
     only_list = [c.strip() for c in only.split(",") if c.strip()]
     if only_list and lock:
