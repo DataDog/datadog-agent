@@ -1052,8 +1052,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.use_new_config_stream_endpoint", true)
 	config.BindEnvAndSetDefault("data_plane.remote_agent_enabled", true)
-	// Listen addresses must use a URL scheme ("tcp://") so ADP's ListenAddress parser does not
-	// misinterpret a bare "host:port" as a Unix socket path (see saluki-io ListenAddress::try_from).
+	// Listen addresses must include a URL scheme (e.g. "tcp://").
 	config.BindEnvAndSetDefault("data_plane.api_listen_address", "tcp://0.0.0.0:5100")
 	config.BindEnvAndSetDefault("data_plane.secure_api_listen_address", "tcp://0.0.0.0:5101")
 	config.BindEnvAndSetDefault("data_plane.telemetry_enabled", false)

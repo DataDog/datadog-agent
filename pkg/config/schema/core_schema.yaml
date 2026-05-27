@@ -12881,9 +12881,7 @@ properties:
         node_type: setting
         type: string
         default: tcp://0.0.0.0:5100
-        comment: |-
-          Listen addresses must use a URL scheme ("tcp://") so ADP's ListenAddress parser does not
-          misinterpret a bare "host:port" as a Unix socket path (see saluki-io ListenAddress::try_from).
+        comment: Listen addresses must include a URL scheme (e.g. "tcp://").
       dogstatsd:
         node_type: section
         type: object
