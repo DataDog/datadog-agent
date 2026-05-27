@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "openshift",
+    srcs = ["deploy.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/openshift",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//common/utils",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/agent",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/agent/helm",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/apps/cpustress",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/apps/dogstatsd",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/apps/mutatedbyadmissioncontroller",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/apps/nginx",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/apps/prometheus",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/apps/redis",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/apps/tracegen",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/dogstatsd-standalone",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/fakeintake",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/kubernetesagentparams",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/kubernetes",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/kubernetes/vpa",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)
