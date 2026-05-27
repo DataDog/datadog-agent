@@ -88,7 +88,6 @@ type AutoConfig struct {
 	newService               chan listeners.Service
 	delService               chan listeners.Service
 	refreshConfig            chan string
-	secretResolveRetryStop   chan struct{}
 	store                    *store
 	cfgMgr                   configManager
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
@@ -255,6 +254,12 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 // It waits for service events to trigger template resolution and
 // checks the tags on existing services are up to date.
 func (ac *AutoConfig) serviceListening() {
+	var secretRetryC <-chan time.Time
+	if secretRetryTicker := ac.newSecretResolveRetryTicker(); secretRetryTicker != nil {
+		defer secretRetryTicker.Stop()
+		secretRetryC = secretRetryTicker.C
+	}
+
 	for {
 		select {
 		case <-ac.listenerStop:
@@ -267,6 +272,8 @@ func (ac *AutoConfig) serviceListening() {
 			ac.processDelService(svc)
 		case origin := <-ac.refreshConfig:
 			ac.processRefreshConfig(origin)
+		case <-secretRetryC:
+			ac.retryFailedSecretConfigs()
 		}
 	}
 }
@@ -369,7 +376,6 @@ func (ac *AutoConfig) start() {
 	setupAcErrors()
 	// Start the service listener
 	go ac.serviceListening()
-	ac.startSecretResolveRetries()
 }
 
 // stop just shuts down AutoConfig in a clean way.
@@ -383,11 +389,6 @@ func (ac *AutoConfig) stop() {
 
 	// stop the service listener
 	ac.listenerStop <- struct{}{}
-
-	if ac.secretResolveRetryStop != nil {
-		close(ac.secretResolveRetryStop)
-		ac.secretResolveRetryStop = nil
-	}
 
 	// stop the meta scheduler
 	ac.schedulerController.Stop()
@@ -640,32 +641,23 @@ func (ac *AutoConfig) retryListenerCandidates() {
 	}
 }
 
-func (ac *AutoConfig) startSecretResolveRetries() {
+// newSecretResolveRetryTicker returns a ticker that fires when failed
+// non-template secret resolutions should be retried, or nil if retries are disabled.
+func (ac *AutoConfig) newSecretResolveRetryTicker() *time.Ticker {
 	retryInterval := time.Duration(pkgconfigsetup.Datadog().GetInt("secret_refresh_interval")) * time.Second
 	if retryInterval <= 0 {
-		return
+		return nil
 	}
-
-	stopCh := make(chan struct{})
-	ac.secretResolveRetryStop = stopCh
-	go ac.retryFailedSecretConfigResolutions(retryInterval, stopCh)
+	return time.NewTicker(retryInterval)
 }
 
-func (ac *AutoConfig) retryFailedSecretConfigResolutions(retryInterval time.Duration, stopCh <-chan struct{}) {
-	ticker := time.NewTicker(retryInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-stopCh:
-			return
-		case <-ticker.C:
-			changes, changedIDsOfSecretsWithConfigs := ac.cfgMgr.retryFailedSecretConfigs()
-			ac.deleteMappingsOfCheckIDsWithSecrets(changes.Unschedule)
-			ac.store.setIDsOfChecksWithSecrets(changedIDsOfSecretsWithConfigs)
-			ac.applyChanges(changes)
-		}
-	}
+// retryFailedSecretConfigs retries non-template configs whose secrets failed
+// to resolve previously and applies any resulting changes.
+func (ac *AutoConfig) retryFailedSecretConfigs() {
+	changes, changedIDsOfSecretsWithConfigs := ac.cfgMgr.retryFailedSecretConfigs()
+	ac.deleteMappingsOfCheckIDsWithSecrets(changes.Unschedule)
+	ac.store.setIDsOfChecksWithSecrets(changedIDsOfSecretsWithConfigs)
+	ac.applyChanges(changes)
 }
 
 // AddScheduler a new scheduler to receive configurations.
