@@ -5,17 +5,35 @@ Invoke tasks for anomaly detection dev tooling (not part of agent build).
 import glob
 import json
 import os
+import random
 import shlex
+import shutil
 import time
 
-from invoke import task
+from invoke import Exit, task
 
 from tasks.libs.anomalydetection.eval import (
+    DETECTORS,
+    CORRELATORS,
+    EXTRACTORS,
     SCENARIOS,
     StepLogger,
+    _anchor_combos,
+    _best_run_index,
+    _build_optuna_config,
+    _combo_to_config,
     _ensure_parquets,
+    _fmt,
+    _fmt_wall_dur,
+    _full_stack_combo,
+    _prepare_eval_output_dir,
+    _scenario_f1_from_bayesian_report,
+    aggregate_eval_component_results,
+    print_eval_bayesian_summary,
+    print_eval_component_summary,
     print_eval_scenarios_summary,
     print_eval_tp_summary,
+    random_component_combinations,
 )
 from tasks.libs.common.color import Color, color_message
 
@@ -386,3 +404,47 @@ def eval_tp(
         results.append({"name": name, **score})
 
     print_eval_tp_summary(results)
+
+
+# --- Scenario management ---
+
+
+@task
+def download_scenarios(
+    ctx,
+    scenario: str = "",
+    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
+    skip_existing: bool = False,
+):
+    """
+    Download scenario parquet data from S3.
+
+    Resolves the latest recording for each scenario from runs.jsonl in the S3 bucket.
+
+    Args:
+        scenario: Download a single scenario (e.g. "food_delivery_redis"). Default: all.
+        scenarios_dir: Directory containing scenario subdirectories.
+        skip_existing: If True, skip scenarios whose parquet directory already contains files.
+
+    Examples:
+        dda inv anomalydetection.download-scenarios
+        dda inv anomalydetection.download-scenarios --scenario=food_delivery_redis
+    """
+    scenarios_to_download = [scenario] if scenario else SCENARIOS
+    for name in scenarios_to_download:
+        parquet_dir = os.path.join(scenarios_dir, name, "parquet")
+        if skip_existing and os.path.isdir(parquet_dir) and os.listdir(parquet_dir):
+            print(color_message(f"Skipping download for '{name}' — parquet data already present", Color.BLUE))
+            continue
+        # Download to a temp dir first, then swap — preserves existing data if download fails.
+        tmp_parquet_dir = parquet_dir + ".new"
+        if os.path.isdir(tmp_parquet_dir):
+            shutil.rmtree(tmp_parquet_dir)
+        _ensure_parquets(ctx, name, tmp_parquet_dir)
+        if os.path.isdir(tmp_parquet_dir) and os.listdir(tmp_parquet_dir):
+            if os.path.isdir(parquet_dir):
+                shutil.rmtree(parquet_dir)
+            os.rename(tmp_parquet_dir, parquet_dir)
+        else:
+            shutil.rmtree(tmp_parquet_dir, ignore_errors=True)
+            print(color_message(f"Download failed for '{name}', keeping existing data", Color.ORANGE))
