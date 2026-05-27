@@ -47,17 +47,13 @@ func TestRemoveAccessToOtherUsers(t *testing.T) {
 
 func TestGetDatadogUserUID(t *testing.T) {
 	uid, err := getDatadogUserUID()
+	require.NoError(t, err)
 
-	// Check if dd-agent user exists on this system
-	ddAgentUser, lookupErr := user.Lookup("dd-agent")
+	ddAgentUser, lookupErr := user.Lookup(agentUsername())
 	if lookupErr != nil {
-		// dd-agent user doesn't exist, function should return an error
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "user 'dd-agent' not found")
-		assert.Equal(t, uint32(0), uid)
+		// agent user not found, should fall back to current user
+		assert.Equal(t, uint32(os.Getuid()), uid)
 	} else {
-		// dd-agent user exists, function should return their UID
-		require.NoError(t, err)
 		assert.Equal(t, ddAgentUser.Uid, strconv.FormatUint(uint64(uid), 10))
 	}
 }
@@ -83,12 +79,11 @@ func TestCheckOwner_Root(t *testing.T) {
 }
 
 func TestCheckOwner_DDAgent(t *testing.T) {
-	ddAgentUID, err := getDatadogUserUID()
+	ddAgentUser, err := user.Lookup(agentUsername())
 	if err != nil {
-		t.Skip("dd-agent user not found on this system")
+		t.Skip("agent user not found on this system")
 	}
-
-	ddAgentUser, err := user.LookupId(strconv.FormatUint(uint64(ddAgentUID), 10))
+	ddAgentUID, err := strconv.ParseUint(ddAgentUser.Uid, 10, 32)
 	require.NoError(t, err)
 	gid, err := strconv.Atoi(ddAgentUser.Gid)
 	require.NoError(t, err)
@@ -130,11 +125,10 @@ func TestIsAllowedOwner_Root(t *testing.T) {
 func TestIsAllowedOwner_DDAgent(t *testing.T) {
 	p, err := NewPermission()
 	require.NoError(t, err)
+
 	ddAgentUID, err := getDatadogUserUID()
-	if err != nil {
-		// dd-agent doesn't exist, skip this part
-		t.Skip("dd-agent user not found on this system")
-	}
+	require.NoError(t, err)
+
 	assert.True(t, p.isRootOrAgentUID(ddAgentUID))
 }
 

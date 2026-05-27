@@ -93,7 +93,7 @@ func (p *Permission) RemoveAccessToOtherUsers(path string) error {
 }
 
 func getDatadogUserUID() (uint32, error) {
-	if ddAgentUser, err := user.Lookup("dd-agent"); err == nil {
+	if ddAgentUser, err := user.Lookup(agentUsername()); err == nil {
 		ddAgentUID, err := strconv.Atoi(ddAgentUser.Uid)
 		if err != nil {
 			return 0, err
@@ -101,7 +101,8 @@ func getDatadogUserUID() (uint32, error) {
 		return uint32(ddAgentUID), nil
 	}
 
-	return 0, errors.New("user 'dd-agent' not found")
+	// agent user not found, fall back to the current user
+	return uint32(os.Getuid()), nil
 }
 
 // isRootOrAgentUID reports whether uid is root (0) or the dd-agent service account.
