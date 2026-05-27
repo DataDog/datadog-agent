@@ -54,7 +54,7 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Load input config
-			inputPath := filepath.Join("td", tc.provided)
+			inputPath := filepath.Join("testdata", tc.provided)
 			inputData, err := os.ReadFile(inputPath)
 			require.NoError(t, err, "failed to read input file: %s", tc.provided)
 
@@ -70,7 +70,7 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 
 			// Update golden files if -update flag is set
 			if *updateGolden {
-				expectedPath := filepath.Join("td", tc.expected)
+				expectedPath := filepath.Join("testdata", tc.expected)
 				actualYAML, err := yaml.Marshal(conf.ToStringMap())
 				require.NoError(t, err, "failed to marshal output to YAML: %s", tc.provided)
 				err = os.WriteFile(expectedPath, actualYAML, 0644)
@@ -80,7 +80,7 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 			}
 
 			// Load expected output
-			expectedPath := filepath.Join("td", tc.expected)
+			expectedPath := filepath.Join("testdata", tc.expected)
 			expectedData, err := os.ReadFile(expectedPath)
 			require.NoError(t, err, "failed to read expected file: %s", tc.expected)
 
@@ -102,7 +102,7 @@ func runErrorTests(t *testing.T, conv converter, tests []errorTestCase) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Load input config
-			inputPath := filepath.Join("td", tc.provided)
+			inputPath := filepath.Join("testdata", tc.provided)
 			inputData, err := os.ReadFile(inputPath)
 			require.NoError(t, err, "failed to read input file: %s", tc.provided)
 
@@ -244,9 +244,9 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/preserve-all-res-attrs/out.yaml",
 		},
 		{
-			name:     "preserve-res-attrs-no-system",
-			provided: "no_agent/preserve-res-attrs-no-system/in.yaml",
-			expected: "no_agent/preserve-res-attrs-no-system/out.yaml",
+			name:     "preserve-res-no-sys",
+			provided: "no_agent/preserve-res-no-sys/in.yaml",
+			expected: "no_agent/preserve-res-no-sys/out.yaml",
 		},
 		{
 			name:     "preserve-user-evp-headers",
@@ -259,6 +259,16 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/int-metrics-infer-ep/out.yaml",
 		},
 		{
+			name:     "internal-metrics-reuses-exporter-with-bare-endpoint",
+			provided: "no_agent/int-metrics-bare-ep/in.yaml",
+			expected: "no_agent/int-metrics-bare-ep/out.yaml",
+		},
+		{
+			name:     "internal-metrics-endpoint-takes-precedence-over-profiles-endpoint",
+			provided: "no_agent/int-metrics-prefer-ep/in.yaml",
+			expected: "no_agent/int-metrics-prefer-ep/out.yaml",
+		},
+		{
 			name:     "internal-metrics-preserves-user-metrics-endpoint",
 			provided: "no_agent/int-metrics-existing-ep/in.yaml",
 			expected: "no_agent/int-metrics-existing-ep/out.yaml",
@@ -269,7 +279,7 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/int-metrics-level-none/out.yaml",
 		},
 		{
-			name:     "internal-metrics-only-includes-exporters-with-profiles-endpoint",
+			name:     "internal-metrics-skips-exporters-without-any-endpoint",
 			provided: "no_agent/int-metrics-mixed/in.yaml",
 			expected: "no_agent/int-metrics-mixed/out.yaml",
 		},
@@ -329,6 +339,11 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 			name:          "reserved-processor-empty",
 			provided:      "no_agent/reserved-proc-empty/in.yaml",
 			expectedError: "reserved resource processor name",
+		},
+		{
+			name:          "multiple-ddprofiling-extensions",
+			provided:      "no_agent/multi-ddprofiling-ext/in.yaml",
+			expectedError: "only one ddprofiling extension can be enabled in standalone mode",
 		},
 	}
 

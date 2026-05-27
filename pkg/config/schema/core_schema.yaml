@@ -41,6 +41,9 @@ properties:
     - TODO:fix-no-default
     - TODO:fix-missing-type
     - template_section:Common
+    comment: |-
+      Agent
+      Don't set a default on 'site' to allow detecting with viper whether it's set in config
   infrastructure_mode:
     node_type: setting
     type: string
@@ -56,6 +59,10 @@ properties:
     example: '"full"'
     tags:
     - template_section:Common
+    comment: |-
+      Infrastructure mode
+      The infrastructure mode is used to determine the features that are available to the agent.
+      The possible values are: full, basic, end_user_device, none.
   dd_url:
     node_type: setting
     env_vars:
@@ -164,6 +171,7 @@ properties:
     example: '"tlsv1.2"'
     tags:
     - template_section:Common
+    comment: Configuration for TLS for outgoing connections
   hostname:
     node_type: setting
     type: string
@@ -199,6 +207,10 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+    comment: |-
+      if/when the default is changed to true, make the default platform
+      dependent; default should remain false on Windows to maintain backward
+      compatibility with Agent5 behavior/win
   hostname_trust_uts_namespace:
     node_type: setting
     type: boolean
@@ -213,6 +225,11 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+    comment: |-
+      By default the Agent does not trust the hostname value retrieved from non-root UTS namespace.
+      When enabled, the Agent will trust the value retrieved from non-root UTS namespace instead of failing
+      hostname resolution.
+      (Linux only)
   host_aliases:
     node_type: setting
     type: array
@@ -293,6 +310,9 @@ properties:
     example: 'true'
     tags:
     - template_section:Common
+    comment: |-
+      Private Action Runner configuration
+      Installer configuration
   tag_value_split_separator:
     node_type: setting
     type: object
@@ -333,6 +353,9 @@ properties:
     example: '"low"'
     tags:
     - template_section:Common
+    comment: |-
+      Set defaults for config keys that may be accessed but aren't relevant in serverless environments
+      to avoid "config key is unknown" and "unable to cast nil" warnings
   dogstatsd_tag_cardinality:
     node_type: setting
     type: string
@@ -527,6 +550,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:Common
+    comment: 0 means disabled. This is a BETA feature.
   forwarder_storage_max_disk_ratio:
     node_type: setting
     type: number
@@ -541,6 +565,9 @@ properties:
     tags:
     - golang_type:float64
     - template_section:Common
+    comment: Do not store transactions on disk when the disk usage exceeds 80% of
+      the disk capacity. Use 80% as some applications do not behave well when the
+      disk space is very small.
   forwarder_outdated_file_in_days:
     node_type: setting
     type: number
@@ -566,6 +593,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:Common
+    comment: Forwarder channels buffer size
   forwarder_low_prio_buffer_size:
     node_type: setting
     type: number
@@ -726,6 +754,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:Common
+    comment: value in milliseconds
   ec2_prefer_imdsv2:
     node_type: setting
     type: boolean
@@ -754,6 +783,8 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+    comment: used to bypass the hostname detection logic and force the EC2 instance
+      ID as a hostname.
   collect_gce_tags:
     node_type: setting
     type: boolean
@@ -763,6 +794,7 @@ properties:
     example: 'true'
     tags:
     - template_section:Common
+    comment: GCE
   exclude_gce_tags:
     node_type: setting
     type: array
@@ -846,6 +878,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:Common
+    comment: value in milliseconds
   collect_gpu_tags:
     node_type: setting
     type: boolean
@@ -855,6 +888,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+    comment: GPU
   gpu:
     node_type: section
     type: object
@@ -885,6 +919,7 @@ properties:
             example: 'false'
             tags:
             - template_section:Common
+            comment: NCCL
           host_socket_path:
             node_type: setting
             type: string
@@ -896,6 +931,10 @@ properties:
             example: '"/var/run/datadog"'
             tags:
             - template_section:Common
+            comment: |-
+              host_socket_path is read by the helm chart and operator to decide whether
+              to mount /var/run/datadog into the agent pod. For DSD/APM-enabled deployments
+              the directory is already mounted; this setting matters for NCCL-only setups.
           socket_path:
             node_type: setting
             type: string
@@ -969,6 +1008,7 @@ properties:
     example: '"os"'
     tags:
     - template_section:Common
+    comment: Azure
   azure_metadata_api_version:
     node_type: setting
     type: string
@@ -1042,6 +1082,7 @@ properties:
     example: 'true'
     tags:
     - template_section:Common
+    comment: controls the agent configurations
   metadata_ip_resolution_from_hostname:
     node_type: setting
     type: boolean
@@ -1056,6 +1097,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+    comment: resolve the hostname to get the IP address
   auto_exit:
     node_type: section
     type: object
@@ -1109,6 +1151,7 @@ properties:
         tags:
         - golang_type:int
         - template_section:Common
+        comment: Auto exit configuration
   remote_configuration:
     node_type: section
     type: object
@@ -1132,6 +1175,7 @@ properties:
         example: 'true'
         tags:
         - template_section:Common
+        comment: Remote config
       agent_integrations:
         node_type: section
         type: object
@@ -1169,6 +1213,7 @@ properties:
             node_type: setting
             type: boolean
             default: true
+            comment: Remote config products
       clients:
         node_type: section
         type: object
@@ -1235,6 +1280,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: Delegated authentication for remote_configuration
       no_tls_validation:
         node_type: setting
         type: boolean
@@ -1243,6 +1289,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: Websocket echo test
       org_status_refresh_interval:
         node_type: setting
         type: number
@@ -1303,6 +1350,7 @@ properties:
         example: 'false'
         tags:
         - template_section:Common
+        comment: Fips
       local_address:
         node_type: setting
         type: string
@@ -1452,6 +1500,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:Agent
+    comment: Go_expvar server port
   cmd_port:
     node_type: setting
     type: number
@@ -1478,6 +1527,7 @@ properties:
     platform_default:
       linux: -1
       other: 5002
+    comment: Agent GUI access port
   GUI_session_expiration:
     node_type: setting
     type: number
@@ -1562,6 +1612,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:Agent
+    comment: IPC API server timeout
   procfs_path:
     node_type: setting
     type: string
@@ -1575,6 +1626,14 @@ properties:
     example: <PROCFS_PATH>
     tags:
     - template_section:Agent
+    comment: |-
+      In serverless-containerized environments (e.g Fargate)
+      it's impossible to mount host volumes.
+      Make sure the host paths exist before setting-up the default values.
+      Fallback to the container paths if host paths aren't mounted.
+      Used by some librairies (like gopsutil)
+      for amazon linux the cgroup directory on host is /cgroup/
+      we pick memory.stat to make sure it exists and not empty
   disable_py3_validation:
     node_type: setting
     type: boolean
@@ -1595,6 +1654,10 @@ properties:
     tags:
     - golang_type:int
     - template_section:CoreAgent
+    comment: |-
+      Python 3 linter timeout, in seconds
+      NOTE: linter is notoriously slow, in the absence of a better solution we
+      can only increase this timeout value. Linting operation is async.
   memtrack_enabled:
     node_type: setting
     type: boolean
@@ -1649,6 +1712,8 @@ properties:
     example: 'false'
     tags:
     - template_section:CoreAgent
+    comment: Whether to honour the value of PYTHONPATH, if set, on Windows. On other
+      OSes we always do.
   secret_backend_type:
     node_type: setting
     type: string
@@ -1664,6 +1729,7 @@ properties:
     example: <BACKEND_TYPE>
     tags:
     - template_section:Agent
+    comment: secrets backend
   secret_backend_config:
     node_type: setting
     type: object
@@ -1883,8 +1949,8 @@ properties:
     visibility: public
     description: This section configures the Datadog Agent Manager System Tray
     tags:
-    - template_section:Agent
     - platform_only:windows
+    - template_section:Agent
     properties:
       log_file:
         node_type: setting
@@ -1895,6 +1961,7 @@ properties:
           Tray logs are written.
         tags:
         - template_section:Agent
+        comment: Datadog Agent Manager System Tray
   logs_enabled:
     node_type: setting
     title: Log collection Configuration
@@ -1905,6 +1972,10 @@ properties:
     example: 'false'
     tags:
     - template_section:LogsAgent
+    comment: |-
+      Logs Agent
+      External Use: modify those parameters to configure the logs-agent.
+      enable the logs-agent:
   logs_config:
     node_type: section
     type: object
@@ -1926,8 +1997,25 @@ properties:
         example: 'false'
         tags:
         - template_section:LogsAgent
+        comment: 'collect all logs from all containers:'
+      use_container_timestamp:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Use the `time` field from container log files (when available) as the log timestamp instead of ingestion time.
+
+          This affects logs collected from container runtimes that provide per-log-line timestamps (for example Docker JSON logs).
+        example: 'false'
+        tags:
+        - template_section:LogsAgent
+        comment: use the `time` field from container log files instead of ingestion
+          time
       logs_dd_url:
         node_type: setting
+        type: string
+        default: ''
         visibility: public
         description: |-
           Define the endpoint and port to hit when using a proxy for logs.
@@ -1935,8 +2023,6 @@ properties:
           specific proxy path, the URL scheme must be specified: https://proxy.example.com:443/logs
         example: <ENDPOINT>:<PORT>
         tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
         - template_section:LogsAgent
       logs_no_ssl:
         node_type: setting
@@ -1966,6 +2052,7 @@ properties:
         - TODO:fix-no-default
         - TODO:fix-missing-type
         - template_section:LogsAgent
+        comment: add global processing rules that are applied on all logs
       auto_multi_line_detection:
         node_type: setting
         type: boolean
@@ -1978,6 +2065,7 @@ properties:
         example: 'true'
         tags:
         - template_section:LogsAgent
+        comment: Auto multiline detection settings
       force_use_http:
         node_type: setting
         type: boolean
@@ -2007,6 +2095,7 @@ properties:
         example: '"auto"'
         tags:
         - template_section:LogsAgent
+        comment: Transport protocol for log payloads
       http_timeout:
         node_type: setting
         type: number
@@ -2075,6 +2164,8 @@ properties:
         tags:
         - golang_type:int
         - template_section:LogsAgent
+        comment: maximum time that the unix tailer will hold a log file open after
+          it has been rotated
       open_files_limit:
         node_type: setting
         type: number
@@ -2089,6 +2180,9 @@ properties:
         platform_default:
           darwin: 200
           other: 500
+        comment: |-
+          There is no effective limit for windows due to use of CreateFile win32 API
+          The OS default for most linux distributions is 1024
       file_wildcard_selection_mode:
         node_type: setting
         type: string
@@ -2114,6 +2208,14 @@ properties:
         example: '"by_name"'
         tags:
         - template_section:LogsAgent
+        comment: |-
+          Controls how wildcard file log source are prioritized when there are more files
+          that match wildcard log configurations than the `logs_config.open_files_limit`
+
+          Choices are 'by_name' and 'by_modification_time'. See config_template.yaml for full details.
+
+          WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
+          more disk I/O at the wildcard log paths
       max_message_size_bytes:
         node_type: setting
         type: number
@@ -2131,6 +2233,7 @@ properties:
         tags:
         - golang_type:int
         - template_section:LogsAgent
+        comment: maximum log message size in bytes
       integrations_logs_files_max_size:
         node_type: setting
         type: number
@@ -2142,6 +2245,7 @@ properties:
         tags:
         - golang_type:int
         - template_section:LogsAgent
+        comment: Max size in MB an integration logs file can use
       integrations_logs_total_usage:
         node_type: setting
         type: number
@@ -2152,6 +2256,8 @@ properties:
         tags:
         - golang_type:int
         - template_section:LogsAgent
+        comment: Max disk usage in MB all integrations logs files are allowed to use
+          in total
       k8s_container_use_kubelet_api:
         node_type: setting
         type: boolean
@@ -2162,6 +2268,7 @@ properties:
         example: 'false'
         tags:
         - template_section:LogsAgent
+        comment: Tail a container's logs by querying the kubelet's API
       streaming:
         node_type: section
         type: object
@@ -2184,36 +2291,49 @@ properties:
                 * Linux: /var/log/datadog/streamlogs_info/streamlogs.log
             tags:
             - template_section:LogsAgent
+            comment: Control how the stream-logs log file is managed
       add_logsource_tag:
         node_type: setting
         type: boolean
         default: false
+        comment: Add per-line logsource:{stdout,stderr} tag to container logs (disabled
+          by default)
       additional_endpoints:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: object
       aggregation_timeout:
         node_type: setting
         type: number
         default: 1000
         tags:
         - golang_type:int
+        comment: |-
+          Timeout in milliseonds used when performing agreggation operations,
+          including multi-line log processing rules and chunked line reaggregation.
+          It may be useful to increase it when logs writing is slowed down, that
+          could happen while serializing large objects on log lines.
       api_key:
         node_type: setting
         tags:
         - TODO:fix-no-default
         - TODO:fix-missing-type
+        comment: specific logs-agent api-key
       atomic_registry_write:
         node_type: setting
         type: boolean
         default: true
+        comment: If true, then the registry file will be written atomically. This
+          behavior is not supported on ECS Fargate.
       auditor_ttl:
         node_type: setting
         type: number
         default: 23
         tags:
         - golang_type:int
+        comment: in hours
       auto_multi_line:
         node_type: section
         type: object
@@ -2270,6 +2390,7 @@ properties:
         default: 30
         tags:
         - golang_type:int
+        comment: Seconds
       auto_multi_line_default_sample_size:
         node_type: setting
         type: number
@@ -2286,12 +2407,16 @@ properties:
         node_type: setting
         type: boolean
         default: true
+        comment: Tag logs with their auto multiline detection label without aggregating
+          them
       auto_multi_line_extra_patterns:
         node_type: setting
         type: array
         default: []
         items:
           type: string
+        comment: The following auto_multi_line settings are settings for auto multiline
+          detection v1
       batch_max_concurrent_send:
         node_type: setting
         type: number
@@ -2324,6 +2449,12 @@ properties:
         node_type: setting
         type: string
         default: 3s
+        comment: |-
+          Amount of time to wait for the container runtime to respond while determining what to log, containers or pods.
+          If the container runtime doesn't respond after specified timeout, log source marked as failed
+          which is reflected in the Agent status output for the Logs.
+          If this such behavior undesired, set the value to a significantly large number.
+          Timeout is in seconds.
       dd_port:
         node_type: setting
         type: number
@@ -2332,9 +2463,8 @@ properties:
         - golang_type:int
       dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       dd_url_443:
         node_type: setting
         type: string
@@ -2379,28 +2509,49 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: disable distributed senders
       docker_client_read_timeout:
         node_type: setting
         type: number
         default: 30
         tags:
         - golang_type:int
+        comment: |-
+          Configurable docker client timeout while communicating with the docker daemon.
+          It could happen that the docker daemon takes a lot of time gathering timestamps
+          before starting to send any data when it has stored several large log files.
+          This field lets you increase the read timeout to prevent the client from
+          timing out too early in such a situation. Value in seconds.
       docker_container_force_use_file:
         node_type: setting
         type: boolean
         default: false
+        comment: Force tailing from file for all docker container, even the ones with
+          an existing registry entry
       docker_container_use_file:
         node_type: setting
         type: boolean
         default: true
+        comment: |-
+          Enable the agent to use files to collect container logs on standalone docker environment, containers
+          with an existing registry offset will continue to be tailed from the docker socket unless
+          logs_config.docker_container_force_use_file is set to true.
       docker_path_override:
         node_type: setting
         type: string
         default: ''
+        comment: |-
+          If set, the agent will look in this path for docker container log files.  Use this option if
+          docker's `data-root` has been set to a custom path and you wish to ingest docker logs from files. In
+          order to check your docker data-root directory, run the command `docker info -f '{{.DockerRootDir}}'`
+          See more documentation here:
+          https://docs.docker.com/engine/reference/commandline/dockerd/.
       enable_recursive_glob:
         node_type: setting
         type: boolean
         default: false
+        comment: Opt-in recursive glob for file log paths (supports **). Default false
+          to preserve current behavior.
       expected_tags_duration:
         node_type: setting
         type: number
@@ -2408,6 +2559,10 @@ properties:
         format: duration
         tags:
         - golang_type:duration
+        comment: |-
+          Delegated authentication for logs
+          Duration during which the host tags will be submitted with log events.
+          duration-formatted string (parsed by `time.ParseDuration`)
       experimental_adaptive_sampling:
         node_type: section
         type: object
@@ -2418,44 +2573,78 @@ properties:
             default: 1000
             tags:
             - golang_type:float64
+            comment: Maximum burst allowance per pattern, measured in accumulated
+              credits/logs.
           enabled:
             node_type: setting
             type: boolean
             default: false
+            comment: Adaptive sampler (experimental) rate-limits repetitive log patterns
+              per source.
+          exclude:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+            comment: Exclude prevents adaptive sampling from applying to logs matching
+              any rule when configured.
+          include:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+            comment: Include limits adaptive sampling to logs matching at least one
+              rule when configured.
           match_threshold:
             node_type: setting
             type: number
             default: 0.9
             tags:
             - golang_type:float64
+            comment: Fraction of tokens that must match for two logs to be treated
+              as the same pattern.
           max_patterns:
             node_type: setting
             type: number
             default: 1000
             tags:
             - golang_type:int
+            comment: Maximum number of distinct patterns the sampler tracks at once.
           protect_important_logs:
             node_type: setting
             type: boolean
             default: true
+            comment: |-
+              When true, logs containing critical severity keywords (FATAL, ERROR, PANIC, etc.)
+              bypass the adaptive sampler and are never dropped.
           rate_limit:
             node_type: setting
             type: number
             default: 1
             tags:
             - golang_type:float64
+            comment: Steady-state logs per second allowed for each matched pattern.
           tokenizer_max_input_bytes:
             node_type: setting
             type: number
             default: 2048
             tags:
             - golang_type:int
+            comment: The sampler needs a larger tokenizer window than the auto-multiline
+              labeler.
+      experimental_auto_multi_line_detection:
+        node_type: setting
+        type: boolean
+        default: false
       file_scan_period:
         node_type: setting
         type: number
         default: 1
         tags:
         - golang_type:float64
+        comment: Time in seconds
       fingerprint_config:
         node_type: section
         type: object
@@ -2466,6 +2655,7 @@ properties:
             default: 0
             tags:
             - golang_type:int
+            comment: default fingerprint configuration
           count_to_skip:
             node_type: setting
             type: number
@@ -2486,16 +2676,22 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: Enable the legacy auto multiline detection (v1)
       frame_size:
         node_type: setting
         type: number
         default: 9000
         tags:
         - golang_type:int
+        comment: 'increase the read buffer size of the UDP sockets:'
       http_connectivity_retry_interval_max:
         node_type: setting
         type: string
         default: 1h
+        comment: |-
+          Maximum interval for HTTP connectivity retry checks with exponential backoff (in seconds)
+          When TCP fallback occurs, the agent will retry HTTP connectivity at increasing intervals
+          up to this ceiling, then continue checking at this interval. Default: 1 hour
       input_chan_size:
         node_type: setting
         type: number
@@ -2508,14 +2704,20 @@ properties:
         default: 0.8
         tags:
         - golang_type:float64
+        comment: Do not store logs on disk when the disk usage exceeds 80% of the
+          disk capacity.
       k8s_container_use_file:
         node_type: setting
         type: boolean
         default: false
+        comment: enforce the agent to use files to collect container logs on kubernetes
+          environment
       kubelet_api_client_read_timeout:
         node_type: setting
         type: string
         default: 30s
+        comment: Configurable API client timeout while communicating with the kubelet
+          to stream logs. Value in seconds.
       message_channel_size:
         node_type: setting
         type: number
@@ -2536,6 +2738,7 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            comment: Pipeline failover configuration
           router_channel_size:
             node_type: setting
             type: number
@@ -2548,14 +2751,19 @@ properties:
         default: 4
         tags:
         - golang_type:int
+        comment: Number of logs pipeline instances. Defaults to number of logical
+          CPU cores as defined by GOMAXPROCS or 4, whichever is lower.
       process_exclude_agent:
         node_type: setting
         type: boolean
         default: false
+        comment: If true, exclude agent processes from process log collection
       run_path:
         node_type: setting
         type: string
         default: ${run_path}
+        comment: 'Internal Use Only: avoid modifying those configuration parameters,
+          this could lead to unexpected results.'
       sender_backoff_base:
         node_type: setting
         type: number
@@ -2588,6 +2796,7 @@ properties:
         node_type: setting
         type: string
         default: ''
+        comment: 'add a socks5 proxy:'
       stop_grace_period:
         node_type: setting
         type: number
@@ -2597,37 +2806,52 @@ properties:
       tag_multi_line_logs:
         node_type: setting
         type: boolean
-        default: false
+        default: true
+        comment: Add a tag to logs that are multiline aggregated
       tag_truncated_logs:
         node_type: setting
         type: boolean
-        default: false
+        default: true
+        comment: Add a tag to logs that are truncated by the agent
       tagger_warmup_duration:
         node_type: setting
         type: number
         default: 0
         tags:
         - golang_type:int
+        comment: |-
+          additional config to ensure initial logs are tagged with kubelet tags
+          wait (seconds) for tagger before start fetching tags of new AD services
+          Disabled by default (0 seconds)
       use_http:
         node_type: setting
         type: boolean
         default: false
+        comment: DEPRECATED in favor of `logs_config.force_use_http`.
       use_podman_logs:
         node_type: setting
         type: boolean
         default: false
+        comment: |-
+          If true, the agent looks for container logs in the location used by podman, rather
+          than docker.  This is a temporary configuration parameter to support podman logs until
+          a more substantial refactor of autodiscovery is made to determine this automatically.
       use_port_443:
         node_type: setting
         type: boolean
         default: false
+        comment: 'send the logs to the port 443 of the logs-backend via TCP:'
       use_sourcehost_tag:
         node_type: setting
         type: boolean
         default: true
+        comment: If true, then a source_host tag (IP Address) will be added to TCP/UDP
+          logs.
       use_tcp:
         node_type: setting
         type: boolean
         default: false
+        comment: DEPRECATED in favor of `logs_config.force_use_tcp`.
       use_v2_api:
         node_type: setting
         type: boolean
@@ -2636,12 +2860,18 @@ properties:
         node_type: setting
         type: boolean
         default: true
+        comment: |-
+          While parsing Kubernetes pod logs, use /var/log/containers to validate that
+          the pod container ID is matching.
       windows_open_file_timeout:
         node_type: setting
         type: number
         default: 5
         tags:
         - golang_type:int
+        comment: |-
+          maximum time that the windows tailer will hold a log file open, while waiting for
+          the downstream logs pipeline to be ready to accept more data
       zstd_compression_level:
         node_type: setting
         type: number
@@ -2764,6 +2994,7 @@ properties:
         tags:
         - golang_type:float64
         - template_section:TraceAgent
+        comment: deprecated
       target_traces_per_second:
         node_type: setting
         type: number
@@ -3723,6 +3954,9 @@ properties:
             env_vars:
             - DD_APM_INSTRUMENTATION_INJECTOR_IMAGE_TAG
             tags: []
+            comment: |-
+              Default Image Tag for the APM Inject package (https://hub.docker.com/r/datadog/apm-inject/tags).
+              We pin to a major version by default.
           lib_versions:
             node_type: setting
             type: object
@@ -4000,6 +4234,7 @@ properties:
         env_vars:
         - DD_APM_DISABLE_RARE_SAMPLER
         tags: []
+        comment: Deprecated
       enable_container_tags_buffer:
         node_type: setting
         type: boolean
@@ -4182,6 +4417,11 @@ properties:
         items:
           type: string
         tags: []
+        comment: "Deprecated/Experimental: DD_APM_SPAN_DERIVED_PRIMARY_TAGS is only\
+          \ honored when\nthe agent runs in a serverless context (the Datadog Azure\
+          \ App Services\nextension, or serverless-init for Cloud Run / Container\
+          \ Apps / Cloud Run\nFunctions). Tracers should populate additional_metric_tags\
+          \ instead \u2014 do not\nuse in new deployments."
       stats_writer:
         node_type: section
         type: object
@@ -4449,6 +4689,10 @@ properties:
             tags:
             - golang_type:int
             - template_section:CoreAgent
+            comment: |-
+              The interval, in seconds, at which we will run each check. If you want consistent
+              behavior between real-time you may set the Container/ProcessRT intervals to 10.
+              Defaults to 10s for normal checks and 2s for others.
           process_realtime:
             node_type: setting
             type: number
@@ -4510,6 +4754,9 @@ properties:
             tags:
             - golang_type:duration
             - template_section:CoreAgent
+            comment: |-
+              Process Discovery Check
+              Also bind old environment variables
           hint_frequency:
             node_type: setting
             type: number
@@ -4706,6 +4953,11 @@ properties:
         - DD_PROCESS_CONFIG_ENABLED
         - DD_PROCESS_AGENT_ENABLED
         tags: []
+        comment: |-
+          "process_config.enabled" is deprecated. We must still be able to detect if it is present, to know if we should use it
+          or container_collection.enabled and process_collection.enabled.
+
+          It's a string as the possible values are "disabled", "false", "true"...
       grpc_connection_timeout_secs:
         node_type: setting
         type: number
@@ -4767,6 +5019,9 @@ properties:
           type: array
         tags:
         - no-env
+        comment: DEPRECATED in favor of `orchestrator_explorer.orchestrator_additional_endpoints`
+          setting. If both are set `orchestrator_explorer.orchestrator_additional_endpoints`
+          will take precedence.
       orchestrator_dd_url:
         node_type: setting
         env_vars:
@@ -4775,6 +5030,10 @@ properties:
         tags:
         - TODO:fix-no-default
         - TODO:fix-missing-type
+        comment: |-
+          Service discovery configuration
+          Orchestrator Explorer - process agent
+          DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
       process_dd_url:
         node_type: setting
         env_vars:
@@ -4806,6 +5065,8 @@ properties:
             - DD_PROCESS_CONFIG_WINDOWS_USE_PERF_COUNTERS
             - DD_PROCESS_AGENT_WINDOWS_USE_PERF_COUNTERS
             tags: []
+            comment: Use PDH API to collect performance counter data for process check
+              on Windows
   network_path:
     node_type: section
     title: Network Path Dynamic Test Configuration
@@ -4835,6 +5096,7 @@ properties:
             example: 'true'
             tags:
             - template_section:CoreAgent
+            comment: Network Path
       collector:
         node_type: section
         type: object
@@ -4888,6 +5150,8 @@ properties:
             example: '"70m"'
             tags:
             - template_section:CoreAgent
+            comment: with 30min interval, 70m will allow running a test 3 times (t0,
+              t30, t60)
           pathtest_interval:
             node_type: setting
             type: string
@@ -5067,9 +5331,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -5112,9 +5377,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -5129,9 +5393,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -5204,6 +5467,7 @@ properties:
             example: 'false'
             tags:
             - template_section:CoreAgent
+            comment: Synthetics configuration
           workers:
             node_type: setting
             type: number
@@ -5231,9 +5495,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -5276,9 +5541,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -5293,9 +5557,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -5360,6 +5623,7 @@ properties:
         example: 'false'
         tags:
         - template_section:CoreAgent
+        comment: Datadog security agent (compliance)
       dir:
         node_type: setting
         type: string
@@ -5419,9 +5683,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -5464,9 +5729,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -5481,9 +5745,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -5579,6 +5842,7 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            comment: deprecated, use host_benchmarks instead
   sbom:
     node_type: section
     type: object
@@ -5598,6 +5862,7 @@ properties:
         example: 'false'
         tags:
         - template_section:CoreAgent
+        comment: SBOM configuration
       host:
         node_type: section
         type: object
@@ -5615,6 +5880,7 @@ properties:
             example: 'false'
             tags:
             - template_section:CoreAgent
+            comment: Host SBOM configuration
           additional_directories:
             node_type: setting
             type: array
@@ -5646,6 +5912,7 @@ properties:
             example: 'false'
             tags:
             - template_section:CoreAgent
+            comment: Container image SBOM configuration
           additional_directories:
             node_type: setting
             type: array
@@ -5694,19 +5961,21 @@ properties:
           overlayfs_disable_cache:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           scan_interval:
             node_type: setting
             type: number
             default: 0
             tags:
             - golang_type:int
+            comment: Integer seconds
           scan_timeout:
             node_type: setting
             type: number
             default: 600
             tags:
             - golang_type:int
+            comment: Integer seconds
           use_mount:
             node_type: setting
             type: boolean
@@ -5717,9 +5986,10 @@ properties:
             default: false
       additional_endpoints:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: object
       batch_max_concurrent_send:
         node_type: setting
         type: number
@@ -5752,12 +6022,15 @@ properties:
             node_type: setting
             type: string
             default: 1h
+            comment: used by custom cache.
           max_disk_size:
             node_type: setting
             type: number
             default: 100000000
             tags:
             - golang_type:int
+            comment: 'used by custom cache: max disk space used by cached objects.
+              Not equal to max disk usage'
       cache_directory:
         node_type: setting
         type: string
@@ -5794,11 +6067,11 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            comment: Container file system SBOM configuration
       dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       dev_mode_no_ssl:
         node_type: setting
         type: boolean
@@ -5817,6 +6090,7 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+                comment: SBOM enrichment configuration
       input_chan_size:
         node_type: setting
         type: number
@@ -5825,9 +6099,8 @@ properties:
         - golang_type:int
       logs_dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       logs_no_ssl:
         node_type: setting
         type: boolean
@@ -5900,6 +6173,7 @@ properties:
     example: 'true'
     tags:
     - template_section:Dogstatsd
+    comment: Dogstatsd
   dogstatsd_port:
     node_type: setting
     type: number
@@ -5912,6 +6186,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:Dogstatsd
+    comment: 'Notice: 0 means UDP port closed'
   bind_host:
     node_type: setting
     visibility: public
@@ -5942,6 +6217,7 @@ properties:
     platform_default:
       linux: /var/run/datadog/dsd.socket
       other: ''
+    comment: Only enabled on unix systems
   dogstatsd_origin_detection:
     node_type: setting
     type: boolean
@@ -5953,6 +6229,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Dogstatsd
+    comment: Only supported for socket traffic
   dogstatsd_origin_detection_client:
     node_type: setting
     type: boolean
@@ -5974,6 +6251,12 @@ properties:
     tags:
     - golang_type:int
     - template_section:Dogstatsd
+    comment: |-
+      The following options allow to configure how the dogstatsd intake buffers and queues incoming datagrams.
+      When a datagram is received it is first added to a datagrams buffer. This buffer fills up until
+      we reach `dogstatsd_packet_buffer_size` datagrams or after `dogstatsd_packet_buffer_flush_timeout` ms.
+      After this happens we flush this buffer of datagrams to a queue for processing. The size of this queue
+      is `dogstatsd_queue_size`.
   dogstatsd_non_local_traffic:
     node_type: setting
     type: boolean
@@ -6154,6 +6437,8 @@ properties:
     example: 'false'
     tags:
     - template_section:Dogstatsd
+    comment: Enable check for Entity-ID presence when enriching Dogstatsd metrics
+      with tags
   dogstatsd_no_aggregation_pipeline:
     node_type: setting
     type: boolean
@@ -6166,6 +6451,7 @@ properties:
     example: 'true'
     tags:
     - template_section:Dogstatsd
+    comment: Enable the no-aggregation pipeline.
   dogstatsd_no_aggregation_pipeline_batch_size:
     node_type: setting
     type: number
@@ -6177,6 +6463,8 @@ properties:
     tags:
     - golang_type:int
     - template_section:Dogstatsd
+    comment: How many metrics maximum in payloads sent by the no-aggregation pipeline
+      to the intake.
   statsd_forward_host:
     node_type: setting
     type: string
@@ -6228,6 +6516,9 @@ properties:
     tags:
     - no-env
     - template_section:Agent
+    comment: |-
+      Declare other keys that don't have a default/env var.
+      Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
   jmx_custom_jars:
     node_type: setting
     title: JMX Configuration
@@ -6244,6 +6535,7 @@ properties:
         - /jmx-jars/jboss-cli-client.jar
     tags:
     - template_section:CoreAgent
+    comment: JMXFetch
   jmx_use_cgroup_memory_limit:
     node_type: setting
     type: boolean
@@ -6440,6 +6732,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Logging
+    comment: Use to output logs in JSON format
   log_to_console:
     node_type: setting
     type: boolean
@@ -6546,6 +6839,9 @@ properties:
     example: '"/datadog/check_configs"'
     tags:
     - template_section:CoreAgent
+    comment: |-
+      Autoconfig
+      Where to look for check templates if no custom path is defined
   autoconf_config_files_poll:
     node_type: setting
     type: boolean
@@ -6789,6 +7085,7 @@ properties:
     tags:
     - golang_type:int64
     - template_section:CoreAgent
+    comment: Docker
   ad_config_poll_interval:
     node_type: setting
     type: number
@@ -6801,6 +7098,24 @@ properties:
     tags:
     - golang_type:int64
     - template_section:CoreAgent
+    comment: in seconds
+  ad_tag_completeness_max_wait:
+    node_type: setting
+    type: number
+    default: 0
+    visibility: public
+    description: |-
+      Maximum time in seconds that autodiscovery waits for an entity's tags to be
+      complete before scheduling checks for it. This avoids checks running briefly
+      with incomplete tags. This can happen when some sources (kubelet, container
+      runtime, etc.) have reported information for the entity, but others have not
+      yet. 0 disables waiting and checks are scheduled as soon as the entity is
+      discovered.
+    example: '0'
+    tags:
+    - golang_type:int
+    - template_section:CoreAgent
+    comment: in seconds, 0 means disabled
   ad_allowed_env_vars:
     node_type: setting
     type: array
@@ -6847,6 +7162,7 @@ properties:
         example: '"unix"'
         tags:
         - template_section:CoreAgent
+        comment: Cloud Foundry Garden
       listen_address:
         node_type: setting
         type: string
@@ -6890,6 +7206,7 @@ properties:
         example: 'false'
         tags:
         - template_section:ClusterAgent
+        comment: Datadog cluster agent
       auth_token:
         node_type: setting
         type: string
@@ -7009,6 +7326,8 @@ properties:
             example: 'false'
             tags:
             - template_section:ClusterAgent
+            comment: APM tracing for the cluster agent itself (currently covers cluster
+              check dispatching)
           env:
             node_type: setting
             type: string
@@ -7057,6 +7376,7 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+                comment: AppSec Injector in the cluster agent ( Preview )
               istio:
                 node_type: section
                 type: object
@@ -7105,6 +7425,16 @@ properties:
             default: 4194304
             tags:
             - golang_type:int
+            comment: |-
+              partially deprecated: `agent_ipc.grpc_max_message_size` should now be used for configuring the maximum gRPC
+              message size on the agent IPC server
+
+              this is still used directly for determining the chunking behavior of messages sent from the remote tagger and
+              remote workloadmeta, to preserve existing behavior until we can better unify chunking behavior across all the
+              gRPC services on the IPC endpoint.
+
+              if this value is larger than `agent_ipc.grpc_max_message_size`, it will still be honoured by the agent gRPC
+              server instead of `agent_ipc.grpc_max_message_size`.
       cmd_port:
         node_type: setting
         type: number
@@ -7139,6 +7469,22 @@ properties:
             default: []
             items:
               type: string
+            comment: |-
+              list of kubernetes resources for which we collect metadata
+              each resource is specified in the format `{group}/{version}/{resource}` or `{group}/{resource}`
+              resources that belong to the empty group can be specified simply as `{resource}` or as `/{resource}`
+
+              the version is optional and can be left empty, and in this case, the agent will automatically assign
+              the version that is considered by the api server as the preferred version for the related group.
+
+              examples with version:
+              - apps/v1/deployments
+              - /v1/nodes
+
+              examples without version:
+              - apps/deployments
+              - /nodes
+              - nodes
       kubernetes_resources_collection:
         node_type: section
         type: object
@@ -7171,10 +7517,12 @@ properties:
                 node_type: setting
                 type: string
                 default: 30m
+                comment: sets the expiration deadline (TTL) for reported languages
               period:
                 node_type: setting
                 type: string
                 default: 10m
+                comment: language annotation cleanup period
           patcher:
             node_type: section
             type: object
@@ -7258,6 +7606,7 @@ properties:
         tags:
         - golang_type:int
         - template_section:ClusterChecks
+        comment: value in seconds
       warmup_duration:
         node_type: setting
         type: number
@@ -7270,6 +7619,7 @@ properties:
         tags:
         - golang_type:int
         - template_section:ClusterChecks
+        comment: value in seconds
       cluster_tag_name:
         node_type: setting
         type: string
@@ -7349,12 +7699,16 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: 'KSM resource sharding: splits KSM check by resource type (pods,
+          nodes, others)'
       rebalance_min_percentage_improvement:
         node_type: setting
         type: number
         default: 10
         tags:
         - golang_type:int
+        comment: Experimental. Subject to change. Rebalance only if the distribution
+          found improves the current one by this.
       rebalance_period:
         node_type: setting
         type: number
@@ -7366,12 +7720,16 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: |-
+          Cluster check Autodiscovery
+          TODO(CINT)(Agent 7.53+) Remove this flag when hybrid ignore_ad_tags is fully deprecated
       unscheduled_check_threshold:
         node_type: setting
         type: number
         default: 60
         tags:
         - golang_type:int
+        comment: value in seconds
   admission_controller:
     node_type: section
     title: Admission controller Configuration
@@ -7397,6 +7755,7 @@ properties:
         example: 'false'
         tags:
         - template_section:AdmissionController
+        comment: Admission controller
       validation:
         node_type: section
         type: object
@@ -7462,6 +7821,7 @@ properties:
         tags:
         - golang_type:int
         - template_section:AdmissionController
+        comment: in seconds (see kubernetes/kubernetes#71508)
       service_name:
         node_type: setting
         type: string
@@ -7491,6 +7851,7 @@ properties:
         tags:
         - golang_type:int
         - template_section:AdmissionController
+        comment: deprecated alias for `admission_controller.inject_tags.pod_owners_cache_validity`
       namespace_selector_fallback:
         node_type: setting
         type: boolean
@@ -7521,6 +7882,8 @@ properties:
             tags:
             - golang_type:int
             - template_section:AdmissionController
+            comment: validity bound of the certificate created by the controller (in
+              hours, default 1 year)
           expiration_threshold:
             node_type: setting
             type: number
@@ -7532,6 +7895,8 @@ properties:
             tags:
             - golang_type:int
             - template_section:AdmissionController
+            comment: how long before its expiration a certificate should be refreshed
+              (in hours, default 1 month)
           secret_name:
             node_type: setting
             type: string
@@ -7541,6 +7906,7 @@ properties:
             example: '"webhook-certificate"'
             tags:
             - template_section:AdmissionController
+            comment: name of the Secret object containing the webhook certificate
       inject_config:
         node_type: section
         type: object
@@ -7579,6 +7945,7 @@ properties:
             example: '"hostip"'
             tags:
             - template_section:AdmissionController
+            comment: 'possible values: hostip / service / socket / csi'
           local_service_name:
             node_type: setting
             type: string
@@ -7645,6 +8012,7 @@ properties:
             default: 10
             tags:
             - golang_type:int
+            comment: in minutes
       failure_policy:
         node_type: setting
         type: string
@@ -7679,6 +8047,7 @@ properties:
         example: 'false'
         tags:
         - template_section:AdmissionController
+        comment: adds in the webhook some selectors that are required in AKS
       auto_instrumentation:
         node_type: section
         type: object
@@ -7740,6 +8109,7 @@ properties:
                 env_vars:
                 - DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_APPSEC_ENABLED
                 tags: []
+                comment: config for ASM which is implemented in the client libraries
           asm_sca:
             node_type: section
             type: object
@@ -7751,6 +8121,7 @@ properties:
                 env_vars:
                 - DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_APPSEC_SCA_ENABLED
                 tags: []
+                comment: config for SCA
           container_registry:
             node_type: setting
             type: string
@@ -7762,6 +8133,7 @@ properties:
             env_parser: comma_separated
             items:
               type: string
+            comment: restricts which registries can be used for library injection
           default_dd_registries:
             node_type: setting
             type: array
@@ -7808,10 +8180,13 @@ properties:
                 env_vars:
                 - DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_IAST_ENABLED
                 tags: []
+                comment: config for IAST which is implemented in the client libraries
           inject_auto_detected_libraries:
             node_type: setting
             type: boolean
             default: true
+            comment: allows injecting libraries for languages detected by automatic
+              language detection feature
           patcher:
             node_type: section
             type: object
@@ -7824,10 +8199,12 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+                comment: to be enabled only in e2e tests
               file_provider_path:
                 node_type: setting
                 type: string
                 default: /etc/datadog-agent/patch/auto-instru.json
+                comment: to be used only in e2e tests
           profiling:
             node_type: section
             type: object
@@ -7839,6 +8216,7 @@ properties:
                 env_vars:
                 - DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_PROFILING_ENABLED
                 tags: []
+                comment: config for profiling
       nccl_profiler:
         node_type: section
         type: object
@@ -7890,6 +8268,11 @@ properties:
             example: 'false'
             tags:
             - template_section:AdmissionController
+            comment: |-
+              When true, the webhook injects into every pod that does not have the
+              opt-in label set to "false" (instead of requiring it to be "true").
+              Either this knob or the global admission_controller.mutate_unlabelled
+              switches blanket mode. Same shape as cws_instrumentation.
           init_resources:
             node_type: section
             type: object
@@ -7907,6 +8290,9 @@ properties:
                 example: '""'
                 tags:
                 - template_section:AdmissionController
+                comment: |-
+                  Optional CPU/memory for the injected init container. Empty -> no Resources
+                  block, cluster default applies. Same shape as cws_instrumentation.
               memory:
                 node_type: setting
                 type: string
@@ -7916,6 +8302,15 @@ properties:
                 example: '""'
                 tags:
                 - template_section:AdmissionController
+          socket_dir:
+            node_type: setting
+            type: string
+            default: /var/run/datadog
+            comment: |-
+              In-container directory at which the agent's NCCL socket is mounted in
+              injected workload pods. Composed with filepath.Base(gpu.nccl.socket_path)
+              to build the mount destination and NCCL_DD_SOCKET_PATH. Same shape as
+              admission_controller.inject_config.socket_path used by APM/DSD injection.
       agent_sidecar:
         node_type: section
         type: object
@@ -7972,6 +8367,8 @@ properties:
             node_type: setting
             type: string
             default: '[]'
+            comment: Should be able to parse it to a list of env vars and resource
+              limits
           provider:
             node_type: setting
             type: string
@@ -7980,6 +8377,7 @@ properties:
             node_type: setting
             type: string
             default: '[]'
+            comment: Should be able to parse it to a list of webhook selectors
       appsec:
         node_type: section
         type: object
@@ -7992,6 +8390,7 @@ properties:
                 node_type: setting
                 type: string
                 default: datadog/ingress-nginx-injection
+                comment: ingress-nginx injection configuration
               module_mount_path:
                 node_type: setting
                 type: string
@@ -8014,6 +8413,7 @@ properties:
                 node_type: setting
                 type: string
                 default: ghcr.io/datadog/dd-trace-go/service-extensions-callout
+                comment: Processor mode and sidecar configuration
               image_tag:
                 node_type: setting
                 type: string
@@ -8156,12 +8556,14 @@ properties:
             default: 60
             tags:
             - golang_type:int
+            comment: in seconds
           interval:
             node_type: setting
             type: number
             default: 60
             tags:
             - golang_type:int
+            comment: in seconds
   docker_labels_as_tags:
     node_type: setting
     title: Docker tag extraction
@@ -8309,6 +8711,9 @@ properties:
     example: http://localhost:51678
     tags:
     - template_section:ECS
+    comment: |-
+      ECS
+      Will be autodetected
   ecs_collect_resource_tags_ec2:
     node_type: setting
     type: boolean
@@ -8340,6 +8745,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:ECS
+    comment: value in milliseconds
   ecs_task_collection_enabled:
     node_type: setting
     type: boolean
@@ -8389,6 +8795,9 @@ properties:
     example: '""'
     tags:
     - template_section:CoreAgent
+    comment: |-
+      CRI
+      empty is disabled
   cri_connection_timeout:
     node_type: setting
     type: number
@@ -8399,6 +8808,7 @@ properties:
     tags:
     - golang_type:int64
     - template_section:CoreAgent
+    comment: in seconds
   cri_query_timeout:
     node_type: setting
     type: number
@@ -8410,6 +8820,7 @@ properties:
     tags:
     - golang_type:int64
     - template_section:CoreAgent
+    comment: in seconds
   containerd_namespace:
     node_type: setting
     type: array
@@ -8429,6 +8840,7 @@ properties:
         - k8s.io
     tags:
     - template_section:CoreAgent
+    comment: Containerd
   containerd_namespaces:
     node_type: setting
     type: array
@@ -8446,6 +8858,7 @@ properties:
         - k8s.io
     tags:
     - template_section:CoreAgent
+    comment: alias for containerd_namespace
   containerd_exclude_namespaces:
     node_type: setting
     type: array
@@ -8476,6 +8889,7 @@ properties:
     example: <KUBLET_HOST>
     tags:
     - template_section:Kubelet
+    comment: Kubernetes
   kubernetes_http_kubelet_port:
     node_type: setting
     type: number
@@ -8560,6 +8974,10 @@ properties:
     tags:
     - golang_type:int
     - template_section:Kubelet
+    comment: |-
+      Cache TTL for pod lists in the kubelet client. Set to 0 because it's only
+      used by workloadmeta that already defines its own pull frequency and has
+      its own storage, so no need for an extra cache.
   kubernetes_pod_expiration_duration:
     node_type: setting
     type: number
@@ -8572,6 +8990,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:Kubelet
+    comment: in seconds, default 15 minutes
   kubernetes_kubeconfig_path:
     node_type: setting
     title: Kubernetes apiserver integration Configuration
@@ -8587,6 +9006,7 @@ properties:
     example: '""'
     tags:
     - template_section:KubeApiServer
+    comment: Kube ApiServer
   kubernetes_apiserver_ca_path:
     node_type: setting
     type: string
@@ -8669,6 +9089,8 @@ properties:
     tags:
     - golang_type:int
     - template_section:KubeApiServer
+    comment: Polling frequency of the Agent to the DCA in seconds (gets the local
+      cache if the DCA is disabled)
   kubernetes_metadata_streaming:
     node_type: setting
     type: boolean
@@ -8716,6 +9138,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:KubeApiServer
+    comment: timeout between two successful event collections in milliseconds.
   leader_election:
     node_type: setting
     type: boolean
@@ -8850,6 +9273,7 @@ properties:
         example: 'false'
         tags:
         - template_section:CoreAgent
+        comment: Enables the prometheus config provider
       service_endpoints:
         node_type: setting
         type: boolean
@@ -8859,6 +9283,7 @@ properties:
         example: 'false'
         tags:
         - template_section:CoreAgent
+        comment: Enables Service Endpoints checks in the prometheus config provider
       checks:
         node_type: setting
         type: string
@@ -8869,6 +9294,8 @@ properties:
         example: '{}'
         tags:
         - template_section:CoreAgent
+        comment: Defines any extra prometheus/openmetrics check configurations to
+          be handled by the prometheus config provider
       version:
         node_type: setting
         type: number
@@ -8880,6 +9307,8 @@ properties:
         tags:
         - golang_type:int
         - template_section:CoreAgent
+        comment: Version of the openmetrics check to be scheduled by the Prometheus
+          auto-discovery
   cloud_foundry_bbs:
     node_type: section
     title: Cloud Foundry BBS Configuration for Autodiscovery
@@ -8900,6 +9329,7 @@ properties:
         example: '"https://bbs.service.cf.internal:8889"'
         tags:
         - template_section:CloudFoundry
+        comment: Cloud Foundry BBS
       poll_interval:
         node_type: setting
         type: number
@@ -8984,6 +9414,7 @@ properties:
         example: '"https://cloud-controller-ng.service.cf.internal:9024"'
         tags:
         - template_section:CloudFoundry
+        comment: Cloud Foundry CC
       client_id:
         node_type: setting
         type: string
@@ -9060,6 +9491,7 @@ properties:
         example: '"default"'
         tags:
         - template_section:CoreAgent
+        comment: Network Devices Monitoring
       default_scan:
         node_type: section
         type: object
@@ -9131,6 +9563,9 @@ properties:
             tags:
             - golang_type:int
             - template_section:CoreAgent
+            comment: |-
+              network_devices.autodiscovery has precedence over snmp_listener config
+              snmp_listener config is still here for legacy reasons
           discovery_allowed_failures:
             node_type: setting
             type: number
@@ -9660,15 +10095,17 @@ properties:
             tags:
             - golang_type:int
             - template_section:CoreAgent
+            comment: in seconds
           forwarder:
             node_type: section
             type: object
             properties:
               additional_endpoints:
                 node_type: setting
-                tags:
-                - TODO:fix-no-default
-                - TODO:fix-missing-type
+                type: array
+                default: []
+                items:
+                  type: object
               batch_max_concurrent_send:
                 node_type: setting
                 type: number
@@ -9711,9 +10148,8 @@ properties:
                 - golang_type:int
               dd_url:
                 node_type: setting
-                tags:
-                - TODO:fix-no-default
-                - TODO:fix-missing-type
+                type: string
+                default: ''
               dev_mode_no_ssl:
                 node_type: setting
                 type: boolean
@@ -9728,9 +10164,8 @@ properties:
                 - golang_type:int
               logs_dd_url:
                 node_type: setting
-                tags:
-                - TODO:fix-no-default
-                - TODO:fix-missing-type
+                type: string
+                default: ''
               logs_no_ssl:
                 node_type: setting
                 type: boolean
@@ -9794,6 +10229,7 @@ properties:
             example: 'false'
             tags:
             - template_section:CoreAgent
+            comment: NetFlow
           listeners:
             node_type: setting
             type: array
@@ -9874,6 +10310,9 @@ properties:
             default: 0
             tags:
             - golang_type:int
+            comment: |-
+              The default behavior for this value is to copy the "aggregator_flush_interval" when absent/zero. This is to avoid
+              expiring flows too early when the flush interval is increased, while still allowing to set a custom TTL when needed.
           aggregator_flush_interval:
             node_type: setting
             type: number
@@ -9898,9 +10337,10 @@ properties:
             properties:
               additional_endpoints:
                 node_type: setting
-                tags:
-                - TODO:fix-no-default
-                - TODO:fix-missing-type
+                type: array
+                default: []
+                items:
+                  type: object
               batch_max_concurrent_send:
                 node_type: setting
                 type: number
@@ -9943,9 +10383,8 @@ properties:
                 - golang_type:int
               dd_url:
                 node_type: setting
-                tags:
-                - TODO:fix-no-default
-                - TODO:fix-missing-type
+                type: string
+                default: ''
               dev_mode_no_ssl:
                 node_type: setting
                 type: boolean
@@ -9960,9 +10399,8 @@ properties:
                 - golang_type:int
               logs_dd_url:
                 node_type: setting
-                tags:
-                - TODO:fix-no-default
-                - TODO:fix-missing-type
+                type: string
+                default: ''
               logs_no_ssl:
                 node_type: setting
                 type: boolean
@@ -10015,9 +10453,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -10060,9 +10499,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -10077,9 +10515,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -10146,6 +10583,9 @@ properties:
         tags:
         - golang_type:int
         - template_section:CoreAgent
+        comment: |-
+          Data Observability
+          Reverse DNS Enrichment
       chan_size:
         node_type: setting
         type: number
@@ -10312,6 +10752,10 @@ properties:
             tags:
             - golang_type:duration
             - template_section:CoreAgent
+            comment: |-
+              These variables are similarly named, but they serve different purposes:
+              - recovery_interval is the time to wait before trying to send data again after hitting the throttle_error_threshold
+              - recovery_intervals is the number of consecutive intervals with errors before considering the issue resolved and lifting the throttling
   ha_agent:
     node_type: section
     type: object
@@ -10329,6 +10773,7 @@ properties:
         example: 'false'
         tags:
         - template_section:CoreAgent
+        comment: HA Agent
       group:
         node_type: setting
         tags:
@@ -10394,6 +10839,8 @@ properties:
                     example: '"localhost:4317"'
                     tags:
                     - template_section:CoreAgent
+                    comment: Receiver gRPC settings (defaults from OTel otlpreceiver
+                      / configgrpc)
                   transport:
                     node_type: setting
                     type: string
@@ -10470,6 +10917,8 @@ properties:
                     example: '"localhost:4318"'
                     tags:
                     - template_section:CoreAgent
+                    comment: Receiver HTTP settings (defaults from OTel otlpreceiver
+                      / confighttp)
                   cors:
                     node_type: section
                     type: object
@@ -10718,6 +11167,7 @@ properties:
             node_type: setting
             type: string
             default: ''
+            comment: Metrics settings
       traces:
         node_type: section
         type: object
@@ -10738,6 +11188,7 @@ properties:
             example: 'true'
             tags:
             - template_section:CoreAgent
+            comment: Traces settings
           span_name_as_resource_name:
             node_type: setting
             type: boolean
@@ -10840,6 +11291,10 @@ properties:
             example: 'true'
             tags:
             - template_section:CoreAgent
+            comment: |-
+              NOTE: This only partially works.
+              The environment variable is also manually checked in comp/otelcol/otlp/config.go
+              Logs
           batch:
             node_type: section
             type: object
@@ -10903,12 +11358,14 @@ properties:
             example: '"basic"'
             tags:
             - template_section:CoreAgent
+            comment: Debug settings (default from OTel debugexporter)
       grpc_port:
         node_type: setting
         type: number
         default: 0
         tags:
         - golang_type:int
+        comment: Legacy port keys (unused; 0 = disabled)
       http_port:
         node_type: setting
         type: number
@@ -11093,12 +11550,11 @@ properties:
     node_type: setting
     type: string
     default: localhost
-  ad_tag_completeness_max_wait:
-    node_type: setting
-    type: number
-    default: 0
-    tags:
-    - golang_type:int
+    comment: |-
+      Agent GUI access host
+      'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.
+      Internet Explorer High Security Level does not support setting cookies via HTTP Header response.
+      By default, 'http://localhost' is categorized as an "intranet" website, which is considered safer and allowed to use cookies. This is not the case for 'http://127.0.0.1'.
   additional_endpoints:
     node_type: setting
     type: object
@@ -11107,6 +11563,7 @@ properties:
       items:
         type: string
       type: array
+    comment: Forwarder
   agent_ipc:
     node_type: section
     type: object
@@ -11153,9 +11610,10 @@ properties:
     properties:
       additional_endpoints:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: object
       batch_max_concurrent_send:
         node_type: setting
         type: number
@@ -11190,6 +11648,9 @@ properties:
         default: 1
         tags:
         - golang_type:int
+        comment: |-
+          default compression first setup inside the next bindEnvAndSetLogsConfigKeys() function ...
+          ... and overridden by the following two lines - do not switch these 3 lines order
       connection_reset_interval:
         node_type: setting
         type: number
@@ -11198,9 +11659,8 @@ properties:
         - golang_type:int
       dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       dev_mode_no_ssl:
         node_type: setting
         type: boolean
@@ -11211,6 +11671,7 @@ properties:
         node_type: setting
         type: boolean
         default: true
+        comment: Agent Telemetry
       input_chan_size:
         node_type: setting
         type: number
@@ -11219,9 +11680,8 @@ properties:
         - golang_type:int
       logs_dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       logs_no_ssl:
         node_type: setting
         type: boolean
@@ -11304,12 +11764,255 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    comment: |-
+      When the Python full interpreter path cannot be deduced via heuristics, the agent
+      is expected to prevent rtloader from initializing. When set to true, this override
+      allows us to proceed but with some capabilities unavailable (e.g. `multiprocessing`
+      library support will not work reliably in those environments)
   allowed_additional_checks:
     node_type: setting
     type: array
     default: []
     items:
       type: string
+    comment: |-
+      Legacy alias for backward compatibility
+      This applies to the current infrastructure_mode
+  anomaly_detection:
+    node_type: section
+    type: object
+    properties:
+      agent_logs:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: Agent-internal log sampling. Warn+ are never sampled.
+          sample_rate_debug:
+            node_type: setting
+            type: number
+            default: 0.05
+            tags:
+            - golang_type:float64
+          sample_rate_info:
+            node_type: setting
+            type: number
+            default: 0.2
+            tags:
+            - golang_type:float64
+          sample_rate_trace:
+            node_type: setting
+            type: number
+            default: 0
+            tags:
+            - golang_type:float64
+      debug:
+        node_type: section
+        type: object
+        properties:
+          dump_interval:
+            node_type: setting
+            type: number
+            default: 0
+            tags:
+            - golang_type:int
+          dump_path:
+            node_type: setting
+            type: string
+            default: ''
+            comment: 'Debug tooling: internal state dump. Leave empty/zero in production.'
+          events_dump_path:
+            node_type: setting
+            type: string
+            default: ''
+      detectors:
+        node_type: section
+        type: object
+        properties:
+          bocpd:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+          connection_error_extractor:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          cross_signal:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          cusum:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          log_metrics_extractor:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                comment: Detector/correlator/extractor toggles. Defaults match componentCatalog.defaultEnabled.
+          log_pattern_extractor:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+          passthrough:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          rrcf:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+          scanmw:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          scanwelch:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          time_cluster:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+              min_cluster_size:
+                node_type: setting
+                type: number
+                default: 0
+                tags:
+                - golang_type:int
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: Master switch. When false the entire anomaly detection subsystem
+          is a no-op.
+      logs:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: |-
+              Log ingestion gate. When false, container/journald logs are not routed
+              into the anomaly detection pipeline (recording is unaffected).
+      metrics:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: |-
+              Metrics ingestion gate. When false, externally-ingested metrics
+              (DogStatsD, check samplers) are dropped at the handle factory.
+              Log-derived virtual metrics are unaffected.
+      recording:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Parquet recording of raw ingested signals for offline analysis
+              and replay.
+          flush_interval:
+            node_type: setting
+            type: number
+            default: 60
+            tags:
+            - golang_type:int
+          output_dir:
+            node_type: setting
+            type: string
+            default: /var/run/datadog/anomaly_detection
+          retention:
+            node_type: setting
+            type: string
+            default: 24h
+      reporting:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Anomaly event reporting. Keep false during evaluation / shadow
+              mode.
+      storage:
+        node_type: section
+        type: object
+        properties:
+          eviction_floor_ratio:
+            node_type: setting
+            type: number
+            default: 0.5
+            tags:
+            - golang_type:float64
+          max_series:
+            node_type: setting
+            type: number
+            default: 50000
+            tags:
+            - golang_type:int
+            comment: Storage tuning. See storageConfig in the observer component.
+          point_retention_secs:
+            node_type: setting
+            type: number
+            default: 120
+            tags:
+            - golang_type:int
   appsec:
     node_type: section
     type: object
@@ -11326,6 +12029,7 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            comment: Appsec Proxy Config Injection (Experimental)
           processor:
             node_type: section
             type: object
@@ -11353,6 +12057,8 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+    comment: used to override the acceptable duration for the agent to load or create
+      auth artifacts (auth_token and IPC cert/key files)
   auth_token_file_path:
     node_type: setting
     type: string
@@ -11373,6 +12079,7 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            comment: Cluster autoscaling product
           spot:
             node_type: section
             type: object
@@ -11397,6 +12104,7 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+                comment: Spot scheduling
               fallback_duration:
                 node_type: setting
                 type: string
@@ -11433,6 +12141,7 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            comment: Workload autoscaling product
           external_recommender:
             node_type: section
             type: object
@@ -11477,6 +12186,8 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    comment: configure adding the agent container tags to the basic agent telemetry
+      metrics (e.g. `datadog.agent.running`)
   bosh_id:
     node_type: setting
     type: string
@@ -11489,10 +12200,12 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    comment: Debugging + C-land crash feature flags
   cel_workload_exclude:
     node_type: setting
     type: array
     default: []
+    comment: Agent Workload Filtering config
   cf_os_hostname_aliasing:
     node_type: setting
     type: boolean
@@ -11534,6 +12247,9 @@ properties:
     default: 2
     tags:
     - golang_type:int
+    comment: |-
+      The number of commits before expiring a context. The value is 2 to handle
+      the case where a check miss to send a metric.
   check_sampler_context_metrics:
     node_type: setting
     type: boolean
@@ -11549,6 +12265,10 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+    comment: |-
+      The number of seconds before removing stateful metric data after expiring a
+      context. Default is 25h, to minimise problems for checks that emit metircs
+      only occasionally.
   check_system_probe_startup_time:
     node_type: setting
     type: number
@@ -11570,14 +12290,18 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+    comment: If not zero, the agent will log a warning if a check is running for longer
+      than this timeout
   clc_runner_enabled:
     node_type: setting
     type: boolean
     default: false
+    comment: Cluster check runner
   clc_runner_host:
     node_type: setting
     type: string
     default: ''
+    comment: must be set using the Kubernetes downward API
   clc_runner_id:
     node_type: setting
     type: string
@@ -11592,6 +12316,27 @@ properties:
     node_type: setting
     type: boolean
     default: true
+    comment: |-
+      Enabling remote tagger in cluster check runners by default allows
+      enriching the cluster check runners with tags sourced from the
+      cluster agent's cluster tagger.
+
+      This was previously disabled because of the overhead this can
+      cause on large clusters. This is no longer an issue because
+      the tagger now supports filtering out unwanted tags and the
+      cluster check runner remote tagger filters out pod tags, making
+      the overhead relatively insignificant.
+
+      For more details: https://github.com/DataDog/datadog-agent/blob/8af994a91cafecf647197e1638de9ddd98b06575/cmd/agent/common/tagger_params.go#L1-L39
+
+      The benefit of activating this is allowing cluster checks and component
+      running in the cluster check runner to gain better tagging coverage
+      on emitted metrics:
+
+      * KSM check running in CLC runner needs the remote tagger to ensure
+      namespace labels and annotations as tags are applied to emitted KSM
+      metrics in case the check is partitioned to multiple instances, each
+      emitting different resource metrics.
   clc_runner_server_readheader_timeout:
     node_type: setting
     type: number
@@ -11608,6 +12353,7 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    comment: Cloud Foundry
   cloud_foundry_buildpack:
     node_type: setting
     type: boolean
@@ -11632,6 +12378,7 @@ properties:
         node_type: setting
         type: string
         default: /bin/sh
+        comment: Cloud Foundry Container Tagger
   cluster_trust_chain:
     node_type: section
     type: object
@@ -11640,14 +12387,18 @@ properties:
         node_type: setting
         type: string
         default: ''
+        comment: Path to the cluster CA certificate file.
       ca_key_file_path:
         node_type: setting
         type: string
         default: ''
+        comment: Path to the cluster CA key file.
       enable_tls_verification:
         node_type: setting
         type: boolean
         default: false
+        comment: Check that the trust chain is valid for Agent cross-node communications
+          (NodeAgent->DCA / CLC->DCA / DCA->CLC).
   cmd:
     node_type: section
     type: object
@@ -11662,6 +12413,7 @@ properties:
             default: false
             tags:
             - no-env
+            comment: command line options
   cmd_host:
     node_type: setting
     type: string
@@ -11705,15 +12457,17 @@ properties:
     default: 22
     tags:
     - golang_type:int
+    comment: in hours
   container_image:
     node_type: section
     type: object
     properties:
       additional_endpoints:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: object
       batch_max_concurrent_send:
         node_type: setting
         type: number
@@ -11756,9 +12510,8 @@ properties:
         - golang_type:int
       dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       dev_mode_no_ssl:
         node_type: setting
         type: boolean
@@ -11769,6 +12522,7 @@ properties:
         node_type: setting
         type: boolean
         default: true
+        comment: Container image configuration
       input_chan_size:
         node_type: setting
         type: number
@@ -11777,9 +12531,8 @@ properties:
         - golang_type:int
       logs_dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       logs_no_ssl:
         node_type: setting
         type: boolean
@@ -11850,9 +12603,10 @@ properties:
     properties:
       additional_endpoints:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: object
       batch_max_concurrent_send:
         node_type: setting
         type: number
@@ -11895,9 +12649,8 @@ properties:
         - golang_type:int
       dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       dev_mode_no_ssl:
         node_type: setting
         type: boolean
@@ -11908,6 +12661,7 @@ properties:
         node_type: setting
         type: boolean
         default: true
+        comment: Container lifecycle configuration
       input_chan_size:
         node_type: setting
         type: number
@@ -11916,9 +12670,8 @@ properties:
         - golang_type:int
       logs_dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       logs_no_ssl:
         node_type: setting
         type: boolean
@@ -11985,6 +12738,8 @@ properties:
         node_type: setting
         type: boolean
         default: true
+        comment: Core agent (disabled for Error Tracking Standalone, Logs Collection
+          Only)
   csi:
     node_type: section
     type: object
@@ -11997,6 +12752,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: CSI driver
   data_observability:
     node_type: section
     type: object
@@ -12007,9 +12763,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -12052,9 +12809,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -12069,9 +12825,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -12134,6 +12889,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: Data Plane
       otlp:
         node_type: section
         type: object
@@ -12166,6 +12922,9 @@ properties:
                             node_type: setting
                             type: string
                             default: 127.0.0.1:4319
+                            comment: When the ADP OTLP proxy is enabled, ADP owns
+                              the gRPC endpoint configured for the receiver (default
+                              :4317) and the core agent uses the endpoint below
   data_streams:
     node_type: section
     type: object
@@ -12176,9 +12935,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -12203,6 +12963,7 @@ properties:
             default: 0.1
             tags:
             - golang_type:float64
+            comment: 100ms for low-latency forwarding
           compression_kind:
             node_type: setting
             type: string
@@ -12221,9 +12982,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -12238,9 +12998,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -12297,9 +13056,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -12342,9 +13102,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -12359,9 +13118,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -12496,9 +13254,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -12541,9 +13300,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -12558,9 +13316,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -12613,9 +13370,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -12658,9 +13416,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -12675,9 +13432,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -12760,6 +13516,7 @@ properties:
     node_type: setting
     type: boolean
     default: true
+    comment: Defaults to safe YAML methods in base and custom checks.
   disk_check:
     node_type: section
     type: object
@@ -12776,32 +13533,41 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: Data Jobs Monitoring config
   dogstatsd_capture_depth:
     node_type: setting
     type: number
     default: 0
     tags:
     - golang_type:int
+    comment: |-
+      Depth of the channel the capture writer reads before persisting to disk.
+      Default is 0 - blocking channel
   dogstatsd_capture_path:
     node_type: setting
     type: string
     default: ''
+    comment: Location to store dogstatsd captures by default
   dogstatsd_context_expiry_seconds:
     node_type: setting
     type: number
     default: 20
     tags:
     - golang_type:int
+    comment: Control how long we keep dogstatsd contexts in memory.
   dogstatsd_disable_verbose_logs:
     node_type: setting
     type: boolean
     default: false
+    comment: Sends Dogstatsd parse errors to the Debug level instead of the Error
+      level
   dogstatsd_eol_required:
     node_type: setting
     type: array
     default: []
     items:
       type: string
+    comment: 'Options are: udp, uds, named_pipe'
   dogstatsd_experimental_http:
     node_type: section
     type: object
@@ -12820,10 +13586,12 @@ properties:
     default: 300
     tags:
     - golang_type:int
+    comment: Control for how long counter would be sampled to 0 if not received
   dogstatsd_flush_incomplete_buckets:
     node_type: setting
     type: boolean
     default: false
+    comment: Control dogstatsd shutdown behaviors
   dogstatsd_host_socket_path:
     node_type: setting
     type: string
@@ -12832,6 +13600,7 @@ properties:
     node_type: setting
     type: string
     default: ''
+    comment: Control how dogstatsd-stats logs can be generated
   dogstatsd_log_file_max_rolls:
     node_type: setting
     type: number
@@ -12846,12 +13615,14 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: To enable the following feature, GODEBUG must contain `madvdontneed=1`
       go_gc:
         node_type: setting
         type: number
         default: 1
         tags:
         - golang_type:int
+        comment: 0 means don't call SetGCPercent
       high_soft_limit:
         node_type: setting
         type: number
@@ -12953,6 +13724,7 @@ properties:
     node_type: setting
     type: string
     default: ''
+    comment: 'Experimental || Notice: empty means feature disabled'
   dogstatsd_string_interner_size:
     node_type: setting
     type: number
@@ -12967,12 +13739,28 @@ properties:
     node_type: setting
     type: string
     default: D:AI(A;;GA;;;WD)
+    comment: |-
+      https://learn.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-string-format
+      https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-strings
+      https://learn.microsoft.com/en-us/windows/win32/secauthz/sid-strings
+
+      D:dacl_flags(ace_type;ace_flags;rights;object_guid;inherit_object_guid;account_sid;(resource_attribute))
+      dacl_flags:
+      "AI": SDDL_AUTO_INHERITED
+      ace_type:
+      "A": SDDL_ACCESS_ALLOWED
+      rights:
+      "GA": SDDL_GENERIC_ALL
+      account_sid:
+      "WD": Everyone
   dogstatsd_workers_count:
     node_type: setting
     type: number
     default: 0
     tags:
     - golang_type:int
+    comment: Force the amount of dogstatsd workers (mainly used for benchmarks or
+      some very specific use-case)
   ec2_imdsv2_transition_payload_enabled:
     node_type: setting
     type: boolean
@@ -12983,14 +13771,19 @@ properties:
     default: 21600
     tags:
     - golang_type:int
+    comment: value in seconds
   ec2_use_dmi:
     node_type: setting
     type: boolean
     default: true
+    comment: should the agent leverage DMI information to know if it's running on
+      EC2 or not. Enabling this will add the instance ID from DMI to the host alias
+      list.
   ec2_use_windows_prefix_detection:
     node_type: setting
     type: boolean
     default: false
+    comment: EC2
   ecs_metadata_retry_initial_interval:
     node_type: setting
     type: number
@@ -13042,6 +13835,7 @@ properties:
     node_type: setting
     type: boolean
     default: true
+    comment: Serializer
   enable_payloads:
     node_type: section
     type: object
@@ -13050,6 +13844,7 @@ properties:
         node_type: setting
         type: boolean
         default: true
+        comment: 'Serializer: allow user to blacklist any kind of payload to be sent'
       json_to_v1_intake:
         node_type: setting
         type: boolean
@@ -13083,6 +13878,8 @@ properties:
     default: ''
     tags:
     - no-env
+    comment: the entity id, typically set by dca admisson controller config mutator,
+      used for external origin detection
   event_management:
     node_type: section
     type: object
@@ -13093,9 +13890,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -13138,9 +13936,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -13155,9 +13952,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -13254,6 +14050,12 @@ properties:
         node_type: setting
         type: boolean
         default: true
+        comment: |-
+          trace-agent's evp_proxy. Registered here (in setupAPM, which is part of
+          initCommonConfigComponents) so the defaults are reachable under both the
+          regular and `serverless` build tags. comp/trace/config reads these
+          unconditionally; previously the defaults lived only in initCoreAgentFull
+          and silently became false under serverless.
       max_payload_size:
         node_type: setting
         type: number
@@ -13273,6 +14075,7 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+    comment: Duration during which the host tags will be submitted with metrics.
   external_metrics:
     node_type: section
     type: object
@@ -13281,6 +14084,7 @@ properties:
         node_type: setting
         type: string
         default: avg
+        comment: aggregator used for the external metrics. Choose from [avg,sum,max,min]
   external_metrics_provider:
     node_type: section
     type: object
@@ -13289,38 +14093,48 @@ properties:
         node_type: setting
         type: string
         default: ''
+        comment: Override the Datadog API Key for external metrics endpoint
       app_key:
         node_type: setting
         type: string
         default: ''
+        comment: Override the Datadog APP Key for external metrics endpoint
       batch_window:
         node_type: setting
         type: number
         default: 10
         tags:
         - golang_type:int
+        comment: value in seconds. Batch the events from the Autoscalers informer
+          to push updates to the ConfigMap (GlobalStore)
       bucket_size:
         node_type: setting
         type: number
         default: 300
         tags:
         - golang_type:int
+        comment: Window to query to get the metric from Datadog.
       chunk_size:
         node_type: setting
         type: number
         default: 35
         tags:
         - golang_type:int
+        comment: Maximum number of queries to batch when querying Datadog.
       config:
         node_type: setting
         type: object
         default: {}
         additionalProperties:
           type: string
+        comment: list of options that can be used to configure the external metrics
+          server
       enable_datadogmetric_autogen:
         node_type: setting
         type: boolean
         default: true
+        comment: Enables autogeneration of DatadogMetrics when the DatadogMetric CRD
+          is in use
       enabled:
         node_type: setting
         type: boolean
@@ -13329,42 +14143,50 @@ properties:
         node_type: setting
         type: string
         default: ''
+        comment: Override the Datadog API endpoint to query external metrics from
       endpoints:
         node_type: setting
         type: array
         default: []
         tags:
         - no-env
+        comment: List of redundant endpoints to query external metrics from
       local_copy_refresh_rate:
         node_type: setting
         type: number
         default: 30
         tags:
         - golang_type:int
+        comment: value in seconds
       max_age:
         node_type: setting
         type: number
         default: 120
         tags:
         - golang_type:int
+        comment: value in seconds. 4 cycles from the Autoscaler controller (up to
+          Kubernetes 1.11) is enough to consider a metric stale
       max_parallel_queries:
         node_type: setting
         type: number
         default: 10
         tags:
         - golang_type:int
+        comment: Maximum number of parallel queries sent to Datadog simultaneously
       max_time_window:
         node_type: setting
         type: number
         default: 86400
         tags:
         - golang_type:int
+        comment: Maximum window to query to get the metric from Datadog.
       num_workers:
         node_type: setting
         type: number
         default: 2
         tags:
         - golang_type:int
+        comment: Number of workers spawned by controller (only when CRD is used)
       port:
         node_type: setting
         type: number
@@ -13377,30 +14199,39 @@ properties:
         default: 30
         tags:
         - golang_type:int
+        comment: value in seconds. Represents grace period to account for delay between
+          metric is resolved and when autoscaling controllers query for it
       refresh_period:
         node_type: setting
         type: number
         default: 30
         tags:
         - golang_type:int
+        comment: value in seconds. Frequency of calls to Datadog to refresh metric
+          values
       rollup:
         node_type: setting
         type: number
         default: 30
         tags:
         - golang_type:int
+        comment: Bucket size to circumvent time aggregation side effects.
       split_batches_with_backoff:
         node_type: setting
         type: boolean
         default: false
+        comment: Splits batches and runs queries with errors individually with an
+          exponential backoff
       use_datadogmetric_crd:
         node_type: setting
         type: boolean
         default: false
+        comment: Use DatadogMetric CRD with custom Datadog Queries instead of ConfigMap
       wpa_controller:
         node_type: setting
         type: boolean
         default: false
+        comment: Activates the controller for Watermark Pod Autoscalers.
   flare:
     node_type: section
     type: object
@@ -13453,12 +14284,14 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+    comment: flare configs
   flare_stripped_keys:
     node_type: setting
     type: array
     default: []
     items:
       type: string
+    comment: Yaml keys which values are stripped from flare
   fleet_layers:
     node_type: setting
     type: array
@@ -13472,24 +14305,28 @@ properties:
     tags:
     - TODO:fix-no-default
     - TODO:fix-missing-type
+    comment: Directory to store fleet policies
   forwarder_apikey_validation_interval:
     node_type: setting
     type: number
     default: 60
     tags:
     - golang_type:int
+    comment: in minutes
   forwarder_backoff_factor:
     node_type: setting
     type: number
     default: 2
     tags:
     - golang_type:int
+    comment: Forwarder retry settings
   forwarder_connection_reset_interval:
     node_type: setting
     type: number
     default: 0
     tags:
     - golang_type:int
+    comment: in seconds, 0 means disabled
   forwarder_flush_to_disk_mem_ratio:
     node_type: setting
     type: number
@@ -13512,16 +14349,19 @@ properties:
     default: 900
     tags:
     - golang_type:int
+    comment: 15 mins
   forwarder_retry_queue_max_size:
     node_type: setting
     type: number
     default: 0
     tags:
     - golang_type:int
+    comment: Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
   forwarder_storage_path:
     node_type: setting
     type: string
     default: ''
+    comment: Forwarder storage on disk
   go_core_dump:
     node_type: setting
     type: boolean
@@ -13552,6 +14392,7 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    comment: overridden in Heroku buildpack
   hostname_drift_initial_delay:
     node_type: setting
     type: number
@@ -13559,6 +14400,9 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+    comment: |-
+      Internal hostname drift detection configuration
+      These options are not exposed to customers and are used for testing purposes
   hostname_drift_recurring_interval:
     node_type: setting
     type: number
@@ -13570,6 +14414,9 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    comment: |-
+      When enabled, hostname defined in the configuration (datadog.yaml) and starting with `ip-` or `domu` on EC2 is used as
+      canonical hostname, otherwise the instance-id is used as canonical hostname.
   hostprofiler:
     node_type: section
     type: object
@@ -13602,6 +14449,7 @@ properties:
             node_type: setting
             type: string
             default: ''
+            comment: Host Profiler config
       health_metrics:
         node_type: section
         type: object
@@ -13634,6 +14482,7 @@ properties:
     default: 300
     tags:
     - golang_type:int
+    comment: 5 minutes
   hpa_watcher_polling_freq:
     node_type: setting
     type: number
@@ -13651,6 +14500,10 @@ properties:
     default: 5
     tags:
     - golang_type:int
+    comment: |-
+      IBM cloud
+      We use a long timeout here since the metadata and token API can be very slow sometimes.
+      value in seconds
   ignore_autoconf:
     node_type: setting
     type: array
@@ -13715,6 +14568,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: DatadogInstrumentation controller
   integration:
     node_type: section
     type: object
@@ -13725,6 +14579,8 @@ properties:
         default: []
         items:
           type: string
+        comment: 'integration.additional: additional checks to allow beyond the default
+          set (user configured)'
       basic:
         node_type: section
         type: object
@@ -13783,12 +14639,16 @@ properties:
             default: []
             items:
               type: string
+            comment: |-
+              Infrastructure end_user_device mode section
+              integration.end_user_device.allowed: empty means all checks are allowed
       excluded:
         node_type: setting
         type: array
         default: []
         items:
           type: string
+        comment: 'integration.excluded: checks to exclude (user configured)'
       full:
         node_type: section
         type: object
@@ -13799,6 +14659,9 @@ properties:
             default: []
             items:
               type: string
+            comment: |-
+              Infrastructure full mode section (default mode, allows all checks)
+              integration.full.allowed: empty means all checks are allowed
   integration_check_status_enabled:
     node_type: setting
     type: boolean
@@ -13809,10 +14672,15 @@ properties:
     default: []
     items:
       type: string
+    comment: Allowlisted file paths for untrusted providers (empty = allow all).
   integration_ignore_untrusted_file_params:
     node_type: setting
     type: boolean
     default: false
+    comment: |-
+      Integration security
+      When enabled, integrations will ignore configuration parameters that refer to file paths
+      Ignore file path params from untrusted providers (e.g. labels, annotations) when enabled.
   integration_profiling:
     node_type: setting
     type: boolean
@@ -13823,6 +14691,7 @@ properties:
     default: []
     items:
       type: string
+    comment: Integrations excluded from these restrictions.
   integration_tracing:
     node_type: setting
     type: boolean
@@ -13839,6 +14708,7 @@ properties:
     - remote-config
     items:
       type: string
+    comment: 'Trusted config providers (others are untrusted). Defaults: file, remote-config.'
   internal_profiling:
     node_type: section
     type: object
@@ -13887,6 +14757,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: internal profiling
       extra_tags:
         node_type: setting
         type: array
@@ -13915,14 +14786,17 @@ properties:
         node_type: setting
         type: string
         default: ''
+        comment: file system path to a unix socket, e.g. `/var/run/datadog/apm.socket`
   inventories_checks_configuration_enabled:
     node_type: setting
     type: boolean
     default: true
+    comment: controls the checks configurations
   inventories_collect_cloud_provider_account_id:
     node_type: setting
     type: boolean
     default: true
+    comment: collect collection of `cloud_provider_account_id`
   inventories_diagnostics_enabled:
     node_type: setting
     type: boolean
@@ -13931,28 +14805,35 @@ properties:
     node_type: setting
     type: boolean
     default: true
+    comment: inventories
   inventories_first_run_delay:
     node_type: setting
     type: number
     default: 60
     tags:
     - golang_type:int
+    comment: Seconds to wait to sent metadata payload to the backend after startup
   inventories_max_interval:
     node_type: setting
     type: number
     default: 0
     tags:
     - golang_type:int
+    comment: |-
+      when updating the default here also update pkg/metadata/inventories/README.md
+      0 == default interval from inventories
   inventories_min_interval:
     node_type: setting
     type: number
     default: 0
     tags:
     - golang_type:int
+    comment: 0 == default interval from inventories
   iot_host:
     node_type: setting
     type: boolean
     default: false
+    comment: overridden in IoT Agent main
   ipc_address:
     node_type: setting
     tags:
@@ -13962,24 +14843,31 @@ properties:
     node_type: setting
     type: string
     default: ''
+    comment: used to override the path where the IPC cert/key files are stored/retrieved
   jmx_statsd_client_buffer_size:
     node_type: setting
     type: number
     default: 0
     tags:
     - golang_type:int
+    comment: the "buffer" here is the socket send buffer (SO_SNDBUF) and the size
+      is in bytes
   jmx_statsd_client_queue_size:
     node_type: setting
     type: number
     default: 4096
     tags:
     - golang_type:int
+    comment: |-
+      The following jmx_statsd_client-* options are internal and will not be documented
+      the queue size is the no. of elements (metrics, event, service checks) it can hold.
   jmx_statsd_client_socket_timeout:
     node_type: setting
     type: number
     default: 0
     tags:
     - golang_type:int
+    comment: the socket timeout (SO_SNDTIMEO) is in milliseconds
   jmx_statsd_client_use_non_blocking:
     node_type: setting
     type: boolean
@@ -14002,15 +14890,17 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: Kubernetes actions
       forwarder:
         node_type: section
         type: object
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -14053,9 +14943,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -14070,9 +14959,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -14125,6 +15013,7 @@ properties:
     default: 0
     tags:
     - golang_type:int
+    comment: not exposed yet. In seconds. 0 means use workloadmeta default
   kubelet_core_check_enabled:
     node_type: setting
     type: boolean
@@ -14153,6 +15042,7 @@ properties:
     default: 300
     tags:
     - golang_type:int
+    comment: value in seconds. Default to 5 minutes
   kubernetes_kube_service_ignore_readiness:
     node_type: setting
     type: boolean
@@ -14184,6 +15074,7 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    comment: temporary opt-out of the new mapping logic
   kubernetes_namespace_annotations_as_tags:
     node_type: setting
     type: object
@@ -14202,10 +15093,28 @@ properties:
     node_type: setting
     type: string
     default: '{}'
+    comment: |-
+      kubernetes_resources_annotations_as_tags should be parseable as map[string]map[string]string
+      it maps group resources to annotations as tags maps
+      a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
+      examples of group resources:
+      - `deployments.apps`
+      - `statefulsets.apps`
+      - `pods`
+      - `nodes`
   kubernetes_resources_labels_as_tags:
     node_type: setting
     type: string
     default: '{}'
+    comment: |-
+      kubernetes_resources_labels_as_tags should be parseable as map[string]map[string]string
+      it maps group resources to labels as tags maps
+      a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
+      examples of group resources:
+      - `deployments.apps`
+      - `statefulsets.apps`
+      - `pods`
+      - `nodes`
   language_detection:
     node_type: section
     type: object
@@ -14214,6 +15123,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: Language Detection
       reporting:
         node_type: section
         type: object
@@ -14222,6 +15132,9 @@ properties:
             node_type: setting
             type: string
             default: 10s
+            comment: buffer period represents how frequently newly detected languages
+              buffer is flushed by reporting its content to the language detection
+              handler in the cluster agent
           enabled:
             node_type: setting
             type: boolean
@@ -14230,6 +15143,9 @@ properties:
             node_type: setting
             type: string
             default: 20m
+            comment: TTL refresh period represents how frequently actively detected
+              languages are refreshed by reporting them again to the language detection
+              handler in the cluster agent
   leader_election_default_resource:
     node_type: setting
     type: string
@@ -14246,10 +15162,13 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    comment: deprecated, use logs_enabled instead
   log_payloads:
     node_type: setting
     type: boolean
     default: false
+    comment: If enabling log_payloads, ensure the log level is set to at least DEBUG
+      to be able to see the logs
   logging_frequency:
     node_type: setting
     type: number
@@ -14264,12 +15183,19 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: Logon Duration (EUDM)
   metadata_endpoints_max_hostname_size:
     node_type: setting
     type: number
     default: 255
     tags:
     - golang_type:int
+    comment: |-
+      Metadata endpoints
+      Defines the maximum size of hostame gathered from EC2, GCE, Azure, Alibaba, Oracle and Tencent cloud metadata
+      endpoints (all cloudprovider except IBM). IBM cloud ignore this setting as their API return a huge JSON with
+      all the metadata for the VM.
+      Used internally to protect against configurations where metadata endpoints return incorrect values with 200 status codes.
   metadata_provider_stop_timeout:
     node_type: setting
     type: number
@@ -14283,6 +15209,11 @@ properties:
     default: []
     items:
       type: string
+    comment: |-
+      Delegated authentication (global)
+      Cloud provider and region are auto-detected if not specified
+      Enabled automatically when org_uuid is specified
+      Filterlist
   metric_filterlist_match_prefix:
     node_type: setting
     type: boolean
@@ -14291,6 +15222,13 @@ properties:
     node_type: setting
     type: array
     default: []
+  metric_tag_filterlist_adp_only:
+    node_type: setting
+    type: boolean
+    default: true
+    comment: |-
+      When true (default), metric_tag_filterlist tag stripping is only applied when data_plane.enabled is true.
+      Set to false to apply tag stripping regardless of whether ADP is running.
   metrics_port:
     node_type: setting
     type: number
@@ -14303,14 +15241,12 @@ properties:
     properties:
       api_key:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       enabled:
         node_type: setting
         type: boolean
@@ -14329,14 +15265,16 @@ properties:
         default: false
       logs_service_allowlist:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: string
       metric_allowlist:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: string
       remote_configuration:
         node_type: section
         type: object
@@ -14360,19 +15298,16 @@ properties:
                 - golang_type:duration
           config_root:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           director_root:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           key:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           max_backoff_interval:
             node_type: setting
             type: number
@@ -14382,9 +15317,11 @@ properties:
             - golang_type:duration
           max_backoff_time:
             node_type: setting
+            type: number
+            default: 0s
+            format: duration
             tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            - golang_type:duration
           org_status_refresh_interval:
             node_type: setting
             type: number
@@ -14399,9 +15336,8 @@ properties:
             - TODO:fix-missing-type
       site:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
   network:
     node_type: section
     type: object
@@ -14411,6 +15347,7 @@ properties:
         tags:
         - TODO:fix-no-default
         - TODO:fix-missing-type
+        comment: Network
   network_check:
     node_type: section
     type: object
@@ -14431,9 +15368,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -14476,9 +15414,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -14493,9 +15430,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -14550,6 +15486,7 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            comment: Network Config Management
   notable_events:
     node_type: section
     type: object
@@ -14558,6 +15495,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: Notable Events (EUDM)
   ol_proxy_config:
     node_type: section
     type: object
@@ -14614,6 +15552,7 @@ properties:
         node_type: setting
         type: boolean
         default: true
+        comment: trace-agent's ol_proxy. Same rationale as evp_proxy above.
   orchestrator_explorer:
     node_type: section
     type: object
@@ -14634,6 +15573,9 @@ properties:
             node_type: setting
             type: boolean
             default: true
+            comment: |-
+              enabling/disabling the environment variables & command scrubbing from the container specs
+              this option will potentially impact the CPU usage of the agent
       custom_resources:
         node_type: section
         type: object
@@ -14680,6 +15622,7 @@ properties:
         node_type: setting
         type: boolean
         default: true
+        comment: Orchestrator Explorer DCA and core agent
       extra_tags:
         node_type: setting
         type: array
@@ -14761,7 +15704,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
       terminated_resources:
         node_type: section
         type: object
@@ -14779,10 +15722,16 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    comment: |-
+      If enabled, all origin detection mechanisms will be unified to use the same logic.
+      Will override all other origin detection settings in favor of the unified one.
   otel_standalone:
     node_type: setting
     type: boolean
     default: false
+    comment: |-
+      otel_standalone controls whether otel-agent runs in standalone mode (with full secrets, tagger server)
+      or connected mode (expects core agent for secrets and tagger)
   otelcollector:
     node_type: section
     type: object
@@ -14813,12 +15762,14 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: OTel Collector
       extension_timeout:
         node_type: setting
         type: number
         default: 0
         tags:
         - golang_type:int
+        comment: in seconds, 0 for default value
       extension_url:
         node_type: setting
         type: string
@@ -14849,10 +15800,12 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: dev flag - to be removed
   prioritize_go_check_loader:
     node_type: setting
     type: boolean
     default: true
+    comment: If true, then the go loader will be prioritized over the python loader.
   proc_root:
     node_type: setting
     type: string
@@ -14865,10 +15818,25 @@ properties:
         node_type: setting
         type: string
         default: ''
+        comment: '[DEPRECATED] JSON check template applied to each discovered target.
+          Use prometheus_http_sd.configs instead.'
+      configs:
+        node_type: setting
+        type: array
+        default: []
+        env_parser: json
+        items:
+          type: object
+        comment: |-
+          Prometheus HTTP Service Discovery
+          List of HTTP SD endpoints to poll. Each entry must specify url and check_template.
       url:
         node_type: setting
         type: string
         default: ''
+        comment: |-
+          DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
+          [DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs instead.
   provider_kind:
     node_type: setting
     tags:
@@ -14878,6 +15846,9 @@ properties:
     node_type: setting
     type: boolean
     default: true
+    comment: |-
+      If true, Python is loaded when the first Python check is loaded.
+      Otherwise, Python is loaded when the collector is initialized.
   remote_agent:
     node_type: section
     type: object
@@ -14909,6 +15880,7 @@ properties:
             node_type: setting
             type: boolean
             default: true
+            comment: Remote agents
           idle_timeout:
             node_type: setting
             type: number
@@ -14938,12 +15910,14 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: Remote flags
   remote_policies:
     node_type: setting
     type: boolean
     default: false
     tags:
     - no-env
+    comment: Legacy installer configuration
   remote_tagger:
     node_type: section
     type: object
@@ -14954,6 +15928,7 @@ properties:
         default: 3
         tags:
         - golang_type:int
+        comment: Remote tagger
   run_path:
     node_type: setting
     type: string
@@ -14976,9 +15951,10 @@ properties:
                 properties:
                   additional_endpoints:
                     node_type: setting
-                    tags:
-                    - TODO:fix-no-default
-                    - TODO:fix-missing-type
+                    type: array
+                    default: []
+                    items:
+                      type: object
                   batch_max_concurrent_send:
                     node_type: setting
                     type: number
@@ -15021,9 +15997,8 @@ properties:
                     - golang_type:int
                   dd_url:
                     node_type: setting
-                    tags:
-                    - TODO:fix-no-default
-                    - TODO:fix-missing-type
+                    type: string
+                    default: ''
                   dev_mode_no_ssl:
                     node_type: setting
                     type: boolean
@@ -15038,9 +16013,8 @@ properties:
                     - golang_type:int
                   logs_dd_url:
                     node_type: setting
-                    tags:
-                    - TODO:fix-no-default
-                    - TODO:fix-missing-type
+                    type: string
+                    default: ''
                   logs_no_ssl:
                     node_type: setting
                     type: boolean
@@ -15099,15 +16073,17 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: Datadog security agent (runtime)
       endpoints:
         node_type: section
         type: object
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -15150,9 +16126,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -15167,9 +16142,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -15250,6 +16224,7 @@ properties:
         default: 5010
         tags:
         - golang_type:int
+        comment: Datadog security agent (common)
       disable_thp:
         node_type: setting
         type: boolean
@@ -15432,6 +16407,8 @@ properties:
     default: 2621440
     tags:
     - golang_type:int
+    comment: 'Warning: do not change the following values. Your payloads will get
+      dropped by Datadog''s intake.'
   serializer_max_series_payload_size:
     node_type: setting
     type: number
@@ -15472,6 +16449,7 @@ properties:
         default: false
         tags:
         - no-env
+        comment: Serverless Agent
       logs_enabled:
         node_type: setting
         type: boolean
@@ -15507,9 +16485,10 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -15552,9 +16531,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -15569,9 +16547,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -15626,6 +16603,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: Shared library check
       library_folder_path:
         node_type: setting
         type: string
@@ -15750,15 +16728,17 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: Software Inventory
       forwarder:
         node_type: section
         type: object
         properties:
           additional_endpoints:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: array
+            default: []
+            items:
+              type: object
           batch_max_concurrent_send:
             node_type: setting
             type: number
@@ -15801,9 +16781,8 @@ properties:
             - golang_type:int
           dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           dev_mode_no_ssl:
             node_type: setting
             type: boolean
@@ -15818,9 +16797,8 @@ properties:
             - golang_type:int
           logs_dd_url:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           logs_no_ssl:
             node_type: setting
             type: boolean
@@ -15935,18 +16913,26 @@ properties:
             default: []
             items:
               type: string
+            comment: The histogram buckets use to track the time in nanoseconds it
+              takes for the DogStatsD server to push data to the aggregator
           listeners_channel_latency_buckets:
             node_type: setting
             type: array
             default: []
             items:
               type: string
+            comment: The histogram buckets use to track the time in nanoseconds it
+              takes for a DogStatsD listeners to push data to the server
           listeners_latency_buckets:
             node_type: setting
             type: array
             default: []
             items:
               type: string
+            comment: |-
+              We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
+
+              The histogram buckets use to track the time in nanoseconds DogStatsD listeners are not reading/waiting new data
       dogstatsd_origin:
         node_type: setting
         type: boolean
@@ -15955,6 +16941,10 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: |-
+          Telemetry
+          Enable telemetry metrics on the internals of the Agent.
+          This create a lot of billable custom metrics.
       offlinereporter:
         node_type: section
         type: object
@@ -15984,14 +16974,19 @@ properties:
     node_type: setting
     type: string
     default: ''
+    comment: deprecated
   tracemalloc_whitelist:
     node_type: setting
     type: string
     default: ''
+    comment: deprecated
   use_diskv2_check:
     node_type: setting
     type: boolean
     default: true
+    comment: |-
+      If true, then new version of disk v2 check will be used.
+      Otherwise, the python version of disk check will be used.
   use_improved_cgroup_parser:
     node_type: setting
     type: boolean
@@ -16002,6 +16997,10 @@ properties:
     platform_default:
       darwin: false
       other: true
+    comment: |-
+      the darwin and bsd network check has not been ported from python
+      If true, then new version of network v2 check will be used.
+      Otherwise, the python version of network check will be used.
   use_v2_api:
     node_type: section
     type: object
@@ -16054,6 +17053,7 @@ properties:
     node_type: setting
     type: string
     default: ''
+    comment: Vsock
   win_skip_com_init:
     node_type: setting
     type: boolean
@@ -16064,12 +17064,36 @@ properties:
     default: 20
     tags:
     - golang_type:int
+    comment: |-
+      Added in Agent version 7.42
+      Limits the number of times a check will attempt to initialize a performance counter before ceasing
+      attempts to initialize the counter. This allows the Agent to stop incurring the overhead of trying
+      to initialize a counter that will probably never succeed. For example, when the performance counter
+      database needs to be rebuilt or the counter is disabled.
+      https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/manually-rebuild-performance-counters
+
+      The value of this option should be chosen in consideration with the windows_counter_refresh_interval option.
+      The performance counter cache is refreshed during subsequent attempts to intiialize a counter that failed
+      the first time (with consideration of the windows_counter_refresh_interval value).
+      It is unknown if it is possible for a counter that failed to initialize to later succeed without a refresh
+      in between the attempts. Consequently, if windows_counter_refresh_interval is 0 (disabled), then this option should
+      be 1. If this option is too small compared to the windows_counter_refresh_interval, it is possible to reach the limit
+      before a refresh occurs. Typically there is one attempt per check run, and check runs are 15 seconds apart by default.
+
+      Increasing this value may help in the rare instance where counters are not available for some time after host boot.
+
+      Setting this option to 0 disables the limit and the Agent will attempt to initialize the counter forever.
+      The default value of 20 means the Agent will retry counter intialization for roughly 5 minutes.
   windows_counter_refresh_interval:
     node_type: setting
     type: number
     default: 60
     tags:
     - golang_type:int
+    comment: |-
+      Windows Performance Counter refresh interval in seconds (introduced in 7.40, narrowed down
+      in 7.42). Additional information can be found where it is used (refreshPdhObjectCache())
+      The refresh can be disabled by setting the interval to 0.
   workloadmeta:
     node_type: section
     type: object
@@ -16085,6 +17109,7 @@ properties:
             format: duration
             tags:
             - golang_type:duration
+            comment: Remote process collector
       remote:
         node_type: section
         type: object
@@ -16093,6 +17118,8 @@ properties:
             node_type: setting
             type: boolean
             default: true
+            comment: debug config to enable a remote client to receive data from the
+              workloadmeta agent without a timeout
 $schema: https://json-schema.org/draft/2020-12/schema
 $id: https://raw.githubusercontent.com/DataDog/schema/main/agent/datadog.yaml.schema.json
 title: DataDog Agent configuration schema

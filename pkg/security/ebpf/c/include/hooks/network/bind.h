@@ -6,7 +6,7 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) sys_bind(u64 pid_tgid) {
+int __attribute__((always_inline)) sys_bind(void *ctx, u64 pid_tgid) {
     struct syscall_cache_t syscall = {
         .type = EVENT_BIND,
         .async = pid_tgid ? 1: 0,
@@ -14,7 +14,7 @@ int __attribute__((always_inline)) sys_bind(u64 pid_tgid) {
             .pid_tgid = pid_tgid,
         }
     };
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
@@ -23,7 +23,7 @@ HOOK_SYSCALL_ENTRY3(bind, int, socket, struct sockaddr *, addr, unsigned int, ad
         return 0;
     }
 
-    return sys_bind(0);
+    return sys_bind(ctx, 0);
 }
 
 int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
@@ -82,7 +82,7 @@ HOOK_ENTRY("io_bind")
 int hook_io_bind(ctx_t *ctx) {
     void *raw_req = (void *)CTX_PARM1(ctx);
     u64 pid_tgid = get_pid_tgid_from_iouring(raw_req);
-    return sys_bind(pid_tgid);
+    return sys_bind(ctx, pid_tgid);
 }
 
 HOOK_EXIT("io_bind")

@@ -42,6 +42,7 @@
 /CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-delivery
 
 /*.md                                   @DataDog/agent-devx
+/CHANGELOG-AIX.md                       @DataDog/agent-runtimes
 /NOTICE                                 @DataDog/agent-delivery
 
 /LICENSE*                               # do not notify anyone
@@ -105,7 +106,6 @@
 /.gitlab/.pre/maintenance_jobs/*                          @DataDog/agent-devx
 /.gitlab/.post/notify/*                                    @DataDog/agent-devx
 /.gitlab/build/pkg_metrics/*                               @DataDog/agent-devx
-/.gitlab/.post/post_rc_build/*                             @DataDog/agent-delivery
 /.gitlab/.pre/setup/*                                     @DataDog/agent-devx
 /.gitlab/deploy/trigger_distribution.yml                      @DataDog/agent-delivery
 /.gitlab/distribute/trigger_release/*                           @DataDog/agent-devx @DataDog/agent-delivery
@@ -223,6 +223,7 @@
 /cmd/agent/subcommands/run/internal/clcrunnerapi/       @DataDog/container-platform
 /cmd/agent/windows                      @DataDog/windows-products
 /cmd/agent/windows_resources            @DataDog/windows-products
+/cmd/agent/dist/conf.d/                 @DataDog/agent-integrations
 /cmd/agent/dist/conf.d/container.d/     @DataDog/container-integrations
 /cmd/agent/dist/conf.d/containerd.d/    @DataDog/container-integrations
 /cmd/agent/dist/conf.d/container_image.d/      @DataDog/container-integrations
@@ -238,7 +239,7 @@
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-products
 /cmd/agent/dist/conf.d/windows_certificate.d/ @DataDog/windows-products
 /cmd/agent/install*.sh                  @DataDog/agent-build
-/cmd/agent/macos/                       @DataDog/windows-products @DataDog/telemetry-onboarding
+/cmd/agent/macos/                       @DataDog/windows-products
 /cmd/ai_prompt_logger/                  @DataDog/windows-products
 /cmd/cluster-agent/                     @DataDog/container-platform
 /cmd/cluster-agent/subcommands/autoscalerlist   @DataDog/container-autoscaling @DataDog/container-integrations
@@ -315,9 +316,8 @@
 /omnibus/package-scripts/installer-deb/ @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/installer-rpm/ @DataDog/agent-build @DataDog/fleet
 /omnibus/python-scripts/                @DataDog/agent-integrations @DataDog/windows-products
-/deps/openscap/patches                  @DataDog/agent-cspm @DataDog/agent-security
+/deps/openscap/                         @DataDog/agent-build @DataDog/agent-cspm @DataDog/agent-security
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
-/omnibus/config/software/openscap.rb                      @DataDog/agent-build @DataDog/agent-cspm @DataDog/agent-security
 /omnibus/resources/*/msi/                                 @DataDog/windows-products
 
 /packages/                              @DataDog/agent-build
@@ -365,6 +365,7 @@
 /comp/core/configstream @DataDog/agent-configuration
 /comp/core/configstreamconsumer @DataDog/agent-configuration
 /comp/core/configsync @DataDog/agent-configuration
+/comp/core/diagnose @DataDog/agent-configuration
 /comp/core/flare @DataDog/agent-configuration
 /comp/core/gui @DataDog/agent-configuration
 /comp/core/profiler @DataDog/agent-configuration
@@ -391,6 +392,10 @@
 /comp/trace-telemetry @DataDog/agent-runtimes
 /comp/updater/daemonchecker @DataDog/fleet
 /comp/updater/ssistatus @DataDog/fleet
+/comp/anomalydetection/logssource @DataDog/q-branch
+/comp/anomalydetection/observer @DataDog/q-branch
+/comp/anomalydetection/recorder @DataDog/q-branch
+/comp/anomalydetection/reporter @DataDog/q-branch
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/connectivitychecker @DataDog/fleet
 /comp/dataobs/queryactions @DataDog/data-observability
@@ -491,7 +496,7 @@
 /comp/core/autodiscovery/providers/process_log*.go @DataDog/agent-discovery @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/fleet
 /comp/core/autodiscovery/providers/datastreams @DataDog/data-streams-monitoring
-/comp/core/gui/guiimpl/systray/ @DataDog/windows-products @DataDog/agent-configuration
+/comp/core/gui/impl/systray/ @DataDog/windows-products @DataDog/agent-configuration
 /comp/healthplatform/issues/admisconfig @DataDog/container-platform @DataDog/agent-health
 /comp/healthplatform/issues/rofspermissions @DataDog/container-platform @DataDog/agent-health
 /pkg/cloudfoundry                       @DataDog/agent-integrations
@@ -504,7 +509,6 @@
 /pkg/clusteragent/admission/mutate/appsec               @DataDog/container-platform @DataDog/asm-go
 /pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/injection-platform
 /pkg/clusteragent/admission/mutate/cwsinstrumentation    @DataDog/agent-security
-/pkg/clusteragent/admission/mutate/ncclprofiler/         @DataDog/container-platform @DataDog/ebpf-platform
 /pkg/clusteragent/appsec/               @DataDog/asm-go @DataDog/container-platform
 /pkg/clusteragent/orchestrator/         @DataDog/kubernetes-experiences
 /pkg/clusteragent/telemetry/            @DataDog/apm-trace-storage
@@ -530,7 +534,6 @@
 /pkg/collector/corechecks/embed/apm/               @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/           @DataDog/container-experiences
 /pkg/collector/corechecks/gpu/                     @DataDog/ebpf-platform
-/pkg/collector/corechecks/gpu/nccl/               @DataDog/container-platform @DataDog/ebpf-platform
 /pkg/collector/corechecks/networkconfigmanagement/ @DataDog/ndm-integrations
 /pkg/collector/corechecks/network-devices/         @DataDog/ndm-integrations
 /pkg/collector/corechecks/orchestrator/   @DataDog/kubernetes-experiences
@@ -567,7 +570,7 @@
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/meta/                @DataDog/remote-config
 /pkg/containerlifecycle/                @DataDog/container-integrations
-/pkg/diagnose/                          @DataDog/container-platform
+/pkg/diagnose/                          @DataDog/agent-configuration
 /pkg/diagnose/connectivity/             @DataDog/agent-configuration
 /pkg/diagnose/firewallscanner/          @DataDog/network-device-monitoring-core
 /pkg/diagnose/ports/                    @DataDog/agent-configuration
@@ -659,7 +662,6 @@
 /pkg/logs/launchers/windowsevent        @DataDog/agent-log-pipelines @DataDog/windows-products
 /pkg/logs/tailers/windowsevent          @DataDog/agent-log-pipelines @DataDog/windows-products
 /pkg/logs/util/windowsevent             @DataDog/agent-log-pipelines @DataDog/windows-products
-/pkg/logs/client                        @DataDog/agent-log-pipelines
 /pkg/logs/diagnostic                    @DataDog/agent-log-pipelines
 /pkg/logs/message                       @DataDog/agent-log-pipelines
 /pkg/process/                           @DataDog/container-experiences
@@ -925,11 +927,6 @@
 /internal/third_party/kubernetes        @DataDog/container-integrations
 /internal/third_party/golang/           @DataDog/container-integrations
 
-# Temporary during Bazel migration
-# This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
-/**/BUILD.bazel                         @DataDog/agent-build
-/**/*.bzl                               @DataDog/agent-build
-
 # With the introduction of go.work, dependencies bump modify go.mod and go.sum in a lot of file.
 # Which bring a lot of team in the review each time. To make it smoother we no longer consider go.mod and go.sum owned by teams.
 # Each team can individually decide to update CODEOWNERS to be requested for a review on each modification of their go.mod/sum
@@ -942,6 +939,12 @@
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
 
 /q_branch/                               @DataDog/q-branch
+/comp/anomalydetection/                  @DataDog/q-branch # Useful for AGENTS.md files etc. at the root of all AD components
 
 # AI-related files
 /.claude/skills/explain-lading-config @DataDog/single-machine-performance
+
+# Temporary during Bazel migration
+# This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
+/**/BUILD.bazel                         @DataDog/agent-build
+/**/*.bzl                               @DataDog/agent-build

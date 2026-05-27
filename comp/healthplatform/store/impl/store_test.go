@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -21,881 +22,395 @@ import (
 	"github.com/stretchr/testify/require"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
-	forwardermock "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/mock"
-	checkrunnermock "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/mock"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
-	noopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
-
-	// Register issue modules so tests that call ReportIssue can resolve issue templates.
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions"
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/rofspermissions"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 )
 
-// mockLifecycle is a minimal implementation of lifecycle for testing
-type mockLifecycle struct {
-	hooks []compdef.Hook
+// memPersistence stores state in memory, replacing disk I/O in unit tests.
+type memPersistence struct {
+	mu    sync.Mutex
+	state *PersistedState
 }
 
-func newMockLifecycle() *mockLifecycle {
-	return &mockLifecycle{
-		hooks: make([]compdef.Hook, 0),
-	}
+func (m *memPersistence) load() (*PersistedState, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.state, nil
 }
 
-func (m *mockLifecycle) Append(hook compdef.Hook) {
-	m.hooks = append(m.hooks, hook)
-}
-
-func (m *mockLifecycle) Start(ctx context.Context) error {
-	for _, hook := range m.hooks {
-		if hook.OnStart != nil {
-			if err := hook.OnStart(ctx); err != nil {
-				return err
-			}
-		}
-	}
+func (m *memPersistence) save(state *PersistedState) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.state = state
 	return nil
 }
 
-func (m *mockLifecycle) Stop(ctx context.Context) error {
-	for _, hook := range m.hooks {
-		if hook.OnStop != nil {
-			if err := hook.OnStop(ctx); err != nil {
-				return err
-			}
-		}
-	}
+// mockHostname implements hostnameinterface.Component in tests.
+type mockHostname struct{ name string }
+
+func (m *mockHostname) Get(_ context.Context) (string, error) { return m.name, nil }
+func (m *mockHostname) GetSafe(_ context.Context) string      { return m.name }
+func (m *mockHostname) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
+	return hostnameinterface.Data{Hostname: m.name, Provider: "mock"}, nil
+}
+
+var _ hostnameinterface.Component = (*mockHostname)(nil)
+
+// mockFlareBuilder captures AddFile calls; stubs the rest of the interface.
+type mockFlareBuilder struct {
+	mu    sync.Mutex
+	files map[string][]byte
+}
+
+func newMockFlareBuilder() *mockFlareBuilder {
+	return &mockFlareBuilder{files: make(map[string][]byte)}
+}
+func (f *mockFlareBuilder) get(name string) ([]byte, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	d, ok := f.files[name]
+	return d, ok
+}
+func (f *mockFlareBuilder) AddFile(name string, content []byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.files[name] = content
 	return nil
 }
-
-// testRequires creates a Requires struct for testing with health platform enabled
-func testRequires(t *testing.T, lifecycle *mockLifecycle) Requires {
-	// Clear Kubernetes env vars so tests are not sensitive to the CI runner environment.
-	// Without this, tests that expect diskPersistence may get noopPersistence on K8s runners.
-	t.Setenv("KUBERNETES_SERVICE_PORT", "")
-	t.Setenv("KUBERNETES", "")
-
-	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("health_platform.enabled", true)
-	// Use temp directory to avoid test interference
-	cfg.SetWithoutSource("run_path", t.TempDir())
-
-	if lifecycle == nil {
-		lifecycle = newMockLifecycle()
-	}
-
-	hostnameMock, _ := hostnameinterface.NewMock("test-hostname")
-
-	return Requires{
-		Lifecycle:   lifecycle,
-		Config:      cfg,
-		Log:         logmock.New(t),
-		Telemetry:   nooptelemetry.GetCompatComponent(),
-		Hostname:    hostnameMock,
-		CheckRunner: checkrunnermock.New(),
-		Forwarder:   forwardermock.New(),
-	}
+func (f *mockFlareBuilder) AddFileWithoutScrubbing(name string, content []byte) error {
+	return f.AddFile(name, content)
 }
-
-// testRequiresWithRunPath creates a Requires struct with a custom run_path for persistence testing
-func testRequiresWithRunPath(t *testing.T, lifecycle *mockLifecycle, runPath string) Requires {
-	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("health_platform.enabled", true)
-	cfg.SetWithoutSource("run_path", runPath)
-
-	if lifecycle == nil {
-		lifecycle = newMockLifecycle()
+func (f *mockFlareBuilder) AddFileFromFunc(name string, cb func() ([]byte, error)) error {
+	b, err := cb()
+	if err != nil {
+		return err
 	}
+	return f.AddFile(name, b)
+}
+func (f *mockFlareBuilder) IsLocal() bool                                    { return false }
+func (f *mockFlareBuilder) Logf(_ string, _ ...interface{}) error            { return nil }
+func (f *mockFlareBuilder) CopyFile(_ string) error                          { return nil }
+func (f *mockFlareBuilder) CopyFileTo(_, _ string) error                     { return nil }
+func (f *mockFlareBuilder) CopyDirTo(_, _ string, _ func(string) bool) error { return nil }
+func (f *mockFlareBuilder) CopyDirToWithoutScrubbing(_, _ string, _ func(string) bool) error {
+	return nil
+}
+func (f *mockFlareBuilder) PrepareFilePath(_ string) (string, error) { return "", nil }
+func (f *mockFlareBuilder) RegisterFilePerm(_ string)                {}
+func (f *mockFlareBuilder) RegisterDirPerm(_ string)                 {}
+func (f *mockFlareBuilder) GetFlareArgs() flarebuilder.FlareArgs     { return flarebuilder.FlareArgs{} }
+func (f *mockFlareBuilder) Save() (string, error)                    { return "", nil }
 
-	hostnameMock, _ := hostnameinterface.NewMock("test-hostname")
+var _ flarebuilder.FlareBuilder = (*mockFlareBuilder)(nil)
 
-	return Requires{
-		Lifecycle:   lifecycle,
-		Config:      cfg,
-		Log:         logmock.New(t),
-		Telemetry:   nooptelemetry.GetCompatComponent(),
-		Hostname:    hostnameMock,
-		CheckRunner: checkrunnermock.New(),
-		Forwarder:   forwardermock.New(),
+func newTestStore(t *testing.T) *healthPlatformImpl {
+	t.Helper()
+	tel := telemetrymock.New(t)
+	return &healthPlatformImpl{
+		log:              logmock.New(t),
+		telemetry:        tel,
+		hostnameProvider: &mockHostname{name: "test-host"},
+		agentFlavor:      "agent",
+		issues:           make(map[string]*healthplatformpayload.Issue),
+		issuesByName:     make(map[string]map[string]struct{}),
+		persistedIssues:  make(map[string]*PersistedIssue),
+		persistence:      &memPersistence{},
+		metrics: telemetryMetrics{
+			issuesCounter: tel.NewCounter(
+				"health_platform", "issues_detected", []string{"issue_type"}, ""),
+		},
 	}
 }
 
-// TestNewComponent tests component initialization
-func TestNewComponent(t *testing.T) {
-	reqs := testRequires(t, nil)
-
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
-	require.NotNil(t, provides.Comp)
-
-	// Test that the component implements the interface
-	var _ healthplatform.Component = provides.Comp
+func TestReportIssueNil(t *testing.T) {
+	h := newTestStore(t)
+	err := h.ReportIssue(nil)
+	assert.ErrorContains(t, err, "nil")
 }
 
-// TestReportIssue tests direct issue reporting functionality
-func TestReportIssue(t *testing.T) {
-	lifecycle := newMockLifecycle()
-	reqs := testRequires(t, lifecycle)
-
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
-	comp := provides.Comp
-
-	// Start the component
-	err = lifecycle.Start(context.Background())
-	require.NoError(t, err)
-
-	// Report an issue
-	err = comp.ReportIssue(
-		"logs-docker-file-permissions",
-		"Docker File Tailing Permissions",
-		&healthplatformpayload.IssueReport{
-			IssueId: "docker-file-tailing-disabled",
-			Context: map[string]string{
-				"dockerDir": "/var/lib/docker",
-				"os":        "linux",
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	// Test GetAllIssues
-	count, allIssues := comp.GetAllIssues()
-	assert.Equal(t, 1, count)
-	assert.NotNil(t, allIssues)
-	assert.Contains(t, allIssues, "logs-docker-file-permissions")
-
-	// Test GetIssue
-	issueForCheck := comp.GetIssue("logs-docker-file-permissions")
-	assert.NotNil(t, issueForCheck)
-	assert.Equal(t, "docker-file-tailing-disabled", issueForCheck.Id)
-
-	// Test GetIssue with non-existent check
-	nonExistentIssue := comp.GetIssue("non-existent")
-	assert.Nil(t, nonExistentIssue)
-
-	// Stop the component
-	err = lifecycle.Stop(context.Background())
-	require.NoError(t, err)
+func TestReportIssueEmptyID(t *testing.T) {
+	h := newTestStore(t)
+	err := h.ReportIssue(&healthplatformpayload.Issue{Id: "", IssueName: "some-type"})
+	assert.ErrorContains(t, err, "issue id")
 }
 
-// TestIssueResolution tests issue resolution (reporting nil)
-func TestIssueResolution(t *testing.T) {
-	lifecycle := newMockLifecycle()
-	reqs := testRequires(t, lifecycle)
-
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
-	comp := provides.Comp
-
-	// Start the component
-	err = lifecycle.Start(context.Background())
-	require.NoError(t, err)
-
-	// Report an issue
-	err = comp.ReportIssue(
-		"test-check-1",
-		"Test Check",
-		&healthplatformpayload.IssueReport{
-			IssueId: "docker-file-tailing-disabled",
-			Context: map[string]string{
-				"dockerDir": "/var/lib/docker",
-				"os":        "linux",
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	// Verify issue exists
-	count, _ := comp.GetAllIssues()
-	assert.Equal(t, 1, count)
-
-	// Report resolution (nil report)
-	err = comp.ReportIssue("test-check-1", "Test Check", nil)
-	require.NoError(t, err)
-
-	// Verify issue was removed
-	newCount, _ := comp.GetAllIssues()
-	assert.Equal(t, 0, newCount)
-
-	clearedIssue := comp.GetIssue("test-check-1")
-	assert.Nil(t, clearedIssue)
-
-	// Stop the component
-	err = lifecycle.Stop(context.Background())
-	require.NoError(t, err)
+func TestReportIssueEmptyName(t *testing.T) {
+	h := newTestStore(t)
+	err := h.ReportIssue(&healthplatformpayload.Issue{Id: "id-1", IssueName: ""})
+	assert.ErrorContains(t, err, "issue name")
 }
 
-// TestClearMethods tests clearing functionality
-func TestClearMethods(t *testing.T) {
-	lifecycle := newMockLifecycle()
-	reqs := testRequires(t, lifecycle)
+func TestReportIssueStoresProto(t *testing.T) {
+	h := newTestStore(t)
 
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
-	comp := provides.Comp
-
-	// Report a couple of issues
-	err = comp.ReportIssue(
-		"check-1",
-		"Check 1",
-		&healthplatformpayload.IssueReport{
-			IssueId: "docker-file-tailing-disabled",
-			Context: map[string]string{
-				"dockerDir": "/var/lib/docker",
-				"os":        "linux",
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	err = comp.ReportIssue(
-		"check-2",
-		"Check 2",
-		&healthplatformpayload.IssueReport{
-			IssueId: "docker-file-tailing-disabled",
-			Context: map[string]string{
-				"dockerDir": "/var/lib/docker",
-				"os":        "linux",
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	// Verify both issues exist
-	count, _ := comp.GetAllIssues()
-	assert.Equal(t, 2, count)
-
-	// Test ResolveIssue
-	comp.ResolveIssue("check-1")
-	count, _ = comp.GetAllIssues()
-	assert.Equal(t, 1, count)
-
-	// Test ResolveAllIssues
-	comp.ResolveAllIssues()
-	countAfterClear, allIssuesAfterClear := comp.GetAllIssues()
-	assert.Equal(t, 0, countAfterClear)
-	assert.Len(t, allIssuesAfterClear, 0)
-}
-
-// TestReportIssueErrors tests error handling
-func TestReportIssueErrors(t *testing.T) {
-	reqs := testRequires(t, nil)
-
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
-	comp := provides.Comp
-
-	// Test empty check ID
-	err = comp.ReportIssue("", "Test", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
+	err := h.ReportIssue(&healthplatformpayload.Issue{
+		Id:        "check-failure:mysql:abc",
+		IssueName: "check-failure",
+		Title:     "Check 'mysql' Failed",
+		Source:    "mysql",
+		Severity:  healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
+		Tags:      []string{"env:prod"},
 	})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "check ID cannot be empty")
-
-	// Test empty issue ID
-	err = comp.ReportIssue("check-1", "Test", &healthplatformpayload.IssueReport{
-		IssueId: "",
-	})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "issue ID cannot be empty")
-
-	// Test unknown issue ID
-	err = comp.ReportIssue("check-1", "Test", &healthplatformpayload.IssueReport{
-		IssueId: "unknown-issue",
-	})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to build issue")
-}
-
-// TestConcurrentReporting tests concurrent issue reporting
-func TestConcurrentReporting(t *testing.T) {
-	reqs := testRequires(t, nil)
-
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
-	comp := provides.Comp
-
-	numGoroutines := 100
-	var wg sync.WaitGroup
-
-	// Concurrent issue reporting
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			checkID := "concurrent-check-" + string(rune(id))
-			_ = comp.ReportIssue(
-				checkID,
-				"Concurrent Check",
-				&healthplatformpayload.IssueReport{
-					IssueId: "docker-file-tailing-disabled",
-					Context: map[string]string{
-						"dockerDir": "/var/lib/docker",
-						"os":        "linux",
-					},
-				},
-			)
-		}(i)
-	}
-
-	// Concurrent issue retrieval
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_, _ = comp.GetAllIssues()
-		}()
-	}
-
-	// Wait for all operations to complete
-	wg.Wait()
-}
-
-// TestLifecycle tests component lifecycle
-func TestLifecycle(t *testing.T) {
-	lifecycle := newMockLifecycle()
-	reqs := testRequires(t, lifecycle)
-
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
-	comp := provides.Comp
-
-	// Test starting the component
-	err = lifecycle.Start(context.Background())
 	require.NoError(t, err)
 
-	// Report an issue
-	err = comp.ReportIssue(
-		"lifecycle-check-1",
-		"Lifecycle Check",
-		&healthplatformpayload.IssueReport{
-			IssueId: "docker-file-tailing-disabled",
-			Context: map[string]string{
-				"dockerDir": "/var/lib/docker",
-				"os":        "linux",
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	// Test stopping the component
-	err = lifecycle.Stop(context.Background())
-	require.NoError(t, err)
-}
-
-// TestIssueTimestamp tests that issues get timestamps
-func TestIssueTimestamp(t *testing.T) {
-	lifecycle := newMockLifecycle()
-	reqs := testRequires(t, lifecycle)
-
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
-	comp := provides.Comp
-
-	// Start the component
-	err = lifecycle.Start(context.Background())
-	require.NoError(t, err)
-
-	// Report an issue
-	err = comp.ReportIssue(
-		"timestamp-check-1",
-		"Timestamp Check",
-		&healthplatformpayload.IssueReport{
-			IssueId: "docker-file-tailing-disabled",
-			Context: map[string]string{
-				"dockerDir": "/var/lib/docker",
-				"os":        "linux",
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	// Verify the issue got a timestamp
-	issue := comp.GetIssue("timestamp-check-1")
+	issue := h.GetIssue("check-failure:mysql:abc")
 	require.NotNil(t, issue)
+	assert.Equal(t, "check-failure:mysql:abc", issue.Id)
+	assert.Equal(t, "mysql", issue.Source)
+	assert.Equal(t, healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.Severity)
+	assert.Contains(t, issue.Tags, "env:prod")
 	assert.NotEmpty(t, issue.DetectedAt)
-
-	// Parse the timestamp to verify it's valid RFC3339
-	_, err = time.Parse(time.RFC3339, issue.DetectedAt)
-	assert.NoError(t, err)
-
-	// Stop the component
-	err = lifecycle.Stop(context.Background())
-	require.NoError(t, err)
+	assert.NotNil(t, issue.PersistedIssue)
 }
 
-// TestComponentDisabled tests that component is disabled when config flag is false
-func TestComponentDisabled(t *testing.T) {
-	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("health_platform.enabled", false)
+func TestReportIssueMinimalProto(t *testing.T) {
+	h := newTestStore(t)
 
-	hostnameMock, _ := hostnameinterface.NewMock("test-hostname")
-
-	reqs := Requires{
-		Lifecycle:   newMockLifecycle(),
-		Config:      cfg,
-		Log:         logmock.New(t),
-		Telemetry:   nooptelemetry.GetCompatComponent(),
-		Hostname:    hostnameMock,
-		CheckRunner: checkrunnermock.New(),
-		Forwarder:   forwardermock.New(),
-	}
-
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
-	require.NotNil(t, provides.Comp)
-
-	// Verify it's the noop implementation
-	_, ok := provides.Comp.(*noopimpl.NoopHealthPlatform)
-	assert.True(t, ok, "Expected NoopHealthPlatform when disabled")
-
-	// Verify all methods work but do nothing
-	err = provides.Comp.ReportIssue("test-check", "Test Check", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
-		Context: map[string]string{"dockerDir": "/var/lib/docker"},
-	})
-	assert.NoError(t, err)
-
-	// Verify no issues are tracked
-	count, issues := provides.Comp.GetAllIssues()
-	assert.Equal(t, 0, count)
-	assert.Empty(t, issues)
-
-	// Verify GetIssue returns nil
-	issue := provides.Comp.GetIssue("test-check")
-	assert.Nil(t, issue)
-
-	// Verify clear methods work without error
-	provides.Comp.ResolveIssue("test-check")
-	provides.Comp.ResolveAllIssues()
-}
-
-// TestGetIssuesHandlerEmpty tests the HTTP handler returns empty list when no issues
-func TestGetIssuesHandlerEmpty(t *testing.T) {
-	lifecycle := newMockLifecycle()
-	reqs := testRequires(t, lifecycle)
-
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
-
-	// Get the implementation to access the handler
-	impl, ok := provides.Comp.(*healthPlatformImpl)
-	require.True(t, ok, "Expected healthPlatformImpl")
-
-	// Create a test request
-	req := httptest.NewRequest(http.MethodGet, "/health-platform/issues", nil)
-	w := httptest.NewRecorder()
-
-	// Call the handler
-	impl.getIssuesHandler(w, req)
-
-	// Check the response
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
-
-	// Parse the response
-	var response struct {
-		Count  int                                     `json:"count"`
-		Issues map[string]*healthplatformpayload.Issue `json:"issues"`
-	}
-	err = json.NewDecoder(resp.Body).Decode(&response)
-	require.NoError(t, err)
-
-	assert.Equal(t, 0, response.Count)
-	assert.Empty(t, response.Issues)
-}
-
-// TestGetIssuesHandlerWithIssues tests the HTTP handler returns issues correctly
-func TestGetIssuesHandlerWithIssues(t *testing.T) {
-	lifecycle := newMockLifecycle()
-	reqs := testRequires(t, lifecycle)
-
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
-
-	// Start the component
-	err = lifecycle.Start(context.Background())
-	require.NoError(t, err)
-
-	// Get the implementation to access the handler
-	impl, ok := provides.Comp.(*healthPlatformImpl)
-	require.True(t, ok, "Expected healthPlatformImpl")
-
-	// Report some issues
-	err = provides.Comp.ReportIssue(
-		"check-1",
-		"Check 1",
-		&healthplatformpayload.IssueReport{
-			IssueId: "docker-file-tailing-disabled",
-			Context: map[string]string{
-				"dockerDir": "/var/lib/docker",
-				"os":        "linux",
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	err = provides.Comp.ReportIssue(
-		"check-2",
-		"Check 2",
-		&healthplatformpayload.IssueReport{
-			IssueId: "docker-file-tailing-disabled",
-			Context: map[string]string{
-				"dockerDir": "/var/lib/docker",
-				"os":        "windows",
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	// Create a test request
-	req := httptest.NewRequest(http.MethodGet, "/health-platform/issues", nil)
-	w := httptest.NewRecorder()
-
-	// Call the handler
-	impl.getIssuesHandler(w, req)
-
-	// Check the response
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
-
-	// Parse the response
-	var response struct {
-		Count  int                                     `json:"count"`
-		Issues map[string]*healthplatformpayload.Issue `json:"issues"`
-	}
-	err = json.NewDecoder(resp.Body).Decode(&response)
-	require.NoError(t, err)
-
-	assert.Equal(t, 2, response.Count)
-	assert.Len(t, response.Issues, 2)
-	assert.Contains(t, response.Issues, "check-1")
-	assert.Contains(t, response.Issues, "check-2")
-
-	// Verify issue details
-	issue1 := response.Issues["check-1"]
-	assert.Equal(t, "docker-file-tailing-disabled", issue1.Id)
-	assert.NotEmpty(t, issue1.Title)
-	assert.NotEmpty(t, issue1.DetectedAt)
-
-	// Stop the component
-	err = lifecycle.Stop(context.Background())
-	require.NoError(t, err)
-}
-
-// ============================================================================
-// Persistence Tests
-// ============================================================================
-
-// TestPersistenceStateTransitions tests all state transitions in one test:
-// - new -> ongoing -> resolved
-// - resolved -> new (reoccurrence)
-// - different issue ID -> new
-func TestPersistenceStateTransitions(t *testing.T) {
-	t.Setenv("KUBERNETES_SERVICE_PORT", "")
-	t.Setenv("KUBERNETES", "")
-	tmpDir := t.TempDir()
-	lifecycle := newMockLifecycle()
-	reqs := testRequiresWithRunPath(t, lifecycle, tmpDir)
-
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
-
-	impl, ok := provides.Comp.(*healthPlatformImpl)
-	require.True(t, ok)
-
-	err = lifecycle.Start(context.Background())
-	require.NoError(t, err)
-
-	// 1. Report a new issue -> state should be "new"
-	err = provides.Comp.ReportIssue("check-1", "Check 1", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
-		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
+	err := h.ReportIssue(&healthplatformpayload.Issue{
+		Id:        "custom:id-1",
+		IssueName: "custom-type",
+		Source:    "my-component",
 	})
 	require.NoError(t, err)
 
-	persisted := impl.persistedIssues["check-1"]
+	issue := h.GetIssue("custom:id-1")
+	require.NotNil(t, issue)
+	assert.Equal(t, "custom:id-1", issue.Id)
+	assert.Equal(t, "my-component", issue.Source)
+	assert.Equal(t, "custom-type", issue.IssueName)
+}
+
+func TestReportIssueStateTransition(t *testing.T) {
+	h := newTestStore(t)
+	issue := &healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}
+
+	require.NoError(t, h.ReportIssue(issue))
+	persisted := h.persistedIssues["t:id"]
 	require.NotNil(t, persisted)
 	assert.Equal(t, IssueStateNew, persisted.State)
-	assert.Equal(t, "docker-file-tailing-disabled", persisted.IssueID)
 	firstSeen := persisted.FirstSeen
 
-	// 2. Report same issue again -> state should be "ongoing"
-	err = provides.Comp.ReportIssue("check-1", "Check 1", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
-		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
-	})
-	require.NoError(t, err)
-
-	persisted = impl.persistedIssues["check-1"]
+	require.NoError(t, h.ReportIssue(issue))
+	persisted = h.persistedIssues["t:id"]
 	assert.Equal(t, IssueStateOngoing, persisted.State)
-	assert.Equal(t, firstSeen, persisted.FirstSeen) // first_seen should not change
-
-	// 3. Resolve the issue -> state should be "resolved"
-	err = provides.Comp.ReportIssue("check-1", "Check 1", nil)
-	require.NoError(t, err)
-
-	persisted = impl.persistedIssues["check-1"]
-	assert.Equal(t, IssueStateResolved, persisted.State)
-	assert.NotEmpty(t, persisted.ResolvedAt)
-
-	// 4. Issue reoccurs -> state should be "new" again (not ongoing)
-	err = provides.Comp.ReportIssue("check-1", "Check 1", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
-		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
-	})
-	require.NoError(t, err)
-
-	persisted = impl.persistedIssues["check-1"]
-	assert.Equal(t, IssueStateNew, persisted.State)
-	assert.Empty(t, persisted.ResolvedAt) // resolved_at should be cleared
-
-	// 5. Different issue ID for same check -> state should be "new"
-	err = provides.Comp.ReportIssue("check-1", "Check 1", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
-		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, IssueStateOngoing, impl.persistedIssues["check-1"].State) // now ongoing
-
-	err = provides.Comp.ReportIssue("check-1", "Check 1", &healthplatformpayload.IssueReport{
-		IssueId: "check-execution-failure", // different issue ID
-		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
-	})
-	require.NoError(t, err)
-
-	persisted = impl.persistedIssues["check-1"]
-	assert.Equal(t, IssueStateNew, persisted.State)
-	assert.Equal(t, "check-execution-failure", persisted.IssueID)
-
-	// Verify file was created on disk
-	persistencePath := filepath.Join(tmpDir, "health-platform", "issues.json")
-	assert.FileExists(t, persistencePath)
-
-	err = lifecycle.Stop(context.Background())
-	require.NoError(t, err)
+	assert.Equal(t, firstSeen, persisted.FirstSeen, "FirstSeen must not change on re-report")
+	assert.GreaterOrEqual(t, persisted.LastSeen, firstSeen)
 }
 
-// TestPersistenceAcrossRestart simulates the full restart scenario
-func TestPersistenceAcrossRestart(t *testing.T) {
-	t.Setenv("KUBERNETES_SERVICE_PORT", "")
-	t.Setenv("KUBERNETES", "")
-	tmpDir := t.TempDir()
+func TestResolveIssueRemovesFromActive(t *testing.T) {
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
-	// === First run ===
-	lifecycle1 := newMockLifecycle()
-	reqs1 := testRequiresWithRunPath(t, lifecycle1, tmpDir)
+	h.ResolveIssue("t:id")
 
-	provides1, err := NewComponent(reqs1)
-	require.NoError(t, err)
+	assert.Nil(t, h.GetIssue("t:id"))
+	require.NotNil(t, h.persistedIssues["t:id"])
+	assert.Equal(t, IssueStateResolved, h.persistedIssues["t:id"].State)
+	assert.NotEmpty(t, h.persistedIssues["t:id"].ResolvedAt)
+}
 
-	err = lifecycle1.Start(context.Background())
-	require.NoError(t, err)
+func TestResolveIssueUnknownIDIsNoop(t *testing.T) {
+	h := newTestStore(t)
+	h.ResolveIssue("nonexistent") // must not panic or error
+}
 
-	// Report issue 1 and issue 2
-	err = provides1.Comp.ReportIssue("check-1", "Check 1", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
-		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
-	})
-	require.NoError(t, err)
+func TestResolveAllIssues(t *testing.T) {
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:1", IssueName: "t"}))
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:2", IssueName: "t"}))
 
-	err = provides1.Comp.ReportIssue("check-2", "Check 2", &healthplatformpayload.IssueReport{
-		IssueId: "check-execution-failure",
-		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
-	})
-	require.NoError(t, err)
+	h.ResolveAllIssues()
 
-	// Report issue 3
-	err = provides1.Comp.ReportIssue("check-3", "Check 3", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
-		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
-	})
-	require.NoError(t, err)
+	count, issues := h.GetAllIssues()
+	assert.Equal(t, 0, count)
+	assert.Empty(t, issues)
+	for _, p := range h.persistedIssues {
+		assert.Equal(t, IssueStateResolved, p.State)
+	}
+}
 
-	// Resolve issue 2
-	err = provides1.Comp.ReportIssue("check-2", "Check 2", nil)
-	require.NoError(t, err)
+func TestGetIssueNilForUnknown(t *testing.T) {
+	h := newTestStore(t)
+	assert.Nil(t, h.GetIssue("does-not-exist"))
+}
 
-	// Stop first instance
-	err = lifecycle1.Stop(context.Background())
-	require.NoError(t, err)
+func TestGetAllIssuesDeepCopy(t *testing.T) {
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t", Source: "orig"}))
 
-	// === Second run (simulate restart) ===
-	lifecycle2 := newMockLifecycle()
-	reqs2 := testRequiresWithRunPath(t, lifecycle2, tmpDir)
+	_, issues := h.GetAllIssues()
+	got := issues["t:id"]
+	require.NotNil(t, got)
 
-	provides2, err := NewComponent(reqs2)
-	require.NoError(t, err)
+	// Mutating the returned value must not affect the in-store issue.
+	originalSource := h.issues["t:id"].Source
+	got.Source = "hacked"
+	assert.Equal(t, originalSource, h.issues["t:id"].Source)
+}
 
-	impl2, ok := provides2.Comp.(*healthPlatformImpl)
-	require.True(t, ok)
+func TestMultiInstanceSameType(t *testing.T) {
+	h := newTestStore(t)
 
-	err = lifecycle2.Start(context.Background())
-	require.NoError(t, err)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "db-error:prod-1", IssueName: "db-error"}))
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "db-error:prod-2", IssueName: "db-error"}))
 
-	// Verify issues were loaded (check-1 and check-3 should be active, check-2 resolved)
-	count, _ := provides2.Comp.GetAllIssues()
+	count, issues := h.GetAllIssues()
 	assert.Equal(t, 2, count)
-
-	// Simulate: issue 1 is now resolved (user fixed their environment)
-	err = provides2.Comp.ReportIssue("check-1", "Check 1", nil)
-	require.NoError(t, err)
-
-	// Simulate: issue 3 is still present
-	err = provides2.Comp.ReportIssue("check-3", "Check 3", &healthplatformpayload.IssueReport{
-		IssueId: "docker-file-tailing-disabled",
-		Context: map[string]string{"dockerDir": "/var/lib/docker", "os": "linux"},
-	})
-	require.NoError(t, err)
-
-	// Verify final state: issue 1 and 2 resolved, issue 3 ongoing
-	assert.Equal(t, IssueStateResolved, impl2.persistedIssues["check-1"].State)
-	assert.Equal(t, IssueStateResolved, impl2.persistedIssues["check-2"].State)
-	assert.Equal(t, IssueStateOngoing, impl2.persistedIssues["check-3"].State)
-
-	// Verify only issue 3 is in active issues
-	count, issues := provides2.Comp.GetAllIssues()
-	assert.Equal(t, 1, count)
-	assert.Contains(t, issues, "check-3")
-
-	// Stop second instance
-	err = lifecycle2.Stop(context.Background())
-	require.NoError(t, err)
+	assert.Contains(t, issues, "db-error:prod-1")
+	assert.Contains(t, issues, "db-error:prod-2")
 }
 
-// TestNoopPersistence verifies that noopPersistence discards writes and returns no state.
-func TestNoopPersistence(t *testing.T) {
-	p := &noopPersistence{}
+func TestMultiTypeSameSource(t *testing.T) {
+	h := newTestStore(t)
 
-	// save must succeed silently
-	err := p.save(&PersistedState{})
-	require.NoError(t, err)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "a:id", IssueName: "type-a", Source: "mysrc"}))
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "b:id", IssueName: "type-b", Source: "mysrc"}))
 
-	// load must return (nil, nil) — no prior state, no error
-	state, err := p.load()
-	require.NoError(t, err)
-	assert.Nil(t, state)
+	count, _ := h.GetAllIssues()
+	assert.Equal(t, 2, count)
 }
 
-// TestNewComponentUsesNoopPersistenceOnKubernetes verifies that when KUBERNETES_SERVICE_PORT
-// is set, NewComponent selects the noopPersistence backend.
-func TestNewComponentUsesNoopPersistenceOnKubernetes(t *testing.T) {
-	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
+func TestPersistenceRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "issues.json")
+	logger := logmock.New(t)
 
-	reqs := testRequiresWithRunPath(t, newMockLifecycle(), t.TempDir())
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
+	h1 := newTestStore(t)
+	h1.persistence = newDiskPersistence(path, logger)
+	require.NoError(t, h1.ReportIssue(&healthplatformpayload.Issue{
+		Id: "t:id", IssueName: "t", Title: "Test Issue", Source: "test-src",
+	}))
 
-	impl, ok := provides.Comp.(*healthPlatformImpl)
-	require.True(t, ok)
+	h2 := newTestStore(t)
+	h2.persistence = newDiskPersistence(path, logger)
+	require.NoError(t, h2.loadFromDisk())
 
-	_, isNoop := impl.persistence.(*noopPersistence)
-	assert.True(t, isNoop, "expected noopPersistence when running on Kubernetes")
+	issue := h2.GetIssue("t:id")
+	require.NotNil(t, issue, "issue must survive persistence round-trip")
+	assert.Equal(t, "t:id", issue.Id)
+	assert.Equal(t, "Test Issue", issue.Title)
 }
 
-// TestNewComponentUsesDiskPersistenceOffKubernetes verifies that outside Kubernetes,
-// NewComponent selects the diskPersistence backend.
-func TestNewComponentUsesDiskPersistenceOffKubernetes(t *testing.T) {
-	// Ensure K8s env vars are unset for this test
-	t.Setenv("KUBERNETES_SERVICE_PORT", "")
-	t.Setenv("KUBERNETES", "")
+func TestPersistenceVersionMismatch(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "issues.json")
 
-	reqs := testRequiresWithRunPath(t, newMockLifecycle(), t.TempDir())
-	provides, err := NewComponent(reqs)
+	stale := map[string]interface{}{
+		"version":    1,
+		"updated_at": time.Now().Format(time.RFC3339),
+		"issues": map[string]interface{}{
+			"t:id": map[string]interface{}{
+				"issue_type": "t",
+				"state":      "new",
+				"first_seen": time.Now().Format(time.RFC3339),
+				"last_seen":  time.Now().Format(time.RFC3339),
+			},
+		},
+	}
+	data, err := json.Marshal(stale)
 	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, data, 0644))
 
-	impl, ok := provides.Comp.(*healthPlatformImpl)
-	require.True(t, ok)
+	h := newTestStore(t)
+	h.persistence = newDiskPersistence(path, logmock.New(t))
+	require.NoError(t, h.loadFromDisk())
 
-	_, isDisk := impl.persistence.(*diskPersistence)
-	assert.True(t, isDisk, "expected diskPersistence when not running on Kubernetes")
+	// Stale version: store must start fresh.
+	assert.Nil(t, h.GetIssue("t:id"))
+	count, _ := h.GetAllIssues()
+	assert.Equal(t, 0, count)
 }
 
-// TestNewComponentUsesDiskPersistenceOnKubernetesWhenOptedIn verifies that when
-// health_platform.persist_on_kubernetes is true, diskPersistence is used even on Kubernetes.
-func TestNewComponentUsesDiskPersistenceOnKubernetesWhenOptedIn(t *testing.T) {
-	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
+func TestResolvedTTLPruning(t *testing.T) {
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
-	tmpDir := t.TempDir()
-	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("health_platform.enabled", true)
-	cfg.SetWithoutSource("health_platform.persist_on_kubernetes", true)
-	cfg.SetWithoutSource("run_path", tmpDir)
+	// Back-date the resolved-at timestamp so it's older than the TTL.
+	h.persistedIssues["t:id"].State = IssueStateResolved
+	h.persistedIssues["t:id"].ResolvedAt = time.Now().Add(-25 * time.Hour).Format(time.RFC3339)
 
-	hostnameMock, _ := hostnameinterface.NewMock("test-hostname")
-	reqs := Requires{
-		Lifecycle:   newMockLifecycle(),
-		Config:      cfg,
-		Log:         logmock.New(t),
-		Telemetry:   nooptelemetry.GetCompatComponent(),
-		Hostname:    hostnameMock,
-		CheckRunner: checkrunnermock.New(),
-		Forwarder:   forwardermock.New(),
+	mem := &memPersistence{}
+	h.persistence = mem
+	require.NoError(t, h.saveToDisk())
+
+	require.NotNil(t, mem.state)
+	assert.NotContains(t, mem.state.Issues, "t:id",
+		"resolved issue older than TTL must be pruned on save")
+}
+
+func TestGetIssuesHTTPEndpoint(t *testing.T) {
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:1", IssueName: "t"}))
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:2", IssueName: "t"}))
+
+	req := httptest.NewRequest(http.MethodGet, "/health-platform/issues", nil)
+	rec := httptest.NewRecorder()
+	h.getIssuesHandler(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+
+	var body struct {
+		Count  int                                     `json:"count"`
+		Issues map[string]*healthplatformpayload.Issue `json:"issues"`
+	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&body))
+	assert.Equal(t, 2, body.Count)
+	assert.Contains(t, body.Issues, "t:1")
+	assert.Contains(t, body.Issues, "t:2")
+}
+
+func TestFillFlareSkipsWhenEmpty(t *testing.T) {
+	h := newTestStore(t)
+	fb := newMockFlareBuilder()
+	require.NoError(t, h.fillFlare(context.Background(), fb))
+	_, written := fb.get("health-platform-issues.json")
+	assert.False(t, written, "fillFlare must not write a file when the store is empty")
+}
+
+func TestFillFlareWritesWhenNonEmpty(t *testing.T) {
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
+
+	fb := newMockFlareBuilder()
+	require.NoError(t, h.fillFlare(context.Background(), fb))
+
+	data, written := fb.get("health-platform-issues.json")
+	require.True(t, written, "fillFlare must write a file when the store has issues")
+	assert.Contains(t, string(data), "t:id")
+}
+
+func TestTelemetryCounterIncrements(t *testing.T) {
+	tel := telemetrymock.New(t)
+	counter := tel.NewCounter("health_platform", "issues_detected", []string{"issue_type"}, "")
+	h := &healthPlatformImpl{
+		log:              logmock.New(t),
+		telemetry:        tel,
+		hostnameProvider: &mockHostname{name: "test-host"},
+		agentFlavor:      "agent",
+		issues:           make(map[string]*healthplatformpayload.Issue),
+		issuesByName:     make(map[string]map[string]struct{}),
+		persistedIssues:  make(map[string]*PersistedIssue),
+		persistence:      &memPersistence{},
+		metrics:          telemetryMetrics{issuesCounter: counter},
 	}
 
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
-	impl, ok := provides.Comp.(*healthPlatformImpl)
-	require.True(t, ok)
-
-	_, isDisk := impl.persistence.(*diskPersistence)
-	assert.True(t, isDisk, "expected diskPersistence on Kubernetes when persist_on_kubernetes is true")
+	assert.Equal(t, 1.0, counter.WithValues("t").Get())
 }
 
-// ============================================================================
-// Reporter Integration Tests
-// ============================================================================
+func TestGetActiveIssueIDsByIssueName(t *testing.T) {
+	h := newTestStore(t)
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:1", IssueName: "t"}))
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:2", IssueName: "t"}))
 
-// TestForwarderWithComponent tests forwarder integration with the health platform component
-func TestReporterWithComponent(t *testing.T) {
-	lifecycle := newMockLifecycle()
-	reqs := testRequires(t, lifecycle)
+	ids := h.GetActiveIssueIDsByIssueName("t")
+	assert.ElementsMatch(t, []string{"t:1", "t:2"}, ids)
 
-	// Set API key to enable forwarder
-	reqs.Config.SetWithoutSource("api_key", "test-api-key")
-
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
-	comp := provides.Comp.(*healthPlatformImpl)
-
-	// Verify forwarder was created
-	require.NotNil(t, comp.forwarder)
-
-	// Start component
-	err = lifecycle.Start(context.Background())
-	require.NoError(t, err)
-
-	// Stop component
-	err = lifecycle.Stop(context.Background())
-	require.NoError(t, err)
-}
-
-// TestForwarderWithoutAPIKey tests that forwarder is created but send fails gracefully without API key
-func TestReporterWithoutAPIKey(t *testing.T) {
-	lifecycle := newMockLifecycle()
-	reqs := testRequires(t, lifecycle)
-
-	// Don't set API key
-
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
-	comp := provides.Comp.(*healthPlatformImpl)
-
-	// Verify forwarder was still created (API key check happens at send time)
-	assert.NotNil(t, comp.forwarder)
+	h.ResolveIssue("t:1")
+	ids = h.GetActiveIssueIDsByIssueName("t")
+	assert.ElementsMatch(t, []string{"t:2"}, ids)
 }
