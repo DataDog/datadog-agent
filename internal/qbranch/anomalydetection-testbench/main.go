@@ -19,7 +19,6 @@ import (
 
 	"go.uber.org/fx"
 
-	hfrunnernoop "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/fx-noop"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
@@ -131,7 +130,6 @@ func main() {
 
 	err := fxutil.OneShot(run,
 		recordernoop.Module(),
-		hfrunnernoop.Module(),
 		observerfx.Module(),
 		reportertestbenchfx.Module(),
 		// Observer optional deps not needed by the testbench.

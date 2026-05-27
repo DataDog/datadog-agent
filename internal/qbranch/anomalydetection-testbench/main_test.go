@@ -10,7 +10,6 @@ import (
 
 	"go.uber.org/fx"
 
-	hfrunnernoop "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/fx-noop"
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
 	recordernoop "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop"
 	reportertestbenchfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx-testbench"
@@ -29,7 +28,6 @@ func TestFxApp(t *testing.T) {
 	fxutil.TestOneShot(t, func() {
 		err := fxutil.OneShot(run,
 			recordernoop.Module(),
-			hfrunnernoop.Module(),
 			observerfx.Module(),
 			reportertestbenchfx.Module(),
 			fx.Supply(option.None[workloadmetadef.Component]()),
