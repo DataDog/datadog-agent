@@ -13,6 +13,9 @@
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
 
+.if_pr_targeting_release_branch: &if_pr_targeting_release_branch
+  if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^[0-9]+\.[0-9]+\.x$/
+
 .if_mergequeue: &if_mergequeue
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
 
@@ -637,6 +640,14 @@ workflow:
 .on_main_or_release_branch:
   - <<: *if_main_branch
   - <<: *if_release_branch
+
+.except_release_branch:
+  - <<: *if_release_branch
+    when: never
+
+.except_pr_targeting_release_branch:
+  - <<: *if_pr_targeting_release_branch
+    when: never
 
 .not_on_release_branch_or_tagged_commit:
   - <<: *if_release_branch
