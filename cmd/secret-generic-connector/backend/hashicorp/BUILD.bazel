@@ -7,12 +7,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/secret-generic-connector/secret",
+        "@com_github_go_viper_mapstructure_v2//:mapstructure",
         "@com_github_hashicorp_vault_api//:api",
         "@com_github_hashicorp_vault_api_auth_approle//:approle",
         "@com_github_hashicorp_vault_api_auth_aws//:aws",
         "@com_github_hashicorp_vault_api_auth_ldap//:ldap",
         "@com_github_hashicorp_vault_api_auth_userpass//:userpass",
-        "@com_github_mitchellh_mapstructure//:mapstructure",
         "@com_github_qri_io_jsonpointer//:jsonpointer",
     ],
 )

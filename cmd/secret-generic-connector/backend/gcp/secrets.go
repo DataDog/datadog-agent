@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/secret"
-	"github.com/mitchellh/mapstructure"
+	"github.com/go-viper/mapstructure/v2"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )

@@ -11,7 +11,7 @@ go_library(
     deps = [
         "//cmd/secret-generic-connector/backend/file",
         "//cmd/secret-generic-connector/secret",
-        "@com_github_mitchellh_mapstructure//:mapstructure",
+        "@com_github_go_viper_mapstructure_v2//:mapstructure",
     ],
 )
 

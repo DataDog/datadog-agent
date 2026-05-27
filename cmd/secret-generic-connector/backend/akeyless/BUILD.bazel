@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/secret-generic-connector/secret",
-        "@com_github_mitchellh_mapstructure//:mapstructure",
+        "@com_github_go_viper_mapstructure_v2//:mapstructure",
     ],
 )
 

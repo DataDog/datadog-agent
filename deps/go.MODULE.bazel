@@ -232,7 +232,6 @@ use_repo(
     "com_github_microsoft_go_winio",
     "com_github_microsoft_hcsshim",
     "com_github_miekg_dns",
-    "com_github_mitchellh_mapstructure",
     "com_github_moby_docker_image_spec",
     "com_github_moby_moby_api",
     "com_github_moby_moby_client",

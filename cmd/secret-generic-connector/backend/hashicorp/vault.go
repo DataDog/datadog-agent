@@ -17,12 +17,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/secret"
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/api/auth/approle"
 	"github.com/hashicorp/vault/api/auth/aws"
 	"github.com/hashicorp/vault/api/auth/ldap"
 	"github.com/hashicorp/vault/api/auth/userpass"
-	"github.com/mitchellh/mapstructure"
 	"github.com/qri-io/jsonpointer"
 )
 
