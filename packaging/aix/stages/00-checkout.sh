@@ -36,7 +36,7 @@ trap cleanup EXIT
 # ─── Step 1: Validate agent source tree ───────────────────────────────────────
 #
 # The agent source is NOT cloned here — it must already be present at
-# $AGENT_SRC (default: /opt/datadog-agent), transferred from the build machine
+# $AGENT_SRC (default: current working directory), transferred from the build machine
 # by the caller. (The local clone contains AIX-specific changes not yet merged
 # to main.)
 #

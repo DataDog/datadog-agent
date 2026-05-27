@@ -26,11 +26,12 @@ STAGING=$BUILD_DIR/staging
 
 # ── Agent source tree ─────────────────────────────────────────────────────────
 # AGENT_SRC is the directory containing the checked-out agent source code.
-# Defaults to /opt/datadog-agent but can be overridden:
+# Defaults to the current working directory — assumes the script is invoked
+# from the datadog-agent source repo root. Override to point elsewhere:
 #   AGENT_SRC=/dd/datadog-agent AGENT_BUILD=1 ./build.sh
 # Distinct from EMBEDDED (/opt/datadog-agent/embedded), which is the final
 # install path baked into all binaries at configure time and must not change.
-AGENT_SRC=${AGENT_SRC:-/opt/datadog-agent}
+AGENT_SRC=${AGENT_SRC:-$(pwd)}
 export AGENT_SRC
 
 # DESTDIR approach (critical — read before modifying):

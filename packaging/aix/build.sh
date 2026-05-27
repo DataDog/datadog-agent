@@ -20,7 +20,7 @@
 # AGENT_VERSION is stripped by env.sh.
 # Package filename: datadog-agent-<AGENT_VERSION>-<AGENT_BUILD>.aix.ppc64.bff
 #
-# The agent source with full .git history must be at $AGENT_SRC (default: /opt/datadog-agent).
+# The agent source with full .git history must be at $AGENT_SRC (default: current working directory).
 # All intermediate artifacts go under /opt/dd-build/.
 
 set -eu
@@ -29,8 +29,9 @@ PATH=/opt/go/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:$PATH
 export PATH
 
 # AGENT_SRC must be defined before env.sh is sourced so the .git check and
-# version auto-detection below can use it.
-AGENT_SRC=${AGENT_SRC:-/opt/datadog-agent}
+# version auto-detection below can use it. Defaults to the current working
+# directory — assumes this script is invoked from the source repo root.
+AGENT_SRC=${AGENT_SRC:-$(pwd)}
 export AGENT_SRC
 
 if [ -z "${AGENT_BUILD:-}" ]; then
@@ -42,7 +43,7 @@ fi
 if [ ! -d "$AGENT_SRC/.git" ]; then
     printf 'ERROR: %s/.git not found\n' "$AGENT_SRC" >&2
     printf '       The source tree must include full git history.\n' >&2
-    printf '       Set AGENT_SRC to the agent source directory (default: /opt/datadog-agent).\n' >&2
+    printf '       Set AGENT_SRC to the agent source directory, or run this script from the source repo root.\n' >&2
     exit 1
 fi
 
