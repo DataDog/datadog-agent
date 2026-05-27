@@ -695,7 +695,6 @@ exports_files(glob(
 # gazelle:exclude test/new-e2e/tests/agent-log-pipelines
 # gazelle:exclude test/new-e2e/tests/agent-metric-pipelines
 # gazelle:exclude test/new-e2e/tests/agent-platform/common
-# gazelle:exclude test/new-e2e/tests/agent-platform/platforms
 # gazelle:exclude test/new-e2e/tests/agent-platform/tests
 # gazelle:exclude test/new-e2e/tests/agent-runtimes
 # gazelle:exclude test/new-e2e/tests/agent-subcommands/check
