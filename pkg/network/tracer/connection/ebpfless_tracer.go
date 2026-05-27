@@ -63,7 +63,6 @@ type ebpfLessTracer struct {
 	boundPorts   *ebpfless.BoundPorts
 	cookieHasher *cookieHasher
 	// dnsServerPorts is the set of ports to treat as DNS server ports
-	// (from network_config.dns_monitoring_ports)
 	dnsServerPorts map[uint16]struct{}
 
 	connPool *syncutil.TypedPool[network.ConnectionStats]
@@ -77,10 +76,7 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 		return nil, fmt.Errorf("error creating packet source: %w", err)
 	}
 
-	dnsServerPorts := make(map[uint16]struct{}, len(cfg.DNSMonitoringPortList))
-	for _, port := range cfg.DNSMonitoringPortList {
-		dnsServerPorts[uint16(port)] = struct{}{}
-	}
+	dnsServerPorts := map[uint16]struct{}{53: {}}
 
 	tr := &ebpfLessTracer{
 		config:         cfg,

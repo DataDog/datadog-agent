@@ -615,20 +615,6 @@ properties:
         tags:
         - TODO:fix-no-default
         - TODO:fix-missing-type
-      dns_monitoring_ports:
-        node_type: setting
-        type: array
-        default:
-        - 53
-        items:
-          type: number
-        visibility: public
-        description: A list of ports that should be monitored for DNS traffic.
-        example: |2-
-
-            - 53
-        tags:
-        - golang_type:[]int
       allow_netlink_conntracker_fallback:
         node_type: setting
         type: boolean

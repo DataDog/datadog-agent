@@ -270,13 +270,12 @@ type networkState struct {
 	maxRedisStats               int
 	enableConnectionRollup      bool
 	processEventConsumerEnabled bool
-	dnsMonitoringPorts          []int
 
 	localResolver LocalResolver
 }
 
 // NewState creates a new network state
-func NewState(_ telemetryComponent.Component, clientExpiry time.Duration, maxClosedConns uint32, maxClientStats, maxDNSStats, maxHTTPStats, maxKafkaStats, maxPostgresStats, maxRedisStats int, enableConnectionRollup bool, processEventConsumerEnabled bool, dnsMonitoringPorts []int) State {
+func NewState(_ telemetryComponent.Component, clientExpiry time.Duration, maxClosedConns uint32, maxClientStats, maxDNSStats, maxHTTPStats, maxKafkaStats, maxPostgresStats, maxRedisStats int, enableConnectionRollup bool, processEventConsumerEnabled bool) State {
 	ns := &networkState{
 		clients:                     map[string]*client{},
 		clientExpiry:                clientExpiry,
@@ -290,7 +289,6 @@ func NewState(_ telemetryComponent.Component, clientExpiry time.Duration, maxClo
 		enableConnectionRollup:      enableConnectionRollup,
 		localResolver:               NewLocalResolver(processEventConsumerEnabled),
 		processEventConsumerEnabled: processEventConsumerEnabled,
-		dnsMonitoringPorts:          dnsMonitoringPorts,
 	}
 
 	if ns.enableConnectionRollup && !processEventConsumerEnabled {
@@ -378,7 +376,7 @@ func (ns *networkState) GetDelta(
 		ns.storeDNSStats(dnsStats)
 	}
 
-	aggr := newConnectionAggregator((len(closed)+len(active))/2, ns.enableConnectionRollup, ns.processEventConsumerEnabled, client.dnsStats, ns.dnsMonitoringPorts)
+	aggr := newConnectionAggregator((len(closed)+len(active))/2, ns.enableConnectionRollup, ns.processEventConsumerEnabled, client.dnsStats)
 	active = filterConnections(active, func(c *ConnectionStats) bool {
 		return !aggr.Aggregate(c)
 	})
@@ -1042,16 +1040,14 @@ type connectionAggregator struct {
 	dnsStats                    dns.StatsByKeyByNameByType
 	enablePortRollups           bool
 	processEventConsumerEnabled bool
-	dnsMonitoringPorts          []int
 }
 
-func newConnectionAggregator(size int, enablePortRollups, processEventConsumerEnabled bool, dnsStats dns.StatsByKeyByNameByType, dnsMonitoringPorts []int) *connectionAggregator {
+func newConnectionAggregator(size int, enablePortRollups, processEventConsumerEnabled bool, dnsStats dns.StatsByKeyByNameByType) *connectionAggregator {
 	return &connectionAggregator{
 		conns:                       make(map[aggregationKey][]*aggregateConnection, size),
 		dnsStats:                    dnsStats,
 		enablePortRollups:           enablePortRollups,
 		processEventConsumerEnabled: processEventConsumerEnabled,
-		dnsMonitoringPorts:          dnsMonitoringPorts,
 	}
 }
 
@@ -1142,7 +1138,7 @@ func (a *connectionAggregator) canAggregateProtocolStack(p1, p2 protocols.Stack)
 }
 
 func (a *connectionAggregator) dns(c *ConnectionStats) map[dns.Hostname]map[dns.QueryType]dns.Stats {
-	key, isDNS := DNSKey(c, a.dnsMonitoringPorts)
+	key, isDNS := DNSKey(c)
 	if !isDNS {
 		return nil
 	}

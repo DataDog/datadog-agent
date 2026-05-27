@@ -45,23 +45,23 @@ type dnsDriver struct {
 	iocp        windows.Handle
 }
 
-func newDriver(telemetrycomp telemetry.Component, dnsMonitoringPorts []int) (*dnsDriver, error) {
+func newDriver(telemetrycomp telemetry.Component) (*dnsDriver, error) {
 	d := &dnsDriver{}
-	err := d.setupDNSHandle(telemetrycomp, dnsMonitoringPorts)
+	err := d.setupDNSHandle(telemetrycomp)
 	if err != nil {
 		return nil, err
 	}
 	return d, nil
 }
 
-func (d *dnsDriver) setupDNSHandle(telemetrycomp telemetry.Component, dnsMonitoringPorts []int) error {
+func (d *dnsDriver) setupDNSHandle(telemetrycomp telemetry.Component) error {
 	var err error
 	d.h, err = driver.NewHandle(windows.FILE_FLAG_OVERLAPPED, driver.DataHandle, telemetrycomp)
 	if err != nil {
 		return err
 	}
 
-	filters, err := createDNSFilters(dnsMonitoringPorts)
+	filters, err := createDNSFilters()
 	if err != nil {
 		return err
 	}
@@ -153,30 +153,28 @@ func (d *dnsDriver) Close() error {
 	return nil
 }
 
-func createDNSFilters(dnsMonitoringPorts []int) ([]driver.FilterDefinition, error) {
+func createDNSFilters() ([]driver.FilterDefinition, error) {
 	var filters []driver.FilterDefinition
 
-	for _, p := range dnsMonitoringPorts {
-		filters = append(filters, driver.FilterDefinition{
-			FilterVersion:  driver.Signature,
-			Size:           driver.FilterDefinitionSize,
-			FilterLayer:    driver.LayerTransport,
-			Af:             windows.AF_INET,
-			RemotePort:     uint64(p),
-			InterfaceIndex: uint64(0),
-			Direction:      driver.DirectionOutbound,
-		})
+	filters = append(filters, driver.FilterDefinition{
+		FilterVersion:  driver.Signature,
+		Size:           driver.FilterDefinitionSize,
+		FilterLayer:    driver.LayerTransport,
+		Af:             windows.AF_INET,
+		RemotePort:     53,
+		InterfaceIndex: uint64(0),
+		Direction:      driver.DirectionOutbound,
+	})
 
-		filters = append(filters, driver.FilterDefinition{
-			FilterVersion:  driver.Signature,
-			Size:           driver.FilterDefinitionSize,
-			FilterLayer:    driver.LayerTransport,
-			Af:             windows.AF_INET,
-			RemotePort:     uint64(p),
-			InterfaceIndex: uint64(0),
-			Direction:      driver.DirectionInbound,
-		})
-	}
+	filters = append(filters, driver.FilterDefinition{
+		FilterVersion:  driver.Signature,
+		Size:           driver.FilterDefinitionSize,
+		FilterLayer:    driver.LayerTransport,
+		Af:             windows.AF_INET,
+		RemotePort:     53,
+		InterfaceIndex: uint64(0),
+		Direction:      driver.DirectionInbound,
+	})
 
 	return filters, nil
 }

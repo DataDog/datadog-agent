@@ -12,19 +12,8 @@ import (
 )
 
 // DNSKey generates a key suitable for looking up DNS stats based on a ConnectionStats object
-func DNSKey(c *ConnectionStats, allowedPorts []int) (dns.Key, bool) {
-	if c == nil {
-		return dns.Key{}, false
-	}
-
-	isDNS := false
-	for _, p := range allowedPorts {
-		if c.DPort == uint16(p) {
-			isDNS = true
-			break
-		}
-	}
-	if !isDNS {
+func DNSKey(c *ConnectionStats) (dns.Key, bool) {
+	if c == nil || c.DPort != 53 {
 		return dns.Key{}, false
 	}
 
