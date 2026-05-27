@@ -1522,6 +1522,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "$ref": "#/$defs/TracerMetadata",
                     "description": "Metadata from APM tracer instrumentation"
                 },
+                "span_context": {
+                    "$ref": "#/$defs/DDContext",
+                    "description": "APM span context captured for this process. For a process that\nfork+exec'd a subprocess this carries the parent's span (the one\ncaptured by fill_span_context at sched_process_fork). The top-level\nevent \"dd\" field is built by newDDContextSerializer which walks the\nancestor lineage; this per-process field exposes the same data at\neach level of the ancestor chain."
+                },
                 "variables": {
                     "$ref": "#/$defs/Variables",
                     "description": "Variable values"
@@ -1704,6 +1708,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "tracer": {
                     "$ref": "#/$defs/TracerMetadata",
                     "description": "Metadata from APM tracer instrumentation"
+                },
+                "span_context": {
+                    "$ref": "#/$defs/DDContext",
+                    "description": "APM span context captured for this process. For a process that\nfork+exec'd a subprocess this carries the parent's span (the one\ncaptured by fill_span_context at sched_process_fork). The top-level\nevent \"dd\" field is built by newDDContextSerializer which walks the\nancestor lineage; this per-process field exposes the same data at\neach level of the ancestor chain."
                 },
                 "variables": {
                     "$ref": "#/$defs/Variables",
@@ -4801,6 +4809,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "$ref": "#/$defs/TracerMetadata",
             "description": "Metadata from APM tracer instrumentation"
         },
+        "span_context": {
+            "$ref": "#/$defs/DDContext",
+            "description": "APM span context captured for this process. For a process that\nfork+exec'd a subprocess this carries the parent's span (the one\ncaptured by fill_span_context at sched_process_fork). The top-level\nevent \"dd\" field is built by newDDContextSerializer which walks the\nancestor lineage; this per-process field exposes the same data at\neach level of the ancestor chain."
+        },
         "variables": {
             "$ref": "#/$defs/Variables",
             "description": "Variable values"
@@ -4858,6 +4870,12 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `syscalls` | List of syscalls captured to generate the event |
 | `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
 | `tracer` | Metadata from APM tracer instrumentation |
+| `span_context` | APM span context captured for this process. For a process that
+fork+exec'd a subprocess this carries the parent's span (the one
+captured by fill_span_context at sched_process_fork). The top-level
+event "dd" field is built by newDDContextSerializer which walks the
+ancestor lineage; this per-process field exposes the same data at
+each level of the ancestor chain. |
 | `variables` | Variable values |
 
 | References |
@@ -4869,6 +4887,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | [ContainerContext](#containercontext) |
 | [SyscallsEvent](#syscallsevent) |
 | [TracerMetadata](#tracermetadata) |
+| [DDContext](#ddcontext) |
 | [Variables](#variables) |
 
 ## `ProcessContext`
@@ -5043,6 +5062,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "$ref": "#/$defs/TracerMetadata",
             "description": "Metadata from APM tracer instrumentation"
         },
+        "span_context": {
+            "$ref": "#/$defs/DDContext",
+            "description": "APM span context captured for this process. For a process that\nfork+exec'd a subprocess this carries the parent's span (the one\ncaptured by fill_span_context at sched_process_fork). The top-level\nevent \"dd\" field is built by newDDContextSerializer which walks the\nancestor lineage; this per-process field exposes the same data at\neach level of the ancestor chain."
+        },
         "variables": {
             "$ref": "#/$defs/Variables",
             "description": "Variable values"
@@ -5115,6 +5138,12 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `syscalls` | List of syscalls captured to generate the event |
 | `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
 | `tracer` | Metadata from APM tracer instrumentation |
+| `span_context` | APM span context captured for this process. For a process that
+fork+exec'd a subprocess this carries the parent's span (the one
+captured by fill_span_context at sched_process_fork). The top-level
+event "dd" field is built by newDDContextSerializer which walks the
+ancestor lineage; this per-process field exposes the same data at
+each level of the ancestor chain. |
 | `variables` | Variable values |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
@@ -5129,6 +5158,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | [ContainerContext](#containercontext) |
 | [SyscallsEvent](#syscallsevent) |
 | [TracerMetadata](#tracermetadata) |
+| [DDContext](#ddcontext) |
 | [Variables](#variables) |
 | [Process](#process) |
 

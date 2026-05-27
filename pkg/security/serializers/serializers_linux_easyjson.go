@@ -2674,6 +2674,20 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers17(
 				}
 				easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgDiscoveryTracermetadataModel(in, out.Tracer)
 			}
+		case "span_context":
+			if in.IsNull() {
+				in.Skip()
+				out.SpanContext = nil
+			} else {
+				if out.SpanContext == nil {
+					out.SpanContext = new(DDContextSerializer)
+				}
+				if in.IsNull() {
+					in.Skip()
+				} else {
+					(*out.SpanContext).UnmarshalEasyJSON(in)
+				}
+			}
 		case "variables":
 			if in.IsNull() {
 				in.Skip()
@@ -2949,6 +2963,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers17(
 		const prefix string = ",\"tracer\":"
 		out.RawString(prefix)
 		easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgDiscoveryTracermetadataModel(out, *in.Tracer)
+	}
+	if in.SpanContext != nil {
+		const prefix string = ",\"span_context\":"
+		out.RawString(prefix)
+		(*in.SpanContext).MarshalEasyJSON(out)
 	}
 	if len(in.Variables) != 0 {
 		const prefix string = ",\"variables\":"
