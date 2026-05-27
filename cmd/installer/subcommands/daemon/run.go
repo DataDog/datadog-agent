@@ -27,8 +27,8 @@ import (
 	updatertelemetryfx "github.com/DataDog/datadog-agent/comp/updater/telemetry/fx"
 	updaterFx "github.com/DataDog/datadog-agent/comp/updater/updater/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func runCommand(global *command.GlobalParams) *cobra.Command {
