@@ -49,7 +49,7 @@ type networkDeviceConfigImpl struct {
 
 // NewComponent creates a new networkconfigmanagement component
 func NewComponent(reqs Requires) (Provides, error) {
-	enabled := reqs.Config.GetBool("network_config_management.rollback.enabled")
+	enabled := reqs.Config.GetBool("network_devices.config_management.rollback.enabled")
 	if !enabled {
 		return NewNoopComponent()
 	}

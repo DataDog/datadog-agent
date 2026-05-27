@@ -58,7 +58,7 @@ func TestSend(t *testing.T) {
 		EmittedAt: time.Now().UTC().Format(time.RFC3339),
 		Host:      &healthplatform.HostInfo{Hostname: "test-host"},
 		Issues: map[string]*healthplatform.Issue{
-			"issue-1": {Id: "issue-1", Title: "Test Issue", Severity: "high"},
+			"issue-1": {Id: "issue-1", Title: "Test Issue", Severity: healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH},
 		},
 	}
 

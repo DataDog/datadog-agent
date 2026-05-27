@@ -98,12 +98,9 @@ func newFactoryForAgentWithType(
 	ipath ingestionPath,
 ) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
-	switch {
-	case featuregates.DisableMetricRemappingFeatureGate.IsEnabled():
+	if featuregates.DisableMetricRemappingFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings())
-	case featuregates.MetricRemappingDisabledFeatureGate.IsEnabled():
-		// old gate, no action needed
-	default:
+	} else {
 		options = append(options, otlpmetrics.WithOTelPrefix())
 	}
 
@@ -149,12 +146,9 @@ func newFactoryForAgentWithType(
 // Do not remove or change its signature without coordinating with the upstream repository.
 func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
-	switch {
-	case featuregates.DisableMetricRemappingFeatureGate.IsEnabled():
+	if featuregates.DisableMetricRemappingFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings())
-	case featuregates.MetricRemappingDisabledFeatureGate.IsEnabled():
-		// old gate, no action needed
-	default:
+	} else {
 		options = append(options, otlpmetrics.WithRemapping())
 	}
 

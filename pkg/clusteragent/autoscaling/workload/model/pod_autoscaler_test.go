@@ -847,3 +847,31 @@ func TestContainerResourcesForStatus(t *testing.T) {
 		})
 	}
 }
+
+// TestUpdateFromPodAutoscalerResyncsOnWatchedMetadata verifies that, for local-owner DPAs,
+// UpdateFromPodAutoscaler picks up changes to the watched labels/annotations even when
+// .metadata.generation is unchanged (e.g. an annotation-only edit to PreviewAnnotationKey).
+func TestUpdateFromPodAutoscalerResyncsOnWatchedMetadata(t *testing.T) {
+	dpa := &datadoghq.DatadogPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{Name: "dpa", Namespace: "default", Generation: 1},
+		Spec:       datadoghq.DatadogPodAutoscalerSpec{Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner},
+	}
+
+	pai := NewPodAutoscalerInternal(dpa)
+	assert.False(t, pai.IsBurstable())
+
+	// Annotation-only edit: same generation, new preview annotation.
+	dpa.Annotations = map[string]string{PreviewAnnotationKey: `{"burstable":true}`}
+	pai.UpdateFromPodAutoscaler(dpa)
+	assert.True(t, pai.IsBurstable(), "annotation-only edit must be picked up")
+
+	// Calling again with the same object is a no-op (gate kicks in).
+	previousHash := pai.metadataHash
+	pai.UpdateFromPodAutoscaler(dpa)
+	assert.Equal(t, previousHash, pai.metadataHash)
+
+	// An unrelated annotation change does not retrigger the parse but is harmless.
+	dpa.Annotations["unrelated"] = "x"
+	pai.UpdateFromPodAutoscaler(dpa)
+	assert.True(t, pai.IsBurstable())
+}
