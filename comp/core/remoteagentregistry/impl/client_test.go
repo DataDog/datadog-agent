@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	grpcStatus "google.golang.org/grpc/status"
 
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -243,7 +242,6 @@ func TestRemoteAgentServiceDiscovery(t *testing.T) {
 
 func TestResolveDialTarget(t *testing.T) {
 	tlsConfig := &tls.Config{ServerName: "test"}
-	insecureCredsType := insecure.NewCredentials().Info().SecurityProtocol
 
 	testCases := []struct {
 		name            string
@@ -271,19 +269,18 @@ func TestResolveDialTarget(t *testing.T) {
 			wantSecProtocol: "tls",
 		},
 		{
-			name:            "http:// strips scheme and uses insecure credentials",
-			endpointURI:     "http://127.0.0.1:50051",
-			wantTarget:      "127.0.0.1:50051",
-			wantSecProtocol: insecureCredsType,
-		},
-		{
 			name:            "uppercase scheme is normalized",
 			endpointURI:     "HTTPS://127.0.0.1:50051",
 			wantTarget:      "127.0.0.1:50051",
 			wantSecProtocol: "tls",
 		},
 		{
-			name:            "unsupported scheme is rejected",
+			name:            "unsupported scheme is rejected (insecure)",
+			endpointURI:     "http://127.0.0.1:50051",
+			wantErrContains: "unsupported api_endpoint_uri scheme",
+		},
+		{
+			name:            "unsupported scheme is rejected (specialized)",
 			endpointURI:     "vsock://2:50051",
 			wantErrContains: "unsupported api_endpoint_uri scheme",
 		},

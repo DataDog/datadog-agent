@@ -17,7 +17,6 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/google/uuid"
@@ -98,9 +97,6 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 // Supported schemes (defined in datadog/remoteagent/remoteagent.proto):
 //   - "unix:///path"    — UDS, TLS preserved (filesystem perms gate access, TLS protects on-wire bytes).
 //   - "https://host:port" — TCP with TLS.
-//   - "http://host:port"  — TCP without TLS. Honored for local dev/test only.
-//   - bare "host:port"    — treated as "https://host:port" for backwards compatibility with
-//     remote agents written before the scheme prefix was required.
 func resolveDialTarget(endpointURI string, tlsConfig *tls.Config) (string, credentials.TransportCredentials, error) {
 	tlsCreds := credentials.NewTLS(tlsConfig)
 
@@ -116,10 +112,8 @@ func resolveDialTarget(endpointURI string, tlsConfig *tls.Config) (string, crede
 		return endpointURI, tlsCreds, nil
 	case "https":
 		return rest, tlsCreds, nil
-	case "http":
-		return rest, insecure.NewCredentials(), nil
 	default:
-		return "", nil, fmt.Errorf("unsupported api_endpoint_uri scheme %q (expected one of: unix, https, http)", scheme)
+		return "", nil, fmt.Errorf("unsupported api_endpoint_uri scheme %q (expected one of: unix, https)", scheme)
 	}
 }
 
