@@ -34,7 +34,7 @@ import (
 	localTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 
@@ -59,7 +59,6 @@ import (
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const datadogConfigPath = "datadog.yaml"
@@ -76,9 +75,7 @@ func main() {
 		delegatedauthfx.Module(),
 		workloadfilterfx.Module(),
 		autodiscoveryimpl.Module(),
-		fx.Provide(func() option.Option[healthplatform.Component] {
-			return option.None[healthplatform.Component]()
-		}),
+		healthplatform.Bundle(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
 			return healthprobeDef.Options{
 				Port:           config.GetInt("health_port"),
@@ -282,6 +279,13 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 	}
 
 	// Note: serverless trace tag logic also in comp/trace/payload-modifier/impl/payloadmodifier_test.go
+	//
+	// Note: the deprecated DD_APM_SPAN_DERIVED_PRIMARY_TAGS option is honored for
+	// serverless-init (and the AAS extension) inside comp/trace/config/impl/setup.go
+	// (gated on serverless.enabled || IsAzureAppServicesExtension()). It lives there
+	// rather than here because the AAS extension shares the same gate but doesn't go
+	// through StartServerlessTraceAgent. Treat that block as serverless-only despite
+	// its location in shared trace-agent config code.
 	functionTags := strings.Join(configuredTags, ",")
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:               pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),

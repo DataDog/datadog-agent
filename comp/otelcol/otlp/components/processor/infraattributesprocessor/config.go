@@ -13,6 +13,9 @@ import (
 
 // Config defines configuration for processor.
 type Config struct {
+	// Cardinality controls which tag cardinality is enriched onto the signal.
+	// Accepted values: 0 = low (host-level, default), 1 = orchestrator
+	// (per-pod/task), 2 = high (per-container/request).
 	Cardinality           types.TagCardinality `mapstructure:"cardinality"`
 	AllowHostnameOverride bool                 `mapstructure:"allow_hostname_override"`
 }

@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/flareregistry"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
@@ -188,6 +189,17 @@ func NewCWSConsumer(cmdServer *CommandServer, evm *eventmonitor.EventMonitor, cf
 	}
 	c.apiServer.SetCWSConsumer(c)
 
+	// Publish a loaded-policies callback so the system-probe remoteagent flare
+	// provider can serialize the active policy set into the flare without
+	// importing pkg/security from the component layer.
+	flareregistry.SetLoadedPolicies(func(includeBundled bool) ([]byte, error) {
+		resp, err := c.apiServer.GetLoadedPolicies(context.Background(), &api.GetLoadedPoliciesParams{IncludeBundled: includeBundled})
+		if err != nil {
+			return nil, err
+		}
+		return []byte(resp.Policies), nil
+	})
+
 	// add self test as rule provider
 	if c.selfTester != nil {
 		c.ruleEngine.AddPolicyProvider(c.selfTester)
@@ -204,8 +216,20 @@ func NewCWSConsumer(cmdServer *CommandServer, evm *eventmonitor.EventMonitor, cf
 	seclog.Debugf("Registering API server")
 	api.RegisterSecurityModuleCmdServer(c.cmdServer.grpcCmdServer.ServiceRegistrar(), c.apiServer)
 
-	if cfg.EventGRPCServer != "security-agent" {
-		seclog.Infof("start security module event grpc server with %s", cfg.SocketPath)
+	switch cfg.EventGRPCServer {
+	case "security-agent":
+		// system-probe connects to security-agent's event server; no local server needed here
+	case "system-probe":
+		// system-probe acts as the event server for remote system-probes (e.g., in micro VMs via vsock)
+		seclog.Infof("starting system-probe remote event server on %s", cfg.SocketPath)
+
+		family, addr := socket.GetSocketAddress(cfg.SocketPath)
+		c.grpcEventServer = grpcutils.NewServer(family, addr)
+
+		api.RegisterSecurityAgentAPIServer(c.grpcEventServer.ServiceRegistrar(), NewRemoteEventServer(c.apiServer))
+	default:
+		// legacy mode: system-probe hosts SecurityModuleEvent server, security-agent connects
+		seclog.Infof("starting security module event grpc server on %s", cfg.SocketPath)
 
 		family := common.GetFamilyAddress(cfg.SocketPath)
 		c.grpcEventServer = grpcutils.NewServer(family, cfg.SocketPath)

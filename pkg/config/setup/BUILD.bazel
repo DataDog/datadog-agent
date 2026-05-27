@@ -40,6 +40,7 @@ go_library(
         "//pkg/collector/check/defaults",
         "//pkg/config/create",
         "//pkg/config/env",
+        "//pkg/config/helper",
         "//pkg/config/model",
         "//pkg/config/setup/constants",
         "//pkg/config/structure",

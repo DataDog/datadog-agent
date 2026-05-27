@@ -1343,6 +1343,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "integer",
                     "description": "Parent Process ID"
                 },
+                "sid": {
+                    "type": "integer",
+                    "description": "Session ID"
+                },
                 "tid": {
                     "type": "integer",
                     "description": "Thread ID"
@@ -1505,6 +1509,7 @@ Workload Protection events for Linux systems have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "required": [
+                "sid",
                 "fork_flags",
                 "uid",
                 "gid"
@@ -1520,6 +1525,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "ppid": {
                     "type": "integer",
                     "description": "Parent Process ID"
+                },
+                "sid": {
+                    "type": "integer",
+                    "description": "Session ID"
                 },
                 "tid": {
                     "type": "integer",
@@ -1698,6 +1707,7 @@ Workload Protection events for Linux systems have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "required": [
+                "sid",
                 "fork_flags",
                 "uid",
                 "gid"
@@ -2058,6 +2068,30 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "pid"
             ],
             "description": "SignalEventSerializer serializes a signal event to JSON"
+        },
+        "SocketEvent": {
+            "properties": {
+                "domain": {
+                    "type": "string",
+                    "description": "Socket domain"
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Socket type"
+                },
+                "protocol": {
+                    "type": "string",
+                    "description": "Socket protocol"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "domain",
+                "type",
+                "protocol"
+            ],
+            "description": "SocketEventSerializer serializes a socket event to JSON"
         },
         "SpliceEvent": {
             "properties": {
@@ -2493,6 +2527,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "setrlimit": {
             "$ref": "#/$defs/SetrlimitEvent"
+        },
+        "socket": {
+            "$ref": "#/$defs/SocketEvent"
         }
     },
     "additionalProperties": false,
@@ -2545,6 +2582,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `capabilities` | $ref | Please see [CapabilitiesEvent](#capabilitiesevent) |
 | `prctl` | $ref | Please see [PrCtlEvent](#prctlevent) |
 | `setrlimit` | $ref | Please see [SetrlimitEvent](#setrlimitevent) |
+| `socket` | $ref | Please see [SocketEvent](#socketevent) |
 
 ## `AWSIMDSEvent`
 
@@ -4554,6 +4592,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "integer",
             "description": "Parent Process ID"
         },
+        "sid": {
+            "type": "integer",
+            "description": "Session ID"
+        },
         "tid": {
             "type": "integer",
             "description": "Thread ID"
@@ -4716,6 +4758,7 @@ Workload Protection events for Linux systems have the following JSON schema:
     "additionalProperties": false,
     "type": "object",
     "required": [
+        "sid",
         "fork_flags",
         "uid",
         "gid"
@@ -4729,6 +4772,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `pid` | Process ID |
 | `ppid` | Parent Process ID |
+| `sid` | Session ID |
 | `tid` | Thread ID |
 | `fork_flags` | ForkFlags |
 | `uid` | User ID |
@@ -4789,6 +4833,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "ppid": {
             "type": "integer",
             "description": "Parent Process ID"
+        },
+        "sid": {
+            "type": "integer",
+            "description": "Session ID"
         },
         "tid": {
             "type": "integer",
@@ -4967,6 +5015,7 @@ Workload Protection events for Linux systems have the following JSON schema:
     "additionalProperties": false,
     "type": "object",
     "required": [
+        "sid",
         "fork_flags",
         "uid",
         "gid"
@@ -4980,6 +5029,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `pid` | Process ID |
 | `ppid` | Parent Process ID |
+| `sid` | Session ID |
 | `tid` | Thread ID |
 | `fork_flags` | ForkFlags |
 | `uid` | User ID |
@@ -5572,6 +5622,44 @@ Workload Protection events for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [ProcessContext](#processcontext) |
+
+## `SocketEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "domain": {
+            "type": "string",
+            "description": "Socket domain"
+        },
+        "type": {
+            "type": "string",
+            "description": "Socket type"
+        },
+        "protocol": {
+            "type": "string",
+            "description": "Socket protocol"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "domain",
+        "type",
+        "protocol"
+    ],
+    "description": "SocketEventSerializer serializes a socket event to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `domain` | Socket domain |
+| `type` | Socket type |
+| `protocol` | Socket protocol |
+
 
 ## `SpliceEvent`
 

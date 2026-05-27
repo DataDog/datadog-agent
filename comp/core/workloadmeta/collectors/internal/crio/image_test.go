@@ -19,6 +19,7 @@ import (
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestParseDigests(t *testing.T) {
@@ -235,7 +236,7 @@ func TestConvertImageToEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &collector{}
+			collector := &collector{cfg: configmock.New(t)}
 
 			result := collector.convertImageToEvent(tt.image, tt.info, tt.namespace)
 
@@ -527,6 +528,7 @@ func TestGenerateImageEventsFromImageList(t *testing.T) {
 			collector := &collector{
 				client: client,
 				store:  store,
+				cfg:    configmock.New(t),
 			}
 
 			events, imageIDs, err := collector.generateImageEventsFromImageList(context.Background())

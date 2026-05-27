@@ -68,6 +68,7 @@ func (e *Event) DeepCopy() *Event {
 	copied.Setrlimit = deepCopySetrlimitEvent(e.Setrlimit)
 	copied.Signal = deepCopySignalEvent(e.Signal)
 	copied.Signature = e.Signature
+	copied.Socket = deepCopySocketEvent(e.Socket)
 	copied.SpanContext = deepCopySpanContext(e.SpanContext)
 	copied.Splice = deepCopySpliceEvent(e.Splice)
 	copied.SysCtl = deepCopySysCtlEvent(e.SysCtl)
@@ -192,6 +193,7 @@ func deepCopyPIDContext(fieldToCopy PIDContext) PIDContext {
 	copied.NetNS = fieldToCopy.NetNS
 	copied.PPid = fieldToCopy.PPid
 	copied.Pid = fieldToCopy.Pid
+	copied.SID = fieldToCopy.SID
 	copied.Tid = fieldToCopy.Tid
 	copied.UserSessionID = fieldToCopy.UserSessionID
 	return copied
@@ -1006,12 +1008,7 @@ func deepCopyRawPacketEvent(fieldToCopy RawPacketEvent) RawPacketEvent {
 	return copied
 }
 func deepCopyCaptureInfo(fieldToCopy gopacket.CaptureInfo) gopacket.CaptureInfo {
-	copied := gopacket.CaptureInfo{}
-	copied.CaptureLength = fieldToCopy.CaptureLength
-	copied.InterfaceIndex = fieldToCopy.InterfaceIndex
-	copied.Length = fieldToCopy.Length
-	copied.Timestamp = fieldToCopy.Timestamp
-	return copied
+	return fieldToCopy
 }
 func deepCopyTLSContext(fieldToCopy TLSContext) TLSContext {
 	copied := TLSContext{}
@@ -1117,6 +1114,14 @@ func deepCopySignalEvent(fieldToCopy SignalEvent) SignalEvent {
 	copied.PID = fieldToCopy.PID
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	copied.Target = deepCopyProcessContextPtr(fieldToCopy.Target)
+	copied.Type = fieldToCopy.Type
+	return copied
+}
+func deepCopySocketEvent(fieldToCopy SocketEvent) SocketEvent {
+	copied := SocketEvent{}
+	copied.Domain = fieldToCopy.Domain
+	copied.Protocol = fieldToCopy.Protocol
+	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	copied.Type = fieldToCopy.Type
 	return copied
 }

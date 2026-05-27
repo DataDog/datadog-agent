@@ -12,7 +12,6 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/utils/clock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,7 +50,6 @@ type podInfo struct {
 // Pods are grouped first by top-level owner (e.g. Deployment) and then by direct owner
 // (e.g. ReplicaSet). This enables O(1) per-workload operations.
 type podTracker struct {
-	clock         clock.Clock
 	defaultConfig workloadSpotConfig
 	configSource  func(objectRef) (workloadSpotConfig, bool)
 
@@ -60,9 +58,8 @@ type podTracker struct {
 	pendingSpotPods map[string]pendingSpotPod
 }
 
-func newPodTracker(clk clock.Clock, defaultConfig workloadSpotConfig, configSource func(objectRef) (workloadSpotConfig, bool)) *podTracker {
+func newPodTracker(defaultConfig workloadSpotConfig, configSource func(objectRef) (workloadSpotConfig, bool)) *podTracker {
 	return &podTracker{
-		clock:           clk,
 		defaultConfig:   defaultConfig,
 		configSource:    configSource,
 		podSets:         make(map[objectRef]map[objectRef]*ownerPodSet),
@@ -76,8 +73,10 @@ func (t *podTracker) admitNewPod(o podOwnership) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	ps := t.getOrCreatePodSetLocked(o)
-	t.refreshConfigLocked(o.topLevelOwner, ps)
+	ps, ok := t.getPodSetLocked(o)
+	if !ok {
+		return false
+	}
 
 	total := ps.totalCount()
 	spot := ps.spotCount()
@@ -103,7 +102,9 @@ func (t *podTracker) admitNewOnDemandPod(o podOwnership) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	t.getOrCreatePodSetLocked(o).admit(false)
+	if ps, ok := t.getPodSetLocked(o); ok {
+		ps.admit(false)
+	}
 }
 
 // addedOrUpdated updates tracking state when a pod is added or updated.
@@ -128,12 +129,16 @@ func (t *podTracker) addedOrUpdated(pod *workloadmeta.KubernetesPod) {
 		return
 	}
 
-	t.getOrCreatePodSetLocked(o).track(pod.ID, isSpot, podInfo{name: pod.Name, phase: pod.Phase}, t.clock.Now())
+	ps, ok := t.getPodSetLocked(o)
+	if !ok {
+		return
+	}
+	ps.track(pod.ID, isSpot, podInfo{name: pod.Name, phase: pod.Phase}, time.Now())
 
 	if isSpot {
 		if pod.Phase == string(corev1.PodPending) {
 			if _, exists := t.pendingSpotPods[pod.ID]; !exists {
-				createdAt := t.clock.Now()
+				createdAt := time.Now()
 				if !pod.CreationTimestamp.IsZero() {
 					createdAt = pod.CreationTimestamp
 				}
@@ -171,7 +176,7 @@ func (t *podTracker) deletePod(o podOwnership, uid string) {
 func (t *podTracker) deletePodLocked(o podOwnership, uid string) {
 	if owners, ok := t.podSets[o.topLevelOwner]; ok {
 		if ps, ok := owners[o.directOwner]; ok {
-			if ps.delete(uid, t.clock.Now()) {
+			if ps.delete(uid, time.Now()) {
 				delete(owners, o.directOwner)
 			}
 		}
@@ -182,28 +187,31 @@ func (t *podTracker) deletePodLocked(o podOwnership, uid string) {
 	delete(t.pendingSpotPods, uid)
 }
 
-// refreshConfigLocked refreshes the spot config for the ownerPodSet from the configSource.
+// getPodSetLocked returns the ownerPodSet for the given ownership, creating it if absent,
+// and always applies the latest config from configSource to the returned pod set.
+// When configSource has no entry for the top-level owner it removes
+// tracking state for the owner and returns (nil, false).
 // Must be called with t.mu held.
-func (t *podTracker) refreshConfigLocked(topLevelOwner objectRef, ps *ownerPodSet) {
-	if cfg, ok := t.configSource(topLevelOwner); ok {
-		ps.config = cfg
+func (t *podTracker) getPodSetLocked(o podOwnership) (*ownerPodSet, bool) {
+	cfg, hasConfig := t.configSource(o.topLevelOwner)
+	if !hasConfig {
+		t.untrackLocked(o.topLevelOwner)
+		return nil, false
 	}
-}
 
-// getOrCreatePodSetLocked returns the ownerPodSet for the given ownership, creating it if absent.
-// Must be called with t.mu held.
-func (t *podTracker) getOrCreatePodSetLocked(o podOwnership) *ownerPodSet {
 	owners, ok := t.podSets[o.topLevelOwner]
 	if !ok {
 		owners = make(map[objectRef]*ownerPodSet)
 		t.podSets[o.topLevelOwner] = owners
 	}
-	if ps, ok := owners[o.directOwner]; ok {
-		return ps
+
+	ps, exists := owners[o.directOwner]
+	if !exists {
+		ps = t.newOwnerPodSet()
+		owners[o.directOwner] = ps
 	}
-	ps := t.newOwnerPodSet()
-	owners[o.directOwner] = ps
-	return ps
+	ps.config = cfg
+	return ps, true
 }
 
 // getPodToDelete returns the uid, name, and namespace of a pod to delete to make progress toward
@@ -214,11 +222,16 @@ func (t *podTracker) getPodToDelete(rebalanceStabilizationPeriod time.Duration) 
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	now := t.clock.Now()
+	now := time.Now()
 	lastUpdatedBefore := now.Add(-rebalanceStabilizationPeriod)
 	for topLevel, owners := range t.podSets {
+		cfg, ok := t.configSource(topLevel)
+		if !ok {
+			t.untrackLocked(topLevel)
+			continue
+		}
 		for owner, ps := range owners {
-			t.refreshConfigLocked(topLevel, ps)
+			ps.config = cfg
 			if ps.config.isDisabled(now) {
 				continue
 			}
@@ -256,7 +269,12 @@ func (t *podTracker) deletePendingSpotPod(uid string) {
 func (t *podTracker) untrack(topLevelOwner objectRef) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	t.untrackLocked(topLevelOwner)
+}
 
+// untrackLocked removes all tracking state for the given top-level owner.
+// Must be called with t.mu held.
+func (t *podTracker) untrackLocked(topLevelOwner objectRef) {
 	delete(t.podSets, topLevelOwner)
 	for uid, p := range t.pendingSpotPods {
 		if p.topLevelOwner == topLevelOwner {
@@ -306,7 +324,7 @@ func (ps *ownerPodSet) track(uid string, isSpot bool, info podInfo, now time.Tim
 // getPodToDelete returns the uid and name of a pod to delete to make progress toward the desired config.
 // It returns empty strings if no deletion is needed.
 func (ps *ownerPodSet) getPodToDelete(lastUpdatedBefore time.Time) (string, string) {
-	if ps.admissionSpotCount > 0 || ps.admissionOnDemandCount > 0 {
+	if ps.hasAdmissions() {
 		return "", ""
 	}
 
@@ -338,6 +356,11 @@ func (ps *ownerPodSet) getPodToDelete(lastUpdatedBefore time.Time) (string, stri
 	}
 
 	return "", ""
+}
+
+// hasAdmissions returns true if pod set has admitted but not yet tracked pods.
+func (ps *ownerPodSet) hasAdmissions() bool {
+	return ps.admissionSpotCount > 0 || ps.admissionOnDemandCount > 0
 }
 
 // hasPending returns true if any tracked pod is in PodPending phase.

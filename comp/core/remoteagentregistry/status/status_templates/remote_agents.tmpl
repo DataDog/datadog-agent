@@ -31,9 +31,13 @@ No remote agents registered
   {{ $sectionName }}
   {{ printDashes $sectionName "-" }}
 {{- range $key, $value := $section }}
+{{- if $key }}
   {{ $key }}: {{ $value }}
+{{- else }}
+{{ $value }}
 {{- end }}
-{{ end }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

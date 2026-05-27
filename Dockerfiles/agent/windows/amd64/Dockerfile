@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=mcr.microsoft.com/powershell:lts-windowsservercore-1809
+ARG BASE_IMAGE=mcr.microsoft.com/dotnet/sdk:9.0-windowsservercore-ltsc2019
 FROM ${BASE_IMAGE}
 ARG BASE_IMAGE
 ARG BASE_IMAGE_OS="windows server core"

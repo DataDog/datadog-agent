@@ -92,34 +92,58 @@ func TestStart(t *testing.T) {
 	assert.Empty(t, srv.buildNamespacesSnapshot())
 }
 
-func TestUnsubscribeFromNamespaceEvents(t *testing.T) {
+func TestSubscribeToNamespaceEvents(t *testing.T) {
 	srv := NewKubeMetadataStreamServer(nil, nil)
 
-	// First connection subscribes, then new connection subscribes
-	// (overwriting), then old connection's deferred unsubscribe runs.
-	oldCh := srv.subscribeToNamespaceEvents("node1")
-	newCh := srv.subscribeToNamespaceEvents("node1")
-	srv.unsubscribeFromNamespaceEvents("node1", oldCh)
+	// Two subscriptions for the same node. Both must receive notifications.
+	ch1 := srv.subscribeToNamespaceEvents("node1")
+	defer srv.unsubscribeFromNamespaceEvents("node1", ch1)
+	ch2 := srv.subscribeToNamespaceEvents("node1")
+	defer srv.unsubscribeFromNamespaceEvents("node1", ch2)
 
-	// The new subscriber should still be registered and receive notifications.
-	srv.processNamespaceEvents([]workloadmeta.Event{
-		{
-			Type: workloadmeta.EventTypeSet,
-			Entity: &workloadmeta.KubernetesMetadata{
-				EntityMeta: workloadmeta.EntityMeta{
-					Name:   "ns1",
-					Labels: map[string]string{"l1": "v1"},
-				},
-			},
-		},
+	srv.processNamespaceEvents(testNamespaceSetEvents())
+
+	assertNotified(t, "first", ch1)
+	assertNotified(t, "second", ch2)
+}
+
+func TestUnsubscribeFromNamespaceEvents(t *testing.T) {
+	t.Run("unsubscribing the older subscriber leaves the newer one working", func(t *testing.T) {
+		srv := NewKubeMetadataStreamServer(nil, nil)
+		olderCh := srv.subscribeToNamespaceEvents("node1")
+		newerCh := srv.subscribeToNamespaceEvents("node1")
+
+		srv.unsubscribeFromNamespaceEvents("node1", olderCh)
+		srv.processNamespaceEvents(testNamespaceSetEvents())
+
+		assertNotified(t, "newer", newerCh)
+		assertNotNotified(t, "older", olderCh)
 	})
 
-	select {
-	case <-newCh:
-		// expected
-	case <-time.After(1 * time.Second):
-		t.Fatal("new subscriber was not notified after old unsubscribe")
-	}
+	t.Run("unsubscribing the newer subscriber leaves the older one working", func(t *testing.T) {
+		srv := NewKubeMetadataStreamServer(nil, nil)
+		olderCh := srv.subscribeToNamespaceEvents("node1")
+		newerCh := srv.subscribeToNamespaceEvents("node1")
+
+		srv.unsubscribeFromNamespaceEvents("node1", newerCh)
+		srv.processNamespaceEvents(testNamespaceSetEvents())
+
+		assertNotified(t, "older", olderCh)
+		assertNotNotified(t, "newer", newerCh)
+	})
+
+	t.Run("unsubscribing an unknown channel is a no-op", func(t *testing.T) {
+		srv := NewKubeMetadataStreamServer(nil, nil)
+		olderCh := srv.subscribeToNamespaceEvents("node1")
+		newerCh := srv.subscribeToNamespaceEvents("node1")
+
+		unknown := make(chan struct{}, 1)
+		srv.unsubscribeFromNamespaceEvents("node1", unknown)
+		srv.processNamespaceEvents(testNamespaceSetEvents())
+
+		assertNotified(t, "older", olderCh)
+		assertNotified(t, "newer", newerCh)
+	})
 }
 
 func TestBundleToPodServiceMappingsSnapshot(t *testing.T) {
@@ -466,4 +490,36 @@ func TestFullStateResponse(t *testing.T) {
 	}
 
 	assert.True(t, proto.Equal(expected, resp))
+}
+
+func testNamespaceSetEvents() []workloadmeta.Event {
+	return []workloadmeta.Event{
+		{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesMetadata{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:   "ns1",
+					Labels: map[string]string{"l1": "v1"},
+				},
+			},
+		},
+	}
+}
+
+func assertNotified(t *testing.T, name string, ch <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-ch:
+	case <-time.After(1 * time.Second):
+		t.Fatalf("%s subscriber was not notified", name)
+	}
+}
+
+func assertNotNotified(t *testing.T, name string, ch <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-ch:
+		t.Fatalf("%s subscriber was notified but should not have been", name)
+	case <-time.After(50 * time.Millisecond):
+	}
 }

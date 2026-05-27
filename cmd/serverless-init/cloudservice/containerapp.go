@@ -52,9 +52,9 @@ const (
 	// ContainerAppOrigin origin tag value
 	ContainerAppOrigin = "containerapp"
 
-	containerAppPrefix             = "azure.app_containerapp."
-	containerAppShutdownMetricName = "azure.app_containerapp.enhanced.shutdown"
-	containerAppStartMetricName    = "azure.app_containerapp.enhanced.cold_start"
+	containerAppPrefix             = "azure.app_containerapps."
+	containerAppShutdownMetricName = "azure.app_containerapps.enhanced.shutdown"
+	containerAppStartMetricName    = "azure.app_containerapps.enhanced.cold_start"
 
 	containerAppLegacyShutdownMetricName = "azure.containerapp.enhanced.shutdown"
 	containerAppLegacyStartMetricName    = "azure.containerapp.enhanced.cold_start"

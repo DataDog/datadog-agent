@@ -7,6 +7,9 @@
 package gcpopenshiftvm
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	kubernetesNewProvider "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
@@ -34,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	gcpkubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/gcp/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 )
 
@@ -45,6 +49,14 @@ var openShiftPrivilegedPSSLabels = pulumi.StringMap{
 	"pod-security.kubernetes.io/enforce": pulumi.String("privileged"),
 	"pod-security.kubernetes.io/warn":    pulumi.String("privileged"),
 	"pod-security.kubernetes.io/audit":   pulumi.String("privileged"),
+}
+
+func openshiftDiagnoseFunc(ctx context.Context, name string) (string, error) {
+	dumpResult, err := gcpkubernetes.DumpOpenshiftClusterState(ctx, name)
+	if err != nil {
+		return dumpResult, err
+	}
+	return fmt.Sprintf("Dumping OpenShift cluster state:\n%s", dumpResult), nil
 }
 
 // OpenshiftVMProvisioner creates a new provisioner for OpenShift VM on GCP
@@ -63,6 +75,8 @@ func OpenshiftVMProvisioner(opts ...ProvisionerOption) provisioners.TypedProvisi
 		return OpenShiftVMRunFunc(ctx, env, params)
 	}, params.extraConfigParams)
 
+	provisioner.SetDiagnoseFunc(openshiftDiagnoseFunc)
+
 	return provisioner
 }
 
@@ -77,6 +91,8 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 		compute.WithOS(osDesc),
 		compute.WithInstancetype("n2-standard-32"),
 		compute.WithNestedVirt(true),
+		// this is used by the dumpCluster debug function
+		compute.WithLabels(map[string]string{"kube-provider": "openshift"}),
 	)
 	if err != nil {
 		return err

@@ -517,7 +517,10 @@ class GithubAPI:
         if not running_in_ci():
             return Auth.Token(generate_local_github_token(Context()))
         if "GITHUB_TOKEN" in os.environ:
-            return Auth.Token(os.environ["GITHUB_TOKEN"])
+            token = os.environ["GITHUB_TOKEN"]
+            if not token:
+                raise RuntimeError("GITHUB_TOKEN is set but empty, dd-octo-sts may not be installed or failed to run")
+            return Auth.Token(token)
         if public_repo:
             return Auth.Login("user", "password")
 

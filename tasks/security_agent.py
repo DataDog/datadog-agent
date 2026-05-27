@@ -16,7 +16,7 @@ import tasks.libs.cws.secl_doc_gen as secl_doc_gen
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
-from tasks.libs.build.bazel import BazelTools
+from tasks.libs.build.bazel import bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
 from tasks.libs.common.go import go_build
@@ -56,7 +56,6 @@ def build(
     rebuild=False,
     install_path=None,
     go_mod="readonly",
-    skip_assets=False,
     static=False,
     fips_mode=False,
 ):
@@ -522,18 +521,26 @@ def generate_cws_documentation(ctx):
 @task
 def cws_go_generate(ctx, verbose=False):
     # run different `go generate` for pkg/security/secl and pkg/security
-    ctx.run("go install golang.org/x/tools/cmd/stringer")
-    ctx.run("go install github.com/mailru/easyjson/easyjson")
-    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/accessors")
-    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/event_deep_copy")
-    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/operators")
+    ctx.run("go install golang.org/x/tools/cmd/stringer@v0.44.0")
+    ctx.run("go install github.com/mailru/easyjson/easyjson@v0.9.1")
+    # CWS codegens migrated to Bazel keep their //go:generate directives so a future
+    # Gazelle extension can pick them up; we just skip them in `go generate` here.
+    # See ABLD-420.
+    bazel(ctx, "run", "//pkg/security/secl/compiler/eval:eval_operators")
+    bazel(ctx, "run", "//pkg/security/secl/model:consts_map_names_linux")
+    bazel(ctx, "run", "//pkg/security/secl/model:accessors_unix")
+    bazel(ctx, "run", "//pkg/security/secl/model:accessors_windows")
+    bazel(ctx, "run", "//pkg/security/secl/model:event_deep_copy_unix")
+    bazel(ctx, "run", "//pkg/security/secl/model:event_deep_copy_windows")
+    bazel(ctx, "run", "//docs/cloud-workload-security:secl_linux")
+    bazel(ctx, "run", "//docs/cloud-workload-security:secl_windows")
+    skip = "operators|bpf_maps_generator|accessors|event_deep_copy"
     with ctx.cd("./pkg/security/secl"):
         if sys.platform == "linux":
-            ctx.run("GOOS=windows go generate ./...")
-        # Disable cross generation from windows for now. Need to fix the stringer issue.
-        # elif sys.platform == "win32":
-        #     ctx.run("set GOOS=linux && go generate ./...")
-        cmd = "go generate"
+            ctx.run(f"GOOS=windows go generate -run=-tag.+windows -skip='{skip}' ./...")
+        elif is_windows:
+            ctx.run(f'set "GOOS=linux" && go generate -run=-tag.+unix -skip="{skip}" ./...')
+        cmd = f"go generate -skip='{skip}'"
         if verbose:
             cmd += " -v"
         ctx.run(cmd + " ./...")
@@ -546,10 +553,11 @@ def cws_go_generate(ctx, verbose=False):
 
     ctx.run("go generate ./pkg/security/probe/remediations_linux.go")
     ctx.run("go generate ./pkg/security/probe/custom_events.go")
-    ctx.run("go generate -tags=linux_bpf,cws_go_generate ./pkg/security/...")
+    ctx.run(f"go generate -skip='{skip}' -tags=linux_bpf,cws_go_generate ./pkg/security/...")
 
     # synchronize the seclwin package from the secl package
-    sync_secl_win_pkg(ctx)
+    bazel(ctx, "run", "//pkg/security/seclwin:sync")
+    bazel(ctx, "run", "//pkg/security/seclwin/model:sync")
 
     # generate documentation
     generate_cws_documentation(ctx)
@@ -578,6 +586,13 @@ def generate_syscall_table(ctx):
         "pkg/security/secl/model/syscalls_linux_arm64.go",
         "pkg/security/secl/model/syscalls_string_linux_arm64.go",
     )
+
+
+@task
+def generate_utils_syscall_table(ctx):
+    # The kernel files are fetched as `http_file` repos pinned in MODULE.bazel;
+    # bumping the kernel version means updating those URLs and sha256 entries.
+    bazel(ctx, "run", "//pkg/security/utils:utils_syscall_table")
 
 
 DEFAULT_BTFHUB_CONSTANTS_PATH = "./pkg/security/probe/constantfetch/btfhub/constants.json"
@@ -636,20 +651,7 @@ def split_btfhub_constants(ctx):
 
 @task
 def generate_cws_proto(ctx):
-    bt = BazelTools(ctx)
-    plugin_opts = " ".join(
-        [
-            bt.protoc_plugin("protoc-gen-go"),
-            bt.protoc_plugin("protoc-gen-go-grpc"),
-            bt.protoc_plugin("protoc-gen-go-vtproto"),
-        ]
-    )
-
-    # API
-    ctx.run(
-        f"{bt.protoc} {plugin_opts} -I. -Ipkg/proto/protodep --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/api/api.proto"
-    )
-    # no need to strip protoc version from headers: hermetic tools guarantee it's identical on all execution platforms
+    bazel(ctx, "run", "//pkg/security/proto/api:write_pb_go")
 
 
 def get_git_dirty_files():
@@ -776,46 +778,3 @@ def print_fentry_stats(ctx):
 
     for kind in ["kprobe", "kretprobe", "fentry", "fexit"]:
         ctx.run(f"readelf -W -S {fentry_o_path} 2> /dev/null | grep PROGBITS | grep {kind} | wc -l")
-
-
-@task
-def sync_secl_win_pkg(ctx):
-    files_to_copy = [
-        ("model.go", None),
-        ("events.go", None),
-        ("args_envs.go", None),
-        ("consts_common.go", None),
-        ("consts_windows.go", "consts_win.go"),
-        ("model_windows.go", "model_win.go"),
-        ("field_handlers_windows.go", "field_handlers_win.go"),
-        ("accessors_helpers.go", None),
-        ("accessors_windows.go", "accessors_win.go"),
-        ("legacy_secl.go", None),
-        ("security_profile.go", None),
-        ("iterator.go", None),
-    ]
-
-    seclwin_model = "pkg/security/seclwin/model"
-    build_bazel = os.path.join(seclwin_model, "BUILD.bazel")
-    preserve_build = os.path.exists(build_bazel)
-    if preserve_build:
-        build_bazel_content = open(build_bazel).read()
-
-    ctx.run(f"rm -r {seclwin_model}")
-    ctx.run(f"mkdir -p {seclwin_model}")
-    ctx.run("cp pkg/security/secl/doc.go pkg/security/seclwin/doc.go")
-
-    if preserve_build:
-        with open(build_bazel, "w") as f:
-            f.write(build_bazel_content)
-
-    for ffrom, fto in files_to_copy:
-        if not fto:
-            fto = ffrom
-
-        ctx.run(f"cp pkg/security/secl/model/{ffrom} pkg/security/seclwin/model/{fto}")
-        if sys.platform == "darwin":
-            ctx.run(f"sed -i '' '/^\\/\\/go:build/d' pkg/security/seclwin/model/{fto}")
-        else:
-            ctx.run(f"sed -i '/^\\/\\/go:build/d' pkg/security/seclwin/model/{fto}")
-        ctx.run(f"gofmt -s -w pkg/security/seclwin/model/{fto}")

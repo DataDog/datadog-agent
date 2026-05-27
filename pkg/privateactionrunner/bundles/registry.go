@@ -8,7 +8,7 @@
 package privatebundles
 
 import (
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	com_datadoghq_gitlab_branches "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/branches"
@@ -84,9 +84,9 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 			"com.datadoghq.kubernetes.customresources": com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(),
 			"com.datadoghq.kubernetes.discovery":       com_datadoghq_kubernetes_discovery.NewKubernetesDiscovery(),
 			"com.datadoghq.mongodb":                    com_datadoghq_mongodb.NewMongoDB(),
-			"com.datadoghq.remoteaction":               com_datadoghq_remoteaction.NewRemoteAction(),
+			"com.datadoghq.remoteaction":               com_datadoghq_remoteaction.NewRemoteAction(configuration),
 			"com.datadoghq.remoteaction.networks":      com_datadoghq_remoteaction_networks.NewNetworks(traceroute, eventPlatform),
-			"com.datadoghq.remoteaction.rshell":        com_datadoghq_remoteaction_rshell.NewRshellBundle(configuration.RShellAllowedPaths),
+			"com.datadoghq.remoteaction.rshell":        com_datadoghq_remoteaction_rshell.NewRshellBundle(configuration),
 			"com.datadoghq.script":                     com_datadoghq_script.NewScript(),
 			"com.datadoghq.temporal":                   com_datadoghq_temporal.NewTemporal(),
 		},

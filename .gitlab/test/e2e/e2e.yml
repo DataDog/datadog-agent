@@ -115,6 +115,14 @@
         dda inv -- -e coverage.process-e2e-coverage-folders $E2E_COVERAGE_OUT_DIR
         dda inv -- -e dyntest.compute-and-upload-job-index --bucket-uri $S3_PERMANENT_ARTIFACTS_URI --coverage-folder $E2E_COVERAGE_OUT_DIR --commit-sha $CI_COMMIT_SHA --job-id $CI_JOB_ID
       fi
+    # Upload e2e coverage to Datadog Code Coverage (side-by-side with Codecov)
+    - |
+      if [ -d "$E2E_COVERAGE_OUT_DIR" ]; then
+        DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+        for coverage in "$E2E_COVERAGE_OUT_DIR"/*/coverage.txt; do
+          datadog-ci coverage upload --format=go-coverprofile "$coverage" || true
+        done
+      fi
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -188,7 +196,7 @@ go_e2e_test_binaries:
     - !reference [.retrieve_linux_go_e2e_deps]
   script:
     - pushd test/new-e2e
-    - go install github.com/DataDog/orchestrion
+    - go install github.com/DataDog/orchestrion@v1.4.0
     - popd
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
     - dda inv -- -e new-e2e-tests.upload-binaries --output-dir test-binaries --manifest-file-path manifest.json --s3-base-uri $S3_PERMANENT_ARTIFACTS_URI/e2e-pre-build/$CI_PIPELINE_ID
@@ -417,7 +425,7 @@ new-e2e-agent-subcommands:
 new-e2e-agent-health:
   extends: .new_e2e_template
   needs:
-    - !reference [.needs_new_e2e_template]
+    - !reference [.new_e2e_template_needs_container_deploy_linux, needs]
     - agent_deb-x64-a7
   rules:
     - !reference [.on_healthplatform_or_e2e_changes]
@@ -431,6 +439,7 @@ new-e2e-privateactionrunner:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
+    - qa_agent_linux
   rules:
     - !reference [.on_privateactionrunner_or_e2e_changes]
     - !reference [.manual]
@@ -568,6 +577,39 @@ new-e2e-amp:
     TARGETS: ./tests/agent-metric-pipelines
     TEAM: agent-metric-pipelines
     ON_NIGHTLY_FIPS: "true"
+    EXTRA_PARAMS: --skip "ADP"
+
+# Exploratory variant of new-e2e-amp that runs the agent-metric-pipelines
+# suite with ADP enabled (see test/new-e2e/tests/agent-metric-pipelines/common/adp.go).
+# Manual-only — does not run automatically on PRs to avoid doubling CI cost.
+# Used to surface ADP/Core Agent DogStatsD compatibility gaps. See DADP-72.
+new-e2e-amp-adp:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    # Upstream qa_* and agent_deb-* jobs are gated by their own rules and may
+    # not exist in every pipeline. This job is .manual-only (always created),
+    # so we mark these as optional to keep the config valid. If you trigger
+    # this job in a pipeline where upstream artifacts weren't built, it will
+    # fail at runtime — verify the upstream jobs are green before clicking.
+    - job: agent_deb-x64-a7
+      optional: true
+    - job: qa_agent_linux
+      optional: true
+    - job: qa_agent_linux_jmx
+      optional: true
+    - job: qa_agent_fips_linux_jmx
+      optional: true
+    - job: qa_dca
+      optional: true
+  rules:
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-metric-pipelines
+    TEAM: agent-data-plane
+    EXTRA_PARAMS: --run "ADP"
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-alp:
   extends: .new_e2e_template
@@ -891,6 +933,15 @@ new-e2e-ha-agent-failover:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
+new-e2e-anomalydetection:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_anomalydetection_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/anomalydetection
+    TEAM: q-branch
+
 new-e2e-netpath:
   extends: .new_e2e_template_needs_deb_x64
   rules:
@@ -988,6 +1039,8 @@ new-e2e-otel:
     TEAM: injection-platform
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
+    KUBERNETES_MEMORY_REQUEST: 24Gi
+    KUBERNETES_MEMORY_LIMIT: 24Gi
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
@@ -1072,6 +1125,7 @@ new-e2e-ssi-openshift:
     E2E_STACK_NAME_SUFFIX: openshift
     E2E_PRE_INITIALIZED: "true"
     EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
+  allow_failure: true
 
 new-e2e-ssi-aks:
   extends: .new-e2e_ssi_extra_distribution
@@ -1080,6 +1134,23 @@ new-e2e-ssi-aks:
     E2E_STACK_NAME_SUFFIX: aks
     # Image volume is not supported on AKS in our current test setup.
     EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
+    
+new-e2e-ssi-gradual-rollout:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_ssi_or_e2e_changes]
+    - changes:
+        paths:
+          - test/new-e2e/tests/ssi-gradual-rollout/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+    - qa_agent_linux
+  variables:
+    TARGETS: ./tests/ssi-gradual-rollout
+    TEAM: apm-release-platform
 
 .new-e2e_package_signing:
   variables:
@@ -1123,6 +1194,7 @@ new-e2e-cspm:
     - !reference [.needs_new_e2e_template]
     - qa_agent_linux
     - qa_dca
+    - agent_deb-x64-a7
   variables:
     TARGETS: ./tests/cspm
     TEAM: cspm
@@ -1148,6 +1220,19 @@ new-e2e-gpu:
       - EXTRA_PARAMS: "--run TestGPUK8sSuiteUbuntu2204"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver510"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver430" # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-autoscaling:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+  rules:
+    - !reference [.on_autoscaling_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/autoscaling
+    TEAM: container-autoscaling
   retry: !reference [.retry_only_infra_failure, retry]
 
 all-artifacts: # This job is used to collect all artifacts needed in the flake finder pipeline, because we are limited to 5 cross pipelines needs: https://forum.gitlab.com/t/needs-pipeline-job-limit-on-premise/88731

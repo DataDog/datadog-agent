@@ -37,8 +37,8 @@
     name: '#agent-configuration-ops'
     id: 'C08A85VGC8P'
   review:
-    name: '#agent-configuration-ops'
-    id: 'C08A85VGC8P'
+    name: ''
+    id: ''
 '@datadog/agent-cspm':
   notification:
     name: '#security-and-compliance-agent-ops'
@@ -46,6 +46,13 @@
   review:
     name: '#security-and-compliance-agent'
     id: 'CTNVD37T3'
+'@datadog/agent-data-plane':
+  notification:
+    name: '#agent-data-plane'
+    id: 'C070PQKLLP5'
+  review:
+    name: '#agent-data-plane'
+    id: 'C070PQKLLP5'
 '@datadog/agent-delivery':
   notification:
     name: '#agent-delivery-ops'
@@ -151,6 +158,13 @@
   review:
     name: '#apm-onboarding'
     id: 'CLWN64GAW'
+'@datadog/apm-release-platform':
+  notification:
+    name: '#apm-release-platform'
+    id: 'C07AFGS1N81'
+  review:
+    name: '#apm-release-platform'
+    id: 'C07AFGS1N81'
 '@datadog/apm-trace-storage':
   notification:
     name: '#apm-trace-storage'
@@ -235,6 +249,13 @@
   review:
     name: '#database-monitoring'
     id: 'C011QG8MJBA'
+'@datadog/dd-agent-mcp':
+  notification:
+    name: '#dd-agent-mcp'
+    id: 'C0A9L3290GZ'
+  review:
+    name: '#dd-agent-mcp'
+    id: 'C0A9L3290GZ'
 '@datadog/debugger':
   notification:
     name: '#debugger-ops-prod'
@@ -382,6 +403,13 @@
   review:
     name: '#synthetics'
     id: 'C8E85JEGH'
+'@datadog/telemetry-onboarding':
+  notification:
+    name: '#telemetry-onboarding'
+    id: 'C0ACU5FGE3H'
+  review:
+    name: '#telemetry-onboarding'
+    id: 'C0ACU5FGE3H'
 '@datadog/universal-service-monitoring':
   notification:
     name: '#universal-service-monitoring'

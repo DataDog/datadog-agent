@@ -111,6 +111,17 @@ func testConflictingReturn(i int) (_ int, r0 string) {
 	return i * 10, fmt.Sprintf("s%d", i)
 }
 
+// The defer keeps both named returns live on the stack for the line probe.
+//
+//go:noinline
+func testReturnsNamedDeferLine(i int) (a string, b string) {
+	defer func() { a, b = a+"!", b+"!" }()
+	a = fmt.Sprintf("a%d", i)
+	b = fmt.Sprintf("b%d", i)
+	fmt.Println("testReturnsNamedDeferLine", a, b)
+	return
+}
+
 // Primitive types - exercise all basic types.
 //
 //go:noinline
@@ -400,6 +411,7 @@ func executeReturns() {
 	testMultipleNamedReturn(41)
 	testSomeNamedReturn(42)
 	testConflictingReturn(42)
+	testReturnsNamedDeferLine(43)
 
 	// New ABI test cases - return values only.
 	testReturnsPrimitives()

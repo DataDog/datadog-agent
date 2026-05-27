@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -61,6 +60,12 @@ const (
 
 	symbolCopyTimeout = 10 * time.Second
 	uploadTimeout     = 15 * time.Second
+	// DefaultMemoryBudget is the symbol upload memory budget used when the
+	// process runs without a cgroup memory limit.
+	//
+	// This is not a single hard limit, binaries exceeding the set limit will still get uploaded. This is more about
+	// having a size limit for concurrent uploads.
+	defaultMemoryBudget = 1 * 1024 * 1024 * 1024 // 1 GB
 )
 
 type DatadogSymbolUploader struct {
@@ -188,7 +193,7 @@ func (d *DatadogSymbolUploader) Start(ctx context.Context) {
 	// If no memory limit, use MaxInt64 for effectively unlimited budget
 	if memoryBudget == -1 {
 		slog.Debug("No memory limit found in cgroup, unlimited budget for symbol upload")
-		memoryBudget = math.MaxInt64
+		memoryBudget = defaultMemoryBudget
 	} else {
 		slog.Debug("Memory budget for symbol upload", slog.Int64("budget", memoryBudget))
 	}

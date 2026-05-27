@@ -6,6 +6,8 @@
 package listener
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
@@ -21,24 +23,29 @@ type Launcher struct {
 	pipelineProvider pipeline.Provider
 	frameSize        int
 	tcpSources       chan *sources.LogSource
+	tcpSourcesDone   chan struct{}
 	udpSources       chan *sources.LogSource
+	udpSourcesDone   chan struct{}
 	listeners        []startstop.StartStoppable
 	stop             chan struct{}
+	stopOnce         sync.Once
 }
 
 // NewLauncher returns an initialized Launcher
 func NewLauncher(frameSize int) *Launcher {
 	return &Launcher{
-		frameSize: frameSize,
-		stop:      make(chan struct{}),
+		frameSize:      frameSize,
+		tcpSourcesDone: make(chan struct{}),
+		udpSourcesDone: make(chan struct{}),
+		stop:           make(chan struct{}),
 	}
 }
 
 // Start starts the listener.
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
 	l.pipelineProvider = pipelineProvider
-	l.tcpSources = sourceProvider.GetAddedForType(config.TCPType)
-	l.udpSources = sourceProvider.GetAddedForType(config.UDPType)
+	l.tcpSources = sourceProvider.GetAddedForType(config.TCPType, l.tcpSourcesDone)
+	l.udpSources = sourceProvider.GetAddedForType(config.UDPType, l.udpSourcesDone)
 	go l.run()
 }
 
@@ -56,7 +63,12 @@ func (l *Launcher) run() {
 			listener.Start()
 			l.listeners = append(l.listeners, listener)
 		case source := <-l.udpSources:
-			listener := NewUDPListener(l.pipelineProvider, source, l.frameSize)
+			listener, err := NewUDPListener(l.pipelineProvider, source, l.frameSize)
+			if err != nil {
+				log.Errorf("Can't create UDP listener: %v", err)
+				source.Status.Error(err)
+				continue
+			}
 			listener.Start()
 			l.listeners = append(l.listeners, listener)
 		case <-l.stop:
@@ -67,10 +79,14 @@ func (l *Launcher) run() {
 
 // Stop stops all listeners
 func (l *Launcher) Stop() {
-	l.stop <- struct{}{}
-	stopper := startstop.NewParallelStopper()
-	for _, l := range l.listeners {
-		stopper.Add(l)
-	}
-	stopper.Stop()
+	l.stopOnce.Do(func() {
+		close(l.tcpSourcesDone)
+		close(l.udpSourcesDone)
+		l.stop <- struct{}{}
+		stopper := startstop.NewParallelStopper()
+		for _, l := range l.listeners {
+			stopper.Add(l)
+		}
+		stopper.Stop()
+	})
 }

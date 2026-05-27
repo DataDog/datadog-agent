@@ -56,7 +56,7 @@ jobs:
           features: legacy-tasks
 
       - name: Install Python dependencies
-        run: pip install requests pyyaml semver
+        run: pip install requests==2.33.1 pyyaml==6.0.3 semver==3.0.4
 
       - name: Install kind
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc #v1.14.0
@@ -83,7 +83,7 @@ jobs:
 
       - name: Configure AWS credentials
         if: steps.fetch-versions.outputs.has_new_rc_versions == 'true' && steps.build-rc-images.outputs.built_count > 0
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
+        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
         with:
           role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/datadog-agent-kind-image-publisher-oidc
           aws-region: us-east-1
@@ -145,7 +145,7 @@ jobs:
         run: |
           dda inv k8s-versions.update-e2e-yaml
 
-      - uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         name: Create pull request
         if: steps.update-yaml.outputs.updated == 'true'
         with:

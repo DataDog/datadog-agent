@@ -34,8 +34,8 @@ if is_windows():
         )
 
 
-def ask(question: str) -> str:
-    return input(colored(question, "blue"))
+def ask(question: str, color: str = "blue") -> str:
+    return input(colored(question, color))
 
 
 def ask_yesno(question: str, default='N') -> bool:

@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "configcheck",
+    srcs = [
+        "configcheck.go",
+        "configcheck_common.go",
+        "configcheck_no_otlp.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/helper",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+    ],
+)
+
+go_test(
+    name = "configcheck_test",
+    srcs = ["configcheck_test.go"],
+    embed = [":configcheck"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/setup",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

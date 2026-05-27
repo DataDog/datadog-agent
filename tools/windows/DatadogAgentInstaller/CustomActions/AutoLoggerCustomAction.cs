@@ -209,12 +209,9 @@ namespace Datadog.CustomActions
                 {
                     if (Directory.Exists(logonDurationDir))
                     {
-                        session.Log($"Cleaning logon duration directory: {logonDurationDir}");
-                        foreach (var file in Directory.GetFiles(logonDurationDir))
-                        {
-                            File.Delete(file);
-                        }
-                        session.Log("Logon duration directory cleaned");
+                        session.Log($"Removing logon duration directory: {logonDurationDir}");
+                        Directory.Delete(logonDurationDir, true);
+                        session.Log("Logon duration directory removed");
                     }
                     else
                     {

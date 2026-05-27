@@ -44,6 +44,7 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 		{Type: TCPType, Port: 6514, TLS: &TLSListenerConfig{CertFile: "/cert"}},
 		{Type: UDPType, Port: 514, TLS: &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key"}},
 		{Type: TCPType, Port: 6514, TLS: &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", ClientAuth: "bogus"}},
+		{Type: TCPType, Port: 6514, AllowedIPs: StringSliceField{"not-an-ip"}},
 		{Type: TCPType, Port: 6514, TLS: &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", MinTLSVersion: "tls1.2"}},
 		{Type: DockerType, ProcessingRules: []*ProcessingRule{{Name: "foo"}}},
 		{Type: DockerType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: "bar"}}},
@@ -89,10 +90,28 @@ func TestAutoMultilineEnabled(t *testing.T) {
 }
 
 func TestExperimentalAdaptiveSamplingOptionsDecode(t *testing.T) {
-	cfg := decode(`{"experimental_adaptive_sampling":{"enabled":true}}`)
+	cfg := decode(`{"experimental_adaptive_sampling":{"enabled":true,"max_patterns":42,"rate_limit":2.5,"burst_size":17.5,"match_threshold":0.75,"tokenizer_max_input_bytes":512,"protect_important_logs":false,"include":[{"regex":"foo.*bar"},{"sample":"my 123 fun log sample"}],"exclude":[{"regex":"baz.*qux"},{"sample":"my 456 bad log sample"}]}}`)
 	require.NotNil(t, cfg.ExperimentalAdaptiveSampling)
 	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.Enabled)
 	assert.True(t, *cfg.ExperimentalAdaptiveSampling.Enabled)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.MaxPatterns)
+	assert.Equal(t, 42, *cfg.ExperimentalAdaptiveSampling.MaxPatterns)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.RateLimit)
+	assert.Equal(t, 2.5, *cfg.ExperimentalAdaptiveSampling.RateLimit)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.BurstSize)
+	assert.Equal(t, 17.5, *cfg.ExperimentalAdaptiveSampling.BurstSize)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.MatchThreshold)
+	assert.Equal(t, 0.75, *cfg.ExperimentalAdaptiveSampling.MatchThreshold)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.TokenizerMaxInputBytes)
+	assert.Equal(t, 512, *cfg.ExperimentalAdaptiveSampling.TokenizerMaxInputBytes)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.ProtectImportantLogs)
+	assert.False(t, *cfg.ExperimentalAdaptiveSampling.ProtectImportantLogs)
+	require.Len(t, cfg.ExperimentalAdaptiveSampling.Include, 2)
+	assert.Equal(t, "foo.*bar", cfg.ExperimentalAdaptiveSampling.Include[0].Regex)
+	assert.Equal(t, "my 123 fun log sample", cfg.ExperimentalAdaptiveSampling.Include[1].Sample)
+	require.Len(t, cfg.ExperimentalAdaptiveSampling.Exclude, 2)
+	assert.Equal(t, "baz.*qux", cfg.ExperimentalAdaptiveSampling.Exclude[0].Regex)
+	assert.Equal(t, "my 456 bad log sample", cfg.ExperimentalAdaptiveSampling.Exclude[1].Sample)
 }
 
 func TestAutoMultiLineStatus(t *testing.T) {
@@ -489,4 +508,100 @@ func TestValidateWildcardWithBeginningMode(t *testing.T) {
 		err := config.Validate()
 		assert.Nil(t, err, "Wildcard path %s with tailing mode %s should be valid", config.Path, config.TailingMode)
 	}
+}
+
+func TestValidateIPFilter(t *testing.T) {
+	t.Run("valid CIDR entries pass", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:       TCPType,
+			Port:       6514,
+			AllowedIPs: StringSliceField{"10.0.0.0/8", "192.168.1.0/24"},
+			DeniedIPs:  StringSliceField{"10.0.0.99"},
+		}
+		err := cfg.validateIPFilter()
+		assert.Nil(t, err)
+	})
+
+	t.Run("valid single IPs pass", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:       UDPType,
+			Port:       514,
+			AllowedIPs: StringSliceField{"10.0.0.1", "::1"},
+		}
+		err := cfg.validateIPFilter()
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid allowed IP fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:       TCPType,
+			Port:       6514,
+			AllowedIPs: StringSliceField{"not-an-ip"},
+		}
+		err := cfg.validateIPFilter()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "allowed_ips")
+	})
+
+	t.Run("invalid denied IP fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:      TCPType,
+			Port:      6514,
+			DeniedIPs: StringSliceField{"999.999.999.999"},
+		}
+		err := cfg.validateIPFilter()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "denied_ips")
+	})
+
+	t.Run("IP filter on file type fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:       FileType,
+			Path:       "/var/log/test.log",
+			AllowedIPs: StringSliceField{"10.0.0.1"},
+		}
+		err := cfg.validateIPFilter()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "only supported for")
+	})
+
+	t.Run("empty lists pass", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+		}
+		err := cfg.validateIPFilter()
+		assert.Nil(t, err)
+	})
+
+	t.Run("both allowed and denied coexist", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:       TCPType,
+			Port:       6514,
+			AllowedIPs: StringSliceField{"10.0.0.0/8"},
+			DeniedIPs:  StringSliceField{"10.0.0.0/24"},
+		}
+		err := cfg.validateIPFilter()
+		assert.Nil(t, err)
+	})
+
+	t.Run("IPv6 CIDR passes", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:       TCPType,
+			Port:       6514,
+			AllowedIPs: StringSliceField{"fd00::/64"},
+		}
+		err := cfg.validateIPFilter()
+		assert.Nil(t, err)
+	})
+
+	t.Run("UDP type passes", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:      UDPType,
+			Port:      514,
+			DeniedIPs: StringSliceField{"10.0.0.99"},
+		}
+		err := cfg.validateIPFilter()
+		assert.Nil(t, err)
+	})
 }

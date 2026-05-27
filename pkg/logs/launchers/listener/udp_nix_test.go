@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -25,10 +26,11 @@ func TestUDPShoulProperlyCollectLogSplitPerDatadgram(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
 	frameSize := 100
-	listener := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), frameSize)
+	listener, err := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), frameSize)
+	require.NoError(t, err)
 	listener.Start()
 
-	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
+	conn, err := net.Dial("udp", listener.Conn.LocalAddr().String())
 	assert.Nil(t, err)
 
 	var msg *message.Message
@@ -60,10 +62,11 @@ func TestUDPShouldProperlyTruncateBigMessages(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
 	frameSize := 100
-	listener := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), frameSize)
+	listener, err := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), frameSize)
+	require.NoError(t, err)
 	listener.Start()
 
-	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
+	conn, err := net.Dial("udp", listener.Conn.LocalAddr().String())
 	assert.Nil(t, err)
 
 	var msg *message.Message
@@ -91,10 +94,11 @@ func TestUDPShoulDropTooBigMessages(t *testing.T) {
 
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	listener := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), maxUDPFrameLen)
+	listener, err := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), maxUDPFrameLen)
+	require.NoError(t, err)
 	listener.Start()
 
-	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
+	conn, err := net.Dial("udp", listener.Conn.LocalAddr().String())
 	assert.Nil(t, err)
 
 	var msg *message.Message

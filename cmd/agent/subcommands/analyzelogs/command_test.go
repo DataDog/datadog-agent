@@ -30,7 +30,7 @@ import (
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/processor"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -141,7 +141,7 @@ Auto-discovery IDs:
 		LogConfigPath:  tempConfigFile.Name(),
 		CoreConfigPath: tempConfigFile.Name(),
 	}
-	outputChan, launcher, pipelineProvider, err := runAnalyzeLogsHelper(cliParams, config, deps.AC, deps.WMeta, deps.TaggerComp, deps.FilterStore)
+	outputChan, launcher, pipelineProvider, err := runAnalyzeLogsHelper(cliParams, config, deps.AC)
 	assert.Nil(t, err)
 	expectedOutput := []string{
 		"=== apm check ===",
@@ -213,6 +213,6 @@ func TestRunAnalyzeLogsInvalidConfig(t *testing.T) {
 		LogConfigPath:  tempConfigFile.Name(),
 		CoreConfigPath: tempConfigFile.Name(),
 	}
-	_, _, _, err := runAnalyzeLogsHelper(cliParams, config, deps.AC, deps.WMeta, deps.TaggerComp, deps.FilterStore)
+	_, _, _, err := runAnalyzeLogsHelper(cliParams, config, deps.AC)
 	assert.Error(t, err)
 }

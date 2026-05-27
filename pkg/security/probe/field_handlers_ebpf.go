@@ -71,7 +71,7 @@ func NewEBPFFieldHandlers(config *config.Config, resolvers *resolvers.EBPFResolv
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (fh *EBPFFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, newEntryCb func(*model.ProcessCacheEntry, error)) (*model.ProcessCacheEntry, bool) {
 	if ev.PIDContext.IsKworker {
-		return model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, true), false
+		return model.GetPlaceholderProcessCacheEntry(ev.PIDContext), false
 	}
 
 	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
@@ -79,7 +79,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, newEntryC
 	}
 
 	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
+		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext)
 		return ev.ProcessCacheEntry, false
 	}
 

@@ -117,8 +117,9 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 	allProbes = append(allProbes, getSetrlimitProbes(fentry)...)
 	allProbes = append(allProbes, getCapabilitiesMonitoringProbes()...)
 	allProbes = append(allProbes, getPrCtlProbes(fentry)...)
-	allProbes = append(allProbes, getSocketProbes(cgroup2MountPoint)...)
+	allProbes = append(allProbes, getSocketProbes(fentry, cgroup2MountPoint)...)
 	allProbes = append(allProbes, getMemfdProbes(fentry)...)
+	allProbes = appendSyscallProbes(allProbes, fentry, EntryAndExit, false, "setsid")
 
 	allProbes = append(allProbes,
 		&manager.Probe{
@@ -213,6 +214,7 @@ type MapSpecEditorOpts struct {
 	EventSamplingConnectEnabled   bool
 	EventSamplingBindEnabled      bool
 	EventSamplingDNSEnabled       bool
+	BasenameApproversSize         int
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -257,10 +259,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		},
 		"pid_rate_limiters": {
 			MaxEntries: superReducedProcPidCacheSize,
-			EditorFlag: manager.EditMaxEntries,
-		},
-		"active_flows": {
-			MaxEntries: activeFlowsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"active_flows_spin_locks": {
@@ -405,6 +403,11 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			Flags:      unix.BPF_ANY,
 			EditorFlag: manager.EditMaxEntries | manager.EditFlags,
 		}
+		editors["basename_approvers"] = manager.MapSpecEditor{
+			MaxEntries: uint32(opts.BasenameApproversSize),
+			Flags:      unix.BPF_ANY,
+			EditorFlag: manager.EditMaxEntries,
+		}
 	} else {
 		editors["active_flows"] = manager.MapSpecEditor{
 			MaxEntries: activeFlowsMaxEntries,
@@ -412,6 +415,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 		editors["inet_bind_args"] = manager.MapSpecEditor{
 			MaxEntries: superReducedProcPidCacheSize,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["basename_approvers"] = manager.MapSpecEditor{
+			MaxEntries: uint32(opts.BasenameApproversSize),
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
@@ -445,6 +452,7 @@ func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, networkFlowMonit
 	routes = append(routes, getExecTailCallRoutes()...)
 	routes = append(routes, getDentryResolverTailCallRoutes(eRPCDentryResolutionEnabled, supportMmapableMaps)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
+	routes = append(routes, getCacheSyscallTailCallRoutes()...)
 	if networkEnabled {
 		routes = append(routes, getTCTailCallRoutes(rawPacketEnabled)...)
 	}

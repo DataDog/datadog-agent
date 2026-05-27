@@ -38,17 +38,17 @@ type Concentrator struct {
 
 	spanConcentrator *SpanConcentrator
 	// bucket duration in nanoseconds
-	bsize                     int64
-	exit                      chan struct{}
-	exitWG                    sync.WaitGroup
-	cidStats                  bool
-	processStats              bool
-	agentEnv                  string
-	agentHostname             string
-	agentVersion              string
-	statsd                    statsd.ClientInterface
-	peerTagKeys               []string
-	spanDerivedPrimaryTagKeys []string
+	bsize                   int64
+	exit                    chan struct{}
+	exitWG                  sync.WaitGroup
+	cidStats                bool
+	processStats            bool
+	agentEnv                string
+	agentHostname           string
+	agentVersion            string
+	statsd                  statsd.ClientInterface
+	peerTagKeys             []string
+	additionalMetricTagKeys []string
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -61,18 +61,23 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 	_, disabledCIDStats := conf.Features["disable_cid_stats"]
 	_, disabledProcessStats := conf.Features["disable_process_stats"]
 	c := Concentrator{
-		spanConcentrator:          sc,
-		Writer:                    writer,
-		exit:                      make(chan struct{}),
-		cidStats:                  !disabledCIDStats,
-		processStats:              !disabledProcessStats,
-		agentEnv:                  conf.DefaultEnv,
-		agentHostname:             conf.Hostname,
-		agentVersion:              conf.AgentVersion,
-		statsd:                    statsd,
-		bsize:                     bsize,
-		peerTagKeys:               conf.ConfiguredPeerTags(),
-		spanDerivedPrimaryTagKeys: conf.ConfiguredSpanDerivedPrimaryTagKeys(),
+		spanConcentrator: sc,
+		Writer:           writer,
+		exit:             make(chan struct{}),
+		cidStats:         !disabledCIDStats,
+		processStats:     !disabledProcessStats,
+		agentEnv:         conf.DefaultEnv,
+		agentHostname:    conf.Hostname,
+		agentVersion:     conf.AgentVersion,
+		statsd:           statsd,
+		bsize:            bsize,
+		peerTagKeys:      conf.ConfiguredPeerTags(),
+		// On the agent side, this is non-nil only in serverless contexts (AAS extension
+		// or cmd/serverless-init) via the deprecated DD_APM_SPAN_DERIVED_PRIMARY_TAGS
+		// option. The Go tracer (dd-trace-go) also configures it via
+		// SpanConcentratorConfig.AdditionalMetricTagKeys when it imports SpanConcentrator
+		// directly.
+		additionalMetricTagKeys: conf.ConfiguredSpanDerivedPrimaryTagKeys(),
 	}
 	return &c
 }
@@ -206,10 +211,10 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, tags infraTags) {
 		ImageTag:        pt.ImageTag,
 		Lang:            pt.Lang,
 		ProcessTagsHash: tags.processTagsHash,
-		BaseService:     semantics.LookupString(ddRegistry, semantics.NewDDSpanAccessor(pt.Root.Meta, pt.Root.Metrics), semantics.ConceptDDBaseService),
+		BaseService:     semantics.LookupString(semantics.DefaultRegistry(), semantics.NewDDSpanAccessor(pt.Root.Meta, pt.Root.Metrics), semantics.ConceptDDBaseService),
 	}
 	for _, s := range pt.TraceChunk.Spans {
-		statSpan, ok := c.spanConcentrator.NewStatSpanFromPB(s, c.peerTagKeys, c.spanDerivedPrimaryTagKeys)
+		statSpan, ok := c.spanConcentrator.NewStatSpanFromPB(s, c.peerTagKeys, c.additionalMetricTagKeys)
 		if ok {
 			c.spanConcentrator.addSpan(statSpan, aggKey, tags, pt.TraceChunk.Origin, weight)
 		}
@@ -233,7 +238,7 @@ func (c *Concentrator) addNowV1(pt *traceutil.ProcessedTraceV1, tags infraTags) 
 		env = c.agentEnv
 	}
 	weight := weightV1(pt.Root)
-	baseService := semantics.LookupString(ddRegistry, semantics.NewDDSpanAccessorV1(pt.Root), semantics.ConceptDDBaseService)
+	baseService := semantics.LookupString(semantics.DefaultRegistry(), semantics.NewDDSpanAccessorV1(pt.Root), semantics.ConceptDDBaseService)
 	aggKey := PayloadAggregationKey{
 		Env:             env,
 		Hostname:        hostname,
@@ -241,11 +246,12 @@ func (c *Concentrator) addNowV1(pt *traceutil.ProcessedTraceV1, tags infraTags) 
 		ContainerID:     tags.containerID,
 		GitCommitSha:    pt.GitCommitSha,
 		ImageTag:        pt.ImageTag,
+		Lang:            pt.Lang,
 		ProcessTagsHash: tags.processTagsHash,
 		BaseService:     baseService,
 	}
 	for _, s := range pt.TraceChunk.Spans {
-		statSpan, ok := c.spanConcentrator.NewStatSpanFromV1(s, c.peerTagKeys, c.spanDerivedPrimaryTagKeys)
+		statSpan, ok := c.spanConcentrator.NewStatSpanFromV1(s, c.peerTagKeys, c.additionalMetricTagKeys)
 		if ok {
 			c.spanConcentrator.addSpan(statSpan, aggKey, tags, pt.TraceChunk.Origin(), weight)
 		}

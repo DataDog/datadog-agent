@@ -7,6 +7,7 @@
 package nodetreemodel
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +19,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"go.uber.org/atomic"
 
@@ -140,6 +142,8 @@ type ntmConfig struct {
 	// TODO: remove 'findUnknownKeys' function from pkg/config/setup in favor of those warnings. We should return
 	// them from ReadConfig and ReadInConfig.
 	warnings []error
+
+	startTime time.Time
 }
 
 // NodeTreeConfig is an interface that gives access to nodes
@@ -264,11 +268,14 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 
 	c.sequenceID++
+	// Capture the sequenceID here whilst locked to send to the receivers
+	// after unlocking.
+	sequenceID := c.sequenceID
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, source, previousValue, newValue, c.sequenceID)
+		receiver(key, source, previousValue, newValue, sequenceID)
 	}
 }
 
@@ -336,68 +343,87 @@ func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*no
 func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	c.maybeRebuild()
 
-	c.Lock()
-	defer c.Unlock()
+	var (
+		previousValue interface{}
+		newValue      interface{}
+		receivers     []model.NotificationReceiver
+		sequenceID    uint64
+	)
 
-	key = strings.ToLower(key)
-	previousValue := c.leafAtPathFromNode(key, c.root).Get()
+	ok := func() bool {
+		c.Lock()
+		defer c.Unlock()
 
-	// Remove it from the original source tree
-	tree, err := c.getTreeBySource(source)
-	if err != nil {
-		log.Errorf("%s", err)
-		return
-	}
-	parentNode, childName, err := c.parentOfNode(tree, key)
-	if err != nil {
-		return
-	}
-	// Only remove if the setting is a leaf
-	if child, err := parentNode.GetChild(childName); err == nil {
-		if child.IsLeafNode() {
-			parentNode.RemoveChild(childName)
-		} else {
-			log.Errorf("cannot remove setting %q, not a leaf", key)
-			return
+		key = strings.ToLower(key)
+		previousValue = c.leafAtPathFromNode(key, c.root).Get()
+
+		// Remove it from the original source tree
+		tree, err := c.getTreeBySource(source)
+		if err != nil {
+			log.Errorf("%s", err)
+			return false
 		}
-	}
+		parentNode, childName, err := c.parentOfNode(tree, key)
+		if err != nil {
+			return false
+		}
+		// Only remove if the setting is a leaf
+		if child, err := parentNode.GetChild(childName); err == nil {
+			if child.IsLeafNode() {
+				parentNode.RemoveChild(childName)
+			} else {
+				log.Errorf("cannot remove setting %q, not a leaf", key)
+				return false
+			}
+		}
 
-	// If the node in the merged tree doesn't match the source we expect, we're done
-	if c.leafAtPathFromNode(key, c.root).Source() != source {
+		// If the node in the merged tree doesn't match the source we expect, we're done
+		if c.leafAtPathFromNode(key, c.root).Source() != source {
+			return false
+		}
+
+		// Find what the previous value used to be, based upon the previous source
+		prevNode, findPreviousSourceError := c.findPreviousSourceNode(key, source)
+
+		// Get the parent node of the leaf we're unsetting
+		parentNode, childName, err = c.parentOfNode(c.root, key)
+		if err != nil {
+			return false
+		}
+
+		// If there was no previous source with a node of this name, simply remove it from the parent
+		if findPreviousSourceError != nil {
+			parentNode.RemoveChild(childName)
+			return false
+		}
+
+		// Replace the child with the node from the previous layer
+		parentNode.InsertChildNode(childName, prevNode)
+
+		newValue = c.leafAtPathFromNode(key, c.root).Get()
+
+		// Value has not changed, do not notify
+		if reflect.DeepEqual(previousValue, newValue) {
+			return false
+		}
+
+		c.sequenceID++
+		receivers = slices.Clone(c.notificationReceivers)
+		// Capture the sequenceID here whilst locked to send to the receivers
+		// after unlocking.
+		sequenceID = c.sequenceID
+		return true
+	}()
+
+	if !ok {
 		return
 	}
 
-	// Find what the previous value used to be, based upon the previous source
-	prevNode, findPreviousSourceError := c.findPreviousSourceNode(key, source)
-
-	// Get the parent node of the leaf we're unsetting
-	parentNode, childName, err = c.parentOfNode(c.root, key)
-	if err != nil {
-		return
-	}
-
-	// If there was no previous source with a node of this name, simply remove it from the parent
-	if findPreviousSourceError != nil {
-		parentNode.RemoveChild(childName)
-		return
-	}
-
-	// Replace the child with the node from the previous layer
-	parentNode.InsertChildNode(childName, prevNode)
-
-	newValue := c.leafAtPathFromNode(key, c.root).Get()
-
-	// Value has not changed, do not notify
-	if reflect.DeepEqual(previousValue, newValue) {
-		return
-	}
-
-	c.sequenceID++
-	receivers := slices.Clone(c.notificationReceivers)
-
-	// notifying all receiver about the updated setting
+	// Notify receivers outside the lock. Subscribers commonly read the
+	// config from within their callback, and doing so while the write
+	// lock is still held deadlocks them against this goroutine.
 	for _, receiver := range receivers {
-		receiver(key, source, previousValue, newValue, c.sequenceID)
+		receiver(key, source, previousValue, newValue, sequenceID)
 	}
 }
 
@@ -642,24 +668,51 @@ func (c *ntmConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
-// ParseEnvAsSliceMapString registers a transform function to parse an environment variable as a []map[string]string
-func (c *ntmConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
+// ParseEnvSplitComma registers a transform function to parse an environment variable as a comma-separated list of strings.
+func (c *ntmConfig) ParseEnvSplitComma(key string) {
 	c.Lock()
 	defer c.Unlock()
 	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
 		panic(fmt.Sprintf("env transform for %s already exists", key))
 	}
-	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
+	c.envTransform[strings.ToLower(key)] = func(s string) interface{} {
+		if s == "" {
+			return []string{}
+		}
+		return strings.Split(s, ",")
+	}
 }
 
-// ParseEnvAsSlice registers a transform function to parse an environment variable as a []interface
-func (c *ntmConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
+// ParseEnvSplitSpace registers a transform function to parse an environment variable as a space-separated list of strings.
+func (c *ntmConfig) ParseEnvSplitSpace(key string) {
 	c.Lock()
 	defer c.Unlock()
 	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
 		panic(fmt.Sprintf("env transform for %s already exists", key))
 	}
-	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
+	c.envTransform[strings.ToLower(key)] = func(s string) interface{} {
+		if s == "" {
+			return []string{}
+		}
+		return strings.Split(s, " ")
+	}
+}
+
+// ParseEnvJSON registers a transform function to parse an environment variable as a JSON payload into varType.
+func (c *ntmConfig) ParseEnvJSON(key string, varType any) {
+	t := reflect.TypeOf(varType)
+	c.Lock()
+	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
+	c.envTransform[strings.ToLower(key)] = func(in string) interface{} {
+		res := reflect.New(t).Interface()
+		if err := json.Unmarshal([]byte(in), res); err != nil {
+			log.Errorf(`"%s" can not be parsed: %v`, key, err)
+		}
+		return reflect.ValueOf(res).Elem().Interface()
+	}
 }
 
 // IsSet checks if a key is set in the config
@@ -1163,6 +1216,10 @@ func (c *ntmConfig) Warnings() *model.Warnings {
 	return &model.Warnings{Errors: c.warnings}
 }
 
+func (c *ntmConfig) StartTime() time.Time {
+	return c.startTime
+}
+
 // Object returns the config as a Reader interface
 func (c *ntmConfig) Object() model.Reader {
 	return c
@@ -1192,6 +1249,7 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		root:               newInnerNode(nil),
 		envTransform:       make(map[string]func(string) interface{}),
 		configName:         "datadog",
+		startTime:          time.Now(),
 	}
 
 	config.SetConfigName(name)

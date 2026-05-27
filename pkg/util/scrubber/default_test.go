@@ -996,6 +996,9 @@ func TestNewHTTPHeaderAndExactKeys(t *testing.T) {
 		`cms-svc-api-key: cmskey789`,
 		`cms-svc-api-key: "********"`)
 	assertClean(t,
+		`dd-api-key: someapikey123`,
+		`dd-api-key: "********"`)
+	assertClean(t,
 		`lodauth: lodauth123`,
 		`lodauth: "********"`)
 	assertClean(t,

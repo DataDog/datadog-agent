@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate stringer -type=HashState -linecomment -output model_string.go
+//go:generate go run golang.org/x/tools/cmd/stringer -type=HashState -linecomment -output model_string.go
 
 // Package model holds model related files
 package model
@@ -256,7 +256,7 @@ func initMember(member reflect.Value, deja map[string]bool) {
 		field := member.Field(i)
 
 		switch field.Kind() {
-		case reflect.Ptr:
+		case reflect.Pointer:
 			if field.CanSet() {
 				field.Set(reflect.New(field.Type().Elem()))
 			}
@@ -320,6 +320,14 @@ func (e *Event) IsAnomalyDetectionEvent() bool {
 // IsEventFromReplay returns true if the event is generated from a replay
 func (e *Event) IsEventFromReplay() bool {
 	return e.Flags&EventFlagsFromReplay > 0
+}
+
+// IsEventInternal returns true if this is an internal event.
+// Internal events are emitted by the kernel side to keep userspace caches and
+// resources in sync; they don't reflect a user-visible action and rule
+// evaluation can be skipped for them.
+func (e *Event) IsEventInternal() bool {
+	return e.Flags&EventFlagsInternal > 0
 }
 
 // AddToFlags adds a flag to the event

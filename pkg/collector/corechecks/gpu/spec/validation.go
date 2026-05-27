@@ -12,20 +12,29 @@ import (
 	"strings"
 )
 
-// GPUConfig identifies an architecture + device mode pair from the spec.
+// GPUConfig identifies a GPU configuration used for spec validation.
 type GPUConfig struct {
-	Architecture string     `json:"architecture"`
-	DeviceMode   DeviceMode `json:"device_mode"`
+	Architecture    string                   `json:"architecture"`
+	DeviceMode      DeviceMode               `json:"device_mode"`
+	Capabilities    ArchitectureCapabilities `json:"capabilities,omitempty"`
+	NVLinkLinkCount int                      `json:"nvlink_link_count,omitempty"`
 }
 
 // ValidationOptions controls which spec failures should be enforced.
 type ValidationOptions struct {
 	WorkloadActive bool `json:"workload_active"`
+	// IgnoreMetrics is a list of metric names that should be ignored during validation.
+	IgnoreMetrics map[string]bool `json:"ignore_metrics,omitempty"`
 }
 
 // Equals checks if two GPU configs are equal.
 func (c *GPUConfig) Equals(other GPUConfig) bool {
-	return c.Architecture == other.Architecture && c.DeviceMode == other.DeviceMode
+	return c.Architecture == other.Architecture &&
+		c.DeviceMode == other.DeviceMode &&
+		c.Capabilities.GPM == other.Capabilities.GPM &&
+		c.Capabilities.NVLink == other.Capabilities.NVLink &&
+		c.Capabilities.C2C == other.Capabilities.C2C &&
+		c.NVLinkLinkCount == other.NVLinkLinkCount
 }
 
 // TagFilter returns the Datadog tag filter expression for a GPU config.
@@ -56,9 +65,10 @@ func NewGPUConfigFromTags(architecture, slicingMode, virtualizationMode string) 
 
 // MetricObservation is the normalized observation used by shared validation.
 type MetricObservation struct {
-	Name  string
-	Tags  []string
-	Value *float64
+	Name       string
+	MetricType string
+	Tags       []string
+	Value      *float64
 }
 
 const maxInvalidValueSamplesPerMetric = 5
@@ -67,6 +77,7 @@ type MetricStatus struct {
 	Missing             int                    `json:"missing"`
 	Unknown             int                    `json:"unknown"`
 	Unsupported         int                    `json:"unsupported"`
+	WrongType           int                    `json:"wrong_type"`
 	InvalidValue        int                    `json:"invalid_value"`
 	InvalidValueSamples []string               `json:"invalid_value_samples,omitempty"`
 	TagResults          map[string]*TagSummary `json:"tag_results"`
@@ -95,16 +106,30 @@ type ValidationResult struct {
 	Metrics map[string]*MetricStatus `json:"metrics"`
 }
 
+// HasFailures returns true when the metric status contains metric-level or tag-level failures.
+func (s *MetricStatus) HasFailures() bool {
+	if s == nil {
+		return false
+	}
+
+	if s.Missing+s.Unknown+s.Unsupported+s.WrongType+s.InvalidValue > 0 {
+		return true
+	}
+
+	for _, tagResult := range s.TagResults {
+		if tagResult.Missing > 0 || tagResult.Unknown > 0 || tagResult.InvalidValue > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
 // HasFailures returns true when the result contains metric-level or tag-level failures.
 func (r *ValidationResult) HasFailures() bool {
 	for _, status := range r.Metrics {
-		if status.Missing > 0 || status.Unknown > 0 || status.Unsupported > 0 || status.InvalidValue > 0 {
+		if status.HasFailures() {
 			return true
-		}
-		for _, tagResult := range status.TagResults {
-			if tagResult.Missing > 0 || tagResult.Unknown > 0 || tagResult.InvalidValue > 0 {
-				return true
-			}
 		}
 	}
 	return false
@@ -127,6 +152,14 @@ func (r *ValidationResult) addInvalidValue(metricName string, sample string) {
 	}
 }
 
+func validateMetricType(expectedMetricType, observedMetricType string) error {
+	if expectedMetricType == "" || observedMetricType == "" || expectedMetricType == observedMetricType {
+		return nil
+	}
+
+	return fmt.Errorf("metric type %q does not match expected %q", observedMetricType, expectedMetricType)
+}
+
 // KnownGPUConfigs returns all supported architecture + mode combinations.
 func KnownGPUConfigs(specs *Specs) []GPUConfig {
 	configs := make([]GPUConfig, 0, len(specs.Architectures.Architectures)*3)
@@ -135,9 +168,17 @@ func KnownGPUConfigs(specs *Specs) []GPUConfig {
 			if !IsModeSupportedByArchitecture(archSpec, mode) {
 				continue
 			}
+			capabilities := archSpec.EffectiveCapabilities(mode)
+			nvlinkLinkCount := 0
+			// Use a nonzero mock link count whenever the spec says this mode is NVLink-capable.
+			if capabilities.NVLink > 0 {
+				nvlinkLinkCount = 2
+			}
 			configs = append(configs, GPUConfig{
-				Architecture: strings.ToLower(archName),
-				DeviceMode:   mode,
+				Architecture:    strings.ToLower(archName),
+				DeviceMode:      mode,
+				Capabilities:    capabilities,
+				NVLinkLinkCount: nvlinkLinkCount,
 			})
 		}
 	}
@@ -152,7 +193,16 @@ func ExpectedMetricsForConfig(specs *Specs, config GPUConfig, options Validation
 		if !metricSpec.SupportsConfig(config) {
 			continue
 		}
+		if suppressInactiveNVLinkMetric(metricName, config) {
+			continue
+		}
+		if !metricSpec.SupportsCapabilities(config.Capabilities) {
+			continue
+		}
 		if metricSpec.WorkloadOnly && !options.WorkloadActive {
+			continue
+		}
+		if options.IgnoreMetrics[metricName] {
 			continue
 		}
 		expected[metricName] = metricSpec
@@ -290,6 +340,11 @@ func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMe
 
 		if !metricSpec.SupportsConfig(config) {
 			results.getMetricStatus(metricName).Unsupported++
+			continue
+		}
+
+		if suppressInactiveNVLinkMetric(metricName, config) || !metricSpec.SupportsCapabilities(config.Capabilities) {
+			results.getMetricStatus(metricName).Unsupported++
 		}
 	}
 
@@ -310,19 +365,27 @@ func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMe
 		metricStatus := results.getMetricStatus(metricName)
 		metricStatus.TagResults = tagResults
 
-		if metricSpec.Validator == nil {
-			continue
-		}
-
 		for _, sample := range metricSamples {
-			if sample.Value == nil {
-				continue
+			if metricSpec.Metadata != nil {
+				if err := validateMetricType(metricSpec.Metadata.MetricType, sample.MetricType); err != nil {
+					results.getMetricStatus(metricName).WrongType++
+				}
 			}
-			if err := metricSpec.Validator.Validate(*sample.Value); err != nil {
-				results.addInvalidValue(metricName, err.Error())
+
+			if metricSpec.Validator != nil && sample.Value != nil {
+				if err := metricSpec.Validator.Validate(*sample.Value); err != nil {
+					results.addInvalidValue(metricName, err.Error())
+				}
 			}
 		}
 	}
 
 	return results, nil
+}
+
+func suppressInactiveNVLinkMetric(metricName string, config GPUConfig) bool {
+	return strings.HasPrefix(metricName, "nvlink.") &&
+		// NVSwitch connectivity can be reported as zero even when no active NVLink ports are present.
+		metricName != "nvlink.nvswitch_connected" &&
+		config.NVLinkLinkCount == 0
 }

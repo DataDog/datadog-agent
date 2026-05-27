@@ -2019,6 +2019,54 @@ func TestPeerTagsAggregation(t *testing.T) {
 	})
 }
 
+// TestSpanDerivedPrimaryTagsServerlessGate verifies that DD_APM_SPAN_DERIVED_PRIMARY_TAGS
+// is only honored when the agent runs in a serverless context (AAS extension or
+// cmd/serverless-init), and is silently ignored everywhere else.
+func TestSpanDerivedPrimaryTagsServerlessGate(t *testing.T) {
+	t.Run("aas-extension-honored", func(t *testing.T) {
+		t.Setenv("DD_AZURE_APP_SERVICES", "1")
+		overrides := map[string]interface{}{
+			"apm_config.span_derived_primary_tags": []string{"datacenter", "tier"},
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.Equal(t, []string{"datacenter", "tier"}, cfg.SpanDerivedPrimaryTagKeys)
+	})
+
+	t.Run("serverless-init-honored", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"serverless.enabled":                   true,
+			"apm_config.span_derived_primary_tags": []string{"datacenter", "tier"},
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.Equal(t, []string{"datacenter", "tier"}, cfg.SpanDerivedPrimaryTagKeys)
+	})
+
+	t.Run("regular-agent-ignored", func(t *testing.T) {
+		// Neither AAS env var nor serverless.enabled set: the option must be
+		// silently dropped on the floor.
+		overrides := map[string]interface{}{
+			"apm_config.span_derived_primary_tags": []string{"datacenter", "tier"},
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.Empty(t, cfg.SpanDerivedPrimaryTagKeys)
+	})
+
+	t.Run("aas-extension-unset-env", func(t *testing.T) {
+		t.Setenv("DD_AZURE_APP_SERVICES", "1")
+		// Gate is open but no value provided — field should remain empty.
+		config := buildConfigComponent(t, true)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.Empty(t, cfg.SpanDerivedPrimaryTagKeys)
+	})
+}
+
 func TestComputeStatsBySpanKind(t *testing.T) {
 
 	t.Run("default-enabled", func(t *testing.T) {
@@ -2061,9 +2109,9 @@ func TestGenerateInstallSignature(t *testing.T) {
 	cfg := c.Object()
 	assert.NotNil(t, cfg)
 
-	assert.False(t, coreConfig.IsSet("apm_config.install_id"))
-	assert.False(t, coreConfig.IsSet("apm_config.install_type"))
-	assert.False(t, coreConfig.IsSet("apm_config.install_time"))
+	assert.False(t, coreConfig.IsConfigured("apm_config.install_id"))
+	assert.False(t, coreConfig.IsConfigured("apm_config.install_type"))
+	assert.False(t, coreConfig.IsConfigured("apm_config.install_time"))
 
 	assert.True(t, cfg.InstallSignature.Found)
 	installFilePath := filepath.Join(cfgDir, "install.json")
@@ -2443,6 +2491,37 @@ func TestNormalizeAPMMode(t *testing.T) {
 			} else {
 				assert.NotContains(t, logOutput, "invalid value for 'DD_APM_MODE'")
 			}
+		})
+	}
+}
+
+func TestDebuggerLogsEnabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected bool
+	}{
+		{
+			name:     "logs_enabled_only",
+			settings: map[string]interface{}{"logs_enabled": true},
+			expected: true,
+		},
+		{
+			name:     "override_when_logs_disabled",
+			settings: map[string]interface{}{"logs_enabled": false, "apm_config.debugger_logs_enabled_override": true},
+			expected: true,
+		},
+		{
+			name:     "logs_disabled_no_override",
+			settings: map[string]interface{}{"logs_enabled": false},
+			expected: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := buildConfigComponentFromOverrides(t, true, tt.settings).Object()
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.DebuggerLogsEnabled)
 		})
 	}
 }

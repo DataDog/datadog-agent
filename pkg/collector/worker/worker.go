@@ -14,7 +14,7 @@ import (
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -191,8 +191,18 @@ func (w *Worker) Run(ctx context.Context) {
 
 		utilizationTracker.Started()
 
-		// Run the check
-		checkErr := check.Run()
+		// Run the check, recovering from any panic so that a single
+		// misbehaving check cannot crash the entire agent process.
+		var checkErr error
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					checkErr = fmt.Errorf("check panicked: %v", r)
+					log.Errorf("Recovered from panic in check %s: %v", check, r)
+				}
+			}()
+			checkErr = check.Run()
+		}()
 
 		utilizationTracker.Finished()
 

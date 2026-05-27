@@ -44,6 +44,8 @@ var (
 		string(semconv1_27.ServiceNameKey):               "service",
 		string(semconv1_27.ServiceVersionKey):            "version",
 		string(semconv1_27.DeploymentEnvironmentNameKey): "env",
+		// Required for OTel traffic metrics on Datadog Fleet Automation.
+		string(semconv1_27.ServiceInstanceIDKey): "service.instance.id",
 	}
 
 	// ContainerMappings defines the mapping between OpenTelemetry semantic conventions

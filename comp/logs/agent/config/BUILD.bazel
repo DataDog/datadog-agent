@@ -42,13 +42,14 @@ go_test(
         "processing_rules_test.go",
     ],
     embed = [":config"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/logs/types",
+        "//pkg/util/log",
         "//pkg/util/pointer",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

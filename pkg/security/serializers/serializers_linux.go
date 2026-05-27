@@ -266,6 +266,8 @@ type ProcessSerializer struct {
 	Pid uint32 `json:"pid,omitempty"`
 	// Parent Process ID
 	PPid *uint32 `json:"ppid,omitempty"`
+	// Session ID
+	SID uint32 `json:"sid"`
 	// Thread ID
 	Tid uint32 `json:"tid,omitempty"`
 	// ForkFlags
@@ -638,6 +640,17 @@ type SetSockOptEventSerializer struct {
 	FilterHash string `json:"filter_hash,omitempty"`
 }
 
+// SocketEventSerializer serializes a socket event to JSON
+// easyjson:json
+type SocketEventSerializer struct {
+	// Socket domain
+	Domain string `json:"domain"`
+	// Socket type
+	Type string `json:"type"`
+	// Socket protocol
+	Protocol string `json:"protocol"`
+}
+
 // PrCtlEventSerializer serializes a prctl event
 // easyjson:json
 type PrCtlEventSerializer struct {
@@ -818,6 +831,7 @@ type EventSerializer struct {
 	*CapabilitiesEventSerializer  `json:"capabilities,omitempty"`
 	*PrCtlEventSerializer         `json:"prctl,omitempty"`
 	*SetrlimitEventSerializer     `json:"setrlimit,omitempty"`
+	*SocketEventSerializer        `json:"socket,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -962,6 +976,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			Pid:             ps.Pid,
 			Tid:             ps.Tid,
 			PPid:            createNumPointer(ps.PPid),
+			SID:             ps.SID,
 			ForkFlags:       int(ps.ForkFlags),
 			Comm:            ps.Comm,
 			TTY:             ps.TTYName,
@@ -1032,6 +1047,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 	return &ProcessSerializer{
 		Pid:             ps.Pid,
 		Tid:             ps.Tid,
+		SID:             ps.SID,
 		IsKworker:       ps.IsKworker,
 		IsExec:          ps.IsExec,
 		IsExecExec:      ps.IsExecExec,
@@ -1550,6 +1566,14 @@ func newSetrlimitEventSerializer(e *model.Event) *SetrlimitEventSerializer {
 	}
 }
 
+func newSocketEventSerializer(e *model.Event) *SocketEventSerializer {
+	return &SocketEventSerializer{
+		Domain:   model.SocketDomain(e.Socket.Domain).String(),
+		Type:     model.SocketType(e.Socket.Type).String(),
+		Protocol: model.SocketProtocol(e.Socket.Protocol).String(),
+	}
+}
+
 func newCGroupWriteEventSerializer(e *model.Event) *CGroupWriteEventSerializer {
 	return &CGroupWriteEventSerializer{
 		File: newFileSerializer(&e.CgroupWrite.File, e, 0, nil),
@@ -1873,6 +1897,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	case model.SetrlimitEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Setrlimit.Retval)
 		s.SetrlimitEventSerializer = newSetrlimitEventSerializer(event)
+	case model.SocketEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Socket.Retval)
+		s.SocketEventSerializer = newSocketEventSerializer(event)
 	}
 
 	return s
