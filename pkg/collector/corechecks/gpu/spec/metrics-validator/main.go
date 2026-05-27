@@ -27,7 +27,7 @@ func main() {
 	flag.StringVar(&site, "site", "", "Datadog site")
 	flag.Int64Var(&lookbackSeconds, "lookback-seconds", 3600, "Metrics lookback window in seconds")
 	flag.StringVar(&outputFile, "output-file", "", "Write JSON results to the given file instead of stdout")
-	flag.StringVar(&metricFilter, "metric-filter", "", "Datadog metric filter expression. Defaults to the GPU config filter")
+	flag.StringVar(&metricFilter, "metric-filter", "", "Additional Datadog metric filter expression, ANDed with the GPU config filter")
 	flag.Parse()
 
 	if err := validateFlags(site, lookbackSeconds, outputFile); err != nil {

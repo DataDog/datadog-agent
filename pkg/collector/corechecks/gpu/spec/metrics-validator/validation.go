@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"maps"
+	"strings"
 	"sync"
 	"time"
 
@@ -66,10 +67,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(specs, config, gpuspec.ValidationOptions{
 		WorkloadActive: true,
 	})
-	queryFilter := config.TagFilter()
-	if metricFilter != "" {
-		queryFilter = metricFilter
-	}
+	queryFilter := combineMetricFilters(config.TagFilter(), metricFilter)
 
 	var err error
 	result.DeviceCount, err = client.queryDeviceCount(config, queryFilter, fromTS, toTS)
@@ -195,4 +193,16 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 	result.State = determineResultState(result)
 
 	return result, allErrors
+}
+
+func combineMetricFilters(filters ...string) string {
+	parts := make([]string, 0, len(filters))
+	for _, filter := range filters {
+		filter = strings.TrimSpace(filter)
+		if filter == "" {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("(%s)", filter))
+	}
+	return strings.Join(parts, " AND ")
 }
