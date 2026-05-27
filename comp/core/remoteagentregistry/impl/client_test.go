@@ -7,13 +7,16 @@ package remoteagentregistryimpl
 
 import (
 	"context"
+	"crypto/tls"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	grpcStatus "google.golang.org/grpc/status"
 
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -234,6 +237,69 @@ func TestRemoteAgentServiceDiscovery(t *testing.T) {
 			require.True(t, ok)
 			require.Equal(t, remoteAgent.services, testCase.expectedServices)
 			component.agentMapMu.Unlock()
+		})
+	}
+}
+
+func TestResolveDialTarget(t *testing.T) {
+	tlsConfig := &tls.Config{ServerName: "test"}
+	insecureCredsType := insecure.NewCredentials().Info().SecurityProtocol
+
+	testCases := []struct {
+		name            string
+		endpointURI     string
+		wantTarget      string
+		wantSecProtocol string
+		wantErrContains string
+	}{
+		{
+			name:            "bare host:port (backwards compat) uses TLS",
+			endpointURI:     "127.0.0.1:50051",
+			wantTarget:      "127.0.0.1:50051",
+			wantSecProtocol: "tls",
+		},
+		{
+			name:            "https:// strips scheme and uses TLS",
+			endpointURI:     "https://127.0.0.1:50051",
+			wantTarget:      "127.0.0.1:50051",
+			wantSecProtocol: "tls",
+		},
+		{
+			name:            "unix:// passes target through unchanged and uses TLS",
+			endpointURI:     "unix:///var/run/datadog/remote-agent.sock",
+			wantTarget:      "unix:///var/run/datadog/remote-agent.sock",
+			wantSecProtocol: "tls",
+		},
+		{
+			name:            "http:// strips scheme and uses insecure credentials",
+			endpointURI:     "http://127.0.0.1:50051",
+			wantTarget:      "127.0.0.1:50051",
+			wantSecProtocol: insecureCredsType,
+		},
+		{
+			name:            "uppercase scheme is normalized",
+			endpointURI:     "HTTPS://127.0.0.1:50051",
+			wantTarget:      "127.0.0.1:50051",
+			wantSecProtocol: "tls",
+		},
+		{
+			name:            "unsupported scheme is rejected",
+			endpointURI:     "vsock://2:50051",
+			wantErrContains: "unsupported api_endpoint_uri scheme",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			target, creds, err := resolveDialTarget(tc.endpointURI, tlsConfig)
+			if tc.wantErrContains != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErrContains)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantTarget, target)
+			assert.Equal(t, tc.wantSecProtocol, creds.Info().SecurityProtocol)
 		})
 	}
 }
