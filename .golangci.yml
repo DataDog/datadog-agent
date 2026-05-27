@@ -51,6 +51,8 @@ linters:
               desc: "use the std maps package instead (Keys/Values need slices.Collect wrapping)"
             - pkg: "github.com/aws/aws-sdk-go/"
               desc: "use the v2 sdk instead"
+            - pkg: "github.com/mitchellh/mapstructure"
+              desc: "use github.com/go-viper/mapstructure/v2 instead (maintained continuation)"
         multierror:
           files:
             - $all
