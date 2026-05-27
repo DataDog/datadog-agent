@@ -10,6 +10,7 @@ package bench
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -992,9 +993,29 @@ func (tb *Bench) RunSendAnomalyEvents(scenario string) error {
 	}
 
 	tb.mu.RLock()
-	defer tb.mu.RUnlock()
+	events := tb.reportedEvents
+	loadedScenario := tb.loadedScenario
+	tb.mu.RUnlock()
 
-	return fmt.Errorf("send-anomaly-event not available: reporter live sender not yet wired in testbench")
+	extraTags := []string{"scenario:" + loadedScenario}
+	if u := os.Getenv("USER"); u != "" {
+		extraTags = append(extraTags, "user:"+u)
+	} else if h, err := os.Hostname(); err == nil {
+		extraTags = append(extraTags, "user:"+h)
+	}
+
+	sv := tb.debug.StateView()
+	var errs []error
+	for _, e := range events {
+		if err := sendReportedEventViaAPI(tb.config.Cfg, tb.config.Logger, sv, e, extraTags); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("send-anomaly-event: %d/%d events failed: %w", len(errs), len(events), errors.Join(errs...))
+	}
+	fmt.Printf("Sent %d anomaly events for scenario %q\n", len(events), loadedScenario)
+	return nil
 }
 
 // ToggleComponent toggles a component's enabled state and re-runs analyses.
