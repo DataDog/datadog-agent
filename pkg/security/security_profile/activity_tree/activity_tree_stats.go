@@ -30,7 +30,8 @@ type Stats struct {
 	CapabilityNodes int64
 
 	// SizeBytes is an incremental estimate of the tree's heap size in bytes.
-	// It is updated at every insertion and recomputed from scratch after evictions.
+	// Updated at every insertion and decremented incrementally during eviction.
+	// Periodically corrected by recomputeSizeBytes via ComputeActivityTreeStats.
 	SizeBytes int64
 
 	counts map[model.EventType]*statsPerEventType
