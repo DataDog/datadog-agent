@@ -114,7 +114,7 @@ func (b *orderedBTFLoader) loadRemoteConfig(ctx context.Context) (*returnBTF, er
 	// ensure we get the correct error (if any) from the context
 	err := ctx.Err()
 	if rbtf == nil {
-		errorTags := make([]string, 0, len(b.fixedtags)+1)
+		errorTags := make([]string, len(b.fixedtags), len(b.fixedtags)+1)
 		copy(errorTags, b.fixedtags)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {

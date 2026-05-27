@@ -76,7 +76,7 @@ func (c *coreAssetLoader) reportTelemetry(assetName string, result COREResult) {
 	StoreCORETelemetryForAsset(assetName, result)
 
 	// capacity should match number of tags
-	tags := make([]string, 0, len(c.fixedtags)+2)
+	tags := make([]string, len(c.fixedtags), len(c.fixedtags)+2)
 	copy(tags, c.fixedtags)
 	tags = append(tags, assetName)
 	switch BTFResult(result) {
