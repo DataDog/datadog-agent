@@ -141,9 +141,19 @@ func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
 			continue
 		}
 
+		total, ok := c.totals[metric.fieldValueID]
+		if !ok {
+			// No value got added to this metric, so we skip it for consistency. That way,
+			// we only emit the total metric if there's any value. If there was a temporary
+			// failure or something, both the per-port and the total metric would be missing.
+			// and interpolation can kick in, instead of showing no values for the per-port
+			// metrics and a zero in the total.
+			continue
+		}
+
 		metrics = append(metrics, &Metric{
 			Name:                metric.name + ".total",
-			Value:               c.totals[metric.fieldValueID],
+			Value:               total,
 			Type:                metric.metricType,
 			Priority:            metric.priority,
 			RateCalculationMode: metric.rateCalculationMode,
