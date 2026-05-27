@@ -3146,6 +3146,7 @@ core,go.uber.org/fx/internal/lifecycle,MIT,"Copyright (c) 2016-2018 Uber Technol
 core,go.uber.org/fx/internal/testutil,MIT,"Copyright (c) 2016-2018 Uber Technologies, Inc"
 core,go.uber.org/goleak,MIT,"Copyright (c) 2018 Uber Technologies, Inc"
 core,go.uber.org/goleak/internal/stack,MIT,"Copyright (c) 2018 Uber Technologies, Inc"
+core,go.uber.org/mock/gomock,Apache-2.0,Alex Reece <awreece@gmail.com> | Google Inc.
 core,go.uber.org/multierr,MIT,"Copyright (c) 2017-2021 Uber Technologies, Inc"
 core,go.uber.org/zap,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
 core,go.uber.org/zap/buffer,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
