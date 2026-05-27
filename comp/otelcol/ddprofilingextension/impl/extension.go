@@ -111,26 +111,26 @@ func (e *ddExtension) buildProfilerOptions() []profiler.Option {
 	}
 	profilerOptions = append(profilerOptions, profiler.WithProfileTypes(defaultProfileTypes...))
 
-	if service, ok := nonBlankEnv(ddServiceEnvVar); ok {
-		profilerOptions = append(profilerOptions, profiler.WithService(service))
-	} else if e.cfg.ProfilerOptions.Service != "" {
+	if e.cfg.ProfilerOptions.Service != "" {
 		profilerOptions = append(profilerOptions, profiler.WithService(e.cfg.ProfilerOptions.Service))
+	} else if service, ok := nonBlankEnv(ddServiceEnvVar); ok {
+		profilerOptions = append(profilerOptions, profiler.WithService(service))
 	} else {
 		profilerOptions = append(profilerOptions, profiler.WithService(e.info.Command))
 	}
 
-	if version, ok := nonBlankEnv(ddVersionEnvVar); ok {
-		profilerOptions = append(profilerOptions, profiler.WithVersion(version))
-	} else if e.cfg.ProfilerOptions.Version != "" {
+	if e.cfg.ProfilerOptions.Version != "" {
 		profilerOptions = append(profilerOptions, profiler.WithVersion(e.cfg.ProfilerOptions.Version))
+	} else if version, ok := nonBlankEnv(ddVersionEnvVar); ok {
+		profilerOptions = append(profilerOptions, profiler.WithVersion(version))
 	} else {
 		profilerOptions = append(profilerOptions, profiler.WithVersion(e.info.Version))
 	}
 
-	if env, ok := nonBlankEnv(ddEnvEnvVar); ok {
-		profilerOptions = append(profilerOptions, profiler.WithEnv(env))
-	} else if e.cfg.ProfilerOptions.Env != "" {
+	if e.cfg.ProfilerOptions.Env != "" {
 		profilerOptions = append(profilerOptions, profiler.WithEnv(e.cfg.ProfilerOptions.Env))
+	} else if env, ok := nonBlankEnv(ddEnvEnvVar); ok {
+		profilerOptions = append(profilerOptions, profiler.WithEnv(env))
 	}
 
 	if e.cfg.ProfilerOptions.Period > 0 {
