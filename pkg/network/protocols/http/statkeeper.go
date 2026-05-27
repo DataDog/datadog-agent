@@ -265,8 +265,8 @@ func (h *StatKeeper) addDiscovery(tx Transaction) {
 	if rawPath, _ := tx.Path(h.buffer); rawPath != nil {
 		malformed := pathIsMalformed(rawPath)
 		if (malformed || latency > float64(30*time.Minute)) && h.oversizedLogLimit.ShouldLog() {
-			log.Warnf("discovery diagnostic: suspicious tx malformed=%t latency=%s cmdline=%q",
-				malformed, time.Duration(latency), txCmdline(tx))
+			log.Warnf("discovery diagnostic: suspicious tx malformed=%t latency=%s tx=%s",
+				malformed, time.Duration(latency), tx.String())
 		}
 	}
 
@@ -325,12 +325,12 @@ func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) ([]byte, bool)
 	if !match && pathIsMalformed(path) {
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Debugf("http path malformed: %+v %s", tx.ConnTuple(), tx.String())
-			// TEMPORARY DIAGNOSTIC: parallel Warn line with raw latency and
-			// cmdline so the same rejected transaction can be compared
-			// side-by-side with the discovery diagnostic in addDiscovery
-			// (see above). Remove together when the investigation is done.
-			log.Warnf("usm diagnostic: malformed path rejected latency=%s cmdline=%q",
-				time.Duration(tx.RequestLatency()), txCmdline(tx))
+			// TEMPORARY DIAGNOSTIC: parallel Warn line with raw latency so
+			// the same rejected transaction can be compared side-by-side
+			// with the discovery diagnostic in addDiscovery (see above).
+			// Remove together when the investigation is done.
+			log.Warnf("usm diagnostic: malformed path rejected latency=%s tx=%s",
+				time.Duration(tx.RequestLatency()), tx.String())
 		}
 		h.telemetry.nonPrintableCharacters.Add(1)
 		return nil, true
