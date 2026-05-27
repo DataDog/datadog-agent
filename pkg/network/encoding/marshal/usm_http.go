@@ -10,6 +10,8 @@ package marshal
 import (
 	"bytes"
 	"io"
+	"strconv"
+	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/sketches-go/ddsketch"
@@ -18,7 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const discoveryLatencyThresholdNs = float64(time.Hour)
 
 type httpEncoder struct {
 	httpAggregationsBuilder *model.HTTPAggregationsBuilder
@@ -80,6 +85,16 @@ func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64
 					w.SetValue(func(w *model.HTTPStats_DataBuilder) {
 						w.SetCount(uint32(stats.Count))
 						if e.discoveryMode {
+							if stats.Count > 0 {
+								if avg := stats.LatencySum / float64(stats.Count); avg > discoveryLatencyThresholdNs {
+									path := key.Path.Content.Get()
+									log.Warnf("discovery service map: average latency %s exceeds 1 hour (sum=%s, count=%d, status=%d) for %s",
+										time.Duration(avg), time.Duration(stats.LatencySum), stats.Count, code, key.String())
+									if pathIsMalformed(path) {
+										log.Warnf("discovery service map: malformed path %q for %s", path, key.String())
+									}
+								}
+							}
 							w.SetLatencySum(stats.LatencySum)
 						} else if latencies := stats.Latencies; latencies != nil {
 							w.SetLatencies(func(b *bytes.Buffer) {
@@ -101,6 +116,19 @@ func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64
 
 	}
 	return staticTags, dynamicTags
+}
+
+// pathIsMalformed mirrors the byte-by-byte check used by the USM statkeeper
+// (see pkg/network/protocols/http/statkeeper.go pathIsMalformed): each byte
+// is treated as a rune so any non-printable-ASCII byte (including UTF-8
+// continuation bytes) flags the path as malformed.
+func pathIsMalformed(p string) bool {
+	for i := 0; i < len(p); i++ {
+		if !strconv.IsPrint(rune(p[i])) {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *httpEncoder) Close() {

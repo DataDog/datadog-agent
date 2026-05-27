@@ -256,6 +256,20 @@ func (h *StatKeeper) addDiscovery(tx Transaction) {
 		return
 	}
 
+	// TEMPORARY DIAGNOSTIC: surface transactions that the regular USM path
+	// would have rejected as malformed, or whose latency is implausibly large
+	// (>1h). Helps explain outlier latencies seen only in discovery mode,
+	// since addDiscovery otherwise skips processHTTPPath's malformed
+	// rejection. The path bytes are read into the local buffer for the check
+	// only; they are not propagated into the aggregation Key below.
+	if rawPath, _ := tx.Path(h.buffer); rawPath != nil {
+		malformed := pathIsMalformed(rawPath)
+		if (malformed || latency > float64(time.Hour)) && h.oversizedLogLimit.ShouldLog() {
+			log.Warnf("discovery diagnostic: suspicious tx malformed=%t latency=%s cmdline=%q",
+				malformed, time.Duration(latency), txCmdline(tx))
+		}
+	}
+
 	key := Key{
 		ConnectionKey: tx.ConnTuple(),
 		Path:          Path{Content: emptyInternedPath},
@@ -310,7 +324,11 @@ func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) ([]byte, bool)
 	// Otherwise, we don't want the custom path to be rejected by our path formatting check.
 	if !match && pathIsMalformed(path) {
 		if h.oversizedLogLimit.ShouldLog() {
-			log.Debugf("http path malformed: %+v %s", tx.ConnTuple(), tx.String())
+			// TEMPORARY DIAGNOSTIC: bumped from Debug to Warn and enriched
+			// with raw latency so this log can be compared side-by-side with
+			// the discovery diagnostic in addDiscovery (see above).
+			log.Warnf("usm diagnostic: malformed path rejected latency=%s cmdline=%q",
+				time.Duration(tx.RequestLatency()), txCmdline(tx))
 		}
 		h.telemetry.nonPrintableCharacters.Add(1)
 		return nil, true

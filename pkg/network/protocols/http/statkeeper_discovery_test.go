@@ -8,6 +8,8 @@
 package http
 
 import (
+	"bufio"
+	"bytes"
 	"strconv"
 	"testing"
 	"time"
@@ -17,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -132,6 +135,26 @@ func TestDiscoveryMode_LatencySumAccumulates(t *testing.T) {
 		assert.Zero(t, bucket.FirstLatencySample,
 			"FirstLatencySample should not be touched in discovery mode")
 	}
+}
+
+func TestDiscoveryMode_LogsSuspiciousTx(t *testing.T) {
+	var buf bytes.Buffer
+	w := bufio.NewWriter(&buf)
+	l, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, log.WarnLvl)
+	require.NoError(t, err)
+	log.SetupLogger(l, log.WarnStr)
+
+	sk := newDiscoveryStatkeeper(t)
+	tx := generateIPv4HTTPTransaction(
+		util.AddressFromString(testClientIP), util.AddressFromString(testServerIP),
+		testClientPort, testServerPort,
+		"/\x01bad", 200, 2*time.Hour,
+	)
+	sk.Process(tx)
+	require.NoError(t, w.Flush())
+
+	assert.Contains(t, buf.String(), "discovery diagnostic: suspicious tx malformed=true")
+	assert.Contains(t, buf.String(), "latency=1h")
 }
 
 func TestDiscoveryMode_RejectsInvalidTransactions(t *testing.T) {
