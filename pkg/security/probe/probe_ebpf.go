@@ -1113,11 +1113,11 @@ func (p *EBPFProbe) resolveOTelSpanAttrs(event *model.Event, eventType model.Eve
 	// ThreadlocalAttributeKeys so we can map index → name correctly.
 	var keyNames []string
 	if event.ProcessContext != nil {
-		keyNames = event.ProcessContext.Process.TracerMetadata.ThreadlocalAttributeKeys
+		keyNames = event.ProcessContext.Process.Tracer.Metadata.ThreadlocalAttributeKeys
 		if len(keyNames) == 0 {
 			for pce := event.ProcessContext.Ancestor; pce != nil; pce = pce.Ancestor {
-				if len(pce.Process.TracerMetadata.ThreadlocalAttributeKeys) > 0 {
-					keyNames = pce.Process.TracerMetadata.ThreadlocalAttributeKeys
+				if len(pce.Process.Tracer.Metadata.ThreadlocalAttributeKeys) > 0 {
+					keyNames = pce.Process.Tracer.Metadata.ThreadlocalAttributeKeys
 					break
 				}
 			}

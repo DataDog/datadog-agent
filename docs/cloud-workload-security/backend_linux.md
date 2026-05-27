@@ -330,28 +330,6 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "object",
             "description": "ContainerContextSerializer serializes a container context to JSON"
         },
-        "DDContext": {
-            "properties": {
-                "span_id": {
-                    "type": "string",
-                    "description": "Span ID used for APM correlation"
-                },
-                "trace_id": {
-                    "type": "string",
-                    "description": "Trace ID used for APM correlation"
-                },
-                "attributes": {
-                    "additionalProperties": {
-                        "type": "string"
-                    },
-                    "type": "object",
-                    "description": "Attributes contains custom OTel thread-local attributes from the span context"
-                }
-            },
-            "additionalProperties": false,
-            "type": "object",
-            "description": "DDContextSerializer serializes a span context to JSON"
-        },
         "DNSEvent": {
             "properties": {
                 "id": {
@@ -1505,12 +1483,8 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "description": "List of AWS Security Credentials that the process had access to"
                 },
                 "tracer": {
-                    "$ref": "#/$defs/TracerMetadata",
-                    "description": "Metadata from APM tracer instrumentation"
-                },
-                "span_context": {
-                    "$ref": "#/$defs/DDContext",
-                    "description": "APM span context captured for this process. For a process that\nfork+exec'd a subprocess this carries the parent's span (the one\ncaptured by fill_span_context at sched_process_fork). The top-level\nevent \"dd\" field is built by newDDContextSerializer which walks the\nancestor lineage; this per-process field exposes the same data at\neach level of the ancestor chain."
+                    "$ref": "#/$defs/Tracer",
+                    "description": "Tracer bundles the per-process APM tracer state: the captured span\n(trace_id / span_id / attributes) under \"trace\", and the tracer\nmetadata under \"metadata\". For a process that fork+exec'd a\nsubprocess, .trace carries the parent's span captured by\nfill_span_context at sched_process_fork; the top-level event\n\"dd\"/\"trace\" fields are built by newTraceSerializer which walks the\nancestor lineage to find the same value."
                 },
                 "variables": {
                     "$ref": "#/$defs/Variables",
@@ -1692,12 +1666,8 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "description": "List of AWS Security Credentials that the process had access to"
                 },
                 "tracer": {
-                    "$ref": "#/$defs/TracerMetadata",
-                    "description": "Metadata from APM tracer instrumentation"
-                },
-                "span_context": {
-                    "$ref": "#/$defs/DDContext",
-                    "description": "APM span context captured for this process. For a process that\nfork+exec'd a subprocess this carries the parent's span (the one\ncaptured by fill_span_context at sched_process_fork). The top-level\nevent \"dd\" field is built by newDDContextSerializer which walks the\nancestor lineage; this per-process field exposes the same data at\neach level of the ancestor chain."
+                    "$ref": "#/$defs/Tracer",
+                    "description": "Tracer bundles the per-process APM tracer state: the captured span\n(trace_id / span_id / attributes) under \"trace\", and the tracer\nmetadata under \"metadata\". For a process that fork+exec'd a\nsubprocess, .trace carries the parent's span captured by\nfill_span_context at sched_process_fork; the top-level event\n\"dd\"/\"trace\" fields are built by newTraceSerializer which walks the\nancestor lineage to find the same value."
                 },
                 "variables": {
                     "$ref": "#/$defs/Variables",
@@ -2294,6 +2264,43 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "object",
             "description": "TLSContextSerializer defines a tls context serializer"
         },
+        "Trace": {
+            "properties": {
+                "span_id": {
+                    "type": "string",
+                    "description": "Span ID used for APM correlation"
+                },
+                "trace_id": {
+                    "type": "string",
+                    "description": "Trace ID used for APM correlation"
+                },
+                "attributes": {
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "type": "object",
+                    "description": "Custom OTel thread-local attributes from the span context"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "TraceSerializer serializes a span context to JSON"
+        },
+        "Tracer": {
+            "properties": {
+                "trace": {
+                    "$ref": "#/$defs/Trace",
+                    "description": "Captured APM span context for this process."
+                },
+                "metadata": {
+                    "$ref": "#/$defs/TracerMetadata",
+                    "description": "Metadata from APM tracer instrumentation (schema version, language,\nversion, thread-local attribute keys, ...)."
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "TracerSerializer groups the per-process APM tracer information surfaced under the \"tracer\" key in the serialized process: the captured span context (.trace) and the static tracer metadata (.metadata)."
+        },
         "TracerMetadata": {
             "properties": {
                 "schema_version": {
@@ -2466,7 +2473,12 @@ Workload Protection events for Linux systems have the following JSON schema:
             "$ref": "#/$defs/NetworkContext"
         },
         "dd": {
-            "$ref": "#/$defs/DDContext"
+            "$ref": "#/$defs/Trace",
+            "description": "DD holds the APM correlation span context under the \"dd\" key, the\nshape the Datadog backend expects at ingest. This field is consumed\nby the intake and not surfaced back to end users."
+        },
+        "trace": {
+            "$ref": "#/$defs/Trace",
+            "description": "Trace is the same span/trace/attributes payload, exposed under a\nuser-facing key. Built from newTraceSerializer just like the \"dd\"\nfield above \u2014 the two pointers reference the same serializer\ninstance, so the two views can never drift."
         },
         "security_profile": {
             "$ref": "#/$defs/SecurityProfileContext"
@@ -2575,7 +2587,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `container` | $ref | Please see [ContainerContext](#containercontext) |
 | `signature` | string |  |
 | `network` | $ref | Please see [NetworkContext](#networkcontext) |
-| `dd` | $ref | Please see [DDContext](#ddcontext) |
+| `dd` | $ref | Please see [Trace](#trace) |
+| `trace` | $ref | Please see [Trace](#trace) |
 | `security_profile` | $ref | Please see [SecurityProfileContext](#securityprofilecontext) |
 | `cgroup` | $ref | Please see [CGroupContext](#cgroupcontext) |
 | `selinux` | $ref | Please see [SELinuxEvent](#selinuxevent) |
@@ -3117,42 +3130,6 @@ Workload Protection events for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [Variables](#variables) |
-
-## `DDContext`
-
-
-{{< code-block lang="json" collapsible="true" >}}
-{
-    "properties": {
-        "span_id": {
-            "type": "string",
-            "description": "Span ID used for APM correlation"
-        },
-        "trace_id": {
-            "type": "string",
-            "description": "Trace ID used for APM correlation"
-        },
-        "attributes": {
-            "additionalProperties": {
-                "type": "string"
-            },
-            "type": "object",
-            "description": "Attributes contains custom OTel thread-local attributes from the span context"
-        }
-    },
-    "additionalProperties": false,
-    "type": "object",
-    "description": "DDContextSerializer serializes a span context to JSON"
-}
-
-{{< /code-block >}}
-
-| Field | Description |
-| ----- | ----------- |
-| `span_id` | Span ID used for APM correlation |
-| `trace_id` | Trace ID used for APM correlation |
-| `attributes` | Attributes contains custom OTel thread-local attributes from the span context |
-
 
 ## `DNSEvent`
 
@@ -4776,12 +4753,8 @@ Workload Protection events for Linux systems have the following JSON schema:
             "description": "List of AWS Security Credentials that the process had access to"
         },
         "tracer": {
-            "$ref": "#/$defs/TracerMetadata",
-            "description": "Metadata from APM tracer instrumentation"
-        },
-        "span_context": {
-            "$ref": "#/$defs/DDContext",
-            "description": "APM span context captured for this process. For a process that\nfork+exec'd a subprocess this carries the parent's span (the one\ncaptured by fill_span_context at sched_process_fork). The top-level\nevent \"dd\" field is built by newDDContextSerializer which walks the\nancestor lineage; this per-process field exposes the same data at\neach level of the ancestor chain."
+            "$ref": "#/$defs/Tracer",
+            "description": "Tracer bundles the per-process APM tracer state: the captured span\n(trace_id / span_id / attributes) under \"trace\", and the tracer\nmetadata under \"metadata\". For a process that fork+exec'd a\nsubprocess, .trace carries the parent's span captured by\nfill_span_context at sched_process_fork; the top-level event\n\"dd\"/\"trace\" fields are built by newTraceSerializer which walks the\nancestor lineage to find the same value."
         },
         "variables": {
             "$ref": "#/$defs/Variables",
@@ -4839,13 +4812,13 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `source` | Process source |
 | `syscalls` | List of syscalls captured to generate the event |
 | `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
-| `tracer` | Metadata from APM tracer instrumentation |
-| `span_context` | APM span context captured for this process. For a process that
-fork+exec'd a subprocess this carries the parent's span (the one
-captured by fill_span_context at sched_process_fork). The top-level
-event "dd" field is built by newDDContextSerializer which walks the
-ancestor lineage; this per-process field exposes the same data at
-each level of the ancestor chain. |
+| `tracer` | Tracer bundles the per-process APM tracer state: the captured span
+(trace_id / span_id / attributes) under "trace", and the tracer
+metadata under "metadata". For a process that fork+exec'd a
+subprocess, .trace carries the parent's span captured by
+fill_span_context at sched_process_fork; the top-level event
+"dd"/"trace" fields are built by newTraceSerializer which walks the
+ancestor lineage to find the same value. |
 | `variables` | Variable values |
 
 | References |
@@ -4856,8 +4829,7 @@ each level of the ancestor chain. |
 | [CGroupContext](#cgroupcontext) |
 | [ContainerContext](#containercontext) |
 | [SyscallsEvent](#syscallsevent) |
-| [TracerMetadata](#tracermetadata) |
-| [DDContext](#ddcontext) |
+| [Tracer](#tracer) |
 | [Variables](#variables) |
 
 ## `ProcessContext`
@@ -5029,12 +5001,8 @@ each level of the ancestor chain. |
             "description": "List of AWS Security Credentials that the process had access to"
         },
         "tracer": {
-            "$ref": "#/$defs/TracerMetadata",
-            "description": "Metadata from APM tracer instrumentation"
-        },
-        "span_context": {
-            "$ref": "#/$defs/DDContext",
-            "description": "APM span context captured for this process. For a process that\nfork+exec'd a subprocess this carries the parent's span (the one\ncaptured by fill_span_context at sched_process_fork). The top-level\nevent \"dd\" field is built by newDDContextSerializer which walks the\nancestor lineage; this per-process field exposes the same data at\neach level of the ancestor chain."
+            "$ref": "#/$defs/Tracer",
+            "description": "Tracer bundles the per-process APM tracer state: the captured span\n(trace_id / span_id / attributes) under \"trace\", and the tracer\nmetadata under \"metadata\". For a process that fork+exec'd a\nsubprocess, .trace carries the parent's span captured by\nfill_span_context at sched_process_fork; the top-level event\n\"dd\"/\"trace\" fields are built by newTraceSerializer which walks the\nancestor lineage to find the same value."
         },
         "variables": {
             "$ref": "#/$defs/Variables",
@@ -5107,13 +5075,13 @@ each level of the ancestor chain. |
 | `source` | Process source |
 | `syscalls` | List of syscalls captured to generate the event |
 | `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
-| `tracer` | Metadata from APM tracer instrumentation |
-| `span_context` | APM span context captured for this process. For a process that
-fork+exec'd a subprocess this carries the parent's span (the one
-captured by fill_span_context at sched_process_fork). The top-level
-event "dd" field is built by newDDContextSerializer which walks the
-ancestor lineage; this per-process field exposes the same data at
-each level of the ancestor chain. |
+| `tracer` | Tracer bundles the per-process APM tracer state: the captured span
+(trace_id / span_id / attributes) under "trace", and the tracer
+metadata under "metadata". For a process that fork+exec'd a
+subprocess, .trace carries the parent's span captured by
+fill_span_context at sched_process_fork; the top-level event
+"dd"/"trace" fields are built by newTraceSerializer which walks the
+ancestor lineage to find the same value. |
 | `variables` | Variable values |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
@@ -5127,8 +5095,7 @@ each level of the ancestor chain. |
 | [CGroupContext](#cgroupcontext) |
 | [ContainerContext](#containercontext) |
 | [SyscallsEvent](#syscallsevent) |
-| [TracerMetadata](#tracermetadata) |
-| [DDContext](#ddcontext) |
+| [Tracer](#tracer) |
 | [Variables](#variables) |
 | [Process](#process) |
 
@@ -5992,6 +5959,75 @@ each level of the ancestor chain. |
 {{< /code-block >}}
 
 
+
+## `Trace`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "span_id": {
+            "type": "string",
+            "description": "Span ID used for APM correlation"
+        },
+        "trace_id": {
+            "type": "string",
+            "description": "Trace ID used for APM correlation"
+        },
+        "attributes": {
+            "additionalProperties": {
+                "type": "string"
+            },
+            "type": "object",
+            "description": "Custom OTel thread-local attributes from the span context"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "TraceSerializer serializes a span context to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `span_id` | Span ID used for APM correlation |
+| `trace_id` | Trace ID used for APM correlation |
+| `attributes` | Custom OTel thread-local attributes from the span context |
+
+
+## `Tracer`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "trace": {
+            "$ref": "#/$defs/Trace",
+            "description": "Captured APM span context for this process."
+        },
+        "metadata": {
+            "$ref": "#/$defs/TracerMetadata",
+            "description": "Metadata from APM tracer instrumentation (schema version, language,\nversion, thread-local attribute keys, ...)."
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "TracerSerializer groups the per-process APM tracer information surfaced under the \"tracer\" key in the serialized process: the captured span context (.trace) and the static tracer metadata (.metadata)."
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `trace` | Captured APM span context for this process. |
+| `metadata` | Metadata from APM tracer instrumentation (schema version, language,
+version, thread-local attribute keys, ...). |
+
+| References |
+| ---------- |
+| [Trace](#trace) |
+| [TracerMetadata](#tracermetadata) |
 
 ## `TracerMetadata`
 

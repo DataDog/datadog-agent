@@ -201,6 +201,15 @@ type SpanContext struct {
 	Attributes    map[string]string `field:"-"`
 }
 
+// Tracer bundles the per-process APM tracer state: static metadata captured
+// from the tracer-info memfd, plus the most recent span context observed for
+// this process. Cross-platform so the model.go-level accessors compile on
+// both Linux and Windows builds.
+type Tracer struct {
+	Metadata tracermetadata.TracerMetadata
+	Trace    SpanContext
+}
+
 // RuleContext defines a rule context
 type RuleContext struct {
 	Expression       string                `field:"-"`
@@ -400,7 +409,7 @@ func (e *Event) GetProcessTracerMetadata() tracermetadata.TracerMetadata {
 	if e.BaseEvent.ProcessContext == nil {
 		return tracermetadata.TracerMetadata{}
 	}
-	return e.BaseEvent.ProcessContext.Process.TracerMetadata
+	return e.BaseEvent.ProcessContext.Process.Tracer.Metadata
 }
 
 // UserSessionContext describes the user session context

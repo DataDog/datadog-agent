@@ -1490,7 +1490,7 @@ func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 	p.Lock()
 	entry := p.entryCache[pid]
 	if entry != nil {
-		entry.TracerMetadata = tmeta
+		entry.Tracer.Metadata = tmeta
 	}
 	p.Unlock()
 

@@ -14,9 +14,22 @@
                 "span_id",
                 "trace_id"
             ]
+        },
+        "trace": {
+            "span_id": {
+                "type": "string"
+            },
+            "trace_id": {
+                "type": "string"
+            },
+            "required": [
+                "span_id",
+                "trace_id"
+            ]
         }
     },
     "required": [
-        "dd"
+        "dd",
+        "trace"
     ]
 }
