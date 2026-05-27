@@ -31,7 +31,7 @@ func Diagnose(hp healthplatformdef.Component, diagCfg diagnose.Config) []diagnos
 		}
 
 		status := diagnose.DiagnosisWarning
-		if issue.Severity == "critical" || issue.Severity == "high" {
+		if issue.Severity == healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_HIGH {
 			status = diagnose.DiagnosisFail
 		}
 

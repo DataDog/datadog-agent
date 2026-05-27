@@ -15,8 +15,9 @@ import (
 
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 )
 
 // Requires defines the dependencies for the live reporter component.
@@ -24,6 +25,7 @@ type Requires struct {
 	Config        config.Component
 	Log           log.Component
 	EventPlatform eventplatform.Component
+	Hostname      hostname.Component
 }
 
 // Provides defines the output of the live reporter component.
@@ -45,7 +47,7 @@ func NewComponent(req Requires) (Provides, error) {
 		if !ok {
 			req.Log.Warnf("[reporter] event_reporter disabled: event-platform forwarder is not running")
 		} else {
-			sender, err := newEventSender(forwarder, req.Log, nil)
+			sender, err := newEventSender(forwarder, req.Log, nil, req.Hostname)
 			if err != nil {
 				req.Log.Warnf("[reporter] event_reporter disabled: %v", err)
 			} else {
