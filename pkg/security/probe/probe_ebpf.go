@@ -1076,7 +1076,14 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event, cgroupCon
 
 // resolveOTelSpanAttrs looks up OTel custom attributes from the otel_span_attrs BPF map
 // and parses them using the ThreadlocalAttributeKeys from the process's TracerMetadata.
-func (p *EBPFProbe) resolveOTelSpanAttrs(event *model.Event) {
+//
+// For fork/exec events, when attributes are successfully resolved, they are
+// also pushed onto the cached PCE via SetSpanContextAttributes — at this
+// point AddForkEntry / AddExecEntry already stamped the IDs onto the PCE, so
+// we only need to add the now-resolved Attributes. For other event types the
+// PCE is the existing cached entry shared with future events and must not be
+// mutated with the transient event's attributes.
+func (p *EBPFProbe) resolveOTelSpanAttrs(event *model.Event, eventType model.EventType) {
 	// Build the map key: span_id + trace_id[2]
 	key := make([]byte, 24)
 	binary.NativeEndian.PutUint64(key[0:8], event.SpanContext.SpanID)
@@ -1100,9 +1107,21 @@ func (p *EBPFProbe) resolveOTelSpanAttrs(event *model.Event) {
 
 	// Get the ThreadlocalAttributeKeys from the process's TracerMetadata.
 	// ProcessContext may not be resolved yet at unmarshal time, so guard against nil.
+	// For exec events the new PCE has no TracerMetadata (touch never sealed a
+	// tracer-info memfd); the metadata lives on the pre-exec PCE in the ancestor
+	// lineage. Walk ancestors until we find one with non-empty
+	// ThreadlocalAttributeKeys so we can map index → name correctly.
 	var keyNames []string
 	if event.ProcessContext != nil {
 		keyNames = event.ProcessContext.Process.TracerMetadata.ThreadlocalAttributeKeys
+		if len(keyNames) == 0 {
+			for pce := event.ProcessContext.Ancestor; pce != nil; pce = pce.Ancestor {
+				if len(pce.Process.TracerMetadata.ThreadlocalAttributeKeys) > 0 {
+					keyNames = pce.Process.TracerMetadata.ThreadlocalAttributeKeys
+					break
+				}
+			}
+		}
 	}
 
 	// Parse attrs_data: repeated [key(u8) + length(u8) + val(u8[length])]
@@ -1131,6 +1150,14 @@ func (p *EBPFProbe) resolveOTelSpanAttrs(event *model.Event) {
 
 	if len(attrs) > 0 {
 		event.SpanContext.Attributes = attrs
+
+		// For fork/exec events, push the resolved attributes onto the cached
+		// PCE so the per-process span_context serializer can surface them.
+		// AddForkEntry / AddExecEntry already stamped SpanID/TraceID earlier;
+		// only the Attributes field still needs to be set here.
+		if event.ProcessCacheEntry != nil && (eventType == model.ForkEventType || eventType == model.ExecEventType) {
+			event.ProcessCacheEntry.SetSpanContextAttributes(attrs)
+		}
 	}
 }
 
@@ -1402,9 +1429,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	}
 
-	// Resolve OTel custom attributes now that process context (and TracerMetadata) is available.
+	// Resolve OTel custom attributes now that process context (and
+	// TracerMetadata) is available. resolveOTelSpanAttrs also handles
+	// pushing the resolved attributes onto the cached PCE for fork/exec
+	// events via SetSpanContextAttributes.
 	if event.SpanContext.HasExtraAttrs && p.otelSpanAttrsMap != nil {
-		p.resolveOTelSpanAttrs(event)
+		p.resolveOTelSpanAttrs(event, eventType)
 	}
 
 	// handle regular events

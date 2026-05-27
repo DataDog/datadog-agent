@@ -1497,6 +1497,10 @@
           "$ref": "#/$defs/TracerMetadata",
           "description": "Metadata from APM tracer instrumentation"
         },
+        "span_context": {
+          "$ref": "#/$defs/DDContext",
+          "description": "APM span context captured for this process. For a process that\nfork+exec'd a subprocess this carries the parent's span (the one\ncaptured by fill_span_context at sched_process_fork). The top-level\nevent \"dd\" field is built by newDDContextSerializer which walks the\nancestor lineage; this per-process field exposes the same data at\neach level of the ancestor chain."
+        },
         "variables": {
           "$ref": "#/$defs/Variables",
           "description": "Variable values"
@@ -1679,6 +1683,10 @@
         "tracer": {
           "$ref": "#/$defs/TracerMetadata",
           "description": "Metadata from APM tracer instrumentation"
+        },
+        "span_context": {
+          "$ref": "#/$defs/DDContext",
+          "description": "APM span context captured for this process. For a process that\nfork+exec'd a subprocess this carries the parent's span (the one\ncaptured by fill_span_context at sched_process_fork). The top-level\nevent \"dd\" field is built by newDDContextSerializer which walks the\nancestor lineage; this per-process field exposes the same data at\neach level of the ancestor chain."
         },
         "variables": {
           "$ref": "#/$defs/Variables",

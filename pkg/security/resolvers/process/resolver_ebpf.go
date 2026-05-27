@@ -562,7 +562,7 @@ func (p *EBPFResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFResolver) AddForkEntry(event *model.Event, cgroupContext model.CGroupContext, newEntryCb func(*model.ProcessCacheEntry, error)) error {
 	p.ApplyBootTime(event.ProcessCacheEntry)
-	event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
+	event.ProcessCacheEntry.SetSpanContext(event.SpanContext)
 
 	if event.ProcessCacheEntry.Pid == 0 {
 		return errors.New("no pid")
@@ -581,6 +581,14 @@ func (p *EBPFResolver) AddForkEntry(event *model.Event, cgroupContext model.CGro
 func (p *EBPFResolver) AddExecEntry(event *model.Event, cgroupContext model.CGroupContext) error {
 	p.Lock()
 	defer p.Unlock()
+
+	// Mirror AddForkEntry: if fill_span_context captured a span at
+	// prepare_binprm (e.g. the parent had a legacy/OTel/Go tracer active when
+	// it execve'd), persist it on the new PCE so the process serializer can
+	// surface it as process.span_context. This is a no-op for the fork+exec
+	// case where the child's tgid has no correlation entry — event.SpanContext
+	// is zero there and ancestor lineage still carries the parent's span.
+	event.ProcessCacheEntry.SetSpanContext(event.SpanContext)
 
 	var err error
 	if err := p.resolveNewProcessCacheEntry(event.ProcessCacheEntry); err != nil {

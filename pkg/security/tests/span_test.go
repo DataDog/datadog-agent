@@ -38,6 +38,96 @@ func splitTraceID(decimalTraceID string) (hi, lo uint64, ok bool) {
 	return hi, lo, true
 }
 
+// spanContextJSON mirrors the shape of DDContextSerializer in JSON.
+type spanContextJSON struct {
+	SpanID     string            `json:"span_id"`
+	TraceID    string            `json:"trace_id"`
+	Attributes map[string]string `json:"attributes"`
+}
+
+// spanLocations describes where the per-process span_context is expected to
+// surface in the serialized event. The top-level "dd" field is always
+// asserted; these flags govern where the per-PCE serializer copy must (or
+// must not) appear.
+type spanLocations struct {
+	// onTopLevelProcess: process.span_context must carry the expected values.
+	// Set for non-fork-exec scenarios where fill_span_context captured a
+	// span at prepare_binprm and AddExecEntry persisted it on the new PCE.
+	onTopLevelProcess bool
+	// onAncestor: at least one entry in process.ancestors[].span_context
+	// must carry the expected values. Set for fork+exec scenarios where the
+	// fork hook captured the parent's span on the child PCE which then
+	// became an ancestor of the exec'd image.
+	onAncestor bool
+}
+
+// assertSerializedSpanContext parses the marshalled event and asserts the
+// propagation wiring described by `loc`. Always asserts the top-level "dd"
+// field (built by newDDContextSerializer); the rest is gated by loc.
+//
+// expectedAttrs may be nil; when non-nil, each expected key must be present
+// on the asserted span_context.attributes with the expected value (subset
+// match — the helper does not assert absence of unexpected keys).
+func assertSerializedSpanContext(t *testing.T, jsonStr, expectedSpanID, expectedTraceID string, expectedAttrs map[string]string, loc spanLocations) {
+	t.Helper()
+	var parsed struct {
+		DD struct {
+			SpanID  string `json:"span_id"`
+			TraceID string `json:"trace_id"`
+		} `json:"dd"`
+		Process struct {
+			SpanContext *spanContextJSON `json:"span_context"`
+			Ancestors   []struct {
+				SpanContext *spanContextJSON `json:"span_context"`
+			} `json:"ancestors"`
+		} `json:"process"`
+	}
+	if !assert.NoError(t, json.Unmarshal([]byte(jsonStr), &parsed), "json.Unmarshal") {
+		return
+	}
+
+	// (1) Top-level "dd" — always asserted.
+	assert.Equal(t, expectedSpanID, parsed.DD.SpanID, "serialized dd.span_id")
+	assert.Equal(t, expectedTraceID, parsed.DD.TraceID, "serialized dd.trace_id")
+
+	// (2) Top-level "process.span_context".
+	if loc.onTopLevelProcess {
+		if assert.NotNil(t, parsed.Process.SpanContext,
+			"process.span_context should be populated (AddExecEntry persisted event.SpanContext on the new PCE)") {
+			assertSpanFields(t, parsed.Process.SpanContext, expectedSpanID, expectedTraceID, expectedAttrs, "process.span_context")
+		}
+	} else {
+		assert.Nil(t, parsed.Process.SpanContext,
+			"process.span_context should be unset (event.SpanContext was zero at exec time; nothing for AddExecEntry to persist)")
+	}
+
+	// (3) Ancestor "span_context".
+	if loc.onAncestor {
+		var ancestorSpan *spanContextJSON
+		for i := range parsed.Process.Ancestors {
+			if parsed.Process.Ancestors[i].SpanContext != nil {
+				ancestorSpan = parsed.Process.Ancestors[i].SpanContext
+				break
+			}
+		}
+		if assert.NotNil(t, ancestorSpan,
+			"at least one ancestor in process.ancestors[] should carry a serialized span_context") {
+			assertSpanFields(t, ancestorSpan, expectedSpanID, expectedTraceID, expectedAttrs, "ancestor.span_context")
+		}
+	}
+}
+
+// assertSpanFields asserts the fields of a serialized span_context match the
+// expected span/trace IDs and the expected attribute subset.
+func assertSpanFields(t *testing.T, sc *spanContextJSON, expectedSpanID, expectedTraceID string, expectedAttrs map[string]string, prefix string) {
+	t.Helper()
+	assert.Equal(t, expectedSpanID, sc.SpanID, "%s.span_id", prefix)
+	assert.Equal(t, expectedTraceID, sc.TraceID, "%s.trace_id", prefix)
+	for k, v := range expectedAttrs {
+		assert.Equal(t, v, sc.Attributes[k], "%s.attributes[%q]", prefix, k)
+	}
+}
+
 func TestSpan(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -131,6 +221,21 @@ func TestSpan(t *testing.T) {
 
 			assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
 			assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
+
+			// In-process exec (pthread + execv preserves the tgid):
+			// fill_span_context_legacy reads span_tls[tgid] at prepare_binprm,
+			// AddExecEntry persists event.SpanContext onto the new touch PCE,
+			// so process.span_context is populated on the top-level process.
+			expectedHi, expectedLo, ok := splitTraceID(fakeTraceID128b)
+			if !assert.True(t, ok, "splitTraceID") {
+				return
+			}
+			jsonStr, err := test.marshalEvent(event)
+			if assert.NoError(t, err, "marshalEvent") {
+				assertSerializedSpanContext(t, jsonStr, "204",
+					fmt.Sprintf("%x%x", expectedHi, expectedLo), nil,
+					spanLocations{onTopLevelProcess: true})
+			}
 		}, "test_span_rule_exec")
 	})
 
@@ -179,37 +284,31 @@ func TestSpan(t *testing.T) {
 				// span captured by fill_span_context_legacy at fork time.
 				var foundAncestor *model.ProcessCacheEntry
 				for pce := event.ProcessContext.Ancestor; pce != nil; pce = pce.Ancestor {
-					if pce.SpanID != 0 {
+					if pce.SpanContext.SpanID != 0 {
 						foundAncestor = pce
 						break
 					}
 				}
 				if assert.NotNil(t, foundAncestor,
 					"an ancestor should carry the parent's legacy TLS span captured at fork time") {
-					assert.Equal(t, uint64(204), foundAncestor.SpanID,
+					assert.Equal(t, uint64(204), foundAncestor.SpanContext.SpanID,
 						"fork-parent ancestor SpanID should equal the legacy-TLS span_id")
-					assert.Equal(t, fakeTraceID128b, foundAncestor.TraceID.String(),
+					assert.Equal(t, fakeTraceID128b, foundAncestor.SpanContext.TraceID.String(),
 						"fork-parent ancestor TraceID should equal the legacy-TLS trace_id")
 				}
 
-				// (3) Serialized dd field should carry the propagated values.
+				// (3) Serialized dd field (top-level) and per-process
+				// span_context on the ancestor should both carry the
+				// propagated legacy-TLS values.
 				expectedHi, expectedLo, ok := splitTraceID(fakeTraceID128b)
 				if !assert.True(t, ok, "splitTraceID") {
 					return
 				}
 				jsonStr, err := test.marshalEvent(event)
-				assert.NoError(t, err, "marshalEvent")
-				var parsed struct {
-					DD struct {
-						SpanID  string `json:"span_id"`
-						TraceID string `json:"trace_id"`
-					} `json:"dd"`
-				}
-				if assert.NoError(t, json.Unmarshal([]byte(jsonStr), &parsed), "json.Unmarshal") {
-					assert.Equal(t, "204", parsed.DD.SpanID,
-						"serialized dd.span_id should equal the legacy-TLS span_id")
-					assert.Equal(t, fmt.Sprintf("%x%x", expectedHi, expectedLo), parsed.DD.TraceID,
-						"serialized dd.trace_id should equal hex(Hi)+hex(Lo) of the legacy-TLS trace_id")
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedSpanContext(t, jsonStr, "204",
+						fmt.Sprintf("%x%x", expectedHi, expectedLo), nil,
+						spanLocations{onAncestor: true})
 				}
 			}, "test_span_rule_exec")
 		})
@@ -401,6 +500,28 @@ func TestOTelSpan(t *testing.T) {
 
 				assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
 				assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
+
+				// In-process exec (pthread + execv preserves the tgid): the
+				// OTel record is published before execv, fill_span_context_otel
+				// reads it at prepare_binprm, AddExecEntry persists
+				// event.SpanContext onto the new touch PCE. Top-level
+				// process.span_context is populated, including the OTel
+				// custom attributes resolved via resolveOTelSpanAttrs.
+				expectedHi, expectedLo, ok := splitTraceID(fakeTraceID128b)
+				if !assert.True(t, ok, "splitTraceID") {
+					return
+				}
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedSpanContext(t, jsonStr, "204",
+						fmt.Sprintf("%x%x", expectedHi, expectedLo),
+						map[string]string{
+							"http.method": "GET",
+							"http.target": "/test",
+							"http.user":   "will@datadoghq.com",
+						},
+						spanLocations{onTopLevelProcess: true})
+				}
 			}, "test_otel_span_rule_exec")
 		})
 	})
@@ -499,37 +620,31 @@ func TestOTelSpan(t *testing.T) {
 				// span captured by fill_span_context_otel at fork time.
 				var foundAncestor *model.ProcessCacheEntry
 				for pce := event.ProcessContext.Ancestor; pce != nil; pce = pce.Ancestor {
-					if pce.SpanID != 0 {
+					if pce.SpanContext.SpanID != 0 {
 						foundAncestor = pce
 						break
 					}
 				}
 				if assert.NotNil(t, foundAncestor,
 					"an ancestor should carry the parent's OTel TLS span captured at fork time") {
-					assert.Equal(t, uint64(204), foundAncestor.SpanID,
+					assert.Equal(t, uint64(204), foundAncestor.SpanContext.SpanID,
 						"fork-parent ancestor SpanID should equal the OTel record span_id")
-					assert.Equal(t, fakeTraceID128b, foundAncestor.TraceID.String(),
+					assert.Equal(t, fakeTraceID128b, foundAncestor.SpanContext.TraceID.String(),
 						"fork-parent ancestor TraceID should equal the OTel record trace_id")
 				}
 
-				// (3) Serialized dd field should carry the propagated values.
+				// (3) Serialized dd field (top-level) and per-process
+				// span_context on the ancestor should both carry the
+				// propagated OTel-record values.
 				expectedHi, expectedLo, ok := splitTraceID(fakeTraceID128b)
 				if !assert.True(t, ok, "splitTraceID") {
 					return
 				}
 				jsonStr, err := test.marshalEvent(event)
-				assert.NoError(t, err, "marshalEvent")
-				var parsed struct {
-					DD struct {
-						SpanID  string `json:"span_id"`
-						TraceID string `json:"trace_id"`
-					} `json:"dd"`
-				}
-				if assert.NoError(t, json.Unmarshal([]byte(jsonStr), &parsed), "json.Unmarshal") {
-					assert.Equal(t, "204", parsed.DD.SpanID,
-						"serialized dd.span_id should equal the OTel record span_id")
-					assert.Equal(t, fmt.Sprintf("%x%x", expectedHi, expectedLo), parsed.DD.TraceID,
-						"serialized dd.trace_id should equal hex(Hi)+hex(Lo) of the OTel record trace_id")
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedSpanContext(t, jsonStr, "204",
+						fmt.Sprintf("%x%x", expectedHi, expectedLo), nil,
+						spanLocations{onAncestor: true})
 				}
 			}, "test_otel_span_rule_exec")
 		})
@@ -651,6 +766,19 @@ func TestGoSpan(t *testing.T) {
 					"span ID should match the pprof label value")
 				assert.Equal(t, uint64(123456789), event.SpanContext.TraceID.Lo,
 					"trace ID lo should match the local root span ID label value")
+
+				// In-process exec via syscall.Exec preserves the tgid:
+				// fill_span_context_go reads the goroutine's pprof labels at
+				// prepare_binprm, AddExecEntry persists event.SpanContext
+				// onto the new touch PCE → process.span_context populated.
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedSpanContext(t, jsonStr,
+						strconv.FormatUint(987654321, 10),
+						fmt.Sprintf("%x%x", uint64(0), uint64(123456789)),
+						nil,
+						spanLocations{onTopLevelProcess: true})
+				}
 			}, "test_go_span_rule_exec")
 		})
 	})
@@ -773,11 +901,11 @@ func TestGoSpan(t *testing.T) {
 				var foundSpan bool
 				var ancestorSpanID, ancestorTraceIDLo, ancestorTraceIDHi uint64
 				for pce := event.ProcessContext.Ancestor; pce != nil; pce = pce.Ancestor {
-					if pce.SpanID != 0 {
+					if pce.SpanContext.SpanID != 0 {
 						foundSpan = true
-						ancestorSpanID = pce.SpanID
-						ancestorTraceIDLo = pce.TraceID.Lo
-						ancestorTraceIDHi = pce.TraceID.Hi
+						ancestorSpanID = pce.SpanContext.SpanID
+						ancestorTraceIDLo = pce.SpanContext.TraceID.Lo
+						ancestorTraceIDHi = pce.SpanContext.TraceID.Hi
 						break
 					}
 				}
@@ -790,23 +918,16 @@ func TestGoSpan(t *testing.T) {
 				assert.Equal(t, uint64(0), ancestorTraceIDHi,
 					"Go pprof labels only populate the low 64 bits of trace_id")
 
-				// (3) The serialized event's "dd" field should carry those
-				// same propagated values (newDDContextSerializer's ancestor
-				// fallback path).
+				// (3) Top-level "dd" field (newDDContextSerializer's ancestor
+				// fallback) AND the per-process "span_context" on the
+				// ancestor should both carry the parent's pprof-label span.
 				jsonStr, err := test.marshalEvent(event)
-				assert.NoError(t, err, "marshalEvent")
-				var parsed struct {
-					DD struct {
-						SpanID  string `json:"span_id"`
-						TraceID string `json:"trace_id"`
-					} `json:"dd"`
-				}
-				if assert.NoError(t, json.Unmarshal([]byte(jsonStr), &parsed), "json.Unmarshal") {
-					assert.Equal(t, strconv.FormatUint(parentSpanID, 10), parsed.DD.SpanID,
-						"serialized dd.span_id should equal the parent's pprof span_id")
-					expectedTraceID := fmt.Sprintf("%x%x", uint64(0), parentLocalRootSpanID)
-					assert.Equal(t, expectedTraceID, parsed.DD.TraceID,
-						"serialized dd.trace_id should equal hex(Hi)+hex(Lo) of the parent's local_root_span_id")
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedSpanContext(t, jsonStr,
+						strconv.FormatUint(parentSpanID, 10),
+						fmt.Sprintf("%x%x", uint64(0), parentLocalRootSpanID),
+						nil,
+						spanLocations{onAncestor: true})
 				}
 			}, "test_go_span_rule_exec")
 		})
@@ -946,6 +1067,19 @@ func TestDDTraceGoSpan(t *testing.T) {
 					"span ID should match the dd-trace-go generated value")
 				assert.Equal(t, expectedLocalRootSpanID, event.SpanContext.TraceID.Lo,
 					"trace ID lo should match the dd-trace-go local root span ID")
+
+				// In-process exec via syscall.Exec: dd-trace-go's pprof labels
+				// on the locked OS thread are read by fill_span_context_go at
+				// prepare_binprm, AddExecEntry persists event.SpanContext
+				// onto the new touch PCE → process.span_context populated.
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedSpanContext(t, jsonStr,
+						strconv.FormatUint(expectedSpanID, 10),
+						fmt.Sprintf("%x%x", uint64(0), expectedLocalRootSpanID),
+						nil,
+						spanLocations{onTopLevelProcess: true})
+				}
 			}, "test_ddtrace_span_rule_exec")
 		})
 	})
@@ -1071,11 +1205,11 @@ func TestDDTraceGoSpan(t *testing.T) {
 				var foundSpan bool
 				var ancestorSpanID, ancestorTraceIDLo, ancestorTraceIDHi uint64
 				for pce := event.ProcessContext.Ancestor; pce != nil; pce = pce.Ancestor {
-					if pce.SpanID != 0 {
+					if pce.SpanContext.SpanID != 0 {
 						foundSpan = true
-						ancestorSpanID = pce.SpanID
-						ancestorTraceIDLo = pce.TraceID.Lo
-						ancestorTraceIDHi = pce.TraceID.Hi
+						ancestorSpanID = pce.SpanContext.SpanID
+						ancestorTraceIDLo = pce.SpanContext.TraceID.Lo
+						ancestorTraceIDHi = pce.SpanContext.TraceID.Hi
 						break
 					}
 				}
@@ -1088,23 +1222,16 @@ func TestDDTraceGoSpan(t *testing.T) {
 				assert.Equal(t, uint64(0), ancestorTraceIDHi,
 					"dd-trace-go pprof labels only populate the low 64 bits of trace_id")
 
-				// (3) The serialized event's "dd" field should carry the
-				// same propagated values (the ancestor-fallback path in
-				// newDDContextSerializer).
+				// (3) Top-level "dd" field AND the per-process "span_context"
+				// on the ancestor should both carry dd-trace-go's parent
+				// span values.
 				jsonStr, err := test.marshalEvent(event)
-				assert.NoError(t, err, "marshalEvent")
-				var parsed struct {
-					DD struct {
-						SpanID  string `json:"span_id"`
-						TraceID string `json:"trace_id"`
-					} `json:"dd"`
-				}
-				if assert.NoError(t, json.Unmarshal([]byte(jsonStr), &parsed), "json.Unmarshal") {
-					assert.Equal(t, strconv.FormatUint(parentSpanID, 10), parsed.DD.SpanID,
-						"serialized dd.span_id should equal dd-trace-go's parent span_id")
-					expectedTraceID := fmt.Sprintf("%x%x", uint64(0), parentLocalRootSpanID)
-					assert.Equal(t, expectedTraceID, parsed.DD.TraceID,
-						"serialized dd.trace_id should equal hex(Hi)+hex(Lo) of dd-trace-go's local_root_span_id")
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedSpanContext(t, jsonStr,
+						strconv.FormatUint(parentSpanID, 10),
+						fmt.Sprintf("%x%x", uint64(0), parentLocalRootSpanID),
+						nil,
+						spanLocations{onAncestor: true})
 				}
 			}, "test_ddtrace_span_rule_exec")
 		})

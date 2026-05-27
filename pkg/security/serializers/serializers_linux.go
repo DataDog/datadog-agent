@@ -336,6 +336,13 @@ type ProcessSerializer struct {
 	AWSSecurityCredentials []*AWSSecurityCredentialsSerializer `json:"aws_security_credentials,omitempty"`
 	// Metadata from APM tracer instrumentation
 	Tracer *tracermetadata.TracerMetadata `json:"tracer,omitempty"`
+	// APM span context captured for this process. For a process that
+	// fork+exec'd a subprocess this carries the parent's span (the one
+	// captured by fill_span_context at sched_process_fork). The top-level
+	// event "dd" field is built by newDDContextSerializer which walks the
+	// ancestor lineage; this per-process field exposes the same data at
+	// each level of the ancestor chain.
+	SpanContext *DDContextSerializer `json:"span_context,omitempty"`
 	// Variable values
 	Variables Variables `json:"variables,omitempty"`
 }
@@ -1026,6 +1033,14 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			psSerializer.Tracer = &tmetaCopy
 		}
 
+		if ps.SpanContext.SpanID != 0 && (ps.SpanContext.TraceID.Hi != 0 || ps.SpanContext.TraceID.Lo != 0) {
+			psSerializer.SpanContext = &DDContextSerializer{
+				SpanID:     strconv.FormatUint(ps.SpanContext.SpanID, 10),
+				TraceID:    fmt.Sprintf("%x%x", ps.SpanContext.TraceID.Hi, ps.SpanContext.TraceID.Lo),
+				Attributes: ps.SpanContext.Attributes,
+			}
+		}
+
 		if len(ps.ContainerContext.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        string(ps.ContainerContext.ContainerID),
@@ -1482,9 +1497,10 @@ func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
 
-		if pce.SpanID != 0 && (pce.TraceID.Hi != 0 || pce.TraceID.Lo != 0) {
-			s.SpanID = strconv.FormatUint(pce.SpanID, 10)
-			s.TraceID = fmt.Sprintf("%x%x", pce.TraceID.Hi, pce.TraceID.Lo)
+		if pce.SpanContext.SpanID != 0 && (pce.SpanContext.TraceID.Hi != 0 || pce.SpanContext.TraceID.Lo != 0) {
+			s.SpanID = strconv.FormatUint(pce.SpanContext.SpanID, 10)
+			s.TraceID = fmt.Sprintf("%x%x", pce.SpanContext.TraceID.Hi, pce.SpanContext.TraceID.Lo)
+			s.Attributes = pce.SpanContext.Attributes
 			break
 		}
 

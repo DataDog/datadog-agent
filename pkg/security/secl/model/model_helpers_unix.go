@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 const (
@@ -149,10 +148,20 @@ func (c *Credentials) Equals(o *Credentials) bool {
 		c.CapPermitted == o.CapPermitted
 }
 
-// SetSpan sets the span
-func (p *Process) SetSpan(spanID uint64, traceID utils.TraceID) {
-	p.SpanID = spanID
-	p.TraceID = traceID
+// SetSpanContext attaches the captured APM correlation span context to the
+// process. Used by AddForkEntry to persist the parent's span across fork.
+// Carries SpanID, TraceID, HasExtraAttrs and any OTel extra Attributes.
+func (p *Process) SetSpanContext(sc SpanContext) {
+	p.SpanContext = sc
+}
+
+// SetSpanContextAttributes updates only the Attributes field on the process's
+// already-populated SpanContext. Used when OTel extra attributes are resolved
+// after the PCE was first stamped (resolveOTelSpanAttrs runs after
+// AddForkEntry / AddExecEntry, which only had the index→name-less event
+// SpanContext to copy from).
+func (p *Process) SetSpanContextAttributes(attrs map[string]string) {
+	p.SpanContext.Attributes = attrs
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one

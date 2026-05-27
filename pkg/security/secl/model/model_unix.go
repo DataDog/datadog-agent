@@ -23,7 +23,6 @@ import (
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 const (
@@ -395,8 +394,7 @@ type Process struct {
 	CGroup           CGroupContext    `field:"cgroup"`    // SECLDoc[cgroup] Definition:`CGroup`
 	ContainerContext ContainerContext `field:"container"` // SECLDoc[container] Definition:`Container`
 
-	SpanID  uint64        `field:"-"`
-	TraceID utils.TraceID `field:"-"`
+	SpanContext SpanContext `field:"-"`
 
 	TTYName     string      `field:"tty_name"`                                                          // SECLDoc[tty_name] Definition:`Name of the TTY associated with the process`
 	Comm        string      `field:"comm"`                                                              // SECLDoc[comm] Definition:`Comm attribute of the process`

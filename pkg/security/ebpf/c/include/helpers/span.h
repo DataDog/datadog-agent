@@ -132,6 +132,13 @@ void __attribute__((always_inline)) copy_span_context(struct span_context_t *src
     dst->span_id = src->span_id;
     dst->trace_id[0] = src->trace_id[0];
     dst->trace_id[1] = src->trace_id[1];
+    // has_extra_attrs must be copied too: for exec events, fill_span_context
+    // runs against syscall->exec.span_context at prepare_binprm, and the
+    // event-side span_context only gets populated via this helper at
+    // send_exec_event. Without copying this flag, the userspace
+    // resolveOTelSpanAttrs path never fires for execs and Attributes never
+    // makes it onto the PCE.
+    dst->has_extra_attrs = src->has_extra_attrs;
 }
 
 #endif
