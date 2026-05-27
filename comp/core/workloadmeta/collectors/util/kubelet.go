@@ -439,7 +439,7 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	return env
 }
 
-func extractPodResources(resourcesSpec *kubelet.ContainerResourcesSpec) workloadmeta.ContainerResources {
+func extractPodResources(resourcesSpec *kubelet.ResourcesSpec) workloadmeta.ContainerResources {
 	resources := workloadmeta.ContainerResources{}
 
 	if resourcesSpec == nil {
