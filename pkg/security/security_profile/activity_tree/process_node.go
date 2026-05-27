@@ -188,7 +188,12 @@ func (pn *ProcessNode) scrubAndReleaseArgsEnvs(resolver *sprocess.EBPFResolver) 
 // Matches return true if the process fields used to generate the dump are identical with the provided model.Process
 func (pn *ProcessNode) Matches(entry *model.Process, matchArgs bool, normalize bool) bool {
 	if normalize {
-		match := pathutils.PathPatternMatch(pn.Process.FileEvent.PathnameStr, entry.FileEvent.PathnameStr, pathutils.PathPatternMatchOpts{WildcardLimit: 3, PrefixNodeRequired: 1, NodeSizeLimit: 8, NodeCommonCharsRequired: 3})
+		match := pathutils.PathPatternMatch(pn.Process.FileEvent.PathnameStr, entry.FileEvent.PathnameStr, pathutils.PathPatternMatchOpts{
+			WildcardLimit:           3,
+			PrefixNodeRequired:      1,
+			NodeSizeLimit:           8,
+			NodeCommonCharsRequired: 8,
+		})
 		if !match {
 			return false
 		}
@@ -272,10 +277,9 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 	// before creating a fresh node
 	if len(filePath) <= nextParentIndex+1 {
 		for _, sibling := range pn.Files {
-			if pattern, ok := sibling.Matches(fileEvent, true); ok {
+			if ok := sibling.Matches(fileEvent, true); ok {
 				if !dryRun {
-					sibling.File.PathnameStr = pattern
-					sibling.IsPattern = strings.Contains(pattern, "*")
+					sibling.IsPattern = sibling.File.PathnameStr != fileEvent.PathnameStr
 					sibling.enrichFromEvent(event)
 					sibling.AppendImageTagID(imageTagID, event.ResolveEventTime())
 				}

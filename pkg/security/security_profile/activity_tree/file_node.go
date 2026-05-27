@@ -111,23 +111,23 @@ func (fn *FileNode) buildNodeRow(prefix string) string {
 // numeric or rotated suffixes (e.g. /var/log/syslog.1 vs /var/log/syslog.2) are unified into a wildcard pattern; the
 // path is required to carry an extension, to avoid collapsing unrelated files. When normalize is false, the literal
 // path is returned only when both sides are byte-equal.
-func (fn *FileNode) Matches(entry *model.FileEvent, normalize bool) (string, bool) {
+func (fn *FileNode) Matches(entry *model.FileEvent, normalize bool) bool {
 	if fn.File == nil || entry == nil {
-		return "", false
+		return false
 	}
 	if normalize {
 		var (
-			nodeCommonCharsRequired = 3
+			nodeCommonCharsRequired = 5
 			extensionRequired       = true
 		)
 
 		// relax a bit for /tmp files
-		if strings.HasPrefix(fn.File.PathnameStr, "/tmp") {
-			nodeCommonCharsRequired = 5
+		if strings.HasPrefix(entry.PathnameStr, "/tmp") {
+			nodeCommonCharsRequired = 8
 			extensionRequired = false
 		}
 
-		return pathutils.PathPatternBuilder(fn.File.PathnameStr, entry.PathnameStr, pathutils.PathPatternMatchOpts{
+		return pathutils.PathPatternMatch(fn.File.PathnameStr, entry.PathnameStr, pathutils.PathPatternMatchOpts{
 			WildcardLimit:           3,
 			PrefixNodeRequired:      1,
 			NodeSizeLimit:           8,
@@ -135,10 +135,7 @@ func (fn *FileNode) Matches(entry *model.FileEvent, normalize bool) (string, boo
 			ExtensionRequired:       extensionRequired,
 		})
 	}
-	if fn.File.PathnameStr == entry.PathnameStr {
-		return fn.File.PathnameStr, true
-	}
-	return "", false
+	return fn.File.PathnameStr == entry.PathnameStr
 }
 
 func (fn *FileNode) enrichFromEvent(event *model.Event) {
@@ -210,11 +207,10 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 			// leaf: look for an existing sibling that matches the new file event by pattern
 			// before creating a fresh node
 			for _, sibling := range currentFn.Children {
-				if pattern, ok := sibling.Matches(fileEvent, true); ok {
+				if sibling.Matches(fileEvent, true) {
 					newEntry = false
 					if !dryRun {
-						sibling.File.PathnameStr = pattern
-						sibling.IsPattern = strings.Contains(pattern, "*")
+						sibling.IsPattern = sibling.File.PathnameStr != fileEvent.PathnameStr
 						sibling.enrichFromEvent(event)
 						sibling.AppendImageTagID(imageTagID, event.ResolveEventTime())
 					}
