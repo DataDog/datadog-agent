@@ -10,6 +10,7 @@ go_library(
         "forwarder.go",
         "forwarder_health.go",
         "noop_forwarder.go",
+        "otel_sync_forwarder.go",
         "params.go",
         "shared_connection.go",
         "status.go",
@@ -54,6 +55,7 @@ go_library(
         "@org_golang_x_sync//semaphore",
         "@org_uber_go_atomic//:atomic",
         "@org_uber_go_fx//:fx",
+        "@org_uber_go_multierr//:multierr",
     ],
 )
 
