@@ -702,6 +702,7 @@ func initConstants() {
 	initCompressionTypeConstants()
 	initFileTypeConstants()
 	initLinkageTypeConstants()
+	initSocketDomainConstants()
 	initSocketTypeConstants()
 	initSocketFamilyConstants()
 	initSocketProtocolConstants()
