@@ -8,46 +8,11 @@ package ecs
 import (
 	"regexp"
 	"strings"
-	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-
-	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
-	scenfi "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
-	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 )
 
-type ecsChecksSuite struct {
-	BaseSuite[environments.ECS]
-	ecsClusterName string
-}
-
-func TestECSChecksSuite(t *testing.T) {
-	t.Parallel()
-	e2e.Run(t, &ecsChecksSuite{}, e2e.WithProvisioner(provecs.Provisioner(
-		provecs.WithRunOptions(
-			scenecs.WithECSOptions(
-				scenecs.WithFargateCapacityProvider(),
-				scenecs.WithLinuxNodeGroup(),
-			),
-			scenecs.WithFakeIntakeOptions(
-				scenfi.WithRetentionPeriod("31m"),
-			),
-			scenecs.WithTestingWorkload(),
-		),
-	)))
-}
-
-func (suite *ecsChecksSuite) SetupSuite() {
-	suite.BaseSuite.SetupSuite()
-	suite.Fakeintake = suite.Env().FakeIntake.Client()
-	suite.ecsClusterName = suite.Env().ECSCluster.ClusterName
-	suite.ClusterName = suite.Env().ECSCluster.ClusterName
-}
-
-func (suite *ecsChecksSuite) TestNginxECS() {
+func (suite *ecsSuite) TestNginxECS() {
 	// `nginx` check is configured via docker labels
 	// Test it is properly scheduled
 	suite.AssertMetric(&TestMetricArgs{
@@ -125,7 +90,7 @@ func (suite *ecsChecksSuite) TestNginxECS() {
 	})
 }
 
-func (suite *ecsChecksSuite) TestRedisECS() {
+func (suite *ecsSuite) TestRedisECS() {
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
 	suite.AssertMetric(&TestMetricArgs{
@@ -202,7 +167,7 @@ func (suite *ecsChecksSuite) TestRedisECS() {
 	})
 }
 
-func (suite *ecsChecksSuite) TestNginxFargate() {
+func (suite *ecsSuite) TestNginxFargate() {
 	// `nginx` check is configured via docker labels
 	// Test it is properly scheduled
 	suite.AssertMetric(&TestMetricArgs{
@@ -240,7 +205,7 @@ func (suite *ecsChecksSuite) TestNginxFargate() {
 	})
 }
 
-func (suite *ecsChecksSuite) TestRedisFargate() {
+func (suite *ecsSuite) TestRedisFargate() {
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
 	suite.AssertMetric(&TestMetricArgs{
@@ -277,7 +242,7 @@ func (suite *ecsChecksSuite) TestRedisFargate() {
 	})
 }
 
-func (suite *ecsChecksSuite) TestPrometheus() {
+func (suite *ecsSuite) TestPrometheus() {
 	// Test Prometheus check
 	suite.AssertMetric(&TestMetricArgs{
 		Filter: TestMetricFilterArgs{

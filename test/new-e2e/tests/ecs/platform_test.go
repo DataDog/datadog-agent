@@ -8,55 +8,15 @@ package ecs
 import (
 	"regexp"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/stretchr/testify/assert"
-
-	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
-	scenfi "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
-	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 )
 
-type ecsPlatformSuite struct {
-	BaseSuite[environments.ECS]
-	ecsClusterName string
-}
-
-func TestECSPlatformSuite(t *testing.T) {
-	t.Parallel()
-	e2e.Run(t, &ecsPlatformSuite{}, e2e.WithProvisioner(provecs.Provisioner(
-		provecs.WithRunOptions(
-			scenecs.WithECSOptions(
-				scenecs.WithFargateCapacityProvider(),
-				scenecs.WithLinuxNodeGroup(),
-				scenecs.WithLinuxBottleRocketNodeGroup(),
-			),
-			scenecs.WithFakeIntakeOptions(
-				scenfi.WithRetentionPeriod("31m"),
-			),
-			scenecs.WithTestingWorkload(),
-		),
-	)))
-}
-
-func (suite *ecsPlatformSuite) SetupSuite() {
-	suite.BaseSuite.SetupSuite()
-	suite.Fakeintake = suite.Env().FakeIntake.Client()
-	suite.ecsClusterName = suite.Env().ECSCluster.ClusterName
-	suite.ClusterName = suite.Env().ECSCluster.ClusterName
-}
-
-func (suite *ecsPlatformSuite) Test00UpAndRunning() {
-	suite.AssertECSTasksReady(suite.ecsClusterName)
-}
-
-func (suite *ecsPlatformSuite) TestCPU() {
+func (suite *ecsSuite) TestCPU() {
 	// Test CPU metrics
 	suite.AssertMetric(&TestMetricArgs{
 		Filter: TestMetricFilterArgs{
@@ -99,7 +59,7 @@ func (suite *ecsPlatformSuite) TestCPU() {
 	})
 }
 
-func (suite *ecsPlatformSuite) TestContainerLifecycle() {
+func (suite *ecsSuite) TestContainerLifecycle() {
 	// Test that container lifecycle events are properly tracked
 	suite.Run("Container lifecycle tracking", func() {
 		// Verify that running containers are reporting metrics

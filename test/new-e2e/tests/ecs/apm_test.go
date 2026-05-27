@@ -32,18 +32,24 @@ const (
 	taskNameTracegenTCP = "tracegen-tcp"
 )
 
-type ecsAPMSuite struct {
+// ecsSuite is the single ECS test suite. All ECS test methods (APM, checks,
+// platform, managed instance) hang off this type so they share one
+// provisioned ECS cluster, since cluster spawn time dominates test runtime
+// and parallel suites would each create a separate cluster.
+type ecsSuite struct {
 	BaseSuite[environments.ECS]
 	ecsClusterName string
 }
 
-func TestECSAPMSuite(t *testing.T) {
+func TestECSSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &ecsAPMSuite{}, e2e.WithProvisioner(provecs.Provisioner(
+	e2e.Run(t, &ecsSuite{}, e2e.WithProvisioner(provecs.Provisioner(
 		provecs.WithRunOptions(
 			scenecs.WithECSOptions(
 				scenecs.WithFargateCapacityProvider(),
 				scenecs.WithLinuxNodeGroup(),
+				scenecs.WithLinuxBottleRocketNodeGroup(),
+				scenecs.WithManagedInstanceNodeGroup(),
 			),
 			scenecs.WithFakeIntakeOptions(
 				scenfi.WithRetentionPeriod("31m"),
@@ -53,7 +59,7 @@ func TestECSAPMSuite(t *testing.T) {
 	)))
 }
 
-func (suite *ecsAPMSuite) SetupSuite() {
+func (suite *ecsSuite) SetupSuite() {
 	suite.BaseSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.ecsClusterName = suite.Env().ECSCluster.ClusterName
@@ -66,7 +72,7 @@ func (suite *ecsAPMSuite) SetupSuite() {
 //   - taskName: Task name pattern (e.g., "dogstatsd-uds", "tracegen-tcp")
 //   - appName: Application name (e.g., "dogstatsd", "tracegen")
 //   - includeFullSet: If true, includes all tags (for metrics). If false, returns minimal set (for traces).
-func (suite *ecsAPMSuite) getCommonECSTagPatterns(clusterName, taskName, appName string, includeFullSet bool) []string {
+func (suite *ecsSuite) getCommonECSTagPatterns(clusterName, taskName, appName string, includeFullSet bool) []string {
 	// Minimal tags for traces - ECS metadata is bundled in _dd.tags.container when DD_APM_ENABLE_CONTAINER_TAGS_BUFFER=true
 	if !includeFullSet {
 		// When DD_APM_ENABLE_CONTAINER_TAGS_BUFFER=true, container tags are bundled into a single _dd.tags.container tag
@@ -121,16 +127,17 @@ func (suite *ecsAPMSuite) getCommonECSTagPatterns(clusterName, taskName, appName
 // Inside a testify test suite, tests are executed in alphabetical order.
 // The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for all tasks to be ready
 // is run first. This gives the agent time to warm up before other tests run with shorter timeouts.
-func (suite *ecsAPMSuite) Test00UpAndRunning() {
+func (suite *ecsSuite) Test00UpAndRunning() {
 	suite.AssertECSTasksReady(suite.ecsClusterName)
 }
 
-func (suite *ecsAPMSuite) Test01AgentAPMReady() {
-	// Test that the APM agent is ready and receiving traces
+func (suite *ecsSuite) Test01AgentAPMReady() {
+	// Test that the APM agent is ready and receiving traces.
+	// Component-specific telemetry metrics (datadog.trace_agent.*) are sent to
+	// the primary endpoint (forwarded to dddev) rather than the FakeIntake
+	// additional endpoint, so we validate APM by checking that traces arrive.
 	suite.Run("APM agent readiness check", func() {
-		suite.AssertAgentHealth(&TestAgentHealthArgs{
-			CheckComponents: []string{"trace_agent"},
-		})
+		suite.AssertAgentHealth(&TestAgentHealthArgs{})
 
 		// Verify we're receiving traces
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
@@ -142,15 +149,15 @@ func (suite *ecsAPMSuite) Test01AgentAPMReady() {
 	})
 }
 
-func (suite *ecsAPMSuite) TestDogstatsdUDS() {
+func (suite *ecsSuite) TestDogstatsdUDS() {
 	suite.testDogstatsd(taskNameDogstatsdUDS)
 }
 
-func (suite *ecsAPMSuite) TestDogstatsdUDP() {
+func (suite *ecsSuite) TestDogstatsdUDP() {
 	suite.testDogstatsd(taskNameDogstatsdUDP)
 }
 
-func (suite *ecsAPMSuite) testDogstatsd(taskName string) {
+func (suite *ecsSuite) testDogstatsd(taskName string) {
 	expectedTags := suite.getCommonECSTagPatterns(suite.ecsClusterName, taskName, "dogstatsd", true)
 
 	suite.AssertMetric(&TestMetricArgs{
@@ -166,18 +173,18 @@ func (suite *ecsAPMSuite) testDogstatsd(taskName string) {
 	})
 }
 
-func (suite *ecsAPMSuite) TestTraceUDS() {
+func (suite *ecsSuite) TestTraceUDS() {
 	suite.testTrace(taskNameTracegenUDS)
 }
 
-func (suite *ecsAPMSuite) TestTraceTCP() {
+func (suite *ecsSuite) TestTraceTCP() {
 	suite.testTrace(taskNameTracegenTCP)
 }
 
 // testTrace verifies that traces are tagged with container and ECS task tags.
 // The bundled _dd.tags.container value is a comma-separated string of key:value pairs
 // containing ECS metadata, image metadata, and git metadata.
-func (suite *ecsAPMSuite) testTrace(taskName string) {
+func (suite *ecsSuite) testTrace(taskName string) {
 	// Build validation patterns for the bundled _dd.tags.container value.
 	// Each pattern is matched against individual comma-separated tags, so
 	// ^ and $ anchors correctly validate the full tag value.

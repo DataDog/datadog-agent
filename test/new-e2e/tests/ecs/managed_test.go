@@ -8,50 +8,12 @@ package ecs
 import (
 	"regexp"
 	"strings"
-	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/stretchr/testify/assert"
-
-	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
-	scenfi "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
-	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 )
 
-type ecsManagedSuite struct {
-	BaseSuite[environments.ECS]
-	ecsClusterName string
-}
-
-func TestECSManagedSuite(t *testing.T) {
-	t.Parallel()
-	e2e.Run(t, &ecsManagedSuite{}, e2e.WithProvisioner(provecs.Provisioner(
-		provecs.WithRunOptions(
-			scenecs.WithECSOptions(
-				scenecs.WithManagedInstanceNodeGroup(),
-			),
-			scenecs.WithFakeIntakeOptions(
-				scenfi.WithRetentionPeriod("31m"),
-			),
-			scenecs.WithTestingWorkload(),
-		),
-	)))
-}
-
-func (suite *ecsManagedSuite) SetupSuite() {
-	suite.BaseSuite.SetupSuite()
-	suite.Fakeintake = suite.Env().FakeIntake.Client()
-	suite.ecsClusterName = suite.Env().ECSCluster.ClusterName
-	suite.ClusterName = suite.Env().ECSCluster.ClusterName
-}
-
-func (suite *ecsManagedSuite) Test00UpAndRunning() {
-	suite.AssertECSTasksReady(suite.ecsClusterName)
-}
-
-func (suite *ecsManagedSuite) TestManagedInstanceAgentHealth() {
+func (suite *ecsSuite) TestManagedInstanceAgentHealth() {
 	// Test agent health on managed instances
 	suite.Run("Managed instance agent health", func() {
 		// Check basic agent health (agent is running and sending metrics)
@@ -61,7 +23,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceAgentHealth() {
 	})
 }
 
-func (suite *ecsManagedSuite) TestManagedInstanceTraceCollection() {
+func (suite *ecsSuite) TestManagedInstanceTraceCollection() {
 	// Test trace collection from managed instances
 	suite.Run("Managed instance trace collection", func() {
 		// ECS metadata on traces is bundled in _dd.tags.container within TracerPayload.Tags.

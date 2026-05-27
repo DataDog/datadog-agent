@@ -12,78 +12,36 @@ This directory contains end-to-end tests for the Datadog Agent on Amazon Elastic
 
 ---
 
-## Test Suites
+## Test Organization
 
-This directory contains **4 test suites** with **18 total tests**:
+All ECS tests run under a single test suite (`TestECSSuite`) that provisions
+**one** ECS cluster with all required capacity providers (Fargate, Linux EC2,
+Linux BottleRocket, Managed Instances). Cluster spawn time dominates test
+runtime, so running everything on a shared cluster avoids both the cost and
+the AWS quota pressure of spawning a fresh cluster per test class.
 
-### 1. `apm_test.go` - APM/Tracing (6 tests)
-Tests APM trace collection and DogStatsD across ECS environments.
+Tests are grouped into thematic files for readability — they are all methods
+on the same `ecsSuite` type:
 
-**Tests**:
-- `Test00UpAndRunning` - Infrastructure readiness check
-- `Test01AgentAPMReady` - APM agent readiness check
-- `TestDogstatsdUDS` - DogStatsD via Unix Domain Socket (full 23-tag regex validation)
-- `TestDogstatsdUDP` - DogStatsD via UDP (full 23-tag regex validation)
-- `TestTraceUDS` - Trace collection via UDS (13-pattern bundled tag validation)
-- `TestTraceTCP` - Trace collection via TCP (13-pattern bundled tag validation)
+### `apm_test.go` — APM/tracing & DogStatsD
+- `Test00UpAndRunning` — Infrastructure readiness (runs first via `00` prefix)
+- `Test01AgentAPMReady` — APM agent readiness, validated by trace arrival
+- `TestDogstatsdUDS` / `TestDogstatsdUDP` — DogStatsD over UDS / UDP
+- `TestTraceUDS` / `TestTraceTCP` — Trace collection over UDS / TCP, validating
+  bundled `_dd.tags.container` ECS metadata
 
-**Key Features Tested**:
-- ECS metadata tags (`ecs_cluster_name`, `task_arn`, `task_family`, `task_version`, etc.)
-- Image metadata tags (`docker_image`, `image_name`, `image_tag`, `short_image`)
-- Git metadata tags (`git.commit.sha`, `git.repository_url`)
-- DogStatsD over UDS and UDP transports
-- Trace collection over UDS and TCP transports
+### `checks_test.go` — Check autodiscovery & execution
+- `TestNginxECS` / `TestRedisECS` — Docker-label and image-name autodiscovery on EC2
+- `TestNginxFargate` / `TestRedisFargate` — Same checks on Fargate
+- `TestPrometheus` — Prometheus/OpenMetrics check
 
----
+### `platform_test.go` — Platform-specific features
+- `TestCPU` — CPU metrics with value-range validation (stress-ng workload)
+- `TestContainerLifecycle` — Multi-container lifecycle metric tracking
 
-### 2. `checks_test.go` - Check Autodiscovery & Execution (5 tests)
-Tests integration check autodiscovery and execution across deployment types.
-
-**Tests**:
-- `TestNginxECS` - Nginx check via docker labels (EC2) with full metric + log tag validation
-- `TestRedisECS` - Redis check via image name autodiscovery (EC2) with full metric + log tag validation
-- `TestNginxFargate` - Nginx check on Fargate with full metric tag validation
-- `TestRedisFargate` - Redis check on Fargate with full metric tag validation
-- `TestPrometheus` - Prometheus/OpenMetrics check with full metric tag validation
-
-**Key Features Tested**:
-- Docker label-based check configuration (`com.datadoghq.ad.check_names`)
-- Image name-based autodiscovery (redis, nginx)
-- Check execution on both EC2 and Fargate
-- Log collection with tag validation (nginx, redis)
-- Prometheus metrics scraping
-
----
-
-### 3. `platform_test.go` - Platform-Specific Features (4 tests)
-Tests platform-specific functionality and performance monitoring.
-
-**Tests**:
-- `Test00UpAndRunning` - Infrastructure readiness check
-- `TestWindowsFargate` - Windows container support on Fargate (check run + container metric tag validation)
-- `TestCPU` - CPU metrics with value range validation (stress-ng workload)
-- `TestContainerLifecycle` - Container lifecycle tracking (multi-container metric validation)
-
-**Key Features Tested**:
-- Windows container monitoring on Fargate
-- BottleRocket node support
-- CPU metric value range validation
-- Multi-container lifecycle tracking
-
----
-
-### 4. `managed_test.go` - Managed Instances (3 tests)
-Tests managed instance-specific features.
-
-**Tests**:
-- `Test00UpAndRunning` - Infrastructure readiness check
-- `TestManagedInstanceAgentHealth` - Agent health check via AssertAgentHealth helper
-- `TestManagedInstanceTraceCollection` - Trace collection with bundled tag validation
-
-**Key Features Tested**:
-- Managed instance provisioning and lifecycle
-- Daemon mode agent deployment
-- Trace collection with ECS metadata validation
+### `managed_test.go` — Managed Instance specifics
+- `TestManagedInstanceAgentHealth` — Agent health on managed instances
+- `TestManagedInstanceTraceCollection` — Trace collection with ECS metadata
 
 ---
 
@@ -96,45 +54,34 @@ Tests managed instance-specific features.
 - **Go**: Version specified in `go.mod`
 - **Datadog API key**: Set in environment (handled by test framework)
 
-### Running Individual Suites
+### Running the suite
 
 ```bash
-# Run APM tests only
-go test -v -timeout 30m ./test/new-e2e/tests/ecs/ -run TestECSAPMSuite
-
-# Run checks tests only
-go test -v -timeout 30m ./test/new-e2e/tests/ecs/ -run TestECSChecksSuite
-
-# Run platform tests only
-go test -v -timeout 30m ./test/new-e2e/tests/ecs/ -run TestECSPlatformSuite
-
-# Run managed instance tests only
-go test -v -timeout 30m ./test/new-e2e/tests/ecs/ -run TestECSManagedSuite
+# Run all ECS tests on a single shared cluster
+dda inv new-e2e-tests.run --targets=./tests/ecs/...
 ```
 
-### Running All ECS Tests
+To run a single test method, use `-test.run`:
 
 ```bash
-go test -v -timeout 60m ./test/new-e2e/tests/ecs/...
+dda inv new-e2e-tests.run --targets=./tests/ecs/... \
+  --extra-flags="-test.run TestECSSuite/TestTraceUDS"
 ```
 
 ---
 
 ## Coverage Matrix
 
-### Feature Coverage by Deployment Type
-
-| Feature | Fargate | EC2 | Managed | Tests |
-|---------|---------|-----|---------|-------|
-| **Metrics Collection** | Yes | Yes | Yes | checks_test, platform_test |
-| **Log Collection** | Yes | Yes | - | checks_test |
-| **APM Traces** | - | Yes | Yes | apm_test, managed_test |
-| **Check Autodiscovery** | Yes | Yes | - | checks_test |
-| **DogStatsD** | - | Yes | - | apm_test |
-| **Container Lifecycle** | Yes | Yes | - | platform_test |
-| **Windows Support** | Yes | - | - | platform_test |
-| **Prometheus** | - | Yes | - | checks_test |
-| **BottleRocket** | - | Yes | - | platform_test |
+| Feature                | Fargate | EC2 | Managed | Tests                      |
+|------------------------|---------|-----|---------|----------------------------|
+| Metrics collection     | Yes     | Yes | Yes     | checks_test, platform_test |
+| Log collection         | Yes     | Yes | -       | checks_test                |
+| APM traces             | -       | Yes | Yes     | apm_test, managed_test     |
+| Check autodiscovery    | Yes     | Yes | -       | checks_test                |
+| DogStatsD              | -       | Yes | -       | apm_test                   |
+| Container lifecycle    | Yes     | Yes | -       | platform_test              |
+| Prometheus             | -       | Yes | -       | checks_test                |
+| BottleRocket           | -       | Yes | -       | platform_test              |
 
 ---
 
