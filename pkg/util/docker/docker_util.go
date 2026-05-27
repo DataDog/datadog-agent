@@ -88,7 +88,7 @@ func ConnectToDocker(ctx context.Context) (*client.Client, error) {
 	// to verify availability. safeInfo tolerates daemons that emit invalid
 	// CIDRs in /info's DefaultAddressPools, which would otherwise fail the
 	// strict netip.Prefix decoding introduced by the moby v29 client.
-	if _, err := safeInfo(ctx, cli); err != nil {
+	if _, err := cli.Ping(ctx, client.PingOptions{}); err != nil {
 		return nil, err
 	}
 
