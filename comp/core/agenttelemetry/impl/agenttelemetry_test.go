@@ -2551,6 +2551,42 @@ func TestEmitterTagInjectedWithNoPreserveTags(t *testing.T) {
 	assert.Equal(t, "agent", m.GetLabel()[0].GetValue())
 }
 
+// TestAggregateTotalNoPreserveTags verifies that aggregate_total:true works in the
+// no-preserve-tags path: per-emitter buckets are emitted alongside a total:N bucket.
+func TestAggregateTotalNoPreserveTags(t *testing.T) {
+	emitterKey := "emitter"
+	spVal := "system-probe"
+	mCfg := &MetricConfig{
+		Name:           "bar.zoo",
+		AggregateTotal: true,
+		preserveTagsExists: false,
+	}
+
+	// Two emitters contributing: core-agent (no emitter) and system-probe.
+	coreV1, coreV2 := float64(10), float64(20)
+	spV := float64(30)
+	ms := []*dto.Metric{
+		{Counter: &dto.Counter{Value: &coreV1}},
+		{Counter: &dto.Counter{Value: &coreV2}},
+		{Label: []*dto.LabelPair{{Name: &emitterKey, Value: &spVal}}, Counter: &dto.Counter{Value: &spV}},
+	}
+
+	a := &atel{}
+	results := a.aggregateMetricTags(mCfg, dto.MetricType_COUNTER, ms)
+
+	require.Len(t, results, 3) // emitter=agent, emitter=system-probe, total
+	metrics := makeStableMetricMap(results)
+
+	require.Contains(t, metrics, "emitter:agent:")
+	assert.Equal(t, float64(30), metrics["emitter:agent:"].Counter.GetValue())
+
+	require.Contains(t, metrics, "emitter:system-probe:")
+	assert.Equal(t, float64(30), metrics["emitter:system-probe:"].Counter.GetValue())
+
+	require.Contains(t, metrics, "total:3:")
+	assert.Equal(t, float64(60), metrics["total:3:"].Counter.GetValue())
+}
+
 // TestEmitterTagInjectedWhenNotInPreserveTags verifies that emitter=agent is injected
 // even when preserve_tags is configured but emitter is not in the list.
 func TestEmitterTagInjectedWhenNotInPreserveTags(t *testing.T) {

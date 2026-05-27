@@ -201,8 +201,15 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 	// being misattributed to the core agent.
 	if !mCfg.preserveTagsExists {
 		emitterMap := make(map[string]*dto.Metric)
+		var totalm *dto.Metric
+		if mCfg.AggregateTotal {
+			totalm = &dto.Metric{}
+		}
 		for _, m := range ms {
 			el := getEmitterLabel(m.GetLabel())
+			if mCfg.AggregateTotal {
+				aggregateMetric(mt, totalm, m)
+			}
 			if aggm, ok := emitterMap[el.GetValue()]; ok {
 				aggregateMetric(mt, aggm, m)
 			} else {
@@ -211,6 +218,12 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 				aggm.Label = []*dto.LabelPair{el}
 				emitterMap[el.GetValue()] = aggm
 			}
+		}
+		if mCfg.AggregateTotal {
+			totalName := "total"
+			totalValue := strconv.Itoa(len(ms))
+			totalm.Label = []*dto.LabelPair{{Name: &totalName, Value: &totalValue}}
+			emitterMap[totalName] = totalm
 		}
 		return slices.Collect(maps.Values(emitterMap))
 	}
