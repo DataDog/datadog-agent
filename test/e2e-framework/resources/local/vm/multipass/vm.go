@@ -18,6 +18,8 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+const defaultUser = "ubuntu"
+
 // cloudInitScript builds a subshell that pipes cloud-init YAML to cmd via heredoc.
 // The pipe must be on the same line as the heredoc opener, so the result is
 // wrapped in a subshell that can be chained with &&.
@@ -49,9 +51,9 @@ func NewInstance(e resourceslocal.Environment, args VMArgs, opts ...pulumi.Resou
 
 	cloudInit := fmt.Sprintf(`#cloud-config
 users:
-  - name: ubuntu
-    ssh_authorized_keys:
-      - %s`, strings.TrimSpace(string(pubKeyBytes)))
+  - default
+ssh_authorized_keys:
+  - %s`, strings.TrimSpace(string(pubKeyBytes)))
 
 	launchCmd := fmt.Sprintf("multipass launch --name %s --cpus %s --memory %s --disk %s --cloud-init - lts",
 		args.Name, e.VMCPUs(), e.VMMemory(), e.VMDisk())
@@ -133,5 +135,5 @@ users:
 		return vmInfo.IPv4[0], nil
 	}).(pulumi.StringOutput)
 
-	return address, "ubuntu", 22, nil
+	return address, defaultUser, 22, nil
 }
