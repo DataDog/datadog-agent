@@ -1,6 +1,7 @@
 import unittest
 import os
 import tempfile
+from unittest.mock import patch
 from pre import pre
 
 class TestPre(unittest.TestCase):
@@ -69,21 +70,18 @@ class TestPre(unittest.TestCase):
     def test_pre_with_orphaned_integration(self):
         # Simulate a partial pip install: datadog_checks/myplugin/ exists on disk but
         # no dist-info was written, so importlib.metadata cannot see the package.
+        # find_orphaned_integration_names is mocked to return ['myplugin'] so the test
+        # is independent of the real Python environment's sys.path and installed packages.
         install_directory = tempfile.mkdtemp()
         storage_location = tempfile.mkdtemp()
-
-        # Create a fake site-packages tree with an orphaned integration dir
-        site_packages = tempfile.mkdtemp()
-        checks_dir = os.path.join(site_packages, 'datadog_checks')
-        os.makedirs(os.path.join(checks_dir, 'myplugin'))
 
         post_file = os.path.join(storage_location, '.post_python_installed_packages.txt')
         with open(post_file, 'w', encoding='utf-8') as f:
             f.write("# DO NOT REMOVE/MODIFY\n")
             # myplugin is absent from the post-file (was never successfully installed)
 
-        result = pre(install_directory, storage_location,
-                     _orphan_site_packages_dir=site_packages)
+        with patch('packages.find_orphaned_integration_names', return_value=['myplugin']):
+            result = pre(install_directory, storage_location)
 
         self.assertEqual(result, 0)
 
@@ -95,8 +93,6 @@ class TestPre(unittest.TestCase):
 
         # Cleanup
         os.remove(diff_file)
-        import shutil
-        shutil.rmtree(site_packages)
         os.rmdir(install_directory)
         os.rmdir(storage_location)
 
