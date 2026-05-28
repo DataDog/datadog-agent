@@ -17,6 +17,6 @@ import (
 // and nil error to allow unit tests and non-Linux builds to pass input
 // validation tests. The PAR binary is only built for Linux, so this stub
 // is never used in production.
-func doCapture(_ context.Context, _ RunCaptureInputs) (int, int64, time.Duration, error) {
-	return 0, 0, 0, nil
+func doCapture(_ context.Context, _ RunCaptureInputs) (int, int64, time.Duration, string, error) {
+	return 0, 0, 0, "", nil
 }
