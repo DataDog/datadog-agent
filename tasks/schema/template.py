@@ -67,24 +67,7 @@ def _env_type_for_json(node):
 # Settings declared with BindEnv() don't have a type or a default but some are still listed in the config example.
 # Until the team migrates to BindEnvAndSetDefault we use the following list pulled from the config template.
 type_exception = {
-    "api_key": ("string", "string", ""),
-    "site": ("string", "string", "datadoghq.com"),
-    "dd_url": ("string", "string", "https://app.datadoghq.com"),
-    "logs_config.logs_dd_url": ("string", "string", ""),
     "logs_config.processing_rules": ("list of custom objects", "list of custom objects", []),
-    "bind_host": ("string", "string", "localhost"),
-    "dogstatsd_mapper_profiles": ("list of custom object", "list of custom object", None),
-    "listeners": ("list of key:value elements", "list of key:value elements", None),
-    "network_config.enabled": ("boolean", "boolean", False),
-    "network_devices.netflow.listeners": ("custom object", "custom object", None),
-    "network_devices.netflow.stop_timeout": ("integer", "integer", 5),
-    "reverse_dns_enrichment.workers": ("integer", "integer", 10),
-    "reverse_dns_enrichment.chan_size": ("integer", "integer", 5000),
-    "reverse_dns_enrichment.cache.max_size": ("integer", "integer", 1000000),
-    "reverse_dns_enrichment.rate_limiter.limit_per_sec": ("integer", "integer", 1000),
-    "reverse_dns_enrichment.rate_limiter.limit_throttled_per_sec": ("integer", "integer", 1),
-    "reverse_dns_enrichment.rate_limiter.throttle_error_threshold": ("integer", "integer", 10),
-    "reverse_dns_enrichment.rate_limiter.recovery_intervals": ("integer", "integer", 5),
 }
 
 build_type_to_section = {
@@ -231,7 +214,10 @@ def _get_node_types_and_default(full_name, node, os_target):
             node_type = tag.split(":")[1]
 
     if node_type == "array":
-        if node["items"]["type"] == "string":
+        # some type are just arrays of unknown types (ex: dogstatsd_mapper_profiles)
+        if "items" not in node:
+            yaml_type, env_type = "list", "JSON list"
+        elif node["items"]["type"] == "string":
             yaml_type, env_type = "list of strings", "space-separated list of strings"
         elif node["items"]["type"] == "object":
             yaml_type, env_type = "list of object", "JSON list of object"
