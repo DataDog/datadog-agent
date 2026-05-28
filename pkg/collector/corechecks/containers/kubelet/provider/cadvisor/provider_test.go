@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
-	"k8s.io/utils/ptr"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
@@ -31,6 +30,7 @@ import (
 	commontesting "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
@@ -161,10 +161,10 @@ func (suite *ProviderTestSuite) SetupTest() {
 	config := &common.KubeletConfig{
 		OpenmetricsInstance: types.OpenmetricsInstance{
 			Tags:                 commontesting.InstanceTags,
-			SendHistogramBuckets: ptr.To(true),
+			SendHistogramBuckets: pointer.Ptr(true),
 			Namespace:            common.KubeletMetricsPrefix,
 		},
-		UseStatsSummaryAsSource: ptr.To(false),
+		UseStatsSummaryAsSource: pointer.Ptr(false),
 	}
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
 
@@ -244,7 +244,7 @@ func (suite *ProviderTestSuite) TestExpectedMetricsWithStatsSummaryAsSource() {
 
 	// Rebuild the provider with use_stats_summary_as_source enabled.
 	cfg := suite.provider.Config
-	cfg.UseStatsSummaryAsSource = ptr.To(true)
+	cfg.UseStatsSummaryAsSource = pointer.Ptr(true)
 
 	p, err := NewProvider(
 		workloadfilterfxmock.SetupMockFilter(suite.T()),

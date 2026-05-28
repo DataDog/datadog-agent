@@ -11,7 +11,7 @@ import (
 	"runtime"
 	"testing"
 
-	"k8s.io/utils/ptr"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestUseStatsSummaryAsSource(t *testing.T) {
@@ -23,8 +23,8 @@ func TestUseStatsSummaryAsSource(t *testing.T) {
 		want bool
 	}{
 		{name: "unset flag falls back to platform default", cfg: &KubeletConfig{}, want: platformDefault},
-		{name: "explicit true overrides default", cfg: &KubeletConfig{UseStatsSummaryAsSource: ptr.To(true)}, want: true},
-		{name: "explicit false overrides default", cfg: &KubeletConfig{UseStatsSummaryAsSource: ptr.To(false)}, want: false},
+		{name: "explicit true overrides default", cfg: &KubeletConfig{UseStatsSummaryAsSource: pointer.Ptr(true)}, want: true},
+		{name: "explicit false overrides default", cfg: &KubeletConfig{UseStatsSummaryAsSource: pointer.Ptr(false)}, want: false},
 	}
 
 	for _, tt := range tests {
