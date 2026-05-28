@@ -105,6 +105,8 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     print(f"  {core}")
     print(f"  {sysprobe}")
 
+    compress(ctx)
+
 
 @task
 def hints(ctx):
