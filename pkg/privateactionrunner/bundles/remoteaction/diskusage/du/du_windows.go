@@ -142,9 +142,10 @@ type Options struct {
 	// alongside FindGlob / FindRegex the predicates OR together.
 	FindExt string
 
-	// FindGlob, when non-empty, matches files whose basename matches the
-	// glob (filepath.Match syntax: *, ?, [abc]).
-	FindGlob string
+	// FindGlobs matches files whose basename matches any of the supplied
+	// glob patterns (filepath.Match syntax: *, ?, [abc]). Patterns OR
+	// together.
+	FindGlobs []string
 
 	// FindRegex, when non-empty, matches files whose basename matches the
 	// RE2 regular expression.
@@ -517,7 +518,7 @@ func Scan(ctx context.Context, targetDir string, opts Options) (*Result, error) 
 
 	topF := newTopFiles(opts.TopFiles, opts.MinFileSize)
 	extAgg := newExtAggregator(opts.TopExtensions > 0)
-	matcher, err := newMatchSet(opts.FindExt, opts.FindGlob, opts.FindRegex, opts.FindLimit, opts.FindFastNameDecode)
+	matcher, err := newMatchSet(opts.FindExt, opts.FindGlobs, opts.FindRegex, opts.FindLimit, opts.FindFastNameDecode)
 	if err != nil {
 		return nil, err
 	}

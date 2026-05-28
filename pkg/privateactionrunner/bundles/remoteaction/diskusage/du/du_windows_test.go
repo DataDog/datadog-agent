@@ -718,7 +718,7 @@ func TestScan_FindByGlob(t *testing.T) {
 
 	res := scanOrSkip(t, root, Options{
 		ShowApparent: true,
-		FindGlob:     "report-*.log",
+		FindGlobs:    []string{"report-*.log"},
 		FindLimit:    10,
 	})
 

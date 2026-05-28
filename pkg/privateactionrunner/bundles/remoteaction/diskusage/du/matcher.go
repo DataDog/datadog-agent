@@ -31,8 +31,8 @@ type matchSet struct {
 	// Pre-normalized lowercased ASCII extensions, no leading dot.
 	// Empty means no extension filter.
 	extensions [][]byte
-	// Glob pattern (filepath.Match syntax). Empty means no glob filter.
-	glob string
+	// Glob patterns (filepath.Match syntax). Empty means no glob filter.
+	globs []string
 	// Compiled regex. Nil means no regex filter.
 	regex *regexp.Regexp
 	// Min-heap on size, capacity Cap.
@@ -51,9 +51,9 @@ type matchSet struct {
 // newMatchSet builds a matcher from CLI-style strings. Returns (nil, nil)
 // when no predicate is configured. Returns an error if a glob or regex
 // fails to compile.
-func newMatchSet(extsCSV, glob, regex string, cap int, fast bool) (*matchSet, error) {
+func newMatchSet(extsCSV string, globs []string, regex string, cap int, fast bool) (*matchSet, error) {
 	exts := splitAndNormalizeExts(extsCSV)
-	if len(exts) == 0 && glob == "" && regex == "" {
+	if len(exts) == 0 && len(globs) == 0 && regex == "" {
 		return nil, nil
 	}
 	if cap <= 0 {
@@ -63,14 +63,17 @@ func newMatchSet(extsCSV, glob, regex string, cap int, fast bool) (*matchSet, er
 	for _, e := range exts {
 		m.extensions = append(m.extensions, []byte(e))
 	}
-	if glob != "" {
+	for _, g := range globs {
+		if g == "" {
+			continue
+		}
 		// Validate eagerly — filepath.Match only reports ErrBadPattern when
 		// it encounters the bad character at evaluation, but probing with a
 		// dummy input surfaces it now.
-		if _, err := filepath.Match(glob, "x"); err != nil {
-			return nil, fmt.Errorf("invalid glob %q: %w", glob, err)
+		if _, err := filepath.Match(g, "x"); err != nil {
+			return nil, fmt.Errorf("invalid glob %q: %w", g, err)
 		}
-		m.glob = glob
+		m.globs = append(m.globs, g)
 	}
 	if regex != "" {
 		re, err := regexp.Compile(regex)
@@ -130,7 +133,7 @@ func (m *matchSet) consider(idx uint64, e *mftEntry, sz int64) {
 	// decode enabled, ASCII filenames go through an in-place buffer +
 	// unsafe.String view (zero alloc); non-ASCII falls back to a real
 	// string. With fast off, every file allocates a real string.
-	if m.glob == "" && m.regex == nil {
+	if len(m.globs) == 0 && m.regex == nil {
 		return
 	}
 	var name string     // for predicate eval — may be unsafe view
@@ -152,9 +155,10 @@ func (m *matchSet) consider(idx uint64, e *mftEntry, sz int64) {
 		name = realName
 	}
 	matched := false
-	if m.glob != "" {
-		if ok, _ := filepath.Match(m.glob, name); ok {
+	for _, g := range m.globs {
+		if ok, _ := filepath.Match(g, name); ok {
 			matched = true
+			break
 		}
 	}
 	if !matched && m.regex != nil && m.regex.MatchString(name) {

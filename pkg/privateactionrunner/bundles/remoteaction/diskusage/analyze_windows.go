@@ -86,6 +86,9 @@ const (
 	modeAllocated = "allocated"
 	modeApparent  = "apparent"
 	maxDepth      = 16
+	// maxFindLimit caps the per-query Limit. Requests exceeding it return an
+	// error rather than silently truncating.
+	maxFindLimit = 1000
 )
 
 func (h *AnalyzeHandler) Run(
@@ -118,20 +121,31 @@ func (h *AnalyzeHandler) Run(
 		depth = maxDepth
 	}
 
-	// Combine all "ext" find queries into a single comma-separated list; take
-	// the first "glob" query's value (du.Options supports one glob). Per-query
-	// result attribution happens after the scan.
+	// Combine all "ext" queries into a single comma-separated list and
+	// collect all "glob" patterns. Per-query result attribution happens
+	// after the scan. The matcher's FindLimit is sized to the largest
+	// per-query Limit so no query's results are silently truncated.
 	var combinedExt []string
-	var firstGlob string
-	for _, q := range in.Find {
+	var globs []string
+	maxLimit := 0
+	for i, q := range in.Find {
+		if q.Limit < 0 {
+			return nil, fmt.Errorf("find[%d]: limit must be >= 0, got %d", i, q.Limit)
+		}
+		if q.Limit > maxFindLimit {
+			return nil, fmt.Errorf("find[%d]: limit %d exceeds maximum of %d", i, q.Limit, maxFindLimit)
+		}
+		if q.Limit > maxLimit {
+			maxLimit = q.Limit
+		}
 		switch q.Type {
 		case "ext":
 			if q.Value != "" {
 				combinedExt = append(combinedExt, q.Value)
 			}
 		case "glob":
-			if firstGlob == "" {
-				firstGlob = q.Value
+			if q.Value != "" {
+				globs = append(globs, q.Value)
 			}
 		default:
 			return nil, fmt.Errorf("unsupported find type %q (expected \"ext\" or \"glob\")", q.Type)
@@ -147,7 +161,8 @@ func (h *AnalyzeHandler) Run(
 		TreeDepth:     depth,
 		TreeMinSize:   in.MinBytes,
 		FindExt:       strings.Join(combinedExt, ","),
-		FindGlob:      firstGlob,
+		FindGlobs:     globs,
+		FindLimit:     maxLimit,
 	}
 
 	r, err := du.Scan(ctx, in.Target, opts)
