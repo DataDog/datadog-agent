@@ -106,7 +106,6 @@ go_test(
         "tmpl/gen/debrpm-nocap/**",
         "tmpl/gen/oci-nocap/**",
     ]),
-    tags = ["manual"],
     deps = [
         "//pkg/fleet/installer/fixtures",
         "@com_github_stretchr_testify//assert",
