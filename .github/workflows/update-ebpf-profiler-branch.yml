@@ -45,7 +45,7 @@ jobs:
         with:
           token: ${{ steps.octo-sts.outputs.token }}
           sign-commits: true
-          branch: update-ebpf-profiler-to-datadog-${{ github.run_id }}
+          branch: update-ebpf-profiler-to-datadog
           commit-message: "chore(deps): switch ebpf-profiler replace directive to datadog branch"
           title: "Bump opentelemetry-ebpf-profiler dependency to latest fork version"
           body: |
