@@ -12,20 +12,17 @@ import (
 )
 
 const (
-	// Existing observer telemetry kept and emitted directly.
-	telemetryDetectorProcessingTimeNs        = "observer.detector.processing_time_ns"
-	telemetryObsChannelDropped               = "observer.channel.dropped"
-	telemetryRRCFScore                       = "observer.rrcf.score"
-	telemetryRRCFThreshold                   = "observer.rrcf.threshold"
-	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count"
-
-	// New anomaly-detection telemetry.
-	telemetryLogsIngested      = "observer.logs.ingested"
-	telemetryProcessedLogSize  = "observer.logs.processed_bytes"
-	telemetryDroppedLogs       = "observer.logs.dropped"
-	telemetrySeriesCount       = "observer.series.count"
-	telemetryReportsEmitted    = "observer.reports.emitted"
-	telemetryLogsInFlightCount = "observer.logs.in_flight"
+	telemetryDetectorProcessingTimeNs        = "observer.detector.processing_time_ns"         // Time spent processing one detector/correlator/extractor step.
+	telemetryObsChannelDropped               = "observer.channel.dropped"                     // Observations dropped when the observer channel is full.
+	telemetryRRCFScore                       = "observer.rrcf.score"                          // Latest RRCF score per detector.
+	telemetryRRCFThreshold                   = "observer.rrcf.threshold"                      // Current RRCF anomaly threshold per detector.
+	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count" // Delta of active log-pattern count.
+	telemetryLogsIngested                    = "observer.logs.ingested"                       // Number of logs ingested by anomaly detection.
+	telemetryProcessedLogSize                = "observer.logs.processed_bytes"                // Total bytes processed from ingested logs.
+	telemetryDroppedLogs                     = "observer.logs.dropped"                        // Number of logs dropped before processing.
+	telemetrySeriesCount                     = "observer.series.count"                        // Number of active non-telemetry observer series.
+	telemetryReportsEmitted                  = "observer.reports.emitted"                     // Number of reports emitted by reporters.
+	telemetryLogsInFlightCount               = "observer.logs.in_flight"                      // Number of logs currently queued/in flight.
 )
 
 type observerTelemetry struct {
