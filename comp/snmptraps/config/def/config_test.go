@@ -248,3 +248,46 @@ func TestNamespaceSetBothGloballyAndLocally(t *testing.T) {
 	}, "foo")
 	assert.Equal(t, "bar", config.Namespace)
 }
+
+// TestTagsUnmarshalFromYAML asserts that the `tags` mapstructure key round-trips
+// from the datadog.yaml config component into TrapsConfig.Tags, preserving order.
+func TestTagsUnmarshalFromYAML(t *testing.T) {
+	config := buildTrapsConfig(t, &TrapsConfig{
+		Tags: []string{"application:foo", "team:netops", "env:prod"},
+	}, "")
+	assert.Equal(t, []string{"application:foo", "team:netops", "env:prod"}, config.Tags)
+}
+
+// TestTagsDefaultEmpty asserts that an unconfigured `tags` field leaves
+// TrapsConfig.Tags empty — i.e. byte-for-byte unchanged behaviour for users
+// who do not opt in.
+func TestTagsDefaultEmpty(t *testing.T) {
+	config := buildTrapsConfig(t, nil, "")
+	assert.Empty(t, config.Tags)
+}
+
+// TestTagsNormalization asserts the normalizeTags pass: whitespace-trim,
+// drop empty/whitespace-only entries, preserve user-declared order.
+func TestTagsNormalization(t *testing.T) {
+	config := buildTrapsConfig(t, &TrapsConfig{
+		Tags: []string{"  application:foo  ", "", "   ", "team:netops"},
+	}, "")
+	assert.Equal(t, []string{"application:foo", "team:netops"}, config.Tags)
+}
+
+// TestOversizedTags asserts the >200-char sanity helper returns the bad entries
+// but leaves them in c.Tags (the listener emits a warn, doesn't drop them).
+func TestOversizedTags(t *testing.T) {
+	ok := "application:" + strings.Repeat("x", 50)
+	tooLong := "label:" + strings.Repeat("y", 201)
+	config := buildTrapsConfig(t, &TrapsConfig{
+		Tags: []string{ok, tooLong},
+	}, "")
+	assert.Equal(t, []string{ok, tooLong}, config.Tags, "oversized tags are kept in Tags")
+	assert.Equal(t, []string{tooLong}, config.OversizedTags())
+}
+
+func TestOversizedTagsEmpty(t *testing.T) {
+	config := buildTrapsConfig(t, nil, "")
+	assert.Nil(t, config.OversizedTags())
+}
