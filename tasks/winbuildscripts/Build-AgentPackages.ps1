@@ -118,10 +118,10 @@ Invoke-BuildScript `
 
         # The SQG runner reads reports exclusively from S3 (it no longer
         # downloads build artifacts), so the report has to be uploaded.
-        # Gating on `push` matches the Linux producers in .static_quality_gate_package
-        # to avoid cross-repo child pipelines polluting the per-commit prefix.
-        if ($env:CI_PIPELINE_SOURCE -ne "push") {
-            Write-Host "Pipeline source is '$env:CI_PIPELINE_SOURCE' (not 'push'); skipping report upload"
+        # Skip uploads from cross-repo child pipelines so they don't overwrite
+        # the per-commit report from this repo's own pipeline.
+        if ($env:CI_PIPELINE_SOURCE -eq "pipeline" -or $env:CI_PIPELINE_SOURCE -eq "parent_pipeline") {
+            Write-Host "Pipeline source is '$env:CI_PIPELINE_SOURCE'; skipping report upload"
         } else {
             $bucketBasePath = "s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/$env:CI_COMMIT_SHA"
             $reportFilename = Split-Path $reportPath -Leaf

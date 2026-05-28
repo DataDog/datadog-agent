@@ -59,12 +59,14 @@
 
         echo "✅ Package measurement completed"
 
-        # Ensure we don't corrupt our `main` measurements with a child pipeline.
-        # The report would override the one generated post-merge
-        if [[ "$CI_PIPELINE_SOURCE" != "push" ]]; then
-          echo "This pipeline wasn't created by a push event, skipping report upload"
-          continue
-        fi
+        # Skip uploads from cross-repo child pipelines so they don't overwrite
+        # the per-commit report from this repo's own pipeline.
+        case "$CI_PIPELINE_SOURCE" in
+          pipeline|parent_pipeline)
+            echo "Pipeline source is '$CI_PIPELINE_SOURCE'; skipping report upload"
+            continue
+            ;;
+        esac
 
         # Upload the report to S3
         BUCKET_BASE_PATH="s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/${CI_COMMIT_SHA}"
