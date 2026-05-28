@@ -568,17 +568,6 @@ exports_files(glob(
 # gazelle:exclude pkg/security/ebpf/probes/rawpacket
 # gazelle:exclude pkg/security/ebpf/tests
 # gazelle:exclude pkg/security/ebpf/c
-# gazelle:exclude pkg/security/ebpf/c/include
-# gazelle:exclude pkg/security/ebpf/c/include/constants
-# gazelle:exclude pkg/security/ebpf/c/include/constants/offsets
-# gazelle:exclude pkg/security/ebpf/c/include/tests
-# gazelle:exclude pkg/security/ebpf/c/include/structs
-# gazelle:exclude pkg/security/ebpf/c/include/hooks
-# gazelle:exclude pkg/security/ebpf/c/include/hooks/network
-# gazelle:exclude pkg/security/ebpf/c/include/helpers
-# gazelle:exclude pkg/security/ebpf/c/include/helpers/network
-# gazelle:exclude pkg/security/ebpf/c/runtime
-# gazelle:exclude pkg/security/ebpf/c/prebuilt
 # gazelle:exclude pkg/security/events
 # gazelle:exclude pkg/security/generators/backend_doc
 # gazelle:exclude pkg/security/module
