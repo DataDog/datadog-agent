@@ -155,7 +155,6 @@ exports_files(glob(
 # gazelle:exclude comp/haagent/fx
 # gazelle:exclude comp/haagent/impl
 # gazelle:exclude comp/host-profiler/collector/fx
-# gazelle:exclude comp/host-profiler/collector/impl/agentprovider
 # gazelle:exclude comp/host-profiler/collector/impl/processor
 # gazelle:exclude comp/host-profiler/flare
 # gazelle:exclude comp/languagedetection/client/fx
