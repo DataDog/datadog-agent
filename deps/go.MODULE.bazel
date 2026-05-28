@@ -334,7 +334,6 @@ use_repo(
     "com_github_vibrantbyte_go_antpath",
     "com_github_vishvananda_netlink",
     "com_github_vishvananda_netns",
-    "com_github_vmihailenco_msgpack_v4",
     "com_github_vmihailenco_msgpack_v5",
     "com_github_wadey_gocovmerge",
     "com_github_weppos_publicsuffix_go",

@@ -87,6 +87,7 @@ import (
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster"
@@ -651,6 +652,12 @@ func start(log log.Component,
 			log.Info("Auto instrumentation patcher is disabled")
 		}
 
+		var csiDriverWatcher libraryinjection.CSIDriverWatcher
+		if config.GetBool("admission_controller.auto_instrumentation.enabled") &&
+			config.GetBool("apm_config.instrumentation.csi_driver_detection_enabled") {
+			csiDriverWatcher = libraryinjection.NewCSIDriverWatcher(mainCtx, wmeta)
+		}
+
 		admissionCtx := admissionpkg.ControllerContext{
 			LeadershipStateSubscribeFunc: le.Subscribe,
 			SecretInformers:              apiCl.CertificateSecretInformerFactory,
@@ -663,6 +670,7 @@ func start(log log.Component,
 			Demultiplexer:                demultiplexer,
 			FilterStore:                  filterStore,
 			InstrumentationHandlers:      instrHandlers,
+			CSIDriverWatcher:             csiDriverWatcher,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, datadogConfig, wmeta, pp, sh, healthPlatform)

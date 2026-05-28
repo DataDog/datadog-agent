@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	vmsgp "github.com/vmihailenco/msgpack/v4"
+	vmsgp "github.com/vmihailenco/msgpack/v5"
 )
 
 var data = [2]interface{}{
