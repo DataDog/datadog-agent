@@ -300,7 +300,7 @@ int BPF_PROG(udpv6_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len
     return handle_udp_send(sk, sent);
 }
 
-SEC("kprobe/udp_send_skb")
+SEC("kprobe/udp_send_skb") // JMW why kprobe for fentry tracer?
 int kprobe__udp_send_skb(struct pt_regs *ctx) {
     struct sk_buff *skb = (struct sk_buff*) PT_REGS_PARM1(ctx);
     struct flowi4 *fl4 = (struct flowi4*) PT_REGS_PARM2(ctx);
