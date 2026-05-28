@@ -154,14 +154,8 @@ func platformTag(platform btfPlatform) string {
 func initBTFLoader(cfg *Config, rcclient rcclient.Component, telemetrycomp telemetry.Component) (*orderedBTFLoader, error) {
 	var err error
 	platform, _ := getBTFPlatform()
-	platformVersion, err := kernel.PlatformVersion()
-	if err != nil {
-		return nil, err
-	}
-	kernelVersion, err := kernel.Release()
-	if err != nil {
-		return nil, err
-	}
+	platformVersion, _ := kernel.PlatformVersion()
+	kernelVersion, _ := kernel.Release()
 	arch, err := kernel.Machine()
 	if err != nil {
 		return nil, err
@@ -319,9 +313,9 @@ func (b *orderedBTFLoader) checkforBTF(extractDir string) (*returnBTF, error) {
 }
 
 func (b *orderedBTFLoader) loadEmbedded(_ context.Context) (*returnBTF, error) {
-	if b.platform == "" {
+	if b.platform == "" || b.platformVersion == "" || b.kernelVersion == "" {
 		plat, _ := kernel.Platform()
-		log.Warnf("unsupported BTF platform: %s", plat)
+		log.Warnf("unsupported BTF platform/version/release: %s/%s/%s", plat, b.platformVersion, b.kernelVersion)
 		return nil, nil
 	}
 

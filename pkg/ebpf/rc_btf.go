@@ -83,9 +83,9 @@ func (b *orderedBTFLoader) loadRemoteConfig(ctx context.Context) (*returnBTF, er
 		log.Warnf("unsupported BTF architecture: %s", runtime.GOARCH)
 		return nil, nil
 	}
-	if b.platform == "" {
+	if b.platform == "" || b.platformVersion == "" || b.kernelVersion == "" {
 		plat, _ := kernel.Platform()
-		log.Warnf("unsupported BTF platform: %s", plat)
+		log.Warnf("unsupported BTF platform/version/release: %s/%s/%s", plat, b.platformVersion, b.kernelVersion)
 		return nil, nil
 	}
 
