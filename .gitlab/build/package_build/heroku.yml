@@ -19,7 +19,6 @@ include:
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.create_signature_and_lint_linux_packages]
     - !reference [.upload_sbom_artifacts]
-  after_script:
     - !reference [.static_quality_gate_package]
   variables:
     KUBERNETES_MEMORY_REQUEST: "32Gi"

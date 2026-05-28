@@ -1,22 +1,19 @@
 ---
 .static_quality_gate_package: |
-  # Measure package size and generate in-place report
-  # This runs after the main script and won't fail the job if there are issues.
-  # Only run if the job status is success.
-  # This is common for both rpm and deb packages
-  if [[ "$CI_JOB_STATUS" != "success" ]]; then
-    echo "ℹ️  Skipping package measurement (job status is not success)"
-    exit 0
-  fi
-
+  # Measure package size and generate in-place report. Runs as the last step of
+  # the producer's main script so a failure here fails the producer job: the
+  # SQG consumer reads these reports from S3 and has no fallback path.
   if [[ -n "$STATIC_QUALITY_GATE_NAME" ]]; then
     echo "📊 Starting package measurement..."
 
-    # If the gate name contains "suse", use the SUSE package directory,
-    # otherwise use the default package directory
-    [[ "$STATIC_QUALITY_GATE_NAME" == *"suse"* ]] && \
-    BASE_PACKAGE_DIR="$OMNIBUS_PACKAGE_DIR_SUSE" || \
-    BASE_PACKAGE_DIR="$OMNIBUS_PACKAGE_DIR"
+    # SUSE jobs relocate packages from OMNIBUS_PACKAGE_DIR to
+    # OMNIBUS_PACKAGE_DIR_SUSE in their script; pick whichever directory
+    # actually holds the file so this step works regardless of order.
+    if [[ "$STATIC_QUALITY_GATE_NAME" == *"suse"* && -d "$OMNIBUS_PACKAGE_DIR_SUSE" && -n "$(ls -A "$OMNIBUS_PACKAGE_DIR_SUSE" 2>/dev/null)" ]]; then
+      BASE_PACKAGE_DIR="$OMNIBUS_PACKAGE_DIR_SUSE"
+    else
+      BASE_PACKAGE_DIR="$OMNIBUS_PACKAGE_DIR"
+    fi
 
     # Determine package type and set appropriate variables
     # Handle FIPS packages by adjusting project name

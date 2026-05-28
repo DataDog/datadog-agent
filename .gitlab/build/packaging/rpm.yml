@@ -13,7 +13,6 @@ include:
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.create_signature_and_lint_linux_packages]
-  after_script:
     - !reference [.static_quality_gate_package]
   stage: packaging
   artifacts:
@@ -227,7 +226,6 @@ installer_suse_rpm-arm64:
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor=iot ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.create_signature_and_lint_linux_packages]
-  after_script:
     - !reference [.static_quality_gate_package]
   stage: packaging
   artifacts:
@@ -256,7 +254,6 @@ iot_agent_rpm-arm64:
   extends: [.package_iot_rpm_common, .package_rpm_arm64]
   needs: ["iot-agent-arm64"]
   variables:
-    STATIC_QUALITY_GATE_NAME: "static_quality_gate_iot_agent_rpm_arm64"
     STATIC_QUALITY_GATE_ARCH: aarch64
 
 iot_agent_rpm-armhf:

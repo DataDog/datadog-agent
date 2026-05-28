@@ -9,7 +9,6 @@ include:
     - !reference [.cache_omnibus_ruby_deps, setup]
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - !reference [.create_signature_and_lint_linux_packages]
-  after_script:
     - !reference [.static_quality_gate_package]
   artifacts:
     expire_in: 2 weeks
@@ -135,7 +134,6 @@ installer_deb-arm64:
     - !reference [.cache_omnibus_ruby_deps, setup]
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor iot
     - !reference [.create_signature_and_lint_linux_packages]
-  after_script:
     - !reference [.static_quality_gate_package]
   artifacts:
     expire_in: 2 weeks
@@ -176,6 +174,7 @@ iot_agent_deb-armhf:
     # Use custom built dpkg for armhf packaging since we're on armv8/arm64
     - PATH="/opt/dpkg-armhf/bin:$PATH" dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor iot
     - !reference [.create_signature_and_lint_linux_packages]
+    - !reference [.static_quality_gate_package]
 
 dogstatsd_deb-x64:
   extends: [.package_deb_common, .package_deb_x86]
