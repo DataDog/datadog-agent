@@ -952,8 +952,24 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 		},
 	}
 
+	// syncSizeBytes derives Stats.SizeBytes from ProcessNodes so the fixtures still drive
+	// ApproximateSize() the way they used to before it was switched to read SizeBytes directly.
+	syncSizeBytes := func(dumps ...[]*dump.ActivityDump) {
+		nodeSize := int64(unsafe.Sizeof(activity_tree.ProcessNode{}))
+		for _, list := range dumps {
+			for _, d := range list {
+				if d.Profile == nil || d.Profile.ActivityTree == nil || d.Profile.ActivityTree.Stats == nil {
+					continue
+				}
+				d.Profile.ActivityTree.Stats.SizeBytes = d.Profile.ActivityTree.Stats.ProcessNodes * nodeSize
+			}
+		}
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			syncSizeBytes(tt.fields.activeDumps, tt.overweightDumps, tt.activeDumps)
+
 			adm := &Manager{
 				activeDumps: tt.fields.activeDumps,
 				config: &config.Config{
@@ -1802,6 +1818,9 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 				secprof.LoadedNano.Store(uint64(t0.UnixNano()))
 			}
 			secprof.ActivityTree.Stats.ProcessNodes += ti.addFakeProcessNodes
+			// keep SizeBytes in sync with ProcessNodes: ApproximateSize() now reads SizeBytes directly
+			// instead of recomputing from per-node counts.
+			secprof.ActivityTree.Stats.SizeBytes += ti.addFakeProcessNodes * int64(unsafe.Sizeof(activity_tree.ProcessNode{}))
 			ctx := secprof.GetVersionContextIndex(0)
 			if ctx == nil {
 				t.Fatal(errors.New("profile should have one ctx"))
