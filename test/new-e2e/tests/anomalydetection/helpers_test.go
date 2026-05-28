@@ -6,6 +6,8 @@
 package anomalydetection
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -16,23 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
-// Observer log markers emitted by comp/anomalydetection/observer/impl/observer.go
-// and comp/anomalydetection/logssource/impl/logssource.go.
+// Canonical observer telemetry names.
 const (
-	// observerReadyMarker is logged when the demultiplexer wires the observer into
-	// the DSD/metrics pipeline. It only appears when metrics.enabled=true: the
-	// SetObserver call returns early without calling GetHandle when metrics are off.
-	observerReadyMarker = "[observer] getting handle for all-metrics"
-
-	// observerAgentLogsMarker is logged when the agent-log tap is installed.
-	observerAgentLogsMarker = "[observer] getting handle for agent-internal-logs"
-
-	// observerReportMarker is printed to stdout (→ journald) by the stdoutReporter
-	// on every advance that yields at least one active correlation.
-	observerReportMarker = "[observer] report: pattern="
-
-	// metricsDisabledWarning is logged when anomaly_detection.metrics.enabled=false.
-	metricsDisabledWarning = "anomaly_detection.metrics.enabled=false"
+	telemetrySeriesCount    = "observer.series.count"
+	telemetryLogsInFlight   = "observer.logs.in_flight"
+	telemetryLogsIngested   = "observer.logs.ingested"
+	telemetryReportsEmitted = "observer.reports.emitted"
 )
 
 // observerTestSuite is a minimal interface satisfied by all suite types in this
@@ -52,9 +43,9 @@ func waitForObserverReady(s observerTestSuite) {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assert.True(c, s.Env().Agent.Client.IsReady(), "agent should be ready")
 		tel := observerTelemetryOutput(s)
-		assert.True(c, containsAny(tel, "observer.series.count", "observer__observer_series_count", "observer_series_count"),
+		assert.True(c, containsMetric(tel, telemetrySeriesCount),
 			"observer telemetry should expose series gauge when enabled")
-		assert.True(c, containsAny(tel, "observer.logs.in_flight", "observer__observer_logs_in_flight", "observer_logs_in_flight"),
+		assert.True(c, containsMetric(tel, telemetryLogsInFlight),
 			"observer telemetry should expose in-flight logs gauge")
 	}, 2*time.Minute, 3*time.Second)
 	s.T().Log("observer ready (metrics path)")
@@ -67,7 +58,7 @@ func waitForLogsObserverReady(s observerTestSuite) {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assert.True(c, s.Env().Agent.Client.IsReady(), "agent should be ready")
 		tel := observerTelemetryOutput(s)
-		assert.True(c, containsAny(tel, "observer.logs.in_flight", "observer__observer_logs_in_flight", "observer_logs_in_flight"),
+		assert.True(c, containsMetric(tel, telemetryLogsInFlight),
 			"observer telemetry should expose in-flight logs gauge")
 		assert.True(c, containsAny(tel, "log_source=\"containers\"", "log_source:containers"),
 			"observer telemetry should expose containers log_source")
@@ -82,6 +73,31 @@ func containsAny(haystack string, needles ...string) bool {
 		}
 	}
 	return false
+}
+
+func metricNameVariants(metric string) []string {
+	snake := strings.ReplaceAll(metric, ".", "_")
+	variants := []string{
+		metric,
+		snake,
+		fmt.Sprintf("observer__%s", snake),
+	}
+	return slices.Compact(variants)
+}
+
+func containsMetric(haystack, metric string) bool {
+	return containsAny(haystack, metricNameVariants(metric)...)
+}
+
+func containsMetricWithTag(haystack, metric, key, value string) bool {
+	if !containsMetric(haystack, metric) {
+		return false
+	}
+	return containsAny(haystack,
+		fmt.Sprintf("%s=\"%s\"", key, value),
+		fmt.Sprintf("%s:%s", key, value),
+		fmt.Sprintf("%s=%s", key, value),
+	)
 }
 
 func observerTelemetryOutput(s observerTestSuite) string {
@@ -100,6 +116,18 @@ func waitForAgentStartup(s observerTestSuite) {
 			"agent.log should contain startup marker")
 	}, 2*time.Minute, 3*time.Second)
 	s.T().Log("agent started")
+}
+
+func waitForReportsTelemetry(s observerTestSuite) {
+	s.T().Helper()
+	s.T().Log("waiting for observer reports telemetry...")
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		assert.True(c, s.Env().Agent.Client.IsReady(), "agent should be ready")
+		tel := observerTelemetryOutput(s)
+		assert.True(c, containsMetric(tel, telemetryReportsEmitted),
+			"observer telemetry should expose reports emitted counter after anomalies")
+	}, 3*time.Minute, 5*time.Second)
+	s.T().Log("observer reports telemetry detected")
 }
 
 // dumpObserverLines logs all [observer] journal lines for post-mortem diagnosis.

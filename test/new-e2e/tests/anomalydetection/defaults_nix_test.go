@@ -25,12 +25,12 @@ var observerMetricNames = []string{
 	"observer.rrcf.score",
 	"observer.rrcf.threshold",
 	"observer.log_pattern_extractor.pattern_count",
-	"observer.logs.ingested",
+	telemetryLogsIngested,
 	"observer.logs.processed_bytes",
 	"observer.logs.dropped",
-	"observer.series.count",
-	"observer.reports.emitted",
-	"observer.logs.in_flight",
+	telemetrySeriesCount,
+	telemetryReportsEmitted,
+	telemetryLogsInFlight,
 }
 
 // disabledByDefaultSuite verifies that the observer is a no-op when
@@ -61,7 +61,7 @@ func (s *disabledByDefaultSuite) TestObserverSilentWithDefaultConfig() {
 
 	tel := observerTelemetryOutput(s)
 	for _, metricName := range observerMetricNames {
-		assert.NotContains(s.T(), tel, metricName,
+		assert.False(s.T(), containsMetric(tel, metricName),
 			"observer telemetry %q should not be emitted with default config", metricName)
 	}
 }

@@ -18,8 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -152,18 +150,8 @@ func (s *metricsTriggeredSuite) TestMetricsTriggeredEmitsOnDSDSpike() {
 		s.T().Log("done sending metrics")
 	}()
 
-	// Poll the journal for the reporter marker. The stdoutReporter writes via
-	// fmt.Printf (→ process stdout → journald). No line cap is applied so we
-	// never miss the marker because of journal truncation.
-	s.T().Log("polling journal for reporter marker...")
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager")
-		assert.NoError(c, err, "journalctl execution failed")
-		assert.Contains(c, out, observerReportMarker, "journald should contain stdout reporter marker")
-	}, 3*time.Minute, 5*time.Second)
-
-	dumpObserverLines(s.T(), s.Env())
-	s.T().Log("reporter marker found")
+	waitForReportsTelemetry(s)
+	s.T().Log("reports telemetry detected")
 }
 
 // logTriggeredSuite exercises the external log collection path of the observer.
@@ -325,13 +313,6 @@ func (s *logTriggeredSuite) TestLogsTriggeredEmitsOnFileSpike() {
 		s.T().Log("done writing log lines")
 	}()
 
-	s.T().Log("polling journal for reporter marker...")
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager")
-		assert.NoError(c, err, "journalctl execution failed")
-		assert.Contains(c, out, observerReportMarker, "journald should contain stdout reporter marker")
-	}, 3*time.Minute, 5*time.Second)
-
-	dumpObserverLines(s.T(), s.Env())
-	s.T().Log("reporter marker found via log trigger")
+	waitForReportsTelemetry(s)
+	s.T().Log("reports telemetry detected via log trigger")
 }
