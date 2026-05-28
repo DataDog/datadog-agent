@@ -334,7 +334,6 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 			}
 			envvars := poolEnvFor(perPool, defaults, appPool)
 			envvars = applyLocationEnvOverlay(envvars, locationOps, site.Name, app.Path)
-			hasenv := !envvars.isEmpty()
 
 			var ddjson APMTags
 			var appconfig APMTags
@@ -387,10 +386,12 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 				}
 			}
 
-			if !hasddjson && !haswebcfg && !hasenv {
-				continue
-			}
-
+			// Every declared <application> is a worker-process boundary, so
+			// we add a tree node even when all three sources resolve empty.
+			// findInPathTree returns the nearest ancestor's tags when a
+			// segment is missing, so skipping an empty child would leak the
+			// parent's pool tags onto requests served by a worker process
+			// that has no DD_* env at all.
 			addToPathTree(pathTrees, site.SiteID, app.Path, ddjson, appconfig, envvars)
 		}
 	}

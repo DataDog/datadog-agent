@@ -162,6 +162,32 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		assert.Equal(t, "1.0.0", env.DDVersion)
 	})
 
+	t.Run("empty child app does not inherit parent app's pool tags", func(t *testing.T) {
+		// envsite/emptychild runs on poolA and resolves to
+		// {poolA-service, default-env, 1.0.0}. envsite/emptychild/child
+		// is a separate worker on poolEmpty whose <clear/> wipes the
+		// inherited applicationPoolDefaults -- the child worker process has
+		// no DD_* env at all. The child must therefore be its own node in
+		// the path tree returning empty tags rather than falling back to
+		// the parent app's poolA tags.
+		_, _, parent := iisCfg.GetAPMTags(10, "/emptychild")
+		assert.Equal(t, "poolA-service", parent.DDService)
+		assert.Equal(t, "default-env", parent.DDEnv)
+		assert.Equal(t, "1.0.0", parent.DDVersion)
+
+		_, _, child := iisCfg.GetAPMTags(10, "/emptychild/child")
+		assert.Equal(t, "", child.DDService)
+		assert.Equal(t, "", child.DDEnv)
+		assert.Equal(t, "", child.DDVersion)
+
+		// Requests served beneath the child app must also stay empty -- they
+		// hit the child worker, not the parent. Without a child tree node
+		// findInPathTree would fall back to the parent's tags.
+		_, _, deep := iisCfg.GetAPMTags(10, "/emptychild/child/sub/path")
+		assert.Equal(t, "", deep.DDService)
+		assert.Equal(t, "", deep.DDEnv)
+		assert.Equal(t, "", deep.DDVersion)
+	})
 }
 
 // TestAPMTagsFromGlobalEnvVars covers the "global apphost" env var sources:

@@ -37,6 +37,11 @@
           <add name="DD_SERVICE" value="clear-pool-service" />
         </environmentVariables>
       </add>
+      <add name="poolEmpty">
+        <environmentVariables>
+          <clear />
+        </environmentVariables>
+      </add>
     </applicationPools>
     <sites>
       <applicationDefaults applicationPool="poolB" />
@@ -81,6 +86,12 @@
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
         <application path="/loccascadeclear/child" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/emptychild" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/emptychild/child" applicationPool="poolEmpty">
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
       </site>
