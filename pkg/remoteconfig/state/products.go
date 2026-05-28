@@ -6,6 +6,7 @@
 package state
 
 var validProducts = map[string]struct{}{
+	"DEBUG":                             {}, // DEBUG product is used for development/debug scaffolding.
 	ProductInstallerConfig:              {},
 	ProductUpdaterCatalogDD:             {},
 	ProductUpdaterAgent:                 {},
