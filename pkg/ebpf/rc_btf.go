@@ -208,7 +208,7 @@ func (r *rcBTFLoader) processEntry(entry *btfEntry) (*returnBTF, error) {
 	btfURL := fmt.Sprintf("%s/btfs/%s/%s/%s/%s.btf.tar.xz", r.b.rcDownloadHost, r.platform, r.platformVersion, r.arch, r.kernelVersion)
 	btfTarballBuffer, err := r.downloadFile(btfURL, entry.SHA256)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s", errBTFDownload, err)
+		return nil, fmt.Errorf("%w: %w", errBTFDownload, err)
 	}
 
 	// extract in-memory tarball to regular BTF output directory
