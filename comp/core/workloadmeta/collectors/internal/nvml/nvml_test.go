@@ -9,6 +9,7 @@ package nvml
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"strconv"
 	"testing"
@@ -212,10 +213,10 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 }
 
 func TestProcessEntities(t *testing.T) {
-	processInfo := make(map[string][]nvml.ProcessInfo)
+	processInfo := make(map[string]testutil.MockProcessInfoList)
 
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithProcessInfoCallback(func(uuid string) ([]nvml.ProcessInfo, nvml.Return) {
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithProcessDataCallback(func(uuid string) (testutil.MockProcessInfoList, nvml.Return) {
 		return processInfo[uuid], nvml.SUCCESS
 	}))
 
@@ -232,7 +233,7 @@ func TestProcessEntities(t *testing.T) {
 
 	// Add process info for the first GPU
 	pid0 := int32(1234)
-	processInfo[testutil.GPUUUIDs[0]] = []nvml.ProcessInfo{
+	processInfo[testutil.GPUUUIDs[0]] = testutil.MockProcessInfoList{
 		{Pid: uint32(pid0), UsedGpuMemory: 100},
 	}
 
@@ -245,10 +246,10 @@ func TestProcessEntities(t *testing.T) {
 
 	// Add a new process that's using the second and third GPUs, while the one for the first GPU is still present
 	pid1 := int32(5678)
-	processInfo[testutil.GPUUUIDs[1]] = []nvml.ProcessInfo{
+	processInfo[testutil.GPUUUIDs[1]] = testutil.MockProcessInfoList{
 		{Pid: uint32(pid1), UsedGpuMemory: 200},
 	}
-	processInfo[testutil.GPUUUIDs[2]] = []nvml.ProcessInfo{
+	processInfo[testutil.GPUUUIDs[2]] = testutil.MockProcessInfoList{
 		{Pid: uint32(pid1), UsedGpuMemory: 300},
 	}
 
@@ -274,7 +275,7 @@ func TestProcessEntities(t *testing.T) {
 	require.True(t, foundPid1, "Process with PID %d not found", pid1)
 
 	// Now remove the process info for the first GPU
-	processInfo[testutil.GPUUUIDs[0]] = []nvml.ProcessInfo{}
+	processInfo[testutil.GPUUUIDs[0]] = testutil.MockProcessInfoList{}
 
 	// Pull again, we should have one Process entity, for the second and third GPUs
 	c.Pull(context.Background())
@@ -287,8 +288,8 @@ func TestProcessEntities(t *testing.T) {
 	require.True(t, slices.Contains(testutil.GPUUUIDs, processes[0].GPUs[1].ID))
 
 	// Now remove the process info for the second and third GPUs
-	processInfo[testutil.GPUUUIDs[1]] = []nvml.ProcessInfo{}
-	processInfo[testutil.GPUUUIDs[2]] = []nvml.ProcessInfo{}
+	processInfo[testutil.GPUUUIDs[1]] = testutil.MockProcessInfoList{}
+	processInfo[testutil.GPUUUIDs[2]] = testutil.MockProcessInfoList{}
 
 	// Pull again, we should have no Process entities
 	c.Pull(context.Background())
@@ -299,15 +300,13 @@ func TestProcessEntities(t *testing.T) {
 func TestProcessEntityMerging(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	pid := int32(1234)
-	procinfo := []nvml.ProcessInfo{
+	procinfo := testutil.MockProcessInfoList{
 		{Pid: uint32(pid), UsedGpuMemory: 100},
 	}
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
 		testutil.WithDeviceCount(1),
-		testutil.WithProcessInfoCallback(func(_ string) ([]nvml.ProcessInfo, nvml.Return) {
-			return procinfo, nvml.SUCCESS
-		}))
-
+		testutil.WithProcessData(procinfo, nvml.SUCCESS),
+	)
 	c := newCollector(wmetaMock, nil)
 	c.integrateWithWorkloadmetaProcesses = true
 
@@ -359,7 +358,7 @@ func TestProcessEntityMerging(t *testing.T) {
 	require.Equal(t, []uint16{8080}, mergedProcess.Service.TCPPorts)
 
 	// Now remove the PID from GPU ActivePIDs
-	procinfo = []nvml.ProcessInfo{}
+	procinfo = testutil.MockProcessInfoList{}
 
 	// Pull again to trigger unset event from SourceNVML
 	c.Pull(context.Background())
@@ -404,7 +403,7 @@ func TestPullWithMIGDevices(t *testing.T) {
 	parentToChildren := make(map[string][]string)
 	for deviceIdx, childUUIDs := range testutil.MIGChildrenUUIDs {
 		parentUUID := testutil.GPUUUIDs[deviceIdx]
-		parentToChildren[parentUUID] = childUUIDs
+		parentToChildren[parentUUID] = slices.Collect(maps.Values(childUUIDs))
 	}
 
 	// Separate physical and MIG devices
@@ -422,8 +421,8 @@ func TestPullWithMIGDevices(t *testing.T) {
 	// Verify we have the expected number of physical and MIG devices
 	expectedPhysicalCount := len(testutil.GPUUUIDs)
 	expectedMIGCount := 0
-	for _, count := range testutil.MIGChildrenPerDevice {
-		expectedMIGCount += count
+	for _, childrenUUIDs := range testutil.MIGChildrenUUIDs {
+		expectedMIGCount += len(childrenUUIDs)
 	}
 	require.Equal(t, expectedPhysicalCount, len(physicalDevices), "unexpected number of physical devices")
 	require.Equal(t, expectedMIGCount, len(migDevices), "unexpected number of MIG devices")

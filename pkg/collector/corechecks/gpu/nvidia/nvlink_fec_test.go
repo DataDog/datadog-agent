@@ -27,12 +27,6 @@ func fecHistoryFieldValues() map[uint32]testutil.MockFieldValue {
 }
 
 func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
-	type fieldRequest struct {
-		fieldID uint32
-		scopeID uint32
-	}
-
-	var requests []fieldRequest
 	mockDevice := setupMockDevice(t,
 		testutil.WithNVLinkLinkCount(1),
 		testutil.WithFieldValuesFullOverride(fecHistoryFieldValues()),
@@ -42,11 +36,9 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 	require.Equal(t, nvlinkFEC, collector.Name())
 	require.Equal(t, mockDevice.GetDeviceInfo().UUID, collector.DeviceUUID())
 
-	requests = nil
 	collectedMetrics, err := collector.Collect()
 	require.NoError(t, err)
 	require.Len(t, collectedMetrics, len(nvlinkFECHistoryFieldIDs))
-	require.Len(t, requests, len(nvlinkFECHistoryFieldIDs))
 
 	for bucket := range nvlinkFECHistoryFieldIDs {
 		metric := collectedMetrics[bucket]
@@ -72,8 +64,9 @@ func TestNVLinkFECCollectorPartialFieldFailure(t *testing.T) {
 	require.NoError(t, err)
 
 	// Modify the field values to test partial failure after initial support test
+	// one field not supported, another with invalid value type
 	fieldValues[nvlinkFECHistoryFieldIDs[3]] = testutil.FieldError(nvml.ERROR_NOT_SUPPORTED)
-	fieldValues[nvlinkFECHistoryFieldIDs[7]] = testutil.MockFieldValue{Value: 9999, ValueType: nvml.VALUE_TYPE_UNSIGNED_INT, Return: nvml.SUCCESS}
+	fieldValues[nvlinkFECHistoryFieldIDs[7]] = testutil.MockFieldValue{Value: 9999, ValueType: nvml.ValueType(9999), Return: nvml.SUCCESS}
 
 	collectedMetrics, err := collector.Collect()
 	require.Error(t, err)
@@ -84,14 +77,14 @@ func TestNVLinkFECCollectorPartialFieldFailure(t *testing.T) {
 
 func TestNVLinkFECCollectorAllFieldsFail(t *testing.T) {
 	fieldValues := fecHistoryFieldValues()
-	for fieldID := range fieldValues {
-		fieldValues[fieldID] = testutil.FieldError(nvml.ERROR_NOT_SUPPORTED)
-	}
-
 	mockDevice := setupMockDevice(t, testutil.WithNVLinkLinkCount(1), testutil.WithFieldValuesFullOverride(fieldValues))
 
 	collector, err := newNVLinkFECCollector(mockDevice, nil)
 	require.NoError(t, err)
+
+	for fieldID := range fieldValues {
+		fieldValues[fieldID] = testutil.FieldError(nvml.ERROR_NOT_SUPPORTED)
+	}
 
 	collectedMetrics, err := collector.Collect()
 	require.Error(t, err)

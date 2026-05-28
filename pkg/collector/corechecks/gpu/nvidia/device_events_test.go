@@ -63,6 +63,7 @@ func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
 	// setup mock device, and the nvml lib to return events at our command
 	device := setupMockDevice(t,
 		testutil.WithSymbolsMock(map[string]struct{}{"nvmlDeviceGetUUID": {}}),
+		testutil.WithMockAllFunctions(),
 		testutil.WithEventSetCreate(func() (nvml.EventSet, nvml.Return) {
 			return &mock.EventSet{
 				FreeFunc: func() nvml.Return { return nvml.SUCCESS },

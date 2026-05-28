@@ -96,7 +96,7 @@ func TestLegacyEccMetricOverlapRules(t *testing.T) {
 
 // TestNewStatelessCollector tests stateless collector-specific initialization with dynamic API creation
 func TestNewStatelessCollector(t *testing.T) {
-	device := setupMockDevice(t)
+	device := setupMockDevice(t, testutil.WithMockAllFunctions())
 
 	// Test that the stateless collector creates the expected dynamic API set
 	collector, err := newStatelessCollector(device, &CollectorDependencies{Workloadmeta: testutil.GetWorkloadMetaMockWithDefaultGPUs(t)})
@@ -627,14 +627,17 @@ func TestProcessDetailListArchitectureSupport(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			mockDevice := setupMockDevice(t, testutil.WithArchitecture(tt.name), testutil.WithCustomHook(func(device *mock.Device) {
-				device.GetRunningProcessDetailListFunc = func() (nvml.ProcessDetailList, nvml.Return) {
-					if tt.supported {
-						return nvml.ProcessDetailList{}, nvml.SUCCESS
+			mockDevice := setupMockDevice(t,
+				testutil.WithArchitecture(tt.name),
+				testutil.WithMockAllFunctions(),
+				testutil.WithCustomHook(func(device *mock.Device) {
+					device.GetRunningProcessDetailListFunc = func() (nvml.ProcessDetailList, nvml.Return) {
+						if tt.supported {
+							return nvml.ProcessDetailList{}, nvml.SUCCESS
+						}
+						return nvml.ProcessDetailList{}, nvml.ERROR_ARGUMENT_VERSION_MISMATCH
 					}
-					return nvml.ProcessDetailList{}, nvml.ERROR_ARGUMENT_VERSION_MISMATCH
-				}
-			}))
+				}))
 
 			wmeta := testutil.GetWorkloadMetaMockWithDefaultGPUs(t) // used only to avoid nil pointer dereferences in initialization
 			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{Workloadmeta: wmeta})

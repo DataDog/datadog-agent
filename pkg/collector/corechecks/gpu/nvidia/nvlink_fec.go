@@ -51,6 +51,7 @@ func newNVLinkFECCollector(device ddnvml.Device, _ *CollectorDependencies) (Coll
 	}
 
 	ports, err := getSupportedNvlinkPorts(device, c.getPortMetrics)
+	fmt.Printf("nvlink: FEC collector ports: %v, err %v\n", ports, err)
 	if err != nil {
 		return nil, err
 	}
