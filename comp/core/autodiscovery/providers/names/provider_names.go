@@ -57,8 +57,8 @@ const (
 	Zookeeper = "zookeeper"
 	// GPU discovers GPU devices and generates check configurations for GPU monitoring.
 	GPU = "gpu"
-	// DataStreamsLiveMessages provides live message sampling configurations for Data Streams Monitoring.
-	DataStreamsLiveMessages = "dsm-live-messages"
+	// DataStreamsKafkaActions provides one-off Kafka action configurations for Data Streams Monitoring.
+	DataStreamsKafkaActions = "dsm-kafka-actions"
 	// DOQueryActions provides check configurations for Database Observability query-level actions.
 	DOQueryActions = "do-query-actions"
 	// PrometheusHTTPSD discovers check configurations from a Prometheus HTTP Service Discovery endpoint.

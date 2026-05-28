@@ -97,7 +97,7 @@ type actionsController struct {
 // String returns the name of the provider. All Config instances produced
 // by this provider will have this value in their Provider field.
 func (c *actionsController) String() string {
-	return names.DataStreamsLiveMessages
+	return names.DataStreamsKafkaActions
 }
 
 // GetConfigErrors returns a map of errors that occurred on the last Collect
