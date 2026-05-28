@@ -90,7 +90,6 @@ func (w *csiDriverWatcher) IsAPMEnabled() bool {
 func (w *csiDriverWatcher) run(ctx context.Context, wmeta workloadmeta.Component) {
 	filter := workloadmeta.NewFilterBuilder().
 		AddKindWithEntityFilter(workloadmeta.KindKubernetesMetadata, isDatadogCSIDriverEntity).
-		SetSource(workloadmeta.SourceKubeAPIServer).
 		Build()
 
 	ch := wmeta.Subscribe(csiWatcherSubscriberName, workloadmeta.NormalPriority, filter)
@@ -106,10 +105,10 @@ func (w *csiDriverWatcher) run(ctx context.Context, wmeta workloadmeta.Component
 				log.Debugf("library injection CSI driver watcher: subscription channel closed")
 				return
 			}
+			bundle.Acknowledge()
 			for _, event := range bundle.Events {
 				w.apply(event)
 			}
-			bundle.Acknowledge()
 		}
 	}
 }
