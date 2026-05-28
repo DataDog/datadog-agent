@@ -120,7 +120,7 @@ type RegisterRemoteAgentResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// UUID for the remote agent session.
 	//
-	// This represents the unique session between the remote agent and the remote agent registry. The remote agent MUSt
+	// This represents the unique session between the remote agent and the remote agent registry. The remote agent MUST
 	// include the session ID in all responses to the remote agent registry, specified as a metadata header named
 	// `session_id`.
 	SessionId string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
