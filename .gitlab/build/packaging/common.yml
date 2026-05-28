@@ -32,7 +32,7 @@
 
     # Determine format based on package type
     case "$STATIC_QUALITY_GATE_NAME" in
-      *deb*) SEP="_7*"; EXT="deb"; ARCH="${PACKAGE_ARCH}" ;;
+      *deb*|*heroku*) SEP="_7*"; EXT="deb"; ARCH="${PACKAGE_ARCH}" ;;
       *rpm*|*suse*) SEP="-7*"; EXT="rpm" ;;
       *) echo "⚠️  Unknown package type for gate: $STATIC_QUALITY_GATE_NAME"; exit 1 ;;
     esac

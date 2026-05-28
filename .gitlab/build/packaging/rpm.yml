@@ -143,6 +143,7 @@ agent_suse-arm64-a7-fips:
   variables:
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse --flavor fips"
     DD_PROJECT: agent
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_agent_suse_arm64_fips"
 
 .ddot_rpm_common:
   extends: .package_rpm_common
