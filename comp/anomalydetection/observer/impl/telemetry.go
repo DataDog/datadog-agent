@@ -12,7 +12,6 @@ import (
 )
 
 const (
-	telemetryDetectorProcessingTimeNs        = "observer.detector.processing_time_ns"         // Time spent processing one detector/correlator/extractor step.
 	telemetryObsChannelDropped               = "observer.channel.dropped"                     // Observations dropped when the observer channel is full.
 	telemetryRRCFScore                       = "observer.rrcf.score"                          // Latest RRCF score per detector.
 	telemetryRRCFThreshold                   = "observer.rrcf.threshold"                      // Current RRCF anomaly threshold per detector.
@@ -23,15 +22,17 @@ const (
 	telemetrySeriesCount                     = "observer.series.count"                        // Number of active non-telemetry observer series.
 	telemetryReportsEmitted                  = "observer.reports.emitted"                     // Number of reports emitted by reporters.
 	telemetryLogsInFlightCount               = "observer.logs.in_flight"                      // Number of logs currently queued/in flight.
+	telemetryStorageSeriesEvicted            = "observer.storage.series_evicted"              // Number of storage series evicted to enforce bounds.
+	telemetryStorageCapacityHit              = "observer.storage.capacity_hit"                // Number of times storage capacity eviction was triggered.
+	telemetryAdvanceSkipped                  = "observer.scheduler.advance_skipped"           // Number of advance requests skipped as already analyzed.
 )
 
 type observerTelemetry struct {
 	// Existing telemetry
-	detectorProcessingTime telemetry.Gauge
-	channelDropped         telemetry.Counter
-	rrcfScore              telemetry.Gauge
-	rrcfThreshold          telemetry.Gauge
-	logPatternCount        telemetry.Counter
+	channelDropped  telemetry.Counter
+	rrcfScore       telemetry.Gauge
+	rrcfThreshold   telemetry.Gauge
+	logPatternCount telemetry.Counter
 
 	// New telemetry
 	logsIngested     telemetry.Counter
@@ -40,6 +41,9 @@ type observerTelemetry struct {
 	seriesCount      telemetry.Gauge
 	reportsEmitted   telemetry.Counter
 	logsInFlight     telemetry.Gauge
+	storageEvicted   telemetry.Counter
+	storageCapHit    telemetry.Counter
+	advanceSkipped   telemetry.Counter
 
 	inFlightInternal   atomic.Int64
 	inFlightKubelet    atomic.Int64
@@ -48,12 +52,6 @@ type observerTelemetry struct {
 
 func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry {
 	return &observerTelemetry{
-		detectorProcessingTime: telemetryComp.NewGauge(
-			"observer",
-			telemetryDetectorProcessingTimeNs,
-			[]string{"detector"},
-			"Per detector/correlator/extractor processing time in nanoseconds",
-		),
 		channelDropped: telemetryComp.NewCounter(
 			"observer",
 			telemetryObsChannelDropped,
@@ -114,11 +112,25 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			[]string{"log_source"},
 			"Number of logs currently in flight in the observer queue",
 		),
+		storageEvicted: telemetryComp.NewCounter(
+			"observer",
+			telemetryStorageSeriesEvicted,
+			[]string{"reason"},
+			"Number of storage series evicted by reason",
+		),
+		storageCapHit: telemetryComp.NewCounter(
+			"observer",
+			telemetryStorageCapacityHit,
+			nil,
+			"Number of times storage capacity eviction was triggered",
+		),
+		advanceSkipped: telemetryComp.NewCounter(
+			"observer",
+			telemetryAdvanceSkipped,
+			[]string{"reason"},
+			"Number of skipped advance requests by trigger reason",
+		),
 	}
-}
-
-func (t *observerTelemetry) recordDetectorProcessingTime(detectorTag string, nanos float64) {
-	t.detectorProcessingTime.Set(nanos, detectorTag)
 }
 
 func (t *observerTelemetry) recordChannelDropped(source string) {
@@ -174,6 +186,21 @@ func (t *observerTelemetry) setSeriesCount(count int) {
 
 func (t *observerTelemetry) recordReportEmitted(reporter string) {
 	t.reportsEmitted.Add(1, "reporter:"+reporter)
+}
+
+func (t *observerTelemetry) recordStorageSeriesEvicted(reason string, count int) {
+	if count <= 0 {
+		return
+	}
+	t.storageEvicted.Add(float64(count), reason)
+}
+
+func (t *observerTelemetry) recordStorageCapacityHit() {
+	t.storageCapHit.Add(1)
+}
+
+func (t *observerTelemetry) recordAdvanceSkipped(reason string) {
+	t.advanceSkipped.Add(1, reason)
 }
 
 func (t *observerTelemetry) inFlightCounter(logSource string) *atomic.Int64 {

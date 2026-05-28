@@ -200,7 +200,9 @@ func NewComponent(deps Requires) Provides {
 		telemetryComp = noopsimpl.GetCompatComponent()
 	}
 	obsTelemetry := newObserverTelemetry(telemetryComp)
-	eng.onProcessingTime = obsTelemetry.recordDetectorProcessingTime
+	eng.onStorageSeriesEvicted = obsTelemetry.recordStorageSeriesEvicted
+	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
+	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
 	for _, extractor := range extractors {
 		if sinkAware, ok := extractor.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
 			sinkAware.SetObserverTelemetry(obsTelemetry)

@@ -10,7 +10,6 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -75,14 +74,10 @@ type engine struct {
 	accumulatedCorrelations map[string]observerdef.ActiveCorrelation
 	correlationMu           sync.RWMutex
 
-	// onProcessingTime is an optional callback for reporting per-component
-	// processing time directly (gauge.Set) instead of constructing ObserverTelemetry
-	// objects. Live mode sets this; nil means skip timing telemetry entirely.
-	onProcessingTime func(detectorTag string, nanos float64)
-
-	// detectorTags caches "detector:<name>" strings for each extractor,
-	// detector, logObserver, and correlator to avoid per-log concatenation.
-	detectorTags map[string]string
+	// Optional callbacks for direct telemetry emission.
+	onStorageSeriesEvicted func(reason string, count int)
+	onStorageCapacityHit   func()
+	onAdvanceSkipped       func(reason string)
 
 	// Event subscription management.
 	sinks   []eventSink
@@ -155,37 +150,7 @@ func newEngine(cfg engineConfig) *engine {
 		}
 	}
 
-	e.rebuildDetectorTags()
 	return e
-}
-
-// rebuildDetectorTags rebuilds the cached "detector:<name>" tag strings from
-// the current extractors, detectors, logObservers, and correlators.
-// Called on construction and whenever the component sets change.
-func (e *engine) rebuildDetectorTags() {
-	tags := make(map[string]string)
-	for _, ext := range e.extractors {
-		tags[ext.Name()] = "detector:" + ext.Name()
-	}
-	for _, d := range e.detectors {
-		tags[d.Name()] = "detector:" + d.Name()
-	}
-	for _, lo := range e.logObservers {
-		tags[lo.Name()] = "detector:" + lo.Name()
-	}
-	for _, c := range e.correlators {
-		tags[c.Name()] = "detector:" + c.Name()
-	}
-	e.detectorTags = tags
-}
-
-// detectorTag returns the cached "detector:<name>" tag string. Falls back to
-// concatenation if the name is not cached (should not happen in practice).
-func (e *engine) detectorTag(name string) string {
-	if tag, ok := e.detectorTags[name]; ok {
-		return tag
-	}
-	return "detector:" + name
 }
 
 // enableDetectDigestRecording sets a callback invoked after each Detect() call
@@ -306,12 +271,8 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 	sourceTag := e.sourceTagForIngest(source)
 	view := &logView{obs: l}
 	for _, extractor := range e.extractors {
-		processingStartTime := time.Now()
 		out := extractor.ProcessLog(view)
 		e.removeEvictedMetricSeries(extractor.Name(), out.EvictedMetricNames)
-		if e.onProcessingTime != nil {
-			e.onProcessingTime(e.detectorTag(extractor.Name()), float64(time.Since(processingStartTime).Nanoseconds()))
-		}
 		for _, m := range out.Metrics {
 			// Avoid copying m.Tags when sourceTag is already present: storage.Add
 			// performs its own deep copy on first-write of a series via
@@ -330,11 +291,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 		}
 	}
 	for _, lo := range e.logObservers {
-		processingStartTime := time.Now()
 		lo.ProcessLog(view)
-		if e.onProcessingTime != nil {
-			e.onProcessingTime(e.detectorTag(lo.Name()), float64(time.Since(processingStartTime).Nanoseconds()))
-		}
 	}
 	dataTimeSec := l.timestampMs / 1000
 	e.storage.RecordObservationTime(dataTimeSec)
@@ -359,6 +316,9 @@ func (e *engine) removeEvictedMetricSeries(namespace string, evictedNames []stri
 			continue
 		}
 		freed := e.storage.RemoveSeriesByMetricName(namespace, name)
+		if len(freed) > 0 && e.onStorageSeriesEvicted != nil {
+			e.onStorageSeriesEvicted("extractor", len(freed))
+		}
 		e.fanOutSeriesRemoval(freed)
 	}
 }
@@ -430,6 +390,9 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	// stateView methods that take mu.RLock, causing a deadlock.
 	e.mu.Lock()
 	if upToSec <= e.lastAnalyzedDataTime {
+		if e.onAdvanceSkipped != nil {
+			e.onAdvanceSkipped(advanceReasonString(reason))
+		}
 		e.mu.Unlock()
 		return advanceResult{}
 	}
@@ -472,6 +435,12 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 
 	// Evict series beyond the storage cap and fan freed refs to detectors.
 	if freed := e.storage.EvictDefault(); len(freed) > 0 {
+		if e.onStorageCapacityHit != nil {
+			e.onStorageCapacityHit()
+		}
+		if e.onStorageSeriesEvicted != nil {
+			e.onStorageSeriesEvicted("capacity", len(freed))
+		}
 		e.fanOutSeriesRemoval(freed)
 	}
 
@@ -511,11 +480,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			storageForDetect = e.instrStorage
 		}
 
-		processingStartTime := time.Now()
 		result := detector.Detect(storageForDetect, upTo)
-		if e.onProcessingTime != nil {
-			e.onProcessingTime(e.detectorTag(detector.Name()), float64(time.Since(processingStartTime).Nanoseconds()))
-		}
 
 		// Emit detect digest (captures raw result BEFORE dedup).
 		if e.onDetectDigest != nil {
@@ -560,11 +525,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 	// historical-timestamp anomalies before Advance(upTo) evicts them.
 	for _, correlator := range correlators {
 		e.accumulateCorrelations(correlator.ActiveCorrelations())
-		advanceStart := time.Now()
 		correlator.Advance(upTo)
-		if e.onProcessingTime != nil {
-			e.onProcessingTime(e.detectorTag(correlator.Name()), float64(time.Since(advanceStart).Nanoseconds()))
-		}
 		e.emit(engineEvent{
 			kind:      eventCorrelationUpdated,
 			timestamp: upTo,
@@ -596,11 +557,7 @@ func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
 // processAnomaly sends an anomaly to all registered correlators.
 func (e *engine) processAnomaly(anomaly observerdef.Anomaly) {
 	for _, correlator := range e.correlators {
-		processingStartTime := time.Now()
 		correlator.ProcessAnomaly(anomaly)
-		if e.onProcessingTime != nil {
-			e.onProcessingTime(e.detectorTag(correlator.Name()), float64(time.Since(processingStartTime).Nanoseconds()))
-		}
 	}
 }
 
@@ -761,7 +718,6 @@ func (e *engine) SetDetectors(detectors []observerdef.Detector) {
 			e.logObservers = append(e.logObservers, lo)
 		}
 	}
-	e.rebuildDetectorTags()
 }
 
 // SetCorrelators replaces the engine's correlators.
@@ -770,7 +726,6 @@ func (e *engine) SetCorrelators(correlators []observerdef.Correlator) {
 	defer e.mu.Unlock()
 
 	e.correlators = correlators
-	e.rebuildDetectorTags()
 }
 
 // SetExtractors replaces the engine's log-metrics extractors. Used when
@@ -782,7 +737,6 @@ func (e *engine) SetExtractors(extractors []observerdef.LogMetricsExtractor) {
 
 	validateUniqueExtractorNames(extractors)
 	e.extractors = extractors
-	e.rebuildDetectorTags()
 }
 
 // Reset clears analysis state so detectors will re-analyze from scratch.

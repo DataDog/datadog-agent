@@ -20,7 +20,6 @@ import (
 // observerMetricNames lists anomaly-detection observer telemetry expected only
 // when the observer pipeline is enabled.
 var observerMetricNames = []string{
-	"observer.detector.processing_time_ns",
 	"observer.channel.dropped",
 	"observer.rrcf.score",
 	"observer.rrcf.threshold",
@@ -31,6 +30,9 @@ var observerMetricNames = []string{
 	telemetrySeriesCount,
 	telemetryReportsEmitted,
 	telemetryLogsInFlight,
+	"observer.storage.series_evicted",
+	"observer.storage.capacity_hit",
+	"observer.scheduler.advance_skipped",
 }
 
 // disabledByDefaultSuite verifies that the observer is a no-op when

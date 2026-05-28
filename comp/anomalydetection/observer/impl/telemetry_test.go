@@ -14,7 +14,6 @@ import (
 
 func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel := newObserverTelemetry(noopsimpl.GetCompatComponent())
-	tel.recordDetectorProcessingTime("detector:rrcf", 1234)
 	tel.recordChannelDropped("logs")
 	tel.recordRRCFScore("rrcf", 0.7)
 	tel.recordRRCFThreshold("rrcf", 0.9)
@@ -26,6 +25,9 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.initLogsInFlight()
 	tel.setSeriesCount(42)
 	tel.recordReportEmitted("stdout_reporter")
+	tel.recordStorageSeriesEvicted("capacity", 3)
+	tel.recordStorageCapacityHit()
+	tel.recordAdvanceSkipped("input")
 }
 
 func TestClassifyLogSource(t *testing.T) {
