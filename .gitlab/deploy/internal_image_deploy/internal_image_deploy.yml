@@ -19,7 +19,7 @@
     # Constant variables
     - export RELEASE_STAGING=""
     - export DYNAMIC_BUILD_RENDER_RULES="agent-build-only"
-    - export IMAGES_GIT_REF="master"
+    - export IMAGES_GIT_REF="florent.clarret/agent/barx-1856-datadog-agent-tmpl-v24-python-lockfile"
     # Job specific variables
     - export BASE_RELEASE_TAG="${CI_COMMIT_REF_NAME//\//-}"
     - export RELEASE_TAG="${BASE_RELEASE_TAG}${RELEASE_TAG_SUFFIX}${RELEASE_TAG_COMPRESSION_SUFFIX}"
@@ -49,7 +49,7 @@
 
 # -- binary specific variables --
 .agent_variables: &agent_variables
-  IMAGE_VERSION: tmpl-v23
+  IMAGE_VERSION: tmpl-v24
   IMAGE_NAME: datadog-agent
   TMPL_SRC_REPO: ci/datadog-agent/agent
 
