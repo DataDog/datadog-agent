@@ -107,7 +107,8 @@ type LogPatternExtractor struct {
 	registry                  *TagGroupByKeyRegistry
 	NextGarbageCollectionTime int64
 	// config is the resolved hyperparameters (MinClusterSizeBeforeEmit is never zero after init).
-	config LogPatternExtractorConfig
+	config    LogPatternExtractorConfig
+	telemetry *observerTelemetry
 }
 
 var _ observerdef.LogMetricsExtractor = (*LogPatternExtractor)(nil)
@@ -170,6 +171,12 @@ func (e *LogPatternExtractor) Reset() {
 	e.NextGarbageCollectionTime = 0
 }
 
+// SetObserverTelemetry allows wiring direct telemetry emission without
+// transporting telemetry through extractor outputs.
+func (e *LogPatternExtractor) SetObserverTelemetry(t *observerTelemetry) {
+	e.telemetry = t
+}
+
 // logSeverityIsWarnPlus returns true when the log should be clustered: warning
 func logSeverityIsWarnPlus(log observerdef.LogView) bool {
 	status := strings.ToLower(strings.TrimSpace(log.GetStatus()))
@@ -191,6 +198,9 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	result := observerdef.LogMetricsExtractorOutput{
 		EvictedMetricNames: gc.metricNames,
 	}
+	if gc.clustersEvicted > 0 && e.telemetry != nil {
+		e.telemetry.recordLogPatternCountDelta(e.Name(), -float64(gc.clustersEvicted))
+	}
 	if !logSeverityIsWarnPlus(log) {
 		return result
 	}
@@ -208,13 +218,18 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 			name := "log." + e.Name() + "." + globalClusterHash(ev.GroupHash, ev.ClusterID) + ".count"
 			result.EvictedMetricNames = append(result.EvictedMetricNames, name)
 		}
+		if e.telemetry != nil {
+			e.telemetry.recordLogPatternCountDelta(e.Name(), -float64(len(evicted)))
+		}
 	}
 	if !ok {
 		return result
 	}
 	// Not enough patterns yet, don't emit metric
 	// It's not directly a new pattern but the first time we reach the threshold and we emit a metric
-	if cluster.Count < e.config.MinClusterSizeBeforeEmit {
+	if cluster.Count == e.config.MinClusterSizeBeforeEmit && e.telemetry != nil {
+		e.telemetry.recordLogPatternCountDelta(e.Name(), 1)
+	} else if cluster.Count < e.config.MinClusterSizeBeforeEmit {
 		return result
 	}
 

@@ -24,6 +24,7 @@ import (
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -194,6 +195,23 @@ func NewComponent(deps Requires) Provides {
 		scheduler:   &currentBehaviorPolicy{},
 	})
 
+	telemetryComp := deps.Telemetry
+	if telemetryComp == nil {
+		telemetryComp = noopsimpl.GetCompatComponent()
+	}
+	obsTelemetry := newObserverTelemetry(telemetryComp)
+	eng.onProcessingTime = obsTelemetry.recordDetectorProcessingTime
+	for _, extractor := range extractors {
+		if sinkAware, ok := extractor.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
+			sinkAware.SetObserverTelemetry(obsTelemetry)
+		}
+	}
+	for _, detector := range detectors {
+		if sinkAware, ok := detector.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
+			sinkAware.SetObserverTelemetry(obsTelemetry)
+		}
+	}
+
 	// Wire each injected reporter into its own reporterEventSink subscription.
 	// StorageConsumer reporters receive engine storage for windowed log-rate annotations.
 	for _, r := range deps.Reporters {
@@ -204,6 +222,7 @@ func NewComponent(deps Requires) Provides {
 		eng.Subscribe(&reporterEventSink{
 			reporters: []reporterdef.Reporter{r},
 			state:     eng.StateView(),
+			onReport:  obsTelemetry.recordReportEmitted,
 		})
 	}
 
@@ -211,6 +230,7 @@ func NewComponent(deps Requires) Provides {
 		engine:               eng,
 		catalog:              catalog,
 		obsCh:                make(chan observation, 1000),
+		telemetry:            obsTelemetry,
 		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
 	}
 
@@ -222,6 +242,10 @@ func NewComponent(deps Requires) Provides {
 	// Recording (anomaly_detection.recording.enabled) enables parquet writers.
 	// Analysis (anomaly_detection.enabled) enables the anomaly detection pipeline.
 	analysisEnabled := cfg.GetBool("anomaly_detection.enabled")
+	if analysisEnabled {
+		obsTelemetry.initLogsInFlight()
+		obsTelemetry.setSeriesCount(0)
+	}
 
 	obs.handleFunc = obs.noopHandle
 	if analysisEnabled {
@@ -308,6 +332,7 @@ type observerImpl struct {
 	obsCh      chan observation
 	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
+	telemetry         *observerTelemetry
 	digestCleanup     func() // flushes detect digest recording file
 	advanceLogCleanup func() // flushes advance log recording file
 
@@ -342,9 +367,15 @@ func (o *observerImpl) run() {
 		if obs.log != nil {
 			logRequests := o.engine.IngestLog(obs.source, obs.log)
 			requests = append(requests, logRequests...)
+			if o.telemetry != nil {
+				o.telemetry.decrementLogsInFlight(classifyLogSource(obs.source, obs.log.tags))
+			}
 		}
 		for _, req := range requests {
 			_ = o.engine.advanceWithReason(req.upToSec, req.reason)
+		}
+		if o.telemetry != nil {
+			o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
 		}
 		o.replayMu.Unlock()
 	}
@@ -521,7 +552,7 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 // metricDropHandle so external metrics are dropped at the edge, while
 // ObserveLog/ObserveProfile pass through.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
-	h := &handle{ch: o.obsCh, source: name}
+	h := &handle{ch: o.obsCh, source: name, telemetry: o.telemetry}
 	o.engine.registerHandle(h)
 	var out observerdef.Handle = h
 	if !o.ingestMetricsEnabled {
@@ -666,6 +697,10 @@ func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
 	for _, req := range requests {
 		_ = o.engine.advanceWithReason(req.upToSec, req.reason)
 	}
+	if o.telemetry != nil {
+		o.telemetry.recordLogIngested(source, lo.tags, len(lo.content))
+		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
+	}
 	o.replayMu.Unlock()
 }
 
@@ -692,6 +727,9 @@ func (o *observerImpl) IngestMetricSync(source string, sample observerdef.Metric
 	for _, req := range requests {
 		_ = o.engine.advanceWithReason(req.upToSec, req.reason)
 	}
+	if o.telemetry != nil {
+		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
+	}
 	o.replayMu.Unlock()
 }
 
@@ -701,6 +739,7 @@ type handle struct {
 	ch        chan<- observation
 	source    string
 	dropCount atomic.Int64 // per-handle drop counter, collected by engine at advance time
+	telemetry *observerTelemetry
 }
 
 // ObserveMetric observes a DogStatsD metric sample.
@@ -739,6 +778,9 @@ func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool 
 		return false
 	default:
 		h.dropCount.Add(1)
+		if h.telemetry != nil {
+			h.telemetry.recordChannelDropped(h.source)
+		}
 		return true
 	}
 }
@@ -747,13 +789,15 @@ func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool 
 func (h *handle) ObserveLog(msg observerdef.LogView) {
 	// Use provided timestampMs if available, otherwise use current time
 	timestampMs := msg.GetTimestampUnixMilli()
+	tags := copyTags(msg.Tags())
+	content := msg.GetContent()
 
 	obs := observation{
 		source: h.source,
 		log: &logObs{
-			content:     msg.GetContent(),
+			content:     content,
 			status:      msg.GetStatus(),
-			tags:        copyTags(msg.Tags()),
+			tags:        tags,
 			hostname:    msg.GetHostname(),
 			timestampMs: timestampMs,
 		},
@@ -762,8 +806,16 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	// Non-blocking send - drop if channel is full.
 	select {
 	case h.ch <- obs:
+		if h.telemetry != nil {
+			logSource := h.telemetry.recordLogIngested(h.source, tags, len(content))
+			h.telemetry.incrementLogsInFlight(logSource)
+		}
 	default:
 		h.dropCount.Add(1)
+		if h.telemetry != nil {
+			h.telemetry.recordDroppedLog(h.source, tags)
+			h.telemetry.recordChannelDropped(h.source)
+		}
 	}
 }
 

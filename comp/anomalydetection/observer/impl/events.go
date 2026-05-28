@@ -65,6 +65,7 @@ type eventSink interface {
 type reporterEventSink struct {
 	reporters []reporterdef.Reporter
 	state     *stateView // for querying current correlations on advance
+	onReport  func(reporter string)
 }
 
 func (s *reporterEventSink) onEngineEvent(evt engineEvent) {
@@ -86,6 +87,9 @@ func (s *reporterEventSink) onEngineEvent(evt engineEvent) {
 		}
 		for _, r := range s.reporters {
 			r.Report(output)
+			if s.onReport != nil {
+				s.onReport(r.Name())
+			}
 		}
 	}
 }

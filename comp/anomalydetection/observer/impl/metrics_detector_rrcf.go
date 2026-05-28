@@ -106,6 +106,8 @@ func DefaultRRCFMetrics() []RRCFMetricDef {
 // It queries multiple system metrics and detects unusual combinations/trajectories.
 type RRCFDetector struct {
 	config RRCFConfig
+	// telemetry is optional and wired by the observer component.
+	telemetry *observerTelemetry
 
 	// metrics defines which series to include in the multivariate analysis.
 	// Each metric becomes a dimension in the feature vector.
@@ -164,6 +166,11 @@ func NewRRCFDetector(config RRCFConfig) *RRCFDetector {
 // Name returns the detector name.
 func (r *RRCFDetector) Name() string {
 	return "rrcf"
+}
+
+// SetObserverTelemetry wires direct observer telemetry emission.
+func (r *RRCFDetector) SetObserverTelemetry(t *observerTelemetry) {
+	r.telemetry = t
 }
 
 // Detect implements Detector. It queries storage for system metrics,
@@ -433,6 +440,9 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 			Timestamp: s.endTimestamp,
 			Score:     score,
 		})
+		if r.telemetry != nil {
+			r.telemetry.recordRRCFScore(r.Name(), score)
+		}
 
 		// Skip warmup phase — scores are artificial during forest filling
 		if r.totalScored <= warmup {
@@ -441,6 +451,9 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 
 		// Compute dynamic threshold from recent scores
 		threshold := r.dynamicThreshold()
+		if threshold > 0 && r.telemetry != nil {
+			r.telemetry.recordRRCFThreshold(r.Name(), threshold)
+		}
 
 		// Update rolling window (after computing threshold, so current score
 		// doesn't influence its own threshold)
