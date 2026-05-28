@@ -338,6 +338,31 @@ func TestToEnv(t *testing.T) {
 	}
 }
 
+func TestFromEnvFIPSMode(t *testing.T) {
+	tests := []struct {
+		value    string
+		expected bool
+	}{
+		{"true", true},
+		{"True", true},
+		{"TRUE", true},
+		{"false", false},
+		{"", false},
+		{"1", false}, // we explicitly require "true" (case-insensitive)
+	}
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			t.Setenv("DD_FIPS_MODE", tt.value)
+			assert.Equal(t, tt.expected, FromEnv().FIPSMode)
+		})
+	}
+}
+
+func TestToEnvFIPSMode(t *testing.T) {
+	assert.NotContains(t, (&Env{FIPSMode: false}).ToEnv(), "DD_FIPS_MODE=true")
+	assert.Contains(t, (&Env{FIPSMode: true}).ToEnv(), "DD_FIPS_MODE=true")
+}
+
 func TestAgentUserVars(t *testing.T) {
 	tests := []struct {
 		name     string

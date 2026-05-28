@@ -142,7 +142,7 @@ func TestAllCollectorsWork(t *testing.T) {
 
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
 		testutil.WithMIGDisabled(),
-		testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithMockAllFunctions(),
 		testutil.WithArchitecture("blackwell")) // Ensure all functions are marked as supported
 
@@ -156,8 +156,10 @@ func TestAllCollectorsWork(t *testing.T) {
 
 	deps := &CollectorDependencies{
 		DeviceEventsGatherer: eventsGatherer,
+		PRMCache:             &PRMCache{},
 		Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
 	}
+	seedPRMCacheForDevices(t, deps.PRMCache, devices)
 	collectors, err := BuildCollectors(devices, deps, nil)
 	require.NoError(t, err)
 	require.NotNil(t, collectors)
@@ -191,34 +193,48 @@ func TestDisabledCollectors(t *testing.T) {
 		{
 			name:                   "no collectors disabled",
 			disabledCollectors:     []string{},
-			expectedCollectorCount: 6, // stateless, sampling, fields, gpm, device_events, nvlink
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkPLR},
+			expectedCollectorCount: 7, // stateless, sampling, fields, gpm, device_events, nvlink_plr, nvlink_fec
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkPLR, nvlinkFEC},
 		},
 		{
 			name:                   "disable gpm collector",
 			disabledCollectors:     []string{"gpm"},
-			expectedCollectorCount: 5,
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, deviceEvents, nvlinkPLR},
+			expectedCollectorCount: 6,
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, deviceEvents, nvlinkPLR, nvlinkFEC},
 			unexpectedNames:        []CollectorName{gpm},
 		},
 		{
 			name:                   "disable multiple collectors",
 			disabledCollectors:     []string{"gpm", "fields"},
-			expectedCollectorCount: 4,
-			expectedCollectorNames: []CollectorName{stateless, sampling, deviceEvents, nvlinkPLR},
+			expectedCollectorCount: 5,
+			expectedCollectorNames: []CollectorName{stateless, sampling, deviceEvents, nvlinkPLR, nvlinkFEC},
 			unexpectedNames:        []CollectorName{gpm, field},
 		},
 		{
+			name:                   "disable nvlink PLR collector",
+			disabledCollectors:     []string{"nvlink_plr"},
+			expectedCollectorCount: 6,
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkFEC},
+			unexpectedNames:        []CollectorName{nvlinkPLR},
+		},
+		{
+			name:                   "disable nvlink FEC collector",
+			disabledCollectors:     []string{"nvlink_fec"},
+			expectedCollectorCount: 6,
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkPLR},
+			unexpectedNames:        []CollectorName{nvlinkFEC},
+		},
+		{
 			name:                   "disable all collectors",
-			disabledCollectors:     []string{"stateless", "sampling", "fields", "gpm", "device_events", "nvlink_plr"},
+			disabledCollectors:     []string{"stateless", "sampling", "fields", "gpm", "device_events", "nvlink_plr", "nvlink_fec"},
 			expectedCollectorCount: 0,
 			expectedCollectorNames: []CollectorName{},
 		},
 		{
 			name:                   "disable non-existent collector",
 			disabledCollectors:     []string{"non_existent"},
-			expectedCollectorCount: 6,
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkPLR},
+			expectedCollectorCount: 7,
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkPLR, nvlinkFEC},
 		},
 	}
 
@@ -228,7 +244,7 @@ func TestDisabledCollectors(t *testing.T) {
 			nvmlMock := testutil.GetBasicNvmlMockWithOptions(
 				testutil.WithDeviceCount(1),
 				testutil.WithMIGDisabled(),
-				testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
+				testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 				testutil.WithMockAllFunctions(),
 				testutil.WithArchitecture("blackwell"),
 			)
@@ -244,8 +260,10 @@ func TestDisabledCollectors(t *testing.T) {
 
 			deps := &CollectorDependencies{
 				DeviceEventsGatherer: eventsGatherer,
+				PRMCache:             &PRMCache{},
 				Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
 			}
+			seedPRMCacheForDevices(t, deps.PRMCache, devices)
 
 			// Build collectors with disabled list
 			collectors, err := BuildCollectors(devices, deps, tt.disabledCollectors)
@@ -322,6 +340,18 @@ func TestDisabledCollectorsWithSystemProbe(t *testing.T) {
 		}
 	}
 	require.True(t, foundEbpf, "ebpf collector should be created when not disabled")
+}
+
+func seedPRMCacheForDevices(t *testing.T, cache *PRMCache, devices []ddnvml.Device) {
+	t.Helper()
+
+	for _, device := range devices {
+		ports, err := getSupportedNvlinkPorts(device, portIsAlwaysSupported)
+		require.NoError(t, err)
+		for _, port := range ports {
+			cache.SetCountersForTest(device.GetDeviceInfo().UUID, port, makeCounters(uint64(port*100)))
+		}
+	}
 }
 
 func TestRemoveDuplicateMetrics(t *testing.T) {

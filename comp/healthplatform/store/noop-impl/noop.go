@@ -12,7 +12,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"time"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
@@ -37,12 +36,7 @@ func NewNoopHealthPlatform() *NoopHealthPlatform {
 }
 
 // ReportIssue does nothing when the health platform is disabled.
-func (n *NoopHealthPlatform) ReportIssue(_ string, _ string, _ *healthplatformpayload.IssueReport) error {
-	return nil
-}
-
-// RegisterCheck does nothing when the health platform is disabled.
-func (n *NoopHealthPlatform) RegisterCheck(_ string, _ string, _ healthplatform.HealthCheckFunc, _ time.Duration) error {
+func (n *NoopHealthPlatform) ReportIssue(_ *healthplatformpayload.Issue) error {
 	return nil
 }
 
@@ -51,17 +45,22 @@ func (n *NoopHealthPlatform) GetAllIssues() (int, map[string]*healthplatformpayl
 	return 0, make(map[string]*healthplatformpayload.Issue)
 }
 
-// GetIssueForCheck returns nil when the health platform is disabled.
-func (n *NoopHealthPlatform) GetIssueForCheck(_ string) *healthplatformpayload.Issue {
+// GetIssue returns nil when the health platform is disabled.
+func (n *NoopHealthPlatform) GetIssue(_ string) *healthplatformpayload.Issue {
 	return nil
 }
 
-// ClearIssuesForCheck does nothing when the health platform is disabled.
-func (n *NoopHealthPlatform) ClearIssuesForCheck(_ string) {
+// ResolveIssue does nothing when the health platform is disabled.
+func (n *NoopHealthPlatform) ResolveIssue(_ string) {
 }
 
-// ClearAllIssues does nothing when the health platform is disabled.
-func (n *NoopHealthPlatform) ClearAllIssues() {
+// ResolveAllIssues does nothing when the health platform is disabled.
+func (n *NoopHealthPlatform) ResolveAllIssues() {
+}
+
+// GetActiveIssueIDsByIssueName returns nil when the health platform is disabled.
+func (n *NoopHealthPlatform) GetActiveIssueIDsByIssueName(_ string) []string {
+	return nil
 }
 
 // GetIssuesHandler handles GET /health-platform/issues when disabled.

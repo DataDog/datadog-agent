@@ -8,6 +8,8 @@
 package networkconfigmanagement
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,24 +17,38 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
-	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
+	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
+	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	ncmcomp "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 	ncmsender "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/sender"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
+
+// mockAgentHostname forces hostname.Get() to return the given value during the
+// test by injecting it into the mock config and flushing the hostname cache.
+func mockAgentHostname(t *testing.T, hostname string) {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("hostname", hostname)
+	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
+	t.Cleanup(func() { cache.Cache.Delete(cache.BuildAgentKey("hostname")) })
+}
 
 // Test fixtures and mocks
 
@@ -136,11 +152,26 @@ func (m *MockRemoteSession) Close() error {
 	return nil
 }
 
+// sequenceUUIDGenerator returns a function that emits the given UUIDs in order
+// on successive calls. Useful for making memstore output deterministic in tests.
+func sequenceUUIDGenerator(ids ...string) func() string {
+	i := 0
+	return func() string {
+		if i >= len(ids) {
+			return fmt.Sprintf("test-uuid-%d", i)
+		}
+		id := ids[i]
+		i++
+		return id
+	}
+}
+
 // Test helper functions
 
 func createTestCheck(t *testing.T) *Check {
 	cfg := agentconfig.NewMock(t)
-	return newCheck(cfg).(*Check)
+	comp := ncmcomp.Mock(t)
+	return newCheck(cfg, comp).(*Check)
 }
 
 // Configuration test data
@@ -227,14 +258,16 @@ func TestCheck_Configure_InvalidConfig(t *testing.T) {
 
 func TestCheck_Run_Success(t *testing.T) {
 	check := createTestCheck(t)
+	mockAgentHostname(t, "test-agent-host")
 
 	id := checkid.BuildID(CheckName, integration.FakeConfigHash, validConfig, baseInitConfig)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	mockSender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
 
 	// Set up mock sender expectations
-	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Twice()
+	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Times(2)
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
 	// Configure the check
@@ -246,7 +279,18 @@ func TestCheck_Run_Success(t *testing.T) {
 	mockClock := clock.NewMock()
 	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
 	check.clock = mockClock
-	check.sender = ncmsender.NewNCMSender(mockSender, check.checkContext.Namespace, mockClock)
+	check.sender = ncmsender.NewNCMSender(mockSender, check.checkContext.Namespace, mockClock, check.agentHostname)
+
+	// Swap the ncm component for one backed by a memstore configured with the
+	// mock clock and deterministic UUIDs, so inventory output is predictable.
+	memStore := ncmstore.NewMemStore(
+		ncmstore.WithClock(mockClock),
+		ncmstore.WithUUIDGenerator(sequenceUUIDGenerator(
+			"87b2343a-56d9-43bc-a35a-4d842dec9586", // running
+			"d348e53f-db31-47ed-8d50-11462d7a15e5", // startup
+		)),
+	)
+	check.ncmComp = ncmcomp.MockWithStore(t, memStore)
 
 	// Set up mock remote client
 	mockClient := newMockRemoteClient()
@@ -264,7 +308,7 @@ func TestCheck_Run_Success(t *testing.T) {
 		"config_source:cli",
 		"profile:p2",
 	}
-	expectedPayload := report.NCMPayload{
+	expectedConfigPayload := report.NCMPayload{
 		Namespace: "default",
 		Configs: []report.NetworkDeviceConfig{
 			{
@@ -275,6 +319,8 @@ func TestCheck_Run_Success(t *testing.T) {
 				Timestamp:    1754043600,
 				Tags:         expectedTags,
 				Content:      runningOutput,
+				ID:           "87b2343a-56d9-43bc-a35a-4d842dec9586",
+				ConfigHash:   hashConfigForTest(runningOutput),
 			},
 			{
 				DeviceID:     "default:10.0.0.1",
@@ -284,11 +330,28 @@ func TestCheck_Run_Success(t *testing.T) {
 				Timestamp:    1754043600, // timestamp taken from agent collection (could not be extracted from config)
 				Tags:         expectedTags,
 				Content:      startupOutput,
+				ID:           "d348e53f-db31-47ed-8d50-11462d7a15e5",
+				ConfigHash:   hashConfigForTest(startupOutput),
+			},
+		},
+		Inventories: []report.InventoryEntry{
+			{
+				Namespace:  "default",
+				ConfigID:   "87b2343a-56d9-43bc-a35a-4d842dec9586",
+				DeviceID:   "default:10.0.0.1",
+				ReportedAt: 1754043600,
+			},
+			{
+				Namespace:  "default",
+				ConfigID:   "d348e53f-db31-47ed-8d50-11462d7a15e5",
+				DeviceID:   "default:10.0.0.1",
+				ReportedAt: 1754043600,
 			},
 		},
 		CollectTimestamp: 1754043600,
+		AgentHostname:    "test-agent-host",
 	}
-	expectedEvent, err := json.Marshal(expectedPayload)
+	expectedConfigEvent, err := json.Marshal(expectedConfigPayload)
 	assert.NoError(t, err)
 
 	// Build expected device metadata payload
@@ -308,10 +371,50 @@ func TestCheck_Run_Success(t *testing.T) {
 	assert.NoError(t, err)
 
 	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 2)
-	mockSender.AssertEventPlatformEvent(t, expectedEvent, eventplatform.EventTypeNetworkConfigManagement)
+	mockSender.AssertEventPlatformEvent(t, expectedConfigEvent, eventplatform.EventTypeNetworkConfigManagement)
+
+	// ID is randomly generated per store call, so unmarshal the actual NCM
+	// payload, capture the IDs, and assert the rest of the payload matches.
+	actualNCMPayload := findEventPlatformEventPayload(t, mockSender, eventplatform.EventTypeNetworkConfigManagement)
+	require.Len(t, actualNCMPayload.Configs, len(expectedConfigPayload.Configs))
+	uuidRe := regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	for i := range actualNCMPayload.Configs {
+		assert.Regexp(t, uuidRe, actualNCMPayload.Configs[i].ID, "config[%d] should have a valid UUID", i)
+		expectedConfigPayload.Configs[i].ID = actualNCMPayload.Configs[i].ID
+	}
+	assert.Equal(t, expectedConfigPayload, actualNCMPayload)
+
 	mockSender.AssertEventPlatformEvent(t, expectedDeviceMetadata, eventplatform.EventTypeNetworkDevicesMetadata)
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "datadog.ncm.check_duration", expectedTags)
+	mockSender.AssertMetric(t, "Count", "datadog.ncm.inventory.entries_sent", 2, "test-agent-host", []string{"agent_host:test-agent-host"})
 	mockSender.AssertExpectations(t)
+}
+
+// hashConfigForTest mirrors the SHA-256 hashing done by the config store, so tests
+// can predict the ConfigHash field of stored configs without depending on the store package.
+func hashConfigForTest(raw string) string {
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
+}
+
+// findEventPlatformEventPayload returns the unmarshalled NCMPayload from the mock sender's
+// EventPlatformEvent call matching the given event type. Fails the test if no matching call exists.
+func findEventPlatformEventPayload(t *testing.T, m *mocksender.MockSender, eventType string) report.NCMPayload {
+	t.Helper()
+	for _, call := range m.Mock.Calls {
+		if call.Method != "EventPlatformEvent" {
+			continue
+		}
+		if got, _ := call.Arguments[1].(string); got != eventType {
+			continue
+		}
+		raw, _ := call.Arguments[0].([]byte)
+		var payload report.NCMPayload
+		require.NoError(t, json.Unmarshal(raw, &payload))
+		return payload
+	}
+	t.Fatalf("no EventPlatformEvent call found for event type %s", eventType)
+	return report.NCMPayload{}
 }
 
 func TestCheck_Run_ConnectionFailure(t *testing.T) {
@@ -327,9 +430,10 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 	connectionError := errors.New("connection refused")
 	client := newMockRemoteClient()
 	client.ConnectionError = connectionError
+	check.remoteClient = client
 
 	// Run the check
-	err = client.Connect()
+	err = check.Run()
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "connection refused")
@@ -344,6 +448,10 @@ func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	t.Cleanup(profile.ResetProfilesPath)
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 	require.NoError(t, err)
+
+	// Clear the profile so FindMatchingProfile is exercised
+	check.checkContext.ProfileCache.ProfileName = ""
+	check.checkContext.ProfileCache.Profile = nil
 
 	// Set up a mock remote client that fails config retrieval
 	mockClient := &MockRemoteClient{

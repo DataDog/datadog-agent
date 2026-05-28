@@ -302,6 +302,11 @@ var (
 	// Tags: -
 	MetricActivityDumpLocalStorageDeleted = newAgentMetric(".activity_dump.local_storage.deleted")
 
+	// MetricActivityDumpLocalStorageSizeOnDisk is the name of the metric used to track the size that the profiles are
+	// using on disk
+	// Tags: -
+	MetricActivityDumpLocalStorageSizeOnDisk = newRuntimeMetric(".activity_dump.local_storage.size_on_disk")
+
 	// SBOM resolver metrics
 
 	// MetricSBOMResolverActiveSBOMs is the name of the metric used to report the count of SBOMs kept in memory

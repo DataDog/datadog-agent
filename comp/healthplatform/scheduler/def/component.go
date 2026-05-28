@@ -10,32 +10,21 @@ package scheduler
 import (
 	"time"
 
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 // team: agent-health
 
-// HealthCheckFunc is a function that performs a health check.
-type HealthCheckFunc func() (*healthplatformpayload.IssueReport, error)
-
-// IssueReporter receives check results from the check runner.
-type IssueReporter interface {
-	ReportIssue(checkID string, checkName string, report *healthplatformpayload.IssueReport) error
-}
-
-// Component is the check runner component.
+// Component is the health-platform scheduler component.
 type Component interface {
-	// SetReporter wires the issue reporter after construction, breaking the
-	// circular fx dependency between core and checkrunner.
-	// Must be called before the first check fires (i.e. from the core lifecycle start hook).
-	SetReporter(reporter IssueReporter)
-
-	// RegisterCheck registers a periodic health check that runs at the given interval.
-	// The check is identified by checkID (must be unique) and checkName (human-readable label).
-	// If interval is zero or negative, a default interval is used.
-	RegisterCheck(checkID string, checkName string, fn HealthCheckFunc, interval time.Duration) error
-
-	// RunCheck executes a health check immediately, outside the periodic schedule.
-	// Results are reported to the registered IssueReporter.
-	RunCheck(checkID string, checkName string, fn HealthCheckFunc) error
+	// Schedule registers fn to run at the given interval. The scheduler
+	// maintains per-registration state: after each tick it resolves any
+	// IssueIds that disappeared from the previous run. If interval is zero
+	// or negative, the scheduler's default interval is used.
+	//
+	// initialIssueIDs pre-populates the per-check lastIssueIDs set; pass the
+	// IDs of any issues that were active in the store before this call so that
+	// they are resolved on the first tick if the check no longer reports them.
+	// Callers should obtain these IDs via store.GetActiveIssueIDsByIssueType.
+	Schedule(source string, fn runnerdef.HealthCheckFunc, interval time.Duration, initialIssueIDs []string) error
 }

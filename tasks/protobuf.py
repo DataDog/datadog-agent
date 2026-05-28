@@ -1,49 +1,11 @@
-import glob
 import os
 import re
-from pathlib import Path
 
 from invoke import Exit, task
 
 from tasks.libs.build.bazel import BazelTools, bazel
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_unstaged_files, get_untracked_files
-
-PROTO_PKGS = {
-    'model/v1': False,
-    'remoteconfig': False,
-    'api/v1': False,
-    'trace': True,
-    'process': False,
-    'workloadmeta': False,
-    'kubemetadata': False,
-    'privateactionrunner': False,
-    'remoteagent': False,
-    'autodiscovery': False,
-    'workloadfilter': False,
-}
-
-CLI_EXTRAS = {
-    'privateactionrunner': '--go_opt=module=github.com/DataDog/datadog-agent',
-}
-
-CLI_EXTRAS_GRPC = {
-    'privateactionrunner': '--go-grpc_opt=module=github.com/DataDog/datadog-agent',
-}
-
-# maybe put this in a separate function
-PKG_PLUGINS = {
-    'trace': '--go-vtproto_out=',
-}
-
-PKG_CLI_EXTRAS = {
-    'trace': '--go-vtproto_opt=features=marshal+unmarshal+size',
-}
-
-# protoc-go-inject-tag targets
-INJECT_TAG_TARGETS = {
-    'trace': ['span.pb.go', 'stats.pb.go', 'tracer_payload.pb.go', 'agent_payload.pb.go'],
-}
 
 
 @task
@@ -60,75 +22,20 @@ def generate(ctx, pre_commit=False):
     base = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(base, ".."))
     proto_root = os.path.join(repo_root, "pkg", "proto")
-    protodep_root = os.path.join(proto_root, "protodep")
     pbgo_dir = os.path.join(proto_root, "pbgo")
-    print(f"nuking old definitions at: {proto_root}")
-    file_list = glob.glob(os.path.join(proto_root, "pbgo", "*.pb.go"))
-    for file_path in file_list:
-        try:
-            os.remove(file_path)
-        except OSError:
-            print("Error while deleting file : ", file_path)
 
-    with ctx.cd(repo_root):
-        # protobuf defs
-        print(f"generating protobuf code from: {proto_root}")
-        bazel(ctx, "run", "//pkg/proto/pbgo/dogstatsdhttp:write_pb_go")
-        bazel(ctx, "run", "//pkg/proto/pbgo/languagedetection:write_pb_go")
-        bazel(ctx, "run", "//pkg/proto/pbgo/sbom:write_pb_go")
-        bazel(ctx, "run", "//pkg/proto/pbgo/trace/idx:write_pb_go")
-        for pkg, inject_tags in PROTO_PKGS.items():
-            files = []
-            pkg_root = Path(proto_root, "datadog", pkg)
-            for path in pkg_root.rglob('*.proto'):
-                if len(path.parts) == len(pkg_root.parts) + 1:
-                    files.append(path.as_posix())
-
-            targets = ' '.join(files)
-
-            # Generate Go code with protoc-gen-go and protoc-gen-go-grpc
-            # Note: The new protoc-gen-go doesn't support plugins=grpc, so we use separate outputs
-            # This generates *.pb.go (messages) and *_grpc.pb.go (gRPC stubs) in a single protoc call
-            cli_extras = ''
-            cli_extras_grpc = ''
-            if pkg in CLI_EXTRAS:
-                cli_extras = CLI_EXTRAS[pkg]
-            if pkg in CLI_EXTRAS_GRPC:
-                cli_extras_grpc = CLI_EXTRAS_GRPC[pkg]
-            ctx.run(
-                f"{bt.protoc} {bt.protoc_plugin("protoc-gen-go")} {bt.protoc_plugin("protoc-gen-go-grpc")} -I{proto_root} -I{protodep_root} --go_out={repo_root} {cli_extras} --go-grpc_out={repo_root} {cli_extras_grpc} {targets}"
-            )
-
-            if pkg in PKG_PLUGINS:
-                output_generator = PKG_PLUGINS[pkg]
-
-                if pkg in PKG_CLI_EXTRAS:
-                    cli_extras = PKG_CLI_EXTRAS[pkg]
-
-                ctx.run(
-                    f"{bt.protoc} {bt.protoc_plugin("protoc-gen-go-vtproto")} -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}"
-                )
-
-            if inject_tags:
-                inject_path = os.path.join(proto_root, "pbgo", pkg)
-                # inject_tags logic
-                for target in INJECT_TAG_TARGETS[pkg]:
-                    ctx.run(f"{bt.protoc_go_inject_tag} -input={os.path.join(inject_path, target)}")
-
-        # Mockgen (not done in pre-commit as it is slow)
-        if not pre_commit:
-            mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
-            pbgo_rel = Path(pbgo_dir).relative_to(repo_root).as_posix()
-            try:
-                os.mkdir(mockgen_out)
-            except FileExistsError:
-                print(f"{mockgen_out} folder already exists")
-
-            # Generate mocks from the gRPC file (api_grpc.pb.go) which contains the client/server interfaces
-            ctx.run(
-                f"{bt.mockgen} -source={pbgo_rel}/core/api_grpc.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go",
-                env=bt.go_env,
-            )
+    print(f"generating protobuf code from: {proto_root}")
+    bazel(ctx, "run", "//pkg/proto/pbgo/core:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/dogstatsdhttp:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/languagedetection:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/mocks/core:api_mockgen")
+    bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/actionsclient:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/errorcode:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/privateactions:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/process:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/sbom:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/trace:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/trace/idx:write_pb_go")
 
     # Generate messagepack marshallers
     # msgp targets (file, io)
@@ -147,6 +54,9 @@ def generate(ctx, pre_commit=False):
     # file itself; pass it on the command line instead.
     msgp_file_directives = {
         ('trace', 'stats.pb.go'): '-d "limit arrays:500000 maps:500000"',
+        ('trace', 'span.pb.go'): '-d "limit arrays:500000 maps:500000"',
+        ('trace', 'tracer_payload.pb.go'): '-d "limit arrays:500000 maps:500000"',
+        ('trace', 'agent_payload.pb.go'): '-d "limit arrays:500000 maps:500000"',
     }
     for pkg, files in msgp_targets.items():
         for src, io_gen in files:

@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mock",
+    srcs = ["auditor_mock.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs/auditor/mock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/auditor/def",
+        "//pkg/logs/message",
+        "//pkg/logs/types",
+        "//pkg/util/fxutil",
+    ],
+)

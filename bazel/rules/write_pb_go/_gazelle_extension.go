@@ -93,14 +93,24 @@ func goProtoLibraries(args language.GenerateArgs) map[string][]goProtoLibrary {
 		if pc := proto.GetProtoConfig(args.Config); pc != nil && !strings.HasPrefix(importPath, pc.GoPrefix) {
 			importPath = fmt.Sprintf("%s/%s", pc.GoPrefix, importPath)
 		}
-		protoLabel, err := label.Parse(r.AttrString("proto"))
-		if err != nil {
-			continue
+		protoLabels := r.AttrStrings("protos")   // plural: `gazelle:proto file`
+		if s := r.AttrString("proto"); s != "" { // singular: `gazelle:proto default|package`
+			protoLabels = append(protoLabels, s)
 		}
-		if protos, ok := protoLibrarySrcs[protoLabel.Name]; ok {
+		var protoInfos []proto.FileInfo
+		for _, s := range protoLabels {
+			protoLabel, err := label.Parse(s)
+			if err != nil {
+				continue
+			}
+			if infos, ok := protoLibrarySrcs[protoLabel.Name]; ok {
+				protoInfos = append(protoInfos, infos...)
+			}
+		}
+		if len(protoInfos) > 0 {
 			result[importPath] = append(result[importPath], goProtoLibrary{
 				label:         label.New("", args.Rel, r.Name()),
-				generatedSrcs: generatedSrcs(r, protos),
+				generatedSrcs: generatedSrcs(r, protoInfos),
 			})
 		}
 	}
@@ -109,11 +119,12 @@ func goProtoLibraries(args language.GenerateArgs) map[string][]goProtoLibrary {
 
 // generateResult emits a write_pb_go rule when the current directory holds a go_library whose
 // importpath matches an accumulated go_proto_library, or deletes a stale one otherwise.
+// Any `gazelle:write_pb_go <go_proto_library> <override>` directive substitutes the former label with the latter.
 func generateResult(args language.GenerateArgs, goProtoLibraries map[string][]goProtoLibrary) language.GenerateResult {
 	if importPath := goLibraryImportPath(args.File); importPath != "" {
 		srcs := map[string][]string{}
 		for _, lib := range goProtoLibraries[importPath] {
-			srcs[lib.label.Rel("", args.Rel).String()] = lib.generatedSrcs
+			srcs[override(args, lib.label.Rel("", args.Rel).String())] = lib.generatedSrcs
 		}
 		if len(srcs) > 0 {
 			r := rule.NewRule(name, name)
@@ -134,30 +145,31 @@ func generateResult(args language.GenerateArgs, goProtoLibraries map[string][]go
 	return language.GenerateResult{}
 }
 
-// protoLibrarySrcs indexes proto_library srcs by rule name; OtherGen takes precedence over
-// File.Rules so Gazelle-generated rules are preferred over potentially stale committed ones.
-func protoLibrarySrcs(args language.GenerateArgs) map[string][]string {
-	result := map[string][]string{}
+// protoLibrarySrcs indexes proto_library srcs by rule name.
+func protoLibrarySrcs(args language.GenerateArgs) map[string][]proto.FileInfo {
+	result := map[string][]proto.FileInfo{}
 	for _, r := range args.OtherGen {
-		if r.Kind() == "proto_library" {
-			result[r.Name()] = r.AttrStrings("srcs")
+		if r.Kind() != "proto_library" {
+			continue
 		}
-	}
-	if args.File != nil {
-		for _, r := range args.File.Rules {
-			if r.Kind() == "proto_library" {
-				if _, ok := result[r.Name()]; !ok {
-					result[r.Name()] = r.AttrStrings("srcs")
-				}
-			}
+		pkg, ok := r.PrivateAttr(proto.PackageKey).(proto.Package)
+		if !ok {
+			continue
 		}
+		var protoInfos []proto.FileInfo
+		for _, src := range r.AttrStrings("srcs") {
+			protoInfos = append(protoInfos, pkg.Files[src])
+		}
+		result[r.Name()] = protoInfos
 	}
 	return result
 }
 
 // generatedSrcs infers .pb.go filenames from the compiler labels: :go_proto -> .pb.go,
 // :go_{name}_* -> _{name}.pb.go; defaults to [.pb.go].
-func generatedSrcs(r *rule.Rule, protos []string) []string {
+// For serviceless protos, omit dummy _grpc.pb.go backfilled by rules_go
+// (https://github.com/bazel-contrib/rules_go/pull/1394) that would only pollute the source tree.
+func generatedSrcs(r *rule.Rule, protoInfos []proto.FileInfo) []string {
 	var suffixes []string
 	for _, compiler := range r.AttrStrings("compilers") {
 		m := compilerRe.FindStringSubmatch(compiler)
@@ -174,9 +186,10 @@ func generatedSrcs(r *rule.Rule, protos []string) []string {
 		suffixes = []string{".pb.go"}
 	}
 	var result []string
-	for _, proto := range protos {
-		if stem, ok := strings.CutSuffix(proto, ".proto"); ok {
-			for _, suffix := range suffixes {
+	for _, protoInfo := range protoInfos {
+		stem := strings.TrimSuffix(protoInfo.Name, ".proto")
+		for _, suffix := range suffixes {
+			if protoInfo.HasServices || suffix != "_grpc.pb.go" {
 				result = append(result, stem+suffix)
 			}
 		}
@@ -196,4 +209,17 @@ func goLibraryImportPath(f *rule.File) string {
 		}
 	}
 	return ""
+}
+
+// override returns any label overridden by `gazelle:write_pb_go <orig> <overridden>` or orig.
+func override(args language.GenerateArgs, label string) string {
+	for _, d := range args.File.Directives {
+		if d.Key != name {
+			continue
+		}
+		if parts := strings.Fields(d.Value); len(parts) == 2 && parts[0] == label {
+			return parts[1]
+		}
+	}
+	return label
 }

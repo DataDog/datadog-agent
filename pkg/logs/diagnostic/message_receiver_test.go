@@ -11,6 +11,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -20,8 +22,14 @@ func getNewHostname(name hostnameinterface.MockHostname) hostnameinterface.Mock 
 	return mock
 }
 
+func getTestConfig(t *testing.T) pkgconfigmodel.Reader {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("logs_config.message_channel_size", 100)
+	return cfg
+}
+
 func TestEnableDisable(t *testing.T) {
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	assert.True(t, b.SetEnabled(true))
 	assert.False(t, b.SetEnabled(true))
 
@@ -54,7 +62,7 @@ func TestEnableDisable(t *testing.T) {
 
 func TestFilterAll(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
@@ -74,7 +82,7 @@ func TestFilterAll(t *testing.T) {
 
 func TestFilterTypeAndSource(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
@@ -92,7 +100,7 @@ func TestFilterTypeAndSource(t *testing.T) {
 
 func TestFilterTypeAndService(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
@@ -110,7 +118,7 @@ func TestFilterTypeAndService(t *testing.T) {
 
 func TestFilterSourceAndService(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
@@ -128,7 +136,7 @@ func TestFilterSourceAndService(t *testing.T) {
 
 func TestFilterName(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
@@ -146,7 +154,7 @@ func TestFilterName(t *testing.T) {
 
 func TestFilterSource(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
@@ -164,7 +172,7 @@ func TestFilterSource(t *testing.T) {
 
 func TestFilterType(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
@@ -182,7 +190,7 @@ func TestFilterType(t *testing.T) {
 
 func TestFilterService(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
@@ -200,7 +208,7 @@ func TestFilterService(t *testing.T) {
 
 func TestNoFilters(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
@@ -217,6 +225,31 @@ func TestNoFilters(t *testing.T) {
 	}
 
 	readFilteredLines(t, b, &filters, 15)
+}
+
+// TestFilterStopWhileStreaming verifies that calling Stop() on the message
+// receiver while a consumer is reading from Filter() does not panic. Stop()
+// closes inputChan; the Filter goroutine must detect the closed channel and
+// exit rather than calling the formatter with a zero-value (nil-msg)
+// messagePair. Regression test for AGNTLOG-323.
+func TestFilterStopWhileStreaming(t *testing.T) {
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
+	b.SetEnabled(true)
+
+	done := make(chan struct{})
+	defer close(done)
+	lineChan := b.Filter(nil, done)
+
+	// Simulate agent shutdown: close the input channel out from under the
+	// Filter goroutine. Before the fix this caused the goroutine to read a
+	// zero-value messagePair and panic on a nil *message.Message in the
+	// formatter.
+	b.Stop()
+
+	// The output channel should be closed cleanly without any spurious values.
+	for msg := range lineChan {
+		assert.Equal(t, "", msg, "unexpected message after shutdown: %q", msg)
+	}
 }
 
 func newMessage(name, typ, source, service string) *message.Message {

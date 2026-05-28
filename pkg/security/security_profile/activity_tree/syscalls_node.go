@@ -20,12 +20,12 @@ type SyscallNode struct {
 }
 
 // NewSyscallNode returns a new SyscallNode instance
-func NewSyscallNode(syscall int, timestamp time.Time, imageTag string, generationType NodeGenerationType) *SyscallNode {
+func NewSyscallNode(syscall int, timestamp time.Time, imageTagID uint64, generationType NodeGenerationType) *SyscallNode {
 	node := &SyscallNode{
 		Syscall:        syscall,
 		GenerationType: generationType,
 	}
 	node.NodeBase = NewNodeBase()
-	node.AppendImageTag(imageTag, timestamp)
+	node.AppendImageTagID(imageTagID, timestamp)
 	return node
 }

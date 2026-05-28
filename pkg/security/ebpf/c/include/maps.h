@@ -37,6 +37,7 @@ BPF_ARRAY_MAP(sysctl_action_approvers, struct u32_flags_filter_t, 1)
 BPF_ARRAY_MAP(connect_addr_family_approvers, struct u64_flags_filter_t, 1)
 BPF_ARRAY_MAP(prctl_option_approvers, struct u64_flags_filter_t, 1)
 BPF_ARRAY_MAP(setsockopt_level_or_optname_approvers, struct u64_flags_filter_t, 2)
+BPF_ARRAY_MAP(socket_field_approvers, struct u64_flags_filter_t, 3)
 BPF_ARRAY_MAP(syscalls_stats_enabled, u32, 1)
 BPF_ARRAY_MAP(syscall_ctx_gen_id, u32, 1)
 BPF_ARRAY_MAP(syscall_ctx, char[MAX_SYSCALL_CTX_SIZE], MAX_SYSCALL_CTX_ENTRIES)
@@ -47,7 +48,6 @@ BPF_ARRAY_MAP(in_upper_layer_approvers, struct event_mask_filter_t, 1)
 BPF_HASH_MAP(activity_dump_config_defaults, u32, struct activity_dump_config, 1)
 BPF_HASH_MAP(traced_cgroups, u64, u64, 1) // max entries will be overridden at runtime
 BPF_HASH_MAP(traced_pids, u32, u64, 8192) // max entries will be overridden at runtime
-BPF_HASH_MAP(basename_approvers, struct basename_t, struct event_mask_filter_t, 255)
 BPF_HASH_MAP(register_netdevice_cache, u64, struct register_netdevice_cache_t, 1024)
 BPF_HASH_MAP(netdevice_lookup_cache, u64, struct device_ifindex_t, 1024)
 BPF_HASH_MAP(fd_link_pid, u8, u32, 1)
@@ -61,6 +61,7 @@ BPF_HASH_MAP(cgroup_mount_id, u32, u32, 1)
 
 BPF_HASH_MAP_FLAGS(active_flows, u32, struct active_flows_t, 1, BPF_F_NO_PREALLOC) // max entry will be overridden at runtime
 BPF_HASH_MAP_FLAGS(inet_bind_args, u64, struct inet_bind_args_t, 1, BPF_F_NO_PREALLOC) // max entries will be overridden at runtime
+BPF_HASH_MAP_FLAGS(basename_approvers, struct basename_t, struct event_mask_filter_t, 1, BPF_F_NO_PREALLOC) // max entries updated at runtime
 
 BPF_LRU_MAP(activity_dumps_config, u64, struct activity_dump_config, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(cgroup_wait_list, u64, u64, 1) // max entries will be overridden at runtime
@@ -151,6 +152,7 @@ BPF_PROG_ARRAY(raw_packet_classifier_router_0, 32)
 BPF_PROG_ARRAY(raw_packet_classifier_router_1, 32)
 BPF_PROG_ARRAY(flush_network_stats_progs, 2)
 BPF_PROG_ARRAY(open_ret_progs, 1)
+BPF_PROG_ARRAY(cache_syscall_progs, 1)
 
 BPF_PERF_EVENT_ARRAY_MAP(events, u32)
 BPF_PERCPU_ARRAY_MAP(events_stats, struct perf_map_stats_t, EVENT_MAX)

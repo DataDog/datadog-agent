@@ -200,6 +200,45 @@ func validateCacheVsProcMaps(t *testing.T, entryInfos map[string]object.EntryInf
 		len(cacheProcMaps), len(matchedProcMaps))
 }
 
+// TestDiskFileGCReleasesGrownReservation is a regression test for a bug where
+// the runtime.AddCleanup closure registered by NewFile captured the initial
+// reservation by value, so a DiskFile that grew its reservation via Write and
+// was then garbage-collected without Close would leak the difference between
+// the high-water mark and the initial size from the cache's accounting.
+func TestDiskFileGCReleasesGrownReservation(t *testing.T) {
+	const mib = 1 << 20
+	cacheDir := t.TempDir()
+	cache, err := object.NewDiskCacheInternal(object.DiskCacheConfig{
+		DirPath:                  cacheDir,
+		RequiredDiskSpaceBytes:   1, // permissive
+		RequiredDiskSpacePercent: 0,
+		MaxTotalBytes:            16 * mib,
+	}, stubDisk{total: 1 << 30, available: 1 << 30})
+	require.NoError(t, err)
+
+	// Repeatedly create a DiskFile with initialSize=0, write past the
+	// initial reservation, drop the reference without Close, and force GC.
+	// If the cleanup releases only the captured initial size, totalBytes
+	// drifts up by 4 MiB per iteration and NewFile starts failing once the
+	// drift reaches MaxTotalBytes.
+	for i := 0; i < 8; i++ {
+		func() {
+			df, err := cache.NewFile("test", 4*mib, 0)
+			require.NoError(t, err)
+			_, err = df.Write(make([]byte, 4*mib))
+			require.NoError(t, err)
+			// Intentionally drop df without Close.
+			_ = df
+		}()
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			runtime.GC()
+			runtime.GC()
+			assert.Zero(c, cache.SpaceInUse(),
+				"iteration %d: cache should be empty after GC", i)
+		}, 10*time.Second, time.Millisecond)
+	}
+}
+
 // stubDisk is a controllable implementation of the object.Disk interface for
 // exercising disk-space limit logic.
 type stubDisk struct {

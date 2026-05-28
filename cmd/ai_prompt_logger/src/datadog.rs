@@ -5,17 +5,19 @@ use std::time::Duration;
 use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::{Map, Value, json};
+use serde_json::Value;
 
 const CONFIG_BASENAME: &str = "ai_usage_native_host.yaml";
+const AI_USAGE_EVP_SUBDOMAIN: &str = "event-platform-intake";
+const AI_USAGE_EVP_PATH: &str = "/api/v2/aiusage";
 
 /// Cap for connect + full request so the native host thread cannot block indefinitely
 /// on a stalled trace Agent / network path.
 const AGENT_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Ships AI usage events to Datadog Logs via the local Agent trace receiver's
-/// EVP proxy (`/evp_proxy/v*/api/v2/logs`). The Agent adds `DD-API-KEY` and
-/// forwards to `https://{subdomain}.{site}/api/v2/logs`.
+/// Ships AI usage events via the local Agent trace receiver's EVP proxy
+/// (`/evp_proxy/v*{AI_USAGE_EVP_PATH}`). The Agent adds `DD-API-KEY` and
+/// forwards to `https://{subdomain}.{site}{AI_USAGE_EVP_PATH}`.
 pub struct DatadogClient {
     intake_url: String,
     evp_subdomain: String,
@@ -28,7 +30,7 @@ struct AiUsageNativeHostFile {
     #[serde(default)]
     evp_proxy_api_version: Option<u32>,
     #[serde(default)]
-    logs_evp_subdomain: Option<String>,
+    ai_usage_evp_subdomain: Option<String>,
 }
 
 impl DatadogClient {
@@ -38,22 +40,22 @@ impl DatadogClient {
     /// missing or not a file, a warning is logged and defaults are used (no fallback to
     /// auto-discovery for that explicit path).
     ///
-    /// If `config_path` is `None`, searches for `CONFIG_BASENAME` under the install prefix
-    /// inferred from the executable path (`{install_root}/embedded/bin/...`):
-    /// 1. `{install_root}/etc/datadog-agent/`
-    /// 2. `{install_root}/etc/`
+    /// If `config_path` is `None`, searches for `CONFIG_BASENAME`:
+    /// 1. On Windows, under the MSI `ConfigRoot` registry value.
+    /// 2. On Windows, under `%ProgramData%\Datadog`.
+    /// 3. Under the install prefix inferred from the executable path.
     ///
     /// YAML keys (defaults match the Agent trace receiver):
-    /// - `trace_agent_url` (default `http://localhost:8126`; use **http** only — the local trace
+    /// - `trace_agent_url` (default `http://127.0.0.1:8126`; use **http** only — the local trace
     ///   receiver is plain HTTP and this binary has no TLS client)
     /// - `evp_proxy_api_version` (default `2`)
-    /// - `logs_evp_subdomain` (default `http-intake.logs`)
+    /// - `ai_usage_evp_subdomain` (default `event-platform-intake`)
     ///
     /// No `DD_API_KEY` is required here; the Agent injects the key when forwarding.
     pub fn load(config_path: Option<PathBuf>) -> Self {
-        let mut agent_base = "http://localhost:8126".to_string();
+        let mut agent_base = "http://127.0.0.1:8126".to_string();
         let mut proxy_version: u32 = 2;
-        let mut evp_subdomain = "http-intake.logs".to_string();
+        let mut evp_subdomain = AI_USAGE_EVP_SUBDOMAIN.to_string();
 
         let yaml_path: Option<PathBuf> = if let Some(ref p) = config_path {
             if p.is_file() {
@@ -86,7 +88,7 @@ impl DatadogClient {
         }
 
         let base = agent_base.trim_end_matches('/').to_string();
-        let intake_url = format!("{}/evp_proxy/v{}/api/v2/logs", base, proxy_version);
+        let intake_url = format!("{}/evp_proxy/v{}{}", base, proxy_version, AI_USAGE_EVP_PATH);
 
         eprintln!(
             "[datadog] client initialised, agent_proxy_url={}, evp_subdomain={}",
@@ -112,13 +114,64 @@ impl DatadogClient {
             if let Some(v) = cfg.evp_proxy_api_version {
                 *proxy_version = v;
             }
-            if let Some(v) = cfg.logs_evp_subdomain.filter(|s| !s.is_empty()) {
+            if let Some(v) = cfg.ai_usage_evp_subdomain.filter(|s| !s.is_empty()) {
                 *evp_subdomain = v;
             }
         }
     }
 
     fn yaml_config_path() -> Option<PathBuf> {
+        #[cfg(windows)]
+        {
+            if let Some(path) = Self::windows_config_path_from_registry() {
+                return Some(path);
+            }
+
+            std::env::var_os("ProgramData").and_then(|program_data| {
+                Self::config_path_in_dir(PathBuf::from(program_data).join("Datadog"))
+            })
+        }
+
+        #[cfg(not(windows))]
+        Self::install_root_config_path()
+    }
+
+    fn config_path_in_dir(dir: impl AsRef<Path>) -> Option<PathBuf> {
+        let path = dir.as_ref().join(CONFIG_BASENAME);
+        if path.is_file() { Some(path) } else { None }
+    }
+
+    #[cfg(windows)]
+    fn windows_config_path_from_registry() -> Option<PathBuf> {
+        // Mirror pkg/util/winutil.GetProgramDataDir() and pkg/util/defaultpaths:
+        // prefer the MSI ConfigRoot registry value over the default ProgramData path.
+        let config_root =
+            Self::windows_registry_string("SOFTWARE\\Datadog\\Datadog Agent", "ConfigRoot")?;
+        Some(config_root.join(CONFIG_BASENAME))
+    }
+
+    #[cfg(windows)]
+    fn windows_registry_string(subkey: &str, value_name: &str) -> Option<PathBuf> {
+        use windows_registry::LOCAL_MACHINE;
+        use windows_sys::Win32::System::Registry::KEY_WOW64_64KEY;
+
+        let key = LOCAL_MACHINE
+            .options()
+            .read()
+            .access(KEY_WOW64_64KEY)
+            .open(subkey)
+            .ok()?;
+
+        let value = key.get_string(value_name).ok()?;
+        if value.is_empty() {
+            None
+        } else {
+            Some(PathBuf::from(value))
+        }
+    }
+
+    #[cfg(not(windows))]
+    fn install_root_config_path() -> Option<PathBuf> {
         let install_root = Self::install_root_from_exe()?;
         let etc_dd = install_root
             .join("etc")
@@ -127,14 +180,12 @@ impl DatadogClient {
         if etc_dd.is_file() {
             return Some(etc_dd);
         }
-        let etc_flat = install_root.join("etc").join(CONFIG_BASENAME);
-        if etc_flat.is_file() {
-            return Some(etc_flat);
-        }
-        None
+        Self::config_path_in_dir(install_root.join("etc"))
     }
 
-    /// `{install_dir}` when the binary lives at `{install_dir}/embedded/bin/<name>`.
+    /// Finds `{install_dir}` for packaged non-Windows layouts like
+    /// `{install_dir}/embedded/bin/<name>`.
+    #[cfg(not(windows))]
     fn install_root_from_exe() -> Option<PathBuf> {
         let exe = std::env::current_exe().ok()?;
         let bin_dir = exe.parent()?;
@@ -142,13 +193,13 @@ impl DatadogClient {
         bin_dir.parent()?.parent().map(Path::to_path_buf)
     }
 
-    /// Post one AI usage event as a single-element Logs v2 JSON array.
+    /// Post one AI usage event as a JSON object.
     /// Returns true only when the payload is successfully accepted by the Agent.
     pub fn send_event(&self, payload: &AiUsageEvent) -> bool {
-        let body = match Self::logs_v2_body(payload) {
+        let body = match Self::ai_usage_body(payload) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("[datadog] failed to build log payload: {}", e);
+                eprintln!("[datadog] failed to build AI usage payload: {}", e);
                 return false;
             }
         };
@@ -160,19 +211,22 @@ impl DatadogClient {
             .send_json(&body)
         {
             Ok(resp) => {
-                eprintln!("[datadog] log shipped via agent ({})", resp.status());
+                eprintln!(
+                    "[datadog] AI usage event shipped via agent ({})",
+                    resp.status()
+                );
                 true
             }
             Err(e) => {
-                eprintln!("[datadog] failed to ship log via agent: {}", e);
+                eprintln!("[datadog] failed to ship AI usage event via agent: {}", e);
                 false
             }
         }
     }
 
-    /// Build `[{ ... }]` for POST /api/v2/logs: RFC fields plus Logs envelope.
-    fn logs_v2_body(payload: &AiUsageEvent) -> Result<Value, serde_json::Error> {
-        let mut map: Map<String, Value> = match serde_json::to_value(payload)? {
+    /// Build `{ ... }` for POST /api/v2/aiusage.
+    fn ai_usage_body(payload: &AiUsageEvent) -> Result<Value, serde_json::Error> {
+        let map = match serde_json::to_value(payload)? {
             Value::Object(m) => m,
             _ => {
                 return Err(<serde_json::Error as serde::de::Error>::custom(
@@ -181,13 +235,7 @@ impl DatadogClient {
             }
         };
 
-        map.insert("message".into(), json!("ai_usage"));
-        map.insert("ddsource".into(), json!("ai-prompt-logger-native-host"));
-        map.insert("service".into(), json!("ai-usage-extension"));
-        map.insert("status".into(), json!("info"));
-        map.insert("date".into(), json!(Utc::now().timestamp_millis()));
-
-        Ok(json!([Value::Object(map)]))
+        Ok(Value::Object(map))
     }
 }
 
@@ -238,4 +286,42 @@ pub fn resolve_hostname() -> String {
         .ok()
         .and_then(|h| h.into_string().ok())
         .unwrap_or_else(|| "unknown".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ai_usage_body_keeps_event_fields_at_top_level() {
+        let mut event = AiUsageEvent::new(
+            "observed",
+            "gemini".to_string(),
+            "user@example.com".to_string(),
+            "host-1".to_string(),
+            true,
+        );
+        event.provider = Some("Google".to_string());
+
+        let body = DatadogClient::ai_usage_body(&event).expect("AI usage body should serialize");
+        let body = body
+            .as_object()
+            .expect("AI usage body should be a JSON object");
+
+        assert_eq!(
+            body.get("hostname"),
+            Some(&Value::String("host-1".to_string()))
+        );
+        assert_eq!(body.get("tool"), Some(&Value::String("gemini".to_string())));
+        assert_eq!(
+            body.get("provider"),
+            Some(&Value::String("Google".to_string()))
+        );
+        assert_eq!(body.get("approved"), Some(&Value::Bool(true)));
+        assert!(!body.contains_key("message"));
+        assert!(!body.contains_key("ddsource"));
+        assert!(!body.contains_key("service"));
+        assert!(!body.contains_key("status"));
+        assert!(!body.contains_key("date"));
+    }
 }
