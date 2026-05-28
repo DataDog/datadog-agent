@@ -13,6 +13,7 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"errors"
+	"os"
 	"slices"
 	"sync"
 	"time"
@@ -430,12 +431,27 @@ func (c *Client) pollLoop() {
 	logLimit := log.NewLogLimit(5, time.Minute)
 	interval := 0 * time.Second
 
+	// TEMP DEBUG (kube-actions): capture pod hostname once so we can correlate
+	// log lines with the current leader (see `kubectl get lease datadog-agent-leader-election`).
+	debugHost, _ := os.Hostname()
+	lastUpdateEnd := time.Now()
+
 	for {
 		select {
 		case <-c.ctx.Done():
 			return
 		case <-time.After(interval):
+			// TEMP DEBUG (kube-actions): log every pollLoop iteration to measure
+			// time spent inside update() (gRPC fetch + serial listener dispatch).
+			// `gap` is wall-clock time since the previous update() returned — a
+			// gap >> pollInterval means a listener (most likely workload
+			// autoscaling reconcile) blocked the loop on this pod.
+			updateStart := time.Now()
+			gap := updateStart.Sub(lastUpdateEnd)
 			err := c.update()
+			lastUpdateEnd = time.Now()
+			log.Infof("[RC-DEBUG] pollLoop host=%s products=%v gap=%s duration=%s err=%v",
+				debugHost, c.products, gap, lastUpdateEnd.Sub(updateStart), err)
 			if err != nil {
 				consecutiveFailures++
 				if status.Code(err) == codes.Unimplemented {
