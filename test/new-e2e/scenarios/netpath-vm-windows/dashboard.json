@@ -1,0 +1,429 @@
+{
+  "title": "Network Path Agent Perf (Windows)",
+  "description": "Agent-side observability for synthetic Network Path perf testing on the netpath-vm-windows scenario. Scoped by purpose:netpath-demo-windows so it works across stacks. Some `datadog.network_path.*` metric names are best-effort — if a panel is empty, check the agent's `agent status` output for the real metric names and adjust the widget query in-place.",
+  "widgets": [
+    {
+      "id": 100,
+      "layout": {"x": 0, "y": 0, "width": 3, "height": 2},
+      "definition": {
+        "title": "Host CPU % (avg, last 5 min)",
+        "type": "query_value",
+        "requests": [
+          {
+            "response_format": "scalar",
+            "queries": [
+              {
+                "name": "q",
+                "data_source": "metrics",
+                "query": "avg:system.cpu.user{purpose:netpath-demo-windows} by {variant} + avg:system.cpu.system{purpose:netpath-demo-windows} by {variant}",
+                "aggregator": "avg"
+              }
+            ],
+            "formulas": [{"formula": "q"}],
+            "conditional_formats": [
+              {"comparator": ">", "value": 80, "palette": "white_on_red"},
+              {"comparator": ">", "value": 50, "palette": "white_on_yellow"},
+              {"comparator": ">=", "value": 0, "palette": "white_on_green"}
+            ]
+          }
+        ],
+        "autoscale": true,
+        "precision": 1
+      }
+    },
+    {
+      "id": 101,
+      "layout": {"x": 3, "y": 0, "width": 3, "height": 2},
+      "definition": {
+        "title": "agent.exe CPU % (avg, last 5 min)",
+        "type": "query_value",
+        "requests": [
+          {
+            "response_format": "scalar",
+            "queries": [
+              {
+                "name": "q",
+                "data_source": "metrics",
+                "query": "avg:system.processes.cpu.pct{purpose:netpath-demo-windows,command:agent.exe} by {variant}",
+                "aggregator": "avg"
+              }
+            ],
+            "formulas": [{"formula": "q"}],
+            "conditional_formats": [
+              {"comparator": ">", "value": 80, "palette": "white_on_red"},
+              {"comparator": ">", "value": 40, "palette": "white_on_yellow"},
+              {"comparator": ">=", "value": 0, "palette": "white_on_green"}
+            ]
+          }
+        ],
+        "autoscale": true,
+        "precision": 1
+      }
+    },
+    {
+      "id": 102,
+      "layout": {"x": 6, "y": 0, "width": 3, "height": 2},
+      "definition": {
+        "title": "agent.exe RSS (last value)",
+        "type": "query_value",
+        "requests": [
+          {
+            "response_format": "scalar",
+            "queries": [
+              {
+                "name": "q",
+                "data_source": "metrics",
+                "query": "avg:system.processes.mem.rss{purpose:netpath-demo-windows,command:agent.exe} by {variant}",
+                "aggregator": "last"
+              }
+            ],
+            "formulas": [{"formula": "q"}]
+          }
+        ],
+        "autoscale": true,
+        "precision": 0,
+        "custom_unit": "B"
+      }
+    },
+    {
+      "id": 103,
+      "layout": {"x": 9, "y": 0, "width": 3, "height": 2},
+      "definition": {
+        "title": "Goroutines (last value)",
+        "type": "query_value",
+        "requests": [
+          {
+            "response_format": "scalar",
+            "queries": [
+              {
+                "name": "q",
+                "data_source": "metrics",
+                "query": "avg:runtime.go.goroutines{purpose:netpath-demo-windows} by {variant}",
+                "aggregator": "last"
+              }
+            ],
+            "formulas": [{"formula": "q"}]
+          }
+        ],
+        "autoscale": true,
+        "precision": 0
+      }
+    },
+    {
+      "id": 200,
+      "layout": {"x": 0, "y": 2, "width": 12, "height": 1},
+      "definition": {
+        "type": "note",
+        "content": "## Host\nWhole-VM resource pressure. If the host pegs CPU or memory, no amount of agent tuning will help.",
+        "background_color": "blue",
+        "font_size": "14",
+        "text_align": "left",
+        "show_tick": false,
+        "has_padding": true
+      }
+    },
+    {
+      "id": 201,
+      "layout": {"x": 0, "y": 3, "width": 6, "height": 3},
+      "definition": {
+        "title": "Host CPU % (user + system)",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {"name": "user", "data_source": "metrics", "query": "avg:system.cpu.user{purpose:netpath-demo-windows} by {variant}"},
+              {"name": "system", "data_source": "metrics", "query": "avg:system.cpu.system{purpose:netpath-demo-windows} by {variant}"}
+            ],
+            "formulas": [
+              {"formula": "user", "alias": "user"},
+              {"formula": "system", "alias": "system"}
+            ],
+            "display_type": "area",
+            "style": {"palette": "dog_classic", "line_type": "solid", "line_width": "normal"}
+          }
+        ],
+        "yaxis": {"min": "0", "max": "100", "include_zero": true, "scale": "linear"},
+        "show_legend": true,
+        "legend_layout": "auto",
+        "legend_columns": ["avg", "max", "value"]
+      }
+    },
+    {
+      "id": 202,
+      "layout": {"x": 6, "y": 3, "width": 6, "height": 3},
+      "definition": {
+        "title": "Host memory used %",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {"name": "used",  "data_source": "metrics", "query": "avg:system.mem.used{purpose:netpath-demo-windows} by {variant}"},
+              {"name": "total", "data_source": "metrics", "query": "avg:system.mem.total{purpose:netpath-demo-windows} by {variant}"}
+            ],
+            "formulas": [{"formula": "100 * used / total", "alias": "mem used %"}],
+            "display_type": "line",
+            "style": {"palette": "dog_classic", "line_type": "solid", "line_width": "normal"}
+          }
+        ],
+        "yaxis": {"min": "0", "max": "100", "include_zero": true, "scale": "linear"},
+        "show_legend": true
+      }
+    },
+    {
+      "id": 300,
+      "layout": {"x": 0, "y": 6, "width": 12, "height": 1},
+      "definition": {
+        "type": "note",
+        "content": "## Agent processes\nPer-process cost. Watch agent.exe (synthetics + integrations) and system-probe.exe (NPM dataplane). Sub-/super-linear scaling here vs. test count is the answer to question 1 (cost per test).",
+        "background_color": "blue",
+        "font_size": "14",
+        "text_align": "left",
+        "show_tick": false,
+        "has_padding": true
+      }
+    },
+    {
+      "id": 301,
+      "layout": {"x": 0, "y": 7, "width": 6, "height": 3},
+      "definition": {
+        "title": "agent.exe CPU %",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {"name": "q", "data_source": "metrics", "query": "avg:system.processes.cpu.pct{purpose:netpath-demo-windows,command:agent.exe} by {variant}"}
+            ],
+            "formulas": [{"formula": "q"}],
+            "display_type": "line",
+            "style": {"palette": "dog_classic", "line_type": "solid", "line_width": "normal"}
+          }
+        ],
+        "show_legend": true
+      }
+    },
+    {
+      "id": 302,
+      "layout": {"x": 6, "y": 7, "width": 6, "height": 3},
+      "definition": {
+        "title": "agent.exe RSS",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {"name": "q", "data_source": "metrics", "query": "avg:system.processes.mem.rss{purpose:netpath-demo-windows,command:agent.exe} by {variant}"}
+            ],
+            "formulas": [{"formula": "q"}],
+            "display_type": "line",
+            "style": {"palette": "dog_classic", "line_type": "solid", "line_width": "normal"}
+          }
+        ],
+        "show_legend": true
+      }
+    },
+    {
+      "id": 303,
+      "layout": {"x": 0, "y": 10, "width": 6, "height": 3},
+      "definition": {
+        "title": "system-probe.exe CPU %",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {"name": "q", "data_source": "metrics", "query": "avg:system.processes.cpu.pct{purpose:netpath-demo-windows,command:system-probe.exe} by {variant}"}
+            ],
+            "formulas": [{"formula": "q"}],
+            "display_type": "line",
+            "style": {"palette": "dog_classic", "line_type": "solid", "line_width": "normal"}
+          }
+        ],
+        "show_legend": true
+      }
+    },
+    {
+      "id": 304,
+      "layout": {"x": 6, "y": 10, "width": 6, "height": 3},
+      "definition": {
+        "title": "system-probe.exe RSS",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {"name": "q", "data_source": "metrics", "query": "avg:system.processes.mem.rss{purpose:netpath-demo-windows,command:system-probe.exe} by {variant}"}
+            ],
+            "formulas": [{"formula": "q"}],
+            "display_type": "line",
+            "style": {"palette": "dog_classic", "line_type": "solid", "line_width": "normal"}
+          }
+        ],
+        "show_legend": true
+      }
+    },
+    {
+      "id": 400,
+      "layout": {"x": 0, "y": 13, "width": 12, "height": 1},
+      "definition": {
+        "type": "note",
+        "content": "## Network Path internals\nFrom the agent's own telemetry. p95 path duration trending up against a flat test count is the knee (question 2). Some metric names below are best-effort — verify against `agent status` if a widget is empty.",
+        "background_color": "blue",
+        "font_size": "14",
+        "text_align": "left",
+        "show_tick": false,
+        "has_padding": true
+      }
+    },
+    {
+      "id": 401,
+      "layout": {"x": 0, "y": 14, "width": 6, "height": 3},
+      "definition": {
+        "title": "Path test duration (p50 / p95 / p99)",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {"name": "p50", "data_source": "metrics", "query": "avg:datadog.network_path.path_test_duration.50percentile{purpose:netpath-demo-windows} by {variant}"},
+              {"name": "p95", "data_source": "metrics", "query": "avg:datadog.network_path.path_test_duration.95percentile{purpose:netpath-demo-windows} by {variant}"},
+              {"name": "p99", "data_source": "metrics", "query": "avg:datadog.network_path.path_test_duration.99percentile{purpose:netpath-demo-windows} by {variant}"}
+            ],
+            "formulas": [
+              {"formula": "p50", "alias": "p50"},
+              {"formula": "p95", "alias": "p95"},
+              {"formula": "p99", "alias": "p99"}
+            ],
+            "display_type": "line",
+            "style": {"palette": "warm", "line_type": "solid", "line_width": "normal"}
+          }
+        ],
+        "show_legend": true
+      }
+    },
+    {
+      "id": 402,
+      "layout": {"x": 6, "y": 14, "width": 6, "height": 3},
+      "definition": {
+        "title": "Path tests per second",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {"name": "q", "data_source": "metrics", "query": "sum:datadog.network_path.path_tests{purpose:netpath-demo-windows} by {variant}.as_rate()"}
+            ],
+            "formulas": [{"formula": "q", "alias": "paths/s"}],
+            "display_type": "line",
+            "style": {"palette": "cool", "line_type": "solid", "line_width": "normal"}
+          }
+        ],
+        "show_legend": true
+      }
+    },
+    {
+      "id": 403,
+      "layout": {"x": 0, "y": 17, "width": 6, "height": 3},
+      "definition": {
+        "title": "Network Path errors",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {"name": "q", "data_source": "metrics", "query": "sum:datadog.network_path.errors{purpose:netpath-demo-windows} by {variant}.as_rate()"}
+            ],
+            "formulas": [{"formula": "q", "alias": "errors/s"}],
+            "display_type": "bars",
+            "style": {"palette": "warm"}
+          }
+        ],
+        "show_legend": true
+      }
+    },
+    {
+      "id": 404,
+      "layout": {"x": 6, "y": 17, "width": 6, "height": 3},
+      "definition": {
+        "title": "Goroutines",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {"name": "q", "data_source": "metrics", "query": "avg:runtime.go.goroutines{purpose:netpath-demo-windows} by {variant}"}
+            ],
+            "formulas": [{"formula": "q"}],
+            "display_type": "line",
+            "style": {"palette": "purple", "line_type": "solid", "line_width": "normal"}
+          }
+        ],
+        "show_legend": true
+      }
+    },
+    {
+      "id": 500,
+      "layout": {"x": 0, "y": 20, "width": 12, "height": 1},
+      "definition": {
+        "type": "note",
+        "content": "## Run quality\nSynthetic test outcomes from the agent's perspective. Failed/late runs while host CPU still has headroom = agent-internal bottleneck (workers, scheduler, queue).",
+        "background_color": "blue",
+        "font_size": "14",
+        "text_align": "left",
+        "show_tick": false,
+        "has_padding": true
+      }
+    },
+    {
+      "id": 501,
+      "layout": {"x": 0, "y": 21, "width": 6, "height": 3},
+      "definition": {
+        "title": "Synthetics test runs (success vs. failed)",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {"name": "ok",   "data_source": "metrics", "query": "sum:synthetics.test_runs{purpose:netpath-demo-windows,status:success} by {variant}.as_rate()"},
+              {"name": "fail", "data_source": "metrics", "query": "sum:synthetics.test_runs{purpose:netpath-demo-windows,status:failed} by {variant}.as_rate()"}
+            ],
+            "formulas": [
+              {"formula": "ok",   "alias": "success/s"},
+              {"formula": "fail", "alias": "failed/s"}
+            ],
+            "display_type": "line",
+            "style": {"palette": "dog_classic", "line_type": "solid", "line_width": "normal"}
+          }
+        ],
+        "show_legend": true
+      }
+    },
+    {
+      "id": 502,
+      "layout": {"x": 6, "y": 21, "width": 6, "height": 3},
+      "definition": {
+        "title": "Configured tests (from check telemetry)",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {"name": "q", "data_source": "metrics", "query": "avg:datadog.network_path.scheduler.scheduled_paths{purpose:netpath-demo-windows} by {variant}"}
+            ],
+            "formulas": [{"formula": "q", "alias": "scheduled paths"}],
+            "display_type": "line",
+            "style": {"palette": "cool", "line_type": "solid", "line_width": "normal"}
+          }
+        ],
+        "show_legend": true
+      }
+    }
+  ],
+  "template_variables": [],
+  "layout_type": "ordered",
+  "reflow_type": "fixed",
+  "notify_list": [],
+  "is_read_only": false
+}

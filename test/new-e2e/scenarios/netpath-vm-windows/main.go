@@ -40,14 +40,16 @@ var connGenScript string
 var defaultNetworkPathIntegration string
 
 const (
-	configNamespace       = "netpath"
-	defaultSite           = "datadoghq.com"
-	defaultInstanceType   = "t3.xlarge"
-	defaultName           = "netpath-vm-windows"
-	defaultRootVolumeGiB  = 60
-	defaultWorkers        = 4
-	defaultAgentLatestMSI = "https://s3.amazonaws.com/ddagent-windows-stable/datadog-agent-7-latest.amd64.msi"
-	agentVersionedMSITmpl = "https://s3.amazonaws.com/ddagent-windows-stable/datadog-agent-%s-1-x86_64.msi"
+	configNamespace      = "netpath"
+	defaultSite          = "datadoghq.com"
+	defaultInstanceType  = "t3.xlarge"
+	defaultName          = "netpath-vm-windows"
+	defaultRootVolumeGiB = 60
+	defaultWorkers       = 4
+
+	// Datadog Installer bootstrap binary. Reads DD_API_KEY / DD_SITE /
+	// DD_TAGS / DD_AGENT_VERSION (when supported) from the environment.
+	datadogInstallerURL = "https://install.datadoghq.com/datadog-installer-x86_64.exe"
 
 	// SSM public parameter for the latest Windows Server 2022 English Full Base AMI.
 	windows2022AMIParameter = "/aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base"
@@ -84,7 +86,7 @@ func run(ctx *pulumi.Context) error {
 	instanceType := getOr(cfg, "instanceType", defaultInstanceType)
 	targets := getOr(cfg, "targets", defaultTargets)
 	tagsCSV := strings.Join(splitAndTrim(cfg.Get("tags"), ","), ",")
-	agentMSIURL := resolveAgentMSIURL(cfg.Get("agentVersion"))
+	agentVersion := strings.TrimSpace(cfg.Get("agentVersion"))
 	rootVolumeGiB := getIntOr(cfg, "rootVolumeSizeGiB", defaultRootVolumeGiB)
 	workers := getIntOr(cfg, "workers", defaultWorkers)
 
@@ -173,7 +175,7 @@ func run(ctx *pulumi.Context) error {
 			apiKey:               key,
 			site:                 site,
 			tagsCSV:              tagsCSV,
-			agentMSIURL:          agentMSIURL,
+			agentVersion:         agentVersion,
 			crowdstrikeMSIURL:    csURL,
 			crowdstrikeCID:       cid,
 			targets:              targets,
@@ -215,7 +217,7 @@ type userDataInputs struct {
 	apiKey               string
 	site                 string
 	tagsCSV              string
-	agentMSIURL          string
+	agentVersion         string // empty = latest (installer default)
 	crowdstrikeMSIURL    string
 	crowdstrikeCID       string
 	targets              string
@@ -242,7 +244,7 @@ function FromB64([string]$s) {
 $apiKey           = FromB64 '%s'
 $site             = FromB64 '%s'
 $tagsCSV          = FromB64 '%s'
-$agentMsiUrl      = FromB64 '%s'
+$agentVersion     = FromB64 '%s'
 $csMsiUrl         = FromB64 '%s'
 $csCid            = FromB64 '%s'
 
@@ -271,15 +273,20 @@ if ($csMsiUrl -and $csCid) {
     }
 }
 
-# --- Datadog Agent (pinned via $agentMsiUrl) ---
-$ddInstaller = 'C:\Windows\Temp\datadog-agent.msi'
-Invoke-WebRequest -Uri $agentMsiUrl -OutFile $ddInstaller -UseBasicParsing
-$ddLog  = 'C:\Windows\Temp\datadog-agent-install.log'
-$ddArgs = @('/qn','/norestart','/i', $ddInstaller, "APIKEY=$apiKey", "SITE=$site", '/L*v', $ddLog)
-if ($tagsCSV) { $ddArgs += "TAGS=$tagsCSV" }
-$proc = Start-Process -FilePath msiexec.exe -Wait -PassThru -ArgumentList $ddArgs
-if ($proc.ExitCode -ne 0) {
-    throw "Datadog Agent install failed (exit $($proc.ExitCode)); see $ddLog"
+# --- Datadog Agent (via Datadog Installer bootstrap binary) ---
+# Env vars drive the install. DD_AGENT_VERSION may or may not be honored
+# depending on installer build; harmless when not — defaults to latest.
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+$env:DD_API_KEY = $apiKey
+$env:DD_SITE    = $site
+if ($tagsCSV)      { $env:DD_TAGS          = $tagsCSV }
+if ($agentVersion) { $env:DD_AGENT_VERSION = $agentVersion }
+
+$ddInstaller = 'C:\Windows\SystemTemp\datadog-installer-x86_64.exe'
+(New-Object System.Net.WebClient).DownloadFile('%s', $ddInstaller)
+& $ddInstaller
+if ($LASTEXITCODE -ne 0) {
+    throw "Datadog installer failed with exit code $LASTEXITCODE"
 }
 
 # --- Overwrite agent configs with our network-path-aware versions ---
@@ -311,7 +318,7 @@ Stop-Transcript
 		b64(in.apiKey),
 		b64(in.site),
 		b64(in.tagsCSV),
-		b64(in.agentMSIURL),
+		b64(in.agentVersion),
 		b64(in.crowdstrikeMSIURL),
 		b64(in.crowdstrikeCID),
 		b64(in.targets),
@@ -319,6 +326,7 @@ Stop-Transcript
 		b64(datadogYAML),
 		b64(systemProbeYAML),
 		b64(in.scheduledIntegration),
+		datadogInstallerURL,
 	)
 }
 
@@ -339,6 +347,12 @@ func buildDatadogYAML(apiKey, site, tagsCSV string, workers int) string {
 	// network_path drives both the scheduled (integration) and dynamic
 	// (connections_monitoring) path tests. synthetics.collector.enabled
 	// is what lets the org's synthetic Network Path tests target this host.
+	//
+	// telemetry / internal_profiling / process_config are on by default —
+	// this scenario is built for perf testing the agent under synthetic
+	// Network Path load, and those three blocks expose the internal
+	// scheduler metrics, CPU/heap profiles, and per-process CPU/RAM
+	// time series needed to characterize the resource cost.
 	fmt.Fprintf(&b, `network_path:
   connections_monitoring:
     enabled: true
@@ -350,18 +364,16 @@ func buildDatadogYAML(apiKey, site, tagsCSV string, workers int) string {
 synthetics:
   collector:
     enabled: true
+telemetry:
+  enabled: true
+  checks: "*"
+internal_profiling:
+  enabled: true
+process_config:
+  process_collection:
+    enabled: true
 `, workers)
 	return b.String()
-}
-
-// resolveAgentMSIURL returns the public stable MSI URL for the requested
-// agent version. Empty version → latest; otherwise the version-pinned URL.
-func resolveAgentMSIURL(version string) string {
-	version = strings.TrimSpace(version)
-	if version == "" {
-		return defaultAgentLatestMSI
-	}
-	return fmt.Sprintf(agentVersionedMSITmpl, version)
 }
 
 func b64(s string) string {

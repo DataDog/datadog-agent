@@ -35,7 +35,7 @@ secrets). `pulumi config` lists everything currently set on the active stack.
 | `netpath:enableScheduled`    | No        | `true`                                      | Boolean. `false` skips the `network_path` integration entirely.|
 | `netpath:scheduledConfig`    | No        | embedded `assets/network_path.yaml`         | Override the integration YAML (5 default targets — see assets).|
 | `netpath:workers`            | No        | `4`                                         | `network_path.collector.workers` in `datadog.yaml`.            |
-| `netpath:agentVersion`       | No        | (latest)                                    | e.g. `7.55.0`. Empty = `datadog-agent-7-latest.amd64.msi`.     |
+| `netpath:agentVersion`       | No        | (latest)                                    | Exported as `DD_AGENT_VERSION` for the installer. Honored only when the installer build supports it; otherwise ignored (always latest). |
 | `netpath:crowdstrikeMsiUrl`  | No        | —                                           | Use `--secret`. Presigned S3 URL to `FalconSensor_Windows.msi`.|
 | `netpath:crowdstrikeCid`     | No        | —                                           | Use `--secret`. Falcon CID. Required iff `crowdstrikeMsiUrl` is set. |
 
@@ -55,8 +55,9 @@ install step is skipped entirely.
   1. Drops `C:\ProgramData\Datadog\conn-gen-targets.txt` and `conn-gen.ps1`.
   2. If `crowdstrikeMsiUrl` + `crowdstrikeCid` are set, downloads the Falcon
      MSI and installs it silently with the given CID.
-  3. Downloads the requested Datadog Agent MSI and installs it silently with
-     `APIKEY`, `SITE`, and (optionally) `TAGS`.
+  3. Downloads `datadog-installer-x86_64.exe` from `install.datadoghq.com`
+     and runs it with `DD_API_KEY`, `DD_SITE`, `DD_TAGS`, and
+     `DD_AGENT_VERSION` (when set) in the environment.
   4. Overwrites `C:\ProgramData\Datadog\datadog.yaml` with our
      network-path-aware version (`connections_monitoring.enabled: true`,
      `synthetics.collector.enabled: true`, tunable `workers`).
@@ -66,9 +67,10 @@ install step is skipped entirely.
   7. Restarts the `datadogagent` and `datadog-system-probe` services.
   8. Registers a `conn-gen` scheduled task that runs every 1 minute as SYSTEM.
 
-The full bootstrap transcript lives at `C:\Windows\Temp\bootstrap.log` and
-MSI install logs at `C:\Windows\Temp\datadog-agent-install.log` /
-`falcon-install.log`.
+The full bootstrap transcript lives at `C:\Windows\Temp\bootstrap.log`.
+The Falcon MSI install (if enabled) logs to
+`C:\Windows\Temp\falcon-install.log`. The Datadog installer writes its own
+logs under `C:\ProgramData\Datadog\logs\` / `C:\ProgramData\Datadog Installer\`.
 
 ## Prerequisites
 
@@ -192,9 +194,12 @@ pulumi stack rm us1-prod   # only if you want to drop the stack itself
 - The instance has a public IP for outbound (Datadog intake, conn-gen
   targets, CrowdStrike cloud) but **no inbound rules at all**. SSM Session
   Manager works outbound-only via the SSM agent baked into the Windows AMI.
-- The Datadog Agent MSI is pulled directly from the public
-  `ddagent-windows-stable` bucket; the install is unauthenticated. Set
-  `netpath:agentVersion` to pin a specific build.
+- The Datadog Agent is installed via the Datadog Installer
+  (`install.datadoghq.com/datadog-installer-x86_64.exe`). Version pinning is
+  best-effort: `netpath:agentVersion` is exported as `DD_AGENT_VERSION`, which
+  the installer honors only on builds that support it. If you need guaranteed
+  pinning, switch back to direct MSI install on the public
+  `ddagent-windows-stable` bucket.
 - The CrowdStrike MSI is whatever you point at — the script trusts the
   presigned URL contents. Make sure you're pointing at the right `n-X` ring
   for your tenant.
