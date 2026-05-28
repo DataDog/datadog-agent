@@ -811,6 +811,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")
 
+	// Generic resources configuration
+	bindEnvAndSetLogsConfigKeys(config, "genresources.")
+
 	// Synthetics configuration
 	config.BindEnvAndSetDefault("synthetics.collector.enabled", false)
 	config.BindEnvAndSetDefault("synthetics.collector.workers", 4)
