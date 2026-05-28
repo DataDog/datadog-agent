@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/wI2L/jsondiff"
@@ -447,22 +448,59 @@ func containerHasReadonlyRootfs(container corev1.Container) bool {
 	return false
 }
 
-func (ci *CWSInstrumentation) hasReadonlyRootfs(pod *corev1.Pod, container string) bool {
+func findContainerByName(pod *corev1.Pod, container string) *corev1.Container {
 	// check in the init containers
-	for _, c := range pod.Spec.InitContainers {
+	for i, c := range pod.Spec.InitContainers {
 		if c.Name == container {
-			return containerHasReadonlyRootfs(c)
+			return &pod.Spec.InitContainers[i]
 		}
 	}
 
 	// check the other containers
-	for _, c := range pod.Spec.Containers {
+	for i, c := range pod.Spec.Containers {
 		if c.Name == container {
-			return containerHasReadonlyRootfs(c)
+			return &pod.Spec.Containers[i]
 		}
 	}
+	return nil
+}
 
-	return false
+func volumeMountContainsPath(mountPath, target string) bool {
+	mountPath = filepath.Clean(mountPath)
+	target = filepath.Clean(target)
+	if mountPath == target {
+		return true
+	}
+	if mountPath == "/" {
+		return true
+	}
+	return strings.HasPrefix(target, mountPath+"/")
+}
+
+func (ci *CWSInstrumentation) isDirectoryReadOnly(pod *corev1.Pod, containerName, directory string) bool {
+	container := findContainerByName(pod, containerName)
+	if container == nil {
+		return true
+	}
+	// find the most specific VolumeMount that contains the directory
+	var matched *corev1.VolumeMount
+	matchedLen := -1
+	for i, mnt := range container.VolumeMounts {
+		mountPath := filepath.Clean(mnt.MountPath)
+		if !volumeMountContainsPath(mountPath, directory) {
+			continue
+		}
+		if len(mountPath) > matchedLen {
+			matchedLen = len(mountPath)
+			matched = &container.VolumeMounts[i]
+		}
+	}
+	// if we found a VolumeMount, check its ReadOnly flag
+	if matched != nil {
+		return matched.ReadOnly
+	}
+	// otherwise, fall back to the container's SecurityContext
+	return containerHasReadonlyRootfs(*container)
 }
 
 func (ci *CWSInstrumentation) getPod(apiClient kubernetes.Interface, name string, ns string) (*corev1.Pod, error) {
@@ -543,6 +581,14 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 
 	var cwsInstrumentationRemotePath string
 
+	// check if the input container exists, or select the default one to which the user will be redirected
+	container, err := podcmd.FindOrDefaultContainerByName(pod, exec.Container, true, nil)
+	if err != nil {
+		log.Errorf("Ignoring exec request into %s: invalid container: %v", mutatecommon.PodString(pod), err)
+		metrics.CWSExecMutationAttempts.Inc(ci.mode.String(), "false", cwsInvalidInputContainerReason)
+		return false, errors.New(metrics.InvalidInput)
+	}
+
 	switch ci.mode {
 	case InitContainer:
 		cwsInstrumentationRemotePath = filepath.Join(cwsMountPath, "cws-instrumentation")
@@ -566,10 +612,10 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 			}
 			cwsInstrumentationRemotePath = filepath.Join(cwsMountPath, cwsInstrumentationRemotePath)
 		} else {
-			// check if the target pod has a read only filesystem
-			if readOnly := ci.hasReadonlyRootfs(pod, exec.Container); readOnly {
+			// if we're not using a shared volume, we need to make sure the directory is writable
+			if ci.isDirectoryReadOnly(pod, container.Name, ci.directoryForRemoteCopy) {
 				// readonly rootfs containers can't be instrumented
-				log.Errorf("Ignoring exec request into %s, container %s has read only rootfs. Try enabling admission_controller.cws_instrumentation.remote_copy.mount_volume", mutatecommon.PodString(pod), exec.Container)
+				log.Errorf("Ignoring exec request into %s, directory %q is not writable in container %s that has readonly rootfs. Try enabling admission_controller.cws_instrumentation.remote_copy.mount_volume", mutatecommon.PodString(pod), ci.directoryForRemoteCopy, container.Name)
 				metrics.CWSExecMutationAttempts.Inc(ci.mode.String(), "false", cwsReadonlyFilesystemReason)
 				return false, errors.New(metrics.InvalidInput)
 			}
@@ -595,14 +641,6 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 		if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
 			log.Errorf("Ignoring exec request into %s: cannot exec into a container in a completed pod; current phase is %s", mutatecommon.PodString(pod), pod.Status.Phase)
 			metrics.CWSExecMutationAttempts.Inc(ci.mode.String(), "false", cwsCompletedPodReason)
-			return false, errors.New(metrics.InvalidInput)
-		}
-
-		// check if the input container exists, or select the default one to which the user will be redirected
-		container, err := podcmd.FindOrDefaultContainerByName(pod, exec.Container, true, nil)
-		if err != nil {
-			log.Errorf("Ignoring exec request into %s: invalid container: %v", mutatecommon.PodString(pod), err)
-			metrics.CWSExecMutationAttempts.Inc(ci.mode.String(), "false", cwsInvalidInputContainerReason)
 			return false, errors.New(metrics.InvalidInput)
 		}
 
