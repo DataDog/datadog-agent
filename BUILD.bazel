@@ -599,7 +599,6 @@ exports_files(glob(
 # gazelle:exclude pkg/snmp/devicededuper
 # gazelle:exclude pkg/snmp/snmpparse
 # gazelle:exclude pkg/status/clusteragent
-# gazelle:exclude pkg/status/collector
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
 # gazelle:exclude pkg/system-probe/api/module
 # gazelle:exclude pkg/util/cloudproviders/kubernetes
