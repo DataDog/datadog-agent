@@ -332,6 +332,10 @@ func New() *Config {
 
 	if err := structure.UnmarshalKey(cfg, sysconfig.FullKeyPath(netNS, "dns_monitoring_ports"), &c.DNSMonitoringPortList); err != nil {
 		log.Warnf("failed to parse dns_monitoring_ports: %v", err)
+		// Clear any partial state the unmarshaler may have written (e.g.
+		// a single-element [0] from a failed string-to-int conversion) so
+		// the len == 0 fallback below restores the documented default.
+		c.DNSMonitoringPortList = nil
 	}
 
 	if len(c.DNSMonitoringPortList) == 0 {

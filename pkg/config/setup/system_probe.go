@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -200,6 +201,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("system_probe_config.max_dns_stats", 20000)
 	cfg.BindEnvAndSetDefault("system_probe_config.dns_timeout_in_s", 15)
 	cfg.BindEnvAndSetDefault("network_config.dns_monitoring_ports", []int{53})
+	pkgconfighelper.ParseEnvSplitCommaAndSpace("network_config.dns_monitoring_ports", cfg)
 
 	cfg.BindEnvAndSetDefault("system_probe_config.enable_conntrack", true)
 	cfg.BindEnvAndSetDefault("system_probe_config.conntrack_max_state_size", 65536*2)

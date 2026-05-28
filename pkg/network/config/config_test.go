@@ -599,4 +599,42 @@ func TestDNSMonitoringPorts(t *testing.T) {
 		cfg := New()
 		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
 	})
+
+	t.Run("via ENV variable - space-separated", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "1 2 3 4 5 6 7 53")
+		cfg := New()
+		assert.Equal(t, []int{1, 2, 3, 4, 5, 6, 7, 53}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via ENV variable - comma-separated", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53,5353,8053")
+		cfg := New()
+		assert.Equal(t, []int{53, 5353, 8053}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via ENV variable - mixed comma and space", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53, 5353 8053")
+		cfg := New()
+		assert.Equal(t, []int{53, 5353, 8053}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via ENV variable - single port", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "5353")
+		cfg := New()
+		assert.Equal(t, []int{5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via ENV variable - invalid content falls back to default", func(t *testing.T) {
+		// Non-numeric content fails int conversion; the config layer must
+		// clear partial state so the [53] fallback fires rather than leaving
+		// a [0] artifact that would silently break the BPF filter.
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "not-a-port")
+		cfg := New()
+		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
+	})
 }
