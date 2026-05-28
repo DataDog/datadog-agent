@@ -21,7 +21,7 @@ import (
 
 const (
 	// ActionTTL is how long actions are valid for execution
-	ActionTTL = 1 * time.Minute
+	ActionTTL = 2 * time.Minute
 	// RecordRetentionTTL is how long action records are kept in memory (24 hours)
 	// This allows for inspection and debugging of executed actions
 	RecordRetentionTTL = 24 * time.Hour

@@ -477,9 +477,6 @@ func start(log log.Component,
 		if config.GetBool("autoscaling.cluster.enabled") {
 			products = append(products, state.ProductClusterAutoscalingValues)
 		}
-		if config.GetBool("kubeactions.enabled") {
-			products = append(products, state.ProductK8SActions)
-		}
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
 			products = append(products, state.ProductGradualRollout)
 		}
@@ -496,6 +493,23 @@ func start(log log.Component,
 			rcClient.Start()
 			defer func() {
 				rcClient.Close()
+			}()
+		}
+	}
+
+	// Dedicated RC client for K8S_ACTIONS. Isolates its pollLoop from the
+	// shared client (autoscaling, APM tracing, agent tasks, etc.) so a slow
+	// listener on the leader cannot delay action delivery past ActionTTL.
+	var rcClientKubeActions *rcclient.Client
+	if rcEnabled && isSet && config.GetBool("kubeactions.enabled") {
+		var err error
+		rcClientKubeActions, err = initializeRemoteConfigClient(rcserv, config, clusterName, clusterID, state.ProductK8SActions)
+		if err != nil {
+			log.Errorf("Failed to start dedicated remote-config client for K8S_ACTIONS: %v", err)
+		} else {
+			rcClientKubeActions.Start()
+			defer func() {
+				rcClientKubeActions.Close()
 			}()
 		}
 	}
@@ -586,12 +600,12 @@ func start(log log.Component,
 	// Kubernetes Actions
 	var kubeactionsRetriever *kubeactions.ConfigRetriever
 	if config.GetBool("kubeactions.enabled") {
-		if rcClient == nil {
+		if rcClientKubeActions == nil {
 			return errors.New("remote config is disabled or failed to initialize, remote config is a required dependency for kubeactions")
 		}
 		log.Infof("[KubeActions] Starting with cluster_id=%s, cluster_name=%s", clusterID, clusterName)
 
-		if kubeactionsRetriever, err = kubeactions.Setup(mainCtx, apiCl.Cl, clusterName, clusterID, le.IsLeader, rcClient, epForwarder); err != nil {
+		if kubeactionsRetriever, err = kubeactions.Setup(mainCtx, apiCl.Cl, clusterName, clusterID, le.IsLeader, rcClientKubeActions, epForwarder); err != nil {
 			return fmt.Errorf("Error while starting kubernetes actions: %v", err)
 		}
 		log.Info("Kubernetes actions subsystem started successfully")
