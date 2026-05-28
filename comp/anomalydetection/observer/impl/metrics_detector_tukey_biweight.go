@@ -215,22 +215,22 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 			}
 
 			mergeOccurred := status.pointCount == state.lastProcessedCount && status.writeGeneration != state.lastWriteGen
-				if status.pointCount <= state.lastProcessedCount && !mergeOccurred {
-					continue
-				}
-				startTime := state.lastProcessedTime
-				countIncreased := status.pointCount > state.lastProcessedCount
-				prefixCount := state.lastProcessedCount
-				if countIncreased {
-					prefixCount = storage.PointCountUpTo(meta.Ref, state.lastProcessedTime)
-				}
-				cursorBucketChangedWithAppend := countIncreased && status.writeGeneration != state.lastWriteGen &&
-					prefixCount == state.lastProcessedCount && d.cursorPointChanged(storage, meta.Ref, agg, state)
-				if mergeOccurred || prefixCount > state.lastProcessedCount || cursorBucketChangedWithAppend {
-					state = &tbSeriesState{}
-					d.series[sk] = state
-					startTime = 0
-				}
+			if status.pointCount <= state.lastProcessedCount && !mergeOccurred {
+				continue
+			}
+			startTime := state.lastProcessedTime
+			countIncreased := status.pointCount > state.lastProcessedCount
+			prefixCount := state.lastProcessedCount
+			if countIncreased {
+				prefixCount = storage.PointCountUpTo(meta.Ref, state.lastProcessedTime)
+			}
+			cursorBucketChangedWithAppend := countIncreased && status.writeGeneration != state.lastWriteGen &&
+				prefixCount == state.lastProcessedCount && d.cursorPointChanged(storage, meta.Ref, agg, state)
+			if mergeOccurred || prefixCount > state.lastProcessedCount || cursorBucketChangedWithAppend {
+				state = &tbSeriesState{}
+				d.series[sk] = state
+				startTime = 0
+			}
 
 			var seriesMeta *observer.Series
 			pointsSeen := false

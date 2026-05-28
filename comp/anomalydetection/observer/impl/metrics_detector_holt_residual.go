@@ -259,22 +259,22 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 
 			// Replay-gate: skip when no new bucket or in-place merge is visible.
 			mergeOccurred := status.pointCount == state.lastProcessedCount && status.writeGeneration != state.lastWriteGen
-				if status.pointCount <= state.lastProcessedCount && !mergeOccurred {
-					continue
-				}
-				startTime := state.lastProcessedTime
-				countIncreased := status.pointCount > state.lastProcessedCount
-				prefixCount := state.lastProcessedCount
-				if countIncreased {
-					prefixCount = storage.PointCountUpTo(meta.Ref, state.lastProcessedTime)
-				}
-				cursorBucketChangedWithAppend := countIncreased && status.writeGeneration != state.lastWriteGen &&
-					prefixCount == state.lastProcessedCount && holtCursorPointChanged(storage, meta.Ref, agg, state)
-				if mergeOccurred || prefixCount > state.lastProcessedCount || cursorBucketChangedWithAppend {
-					state = d.newState()
-					d.series[sk] = state
-					startTime = 0
-				}
+			if status.pointCount <= state.lastProcessedCount && !mergeOccurred {
+				continue
+			}
+			startTime := state.lastProcessedTime
+			countIncreased := status.pointCount > state.lastProcessedCount
+			prefixCount := state.lastProcessedCount
+			if countIncreased {
+				prefixCount = storage.PointCountUpTo(meta.Ref, state.lastProcessedTime)
+			}
+			cursorBucketChangedWithAppend := countIncreased && status.writeGeneration != state.lastWriteGen &&
+				prefixCount == state.lastProcessedCount && holtCursorPointChanged(storage, meta.Ref, agg, state)
+			if mergeOccurred || prefixCount > state.lastProcessedCount || cursorBucketChangedWithAppend {
+				state = d.newState()
+				d.series[sk] = state
+				startTime = 0
+			}
 
 			anomalies, pointsSeen := d.ingestNewPoints(storage, meta.Ref, agg, state, startTime, dataTime)
 			for j := range anomalies {
