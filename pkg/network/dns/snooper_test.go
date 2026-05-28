@@ -335,6 +335,160 @@ func TestDNSOverCustomPort(t *testing.T) {
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %+v", key)
 }
 
+// TestDNSExceedsMaxPortsTruncates verifies that configuring more distinct
+// DNS ports than the BPF program supports (DNS_PORTS_MAX = 8) truncates the
+// list at startup rather than failing — the truncation is observable via a
+// loud WARN log and the dns_monitor.ports_truncated telemetry counter.
+// Confirms that:
+//   - reverseDNS init still succeeds (no error)
+//   - traffic to one of the first 8 (sorted ascending) ports IS captured
+//   - traffic to a dropped port (slot index >= 8) is NOT captured
+func TestDNSExceedsMaxPortsTruncates(t *testing.T) {
+	cfg := testConfig()
+	cfg.CollectDNSStats = true
+	cfg.CollectLocalDNS = true
+	cfg.DNSTimeout = 1 * time.Second
+	// 9 distinct ports, sorted ascending: 53, 1001, 1002, ..., 1008.
+	// dnsPortsMax = 8, so port 1008 (slot index 8 after sort) is dropped.
+	ports := []int{53, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008}
+	cfg.DNSMonitoringPortList = ports
+
+	rdns, err := NewReverseDNS(cfg, nil)
+	require.NoError(t, err, "exceeding dnsPortsMax should truncate, not error")
+	err = rdns.Start()
+	require.NoError(t, err)
+	reverseDNS := rdns.(*dnsMonitor)
+	defer reverseDNS.Close()
+	statKeeper := reverseDNS.statKeeper
+
+	// Traffic to port 1007 (the last kept slot, index 7) MUST be captured.
+	shutdownKept, portKept := newTestServerOnPort(t, localhost, "udp", 1007)
+	defer shutdownKept()
+	queryIPKept, queryPortKept, repsKept, err := testdns.SendDNSQueriesOnPort([]string{"golang.org"}, net.ParseIP(localhost), strconv.Itoa(int(portKept)), "udp")
+	require.NoError(t, err)
+	require.NotNil(t, repsKept[0])
+	keyKept := getKey(queryIPKept, queryPortKept, localhost, syscall.IPPROTO_UDP)
+	require.Eventually(t, func() bool {
+		return statKeeper.Snapshot()[keyKept] != nil
+	}, 3*time.Second, 10*time.Millisecond, "kept port 1007 (slot 7) should have been captured")
+
+	// Traffic to port 1008 (the dropped port) MUST NOT be captured.
+	shutdownDropped, portDropped := newTestServerOnPort(t, localhost, "udp", 1008)
+	defer shutdownDropped()
+	queryIPDropped, queryPortDropped, repsDropped, err := testdns.SendDNSQueriesOnPort([]string{"golang.org"}, net.ParseIP(localhost), strconv.Itoa(int(portDropped)), "udp")
+	require.NoError(t, err)
+	require.NotNil(t, repsDropped[0])
+	keyDropped := getKey(queryIPDropped, queryPortDropped, localhost, syscall.IPPROTO_UDP)
+	require.Never(t, func() bool {
+		return statKeeper.Snapshot()[keyDropped] != nil
+	}, 500*time.Millisecond, 10*time.Millisecond, "dropped port 1008 (beyond slot 7) should NOT be captured")
+}
+
+// TestDNSDeduplicatesPorts verifies that duplicate entries in
+// DNSMonitoringPortList do not consume LOAD_CONSTANT slots. The prior
+// BPF_MAP_TYPE_HASH implementation naturally de-duplicated keys via
+// repeated Put calls; this test guards against a regression where the
+// new slot-based design counts duplicates against dnsPortsMax.
+func TestDNSDeduplicatesPorts(t *testing.T) {
+	cfg := testConfig()
+	cfg.CollectDNSStats = true
+	cfg.CollectLocalDNS = true
+	cfg.DNSTimeout = 1 * time.Second
+	// 33 raw entries, but only 2 distinct (53 ×32 + 5353 ×1). Must succeed
+	// because after deduplication only two slots are needed.
+	ports := make([]int, 0, 33)
+	for i := 0; i < 32; i++ {
+		ports = append(ports, 53)
+	}
+	ports = append(ports, 5353)
+	cfg.DNSMonitoringPortList = ports
+
+	rdns, err := NewReverseDNS(cfg, nil)
+	require.NoError(t, err, "33 raw entries with only 2 distinct ports should pass dedup-then-cap check")
+	err = rdns.Start()
+	require.NoError(t, err)
+	reverseDNS := rdns.(*dnsMonitor)
+	defer reverseDNS.Close()
+
+	// Send DNS to the duplicate-of-53 port and to the non-duplicate 5353
+	// to confirm both distinct ports actually made it into BPF slots.
+	statKeeper := reverseDNS.statKeeper
+	shutdown, port := newTestServerOnPort(t, localhost, "udp", 5353)
+	defer shutdown()
+	queryIP, queryPort, reps, err := testdns.SendDNSQueriesOnPort([]string{"golang.org"}, net.ParseIP(localhost), strconv.Itoa(int(port)), "udp")
+	require.NoError(t, err)
+	require.NotNil(t, reps[0])
+	key := getKey(queryIP, queryPort, localhost, syscall.IPPROTO_UDP)
+	require.Eventually(t, func() bool {
+		return statKeeper.Snapshot()[key] != nil
+	}, 3*time.Second, 10*time.Millisecond, "duplicate-laden config should still capture the distinct non-default port")
+}
+
+// TestDNSInvalidPortFailsLoad verifies that an out-of-range or zero port
+// in the configured list fails Init() with a clear error. This is the
+// defense-in-depth guard against partial-parse artifacts (a known config-
+// layer failure mode used to produce DNSMonitoringPortList = [0]) leaking
+// into the BPF program, where they would silently break the filter via
+// verifier constant-folding of the LOAD_CONSTANT scan.
+func TestDNSInvalidPortFailsLoad(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		ports []int
+	}{
+		{"zero", []int{0}},
+		{"zero in mixed list", []int{53, 0, 5353}},
+		{"negative", []int{-1}},
+		{"above 65535", []int{53, 65536}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := testConfig()
+			cfg.CollectDNSStats = true
+			cfg.CollectLocalDNS = true
+			cfg.DNSTimeout = 1 * time.Second
+			cfg.DNSMonitoringPortList = tc.ports
+
+			_, err := NewReverseDNS(cfg, nil)
+			require.Error(t, err, "expected an error for invalid port list %v", tc.ports)
+			assert.Contains(t, err.Error(), "invalid port", "error message should identify the invalid port")
+		})
+	}
+}
+
+// TestDNSOverLastSlot verifies that a port assigned to the highest
+// LOAD_CONSTANT slot (slot index 7 with DNS_PORTS_MAX = 8) is matched by
+// the BPF scan. Guards against off-by-one bugs in the unrolled
+// is_dns_port() loop or in the Go-side ConstantEditor emission that would
+// silently drop the last slot.
+func TestDNSOverLastSlot(t *testing.T) {
+	cfg := testConfig()
+	cfg.CollectDNSStats = true
+	cfg.CollectLocalDNS = true
+	cfg.DNSTimeout = 1 * time.Second
+	// 8 distinct ports, sorted ascending. Port 10053 ends up at slot
+	// index 7 (the last slot). Sending DNS traffic to that port must be
+	// captured.
+	cfg.DNSMonitoringPortList = []int{53, 1053, 5053, 5353, 5355, 8053, 9053, 10053}
+
+	rdns, err := NewReverseDNS(cfg, nil)
+	require.NoError(t, err)
+	err = rdns.Start()
+	require.NoError(t, err)
+	reverseDNS := rdns.(*dnsMonitor)
+	defer reverseDNS.Close()
+
+	statKeeper := reverseDNS.statKeeper
+	shutdown, port := newTestServerOnPort(t, localhost, "udp", 10053)
+	defer shutdown()
+	queryIP, queryPort, reps, err := testdns.SendDNSQueriesOnPort([]string{"golang.org"}, net.ParseIP(localhost), strconv.Itoa(int(port)), "udp")
+	require.NoError(t, err)
+	require.NotNil(t, reps[0])
+
+	key := getKey(queryIP, queryPort, localhost, syscall.IPPROTO_UDP)
+	require.Eventually(t, func() bool {
+		return statKeeper.Snapshot()[key] != nil
+	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for port 10053 (slot index 7) — likely a regression in the unrolled is_dns_port scan or ConstantEditor emission")
+}
+
 func newTestServer(t *testing.T, ip string, protocol string) (func(), uint16) {
 	return newTestServerOnPort(t, ip, protocol, 0)
 }

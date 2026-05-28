@@ -623,7 +623,14 @@ properties:
         items:
           type: number
         visibility: public
-        description: A list of ports that should be monitored for DNS traffic.
+        description: |-
+          A list of ports that should be monitored for DNS traffic.
+          At most 8 distinct ports are monitored. Duplicate entries are
+          de-duplicated before the limit is applied. Configurations with
+          more than 8 distinct ports are truncated to the first 8 sorted
+          ascending, with a WARN log naming the dropped ports. Each port
+          must be in the range 1-65535. Ports 80 and 443 are rejected to
+          avoid capturing high-volume non-DNS traffic.
         example: |2-
 
             - 53
