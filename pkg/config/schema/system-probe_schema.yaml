@@ -751,11 +751,11 @@ properties:
         tags: []
       enable_https_monitoring:
         node_type: setting
+        type: boolean
+        default: false
         env_vars:
         - DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        tags: []
       enable_protocol_classification:
         node_type: setting
         type: boolean
@@ -890,18 +890,16 @@ properties:
         default: true
       enable_connection_rollup:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: boolean
+        default: false
       enable_event_stream:
         node_type: setting
         type: boolean
         default: true
       enable_go_tls_support:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: boolean
+        default: false
       enable_http2_monitoring:
         node_type: setting
         type: boolean
@@ -916,9 +914,8 @@ properties:
         default: false
       enable_quantization:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: boolean
+        default: false
       enable_ring_buffers:
         node_type: setting
         type: boolean
@@ -1051,9 +1048,10 @@ properties:
         - golang_type:int
       max_concurrent_requests:
         node_type: setting
+        type: number
+        default: 0
         tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        - golang_type:int
       max_http_stats_buffered:
         node_type: setting
         type: number
@@ -1098,18 +1096,18 @@ properties:
         properties:
           enabled:
             node_type: setting
+            type: boolean
+            default: false
             env_vars:
             - DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            tags: []
           use_windows_service_name:
             node_type: setting
+            type: boolean
+            default: false
             env_vars:
             - DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            tags: []
       redis:
         node_type: section
         type: object
@@ -1170,9 +1168,8 @@ properties:
             properties:
               enabled:
                 node_type: setting
-                tags:
-                - TODO:fix-no-default
-                - TODO:fix-missing-type
+                type: boolean
+                default: false
   ping:
     node_type: section
     title: System Probe Ping Configuration
