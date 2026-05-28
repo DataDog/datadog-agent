@@ -25,13 +25,28 @@ BUILD_DIR=/opt/dd-build
 STAGING=$BUILD_DIR/staging
 
 # ── Agent source tree ─────────────────────────────────────────────────────────
-# AGENT_SRC is the directory containing the checked-out agent source code.
-# Defaults to the current working directory — assumes the script is invoked
-# from the datadog-agent source repo root. Override to point elsewhere:
-#   AGENT_SRC=/dd/datadog-agent AGENT_BUILD=1 ./build.sh
-# Distinct from EMBEDDED (/opt/datadog-agent/embedded), which is the final
-# install path baked into all binaries at configure time and must not change.
-AGENT_SRC=${AGENT_SRC:-$(pwd)}
+# AGENT_SRC is the directory containing the checked-out agent source code. It
+# is always derived here by walking up from the caller's script directory
+# ($SCRIPT_DIR, set by every stage and by build.sh before sourcing this file)
+# until a parent containing .git is found. Any value previously assigned to
+# AGENT_SRC is ignored; the walk is the single source of truth. Failure to
+# find .git anywhere up the tree is a fatal error — there is no fallback path.
+# Regular checkouts have .git as a directory, linked worktrees as a file, and
+# `[ -e ]` accepts both. Distinct from EMBEDDED (/opt/datadog-agent/embedded),
+# which is the final install path baked into all binaries at configure time
+# and must not change.
+: "${SCRIPT_DIR:?env.sh requires SCRIPT_DIR to be set by the caller before sourcing}"
+_dir=$SCRIPT_DIR
+while [ "$_dir" != "/" ] && [ ! -e "$_dir/.git" ]; do
+    _dir=$(dirname "$_dir")
+done
+if [ ! -e "$_dir/.git" ]; then
+    printf 'ERROR: env.sh could not find a .git ancestor of %s\n' "$SCRIPT_DIR" >&2
+    printf '       Run the build from a checkout of the datadog-agent source repo.\n' >&2
+    exit 1
+fi
+AGENT_SRC=$_dir
+unset _dir
 export AGENT_SRC
 
 # DESTDIR approach (critical — read before modifying):
@@ -46,6 +61,21 @@ export AGENT_SRC
 EMBEDDED=/opt/datadog-agent/embedded
 EMBEDDED_DESTDIR=$STAGING/opt/datadog-agent/embedded
 
+# Bootstrap $EMBEDDED as a symlink to $EMBEDDED_DESTDIR so that Python
+# binaries (pip, ensurepip, etc.) whose shebangs were baked at configure
+# time as `#!/opt/datadog-agent/embedded/bin/python3.13` resolve during
+# the build. Stage 02 used to own this, but its sentinel can mean a
+# cached run skips re-creating the link after /opt/datadog-agent is
+# deleted. Doing it here on every source ensures the symlink exists
+# whenever any stage runs. Idempotent: only writes if missing or wrong.
+if [ ! -L "$EMBEDDED" ] || [ "$(readlink "$EMBEDDED" 2>/dev/null)" != "$EMBEDDED_DESTDIR" ]; then
+    if [ -e "$EMBEDDED" ] && [ ! -L "$EMBEDDED" ]; then
+        rm -rf "$EMBEDDED"
+    fi
+    mkdir -p "$(dirname "$EMBEDDED")"
+    ln -sf "$EMBEDDED_DESTDIR" "$EMBEDDED"
+fi
+
 INTEGRATIONS_CORE=$BUILD_DIR/integrations-core
 WHEEL_CACHE=$BUILD_DIR/wheel-cache
 LIB_CACHE=$BUILD_DIR/lib-cache
@@ -56,18 +86,12 @@ NPROC=$(/usr/sbin/lsdev -Cc processor | wc -l | tr -d ' ')
 export BUILD_DIR STAGING EMBEDDED EMBEDDED_DESTDIR INTEGRATIONS_CORE WHEEL_CACHE LIB_CACHE NPROC
 
 # ── Agent version variables ───────────────────────────────────────────────────
-# AGENT_BRANCH, AGENT_VERSION, and AGENT_BUILD are required inputs.
-# They must be set in the caller's environment before sourcing this file.
-# AGENT_VRMF is derived here; it is the four-component installp version string.
+# AGENT_VERSION, AGENT_BUILD, and AGENT_VRMF must be set before sourcing this
+# file (build.sh sets them; standalone stage invocations must set them too).
+# Use ${VAR:-} (no-fail) so env.sh can be sourced under set -u. The individual
+# stage scripts validate via : "${AGENT_VERSION:?...}" after sourcing this file.
 
-# Use ${VAR:-} (no-fail) so env.sh can be sourced under set -u before the caller
-# validates AGENT_VERSION/AGENT_BUILD. The individual stage scripts call
-#   : "${AGENT_VERSION:?AGENT_VERSION must be set}"
-# after sourcing this file; that is where the empty-variable error is reported.
-# VRMF must be four pure integers (X.Y.Z.N) — strip any .gSHA suffix from AGENT_BUILD.
-AGENT_VRMF=$(printf '%s' "${AGENT_VERSION:-}" | sed 's/\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/').$(printf '%s' "${AGENT_BUILD:-}" | sed 's/\..*//')
-
-export AGENT_VERSION AGENT_BUILD AGENT_BRANCH AGENT_VRMF
+export AGENT_VERSION AGENT_BUILD AGENT_VRMF
 
 # ── Toolchain ─────────────────────────────────────────────────────────────────
 

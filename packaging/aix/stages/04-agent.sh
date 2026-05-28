@@ -125,7 +125,7 @@ log "agent binary build complete: $STAGING/opt/datadog-agent/bin/agent/agent-bin
 # Install the agent wrapper: sets LIBPATH/PATH so the binary works when invoked
 # directly (not just via SRC). The wrapper execs agent-bin, so the process is
 # replaced immediately — SRC PID tracking and signal handling are unaffected.
-cp "$(dirname "$0")/../agent-wrapper.sh" "$STAGING/opt/datadog-agent/bin/agent/agent"
+cp "$SCRIPT_DIR/../agent-wrapper.sh" "$STAGING/opt/datadog-agent/bin/agent/agent"
 chmod 755 "$STAGING/opt/datadog-agent/bin/agent/agent"
 log "agent wrapper installed at $STAGING/opt/datadog-agent/bin/agent/agent"
 
@@ -142,7 +142,7 @@ cp "$AGENT_SRC/bin/trace-agent/trace-agent" "$STAGING/opt/datadog-agent/embedded
 strip -X64 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
 log "trace-agent binary build complete: $STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
 
-cp "$(dirname "$0")/../trace-agent-wrapper.sh" "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
+cp "$SCRIPT_DIR/../trace-agent-wrapper.sh" "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
 chmod 755 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
 log "trace-agent wrapper installed at $STAGING/opt/datadog-agent/embedded/bin/trace-agent"
 

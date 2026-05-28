@@ -17,10 +17,12 @@
 #                   The build fails if invoke is unavailable or returns empty.
 #
 # VRMF (installp package version) is X.Y.Z.AGENT_BUILD — the pre/git suffix of
-# AGENT_VERSION is stripped by env.sh.
+# AGENT_VERSION is stripped below.
 # Package filename: datadog-agent-<AGENT_VERSION>-<AGENT_BUILD>.aix.ppc64.bff
 #
-# The agent source with full .git history must be at $AGENT_SRC (default: current working directory).
+# AGENT_SRC is resolved by env.sh: it walks up from the script directory until
+# it finds a .git ancestor (so this build.sh must live inside a checkout of
+# the datadog-agent repo).
 # All intermediate artifacts go under /opt/dd-build/.
 
 set -eu
@@ -28,22 +30,17 @@ set -eu
 PATH=/opt/go/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:$PATH
 export PATH
 
-# AGENT_SRC must be defined before env.sh is sourced so the .git check and
-# version auto-detection below can use it. Defaults to the current working
-# directory — assumes this script is invoked from the source repo root.
-AGENT_SRC=${AGENT_SRC:-$(pwd)}
-export AGENT_SRC
+# ── Source shared environment ─────────────────────────────────────────────────
+# env.sh resolves AGENT_SRC (walks up from $SCRIPT_DIR to find .git, exits 1
+# if none found) and exports every other shared variable.
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/lib/env.sh"
 
 if [ -z "${AGENT_BUILD:-}" ]; then
     printf 'ERROR: AGENT_BUILD must be set (e.g. AGENT_BUILD=1)\n' >&2
     printf '       This is the installp build counter and must increase with each release.\n' >&2
-    exit 1
-fi
-
-if [ ! -d "$AGENT_SRC/.git" ]; then
-    printf 'ERROR: %s/.git not found\n' "$AGENT_SRC" >&2
-    printf '       The source tree must include full git history.\n' >&2
-    printf '       Set AGENT_SRC to the agent source directory, or run this script from the source repo root.\n' >&2
     exit 1
 fi
 
@@ -56,6 +53,9 @@ if [ -z "${AGENT_VERSION:-}" ]; then
     fi
     printf 'INFO: AGENT_VERSION: %s\n' "$AGENT_VERSION" >&2
 fi
+
+AGENT_VRMF=$(printf '%s' "$AGENT_VERSION" | sed 's/\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/').$(printf '%s' "$AGENT_BUILD" | sed 's/\..*//')
+export AGENT_VERSION AGENT_VRMF
 
 # ── Check required tools ──────────────────────────────────────────────────────
 # Fail early with a clear message if a required build tool is missing.
@@ -99,12 +99,6 @@ check_aix_devel /opt/freeware/include/gdbm.h          gdbm-devel
 check_aix_devel /opt/freeware/lib/libgdbm.a           gdbm-devel
 check_aix_devel /opt/freeware/include/libxslt/xslt.h  libxslt-devel
 check_aix_devel /opt/freeware/lib/libxslt.a           libxslt-devel
-
-# ── Source shared environment ─────────────────────────────────────────────────
-
-SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-# shellcheck source=/dev/null
-. "$SCRIPT_DIR/lib/env.sh"
 
 # ── Bootstrap build directories ───────────────────────────────────────────────
 

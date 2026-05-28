@@ -94,7 +94,7 @@ log "Check configs installed from $DIST_CONFD"
 # __xlcxx_personality_v0 is available when pydantic_core (or any other C++
 # extension using libunwind) is imported.
 
-SITECUSTOMIZE_SRC="$(dirname "$0")/../sitecustomize.py"
+SITECUSTOMIZE_SRC="$SCRIPT_DIR/../sitecustomize.py"
 PYTHON_LIB_DIR="$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}"
 if [ ! -f "$SITECUSTOMIZE_SRC" ]; then
     log "ERROR: sitecustomize.py not found at $SITECUSTOMIZE_SRC"
@@ -145,7 +145,7 @@ mkdir -p "$SCRIPTS_DIR"
 # them when building the BFF on the same host that will run the agent).
 SCRIPTS_INSTALLED="$EMBEDDED/share/installp"
 mkdir -p "$SCRIPTS_INSTALLED"
-PKGSCRIPTS_SRC="$(dirname "$0")/../package-scripts"
+PKGSCRIPTS_SRC="$SCRIPT_DIR/../package-scripts"
 
 # Note: postrm is intentionally excluded. On AIX, installp removes tracked files
 # *before* running post-remove scripts, so a postrm stored at
