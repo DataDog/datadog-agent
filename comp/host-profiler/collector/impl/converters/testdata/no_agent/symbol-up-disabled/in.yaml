@@ -9,8 +9,8 @@ service:
       receivers:
       - profiling
       exporters:
-      - otlphttp
+      - otlp_http
 exporters:
-  otlphttp:
+  otlp_http:
     headers:
       dd-api-key: test-api-key

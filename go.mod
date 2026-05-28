@@ -204,7 +204,7 @@ require (
 	github.com/cloudflare/cbpfc v0.0.0-20260219140841-0661ad29132c
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/cgroups/v3 v3.1.3
-	github.com/containerd/containerd v1.7.31
+	github.com/containerd/containerd v1.7.32
 	github.com/containerd/containerd/api v1.9.0
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/typeurl/v2 v2.2.3
@@ -249,7 +249,7 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/mux v1.8.1
+	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gosnmp/gosnmp v1.38.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/h2non/filetype v1.1.3
@@ -258,7 +258,6 @@ require (
 	github.com/hashicorp/go-version v1.9.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/iceber/iouring-go v0.0.0-20230403020409-002cfd2e2a90
-	github.com/imdario/mergo v0.3.16
 	github.com/invopop/jsonschema v0.13.0
 	github.com/itchyny/gojq v0.12.19 // indirect
 	github.com/jackc/pgx/v5 v5.9.2
@@ -442,7 +441,7 @@ require (
 	code.cloudfoundry.org/rfc5424 v0.0.0-20201103192249-000122071b78 // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	cyphar.com/go-pathrs v0.2.1 // indirect
-	dario.cat/mergo v1.0.2 // indirect
+	dario.cat/mergo v1.0.2
 	filippo.io/edwards25519 v1.1.1 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20231105174938-2b5cbb29f3e2 // indirect
@@ -1213,13 +1212,21 @@ require (
 // TODO(songy23): remove this once https://github.com/kubernetes/apiserver/commit/b887c9ebecf558a2001fc5c5dbd5c87fd672500c is brought to agent
 replace go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0
 
-// containerd v1.7.30 (latest v1.x) uses runtime-spec types with int64 fields (not *int64).
-// runtime-spec v1.3.0 changed LinuxPids.Limit to *int64, breaking containerd v1.7.30.
-// containerd/cgroups/v3 v3.1.2 also expects *int64 (runtime-spec v1.3.0), so we must
-// downgrade both: pin runtime-spec to v1.2.0 (int64) and cgroups/v3 to v3.0.5 (also int64).
+// containerd v1.7.x and containerd/v2 v2.0.x use runtime-spec types with
+// int64 fields, but runtime-spec v1.3.0 changed LinuxPids.Limit to *int64,
+// breaking those containerd lines. containerd/cgroups/v3 v3.1.x also requires
+// runtime-spec v1.3.0, so we pin both back: runtime-spec to v1.2.0 and
+// cgroups/v3 to v3.0.5.
 replace github.com/opencontainers/runtime-spec => github.com/opencontainers/runtime-spec v1.2.0
 
 replace github.com/containerd/cgroups/v3 => github.com/containerd/cgroups/v3 v3.0.5
+
+// CVE-2026-46680: containerd/v2 is pulled in transitively (Trivy imports
+// containerd/v2/client, and the OPA fork brings in v2.1.x). v2.1.x is EOL
+// with no fix; pin to v2.0.9, which still uses runtime-spec v1.2.0 and so
+// matches the pin above. v2.2.4+ would force runtime-spec v1.3.0, conflicting
+// with that pin.
+replace github.com/containerd/containerd/v2 => github.com/containerd/containerd/v2 v2.0.9
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 
