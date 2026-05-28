@@ -274,21 +274,32 @@ log "cryptography==$CRYPTOGRAPHY_VERSION installed successfully"
 # ─── Step 5: pymqi (conditional — IBM MQ Client required) ─────────────────────
 #
 # pymqi is a C extension wrapping the IBM MQ C Client API. It is required by
-# the ibm_mq and ibm_ace checks. The MQ Client shared libraries (libmqm.so,
-# libmqmcs.so) are NOT bundled — they are a user-installed prerequisite on the
+# the ibm_mq and ibm_ace checks. The MQ Client shared libraries (libmqm.a,
+# libmqmcs.a) are NOT bundled — they are a user-installed prerequisite on the
 # target system. We skip gracefully if the build host does not have MQ headers.
+#
+# IBM MQ installs to /opt/mqm by default but some installations (e.g. the
+# AIX installp packages) land at /usr/mqm instead. We check both.
 
+MQ_HOME=""
 if [ -d /opt/mqm/inc ]; then
-    log "IBM MQ Client found at /opt/mqm — building pymqi"
     MQ_HOME=/opt/mqm
-    CFLAGS="$CFLAGS -I${MQ_HOME}/inc" \
-    LDFLAGS="$LDFLAGS -L${MQ_HOME}/lib64 -L${MQ_HOME}/lib -Wl,-brtl -lmqm" \
-        $PIP install --no-binary pymqi "pymqi==$PYMQI_VERSION"
-    log "pymqi installed successfully"
-else
-    log "WARNING: IBM MQ Client not found at /opt/mqm — skipping pymqi (ibm_mq/ibm_ace checks will not work)"
-    log "         Install IBM MQ Client 9.1 LTS from IBM Fix Central and re-run this stage to enable MQ checks."
+elif [ -d /usr/mqm/inc ]; then
+    MQ_HOME=/usr/mqm
 fi
+
+if [ -z "$MQ_HOME" ]; then
+    log "ERROR: IBM MQ Client not found at /opt/mqm or /usr/mqm."
+    log "       Install IBM MQ Client 9.1+ (mqm.base.runtime + mqm.base.sdk + mqm.client.rte)"
+    log "       from IBM Fix Central (9.x.x.x-IBM-MQC-AixPPC64) before running this stage."
+    exit 1
+fi
+
+log "IBM MQ Client found at $MQ_HOME — building pymqi==$PYMQI_VERSION"
+CFLAGS="$CFLAGS -I${MQ_HOME}/inc" \
+LDFLAGS="$LDFLAGS -L${MQ_HOME}/lib64 -L${MQ_HOME}/lib -Wl,-brtl -lmqm" \
+    $PIP install --no-binary pymqi "pymqi==$PYMQI_VERSION"
+log "pymqi==$PYMQI_VERSION installed successfully"
 
 # ─── Step 6: pyodbc (conditional — unixODBC headers required) ─────────────────
 #
