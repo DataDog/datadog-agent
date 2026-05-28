@@ -595,7 +595,6 @@ exports_files(glob(
 # gazelle:exclude pkg/system-probe/api/module
 # gazelle:exclude pkg/util/cloudproviders/kubernetes
 # gazelle:exclude pkg/util/cloudproviders/network
-# gazelle:exclude pkg/util/containers/metadata
 # gazelle:exclude pkg/util/containers/metrics/containerd
 # gazelle:exclude pkg/util/containers/metrics/docker
 # gazelle:exclude pkg/util/containers/metrics/kubelet
