@@ -9,6 +9,7 @@ package nvidia
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -182,6 +183,13 @@ func TestAllCollectorsWork(t *testing.T) {
 	}
 }
 
+func removeFromList(list []string, items ...string) []string {
+	list = slices.Clone(list)
+	return slices.DeleteFunc(list, func(item string) bool {
+		return slices.Contains(items, item)
+	})
+}
+
 func TestDisabledCollectors(t *testing.T) {
 	numCollectors := NumCollectors()
 	allCollectorNames := make([]string, 0, numCollectors)
@@ -193,54 +201,54 @@ func TestDisabledCollectors(t *testing.T) {
 		name                   string
 		disabledCollectors     []string
 		expectedCollectorCount int
-		expectedCollectorNames []CollectorName
-		unexpectedNames        []CollectorName
+		expectedCollectorNames []string
+		unexpectedNames        []string
 	}{
 		{
 			name:                   "no collectors disabled",
 			disabledCollectors:     []string{},
 			expectedCollectorCount: numCollectors,
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkPLR, nvlinkFEC},
+			expectedCollectorNames: allCollectorNames,
 		},
 		{
 			name:                   "disable gpm collector",
 			disabledCollectors:     []string{"gpm"},
 			expectedCollectorCount: numCollectors - 1,
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, deviceEvents, nvlinkPLR, nvlinkFEC},
-			unexpectedNames:        []CollectorName{gpm},
+			expectedCollectorNames: removeFromList(allCollectorNames, "gpm"),
+			unexpectedNames:        []string{"gpm"},
 		},
 		{
 			name:                   "disable multiple collectors",
 			disabledCollectors:     []string{"gpm", "fields"},
 			expectedCollectorCount: numCollectors - 2,
-			expectedCollectorNames: []CollectorName{stateless, sampling, deviceEvents, nvlinkPLR, nvlinkFEC},
-			unexpectedNames:        []CollectorName{gpm, field},
+			expectedCollectorNames: removeFromList(allCollectorNames, "gpm", "fields"),
+			unexpectedNames:        []string{"gpm", "fields"},
 		},
 		{
 			name:                   "disable nvlink PLR collector",
 			disabledCollectors:     []string{"nvlink_plr"},
 			expectedCollectorCount: numCollectors - 1,
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkFEC},
-			unexpectedNames:        []CollectorName{nvlinkPLR},
+			expectedCollectorNames: removeFromList(allCollectorNames, "nvlink_plr"),
+			unexpectedNames:        []string{"nvlink_plr"},
 		},
 		{
 			name:                   "disable nvlink FEC collector",
 			disabledCollectors:     []string{"nvlink_fec"},
 			expectedCollectorCount: numCollectors - 1,
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkPLR},
-			unexpectedNames:        []CollectorName{nvlinkFEC},
+			expectedCollectorNames: removeFromList(allCollectorNames, "nvlink_fec"),
+			unexpectedNames:        []string{"nvlink_fec"},
 		},
 		{
 			name:                   "disable all collectors",
 			disabledCollectors:     allCollectorNames,
 			expectedCollectorCount: 0,
-			expectedCollectorNames: []CollectorName{},
+			expectedCollectorNames: []string{},
 		},
 		{
 			name:                   "disable non-existent collector",
 			disabledCollectors:     []string{"non_existent"},
 			expectedCollectorCount: numCollectors,
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkPLR, nvlinkFEC},
+			expectedCollectorNames: slices.Clone(allCollectorNames),
 		},
 	}
 
@@ -286,13 +294,13 @@ func TestDisabledCollectors(t *testing.T) {
 			}
 
 			for _, expectedName := range tt.expectedCollectorNames {
-				require.True(t, collectorNames[expectedName],
+				require.True(t, collectorNames[CollectorName(expectedName)],
 					"expected collector %s to be created", expectedName)
 			}
 
 			// Verify disabled collectors were not created
 			for _, unexpectedName := range tt.unexpectedNames {
-				require.False(t, collectorNames[unexpectedName],
+				require.False(t, collectorNames[CollectorName(unexpectedName)],
 					"collector %s should not be created", unexpectedName)
 			}
 		})
