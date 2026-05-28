@@ -18,7 +18,7 @@ from invoke.exceptions import Exit
 SCHEMA_DIR = os.path.join("pkg", "config", "schema")
 EXCEPTIONS_FILE = os.path.join(os.path.dirname(__file__), "lint_exceptions.yaml")
 
-VALID_TYPES = {"string", "number", "boolean", "array", "object"}
+VALID_TYPES = {"string", "number", "integer", "boolean", "array", "object"}
 VALID_NODE_TYPES = {"section", "setting"}
 VALID_PLATFORM_KEYS = {"darwin", "windows", "linux", "container", "other"}
 REQUIRED_PLATFORM_KEYS_WITHOUT_OTHER = {"darwin", "windows", "linux"}
