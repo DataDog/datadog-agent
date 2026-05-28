@@ -124,6 +124,13 @@ func TestScrubDataObj_StringElementsInList(t *testing.T) {
 	assert.Equal(t, "****************************bbbb", list[1])
 }
 
+// Scrubs a scalar string root via the value-content pass.
+func TestScrubDataObj_StringRoot(t *testing.T) {
+	root := interface{}("api_key=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	ScrubDataObj(&root)
+	assert.Equal(t, "api_key=****************************aaaa", root)
+}
+
 func TestScrubDataObj_TwoPassAlignment(t *testing.T) {
 	testCases := []struct {
 		name     string

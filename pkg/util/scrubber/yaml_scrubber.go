@@ -81,6 +81,10 @@ func walk(data *interface{}, callback scrubCallback) {
 		walkSlice(v, callback)
 	case map[string]interface{}:
 		walkStringMap(v, callback)
+	case string:
+		if match, newValue := callback("", v); match {
+			*data = newValue
+		}
 	}
 }
 
