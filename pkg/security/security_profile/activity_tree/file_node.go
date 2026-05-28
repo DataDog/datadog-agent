@@ -194,6 +194,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		}
 		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, "", resolvers)
 		currentFn.Children[parent] = newChild
+		stats.SizeBytes += newChild.size()
 		currentFn = newChild
 		currentPath = currentPath[nextParentIndex:]
 	}
