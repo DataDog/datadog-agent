@@ -1,5 +1,5 @@
-# ABOUTME: GitLab job for advisory Go mutation testing on changed pkg/ packages.
-# ABOUTME: Non-blocking. Produces a mutation-report.md artifact (no PR comment in v1).
+# ABOUTME: GitLab jobs for advisory Go mutation testing on changed pkg/ packages.
+# ABOUTME: Non-blocking. Produces mutation-report.md artifact and posts a sticky PR comment.
 .mutation_test_base:
   stage: source_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -29,3 +29,26 @@ mutation_test:pkg:
     paths:
       - mutation-report.md
     expire_in: 1 week
+
+mutation_test_commenter:pkg:
+  stage: source_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  allow_failure: true
+  extends: .dd_octo_sts
+  needs: ["mutation_test:pkg"]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - pkg/**/*.go
+    - if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/
+      changes:
+        - pkg/**/*.go
+  before_script:
+    - !reference [.setup_github_token_comment_pr]
+  script:
+    - if [ ! -s mutation-report.md ]; then
+        dda inv -- -e github.pr-commenter --title="Mutation Testing Results" --force-delete ;
+      else
+        dda inv -- -e github.pr-commenter --title="Mutation Testing Results" --body-file=mutation-report.md ;
+      fi

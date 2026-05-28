@@ -1,8 +1,8 @@
 # Mutation Testing — `pkg/` (Go)
 
 Advisory mutation testing for Go packages changed under `pkg/`, run as a
-non-blocking GitLab CI job. Output is a `mutation-report.md` artifact —
-no PR comment in v1.
+non-blocking GitLab CI job. Posts a sticky PR comment with the mutation
+report and uploads `mutation-report.md` as a GitLab artifact.
 
 - Tool: [gremlins](https://github.com/go-gremlins/gremlins) with a patch
   porting [`--test-cmd` and `--no-coverage`](./patches/) from dd-source PR
@@ -40,15 +40,20 @@ upstream gremlins `v0.6.0` at build time by `muttest.sh`.
 - Invokes patched gremlins per package with `dda inv test` as the test command.
 - Never blocks merge (`allow_failure: true`).
 - Produces `mutation-report.md` as a GitLab artifact.
+- Posts a sticky PR comment titled "Mutation Testing Results" via
+  `dda inv github.pr-commenter`, using the same dd-octo-sts token flow
+  as the `golang_deps_commenter` job. The comment is deleted (via
+  `--force-delete`) when a run produces no report.
 
 ## Files
 
 - `muttest.sh` — pipeline entry point. Diffs packages, builds patched
   gremlins, runs per package, renders.
 - `muttest_render.py` — gremlins-JSON → markdown report renderer.
-- `mutation-testing.yml` — GitLab CI job definition.
+- `mutation-testing.yml` — GitLab CI job definitions (mutation run + commenter).
 - `tests/test_render.py` — unit tests for the renderer.
 - `patches/` — gremlins patch ported from dd-source PR #428124.
+- `skip_tags.txt` — documentation of expected build-tag-gated skips.
 
 ## Run locally
 
