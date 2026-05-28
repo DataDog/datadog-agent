@@ -429,11 +429,14 @@ func (e *Endpoint) IsReliable() bool {
 
 // Endpoints holds the main endpoint and additional ones to dualship logs.
 type Endpoints struct {
-	Main                   Endpoint
-	Endpoints              []Endpoint
-	UseProto               bool
-	UseHTTP                bool
-	UseGRPC                bool
+	Main      Endpoint
+	Endpoints []Endpoint
+	UseProto  bool
+	UseHTTP   bool
+	UseGRPC   bool
+	// Nodeless is set true when async detection identifies this as a nodeless node.
+	// applyRoutingHeaders skips header injection for nodeless endpoints.
+	Nodeless               bool
 	BatchWait              time.Duration
 	BatchMaxConcurrentSend int
 	BatchMaxSize           int

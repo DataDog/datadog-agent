@@ -223,6 +223,10 @@ func (a *logAgent) start(context.Context) error {
 	if !endpoints.UseHTTP && !endpoints.UseGRPC {
 		a.smartHTTPRestart()
 	}
+
+	// Async: detect nodeless nodes and reconfigure pipeline if needed.
+	// Runs in background so agent startup is never blocked by cluster agent availability.
+	a.startNodelessDetection()
 	return nil
 }
 

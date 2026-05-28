@@ -11,7 +11,16 @@ import (
 
 // applyRoutingHeaders sets x-dd-logs-routing on each endpoint based on its own
 // transport: "grpc" for gRPC endpoints, "http" for HTTP endpoints.
+// Nodeless endpoints get no routing header so their traffic goes to "elsewhere".
 func applyRoutingHeaders(endpoints *config.Endpoints) {
+	if endpoints.Nodeless {
+		delete(endpoints.Main.ExtraHTTPHeaders, "x-dd-logs-routing")
+		for i := range endpoints.Endpoints {
+			delete(endpoints.Endpoints[i].ExtraHTTPHeaders, "x-dd-logs-routing")
+		}
+		return
+	}
+
 	var mainRoutingValue string
 	if endpoints.UseGRPC {
 		mainRoutingValue = "grpc"
