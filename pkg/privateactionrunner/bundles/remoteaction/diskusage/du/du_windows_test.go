@@ -691,21 +691,26 @@ func TestScan_FindByExtension(t *testing.T) {
 
 	res := scanOrSkip(t, root, Options{
 		ShowApparent: true,
-		FindExt:      ".dmp,.etl",
-		FindLimit:    10,
+		Finds: []FindQuery{
+			{Type: "ext", Value: ".dmp,.etl", Limit: 10},
+		},
 	})
 
-	if len(res.Matched) != 3 {
-		t.Fatalf("Matched len = %d, want 3; got %+v", len(res.Matched), res.Matched)
+	if len(res.FindResults) != 1 {
+		t.Fatalf("FindResults len = %d, want 1", len(res.FindResults))
 	}
-	for i := 1; i < len(res.Matched); i++ {
-		if res.Matched[i-1].Size < res.Matched[i].Size {
-			t.Errorf("Matched not sorted descending: %+v", res.Matched)
+	matches := res.FindResults[0].Matches
+	if len(matches) != 3 {
+		t.Fatalf("matches len = %d, want 3; got %+v", len(matches), matches)
+	}
+	for i := 1; i < len(matches); i++ {
+		if matches[i-1].Size < matches[i].Size {
+			t.Errorf("matches not sorted descending: %+v", matches)
 			break
 		}
 	}
-	if res.Matched[0].Size != 8192 {
-		t.Errorf("Matched[0].Size = %d, want 8192 (trace.etl)", res.Matched[0].Size)
+	if matches[0].Size != 8192 {
+		t.Errorf("matches[0].Size = %d, want 8192 (trace.etl)", matches[0].Size)
 	}
 }
 
@@ -718,12 +723,16 @@ func TestScan_FindByGlob(t *testing.T) {
 
 	res := scanOrSkip(t, root, Options{
 		ShowApparent: true,
-		FindGlobs:    []string{"report-*.log"},
-		FindLimit:    10,
+		Finds: []FindQuery{
+			{Type: "glob", Value: "report-*.log", Limit: 10},
+		},
 	})
 
-	if len(res.Matched) != 2 {
-		t.Fatalf("Matched len = %d, want 2; got %+v", len(res.Matched), res.Matched)
+	if len(res.FindResults) != 1 {
+		t.Fatalf("FindResults len = %d, want 1", len(res.FindResults))
+	}
+	if got := len(res.FindResults[0].Matches); got != 2 {
+		t.Fatalf("matches len = %d, want 2; got %+v", got, res.FindResults[0].Matches)
 	}
 }
 
@@ -736,19 +745,87 @@ func TestScan_FindLimitCapsResults(t *testing.T) {
 
 	res := scanOrSkip(t, root, Options{
 		ShowApparent: true,
-		FindExt:      ".dat",
-		FindLimit:    3,
+		Finds: []FindQuery{
+			{Type: "ext", Value: ".dat", Limit: 3},
+		},
 	})
 
-	if len(res.Matched) != 3 {
-		t.Fatalf("Matched len = %d, want 3 (FindLimit)", len(res.Matched))
+	if len(res.FindResults) != 1 {
+		t.Fatalf("FindResults len = %d, want 1", len(res.FindResults))
+	}
+	matches := res.FindResults[0].Matches
+	if len(matches) != 3 {
+		t.Fatalf("matches len = %d, want 3 (per-query Limit)", len(matches))
 	}
 	// The 3 largest should win (16384, 8192, 4096).
 	wantSizes := []int64{16384, 8192, 4096}
 	for i, w := range wantSizes {
-		if res.Matched[i].Size != w {
-			t.Errorf("Matched[%d].Size = %d, want %d", i, res.Matched[i].Size, w)
+		if matches[i].Size != w {
+			t.Errorf("matches[%d].Size = %d, want %d", i, matches[i].Size, w)
 		}
+	}
+}
+
+func TestScan_FindMultipleQueriesIndependentLimits(t *testing.T) {
+	root := t.TempDir()
+
+	// Two .dmp files (sizes 100, 200) and two .log files (sizes 50, 75).
+	// If the matcher shared a single heap, the 100/200 dmps could evict
+	// the smaller logs and leave the log query empty.
+	writeFile(t, filepath.Join(root, "a.dmp"), make([]byte, 100))
+	writeFile(t, filepath.Join(root, "b.dmp"), make([]byte, 200))
+	writeFile(t, filepath.Join(root, "c.log"), make([]byte, 50))
+	writeFile(t, filepath.Join(root, "d.log"), make([]byte, 75))
+
+	res := scanOrSkip(t, root, Options{
+		ShowApparent: true,
+		Finds: []FindQuery{
+			{Type: "ext", Value: ".dmp", Limit: 10, Label: "dumps"},
+			{Type: "ext", Value: ".log", Limit: 10, Label: "logs"},
+		},
+	})
+
+	if len(res.FindResults) != 2 {
+		t.Fatalf("FindResults len = %d, want 2", len(res.FindResults))
+	}
+	dmps := res.FindResults[0]
+	logs := res.FindResults[1]
+	if dmps.Query.Label != "dumps" || logs.Query.Label != "logs" {
+		t.Errorf("labels misordered: got %q, %q", dmps.Query.Label, logs.Query.Label)
+	}
+	if len(dmps.Matches) != 2 {
+		t.Errorf("dumps matches = %d, want 2", len(dmps.Matches))
+	}
+	if len(logs.Matches) != 2 {
+		t.Errorf("logs matches = %d, want 2 (must not be starved by larger dumps)", len(logs.Matches))
+	}
+}
+
+func TestScan_FindLongExtensionNotTruncated(t *testing.T) {
+	root := t.TempDir()
+
+	// .crdownload (10 chars) and .application (11 chars) — both > 8 chars,
+	// which would be silently truncated by the old 8-byte buffer.
+	writeFile(t, filepath.Join(root, "partial.crdownload"), make([]byte, 4096))
+	writeFile(t, filepath.Join(root, "installer.application"), make([]byte, 8192))
+	writeFile(t, filepath.Join(root, "decoy.crdown"), make([]byte, 100))
+
+	res := scanOrSkip(t, root, Options{
+		ShowApparent: true,
+		Finds: []FindQuery{
+			{Type: "ext", Value: ".crdownload"},
+			{Type: "ext", Value: ".application"},
+		},
+	})
+
+	if len(res.FindResults) != 2 {
+		t.Fatalf("FindResults len = %d, want 2", len(res.FindResults))
+	}
+	if got := len(res.FindResults[0].Matches); got != 1 {
+		t.Errorf("crdownload matches = %d, want 1 (the decoy.crdown must NOT match)", got)
+	}
+	if got := len(res.FindResults[1].Matches); got != 1 {
+		t.Errorf("application matches = %d, want 1", got)
 	}
 }
 

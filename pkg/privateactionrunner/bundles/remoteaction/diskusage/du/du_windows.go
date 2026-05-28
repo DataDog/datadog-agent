@@ -66,11 +66,11 @@ type Result struct {
 	// size, sorted descending. Populated only when Options.TopExtensions > 0.
 	TopExtensions []ExtensionEntry
 
-	// Matched is the list of files that satisfied any of the FindExt /
-	// FindGlob / FindRegex predicates. Capped at Options.FindLimit and
-	// sorted descending by size. Populated only when at least one
-	// matching predicate is configured.
-	Matched []FileEntry
+	// FindResults is one block per Options.Finds entry, in input order.
+	// Each block carries the originating FindQuery and the matched files
+	// sorted by size descending. Populated only when Options.Finds is
+	// non-empty.
+	FindResults []FindResultBlock
 
 	// ExcludedDirs is the number of distinct directories that were marked
 	// out-of-scope by the Exclude option. Reported for diagnostics.
@@ -137,29 +137,18 @@ type Options struct {
 	// 0 = no floor.
 	MinFileSize int64
 
-	// FindExt is a comma-separated list of file extensions to match
-	// (e.g. ".dmp,.etl,.run"). Leading dots and case are ignored. When set
-	// alongside FindGlob / FindRegex the predicates OR together.
-	FindExt string
-
-	// FindGlobs matches files whose basename matches any of the supplied
-	// glob patterns (filepath.Match syntax: *, ?, [abc]). Patterns OR
-	// together.
-	FindGlobs []string
-
-	// FindRegex, when non-empty, matches files whose basename matches the
-	// RE2 regular expression.
-	FindRegex string
-
-	// FindLimit caps the number of matches returned in Result.Matched.
-	// 0 selects a sensible default (100). Matches are kept by largest
-	// size: when the limit is reached, smaller matches evict.
-	FindLimit int
+	// Finds is the list of independent file-matching predicates to evaluate
+	// during the scan. Each entry becomes its own per-query slot with its
+	// own Limit and result block in Result.FindResults; queries do not
+	// compete with each other for capacity. See FindQuery for the per-type
+	// Value syntax (ext / glob / regex).
+	Finds []FindQuery
 
 	// FindFastNameDecode enables a zero-allocation in-place UTF-16 → ASCII
-	// decode for glob/regex predicate evaluation, with a fallback to the
-	// allocating decoder for non-ASCII filenames. Has no effect when only
-	// FindExt is set (extension matching is already allocation-free).
+	// decode for glob / regex predicate evaluation, with a fallback to the
+	// allocating decoder for non-ASCII filenames. Has no effect when every
+	// configured Find is an "ext" query (extension matching is already
+	// allocation-free).
 	FindFastNameDecode bool
 
 	// Exclude is a list of absolute paths whose subtrees should be excluded
@@ -518,7 +507,7 @@ func Scan(ctx context.Context, targetDir string, opts Options) (*Result, error) 
 
 	topF := newTopFiles(opts.TopFiles, opts.MinFileSize)
 	extAgg := newExtAggregator(opts.TopExtensions > 0)
-	matcher, err := newMatchSet(opts.FindExt, opts.FindGlobs, opts.FindRegex, opts.FindLimit, opts.FindFastNameDecode)
+	matcher, err := newMatchSet(opts.Finds, opts.FindFastNameDecode)
 	if err != nil {
 		return nil, err
 	}
@@ -854,7 +843,15 @@ func Scan(ctx context.Context, targetDir string, opts Options) (*Result, error) 
 	}
 	if matcher != nil {
 		volumeRoot := abs[:3]
-		res.Matched = resolveCandidatePaths(volumeRoot, matcher.drained())
+		blocks := matcher.drained()
+		queries := matcher.queries()
+		res.FindResults = make([]FindResultBlock, len(blocks))
+		for i, blk := range blocks {
+			res.FindResults[i] = FindResultBlock{
+				Query:   queries[i],
+				Matches: resolveCandidatePaths(volumeRoot, blk),
+			}
+		}
 	}
 
 	res.Wall = time.Since(t0)

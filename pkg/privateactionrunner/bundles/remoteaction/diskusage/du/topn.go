@@ -128,8 +128,8 @@ func newExtAggregator(enabled bool) *extAggregator {
 	}
 }
 
-// addFromName extracts a lowercased ASCII extension (≤8 chars) from the raw
-// UTF-16 name and aggregates size. Files with no extension or non-ASCII
+// addFromName extracts a lowercased ASCII extension (≤24 chars) from the
+// raw UTF-16 name and aggregates size. Files with no extension or non-ASCII
 // extensions are bucketed under "" / non-ASCII tag (kept for completeness).
 //
 // Hot path: must not allocate. Uses a stack array + the compiler's
@@ -138,7 +138,7 @@ func (a *extAggregator) addFromName(nameBytes []byte, size int64) {
 	if a == nil {
 		return
 	}
-	var buf [8]byte
+	var buf [24]byte
 	n := extractAsciiExtension(nameBytes, buf[:])
 	if n < 0 {
 		// Non-ASCII or no extension — track under "" so totals are honest.
@@ -204,15 +204,15 @@ func decodeUTF16Name(b []byte) string {
 // name (no leading dot returned). Writes up to len(out) bytes; returns the
 // number written, or -1 if there is no extension or it contains non-ASCII.
 //
-// Walks backward at most ~16 UTF-16 chars looking for '.'. Bounded work; no
+// Walks backward at most ~24 UTF-16 chars looking for '.'. Bounded work; no
 // allocation. Empty extension (".") returns -1.
 func extractAsciiExtension(nameUTF16, out []byte) int {
 	if len(nameUTF16) < 4 {
 		return -1
 	}
-	// Search at most the last min(len, 32) bytes (16 UTF-16 chars) for a dot.
+	// Search at most the last min(len, 48) bytes (24 UTF-16 chars) for a dot.
 	end := len(nameUTF16)
-	limit := end - 32
+	limit := end - 48
 	if limit < 0 {
 		limit = 0
 	}

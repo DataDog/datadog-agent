@@ -13,74 +13,102 @@ import (
 	"unsafe"
 )
 
-// matchSet evaluates per-file predicates (extension, glob, regex) and
-// retains the top-Cap largest matches via a min-heap.
+// FindQuery is one filename-matching find request.
 //
-// Predicates OR together: a file matches if it satisfies any one of the
-// configured filters. The heap is min-on-size so larger matches evict
-// smaller ones once Cap is reached. After the scan, drained() returns
-// candidates in descending-size order and resolveCandidatePaths() turns
-// them into file paths.
+//   - Type "ext":   Value is a comma-separated list of extensions. Leading
+//     dots and case are ignored (e.g. ".dmp,.etl,DMP").
+//   - Type "glob":  Value is a single filepath.Match pattern matched against
+//     the basename (no path separators).
+//   - Type "regex": Value is an RE2 expression matched against the basename.
+//
+// Limit caps this query's result block; 0 selects a sensible default (100).
+// Label is opaque, carried into FindResultBlock for caller attribution.
+type FindQuery struct {
+	Type  string
+	Value string
+	Limit int
+	Label string
+}
+
+// FindResultBlock pairs a FindQuery with the files it matched, sorted by
+// size descending then basename ascending and trimmed to the query's Limit.
+type FindResultBlock struct {
+	Query   FindQuery
+	Matches []FileEntry
+}
+
+// matchSlot is one per-query predicate + heap. Each FindQuery passed to
+// newMatchSet becomes one slot.
+type matchSlot struct {
+	query FindQuery
+	// Exactly one of the following is populated, per query.Type:
+	exts  [][]byte       // ext: pre-normalized lowercased extensions, no dot
+	glob  string         // glob: filepath.Match pattern
+	regex *regexp.Regexp // regex: compiled RE2
+	heap  fileHeap
+	cap   int
+}
+
+// matchSet evaluates per-file predicates against a list of independent
+// FindQuery slots. Each slot retains its own top-Cap candidates via a
+// min-heap.
 //
 // Hot-path cost when matchSet is nil: a single nil check per file. When
-// only an extension predicate is set, evaluation is allocation-free
-// (reuses extractAsciiExtension into a stack buffer). Glob/regex paths
-// decode the UTF-16 basename once per file; the decoded string is reused
-// for heap insertion if the file qualifies.
+// multiple slots need the same input (extension or decoded basename),
+// that work is done at most once per file via lazy locals in consider.
 type matchSet struct {
-	// Pre-normalized lowercased ASCII extensions, no leading dot.
-	// Empty means no extension filter.
-	extensions [][]byte
-	// Glob patterns (filepath.Match syntax). Empty means no glob filter.
-	globs []string
-	// Compiled regex. Nil means no regex filter.
-	regex *regexp.Regexp
-	// Min-heap on size, capacity Cap.
-	heap fileHeap
-	cap  int
-
+	slots []*matchSlot
 	// fast, when true, decodes ASCII filenames in-place into nameBuf and
 	// passes a non-allocating string view (unsafe.String) to filepath.Match
 	// and regexp.MatchString. Non-ASCII filenames fall back to the heap
-	// allocator. The string MUST NOT escape the predicate evaluation —
-	// nameBuf is reused on the next file.
+	// allocator. The string MUST NOT escape predicate evaluation — nameBuf
+	// is reused on the next file.
 	fast    bool
 	nameBuf [512]byte
 }
 
-// newMatchSet builds a matcher from CLI-style strings. Returns (nil, nil)
-// when no predicate is configured. Returns an error if a glob or regex
-// fails to compile.
-func newMatchSet(extsCSV string, globs []string, regex string, cap int, fast bool) (*matchSet, error) {
-	exts := splitAndNormalizeExts(extsCSV)
-	if len(exts) == 0 && len(globs) == 0 && regex == "" {
+// newMatchSet builds a matcher from a list of FindQuery. Returns (nil, nil)
+// when queries is empty. Returns an error if any query is malformed (empty
+// value, unknown type, bad glob, bad regex).
+func newMatchSet(queries []FindQuery, fast bool) (*matchSet, error) {
+	if len(queries) == 0 {
 		return nil, nil
 	}
-	if cap <= 0 {
-		cap = 100
-	}
-	m := &matchSet{cap: cap, heap: make(fileHeap, 0, cap), fast: fast}
-	for _, e := range exts {
-		m.extensions = append(m.extensions, []byte(e))
-	}
-	for _, g := range globs {
-		if g == "" {
-			continue
+	m := &matchSet{fast: fast}
+	for i, q := range queries {
+		if q.Value == "" {
+			return nil, fmt.Errorf("find[%d]: value must not be empty", i)
 		}
-		// Validate eagerly — filepath.Match only reports ErrBadPattern when
-		// it encounters the bad character at evaluation, but probing with a
-		// dummy input surfaces it now.
-		if _, err := filepath.Match(g, "x"); err != nil {
-			return nil, fmt.Errorf("invalid glob %q: %w", g, err)
+		c := q.Limit
+		if c <= 0 {
+			c = 100
 		}
-		m.globs = append(m.globs, g)
-	}
-	if regex != "" {
-		re, err := regexp.Compile(regex)
-		if err != nil {
-			return nil, fmt.Errorf("invalid regex %q: %w", regex, err)
+		slot := &matchSlot{query: q, cap: c, heap: make(fileHeap, 0, c)}
+		switch q.Type {
+		case "ext":
+			for _, e := range splitAndNormalizeExts(q.Value) {
+				slot.exts = append(slot.exts, []byte(e))
+			}
+			if len(slot.exts) == 0 {
+				return nil, fmt.Errorf("find[%d]: ext value %q yielded no extensions", i, q.Value)
+			}
+		case "glob":
+			// Validate eagerly via probe; filepath.Match only reports
+			// ErrBadPattern when it encounters the bad character.
+			if _, err := filepath.Match(q.Value, "x"); err != nil {
+				return nil, fmt.Errorf("find[%d]: invalid glob %q: %w", i, q.Value, err)
+			}
+			slot.glob = q.Value
+		case "regex":
+			re, err := regexp.Compile(q.Value)
+			if err != nil {
+				return nil, fmt.Errorf("find[%d]: invalid regex %q: %w", i, q.Value, err)
+			}
+			slot.regex = re
+		default:
+			return nil, fmt.Errorf("find[%d]: unknown type %q (want \"ext\", \"glob\", or \"regex\")", i, q.Type)
 		}
-		m.regex = re
+		m.slots = append(m.slots, slot)
 	}
 	return m, nil
 }
@@ -105,76 +133,90 @@ func splitAndNormalizeExts(csv string) []string {
 	return out
 }
 
-// consider runs in the pass-2 hot path. Cheap when nil; cheap when only
-// the extension predicate fires; allocates a string only when a glob /
-// regex predicate is configured (decoded name is reused on heap push).
+// consider runs in the pass-2 hot path. Evaluates each slot's predicate
+// against the file and pushes to the slot's heap on match. Per-file work
+// (extension extraction, name decode) happens at most once, lazily.
 func (m *matchSet) consider(idx uint64, e *mftEntry, sz int64) {
 	if m == nil {
 		return
 	}
 
-	// Extension predicate — no allocation. extractAsciiExtension returns
-	// the lowercased tail in a stack buffer; we compare against the
-	// pre-lowercased filter list directly.
-	if len(m.extensions) > 0 {
-		var buf [8]byte
-		n := extractAsciiExtension(e.nameBytes, buf[:])
-		if n > 0 {
-			for _, ext := range m.extensions {
-				if bytes.Equal(buf[:n], ext) {
-					m.push(idx, e, sz, "")
-					return
-				}
-			}
+	// Lazy extension extraction (24-byte buffer covers all real-world
+	// extensions, e.g. ".crdownload", ".application", ".compositions").
+	var extBuf [24]byte
+	var extN int
+	extEvaluated := false
+	getExt := func() ([]byte, bool) {
+		if !extEvaluated {
+			extEvaluated = true
+			extN = extractAsciiExtension(e.nameBytes, extBuf[:])
 		}
+		if extN <= 0 {
+			return nil, false
+		}
+		return extBuf[:extN], true
 	}
 
-	// Glob / regex predicates require the decoded name. With fast-name
-	// decode enabled, ASCII filenames go through an in-place buffer +
-	// unsafe.String view (zero alloc); non-ASCII falls back to a real
-	// string. With fast off, every file allocates a real string.
-	if len(m.globs) == 0 && m.regex == nil {
-		return
-	}
-	var name string     // for predicate eval — may be unsafe view
-	var realName string // copied basename for heap insertion
-	if m.fast {
-		n := utf16ToASCIIFast(e.nameBytes, m.nameBuf[:])
-		if n >= 0 {
-			// unsafe.String creates a read-only view of nameBuf; it MUST
-			// NOT outlive this function call. filepath.Match and regexp's
-			// MatchString consume their string argument synchronously and
-			// do not retain it.
-			name = unsafe.String(&m.nameBuf[0], n)
-		} else {
-			realName = decodeUTF16Name(e.nameBytes)
-			name = realName
+	// Lazy name decode. name is the value handed to predicate evaluators
+	// (may be an unsafe view of nameBuf in fast+ASCII path). realName, if
+	// set, is a heap-allocated copy safe to retain past this call.
+	var name string
+	var realName string
+	nameEvaluated := false
+	getName := func() string {
+		if nameEvaluated {
+			return name
 		}
-	} else {
+		nameEvaluated = true
+		if m.fast {
+			n := utf16ToASCIIFast(e.nameBytes, m.nameBuf[:])
+			if n >= 0 {
+				name = unsafe.String(&m.nameBuf[0], n)
+				return name
+			}
+		}
 		realName = decodeUTF16Name(e.nameBytes)
 		name = realName
+		return name
 	}
-	matched := false
-	for _, g := range m.globs {
-		if ok, _ := filepath.Match(g, name); ok {
-			matched = true
-			break
+
+	for _, s := range m.slots {
+		matched := false
+		switch {
+		case len(s.exts) > 0:
+			ext, ok := getExt()
+			if !ok {
+				continue
+			}
+			for _, want := range s.exts {
+				if bytes.Equal(ext, want) {
+					matched = true
+					break
+				}
+			}
+		case s.glob != "":
+			if ok, _ := filepath.Match(s.glob, getName()); ok {
+				matched = true
+			}
+		case s.regex != nil:
+			if s.regex.MatchString(getName()) {
+				matched = true
+			}
 		}
+		if !matched {
+			continue
+		}
+		// push needs a heap-allocated basename. realName is empty in the
+		// fast+ASCII match path until we promote it here, and in the pure-
+		// ext match path until push lazily decodes (push avoids the decode
+		// if the heap rejects the candidate).
+		pushName := realName
+		if pushName == "" && nameEvaluated {
+			realName = decodeUTF16Name(e.nameBytes)
+			pushName = realName
+		}
+		s.push(idx, e, sz, pushName)
 	}
-	if !matched && m.regex != nil && m.regex.MatchString(name) {
-		matched = true
-	}
-	if !matched {
-		return
-	}
-	// On match, push needs a real (heap-allocated) basename — the unsafe
-	// view of nameBuf will be clobbered by the next file. realName is set
-	// either because we hit non-ASCII fallback above, or because fast was
-	// off; if neither (ASCII + fast on + actual match), allocate now.
-	if realName == "" {
-		realName = decodeUTF16Name(e.nameBytes)
-	}
-	m.push(idx, e, sz, realName)
 }
 
 // utf16ToASCIIFast copies a UTF-16LE filename into out as ASCII bytes.
@@ -198,39 +240,57 @@ func utf16ToASCIIFast(nameUTF16, out []byte) int {
 	return n
 }
 
-// push inserts a matched candidate into the heap. If the heap is at
-// capacity, the smallest entry is evicted unless the new entry is also
-// smaller — in which case nothing happens. The basename is decoded
-// lazily here when the caller didn't already have one (extension match
-// path), avoiding the decode for files we end up evicting.
-func (m *matchSet) push(idx uint64, e *mftEntry, sz int64, name string) {
-	if len(m.heap) >= m.cap && sz <= m.heap[0].size {
+// push inserts a matched candidate into the slot's heap. If the heap is
+// at capacity, the smallest entry is evicted unless the new entry is also
+// smaller — in which case nothing happens. The basename is decoded lazily
+// here when the caller didn't already have one (extension match path),
+// avoiding the decode for files we end up evicting.
+func (s *matchSlot) push(idx uint64, e *mftEntry, sz int64, name string) {
+	if len(s.heap) >= s.cap && sz <= s.heap[0].size {
 		return
 	}
 	if name == "" {
 		name = decodeUTF16Name(e.nameBytes)
 	}
 	cand := fileCandidate{idx: idx, sequence: e.sequence, size: sz, basename: name}
-	if len(m.heap) < m.cap {
-		heap.Push(&m.heap, cand)
+	if len(s.heap) < s.cap {
+		heap.Push(&s.heap, cand)
 		return
 	}
-	m.heap[0] = cand
-	heap.Fix(&m.heap, 0)
+	s.heap[0] = cand
+	heap.Fix(&s.heap, 0)
 }
 
-// drained returns matches sorted by size desc, then basename asc.
-func (m *matchSet) drained() []fileCandidate {
+// drained returns one block per slot, in input-query order. Each block is
+// sorted by size desc, then basename asc.
+func (m *matchSet) drained() [][]fileCandidate {
 	if m == nil {
 		return nil
 	}
-	out := make([]fileCandidate, len(m.heap))
-	copy(out, m.heap)
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].size != out[j].size {
-			return out[i].size > out[j].size
-		}
-		return out[i].basename < out[j].basename
-	})
+	out := make([][]fileCandidate, len(m.slots))
+	for i, s := range m.slots {
+		blk := make([]fileCandidate, len(s.heap))
+		copy(blk, s.heap)
+		sort.Slice(blk, func(a, b int) bool {
+			if blk[a].size != blk[b].size {
+				return blk[a].size > blk[b].size
+			}
+			return blk[a].basename < blk[b].basename
+		})
+		out[i] = blk
+	}
+	return out
+}
+
+// queries returns the original FindQuery slice in slot order. Used by
+// callers to pair drained() output back to the input queries.
+func (m *matchSet) queries() []FindQuery {
+	if m == nil {
+		return nil
+	}
+	out := make([]FindQuery, len(m.slots))
+	for i, s := range m.slots {
+		out[i] = s.query
+	}
 	return out
 }

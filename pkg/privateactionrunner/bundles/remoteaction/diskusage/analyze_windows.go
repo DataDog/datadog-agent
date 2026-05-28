@@ -121,13 +121,10 @@ func (h *AnalyzeHandler) Run(
 		depth = maxDepth
 	}
 
-	// Combine all "ext" queries into a single comma-separated list and
-	// collect all "glob" patterns. Per-query result attribution happens
-	// after the scan. The matcher's FindLimit is sized to the largest
-	// per-query Limit so no query's results are silently truncated.
-	var combinedExt []string
-	var globs []string
-	maxLimit := 0
+	// Translate each FindQuery directly to du.FindQuery. The du package
+	// gives each query its own slot + heap + limit, so per-query results
+	// are independent and we don't need post-scan attribution.
+	finds := make([]du.FindQuery, 0, len(in.Find))
 	for i, q := range in.Find {
 		if q.Limit < 0 {
 			return nil, fmt.Errorf("find[%d]: limit must be >= 0, got %d", i, q.Limit)
@@ -135,21 +132,21 @@ func (h *AnalyzeHandler) Run(
 		if q.Limit > maxFindLimit {
 			return nil, fmt.Errorf("find[%d]: limit %d exceeds maximum of %d", i, q.Limit, maxFindLimit)
 		}
-		if q.Limit > maxLimit {
-			maxLimit = q.Limit
-		}
 		switch q.Type {
-		case "ext":
-			if q.Value != "" {
-				combinedExt = append(combinedExt, q.Value)
-			}
-		case "glob":
-			if q.Value != "" {
-				globs = append(globs, q.Value)
-			}
+		case "ext", "glob":
+			// pass through; du.newMatchSet handles empty Value
 		default:
-			return nil, fmt.Errorf("unsupported find type %q (expected \"ext\" or \"glob\")", q.Type)
+			return nil, fmt.Errorf("find[%d]: unsupported type %q (expected \"ext\" or \"glob\")", i, q.Type)
 		}
+		if q.Value == "" {
+			return nil, fmt.Errorf("find[%d]: value must not be empty", i)
+		}
+		finds = append(finds, du.FindQuery{
+			Type:  q.Type,
+			Value: q.Value,
+			Limit: q.Limit,
+			Label: q.Label,
+		})
 	}
 
 	opts := du.Options{
@@ -160,9 +157,7 @@ func (h *AnalyzeHandler) Run(
 		Exclude:       in.ExcludePaths,
 		TreeDepth:     depth,
 		TreeMinSize:   in.MinBytes,
-		FindExt:       strings.Join(combinedExt, ","),
-		FindGlobs:     globs,
-		FindLimit:     maxLimit,
+		Finds:         finds,
 	}
 
 	r, err := du.Scan(ctx, in.Target, opts)
@@ -178,7 +173,7 @@ func (h *AnalyzeHandler) Run(
 		Tree:         []TreeNode{},
 		TopFiles:     make([]FileEntry, 0, len(r.TopFiles)),
 		TopExt:       make([]ExtensionEntry, 0, len(r.TopExtensions)),
-		FindResults:  make([]FindResultBlock, 0, len(in.Find)),
+		FindResults:  make([]FindResultBlock, 0, len(r.FindResults)),
 	}
 
 	for _, b := range r.Buckets {
@@ -235,46 +230,18 @@ func (h *AnalyzeHandler) Run(
 		})
 	}
 
-	// Bucket matches back to their originating query.
-	for _, q := range in.Find {
-		block := FindResultBlock{Query: q, Matches: []FileEntry{}}
-		limit := q.Limit
-		for _, m := range r.Matched {
-			if !matchesQuery(m.Path, q) {
-				continue
-			}
-			block.Matches = append(block.Matches, FileEntry{Path: m.Path, SizeBytes: m.Size})
-			if limit > 0 && len(block.Matches) >= limit {
-				break
-			}
+	// Project du's per-query result blocks back to the action's wire types,
+	// preserving the order of the input queries.
+	for i, block := range r.FindResults {
+		matches := make([]FileEntry, 0, len(block.Matches))
+		for _, m := range block.Matches {
+			matches = append(matches, FileEntry{Path: m.Path, SizeBytes: m.Size})
 		}
-		out.FindResults = append(out.FindResults, block)
+		out.FindResults = append(out.FindResults, FindResultBlock{
+			Query:   in.Find[i], // use the action-layer FindQuery so JSON tags are preserved in output
+			Matches: matches,
+		})
 	}
 
 	return out, nil
-}
-
-func matchesQuery(path string, q FindQuery) bool {
-	base := filepath.Base(path)
-	switch q.Type {
-	case "ext":
-		lower := strings.ToLower(base)
-		for _, e := range strings.Split(q.Value, ",") {
-			e = strings.TrimSpace(strings.ToLower(e))
-			if e == "" {
-				continue
-			}
-			if !strings.HasPrefix(e, ".") {
-				e = "." + e
-			}
-			if strings.HasSuffix(lower, e) {
-				return true
-			}
-		}
-		return false
-	case "glob":
-		ok, err := filepath.Match(q.Value, base)
-		return err == nil && ok
-	}
-	return false
 }
