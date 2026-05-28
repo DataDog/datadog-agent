@@ -495,7 +495,6 @@ exports_files(glob(
 # gazelle:exclude pkg/network/filter
 # gazelle:exclude pkg/network/go/bininspect
 # gazelle:exclude pkg/network/netlink
-# gazelle:exclude pkg/network/protocols/amqp
 # gazelle:exclude pkg/network/protocols/http/debugging
 # gazelle:exclude pkg/network/protocols/http/gotls/lookup/luts.go
 # gazelle:exclude pkg/network/protocols/http/gotls/lookup/main.go
