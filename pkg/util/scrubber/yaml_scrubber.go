@@ -17,7 +17,7 @@ import (
 type scrubCallback = func(string, interface{}) (bool, interface{})
 
 func walkSlice(data []interface{}, callback scrubCallback) {
-	for _, k := range data {
+	for i, k := range data {
 		switch v := k.(type) {
 		case map[interface{}]interface{}:
 			walkHash(v, callback)
@@ -25,6 +25,10 @@ func walkSlice(data []interface{}, callback scrubCallback) {
 			walkSlice(v, callback)
 		case map[string]interface{}:
 			walkStringMap(v, callback)
+		case string:
+			if match, newValue := callback("", v); match {
+				data[i] = newValue
+			}
 		}
 	}
 }

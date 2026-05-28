@@ -105,6 +105,25 @@ func TestScrubDataObj_AdditionalEndpoints(t *testing.T) {
 	assert.Equal(t, "datadoghq.com", out["site"])
 }
 
+// Scrubs api_keys held as scalar string elements in a list (structured YAML
+// shape for additional_endpoints).
+func TestScrubDataObj_StringElementsInList(t *testing.T) {
+	layer := interface{}(map[string]interface{}{
+		"additional_endpoints": map[string]interface{}{
+			"https://metrics.agent.datadoghq.com": []interface{}{
+				"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			},
+		},
+	})
+	ScrubDataObj(&layer)
+
+	endpoints := layer.(map[string]interface{})["additional_endpoints"].(map[string]interface{})
+	list := endpoints["https://metrics.agent.datadoghq.com"].([]interface{})
+	assert.Equal(t, "****************************aaaa", list[0])
+	assert.Equal(t, "****************************bbbb", list[1])
+}
+
 func TestScrubDataObj_TwoPassAlignment(t *testing.T) {
 	testCases := []struct {
 		name     string
