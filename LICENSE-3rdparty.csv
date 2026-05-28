@@ -1518,7 +1518,6 @@ core,github.com/hetznercloud/hcloud-go/v2/hcloud/schema,MIT,Copyright (c) 2018-2
 core,github.com/hhatto/gorst,GPL-2.0-or-later,"Copyright (c) 2008 John MacFarlane | Copyright (c) 2010 Michael Teichgräber | Copyright (c) 2010, Go Authors | Copyright (c) 2015 Hideo Hattori"
 core,github.com/huandu/xstrings,MIT,Copyright (c) 2015 Huan Du
 core,github.com/iancoleman/strcase,MIT,"Copyright (c) 2015 Ian Coleman | Copyright (c) 2018 Ma_124, <github.com/Ma124>"
-core,github.com/imdario/mergo,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2013 Dario Castañé. All rights reserved
 core,github.com/inconshreveable/mousetrap,Apache-2.0,Copyright 2022 Alan Shreve (@inconshreveable)
 core,github.com/invopop/jsonschema,MIT,Copyright (C) 2014 Alec Thomas
 core,github.com/ionos-cloud/sdk-go/v6,Apache-2.0,Copyright 2021 IONOS
