@@ -1209,10 +1209,11 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 		at.Stats.SizeBytes -= removedBytes
 
 		// If the process node itself has no image tags left after eviction, remove it entirely.
-		// EvictUnusedNodes returns early for such nodes without evicting their own activity nodes,
-		// so we account for those here.
+		// Subtract the full remaining subtree size: the node may still hold its own activity nodes
+		// (early-return path skipped them) and live descendants (process-cache fallback kept them
+		// around), all of which get dropped when we splice it out of at.ProcessNodes.
 		if node.SeenIsEmpty() {
-			at.Stats.SizeBytes -= node.size() + processNodeOwnActivitySize(node)
+			at.Stats.SizeBytes -= processSubtreeSizeBytes(node)
 			at.ProcessNodes = append(at.ProcessNodes[:i], at.ProcessNodes[i+1:]...)
 			totalEvicted++
 		}
