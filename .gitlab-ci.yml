@@ -119,6 +119,7 @@ include:
   - local: .gitlab/build/**.yml
   - local: .gitlab/deploy/**.yml
   - local: .gitlab/test/**.yml
+  - local: .gitlab/mutation-testing/*.yml
   - local: .gitlab/.post/**.yml
   # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
   - local: .gitlab/windows/**.yml
