@@ -163,7 +163,6 @@ exports_files(glob(
 # gazelle:exclude comp/logonduration/impl
 # gazelle:exclude comp/anomalydetection/logssource/impl
 # gazelle:exclude comp/logs-library/pipeline
-# gazelle:exclude comp/logs-library/sender
 # gazelle:exclude comp/logs/adscheduler/fx
 # gazelle:exclude comp/logs/adscheduler/impl
 # gazelle:exclude comp/logs/agent/agentimpl
