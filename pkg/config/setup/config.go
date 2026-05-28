@@ -251,7 +251,9 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	autoscaling,
 }
 
-func newConfigChooseImpl(name string) pkgconfigmodel.Config {
+func init() {
+	osinit()
+
 	// Configure Datadog global configuration
 	envvar := os.Getenv("DD_CONF_NODETREEMODEL")
 	// Possible values for DD_CONF_NODETREEMODEL:
@@ -260,24 +262,21 @@ func newConfigChooseImpl(name string) pkgconfigmodel.Config {
 	// - "unmarshal": Use viper for the config but the reflection based version of UnmarshalKey which used some of
 	//                nodetreemodel internals
 	// - other:       Use viper for the config
-	var cfg pkgconfigmodel.Config
 	if envvar == "enable" {
-		cfg = nodetreemodel.NewConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))          // nolint: forbidigo // legit use case
+		systemProbe = nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	} else if envvar == "tee" {
-		viperImpl := viperconfig.NewConfig(name, "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
-		nodetreeImpl := nodetreemodel.NewConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
-		cfg = teeconfig.NewTeeConfig(viperImpl, nodetreeImpl)
+		viperConfig := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
+		nodetreeConfig := nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+		datadog = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
+
+		viperConfig = viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
+		nodetreeConfig = nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+		systemProbe = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
 	} else {
-		cfg = viperconfig.NewConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+		datadog = viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))          // nolint: forbidigo // legit use case
+		systemProbe = viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	}
-	return cfg
-}
-
-func init() {
-	osinit()
-
-	datadog = newConfigChooseImpl("datadog")
-	systemProbe = newConfigChooseImpl("system-probe")
 
 	// Configuration defaults
 	initConfig()
@@ -623,6 +622,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// GPU
 	config.BindEnvAndSetDefault("collect_gpu_tags", false)
 	config.BindEnvAndSetDefault("nvml_lib_path", "")
+	config.BindEnvAndSetDefault("enable_nvml_detection", false)
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
