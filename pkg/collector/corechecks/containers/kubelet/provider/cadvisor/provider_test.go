@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
+	"k8s.io/utils/ptr"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
@@ -155,17 +156,15 @@ func (suite *ProviderTestSuite) SetupTest() {
 	}
 	suite.store = store
 
-	sendBuckets := true
 	// Pin the flag so the default cAdvisor test set is deterministic across
 	// platforms — UseStatsSummaryAsSource=nil resolves to true on Windows.
-	useStatsSummaryAsSource := false
 	config := &common.KubeletConfig{
 		OpenmetricsInstance: types.OpenmetricsInstance{
 			Tags:                 commontesting.InstanceTags,
-			SendHistogramBuckets: &sendBuckets,
+			SendHistogramBuckets: ptr.To(true),
 			Namespace:            common.KubeletMetricsPrefix,
 		},
-		UseStatsSummaryAsSource: &useStatsSummaryAsSource,
+		UseStatsSummaryAsSource: ptr.To(false),
 	}
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
 
@@ -244,9 +243,8 @@ func (suite *ProviderTestSuite) TestExpectedMetricsWithStatsSummaryAsSource() {
 	suite.SetupTest()
 
 	// Rebuild the provider with use_stats_summary_as_source enabled.
-	useStatsSummary := true
 	cfg := suite.provider.Config
-	cfg.UseStatsSummaryAsSource = &useStatsSummary
+	cfg.UseStatsSummaryAsSource = ptr.To(true)
 
 	p, err := NewProvider(
 		workloadfilterfxmock.SetupMockFilter(suite.T()),

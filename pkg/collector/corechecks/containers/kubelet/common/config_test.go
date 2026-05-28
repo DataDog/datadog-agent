@@ -10,11 +10,11 @@ package common
 import (
 	"runtime"
 	"testing"
+
+	"k8s.io/utils/ptr"
 )
 
 func TestUseStatsSummaryAsSource(t *testing.T) {
-	tr := true
-	fa := false
 	platformDefault := runtime.GOOS == "windows"
 
 	tests := []struct {
@@ -23,8 +23,8 @@ func TestUseStatsSummaryAsSource(t *testing.T) {
 		want bool
 	}{
 		{name: "unset flag falls back to platform default", cfg: &KubeletConfig{}, want: platformDefault},
-		{name: "explicit true overrides default", cfg: &KubeletConfig{UseStatsSummaryAsSource: &tr}, want: true},
-		{name: "explicit false overrides default", cfg: &KubeletConfig{UseStatsSummaryAsSource: &fa}, want: false},
+		{name: "explicit true overrides default", cfg: &KubeletConfig{UseStatsSummaryAsSource: ptr.To(true)}, want: true},
+		{name: "explicit false overrides default", cfg: &KubeletConfig{UseStatsSummaryAsSource: ptr.To(false)}, want: false},
 	}
 
 	for _, tt := range tests {
