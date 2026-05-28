@@ -21,6 +21,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -390,7 +391,10 @@ func (e ErrUntracedEventType) Error() string {
 // condition). Callers can use this to avoid logging noise for routine filtering.
 func IsExpectedFilterError(err error) bool {
 	var untracedErr ErrUntracedEventType
+	var pathResolutionErr *path.ErrPathResolution
 	return errors.As(err, &untracedErr) ||
+		errors.As(err, &pathResolutionErr) ||
+		errors.Is(err, ErrNotValidRootNode) ||
 		errors.Is(err, ErrInvalidBindFamily) ||
 		errors.Is(err, ErrIMDSMissingCredentials) ||
 		errors.Is(err, ErrIMDSMissingURL)
