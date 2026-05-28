@@ -83,9 +83,10 @@ func TestTukeyBiweight_IncrementalMatchesBatch(t *testing.T) {
 }
 
 // TestTukeyBiweight_ReprocessesSameBucketMerge verifies that in-place bucket
-// updates are not skipped. Storage merges values with identical timestamps
-// into the same bucket, so PointCountUpTo is unchanged and the detector must
-// use WriteGeneration to replay the updated aggregate.
+// updates are not skipped or double-counted. Storage merges values with
+// identical timestamps into the same bucket, so PointCountUpTo is unchanged and
+// the detector must use WriteGeneration to replay the updated aggregate without
+// retaining the stale pre-merge aggregate.
 func TestTukeyBiweight_ReprocessesSameBucketMerge(t *testing.T) {
 	d := testTukeyBiweightDetector()
 	d.WindowSize = 4
@@ -115,8 +116,8 @@ func TestTukeyBiweight_ReprocessesSameBucketMerge(t *testing.T) {
 
 	state = d.series[key]
 	require.NotNil(t, state)
-	require.Equal(t, 2, state.count, "same-bucket merge should replay the updated aggregate")
-	assert.Equal(t, 20.0, state.ring[state.count-1].Value)
+	require.Equal(t, 1, state.count, "same-bucket merge should replace the stale aggregate")
+	assert.Equal(t, 20.0, state.ring[0].Value)
 	assert.Equal(t, storage.WriteGeneration(ref), state.lastWriteGen)
 }
 

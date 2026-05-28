@@ -338,8 +338,9 @@ func TestHoltResidual_IncrementalMatchesBatch(t *testing.T) {
 
 // TestHoltResidual_ReprocessesSameBucketMergeAndDoesNotSkipLatePoints pins two
 // cursor invariants: same-timestamp storage merges must be replayed via
-// WriteGeneration, and a replay that sees no strictly-new bucket must not move
-// lastProcessedTime past late points that still fall inside the dataTime range.
+// WriteGeneration without retaining stale aggregate state, and a replay that
+// sees no strictly-new bucket must not move lastProcessedTime past late points
+// that still fall inside the dataTime range.
 func TestHoltResidual_ReprocessesSameBucketMergeAndDoesNotSkipLatePoints(t *testing.T) {
 	d := testHoltResidualDetector()
 	d.WarmupPoints = 10
@@ -366,13 +367,13 @@ func TestHoltResidual_ReprocessesSameBucketMergeAndDoesNotSkipLatePoints(t *test
 
 	d.Detect(storage, 20)
 	state = d.series[key]
-	require.Equal(t, []float64{10.0, 20.0}, state.warmupBuf)
+	require.Equal(t, []float64{20.0}, state.warmupBuf)
 	require.Equal(t, int64(10), state.lastProcessedTime, "merge replay must not advance to dataTime")
 
 	storage.Add("ns", "metric", 50.0, 15, nil)
 	d.Detect(storage, 20)
 	state = d.series[key]
-	require.Equal(t, []float64{10.0, 20.0, 50.0}, state.warmupBuf)
+	require.Equal(t, []float64{20.0, 50.0}, state.warmupBuf)
 	assert.Equal(t, int64(15), state.lastProcessedTime)
 	assert.Equal(t, storage.WriteGeneration(ref), state.lastWriteGen)
 }

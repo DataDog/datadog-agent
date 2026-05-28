@@ -219,15 +219,10 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 				continue
 			}
 			startTime := state.lastProcessedTime
-			if status.pointCount > state.lastProcessedCount && storage.PointCountUpTo(meta.Ref, state.lastProcessedTime) > state.lastProcessedCount {
+			if mergeOccurred || (status.pointCount > state.lastProcessedCount && storage.PointCountUpTo(meta.Ref, state.lastProcessedTime) > state.lastProcessedCount) {
 				state = &tbSeriesState{}
 				d.series[sk] = state
 				startTime = 0
-			} else if mergeOccurred {
-				startTime = state.lastProcessedTime - 1
-				if startTime < 0 {
-					startTime = 0
-				}
 			}
 
 			var seriesMeta *observer.Series
