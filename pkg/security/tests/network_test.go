@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/netip"
 	"os"
 	"os/exec"
@@ -897,5 +898,210 @@ func TestNetworkFlowSendUDP4(t *testing.T) {
 				assert.Equal(t, uint64(0), event.NetworkFlowMonitor.Flows[0].Ingress.DataSize, "wrong ingress data size")
 			}
 		}, "test_rule_network_flow")
+	})
+}
+
+func logNetworkProcessContext(t *testing.T, direction string, event *model.Event) {
+	t.Helper()
+	pc := event.ProcessContext
+	t.Logf("[%s] process correlation: comm=%s exe=%s pid=%d tid=%d ppid=%d",
+		direction, pc.Comm, pc.FileEvent.PathnameStr, pc.Pid, pc.Tid, pc.PPid)
+}
+
+func TestNetworkProcessCorrelation(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkNetworkCompatibility(t)
+
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
+		if out, err := loadModule("veth"); err != nil {
+			t.Fatalf("couldn't load 'veth' module: %s, %v", string(out), err)
+		}
+	}
+
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	testsuiteName := filepath.Base(executable)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_network_correlation_egress",
+			Expression: fmt.Sprintf(`imds.type == "request" && process.file.name == "%s"`, testsuiteName),
+		},
+		{
+			ID:         "test_network_correlation_ingress",
+			Expression: fmt.Sprintf(`imds.type == "response" && process.file.name == "%s"`, testsuiteName),
+		},
+	}
+
+	// create a dummy interface holding the IMDS IP so the local server is reachable
+	dummy, err := testutils.CreateDummyInterface(testutils.CSMDummyInterface, testutils.IMDSTestServerCIDR)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err = testutils.RemoveDummyInterface(dummy); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// create a local plain HTTP server; traffic to/from the IMDS IP is classified as IMDS
+	serverAddr := testutils.IMDSTestServerIP + ":" + strconv.Itoa(testutils.IMDSTestServerPort)
+	server := testutils.CreateIMDSServer(serverAddr)
+	defer func() {
+		if err = testutils.StopIMDSserver(server); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	doRequest := func() error {
+		response, err := http.Get(fmt.Sprintf("http://%s%s", serverAddr, testutils.IMDSSecurityCredentialsURL))
+		if err != nil {
+			return fmt.Errorf("failed to query test server: %v", err)
+		}
+		defer response.Body.Close()
+		return nil
+	}
+
+	t.Run("egress", func(t *testing.T) {
+		test.WaitSignalFromRule(t, doRequest, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_network_correlation_egress")
+			assert.Equal(t, "request", event.IMDS.Type, "wrong IMDS event type")
+			assert.Equal(t, testsuiteName, event.ProcessContext.FileEvent.BasenameStr, "wrong egress process correlation")
+			logNetworkProcessContext(t, "egress", event)
+		}, "test_network_correlation_egress")
+	})
+
+	t.Run("ingress", func(t *testing.T) {
+		test.WaitSignalFromRule(t, doRequest, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_network_correlation_ingress")
+			assert.Equal(t, "response", event.IMDS.Type, "wrong IMDS event type")
+			assert.Equal(t, testsuiteName, event.ProcessContext.FileEvent.BasenameStr, "wrong ingress process correlation")
+			logNetworkProcessContext(t, "ingress", event)
+		}, "test_network_correlation_ingress")
+	})
+}
+
+// TestNetworkProcessCorrelationPreExistingConn is the regression test for the
+// flow_pid snapshot: it opens the TCP connection before the eBPF probes are
+// loaded (via withForceReload), so neither sock_cookie_pid nor flow_pid gets an entry
+// for the socket through the regular runtime hooks.
+// Process correlation then relies entirely on the snapshot performed at probe
+// startup by the iter/task_file program.
+func TestNetworkProcessCorrelationPreExistingConn(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkNetworkCompatibility(t)
+
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
+		if out, err := loadModule("veth"); err != nil {
+			t.Fatalf("couldn't load 'veth' module: %s, %v", string(out), err)
+		}
+	}
+
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	testsuiteName := filepath.Base(executable)
+
+	// create a dummy interface holding the IMDS IP so the local server is reachable
+	dummy, err := testutils.CreateDummyInterface(testutils.CSMDummyInterface, testutils.IMDSTestServerCIDR)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err = testutils.RemoveDummyInterface(dummy); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	serverAddr := testutils.IMDSTestServerIP + ":" + strconv.Itoa(testutils.IMDSTestServerPort)
+	server := testutils.CreateIMDSServer(serverAddr)
+	defer func() {
+		if err = testutils.StopIMDSserver(server); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// open the TCP connection before newTestModule
+	var conn net.Conn
+	err = retry.Do(func() error {
+		var derr error
+		conn, derr = net.DialTimeout("tcp", serverAddr, 2*time.Second)
+		return derr
+	}, retry.Delay(100*time.Millisecond), retry.Attempts(50), retry.DelayType(retry.FixedDelay))
+	if err != nil {
+		t.Fatalf("could not connect to %s: %v", serverAddr, err)
+	}
+	defer conn.Close()
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_preconnect_egress",
+			Expression: fmt.Sprintf(`imds.type == "request" && process.file.name == "%s"`, testsuiteName),
+		},
+		{
+			ID:         "test_preconnect_ingress",
+			Expression: fmt.Sprintf(`imds.type == "response" && process.file.name == "%s"`, testsuiteName),
+		},
+	}
+
+	// withForceReload below recreates the probes (and their maps) after
+	// the connection socket already exists, so it must be picked up by the startup snapshot.
+	test, err := newTestModule(t, nil, ruleDefs,
+		withStaticOpts(testOpts{networkIngressEnabled: true}),
+		withForceReload(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	sendRequest := func() error {
+		if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			return fmt.Errorf("set deadline: %w", err)
+		}
+		req := "GET " + testutils.IMDSSecurityCredentialsURL + " HTTP/1.1\r\nHost: " + serverAddr + "\r\n\r\n"
+		if _, err := conn.Write([]byte(req)); err != nil {
+			return fmt.Errorf("write: %w", err)
+		}
+		// drain the response so the ingress packet flows through the IMDS classifier;
+		// reading via http.ReadResponse keeps the connection alive for the next sub-test
+		resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+		if err != nil {
+			return fmt.Errorf("read response: %w", err)
+		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+		return nil
+	}
+
+	t.Run("egress", func(t *testing.T) {
+		test.WaitSignalFromRule(t, sendRequest, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_preconnect_egress")
+			assert.Equal(t, "request", event.IMDS.Type, "wrong IMDS event type")
+			assert.NotZero(t, event.ProcessContext.Pid, "egress PID should be non-zero")
+			assert.Equal(t, testsuiteName, event.ProcessContext.FileEvent.BasenameStr, "egress should correlate to the testsuite process")
+			logNetworkProcessContext(t, "egress (pre-connect)", event)
+		}, "test_preconnect_egress")
+	})
+
+	t.Run("ingress", func(t *testing.T) {
+		test.WaitSignalFromRule(t, sendRequest, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_preconnect_ingress")
+			assert.Equal(t, "response", event.IMDS.Type, "wrong IMDS event type")
+			assert.NotZero(t, event.ProcessContext.Pid, "ingress PID should be non-zero (relies on the flow_pid snapshot)")
+			assert.Equal(t, testsuiteName, event.ProcessContext.FileEvent.BasenameStr, "ingress should correlate to the testsuite process")
+			logNetworkProcessContext(t, "ingress (pre-connect)", event)
+		}, "test_preconnect_ingress")
 	})
 }
