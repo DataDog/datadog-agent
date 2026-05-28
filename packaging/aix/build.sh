@@ -16,8 +16,8 @@
 #                   This produces the same version string embedded in the binary.
 #                   The build fails if invoke is unavailable or returns empty.
 #
-# VRMF (installp package version) is X.Y.Z.AGENT_BUILD — the pre/git suffix of
-# AGENT_VERSION is stripped below.
+# VRMF (installp package version) is X.Y.Z.AGENT_BUILD — derived in env.sh
+# once AGENT_VERSION and AGENT_BUILD are both available.
 # Package filename: datadog-agent-<AGENT_VERSION>-<AGENT_BUILD>.aix.ppc64.bff
 #
 # AGENT_SRC is resolved by env.sh: it walks up from the script directory until
@@ -31,12 +31,6 @@ PATH=/opt/go/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:$PATH
 export PATH
 
 # ── Source shared environment ─────────────────────────────────────────────────
-# env.sh resolves AGENT_SRC (walks up from $SCRIPT_DIR to find .git, exits 1
-# if none found) and exports every other shared variable.
-
-SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-# shellcheck source=/dev/null
-. "$SCRIPT_DIR/lib/env.sh"
 
 if [ -z "${AGENT_BUILD:-}" ]; then
     printf 'ERROR: AGENT_BUILD must be set (e.g. AGENT_BUILD=1)\n' >&2
@@ -44,18 +38,9 @@ if [ -z "${AGENT_BUILD:-}" ]; then
     exit 1
 fi
 
-if [ -z "${AGENT_VERSION:-}" ]; then
-    AGENT_VERSION=$(cd "$AGENT_SRC" && \
-        python3.12 -m invoke agent.version --url-safe --include-git 2>&1)
-    if [ -z "$AGENT_VERSION" ]; then
-        printf 'ERROR: invoke agent.version returned empty output.\n' >&2
-        exit 1
-    fi
-    printf 'INFO: AGENT_VERSION: %s\n' "$AGENT_VERSION" >&2
-fi
-
-AGENT_VRMF=$(printf '%s' "$AGENT_VERSION" | sed 's/\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/').$(printf '%s' "$AGENT_BUILD" | sed 's/\..*//')
-export AGENT_VERSION AGENT_VRMF
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/lib/env.sh"
 
 # ── Check required tools ──────────────────────────────────────────────────────
 # Fail early with a clear message if a required build tool is missing.

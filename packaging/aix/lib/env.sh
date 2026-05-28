@@ -76,10 +76,23 @@ NPROC=$(/usr/sbin/lsdev -Cc processor | wc -l | tr -d ' ')
 export BUILD_DIR STAGING EMBEDDED EMBEDDED_DESTDIR INTEGRATIONS_CORE WHEEL_CACHE LIB_CACHE NPROC
 
 # ── Agent version variables ───────────────────────────────────────────────────
-# AGENT_VERSION, AGENT_BUILD, and AGENT_VRMF must be set before sourcing this
-# file (build.sh sets them; standalone stage invocations must set them too).
-# Use ${VAR:-} (no-fail) so env.sh can be sourced under set -u. The individual
-# stage scripts validate via : "${AGENT_VERSION:?...}" after sourcing this file.
+# AGENT_VERSION: auto-detected from the source tree if not already set.
+# AGENT_BUILD: required input — must be set by the caller (cannot be derived).
+# AGENT_VRMF: four-component installp version string, derived here once both
+#             AGENT_VERSION and AGENT_BUILD are known.
+
+if [ -z "${AGENT_VERSION:-}" ]; then
+    AGENT_VERSION=$(cd "$AGENT_SRC" && \
+        python3.12 -m invoke agent.version --url-safe --include-git 2>&1)
+    if [ -z "$AGENT_VERSION" ]; then
+        printf 'ERROR: env.sh: invoke agent.version returned empty output from %s\n' "$AGENT_SRC" >&2
+        exit 1
+    fi
+fi
+
+if [ -n "${AGENT_BUILD:-}" ]; then
+    AGENT_VRMF=$(printf '%s' "$AGENT_VERSION" | sed 's/\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/').$(printf '%s' "$AGENT_BUILD" | sed 's/\..*//')
+fi
 
 export AGENT_VERSION AGENT_BUILD AGENT_VRMF
 
