@@ -10,6 +10,7 @@ import (
 	"hash/fnv"
 	"net"
 	"strconv"
+	"strings"
 
 	"github.com/gosnmp/gosnmp"
 
@@ -48,7 +49,36 @@ type TrapsConfig struct {
 	BindHost              string   `mapstructure:"bind_host" yaml:"bind_host"`
 	StopTimeout           int      `mapstructure:"stop_timeout" yaml:"stop_timeout"`
 	Namespace             string   `mapstructure:"namespace" yaml:"namespace"`
+	// Tags is an optional list of user-supplied tags (e.g. "application:foo")
+	// appended to every trap emitted by the listener. Tags are appended after
+	// the built-in tags (snmp_version, device_namespace, snmp_device) so
+	// dashboards/monitors that key on the existing tag prefixes are unaffected.
+	// Note: these tags also propagate to the listener's telemetry metrics
+	// (datadog.snmp_traps.*); avoid high-cardinality values.
+	Tags                  []string `mapstructure:"tags" yaml:"tags"`
 	authoritativeEngineID string   `mapstructure:"-" yaml:"-"`
+}
+
+// maxTagLength is the maximum length (in characters) of a single custom tag
+// emitted by the traps listener. Tags above this length are accepted but
+// flagged so misconfigured high-cardinality values surface in logs.
+const maxTagLength = 200
+
+// normalizeTags trims whitespace from each tag and drops empty entries, while
+// preserving the user's ordering. Returns the cleaned slice (never nil-only-on-input).
+func normalizeTags(tags []string) []string {
+	if len(tags) == 0 {
+		return tags
+	}
+	out := make([]string, 0, len(tags))
+	for _, t := range tags {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
 }
 
 // ReadConfig builds the traps configuration from the Agent configuration.
@@ -100,7 +130,25 @@ func (c *TrapsConfig) SetDefaults(host string, namespace string) error {
 		return fmt.Errorf("invalid config: %w", err)
 	}
 
+	c.Tags = normalizeTags(c.Tags)
+
 	return nil
+}
+
+// OversizedTags returns any custom tags exceeding maxTagLength. Used by callers
+// (the listener) to emit a one-shot warning at agent start. Returned tags are
+// returned in user-declared order; the slice is never nil-only-on-input.
+func (c *TrapsConfig) OversizedTags() []string {
+	if len(c.Tags) == 0 {
+		return nil
+	}
+	var bad []string
+	for _, t := range c.Tags {
+		if len(t) > maxTagLength {
+			bad = append(bad, t)
+		}
+	}
+	return bad
 }
 
 // Addr returns the host:port address to listen on.
