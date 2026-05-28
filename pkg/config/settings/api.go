@@ -8,7 +8,7 @@ package settings
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/comp/core/settings"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 )
 
 // Client is the interface for interacting with the runtime settings API

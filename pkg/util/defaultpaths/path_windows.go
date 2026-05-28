@@ -52,6 +52,7 @@ const (
 	DefaultReceiverSocket             = ""
 	DefaultRunPath                    = "c:\\programdata\\datadog\\run"
 	DefaultDDAgentBin                 = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
+	DefaultDataPlaneLogFile           = "C:\\ProgramData\\Datadog\\logs\\agent-data-plane.log"
 )
 
 // Default paths for Windows systems.

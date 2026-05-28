@@ -45,6 +45,8 @@ var (
 	DefaultSystemProbeAddress = defaultpaths.DefaultSystemProbeAddress
 	// DefaultDDAgentBin the process agent's binary
 	DefaultDDAgentBin = defaultpaths.DefaultDDAgentBin
+	// DefaultDataPlaneLogFile is the default log file used by the data-plane agent if not configured
+	DefaultDataPlaneLogFile = defaultpaths.DefaultDataPlaneLogFile
 )
 
 func osinit() {
@@ -59,6 +61,7 @@ func osinit() {
 		DefaultHostProfilerLogFile = filepath.Join(pd, "logs", "host-profiler.log")
 		DefaultPrivateActionRunnerLogFile = filepath.Join(pd, "logs", "private-action-runner.log")
 		DefaultStreamlogsLogFile = filepath.Join(pd, "logs", "streamlogs_info", "streamlogs.log")
+		DefaultDataPlaneLogFile = filepath.Join(pd, "logs", "agent-data-plane.log")
 	}
 
 	// The install path is configurable on Windows, so fetch the path from the registry

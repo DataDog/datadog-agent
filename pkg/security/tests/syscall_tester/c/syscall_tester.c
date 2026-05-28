@@ -773,6 +773,61 @@ int test_bind_af_unix(void) {
     return EXIT_SUCCESS;
 }
 
+// test_socket: create a socket with the given domain/type/protocol and close it.
+// Usage: syscall_tester socket <AF_INET|AF_INET6|AF_UNIX> <SOCK_STREAM|SOCK_DGRAM|SOCK_RAW> <IPPROTO_TCP|IPPROTO_UDP|IPPROTO_ICMP|0>
+int test_socket(int argc, char** argv) {
+    if (argc != 4) {
+        fprintf(stderr, "%s: expected <domain> <type> <protocol>\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    int domain;
+    if (!strcmp(argv[1], "AF_INET")) {
+        domain = AF_INET;
+    } else if (!strcmp(argv[1], "AF_INET6")) {
+        domain = AF_INET6;
+    } else if (!strcmp(argv[1], "AF_UNIX")) {
+        domain = AF_UNIX;
+    } else {
+        fprintf(stderr, "invalid domain: %s\n", argv[1]);
+        return EXIT_FAILURE;
+    }
+
+    int sock_type;
+    if (!strcmp(argv[2], "SOCK_STREAM")) {
+        sock_type = SOCK_STREAM;
+    } else if (!strcmp(argv[2], "SOCK_DGRAM")) {
+        sock_type = SOCK_DGRAM;
+    } else if (!strcmp(argv[2], "SOCK_RAW")) {
+        sock_type = SOCK_RAW;
+    } else {
+        fprintf(stderr, "invalid type: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+    int protocol;
+    if (!strcmp(argv[3], "IPPROTO_TCP")) {
+        protocol = IPPROTO_TCP;
+    } else if (!strcmp(argv[3], "IPPROTO_UDP")) {
+        protocol = IPPROTO_UDP;
+    } else if (!strcmp(argv[3], "IPPROTO_ICMP")) {
+        protocol = IPPROTO_ICMP;
+    } else if (!strcmp(argv[3], "0")) {
+        protocol = 0;
+    } else {
+        fprintf(stderr, "invalid protocol: %s\n", argv[3]);
+        return EXIT_FAILURE;
+    }
+
+    int fd = socket(domain, sock_type, protocol);
+    if (fd < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+    close(fd);
+    return EXIT_SUCCESS;
+}
+
 int test_bind(int argc, char** argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please specify an addr_type\n");
@@ -1324,6 +1379,25 @@ int test_chmod(int argc, char **argv) {
     }
 
     return EXIT_SUCCESS;
+}
+
+// test_chmod_error chmods a path that must not exist; expects ENOENT (used by capture_all_errors test).
+int test_chmod_error(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please specify a file name\n");
+        return EXIT_FAILURE;
+    }
+
+    if (chmod(argv[1], 0644) < 0) {
+        if (errno != ENOENT) {
+            fprintf(stderr, "chmod(%s) failed with errno %d, expected ENOENT\n", argv[1], errno);
+            return EXIT_FAILURE;
+        }
+        return EXIT_SUCCESS;
+    }
+
+    fprintf(stderr, "chmod(%s) unexpectedly succeeded\n", argv[1]);
+    return EXIT_FAILURE;
 }
 
 int test_chown(int argc, char **argv) {
@@ -2000,6 +2074,72 @@ int test_subreaper(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+// subreaper-with-var: sets the current process as a subreaper, forks an
+// intermediate child which opens <trigger_file> (to fire a rule that sets an
+// inherited process-scoped SECL variable), then forks a grandchild and exits.
+// The grandchild waits for the kernel to complete reparenting onto the
+// subreaper, then opens <check_file>. The intermediate is now gone from the
+// grandchild's parent chain, so a rule reading the inherited variable on the
+// <check_file> event must rely on a pre-reparent snapshot to still see the
+// value set on the intermediate.
+// Usage: syscall_tester subreaper-with-var <trigger_file> <check_file>
+int test_subreaper_with_var(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr, "Usage: subreaper-with-var <trigger_file> <check_file>\n");
+        return EXIT_FAILURE;
+    }
+    char *trigger_file = argv[1];
+    char *check_file = argv[2];
+
+    if (prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0) {
+        perror("prctl PR_SET_CHILD_SUBREAPER");
+        return EXIT_FAILURE;
+    }
+
+    pid_t child = fork();
+    if (child < 0) {
+        perror("fork (child)");
+        return EXIT_FAILURE;
+    }
+
+    if (child == 0) {
+        // intermediate: open trigger_file so the set-variable rule fires on
+        // this process scope, then fork a grandchild and exit.
+        int fd = open(trigger_file, O_RDONLY | O_CREAT, 0400);
+        if (fd > 0)
+            close(fd);
+
+        // give the agent a moment to process the trigger event before we exit
+        sleep(1);
+
+        pid_t grandchild = fork();
+        if (grandchild < 0) {
+            perror("fork (grandchild)");
+            _exit(EXIT_FAILURE);
+        }
+        if (grandchild == 0) {
+            // grandchild: wait for the kernel reparenting to settle, then open
+            // check_file so the inheritance-check rule evaluates against the
+            // post-reparent process context.
+            sleep(2);
+
+            int gfd = open(check_file, O_RDONLY | O_CREAT, 0400);
+            if (gfd > 0)
+                close(gfd);
+
+            _exit(EXIT_SUCCESS);
+        }
+        // intermediate exits; the kernel reparents grandchild onto the subreaper
+        _exit(EXIT_SUCCESS);
+    }
+
+    // subreaper: wait for the intermediate, then reap the reparented grandchild
+    waitpid(child, NULL, 0);
+    while (waitpid(-1, NULL, 0) > 0) {}
+
+    return EXIT_SUCCESS;
+}
+
 /* clone3 is not wrapped by glibc, call it directly. */
 static pid_t sys_clone3(struct clone_args *args, size_t size) {
     return (pid_t)syscall(__NR_clone3, args, size);
@@ -2122,6 +2262,8 @@ int main(int argc, char **argv) {
             exit_code = test_bind(sub_argc, sub_argv);
         } else if (strcmp(cmd, "connect") == 0) {
             exit_code = test_connect(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "socket") == 0) {
+            exit_code = test_socket(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fork") == 0) {
             exit_code = test_forkexec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "set-signal-handler") == 0) {
@@ -2154,6 +2296,8 @@ int main(int argc, char **argv) {
             exit_code = test_slow_write(sub_argc, sub_argv);
         } else if (strcmp(cmd, "network_flow_send_udp4") == 0) {
             exit_code = test_network_flow_send_udp4(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "chmod-error") == 0) {
+            exit_code = test_chmod_error(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chmod") == 0) {
             exit_code = test_chmod(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chown") == 0) {
@@ -2182,6 +2326,8 @@ int main(int argc, char **argv) {
             exit_code = test_dnsloop(sub_argc, sub_argv);
         } else if (strcmp(cmd, "subreaper") == 0) {
             exit_code = test_subreaper(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "subreaper-with-var") == 0) {
+            exit_code = test_subreaper_with_var(sub_argc, sub_argv);
         } else if (strcmp(cmd, "process-clone-into-cgroup") == 0) {
             exit_code = test_clone_into_cgroup(sub_argc, sub_argv);
         } else {

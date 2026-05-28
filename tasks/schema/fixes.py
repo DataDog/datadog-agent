@@ -107,6 +107,18 @@ sysprobe_defaults = {
         "windows": "localhost:3335",
         "other": "${install_path}/run/runtime-security.sock",
     },
+    "network_config.direct_send": {
+        "linux": True,
+        "other": False,
+    },
+    "discovery.enabled": {
+        "linux": True,
+        "other": False,
+    },
+    "discovery.use_system_probe_lite": {
+        "linux": True,
+        "other": False,
+    },
 }
 
 # extra_tags

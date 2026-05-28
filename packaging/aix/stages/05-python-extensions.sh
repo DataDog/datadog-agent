@@ -42,22 +42,18 @@ PYTHON_BIN=$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}
 #
 # Sources:
 #   pymqi, pyodbc  — integrations-core/agent_requirements.in (format: "pkg==x.y.z")
-#   ibm_db         — integrations-core/ibm_db2/hatch.toml (Python 3 line)
 
 AGENT_REQ="$INTEGRATIONS_CORE/agent_requirements.in"
 PYMQI_VERSION=$(grep '^pymqi==' "$AGENT_REQ" | cut -d= -f3)
 PYODBC_VERSION=$(grep '^pyodbc==' "$AGENT_REQ" | cut -d= -f3)
-IBM_DB_VERSION=$(grep "ibm_db==[0-9]" "$INTEGRATIONS_CORE/ibm_db2/hatch.toml" \
-    | grep "python_version > '3" | sed "s/.*ibm_db==\([0-9][^;'\"]*\).*/\1/")
 
-if [ -z "$PYMQI_VERSION" ] || [ -z "$PYODBC_VERSION" ] || [ -z "$IBM_DB_VERSION" ]; then
+if [ -z "$PYMQI_VERSION" ] || [ -z "$PYODBC_VERSION" ]; then
     log "ERROR: could not read one or more C-extension versions from integrations-core"
     log "  PYMQI_VERSION='$PYMQI_VERSION'  (source: $AGENT_REQ)"
     log "  PYODBC_VERSION='$PYODBC_VERSION'  (source: $AGENT_REQ)"
-    log "  IBM_DB_VERSION='$IBM_DB_VERSION'  (source: $INTEGRATIONS_CORE/ibm_db2/hatch.toml)"
     exit 1
 fi
-log "C-extension versions from integrations-core: pymqi=$PYMQI_VERSION pyodbc=$PYODBC_VERSION ibm_db=$IBM_DB_VERSION"
+log "C-extension versions from integrations-core: pymqi=$PYMQI_VERSION pyodbc=$PYODBC_VERSION"
 
 # --- Pre-flight: confirm pip${PYTHON_MAJ_MIN} exists ---
 if [ ! -x "$PIP" ]; then
@@ -307,25 +303,11 @@ else
     log "         Install unixODBC development headers (yum install unixODBC unixODBC-devel) and re-run this stage."
 fi
 
-# ─── Step 7: ibm_db (conditional — IBM DB2 CLI driver required) ───────────────
-#
-# ibm_db is a C++ extension for IBM DB2. It is required by the ibm_db2 check.
-# The CLI driver shared libraries are NOT bundled — user-installed prerequisite
-# on the target system. We skip gracefully if no driver is found.
-
-if [ -n "${IBM_DB_HOME:-}" ] || [ -d /opt/ibm/db2/clidriver ]; then
-    DB2_HOME=${IBM_DB_HOME:-/opt/ibm/db2/clidriver}
-    log "IBM DB2 CLI driver found at $DB2_HOME — building ibm_db"
-    IBM_DB_HOME=$DB2_HOME \
-    CFLAGS="$CFLAGS -I${DB2_HOME}/include" \
-    LDFLAGS="$LDFLAGS -L${DB2_HOME}/lib -Wl,-brtl -ldb2" \
-        $PIP install --no-binary ibm_db "ibm_db==$IBM_DB_VERSION"
-    log "ibm_db installed successfully"
-else
-    log "WARNING: IBM DB2 CLI driver not found — skipping ibm_db (ibm_db2 check will not work)"
-    log "         Install the IBM DB2 CLI Driver (e.g. to /opt/ibm/db2/clidriver) or set IBM_DB_HOME"
-    log "         and re-run this stage."
-fi
+# ibm_db (ibm_db2 check) is intentionally not built here. Unlike other C
+# extensions, ibm_db auto-downloads the IBM DB2 CLI driver at pip install time
+# and does not require a pre-installed DB2 client on the build host. This
+# matches Linux behaviour — customers install it via the embedded pip after
+# deployment: sudo -Hu dd-agent pip install ibm_db==<version>
 
 # --- Mark complete ---
 mkdir -p "$(dirname "$SENTINEL")"

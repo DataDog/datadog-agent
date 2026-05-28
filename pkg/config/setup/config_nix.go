@@ -42,6 +42,8 @@ var (
 	DefaultSystemProbeAddress = defaultpaths.DefaultSystemProbeAddress
 	// DefaultDDAgentBin the process agent's binary
 	DefaultDDAgentBin = filepath.Join(defaultpaths.DefaultBinPath, "agent")
+	// DefaultDataPlaneLogFile is the default log file used by the data-plane agent if not configured
+	DefaultDataPlaneLogFile = defaultpaths.DefaultDataPlaneLogFile
 )
 
 // called by init in config.go, to ensure any os-specific config is done

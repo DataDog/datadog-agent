@@ -66,6 +66,8 @@ const (
 	DefaultHostProfilerLogFile = "/var/log/datadog/host-profiler.log"
 	// DefaultPrivateActionRunnerLogFile is the default log file location for the private action runner
 	DefaultPrivateActionRunnerLogFile = "/var/log/datadog/private-action-runner.log"
+	// DefaultDataPlaneLogFile is the default log file used by the data-plane agent if not configured
+	DefaultDataPlaneLogFile = "/var/log/datadog/agent-data-plane.log"
 
 	// Sockets
 

@@ -79,6 +79,16 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	// We pin to a major version by default.
 	config.BindEnvAndSetDefault("apm_config.instrumentation.injector_image_tag", "0", "DD_APM_INSTRUMENTATION_INJECTOR_IMAGE_TAG")
 
+	// Temporary feature flag controlling whether the auto-instrumentation
+	// library injection auto provider switches to the CSI provider when the
+	// Datadog CSI driver is detected in the cluster (via workloadmeta). When
+	// false, the auto provider always falls back to the init-container
+	// provider.
+	//
+	// TODO(apm-auto-instrumentation): once CSI auto-detection has been
+	// validated in production, remove this flag and the associated wiring in.
+	config.BindEnvAndSetDefault("apm_config.instrumentation.csi_driver_detection_enabled", false, "DD_APM_INSTRUMENTATION_CSI_DRIVER_DETECTION_ENABLED")
+
 	config.BindEnvAndSetDefault("apm_config.max_catalog_services", 0, "DD_APM_MAX_CATALOG_SERVICES")
 	config.BindEnvAndSetDefault("apm_config.receiver_timeout", 0, "DD_APM_RECEIVER_TIMEOUT")
 	config.BindEnvAndSetDefault("apm_config.max_payload_size", int64(25*1024*1024), "DD_APM_MAX_PAYLOAD_SIZE")
@@ -174,4 +184,25 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.ParseEnvJSON("apm_config.span_derived_primary_tags", []string{})
 
 	config.BindEnvAndSetDefault("apm_config.mode", "", "DD_APM_MODE")
+
+	// trace-agent's evp_proxy. Registered here (in setupAPM, which is part of
+	// initCommonConfigComponents) so the defaults are reachable under both the
+	// regular and `serverless` build tags. comp/trace/config reads these
+	// unconditionally; previously the defaults lived only in initCoreAgentFull
+	// and silently became false under serverless.
+	config.BindEnvAndSetDefault("evp_proxy_config.enabled", true)
+	config.BindEnvAndSetDefault("evp_proxy_config.dd_url", "")
+	config.BindEnvAndSetDefault("evp_proxy_config.api_key", "")
+	config.BindEnvAndSetDefault("evp_proxy_config.additional_endpoints", map[string][]string{})
+	config.BindEnvAndSetDefault("evp_proxy_config.max_payload_size", int64(10*1024*1024))
+	config.BindEnvAndSetDefault("evp_proxy_config.receiver_timeout", 0)
+	bindDelegatedAuthConfig(config, "evp_proxy_config")
+
+	// trace-agent's ol_proxy. Same rationale as evp_proxy above.
+	config.BindEnvAndSetDefault("ol_proxy_config.enabled", true)
+	config.BindEnvAndSetDefault("ol_proxy_config.dd_url", "")
+	config.BindEnvAndSetDefault("ol_proxy_config.api_key", "")
+	config.BindEnvAndSetDefault("ol_proxy_config.additional_endpoints", map[string][]string{})
+	config.BindEnvAndSetDefault("ol_proxy_config.api_version", 2)
+	bindDelegatedAuthConfig(config, "ol_proxy_config")
 }

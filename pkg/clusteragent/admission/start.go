@@ -12,13 +12,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
@@ -47,6 +48,7 @@ type ControllerContext struct {
 	Demultiplexer                demultiplexer.Component
 	FilterStore                  workloadfilter.Component
 	InstrumentationHandlers      []instrumentation.Handler
+	CSIDriverWatcher             libraryinjection.CSIDriverWatcher
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -111,6 +113,7 @@ func StartControllers(ctx ControllerContext, datadogConfig config.Component, wme
 		ctx.FilterStore,
 		ctx.InstrumentationHandlers,
 		ctx.DynamicInformer,
+		ctx.CSIDriverWatcher,
 	)
 
 	go secretController.Run(ctx.StopCh)

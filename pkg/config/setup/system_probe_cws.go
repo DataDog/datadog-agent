@@ -167,6 +167,11 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.ssh.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.cache_size", 1024)
 
+	// CWS - Capture all syscall errors
+	// When enabled, the eBPF IS_UNHANDLED_ERROR filter treats every negative syscall
+	// return as handled (constant patched at probe load). Defaults to false.
+	cfg.BindEnvAndSetDefault("runtime_security_config.syscalls.capture_all_errors.enabled", false)
+
 	// CWS -eBPF Less
 	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.socket", constants.DefaultEBPFLessProbeAddr)

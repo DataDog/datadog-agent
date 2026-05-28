@@ -286,8 +286,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// Network Config Management
-	bindEnvAndSetLogsConfigKeys(config, "network_config_management.forwarder.")
-	config.BindEnvAndSetDefault("network_config_management.rollback.enabled", false)
+	bindEnvAndSetLogsConfigKeys(config, "network_devices.config_management.forwarder.")
+	config.BindEnvAndSetDefault("network_devices.config_management.rollback.enabled", false)
 
 	// HA Agent
 	config.BindEnvAndSetDefault("ha_agent.enabled", false)
@@ -812,6 +812,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")
 
+	// Generic resources configuration
+	bindEnvAndSetLogsConfigKeys(config, "genresources.")
+
 	// Synthetics configuration
 	config.BindEnvAndSetDefault("synthetics.collector.enabled", false)
 	config.BindEnvAndSetDefault("synthetics.collector.workers", 4)
@@ -951,25 +954,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
 	config.BindEnvAndSetDefault("runtime_security_config.event_grpc_server", "")
 
-	// trace-agent's evp_proxy
-	config.BindEnvAndSetDefault("evp_proxy_config.enabled", true)
-	config.BindEnvAndSetDefault("evp_proxy_config.dd_url", "")
-	config.BindEnvAndSetDefault("evp_proxy_config.api_key", "")
-	config.BindEnvAndSetDefault("evp_proxy_config.additional_endpoints", map[string][]string{})
-	config.BindEnvAndSetDefault("evp_proxy_config.max_payload_size", int64(10*1024*1024))
-	config.BindEnvAndSetDefault("evp_proxy_config.receiver_timeout", 0)
-	// Delegated authentication for evp_proxy
-	bindDelegatedAuthConfig(config, "evp_proxy_config")
-
-	// trace-agent's ol_proxy
-	config.BindEnvAndSetDefault("ol_proxy_config.enabled", true)
-	config.BindEnvAndSetDefault("ol_proxy_config.dd_url", "")
-	config.BindEnvAndSetDefault("ol_proxy_config.api_key", "")
-	config.BindEnvAndSetDefault("ol_proxy_config.additional_endpoints", map[string][]string{})
-	config.BindEnvAndSetDefault("ol_proxy_config.api_version", 2)
-	// Delegated authentication for ol_proxy_config
-	bindDelegatedAuthConfig(config, "ol_proxy_config")
-
 	// command line options
 	config.SetDefault("cmd.check.fullsketches", false)
 
@@ -1070,9 +1054,20 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
+	config.BindEnvAndSetDefault("data_plane.use_new_config_stream_endpoint", true)
+	config.BindEnvAndSetDefault("data_plane.remote_agent_enabled", true)
+	// Listen addresses must include a URL scheme (e.g. "tcp://").
+	config.BindEnvAndSetDefault("data_plane.api_listen_address", "tcp://0.0.0.0:5100")
+	config.BindEnvAndSetDefault("data_plane.secure_api_listen_address", "tcp://0.0.0.0:5101")
+	config.BindEnvAndSetDefault("data_plane.telemetry_enabled", false)
+	config.BindEnvAndSetDefault("data_plane.telemetry_listen_addr", "tcp://0.0.0.0:5102")
+	config.BindEnvAndSetDefault("data_plane.log_file", DefaultDataPlaneLogFile)
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", true)
 	config.BindEnvAndSetDefault("data_plane.otlp.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.enabled", false)
+	config.BindEnvAndSetDefault("data_plane.otlp.proxy.traces.enabled", true)
+	config.BindEnvAndSetDefault("data_plane.otlp.proxy.metrics.enabled", true)
+	config.BindEnvAndSetDefault("data_plane.otlp.proxy.logs.enabled", true)
 	// When the ADP OTLP proxy is enabled, ADP owns the gRPC endpoint configured for the receiver (default :4317) and the core agent uses the endpoint below
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.receiver.protocols.grpc.endpoint", "127.0.0.1:4319")
 
@@ -1127,6 +1122,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Remote Flags system
 	remoteflags(config)
+
+	anomalyDetection(config)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -2086,4 +2083,59 @@ func kubernetes(config pkgconfigmodel.Setup) {
 
 func podman(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("podman_db_path", "")
+}
+
+func anomalyDetection(config pkgconfigmodel.Setup) {
+	// Master switch. When false the entire anomaly detection subsystem is a no-op.
+	config.BindEnvAndSetDefault("anomaly_detection.enabled", false)
+
+	// Log ingestion gate. When false, container/journald logs are not routed
+	// into the anomaly detection pipeline (recording is unaffected).
+	config.BindEnvAndSetDefault("anomaly_detection.logs.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.enabled", true)
+
+	// Metrics ingestion gate. When false, externally-ingested metrics
+	// (DogStatsD, check samplers) are dropped at the handle factory.
+	// Log-derived virtual metrics are unaffected.
+	config.BindEnvAndSetDefault("anomaly_detection.metrics.enabled", true)
+
+	// Agent-internal log sampling. Warn+ are never sampled.
+	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_info", 0.2)
+	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_debug", 0.05)
+	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_trace", 0.0)
+
+	// Anomaly event reporting. Keep false during evaluation / shadow mode.
+	config.BindEnvAndSetDefault("anomaly_detection.reporting.enabled", false)
+
+	// Parquet recording of raw ingested signals for offline analysis and replay.
+	config.BindEnvAndSetDefault("anomaly_detection.recording.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.recording.output_dir", "/var/run/datadog/anomaly_detection")
+	config.BindEnvAndSetDefault("anomaly_detection.recording.flush_interval", 60)
+	config.BindEnvAndSetDefault("anomaly_detection.recording.retention", "24h")
+
+	// Debug tooling: internal state dump. Leave empty/zero in production.
+	config.BindEnvAndSetDefault("anomaly_detection.debug.dump_path", "")
+	config.BindEnvAndSetDefault("anomaly_detection.debug.dump_interval", 0)
+	config.BindEnvAndSetDefault("anomaly_detection.debug.events_dump_path", "")
+
+	// Detector/correlator/extractor toggles. Defaults match componentCatalog.defaultEnabled.
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.log_metrics_extractor.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.connection_error_extractor.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.log_pattern_extractor.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.cusum.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.bocpd.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.rrcf.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scanmw.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scanwelch.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.cross_signal.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.min_cluster_size", 0)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.passthrough.enabled", false)
+
+	// Storage tuning. See storageConfig in the observer component.
+	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)
+	config.BindEnvAndSetDefault("anomaly_detection.storage.eviction_floor_ratio", 0.5)
+	config.BindEnvAndSetDefault("anomaly_detection.storage.point_retention_secs", 120)
 }
