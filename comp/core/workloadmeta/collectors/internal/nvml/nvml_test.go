@@ -305,7 +305,9 @@ func TestProcessEntityMerging(t *testing.T) {
 	}
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
 		testutil.WithDeviceCount(1),
-		testutil.WithProcessData(procinfo, nvml.SUCCESS),
+		testutil.WithProcessDataCallback(func(_ string) (testutil.MockProcessInfoList, nvml.Return) {
+			return procinfo, nvml.SUCCESS
+		}),
 	)
 	c := newCollector(wmetaMock, nil)
 	c.integrateWithWorkloadmetaProcesses = true
