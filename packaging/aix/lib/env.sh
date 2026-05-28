@@ -55,17 +55,6 @@ export AGENT_SRC
 EMBEDDED=/opt/datadog-agent/embedded
 EMBEDDED_DESTDIR=$STAGING/opt/datadog-agent/embedded
 
-# Bootstrap $EMBEDDED as a symlink to $EMBEDDED_DESTDIR so that Python
-# binaries (pip, ensurepip, etc.) whose shebangs were baked at configure
-# time as `#!/opt/datadog-agent/embedded/bin/python3.13` resolve during the build.
-if [ ! -L "$EMBEDDED" ] || [ "$(readlink "$EMBEDDED" 2>/dev/null)" != "$EMBEDDED_DESTDIR" ]; then
-    if [ -e "$EMBEDDED" ] && [ ! -L "$EMBEDDED" ]; then
-        rm -rf "$EMBEDDED"
-    fi
-    mkdir -p "$(dirname "$EMBEDDED")"
-    ln -sf "$EMBEDDED_DESTDIR" "$EMBEDDED"
-fi
-
 INTEGRATIONS_CORE=$BUILD_DIR/integrations-core
 WHEEL_CACHE=$BUILD_DIR/wheel-cache
 LIB_CACHE=$BUILD_DIR/lib-cache

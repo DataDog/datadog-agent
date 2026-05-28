@@ -42,6 +42,19 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/lib/env.sh"
 
+# ── Bootstrap embedded symlink ────────────────────────────────────────────────
+# Python binaries (pip, ensurepip, etc.) have their shebangs baked at configure
+# time as #!/opt/datadog-agent/embedded/bin/python3.13. Create a symlink from
+# that path to the actual staging tree so they resolve during the build.
+# Idempotent — only writes if missing or pointing at the wrong target.
+if [ ! -L "$EMBEDDED" ] || [ "$(readlink "$EMBEDDED" 2>/dev/null)" != "$EMBEDDED_DESTDIR" ]; then
+    if [ -e "$EMBEDDED" ] && [ ! -L "$EMBEDDED" ]; then
+        rm -rf "$EMBEDDED"
+    fi
+    mkdir -p "$(dirname "$EMBEDDED")"
+    ln -sf "$EMBEDDED_DESTDIR" "$EMBEDDED"
+fi
+
 # ── Check required tools ──────────────────────────────────────────────────────
 # Fail early with a clear message if a required build tool is missing.
 
