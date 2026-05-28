@@ -52,16 +52,16 @@ func fixupContainerSyspath(config pkgconfigmodel.Config) {
 		}
 	}
 
-	config.Set("procfs_path", procfsPathDefault, pkgconfigmodel.SourceConfigPostInit)
-	config.Set("container_proc_root", containerProcRootDefault, pkgconfigmodel.SourceConfigPostInit)
-	config.Set("container_cgroup_root", containerCgroupRootDefault, pkgconfigmodel.SourceConfigPostInit)
+	config.Set("procfs_path", procfsPathDefault, pkgconfigmodel.SourceDefault)
+	config.Set("container_proc_root", containerProcRootDefault, pkgconfigmodel.SourceDefault)
+	config.Set("container_cgroup_root", containerCgroupRootDefault, pkgconfigmodel.SourceDefault)
 }
 
 func fixupLogsAgent(config pkgconfigmodel.Config) {
 	// Number of logs pipeline instances. Defaults to number of logical CPU cores as defined by GOMAXPROCS or 4, whichever is lower.
 	maxProcs := runtime.GOMAXPROCS(0)
 	if maxProcs < 4 {
-		config.Set("logs_config.pipelines", maxProcs, pkgconfigmodel.SourceConfigPostInit)
+		config.Set("logs_config.pipelines", maxProcs, pkgconfigmodel.SourceDefault)
 	}
 }
 
