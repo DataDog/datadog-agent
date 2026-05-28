@@ -83,11 +83,9 @@ func walk(data *interface{}, callback scrubCallback) {
 // ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes
 func (c *Scrubber) ScrubDataObj(data *interface{}) {
 	walk(data, func(key string, value interface{}) (bool, interface{}) {
-
-		if str, ok := value.(string); ok {
-			if IsEnc(str) {
-				return false, ""
-			}
+		str, isString := value.(string)
+		if isString && IsEnc(str) {
+			return false, ""
 		}
 
 		for _, replacer := range c.singleLineReplacers {
@@ -105,6 +103,15 @@ func (c *Scrubber) ScrubDataObj(data *interface{}) {
 					return true, replacer.ProcessValue(value)
 				}
 				return true, defaultReplacement
+			}
+		}
+
+		if isString {
+			b := []byte(str)
+			b = c.scrub(b, c.singleLineReplacers, true)
+			b = c.scrub(b, c.multiLineReplacers, false)
+			if !bytes.Equal(b, []byte(str)) {
+				return true, string(b)
 			}
 		}
 		return false, ""

@@ -86,6 +86,68 @@ func TestScrubDataObj(t *testing.T) {
 	}
 }
 
+// Scrubs an api_key embedded in an additional_endpoints JSON-string value via the value-content pass.
+func TestScrubDataObj_AdditionalEndpoints(t *testing.T) {
+	layer := interface{}(map[string]interface{}{
+		"additional_endpoints": `{"https://metrics.agent.datadoghq.com":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}`,
+		"api_key":              "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		"hostname":             "test-host",
+		"site":                 "datadoghq.com",
+	})
+	ScrubDataObj(&layer)
+
+	out := layer.(map[string]interface{})
+	assert.Equal(t, "****************************bbbb", out["api_key"])
+	assert.Equal(t,
+		`{"https://metrics.agent.datadoghq.com":["****************************aaaa"]}`,
+		out["additional_endpoints"])
+	assert.Equal(t, "test-host", out["hostname"])
+	assert.Equal(t, "datadoghq.com", out["site"])
+}
+
+func TestScrubDataObj_TwoPassAlignment(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    interface{}
+		expected interface{}
+	}{
+		{
+			name: "ENC[] value is left alone",
+			input: map[string]interface{}{
+				"some_field": "ENC[supersecret]",
+			},
+			expected: map[string]interface{}{
+				"some_field": "ENC[supersecret]",
+			},
+		},
+		{
+			name: "non-secret string is not mutated",
+			input: map[string]interface{}{
+				"description": "this is a perfectly normal description value",
+			},
+			expected: map[string]interface{}{
+				"description": "this is a perfectly normal description value",
+			},
+		},
+		{
+			name: "key-name pass still wins when both could match",
+			input: map[string]interface{}{
+				"password": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			},
+			expected: map[string]interface{}{
+				"password": "********",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ScrubDataObj(&tc.input)
+			assert.Equal(t, tc.expected, tc.input)
+		})
+	}
+}
+
 func TestConfigScrubbedValidYaml(t *testing.T) {
 	wd, _ := os.Getwd()
 
