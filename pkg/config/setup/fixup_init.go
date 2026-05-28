@@ -71,7 +71,7 @@ func fixupInitCommonConfigComponents(config pkgconfigmodel.Config) {
 	fixupLogsAgent(config)
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 	pkgconfigmodel.AddOverrideFunc(applyInfrastructureModeOverrides)
-	pkgconfigmodel.AddOverrideFunc(applyUseDogstatsdSuppression)
+	pkgconfigmodel.AddOverrideFunc(ApplyUseDogstatsdSuppression)
 }
 
 // called only for full-agent, NOT serverless-init, after declaring settings
