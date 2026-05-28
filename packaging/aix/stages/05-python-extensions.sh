@@ -41,17 +41,19 @@ PYTHON_BIN=$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}
 # automatically picks up the correct version without a separate edit to this file.
 #
 # Sources:
-#   pymqi  — integrations-core/agent_requirements.in (format: "pkg==x.y.z")
+#   pymqi, pyodbc  — integrations-core/agent_requirements.in (format: "pkg==x.y.z")
 
 AGENT_REQ="$INTEGRATIONS_CORE/agent_requirements.in"
 PYMQI_VERSION=$(grep '^pymqi==' "$AGENT_REQ" | cut -d= -f3)
+PYODBC_VERSION=$(grep '^pyodbc==' "$AGENT_REQ" | cut -d= -f3)
 
-if [ -z "$PYMQI_VERSION" ]; then
-    log "ERROR: could not read pymqi version from integrations-core"
+if [ -z "$PYMQI_VERSION" ] || [ -z "$PYODBC_VERSION" ]; then
+    log "ERROR: could not read one or more C-extension versions from integrations-core"
     log "  PYMQI_VERSION='$PYMQI_VERSION'  (source: $AGENT_REQ)"
+    log "  PYODBC_VERSION='$PYODBC_VERSION'  (source: $AGENT_REQ)"
     exit 1
 fi
-log "C-extension versions from integrations-core: pymqi=$PYMQI_VERSION"
+log "C-extension versions from integrations-core: pymqi=$PYMQI_VERSION pyodbc=$PYODBC_VERSION"
 
 # --- Pre-flight: confirm pip${PYTHON_MAJ_MIN} exists ---
 if [ ! -x "$PIP" ]; then
@@ -284,12 +286,28 @@ else
     log "         Install IBM MQ Client 9.1 LTS from IBM Fix Central and re-run this stage to enable MQ checks."
 fi
 
-# pyodbc (ibm_i check) and ibm_db (ibm_db2 check) are intentionally not built
-# here. Both require customer-installed native drivers at runtime that cannot be
-# bundled, and both support self-contained installation on the customer host:
-#   ibm_db  — auto-downloads the DB2 CLI driver at pip-install time
-#   pyodbc  — requires the IBM i Access ODBC driver, installed by the customer
-# Customers install these via the embedded pip after deployment.
+# ─── Step 6: pyodbc (conditional — unixODBC headers required) ─────────────────
+#
+# pyodbc is a C++ extension wrapping unixODBC. It is required by the ibm_i
+# check. The IBM i Access ODBC driver is a separate user-installed prerequisite
+# on the target system. We skip gracefully if the build host lacks sql.h.
+
+if [ -f /opt/freeware/include/sql.h ] || [ -f /usr/include/sql.h ]; then
+    log "unixODBC headers found — building pyodbc"
+    CFLAGS="$CFLAGS -I/opt/freeware/include" \
+    LDFLAGS="$LDFLAGS -L/opt/freeware/lib -lodbc" \
+        $PIP install --no-binary pyodbc "pyodbc==$PYODBC_VERSION"
+    log "pyodbc installed successfully"
+else
+    log "WARNING: unixODBC headers not found — skipping pyodbc (ibm_i check will not work)"
+    log "         Install unixODBC development headers (yum install unixODBC unixODBC-devel) and re-run this stage."
+fi
+
+# ibm_db (ibm_db2 check) is intentionally not built here. Unlike other C
+# extensions, ibm_db auto-downloads the IBM DB2 CLI driver at pip install time
+# and does not require a pre-installed DB2 client on the build host. This
+# matches Linux behaviour — customers install it via the embedded pip after
+# deployment: sudo -Hu dd-agent pip install ibm_db==<version>
 
 # --- Mark complete ---
 mkdir -p "$(dirname "$SENTINEL")"
