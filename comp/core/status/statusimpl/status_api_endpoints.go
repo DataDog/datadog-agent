@@ -9,8 +9,6 @@ package statusimpl
 import (
 	"encoding/json"
 	"net/http"
-
-	"github.com/gorilla/mux"
 )
 
 var mimeTypeMap = map[string]string{
@@ -70,7 +68,6 @@ func (s *statusImplementation) getSections(w http.ResponseWriter, _ *http.Reques
 }
 
 func (s *statusImplementation) getSection(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	component := vars["component"]
+	component := r.PathValue("component")
 	s.getStatus(w, r, component)
 }

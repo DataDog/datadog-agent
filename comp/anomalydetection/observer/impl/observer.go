@@ -18,7 +18,6 @@ import (
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
-	hfrunnerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
@@ -26,7 +25,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -48,11 +46,6 @@ type Requires struct {
 	// so it receives advance events independently. StorageConsumer reporters receive
 	// storage for windowed log-rate annotations.
 	Reporters []reporterdef.Reporter `group:"anomalydetection_reporters"`
-
-	// HFRunner runs system and container checks at 1s and routes them into the
-	// observer pipeline. The noop variant (hfrunner/fx-noop) is wired for the
-	// main agent build; the real implementation lands with the algorithm PRs.
-	HFRunner hfrunnerdef.Component
 }
 
 // Provides defines the output of the observer component.
@@ -235,7 +228,6 @@ func NewComponent(deps Requires) Provides {
 		obsCh:                make(chan observation, 1000),
 		telemetryHandler:     th,
 		dropCounter:          th.telemetryCounters[telemetryObsChannelDropped],
-		hfFilterSources:      make(map[metrics.MetricSource]struct{}),
 		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
 	}
 
@@ -283,16 +275,6 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	go obs.run()
-
-	// Start high-frequency check runners. The hfrunner component handles
-	// config-based toggling and lifecycle internally; we only collect the
-	// MetricSource sets it wants suppressed from the "all-metrics" pipeline.
-	for src := range deps.HFRunner.StartSystem(obs.GetHandle(hfrunnerdef.HFSource)) {
-		obs.hfFilterSources[src] = struct{}{}
-	}
-	for src := range deps.HFRunner.StartContainer(obs.GetHandle(hfrunnerdef.HFContainerSource)) {
-		obs.hfFilterSources[src] = struct{}{}
-	}
 
 	// Wire agent-internal logs into the observer via the pkg/util/log tap.
 	// anomaly_detection.logs.enabled is the parent gate; without it,
@@ -351,12 +333,6 @@ type observerImpl struct {
 	// Tagged by source for Prometheus visibility. Complements engine.droppedObs
 	// which tracks drops for live/replay parity analysis.
 	dropCounter telemetry.Counter
-
-	// hfFilterSources is the combined set of MetricSource values to suppress from
-	// the "all-metrics" pipeline when their HF counterpart is active. Populated at
-	// construction time from the MetricSource sets returned by hfrunner.StartSystem
-	// and hfrunner.StartContainer.
-	hfFilterSources map[metrics.MetricSource]struct{}
 
 	// ingestMetricsEnabled gates externally-ingested metrics at the handle
 	// factory. When false, "all-metrics" and HF handles return a wrapper
@@ -427,12 +403,12 @@ type seriesDetectorAdapter struct {
 	// bounding per-call cost to O(windowSec) instead of O(totalPoints).
 	windowSec int64
 
-	// cachedSeries / cachedGen mirror the pattern used by BOCPDDetector,
+	// cachedRefs / cachedGen mirror the pattern used by BOCPDDetector,
 	// ScanWelchDetector, and ScanMWDetector: storage.SeriesGeneration() only
 	// advances when a brand-new series key is created, so we can avoid the
-	// per-Detect full-map ListSeries scan on steady-state cardinality.
-	cachedSeries []observerdef.SeriesMeta
-	cachedGen    uint64
+	// per-Detect full-map series scan on steady-state cardinality.
+	cachedRefs []observerdef.SeriesRef
+	cachedGen  uint64
 
 	// lastVisibleCount is keyed by the storage's compact SeriesRef so we
 	// avoid rebuilding a string key per series per Detect call. SeriesRefs
@@ -457,7 +433,7 @@ func (a *seriesDetectorAdapter) Name() string {
 // Reset clears adapter-local caches and resets the wrapped detector when supported.
 func (a *seriesDetectorAdapter) Reset() {
 	a.lastVisibleCount = make(map[observerdef.SeriesRef]int)
-	a.cachedSeries = nil
+	a.cachedRefs = nil
 	a.cachedGen = 0
 	if resetter, ok := a.detector.(interface{ Reset() }); ok {
 		resetter.Reset()
@@ -472,7 +448,7 @@ func (a *seriesDetectorAdapter) Reset() {
 // Concurrency invariant: this method runs on the single observerImpl.run()
 // goroutine that drives every other adapter callback (Detect, Reset). The
 // engine's fanOutSeriesRemoval is the only caller. Mutating lastVisibleCount
-// and cachedSeries without a lock is safe under that invariant only.
+// and cachedRefs without a lock is safe under that invariant only.
 func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 	if len(refs) == 0 {
 		return
@@ -482,7 +458,7 @@ func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 			delete(a.lastVisibleCount, ref)
 		}
 	}
-	a.cachedSeries = nil
+	a.cachedRefs = nil
 	a.cachedGen = 0
 	if remover, ok := a.detector.(observerdef.SeriesRemover); ok {
 		remover.RemoveSeries(refs)
@@ -491,27 +467,27 @@ func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 
 func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	gen := storage.SeriesGeneration()
-	if a.cachedSeries == nil || gen != a.cachedGen {
-		a.cachedSeries = storage.ListSeries(observerdef.WorkloadSeriesFilter())
+	if a.cachedRefs == nil || gen != a.cachedGen {
+		a.cachedRefs = workloadSeriesRefs(storage, a.cachedRefs)
 		a.cachedGen = gen
 	}
 
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
 
-	for _, meta := range a.cachedSeries {
-		visibleCount := storage.PointCountUpTo(meta.Ref, dataTime)
-		if prev, ok := a.lastVisibleCount[meta.Ref]; ok && prev == visibleCount {
+	for _, ref := range a.cachedRefs {
+		visibleCount := storage.PointCountUpTo(ref, dataTime)
+		if prev, ok := a.lastVisibleCount[ref]; ok && prev == visibleCount {
 			continue
 		}
-		a.lastVisibleCount[meta.Ref] = visibleCount
+		a.lastVisibleCount[ref] = visibleCount
 
 		for _, agg := range a.aggregations {
 			start := int64(0)
 			if a.windowSec > 0 {
 				start = dataTime - a.windowSec
 			}
-			series := storage.GetSeriesRange(meta.Ref, start, dataTime, agg)
+			series := storage.GetSeriesRange(ref, start, dataTime, agg)
 			if series == nil || len(series.Points) == 0 {
 				continue
 			}
@@ -530,7 +506,7 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 					Aggregate: agg,
 				}
 				result.Anomalies[j].SourceRef = &observerdef.QueryHandle{
-					Ref:       meta.Ref,
+					Ref:       ref,
 					Aggregate: agg,
 				}
 			}
@@ -570,72 +546,24 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 }
 
 // innerHandle creates the base handle without any middleware wrapping.
-// When any HF check collection is enabled, the "all-metrics" handle is wrapped
-// with hfFilteredHandle to suppress 15s samples for checks that have a 1s HF
-// counterpart active — the scorer should only see the higher-resolution stream.
-// When anomaly_detection.metrics.enabled=false, the resulting handle is further
-// wrapped with metricDropHandle so external metrics are dropped at the edge,
-// while ObserveLog/ObserveProfile pass through.
+// When anomaly_detection.metrics.enabled=false, the handle is wrapped with
+// metricDropHandle so external metrics are dropped at the edge, while
+// ObserveLog/ObserveProfile pass through.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
 	h := &handle{ch: o.obsCh, source: name, dropCounter: o.dropCounter}
 	o.engine.registerHandle(h)
 	var out observerdef.Handle = h
-	if len(o.hfFilterSources) > 0 && name == "all-metrics" {
-		out = &hfFilteredHandle{inner: h, sources: o.hfFilterSources}
-	}
 	if !o.ingestMetricsEnabled {
 		out = &metricDropHandle{inner: out}
 	}
 	return out
 }
 
-// sourceProvider is a structural interface satisfied by *metrics.MetricSample,
-// which carries a MetricSource enum populated by the standard check sender.
-// Using a type assertion (rather than adding GetSource to MetricView) avoids
-// importing pkg/metrics into comp/anomalydetection/observer/def.
-type sourceProvider interface {
-	GetSource() metrics.MetricSource
-}
-
-// hfFilteredHandle wraps a Handle and drops metrics whose source is in the
-// provided sources set, so that 15s pipeline samples do not compete with their
-// 1s HF counterparts in the scorer.
-//
-// Filtering uses a MetricSource enum map lookup via a type assertion to
-// sourceProvider. Samples that do not implement sourceProvider pass through
-// unchanged — absence of metadata is not sufficient grounds to drop.
-type hfFilteredHandle struct {
-	inner   observerdef.Handle
-	sources map[metrics.MetricSource]struct{}
-}
-
-func (f *hfFilteredHandle) ObserveMetric(sample observerdef.MetricView) {
-	_ = f.ObserveMetricAndReportDrop(sample)
-}
-
-func (f *hfFilteredHandle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool {
-	if sp, ok := sample.(sourceProvider); ok {
-		if _, suppressed := f.sources[sp.GetSource()]; suppressed {
-			return false
-		}
-	}
-	if dr, ok := f.inner.(interface {
-		ObserveMetricAndReportDrop(observerdef.MetricView) bool
-	}); ok {
-		return dr.ObserveMetricAndReportDrop(sample)
-	}
-	f.inner.ObserveMetric(sample)
-	return false
-}
-
-func (f *hfFilteredHandle) ObserveLog(msg observerdef.LogView) { f.inner.ObserveLog(msg) }
-
 // metricDropHandle drops every ObserveMetric call but lets logs and
 // profiles through. Used when anomaly_detection.metrics.enabled=false so
-// external metric sources (DogStatsD, check samplers, HF runners) do not
-// feed the engine. Virtual metrics produced by LogMetricsExtractors
-// during engine.IngestLog are unaffected because they bypass this handle
-// path entirely (they are written directly to storage from the engine).
+// external metric sources (DogStatsD, check samplers) do not feed the engine.
+// Virtual metrics produced by LogMetricsExtractors during engine.IngestLog are
+// unaffected because they bypass this handle path entirely.
 type metricDropHandle struct{ inner observerdef.Handle }
 
 var _ observerdef.Handle = (*metricDropHandle)(nil)
