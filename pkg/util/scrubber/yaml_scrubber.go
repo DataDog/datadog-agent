@@ -115,11 +115,16 @@ func (c *Scrubber) ScrubDataObj(data *interface{}) {
 		}
 
 		if isString {
-			b := []byte(str)
-			b = c.scrub(b, c.singleLineReplacers, true)
-			b = c.scrub(b, c.multiLineReplacers, false)
-			if !bytes.Equal(b, []byte(str)) {
-				return true, string(b)
+			// Apply single-line replacers per line so regexes like `\bBearer\s+[^*]+\b`
+			// (which match newlines via `[^*]`) can't consume content from following lines.
+			lines := strings.Split(str, "\n")
+			for i, line := range lines {
+				lines[i] = string(c.scrub([]byte(line), c.singleLineReplacers, true))
+			}
+			joined := strings.Join(lines, "\n")
+			scrubbed := string(c.scrub([]byte(joined), c.multiLineReplacers, false))
+			if scrubbed != str {
+				return true, scrubbed
 			}
 		}
 		return false, ""

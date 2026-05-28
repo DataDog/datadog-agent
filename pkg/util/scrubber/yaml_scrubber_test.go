@@ -124,6 +124,18 @@ func TestScrubDataObj_StringElementsInList(t *testing.T) {
 	assert.Equal(t, "****************************bbbb", list[1])
 }
 
+// Single-line replacers must apply per-line so regexes like Bearer's [^*]+
+// can't consume the following lines of a multi-line string leaf.
+func TestScrubDataObj_MultiLineStringDoesNotBleed(t *testing.T) {
+	layer := interface{}(map[string]interface{}{
+		"some_field": "prefix line\nBearer abc\nsuffix line",
+	})
+	ScrubDataObj(&layer)
+	assert.Equal(t,
+		"prefix line\nBearer ********\nsuffix line",
+		layer.(map[string]interface{})["some_field"])
+}
+
 // Scrubs a scalar string root via the value-content pass.
 func TestScrubDataObj_StringRoot(t *testing.T) {
 	root := interface{}("api_key=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
