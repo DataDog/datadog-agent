@@ -381,12 +381,13 @@ func holtCursorPointChanged(storage observer.StorageReader, ref observer.SeriesR
 	if state.lastProcessedCount == 0 {
 		return false
 	}
-	series := storage.GetSeriesRange(ref, state.lastProcessedTime-1, state.lastProcessedTime, agg)
-	if series == nil || len(series.Points) == 0 {
-		return false
-	}
-	currentPoint := series.Points[len(series.Points)-1]
-	return currentPoint.Timestamp == state.lastProcessedTime && currentPoint.Value != state.lastProcessedValue
+	changed := false
+	storage.ForEachPoint(ref, state.lastProcessedTime-1, state.lastProcessedTime, agg, func(_ *observer.Series, p observer.Point) {
+		if p.Timestamp == state.lastProcessedTime && p.Value != state.lastProcessedValue {
+			changed = true
+		}
+	})
+	return changed
 }
 
 // processPoint runs one Holt step: forecast → residual → gate → smoother

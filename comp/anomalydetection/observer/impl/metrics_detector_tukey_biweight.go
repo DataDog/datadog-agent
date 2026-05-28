@@ -182,9 +182,10 @@ func (d *TukeyBiweightDetector) RemoveSeries(refs []observer.SeriesRef) {
 	d.cachedGen = 0
 }
 
-// Detect implements observer.Detector. The cursor follows the BOCPD
-// same-bucket merge pattern: a WriteGeneration change with an unchanged bucket
-// count backs the start time up by one second so merged aggregates are replayed.
+// Detect implements observer.Detector. If storage mutates an already-processed
+// bucket via a same-bucket merge or out-of-order backfill, the per-series state
+// is rebuilt from visible storage to keep incremental processing equivalent to
+// replaying the final stored points.
 func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	d.ensureDefaults()
 
@@ -330,12 +331,13 @@ func (d *TukeyBiweightDetector) cursorPointChanged(storage observer.StorageReade
 	if lastPoint.Timestamp != state.lastProcessedTime {
 		return false
 	}
-	series := storage.GetSeriesRange(ref, state.lastProcessedTime-1, state.lastProcessedTime, agg)
-	if series == nil || len(series.Points) == 0 {
-		return false
-	}
-	currentPoint := series.Points[len(series.Points)-1]
-	return currentPoint.Timestamp == lastPoint.Timestamp && currentPoint.Value != lastPoint.Value
+	changed := false
+	storage.ForEachPoint(ref, state.lastProcessedTime-1, state.lastProcessedTime, agg, func(_ *observer.Series, p observer.Point) {
+		if p.Timestamp == lastPoint.Timestamp && p.Value != lastPoint.Value {
+			changed = true
+		}
+	})
+	return changed
 }
 
 // scoreBiweight runs the IRLS biweight fit on the current window and decides
