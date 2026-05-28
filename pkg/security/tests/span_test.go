@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -250,7 +251,7 @@ func TestSpan(t *testing.T) {
 			jsonStr, err := test.marshalEvent(event)
 			if assert.NoError(t, err, "marshalEvent") {
 				assertSerializedSpanContext(t, jsonStr, "204",
-					fmt.Sprintf("%x%x", expectedHi, expectedLo), nil,
+					utils.TraceID{Hi: expectedHi, Lo: expectedLo}.HexString(), nil,
 					spanLocations{onTopLevelProcess: true})
 			}
 		}, "test_span_rule_exec")
@@ -324,7 +325,7 @@ func TestSpan(t *testing.T) {
 				jsonStr, err := test.marshalEvent(event)
 				if assert.NoError(t, err, "marshalEvent") {
 					assertSerializedSpanContext(t, jsonStr, "204",
-						fmt.Sprintf("%x%x", expectedHi, expectedLo), nil,
+						utils.TraceID{Hi: expectedHi, Lo: expectedLo}.HexString(), nil,
 						spanLocations{onAncestor: true})
 				}
 			}, "test_span_rule_exec")
@@ -531,7 +532,7 @@ func TestOTelSpan(t *testing.T) {
 				jsonStr, err := test.marshalEvent(event)
 				if assert.NoError(t, err, "marshalEvent") {
 					assertSerializedSpanContext(t, jsonStr, "204",
-						fmt.Sprintf("%x%x", expectedHi, expectedLo),
+						utils.TraceID{Hi: expectedHi, Lo: expectedLo}.HexString(),
 						map[string]string{
 							"http.method": "GET",
 							"http.target": "/test",
@@ -660,7 +661,7 @@ func TestOTelSpan(t *testing.T) {
 				jsonStr, err := test.marshalEvent(event)
 				if assert.NoError(t, err, "marshalEvent") {
 					assertSerializedSpanContext(t, jsonStr, "204",
-						fmt.Sprintf("%x%x", expectedHi, expectedLo), nil,
+						utils.TraceID{Hi: expectedHi, Lo: expectedLo}.HexString(), nil,
 						spanLocations{onAncestor: true})
 				}
 			}, "test_otel_span_rule_exec")
@@ -792,7 +793,7 @@ func TestGoSpan(t *testing.T) {
 				if assert.NoError(t, err, "marshalEvent") {
 					assertSerializedSpanContext(t, jsonStr,
 						strconv.FormatUint(987654321, 10),
-						fmt.Sprintf("%x%x", uint64(0), uint64(123456789)),
+						utils.TraceID{Lo: 123456789}.HexString(),
 						nil,
 						spanLocations{onTopLevelProcess: true})
 				}
@@ -942,7 +943,7 @@ func TestGoSpan(t *testing.T) {
 				if assert.NoError(t, err, "marshalEvent") {
 					assertSerializedSpanContext(t, jsonStr,
 						strconv.FormatUint(parentSpanID, 10),
-						fmt.Sprintf("%x%x", uint64(0), parentLocalRootSpanID),
+						utils.TraceID{Lo: parentLocalRootSpanID}.HexString(),
 						nil,
 						spanLocations{onAncestor: true})
 				}
@@ -1093,7 +1094,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 				if assert.NoError(t, err, "marshalEvent") {
 					assertSerializedSpanContext(t, jsonStr,
 						strconv.FormatUint(expectedSpanID, 10),
-						fmt.Sprintf("%x%x", uint64(0), expectedLocalRootSpanID),
+						utils.TraceID{Lo: expectedLocalRootSpanID}.HexString(),
 						nil,
 						spanLocations{onTopLevelProcess: true})
 				}
@@ -1246,7 +1247,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 				if assert.NoError(t, err, "marshalEvent") {
 					assertSerializedSpanContext(t, jsonStr,
 						strconv.FormatUint(parentSpanID, 10),
-						fmt.Sprintf("%x%x", uint64(0), parentLocalRootSpanID),
+						utils.TraceID{Lo: parentLocalRootSpanID}.HexString(),
 						nil,
 						spanLocations{onAncestor: true})
 				}
