@@ -101,8 +101,6 @@ func newNVLinkFieldsCollector(device ddnvml.Device, _ *CollectorDependencies) (C
 		return nil, fmt.Errorf("get supported NVLink ports: %w", err)
 	}
 
-	fmt.Printf("nvlink: fields collector ports: %v\n", c.ports)
-
 	return c, nil
 }
 
@@ -126,7 +124,6 @@ func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
 		portMetrics, err := c.getPortMetrics(port)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("failed to get port %d metrics: %w", port, err))
-			fmt.Printf("nvlink: fields collector error getting port %d metrics: %s\n", port, err)
 			continue
 		}
 
