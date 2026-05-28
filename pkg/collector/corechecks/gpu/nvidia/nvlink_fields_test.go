@@ -273,7 +273,7 @@ func TestNVlinkFieldsCollectorTreatsInvalidArgumentAsUnsupportedOnlyWhenConfigur
 		return d
 	})
 
-	collector, err := newFieldsCollector(device, nil)
+	collector, err := newNVLinkFieldsCollector(device, nil)
 	require.NoError(t, err)
 
 	fc, ok := collector.(*fieldsCollector)
