@@ -931,6 +931,16 @@ func openVolume(drive string) (windows.Handle, *volumeInfo, error) {
 		return 0, nil, fmt.Errorf("FSCTL_GET_NTFS_VOLUME_DATA: %w", err)
 	}
 
+	// Validate the volume layout against the streamer/parser's assumptions.
+	// We reject unfamiliar configurations loudly rather than producing
+	// silently-wrong byte totals — the failure modes are subtle (mis-aligned
+	// record reads, miscounted fixups) and would not be caught by sanity
+	// checks downstream.
+	if err := validateNTFSLayout(&data); err != nil {
+		windows.CloseHandle(h)
+		return 0, nil, err
+	}
+
 	vol := &volumeInfo{
 		recordSize:      int(data.BytesPerFileRecordSegment),
 		bytesPerCluster: int64(data.BytesPerCluster),
@@ -938,6 +948,50 @@ func openVolume(drive string) (windows.Handle, *volumeInfo, error) {
 		mftValidBytes:   data.MftValidDataLength,
 	}
 	return h, vol, nil
+}
+
+// validateNTFSLayout rejects volume configurations the scanner cannot
+// safely handle. Anything we let through has to behave correctly end to
+// end; producing wrong totals on an odd layout is worse than failing.
+func validateNTFSLayout(data *ntfsVolumeData) error {
+	// NTFS multi-sector transfer protection has a fixed 512-byte stride
+	// per the on-disk format spec — see MULTI_SECTOR_HEADER in MSDN. It is
+	// not derived from BytesPerSector, so 4Kn / Advanced Format volumes
+	// use the same stride. We therefore don't validate BytesPerSector;
+	// applyFixups' hardcoded 512 is correct on every NTFS volume.
+	const mstpStride = 512
+
+	if data.BytesPerCluster == 0 {
+		return errors.New("FSCTL_GET_NTFS_VOLUME_DATA returned BytesPerCluster=0")
+	}
+	if data.BytesPerFileRecordSegment == 0 {
+		return errors.New("FSCTL_GET_NTFS_VOLUME_DATA returned BytesPerFileRecordSegment=0")
+	}
+
+	// MFT records must be a multiple of the MSTP stride; otherwise
+	// applyFixups' sector-end positions don't land inside the record.
+	if data.BytesPerFileRecordSegment%mstpStride != 0 {
+		return fmt.Errorf(
+			"unsupported NTFS layout: BytesPerFileRecordSegment=%d is not a multiple of %d",
+			data.BytesPerFileRecordSegment, mstpStride,
+		)
+	}
+
+	// streamPipelined parses each chunk as a flat array of records and has
+	// no machinery to carry partial bytes across extent boundaries. That
+	// assumption holds when each MFT record fits within a single cluster
+	// (default 4 KiB cluster, 1 KiB record). When clusters are smaller
+	// than records, a run of an odd number of clusters would split a
+	// record across extents and the streamer would silently miscount.
+	if data.BytesPerCluster < data.BytesPerFileRecordSegment {
+		return fmt.Errorf(
+			"unsupported NTFS layout: BytesPerCluster (%d) < BytesPerFileRecordSegment (%d); "+
+				"MFT records may span data run boundaries and cannot be safely read",
+			data.BytesPerCluster, data.BytesPerFileRecordSegment,
+		)
+	}
+
+	return nil
 }
 
 // -------------------------------------------------------------------------

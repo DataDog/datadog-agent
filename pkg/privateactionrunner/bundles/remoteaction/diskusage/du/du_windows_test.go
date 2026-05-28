@@ -766,6 +766,61 @@ func TestScan_FindLimitCapsResults(t *testing.T) {
 	}
 }
 
+func TestValidateNTFSLayout(t *testing.T) {
+	// modern-default NTFS layout: 4 KiB cluster, 1 KiB record, 512 sector.
+	ok := ntfsVolumeData{
+		BytesPerSector:            512,
+		BytesPerCluster:           4096,
+		BytesPerFileRecordSegment: 1024,
+	}
+	if err := validateNTFSLayout(&ok); err != nil {
+		t.Errorf("ok layout rejected: %v", err)
+	}
+
+	// equal-size cluster and record (legacy small-volume layout) — still OK.
+	okEq := ok
+	okEq.BytesPerCluster = 1024
+	if err := validateNTFSLayout(&okEq); err != nil {
+		t.Errorf("cluster==record layout rejected: %v", err)
+	}
+
+	// cluster < record — the codex-flagged case.
+	bad := ok
+	bad.BytesPerCluster = 512
+	if err := validateNTFSLayout(&bad); err == nil {
+		t.Error("cluster < record was accepted; expected rejection")
+	}
+
+	// 4Kn drives report BytesPerSector=4096; the MSTP stride is still
+	// 512 per the NTFS spec, so this configuration must NOT be rejected.
+	ok4kn := ok
+	ok4kn.BytesPerSector = 4096
+	if err := validateNTFSLayout(&ok4kn); err != nil {
+		t.Errorf("4Kn (BytesPerSector=4096) layout rejected: %v", err)
+	}
+
+	// record size not a multiple of 512.
+	badRec := ok
+	badRec.BytesPerFileRecordSegment = 1000
+	if err := validateNTFSLayout(&badRec); err == nil {
+		t.Error("non-512-multiple record size was accepted; expected rejection")
+	}
+
+	// zeroed fields that the validator must reject.
+	for _, field := range []string{"cluster", "record"} {
+		z := ok
+		switch field {
+		case "cluster":
+			z.BytesPerCluster = 0
+		case "record":
+			z.BytesPerFileRecordSegment = 0
+		}
+		if err := validateNTFSLayout(&z); err == nil {
+			t.Errorf("zero %s was accepted; expected rejection", field)
+		}
+	}
+}
+
 func TestScan_FindMultipleQueriesIndependentLimits(t *testing.T) {
 	root := t.TempDir()
 
