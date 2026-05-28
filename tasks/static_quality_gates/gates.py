@@ -494,6 +494,50 @@ class DockerArtifactMeasurer:
             return on_disk_size
 
 
+class InventoryReportMeasurer:
+    """
+    Reads pre-computed size + inventory reports written by build jobs
+    (`*_size_report_*.yml`) from S3, instead of downloading and re-extracting
+    the artifact in the SQG runner.
+    """
+
+    GATE_REPORTS_PREFIX = f"{S3_REPORT_PATH}/GATE_REPORTS"
+
+    def measure(self, ctx: Context, config: QualityGateConfig) -> ArtifactMeasurement:
+        try:
+            report = self._fetch_report(ctx, config.gate_name)
+            return ArtifactMeasurement(
+                artifact_path=report.get("artifact_path") or "<from-s3>",
+                on_wire_size=int(report["on_wire_size"]),
+                on_disk_size=int(report["on_disk_size"]),
+            )
+        except (StaticQualityGateError, InfraError):
+            raise
+        except Exception as e:
+            raise StaticQualityGateError(f"Failed to read inventory report for {config.gate_name}: {e}") from e
+
+    def _fetch_report(self, ctx: Context, gate_name: str) -> dict:
+        commit_sha = os.environ.get("CI_COMMIT_SHA")
+        pipeline_id = os.environ.get("CI_PIPELINE_ID")
+        if not commit_sha or not pipeline_id:
+            raise StaticQualityGateError(
+                f"CI_COMMIT_SHA / CI_PIPELINE_ID must be set to fetch the S3 report for {gate_name}"
+            )
+
+        prefix = gate_name.removeprefix("static_quality_gate_")
+        # Docker producers include CI_PIPELINE_ID in the filename; package producers don't.
+        if "docker" in gate_name:
+            filename = f"{prefix}_size_report_{pipeline_id}_{commit_sha[:8]}.yml"
+        else:
+            filename = f"{prefix}_size_report_{commit_sha[:8]}.yml"
+        s3_uri = f"{self.GATE_REPORTS_PREFIX}/{commit_sha}/{filename}"
+
+        result = ctx.run(f"aws s3 cp --only-show-errors {s3_uri} -", hide=True, warn=True)
+        if result.exited != 0:
+            raise InfraError(f"aws s3 cp failed for {s3_uri}: {result.stderr.strip()}")
+        return yaml.safe_load(result.stdout)
+
+
 class StaticQualityGate:
     """
     Static Quality Gate comprises of a configuration that is read
@@ -644,12 +688,9 @@ class QualityGateFactory:
         Raises:
             UnsupportedOperation: If gate type is not supported
         """
-        if "docker" in gate_name:
-            return DockerArtifactMeasurer()
-        elif any(package_type in gate_name for package_type in ["deb", "rpm", "heroku", "suse", "msi"]):
-            return PackageArtifactMeasurer()
-        else:
+        if not any(t in gate_name for t in ["deb", "rpm", "heroku", "suse", "msi", "docker"]):
             raise UnsupportedOperation(f"Unknown gate type: {gate_name}")
+        return InventoryReportMeasurer()
 
     @staticmethod
     def create_gates_from_config(config_path: str) -> list[StaticQualityGate]:

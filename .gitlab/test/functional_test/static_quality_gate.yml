@@ -3,6 +3,10 @@ static_quality_gates:
     default: false
   stage: functional_test
   rules:
+    # Cross-pipeline sources may run a different build config, so reports
+    # uploaded there don't necessarily match this repo's.
+    - if: '$CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "parent_pipeline"'
+      when: never
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
     - !reference [.on_main_or_release_branch]
     - !reference [.on_mergequeue]
@@ -16,40 +20,77 @@ static_quality_gates:
   extends: .dd_octo_sts
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
+  # Reports are fetched from S3 by InventoryReportMeasurer; we don't need any
+  # build job's artifacts downloaded into this job. `dependencies: []` does NOT
+  # disable artifact downloads when `needs:` is used — each entry must declare
+  # `artifacts: false` explicitly.
   needs:
-    - agent_deb-x64-a7
-    - agent_deb-x64-a7-fips
-    - agent_rpm-x64-a7
-    - agent_rpm-x64-a7-fips
-    - agent_rpm-arm64-a7
-    - agent_rpm-arm64-a7-fips
-    - agent_suse-x64-a7
-    - agent_suse-x64-a7-fips
-    - agent_suse-arm64-a7
-    - agent_suse-arm64-a7-fips
-    - agent_heroku_deb-x64-a7
-    - docker_build_agent7
-    - docker_build_agent7_arm64
-    - docker_build_agent7_jmx
-    - docker_build_agent7_jmx_arm64
-    - docker_build_cluster_agent_amd64
-    - docker_build_cluster_agent_arm64
-    - docker_build_cws_instrumentation_amd64
-    - docker_build_cws_instrumentation_arm64
-    - docker_build_dogstatsd_amd64
-    - docker_build_dogstatsd_arm64
-    - docker_build_host_profiler_standalone_amd64
-    - docker_build_host_profiler_standalone_arm64
-    - dogstatsd_deb-x64
-    - dogstatsd_deb-arm64
-    - dogstatsd_rpm-x64
-    - dogstatsd_suse-x64
-    - iot_agent_deb-x64
-    - iot_agent_deb-arm64
-    - iot_agent_deb-armhf
-    - iot_agent_rpm-x64
-    - iot_agent_suse-x64
+    - job: agent_deb-x64-a7
+      artifacts: false
+    - job: agent_deb-x64-a7-fips
+      artifacts: false
+    - job: agent_rpm-x64-a7
+      artifacts: false
+    - job: agent_rpm-x64-a7-fips
+      artifacts: false
+    - job: agent_rpm-arm64-a7
+      artifacts: false
+    - job: agent_rpm-arm64-a7-fips
+      artifacts: false
+    - job: agent_suse-x64-a7
+      artifacts: false
+    - job: agent_suse-x64-a7-fips
+      artifacts: false
+    - job: agent_suse-arm64-a7
+      artifacts: false
+    - job: agent_suse-arm64-a7-fips
+      artifacts: false
+    - job: agent_heroku_deb-x64-a7
+      artifacts: false
+    - job: docker_build_agent7
+      artifacts: false
+    - job: docker_build_agent7_arm64
+      artifacts: false
+    - job: docker_build_agent7_jmx
+      artifacts: false
+    - job: docker_build_agent7_jmx_arm64
+      artifacts: false
+    - job: docker_build_cluster_agent_amd64
+      artifacts: false
+    - job: docker_build_cluster_agent_arm64
+      artifacts: false
+    - job: docker_build_cws_instrumentation_amd64
+      artifacts: false
+    - job: docker_build_cws_instrumentation_arm64
+      artifacts: false
+    - job: docker_build_dogstatsd_amd64
+      artifacts: false
+    - job: docker_build_dogstatsd_arm64
+      artifacts: false
+    - job: docker_build_host_profiler_standalone_amd64
+      artifacts: false
+    - job: docker_build_host_profiler_standalone_arm64
+      artifacts: false
+    - job: dogstatsd_deb-x64
+      artifacts: false
+    - job: dogstatsd_deb-arm64
+      artifacts: false
+    - job: dogstatsd_rpm-x64
+      artifacts: false
+    - job: dogstatsd_suse-x64
+      artifacts: false
+    - job: iot_agent_deb-x64
+      artifacts: false
+    - job: iot_agent_deb-arm64
+      artifacts: false
+    - job: iot_agent_deb-armhf
+      artifacts: false
+    - job: iot_agent_rpm-x64
+      artifacts: false
+    - job: iot_agent_suse-x64
+      artifacts: false
     - job: windows_msi_and_bosh_zip_x64-a7
+      artifacts: false
       optional: true
   before_script:
     - !reference [.setup_github_token_comment_pr]
@@ -97,7 +138,10 @@ manual_gate_threshold_update:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
   needs:
-    - static_quality_gates
+    - job: static_quality_gates
+      # static_quality_gates skips on cross-pipeline sources; mark the need
+      # optional so the pipeline stays valid when it does.
+      optional: true
   before_script:
     - !reference [.setup_github_token_write]
   script:
