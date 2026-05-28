@@ -648,7 +648,9 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	imageTag := secprof.GetTagValue("image_tag")
 	inserted, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err != nil {
-		seclog.Debugf("couldn't insert event into profile: %v", err)
+		if !activity_tree.IsExpectedFilterError(err) {
+			seclog.Debugf("couldn't insert event into profile: %v", err)
+		}
 		return nil, false
 	}
 
