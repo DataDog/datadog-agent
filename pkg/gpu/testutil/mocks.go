@@ -107,74 +107,64 @@ type MockFieldValue struct {
 // Capability/topology fields can still be overridden by mock options such as
 // WithCapabilities.
 var DefaultFieldValues = map[uint32]MockFieldValue{
-	nvml.FI_DEV_MEMORY_TEMP:                                  UIntFieldValue(42),
-	nvml.FI_DEV_PCIE_REPLAY_COUNTER:                          UIntFieldValue(7),
-	nvml.FI_DEV_PERF_POLICY_THERMAL:                          UIntFieldValue(85),
-	nvml.FI_DEV_NVLINK_LINK_COUNT:                            UIntFieldValue(2),
-	nvml.FI_DEV_C2C_LINK_COUNT:                               UIntFieldValue(0),
-	nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX:                    UIntFieldValue(1000),
-	nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX:                    UIntFieldValue(2000),
-	nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX:                     UIntFieldValue(3000),
-	nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX:                     UIntFieldValue(4000),
-	nvml.FI_DEV_NVLINK_COUNT_RCV_BYTES:                       UIntFieldValue(5000),
-	nvml.FI_DEV_NVLINK_COUNT_XMIT_BYTES:                      UIntFieldValue(6000),
-	nvml.FI_DEV_NVLINK_GET_SPEED:                             UIntFieldValue(25000),
-	nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON:                     UIntFieldValue(24000),
-	nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT:                UIntFieldValue(16),
-	nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL:            UIntFieldValue(1),
-	nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL:            UIntFieldValue(2),
-	nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL:            UIntFieldValue(3),
-	nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL:            UIntFieldValue(4),
-	nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL:              UIntFieldValue(5),
-	nvml.FI_DEV_NVLINK_COUNT_XMIT_PACKETS:                    UIntFieldValue(6),
-	nvml.FI_DEV_NVLINK_COUNT_RCV_PACKETS:                     UIntFieldValue(7),
-	nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS:                   UIntFieldValue(8),
-	nvml.FI_DEV_NVLINK_COUNT_MALFORMED_PACKET_ERRORS:         UIntFieldValue(9),
-	nvml.FI_DEV_NVLINK_COUNT_BUFFER_OVERRUN_ERRORS:           UIntFieldValue(10),
-	nvml.FI_DEV_NVLINK_COUNT_RCV_ERRORS:                      UIntFieldValue(11),
-	nvml.FI_DEV_NVLINK_COUNT_RCV_REMOTE_ERRORS:               UIntFieldValue(12),
-	nvml.FI_DEV_NVLINK_COUNT_RCV_GENERAL_ERRORS:              UIntFieldValue(13),
-	nvml.FI_DEV_NVLINK_COUNT_LOCAL_LINK_INTEGRITY_ERRORS:     UIntFieldValue(14),
-	nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_SUCCESSFUL_EVENTS: UIntFieldValue(15),
-	nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_FAILED_EVENTS:     UIntFieldValue(16),
-	nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS:                UIntFieldValue(17),
-	nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER:                   UIntFieldValue(18),
-	nvml.FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS:                   UIntFieldValue(19),
-	nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER:                      UIntFieldValue(20),
-	nvml.FI_DEV_C2C_LINK_ERROR_INTR:                          UIntFieldValue(37),
-	nvml.FI_DEV_C2C_LINK_ERROR_REPLAY:                        UIntFieldValue(38),
-	nvml.FI_DEV_C2C_LINK_ERROR_REPLAY_B2B:                    UIntFieldValue(39),
-	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_0:                   ULongLongFieldValue(100),
-	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_1:                   ULongLongFieldValue(101),
-	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_2:                   ULongLongFieldValue(102),
-	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_3:                   ULongLongFieldValue(103),
-	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_4:                   ULongLongFieldValue(104),
-	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_5:                   ULongLongFieldValue(105),
-	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_6:                   ULongLongFieldValue(106),
-	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_7:                   ULongLongFieldValue(107),
-	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_8:                   ULongLongFieldValue(108),
-	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_9:                   ULongLongFieldValue(109),
-	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_10:                  ULongLongFieldValue(110),
-	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_11:                  ULongLongFieldValue(111),
-	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_12:                  ULongLongFieldValue(112),
-	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_13:                  ULongLongFieldValue(113),
-	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_14:                  ULongLongFieldValue(114),
-	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_15:                  ULongLongFieldValue(115),
+	nvml.FI_DEV_MEMORY_TEMP:                                  NewFieldValue(42),
+	nvml.FI_DEV_PCIE_REPLAY_COUNTER:                          NewFieldValue(7),
+	nvml.FI_DEV_PERF_POLICY_THERMAL:                          NewFieldValue(85),
+	nvml.FI_DEV_NVLINK_LINK_COUNT:                            NewFieldValue(2),
+	nvml.FI_DEV_C2C_LINK_COUNT:                               NewFieldValue(0),
+	nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX:                    NewFieldValue(1000),
+	nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX:                    NewFieldValue(2000),
+	nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX:                     NewFieldValue(3000),
+	nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX:                     NewFieldValue(4000),
+	nvml.FI_DEV_NVLINK_COUNT_RCV_BYTES:                       NewFieldValue(5000),
+	nvml.FI_DEV_NVLINK_COUNT_XMIT_BYTES:                      NewFieldValue(6000),
+	nvml.FI_DEV_NVLINK_GET_SPEED:                             NewFieldValue(25000),
+	nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON:                     NewFieldValue(24000),
+	nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT:                NewFieldValue(16),
+	nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL:            NewFieldValue(1),
+	nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL:            NewFieldValue(2),
+	nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL:            NewFieldValue(3),
+	nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL:            NewFieldValue(4),
+	nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL:              NewFieldValue(5),
+	nvml.FI_DEV_NVLINK_COUNT_XMIT_PACKETS:                    NewFieldValue(6),
+	nvml.FI_DEV_NVLINK_COUNT_RCV_PACKETS:                     NewFieldValue(7),
+	nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS:                   NewFieldValue(8),
+	nvml.FI_DEV_NVLINK_COUNT_MALFORMED_PACKET_ERRORS:         NewFieldValue(9),
+	nvml.FI_DEV_NVLINK_COUNT_BUFFER_OVERRUN_ERRORS:           NewFieldValue(10),
+	nvml.FI_DEV_NVLINK_COUNT_RCV_ERRORS:                      NewFieldValue(11),
+	nvml.FI_DEV_NVLINK_COUNT_RCV_REMOTE_ERRORS:               NewFieldValue(12),
+	nvml.FI_DEV_NVLINK_COUNT_RCV_GENERAL_ERRORS:              NewFieldValue(13),
+	nvml.FI_DEV_NVLINK_COUNT_LOCAL_LINK_INTEGRITY_ERRORS:     NewFieldValue(14),
+	nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_SUCCESSFUL_EVENTS: NewFieldValue(15),
+	nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_FAILED_EVENTS:     NewFieldValue(16),
+	nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS:                NewFieldValue(17),
+	nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER:                   NewFieldValue(18),
+	nvml.FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS:                   NewFieldValue(19),
+	nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER:                      NewFieldValue(20),
+	nvml.FI_DEV_C2C_LINK_ERROR_INTR:                          NewFieldValue(37),
+	nvml.FI_DEV_C2C_LINK_ERROR_REPLAY:                        NewFieldValue(38),
+	nvml.FI_DEV_C2C_LINK_ERROR_REPLAY_B2B:                    NewFieldValue(39),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_0:                   NewFieldValue(100),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_1:                   NewFieldValue(101),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_2:                   NewFieldValue(102),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_3:                   NewFieldValue(103),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_4:                   NewFieldValue(104),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_5:                   NewFieldValue(105),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_6:                   NewFieldValue(106),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_7:                   NewFieldValue(107),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_8:                   NewFieldValue(108),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_9:                   NewFieldValue(109),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_10:                  NewFieldValue(110),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_11:                  NewFieldValue(111),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_12:                  NewFieldValue(112),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_13:                  NewFieldValue(113),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_14:                  NewFieldValue(114),
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_15:                  NewFieldValue(115),
 }
 
-// UIntFieldValue returns a successful unsigned-int NVML field value.
-func UIntFieldValue(value uint64) MockFieldValue {
-	return MockFieldValue{Value: value, ValueType: nvml.VALUE_TYPE_UNSIGNED_INT, Return: nvml.SUCCESS}
-}
-
-// ULongLongFieldValue returns a successful unsigned-long-long NVML field value.
-func ULongLongFieldValue(value uint64) MockFieldValue {
+// NewFieldValue returns a successful unsigned-long-long NVML field value.
+func NewFieldValue(value uint64) MockFieldValue {
 	return MockFieldValue{Value: value, ValueType: nvml.VALUE_TYPE_UNSIGNED_LONG_LONG, Return: nvml.SUCCESS}
-}
-
-// SignedIntFieldValue returns a successful signed-int NVML field value.
-func SignedIntFieldValue(value int32) MockFieldValue {
-	return MockFieldValue{Value: uint64(uint32(value)), ValueType: nvml.VALUE_TYPE_SIGNED_INT, Return: nvml.SUCCESS}
 }
 
 // FieldError returns an NVML field value with the given field-level return.
@@ -182,57 +172,11 @@ func FieldError(ret nvml.Return) MockFieldValue {
 	return MockFieldValue{Return: ret}
 }
 
-// CopyFieldValues returns a mutable copy of field values.
-func CopyFieldValues(values map[uint32]MockFieldValue) map[uint32]MockFieldValue {
-	copied := make(map[uint32]MockFieldValue, len(values))
-	for fieldID, value := range values {
-		copied[fieldID] = value
-	}
-	return copied
-}
-
-// MockFieldValueFunc returns a GetFieldValuesFunc backed by the provided field values.
-func MockFieldValueFunc(values map[uint32]MockFieldValue) func([]nvml.FieldValue) nvml.Return {
-	return MockFieldValueFuncWithOptions(values, nil, nil)
-}
-
-// MockFieldValueFuncWithOptions returns a GetFieldValuesFunc backed by the provided values and per-field returns.
-func MockFieldValueFuncWithOptions(values map[uint32]MockFieldValue, unsupportedFields map[uint32]struct{}, invalidArgumentFields map[uint32]struct{}) func([]nvml.FieldValue) nvml.Return {
-	return func(fv []nvml.FieldValue) nvml.Return {
-		for i := range fv {
-			switch {
-			case unsupportedFields != nil && hasField(unsupportedFields, fv[i].FieldId):
-				ApplyMockFieldValue(&fv[i], FieldError(nvml.ERROR_NOT_SUPPORTED))
-			case invalidArgumentFields != nil && hasField(invalidArgumentFields, fv[i].FieldId):
-				ApplyMockFieldValue(&fv[i], FieldError(nvml.ERROR_INVALID_ARGUMENT))
-			default:
-				ApplyMockFieldValue(&fv[i], values[fv[i].FieldId])
-			}
-		}
-		return nvml.SUCCESS
-	}
-}
-
-// MockScopedFieldValueFunc returns a GetFieldValuesFunc backed by field ID and scope ID values.
-func MockScopedFieldValueFunc(values map[uint32]map[uint32]MockFieldValue) func([]nvml.FieldValue) nvml.Return {
-	return func(fv []nvml.FieldValue) nvml.Return {
-		for i := range fv {
-			ApplyMockFieldValue(&fv[i], values[fv[i].FieldId][fv[i].ScopeId])
-		}
-		return nvml.SUCCESS
-	}
-}
-
 // ApplyMockFieldValue writes a mock value into an NVML FieldValue.
 func ApplyMockFieldValue(fv *nvml.FieldValue, value MockFieldValue) {
 	fv.NvmlReturn = uint32(value.Return)
 	fv.ValueType = uint32(value.ValueType)
 	binary.LittleEndian.PutUint64(fv.Value[:], value.Value)
-}
-
-func hasField(fields map[uint32]struct{}, fieldID uint32) bool {
-	_, ok := fields[fieldID]
-	return ok
 }
 
 const (
@@ -801,7 +745,7 @@ func GetMIGDeviceMock(deviceIdx int, migDeviceIdx int, opts ...func(*nvmlmock.De
 	return getMIGDeviceMockWithOptions(deviceIdx, migDeviceIdx, deviceOptions{
 		mode:               DeviceFeatureMIG,
 		compatibilityHooks: append([]func(*nvmlmock.Device){}, opts...),
-		fieldValues:        mergeFieldValues(nil, DefaultFieldValues),
+		fieldValues:        maps.Clone(DefaultFieldValues),
 	})
 }
 
@@ -907,40 +851,15 @@ func WithScopedFieldValues(values map[uint32]map[uint32]MockFieldValue) NvmlMock
 func WithNVLinkLinkCount(count int) NvmlMockOption {
 	return func(o *nvmlMockOptions) {
 		o.deviceOptions.nvlinkLinkCount = count
-		o.deviceOptions.fieldValues[nvml.FI_DEV_NVLINK_LINK_COUNT] = UIntFieldValue(uint64(count))
+		o.deviceOptions.fieldValues[nvml.FI_DEV_NVLINK_LINK_COUNT] = NewFieldValue(uint64(count))
 	}
 }
 
 // WithC2CLinkCount configures the number of C2C links returned by field queries.
 func WithC2CLinkCount(count int) NvmlMockOption {
 	return func(o *nvmlMockOptions) {
-		o.deviceOptions.fieldValues[nvml.FI_DEV_C2C_LINK_COUNT] = UIntFieldValue(uint64(count))
+		o.deviceOptions.fieldValues[nvml.FI_DEV_C2C_LINK_COUNT] = NewFieldValue(uint64(count))
 	}
-}
-
-// WithNVLinkStates configures GetNvLinkState responses by port.
-func WithNVLinkStates(states []nvml.EnableState, errors map[int]nvml.Return) NvmlMockOption {
-	return func(o *nvmlMockOptions) {
-		o.deviceOptions.nvlinkStates = append([]nvml.EnableState(nil), states...)
-		o.deviceOptions.nvlinkLinkCount = len(states)
-		o.deviceOptions.fieldValues[nvml.FI_DEV_NVLINK_LINK_COUNT] = UIntFieldValue(uint64(len(states)))
-		if len(errors) > 0 {
-			o.deviceOptions.nvlinkStateErrors = make(map[int]nvml.Return, len(errors))
-			for port, ret := range errors {
-				o.deviceOptions.nvlinkStateErrors[port] = ret
-			}
-		}
-	}
-}
-
-func mergeFieldValues(dst map[uint32]MockFieldValue, src map[uint32]MockFieldValue) map[uint32]MockFieldValue {
-	if dst == nil {
-		dst = make(map[uint32]MockFieldValue, len(src))
-	}
-	for fieldID, value := range src {
-		dst[fieldID] = value
-	}
-	return dst
 }
 
 // WithEventSetCreate influences the definition of EventSetCreateFunc
@@ -1173,7 +1092,7 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 func newNvmlMockOptions(options ...NvmlMockOption) *nvmlMockOptions {
 	opts := &nvmlMockOptions{
 		deviceOptions: deviceOptions{
-			fieldValues: mergeFieldValues(nil, DefaultFieldValues),
+			fieldValues: maps.Clone(DefaultFieldValues),
 		},
 	}
 	for _, opt := range options {

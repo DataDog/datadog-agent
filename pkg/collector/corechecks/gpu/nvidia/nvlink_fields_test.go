@@ -53,19 +53,19 @@ func TestNVLinkFieldsCollectorQueriesAllConfiguredPorts(t *testing.T) {
 func TestNVLinkFieldsCollectorAddsTotals(t *testing.T) {
 	values := map[uint32]map[uint32]testutil.MockFieldValue{
 		nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX: {
-			0: testutil.UIntFieldValue(10),
-			1: testutil.UIntFieldValue(20),
-			2: testutil.UIntFieldValue(30),
+			0: testutil.NewFieldValue(10),
+			1: testutil.NewFieldValue(20),
+			2: testutil.NewFieldValue(30),
 		},
 		nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX: {
-			0: testutil.UIntFieldValue(1),
-			1: testutil.UIntFieldValue(2),
-			2: testutil.UIntFieldValue(3),
+			0: testutil.NewFieldValue(1),
+			1: testutil.NewFieldValue(2),
+			2: testutil.NewFieldValue(3),
 		},
 		nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS: {
-			0: testutil.UIntFieldValue(100),
-			1: testutil.UIntFieldValue(200),
-			2: testutil.UIntFieldValue(300),
+			0: testutil.NewFieldValue(100),
+			1: testutil.NewFieldValue(200),
+			2: testutil.NewFieldValue(300),
 		},
 	}
 
@@ -140,7 +140,7 @@ func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
 					continue
 				}
 
-				testutil.ApplyMockFieldValue(&fv[i], testutil.UIntFieldValue(uint64(fv[i].ScopeId+1)))
+				testutil.ApplyMockFieldValue(&fv[i], testutil.NewFieldValue(uint64(fv[i].ScopeId+1)))
 			}
 			return nvml.SUCCESS
 		}

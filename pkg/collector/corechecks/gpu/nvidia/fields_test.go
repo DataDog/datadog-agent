@@ -67,9 +67,9 @@ func TestFieldsCollectorPreservesRawValuesForRateMetrics(t *testing.T) {
 		{name: "deltaZero", fieldValueID: zeroID, metricType: metrics.GaugeType, rateCalculationMode: PerSecondRateCalculation},
 	}
 
-	returnValues[positiveID] = testutil.UIntFieldValue(1500)
-	returnValues[negativeID] = testutil.UIntFieldValue(500)
-	returnValues[zeroID] = testutil.UIntFieldValue(1000)
+	returnValues[positiveID] = testutil.NewFieldValue(1500)
+	returnValues[negativeID] = testutil.NewFieldValue(500)
+	returnValues[zeroID] = testutil.NewFieldValue(1000)
 
 	collected, err := fc.Collect()
 	require.NoError(t, err)

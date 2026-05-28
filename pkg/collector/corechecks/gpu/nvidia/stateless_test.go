@@ -292,7 +292,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 					require.Len(t, values, 1, "Expected one field value for total number of links, got %d", len(values))
 					require.Equal(t, values[0].FieldId, uint32(nvml.FI_DEV_NVLINK_LINK_COUNT), "Expected field ID to be FI_DEV_NVLINK_LINK_COUNT, got %d", values[0].FieldId)
 					require.Equal(t, values[0].ScopeId, uint32(0), "Expected scope ID to be 0, got %d", values[0].ScopeId)
-					testutil.ApplyMockFieldValue(&values[0], testutil.SignedIntFieldValue(4))
+					testutil.ApplyMockFieldValue(&values[0], testutil.NewFieldValue(4))
 					return nvml.SUCCESS
 				}
 				device.GetUUIDFunc = func() (string, nvml.Return) {
@@ -417,7 +417,7 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 			// Create collector with mock device
 			mockDevice := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
 				device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-					testutil.ApplyMockFieldValue(&values[0], testutil.UIntFieldValue(uint64(len(tt.nvlinkStates))))
+					testutil.ApplyMockFieldValue(&values[0], testutil.NewFieldValue(uint64(len(tt.nvlinkStates))))
 					return nvml.SUCCESS
 				}
 				device.GetNvLinkStateFunc = func(link int) (nvml.EnableState, nvml.Return) {

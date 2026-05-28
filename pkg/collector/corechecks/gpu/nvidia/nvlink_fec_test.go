@@ -21,7 +21,7 @@ import (
 func fecHistoryFieldValues() map[uint32]testutil.MockFieldValue {
 	fieldValues := make(map[uint32]testutil.MockFieldValue, len(nvlinkFECHistoryFieldIDs))
 	for i, fieldID := range nvlinkFECHistoryFieldIDs {
-		fieldValues[fieldID] = testutil.ULongLongFieldValue(uint64(100 + i))
+		fieldValues[fieldID] = testutil.NewFieldValue(uint64(100 + i))
 	}
 	return fieldValues
 }
