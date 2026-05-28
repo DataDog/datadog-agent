@@ -9,19 +9,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
-// applyRoutingHeaders sets x-dd-logs-routing on non-nodeless endpoints based on
-// the primary transport, or strips it entirely for nodeless nodes.
-func applyRoutingHeaders(endpoints *config.Endpoints, nodeless bool) {
-	if nodeless {
-		stripRoutingHeader(endpoints)
-		return
-	}
-
-	var routingValue string
+// applyRoutingHeaders sets x-dd-logs-routing on each endpoint based on its own
+// transport: "grpc" for gRPC endpoints, "http" for HTTP endpoints.
+func applyRoutingHeaders(endpoints *config.Endpoints) {
+	var mainRoutingValue string
 	if endpoints.UseGRPC {
-		routingValue = "grpc"
+		mainRoutingValue = "grpc"
 	} else if endpoints.UseHTTP {
-		routingValue = "http"
+		mainRoutingValue = "http"
 	} else {
 		return
 	}
@@ -29,7 +24,8 @@ func applyRoutingHeaders(endpoints *config.Endpoints, nodeless bool) {
 	if endpoints.Main.ExtraHTTPHeaders == nil {
 		endpoints.Main.ExtraHTTPHeaders = map[string]string{}
 	}
-	endpoints.Main.ExtraHTTPHeaders["x-dd-logs-routing"] = routingValue
+	endpoints.Main.ExtraHTTPHeaders["x-dd-logs-routing"] = mainRoutingValue
+
 	for i := range endpoints.Endpoints {
 		ep := &endpoints.Endpoints[i]
 		if ep.ExtraHTTPHeaders == nil {
@@ -38,14 +34,7 @@ func applyRoutingHeaders(endpoints *config.Endpoints, nodeless bool) {
 		if ep.UseGRPC {
 			ep.ExtraHTTPHeaders["x-dd-logs-routing"] = "grpc"
 		} else {
-			ep.ExtraHTTPHeaders["x-dd-logs-routing"] = routingValue
+			ep.ExtraHTTPHeaders["x-dd-logs-routing"] = mainRoutingValue
 		}
-	}
-}
-
-func stripRoutingHeader(endpoints *config.Endpoints) {
-	delete(endpoints.Main.ExtraHTTPHeaders, "x-dd-logs-routing")
-	for i := range endpoints.Endpoints {
-		delete(endpoints.Endpoints[i].ExtraHTTPHeaders, "x-dd-logs-routing")
 	}
 }

@@ -99,24 +99,8 @@ func NewProvider(
 	var senderImpl sender.PipelineComponent
 	serverlessMeta := sender.NewServerlessMeta(serverless)
 
-	nodeless := isNodelessNode(cfg)
-
-	// Nodeless nodes must not use gRPC (not zonally balanced); fall back to HTTP.
-	if nodeless {
-		if endpoints.UseGRPC {
-			endpoints.UseGRPC = false
-			endpoints.UseHTTP = true
-		}
-		for i := range endpoints.Endpoints {
-			if endpoints.Endpoints[i].UseGRPC {
-				endpoints.Endpoints[i].UseGRPC = false
-				endpoints.Endpoints[i].UseHTTP = true
-			}
-		}
-	}
-
-	// Inject or strip the x-dd-logs-routing header based on node type and transport.
-	applyRoutingHeaders(endpoints, nodeless)
+	// Inject x-dd-logs-routing header based on transport.
+	applyRoutingHeaders(endpoints)
 
 	if endpoints.UseGRPC {
 		senderImpl = grpcsender.NewSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, compression)
