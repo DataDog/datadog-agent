@@ -230,7 +230,6 @@ exports_files(glob(
 # gazelle:exclude comp/otelcol/logsagentpipeline
 # gazelle:exclude comp/otelcol/otlp/components/exporter
 # gazelle:exclude comp/otelcol/otlp/integrationtest
-# gazelle:exclude comp/otelcol/otlp/internal
 # gazelle:exclude comp/privateactionrunner/fx
 # gazelle:exclude comp/privateactionrunner/impl
 # gazelle:exclude comp/process/agent/*.go
