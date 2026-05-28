@@ -87,7 +87,10 @@ func readContextsFileV2(filePath string) (map[uint64]contextEntryV2, error) {
 			return nil, fmt.Errorf("contexts.parquet missing required columns context_key or name")
 		}
 
-		ctxKeyCol, _ := rec.Column(ctxKeyIdx).(*array.Uint64)
+		// context_key may be Uint64 (logical isSigned=false) or Int64 depending on
+		// how the recorder wrote the file; normalise both to uint64.
+		ctxKeyU64, _ := rec.Column(ctxKeyIdx).(*array.Uint64)
+		ctxKeyI64, _ := rec.Column(ctxKeyIdx).(*array.Int64)
 		nameCol, _ := rec.Column(nameIdx).(*array.String)
 
 		getStr := func(idx int) *array.String {
@@ -110,12 +113,29 @@ func readContextsFileV2(filePath string) (map[uint64]contextEntryV2, error) {
 			tagsMapCol, _ = rec.Column(tagsIdx).(*array.Map)
 		}
 
+		if ctxKeyU64 == nil && ctxKeyI64 == nil {
+			return nil, fmt.Errorf("contexts.parquet: context_key column is neither uint64 nor int64")
+		}
+
+		isNull := func(i int) bool {
+			if ctxKeyU64 != nil {
+				return ctxKeyU64.IsNull(i)
+			}
+			return ctxKeyI64.IsNull(i)
+		}
+		keyAt := func(i int) uint64 {
+			if ctxKeyU64 != nil {
+				return ctxKeyU64.Value(i)
+			}
+			return uint64(ctxKeyI64.Value(i))
+		}
+
 		numRows := int(rec.NumRows())
 		for i := 0; i < numRows; i++ {
-			if ctxKeyCol == nil || ctxKeyCol.IsNull(i) {
+			if isNull(i) {
 				continue
 			}
-			key := ctxKeyCol.Value(i)
+			key := keyAt(i)
 
 			var name string
 			if nameCol != nil && !nameCol.IsNull(i) {
