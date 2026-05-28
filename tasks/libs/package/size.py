@@ -78,7 +78,12 @@ def extract_rpm_package(ctx, package_path, extract_dir):
 
 
 def extract_zip_archive(ctx, package_path, extract_dir):
-    ctx.run(f"unzip {package_path} -d {extract_dir}", hide=True)
+    # Use stdlib zipfile so this works in environments that don't ship an
+    # external unzip binary.
+    import zipfile
+
+    with zipfile.ZipFile(package_path) as zf:
+        zf.extractall(extract_dir)
 
 
 def extract_dmg_archive(ctx, package_path, extract_dir):
