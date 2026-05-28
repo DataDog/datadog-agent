@@ -45,7 +45,35 @@ const (
 	EventTypeEventManagement = "event-management"
 	// EventTypeKubeActions represents a kubernetes action result event
 	EventTypeKubeActions = "kube-actions"
+	// EventTypeDataStreamsMessage is the event type for Data Streams monitoring messages
+	EventTypeDataStreamsMessage = "data-streams-message"
+	// EventTypeDoQueryResults is the event type for Data Observability query results
+	EventTypeDoQueryResults = "do-query-results"
 )
+
+// PipelineDesc describes a passthrough pipeline that forwards a specific event type
+// to its corresponding intake.
+//
+// Pipeline descriptions are contributed to the event platform forwarder via the
+// "ep_pipeline_descs" fx group, so that each product team can own the configuration
+// for their own event types in their team-owned packages, rather than having every
+// app-specific pipeline live inside the event platform forwarder itself.
+type PipelineDesc struct {
+	EventType   string
+	Category    string
+	ContentType string
+	// IntakeTrackType is the track type to use for the v2 intake API. When blank, v1 is used instead.
+	IntakeTrackType               string
+	EndpointsConfigPrefix         string
+	HostnameEndpointPrefix        string
+	DefaultBatchMaxConcurrentSend int
+	DefaultBatchMaxContentSize    int
+	DefaultBatchMaxSize           int
+	DefaultInputChanSize          int
+	ForceCompressionKind          string
+	ForceCompressionLevel         int
+	UseStreamStrategy             bool
+}
 
 // Component is the interface of the event platform forwarder component.
 type Component interface {

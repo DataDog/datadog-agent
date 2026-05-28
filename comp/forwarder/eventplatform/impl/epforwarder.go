@@ -53,6 +53,10 @@ type Requires struct {
 	Hostname              hostnameinterface.Component
 	Compression           logscompression.Component
 	Secrets               secrets.Component
+	// PipelineDescs collects pipeline descriptions contributed by product teams via
+	// the "ep_pipeline_descs" fx group. Each team owns the configuration for their
+	// own event types in their team-owned packages.
+	PipelineDescs []eventplatform.PipelineDesc `group:"ep_pipeline_descs"`
 }
 
 // Provides defines the component's output.
@@ -65,218 +69,54 @@ func NewComponent(reqs Requires) Provides {
 	return Provides{Comp: newEventPlatformForwarder(reqs)}
 }
 
+// fromPipelineDesc converts the public PipelineDesc (contributed by product teams via
+// the "ep_pipeline_descs" fx group) into the internal passthroughPipelineDesc used by
+// the forwarder.
+func fromPipelineDesc(d eventplatform.PipelineDesc) passthroughPipelineDesc {
+	return passthroughPipelineDesc{
+		eventType:                     d.EventType,
+		category:                      d.Category,
+		contentType:                   d.ContentType,
+		intakeTrackType:               config.IntakeTrackType(d.IntakeTrackType),
+		endpointsConfigPrefix:         d.EndpointsConfigPrefix,
+		hostnameEndpointPrefix:        d.HostnameEndpointPrefix,
+		defaultBatchMaxConcurrentSend: d.DefaultBatchMaxConcurrentSend,
+		defaultBatchMaxContentSize:    d.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           d.DefaultBatchMaxSize,
+		defaultInputChanSize:          d.DefaultInputChanSize,
+		forceCompressionKind:          d.ForceCompressionKind,
+		forceCompressionLevel:         d.ForceCompressionLevel,
+		useStreamStrategy:             d.UseStreamStrategy,
+	}
+}
+
+// DBM pipeline descriptions live in pkg/databasemonitoring/eventplatform and are
+// contributed via the "ep_pipeline_descs" fx group. The event-type strings below
+// are mirrored here for log lines that compare by name (e.g. Purge()). The DBM
+// team's package is the source of truth — if a value changes there, update it here.
 const (
-	eventTypeDBMSamples          = "dbm-samples"
-	eventTypeDBMMetrics          = "dbm-metrics"
-	eventTypeDBMActivity         = "dbm-activity"
-	eventTypeDBMMetadata         = "dbm-metadata"
-	eventTypeDBMHealth           = "dbm-health"
-	eventTypeDBMColumnStatistics = "dbm-column-statistics"
-	eventTypeDataStreamsMessage  = "data-streams-message"
-	eventTypeDoQueryResults      = "do-query-results"
+	eventTypeDBMSamples  = "dbm-samples"
+	eventTypeDBMMetrics  = "dbm-metrics"
+	eventTypeDBMActivity = "dbm-activity"
 )
 
 func getPassthroughPipelines() []passthroughPipelineDesc {
-	var passthroughPipelineDescs = []passthroughPipelineDesc{
-		{
-			eventType:              eventTypeDBMSamples,
-			category:               "DBM",
-			contentType:            logshttp.JSONContentType,
-			endpointsConfigPrefix:  "database_monitoring.samples.",
-			hostnameEndpointPrefix: "dbm-metrics-intake.",
-			intakeTrackType:        "databasequery",
-			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    10e6,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-			defaultInputChanSize: 500,
-		},
-		{
-			eventType:              eventTypeDBMMetrics,
-			category:               "DBM",
-			contentType:            logshttp.JSONContentType,
-			endpointsConfigPrefix:  "database_monitoring.metrics.",
-			hostnameEndpointPrefix: "dbm-metrics-intake.",
-			intakeTrackType:        "dbmmetrics",
-			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    20e6,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-			defaultInputChanSize: 500,
-		},
-		{
-			eventType:   eventTypeDBMMetadata,
-			contentType: logshttp.JSONContentType,
-			// set the endpoint config to "metrics" since metadata will hit the same endpoint
-			// as metrics, so there is no need to add an extra config endpoint.
-			// As a follow-on PR, we should clean this up to have a single config for each track type since
-			// all of our data now flows through the same intake
-			endpointsConfigPrefix:  "database_monitoring.metrics.",
-			hostnameEndpointPrefix: "dbm-metrics-intake.",
-			intakeTrackType:        "dbmmetadata",
-			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    20e6,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-			defaultInputChanSize: 500,
-		},
-		{
-			eventType:              eventTypeDBMActivity,
-			category:               "DBM",
-			contentType:            logshttp.JSONContentType,
-			endpointsConfigPrefix:  "database_monitoring.activity.",
-			hostnameEndpointPrefix: "dbm-metrics-intake.",
-			intakeTrackType:        "dbmactivity",
-			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    20e6,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-			defaultInputChanSize: 500,
-		},
-		{
-			eventType:   eventTypeDBMHealth,
-			contentType: logshttp.JSONContentType,
-			// set the endpoint config to "metrics" since health will hit the same endpoint
-			// as metrics, so there is no need to add an extra config endpoint.
-			endpointsConfigPrefix:  "database_monitoring.metrics.",
-			hostnameEndpointPrefix: "dbm-metrics-intake.",
-			intakeTrackType:        "dbmhealth",
-			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    20e6,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-			defaultInputChanSize: 500,
-		},
-		{
-			eventType:   eventTypeDBMColumnStatistics,
-			contentType: logshttp.JSONContentType,
-			// set the endpoint config to "metrics" since column statistics will hit the same endpoint
-			// as metrics, so there is no need to add an extra config endpoint.
-			endpointsConfigPrefix:  "database_monitoring.metrics.",
-			hostnameEndpointPrefix: "dbm-metrics-intake.",
-			intakeTrackType:        "dbmcolumnstatistics",
-			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    20e6,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-			defaultInputChanSize: 500,
-		},
-		{
-			eventType:                     eventplatform.EventTypeNetworkDevicesMetadata,
-			category:                      "NDM",
-			contentType:                   logshttp.JSONContentType,
-			endpointsConfigPrefix:         "network_devices.metadata.",
-			hostnameEndpointPrefix:        "ndm-intake.",
-			intakeTrackType:               "ndm",
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-		},
-		{
-			eventType:                     eventplatform.EventTypeSnmpTraps,
-			category:                      "NDM",
-			contentType:                   logshttp.JSONContentType,
-			endpointsConfigPrefix:         "network_devices.snmp_traps.forwarder.",
-			hostnameEndpointPrefix:        "snmp-traps-intake.",
-			intakeTrackType:               "ndmtraps",
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-		},
-		{
-			eventType:                     eventplatform.EventTypeNetworkDevicesNetFlow,
-			category:                      "NDM",
-			contentType:                   logshttp.JSONContentType,
-			endpointsConfigPrefix:         "network_devices.netflow.forwarder.",
-			hostnameEndpointPrefix:        "ndmflow-intake.",
-			intakeTrackType:               "ndmflow",
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-
-			// Each NetFlow flow is about 500 bytes, we could fit ~10k is the default 5Mb content size. However,
-			// this is also directly tied to the amount of work we need to do atomically in our event processing code to add enrichments.
-			// Let's limit this size to 250 events, there will be some increased overhead since more packets will need to be sent.
-			defaultBatchMaxSize: 250,
-			// High input chan is needed to handle high number of flows being flushed by NetFlow Server every 10s
-			// Customers might need to set `network_devices.forwarder.input_chan_size` to higher value if flows are dropped
-			// due to input channel being full.
-			// TODO: A possible better solution is to make SendEventPlatformEvent blocking when input chan is full and avoid
-			//   dropping events. This can't be done right now due to SendEventPlatformEvent being called by
-			//   aggregator loop, making SendEventPlatformEvent blocking might slow down other type of data handled
-			//   by aggregator.
-			defaultInputChanSize: 10000,
-		},
-		{
-			eventType:                     eventplatform.EventTypeNetworkPath,
-			category:                      "Network Path",
-			contentType:                   logshttp.JSONContentType,
-			endpointsConfigPrefix:         "network_path.forwarder.",
-			hostnameEndpointPrefix:        "netpath-intake.",
-			intakeTrackType:               "netpath",
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-		},
-		{
-			eventType:                     eventplatform.EventTypeNetworkConfigManagement,
-			category:                      "Network Config Management",
-			contentType:                   logshttp.JSONContentType,
-			endpointsConfigPrefix:         "network_devices.config_management.forwarder.",
-			hostnameEndpointPrefix:        "ndm-intake.",
-			intakeTrackType:               "ndmconfig",
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-		},
-		{
-			eventType:                     eventplatform.EventTypeContainerLifecycle,
-			category:                      "Container",
-			contentType:                   logshttp.ProtobufContentType,
-			endpointsConfigPrefix:         "container_lifecycle.",
-			hostnameEndpointPrefix:        "contlcycle-intake.",
-			intakeTrackType:               "contlcycle",
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-		},
-		{
-			eventType:                     eventplatform.EventTypeContainerImages,
-			category:                      "Container",
-			contentType:                   logshttp.ProtobufContentType,
-			endpointsConfigPrefix:         "container_image.",
-			hostnameEndpointPrefix:        "contimage-intake.",
-			intakeTrackType:               "contimage",
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-		},
-		{
-			eventType:                     eventplatform.EventTypeContainerSBOM,
-			category:                      "SBOM",
-			contentType:                   logshttp.ProtobufContentType,
-			endpointsConfigPrefix:         "sbom.",
-			hostnameEndpointPrefix:        "sbom-intake.",
-			intakeTrackType:               "sbom",
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			// on every periodic refresh, we re-send all the SBOMs for all the
-			// container images in the workloadmeta store. This can be a lot of
-			// payloads at once, so we need a large input channel size to avoid dropping
-			defaultInputChanSize: 1000,
-		},
+	// All product-team pipelines have been migrated out of this function and are
+	// now contributed via the "ep_pipeline_descs" fx group from their owning packages:
+	//   DBM        → pkg/databasemonitoring/eventplatform
+	//   NDM-core   → pkg/networkdevice/metadata/eventplatform
+	//   Net Path   → comp/networkpath/eventplatfrom
+	//   NCM        → comp/networkconfigmanagement/eventplatform
+	//   Container  → pkg/containerlifecycle/eventplatform
+	//   Synthetics → comp/syntheticstestscheduler/eventplatform
+	//   Data Streams → comp/core/autodiscovery/providers/datastreams/eventplatform
+	//   DO         → comp/dataobs/queryactions/eventplatform
+	//   KubeActions → pkg/clusteragent/kubeactions/eventplatform
+	//   SoftInv    → comp/softwareinventory/eventplatform
+	//
+	// TODO: GenResources and Event Management have no identified owner yet and remain
+	// here pending migration to a team-owned package.
+	return []passthroughPipelineDesc{
 		{
 			eventType:                     eventplatform.EventTypeGenResources,
 			category:                      "Generic Resources",
@@ -284,18 +124,6 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			endpointsConfigPrefix:         "genresources.",
 			hostnameEndpointPrefix:        "resources-intake.",
 			intakeTrackType:               "genresources",
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-		},
-		{
-			eventType:                     eventplatform.EventTypeSynthetics,
-			category:                      "Synthetics",
-			contentType:                   logshttp.JSONContentType,
-			endpointsConfigPrefix:         "synthetics.forwarder.",
-			hostnameEndpointPrefix:        "http-synthetics.",
-			intakeTrackType:               "synthetics",
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
@@ -316,70 +144,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			// TODO(ECT-4272): event-management-intake does not support batching/array, must send one event at a time
 			useStreamStrategy: true,
 		},
-		{
-			eventType:                     eventTypeDataStreamsMessage,
-			category:                      "Data Streams",
-			contentType:                   logshttp.JSONContentType,
-			endpointsConfigPrefix:         "data_streams.forwarder.",
-			hostnameEndpointPrefix:        "trace.agent.",
-			intakeTrackType:               "data_streams_messages",
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-		},
-		{
-			eventType:                     eventTypeDoQueryResults,
-			category:                      "DO",
-			contentType:                   logshttp.JSONContentType,
-			endpointsConfigPrefix:         "data_observability.forwarder.",
-			hostnameEndpointPrefix:        "data-obs-intake.",
-			intakeTrackType:               "query-actions",
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    20e6,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          500,
-		},
 	}
-
-	if pkgconfigsetup.Datadog().GetBool("kubeactions.enabled") {
-		kubeactionsPipeline := passthroughPipelineDesc{
-			eventType:                     eventplatform.EventTypeKubeActions,
-			category:                      "Kubernetes Actions",
-			contentType:                   logshttp.JSONContentType,
-			endpointsConfigPrefix:         "kubeactions.forwarder.",
-			hostnameEndpointPrefix:        "kubeops-intake.",
-			intakeTrackType:               "kubeactions",
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-		}
-		passthroughPipelineDescs = append(passthroughPipelineDescs, kubeactionsPipeline)
-		// TODO(kubeactions): Remove this log once EVP intake is stable
-		log.Infof("[KubeActions] EVP pipeline registered: host_prefix=%s, track_type=%s, v2_api=%v",
-			kubeactionsPipeline.hostnameEndpointPrefix,
-			kubeactionsPipeline.intakeTrackType,
-			pkgconfigsetup.Datadog().GetBool("kubeactions.forwarder.use_v2_api"))
-	}
-
-	if pkgconfigsetup.Datadog().GetBool("software_inventory.enabled") {
-		softinvPipeline := passthroughPipelineDesc{
-			eventType:                     eventplatform.EventTypeSoftwareInventory,
-			category:                      "EUDM",
-			contentType:                   logshttp.JSONContentType,
-			endpointsConfigPrefix:         "software_inventory.forwarder.",
-			hostnameEndpointPrefix:        "softinv-intake.",
-			intakeTrackType:               "softinv",
-			defaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-		}
-		passthroughPipelineDescs = append(passthroughPipelineDescs, softinvPipeline)
-	}
-
-	return passthroughPipelineDescs
 }
 
 type defaultEventPlatformForwarder struct {
@@ -407,24 +172,24 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	}
 }
 
-// Diagnose enumerates known epforwarder pipelines and endpoints to test each of them connectivity
-func Diagnose() []diagnose.Diagnosis {
+// Diagnose enumerates known epforwarder pipelines and endpoints to test each of them connectivity.
+// teamDescs must include the PipelineDescs from all team-owned eventplatform packages (contributed
+// via the "ep_pipeline_descs" fx group) so that connectivity is tested for every registered pipeline,
+// not just the ones hardcoded in getPassthroughPipelines().
+func Diagnose(teamDescs ...eventplatform.PipelineDesc) []diagnose.Diagnosis {
 	var diagnoses []diagnose.Diagnosis
 	cfg := pkgconfigsetup.Datadog()
 
-	for _, desc := range getPassthroughPipelines() {
+	allDescs := getPassthroughPipelines()
+	for _, d := range teamDescs {
+		allDescs = append(allDescs, fromPipelineDesc(d))
+	}
+
+	for _, desc := range allDescs {
 		//nolint:misspell
 		// TODO(ECT-4273): event-management-intake does not support the empty payload sent here
 		if desc.eventType == eventplatform.EventTypeEventManagement {
 			log.Debugf("Skipping diagnosis for event-management-intake because it does not support the empty payload")
-			continue
-		}
-		if desc.eventType == eventTypeDoQueryResults {
-			log.Debugf("Skipping diagnosis for data-obs-intake query-actions because it does not support the empty payload")
-			continue
-		}
-		if desc.eventType == eventplatform.EventTypeKubeActions {
-			log.Debugf("Skipping diagnosis for kubeactions-intake because it does not support the empty payload")
 			continue
 		}
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, cfg)
@@ -608,7 +373,7 @@ func newHTTPPassthroughPipeline(
 		return nil, errors.New("endpoints must be http")
 	}
 
-	if desc.eventType == eventTypeDataStreamsMessage {
+	if desc.eventType == eventplatform.EventTypeDataStreamsMessage {
 		tags := fmt.Sprintf("host:%s,agent_version:%s", hostname, version.AgentVersion)
 		if taskARN := getECSFargateTaskARN(); taskARN != "" {
 			tags += ",task_arn:" + taskARN
@@ -741,11 +506,17 @@ func joinHosts(endpoints []config.Endpoint) string {
 	return strings.Join(additionalHosts, ",")
 }
 
-func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compression logscompression.Component, hostname string, secretsComp secrets.Component) *defaultEventPlatformForwarder {
+func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compression logscompression.Component, hostname string, secretsComp secrets.Component, additionalDescs ...eventplatform.PipelineDesc) *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
+
+	descs := getPassthroughPipelines()
+	for _, d := range additionalDescs {
+		descs = append(descs, fromPipelineDesc(d))
+	}
+
 	pipelines := make(map[string]*passthroughPipeline)
-	for i, desc := range getPassthroughPipelines() {
+	for i, desc := range descs {
 		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, compression, desc, destinationsCtx, i, hostname, secretsComp)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
@@ -763,10 +534,10 @@ func newEventPlatformForwarder(reqs Requires) eventplatform.Component {
 	var forwarder *defaultEventPlatformForwarder
 
 	if reqs.Params.UseNoopEventPlatformForwarder {
-		forwarder = newNoopEventPlatformForwarder(reqs.Hostname, reqs.Compression)
+		forwarder = newNoopEventPlatformForwarder(reqs.Hostname, reqs.Compression, reqs.PipelineDescs...)
 	} else if reqs.Params.UseEventPlatformForwarder {
 		hostnameStr := reqs.Hostname.GetSafe(context.Background())
-		forwarder = newDefaultEventPlatformForwarder(reqs.Config, reqs.EventPlatformReceiver, reqs.Compression, hostnameStr, reqs.Secrets)
+		forwarder = newDefaultEventPlatformForwarder(reqs.Config, reqs.EventPlatformReceiver, reqs.Compression, hostnameStr, reqs.Secrets, reqs.PipelineDescs...)
 	}
 	if forwarder == nil {
 		return option.NonePtr[eventplatform.Forwarder]()
@@ -786,13 +557,13 @@ func newEventPlatformForwarder(reqs Requires) eventplatform.Component {
 
 // NewNoopEventPlatformForwarder returns the standard event platform forwarder with sending disabled, meaning events
 // will build up in each pipeline channel without being forwarded to the intake
-func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) eventplatform.Forwarder {
-	return newNoopEventPlatformForwarder(hostname, compression)
+func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component, additionalDescs ...eventplatform.PipelineDesc) eventplatform.Forwarder {
+	return newNoopEventPlatformForwarder(hostname, compression, additionalDescs...)
 }
 
-func newNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
+func newNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component, additionalDescs ...eventplatform.PipelineDesc) *defaultEventPlatformForwarder {
 	hostnameStr := hostname.GetSafe(context.Background())
-	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname, pkgconfigsetup.Datadog()).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp)
+	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname, pkgconfigsetup.Datadog()).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp, additionalDescs...)
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil

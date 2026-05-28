@@ -76,6 +76,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
+	datastreamseventplatform "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams/eventplatform"
+	datastreamseventplatformfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams/eventplatform/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamfx "github.com/DataDog/datadog-agent/comp/core/configstream/fx"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
@@ -112,6 +114,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	doeventplatform "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/eventplatform"
+	doeventplatformfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/eventplatform/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdhttp "github.com/DataDog/datadog-agent/comp/dogstatsd/http/def"
 	dogstatsdhttpfx "github.com/DataDog/datadog-agent/comp/dogstatsd/http/fx"
@@ -131,6 +135,22 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	ncmeventplatform "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/eventplatform"
+	ncmeventplatformfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/eventplatform/fx"
+	networkpatheventplatfrom "github.com/DataDog/datadog-agent/comp/networkpath/eventplatfrom"
+	networkpatheventplatfromfx "github.com/DataDog/datadog-agent/comp/networkpath/eventplatfrom/fx"
+	softinveventplatform "github.com/DataDog/datadog-agent/comp/softwareinventory/eventplatform"
+	softinveventplatformfx "github.com/DataDog/datadog-agent/comp/softwareinventory/eventplatform/fx"
+	syntheticseventplatform "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/eventplatform"
+	syntheticseventplatformfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/eventplatform/fx"
+	kubeactionseventplatform "github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions/eventplatform"
+	kubeactionseventplatformfx "github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions/eventplatform/fx"
+	containereventplatform "github.com/DataDog/datadog-agent/pkg/containerlifecycle/eventplatform"
+	containereventplatformfx "github.com/DataDog/datadog-agent/pkg/containerlifecycle/eventplatform/fx"
+	dbmeventplatform "github.com/DataDog/datadog-agent/pkg/databasemonitoring/eventplatform"
+	dbmeventplatformfx "github.com/DataDog/datadog-agent/pkg/databasemonitoring/eventplatform/fx"
+	ndmeventplatform "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata/eventplatform"
+	ndmeventplatformfx "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata/eventplatform/fx"
 
 	hostProfilerFlareFx "github.com/DataDog/datadog-agent/comp/host-profiler/flare/fx"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client/def"
@@ -520,6 +540,16 @@ func getSharedFxOption() fx.Option {
 		metadata.Bundle(),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
+		dbmeventplatformfx.Module(),
+		ndmeventplatformfx.Module(),
+		networkpatheventplatfromfx.Module(),
+		ncmeventplatformfx.Module(),
+		containereventplatformfx.Module(),
+		syntheticseventplatformfx.Module(),
+		datastreamseventplatformfx.Module(),
+		doeventplatformfx.Module(),
+		kubeactionseventplatformfx.Module(),
+		softinveventplatformfx.Module(),
 		eventplatformreceiverimpl.Module(),
 
 		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
@@ -730,7 +760,18 @@ func startAgent(
 	})
 
 	diagnosecatalog.Register(diagnose.EventPlatformConnectivity, func(_ diagnose.Config) []diagnose.Diagnosis {
-		return eventplatformimpl.Diagnose()
+		var teamDescs []eventplatform.PipelineDesc
+		teamDescs = append(teamDescs, dbmeventplatform.Descs()...)
+		teamDescs = append(teamDescs, ndmeventplatform.Descs()...)
+		teamDescs = append(teamDescs, networkpatheventplatfrom.Descs()...)
+		teamDescs = append(teamDescs, ncmeventplatform.Descs()...)
+		teamDescs = append(teamDescs, containereventplatform.Descs()...)
+		teamDescs = append(teamDescs, syntheticseventplatform.Descs()...)
+		teamDescs = append(teamDescs, datastreamseventplatform.Descs()...)
+		teamDescs = append(teamDescs, doeventplatform.Descs()...)
+		teamDescs = append(teamDescs, kubeactionseventplatform.Descs()...)
+		teamDescs = append(teamDescs, softinveventplatform.Descs()...)
+		return eventplatformimpl.Diagnose(teamDescs...)
 	})
 
 	diagnosecatalog.Register(diagnose.AutodiscoveryConnectivity, func(_ diagnose.Config) []diagnose.Diagnosis {
