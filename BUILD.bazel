@@ -515,7 +515,6 @@ exports_files(glob(
 # gazelle:exclude pkg/network/protocols/postgres/telemetry_test.go
 # gazelle:exclude pkg/network/protocols/postgres/testutils.go
 # gazelle:exclude pkg/network/protocols/redis/debugging
-# gazelle:exclude pkg/network/protocols/testutil
 # gazelle:exclude pkg/network/protocols/tls/gotls/testutil/gotls_server
 # gazelle:exclude pkg/network/sender
 # gazelle:exclude pkg/network/tracer/connection
