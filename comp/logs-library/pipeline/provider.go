@@ -99,6 +99,9 @@ func NewProvider(
 	var senderImpl sender.PipelineComponent
 	serverlessMeta := sender.NewServerlessMeta(serverless)
 
+	// Inject x-dd-logs-routing header based on transport.
+	applyRoutingHeaders(endpoints)
+
 	if endpoints.UseGRPC {
 		senderImpl = grpcsender.NewSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, compression)
 	} else if endpoints.UseHTTP {
