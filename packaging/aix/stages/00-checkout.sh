@@ -43,7 +43,7 @@ trap cleanup EXIT
 # Expected transfer method:
 #   tar czf /tmp/dd-agent-src.tar.gz --exclude='.git' --exclude='bin' ... .
 #   scp /tmp/dd-agent-src.tar.gz aix-host:/tmp/
-#   ssh aix-host 'mkdir -p "$AGENT_SRC" && gunzip -c /tmp/dd-agent-src.tar.gz | tar xf - -C "$AGENT_SRC"'
+#   ssh aix-host 'mkdir -p <agent-repo> && gunzip -c /tmp/dd-agent-src.tar.gz | tar xf - -C <agent-repo>'
 
 : "${AGENT_SRC:?AGENT_SRC must be set}"
 

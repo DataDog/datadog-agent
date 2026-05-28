@@ -28,13 +28,7 @@ STAGING=$BUILD_DIR/staging
 # AGENT_SRC is the directory containing the checked-out agent source code. It
 # is always derived here by walking up from the caller's script directory
 # ($SCRIPT_DIR, set by every stage and by build.sh before sourcing this file)
-# until a parent containing .git is found. Any value previously assigned to
-# AGENT_SRC is ignored; the walk is the single source of truth. Failure to
-# find .git anywhere up the tree is a fatal error — there is no fallback path.
-# Regular checkouts have .git as a directory, linked worktrees as a file, and
-# `[ -e ]` accepts both. Distinct from EMBEDDED (/opt/datadog-agent/embedded),
-# which is the final install path baked into all binaries at configure time
-# and must not change.
+# until a parent containing .git is found. Failure to find .git anywhere up the tree is a fatal error.
 : "${SCRIPT_DIR:?env.sh requires SCRIPT_DIR to be set by the caller before sourcing}"
 _dir=$SCRIPT_DIR
 while [ "$_dir" != "/" ] && [ ! -e "$_dir/.git" ]; do
@@ -63,11 +57,7 @@ EMBEDDED_DESTDIR=$STAGING/opt/datadog-agent/embedded
 
 # Bootstrap $EMBEDDED as a symlink to $EMBEDDED_DESTDIR so that Python
 # binaries (pip, ensurepip, etc.) whose shebangs were baked at configure
-# time as `#!/opt/datadog-agent/embedded/bin/python3.13` resolve during
-# the build. Stage 02 used to own this, but its sentinel can mean a
-# cached run skips re-creating the link after /opt/datadog-agent is
-# deleted. Doing it here on every source ensures the symlink exists
-# whenever any stage runs. Idempotent: only writes if missing or wrong.
+# time as `#!/opt/datadog-agent/embedded/bin/python3.13` resolve during the build.
 if [ ! -L "$EMBEDDED" ] || [ "$(readlink "$EMBEDDED" 2>/dev/null)" != "$EMBEDDED_DESTDIR" ]; then
     if [ -e "$EMBEDDED" ] && [ ! -L "$EMBEDDED" ]; then
         rm -rf "$EMBEDDED"
