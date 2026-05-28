@@ -541,48 +541,48 @@ func TestCleanUpAutogenDatadogMetrics(t *testing.T) {
 func TestHPALabelSelectorFiltering(t *testing.T) {
 	f := newAutoscalerFixture(t)
 
-	// hpa0 has no managed-by label — should be included
 	f.hpaLister = []*autoscaler.HorizontalPodAutoscaler{
+		// hpa0 matches label selector, no datadogmetric@ reference — included via label match
 		newFakeHorizontalPodAutoscalerWithLabels("ns0", "hpa0", map[string]string{"team": "infra"}, []autoscaler.MetricSpec{
 			{
 				Type: autoscaler.ExternalMetricSourceType,
 				External: &autoscaler.ExternalMetricSource{
-					MetricName: "datadogmetric@default:dd-metric-included",
+					MetricName:     "requests_per_s",
+					MetricSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"kube_container_name": "app"}},
 				},
 			},
 		}),
-		// hpa1 is managed by keda-operator — should be excluded
+		// hpa1 does NOT match label selector, but has datadogmetric@ reference — included via OR
 		newFakeHorizontalPodAutoscalerWithLabels("ns0", "hpa1", map[string]string{"app.kubernetes.io/managed-by": "keda-operator"}, []autoscaler.MetricSpec{
 			{
 				Type: autoscaler.ExternalMetricSourceType,
 				External: &autoscaler.ExternalMetricSource{
-					MetricName: "datadogmetric@default:dd-metric-excluded",
+					MetricName: "datadogmetric@default:dd-metric-ref",
+				},
+			},
+		}),
+		// hpa2 does NOT match label selector and has no datadogmetric@ reference — excluded
+		newFakeHorizontalPodAutoscalerWithLabels("ns0", "hpa2", map[string]string{"app.kubernetes.io/managed-by": "keda-operator"}, []autoscaler.MetricSpec{
+			{
+				Type: autoscaler.ExternalMetricSourceType,
+				External: &autoscaler.ExternalMetricSource{
+					MetricName:     "keda_metric",
+					MetricSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"queue": "jobs"}},
 				},
 			},
 		}),
 	}
 
 	ddm := model.DatadogMetricInternal{
-		ID:         "default/dd-metric-included",
+		ID:         "default/dd-metric-ref",
 		Active:     false,
-		Valid:      true,
-		Value:      10.0,
-		UpdateTime: time.Now(),
-		Error:      nil,
-	}
-	ddm.SetQueries("metric query included")
-	f.store.Set("default/dd-metric-included", ddm, "utest")
-
-	ddm = model.DatadogMetricInternal{
-		ID:         "default/dd-metric-excluded",
-		Active:     true,
 		Valid:      true,
 		Value:      20.0,
 		UpdateTime: time.Now(),
 		Error:      nil,
 	}
-	ddm.SetQueries("metric query excluded")
-	f.store.Set("default/dd-metric-excluded", ddm, "utest")
+	ddm.SetQueries("metric query ref")
+	f.store.Set("default/dd-metric-ref", ddm, "utest")
 
 	// Parse a selector that excludes HPAs with app.kubernetes.io/managed-by=keda-operator
 	selector, err := labels.Parse("app.kubernetes.io/managed-by!=keda-operator")
@@ -596,15 +596,27 @@ func TestHPALabelSelectorFiltering(t *testing.T) {
 
 	autoscalerWatcher.processAutoscalers()
 
-	// dd-metric-included should be active (its HPA passes the selector)
-	includedMetric := f.store.Get("default/dd-metric-included")
-	assert.NotNil(t, includedMetric)
-	assert.True(t, includedMetric.Active)
-	assert.Equal(t, "hpa:ns0/hpa0", includedMetric.AutoscalerReferences)
+	// Check all store entries for autoscaler references
+	foundHpa0Ref := false
+	foundHpa2Ref := false
+	for _, m := range f.store.GetAll() {
+		if m.AutoscalerReferences == "hpa:ns0/hpa0" {
+			foundHpa0Ref = true
+		}
+		if m.AutoscalerReferences == "hpa:ns0/hpa2" {
+			foundHpa2Ref = true
+		}
+	}
 
-	// dd-metric-excluded should be inactive (its HPA is filtered out by the selector)
-	excludedMetric := f.store.Get("default/dd-metric-excluded")
-	assert.NotNil(t, excludedMetric)
-	assert.False(t, excludedMetric.Active)
-	assert.Equal(t, "", excludedMetric.AutoscalerReferences)
+	// hpa0 matched label selector — should be included and create autogen metric
+	assert.True(t, foundHpa0Ref, "hpa0 should be included (matches label selector)")
+
+	// hpa1 has datadogmetric@ reference — dd-metric-ref should be active despite failing label selector
+	refMetric := f.store.Get("default/dd-metric-ref")
+	assert.NotNil(t, refMetric)
+	assert.True(t, refMetric.Active)
+	assert.Equal(t, "hpa:ns0/hpa1", refMetric.AutoscalerReferences)
+
+	// hpa2 should be excluded — no label match, no datadogmetric@ reference
+	assert.False(t, foundHpa2Ref, "hpa2 should be excluded (no label match and no datadogmetric@ reference)")
 }

@@ -268,13 +268,15 @@ func (w *AutoscalerWatcher) getAutoscalerReferences() (map[string]*externalMetri
 	}
 
 	if w.autoscalerLister != nil {
-		hpaList, err := w.autoscalerLister.List(w.hpaLabelSelector)
+		hpaList, err := w.autoscalerLister.List(labels.Everything())
 		if err != nil {
 			return nil, fmt.Errorf("Could not list HPAs (to update DatadogMetric active status): %v", err)
 		}
 
 		for _, obj := range hpaList {
-			w.processHPAReference(addAutoscalerReference, obj)
+			if w.shouldProcessHPA(obj) {
+				w.processHPAReference(addAutoscalerReference, obj)
+			}
 		}
 	}
 
@@ -316,6 +318,45 @@ type addAutoscalerReferenceFn func(
 	metricName string,
 	labels map[string]string,
 )
+
+func (w *AutoscalerWatcher) shouldProcessHPA(obj runtime.Object) bool {
+	switch hpa := obj.(type) {
+	case *autoscalingv2beta1.HorizontalPodAutoscaler:
+		if w.hpaLabelSelector.Matches(labels.Set(hpa.Labels)) {
+			return true
+		}
+		for _, metric := range hpa.Spec.Metrics {
+			if metric.Type == autoscalingv2beta1.ExternalMetricSourceType && metric.External != nil {
+				if _, parsed, _ := metricNameToDatadogMetricID(metric.External.MetricName); parsed {
+					return true
+				}
+			}
+		}
+	case *autoscalingv2beta2.HorizontalPodAutoscaler:
+		if w.hpaLabelSelector.Matches(labels.Set(hpa.Labels)) {
+			return true
+		}
+		for _, metric := range hpa.Spec.Metrics {
+			if metric.Type == autoscalingv2beta2.ExternalMetricSourceType && metric.External != nil {
+				if _, parsed, _ := metricNameToDatadogMetricID(metric.External.Metric.Name); parsed {
+					return true
+				}
+			}
+		}
+	case *autoscalingv2.HorizontalPodAutoscaler:
+		if w.hpaLabelSelector.Matches(labels.Set(hpa.Labels)) {
+			return true
+		}
+		for _, metric := range hpa.Spec.Metrics {
+			if metric.Type == autoscalingv2.ExternalMetricSourceType && metric.External != nil {
+				if _, parsed, _ := metricNameToDatadogMetricID(metric.External.Metric.Name); parsed {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
 
 func (w *AutoscalerWatcher) processHPAReference(addAutoscalerReference addAutoscalerReferenceFn, obj runtime.Object) {
 	switch hpa := obj.(type) {
