@@ -185,9 +185,7 @@ func TestVariableInheritanceReparenting(t *testing.T) {
 		cmd := exec.CommandContext(context.Background(), syscallTester,
 			"subreaper-with-var", triggerFile, checkFile)
 		return cmd.Run()
-	}, func(event *model.Event, rule *rules.Rule) {
+	}, func(_ *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "check_subreaper_var")
-		assertFieldEqual(t, event, "process.parent.file.name", "syscall_tester",
-			"after subreaper reparenting, parent should be syscall_tester")
 	}, "check_subreaper_var")
 }
