@@ -311,7 +311,7 @@ func assertStatsAreReset(t *testing.T, rs *ReceiverStats) {
 		all := reflect.ValueOf(stats)
 		for i := 0; i < all.NumField(); i++ {
 			v := all.Field(i)
-			if v.Kind() == reflect.Ptr {
+			if v.Kind() == reflect.Pointer {
 				v = v.Elem()
 			}
 			assert.True(t, v.IsZero(), fmt.Sprintf("field %q not reset", all.Type().Field(i).Name))

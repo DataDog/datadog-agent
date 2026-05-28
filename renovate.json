@@ -2,7 +2,7 @@
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended", ":enablePreCommit", "schedule:nonOfficeHours"],
     "constraints": {
-      "go": "1.25.9"
+      "go": "1.25.10"
     },
     "constraintsFiltering": "strict",
     "minimumReleaseAge": "7 days",
@@ -28,6 +28,12 @@
       },
       {
         "matchDepNames": ["linux-images"],
+        "maxMajorIncrement": 0,
+        "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
+        "schedule": ["* 2-6 * * 1-5"]
+      },
+      {
+        "matchDepNames": ["linux-images-devcontainer"],
         "maxMajorIncrement": 0,
         "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
         "schedule": ["* 2-6 * * 1-5"]
@@ -162,6 +168,14 @@
         "matchManagers": ["bundler"],
         "matchDatasources": ["git-refs"],
         "registryUrls": []
+      },
+      {
+        "matchDepNames": ["FluentAssertions"],
+        "allowedVersions": "(,8.0.0)"
+      },
+      {
+        "matchDepNames": ["WixToolset.Dtf.WindowsInstaller"],
+        "allowedVersions": "(,6.0.0)"
       }
     ],
     "customManagers" : [
@@ -181,7 +195,7 @@
         "matchStrings": [
           "\"image\":\\s*\"registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace:(?<currentValue>v[^\"]+)\""
         ],
-        "depNameTemplate": "linux-images",
+        "depNameTemplate": "linux-images-devcontainer",
         "versioningTemplate": "loose",
         "datasourceTemplate": "custom.linux-images"
       },
@@ -201,6 +215,17 @@
         "managerFilePatterns": [".dda/version"],
         "matchStrings": [
           "(?<currentValue>[0-9]+.[0-9]+.[0-9]+)"
+        ],
+        "depNameTemplate": "DataDog/datadog-agent-dev",
+        "datasourceTemplate": "github-releases"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": [
+          "Dockerfiles/agent-ddot/Dockerfile.agent-otel"
+        ],
+        "matchStrings": [
+          "DDA_VERSION=v(?<currentValue>[0-9]+.[0-9]+.[0-9]+)"
         ],
         "depNameTemplate": "DataDog/datadog-agent-dev",
         "datasourceTemplate": "github-releases"

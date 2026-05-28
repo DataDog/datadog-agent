@@ -100,6 +100,10 @@ func TestWebhookMatchConditions(t *testing.T) {
 	assert.NotEmpty(t, conditions[0].Expression)
 
 	// The expression should be valid CEL (at minimum it should not be empty)
+	assert.Contains(t, conditions[0].Expression, "request.operation == 'DELETE'")
+	assert.Contains(t, conditions[0].Expression, "oldObject.metadata.labels['gateway'] == 'istio'")
+	assert.Contains(t, conditions[0].Expression, "request.operation != 'DELETE'")
+	assert.Contains(t, conditions[0].Expression, "object.metadata.labels['gateway'] == 'istio'")
 	t.Logf("Generated CEL expression: %s", conditions[0].Expression)
 }
 
@@ -144,7 +148,7 @@ func TestWebhook_Properties(t *testing.T) {
 		name:       webhookName,
 		isEnabled:  true,
 		endpoint:   "/appsec-proxies",
-		resources:  map[string][]string{"": {"pods"}},
+		resources:  []admcommon.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}},
 		operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Delete},
 		patterns:   []appsecconfig.SidecarInjectionPattern{pattern},
 	}
@@ -164,8 +168,10 @@ func TestWebhook_Properties(t *testing.T) {
 	t.Run("Resources", func(t *testing.T) {
 		resources := webhook.Resources()
 		require.NotNil(t, resources)
-		assert.Contains(t, resources, "")
-		assert.Contains(t, resources[""], "pods")
+		require.Len(t, resources, 1)
+		assert.Equal(t, "", resources[0].APIGroup)
+		assert.Equal(t, "v1", resources[0].APIVersion)
+		assert.Contains(t, resources[0].Resources, "pods")
 	})
 
 	t.Run("Operations", func(t *testing.T) {
@@ -225,6 +231,10 @@ func TestWebhook_MatchConditions_MultiplePatterns(t *testing.T) {
 	assert.Contains(t, expression, pattern1.matchExpression)
 	assert.Contains(t, expression, pattern2.matchExpression)
 	assert.Contains(t, expression, pattern3.matchExpression)
+	assert.Contains(t, expression, "request.operation == 'DELETE'")
+	assert.Contains(t, expression, "oldObject.metadata.labels['gateway-type'] == 'istio')||(oldObject.metadata.labels['gateway-type'] == 'envoy'")
+	assert.Contains(t, expression, "request.operation != 'DELETE'")
+	assert.Contains(t, expression, "object.metadata.labels['gateway-type'] == 'istio')||(object.metadata.labels['gateway-type'] == 'envoy'")
 
 	// Expression should be wrapped in parentheses
 	assert.Contains(t, expression, "(", "Patterns should be wrapped in parentheses")

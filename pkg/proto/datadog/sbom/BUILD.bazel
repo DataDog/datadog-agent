@@ -1,0 +1,20 @@
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+
+proto_library(
+    name = "sbom_proto",
+    srcs = ["workloadmeta_sbom.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "sbom_go_proto",
+    compilers = [
+        "@rules_go//proto:go_proto",
+        "//bazel/rules/go_proto_compiler:go_grpc_futureproof",
+    ],
+    importpath = "pkg/proto/pbgo/sbom",
+    proto = ":sbom_proto",
+    visibility = ["//visibility:public"],
+)

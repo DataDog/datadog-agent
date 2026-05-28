@@ -208,6 +208,12 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 			}
 		case "workload_container":
 			easyjsonF8f9ddd1Decode(in, &out.Container)
+		case "cgroup_id":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.CGroupID = string(in.String())
+			}
 		case "args":
 			if in.IsNull() {
 				in.Skip()
@@ -288,6 +294,16 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 			out.RawString(prefix)
 		}
 		easyjsonF8f9ddd1Encode(out, in.Container)
+	}
+	if in.CGroupID != "" {
+		const prefix string = ",\"cgroup_id\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.CGroupID))
 	}
 	if len(in.EntrypointArgs) != 0 {
 		const prefix string = ",\"args\":"

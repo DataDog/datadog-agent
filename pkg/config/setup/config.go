@@ -994,11 +994,18 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 // See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
 func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Component, origin string) error {
 	log.Info("Starting to resolve secrets")
+
+	var multiBackends map[string]secrets.SecretBackendConfig
+	if err := structure.UnmarshalKey(config, "multi_secret_backends", &multiBackends); err != nil {
+		log.Warnf("multi_secret_backends: %v", err)
+	}
+
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
 		Type:                         config.GetString("secret_backend_type"),
 		Config:                       config.GetStringMap("secret_backend_config"),
+		MultiBackends:                multiBackends,
 		Command:                      config.GetString("secret_backend_command"),
 		Arguments:                    config.GetStringSlice("secret_backend_arguments"),
 		Timeout:                      config.GetInt("secret_backend_timeout"),
@@ -1015,7 +1022,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		APIKeyFailureRefreshInterval: config.GetInt("secret_refresh_on_api_key_failure_interval"),
 	})
 
-	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {
+	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" || len(multiBackends) > 0 {
 		// Viper doesn't expose the final location of the file it
 		// loads. Since we are searching for 'datadog.yaml' in multiple
 		// locations we let viper determine the one to use before
@@ -1476,9 +1483,9 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 }
 
 func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
-	config.BindEnv(prefix + "logs_dd_url")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
-	config.BindEnv(prefix + "dd_url")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv(prefix + "additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault(prefix+"logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault(prefix+"dd_url", "")
+	config.BindEnvAndSetDefault(prefix+"additional_endpoints", []map[string]interface{}{})
 	config.BindEnvAndSetDefault(prefix+"use_compression", true)
 	config.BindEnvAndSetDefault(prefix+"compression_kind", DefaultLogCompressionKind)
 	config.BindEnvAndSetDefault(prefix+"zstd_compression_level", DefaultZstdCompressionLevel) // Default level for the zstd algorithm

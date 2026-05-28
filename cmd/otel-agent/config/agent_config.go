@@ -72,6 +72,16 @@ var logLevelReverseMap = func(src map[string]logLevel) map[logLevel]string {
 // ErrNoDDExporter indicates there is no Datadog exporter in the configs
 var ErrNoDDExporter = errors.New("no datadog exporter found")
 
+// otelAgentEnvVars lists DD_* environment variables that are consumed by the
+// otel-agent binary via CLI flags (envflag) rather than through the Datadog
+// config system. They are passed to LoadDatadog so findUnknownEnvVars does not
+// emit spurious "Unknown environment variable" warnings for them.
+var otelAgentEnvVars = []string{
+	"DD_SYNC_DELAY",
+	"DD_SYNC_TO",
+	"DD_CORE_CONFIG",
+}
+
 // NewConfigComponent creates a new config component from the given URIs
 func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (config.Component, error) {
 	if len(uris) == 0 {
@@ -103,7 +113,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			pkgconfig.SetConfigFile(ddCfg)
 		}
 
-		err := pkgconfigsetup.LoadDatadog(pkgconfig, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, nil)
+		err := pkgconfigsetup.LoadDatadog(pkgconfig, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, otelAgentEnvVars)
 		if err != nil {
 			return nil, err
 		}

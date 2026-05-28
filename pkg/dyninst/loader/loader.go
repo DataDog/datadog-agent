@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // Loader is responsible for loading the eBPF, making it ready to attach.
@@ -67,12 +69,14 @@ func WithAdditionalSerializer(serializer compiler.CodeSerializer) Option {
 	return additionalSerializerOption{serializer}
 }
 
-// WithUseMultiAttach configures the loader to load programs for attachment
-// via the uprobe_multi link type (BPF_LINK_TYPE_UPROBE_MULTI). The caller is
-// responsible for ensuring the running kernel supports this link type
-// (Linux 6.6+); the loader does not probe for support.
-func WithUseMultiAttach(enabled bool) Option {
-	return useMultiAttachOption(enabled)
+// WithForceMultiAttach forces the loader to use uprobe_multi attachment,
+// bypassing the kernel-version gate in canUseMultiAttach. Intended for use
+// in tests on kernels that support BPF_LINK_TYPE_UPROBE_MULTI but are
+// excluded by the conservative 6.10 floor (e.g. Ubuntu 24.04's 6.8 kernel).
+// The caller is responsible for ensuring the workload is unaffected by the
+// pre-6.10 multi-uprobe PID-filter bug — see canUseMultiAttach for details.
+func WithForceMultiAttach() Option {
+	return forceMultiAttachOption{}
 }
 
 // NewLoader creates a new Loader.
@@ -114,7 +118,8 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 	}
 	ringbufMapSpec.MaxEntries = uint32(l.config.ringBufSize)
 
-	if l.config.useMultiAttach {
+	useMultiAttach := l.config.forceMultiAttach || canUseMultiAttach()
+	if useMultiAttach {
 		progSpec, ok := spec.Programs["probe_run_with_cookie"]
 		if !ok {
 			return nil, errors.New("probe_run_with_cookie program not found in eBPF spec")
@@ -144,9 +149,32 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 		Collection:     collection,
 		BpfProgram:     bpfProgram,
 		Attachpoints:   serialized.bpfAttachPoints,
-		UseMultiAttach: l.config.useMultiAttach,
+		UseMultiAttach: useMultiAttach,
 	}, nil
 }
+
+// canUseMultiAttach reports whether the running kernel supports
+// uprobe_multi attachment with a working PID filter.
+//
+// Linux 6.6 introduced BPF_LINK_TYPE_UPROBE_MULTI, but its PID filter
+// was buggy until 6.10: uprobe_prog_run() compared `current` against the
+// per-link task_struct pointer rather than its mm, so probes only fired
+// for the single thread looked up at attach time. Go programs run
+// goroutines across many OS threads, so most events were silently dropped.
+// The fix is upstream commit 46ba0e49b642 ("bpf: fix multi-uprobe PID
+// filtering logic"), present in 6.10+ and backported to 6.9.9, but never
+// to linux-6.8.y — so Ubuntu 24.04's stock 6.8 kernel is permanently
+// affected. Gate on 6.10 to be safe.
+var canUseMultiAttach = sync.OnceValue(func() bool {
+	if features.HaveBPFLinkUprobeMulti() != nil {
+		return false
+	}
+	v, err := kernel.HostVersion()
+	if err != nil {
+		return false
+	}
+	return v >= kernel.VersionCode(6, 10, 0)
+})
 
 // stripRelocations removes the relocation metadata from the instructions.
 // These are not needed for pt_regs as long as we're not trying to build
@@ -224,7 +252,7 @@ func (p *Program) Close() {
 	}
 }
 
-// RuntimeStats are cumulative stats aggregated throughout program lifetime.
+// RuntimeStats are cumulative stats aggregated throughout probe lifetime.
 type RuntimeStats struct {
 	// Aggregated cpu time spent in probe execution (excluding interrupt overhead).
 	CPU time.Duration
@@ -234,22 +262,37 @@ type RuntimeStats struct {
 	ThrottledCnt uint64
 }
 
-// RuntimeStats returns the per-core runtime stats for the program.
+// RuntimeStats returns the per-probe runtime stats for the program,
+// indexed by the IR probe_id (the same value used as stats_buf key in
+// eBPF). The returned slice has length equal to the program's probe
+// count.
 func (p *Program) RuntimeStats() []RuntimeStats {
 	statsMap, ok := p.Collection.Maps["stats_buf"]
 	if !ok {
 		return nil
 	}
+	n := int(statsMap.MaxEntries())
+	out := make([]RuntimeStats, n)
+	if n == 0 {
+		return out
+	}
+	// stats and RuntimeStats have the same layout — see
+	// TestRuntimeStatsHasSameLayoutAsStats. Read directly into the
+	// output slice as []stats.
+	view := unsafe.Slice(
+		(*stats)(unsafe.Pointer(unsafe.SliceData(out))),
+		n,
+	)
 	entries := statsMap.Iterate()
 	var key uint32
-	var stats []stats
-	_ = entries.Next(&key, &stats)
-	// This is safe because these two structs have the same layout.
-	// See TestRuntimeStatsHasSameLayoutAsStats for more details.
-	return unsafe.Slice(
-		(*RuntimeStats)(unsafe.Pointer(unsafe.SliceData(stats))),
-		len(stats),
-	)
+	var value stats
+	for entries.Next(&key, &value) {
+		if int(key) >= n {
+			continue
+		}
+		view[key] = value
+	}
+	return out
 }
 
 const defaultRingbufSize = 1 << 20 // 1 MiB
@@ -292,7 +335,7 @@ type config struct {
 	dyninstDebugLevel   uint8
 	dyninstDebugEnabled bool
 
-	useMultiAttach bool
+	forceMultiAttach bool
 
 	additionalSerializer compiler.CodeSerializer
 }
@@ -329,10 +372,10 @@ func (o additionalSerializerOption) apply(c *config) {
 	c.additionalSerializer = o
 }
 
-type useMultiAttachOption bool
+type forceMultiAttachOption struct{}
 
-func (o useMultiAttachOption) apply(c *config) {
-	c.useMultiAttach = bool(o)
+func (forceMultiAttachOption) apply(c *config) {
+	c.forceMultiAttach = true
 }
 
 func (l *Loader) init(opts ...Option) error {
@@ -407,6 +450,7 @@ func (l *Loader) loadData(
 	const throttlerMapName = "throttler_params"
 	const throttlerStateMapName = "throttler_buf"
 	const probeParamsMapName = "probe_params"
+	const statsBufMapName = "stats_buf"
 	const goRuntimeTypeIDsMapName = "go_runtime_type_ids"
 	const goRuntimeTypesMapName = "go_runtime_types"
 
@@ -518,6 +562,11 @@ func (l *Loader) loadData(
 	); err != nil {
 		return nil, fmt.Errorf("failed to set num_go_runtime_types: %w", err)
 	}
+	if err := setVariable(
+		spec, "trace_context_type_id", uint32(serialized.traceContextTypeID),
+	); err != nil {
+		return nil, fmt.Errorf("failed to set trace_context_type_id: %w", err)
+	}
 	// Allow a program to avoid setting common constants if it doesn't have
 	// any. This is something of a hack to allow for the rcscrape program to
 	// avoid needing constants, and corresponds to similar flexibility in the
@@ -580,6 +629,19 @@ func (l *Loader) loadData(
 	if err != nil {
 		return nil, fmt.Errorf("failed to set num_probe_params: %w", err)
 	}
+
+	// Size stats_buf to one entry per IR probe. BPF_MAP_TYPE_ARRAY
+	// requires max_entries >= 1, so clamp degenerate zero-probe
+	// programs (the verifier still requires the map to exist).
+	statsBufSize := serialized.numProbes
+	if statsBufSize == 0 {
+		statsBufSize = 1
+	}
+	statsBufMapSpec, ok := spec.Maps[statsBufMapName]
+	if !ok {
+		return nil, errors.New("stats_buf map not found in eBPF spec")
+	}
+	statsBufMapSpec.MaxEntries = statsBufSize
 
 	if l.config.dyninstDebugEnabled {
 		err = setVariable(spec, "debug_level", uint32(l.config.dyninstDebugLevel))

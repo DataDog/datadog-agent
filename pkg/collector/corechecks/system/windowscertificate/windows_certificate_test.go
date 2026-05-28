@@ -15,6 +15,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/hex"
 	"math/big"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -77,6 +78,106 @@ days_critical: 5`)
 	m.AssertNumberOfCalls(t, "Gauge", 0)
 	m.AssertNumberOfCalls(t, "ServiceCheck", 0)
 	m.AssertNumberOfCalls(t, "Commit", 0)
+}
+
+func TestValidateCertificateStoreSelectionAllowsBoth(t *testing.T) {
+	c := Config{
+		CertificateStore:      "MY",
+		CertificateStoreRegex: []string{`^ROOT$`, `^CA$`},
+	}
+	require.NoError(t, validateCertificateStoreSelection(&c))
+}
+
+func TestResolveStoreNamesDedupesAndSorts(t *testing.T) {
+	reAll, err := compileCertificateStoreRegexes([]string{`.*`})
+	require.NoError(t, err)
+	reRoot, err := compileCertificateStoreRegexes([]string{`^ROOT$`})
+	require.NoError(t, err)
+
+	// Explicit + regex matches → sorted, case-insensitively deduped
+	got := resolveStoreNames("MY", []string{"ROOT", "MY", "CA"}, reAll)
+	require.Equal(t, []string{"CA", "MY", "ROOT"}, got)
+
+	// Explicit and regex both match the same store → only one entry
+	got = resolveStoreNames("ROOT", []string{"ROOT"}, reRoot)
+	require.Equal(t, []string{"ROOT"}, got)
+
+	// No explicit, regex matches ROOT
+	got = resolveStoreNames("", []string{"ROOT"}, reRoot)
+	require.Equal(t, []string{"ROOT"}, got)
+
+	// Explicit only, no available stores or regexes
+	got = resolveStoreNames("MY", nil, nil)
+	require.Equal(t, []string{"MY"}, got)
+
+	// Case-insensitive dedup: explicit "my" shadows registry entry "MY"
+	got = resolveStoreNames("my", []string{"MY", "CA"}, reAll)
+	require.Equal(t, []string{"CA", "my"}, got)
+}
+
+func TestValidateCertificateStoreSelectionRequiresOne(t *testing.T) {
+	require.Error(t, validateCertificateStoreSelection(&Config{}))
+	require.Error(t, validateCertificateStoreSelection(&Config{CertificateStoreRegex: []string{}}))
+	require.NoError(t, validateCertificateStoreSelection(&Config{CertificateStore: "ROOT"}))
+	require.NoError(t, validateCertificateStoreSelection(&Config{CertificateStoreRegex: []string{`^ROOT$`}}))
+}
+
+func TestCompileCertificateStoreRegexesRejectsEmptyPattern(t *testing.T) {
+	_, err := compileCertificateStoreRegexes([]string{"  ", `^ROOT$`})
+	require.Error(t, err)
+}
+
+func TestResolveStoreNamesFiltersByRegexes(t *testing.T) {
+	reROOT, err := regexp.Compile(`(?i)^ROOT$`)
+	require.NoError(t, err)
+	reCA, err := regexp.Compile(`(?i)^CA$`)
+	require.NoError(t, err)
+	got := resolveStoreNames("", []string{"ROOT", "MY", "CA"}, []*regexp.Regexp{reROOT, reCA})
+	require.Equal(t, []string{"CA", "ROOT"}, got)
+}
+
+func TestCompileCertificateStoreRegexesCaseInsensitive(t *testing.T) {
+	re, err := compileCertificateStoreRegexes([]string{`^my`})
+	require.NoError(t, err)
+	require.Len(t, re, 1)
+	got := resolveStoreNames("", []string{"ROOT", "MY", "CA"}, re)
+	require.Equal(t, []string{"MY"}, got)
+
+	// User-supplied (?i) at the start is left as-is (no duplicate flag).
+	// Case-insensitive dedup: "my" is the same store as "MY", so only one is kept.
+	re2, err := compileCertificateStoreRegexes([]string{`(?i)^my$`})
+	require.NoError(t, err)
+	got2 := resolveStoreNames("", []string{"MY", "my"}, re2)
+	require.Equal(t, []string{"MY"}, got2)
+}
+
+func TestWindowsCertificateWithCertificateStoreRegex(t *testing.T) {
+	certCheck := new(WinCertChk)
+
+	instanceConfig := []byte(`
+certificate_store_regex:
+  - "^ROOT$"
+certificate_subjects:
+  - Microsoft
+  - Datadog
+days_warning: 10
+days_critical: 5`)
+
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
+	require.NoError(t, certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider"))
+
+	m.On("Gauge", "windows_certificate.days_remaining", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string"))
+	m.On("ServiceCheck", "windows_certificate.cert_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.On("Commit").Return()
+
+	require.NoError(t, certCheck.Run())
+
+	m.AssertExpectations(t)
+	m.AssertCalled(t, "Gauge", "windows_certificate.days_remaining", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string"))
+	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.AssertNumberOfCalls(t, "Commit", 1)
 }
 
 func TestWindowsCertificateWithInvalidStore(t *testing.T) {
