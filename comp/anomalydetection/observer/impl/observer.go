@@ -698,7 +698,7 @@ func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
 		_ = o.engine.advanceWithReason(req.upToSec, req.reason)
 	}
 	if o.telemetry != nil {
-		o.telemetry.recordLogIngested(source, lo.tags, len(lo.content))
+		o.telemetry.recordLogIngested(classifyLogSource(source, lo.tags), len(lo.content))
 		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
 	}
 	o.replayMu.Unlock()
@@ -791,6 +791,13 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	timestampMs := msg.GetTimestampUnixMilli()
 	tags := copyTags(msg.Tags())
 	content := msg.GetContent()
+	logSource := ""
+	if h.telemetry != nil {
+		logSource = classifyLogSource(h.source, tags)
+		// Increment before enqueue to avoid a race where the consumer dequeues and
+		// decrements to zero before this producer increments.
+		h.telemetry.incrementLogsInFlight(logSource)
+	}
 
 	obs := observation{
 		source: h.source,
@@ -807,12 +814,13 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	select {
 	case h.ch <- obs:
 		if h.telemetry != nil {
-			logSource := h.telemetry.recordLogIngested(h.source, tags, len(content))
-			h.telemetry.incrementLogsInFlight(logSource)
+			h.telemetry.recordLogIngested(logSource, len(content))
 		}
 	default:
 		h.dropCount.Add(1)
 		if h.telemetry != nil {
+			// Roll back pre-enqueue in-flight increment for dropped logs.
+			h.telemetry.decrementLogsInFlight(logSource)
 			h.telemetry.recordDroppedLog(h.source, tags)
 			h.telemetry.recordChannelDropped(h.source)
 		}

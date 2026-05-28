@@ -86,8 +86,7 @@ func (s *reporterEventSink) onEngineEvent(evt engineEvent) {
 			output.CorrelationHistory = s.state.CorrelationHistory()
 		}
 		for _, r := range s.reporters {
-			r.Report(output)
-			if s.onReport != nil {
+			if r.Report(output) && s.onReport != nil {
 				s.onReport(r.Name())
 			}
 		}

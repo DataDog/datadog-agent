@@ -608,8 +608,11 @@ type countingReporter struct {
 	count *int
 }
 
-func (r *countingReporter) Name() string                      { return "counting" }
-func (r *countingReporter) Report(_ reporterdef.ReportOutput) { *r.count++ }
+func (r *countingReporter) Name() string { return "counting" }
+func (r *countingReporter) Report(_ reporterdef.ReportOutput) bool {
+	*r.count++
+	return true
+}
 
 func TestFindingM1_DedupKeyTooCoarse(t *testing.T) {
 	anomalies := []observerdef.Anomaly{

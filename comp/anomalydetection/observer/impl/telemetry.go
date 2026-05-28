@@ -137,11 +137,9 @@ func (t *observerTelemetry) recordLogPatternCountDelta(detectorName string, delt
 	t.logPatternCount.Add(delta, "detector:"+detectorName)
 }
 
-func (t *observerTelemetry) recordLogIngested(source string, tags []string, sizeBytes int) string {
-	logSource := classifyLogSource(source, tags)
+func (t *observerTelemetry) recordLogIngested(logSource string, sizeBytes int) {
 	t.logsIngested.Add(1, logSource)
 	t.processedLogSize.Add(float64(sizeBytes), logSource)
-	return logSource
 }
 
 func (t *observerTelemetry) recordDroppedLog(source string, tags []string) {

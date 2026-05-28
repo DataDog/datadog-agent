@@ -63,9 +63,9 @@ type stdoutReporter struct{}
 
 func (r *stdoutReporter) Name() string { return "stdout_reporter" }
 
-func (r *stdoutReporter) Report(output reporterdef.ReportOutput) {
+func (r *stdoutReporter) Report(output reporterdef.ReportOutput) bool {
 	if len(output.ActiveCorrelations) == 0 {
-		return
+		return false
 	}
 	for _, ac := range output.ActiveCorrelations {
 		fmt.Printf("[observer] report: pattern=%s — %s (%d series)\n",
@@ -82,4 +82,5 @@ func (r *stdoutReporter) Report(output reporterdef.ReportOutput) {
 		}
 		fmt.Printf("[observer] new anomalies: %s\n", strings.Join(names, ", "))
 	}
+	return true
 }

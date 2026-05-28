@@ -16,8 +16,8 @@ import (
 
 type noopReporter struct{}
 
-func (r *noopReporter) Name() string                   { return "mock_reporter" }
-func (r *noopReporter) Report(_ reporter.ReportOutput) {}
+func (r *noopReporter) Name() string                        { return "mock_reporter" }
+func (r *noopReporter) Report(_ reporter.ReportOutput) bool { return false }
 
 // Mock returns a no-op reporter for use in tests.
 func Mock(_ *testing.T) reporter.Reporter {

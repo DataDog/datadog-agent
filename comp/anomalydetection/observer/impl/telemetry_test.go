@@ -19,7 +19,7 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.recordRRCFScore("rrcf", 0.7)
 	tel.recordRRCFThreshold("rrcf", 0.9)
 	tel.recordLogPatternCountDelta("log_pattern_extractor", 1)
-	tel.recordLogIngested("agent-internal-logs", []string{"service:agent"}, 256)
+	tel.recordLogIngested("internal", 256)
 	tel.recordDroppedLog("logs", []string{"source:kubelet"})
 	tel.incrementLogsInFlight("internal")
 	tel.decrementLogsInFlight("internal")
