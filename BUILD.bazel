@@ -195,7 +195,6 @@ exports_files(glob(
 # gazelle:exclude comp/ndmtmp/*.go
 # gazelle:exclude comp/ndmtmp/forwarder/fx
 # gazelle:exclude comp/ndmtmp/forwarder/impl
-# gazelle:exclude comp/ndmtmp/forwarder/mock
 # gazelle:exclude comp/netflow/flowaggregator
 # gazelle:exclude comp/netflow/goflowlib/*.go
 # gazelle:exclude comp/netflow/goflowlib/netflowstate
