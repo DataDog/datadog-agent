@@ -11913,6 +11913,22 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+          holt_residual:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          tukey_biweight:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
           time_cluster:
             node_type: section
             type: object
