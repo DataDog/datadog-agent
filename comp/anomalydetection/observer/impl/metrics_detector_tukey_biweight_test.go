@@ -152,6 +152,41 @@ func TestTukeyBiweight_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 	assert.Equal(t, int64(10), state.lastProcessedTime)
 }
 
+func TestTukeyBiweight_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
+	d := testTukeyBiweightDetector()
+	d.WindowSize = 4
+	d.MinPoints = 4
+	d.ScoreEvery = 100
+	storage := newDetectorTestStorage()
+
+	storage.Add("ns", "metric", 10.0, 10, nil)
+	d.Detect(storage, 10)
+
+	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
+	require.Len(t, metas, 1)
+	ref := metas[0].Ref
+	key := tbStateKey{ref: ref, agg: observer.AggregateAverage}
+	state := d.series[key]
+	require.NotNil(t, state)
+	require.Equal(t, 1, state.count)
+	require.Equal(t, int64(10), state.lastProcessedTime)
+
+	storage.Add("ns", "metric", 30.0, 10, nil)
+	storage.Add("ns", "metric", 40.0, 11, nil)
+	d.Detect(storage, 11)
+
+	state = d.series[key]
+	require.NotNil(t, state)
+	require.Equal(t, 2, state.count)
+	require.Len(t, state.ring, 2)
+	assert.Equal(t, int64(10), state.ring[0].Timestamp)
+	assert.Equal(t, 20.0, state.ring[0].Value)
+	assert.Equal(t, int64(11), state.ring[1].Timestamp)
+	assert.Equal(t, 40.0, state.ring[1].Value)
+	assert.Equal(t, 2, state.lastProcessedCount)
+	assert.Equal(t, int64(11), state.lastProcessedTime)
+}
+
 // TestTukeyBiweight_NoFireOnStableGaussian verifies that 200 deterministic
 // N(10, 0.5²) samples produce zero anomalies. With ZThreshold=5 the per-tick
 // false-positive rate under N(0,1) is ~5.7e-7, so 200 ticks should be well

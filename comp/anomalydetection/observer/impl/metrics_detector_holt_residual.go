@@ -71,6 +71,7 @@ type holtSeriesState struct {
 	lastProcessedCount int
 	lastWriteGen       int64
 	lastProcessedTime  int64
+	lastProcessedValue float64
 
 	// warmup buffer; cap = WarmupPoints. Discarded once warmedUp.
 	warmupBuf []float64
@@ -258,15 +259,22 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 
 			// Replay-gate: skip when no new bucket or in-place merge is visible.
 			mergeOccurred := status.pointCount == state.lastProcessedCount && status.writeGeneration != state.lastWriteGen
-			if status.pointCount <= state.lastProcessedCount && !mergeOccurred {
-				continue
-			}
-			startTime := state.lastProcessedTime
-			if mergeOccurred || (status.pointCount > state.lastProcessedCount && storage.PointCountUpTo(meta.Ref, state.lastProcessedTime) > state.lastProcessedCount) {
-				state = d.newState()
-				d.series[sk] = state
-				startTime = 0
-			}
+				if status.pointCount <= state.lastProcessedCount && !mergeOccurred {
+					continue
+				}
+				startTime := state.lastProcessedTime
+				countIncreased := status.pointCount > state.lastProcessedCount
+				prefixCount := state.lastProcessedCount
+				if countIncreased {
+					prefixCount = storage.PointCountUpTo(meta.Ref, state.lastProcessedTime)
+				}
+				cursorBucketChangedWithAppend := countIncreased && status.writeGeneration != state.lastWriteGen &&
+					prefixCount == state.lastProcessedCount && holtCursorPointChanged(storage, meta.Ref, agg, state)
+				if mergeOccurred || prefixCount > state.lastProcessedCount || cursorBucketChangedWithAppend {
+					state = d.newState()
+					d.series[sk] = state
+					startTime = 0
+				}
 
 			anomalies, pointsSeen := d.ingestNewPoints(storage, meta.Ref, agg, state, startTime, dataTime)
 			for j := range anomalies {
@@ -340,6 +348,7 @@ func (d *HoltResidualDetector) ingestNewPoints(
 		}
 		state.lastSeenTimestamp = p.Timestamp
 		state.lastProcessedTime = p.Timestamp
+		state.lastProcessedValue = p.Value
 		pushTimestamp(state, p.Timestamp)
 
 		if !state.warmedUp {
@@ -366,6 +375,18 @@ func (d *HoltResidualDetector) ingestNewPoints(
 	})
 
 	return fired, pointsSeen
+}
+
+func holtCursorPointChanged(storage observer.StorageReader, ref observer.SeriesRef, agg observer.Aggregate, state *holtSeriesState) bool {
+	if state.lastProcessedCount == 0 {
+		return false
+	}
+	series := storage.GetSeriesRange(ref, state.lastProcessedTime-1, state.lastProcessedTime, agg)
+	if series == nil || len(series.Points) == 0 {
+		return false
+	}
+	currentPoint := series.Points[len(series.Points)-1]
+	return currentPoint.Timestamp == state.lastProcessedTime && currentPoint.Value != state.lastProcessedValue
 }
 
 // processPoint runs one Holt step: forecast → residual → gate → smoother

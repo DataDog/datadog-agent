@@ -215,15 +215,22 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 			}
 
 			mergeOccurred := status.pointCount == state.lastProcessedCount && status.writeGeneration != state.lastWriteGen
-			if status.pointCount <= state.lastProcessedCount && !mergeOccurred {
-				continue
-			}
-			startTime := state.lastProcessedTime
-			if mergeOccurred || (status.pointCount > state.lastProcessedCount && storage.PointCountUpTo(meta.Ref, state.lastProcessedTime) > state.lastProcessedCount) {
-				state = &tbSeriesState{}
-				d.series[sk] = state
-				startTime = 0
-			}
+				if status.pointCount <= state.lastProcessedCount && !mergeOccurred {
+					continue
+				}
+				startTime := state.lastProcessedTime
+				countIncreased := status.pointCount > state.lastProcessedCount
+				prefixCount := state.lastProcessedCount
+				if countIncreased {
+					prefixCount = storage.PointCountUpTo(meta.Ref, state.lastProcessedTime)
+				}
+				cursorBucketChangedWithAppend := countIncreased && status.writeGeneration != state.lastWriteGen &&
+					prefixCount == state.lastProcessedCount && d.cursorPointChanged(storage, meta.Ref, agg, state)
+				if mergeOccurred || prefixCount > state.lastProcessedCount || cursorBucketChangedWithAppend {
+					state = &tbSeriesState{}
+					d.series[sk] = state
+					startTime = 0
+				}
 
 			var seriesMeta *observer.Series
 			pointsSeen := false
@@ -309,6 +316,26 @@ func (d *TukeyBiweightDetector) windowPointsSnapshot(state *tbSeriesState) []obs
 		points[i] = state.ring[(state.head+i)%d.WindowSize]
 	}
 	return points
+}
+
+func (d *TukeyBiweightDetector) cursorPointChanged(storage observer.StorageReader, ref observer.SeriesRef, agg observer.Aggregate, state *tbSeriesState) bool {
+	if state.count == 0 {
+		return false
+	}
+	idx := state.count - 1
+	if state.count >= d.WindowSize {
+		idx = (state.head + d.WindowSize - 1) % d.WindowSize
+	}
+	lastPoint := state.ring[idx]
+	if lastPoint.Timestamp != state.lastProcessedTime {
+		return false
+	}
+	series := storage.GetSeriesRange(ref, state.lastProcessedTime-1, state.lastProcessedTime, agg)
+	if series == nil || len(series.Points) == 0 {
+		return false
+	}
+	currentPoint := series.Points[len(series.Points)-1]
+	return currentPoint.Timestamp == lastPoint.Timestamp && currentPoint.Value != lastPoint.Value
 }
 
 // scoreBiweight runs the IRLS biweight fit on the current window and decides

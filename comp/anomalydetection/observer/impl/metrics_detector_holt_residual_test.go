@@ -406,6 +406,35 @@ func TestHoltResidual_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 	assert.Equal(t, int64(10), state.lastProcessedTime)
 }
 
+func TestHoltResidual_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
+	d := testHoltResidualDetector()
+	d.WarmupPoints = 10
+	d.ResidualWindow = 4
+	storage := newDetectorTestStorage()
+
+	storage.Add("ns", "metric", 10.0, 10, nil)
+	d.Detect(storage, 10)
+
+	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
+	require.Len(t, metas, 1)
+	ref := metas[0].Ref
+	key := holtStateKey{ref: ref, agg: observer.AggregateAverage}
+	state := d.series[key]
+	require.NotNil(t, state)
+	require.Equal(t, []float64{10.0}, state.warmupBuf)
+	require.Equal(t, int64(10), state.lastProcessedTime)
+
+	storage.Add("ns", "metric", 30.0, 10, nil)
+	storage.Add("ns", "metric", 40.0, 11, nil)
+	d.Detect(storage, 11)
+
+	state = d.series[key]
+	require.NotNil(t, state)
+	assert.Equal(t, []float64{20.0, 40.0}, state.warmupBuf)
+	assert.Equal(t, 2, state.lastProcessedCount)
+	assert.Equal(t, int64(11), state.lastProcessedTime)
+}
+
 // TestHoltResidual_ConfirmationStartsAfterWindowsReady verifies that
 // under-filled MAD windows cannot pre-arm confirmation counters. The first
 // point has a huge residual but is observed before both windows are full; the
