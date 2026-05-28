@@ -12,6 +12,7 @@ from tasks.static_quality_gates.gates import (
     DockerArtifactMeasurer,
     GateMetricHandler,
     GateResult,
+    InventoryReportMeasurer,
     PackageArtifactMeasurer,
     QualityGateConfig,
     QualityGateFactory,
@@ -559,7 +560,7 @@ class TestQualityGateFactory(unittest.TestCase):
         self.assertEqual(gate.config.gate_name, "static_quality_gate_docker_agent_amd64")
         self.assertEqual(gate.config.arch, "amd64")
         self.assertEqual(gate.config.os, "docker")
-        self.assertIsInstance(gate.measurer, DockerArtifactMeasurer)
+        self.assertIsInstance(gate.measurer, InventoryReportMeasurer)
 
     def test_create_gate_package(self):
         gate = QualityGateFactory.create_gate(
@@ -570,7 +571,7 @@ class TestQualityGateFactory(unittest.TestCase):
         self.assertEqual(gate.config.gate_name, "static_quality_gate_agent_deb_amd64")
         self.assertEqual(gate.config.arch, "amd64")
         self.assertEqual(gate.config.os, "debian")
-        self.assertIsInstance(gate.measurer, PackageArtifactMeasurer)
+        self.assertIsInstance(gate.measurer, InventoryReportMeasurer)
 
     def test_create_gate_unknown_type(self):
         with self.assertRaises(ValueError):
