@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -175,7 +174,7 @@ func setupTestServer(t *testing.T) *Handler {
 	}
 
 	// Set up HTTP router and register the module
-	httpMux := mux.NewRouter()
+	httpMux := http.NewServeMux()
 	router := module.NewRouter("privileged_logs", httpMux)
 	err = fdModule.Register(router)
 	if err != nil {

@@ -15,7 +15,7 @@ Package: main
 		Var: span: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span (declared at line 27, available: [31-32])
 		Var: ctx: context.Context (declared at line 27, available: [31-32])
 		Var: .autotmp_8: context.backgroundCtx (declared at line 216, available: [26-33])
-	Function: executeContextFuncs.WithSpanID.func1 (main.executeContextFuncs.WithSpanID.func1) in github.com/DataDog/dd-trace-go/v2@v2.2.3/ddtrace/tracer/option.go [1359:1361] injectible: [1359-1361]
+	Function: executeContextFuncs.WithSpanID.func1 (main.executeContextFuncs.WithSpanID.func1) in github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/option.go [1359:1361] injectible: [1359-1361]
 		Arg: cfg: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.StartSpanConfig (declared at line 1359, available: [1359-1361])
 		Var: id: uint64 (declared at line 1360, available: [1360-1361])
 	Function: executeContinuationFuncs (main.executeContinuationFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/continuation.go [113:187] injectible: [113-113], [115-184], [186-187]
@@ -283,7 +283,7 @@ Package: main
 			Arg: x: <T> (declared at line 67, available: [68-70])
 			Arg: k: <T> (declared at line 67, available: [68-70])
 			Arg: v: <T> (declared at line 67, available: [68-70])
-	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.2.3/ddtrace/tracer/option.go [986:989] injectible: [986-989]
+	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/option.go [986:989] injectible: [986-989]
 		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 986, available: [986-988])
 		Var: name: string (declared at line 987, available: [987-989])
 	Type: main.aStruct

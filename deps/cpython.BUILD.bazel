@@ -2,6 +2,7 @@ load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
+load("@@//bazel/rules/foreign_cc_runnable:foreign_cc_runnable.bzl", "foreign_cc_runnable")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
@@ -306,6 +307,23 @@ configure_make(
 foreign_cc_shared_wrapper(
     name = "python_unix_shared",
     input = ":python_unix",
+    visibility = ["//visibility:public"],
+)
+
+# A copy of python_unix with rpaths rewritten so the interpreter and its
+# lib-dynload modules can find libpython and the dynamic deps at runtime.
+# Use this (not :python_unix) when invoking python from a Bazel action.
+foreign_cc_runnable(
+    name = "python_unix_runnable",
+    input = ":python_unix",
+    binary_path = "bin/python{}".format(VERSION_STR),
+    patch_globs = [
+        "lib/python{}/lib-dynload/*.so".format(VERSION_STR),
+    ],
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
 )
 

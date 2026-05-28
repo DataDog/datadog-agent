@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Update the SNMP traps database with new MIB additions, including
+    ``PANZURA-TRAP-MIB``.

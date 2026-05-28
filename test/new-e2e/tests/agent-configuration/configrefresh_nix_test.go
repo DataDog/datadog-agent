@@ -74,6 +74,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 			agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
 			agentclientparams.WithProcessAgentOnPort(processCmdPort),
 			agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
+			agentclientparams.WithWaitForDuration(3*time.Minute),
 		)),
 	))
 
@@ -143,6 +144,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
 			agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
 			agentclientparams.WithProcessAgentOnPort(processCmdPort),
 			agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
+			agentclientparams.WithWaitForDuration(3*time.Minute),
 		)),
 	))
 

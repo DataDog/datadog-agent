@@ -44,11 +44,13 @@ DEFAULT_CONFIG = [
 WIN_LIBSSL = "libssl-3-x64.dll"
 WIN_LIBCRYPTO = "libcrypto-3-x64.dll"
 
-LINUX_LIBSSL = "libssl.so"
-LINUX_LIBCRYPTO = "libcrypto.so"
+# We want the filenames matching the library SONAMEs here such that we can run targets from the bazel tree
+# Hence the inclusion of the major version
+LINUX_LIBSSL = "libssl.so.3"
+LINUX_LIBCRYPTO = "libcrypto.so.3"
 
-MACOS_LIBSSL = "libssl.dylib"
-MACOS_LIBCRYPTO = "libcrypto.dylib"
+MACOS_LIBSSL = "libssl.3.dylib"
+MACOS_LIBCRYPTO = "libcrypto.3.dylib"
 
 configure_make(
     name = "openssl",

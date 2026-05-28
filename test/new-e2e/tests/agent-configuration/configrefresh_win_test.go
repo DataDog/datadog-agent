@@ -75,6 +75,7 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 				agentclientparams.WithAuthTokenPath(authTokenFilePath),
 				agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
 				agentclientparams.WithProcessAgentOnPort(processCmdPort),
+				agentclientparams.WithWaitForDuration(3*time.Minute),
 			)),
 	))
 
