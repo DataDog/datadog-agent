@@ -23,7 +23,7 @@ func TestRollbackCommand(t *testing.T) {
 			"--release", "myrel",
 			"--namespace", "prod",
 			"--job-namespace", "ops",
-			"--service-account", "helm-sa",
+			"--job-service-account", "helm-sa",
 			"--revision", "3"},
 		runRollback,
 		func(params *rollbackCliParams) {

@@ -58,10 +58,10 @@ func rollbackCmd(globalParams *command.GlobalParams) *cobra.Command {
 		Use:   "rollback",
 		Short: "Roll a Helm release back to a previous revision via a Kubernetes Job",
 		Long: `Creates a short-lived Kubernetes Job that runs ` + "`helm rollback`" + ` against the
-specified release. The Job runs in --job-namespace as --service-account, which
-must already have the RBAC permissions helm needs to act on the release.`,
+specified release. The Job runs in --job-namespace as --job-service-account,
+which must already have the RBAC permissions helm needs to act on the release.`,
 		Example: "datadog-cluster-agent helm rollback --release myrel --namespace prod " +
-			"--job-namespace ops --service-account helm-sa --revision 3",
+			"--job-namespace ops --job-service-account helm-sa --revision 3",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(runRollback,
 				fx.Supply(params),
@@ -78,11 +78,11 @@ must already have the RBAC permissions helm needs to act on the release.`,
 	cmd.Flags().StringVar(&params.releaseNamespace, "namespace", "", "Namespace of the Helm release (required)")
 	cmd.Flags().IntVar(&params.revision, "revision", 0, "Target revision number; 0 (default) means previous revision")
 	cmd.Flags().StringVar(&params.jobNamespace, "job-namespace", "", "Namespace where the rollback Job is created (required)")
-	cmd.Flags().StringVar(&params.serviceAccount, "service-account", "", "ServiceAccount the rollback Job runs as (required)")
-	cmd.Flags().StringVar(&params.image, "image", "", "Helm container image (default: "+helmactions.DefaultHelmImage+")")
+	cmd.Flags().StringVar(&params.serviceAccount, "job-service-account", "", "ServiceAccount the rollback Job runs as (required)")
+	cmd.Flags().StringVar(&params.image, "job-image", "", "Helm container image (default: "+helmactions.DefaultHelmImage+")")
 	cmd.Flags().StringVar(&params.driver, "driver", "", "Helm storage driver (secret|configmap|sql); empty inherits helm's default (secret)")
 
-	for _, name := range []string{"release", "namespace", "job-namespace", "service-account"} {
+	for _, name := range []string{"release", "namespace", "job-namespace", "job-service-account"} {
 		_ = cmd.MarkFlagRequired(name)
 	}
 
