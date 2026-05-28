@@ -1063,7 +1063,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			}
 			tracer.Trace = &TraceSerializer{
 				SpanID:     strconv.FormatUint(ps.Tracer.Trace.SpanID, 10),
-				TraceID:    fmt.Sprintf("%x%x", ps.Tracer.Trace.TraceID.Hi, ps.Tracer.Trace.TraceID.Lo),
+				TraceID:    ps.Tracer.Trace.TraceID.HexString(),
 				Attributes: ps.Tracer.Trace.Attributes,
 			}
 		}
@@ -1515,7 +1515,7 @@ func newTraceSerializer(e *model.Event) *TraceSerializer {
 	s := &TraceSerializer{}
 	if e.SpanContext.SpanID != 0 && (e.SpanContext.TraceID.Hi != 0 || e.SpanContext.TraceID.Lo != 0) {
 		s.SpanID = strconv.FormatUint(e.SpanContext.SpanID, 10)
-		s.TraceID = fmt.Sprintf("%x%x", e.SpanContext.TraceID.Hi, e.SpanContext.TraceID.Lo)
+		s.TraceID = e.SpanContext.TraceID.HexString()
 		s.Attributes = e.SpanContext.Attributes
 		return s
 	}
@@ -1529,7 +1529,7 @@ func newTraceSerializer(e *model.Event) *TraceSerializer {
 
 		if pce.Tracer.Trace.SpanID != 0 && (pce.Tracer.Trace.TraceID.Hi != 0 || pce.Tracer.Trace.TraceID.Lo != 0) {
 			s.SpanID = strconv.FormatUint(pce.Tracer.Trace.SpanID, 10)
-			s.TraceID = fmt.Sprintf("%x%x", pce.Tracer.Trace.TraceID.Hi, pce.Tracer.Trace.TraceID.Lo)
+			s.TraceID = pce.Tracer.Trace.TraceID.HexString()
 			s.Attributes = pce.Tracer.Trace.Attributes
 			break
 		}
