@@ -623,7 +623,6 @@ exports_files(glob(
 #     - resource.go      -> k8s.io/apimachinery/pkg/api/resource
 #     - resource_test.go -> k8s.io/apimachinery/pkg/api/resource
 # gazelle:exclude pkg/util/kubernetes/hostname.go
-# gazelle:exclude pkg/util/kubernetes/kubelet
 # gazelle:exclude pkg/util/kubernetes/resource.go
 # gazelle:exclude pkg/util/kubernetes/resource_test.go
 # gazelle:exclude pkg/util/tags
