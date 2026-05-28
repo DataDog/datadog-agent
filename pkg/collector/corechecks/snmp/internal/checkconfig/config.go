@@ -83,6 +83,19 @@ var uptimeMetricConfig = profiledefinition.MetricsConfig{Symbol: profiledefiniti
 // DeviceDigest is the digest of a minimal config used for autodiscovery
 type DeviceDigest string
 
+// CredentialConfig holds reusable SNMP authentication parameters that can be
+// defined once in init_config and referenced by name from instances.
+type CredentialConfig struct {
+	CommunityString string `yaml:"community_string"`
+	SnmpVersion     string `yaml:"snmp_version"`
+	User            string `yaml:"user"`
+	AuthProtocol    string `yaml:"authProtocol"`
+	AuthKey         string `yaml:"authKey"`
+	PrivProtocol    string `yaml:"privProtocol"`
+	PrivKey         string `yaml:"privKey"`
+	ContextName     string `yaml:"context_name"`
+}
+
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
 	Profiles              profile.ProfileConfigMap          `yaml:"profiles"`
@@ -98,6 +111,8 @@ type InitConfig struct {
 	Namespace             string                            `yaml:"namespace"`
 	PingConfig            snmpintegration.PackedPingConfig  `yaml:"ping"`
 	Loader                string                            `yaml:"loader"`
+	// NamedCredentials defines reusable credential sets referenced by instances via credential_ref.
+	NamedCredentials map[string]CredentialConfig `yaml:"named_credentials"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -159,6 +174,10 @@ type InstanceConfig struct {
 	// `interface_configs` option is not supported by SNMP corecheck autodiscovery (`network_address`)
 	// it's only supported for single device instance (`ip_address`)
 	InterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
+
+	// CredentialRef references a named credential defined in init_config.named_credentials.
+	// Fields set directly on the instance take precedence over the referenced credential.
+	CredentialRef string `yaml:"credential_ref"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
@@ -294,6 +313,40 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	err = yaml.Unmarshal(rawInstance, &instance)
 	if err != nil {
 		return nil, err
+	}
+
+	// Resolve named credential ref before any instance fields are consumed.
+	// Instance-level fields take precedence: only apply named credential values
+	// where the instance has not already set them.
+	if instance.CredentialRef != "" {
+		cred, ok := initConfig.NamedCredentials[instance.CredentialRef]
+		if !ok {
+			return nil, fmt.Errorf("credential_ref %q not found in init_config.named_credentials", instance.CredentialRef)
+		}
+		if instance.CommunityString == "" {
+			instance.CommunityString = cred.CommunityString
+		}
+		if instance.SnmpVersion == "" {
+			instance.SnmpVersion = cred.SnmpVersion
+		}
+		if instance.User == "" {
+			instance.User = cred.User
+		}
+		if instance.AuthProtocol == "" {
+			instance.AuthProtocol = cred.AuthProtocol
+		}
+		if instance.AuthKey == "" {
+			instance.AuthKey = cred.AuthKey
+		}
+		if instance.PrivProtocol == "" {
+			instance.PrivProtocol = cred.PrivProtocol
+		}
+		if instance.PrivKey == "" {
+			instance.PrivKey = cred.PrivKey
+		}
+		if instance.ContextName == "" {
+			instance.ContextName = cred.ContextName
+		}
 	}
 
 	c := &CheckConfig{}
