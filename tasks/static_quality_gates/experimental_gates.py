@@ -619,6 +619,7 @@ class UniversalArtifactMeasurer:
         artifact_ref: str,
         gate_name: str,
         build_job_name: str,
+        wire_size_source: str | None = None,
         debug: bool = False,
         filter: Callable[[str], bool] = lambda _: True,
     ) -> InPlaceArtifactReport:
@@ -630,6 +631,8 @@ class UniversalArtifactMeasurer:
             artifact_ref: Reference to the artifact (path, image name, etc.)
             gate_name: Quality gate name from configuration
             build_job_name: Name of the CI job that built this artifact
+            wire_size_source: Optional path passed to ``compute_wire_size``
+                instead of ``artifact_ref``.
             debug: Enable debug logging
             filter: A callback to filter out some results.
 
@@ -644,7 +647,7 @@ class UniversalArtifactMeasurer:
 
         # Fetch wire size first so a missing/broken manifest fails fast,
         # before we spend time extracting the artifact.
-        wire_size = self.processor.compute_wire_size(ctx, artifact_ref)
+        wire_size = self.processor.compute_wire_size(ctx, wire_size_source or artifact_ref)
 
         result = self.processor.measure_artifact(ctx, artifact_ref, gate_config, debug, filter)
 
@@ -1069,6 +1072,7 @@ class InPlacePackageMeasurer:
         package_path: str,
         gate_name: str,
         build_job_name: str,
+        wire_size_source: str | None = None,
         debug: bool = False,
         filter: Callable[[str], bool] = lambda _: True,
     ) -> InPlaceArtifactReport:
@@ -1080,6 +1084,8 @@ class InPlacePackageMeasurer:
             package_path: Path to the package file
             gate_name: Quality gate name from configuration
             build_job_name: Name of the CI job that built this package
+            wire_size_source: Optional path to stat for the on-wire size,
+                when distinct from ``package_path``.
             debug: Enable debug logging
 
         Returns:
@@ -1094,6 +1100,7 @@ class InPlacePackageMeasurer:
             artifact_ref=package_path,
             gate_name=gate_name,
             build_job_name=build_job_name,
+            wire_size_source=wire_size_source,
             debug=debug,
             filter=filter,
         )
@@ -1172,6 +1179,7 @@ def measure_package_local(
     config_path="test/static/static_quality_gates.yml",
     output_path=None,
     build_job_name="local_test",
+    wire_size_source=None,
     debug=False,
     filter: Callable[[str], bool] = lambda _: True,
 ):
@@ -1187,6 +1195,8 @@ def measure_package_local(
         config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
         output_path: Path to save the measurement report (default: {gate_name}_report.yml)
         build_job_name: Simulated build job name (default: local_test)
+        wire_size_source: Optional path to stat for the on-wire size, when
+            distinct from package_path.
         debug: Enable debug logging for troubleshooting (default: false)
         filter: Optional callback to filter out files based on their path
 
@@ -1232,6 +1242,7 @@ def measure_package_local(
             package_path=package_path,
             gate_name=gate_name,
             build_job_name=build_job_name,
+            wire_size_source=wire_size_source,
             debug=debug,
             filter=filter,
         )

@@ -342,6 +342,7 @@ def measure_package_local(
     config_path="test/static/static_quality_gates.yml",
     output_path=None,
     build_job_name="local_test",
+    wire_size_source=None,
     debug=False,
     filter: Callable[[str], bool] = lambda _: True,
 ):
@@ -357,6 +358,8 @@ def measure_package_local(
         config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
         output_path: Path to save the measurement report (default: {gate_name}_report.yml)
         build_job_name: Simulated build job name (default: local_test)
+        wire_size_source: Optional path to stat for the on-wire size, when
+            distinct from package_path.
         debug: Enable debug logging for troubleshooting (default: false)
 
     Example:
@@ -369,6 +372,7 @@ def measure_package_local(
         config_path=config_path,
         output_path=output_path,
         build_job_name=build_job_name,
+        wire_size_source=wire_size_source,
         debug=debug,
         filter=filter,
     )
