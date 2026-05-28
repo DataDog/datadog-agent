@@ -10,4 +10,4 @@ claim_pattern:
   repository: DataDog/opentelemetry-ebpf-profiler
 
 permissions:
-  actions: write
+  contents: write
