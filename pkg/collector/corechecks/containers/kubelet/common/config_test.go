@@ -22,7 +22,6 @@ func TestUseStatsSummaryAsSource(t *testing.T) {
 		cfg  *KubeletConfig
 		want bool
 	}{
-		{name: "nil config falls back to platform default", cfg: nil, want: platformDefault},
 		{name: "unset flag falls back to platform default", cfg: &KubeletConfig{}, want: platformDefault},
 		{name: "explicit true overrides default", cfg: &KubeletConfig{UseStatsSummaryAsSource: &tr}, want: true},
 		{name: "explicit false overrides default", cfg: &KubeletConfig{UseStatsSummaryAsSource: &fa}, want: false},

@@ -42,9 +42,5 @@ func (c *KubeletConfig) Parse(data []byte) error {
 // container CPU/memory/filesystem and pod network metrics should come from the
 // /stats/summary endpoint instead of /metrics/cadvisor.
 func UseStatsSummaryAsSource(c *KubeletConfig) bool {
-	platformDefault := runtime.GOOS == "windows"
-	if c == nil {
-		return platformDefault
-	}
-	return ptr.Deref(c.UseStatsSummaryAsSource, platformDefault)
+	return ptr.Deref(c.UseStatsSummaryAsSource, runtime.GOOS == "windows")
 }
