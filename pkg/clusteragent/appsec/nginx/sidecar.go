@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/distribution/reference"
+
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 
@@ -91,12 +93,16 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynam
 		cmNamespace = ns
 	}
 
-	// Parse version from controller image
 	container := &pod.Spec.Containers[containerIdx]
-	version, err := parseControllerVersion(container.Image)
-	if err != nil {
-		n.eventRecorder.recordVersionParseFailed(pod.Name, container.Image)
-		return false, fmt.Errorf("failed to parse ingress-nginx version from image %q: %w. Follow the manual extraModules process to enable AppSec", container.Image, err)
+
+	initImageRef := n.config.Nginx.InitImage
+	if !imageIsFullyQualified(initImageRef) {
+		version, err := parseControllerVersion(container.Image)
+		if err != nil {
+			n.eventRecorder.recordVersionParseFailed(pod.Name, container.Image)
+			return false, fmt.Errorf("failed to parse ingress-nginx version from image %q: %w. Follow the manual extraModules process to enable AppSec", container.Image, err)
+		}
+		initImageRef = initImageRef + ":" + version
 	}
 
 	moduleMountPath := n.config.Nginx.ModuleMountPath
@@ -130,8 +136,7 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynam
 		},
 	})
 
-	// Add init container that copies the .so module
-	pod.Spec.InitContainers = append(pod.Spec.InitContainers, buildInitContainer(n.config.Nginx.InitImage, version, moduleMountPath))
+	pod.Spec.InitContainers = append(pod.Spec.InitContainers, buildInitContainer(initImageRef, moduleMountPath))
 
 	// Add volume mount to controller container
 	container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
@@ -146,7 +151,7 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynam
 		container.Args = append(container.Args, fmt.Sprintf("%s%s/%s", configmapArgPrefix, cmNamespace, ddCMName))
 	}
 
-	n.logger.Infof("Injected nginx-datadog module into pod %s (version %s)", mutatecommon.PodString(pod), version)
+	n.logger.Infof("Injected nginx-datadog module into pod %s (image %s)", mutatecommon.PodString(pod), initImageRef)
 
 	return true, nil
 }
@@ -242,11 +247,24 @@ func hasIngressNginxControllerClassArg(pod *corev1.Pod) bool {
 	return false
 }
 
-// buildInitContainer creates the init container spec that copies the nginx-datadog module
-func buildInitContainer(initImage, version, moduleMountPath string) corev1.Container {
+// imageIsFullyQualified reports whether image already carries a tag or digest,
+// meaning it should be used as-is without appending a runtime-derived tag.
+func imageIsFullyQualified(image string) bool {
+	ref, err := reference.Parse(image)
+	if err != nil {
+		return false
+	}
+	_, hasTag := ref.(reference.Tagged)
+	_, hasDigest := ref.(reference.Digested)
+	return hasTag || hasDigest
+}
+
+// buildInitContainer creates the init container spec that copies the nginx-datadog module.
+// image must be a fully-qualified image reference including the tag (e.g. "repo/image:tag").
+func buildInitContainer(image, moduleMountPath string) corev1.Container {
 	return corev1.Container{
 		Name:    initContainerName,
-		Image:   initImage + ":" + version,
+		Image:   image,
 		Command: []string{"/bin/sh", "/datadog/init_module.sh", moduleMountPath},
 		VolumeMounts: []corev1.VolumeMount{
 			{
