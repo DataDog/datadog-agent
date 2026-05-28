@@ -14,9 +14,9 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/benbjohnson/clock"
+	"github.com/golang/mock/gomock" //nolint:depguard // required by datadog-go/v5 statsd mocks compiled against golang/mock
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
-	"go.uber.org/mock/gomock"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"

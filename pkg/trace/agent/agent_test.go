@@ -23,8 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock" //nolint:depguard // required by datadog-go/v5 statsd mocks compiled against golang/mock
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/proto"
 
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"

@@ -21,7 +21,7 @@ require (
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/golang/mock v1.7.0-rc.1 // indirect
+	github.com/golang/mock v1.7.0-rc.1
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0

@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock" //nolint:depguard // required by datadog-go/v5 statsd mocks compiled against golang/mock
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
-	"go.uber.org/mock/gomock"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
