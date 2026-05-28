@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -80,6 +81,11 @@ func (b *orderedBTFLoader) loadRemoteConfig(ctx context.Context) (*returnBTF, er
 	arch := rcArchitecture()
 	if arch == "" {
 		log.Warnf("unsupported BTF architecture: %s", runtime.GOARCH)
+		return nil, nil
+	}
+	if b.platform == "" {
+		plat, _ := kernel.Platform()
+		log.Warnf("unsupported BTF platform: %s", plat)
 		return nil, nil
 	}
 

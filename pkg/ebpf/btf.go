@@ -143,12 +143,17 @@ type orderedBTFLoader struct {
 	}
 }
 
+func platformTag(platform btfPlatform) string {
+	tagPlatform := platform.String()
+	if tagPlatform == "" {
+		tagPlatform, _ = kernel.Platform()
+	}
+	return tagPlatform
+}
+
 func initBTFLoader(cfg *Config, rcclient rcclient.Component, telemetrycomp telemetry.Component) (*orderedBTFLoader, error) {
 	var err error
-	platform, err := getBTFPlatform()
-	if err != nil {
-		return nil, err
-	}
+	platform, _ := getBTFPlatform()
 	platformVersion, err := kernel.PlatformVersion()
 	if err != nil {
 		return nil, err
@@ -176,7 +181,7 @@ func initBTFLoader(cfg *Config, rcclient rcclient.Component, telemetrycomp telem
 		platformVersion: platformVersion,
 		kernelVersion:   kernelVersion,
 		arch:            arch,
-		fixedtags:       []string{platform.String(), platformVersion, kernelVersion, arch},
+		fixedtags:       []string{platformTag(platform), platformVersion, kernelVersion, arch},
 		telemetry: struct {
 			rcSuccess telemetry.Counter
 			rcErrors  telemetry.Counter
@@ -314,18 +319,20 @@ func (b *orderedBTFLoader) checkforBTF(extractDir string) (*returnBTF, error) {
 }
 
 func (b *orderedBTFLoader) loadEmbedded(_ context.Context) (*returnBTF, error) {
+	if b.platform == "" {
+		plat, _ := kernel.Platform()
+		log.Warnf("unsupported BTF platform: %s", plat)
+		return nil, nil
+	}
+
 	btfRelativeEmbeddedFilename, err := b.embeddedPath()
 	if err != nil {
 		return nil, err
 	}
-	kernelVersion, err := kernel.Release()
-	if err != nil {
-		return nil, fmt.Errorf("kernel release: %s", err)
-	}
 	// <relative_path_in_tarball>/<kernel_version>
-	extractDir := filepath.Join(filepath.Dir(btfRelativeEmbeddedFilename), kernelVersion)
+	extractDir := filepath.Join(filepath.Dir(btfRelativeEmbeddedFilename), b.kernelVersion)
 	absExtractDir := filepath.Join(b.btfOutputDir, extractDir)
-	absExtractFile := filepath.Join(absExtractDir, kernelVersion+".btf")
+	absExtractFile := filepath.Join(absExtractDir, b.kernelVersion+".btf")
 
 	// If we've previously extracted the BTF file in question, we can just load it
 	ret, err := b.checkforBTF(extractDir)
@@ -367,19 +374,7 @@ func (b *orderedBTFLoader) loadEmbedded(_ context.Context) (*returnBTF, error) {
 }
 
 func (b *orderedBTFLoader) embeddedPath() (string, error) {
-	platform, err := getBTFPlatform()
-	if err != nil {
-		return "", fmt.Errorf("BTF platform: %s", err)
-	}
-	platformVersion, err := kernel.PlatformVersion()
-	if err != nil {
-		return "", fmt.Errorf("platform version: %s", err)
-	}
-	kernelVersion, err := kernel.Release()
-	if err != nil {
-		return "", fmt.Errorf("kernel release: %s", err)
-	}
-	return b.getEmbeddedBTF(platform, platformVersion, kernelVersion)
+	return b.getEmbeddedBTF(b.platform, b.platformVersion, b.kernelVersion)
 }
 
 var kernelVersionPatterns = []struct {
