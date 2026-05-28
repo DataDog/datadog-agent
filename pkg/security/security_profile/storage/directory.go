@@ -279,6 +279,31 @@ func (d *Directory) SizesBySelector() map[cgroupModel.WorkloadSelector]int64 {
 	return result
 }
 
+// totalSizeOnDisk scans the directory and sums the size of every file with a known storage format
+// extension. Used for the aggregate disk-usage metric because the LRU only tracks the primary
+// .profile files even when other formats (e.g. .json) are configured and persisted alongside.
+func (d *Directory) totalSizeOnDisk() int64 {
+	files, err := os.ReadDir(d.directoryPath)
+	if err != nil {
+		seclog.Warnf("couldn't list files in %s, %s metric may be inaccurate: %v", d.directoryPath, metrics.MetricActivityDumpLocalStorageSizeOnDisk, err)
+		return 0
+	}
+
+	var total int64
+	for _, file := range files {
+		fullpath := filepath.Join(d.directoryPath, file.Name())
+		if _, err := config.ParseStorageFormat(filepath.Ext(fullpath)); err != nil {
+			continue
+		}
+		info, err := os.Stat(fullpath)
+		if err != nil {
+			continue
+		}
+		total += info.Size()
+	}
+	return total
+}
+
 // SendTelemetry sends telemetry for the current storage
 func (d *Directory) SendTelemetry(sender statsd.ClientInterface) {
 	d.profilesLock.RLock()
@@ -286,7 +311,6 @@ func (d *Directory) SendTelemetry(sender statsd.ClientInterface) {
 		_ = sender.Gauge(metrics.MetricActivityDumpLocalStorageCount, float64(count), nil, 1.0)
 	}
 
-	var totalSizeOnDisk int64
 	for _, entry := range d.profiles.Values() {
 		var profileSize int64
 		for _, filePath := range entry.filePaths {
@@ -294,7 +318,6 @@ func (d *Directory) SendTelemetry(sender statsd.ClientInterface) {
 				profileSize += info.Size()
 			}
 		}
-		totalSizeOnDisk += profileSize
 		tags := []string{
 			"image_name:" + entry.selector.Image,
 			"image_tag:" + entry.selector.Tag,
@@ -307,7 +330,7 @@ func (d *Directory) SendTelemetry(sender statsd.ClientInterface) {
 		_ = sender.Count(metrics.MetricActivityDumpLocalStorageDeleted, int64(count), nil, 1.0)
 	}
 
-	_ = sender.Gauge(metrics.MetricActivityDumpLocalStorageSizeOnDisk, float64(totalSizeOnDisk), nil, 1.0)
+	_ = sender.Gauge(metrics.MetricActivityDumpLocalStorageSizeOnDisk, float64(d.totalSizeOnDisk()), nil, 1.0)
 }
 
 func compressWithGZip(filename string, rawBuf []byte) (*bytes.Buffer, error) {
