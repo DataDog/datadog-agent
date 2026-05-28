@@ -7,7 +7,7 @@ processors:
     timeout: 10s
 
 exporters:
-  otlphttp:
+  otlp_http:
     headers:
       dd-api-key: test-key
 
@@ -17,11 +17,11 @@ service:
       processors:
         - batch
       exporters:
-        - otlphttp
+        - otlp_http
     metrics:
       processors:
         - infraattributes
         - infraattributes/custom
         - batch
       exporters:
-        - otlphttp
+        - otlp_http
