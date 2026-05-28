@@ -1,0 +1,6 @@
+features:
+  - |
+    On Linux, when the DDOT extension is installed with the Datadog Agent, DDOT is now managed by
+    ``dd-procmgrd`` through ``processes.d/datadog-agent-ddot.yaml`` instead of relying on the legacy
+    ``datadog-agent-ddot`` systemd unit. To roll back to the legacy behavior, remove
+    ``processes.d/datadog-agent-ddot.yaml`` and restart ``datadog-agent``.
