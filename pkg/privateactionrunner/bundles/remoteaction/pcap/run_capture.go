@@ -9,11 +9,11 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"time"
@@ -119,18 +119,23 @@ func (h *RunCaptureHandler) Run(
 	}, nil
 }
 
-// pcapEventMetadata is the JSON metadata sent alongside the pcap binary.
-type pcapEventMetadata struct {
+// pcapLogEntry is the JSON log sent to the logs intake with the pcap data.
+type pcapLogEntry struct {
+	Message   string `json:"message"`
+	Source    string `json:"ddsource"`
+	Service  string `json:"service"`
+	Hostname string `json:"hostname,omitempty"`
+	Tags     string `json:"ddtags"`
 	CaptureID string `json:"capture_id"`
-	Hostname  string `json:"hostname,omitempty"`
 	Interface string `json:"interface,omitempty"`
 	Filter    string `json:"bpf_filter"`
 	SnapLen   int    `json:"snap_len"`
-	Source    string `json:"ddsource"`
+	PcapData  string `json:"pcap_data_b64,omitempty"`
 }
 
-// uploadPcap sends the captured pcap file to the EvP intake via multipart POST.
-func (h *RunCaptureHandler) uploadPcap(ctx context.Context, captureID string, pcapPath string, inputs RunCaptureInputs, orgID int64) (string, error) {
+// uploadPcap sends the captured pcap file to the logs intake as a JSON log entry.
+// The gzip-compressed pcap binary is base64-encoded in the pcap_data_b64 field.
+func (h *RunCaptureHandler) uploadPcap(ctx context.Context, captureID string, pcapPath string, inputs RunCaptureInputs, _ int64) (string, error) {
 	cfg := pkgconfigsetup.Datadog()
 	apiKey := cfg.GetString("api_key")
 	if apiKey == "" {
@@ -143,19 +148,6 @@ func (h *RunCaptureHandler) uploadPcap(ctx context.Context, captureID string, pc
 	}
 
 	hostname, _ := os.Hostname()
-	meta := pcapEventMetadata{
-		CaptureID: captureID,
-		Hostname:  hostname,
-		Interface: inputs.Interface,
-		Filter:    inputs.BPFFilter,
-		SnapLen:   inputs.SnapLen,
-		Source:    "pcap",
-	}
-
-	metaBytes, err := json.Marshal(meta)
-	if err != nil {
-		return "", fmt.Errorf("marshalling metadata: %w", err)
-	}
 
 	pcapFile, err := os.Open(pcapPath)
 	if err != nil {
@@ -163,23 +155,8 @@ func (h *RunCaptureHandler) uploadPcap(ctx context.Context, captureID string, pc
 	}
 	defer pcapFile.Close()
 
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-
-	eventPart, err := writer.CreateFormField("event")
-	if err != nil {
-		return "", fmt.Errorf("creating event form field: %w", err)
-	}
-	if _, err := eventPart.Write(metaBytes); err != nil {
-		return "", fmt.Errorf("writing event metadata: %w", err)
-	}
-
-	pcapPart, err := writer.CreateFormFile("pcap_data", captureID+".pcap.gz")
-	if err != nil {
-		return "", fmt.Errorf("creating pcap form file: %w", err)
-	}
-
-	gzWriter := gzip.NewWriter(pcapPart)
+	var gzBuf bytes.Buffer
+	gzWriter := gzip.NewWriter(&gzBuf)
 	if _, err := io.Copy(gzWriter, pcapFile); err != nil {
 		gzWriter.Close()
 		return "", fmt.Errorf("compressing pcap data: %w", err)
@@ -188,17 +165,34 @@ func (h *RunCaptureHandler) uploadPcap(ctx context.Context, captureID string, pc
 		return "", fmt.Errorf("closing gzip writer: %w", err)
 	}
 
-	if err := writer.Close(); err != nil {
-		return "", fmt.Errorf("closing multipart writer: %w", err)
+	pcapB64 := base64.StdEncoding.EncodeToString(gzBuf.Bytes())
+
+	tags := fmt.Sprintf("capture_id:%s,interface:%s,bpf_filter:%s", captureID, inputs.Interface, inputs.BPFFilter)
+	entry := pcapLogEntry{
+		Message:   fmt.Sprintf("pcap capture complete: %s filter=%q", captureID, inputs.BPFFilter),
+		Source:    "pcap",
+		Service:  "remote-pcap",
+		Hostname: hostname,
+		Tags:     tags,
+		CaptureID: captureID,
+		Interface: inputs.Interface,
+		Filter:    inputs.BPFFilter,
+		SnapLen:   inputs.SnapLen,
+		PcapData:  pcapB64,
 	}
 
-	intakeURL := fmt.Sprintf("https://http-intake.logs.%s/v2/track/pcap/org/%d", site, orgID)
+	payload, err := json.Marshal([]pcapLogEntry{entry})
+	if err != nil {
+		return "", fmt.Errorf("marshalling log entry: %w", err)
+	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, intakeURL, &body)
+	intakeURL := fmt.Sprintf("https://http-intake.logs.%s/api/v2/logs", site)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, intakeURL, bytes.NewReader(payload))
 	if err != nil {
 		return "", fmt.Errorf("creating HTTP request: %w", err)
 	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("DD-API-KEY", apiKey)
 	req.Header.Set("DD-EVP-ORIGIN", "datadog-agent")
 
