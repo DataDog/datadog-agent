@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 )
 
 // TestObserverDropsMetricsWhenIngestMetricsDisabled verifies that when
@@ -28,12 +27,9 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 		extractors: []observerdef.LogMetricsExtractor{extractor},
 	})
 
-	th := newTelemetryHandler(noopsimpl.GetCompatComponent())
 	obs := &observerImpl{
 		engine:               eng,
 		obsCh:                make(chan observation, 16),
-		telemetryHandler:     th,
-		dropCounter:          th.telemetryCounters[telemetryObsChannelDropped],
 		ingestMetricsEnabled: false,
 	}
 	obs.handleFunc = obs.innerHandle

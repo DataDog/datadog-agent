@@ -21,25 +21,15 @@ func TestSeriesDetectorAdapter_DoesNotReemitOutputsWithoutNewData(t *testing.T) 
 			Description: "detected spike",
 			Timestamp:   100,
 		}},
-		telemetry: []observerdef.ObserverTelemetry{{
-			DetectorName: "counting",
-		}},
 	}, []observerdef.Aggregate{observerdef.AggregateAverage})
 
 	first := adapter.Detect(storage, 100)
 	if len(first.Anomalies) != 1 {
 		t.Fatalf("expected 1 anomaly on first detect, got %d", len(first.Anomalies))
 	}
-	if len(first.Telemetry) != 1 {
-		t.Fatalf("expected 1 telemetry event on first detect, got %d", len(first.Telemetry))
-	}
-
 	second := adapter.Detect(storage, 101)
 	if len(second.Anomalies) != 0 {
 		t.Fatalf("expected 0 anomalies without new data, got %d", len(second.Anomalies))
-	}
-	if len(second.Telemetry) != 0 {
-		t.Fatalf("expected 0 telemetry events without new data, got %d", len(second.Telemetry))
 	}
 }
 
@@ -70,7 +60,6 @@ func TestSeriesDetectorAdapter_ResetClearsVisibleCountCache(t *testing.T) {
 
 type countingSeriesDetector struct {
 	anomalies []observerdef.Anomaly
-	telemetry []observerdef.ObserverTelemetry
 }
 
 func (d *countingSeriesDetector) Name() string { return "counting" }
@@ -78,6 +67,5 @@ func (d *countingSeriesDetector) Name() string { return "counting" }
 func (d *countingSeriesDetector) Detect(_ observerdef.Series) observerdef.DetectionResult {
 	return observerdef.DetectionResult{
 		Anomalies: append([]observerdef.Anomaly(nil), d.anomalies...),
-		Telemetry: append([]observerdef.ObserverTelemetry(nil), d.telemetry...),
 	}
 }

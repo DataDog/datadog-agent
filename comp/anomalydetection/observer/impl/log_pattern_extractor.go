@@ -188,13 +188,8 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 		logUnixSec = time.Now().Unix()
 	}
 	gc := e.maybeGarbageCollect(logUnixSec)
-	telemetry := []observerdef.ObserverTelemetry{}
 	result := observerdef.LogMetricsExtractorOutput{
 		EvictedMetricNames: gc.metricNames,
-	}
-	if gc.clustersEvicted > 0 {
-		// We count active patterns so we remove them
-		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, -float64(gc.clustersEvicted), logUnixSec))
 	}
 	if !logSeverityIsWarnPlus(log) {
 		return result
@@ -213,18 +208,13 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 			name := "log." + e.Name() + "." + globalClusterHash(ev.GroupHash, ev.ClusterID) + ".count"
 			result.EvictedMetricNames = append(result.EvictedMetricNames, name)
 		}
-		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, -float64(len(evicted)), logUnixSec))
 	}
 	if !ok {
-		result.Telemetry = telemetry
 		return result
 	}
 	// Not enough patterns yet, don't emit metric
 	// It's not directly a new pattern but the first time we reach the threshold and we emit a metric
-	if cluster.Count == e.config.MinClusterSizeBeforeEmit {
-		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, 1, logUnixSec))
-	} else if cluster.Count < e.config.MinClusterSizeBeforeEmit {
-		result.Telemetry = telemetry
+	if cluster.Count < e.config.MinClusterSizeBeforeEmit {
 		return result
 	}
 
@@ -242,7 +232,6 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 			SplitTags: group.AsMap(),
 		},
 	}}
-	result.Telemetry = telemetry
 	return result
 }
 

@@ -24,7 +24,6 @@ import (
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -208,26 +207,10 @@ func NewComponent(deps Requires) Provides {
 		})
 	}
 
-	telemetryComp := deps.Telemetry
-	if telemetryComp == nil {
-		telemetryComp = noopsimpl.GetCompatComponent()
-	}
-
-	th := newTelemetryHandler(telemetryComp)
-
-	// Wire direct gauge.Set for processing-time telemetry to avoid per-log
-	// ObserverTelemetry struct allocations on the hot path.
-	processingTimeGauge := th.telemetryGauges[telemetryDetectorProcessingTimeNs]
-	eng.onProcessingTime = func(detectorTag string, nanos float64) {
-		processingTimeGauge.Set(nanos, detectorTag)
-	}
-
 	obs := &observerImpl{
 		engine:               eng,
 		catalog:              catalog,
 		obsCh:                make(chan observation, 1000),
-		telemetryHandler:     th,
-		dropCounter:          th.telemetryCounters[telemetryObsChannelDropped],
 		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
 	}
 
@@ -325,14 +308,8 @@ type observerImpl struct {
 	obsCh      chan observation
 	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
-	telemetryHandler  *telemetryHandler
 	digestCleanup     func() // flushes detect digest recording file
 	advanceLogCleanup func() // flushes advance log recording file
-
-	// dropCounter counts observations silently dropped when the channel is full.
-	// Tagged by source for Prometheus visibility. Complements engine.droppedObs
-	// which tracks drops for live/replay parity analysis.
-	dropCounter telemetry.Counter
 
 	// ingestMetricsEnabled gates externally-ingested metrics at the handle
 	// factory. When false, "all-metrics" and HF handles return a wrapper
@@ -363,15 +340,11 @@ func (o *observerImpl) run() {
 			requests = o.engine.IngestMetric(obs.source, obs.metric)
 		}
 		if obs.log != nil {
-			logRequests, logTelemetry := o.engine.IngestLog(obs.source, obs.log)
+			logRequests := o.engine.IngestLog(obs.source, obs.log)
 			requests = append(requests, logRequests...)
-			if len(logTelemetry) > 0 {
-				o.telemetryHandler.handleTelemetry(logTelemetry)
-			}
 		}
 		for _, req := range requests {
-			result := o.engine.advanceWithReason(req.upToSec, req.reason)
-			o.telemetryHandler.handleTelemetry(result.telemetry)
+			_ = o.engine.advanceWithReason(req.upToSec, req.reason)
 		}
 		o.replayMu.Unlock()
 	}
@@ -473,7 +446,6 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 	}
 
 	var allAnomalies []observerdef.Anomaly
-	var allTelemetry []observerdef.ObserverTelemetry
 
 	for _, ref := range a.cachedRefs {
 		visibleCount := storage.PointCountUpTo(ref, dataTime)
@@ -511,11 +483,10 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 				}
 			}
 			allAnomalies = append(allAnomalies, result.Anomalies...)
-			allTelemetry = append(allTelemetry, result.Telemetry...)
 		}
 	}
 
-	return observerdef.DetectionResult{Anomalies: allAnomalies, Telemetry: allTelemetry}
+	return observerdef.DetectionResult{Anomalies: allAnomalies}
 }
 
 // aggSuffix returns a short suffix for the given aggregation type.
@@ -550,7 +521,7 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 // metricDropHandle so external metrics are dropped at the edge, while
 // ObserveLog/ObserveProfile pass through.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
-	h := &handle{ch: o.obsCh, source: name, dropCounter: o.dropCounter}
+	h := &handle{ch: o.obsCh, source: name}
 	o.engine.registerHandle(h)
 	var out observerdef.Handle = h
 	if !o.ingestMetricsEnabled {
@@ -691,13 +662,9 @@ func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
 		timestampMs: timestampMs,
 	}
 	o.replayMu.Lock()
-	requests, logTelemetry := o.engine.IngestLog(source, lo)
-	if len(logTelemetry) > 0 {
-		o.telemetryHandler.handleTelemetry(logTelemetry)
-	}
+	requests := o.engine.IngestLog(source, lo)
 	for _, req := range requests {
-		result := o.engine.advanceWithReason(req.upToSec, req.reason)
-		o.telemetryHandler.handleTelemetry(result.telemetry)
+		_ = o.engine.advanceWithReason(req.upToSec, req.reason)
 	}
 	o.replayMu.Unlock()
 }
@@ -723,8 +690,7 @@ func (o *observerImpl) IngestMetricSync(source string, sample observerdef.Metric
 	o.replayMu.Lock()
 	requests := o.engine.IngestMetric(source, mo)
 	for _, req := range requests {
-		result := o.engine.advanceWithReason(req.upToSec, req.reason)
-		o.telemetryHandler.handleTelemetry(result.telemetry)
+		_ = o.engine.advanceWithReason(req.upToSec, req.reason)
 	}
 	o.replayMu.Unlock()
 }
@@ -732,10 +698,9 @@ func (o *observerImpl) IngestMetricSync(source string, sample observerdef.Metric
 // handle is the lightweight observation interface passed to other components.
 // It only holds a channel and source name - all processing happens in the observer.
 type handle struct {
-	ch          chan<- observation
-	source      string
-	dropCount   atomic.Int64      // per-handle drop counter, collected by engine at advance time
-	dropCounter telemetry.Counter // tagged by source for Prometheus visibility; may be nil
+	ch        chan<- observation
+	source    string
+	dropCount atomic.Int64 // per-handle drop counter, collected by engine at advance time
 }
 
 // ObserveMetric observes a DogStatsD metric sample.
@@ -774,9 +739,6 @@ func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool 
 		return false
 	default:
 		h.dropCount.Add(1)
-		if h.dropCounter != nil {
-			h.dropCounter.Add(1, h.source)
-		}
 		return true
 	}
 }
@@ -802,9 +764,6 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	case h.ch <- obs:
 	default:
 		h.dropCount.Add(1)
-		if h.dropCounter != nil {
-			h.dropCounter.Add(1, h.source)
-		}
 	}
 }
 

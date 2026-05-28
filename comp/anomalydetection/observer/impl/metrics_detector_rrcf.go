@@ -422,7 +422,6 @@ func (r *RRCFDetector) buildShingles(aligned []timestampedVector) []shingle {
 // is anomalous if its score exceeds mean + ThresholdSigma*stddev of the recent window.
 func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.DetectionResult {
 	var anomalies []observer.Anomaly
-	var telemetry []observer.ObserverTelemetry
 	warmup := r.config.TreeSize
 
 	for _, s := range shingles {
@@ -435,9 +434,6 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 			Score:     score,
 		})
 
-		// Emit telemetry for the CoDisp score at every scored shingle
-		telemetry = append(telemetry, newTelemetryGauge([]string{"detector:" + r.Name()}, telemetryRRCFScore, score, s.endTimestamp))
-
 		// Skip warmup phase — scores are artificial during forest filling
 		if r.totalScored <= warmup {
 			continue
@@ -445,11 +441,6 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 
 		// Compute dynamic threshold from recent scores
 		threshold := r.dynamicThreshold()
-
-		// Emit telemetry for the dynamic threshold (only after warmup when threshold is meaningful)
-		if threshold > 0 {
-			telemetry = append(telemetry, newTelemetryGauge([]string{"detector:" + r.Name()}, telemetryRRCFThreshold, threshold, s.endTimestamp))
-		}
 
 		// Update rolling window (after computing threshold, so current score
 		// doesn't influence its own threshold)
@@ -477,7 +468,6 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 
 	return observer.DetectionResult{
 		Anomalies: anomalies,
-		Telemetry: telemetry,
 	}
 }
 

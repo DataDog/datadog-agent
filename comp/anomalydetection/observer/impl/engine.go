@@ -302,10 +302,9 @@ func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 // IngestLog processes a log observation: runs extractors to produce virtual metrics,
 // notifies log observers, and consults the scheduler policy to determine whether
 // detectors should advance. Returns advance requests that the caller should execute.
-func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observerdef.ObserverTelemetry) {
+func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 	sourceTag := e.sourceTagForIngest(source)
 	view := &logView{obs: l}
-	var logTelemetry []observerdef.ObserverTelemetry
 	for _, extractor := range e.extractors {
 		processingStartTime := time.Now()
 		out := extractor.ProcessLog(view)
@@ -329,9 +328,6 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 				e.storage.SetContext(res.Ref, m.Context)
 			}
 		}
-		if len(out.Telemetry) > 0 {
-			logTelemetry = append(logTelemetry, out.Telemetry...)
-		}
 	}
 	for _, lo := range e.logObservers {
 		processingStartTime := time.Now()
@@ -343,7 +339,7 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 	dataTimeSec := l.timestampMs / 1000
 	e.storage.RecordObservationTime(dataTimeSec)
 	e.trackLatestDataTime(dataTimeSec)
-	return e.scheduler.onObservation(dataTimeSec, e.schedulerState()), logTelemetry
+	return e.scheduler.onObservation(dataTimeSec, e.schedulerState())
 }
 
 func sliceContains(items []string, want string) bool {
@@ -417,7 +413,6 @@ func (e *engine) schedulerState() schedulerState {
 // advanceResult holds the outputs from an Advance call.
 type advanceResult struct {
 	anomalies []observerdef.Anomaly
-	telemetry []observerdef.ObserverTelemetry
 }
 
 // Advance runs detectors and correlators up to the given event time.
@@ -484,11 +479,10 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 		kind:      eventAdvanceCompleted,
 		timestamp: upToSec,
 		advanceCompleted: &advanceCompletedEvent{
-			advancedToSec:  upToSec,
-			reason:         reason,
-			anomalyCount:   len(result.anomalies),
-			telemetryCount: len(result.telemetry),
-			anomalies:      result.anomalies,
+			advancedToSec: upToSec,
+			reason:        reason,
+			anomalyCount:  len(result.anomalies),
+			anomalies:     result.anomalies,
 		},
 	})
 
@@ -506,7 +500,6 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 // clusters are captured while still alive.
 func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator) advanceResult {
 	var allAnomalies []observerdef.Anomaly
-	var allTelemetry []observerdef.ObserverTelemetry
 
 	// Detect, deduplicate, and feed anomalies to correlators.
 	for _, detector := range detectors {
@@ -561,7 +554,6 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 				},
 			})
 		}
-		allTelemetry = append(allTelemetry, result.Telemetry...)
 	}
 
 	// Accumulate correlations before advancing — captures clusters formed from
@@ -584,7 +576,6 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 
 	return advanceResult{
 		anomalies: allAnomalies,
-		telemetry: allTelemetry,
 	}
 }
 
@@ -924,7 +915,6 @@ func (e *engine) GetReplayProgress() ReplayProgress {
 // After all timestamps are processed, calls onReplayEnd to flush remaining data.
 func (e *engine) ReplayStoredData() advanceResult {
 	var allAnomalies []observerdef.Anomaly
-	var allTelemetry []observerdef.ObserverTelemetry
 
 	timestamps := e.storage.DataTimestamps()
 
@@ -941,7 +931,6 @@ func (e *engine) ReplayStoredData() advanceResult {
 		for _, req := range requests {
 			result := e.advanceWithReason(req.upToSec, req.reason)
 			allAnomalies = append(allAnomalies, result.anomalies...)
-			allTelemetry = append(allTelemetry, result.telemetry...)
 			advances++
 		}
 		e.replayTimestampsDone.Store(int64(i + 1))
@@ -954,7 +943,6 @@ func (e *engine) ReplayStoredData() advanceResult {
 	for _, req := range endRequests {
 		result := e.advanceWithReason(req.upToSec, req.reason)
 		allAnomalies = append(allAnomalies, result.anomalies...)
-		allTelemetry = append(allTelemetry, result.telemetry...)
 		advances++
 	}
 
@@ -964,7 +952,6 @@ func (e *engine) ReplayStoredData() advanceResult {
 
 	return advanceResult{
 		anomalies: allAnomalies,
-		telemetry: allTelemetry,
 	}
 }
 
@@ -974,7 +961,6 @@ func (e *engine) ReplayStoredData() advanceResult {
 // exactly. We advance at each live time once the data stream has reached or passed it.
 func (e *engine) ReplayWithLiveSchedule(liveAdvanceTimes []int64) advanceResult {
 	var allAnomalies []observerdef.Anomaly
-	var allTelemetry []observerdef.ObserverTelemetry
 
 	timestamps := e.storage.DataTimestamps()
 
@@ -996,7 +982,6 @@ func (e *engine) ReplayWithLiveSchedule(liveAdvanceTimes []int64) advanceResult 
 		for liveIdx < len(liveAdvanceTimes) && liveAdvanceTimes[liveIdx] <= ts {
 			result := e.advanceWithReason(liveAdvanceTimes[liveIdx], advanceReasonInputDriven)
 			allAnomalies = append(allAnomalies, result.anomalies...)
-			allTelemetry = append(allTelemetry, result.telemetry...)
 			advances++
 			liveIdx++
 		}
@@ -1011,7 +996,6 @@ func (e *engine) ReplayWithLiveSchedule(liveAdvanceTimes []int64) advanceResult 
 	for _, req := range endRequests {
 		result := e.advanceWithReason(req.upToSec, req.reason)
 		allAnomalies = append(allAnomalies, result.anomalies...)
-		allTelemetry = append(allTelemetry, result.telemetry...)
 		advances++
 	}
 
@@ -1021,6 +1005,5 @@ func (e *engine) ReplayWithLiveSchedule(liveAdvanceTimes []int64) advanceResult 
 
 	return advanceResult{
 		anomalies: allAnomalies,
-		telemetry: allTelemetry,
 	}
 }
