@@ -49,6 +49,41 @@ func TestStopServerStopsIngressShardsAfterListeners(t *testing.T) {
 	assert.Equal(t, 1, shards.Len(), "listener Stop flushes must still be accepted by ingress shards")
 }
 
+func TestStopServerStopsRawIngressBeforeListeners(t *testing.T) {
+	shards := packets.NewCompactRawIngressShards(1, 1, 1, nil)
+	reservation, ok := shards.Reserve()
+	require.True(t, ok)
+	reservation.Commit(1, packets.RawPacketMeta{Source: packets.UDS})
+
+	s := &dsdServer{
+		Started:                 true,
+		stopChan:                make(chan bool),
+		compactRawIngressShards: shards,
+		health:                  health.RegisterLiveness("dogstatsd-raw-stop-order-test"),
+	}
+	s.listeners = []listeners.StatsdListener{stopFlushListener{stop: func() {
+		reservation, ok := shards.Reserve()
+		if !ok {
+			return
+		}
+		reservation.Commit(1, packets.RawPacketMeta{Source: packets.UDS})
+	}}}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- s.stop(context.Background())
+	}()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(200 * time.Millisecond):
+		shards.Stop()
+		require.NoError(t, <-done)
+		t.Fatal("server stop blocked while listener Stop was waiting on a full raw ingress shard")
+	}
+}
+
 func TestStopServer(t *testing.T) {
 	cfg := make(map[string]interface{})
 
