@@ -8,6 +8,7 @@
 package defaultforwarder
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -129,8 +130,30 @@ func TestOTelSyncForwarder_sendHTTPTransactions_PropagatesError(t *testing.T) {
 	txn.Endpoint = transaction.Endpoint{Route: "/api/v1/series"}
 	txn.Payload = transaction.NewBytesPayloadWithoutMetaData([]byte("{}"))
 
-	err := f.sendHTTPTransactions([]*transaction.HTTPTransaction{txn})
+	err := f.sendHTTPTransactions(context.Background(), []*transaction.HTTPTransaction{txn})
 	assert.Error(t, err, "5xx response should surface as an error")
+}
+
+func TestOTelSyncForwarder_sendHTTPTransactions_PermanentErrorOnBadRequest(t *testing.T) {
+	for _, status := range []int{http.StatusBadRequest, http.StatusRequestEntityTooLarge, http.StatusForbidden} {
+		status := status
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			client := &http.Client{
+				Transport: handlerTransport(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(status)
+				}),
+			}
+			f := newTestOTelSyncForwarder(t, client)
+
+			txn := transaction.NewHTTPTransaction()
+			txn.Domain = "https://app.datadoghq.com"
+			txn.Endpoint = transaction.Endpoint{Route: "/api/v1/series"}
+			txn.Payload = transaction.NewBytesPayloadWithoutMetaData([]byte("{}"))
+
+			err := f.sendHTTPTransactions(context.Background(), []*transaction.HTTPTransaction{txn})
+			assert.Error(t, err, "permanent %d should surface as an error instead of being silently dropped", status)
+		})
+	}
 }
 
 func TestOTelSyncForwarder_sendHTTPTransactions_SuccessOnOK(t *testing.T) {
@@ -146,7 +169,7 @@ func TestOTelSyncForwarder_sendHTTPTransactions_SuccessOnOK(t *testing.T) {
 	txn.Endpoint = transaction.Endpoint{Route: "/api/v1/series"}
 	txn.Payload = transaction.NewBytesPayloadWithoutMetaData([]byte("{}"))
 
-	assert.NoError(t, f.sendHTTPTransactions([]*transaction.HTTPTransaction{txn}))
+	assert.NoError(t, f.sendHTTPTransactions(context.Background(), []*transaction.HTTPTransaction{txn}))
 }
 
 func TestOTelSyncForwarder_sendHTTPTransactions_CombinesMultipleErrors(t *testing.T) {
@@ -165,7 +188,7 @@ func TestOTelSyncForwarder_sendHTTPTransactions_CombinesMultipleErrors(t *testin
 		return txn
 	}
 
-	err := f.sendHTTPTransactions([]*transaction.HTTPTransaction{makeTxn(), makeTxn()})
+	err := f.sendHTTPTransactions(context.Background(), []*transaction.HTTPTransaction{makeTxn(), makeTxn()})
 	require.Error(t, err)
 	// multierr wraps both individual errors; the combined message should
 	// reference both failures.

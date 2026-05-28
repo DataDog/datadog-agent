@@ -7,6 +7,7 @@ package defaultforwarder
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"go.uber.org/multierr"
@@ -67,11 +68,26 @@ func (f *OTelSyncForwarder) Stop() {}
 // sendHTTPTransactions sends each transaction synchronously and returns a
 // multierr-combined error covering all failures. Unlike SyncForwarder, no
 // per-transaction retry is performed: retries are the OTel layer's job.
-func (f *OTelSyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
+//
+// HTTPTransaction.Process silently drops certain permanent failures (400, 413,
+// and 403 without a secret refresh) by returning nil. We wrap the completion
+// handler to intercept those status codes and surface them as errors so the OTel
+// exporterhelper can count them and drive retries or permanent-error handling.
+func (f *OTelSyncForwarder) sendHTTPTransactions(ctx context.Context, transactions []*transaction.HTTPTransaction) error {
 	var errs error
-	for _, t := range transactions {
-		if err := t.Process(context.Background(), f.config, f.log, f.secrets, f.client, nil); err != nil {
+	for _, txn := range transactions {
+		var permanentErr error
+		origHandler := txn.CompletionHandler
+		txn.CompletionHandler = func(tx *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
+			if err == nil && (statusCode == 400 || statusCode == 413 || statusCode == 403) {
+				permanentErr = fmt.Errorf("permanent intake error %d: dropping transaction to %s%s", statusCode, tx.Domain, tx.Endpoint.Route)
+			}
+			origHandler(tx, statusCode, body, err)
+		}
+		if err := txn.Process(ctx, f.config, f.log, f.secrets, f.client, nil); err != nil {
 			errs = multierr.Append(errs, err)
+		} else if permanentErr != nil {
+			errs = multierr.Append(errs, permanentErr)
 		}
 	}
 	return errs
@@ -87,13 +103,13 @@ func (f *OTelSyncForwarder) SubmitTransaction(txn *transaction.HTTPTransaction) 
 	if f.config.GetBool("allow_arbitrary_tags") {
 		txn.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
 	}
-	return f.sendHTTPTransactions([]*transaction.HTTPTransaction{txn})
+	return f.sendHTTPTransactions(context.Background(), []*transaction.HTTPTransaction{txn})
 }
 
 // SubmitV1Series sends timeseries to the v1 endpoint.
 func (f *OTelSyncForwarder) SubmitV1Series(payload transaction.BytesPayloads, extra http.Header) error {
 	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1SeriesEndpoint, payload, transaction.Series, extra)
-	return f.sendHTTPTransactions(transactions)
+	return f.sendHTTPTransactions(context.Background(), transactions)
 }
 
 // SubmitV1Intake sends payloads to the universal `/intake/` endpoint.
@@ -103,18 +119,24 @@ func (f *OTelSyncForwarder) SubmitV1Intake(payload transaction.BytesPayloads, ki
 	for _, t := range transactions {
 		t.Headers.Set("Content-Type", "application/json")
 	}
-	return f.sendHTTPTransactions(transactions)
+	return f.sendHTTPTransactions(context.Background(), transactions)
 }
 
 // SubmitV1IntakeDirect sends payloads synchronously to the universal `/intake/` endpoint.
-func (f *OTelSyncForwarder) SubmitV1IntakeDirect(_ context.Context, payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error {
-	return f.SubmitV1Intake(payload, kind, extra)
+// Unlike SubmitV1Intake, the caller's context is honored so cancellations and
+// deadlines propagate to the underlying HTTP request.
+func (f *OTelSyncForwarder) SubmitV1IntakeDirect(ctx context.Context, payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error {
+	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1IntakeEndpoint, payload, kind, extra)
+	for _, t := range transactions {
+		t.Headers.Set("Content-Type", "application/json")
+	}
+	return f.sendHTTPTransactions(ctx, transactions)
 }
 
 // SubmitV1CheckRuns sends service checks to the v1 endpoint.
 func (f *OTelSyncForwarder) SubmitV1CheckRuns(payload transaction.BytesPayloads, extra http.Header) error {
 	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1CheckRunsEndpoint, payload, transaction.CheckRuns, extra)
-	return f.sendHTTPTransactions(transactions)
+	return f.sendHTTPTransactions(context.Background(), transactions)
 }
 
 // SubmitHostMetadata sends a host_metadata payload.
