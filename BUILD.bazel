@@ -219,7 +219,6 @@ exports_files(glob(
 # gazelle:exclude comp/otelcol/converter/examples
 # gazelle:exclude comp/otelcol/ddflareextension/fx
 # gazelle:exclude comp/otelcol/ddflareextension/image
-# gazelle:exclude comp/otelcol/logsagentpipeline
 # gazelle:exclude comp/otelcol/otlp/components/exporter
 # gazelle:exclude comp/otelcol/otlp/integrationtest
 # gazelle:exclude comp/privateactionrunner/fx
