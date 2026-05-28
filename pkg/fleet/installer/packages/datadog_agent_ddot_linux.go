@@ -291,6 +291,10 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 		log.Warnf("failed to disable otelcollector config: %s", err)
 	}
 
+	if err := removeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to remove DDOT process manager config: %v", err)
+	}
+
 	return nil
 }
 
@@ -315,6 +319,14 @@ func writeDDOTProcmgrConfig(installRoot string) error {
 	}
 	path := filepath.Join(processesDir, ddotProcmgrConfigName)
 	return os.WriteFile(path, []byte(config), 0644)
+}
+
+func removeDDOTProcmgrConfig(installRoot string) error {
+	path := filepath.Join(installRoot, "processes.d", ddotProcmgrConfigName)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // modifyDDOTUnitFileForBackwardsCompatibility modifies the systemd unit file to remove "/ext/ddot" from paths
