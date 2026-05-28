@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/uploader"
 )
@@ -98,13 +99,28 @@ func (p *printer) writeScope(scope uploader.Scope, indent string) {
 	}
 }
 
+// normalizeFilePath strips the version suffix from Go module cache paths so
+// that snapshot files remain stable across dependency version bumps.
+// e.g. "github.com/foo/bar@v1.2.3/pkg/file.go" → "github.com/foo/bar/pkg/file.go"
+func normalizeFilePath(file string) string {
+	at := strings.Index(file, "@v")
+	if at < 0 {
+		return file
+	}
+	slash := strings.Index(file[at:], "/")
+	if slash < 0 {
+		return file[:at]
+	}
+	return file[:at] + file[at+slash:]
+}
+
 func (p *printer) writeFunctionHeader(s uploader.Scope, indent string) {
 	qualified := ""
 	if s.LanguageSpecifics != nil {
 		qualified = s.LanguageSpecifics.GoQualifiedName
 	}
 	p.printf("%sFunction: %s (%s) in %s [%d:%d] injectible: ",
-		indent, s.Name, qualified, s.SourceFile, s.StartLine, s.EndLine)
+		indent, s.Name, qualified, normalizeFilePath(s.SourceFile), s.StartLine, s.EndLine)
 	p.writeRanges(s.InjectibleLines)
 	p.writeByte('\n')
 }
