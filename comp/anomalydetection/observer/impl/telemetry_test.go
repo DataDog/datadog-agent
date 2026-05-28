@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestObserverTelemetry_NoopsDoNotPanic(t *testing.T) {
+func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel := newObserverTelemetry(noopsimpl.GetCompatComponent())
 	tel.recordDetectorProcessingTime("detector:rrcf", 1234)
 	tel.recordChannelDropped("logs")

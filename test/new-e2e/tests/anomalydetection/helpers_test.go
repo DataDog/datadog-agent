@@ -6,6 +6,7 @@
 package anomalydetection
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -22,11 +23,6 @@ const (
 	// the DSD/metrics pipeline. It only appears when metrics.enabled=true: the
 	// SetObserver call returns early without calling GetHandle when metrics are off.
 	observerReadyMarker = "[observer] getting handle for all-metrics"
-
-	// observerLogsHandleMarker is logged when the logssource component obtains its
-	// observer handle. It appears at agent startup when logs.enabled=true, regardless
-	// of metrics.enabled. Use this as the readiness signal for log-triggered tests.
-	observerLogsHandleMarker = "[observer] getting handle for logs"
 
 	// observerAgentLogsMarker is logged when the agent-log tap is installed.
 	observerAgentLogsMarker = "[observer] getting handle for agent-internal-logs"
@@ -56,8 +52,10 @@ func waitForObserverReady(s observerTestSuite) {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assert.True(c, s.Env().Agent.Client.IsReady(), "agent should be ready")
 		tel := observerTelemetryOutput(s)
-		assert.Contains(c, tel, "observer.series.count", "observer telemetry should expose series gauge when enabled")
-		assert.Contains(c, tel, "observer.logs.in_flight", "observer telemetry should expose in-flight logs gauge")
+		assert.True(c, containsAny(tel, "observer.series.count", "observer__observer_series_count", "observer_series_count"),
+			"observer telemetry should expose series gauge when enabled")
+		assert.True(c, containsAny(tel, "observer.logs.in_flight", "observer__observer_logs_in_flight", "observer_logs_in_flight"),
+			"observer telemetry should expose in-flight logs gauge")
 	}, 2*time.Minute, 3*time.Second)
 	s.T().Log("observer ready (metrics path)")
 }
@@ -69,10 +67,21 @@ func waitForLogsObserverReady(s observerTestSuite) {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assert.True(c, s.Env().Agent.Client.IsReady(), "agent should be ready")
 		tel := observerTelemetryOutput(s)
-		assert.Contains(c, tel, "observer.logs.in_flight", "observer telemetry should expose in-flight logs gauge")
-		assert.Contains(c, tel, "log_source=\"containers\"", "observer telemetry should expose containers log_source")
+		assert.True(c, containsAny(tel, "observer.logs.in_flight", "observer__observer_logs_in_flight", "observer_logs_in_flight"),
+			"observer telemetry should expose in-flight logs gauge")
+		assert.True(c, containsAny(tel, "log_source=\"containers\"", "log_source:containers"),
+			"observer telemetry should expose containers log_source")
 	}, 2*time.Minute, 3*time.Second)
 	s.T().Log("observer ready (log path)")
+}
+
+func containsAny(haystack string, needles ...string) bool {
+	for _, needle := range needles {
+		if strings.Contains(haystack, needle) {
+			return true
+		}
+	}
+	return false
 }
 
 func observerTelemetryOutput(s observerTestSuite) string {
