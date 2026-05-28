@@ -417,3 +417,48 @@ def measure_image_local(
         include_layer_analysis=include_layer_analysis,
         debug=debug,
     )
+
+
+@task
+def compare_measurers(ctx, config_path: str = GATE_CONFIG_PATH):
+    """
+    Run both InventoryReportMeasurer (new, S3-fetched) and the legacy
+    artifact-extracting measurers for every gate, then print a markdown
+    comparison table. Used as a one-off parity check during PR validation;
+    remove once the inventory-based path is trusted.
+    """
+    from tasks.static_quality_gates.gates import (
+        DockerArtifactMeasurer,
+        InventoryReportMeasurer,
+        PackageArtifactMeasurer,
+        create_quality_gate_config,
+    )
+
+    with open(config_path) as f:
+        gates_config = yaml.safe_load(f)
+
+    new_measurer = InventoryReportMeasurer()
+
+    def safe_measure(measurer, cfg):
+        try:
+            return measurer.measure(ctx, cfg)
+        except Exception as e:
+            print(color_message(f"⚠️  {cfg.gate_name}: {e}", "orange"))
+            return None
+
+    print("| Gate | old wire | new wire | Δ wire | old disk | new disk | Δ disk |")
+    print("|---|---:|---:|---:|---:|---:|---:|")
+    for gate_name, values in sorted(gates_config.items()):
+        cfg = create_quality_gate_config(gate_name, values)
+        old = safe_measure(
+            DockerArtifactMeasurer() if "docker" in gate_name else PackageArtifactMeasurer(),
+            cfg,
+        )
+        new = safe_measure(new_measurer, cfg)
+        ow = f"{old.on_wire_size}" if old else "ERR"
+        nw = f"{new.on_wire_size}" if new else "ERR"
+        od = f"{old.on_disk_size}" if old else "ERR"
+        nd = f"{new.on_disk_size}" if new else "ERR"
+        dw = f"{new.on_wire_size - old.on_wire_size:+d}" if (old and new) else "n/a"
+        dd = f"{new.on_disk_size - old.on_disk_size:+d}" if (old and new) else "n/a"
+        print(f"| {gate_name} | {ow} | {nw} | {dw} | {od} | {nd} | {dd} |")
