@@ -4148,6 +4148,13 @@ properties:
         env_vars:
         - DD_APM_PROFILING_DD_URL
         tags: []
+      profiling_send_to_main_endpoint:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_APM_PROFILING_SEND_TO_MAIN_ENDPOINT
+        tags: []
       profiling_max_request_bytes:
         node_type: setting
         type: number

@@ -109,6 +109,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.client_stats_flush_interval", 1, "DD_APM_CLIENT_STATS_FLUSH_INTERVAL")
 	config.BindEnvAndSetDefault("apm_config.profiling_dd_url", "", "DD_APM_PROFILING_DD_URL")
 	config.BindEnvAndSetDefault("apm_config.profiling_additional_endpoints", map[string][]string{}, "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS")
+	config.BindEnvAndSetDefault("apm_config.profiling_send_to_main_endpoint", true, "DD_APM_PROFILING_SEND_TO_MAIN_ENDPOINT")
 	config.BindEnvAndSetDefault("apm_config.profiling_receiver_timeout", 5, "DD_APM_PROFILING_RECEIVER_TIMEOUT")
 	config.BindEnvAndSetDefault("apm_config.profiling_max_request_bytes", 50*1024*1024, "DD_APM_PROFILING_MAX_REQUEST_BYTES")
 	config.BindEnvAndSetDefault("apm_config.additional_profile_tags", map[string]string{}, "DD_APM_ADDITIONAL_PROFILE_TAGS")
