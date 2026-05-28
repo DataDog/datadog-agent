@@ -131,7 +131,7 @@
           tar xJf ${FIPS_INPUT_FILE} -C ${FIPS_INPUT_DIR}
           FIPS_EXTRA_FLAGS="--configs ${FIPS_INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer"
           if [ -d "${DDOT_FIPS_EXTENSION_DIR:-/nonexistent}" ]; then
-            FIPS_EXTRA_FLAGS="${FIPS_EXTRA_FLAGS} --extension ddot-fips=${DDOT_FIPS_EXTENSION_DIR}"
+            FIPS_EXTRA_FLAGS="${FIPS_EXTRA_FLAGS} --extension ddot=${DDOT_FIPS_EXTENSION_DIR}"
           fi
           echo "Creating FIPS OCI layer -> ${OUTPUT_DIR}/${FIPS_OUTPUT_FILE}"
           datadog-package create \
