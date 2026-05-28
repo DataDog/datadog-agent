@@ -170,6 +170,27 @@ func TestHoltResidual_StepChange_FiresAndAdapts(t *testing.T) {
 // first fire is suppressed, while a spike past the refractory window fires
 // again. Both halves run on a single fresh detector to avoid coupling.
 func TestHoltResidual_Refractory_BlocksNearbySpike(t *testing.T) {
+	t.Run("configured_window_is_not_consumed_by_firing_point", func(t *testing.T) {
+		d := &HoltResidualDetector{
+			Alpha:           0.01,
+			Beta:            0.01,
+			ResidualWindow:  4,
+			ZThreshold:      0.5,
+			ConfirmM:        1,
+			MinDeviationMAD: 0,
+			Refractory:      1,
+			Aggregations:    []observer.Aggregate{observer.AggregateAverage},
+			series:          make(map[holtStateKey]*holtSeriesState),
+		}
+		storage := newDetectorTestStorage()
+		addConstant(t, storage, "metric", 28, 1, 0)
+		addConstant(t, storage, "metric", 2, 29, 100)
+
+		result := d.Detect(storage, 30)
+		require.Len(t, result.Anomalies, 1, "Refractory=1 must suppress the point immediately after a fire")
+		assert.Equal(t, int64(29), result.Anomalies[0].Timestamp)
+	})
+
 	t.Run("nearby_spike_suppressed", func(t *testing.T) {
 		d := testHoltResidualDetector()
 		storage := newDetectorTestStorage()
@@ -354,6 +375,34 @@ func TestHoltResidual_ReprocessesSameBucketMergeAndDoesNotSkipLatePoints(t *test
 	require.Equal(t, []float64{10.0, 20.0, 50.0}, state.warmupBuf)
 	assert.Equal(t, int64(15), state.lastProcessedTime)
 	assert.Equal(t, storage.WriteGeneration(ref), state.lastWriteGen)
+}
+
+func TestHoltResidual_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
+	d := testHoltResidualDetector()
+	d.WarmupPoints = 10
+	d.ResidualWindow = 4
+	storage := newDetectorTestStorage()
+
+	storage.Add("ns", "metric", 10.0, 10, nil)
+	d.Detect(storage, 10)
+
+	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
+	require.Len(t, metas, 1)
+	ref := metas[0].Ref
+	key := holtStateKey{ref: ref, agg: observer.AggregateAverage}
+	state := d.series[key]
+	require.NotNil(t, state)
+	require.Equal(t, []float64{10.0}, state.warmupBuf)
+	require.Equal(t, int64(10), state.lastProcessedTime)
+
+	storage.Add("ns", "metric", 5.0, 5, nil)
+	d.Detect(storage, 10)
+
+	state = d.series[key]
+	require.NotNil(t, state)
+	assert.Equal(t, []float64{5.0, 10.0}, state.warmupBuf)
+	assert.Equal(t, 2, state.lastProcessedCount)
+	assert.Equal(t, int64(10), state.lastProcessedTime)
 }
 
 // TestHoltResidual_ConfirmationStartsAfterWindowsReady verifies that

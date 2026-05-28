@@ -120,6 +120,37 @@ func TestTukeyBiweight_ReprocessesSameBucketMerge(t *testing.T) {
 	assert.Equal(t, storage.WriteGeneration(ref), state.lastWriteGen)
 }
 
+func TestTukeyBiweight_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
+	d := testTukeyBiweightDetector()
+	d.WindowSize = 4
+	d.MinPoints = 4
+	d.ScoreEvery = 100
+	storage := newDetectorTestStorage()
+
+	storage.Add("ns", "metric", 10.0, 10, nil)
+	d.Detect(storage, 10)
+
+	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
+	require.Len(t, metas, 1)
+	ref := metas[0].Ref
+	key := tbStateKey{ref: ref, agg: observer.AggregateAverage}
+	state := d.series[key]
+	require.NotNil(t, state)
+	require.Equal(t, int64(10), state.lastProcessedTime)
+
+	storage.Add("ns", "metric", 5.0, 5, nil)
+	d.Detect(storage, 10)
+
+	state = d.series[key]
+	require.NotNil(t, state)
+	require.Equal(t, 2, state.count)
+	require.Len(t, state.ring, 2)
+	assert.Equal(t, int64(5), state.ring[0].Timestamp)
+	assert.Equal(t, int64(10), state.ring[1].Timestamp)
+	assert.Equal(t, 2, state.lastProcessedCount)
+	assert.Equal(t, int64(10), state.lastProcessedTime)
+}
+
 // TestTukeyBiweight_NoFireOnStableGaussian verifies that 200 deterministic
 // N(10, 0.5²) samples produce zero anomalies. With ZThreshold=5 the per-tick
 // false-positive rate under N(0,1) is ~5.7e-7, so 200 ticks should be well
@@ -166,6 +197,7 @@ func TestTukeyBiweight_FiresOnLevelShift(t *testing.T) {
 	assert.GreaterOrEqual(t, *first.Score, 5.0, "z-derived score should clear the threshold")
 	assert.Less(t, first.Timestamp, int64(shiftStart+20),
 		"first fire should arrive within 20 points of the shift")
+	assert.Equal(t, int64(1), first.SamplingIntervalSec)
 }
 
 // TestTukeyBiweight_RobustToHistoricalOutlier is the property the biweight

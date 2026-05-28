@@ -262,7 +262,11 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 				continue
 			}
 			startTime := state.lastProcessedTime
-			if mergeOccurred {
+			if status.pointCount > state.lastProcessedCount && storage.PointCountUpTo(meta.Ref, state.lastProcessedTime) > state.lastProcessedCount {
+				state = d.newState()
+				d.series[sk] = state
+				startTime = 0
+			} else if mergeOccurred {
 				startTime = state.lastProcessedTime - 1
 				if startTime < 0 {
 					startTime = 0
@@ -356,14 +360,13 @@ func (d *HoltResidualDetector) ingestNewPoints(
 
 		anomaly, hasFire := d.processPoint(state, p, agg)
 
-		// Refractory countdown — decrement on every post-warmup ingest,
-		// regardless of whether the point would have fired.
-		if state.refractoryRemaining > 0 {
-			state.refractoryRemaining--
-		}
-
 		if hasFire {
 			fired = append(fired, anomaly)
+		} else if state.refractoryRemaining > 0 {
+			// Refractory countdown — decrement on every non-firing post-warmup
+			// ingest. The point that arms refractory must not consume one of
+			// the configured suppressed points.
+			state.refractoryRemaining--
 		}
 	})
 

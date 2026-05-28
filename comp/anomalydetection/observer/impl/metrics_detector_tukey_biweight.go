@@ -219,7 +219,11 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 				continue
 			}
 			startTime := state.lastProcessedTime
-			if mergeOccurred {
+			if status.pointCount > state.lastProcessedCount && storage.PointCountUpTo(meta.Ref, state.lastProcessedTime) > state.lastProcessedCount {
+				state = &tbSeriesState{}
+				d.series[sk] = state
+				startTime = 0
+			} else if mergeOccurred {
 				startTime = state.lastProcessedTime - 1
 				if startTime < 0 {
 					startTime = 0
@@ -298,6 +302,18 @@ func (d *TukeyBiweightDetector) windowSnapshot(state *tbSeriesState) []float64 {
 		xs[i] = state.ring[(state.head+i)%d.WindowSize].Value
 	}
 	return xs
+}
+
+func (d *TukeyBiweightDetector) windowPointsSnapshot(state *tbSeriesState) []observer.Point {
+	points := make([]observer.Point, state.count)
+	if state.count < d.WindowSize {
+		copy(points, state.ring)
+		return points
+	}
+	for i := 0; i < d.WindowSize; i++ {
+		points[i] = state.ring[(state.head+i)%d.WindowSize]
+	}
+	return points
 }
 
 // scoreBiweight runs the IRLS biweight fit on the current window and decides
@@ -415,10 +431,11 @@ func (d *TukeyBiweightDetector) scoreBiweight(state *tbSeriesState, series *obse
 
 	seriesName := series.Name + ":" + aggSuffix(agg)
 	anomaly := observer.Anomaly{
-		Type:         observer.AnomalyTypeMetric,
-		Source:       observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Tags: series.Tags, Aggregate: agg},
-		DetectorName: d.Name(),
-		Title:        "Tukey biweight: " + seriesName,
+		Type:                observer.AnomalyTypeMetric,
+		Source:              observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Tags: series.Tags, Aggregate: agg},
+		DetectorName:        d.Name(),
+		Title:               "Tukey biweight: " + seriesName,
+		SamplingIntervalSec: medianPointInterval(d.windowPointsSnapshot(state)),
 		Description: fmt.Sprintf("%s biweight baseline (z=%.2f, mu=%.4f, sigma=%.4f, n=%d)",
 			direction, z, mu, sigma, n),
 		Timestamp: dataTime,
