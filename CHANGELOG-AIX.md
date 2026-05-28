@@ -10,6 +10,7 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+- Build scripts: remove all hardcoded `/opt/datadog-agent` source-tree references — `AGENT_SRC` is now auto-resolved by walking up from the script directory to the nearest `.git` ancestor, so the agent source can live at any path on the build host
 - Go checks: bundle `conf.yaml.example` and `conf.yaml.default` from integrations-core for all Go checks that have them, supplementing the agent-repo config (agent-repo takes precedence on filename conflicts)
 - Keep Python headers (`embedded/include/`) in the package so users can build C extension packages (e.g. `ibm_db` for the DB2 check) against the embedded Python, matching Linux/macOS omnibus behaviour
 - Include missing Go check configurations in the package: `cisco_sdwan`, `snmp`, `cloud_hostinfo`, `discovery`, `telemetry`, `versa` — these checks are compiled into the agent binary but their config files were missing from `AIX_CORECHECKS`
