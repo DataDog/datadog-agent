@@ -1318,7 +1318,7 @@ def eval_component(
         return
 
     scenario_names = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else list(SCENARIOS)
-    unknown_scenarios = set(scenario_names) - set(SCENARIOS)
+    unknown_scenarios = set(scenario_names) - set(SCENARIOS) if SCENARIOS else set()
     if unknown_scenarios:
         print(
             color_message(
