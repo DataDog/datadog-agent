@@ -208,14 +208,25 @@ func poolEnvFor(perPool map[string]APMTags, defaults APMTags, poolName string) A
 // the ordered <environmentVariables> ops parsed from that location's
 // <system.webServer><aspNetCore>. IIS matches location paths
 // case-insensitively, so the lookup side must lowercase too.
-func buildLocationEnvOps(locations []iisLocation) map[string][]iisEnvVarOp {
-	out := make(map[string][]iisEnvVarOp, len(locations))
-	for _, loc := range locations {
-		if loc.Path == "" {
-			continue
-		}
+//
+// The empty key "" holds the "global" overlay: ops from any pathless
+// <location> block and from the root <system.webServer><aspNetCore>. IIS
+// inherits both into every site/application, so they form the base of the
+// effective aspNetCore collection before site/app overlays apply.
+func buildLocationEnvOps(xmlcfg *iisConfiguration) map[string][]iisEnvVarOp {
+	out := make(map[string][]iisEnvVarOp, len(xmlcfg.Locations)+1)
+	// Root <system.webServer><aspNetCore> ops come first in document order
+	// among the global sources; pathless <location> ops layer on top via
+	// append, and stay subject to the same last-wins rule as any other path.
+	var global []iisEnvVarOp
+	global = append(global, xmlcfg.SystemWebServer.AspNetCore.EnvVars.Ops...)
+	for _, loc := range xmlcfg.Locations {
 		ops := loc.SystemWebServer.AspNetCore.EnvVars.Ops
 		if len(ops) == 0 {
+			continue
+		}
+		if loc.Path == "" {
+			global = append(global, ops...)
 			continue
 		}
 		key := strings.ToLower(strings.Trim(loc.Path, "/"))
@@ -223,6 +234,9 @@ func buildLocationEnvOps(locations []iisLocation) map[string][]iisEnvVarOp {
 		// the last-wins semantics IIS applies when applicationHost.config
 		// declares the same <location path> twice.
 		out[key] = ops
+	}
+	if len(global) > 0 {
+		out[""] = global
 	}
 	return out
 }
@@ -240,10 +254,12 @@ func buildLocationEnvOps(locations []iisLocation) map[string][]iisEnvVarOp {
 // inheritance), not on the pool-resolved state.
 //
 // We mirror that by building the effective aspNetCore collection from empty,
-// applying each ancestor <location>'s ops in increasing specificity (site,
-// then each app-path segment), and finally overlaying only the non-empty
-// fields onto base. The .NET tracer reads from the merged process env, so
-// agreeing on this order is what keeps USM tags aligned with tracer UST.
+// applying the global overlay (pathless <location> and root <system.webServer>
+// at key ""), then each ancestor <location>'s ops in increasing specificity
+// (site, then each app-path segment), and finally overlaying only the
+// non-empty fields onto base. The .NET tracer reads from the merged process
+// env, so agreeing on this order is what keeps USM tags aligned with tracer
+// UST.
 func applyLocationEnvOverlay(base APMTags, locOps map[string][]iisEnvVarOp, siteName, appPath string) APMTags {
 	if len(locOps) == 0 {
 		return base
@@ -256,6 +272,7 @@ func applyLocationEnvOverlay(base APMTags, locOps map[string][]iisEnvVarOp, site
 			applied = true
 		}
 	}
+	apply("")
 	prefix := strings.ToLower(siteName)
 	apply(prefix)
 	cleaned := strings.Trim(appPath, "/")
@@ -288,7 +305,7 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 	pathTrees := make(map[uint32]*pathTreeEntry)
 	perPool, defaults := buildPoolEnvTags(xmlcfg.ApplicationHost.ApplicationPools)
 	sitesDefaultPool := xmlcfg.ApplicationHost.SitesAppDefaults.AppPool
-	locationOps := buildLocationEnvOps(xmlcfg.Locations)
+	locationOps := buildLocationEnvOps(xmlcfg)
 
 	for _, site := range xmlcfg.ApplicationHost.Sites {
 		siteDefaultPool := site.AppDefaults.AppPool

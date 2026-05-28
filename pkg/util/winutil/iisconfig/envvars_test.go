@@ -161,6 +161,50 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		assert.Equal(t, "default-env", env.DDEnv)
 		assert.Equal(t, "1.0.0", env.DDVersion)
 	})
+
+}
+
+// TestAPMTagsFromGlobalEnvVars covers the "global apphost" env var sources:
+// the root <configuration><system.webServer><aspNetCore> element and any
+// pathless <location> block. IIS inherits both into every site/application,
+// so USM must overlay them onto the pool env before site/app <location>s
+// apply — otherwise the .NET tracer sees DD_* in the worker but the USM
+// tag tree returns nothing.
+func TestAPMTagsFromGlobalEnvVars(t *testing.T) {
+	path, err := os.Getwd()
+	require.Nil(t, err)
+
+	iisCfgPath = filepath.Join(path, "testdata", "globalenvvars.xml")
+	testroot := filepath.Join(path, "testdata")
+	t.Setenv("TESTROOTDIR", testroot)
+
+	iisCfg, err := NewDynamicIISConfig()
+	require.Nil(t, err)
+	require.NotNil(t, iisCfg)
+
+	require.Nil(t, iisCfg.Start())
+	defer iisCfg.Stop()
+
+	t.Run("root <system.webServer> and pathless <location> overlay pool env", func(t *testing.T) {
+		// globalsite/ has no app-specific <location>. The root
+		// <system.webServer><aspNetCore> contributes DD_SERVICE and the
+		// pathless <location> contributes DD_ENV; both override the pool's
+		// DD_SERVICE. DD_VERSION still flows from the pool unchanged.
+		_, _, env := iisCfg.GetAPMTags(20, "/")
+		assert.Equal(t, "root-global-service", env.DDService)
+		assert.Equal(t, "pathless-global-env", env.DDEnv)
+		assert.Equal(t, "1.0.0", env.DDVersion)
+	})
+
+	t.Run("app-level <location> overrides global per key", func(t *testing.T) {
+		// globalsite/override declares its own DD_SERVICE; the global DD_ENV
+		// still shows through because the override location only touches
+		// DD_SERVICE.
+		_, _, env := iisCfg.GetAPMTags(20, "/override")
+		assert.Equal(t, "override-service", env.DDService)
+		assert.Equal(t, "pathless-global-env", env.DDEnv)
+		assert.Equal(t, "1.0.0", env.DDVersion)
+	})
 }
 
 // TestApplyEnvVarsOver_OrderSensitivity verifies that <add>/<remove>/<clear>

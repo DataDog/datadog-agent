@@ -252,8 +252,8 @@ type iisLocationSystemWebServer struct {
 // iisLocation captures a single <location path="Site/App"> block at the
 // configuration root. The path attribute is the IIS configuration path:
 // "SiteName" for the site root, "SiteName/sub/app" for a nested application.
-// Empty path means the location applies globally; we ignore that case for
-// per-app tag derivation.
+// An empty/missing path attribute makes the block apply globally and IIS
+// inherits its <aspNetCore><environmentVariables> into every site/app.
 type iisLocation struct {
 	XMLName         xml.Name                   `xml:"location"`
 	Path            string                     `xml:"path,attr"`
@@ -264,7 +264,11 @@ type iisConfiguration struct {
 	XMLName         xml.Name `xml:"configuration"`
 	ApplicationHost iisSystemApplicationHost
 	AppSettings     iisAppSettings
-	Locations       []iisLocation `xml:"location"`
+	// SystemWebServer is the root-level <system.webServer> sibling of
+	// <system.applicationHost>. IIS treats env vars written here the same as
+	// those in a pathless <location> -- inherited into every site/app.
+	SystemWebServer iisLocationSystemWebServer `xml:"system.webServer"`
+	Locations       []iisLocation              `xml:"location"`
 }
 
 func (iiscfg *DynamicIISConfig) readXMLConfig() error {
