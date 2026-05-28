@@ -2,10 +2,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "datastreams",
-    srcs = [
-        "kafka_actions.go",
-        "kafka_messages.go",
-    ],
+    srcs = ["kafka_actions.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams",
     visibility = ["//visibility:public"],
     deps = [
@@ -23,10 +20,7 @@ go_library(
 
 go_test(
     name = "datastreams_test",
-    srcs = [
-        "kafka_actions_test.go",
-        "kafka_messages_test.go",
-    ],
+    srcs = ["kafka_actions_test.go"],
     embed = [":datastreams"],
     gotags = ["test"],
     deps = [

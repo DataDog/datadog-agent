@@ -16,7 +16,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/forwarder/eventplatform",
+        "//comp/forwarder/eventplatform/def",
         "//pkg/clusteragent/kubeactions/executors",
         "//pkg/logs/message",
         "//pkg/remoteconfig/state",

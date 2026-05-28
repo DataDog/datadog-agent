@@ -108,6 +108,7 @@ go_test(
         "//test/fakeintake/api",
         "//test/fakeintake/fixtures",
         "@com_github_datadog_agent_payload_v5//gogen",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_kr_pretty//:pretty",
         "@com_github_stretchr_testify//assert",
