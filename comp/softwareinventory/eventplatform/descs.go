@@ -15,13 +15,13 @@ package eventplatform
 import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // Descs returns the pipeline description for Software Inventory when the feature
 // is enabled. Returns an empty slice when software_inventory.enabled is false.
-func Descs() []eventplatform.PipelineDesc {
-	if !pkgconfigsetup.Datadog().GetBool("software_inventory.enabled") {
+func Descs(cfg pkgconfigmodel.Reader) []eventplatform.PipelineDesc {
+	if !cfg.GetBool("software_inventory.enabled") {
 		return nil
 	}
 	return []eventplatform.PipelineDesc{
@@ -32,10 +32,10 @@ func Descs() []eventplatform.PipelineDesc {
 			EndpointsConfigPrefix:         "software_inventory.forwarder.",
 			HostnameEndpointPrefix:        "softinv-intake.",
 			IntakeTrackType:               "softinv",
-			DefaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
-			DefaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			DefaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			DefaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			DefaultBatchMaxConcurrentSend: cfg.GetInt("software_inventory.forwarder.batch_max_concurrent_send"),
+			DefaultBatchMaxContentSize:    cfg.GetInt("software_inventory.forwarder.batch_max_content_size"),
+			DefaultBatchMaxSize:           cfg.GetInt("software_inventory.forwarder.batch_max_size"),
+			DefaultInputChanSize:          cfg.GetInt("software_inventory.forwarder.input_chan_size"),
 		},
 	}
 }

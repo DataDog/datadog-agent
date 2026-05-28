@@ -12,19 +12,19 @@ package fx
 import (
 	"go.uber.org/fx"
 
+	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	networkpatheventplatfrom "github.com/DataDog/datadog-agent/comp/networkpath/eventplatfrom"
 )
 
 // Module returns the fx module that registers the Network Path pipeline description.
-//
-// The slice returned by networkpatheventplatfrom.Descs() is flattened into the fx
-// group, so each PipelineDesc becomes one element of the []eventplatform.PipelineDesc
-// consumed by the event platform forwarder.
 func Module() fx.Option {
 	return fx.Module(
 		"comp/networkpath/eventplatfrom",
 		fx.Provide(fx.Annotate(
-			networkpatheventplatfrom.Descs,
+			func(cfg compconfig.Component) []eventplatform.PipelineDesc {
+				return networkpatheventplatfrom.Descs(cfg)
+			},
 			fx.ResultTags(`group:"ep_pipeline_descs,flatten"`),
 		)),
 	)

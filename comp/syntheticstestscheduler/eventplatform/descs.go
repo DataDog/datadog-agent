@@ -14,11 +14,11 @@ package eventplatform
 import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // Descs returns the pipeline description for the Synthetics event type.
-func Descs() []eventplatform.PipelineDesc {
+func Descs(cfg pkgconfigmodel.Reader) []eventplatform.PipelineDesc {
 	return []eventplatform.PipelineDesc{
 		{
 			EventType:                     eventplatform.EventTypeSynthetics,
@@ -28,9 +28,9 @@ func Descs() []eventplatform.PipelineDesc {
 			HostnameEndpointPrefix:        "http-synthetics.",
 			IntakeTrackType:               "synthetics",
 			DefaultBatchMaxConcurrentSend: 10,
-			DefaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			DefaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			DefaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			DefaultBatchMaxContentSize:    cfg.GetInt("synthetics.forwarder.batch_max_content_size"),
+			DefaultBatchMaxSize:           cfg.GetInt("synthetics.forwarder.batch_max_size"),
+			DefaultInputChanSize:          cfg.GetInt("synthetics.forwarder.input_chan_size"),
 		},
 	}
 }

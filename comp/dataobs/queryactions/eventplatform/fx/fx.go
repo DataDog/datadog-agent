@@ -12,19 +12,19 @@ package fx
 import (
 	"go.uber.org/fx"
 
+	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	doeventplatform "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 )
 
 // Module returns the fx module that registers the Data Observability pipeline description.
-//
-// The slice returned by doeventplatform.Descs() is flattened into the fx group,
-// so each PipelineDesc becomes one element of the []eventplatform.PipelineDesc
-// consumed by the event platform forwarder.
 func Module() fx.Option {
 	return fx.Module(
 		"comp/dataobs/queryactions/eventplatform",
 		fx.Provide(fx.Annotate(
-			doeventplatform.Descs,
+			func(cfg compconfig.Component) []eventplatform.PipelineDesc {
+				return doeventplatform.Descs(cfg)
+			},
 			fx.ResultTags(`group:"ep_pipeline_descs,flatten"`),
 		)),
 	)

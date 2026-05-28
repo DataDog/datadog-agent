@@ -12,19 +12,19 @@ package fx
 import (
 	"go.uber.org/fx"
 
+	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	syntheticseventplatform "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/eventplatform"
 )
 
 // Module returns the fx module that registers the Synthetics pipeline description.
-//
-// The slice returned by syntheticseventplatform.Descs() is flattened into the fx
-// group, so each PipelineDesc becomes one element of the []eventplatform.PipelineDesc
-// consumed by the event platform forwarder.
 func Module() fx.Option {
 	return fx.Module(
 		"comp/syntheticstestscheduler/eventplatform",
 		fx.Provide(fx.Annotate(
-			syntheticseventplatform.Descs,
+			func(cfg compconfig.Component) []eventplatform.PipelineDesc {
+				return syntheticseventplatform.Descs(cfg)
+			},
 			fx.ResultTags(`group:"ep_pipeline_descs,flatten"`),
 		)),
 	)

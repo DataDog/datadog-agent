@@ -15,11 +15,11 @@ package eventplatform
 import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // Descs returns the pipeline description for the Network Config Management event type.
-func Descs() []eventplatform.PipelineDesc {
+func Descs(cfg pkgconfigmodel.Reader) []eventplatform.PipelineDesc {
 	return []eventplatform.PipelineDesc{
 		{
 			EventType:                     eventplatform.EventTypeNetworkConfigManagement,
@@ -29,9 +29,9 @@ func Descs() []eventplatform.PipelineDesc {
 			HostnameEndpointPrefix:        "ndm-intake.",
 			IntakeTrackType:               "ndmconfig",
 			DefaultBatchMaxConcurrentSend: 10,
-			DefaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			DefaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			DefaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			DefaultBatchMaxContentSize:    cfg.GetInt("network_config_management.forwarder.batch_max_content_size"),
+			DefaultBatchMaxSize:           cfg.GetInt("network_config_management.forwarder.batch_max_size"),
+			DefaultInputChanSize:          cfg.GetInt("network_config_management.forwarder.input_chan_size"),
 		},
 	}
 }

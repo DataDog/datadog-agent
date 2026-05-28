@@ -13,18 +13,18 @@ import (
 	"go.uber.org/fx"
 
 	datastreamseventplatform "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams/eventplatform"
+	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 )
 
 // Module returns the fx module that registers the Data Streams pipeline description.
-//
-// The slice returned by datastreamseventplatform.Descs() is flattened into the fx
-// group, so each PipelineDesc becomes one element of the []eventplatform.PipelineDesc
-// consumed by the event platform forwarder.
 func Module() fx.Option {
 	return fx.Module(
 		"comp/core/autodiscovery/providers/datastreams/eventplatform",
 		fx.Provide(fx.Annotate(
-			datastreamseventplatform.Descs,
+			func(cfg compconfig.Component) []eventplatform.PipelineDesc {
+				return datastreamseventplatform.Descs(cfg)
+			},
 			fx.ResultTags(`group:"ep_pipeline_descs,flatten"`),
 		)),
 	)

@@ -15,11 +15,11 @@ package eventplatform
 import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // Descs returns the pipeline description for the Data Observability query results event type.
-func Descs() []eventplatform.PipelineDesc {
+func Descs(cfg pkgconfigmodel.Reader) []eventplatform.PipelineDesc {
 	return []eventplatform.PipelineDesc{
 		{
 			EventType:                     eventplatform.EventTypeDoQueryResults,
@@ -30,7 +30,7 @@ func Descs() []eventplatform.PipelineDesc {
 			IntakeTrackType:               "query-actions",
 			DefaultBatchMaxConcurrentSend: 10,
 			DefaultBatchMaxContentSize:    20e6,
-			DefaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			DefaultBatchMaxSize:           cfg.GetInt("data_observability.forwarder.batch_max_size"),
 			DefaultInputChanSize:          500,
 		},
 	}

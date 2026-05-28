@@ -14,11 +14,11 @@ package eventplatform
 import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // Descs returns the pipeline description for the Data Streams event type.
-func Descs() []eventplatform.PipelineDesc {
+func Descs(cfg pkgconfigmodel.Reader) []eventplatform.PipelineDesc {
 	return []eventplatform.PipelineDesc{
 		{
 			EventType:                     eventplatform.EventTypeDataStreamsMessage,
@@ -28,9 +28,9 @@ func Descs() []eventplatform.PipelineDesc {
 			HostnameEndpointPrefix:        "trace.agent.",
 			IntakeTrackType:               "data_streams_messages",
 			DefaultBatchMaxConcurrentSend: 10,
-			DefaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			DefaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			DefaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			DefaultBatchMaxContentSize:    cfg.GetInt("data_streams.forwarder.batch_max_content_size"),
+			DefaultBatchMaxSize:           cfg.GetInt("data_streams.forwarder.batch_max_size"),
+			DefaultInputChanSize:          cfg.GetInt("data_streams.forwarder.input_chan_size"),
 		},
 	}
 }

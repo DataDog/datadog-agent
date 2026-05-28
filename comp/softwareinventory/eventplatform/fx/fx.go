@@ -13,19 +13,20 @@ package fx
 import (
 	"go.uber.org/fx"
 
+	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	softinveventplatform "github.com/DataDog/datadog-agent/comp/softwareinventory/eventplatform"
 )
 
 // Module returns the fx module that registers the Software Inventory pipeline description.
-//
-// The slice returned by softinveventplatform.Descs() is flattened into the fx
-// group. Descs() returns nil when software_inventory.enabled is false, so no
-// pipeline is registered in that case.
+// Descs returns nil when software_inventory.enabled is false, so no pipeline is registered.
 func Module() fx.Option {
 	return fx.Module(
 		"comp/softwareinventory/eventplatform",
 		fx.Provide(fx.Annotate(
-			softinveventplatform.Descs,
+			func(cfg compconfig.Component) []eventplatform.PipelineDesc {
+				return softinveventplatform.Descs(cfg)
+			},
 			fx.ResultTags(`group:"ep_pipeline_descs,flatten"`),
 		)),
 	)

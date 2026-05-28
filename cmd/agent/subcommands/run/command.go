@@ -202,6 +202,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -760,17 +761,18 @@ func startAgent(
 	})
 
 	diagnosecatalog.Register(diagnose.EventPlatformConnectivity, func(_ diagnose.Config) []diagnose.Diagnosis {
+		cfg := pkgconfigsetup.Datadog()
 		var teamDescs []eventplatform.PipelineDesc
 		teamDescs = append(teamDescs, dbmeventplatform.Descs()...)
 		teamDescs = append(teamDescs, ndmeventplatform.Descs()...)
-		teamDescs = append(teamDescs, networkpatheventplatfrom.Descs()...)
-		teamDescs = append(teamDescs, ncmeventplatform.Descs()...)
+		teamDescs = append(teamDescs, networkpatheventplatfrom.Descs(cfg)...)
+		teamDescs = append(teamDescs, ncmeventplatform.Descs(cfg)...)
 		teamDescs = append(teamDescs, containereventplatform.Descs()...)
-		teamDescs = append(teamDescs, syntheticseventplatform.Descs()...)
-		teamDescs = append(teamDescs, datastreamseventplatform.Descs()...)
-		teamDescs = append(teamDescs, doeventplatform.Descs()...)
+		teamDescs = append(teamDescs, syntheticseventplatform.Descs(cfg)...)
+		teamDescs = append(teamDescs, datastreamseventplatform.Descs(cfg)...)
+		teamDescs = append(teamDescs, doeventplatform.Descs(cfg)...)
 		teamDescs = append(teamDescs, kubeactionseventplatform.Descs()...)
-		teamDescs = append(teamDescs, softinveventplatform.Descs()...)
+		teamDescs = append(teamDescs, softinveventplatform.Descs(cfg)...)
 		return eventplatformimpl.Diagnose(teamDescs...)
 	})
 
