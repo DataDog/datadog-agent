@@ -379,7 +379,6 @@ exports_files(glob(
 # gazelle:exclude pkg/config/legacy
 # gazelle:exclude pkg/databasemonitoring
 # gazelle:exclude pkg/diagnose/connectivity
-# gazelle:exclude pkg/diagnose/ports
 # gazelle:exclude pkg/discovery/language
 # gazelle:exclude pkg/discovery/module/rust/include
 # gazelle:exclude pkg/discovery/module/rust/src
