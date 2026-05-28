@@ -11,6 +11,7 @@ package run
 import (
 	"context"
 	"errors"
+	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -112,9 +113,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 		opts = append(opts, getConfigOptions(cliParams.GlobalParams)...)
 	} else {
 		opts = append(opts,
-			fx.Invoke(func() {
-				pkgconfigenv.DetectFeatures(setup.Datadog())
-			}),
+			fx.Invoke(initStandaloneConfig),
 			fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore),
 		)
 	}
@@ -124,6 +123,18 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 
 func run(collector collector.Component) error {
 	return collector.Run()
+}
+
+// initStandaloneConfig performs one-time config setup for standalone mode (no core agent).
+// K8S_NODE_IP is set by upstream Helm charts for the node IP; we use it as
+// kubernetes_kubelet_host so the kubelet client can resolve the node hostname.
+func initStandaloneConfig() {
+	pkgconfigenv.DetectFeatures(setup.Datadog())
+	k8sNodeIP, isSet := os.LookupEnv("K8S_NODE_IP")
+	// If not set, let's keep DD_KUBERNETES_KUBELET_HOST as fallback
+	if isSet {
+		setup.Datadog().Set("kubernetes_kubelet_host", k8sNodeIP, pkgconfigmodel.SourceAgentRuntime)
+	}
 }
 
 func getRemoteTaggerOptions() []fx.Option {
