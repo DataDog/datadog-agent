@@ -42,6 +42,8 @@ PACKAGE_OS_MAPPING = {
     "msi": "windows",
 }
 
+S3_REPORT_PATH = "s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates"
+
 
 def byte_to_string(size: int, unit_power: int = None, with_unit: bool = True) -> str:
     """
@@ -735,7 +737,6 @@ class GateMetricHandler:
         "datadog.agent.static_quality_gate.relative_on_wire_size": "relative_on_wire_size",
         "datadog.agent.static_quality_gate.relative_on_disk_size": "relative_on_disk_size",
     }
-    S3_REPORT_PATH = "s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates"
 
     def __init__(self, git_ref, bucket_branch, filename=None):
         self.metrics = {}
@@ -921,6 +922,6 @@ class GateMetricHandler:
         # Store reports for main and release branches to enable delta calculation for backport PRs
         if not is_nightly and (branch == "main" or is_a_release_branch(ctx, branch)) and CI_COMMIT_SHA:
             ctx.run(
-                f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {filename} {self.S3_REPORT_PATH}/{CI_COMMIT_SHA}/{filename}",
+                f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {filename} {S3_REPORT_PATH}/{CI_COMMIT_SHA}/{filename}",
                 hide="stdout",
             )
