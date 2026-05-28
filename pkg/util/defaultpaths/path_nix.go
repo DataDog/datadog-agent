@@ -98,7 +98,7 @@ func GetInstallPath() string {
 
 // GetDefaultRunPath returns the path to the run directory
 func GetDefaultRunPath() string {
-	return DefaultRunPath
+	return filepath.Join(GetInstallPath(), "run")
 }
 
 // GetDefaultConfPath returns the path to the folder containing datadog.yaml
