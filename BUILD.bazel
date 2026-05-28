@@ -263,7 +263,6 @@ exports_files(glob(
 # gazelle:exclude comp/softwareinventory/fx
 # gazelle:exclude comp/softwareinventory/impl
 # gazelle:exclude comp/syntheticstestscheduler/fx
-# gazelle:exclude comp/syntheticstestscheduler/impl
 # gazelle:exclude comp/systray/systray/fx
 # gazelle:exclude comp/systray/systray/impl
 # gazelle:exclude comp/trace/config/fx
