@@ -155,21 +155,25 @@ func (s *upgradeSuite) TestIntegrationPreservationDebToOCI() {
 	s.Require().NoError(err)
 	s.snapshotIntegrationState("DebToOCI: after StartExperiment to released OCI stable")
 
-	installedIntegrations, err = s.Agent.InstalledIntegrations()
-	s.Require().NoError(err)
-	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved in experiment")
-	_, showErr := s.Agent.IntegrationShow("datadog-ping")
-	s.Assert().NoError(showErr, "integration show should succeed after restoration in experiment")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved in experiment")
+		_, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed after restoration in experiment")
+	}, 60*time.Second, 5*time.Second)
 
 	err = s.Backend.PromoteExperiment("datadog-agent")
 	s.Require().NoError(err)
 	s.snapshotIntegrationState("DebToOCI: after PromoteExperiment")
 
-	installedIntegrations, err = s.Agent.InstalledIntegrations()
-	s.Require().NoError(err)
-	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved after promotion")
-	_, showErr = s.Agent.IntegrationShow("datadog-ping")
-	s.Assert().NoError(showErr, "integration show should succeed after promotion")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved after promotion")
+		_, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed after promotion")
+	}, 60*time.Second, 5*time.Second)
 }
 
 // TestIntegrationPreservationOCIToOCI tests that integrations are preserved during an OCI→OCI upgrade.
@@ -210,21 +214,25 @@ func (s *upgradeSuite) TestIntegrationPreservationOCIToOCI() {
 	s.Require().NoError(err)
 	s.snapshotIntegrationState("OCIToOCI: after StartExperiment to released stable")
 
-	installedIntegrations, err = s.Agent.InstalledIntegrations()
-	s.Require().NoError(err)
-	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved in OCI experiment")
-	_, showErr := s.Agent.IntegrationShow("datadog-ping")
-	s.Assert().NoError(showErr, "integration show should succeed after restoration in OCI experiment")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved in OCI experiment")
+		_, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed after restoration in OCI experiment")
+	}, 60*time.Second, 5*time.Second)
 
 	err = s.Backend.PromoteExperiment("datadog-agent")
 	s.Require().NoError(err)
 	s.snapshotIntegrationState("OCIToOCI: after PromoteExperiment")
 
-	installedIntegrations, err = s.Agent.InstalledIntegrations()
-	s.Require().NoError(err)
-	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved after OCI promotion")
-	_, showErr = s.Agent.IntegrationShow("datadog-ping")
-	s.Assert().NoError(showErr, "integration show should succeed after OCI promotion")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved after OCI promotion")
+		_, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed after OCI promotion")
+	}, 60*time.Second, 5*time.Second)
 }
 
 // TestIntegrationPreservationStableToOCIExperiment verifies that a third-party integration
@@ -251,16 +259,19 @@ func (s *upgradeSuite) TestIntegrationPreservationStableToOCIExperiment() {
 	s.Require().NoError(err)
 	s.snapshotIntegrationState("StableToOCIExperiment: after StartExperiment to pipeline testing")
 
-	installedIntegrations, err = s.Agent.InstalledIntegrations()
-	s.Require().NoError(err)
-	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved in experiment to pipeline version")
+	// post.py reinstalls integrations asynchronously after the daemon restarts; poll until it finishes.
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved in experiment to pipeline version")
 
-	// Failure mode 4: integration show must succeed — if post.py's pip install failed silently
-	// (run_command swallows CalledProcessError), dist-info is absent and show returns an error
-	// while the check may still run from a cached sys.modules entry.
-	showOut, showErr := s.Agent.IntegrationShow("datadog-ping")
-	s.Assert().NoError(showErr, "integration show should succeed after restoration in experiment")
-	s.Assert().Contains(showOut, "1.0.2", "integration show should report the restored version")
+		// Failure mode 4: integration show must succeed — if post.py's pip install failed silently
+		// (run_command swallows CalledProcessError), dist-info is absent and show returns an error
+		// while the check may still run from a cached sys.modules entry.
+		showOut, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed after restoration in experiment")
+		assert.Contains(c, showOut, "1.0.2", "integration show should report the restored version")
+	}, 60*time.Second, 5*time.Second)
 
 	if s.Env().RemoteHost.OSFamily == e2eos.LinuxFamily {
 		// Failure mode 1: dist-info files must be owned by dd-agent after restoration.
@@ -287,13 +298,15 @@ func (s *upgradeSuite) TestIntegrationPreservationStableToOCIExperiment() {
 		require.Equal(c, testingVersion, packageVersion)
 	}, 300*time.Second, 30*time.Second)
 
-	installedIntegrations, err = s.Agent.InstalledIntegrations()
-	s.Require().NoError(err)
-	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved after promotion to pipeline version")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved after promotion to pipeline version")
 
-	// Failure mode 4 (post-promote): integration show must still succeed after promotion.
-	_, showErr = s.Agent.IntegrationShow("datadog-ping")
-	s.Assert().NoError(showErr, "integration show should succeed after promotion")
+		// Failure mode 4 (post-promote): integration show must still succeed after promotion.
+		_, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed after promotion")
+	}, 60*time.Second, 5*time.Second)
 }
 
 // runIntegrationOwnershipTest is the shared body for TestIntegrationPreservationRootInstall
@@ -322,13 +335,16 @@ func (s *upgradeSuite) runIntegrationOwnershipTest(installUser, label string) {
 	s.Require().NoError(err)
 	s.snapshotIntegrationState(label + ": after StartExperiment to pipeline testing")
 
-	installedIntegrations, err = s.Agent.InstalledIntegrations()
-	s.Require().NoError(err)
-	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved in experiment")
+	// post.py reinstalls integrations asynchronously after the daemon restarts; poll until it finishes.
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved in experiment")
 
-	showOut, showErr := s.Agent.IntegrationShow("datadog-ping")
-	s.Assert().NoError(showErr, "integration show should succeed after restoration in experiment")
-	s.Assert().Contains(showOut, "1.0.2", "integration show should report the restored version")
+		showOut, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed after restoration in experiment")
+		assert.Contains(c, showOut, "1.0.2", "integration show should report the restored version")
+	}, 60*time.Second, 5*time.Second)
 
 	s.Assert().Equal("dd-agent", s.integrationDistInfoOwner("experiment", "ping"),
 		"dist-info should be owned by dd-agent after restoration (installed as "+installUser+")")
@@ -345,17 +361,18 @@ func (s *upgradeSuite) runIntegrationOwnershipTest(installUser, label string) {
 		require.Equal(c, testingVersion, packageVersion)
 	}, 300*time.Second, 30*time.Second)
 
-	installedIntegrations, err = s.Agent.InstalledIntegrations()
-	s.Require().NoError(err)
-	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved after promotion")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved after promotion")
+		_, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed after promotion")
+	}, 60*time.Second, 5*time.Second)
 
 	s.Assert().Equal("dd-agent", s.integrationDistInfoOwner("stable", "ping"),
 		"dist-info should be owned by dd-agent in stable after promotion (installed as "+installUser+")")
 	s.Assert().Equal("dd-agent", s.integrationCheckDirOwner("stable", "ping"),
 		"datadog_checks/ping should be owned by dd-agent in stable after promotion (installed as "+installUser+")")
-
-	_, showErr = s.Agent.IntegrationShow("datadog-ping")
-	s.Assert().NoError(showErr, "integration show should succeed after promotion")
 }
 
 // TestIntegrationPreservationRootInstall verifies that an integration initially installed
@@ -404,11 +421,13 @@ func (s *upgradeSuite) TestIntegrationPreservationOnExperimentRollback() {
 	s.Require().NoError(err)
 	s.Require().NotEqual(originalVersion, version, "experiment should be running before rollback")
 
-	installedIntegrations, err = s.Agent.InstalledIntegrations()
-	s.Require().NoError(err)
-	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved while experiment is running")
-	_, showErr := s.Agent.IntegrationShow("datadog-ping")
-	s.Assert().NoError(showErr, "integration show should succeed while experiment is running")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved while experiment is running")
+		_, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed while experiment is running")
+	}, 60*time.Second, 5*time.Second)
 
 	err = s.Backend.StopExperiment("datadog-agent")
 	s.Require().NoError(err)
@@ -421,11 +440,13 @@ func (s *upgradeSuite) TestIntegrationPreservationOnExperimentRollback() {
 	}, 300*time.Second, 30*time.Second)
 	s.snapshotIntegrationState("Rollback: after rollback completed")
 
-	installedIntegrations, err = s.Agent.InstalledIntegrations()
-	s.Require().NoError(err)
-	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should still be installed on the (reverted) stable after rollback")
-	_, showErr = s.Agent.IntegrationShow("datadog-ping")
-	s.Assert().NoError(showErr, "integration show should succeed after rollback")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should still be installed on the (reverted) stable after rollback")
+		_, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed after rollback")
+	}, 60*time.Second, 5*time.Second)
 }
 
 // TestIntegrationPreservationMultiHop verifies that a third-party integration installed
@@ -464,11 +485,13 @@ func (s *upgradeSuite) TestIntegrationPreservationMultiHop() {
 		require.Equal(c, testingVersion, packageVersion)
 	}, 300*time.Second, 30*time.Second)
 
-	installedIntegrations, err = s.Agent.InstalledIntegrations()
-	s.Require().NoError(err)
-	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved after hop 1 promote")
-	_, showErr := s.Agent.IntegrationShow("datadog-ping")
-	s.Assert().NoError(showErr, "integration show should succeed after hop 1 promote")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved after hop 1 promote")
+		_, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed after hop 1 promote")
+	}, 60*time.Second, 5*time.Second)
 
 	// Hop 2: now-stable pipeline testing -> a different released stable -> promote.
 	hop2Target := s.Backend.Catalog().Latest(backend.BranchStable, "datadog-agent")
@@ -489,11 +512,13 @@ func (s *upgradeSuite) TestIntegrationPreservationMultiHop() {
 		require.Equal(c, hop2Target, packageVersion)
 	}, 300*time.Second, 30*time.Second)
 
-	installedIntegrations, err = s.Agent.InstalledIntegrations()
-	s.Require().NoError(err)
-	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should still be preserved after hop 2 promote")
-	_, showErr = s.Agent.IntegrationShow("datadog-ping")
-	s.Assert().NoError(showErr, "integration show should succeed after hop 2 promote")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should still be preserved after hop 2 promote")
+		_, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed after hop 2 promote")
+	}, 60*time.Second, 5*time.Second)
 }
 
 // secondaryThirdPartyIntegration is a second third-party integration used alongside
