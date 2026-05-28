@@ -4,15 +4,7 @@ go_library(
     name = "configutils",
     srcs = ["utils.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils",
-    visibility = [
-        "//comp/otelcol/otlp:__subpackages__",
-        "@com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_datadogexporter//:__subpackages__",
-        "@com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_logsagentexporter//:__subpackages__",
-        "@com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_serializerexporter//:__subpackages__",
-        "@com_github_datadog_datadog_agent_comp_otelcol_otlp_components_metricsclient//:__subpackages__",
-        "@com_github_datadog_datadog_agent_comp_otelcol_otlp_components_processor_infraattributesprocessor//:__subpackages__",
-        "@com_github_datadog_datadog_agent_comp_otelcol_otlp_testutil//:__subpackages__",
-    ],
+    visibility = ["//comp/otelcol/otlp:__subpackages__"],
     deps = [
         "@in_yaml_go_yaml_v2//:yaml",
         "@io_opentelemetry_go_collector_confmap//:confmap",
