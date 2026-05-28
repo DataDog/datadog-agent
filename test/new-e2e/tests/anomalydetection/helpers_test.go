@@ -80,7 +80,7 @@ func metricNameVariants(metric string) []string {
 	variants := []string{
 		metric,
 		snake,
-		fmt.Sprintf("observer__%s", snake),
+		"observer__" + snake,
 	}
 	return slices.Compact(variants)
 }
@@ -128,16 +128,4 @@ func waitForReportsTelemetry(s observerTestSuite) {
 			"observer telemetry should expose reports emitted counter after anomalies")
 	}, 3*time.Minute, 5*time.Second)
 	s.T().Log("observer reports telemetry detected")
-}
-
-// dumpObserverLines logs all [observer] journal lines for post-mortem diagnosis.
-// SSH errors are silently ignored so this never fails a test.
-func dumpObserverLines(t *testing.T, env *environments.Host) {
-	t.Helper()
-	out, err := env.RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager | grep -F '[observer]' || true")
-	if err != nil {
-		t.Logf("warning: could not retrieve observer journal lines: %v", err)
-		return
-	}
-	t.Logf("observer lines:\n%s", out)
 }
