@@ -320,9 +320,13 @@ func InitConfigObjects(cliPath string, defaultDir string) {
 	SetDatadog(create.NewConfig("datadog", configLib))          // nolint: forbidigo // legitimate use of SetDatadog
 	SetSystemProbe(create.NewConfig("system-probe", configLib)) // nolint: forbidigo // legitimate use of SetDatadog
 
-	// Configuration defaults
+	// Configuration defaults, should only be logic-free calls to BindEnvAndSetDefault / BindEnv / SetDefault
 	initConfig()
 
+	// Post-init fixups, custom logic to tweak certain settings
+	fixupInitConfig()
+
+	// Build the environment variable layer
 	datadog.(pkgconfigmodel.BuildableConfig).BuildSchema()
 	systemProbe.(pkgconfigmodel.BuildableConfig).BuildSchema()
 
@@ -342,14 +346,30 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Add them to common_settings.go instead
 	// -------------------------------------------------------------
 
-	// Settings that are shared in common between serverless and core-agent, split up by feature / product
+	// Settings that are shared in common between serverless and the full agent, split up by feature / product
 	initCommonConfigComponents(config)
-	// Settings just for the core-agent in general
+	// Settings just for the full agent in general
 	initCoreAgentFull(config)
+	// Settings associated with a feature / product that only appear in the full agent, not in serverless
+	initFullAgentOnlyComponents(config)
 }
 
+// settings shared by full agent and serverless
 func initCommonConfigComponents(config pkgconfigmodel.Setup) {
 	for _, f := range commonConfigComponents {
+		f(config)
+	}
+}
+
+// settings that are only initialized by the full agent, not serverless
+func initFullAgentOnlyComponents(config pkgconfigmodel.Setup) {
+	comps := []func(pkgconfigmodel.Setup){
+		setupProcesses,
+		setupPrivateActionRunner,
+		remoteflags,
+		anomalyDetection,
+	}
+	for _, f := range comps {
 		f(config)
 	}
 }
@@ -1479,6 +1499,26 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
 		// Avoid detailed ECS task metadata collection when not collecting infrastructure.
 		config.Set("ecs_task_collection_enabled", false, pkgconfigmodel.SourceInfraMode)
+	}
+}
+
+// applyUseDogstatsdSuppression is a post-load override that, when
+// use_dogstatsd is false, forces data_plane.dogstatsd.enabled to false
+// so the Agent Data Plane process (which reads the latter via the
+// config stream) skips its DogStatsD source. data_plane.enabled is
+// intentionally left alone so other ADP pipelines (e.g. OTLP) keep
+// working independently of the DogStatsD master toggle.
+//
+// It is registered as an override func (runs after datadog.yaml loads) and
+// also called explicitly after fleet policy merging, because fleet policies
+// are applied after the initial override pass.
+//
+// Matches the truth table at
+// https://github.com/DataDog/saluki/issues/1334#issuecomment-4292253054.
+func applyUseDogstatsdSuppression(config pkgconfigmodel.Config) {
+	if !config.GetBool("use_dogstatsd") && config.GetBool("data_plane.dogstatsd.enabled") {
+		log.Infof("Forcing data_plane.dogstatsd.enabled=false because use_dogstatsd=false")
+		config.Set("data_plane.dogstatsd.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	}
 }
 
