@@ -42,13 +42,13 @@ type UserV3 struct {
 // TrapsConfig contains configuration for SNMP trap listeners.
 // YAML field tags provided for test marshalling purposes.
 type TrapsConfig struct {
-	Enabled               bool     `mapstructure:"enabled" yaml:"enabled"`
-	Port                  uint16   `mapstructure:"port" yaml:"port"`
-	Users                 []UserV3 `mapstructure:"users" yaml:"users"`
-	CommunityStrings      []string `mapstructure:"community_strings" yaml:"community_strings"`
-	BindHost              string   `mapstructure:"bind_host" yaml:"bind_host"`
-	StopTimeout           int      `mapstructure:"stop_timeout" yaml:"stop_timeout"`
-	Namespace             string   `mapstructure:"namespace" yaml:"namespace"`
+	Enabled          bool     `mapstructure:"enabled" yaml:"enabled"`
+	Port             uint16   `mapstructure:"port" yaml:"port"`
+	Users            []UserV3 `mapstructure:"users" yaml:"users"`
+	CommunityStrings []string `mapstructure:"community_strings" yaml:"community_strings"`
+	BindHost         string   `mapstructure:"bind_host" yaml:"bind_host"`
+	StopTimeout      int      `mapstructure:"stop_timeout" yaml:"stop_timeout"`
+	Namespace        string   `mapstructure:"namespace" yaml:"namespace"`
 	// Tags is an optional list of user-supplied tags (e.g. "application:foo")
 	// appended to every trap emitted by the listener. Tags are appended after
 	// the built-in tags (snmp_version, device_namespace, snmp_device) so
