@@ -7,7 +7,7 @@
 // Each file in this package covers one concern:
 //
 //   - anomalydetection_nix_test.go — reporter tests: DSD-spike (CUSUM) and file-log-spike (BOCPD)
-//   - defaults_nix_test.go        — observer disabled by default (no [observer] lines)
+//   - defaults_nix_test.go        — observer disabled by default (no observer telemetry metrics)
 //   - config_matrix_nix_test.go   — sub-gate independence (metrics/logs/agent_logs gates)
 //   - shutdown_nix_test.go        — graceful shutdown under DSD load (no panic/crash)
 package anomalydetection

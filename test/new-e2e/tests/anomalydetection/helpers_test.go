@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 // Observer log markers emitted by comp/anomalydetection/observer/impl/observer.go
@@ -47,39 +48,36 @@ type observerTestSuite interface {
 	Env() *environments.Host
 }
 
-// waitForObserverReady polls /var/log/datadog/agent.log until the metrics-path
-// observer handle marker appears. Only valid when metrics.enabled=true: the
-// demultiplexer's SetObserver returns early without calling GetHandle when metrics
-// are disabled, so this marker never appears in logs-only mode.
+// waitForObserverReady waits for observer telemetry to appear in agent-full-telemetry.
+// This avoids startup-log parsing and works across both service log sinks.
 func waitForObserverReady(s observerTestSuite) {
 	s.T().Helper()
 	s.T().Log("waiting for observer to be ready (metrics path)...")
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		out, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
-		assert.NoError(c, err, "reading agent.log to check observer readiness")
-		assert.Contains(c, string(out), observerReadyMarker,
-			"agent.log should contain observer startup marker")
+		assert.True(c, s.Env().Agent.Client.IsReady(), "agent should be ready")
+		tel := observerTelemetryOutput(s)
+		assert.Contains(c, tel, "observer.series.count", "observer telemetry should expose series gauge when enabled")
+		assert.Contains(c, tel, "observer.logs.in_flight", "observer telemetry should expose in-flight logs gauge")
 	}, 2*time.Minute, 3*time.Second)
 	s.T().Log("observer ready (metrics path)")
 }
 
-// waitForLogsObserverReady polls the systemd journal for the logssource handle marker.
-// Use this when metrics.enabled=false: the logssource component calls GetHandle("logs")
-// during fx construction (before the file log sink is active), so the marker may appear
-// in journald (stderr capture) rather than agent.log. Journalctl is checked here for
-// reliability.
+// waitForLogsObserverReady waits for log-source telemetry dimensions to appear.
 func waitForLogsObserverReady(s observerTestSuite) {
 	s.T().Helper()
 	s.T().Log("waiting for observer to be ready (log path)...")
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		out, err := s.Env().RemoteHost.Execute(
-			"sudo journalctl -u datadog-agent --no-pager | grep -F '" + observerLogsHandleMarker + "' || true",
-		)
-		assert.NoError(c, err, "journalctl failed")
-		assert.Contains(c, out, observerLogsHandleMarker,
-			"journald should contain logssource observer handle marker")
+		assert.True(c, s.Env().Agent.Client.IsReady(), "agent should be ready")
+		tel := observerTelemetryOutput(s)
+		assert.Contains(c, tel, "observer.logs.in_flight", "observer telemetry should expose in-flight logs gauge")
+		assert.Contains(c, tel, "log_source=\"containers\"", "observer telemetry should expose containers log_source")
 	}, 2*time.Minute, 3*time.Second)
 	s.T().Log("observer ready (log path)")
+}
+
+func observerTelemetryOutput(s observerTestSuite) string {
+	s.T().Helper()
+	return s.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "agent-full-telemetry"}))
 }
 
 // waitForAgentStartup polls agent.log for the standard startup banner.
