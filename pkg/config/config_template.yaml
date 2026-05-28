@@ -4574,6 +4574,20 @@ api_key:
 #
 #     stop_timeout: 5
 
+#     # @param tags - list of strings - optional - default: []
+#     # @env DD_NETWORK_DEVICES_SNMP_TRAPS_TAGS - space-separated list of strings - optional - default: []
+#     # A list of custom tags ("key:value" strings) attached to every trap emitted by this listener.
+#     # Tags are appended after the three built-in tags (snmp_version, device_namespace, snmp_device)
+#     # so existing dashboards/monitors that key on the built-in tags are unaffected.
+#     # Note: these tags also propagate to the datadog.snmp_traps.* internal telemetry metrics
+#     # (received, forwarded, traps_not_enriched, vars_not_enriched, incorrect_format, invalid_packet).
+#     # Avoid high-cardinality values (e.g. per-host UUIDs) — they will inflate the metric
+#     # cardinality on those internal metrics.
+#
+#     tags:
+#       - "application:<APPLICATION_ID>"
+#       - "team:<TEAM_NAME>"
+
 #   # @param netflow - custom object - optional
 #   # This section configures NDM NetFlow (and sFlow, IPFIX) collection.
 #
