@@ -591,14 +591,7 @@ exports_files(glob(
 # gazelle:exclude pkg/util/ec2/tags
 # gazelle:exclude pkg/util/kubelet
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
-# gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/leaderelection.go
-# gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/leaderelection_engine.go
-# gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/leaderelection_engine_test.go
-# gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/leaderelection_stub.go
-# gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/leaderelection_test.go
-# gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status.go
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status_templates
-# gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status_test.go
 # gazelle:exclude pkg/util/kubernetes/cloudprovider
 # gazelle:exclude pkg/util/kubernetes/clusterinfo
 # gazelle:exclude pkg/util/kubernetes/clustername
