@@ -588,7 +588,7 @@ func TestDNSMonitoringPorts(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
 		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{8053, 5353})
 		cfg := New()
-		assert.Equal(t, []int{8053, 5353}, cfg.DNSMonitoringPortList)
+		assert.Equal(t, []int{5353, 8053}, cfg.DNSMonitoringPortList)
 	})
 
 	t.Run("via YAML - http ports should be removed", func(t *testing.T) {
@@ -598,5 +598,85 @@ func TestDNSMonitoringPorts(t *testing.T) {
 		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{53, 443, 5353, 80})
 		cfg := New()
 		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - invalid ports should be removed", func(t *testing.T) {
+		// Ports outside 1-65535 are soft-dropped at config load.
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{53, 0, -1, 65536, 99999, 5353})
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - all-invalid list yields empty list (no fallback to 53)", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{0, 80, 443, 99999})
+		cfg := New()
+		assert.Empty(t, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - duplicates deduplicated", func(t *testing.T) {
+		// Repeat entries are deduplicated.
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{5353, 53, 53, 5353, 53})
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - more than DNSPortsMax distinct ports truncates", func(t *testing.T) {
+		// 9 distinct ports exceeds DNSPortsMax = 8. After sort-ascending,
+		// the highest port (1008) is dropped.
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{53, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008})
+		cfg := New()
+		assert.Equal(t, []int{53, 1001, 1002, 1003, 1004, 1005, 1006, 1007}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - dedup applies before truncation cap", func(t *testing.T) {
+		// 33 raw entries but only 2 distinct (32×53 + 5353).
+		ports := make([]int, 0, 33)
+		for i := 0; i < 32; i++ {
+			ports = append(ports, 53)
+		}
+		ports = append(ports, 5353)
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", ports)
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via ENV variable - space-separated", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "1 2 3 4 5 6 7 53")
+		cfg := New()
+		assert.Equal(t, []int{1, 2, 3, 4, 5, 6, 7, 53}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via ENV variable - comma-separated", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53,5353,8053")
+		cfg := New()
+		assert.Equal(t, []int{53, 5353, 8053}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via ENV variable - mixed comma and space", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53, 5353 8053")
+		cfg := New()
+		assert.Equal(t, []int{53, 5353, 8053}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via ENV variable - single port", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "5353")
+		cfg := New()
+		assert.Equal(t, []int{5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via ENV variable - invalid content falls back to default", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "not-a-port")
+		cfg := New()
+		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
 	})
 }
