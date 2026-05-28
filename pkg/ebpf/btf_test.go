@@ -71,12 +71,12 @@ func TestEmbeddedBTFMatch(t *testing.T) {
 }
 
 func TestBTFTelemetry(t *testing.T) {
-	loader, err := initBTFLoader(&Config{}, nil, telemetryimpl.GetCompatComponent())
+	loader, err := initBTFLoader(NewConfig(), nil, telemetryimpl.GetCompatComponent())
 	require.NoError(t, err)
 	ret, result, err := loader.Get()
-	require.NoError(t, err)
-	require.NotNil(t, ret)
-	require.NotEqual(t, COREResult(BtfNotFound), result)
+	assert.NoError(t, err)
+	assert.NotNil(t, ret)
+	assert.NotEqual(t, COREResult(BtfNotFound), result)
 }
 
 func curDir() (string, error) {
