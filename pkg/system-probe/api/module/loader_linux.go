@@ -33,9 +33,10 @@ func isEBPFOptional(factories []*Factory) bool {
 	return false
 }
 
-func preRegister(_ *sysconfigtypes.Config, rcclient rcclient.Component, telemetry telemetry.Component, moduleFactories []*Factory) error {
+func preRegister(cfg *sysconfigtypes.Config, rcclient rcclient.Component, telemetry telemetry.Component, moduleFactories []*Factory) error {
 	needed := isEBPFRequired(moduleFactories)
-	if needed || isEBPFOptional(moduleFactories) {
+	contentionWillLoad := cfg.TelemetryEnabled && ebpf.ContentionCollector != nil
+	if needed || isEBPFOptional(moduleFactories) || contentionWillLoad {
 		err := ebpf.Setup(ebpf.NewConfig(), rcclient, telemetry)
 		if err != nil && !needed {
 			log.Warnf("ignoring eBPF setup error: %v", err)
