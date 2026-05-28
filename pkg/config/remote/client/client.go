@@ -118,6 +118,10 @@ type Client struct {
 	startupSync sync.Once
 	ctx         context.Context
 	closeFn     context.CancelFunc
+	// wg tracks every goroutine spawned by the client (poll loop + per-listener
+	// dispatchers). Close blocks on wg.Wait so callers can rely on "no more
+	// listener callbacks fire after Close returns."
+	wg sync.WaitGroup
 
 	lastUpdateError   error
 	backoffPolicy     backoff.Policy
@@ -127,7 +131,7 @@ type Client struct {
 
 	state *state.Repository
 
-	listeners map[string][]Listener
+	listeners map[string][]*listenerEntry
 
 	// Elements that can be changed during the execution of listeners
 	// They are atomics so that they don't have to share the top-level mutex
@@ -331,7 +335,7 @@ func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 		installerState: installerState,
 		state:          repository,
 		backoffPolicy:  backoffPolicy,
-		listeners:      make(map[string][]Listener),
+		listeners:      make(map[string][]*listenerEntry),
 		configFetcher:  cf,
 	}, nil
 }
@@ -344,11 +348,19 @@ func (c *Client) Start() {
 	c.startupSync.Do(c.startFn)
 }
 
-// Close terminates the client's poll loop.
+// Close terminates the client's poll loop and waits for every dispatcher
+// goroutine to drain.
 //
-// A client that has been closed cannot be restarted
+// After Close returns, no further OnUpdate or OnStateChange callback will
+// fire — callers can safely tear down resources their listeners depend on.
+// In-flight callbacks at the moment of Close run to completion before Close
+// returns; a stuck listener will therefore stall shutdown indefinitely (this
+// is the same hazard that existed for the poll loop before this refactor).
+//
+// A client that has been closed cannot be restarted.
 func (c *Client) Close() {
 	c.closeFn()
+	c.wg.Wait()
 }
 
 // GetClientID gets the client ID
@@ -371,10 +383,25 @@ func (c *Client) SetAgentName(agentName string) {
 	}
 }
 
-// SubscribeAll subscribes to all events (config updates, state changed, ...)
+// SubscribeAll subscribes to all events (config updates, state changed, ...).
+//
+// Each subscription gets its own dispatcher goroutine. OnUpdate / OnStateChange
+// calls into the listener are serialized per-listener but run independently of
+// the poll loop and of other listeners — a slow listener cannot delay polling
+// or block other subscribers. Signals are coalescing (cap=1): if multiple poll
+// iterations arrive before the listener drains, only the freshest snapshot is
+// delivered.
 func (c *Client) SubscribeAll(product string, listener Listener) {
 	c.m.Lock()
 	defer c.m.Unlock()
+
+	// If Close has already canceled the context, there's no poll loop to
+	// dispatch updates and nothing for a worker to do. Dropping the
+	// subscription quietly is the right behaviour — adding more goroutines to
+	// the wg after Close has been called could leak past the Wait barrier.
+	if c.ctx.Err() != nil {
+		return
+	}
 
 	// Make sure the product belongs to the list of requested product
 	knownProduct := slices.Contains(c.products, product)
@@ -382,7 +409,21 @@ func (c *Client) SubscribeAll(product string, listener Listener) {
 		c.products = append(c.products, product)
 	}
 
-	c.listeners[product] = append(c.listeners[product], listener)
+	entry := &listenerEntry{
+		listener: listener,
+		product:  product,
+		wake:     make(chan struct{}, 1),
+	}
+	// The worker is tied to the client's ctx, so Close() cancellation tears it
+	// down. Spawning here (rather than at Start) means subscribers that register
+	// before Start still get a worker — wake signals just queue until update()
+	// fires for the first time.
+	c.wg.Add(1)
+	go func() {
+		defer c.wg.Done()
+		entry.run(c.ctx)
+	}()
+	c.listeners[product] = append(c.listeners[product], entry)
 }
 
 // Subscribe subscribes to config updates of a product.
@@ -418,7 +459,11 @@ func (c *Client) SetInstallerState(state *pbgo.ClientUpdater) {
 }
 
 func (c *Client) startFn() {
-	go c.pollLoop()
+	c.wg.Add(1)
+	go func() {
+		defer c.wg.Done()
+		c.pollLoop()
+	}()
 }
 
 // pollLoop is the main polling loop of the client.
@@ -476,13 +521,7 @@ func (c *Client) pollLoop() {
 						}
 					}
 				} else {
-					c.m.Lock()
-					for _, productListeners := range c.listeners {
-						for _, listener := range productListeners {
-							listener.OnStateChange(false)
-						}
-					}
-					c.m.Unlock()
+					c.broadcastStateChange(false)
 
 					c.lastUpdateError = err
 					c.backoffErrorCount = c.backoffPolicy.IncError(c.backoffErrorCount)
@@ -491,13 +530,7 @@ func (c *Client) pollLoop() {
 			} else {
 				log.Debugf("update successful: successful_first_run:%t, consecutive failures:%d", successfulFirstRun, consecutiveFailures)
 				if c.lastUpdateError != nil {
-					c.m.Lock()
-					for _, productListeners := range c.listeners {
-						for _, listener := range productListeners {
-							listener.OnStateChange(true)
-						}
-					}
-					c.m.Unlock()
+					c.broadcastStateChange(true)
 				}
 
 				// record and report that the first update was successful
@@ -526,6 +559,10 @@ func (c *Client) pollLoop() {
 // update requests a config updates from the agent via the secure grpc channel and
 // applies that update, informing any registered listeners of any config state changes
 // that occurred.
+//
+// Listener dispatch is asynchronous: each listener owns a worker goroutine,
+// and update() only enqueues a coalescing wake-up. update() never blocks on
+// listener work, so a slow listener cannot delay polling.
 func (c *Client) update() error {
 	req, err := c.newUpdateRequest()
 	if err != nil {
@@ -537,29 +574,55 @@ func (c *Client) update() error {
 		return err
 	}
 
+	// applyUpdate mutates c.state (configs map); the lock is held both to keep
+	// listeners stable for the snapshot/dispatch below and to serialize this
+	// mutation with any concurrent external readers of c.state (e.g. the
+	// public Client.GetConfigs, which also takes c.m).
+	c.m.Lock()
+	defer c.m.Unlock()
+
 	changedProducts, err := c.applyUpdate(response)
 	if err != nil {
 		return err
 	}
-	// We don't want to force the products to reload config if nothing changed
-	// in the latest update.
 	if len(changedProducts) == 0 {
 		return nil
 	}
 
-	c.m.Lock()
-	defer c.m.Unlock()
 	for product, productListeners := range c.listeners {
-		if containsProduct(changedProducts, product) {
-			for _, listener := range productListeners {
-				if response.ConfigStatus == pbgo.ConfigStatus_CONFIG_STATUS_OK ||
-					!listener.ShouldIgnoreSignatureExpiration() {
-					listener.OnUpdate(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
-				}
+		if !containsProduct(changedProducts, product) {
+			continue
+		}
+		// Snapshot once per product while still holding c.m — state.GetConfigs
+		// returns a fresh map (see pkg/remoteconfig/state/configs.go), so it is
+		// safe to hand off to workers without further synchronization.
+		configs := c.state.GetConfigs(product)
+		for _, entry := range productListeners {
+			if response.ConfigStatus == pbgo.ConfigStatus_CONFIG_STATUS_OK ||
+				!entry.listener.ShouldIgnoreSignatureExpiration() {
+				entry.scheduleUpdate(configs, c.state.UpdateApplyStatus)
 			}
 		}
 	}
 	return nil
+}
+
+// broadcastStateChange dispatches an OnStateChange signal to every registered
+// listener via its worker goroutine. Like update(), this is non-blocking — the
+// poll loop is never held up by listener work.
+func (c *Client) broadcastStateChange(connected bool) {
+	// Best-effort skip post-Close: the workers may have already exited and
+	// signaling them just leaves dead wake messages in their channels until GC.
+	if c.ctx.Err() != nil {
+		return
+	}
+	c.m.Lock()
+	defer c.m.Unlock()
+	for _, productListeners := range c.listeners {
+		for _, entry := range productListeners {
+			entry.scheduleStateChange(connected)
+		}
+	}
 }
 
 func containsProduct(products []string, product string) bool {
@@ -668,6 +731,114 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 	}
 
 	return req, nil
+}
+
+// listenerEntry holds a registered Listener and the dispatcher goroutine that
+// delivers events to it. One entry per Subscribe / SubscribeAll call.
+//
+// Dispatch contract:
+//   - Calls into the wrapped Listener (OnUpdate, OnStateChange) are always
+//     serialized for a given entry — the worker is single-threaded.
+//   - Wake signals are coalescing (wake has cap=1). If multiple poll
+//     iterations enqueue work before the worker drains, the worker sees only
+//     the most-recently-staged payload. This is the property that protects the
+//     poll loop from a slow listener: pending iterations collapse instead of
+//     piling up.
+//   - OnStateChange similarly carries only the latest known state. Rapid
+//     toggles can be lost; this matches the existing behaviour of
+//     pollLoop, which only fires OnStateChange on transitions.
+//   - When the client context is canceled (Client.Close), the worker exits
+//     after finishing any in-flight callback. A pending wake that arrives
+//     after cancellation is discarded — the worker prefers ctx.Done.
+type listenerEntry struct {
+	listener Listener
+	product  string
+
+	// wake signals "drain pending fields". cap=1 + non-blocking sender =
+	// coalescing semantics; queued signals don't grow unbounded.
+	wake chan struct{}
+
+	// Fields below are owned by the dispatcher (poll loop side) for writes and
+	// the worker for reads/resets. mu protects them.
+	mu                 sync.Mutex
+	pendingConfigs     map[string]state.RawConfig
+	pendingApplyStatus func(string, state.ApplyStatus)
+	pendingStateChange *bool
+}
+
+// scheduleUpdate stages a new OnUpdate payload and wakes the worker.
+// Called from the poll loop with c.m held.
+func (e *listenerEntry) scheduleUpdate(configs map[string]state.RawConfig, applyStatus func(string, state.ApplyStatus)) {
+	e.mu.Lock()
+	// Overwrite any not-yet-consumed payload: the freshest snapshot supersedes
+	// older ones — that's the point of coalescing.
+	e.pendingConfigs = configs
+	e.pendingApplyStatus = applyStatus
+	e.mu.Unlock()
+	e.signal()
+}
+
+// scheduleStateChange stages an OnStateChange and wakes the worker. The latest
+// staged value wins.
+func (e *listenerEntry) scheduleStateChange(connected bool) {
+	v := connected
+	e.mu.Lock()
+	e.pendingStateChange = &v
+	e.mu.Unlock()
+	e.signal()
+}
+
+func (e *listenerEntry) signal() {
+	select {
+	case e.wake <- struct{}{}:
+	default:
+		// A wake is already queued; the worker will pick up the freshest fields
+		// when it drains. Dropping here is intentional.
+	}
+}
+
+// run is the dispatcher loop. Exits when ctx is canceled.
+func (e *listenerEntry) run(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-e.wake:
+			e.mu.Lock()
+			configs := e.pendingConfigs
+			applyStatus := e.pendingApplyStatus
+			stateChange := e.pendingStateChange
+			e.pendingConfigs = nil
+			e.pendingApplyStatus = nil
+			e.pendingStateChange = nil
+			e.mu.Unlock()
+
+			e.deliver(stateChange, configs, applyStatus)
+		}
+	}
+}
+
+// deliver invokes the listener callbacks for a single drain. Wrapped in its
+// own function so the deferred recover() runs after each delivery, not at the
+// end of run(); a panicking listener stays subscribed and keeps receiving
+// future updates, and the process is not torn down by one buggy callback.
+//
+// OnStateChange runs first: it conveys whether RC is currently reachable,
+// which a listener may want to know before processing the accompanying
+// OnUpdate (if any).
+func (e *listenerEntry) deliver(stateChange *bool, configs map[string]state.RawConfig, applyStatus func(string, state.ApplyStatus)) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("remote-config listener for product=%s panicked, dropping this update: %v", e.product, r)
+		}
+	}()
+
+	if stateChange != nil {
+		e.listener.OnStateChange(*stateChange)
+	}
+	if configs != nil {
+		e.listener.OnUpdate(configs, applyStatus)
+	}
 }
 
 type listener struct {
