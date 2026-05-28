@@ -1293,6 +1293,7 @@ metrics:
       metric_type: gauge
       unit: kilobyte/second
       description: Per-link RX data throughput for the NVLink port
+      aggregation: absolute_usage
     tagsets:
       - device
       - nvlink
@@ -1313,6 +1314,7 @@ metrics:
       metric_type: gauge
       unit: kilobyte/second
       description: Total RX data throughput of all NVLINK links
+      aggregation: absolute_usage
     tagsets:
       - device
     validator:
