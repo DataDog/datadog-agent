@@ -203,10 +203,10 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 		"injector__pe_injection_context_cleanedup",
 
 		// eBPF metrics
-		"ebpf__core__load__success",
-		"ebpf__core__load__error",
-		"ebpf__core__remote_config__success",
-		"ebpf__core__remote_config__error",
+		"ebpf__core_load_success",
+		"ebpf__core_load_error",
+		"ebpf__core_remoteconfig_success",
+		"ebpf__core_remoteconfig_error",
 	))
 	if err != nil {
 		return nil, err

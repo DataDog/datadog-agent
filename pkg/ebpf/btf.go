@@ -181,8 +181,8 @@ func initBTFLoader(cfg *Config, rcclient rcclient.Component, telemetrycomp telem
 			rcSuccess telemetry.Counter
 			rcErrors  telemetry.Counter
 		}{
-			rcSuccess: telemetrycomp.NewCounter("ebpf__core__remoteconfig", "success", []string{"platform", "platform_version", "kernel", "arch"}, "count of CO-RE remote config BTF successes"),
-			rcErrors:  telemetrycomp.NewCounter("ebpf__core__remoteconfig", "error", []string{"platform", "platform_version", "kernel", "arch", "error_type"}, "count of CO-RE remote config BTF errors"),
+			rcSuccess: telemetrycomp.NewCounter("ebpf", "core_remoteconfig_success", []string{"platform", "platform_version", "kernel", "arch"}, "count of CO-RE remote config BTF successes"),
+			rcErrors:  telemetrycomp.NewCounter("ebpf", "core_remoteconfig_error", []string{"platform", "platform_version", "kernel", "arch", "error_type"}, "count of CO-RE remote config BTF errors"),
 		},
 	}
 	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, loadKernelSpec.Flush)

@@ -61,8 +61,8 @@ func coreLoader(cfg *Config, rcclient rcclient.Component, telemetrycomp telemetr
 			success telemetry.Counter
 			error   telemetry.Counter
 		}{
-			success: telemetrycomp.NewCounter("ebpf__core__load", "success", []string{"platform", "platform_version", "kernel", "arch", "asset", "btf_type"}, "count of CO-RE load successes"),
-			error:   telemetrycomp.NewCounter("ebpf__core__load", "error", []string{"platform", "platform_version", "kernel", "arch", "asset", "error_type"}, "count of CO-RE load errors"),
+			success: telemetrycomp.NewCounter("ebpf", "core_load_success", []string{"platform", "platform_version", "kernel", "arch", "asset", "btf_type"}, "count of CO-RE load successes"),
+			error:   telemetrycomp.NewCounter("ebpf", "core_load_error", []string{"platform", "platform_version", "kernel", "arch", "asset", "error_type"}, "count of CO-RE load errors"),
 		},
 	}
 	return core.loader, nil

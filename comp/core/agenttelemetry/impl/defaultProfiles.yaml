@@ -402,7 +402,7 @@ profiles:
     exclude:
       zero_metric: true
     metrics:
-      - name: ebpf.core.load.success
+      - name: ebpf.core_load_success
         preserve_tags:
           - platform
           - platform_version
@@ -410,7 +410,7 @@ profiles:
           - arch
           - asset
           - btf_type
-      - name: ebpf.core.load.error
+      - name: ebpf.core_load_error
         preserve_tags:
           - platform
           - platform_version
@@ -418,13 +418,13 @@ profiles:
           - arch
           - asset
           - error_type
-      - name: ebpf.core.remote_config.success
+      - name: ebpf.core_remoteconfig_success
         preserve_tags:
           - platform
           - platform_version
           - kernel
           - arch
-      - name: ebpf.core.remote_config.error
+      - name: ebpf.core_remoteconfig_error
         preserve_tags:
           - platform
           - platform_version
@@ -433,5 +433,5 @@ profiles:
           - error_type
   schedule:
     start_after: 300 # 5 minutes
-    iterations: 0
+    iterations: 1
     period: 900
