@@ -273,8 +273,8 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
-	if err := syncDDOTProcmgr(ctx, ctx.PackagePath); err != nil {
-		return fmt.Errorf("failed to sync DDOT process manager config: %w", err)
+	if err := writeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
+		return fmt.Errorf("failed to write DDOT process manager config: %w", err)
 	}
 
 	return nil
@@ -303,34 +303,18 @@ func copyFile(src, dst string, perm os.FileMode) error {
 	return os.WriteFile(dst, data, perm)
 }
 
-func syncDDOTProcmgr(ctx HookContext, installRoot string) error {
+func writeDDOTProcmgrConfig(installRoot string) error {
 	otelAgentPath := filepath.Join(installRoot, "ext", "ddot", "embedded", "bin", "otel-agent")
 	if _, err := os.Stat(otelAgentPath); err != nil {
 		return nil
 	}
-
 	processesDir := filepath.Join(installRoot, "processes.d")
 	config := strings.ReplaceAll(embedded.DDOTProcessConfig, "/opt/datadog-agent", installRoot)
-	if err := writeDDOTProcmgrConfig(processesDir, config); err != nil {
+	if err := os.MkdirAll(processesDir, 0755); err != nil {
 		return fmt.Errorf("failed to write DDOT procmgr config: %w", err)
 	}
-
-	unit := "datadog-agent-procmgr.service"
-	if strings.HasSuffix(installRoot, "/experiment") {
-		unit = "datadog-agent-procmgr-exp.service"
-	}
-	if err := systemd.RestartUnit(ctx, unit); err != nil {
-		return fmt.Errorf("failed to restart %s: %w", unit, err)
-	}
-	return nil
-}
-
-func writeDDOTProcmgrConfig(dir, content string) error {
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-	path := filepath.Join(dir, ddotProcmgrConfigName)
-	return os.WriteFile(path, []byte(content), 0644)
+	path := filepath.Join(processesDir, ddotProcmgrConfigName)
+	return os.WriteFile(path, []byte(config), 0644)
 }
 
 // modifyDDOTUnitFileForBackwardsCompatibility modifies the systemd unit file to remove "/ext/ddot" from paths
