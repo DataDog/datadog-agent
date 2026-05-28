@@ -310,20 +310,6 @@ func (d *Directory) SendTelemetry(sender statsd.ClientInterface) {
 	if count := d.profiles.Len(); count > 0 {
 		_ = sender.Gauge(metrics.MetricActivityDumpLocalStorageCount, float64(count), nil, 1.0)
 	}
-
-	for _, entry := range d.profiles.Values() {
-		var profileSize int64
-		for _, filePath := range entry.filePaths {
-			if info, err := os.Stat(filePath); err == nil {
-				profileSize += info.Size()
-			}
-		}
-		tags := []string{
-			"image_name:" + entry.selector.Image,
-			"image_tag:" + entry.selector.Tag,
-		}
-		_ = sender.Gauge(metrics.MetricSecurityProfileV2LocalStorageProfileSizeOnDisk, float64(profileSize), tags, 1.0)
-	}
 	d.profilesLock.RUnlock()
 
 	if count := d.deletedCount.Swap(0); count > 0 {

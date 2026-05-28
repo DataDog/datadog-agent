@@ -584,20 +584,10 @@ var (
 	// Tags: -
 	MetricSecurityProfileV2CleanupProfilesRemoved = newRuntimeMetric(".security_profile_v2.cleanup.profiles_removed")
 
-	// MetricSecurityProfileV2LocalStorageProfileSizeOnDisk is the name of the metric used to report the on-disk size of each
-	// individual security profile stored locally.
-	// Tags: image_name, image_tag
-	// Deprecated: use MetricSecurityProfileV2ProfileSize with storage:disk tag instead (manager_v2 path).
-	MetricSecurityProfileV2LocalStorageProfileSizeOnDisk = newAgentMetric(".security_profile_v2.local_storage.profile_size_on_disk")
-
-	// MetricSecurityProfileV2ProfileInMemorySize is the name of the metric used to report the estimated in-memory size
-	// of each active security profile.
-	// Tags: image_name, image_tag
-	// Deprecated: use MetricSecurityProfileV2ProfileSize with storage:ram tag instead (manager_v2 path).
-	MetricSecurityProfileV2ProfileInMemorySize = newRuntimeMetric(".security_profile_v2.profile_in_memory_size")
-
 	// MetricSecurityProfileV2ProfileSize is the unified size metric for active security profiles.
-	// Tags: image_name, image_tag, storage (ram|disk)
+	// Tags: profile_image_name, profile_image_tag, storage (ram|disk).
+	// Note: profile_image_* is used instead of image_* to avoid collision with Datadog's
+	// container auto-tagging (the submitting agent's own image_name gets stamped on metrics).
 	MetricSecurityProfileV2ProfileSize = newRuntimeMetric(".security_profile_v2.profile_size")
 
 	// Event sampling metrics (kernel-side)

@@ -609,8 +609,8 @@ func (m *ManagerV2) SendStats() error {
 	m.profilesLock.Lock()
 	for selector, p := range m.profiles {
 		tags := []string{
-			"image_name:" + selector.Image,
-			"image_tag:" + selector.Tag,
+			"profile_image_name:" + selector.Image,
+			"profile_image_tag:" + selector.Tag,
 			"storage:ram",
 		}
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(p.ComputeInMemorySize()), tags, 1.0); err != nil {
@@ -622,8 +622,8 @@ func (m *ManagerV2) SendStats() error {
 
 	for selector, size := range diskSizes {
 		tags := []string{
-			"image_name:" + selector.Image,
-			"image_tag:" + selector.Tag,
+			"profile_image_name:" + selector.Image,
+			"profile_image_tag:" + selector.Tag,
 			"storage:disk",
 		}
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(size), tags, 1.0); err != nil {
