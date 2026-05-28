@@ -148,7 +148,6 @@ exports_files(glob(
 # gazelle:exclude comp/dogstatsd/server/mock
 # gazelle:exclude comp/dogstatsd/status/fx
 # gazelle:exclude comp/dogstatsd/status/impl
-# gazelle:exclude comp/forwarder/eventplatform/fx
 # gazelle:exclude comp/forwarder/eventplatform/mock
 # gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
 # gazelle:exclude comp/haagent/fx
