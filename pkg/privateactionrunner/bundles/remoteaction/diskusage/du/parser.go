@@ -1,4 +1,4 @@
-//go:build private_runner_experimental && windows
+//go:build windows
 
 // Package du computes per-immediate-child disk usage for a target directory
 // on an NTFS volume by reading the raw $MFT. It is the production-grade
@@ -10,24 +10,30 @@
 //     to MFT indices via the Windows API (CreateFile, GetFileInformationByHandle,
 //     FindFirstFile). Exclusion paths are resolved to indices before the MFT
 //     walks so out-of-scope subtrees short-circuit cheaply.
+//
 //   - Pass 1 (modeAll, one full MFT stream): build dirParent (directory →
 //     parent idx), plus extSize and extParents per file base. Extension records
 //     are folded into this pass so their $DATA sizes and spillover $FILE_NAME
 //     parents are not rescanned. The bulk walk does not decode UTF-16 names.
+//
 //   - Classify scope: TreeDepth == 0 precomputes dirBucket via walkUp from
 //     target and immediate-child buckets; TreeDepth > 0 retains dirParent and
 //     tree-dir anchor maps for per-file chain walks in pass 2.
+//
 //   - Pass 2 (modeFileBaseOnly, or modeAll when TreeDepth > 0): tally in-use
 //     file base records into bucket / subtree / loose totals; optional top-N
 //     files, extension aggregation, and find predicates run inline in this
 //     callback. Tree mode opportunistically decodes names only for dirs at
 //     depth ≤ TreeDepth.
+//
 //   - Post-scan: assemble Result.Buckets and optional Result.Tree; resolve
 //     top-file paths via OpenFileByID (bounded, not part of the MFT stream).
 //
 //   - Pipelined ReadFile (double-buffered) overlaps disk I/O with parsing.
+//
 //   - parseMode header-only early exit skips the attribute walk on records a
 //     pass cannot use (see modeAll / modeFileBaseOnly below).
+//
 //   - No per-file info map: pass 2 unions base + extension parents and adds
 //     directly into totals. No per-file slice allocation on the hot path.
 //
@@ -97,7 +103,7 @@ func MFTIndex(ref uint64) uint64 {
 type mftEntry struct {
 	// hardlinkParents is the list of parent MFT indices from non-DOS
 	// $FILE_NAME attributes on this record. Used by the scan to attribute
-	// hardlinked files to multiple buckets.
+	// hard-linked files to multiple buckets.
 	hardlinkParents []uint64
 
 	// primaryParent is the parent MFT index of the highest-namespace-priority
@@ -179,9 +185,7 @@ func parseInto(record []byte, recordSize int, entry *mftEntry, mode parseMode) (
 	if binary.LittleEndian.Uint32(record[0:4]) != mftSignature {
 		return 0, errBadSignature
 	}
-	if err := applyFixups(record, recordSize); err != nil {
-		return 0, err
-	}
+	applyFixups(record, recordSize)
 
 	flags := binary.LittleEndian.Uint16(record[0x16:0x18])
 	firstAttrOffset := binary.LittleEndian.Uint16(record[0x14:0x16])
@@ -361,11 +365,11 @@ func parseNonResidentData(attr []byte, entry *mftEntry) {
 // applyFixups repairs the multi-sector transfer protection in an MFT record.
 // NTFS writes a 2-byte fixup at the end of each 512-byte sector and stores
 // the original values in the fixup array; we restore them in place.
-func applyFixups(record []byte, recordSize int) error {
+func applyFixups(record []byte, recordSize int) {
 	fixupOffset := binary.LittleEndian.Uint16(record[4:6])
 	fixupCount := binary.LittleEndian.Uint16(record[6:8])
 	if fixupCount < 2 || int(fixupOffset)+int(fixupCount)*2 > recordSize {
-		return nil
+		return
 	}
 	for i := uint16(1); i < fixupCount; i++ {
 		sectorEnd := int(i)*512 - 2
@@ -379,5 +383,4 @@ func applyFixups(record []byte, recordSize int) error {
 		record[sectorEnd] = record[fvOff]
 		record[sectorEnd+1] = record[fvOff+1]
 	}
-	return nil
 }

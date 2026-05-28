@@ -1,4 +1,4 @@
-//go:build private_runner_experimental && windows
+//go:build windows
 
 package du
 

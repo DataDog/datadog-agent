@@ -1,10 +1,11 @@
-//go:build private_runner_experimental && windows
+//go:build windows
 
 package du
 
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -335,9 +336,7 @@ func Scan(ctx context.Context, targetDir string, opts Options) (*Result, error) 
 			if sz > 0 {
 				extSize[baseRef] += sz
 			}
-			for _, p := range e.hardlinkParents {
-				extParents[baseRef] = append(extParents[baseRef], p)
-			}
+			extParents[baseRef] = append(extParents[baseRef], e.hardlinkParents...)
 
 			// Reconcile dir parent when $FILE_NAME spilled to an extension record.
 			if e.primaryParent == 0 {
@@ -815,9 +814,12 @@ func Scan(ctx context.Context, targetDir string, opts Options) (*Result, error) 
 		})
 		dirParent = nil
 	} else {
-		res.Buckets = make([]Bucket, len(children))
+		res.Buckets = make([]Bucket, 0, len(children))
 		for i, c := range children {
-			res.Buckets[i] = Bucket{Name: c.name, Size: bucketTotals[i], Reparse: c.reparse}
+			if _, ex := excludedIdxs[c.idx]; ex {
+				continue
+			}
+			res.Buckets = append(res.Buckets, Bucket{Name: c.name, Size: bucketTotals[i], Reparse: c.reparse})
 		}
 		sort.SliceStable(res.Buckets, func(i, j int) bool {
 			if res.Buckets[i].Size != res.Buckets[j].Size {
@@ -833,7 +835,6 @@ func Scan(ctx context.Context, targetDir string, opts Options) (*Result, error) 
 	dirBucket = nil
 	dirName = nil
 	anchorTotals = nil
-	treeDirsDepth = nil
 
 	res.Subtree = subtree
 	res.Loose = loose
@@ -960,7 +961,7 @@ func getMFTExtents(hVol windows.Handle, vol *volumeInfo) ([]extent, error) {
 		return nil, fmt.Errorf("read record 0: %w", err)
 	}
 	if binary.LittleEndian.Uint32(rec0[0:4]) != mftSignature {
-		return nil, fmt.Errorf("record 0 bad signature")
+		return nil, errors.New("record 0 bad signature")
 	}
 	applyFixups(rec0, vol.recordSize)
 
@@ -991,7 +992,7 @@ func getMFTExtents(hVol windows.Handle, vol *volumeInfo) ([]extent, error) {
 
 	if len(attrList) == 0 {
 		if len(inline) == 0 {
-			return nil, fmt.Errorf("no $DATA in record 0")
+			return nil, errors.New("no $DATA in record 0")
 		}
 		return inline, nil
 	}
