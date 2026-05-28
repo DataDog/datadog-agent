@@ -57,9 +57,6 @@ var nvlinkFieldsMetrics = []nvlinkFieldValueMetric{
 	{name: "nvlink.speed", fieldValueID: nvml.FI_DEV_NVLINK_GET_SPEED, priority: MediumLow, metricType: metrics.GaugeType},
 	{name: "nvlink.speed", fieldValueID: nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON, metricType: metrics.GaugeType, forceScopeIDValue: intToPointer(0)},
 
-	// -- NVLink connection info --
-	{name: "nvlink.nvswitch_connected", fieldValueID: nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT, metricType: metrics.GaugeType, forceScopeIDValue: intToPointer(0)},
-
 	// -- NVLink error counters --
 	{name: "nvlink.errors.crc.data", fieldValueID: nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
 	{name: "nvlink.errors.crc.flit", fieldValueID: nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},

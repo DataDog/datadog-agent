@@ -179,4 +179,7 @@ var allFieldMetrics = []fieldValueMetric{
 	{name: "c2c.errors.interrupt", fieldValueID: nvml.FI_DEV_C2C_LINK_ERROR_INTR, markUnsupportedOnInvalidArgument: true, metricType: metrics.GaugeType},
 	{name: "c2c.errors.replay", fieldValueID: nvml.FI_DEV_C2C_LINK_ERROR_REPLAY, markUnsupportedOnInvalidArgument: true, metricType: metrics.GaugeType},
 	{name: "c2c.errors.replay.b2b", fieldValueID: nvml.FI_DEV_C2C_LINK_ERROR_REPLAY_B2B, markUnsupportedOnInvalidArgument: true, metricType: metrics.GaugeType},
+
+	// -- NVSwitch connection --
+	{name: "nvlink.nvswitch_connected", fieldValueID: nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT, metricType: metrics.GaugeType},
 }
