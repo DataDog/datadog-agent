@@ -239,7 +239,7 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsLoaded(agentUnit, traceUnit, procmgrUnit, processUnit, probeUnit, securityUnit)
 	state.AssertUnitsEnabled(agentUnit)
-	state.AssertUnitsRunning(agentUnit, procmgrUnit, traceUnit) //cannot assert process-agent and system-probe because they may be running or dead based on timing
+	state.AssertUnitsRunning(agentUnit, traceUnit, procmgrUnit) //cannot assert process-agent and system-probe because they may be running or dead based on timing
 	state.AssertUnitsDead(securityUnit)
 
 	systemdPath := "/etc/systemd/system"
@@ -260,7 +260,7 @@ func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {
 		}
 	}
 
-	for _, unit := range []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit} {
+	for _, unit := range []string{agentUnit, traceUnit, procmgrUnit, processUnit, probeUnit, securityUnit} {
 		s.host.AssertUnitProperty(unit, "FragmentPath", filepath.Join(systemdPath, unit))
 	}
 }
@@ -290,12 +290,16 @@ func (s *packageDDOTSuite) assertDDOTUnits(state host.State, oldUnits bool) {
 	s.host.AssertUnitProperty(ddotUnit, "FragmentPath", filepath.Join(systemdPath, ddotUnit))
 }
 
+func (s *packageDDOTSuite) procmgrCLICmd(args string) string {
+	return "sudo -u dd-agent " + procmgrCLIBin + " " + args
+}
+
 func (s *packageDDOTSuite) waitForProcmgrSocket() {
 	s.T().Helper()
 
 	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		_, err := s.Env().RemoteHost.Execute("test -S " + procmgrSocket)
-		assert.NoError(t, err, "procmgr socket not available at %s", procmgrSocket)
+		_, err := s.Env().RemoteHost.Execute(s.procmgrCLICmd("status"))
+		assert.NoError(t, err, "procmgr not reachable via %s", procmgrSocket)
 	}, 2*time.Minute, 2*time.Second)
 }
 
@@ -307,7 +311,7 @@ func (s *packageDDOTSuite) assertDDOTManagedByProcmgr() {
 
 	s.waitForProcmgrSocket()
 
-	describeCmd := "sudo " + procmgrCLIBin + " describe " + ddotProcmgrProcessName
+	describeCmd := s.procmgrCLICmd("describe " + ddotProcmgrProcessName)
 	var runningSince time.Time
 	const minRunningDuration = 5 * time.Second
 	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
@@ -340,7 +344,9 @@ func (s *packageDDOTSuite) assertDDOTNotManagedByProcmgr() {
 	state := s.host.State()
 	state.AssertPathDoesNotExist(ddotProcmgrConfigPath)
 
-	describeCmd := "sudo " + procmgrCLIBin + " describe " + ddotProcmgrProcessName
+	s.waitForProcmgrSocket()
+
+	describeCmd := s.procmgrCLICmd("describe " + ddotProcmgrProcessName)
 	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
 		_, err := s.Env().RemoteHost.Execute(describeCmd)
 		assert.Error(t, err, "dd-procmgr should not manage DDOT after extension removal")
