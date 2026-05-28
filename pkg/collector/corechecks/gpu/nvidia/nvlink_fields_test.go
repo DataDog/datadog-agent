@@ -237,7 +237,7 @@ func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
 
 			// Run through RemoveDuplicateMetrics, same as the real check
 			deduped := RemoveDuplicateMetrics(map[CollectorName][]*Metric{
-				field: collected,
+				nvlinkFields: collected,
 			})
 
 			var nvlinkSpeed []*Metric
