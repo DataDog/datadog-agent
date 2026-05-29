@@ -24,6 +24,9 @@ import (
 extern int get_class_dd_wheel_return;
 extern rtloader_pyobject_t *get_class_dd_wheel_py_module;
 extern rtloader_pyobject_t *get_class_dd_wheel_py_class;
+extern int get_class_return;
+extern rtloader_pyobject_t *get_class_py_module;
+extern rtloader_pyobject_t *get_class_py_class;
 extern void reset_loader_mock();
 
 extern int has_error_return;
@@ -92,6 +95,27 @@ func testDiscoverConfig(t *testing.T) {
 	assert.Equal(t, 1, int(C.discover_config_calls))
 	assert.Equal(t, C.get_class_dd_wheel_py_class, C.discover_config_py_class)
 	assert.Equal(t, `{"id":"svc","host":"10.0.0.1","ports":[{"number":8080,"name":"http"}]}`, C.GoString(C.discover_config_service_json))
+}
+
+func testDiscoverConfigCustomCheck(t *testing.T) {
+	setupDiscoveryTest(t)
+	C.get_class_dd_wheel_return = 0
+	C.get_class_dd_wheel_py_module = nil
+	C.get_class_dd_wheel_py_class = nil
+	C.get_class_return = 1
+	C.get_class_py_module = newMockPyObjectPtr()
+	C.get_class_py_class = newMockPyObjectPtr()
+	C.discover_config_return = C.CString(`[{"url":"http://10.0.0.1:8080"}]`)
+
+	configs, err := DiscoverConfig("fake_check", DiscoveryService{
+		ID:    "svc",
+		Host:  "10.0.0.1",
+		Ports: []DiscoveryPort{},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, []integration.Data{integration.Data(`{"url":"http://10.0.0.1:8080"}`)}, configs)
+	assert.Equal(t, C.get_class_py_class, C.discover_config_py_class)
 }
 
 func testDiscoverConfigNoConfigs(t *testing.T) {

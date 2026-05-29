@@ -24,6 +24,10 @@ func TestDiscoverConfigNoConfigs(t *testing.T) {
 	testDiscoverConfigNoConfigs(t)
 }
 
+func TestDiscoverConfigCustomCheck(t *testing.T) {
+	testDiscoverConfigCustomCheck(t)
+}
+
 func TestDiscoverConfigRtloaderError(t *testing.T) {
 	testDiscoverConfigRtloaderError(t)
 }
