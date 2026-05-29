@@ -55,12 +55,37 @@ type ProcessNode struct {
 	Children     []*ProcessNode
 }
 
-// size returns the shallow heap size of this node: struct overhead plus key string fields.
+// size approximates the in-memory heap footprint of this process node, excluding the
+// child nodes it owns (those are counted separately by processNodeOwnActivitySize and
+// processSubtreeSizeBytes). It charges for:
+//   - struct overhead (covered by unsafe.Sizeof)
+//   - all major string content reachable from model.Process (argv, envs, exe path, comm,
+//     container tags, credentials, ...) which the previous shallow estimate ignored
+//   - backing arrays of the Sockets/Syscalls/Capabilities/Children/MatchedRules slices
+//   - the bucket overhead of the Files / DNSNames / IMDSEvents / NetworkDevices maps
+//   - the NodeBase.seen slice
+//
+// Map/slice values themselves (the *FileNode, *DNSNode, etc.) are NOT counted here —
+// each child node's own size() is summed by the activity-tree size accounting paths.
 func (pn *ProcessNode) size() int64 {
 	s := int64(unsafe.Sizeof(*pn))
-	s += int64(len(pn.Process.FileEvent.PathnameStr))
-	s += int64(len(pn.Process.FileEvent.BasenameStr))
-	s += int64(len(pn.Process.Argv0))
+	s += seenBytes(pn.NodeBase)
+	s += processStringsBytes(&pn.Process)
+
+	// Backing arrays for direct-children slices. We charge for the slice slots only;
+	// the nodes pointed to are accounted for by their own size() invocations.
+	s += sliceBackingBytes(cap(pn.Sockets), unsafe.Sizeof((*SocketNode)(nil)))
+	s += sliceBackingBytes(cap(pn.Syscalls), unsafe.Sizeof((*SyscallNode)(nil)))
+	s += sliceBackingBytes(cap(pn.Capabilities), unsafe.Sizeof((*CapabilityNode)(nil)))
+	s += sliceBackingBytes(cap(pn.Children), unsafe.Sizeof((*ProcessNode)(nil)))
+	s += sliceBackingBytes(cap(pn.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
+
+	// Map bucket overhead. We use stringMapBytes for string-keyed maps (it adds the key
+	// content too) and fixedKeyMapBytes for struct-keyed maps where the key has no heap.
+	s += stringMapBytes(pn.Files)
+	s += stringMapBytes(pn.DNSNames)
+	s += fixedKeyMapBytes(pn.IMDSEvents)
+	s += fixedKeyMapBytes(pn.NetworkDevices)
 	return s
 }
 
@@ -383,8 +408,11 @@ func (pn *ProcessNode) InsertNetworkFlowMonitorEvent(evt *model.Event, imageTagI
 
 	if !dryRun {
 		newNode := NewNetworkDeviceNode(&evt.NetworkFlowMonitor.Device, generationType)
-		newNode.insertNetworkFlowMonitorEvent(&evt.NetworkFlowMonitor, evt, dryRun, evt.Rules, generationType, imageTagID, stats)
 		pn.NetworkDevices[evt.NetworkFlowMonitor.Device] = newNode
+		// Charge for the device struct itself before its first flow is inserted; the
+		// flow's own size is added by insertNetworkFlowMonitorEvent below.
+		stats.SizeBytes += newNode.size()
+		newNode.insertNetworkFlowMonitorEvent(&evt.NetworkFlowMonitor, evt, dryRun, evt.Rules, generationType, imageTagID, stats)
 	}
 	return true
 }
@@ -540,10 +568,13 @@ func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKe
 	// Evict image tag from network device nodes
 	for key, device := range pn.NetworkDevices {
 		shouldRemove, deviceRemoved := device.evictImageTag(imageTagID)
+		removed += deviceRemoved
 		if shouldRemove {
+			// Account for the device wrapper itself, which mirrors the size charged
+			// when the device was first inserted in InsertNetworkFlowMonitorEvent.
+			removed += device.size()
 			delete(pn.NetworkDevices, key)
 		}
-		removed += deviceRemoved
 	}
 
 	newSockets := []*SocketNode{}

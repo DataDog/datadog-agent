@@ -35,10 +35,25 @@ type SocketNode struct {
 	Bind           []*BindNode
 }
 
-// size returns the shallow heap size of this node.
+// size approximates this node's heap footprint, including all owned BindNodes.
+// Unlike the *Node siblings, SocketNode's children (BindNodes) are not separately walked
+// by the activity-tree size accounting, so they are folded in here. We count the Bind
+// slice's backing array plus each BindNode's struct, IP string, MatchedRules backing
+// array, and NodeBase.seen slice.
 func (sn *SocketNode) size() int64 {
 	s := int64(unsafe.Sizeof(*sn))
+	s += seenBytes(sn.NodeBase)
 	s += int64(len(sn.Family))
+	s += sliceBackingBytes(cap(sn.Bind), unsafe.Sizeof((*BindNode)(nil)))
+	for _, bind := range sn.Bind {
+		if bind == nil {
+			continue
+		}
+		s += int64(unsafe.Sizeof(*bind))
+		s += seenBytes(bind.NodeBase)
+		s += int64(len(bind.IP))
+		s += sliceBackingBytes(cap(bind.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
+	}
 	return s
 }
 

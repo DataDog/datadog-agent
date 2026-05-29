@@ -1003,6 +1003,7 @@ func (at *ActivityTree) recomputeSizeBytes() {
 			total += cap.size()
 		}
 		for _, device := range pn.NetworkDevices {
+			total += device.size()
 			for _, flow := range device.FlowNodes {
 				total += flow.size()
 			}
@@ -1045,6 +1046,7 @@ func processNodeOwnActivitySize(pn *ProcessNode) int64 {
 		total += cap.size()
 	}
 	for _, device := range pn.NetworkDevices {
+		total += device.size()
 		for _, flow := range device.FlowNodes {
 			total += flow.size()
 		}

@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -21,6 +22,16 @@ type NetworkDeviceNode struct {
 	Context        model.NetworkDeviceContext
 	// FlowNodes are indexed by source IPPortContexts
 	FlowNodes map[model.FiveTuple]*FlowNode
+}
+
+// size approximates this node's own heap footprint: struct overhead, the FlowNodes map
+// bucket overhead, and the MatchedRules backing slice. FlowNodes themselves are walked
+// separately by the activity-tree size accounting.
+func (netdevice *NetworkDeviceNode) size() int64 {
+	s := int64(unsafe.Sizeof(*netdevice))
+	s += fixedKeyMapBytes(netdevice.FlowNodes)
+	s += sliceBackingBytes(cap(netdevice.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
+	return s
 }
 
 // NewNetworkDeviceNode returns a new NetworkDeviceNode instance

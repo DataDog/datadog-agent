@@ -20,9 +20,10 @@ type SyscallNode struct {
 	Syscall        int
 }
 
-// size returns the shallow heap size of this node.
+// size approximates this node's heap footprint: struct overhead plus the NodeBase.seen
+// backing slice. No other heap-allocated fields.
 func (sn *SyscallNode) size() int64 {
-	return int64(unsafe.Sizeof(*sn))
+	return int64(unsafe.Sizeof(*sn)) + seenBytes(sn.NodeBase)
 }
 
 // NewSyscallNode returns a new SyscallNode instance

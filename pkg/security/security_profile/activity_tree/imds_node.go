@@ -22,12 +22,24 @@ type IMDSNode struct {
 	Event          model.IMDSEvent
 }
 
-// size returns the shallow heap size of this node.
+// size approximates this node's heap footprint: struct overhead plus every IMDSEvent
+// string (cloud provider, URL, host, user agent, server header, AWS credential fields)
+// and the MatchedRules + NodeBase backing slices.
 func (in *IMDSNode) size() int64 {
 	s := int64(unsafe.Sizeof(*in))
-	s += int64(len(in.Event.CloudProvider))
+	s += seenBytes(in.NodeBase)
 	s += int64(len(in.Event.Type))
+	s += int64(len(in.Event.CloudProvider))
 	s += int64(len(in.Event.URL))
+	s += int64(len(in.Event.Host))
+	s += int64(len(in.Event.UserAgent))
+	s += int64(len(in.Event.Server))
+	s += int64(len(in.Event.AWS.SecurityCredentials.Code))
+	s += int64(len(in.Event.AWS.SecurityCredentials.Type))
+	s += int64(len(in.Event.AWS.SecurityCredentials.AccessKeyID))
+	s += int64(len(in.Event.AWS.SecurityCredentials.LastUpdated))
+	s += int64(len(in.Event.AWS.SecurityCredentials.ExpirationRaw))
+	s += sliceBackingBytes(cap(in.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
 	return s
 }
 

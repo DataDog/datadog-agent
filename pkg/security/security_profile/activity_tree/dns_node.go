@@ -24,9 +24,15 @@ type DNSNode struct {
 	Requests       []model.DNSEvent
 }
 
-// size returns the shallow heap size of this node.
+// size approximates this node's heap footprint: struct overhead, the backing arrays of
+// Requests and MatchedRules, each request's Question.Name string, and the NodeBase.seen
+// slice. DNSEvent itself is a value type embedded in the Requests slice so its scalar
+// fields are already covered by the slice's element-size accounting.
 func (dn *DNSNode) size() int64 {
 	s := int64(unsafe.Sizeof(*dn))
+	s += seenBytes(dn.NodeBase)
+	s += sliceBackingBytes(cap(dn.Requests), unsafe.Sizeof(model.DNSEvent{}))
+	s += sliceBackingBytes(cap(dn.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
 	for _, req := range dn.Requests {
 		s += int64(len(req.Question.Name))
 	}

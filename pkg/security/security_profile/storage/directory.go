@@ -62,9 +62,33 @@ func createDir(dir string) error {
 	return nil
 }
 
-func fileHasProfileExtension(path string) bool {
-	format, err := config.ParseStorageFormat(filepath.Ext(path))
-	return err == nil && format == config.Profile
+// fileHasKnownStorageExtension returns true when the file extension matches any of the
+// configured storage formats. The Directory needs to track every persisted format so that
+// LRU eviction (which deletes files from disk) and the per-selector disk metric remain
+// accurate regardless of which format is configured.
+func fileHasKnownStorageExtension(path string) bool {
+	_, err := config.ParseStorageFormat(filepath.Ext(path))
+	return err == nil
+}
+
+// pickProfileFile returns the file path best suited to decode back into a Profile.
+// .profile is preferred because the SecurityProfile proto round-trips the selector
+// directly; the other formats (SecDump) only carry it indirectly through tags.
+func pickProfileFile(paths []string) string {
+	var fallback string
+	for _, path := range paths {
+		format, err := config.ParseStorageFormat(filepath.Ext(path))
+		if err != nil {
+			continue
+		}
+		if format == config.Profile {
+			return path
+		}
+		if fallback == "" {
+			fallback = path
+		}
+	}
+	return fallback
 }
 
 type profileFile struct {
@@ -103,7 +127,7 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 
 	var fileSlice []*profileFile
 	for _, file := range files {
-		if !fileHasProfileExtension(file.Name()) {
+		if !fileHasKnownStorageExtension(file.Name()) {
 			continue
 		}
 
@@ -134,22 +158,23 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 	})
 
 	for _, file := range fileSlice {
-		pProto, err := profile.LoadProtoFromFile(file.path)
-		if err != nil {
+		p := profile.New()
+		if err := p.Decode(file.path); err != nil {
 			seclog.Warnf("failed to load profile from file [%s]: %s", file.path, err)
 			continue
 		}
-		if pProto.Metadata == nil {
+		if p.Metadata.Name == "" {
 			seclog.Warnf("profile loaded from file [%s] has no metadata", file.path)
 			continue
 		}
-		if pProto.Selector == nil {
+		selector := p.GetWorkloadSelector()
+		if selector == nil {
 			seclog.Warnf("profile loaded from file [%s] has no selector", file.path)
 			continue
 		}
 
-		profiles.Add(pProto.Metadata.Name, &profileEntry{
-			selector:  cgroupModel.ProtoToWorkloadSelector(pProto.Selector),
+		profiles.Add(p.Metadata.Name, &profileEntry{
+			selector:  *selector,
 			filePaths: []string{file.path},
 		})
 	}
@@ -238,18 +263,21 @@ func (d *Directory) Load(wls *cgroupModel.WorkloadSelector, p *profile.Profile) 
 	defer d.profilesLock.RUnlock()
 
 	for _, entry := range d.profiles.Values() {
-		if entry.selector.Match(*wls) {
-			for _, file := range entry.filePaths {
-				if !fileHasProfileExtension(file) {
-					continue
-				}
-
-				if err := p.Decode(file); err != nil {
-					return false, fmt.Errorf("failed to decode profile [%s]: %s", file, err)
-				}
-				return true, nil
-			}
+		if !entry.selector.Match(*wls) {
+			continue
 		}
+
+		// Prefer the .profile format because it round-trips the selector explicitly via the
+		// SecurityProfile proto. Other formats (json/protobuf/dot) encode SecDump, which only
+		// preserves the selector indirectly through tags.
+		chosen := pickProfileFile(entry.filePaths)
+		if chosen == "" {
+			continue
+		}
+		if err := p.Decode(chosen); err != nil {
+			return false, fmt.Errorf("failed to decode profile [%s]: %s", chosen, err)
+		}
+		return true, nil
 	}
 
 	return false, nil
