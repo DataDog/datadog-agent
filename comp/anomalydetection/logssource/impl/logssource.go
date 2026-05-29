@@ -117,7 +117,11 @@ func NewComponent(deps Requires) (Provides, error) {
 		pauseFilter = fs.GetContainerPausedFilters()
 	}
 
-	sampler := newLogSamplerFromConfig(deps.Config, nil)
+	var samplerOnDropped func(source, priority string)
+	if obsOk {
+		samplerOnDropped = obs.RecordSamplerDropped
+	}
+	sampler := newLogSamplerFromConfig(deps.Config, samplerOnDropped)
 	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle, sampler)
 	logSources := sources.NewLogSources()
 	tracker := tailers.NewTailerTracker()

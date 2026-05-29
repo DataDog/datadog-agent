@@ -162,6 +162,7 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 type disabledObserver struct{}
 
 func (*disabledObserver) GetHandle(_ string) observerdef.Handle { return &noopObserveHandle{} }
+func (*disabledObserver) RecordSamplerDropped(_, _ string)      {}
 func (*disabledObserver) DumpMetrics(_ string) error            { return nil }
 
 // NewComponent creates an observer.Component.
@@ -595,6 +596,12 @@ func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView)
 }
 func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView) {}
 
+// RecordSamplerDropped increments the rate-limiter dropped counter.
+func (o *observerImpl) RecordSamplerDropped(source, priority string) {
+	if o.telemetry != nil {
+		o.telemetry.recordSamplerDropped(source, priority)
+	}
+}
 
 // DumpMetrics writes all stored metrics to the specified file as JSON.
 func (o *observerImpl) DumpMetrics(path string) error {
