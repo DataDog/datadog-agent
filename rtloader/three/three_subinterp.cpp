@@ -235,6 +235,16 @@ bool Three::_setupSubInterpClass(const std::string &module_name, PyObject *&sub_
         return false;
     }
 
+    // _pydantic_core does not support sub-interpreters, so skip config model
+    // validation by replacing load_configuration_models with a no-op before
+    // instantiation. AgentCheck.__init__ captures self.load_configuration_models
+    // as a bound method at construction time, so this patch must happen here.
+    if (PyRun_SimpleString(
+            "from datadog_checks.checks import AgentCheck\n"
+            "AgentCheck.load_configuration_models = lambda self: None\n") != 0) {
+        PyErr_Clear();
+    }
+
     // Find the AgentCheck subclass in the re-imported module.
     sub_klass = _findSubclassOf(sub_base, sub_module);
     Py_DECREF(sub_base);
