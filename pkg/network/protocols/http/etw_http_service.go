@@ -478,7 +478,6 @@ func completeReqRespTracking(eventInfo *etw.DDEventRecord, httpConnLink *HttpCon
 		// <<<MORE ETW HttpService DETAILS>>>
 		// log.Infof("  HeaderLength:   %v\n", httpConnLink.http.HeaderLength)
 		// log.Infof("  ContentLength:  %v\n", httpConnLink.http.ContentLength)
-		log.Infof("\n")
 	} else if HttpServiceLogVerbosity == HttpServiceLogVerbose {
 		log.Infof("%v. %v L[%v], R[%v], F[%v], P[%v], C[%v], V[%v], U[%v]\n",
 			completedRequestCount,

@@ -178,7 +178,6 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		}
 		return nil, err
 	}
-	log.Infof("initialized ebpf conntracker")
 	return e, nil
 }
 
