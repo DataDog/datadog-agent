@@ -256,6 +256,7 @@ func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
 
 func TestNVlinkFieldsCollectorTreatsInvalidArgumentAsUnsupportedOnlyWhenConfigured(t *testing.T) {
 	returnValues := copyMockFieldValues()
+	returnValues[nvml.FI_DEV_NVLINK_LINK_COUNT] = 1
 	device := setupMockDevice(t, func(d *mock.Device) *mock.Device {
 		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
 			for i := range fv {
@@ -276,11 +277,11 @@ func TestNVlinkFieldsCollectorTreatsInvalidArgumentAsUnsupportedOnlyWhenConfigur
 	collector, err := newNVLinkFieldsCollector(device, nil)
 	require.NoError(t, err)
 
-	fc, ok := collector.(*fieldsCollector)
-	require.True(t, ok, "expected *fieldsCollector")
+	fc, ok := collector.(*nvlinkFieldsCollector)
+	require.True(t, ok, "expected *nvlinkFieldsCollector")
 
 	foundNvlinkEffective := false
-	for _, metric := range fc.fieldMetrics {
+	for _, metric := range fc.metrics {
 		switch metric.name {
 		case "nvlink.errors.effective":
 			foundNvlinkEffective = true
