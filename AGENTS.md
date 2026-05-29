@@ -254,11 +254,7 @@ TODO: Describe specific strategies for managing modules, including any invoke
 tasks.
 
 ## Platform Support
-- **Linux**: Full support (amd64, arm64)
-- **Windows**: Full support (Server 2016+, Windows 10+)
-- **macOS**: Supported
-- **AIX**: No support in this codebase yet, but we are working towards it.
-- **Container**: Docker, Kubernetes, ECS, containerd, and more
+Ships on Linux (amd64, arm64), Windows (amd64), and macOS (amd64, arm64), plus containers (Docker/Kubernetes/ECS/containerd). AIX is not yet supported but in progress.
 
 ## Best Practices
 1. **Always run linters before committing**: `dda inv linter.go`
