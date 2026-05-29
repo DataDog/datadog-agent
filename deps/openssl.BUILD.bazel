@@ -44,11 +44,13 @@ DEFAULT_CONFIG = [
 WIN_LIBSSL = "libssl-3-x64.dll"
 WIN_LIBCRYPTO = "libcrypto-3-x64.dll"
 
-LINUX_LIBSSL = "libssl.so"
-LINUX_LIBCRYPTO = "libcrypto.so"
+# We want the filenames matching the library SONAMEs here such that we can run targets from the bazel tree
+# Hence the inclusion of the major version
+LINUX_LIBSSL = "libssl.so.3"
+LINUX_LIBCRYPTO = "libcrypto.so.3"
 
-MACOS_LIBSSL = "libssl.dylib"
-MACOS_LIBCRYPTO = "libcrypto.dylib"
+MACOS_LIBSSL = "libssl.3.dylib"
+MACOS_LIBCRYPTO = "libcrypto.3.dylib"
 
 configure_make(
     name = "openssl",
@@ -114,6 +116,9 @@ configure_make(
         ],
     }),
     build_data = select({
+        "@platforms//os:windows": [
+            "@winlibs_mingw64//:windres",
+        ],
         "@platforms//os:macos": [
             # Pull hermetic llvm-ar into the sandbox so $(execpath) below resolves.
             "@llvm_toolchain_llvm//:ar",
@@ -121,6 +126,12 @@ configure_make(
         "//conditions:default": [],
     }),
     env = select({
+        "@platforms//os:windows": {
+            # Configure resolves RC from RC or WINDRES, then emits it into Makefile.
+            # Keep both for clarity and to avoid tool lookup through PATH.
+            "RC": "$(execpath @winlibs_mingw64//:windres)",
+            "WINDRES": "$(execpath @winlibs_mingw64//:windres)",
+        },
         "@platforms//os:macos": {
             # `ar` defaults to `libtool` on darwin toolchains, which doesn't support the incremental
             # build of static archives that the openssl build system relies upon

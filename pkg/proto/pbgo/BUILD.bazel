@@ -1,0 +1,18 @@
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+
+write_source_files(
+    name = "write_all",
+    additional_update_targets = [
+        "//pkg/proto/pbgo/core:write_pb_go",
+        "//pkg/proto/pbgo/dogstatsdhttp:write_pb_go",
+        "//pkg/proto/pbgo/languagedetection:write_pb_go",
+        "//pkg/proto/pbgo/mocks/core:api_mockgen",
+        "//pkg/proto/pbgo/privateactionrunner/actionsclient:write_pb_go",
+        "//pkg/proto/pbgo/privateactionrunner/errorcode:write_pb_go",
+        "//pkg/proto/pbgo/privateactionrunner/privateactions:write_pb_go",
+        "//pkg/proto/pbgo/process:write_pb_go",
+        "//pkg/proto/pbgo/sbom:write_pb_go",
+        "//pkg/proto/pbgo/trace:write_pb_go",
+        "//pkg/proto/pbgo/trace/idx:write_pb_go",
+    ],
+)
