@@ -179,21 +179,10 @@ Go build tags control feature inclusion, some examples are:
 
 #### Fetching CI job logs locally
 
-`gitlab.ddbuild.io` is gated behind Google OAuth, so `curl` and similar
-unauthenticated HTTP clients receive an auth redirect instead of the trace.
-Use the in-repo invoke task to print a job's full log:
-
-```bash
-dda inv gitlab.print-job-trace <job_id>
-```
-
-The job ID is the trailing path component of any
-`https://gitlab.ddbuild.io/datadog/datadog-agent/builds/<job_id>` URL —
-those appear in the `dd-gitlab/*` rows of `gh pr checks <pr_number> --repo
-DataDog/datadog-agent`. Authentication is handled by `dda` via the
-`agent-ci-gitlab-short-lived-tokens` feature flag, so no manual token setup
-is required. Run `dda inv -l | grep gitlab` for related tasks
-(`gitlab.print-job`, `gitlab.print-pipeline`, ...).
+`gitlab.ddbuild.io` is OAuth-gated, so `curl` can't fetch traces. Use
+`dda inv gitlab.print-job-trace <job_id>` (`dda` handles auth). The `<job_id>`
+is the trailing path of a `.../builds/<job_id>` URL, found in the `dd-gitlab/*`
+rows of `gh pr checks <pr_number>`. See `dda inv -l | grep gitlab` for more.
 
 ### GitHub Actions
 Secondary CI: pull-request/repository-configuration checks and release automation.
