@@ -245,7 +245,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	//     - Sub-values are endpoint URLs
 	//     - Each URL maps to an array of API keys
 	//
-	//   Format B: []map[string]interface{} a list of structured endpoints will well-defined fields
+	//   Format B: []map[string]interface{} a list of structured endpoints with well-defined fields
 	//     - Fields include `api_key` which should be scrubbed, and `host`, `port`, etc. which shouldn't
 	//     - Used by `logs_config.additional_endpoints`
 	//
@@ -521,7 +521,8 @@ func ScrubDataObj(data *interface{}) {
 // scrubAllLeafValues recursively walks data and replaces every leaf value with
 // defaultReplacement while preserving the surrounding map and slice structure.
 // Nil values are preserved so YAML round-trips don't materialize "********" in
-// place of an absent value.
+// place of an absent value. ENC[] secret-backend placeholders are also preserved
+// so they remain useful in flare output.
 func scrubAllLeafValues(data interface{}) interface{} {
 	switch v := data.(type) {
 	case map[string]interface{}:
@@ -541,6 +542,13 @@ func scrubAllLeafValues(data interface{}) interface{} {
 		return v
 	case nil:
 		return nil
+	case string:
+		// Preserve ENC[] secret-backend placeholders, matching ScrubDataObj's
+		// handling of ENC values elsewhere so flares keep useful diagnostics.
+		if IsEnc(v) {
+			return v
+		}
+		return defaultReplacement
 	default:
 		return defaultReplacement
 	}

@@ -209,6 +209,22 @@ additional_endpoints:
 		assert.Contains(t, scrubbed, "site: datadoghq.com")
 	})
 
+	t.Run("URL-keyed map: ENC placeholders are preserved", func(t *testing.T) {
+		input := `additional_endpoints:
+  "https://mydomain.datadoghq.com":
+    - ENC[my_secret_key]
+    - apikey3
+`
+		expected := `additional_endpoints:
+  "https://mydomain.datadoghq.com":
+    - ENC[my_secret_key]
+    - "********"
+`
+		scrubbed, err := ScrubYamlString(input)
+		require.NoError(t, err)
+		require.YAMLEq(t, expected, scrubbed)
+	})
+
 	t.Run("list-of-endpoint-structs: only api_key is scrubbed", func(t *testing.T) {
 		// This is the format used by logs_config.additional_endpoints and other
 		// bindEnvAndSetLogsConfigKeys-prefixed bindings.
