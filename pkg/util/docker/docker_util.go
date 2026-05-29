@@ -19,6 +19,11 @@ import (
 	"sync"
 	"time"
 
+	cerrdefs "github.com/containerd/errdefs"
+	dcontainer "github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/image"
+	"github.com/moby/moby/client"
+
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -27,10 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	cerrdefs "github.com/containerd/errdefs"
-	dcontainer "github.com/moby/moby/api/types/container"
-	"github.com/moby/moby/api/types/image"
-	"github.com/moby/moby/client"
 )
 
 // DockerUtil wraps interactions with a local docker API.
@@ -88,7 +89,7 @@ func ConnectToDocker(ctx context.Context) (*client.Client, error) {
 	// to verify availability. safeInfo tolerates daemons that emit invalid
 	// CIDRs in /info's DefaultAddressPools, which would otherwise fail the
 	// strict netip.Prefix decoding introduced by the moby v29 client.
-	if _, err := safeInfo(ctx, cli); err != nil {
+	if _, err := cli.Ping(ctx, client.PingOptions{}); err != nil {
 		return nil, err
 	}
 
