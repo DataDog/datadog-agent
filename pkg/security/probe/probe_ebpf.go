@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -1662,12 +1663,14 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 					Payload: trimRightZeros(data[offset:]),
 				}
 			} else {
-				p.addToDNSResolver(p.dnsLayer)
+				ips, cnames := p.addToDNSResolver(p.dnsLayer)
 				event.Type = uint32(model.DNSEventType) // remap to regular DNS event type
 				event.DNS = model.DNSEvent{
 					ID: p.dnsLayer.ID,
 					Response: &model.DNSResponse{
 						ResponseCode: uint8(p.dnsLayer.ResponseCode),
+						IPs:          ips,
+						CNames:       cnames,
 					},
 				}
 				if len(p.dnsLayer.Questions) != 0 {
@@ -2590,8 +2593,14 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 		return nil, false, err
 	}
 
-	if err := applyDNSDefaultDropMaskFromRules(p.Manager, rs); err != nil {
-		seclog.Warnf("failed to apply DNS default-drop mask: %v", err)
+	if p.config.Probe.EnableDiscarders {
+		if err := applyDNSDefaultDropMaskFromRules(p.Manager, rs); err != nil {
+			seclog.Warnf("failed to apply DNS default-drop mask: %v", err)
+		}
+	} else {
+		if err := setDNSDiscarderMask(p.Manager, 0); err != nil {
+			seclog.Warnf("failed to disable DNS default-drop mask: %v", err)
+		}
 	}
 
 	fpb := newFilterPolicyBlock()
@@ -3781,19 +3790,51 @@ func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snaps
 	return event
 }
 
-func (p *EBPFProbe) addToDNSResolver(dnsLayer *layers.DNS) {
+func (p *EBPFProbe) addToDNSResolver(dnsLayer *layers.DNS) ([]net.IPNet, []string) {
+	var ips []net.IPNet
+	var cnames []string
+
 	for _, answer := range dnsLayer.Answers {
-		if answer.Type == layers.DNSTypeCNAME {
-			p.Resolvers.DNSResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
-		} else if answer.Type == layers.DNSTypeA || answer.Type == layers.DNSTypeAAAA {
+		switch answer.Type {
+		case layers.DNSTypeCNAME:
+			cname := string(answer.CNAME)
+			cnames = append(cnames, cname)
+			p.Resolvers.DNSResolver.AddNewCname(cname, string(answer.Name))
+		case layers.DNSTypeA, layers.DNSTypeAAAA:
 			ip, ok := netip.AddrFromSlice(answer.IP)
 			if ok {
 				p.Resolvers.DNSResolver.AddNew(string(answer.Name), ip)
 			} else {
-				seclog.Errorf("DNS response with an invalid IP received: %v", ip)
+				seclog.Errorf("DNS response with an invalid IP received: %v", answer.IP)
+				continue
+			}
+
+			if ipNet, ok := dnsAnswerIPNet(answer); ok {
+				ips = append(ips, ipNet)
 			}
 		}
 	}
+
+	return ips, cnames
+}
+
+func dnsAnswerIPNet(answer layers.DNSResourceRecord) (net.IPNet, bool) {
+	switch answer.Type {
+	case layers.DNSTypeA:
+		ip := answer.IP.To4()
+		if ip == nil {
+			return net.IPNet{}, false
+		}
+		return net.IPNet{IP: append(net.IP(nil), ip...), Mask: net.CIDRMask(32, 32)}, true
+	case layers.DNSTypeAAAA:
+		ip := answer.IP.To16()
+		if ip == nil || ip.To4() != nil {
+			return net.IPNet{}, false
+		}
+		return net.IPNet{IP: append(net.IP(nil), ip...), Mask: net.CIDRMask(128, 128)}, true
+	}
+
+	return net.IPNet{}, false
 }
 
 func trimRightZeros(b []byte) []byte {

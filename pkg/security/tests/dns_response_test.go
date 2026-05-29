@@ -58,7 +58,7 @@ func TestDNSResponse(t *testing.T) {
 	ruleDefsRcodeOK := []*rules.RuleDefinition{
 		{
 			ID:         "dns_response_ok",
-			Expression: `dns.response.code == NOERROR && dns.question.name == "www.datadoghq.eu"`,
+			Expression: `dns.response.code == NOERROR && dns.question.name == "www.datadoghq.eu" && dns.response.ips in [34.149.115.158]`,
 		},
 	}
 
@@ -89,6 +89,9 @@ func TestDNSResponse(t *testing.T) {
 			assert.Equal(t, "dns", event.GetType(), "wrong event type")
 			assert.Equal(t, "www.datadoghq.eu", event.DNS.Question.Name, "wrong domain name")
 			assert.Equal(t, uint8(model.DNSResponseCodeConstants["NOERROR"]), event.DNS.Response.ResponseCode, "wrong response code")
+			assert.Len(t, event.DNS.Response.IPs, 1, "wrong resolved IP count")
+			assert.Equal(t, "34.149.115.158", event.DNS.Response.IPs[0].IP.String(), "wrong resolved IP")
+			assert.Empty(t, event.DNS.Response.CNames, "unexpected CNAMEs")
 
 			test.validateDNSSchema(t, event)
 		}, "dns_response_ok")

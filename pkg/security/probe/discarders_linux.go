@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -589,7 +590,7 @@ func applyDNSDefaultDropMaskFromRules(manager *manager.Manager, rs *rules.RuleSe
 				isDiscarder = false
 				break
 			}
-			if ok {
+			if ok || ruleNeedsFullDNSResponse(r) {
 				isDiscarder = false
 				break
 			}
@@ -601,6 +602,11 @@ func applyDNSDefaultDropMaskFromRules(manager *manager.Manager, rs *rules.RuleSe
 	}
 
 	return setDNSDiscarderMask(manager, ^allowMask)
+}
+
+func ruleNeedsFullDNSResponse(rule *rules.Rule) bool {
+	fields := rule.GetFields()
+	return slices.Contains(fields, "dns.response.code") && len(fields) > 1
 }
 
 func prCtlDiscarder(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, _ Discarder) (bool, error) {

@@ -11,6 +11,8 @@ package {{.Name}}
 
 import (
 	{{if has "go:build unix" .BuildTags}}
+	"net"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 	"github.com/google/gopacket"
 	{{end}}
