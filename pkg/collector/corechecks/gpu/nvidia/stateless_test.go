@@ -255,39 +255,31 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 func TestNVLinkCollector_Initialization(t *testing.T) {
 	tests := []struct {
 		name        string
-		customSetup func(*mock.Device) *mock.Device
+		customSetup func(*mock.Device)
 		wantError   bool
 		wantLinks   int
 	}{
 		{
 			name: "Unsupported device",
-			customSetup: func(device *mock.Device) *mock.Device {
+			customSetup: func(device *mock.Device) {
 				device.GetFieldValuesFunc = func(_ []nvml.FieldValue) nvml.Return {
 					return nvml.ERROR_NOT_SUPPORTED
 				}
-				device.GetUUIDFunc = func() (string, nvml.Return) {
-					return "GPU-123", nvml.SUCCESS
-				}
-				return device
 			},
 			wantError: true,
 		},
 		{
 			name: "Unknown error",
-			customSetup: func(device *mock.Device) *mock.Device {
+			customSetup: func(device *mock.Device) {
 				device.GetFieldValuesFunc = func(_ []nvml.FieldValue) nvml.Return {
 					return nvml.ERROR_UNKNOWN
 				}
-				device.GetUUIDFunc = func() (string, nvml.Return) {
-					return "GPU-123", nvml.SUCCESS
-				}
-				return device
 			},
 			wantError: false,
 		},
 		{
 			name: "Success with 4 links",
-			customSetup: func(device *mock.Device) *mock.Device {
+			customSetup: func(device *mock.Device) {
 				device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
 					require.Len(t, values, 1, "Expected one field value for total number of links, got %d", len(values))
 					require.Equal(t, values[0].FieldId, uint32(nvml.FI_DEV_NVLINK_LINK_COUNT), "Expected field ID to be FI_DEV_NVLINK_LINK_COUNT, got %d", values[0].FieldId)
@@ -295,10 +287,6 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 					testutil.ApplyMockFieldValue(&values[0], testutil.NewFieldValue(4))
 					return nvml.SUCCESS
 				}
-				device.GetUUIDFunc = func() (string, nvml.Return) {
-					return "GPU-123", nvml.SUCCESS
-				}
-				return device
 			},
 			wantError: false,
 			wantLinks: 4,
@@ -333,9 +321,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 				}
 			}
 
-			mockDevice := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
-				tt.customSetup(device)
-			}))
+			mockDevice := setupMockDevice(t, testutil.WithCustomHook(tt.customSetup))
 			c, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 
 			if tt.wantError {
@@ -415,24 +401,16 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 			}
 
 			// Create collector with mock device
-			mockDevice := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
-				device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-					testutil.ApplyMockFieldValue(&values[0], testutil.NewFieldValue(uint64(len(tt.nvlinkStates))))
-					return nvml.SUCCESS
+			stateErrors := make(map[int]nvml.Return)
+			for link, linkErr := range tt.nvlinkErrors {
+				if linkErr != nil {
+					stateErrors[link] = nvml.ERROR_UNKNOWN
 				}
-				device.GetNvLinkStateFunc = func(link int) (nvml.EnableState, nvml.Return) {
-					if link >= len(tt.nvlinkStates) {
-						return 0, nvml.ERROR_INVALID_ARGUMENT
-					}
-					if tt.nvlinkErrors[link] != nil {
-						return 0, nvml.ERROR_UNKNOWN
-					}
-					return tt.nvlinkStates[link], nvml.SUCCESS
-				}
-				device.GetUUIDFunc = func() (string, nvml.Return) {
-					return "GPU-123", nvml.SUCCESS
-				}
-			}))
+			}
+			mockDevice := setupMockDevice(t,
+				testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 1}),
+				testutil.WithNVLinkStates(tt.nvlinkStates, stateErrors),
+			)
 
 			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)

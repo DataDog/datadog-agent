@@ -796,7 +796,7 @@ func WithDeviceUUID(uuid string) func(*nvmlmock.Device) {
 	}
 }
 
-// WithFieldValues sets field values returned by GetFieldValues for all mock devices. Overrides the entire default set of field values.
+// WithFieldValuesFullOverride sets field values returned by GetFieldValues for all mock devices. Overrides the entire default set of field values.
 func WithFieldValuesFullOverride(values map[uint32]MockFieldValue) NvmlMockOption {
 	return func(o *nvmlMockOptions) {
 		o.deviceOptions.fieldValues = values
@@ -853,6 +853,23 @@ func WithNVLinkLinkCount(count int) NvmlMockOption {
 		o.deviceOptions.nvlinkLinkCount = count
 		o.deviceOptions.fieldValues[nvml.FI_DEV_NVLINK_LINK_COUNT] = NewFieldValue(uint64(count))
 	}
+}
+
+// WithNVLinkStates sets the per-link NVLink states returned by GetNvLinkState and the
+// link count reported by field queries. stateErrors maps a link index to a non-success
+// return code, which takes precedence over the state for that link. The number of links
+// reported via FI_DEV_NVLINK_LINK_COUNT is derived from len(states).
+//
+// NVLink support (generation) must be configured independently (e.g. via WithCapabilities),
+// otherwise GetNvLinkState returns ERROR_NOT_SUPPORTED.
+func WithNVLinkStates(states []nvml.EnableState, stateErrors map[int]nvml.Return) NvmlMockOption {
+	return WithCombinedOptions(
+		WithNVLinkLinkCount(len(states)),
+		func(o *nvmlMockOptions) {
+			o.deviceOptions.nvlinkStates = states
+			o.deviceOptions.nvlinkStateErrors = stateErrors
+		},
+	)
 }
 
 // WithC2CLinkCount configures the number of C2C links returned by field queries.
@@ -938,7 +955,7 @@ func WithProcessData(processData []MockProcessData, returnCode nvml.Return) Nvml
 	}
 }
 
-// WithProcessInfoCallback influences the return value of GetComputeRunningProcessesFunc for the nvml mock
+// WithProcessDataCallback influences the return value of GetComputeRunningProcessesFunc for the nvml mock
 func WithProcessDataCallback(callback func(uuid string) (MockProcessInfoList, nvml.Return)) NvmlMockOption {
 	return func(o *nvmlMockOptions) {
 		o.deviceOptions.processDataCallback = callback

@@ -30,7 +30,7 @@ func TestNewSampleCollector(t *testing.T) {
 	}{
 		{
 			name:                  "Supported",
-			customSetup:           nil, // Use default setup with all functions enabled
+			customSetup:           testutil.WithCombinedOptions(), // Use default setup with all functions enabled
 			expectError:           false,
 			expectedSupportedAPIs: 5,
 		},
@@ -51,11 +51,7 @@ func TestNewSampleCollector(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var opts []testutil.NvmlMockOption
-			if tt.customSetup != nil {
-				opts = append(opts, tt.customSetup)
-			}
-			mockDevice := setupMockDevice(t, opts...)
+			mockDevice := setupMockDevice(t, tt.customSetup)
 
 			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 
