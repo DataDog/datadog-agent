@@ -700,6 +700,26 @@ metrics:
         mig: true
         physical: true
         vgpu: true
+  memory.utilization:
+    metadata:
+      metric_type: gauge
+      unit: fraction
+      description: Ratio of used memory compared to total memory
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 1
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
   memory.temperature:
     metadata:
       metric_type: gauge

@@ -268,21 +268,21 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v114075546-22e66b98
+  CI_IMAGE_BTF_GEN: v114725131-b7fd2a07
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v114075546-22e66b98
+  CI_IMAGE_DOCKER_X64: v114725131-b7fd2a07
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v114075546-22e66b98
+  CI_IMAGE_DOCKER_ARM64: v114725131-b7fd2a07
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v114075546-22e66b98
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v114725131-b7fd2a07
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v114075546-22e66b98
+  CI_IMAGE_LINUX: v114725131-b7fd2a07
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v114075546-22e66b98
+  CI_IMAGE_RPM_X64: v114725131-b7fd2a07
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v114075546-22e66b98
+  CI_IMAGE_RPM_ARM64: v114725131-b7fd2a07
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v114075546-22e66b98
+  CI_IMAGE_RPM_ARMHF: v114725131-b7fd2a07
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
   CI_IMAGE_WIN_LTSC2022_X64: v114471858-795a98da
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
@@ -349,7 +349,6 @@ variables:
   DDA_FEATURE_FLAGS_CI_VAULT_KEY: token
   DDA_FEATURE_FLAGS_CI_VAULT_PATH: k8s/gitlab-runner-datadog-agent/datadog-agent/$DDA_CLIENT_TOKEN
 
-  DD_PKG_VERSION: "latest"
   DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
@@ -1166,6 +1165,16 @@ workflow:
     when: on_success
   - when: manual
     allow_failure: true
+
+.on_anomalydetection_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/anomalydetection/**/*
+        - test/new-e2e/tests/anomalydetection/**/*
+        - test/new-e2e/go.mod
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
 
 .on_ha_agent_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]

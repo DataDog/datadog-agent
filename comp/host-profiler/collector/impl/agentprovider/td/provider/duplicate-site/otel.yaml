@@ -1,22 +1,20 @@
 exporters:
-    otlphttp/datadoghq.com_0:
+    otlp_http/datadoghq.com_0:
         compression: zstd
+        endpoint: https://otlp.datadoghq.com
         headers:
             dd-api-key: additional_api_key
             dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
-        metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
-        profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
-    otlphttp/datadoghq.com_1:
+    otlp_http/datadoghq.com_1:
         compression: zstd
+        endpoint: https://otlp.datadoghq.com
         headers:
             dd-api-key: main_api_key
             dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
-        metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
-        profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
 extensions:
-    hpflare/default:
+    hpflare:
         endpoint: localhost:7778
 processors:
     cumulativetodelta: {}
@@ -28,7 +26,7 @@ processors:
                     - ^scrape_.*$
                     - ^up$
                     - ^promhttp_metric_handler_errors_total$
-    infraattributes/default:
+    infraattributes:
         allow_hostname_override: true
         cardinality: 2
     resource/dd-profiler-internal-metadata:
@@ -63,25 +61,25 @@ receivers:
                         - 127.0.0.1:8889
 service:
     extensions:
-        - hpflare/default
+        - hpflare
     pipelines:
         metrics:
             exporters:
-                - otlphttp/datadoghq.com_0
-                - otlphttp/datadoghq.com_1
+                - otlp_http/datadoghq.com_0
+                - otlp_http/datadoghq.com_1
             processors:
                 - filter
                 - cumulativetodelta
-                - infraattributes/default
+                - infraattributes
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - prometheus
         profiles:
             exporters:
-                - otlphttp/datadoghq.com_0
-                - otlphttp/datadoghq.com_1
+                - otlp_http/datadoghq.com_0
+                - otlp_http/datadoghq.com_1
             processors:
-                - infraattributes/default
+                - infraattributes
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling
