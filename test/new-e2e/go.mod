@@ -284,6 +284,7 @@ require (
 	github.com/DataDog/viper v1.15.1 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/alessio/shellescape v1.4.2 // indirect
+	github.com/antithesishq/antithesis-sdk-go v0.7.0 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.45.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.11 // indirect

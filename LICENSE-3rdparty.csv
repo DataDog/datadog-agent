@@ -426,6 +426,9 @@ core,github.com/alecthomas/participle/v2/lexer,MIT,Copyright (C) 2017 Alec Thoma
 core,github.com/alecthomas/units,MIT,Copyright (C) 2014 Alec Thomas
 core,github.com/antchfx/xmlquery,MIT,Copyright (c) 2016 Zheng Chun
 core,github.com/antchfx/xpath,MIT,Copyright (c) 2016 Zheng Chun
+core,github.com/antithesishq/antithesis-sdk-go/assert,MIT,Copyright (c) 2024 Antithesis
+core,github.com/antithesishq/antithesis-sdk-go/internal,MIT,Copyright (c) 2024 Antithesis
+core,github.com/antithesishq/antithesis-sdk-go/lifecycle,MIT,Copyright (c) 2024 Antithesis
 core,github.com/antlr4-go/antlr/v4,BSD-3-Clause,Copyright (c) 2012-2023 The ANTLR Project. All rights reserved
 core,github.com/apache/thrift/lib/go/thrift,Apache-2.0,"Copyright (C) 2006 - 2019, The Apache Software Foundation | Copyright (c) 2006- Facebook | Copyright (c) 2006-2008 Alexander Chemeris | Copyright (c) 2007 Thomas Porschberg <thomas@randspringer.de> | Copyright (c) 2008- Patrick Collison <patrick@collison.ie> | Copyright 2007 by Nathan C. Myers <ncm@cantrip.org>; some rights reserved | Copyright 2012 Twitter, Inc | copyright claimed)"
 core,github.com/aptly-dev/aptly/aptly,MIT,Copyright 2013-2015 aptly authors. All rights reserved.
