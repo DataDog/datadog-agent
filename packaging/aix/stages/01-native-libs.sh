@@ -208,6 +208,16 @@ else
     cd "$BUILD_DIR/build/zlib-${ZLIB_VERSION}"
     ./configure --prefix="$EMBEDDED"
     make -j"$NPROC"
+    # Build an AIX shared member and add it to libz.a so the archive supports
+    # both static and runtime linking (-brtl). Without this, the embedded libz.a
+    # shadows the system one in LIBPATH but has no shared member, causing link
+    # failures when building C extensions (e.g. ibm_db) via the embedded pip.
+    #
+    # The member is named libz.so.1 to match the IBM AIX convention (zlibNX uses
+    # the same name). This ensures compatibility: code that looks for
+    # libz.a(libz.so.1) — including GCC's cc1 subprocess — finds a valid member
+    # regardless of which libz.a it loads first from LIBPATH.
+    #
     make install DESTDIR="$STAGING"
     lib_cache_save zlib "$ZLIB_VERSION" "$_pre"
     rm -f "$_pre"
