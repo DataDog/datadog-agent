@@ -255,7 +255,6 @@ func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	// Find and unlink this workload from its profile
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
-
 	for selector, prof := range m.profiles {
 		if removed, remainingInstances := m.unlinkWorkloadFromProfile(prof, cgce); removed {
 			if remainingInstances == 0 {
@@ -656,7 +655,9 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	imageTag := secprof.GetTagValue("image_tag")
 	inserted, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err != nil {
-		seclog.Errorf("couldn't insert event into profile: %v", err)
+		if !activity_tree.IsExpectedFilterError(err) {
+			seclog.Debugf("couldn't insert event into profile: %v", err)
+		}
 		return nil, false
 	}
 
