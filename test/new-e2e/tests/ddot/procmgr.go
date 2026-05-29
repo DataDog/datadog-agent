@@ -128,7 +128,7 @@ func assertNotManagedByProcmgr(t *testing.T, host *components.RemoteHost, instal
 	describeCmd := procmgrCLICmd(installRoot, "describe "+procmgrProcessName)
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		_, err := host.Execute(describeCmd)
-		assert.Error(c, err, "dd-procmgr should not manage DDOT after extension removal")
+		assert.Error(c, err, "dd-procmgr describe should fail when DDOT is not managed")
 	}, 2*time.Minute, 5*time.Second)
 }
 
