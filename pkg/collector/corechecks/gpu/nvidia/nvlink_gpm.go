@@ -66,13 +66,11 @@ func (c *nvlinkGpmCollector) Collect() ([]*Metric, error) {
 }
 
 func (c *nvlinkGpmCollector) getOrCreateGpmCollector(port int) (*gpmCollector, error) {
-	port = port - 1 // We receive ports indexed from 1, but under the hood we use 0-based indexing.
-
 	if collector, ok := c.perPortCollector[port]; ok {
 		return collector, nil
 	}
 
-	if port >= maxNvlinkPorts {
+	if port > maxNvlinkPorts {
 		return nil, fmt.Errorf("%w: port %d is out of range", errUnsupportedDevice, port)
 	}
 
@@ -80,8 +78,9 @@ func (c *nvlinkGpmCollector) getOrCreateGpmCollector(port int) (*gpmCollector, e
 
 	// GPM metric IDs are offset by 2 for each port, we have NVML_GPM_METRIC_NVLINK_L0_RX_PER_SEC = 62, then NVML_GPM_METRIC_NVLINK_L1_RX_PER_SEC = 64, etc.
 	// so we can calculate the metric ID for the RX and TX metrics for the given port by adding 2*port to the base metric ID.
-	rxMetricID := int(baseNvlinkRxGpm) + 2*port
-	txMetricID := int(baseNvlinkTxGpm) + 2*port
+	// note that port is 1-indexed, so we subtract 1 to get the 0-indexed port.
+	rxMetricID := int(baseNvlinkRxGpm) + 2*(port-1)
+	txMetricID := int(baseNvlinkTxGpm) + 2*(port-1)
 
 	portGpmMetrics[nvml.GpmMetricId(rxMetricID)] = gpmMetric{
 		name:       "nvlink.throughput.data.rx",
