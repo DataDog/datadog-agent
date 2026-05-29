@@ -23,7 +23,6 @@ import (
 type coreAssetLoader struct {
 	coreDir   string
 	btfLoader *orderedBTFLoader
-	fixedtags []string
 	telemetry struct {
 		success telemetry.Counter
 		error   telemetry.Counter
@@ -76,8 +75,8 @@ func (c *coreAssetLoader) reportTelemetry(assetName string, result COREResult) {
 	StoreCORETelemetryForAsset(assetName, result)
 
 	// capacity should match number of tags
-	tags := make([]string, len(c.fixedtags), len(c.fixedtags)+2)
-	copy(tags, c.fixedtags)
+	tags := make([]string, len(c.btfLoader.fixedtags), len(c.btfLoader.fixedtags)+2)
+	copy(tags, c.btfLoader.fixedtags)
 	tags = append(tags, assetName)
 	switch BTFResult(result) {
 	case SuccessCustomBTF:

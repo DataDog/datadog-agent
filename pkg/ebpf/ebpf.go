@@ -56,7 +56,6 @@ func coreLoader(cfg *Config, rcclient rcclient.Component, telemetrycomp telemetr
 	core.loader = &coreAssetLoader{
 		coreDir:   filepath.Join(cfg.BPFDir, "co-re"),
 		btfLoader: btfLoader,
-		fixedtags: []string{platformTag(btfLoader.platform), btfLoader.platformVersion, btfLoader.kernelVersion, btfLoader.arch},
 		telemetry: struct {
 			success telemetry.Counter
 			error   telemetry.Counter
