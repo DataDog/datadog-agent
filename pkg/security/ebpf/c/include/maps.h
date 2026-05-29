@@ -142,6 +142,19 @@ BPF_PERCPU_ARRAY_MAP(raw_packet_enabled, u32, 1)
 BPF_PERCPU_ARRAY_MAP(sysctl_event_gen, struct sysctl_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(on_demand_event_gen, struct on_demand_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(setsockopt_event, struct setsockopt_event_t, 1)
+// Per-CPU scratch slots for events whose on-stack form is too large to leave
+// any room for a bpf-to-bpf call from the hook (pre-6.17 verifier enforces
+// combined bpf-to-bpf stack ≤ 512 bytes; fill_span_context_go is the call
+// that runs into this).
+BPF_PERCPU_ARRAY_MAP(setxattr_event_gen, struct setxattr_event_t, 1)
+BPF_PERCPU_ARRAY_MAP(init_module_event_gen, struct init_module_event_t, 1)
+BPF_PERCPU_ARRAY_MAP(syscall_monitor_event_gen, struct syscall_monitor_event_t, 1)
+// Per-CPU scratch slot for the proc_cache_t aggregator built by send_exec_event
+// before it is committed to the proc_cache map. Keeping it off the stack lets
+// the tail-called flush_network_stats_exec wrapper (which inlines
+// send_exec_event) fit within the 512-byte combined budget alongside
+// fill_span_context_go.
+BPF_PERCPU_ARRAY_MAP(exec_proc_cache_gen, struct proc_cache_t, 1)
 
 BPF_PROG_ARRAY(args_envs_progs, 3)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_callbacks, EVENT_MAX)
