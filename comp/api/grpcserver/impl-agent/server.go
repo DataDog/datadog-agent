@@ -21,6 +21,7 @@ import (
 	configstreamServer "github.com/DataDog/datadog-agent/comp/core/configstream/server"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
@@ -57,6 +58,7 @@ type serverSecure struct {
 	capture              dsdReplay.Component
 	pidMap               pidmap.Component
 	remoteAgentRegistry  remoteagentregistry.Component
+	secrets              secrets.Component
 	autodiscovery        autodiscovery.Component
 	configComp           config.Component
 	configStreamServer   *configstreamServer.Server
@@ -243,6 +245,19 @@ func (s *serverSecure) RefreshRemoteAgent(_ context.Context, in *pb.RefreshRemot
 		return nil, status.Error(codes.NotFound, "no remote agent found with session ID")
 	}
 	return &pb.RefreshRemoteAgentResponse{}, nil
+}
+
+func (s *serverSecure) RequestConfigUpdates(ctx context.Context, _ *pb.RequestConfigUpdatesRequest) (*pb.RequestConfigUpdatesResponse, error) {
+	sessionID, err := configstreamServer.ValidateSessionID(ctx, s.remoteAgentRegistry, "requesting config updates")
+	if err != nil {
+		return nil, err
+	}
+
+	log.Debugf("RequestConfigUpdates authorized for remote agent with session_id: %s", sessionID)
+
+	s.secrets.Refresh()
+
+	return &pb.RequestConfigUpdatesResponse{}, nil
 }
 
 func (s *serverSecure) AutodiscoveryStreamConfig(_ *emptypb.Empty, out pb.AgentSecure_AutodiscoveryStreamConfigServer) error {

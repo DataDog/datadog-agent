@@ -65,9 +65,9 @@ func (m *mockRemoteAgentRegistry) RegisterRemoteAgent(_ *remoteagentregistry.Reg
 	return "test-session-id", 30, nil
 }
 
-func (m *mockRemoteAgentRegistry) RefreshRemoteAgent(_ string) bool {
-	// Always return true for tests (agent is registered)
-	return true
+func (m *mockRemoteAgentRegistry) RefreshRemoteAgent(sessionID string) bool {
+	args := m.Called(sessionID)
+	return args.Bool(0)
 }
 
 func (m *mockRemoteAgentRegistry) GetRegisteredAgents() []remoteagentregistry.RegisteredAgent {
@@ -78,19 +78,24 @@ func (m *mockRemoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregi
 	return nil
 }
 
-func setupTest(ctx context.Context, t *testing.T, sessionID string) (*Server, *mockComp, *mockStream, chan *pb.ConfigEvent) {
+// newTestServer returns a fresh Server backed by a new mockComp and mockRemoteAgentRegistry.
+// Callers add mock expectations on the returned registry and comp before use.
+func newTestServer(t *testing.T) (*Server, *mockComp, *mockRemoteAgentRegistry) {
 	cfg := configmock.New(t)
 	cfg.Set("remote_agent.configstream.sleep_interval", 10*time.Millisecond, model.SourceAgentRuntime)
-
 	comp := &mockComp{}
+	rar := &mockRemoteAgentRegistry{}
+	return NewServer(cfg, comp, rar), comp, rar
+}
+
+func setupTest(ctx context.Context, t *testing.T, sessionID string) (*Server, *mockComp, *mockStream, chan *pb.ConfigEvent) {
+	server, comp, rar := newTestServer(t)
 
 	md := metadata.New(map[string]string{"session_id": sessionID})
 	ctxWithMetadata := metadata.NewIncomingContext(ctx, md)
 	stream := &mockStream{ctx: ctxWithMetadata}
 
-	mockRAR := &mockRemoteAgentRegistry{}
-
-	server := NewServer(cfg, comp, mockRAR)
+	rar.On("RefreshRemoteAgent", sessionID).Return(true)
 	eventsCh := make(chan *pb.ConfigEvent, 1)
 
 	return server, comp, stream, eventsCh
@@ -182,13 +187,7 @@ func TestRARAuthorization(t *testing.T) {
 	}
 
 	t.Run("rejects request with missing metadata", func(t *testing.T) {
-		cfg := configmock.New(t)
-		cfg.Set("remote_agent.configstream.sleep_interval", 10*time.Millisecond, model.SourceAgentRuntime)
-		comp := &mockComp{}
-		mockRAR := &mockRemoteAgentRegistry{}
-		server := NewServer(cfg, comp, mockRAR)
-
-		// Context without metadata
+		server, _, _ := newTestServer(t)
 		stream := &mockStream{ctx: context.Background()}
 
 		err := server.StreamConfigEvents(testReq, stream)
@@ -198,15 +197,8 @@ func TestRARAuthorization(t *testing.T) {
 	})
 
 	t.Run("rejects request with missing session_id in metadata", func(t *testing.T) {
-		cfg := configmock.New(t)
-		cfg.Set("remote_agent.configstream.sleep_interval", 10*time.Millisecond, model.SourceAgentRuntime)
-		comp := &mockComp{}
-		mockRAR := &mockRemoteAgentRegistry{}
-		server := NewServer(cfg, comp, mockRAR)
-
-		// Context with metadata but no session_id
-		md := metadata.New(map[string]string{})
-		ctx := metadata.NewIncomingContext(context.Background(), md)
+		server, _, _ := newTestServer(t)
+		ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{}))
 		stream := &mockStream{ctx: ctx}
 
 		err := server.StreamConfigEvents(testReq, stream)
@@ -216,20 +208,26 @@ func TestRARAuthorization(t *testing.T) {
 	})
 
 	t.Run("rejects request with empty session_id", func(t *testing.T) {
-		cfg := configmock.New(t)
-		cfg.Set("remote_agent.configstream.sleep_interval", 10*time.Millisecond, model.SourceAgentRuntime)
-		comp := &mockComp{}
-		mockRAR := &mockRemoteAgentRegistry{}
-		server := NewServer(cfg, comp, mockRAR)
-
-		// Context with empty session_id
-		md := metadata.New(map[string]string{"session_id": ""})
-		ctx := metadata.NewIncomingContext(context.Background(), md)
+		server, _, _ := newTestServer(t)
+		ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{"session_id": ""}))
 		stream := &mockStream{ctx: ctx}
 
 		err := server.StreamConfigEvents(testReq, stream)
 		assert.Error(t, err)
 		assert.Equal(t, codes.Unauthenticated, status.Code(err))
 		require.ErrorContains(t, err, "session_id cannot be empty")
+	})
+
+	t.Run("rejects request with unknown session_id", func(t *testing.T) {
+		server, _, rar := newTestServer(t)
+		rar.On("RefreshRemoteAgent", "unknown-session").Return(false).Once()
+		ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{"session_id": "unknown-session"}))
+		stream := &mockStream{ctx: ctx}
+
+		err := server.StreamConfigEvents(testReq, stream)
+		assert.Error(t, err)
+		assert.Equal(t, codes.PermissionDenied, status.Code(err))
+		require.ErrorContains(t, err, "session_id 'unknown-session' not found")
+		rar.AssertExpectations(t)
 	})
 }

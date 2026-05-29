@@ -142,6 +142,7 @@ const (
 	AgentSecure_WorkloadmetaStreamEntities_FullMethodName              = "/datadog.api.v1.AgentSecure/WorkloadmetaStreamEntities"
 	AgentSecure_RegisterRemoteAgent_FullMethodName                     = "/datadog.api.v1.AgentSecure/RegisterRemoteAgent"
 	AgentSecure_RefreshRemoteAgent_FullMethodName                      = "/datadog.api.v1.AgentSecure/RefreshRemoteAgent"
+	AgentSecure_RequestConfigUpdates_FullMethodName                    = "/datadog.api.v1.AgentSecure/RequestConfigUpdates"
 	AgentSecure_AutodiscoveryStreamConfig_FullMethodName               = "/datadog.api.v1.AgentSecure/AutodiscoveryStreamConfig"
 	AgentSecure_GetHostTags_FullMethodName                             = "/datadog.api.v1.AgentSecure/GetHostTags"
 	AgentSecure_StreamConfigEvents_FullMethodName                      = "/datadog.api.v1.AgentSecure/StreamConfigEvents"
@@ -177,6 +178,8 @@ type AgentSecureClient interface {
 	RegisterRemoteAgent(ctx context.Context, in *RegisterRemoteAgentRequest, opts ...grpc.CallOption) (*RegisterRemoteAgentResponse, error)
 	// Refresh a remote agent.
 	RefreshRemoteAgent(ctx context.Context, in *RefreshRemoteAgentRequest, opts ...grpc.CallOption) (*RefreshRemoteAgentResponse, error)
+	// Requests that the core agent reconcile refreshable config sources.
+	RequestConfigUpdates(ctx context.Context, in *RequestConfigUpdatesRequest, opts ...grpc.CallOption) (*RequestConfigUpdatesResponse, error)
 	// Subscribes to autodiscovery config updates
 	AutodiscoveryStreamConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AutodiscoveryStreamResponse], error)
 	// Get the host tags
@@ -358,6 +361,16 @@ func (c *agentSecureClient) RefreshRemoteAgent(ctx context.Context, in *RefreshR
 	return out, nil
 }
 
+func (c *agentSecureClient) RequestConfigUpdates(ctx context.Context, in *RequestConfigUpdatesRequest, opts ...grpc.CallOption) (*RequestConfigUpdatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequestConfigUpdatesResponse)
+	err := c.cc.Invoke(ctx, AgentSecure_RequestConfigUpdates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *agentSecureClient) AutodiscoveryStreamConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AutodiscoveryStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &AgentSecure_ServiceDesc.Streams[3], AgentSecure_AutodiscoveryStreamConfig_FullMethodName, cOpts...)
@@ -463,6 +476,8 @@ type AgentSecureServer interface {
 	RegisterRemoteAgent(context.Context, *RegisterRemoteAgentRequest) (*RegisterRemoteAgentResponse, error)
 	// Refresh a remote agent.
 	RefreshRemoteAgent(context.Context, *RefreshRemoteAgentRequest) (*RefreshRemoteAgentResponse, error)
+	// Requests that the core agent reconcile refreshable config sources.
+	RequestConfigUpdates(context.Context, *RequestConfigUpdatesRequest) (*RequestConfigUpdatesResponse, error)
 	// Subscribes to autodiscovery config updates
 	AutodiscoveryStreamConfig(*emptypb.Empty, grpc.ServerStreamingServer[AutodiscoveryStreamResponse]) error
 	// Get the host tags
@@ -524,6 +539,9 @@ func (UnimplementedAgentSecureServer) RegisterRemoteAgent(context.Context, *Regi
 }
 func (UnimplementedAgentSecureServer) RefreshRemoteAgent(context.Context, *RefreshRemoteAgentRequest) (*RefreshRemoteAgentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RefreshRemoteAgent not implemented")
+}
+func (UnimplementedAgentSecureServer) RequestConfigUpdates(context.Context, *RequestConfigUpdatesRequest) (*RequestConfigUpdatesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequestConfigUpdates not implemented")
 }
 func (UnimplementedAgentSecureServer) AutodiscoveryStreamConfig(*emptypb.Empty, grpc.ServerStreamingServer[AutodiscoveryStreamResponse]) error {
 	return status.Error(codes.Unimplemented, "method AutodiscoveryStreamConfig not implemented")
@@ -788,6 +806,24 @@ func _AgentSecure_RefreshRemoteAgent_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentSecure_RequestConfigUpdates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestConfigUpdatesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentSecureServer).RequestConfigUpdates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentSecure_RequestConfigUpdates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentSecureServer).RequestConfigUpdates(ctx, req.(*RequestConfigUpdatesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AgentSecure_AutodiscoveryStreamConfig_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(emptypb.Empty)
 	if err := stream.RecvMsg(m); err != nil {
@@ -907,6 +943,10 @@ var AgentSecure_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RefreshRemoteAgent",
 			Handler:    _AgentSecure_RefreshRemoteAgent_Handler,
+		},
+		{
+			MethodName: "RequestConfigUpdates",
+			Handler:    _AgentSecure_RequestConfigUpdates_Handler,
 		},
 		{
 			MethodName: "GetHostTags",

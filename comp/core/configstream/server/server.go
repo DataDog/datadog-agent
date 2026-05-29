@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -41,28 +40,9 @@ func NewServer(cfg config.Component, comp configstream.Component, registry remot
 // StreamConfigEvents handles the gRPC streaming logic.
 // It requires the caller to be a registered remote agent (RAR-gated).
 func (s *Server) StreamConfigEvents(req *pb.ConfigStreamRequest, stream pb.AgentSecure_StreamConfigEventsServer) error {
-	if s.registry == nil {
-		return status.Error(codes.Unimplemented, "remote agent registry not enabled")
-	}
-
-	// Extract session_id from gRPC metadata
-	md, ok := metadata.FromIncomingContext(stream.Context())
-	if !ok {
-		return status.Error(codes.Unauthenticated, "missing gRPC metadata")
-	}
-
-	sessionIDs := md.Get("session_id")
-	if len(sessionIDs) == 0 {
-		return status.Error(codes.Unauthenticated, "session_id required in metadata: remote agent must register with RAR before subscribing to config stream")
-	}
-	sessionID := sessionIDs[0]
-
-	if sessionID == "" {
-		return status.Error(codes.Unauthenticated, "session_id cannot be empty: remote agent must register with RAR before subscribing to config stream")
-	}
-
-	if !s.registry.RefreshRemoteAgent(sessionID) {
-		return status.Errorf(codes.PermissionDenied, "session_id '%s' not found: remote agent must register with RAR before subscribing to config stream", sessionID)
+	sessionID, err := ValidateSessionID(stream.Context(), s.registry, "subscribing to config stream")
+	if err != nil {
+		return err
 	}
 
 	log.Infof("Config stream authorized for remote agent with session_id: %s (name: %s)", sessionID, req.Name)

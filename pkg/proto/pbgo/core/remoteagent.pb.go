@@ -259,6 +259,78 @@ func (*RefreshRemoteAgentResponse) Descriptor() ([]byte, []int) {
 	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{3}
 }
 
+type RequestConfigUpdatesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestConfigUpdatesRequest) Reset() {
+	*x = RequestConfigUpdatesRequest{}
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestConfigUpdatesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestConfigUpdatesRequest) ProtoMessage() {}
+
+func (x *RequestConfigUpdatesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestConfigUpdatesRequest.ProtoReflect.Descriptor instead.
+func (*RequestConfigUpdatesRequest) Descriptor() ([]byte, []int) {
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{4}
+}
+
+type RequestConfigUpdatesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestConfigUpdatesResponse) Reset() {
+	*x = RequestConfigUpdatesResponse{}
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestConfigUpdatesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestConfigUpdatesResponse) ProtoMessage() {}
+
+func (x *RequestConfigUpdatesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestConfigUpdatesResponse.ProtoReflect.Descriptor instead.
+func (*RequestConfigUpdatesResponse) Descriptor() ([]byte, []int) {
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{5}
+}
+
 var File_datadog_remoteagent_remoteagent_proto protoreflect.FileDescriptor
 
 const file_datadog_remoteagent_remoteagent_proto_rawDesc = "" +
@@ -277,7 +349,9 @@ const file_datadog_remoteagent_remoteagent_proto_rawDesc = "" +
 	"\x19RefreshRemoteAgentRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\"\x1c\n" +
-	"\x1aRefreshRemoteAgentResponseB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
+	"\x1aRefreshRemoteAgentResponse\"\x1d\n" +
+	"\x1bRequestConfigUpdatesRequest\"\x1e\n" +
+	"\x1cRequestConfigUpdatesResponseB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
 
 var (
 	file_datadog_remoteagent_remoteagent_proto_rawDescOnce sync.Once
@@ -291,12 +365,14 @@ func file_datadog_remoteagent_remoteagent_proto_rawDescGZIP() []byte {
 	return file_datadog_remoteagent_remoteagent_proto_rawDescData
 }
 
-var file_datadog_remoteagent_remoteagent_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_datadog_remoteagent_remoteagent_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_datadog_remoteagent_remoteagent_proto_goTypes = []any{
-	(*RegisterRemoteAgentRequest)(nil),  // 0: datadog.remoteagent.v1.RegisterRemoteAgentRequest
-	(*RegisterRemoteAgentResponse)(nil), // 1: datadog.remoteagent.v1.RegisterRemoteAgentResponse
-	(*RefreshRemoteAgentRequest)(nil),   // 2: datadog.remoteagent.v1.RefreshRemoteAgentRequest
-	(*RefreshRemoteAgentResponse)(nil),  // 3: datadog.remoteagent.v1.RefreshRemoteAgentResponse
+	(*RegisterRemoteAgentRequest)(nil),   // 0: datadog.remoteagent.v1.RegisterRemoteAgentRequest
+	(*RegisterRemoteAgentResponse)(nil),  // 1: datadog.remoteagent.v1.RegisterRemoteAgentResponse
+	(*RefreshRemoteAgentRequest)(nil),    // 2: datadog.remoteagent.v1.RefreshRemoteAgentRequest
+	(*RefreshRemoteAgentResponse)(nil),   // 3: datadog.remoteagent.v1.RefreshRemoteAgentResponse
+	(*RequestConfigUpdatesRequest)(nil),  // 4: datadog.remoteagent.v1.RequestConfigUpdatesRequest
+	(*RequestConfigUpdatesResponse)(nil), // 5: datadog.remoteagent.v1.RequestConfigUpdatesResponse
 }
 var file_datadog_remoteagent_remoteagent_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -317,7 +393,7 @@ func file_datadog_remoteagent_remoteagent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_remoteagent_remoteagent_proto_rawDesc), len(file_datadog_remoteagent_remoteagent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

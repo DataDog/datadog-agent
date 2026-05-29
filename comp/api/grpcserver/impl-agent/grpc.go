@@ -76,6 +76,7 @@ type server struct {
 	capture             replay.Component
 	pidMap              pidmap.Component
 	remoteAgentRegistry remoteagentregistry.Component
+	secrets             secrets.Component
 	autodiscovery       autodiscovery.Component
 	configComp          config.Component
 	telemetry           telemetry.Component
@@ -134,6 +135,7 @@ func (s *server) BuildServer() http.Handler {
 		capture:              s.capture,
 		pidMap:               s.pidMap,
 		remoteAgentRegistry:  s.remoteAgentRegistry,
+		secrets:              s.secrets,
 		autodiscovery:        s.autodiscovery,
 		configComp:           s.configComp,
 		configStreamServer:   configstreamServer.NewServer(s.configComp, s.configStream, s.remoteAgentRegistry),
@@ -162,6 +164,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			capture:             reqs.Capture,
 			pidMap:              reqs.PidMap,
 			remoteAgentRegistry: reqs.RemoteAgentRegistry,
+			secrets:             reqs.SecretResolver,
 			autodiscovery:       reqs.AutoConfig,
 			configComp:          reqs.Cfg,
 			telemetry:           reqs.Telemetry,

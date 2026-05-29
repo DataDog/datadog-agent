@@ -59,6 +59,9 @@ service AgentSecure {
     // Refresh a remote agent.
     rpc RefreshRemoteAgent(datadog.remoteagent.v1.RefreshRemoteAgentRequest) returns (datadog.remoteagent.v1.RefreshRemoteAgentResponse);
 
+    // Requests that the core agent reconcile refreshable config sources.
+    rpc RequestConfigUpdates(datadog.remoteagent.v1.RequestConfigUpdatesRequest) returns (datadog.remoteagent.v1.RequestConfigUpdatesResponse);
+
     // Subscribes to autodiscovery config updates
     rpc AutodiscoveryStreamConfig(google.protobuf.Empty) returns (stream datadog.autodiscovery.AutodiscoveryStreamResponse);
 

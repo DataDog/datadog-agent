@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "server",
-    srcs = ["server.go"],
+    srcs = [
+        "server.go",
+        "session.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/configstream/server",
     visibility = ["//visibility:public"],
     deps = [

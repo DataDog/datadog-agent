@@ -50,3 +50,7 @@ message RefreshRemoteAgentRequest {
   string session_id = 1;
 }
 message RefreshRemoteAgentResponse {}
+
+message RequestConfigUpdatesRequest {}
+
+message RequestConfigUpdatesResponse {}
