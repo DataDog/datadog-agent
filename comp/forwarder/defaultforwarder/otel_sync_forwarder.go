@@ -97,8 +97,12 @@ func (f *OTelSyncForwarder) sendHTTPTransactions(ctx context.Context, transactio
 			}
 		}
 		var permanentErr error
+		var responseReceived bool
 		origHandler := txn.CompletionHandler
 		txn.CompletionHandler = func(tx *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
+			if statusCode > 0 {
+				responseReceived = true
+			}
 			if err == nil && (statusCode == 400 || statusCode == 413 || statusCode == 403) {
 				permanentErr = fmt.Errorf("HTTP %d dropping transaction to %s%s: %w", statusCode, tx.Domain, tx.Endpoint.Route, ErrPermanentHTTPError)
 			}
@@ -108,11 +112,14 @@ func (f *OTelSyncForwarder) sendHTTPTransactions(ctx context.Context, transactio
 			errs = multierr.Append(errs, err)
 		} else if permanentErr != nil {
 			errs = multierr.Append(errs, permanentErr)
-		} else if ctxErr := ctx.Err(); ctxErr != nil {
-			// internalProcess silently drops canceled requests (returns nil).
-			// Propagate the cancellation so the OTel exporterhelper sees it.
-			errs = multierr.Append(errs, ctxErr)
-			break
+		} else if !responseReceived {
+			// internalProcess silently drops canceled requests (returns nil, statusCode 0).
+			// Only propagate ctx.Err() when no real HTTP response was received; a post-success
+			// cancellation must not turn an already-accepted payload into a reported failure.
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				errs = multierr.Append(errs, ctxErr)
+				break
+			}
 		}
 	}
 	return errs
