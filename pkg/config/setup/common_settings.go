@@ -1308,6 +1308,7 @@ func agent(config pkgconfigmodel.Setup) {
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 	pkgconfigmodel.AddOverrideFunc(applyInfrastructureModeOverrides)
 	pkgconfigmodel.AddOverrideFunc(ApplyUseDogstatsdSuppression)
+	pkgconfigmodel.AddOverrideFunc(applyDataPlaneDefaults)
 }
 
 // ApplyUseDogstatsdSuppression is a post-load override that, when
@@ -1327,6 +1328,19 @@ func ApplyUseDogstatsdSuppression(config pkgconfigmodel.Config) {
 	if !config.GetBool("use_dogstatsd") && config.GetBool("data_plane.dogstatsd.enabled") {
 		log.Infof("Forcing data_plane.dogstatsd.enabled=false because use_dogstatsd=false")
 		config.Set("data_plane.dogstatsd.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+	}
+}
+
+// applyDataPlaneDefaults sets ADP-appropriate defaults for config keys that have different
+// optimal values when the Agent Data Plane is handling metric processing. These defaults are
+// delivered to ADP via the config stream, so a single value in datadog.yaml controls both
+// the agent and ADP. User-provided values (file, env var) always take precedence.
+//
+// aggregator_tag_filter_cache_capacity: ADP processes significantly higher metric throughput
+// than the core agent aggregator, so it benefits from a larger dedup cache (100,000 vs 1,000).
+func applyDataPlaneDefaults(config pkgconfigmodel.Config) {
+	if config.GetBool("data_plane.enabled") && config.GetBool("data_plane.dogstatsd.enabled") {
+		config.Set("aggregator_tag_filter_cache_capacity", 100000, pkgconfigmodel.SourceDefault)
 	}
 }
 
