@@ -184,11 +184,11 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options cli
 func (d *DockerUtil) GetHostname(ctx context.Context) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	result, err := d.cli.Info(ctx, client.InfoOptions{})
+	info, err := safeInfo(ctx, d.cli)
 	if err != nil {
 		return "", fmt.Errorf("unable to get Docker info: %s", err)
 	}
-	return result.Info.Name, nil
+	return info.Name, nil
 }
 
 // GetStorageStats returns the docker global storage stats if available
@@ -196,11 +196,11 @@ func (d *DockerUtil) GetHostname(ctx context.Context) (string, error) {
 func (d *DockerUtil) GetStorageStats(ctx context.Context) ([]*StorageStats, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	result, err := d.cli.Info(ctx, client.InfoOptions{})
+	info, err := safeInfo(ctx, d.cli)
 	if err != nil {
 		return []*StorageStats{}, fmt.Errorf("unable to get Docker info: %s", err)
 	}
-	return parseStorageStatsFromInfo(result.Info)
+	return parseStorageStatsFromInfo(info)
 }
 
 func isImageShaOrRepoDigest(image string) bool {
