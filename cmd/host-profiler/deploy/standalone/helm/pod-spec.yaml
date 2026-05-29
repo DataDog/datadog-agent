@@ -1,0 +1,90 @@
+nameOverride: dd-host-profiler-collector
+fullnameOverride: dd-host-profiler-collector
+
+mode: daemonset
+
+presets:
+  profiling:
+    enabled: true
+  kubernetesAttributes:
+    enabled: true
+    extractAllPodLabels: true
+
+image:
+  repository: registry.datadoghq.com/ddot-ebpf
+  tag: 7.81.0-preview-host-profiler-1.0
+
+command:
+  name: opt/datadog-agent/embedded/bin/host-profiler
+
+clusterRole:
+  rules:
+    - apiGroups: [""]
+      resources: ["nodes", "nodes/proxy", "nodes/spec"]
+      verbs: ["get", "list"]
+
+securityContext:
+  privileged: false
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  appArmorProfile:
+    type: Unconfined
+  capabilities:
+    add:
+      - BPF
+      - PERFMON
+      - SYS_PTRACE
+      - SYS_RESOURCE
+      - DAC_READ_SEARCH
+      - SYSLOG
+      - CHECKPOINT_RESTORE
+      - IPC_LOCK
+    drop:
+      - ALL
+  seccompProfile:
+    type: Localhost
+    localhostProfile: host-profiler.json
+
+
+initContainers:
+  - name: seccomp-installer
+    image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+    command:
+      - cp
+      - /etc/dd-host-profiler/seccomp.json
+      - /host/var/lib/kubelet/seccomp/host-profiler.json
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      appArmorProfile:
+        type: Unconfined
+      capabilities:
+        drop:
+          - ALL
+    volumeMounts:
+      - name: host-seccomp
+        mountPath: /host/var/lib/kubelet/seccomp
+
+extraVolumeMounts:
+  - name: tmpdir
+    mountPath: /tmp
+
+extraVolumes:
+  - name: tmpdir
+    emptyDir: {}
+  - name: host-seccomp
+    hostPath:
+      path: /var/lib/kubelet/seccomp
+      type: DirectoryOrCreate
+
+networkPolicy:
+  enabled: false
+
+extraEnvs:
+  - name: DD_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: datadog-secret
+        key: api-key
+  - name: DD_SITE
+    value: "datadoghq.com"
