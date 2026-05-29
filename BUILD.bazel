@@ -676,6 +676,7 @@ exports_files(glob(
 # gazelle:exclude test/new-e2e/tests/cspm
 # gazelle:exclude test/new-e2e/tests/cws/api
 # gazelle:exclude test/new-e2e/tests/discovery
+# gazelle:exclude test/new-e2e/tests/ddot
 # gazelle:exclude test/new-e2e/tests/fips-compliance
 # gazelle:exclude test/new-e2e/tests/fleet
 # gazelle:exclude test/new-e2e/tests/gpu
