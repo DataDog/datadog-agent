@@ -13,8 +13,8 @@ updated: 2026-05-29
 - **webhook:** basic_test
 - **duration:** 30 min
 - **source:** datadog-agent
-- **test-name:** datadog-agent/antithesis-demo-rotation-loss
-- **branch:** `blt/antithesis-demo-rotation-loss` (local gt stack, not pushed)
+- **test-name:** datadog-agent/antithesis-demo-rotation-loss (submitted test-name; historical)
+- **branch:** `blt/antithesis-file-tailer` (gt stack, not pushed; stack re-laid by subsystem 2026-05-29)
 - **config image:** snouty-config:20260529-003731-d8f8
 - **service image:** logs-antithesis-rotation-demo@sha256:3882afae86dd...
 - **property under demonstration:** `backpressure-no-rotation-loss` (Always assertion;
@@ -44,7 +44,7 @@ updated: 2026-05-29
 - **runId:** `3fb8dbbeeacb7ac0f71aa870716e2f60-54-9`
 - **launched:** 2026-05-29
 - **duration:** 30 min; source datadog-agent; test datadog-agent/antithesis-demo-logs-bugs
-- **branch:** `blt/antithesis-demo-seek-error` (gt stack, not pushed)
+- **branch:** `blt/antithesis-file-tailer` (gt stack, not pushed; stack re-laid by subsystem 2026-05-29)
 - **properties (both Always, expected FAIL):**
   - `backpressure-no-rotation-loss` (written=50/delivered=3)
   - `offset-no-regression-on-seek-error` (resume line 10 ignored; whole file re-read)

@@ -6,6 +6,21 @@ updated: 2026-05-29
 
 # Suspected-Bug Burn-Down
 
+## Stack layout (local `gt`, not pushed; one subsystem per branch)
+
+```
+main
+└── blt/antithesis-research            research artifacts + harness scaffold (this dir)
+    └── antithesis-file-tailer         tailers/file: rotation-loss, seek-error, multiline (+ SUT harness, SDK)
+        └── antithesis-file-provider   launchers/file/provider: wildcard ordering
+            └── antithesis-decoder-sampler   decoder/preprocessor: sampler aliasing guard (FIXED)
+                └── antithesis-sender        sender/strategy/processor/client-tcp: encode/oversized/render drops, idempotent-stop, tcp leak (+ mrf NOT-A-BUG, tcp-permanent DESIGN-INTENT)
+                    └── antithesis-pipeline  pipeline: failover send-on-closed/hang, per-source ordering
+                        └── antithesis-auditor   auditor/impl: offset regression, registry corruption/recovery, 4xx-replay (+ drains/migration REFUTED)
+                            └── antithesis-service-store   service: latent deadlock (DORMANT)
+                                └── antithesis-container-launcher   sources/schedulers-ad/processor: add-remove orphan, collect-all gap, stale metadata
+```
+
 > **TERMINAL — burn-down COMPLETE (2026-05-29):** every suspected bug has a verdict
 > and **every suspected defect is reproduced**. **20 reproduced** (local build-tagged
 > failing tests; 2 also reproduced on Antithesis with ~39–41k counterexamples each),
