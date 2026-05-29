@@ -321,6 +321,9 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := installAgentExtensions(ctx, agentVersion, false); err != nil {
 		log.Warnf("failed to install extensions: %s", err)
 	}
+	if err := writeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to write DDOT process manager config: %v", err)
+	}
 	if err := agentService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
 	}
