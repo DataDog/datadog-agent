@@ -84,11 +84,6 @@ build do
     command "dda inv -- -e systray.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   else
     command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir='#{install_dir}'"
-    sh_ext = if linux_target? then "so" else "dylib" end
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //bazel/rules:replace_prefix" \
-      " --prefix '#{install_dir}/embedded'" \
-      " #{install_dir}/embedded/lib/libdatadog-agent-rtloader.#{sh_ext}" \
-      " #{install_dir}/embedded/lib/libdatadog-agent-three.#{sh_ext}"
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
@@ -277,19 +272,25 @@ build do
     command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/macos/app:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
 
     command_on_repo_root "bazelisk run #{bazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-    copy "cmd/ai_prompt_logger/ai_usage_native_host.yaml.example", "#{install_dir}/etc/ai_usage_native_host.yaml.example"
-    copy "cmd/ai_prompt_logger/run_ai_usage_native_host.sh", "#{install_dir}/embedded/bin/run_ai_usage_native_host.sh"
-    command "chmod 0755 #{install_dir}/embedded/bin/run_ai_usage_native_host.sh"
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
     mkdir "#{app_temp_dir}/MacOS"
-    systray_build_dir = "#{project_dir}/comp/core/gui/guiimpl/systray"
+    systray_build_dir = "#{project_dir}/comp/core/gui/impl/systray"
     # Add @executable_path/../Frameworks to rpath to find the swift libs in the Frameworks folder.
     target = "#{arm_target? ? 'arm64' : 'x86_64'}-apple-macos12.0" # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
     command "swiftc -O -swift-version \"5\" -target \"#{target}\" -Xlinker '-rpath' -Xlinker '@executable_path/../Frameworks' Sources/*.swift -o gui", cwd: systray_build_dir
     copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"
+  end
+
+  if windows_target?
+    # AI usage Chrome native messaging host (Rust). Mirrors the macOS osx_target? branch above:
+    # the Bazel target installs the .exe into bin/agent (Windows convention; see
+    # //pkg/procmgr/rust:install for the same Linux-vs-Windows prefix split). The final Chrome
+    # Native Messaging Host manifest is staged under bin/agent/dist so the MSI owns the file
+    # during rollback/uninstall. The MSI custom action rewrites it with the final installation path.
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   # APM Hands Off config file

@@ -157,7 +157,7 @@ func TestNVLinkFECMetricSpecEntries(t *testing.T) {
 	metricSpec, ok := spec.Metrics[nvlinkFECHistoryMetricName]
 	require.True(t, ok, "metric %s missing from spec", nvlinkFECHistoryMetricName)
 	require.Equal(t, "histogram", metricSpec.Metadata.MetricType)
-	require.Contains(t, metricSpec.CustomTags, "nvlink_port")
+	require.Contains(t, metricSpec.Tagsets, "nvlink")
 	require.True(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModePhysical))
 	require.False(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModeMIG))
 	require.False(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModeVGPU))

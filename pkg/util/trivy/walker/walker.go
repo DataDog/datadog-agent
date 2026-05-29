@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"golang.org/x/xerrors"
+	"fmt"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/utils"
 	"github.com/aquasecurity/trivy/pkg/fanal/walker"
@@ -61,7 +61,7 @@ func (w *FSWalker) Walk(ctx context.Context, rootPath string, opt walker.Option,
 
 	root, err := os.OpenRoot(rootPath)
 	if err != nil {
-		return xerrors.Errorf("failed to open root %s: %w", rootPath, err)
+		return fmt.Errorf("failed to open root %s: %w", rootPath, err)
 	}
 	defer root.Close()
 
@@ -70,7 +70,7 @@ func (w *FSWalker) Walk(ctx context.Context, rootPath string, opt walker.Option,
 
 	// Walk the filesystem
 	if err := fs.WalkDir(root.FS(), ".", walkDirFunc); err != nil {
-		return xerrors.Errorf("walk dir error: %w", err)
+		return fmt.Errorf("walk dir error: %w", err)
 	}
 
 	return nil
@@ -109,11 +109,11 @@ func (w *FSWalker) walkDirFunc(ctx context.Context, root *os.Root, fn walker.Wal
 
 		info, err := d.Info()
 		if err != nil {
-			return xerrors.Errorf("file info error: %w", err)
+			return fmt.Errorf("file info error: %w", err)
 		}
 
 		if err = fn(ctx, filePath, info, fileOpener(root, filePath)); err != nil {
-			return xerrors.Errorf("failed to analyze file: %w", err)
+			return fmt.Errorf("failed to analyze file: %w", err)
 		}
 
 		return nil
@@ -138,7 +138,7 @@ func (w *FSWalker) onError(wrapped fs.WalkDirFunc, opt walker.Option) fs.WalkDir
 				}
 			}
 			// halt traversal on any other error
-			return xerrors.Errorf("unknown error with %s: %w", filePath, err)
+			return fmt.Errorf("unknown error with %s: %w", filePath, err)
 		}
 		return nil
 	}

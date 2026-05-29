@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "agentwithoperatorparams",
+    srcs = ["params.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentwithoperatorparams",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components/datadog/fakeintake",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)
