@@ -473,6 +473,8 @@ variables:
     - test/regression/**/*
     # Containers
     - Dockerfiles/**/*
+    - .gitlab/test/functional_test/regression_detector.yml
+    - .gitlab/childs/smp-regression-child-pipeline.yml
 
 .if_coverage_pipeline: &if_coverage_pipeline
   if: $E2E_COVERAGE_PIPELINE == "true"
