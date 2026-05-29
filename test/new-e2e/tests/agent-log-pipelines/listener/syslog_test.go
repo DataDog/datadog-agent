@@ -22,7 +22,6 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 //go:embed testdata/syslog-tcp-compose.yaml
@@ -57,12 +56,19 @@ func (s *dockerSyslogSuite) TestSyslogStructuredOutput() {
 
 	// Send a single RFC 5424 syslog message via the BusyBox sender container.
 	// PRI 134 = facility 16 (local0) * 8 + severity 6 (info).
+	// -w 1: BusyBox nc won't exit after stdin EOF because the agent holds
+	// the TCP connection open; the timeout ensures nc exits promptly.
 	sendCmd := []string{
 		"sh", "-c",
-		`printf '<134>1 2025-06-15T10:30:00Z testhost testapp 1234 - - Syslog e2e test message\n' | nc agent 10514`,
+		`printf '<134>1 2025-06-15T10:30:00Z testhost testapp 1234 - - Syslog e2e test message\n' | nc -w 1 agent 10514`,
 	}
-	stdout, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr("syslog-sender", sendCmd...)
-	require.NoError(t, err, "failed to send syslog message: stdout=%s stderr=%s", stdout, stderr)
+
+	// The AD-discovered TCP listener may not be accepting connections yet
+	// even though the agent reports ready. Retry the send until it succeeds.
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		stdout, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr("syslog-sender", sendCmd...)
+		assert.NoError(c, err, "failed to send syslog message: stdout=%s stderr=%s", stdout, stderr)
+	}, 1*time.Minute, 5*time.Second, "syslog send never succeeded")
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		logs, err := utils.FetchAndFilterLogs(s.Env().FakeIntake, "syslog-e2e", "Syslog e2e test message")
@@ -75,20 +81,23 @@ func (s *dockerSyslogSuite) TestSyslogStructuredOutput() {
 
 		log := logs[0]
 
-		// The message body must be structured JSON with "message" and "syslog" keys.
 		var body map[string]interface{}
 		if !assert.NoError(c, json.Unmarshal([]byte(log.Message), &body), "log.Message is not valid JSON: %s", log.Message) {
 			return
 		}
 
 		assert.Equal(c, "Syslog e2e test message", body["message"], "unexpected message body")
-		assert.Contains(c, body, "syslog", "missing 'syslog' key in structured output")
-
-		if syslogMap, ok := body["syslog"].(map[string]interface{}); ok {
-			assert.Equal(c, "testapp", syslogMap["appname"], "unexpected appname")
-			assert.EqualValues(c, 6, syslogMap["severity"], "unexpected severity")
-			assert.EqualValues(c, 16, syslogMap["facility"], "unexpected facility")
+		if !assert.Contains(c, body, "syslog", "missing 'syslog' key in structured output") {
+			return
 		}
+
+		syslogMap, ok := body["syslog"].(map[string]interface{})
+		if !assert.True(c, ok, "'syslog' value is not a map: %T", body["syslog"]) {
+			return
+		}
+		assert.Equal(c, "testapp", syslogMap["appname"], "unexpected appname")
+		assert.EqualValues(c, 6, syslogMap["severity"], "unexpected severity")
+		assert.EqualValues(c, 16, syslogMap["facility"], "unexpected facility")
 
 		assert.Equal(c, "info", log.Status, "unexpected log status")
 		assert.Equal(c, "syslog-e2e", log.Source, "unexpected log source")
