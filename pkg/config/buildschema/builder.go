@@ -73,14 +73,15 @@ func (b *builder) addToSchema(name string, val interface{}, envVars []string, no
 			}
 		case int:
 			node = map[string]interface{}{
-				"type": "number",
+				"type": "integer",
 			}
 			if !noDefault {
 				node["default"] = v
 			}
 		case int64:
 			node = map[string]interface{}{
-				"type": "number",
+				"type": "integer",
+				"tags": []string{"golang_type:int64"},
 			}
 			if !noDefault {
 				node["default"] = v
@@ -120,6 +121,7 @@ func (b *builder) addToSchema(name string, val interface{}, envVars []string, no
 		case []int:
 			node = map[string]interface{}{
 				"type":  "array",
+				"tags":  []string{"golang_type:[]int"},
 				"items": map[string]string{"type": "number"},
 			}
 			if !noDefault {

@@ -20,7 +20,7 @@ type Option = func(*Params) error
 // NewParams returns a new instance of Fakeintake Params
 func NewParams(options ...Option) (*Params, error) {
 	params := &Params{
-		ImageURL:        "gcr.io/datadoghq/fakeintake:latest",
+		ImageURL:        "registry.datadoghq.com/fakeintake:latest",
 		DDDevForwarding: true,
 		Memory:          1024,
 		LoadBalancer:    false,

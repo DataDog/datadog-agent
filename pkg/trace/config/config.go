@@ -266,12 +266,28 @@ const (
 	OrchestratorUnknown FargateOrchestratorName = "Unknown"
 )
 
+// ProfilingMainEndpointMode controls whether the profiling proxy forwards to
+// the implicit main Datadog intake.
+type ProfilingMainEndpointMode int
+
+const (
+	// ProfilingMainEndpointSend forwards profiles to the implicit main intake
+	// in addition to any AdditionalEndpoints. This is the default (zero value).
+	ProfilingMainEndpointSend ProfilingMainEndpointMode = iota
+	// ProfilingMainEndpointSkip skips the implicit main intake; only
+	// AdditionalEndpoints receive profiles.
+	ProfilingMainEndpointSkip
+)
+
 // ProfilingProxyConfig ...
 type ProfilingProxyConfig struct {
 	// DDURL ...
 	DDURL string
 	// AdditionalEndpoints ...
 	AdditionalEndpoints map[string][]string
+	// MainEndpointMode controls forwarding to the implicit main intake.
+	// Defaults to ProfilingMainEndpointSend.
+	MainEndpointMode ProfilingMainEndpointMode
 	// ReceiverTimeout is the timeout in seconds for profile upload requests
 	ReceiverTimeout int
 	// MaxRequestBytes is the maximum body size buffered when fanning out to
@@ -370,12 +386,15 @@ type AgentConfig struct {
 	Endpoints []*Endpoint
 
 	// Concentrator
-	BucketInterval            time.Duration // the size of our pre-aggregation per bucket
-	ExtraAggregators          []string      // DEPRECATED
-	PeerTagsAggregation       bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
-	ComputeStatsBySpanKind    bool          // enables/disables the computing of stats based on a span's `span.kind` field
-	PeerTags                  []string      // additional tags to use for peer entity stats aggregation
-	SpanDerivedPrimaryTagKeys []string      // tag keys to use for span-derived primary tag stats aggregation
+	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
+	ExtraAggregators       []string      // DEPRECATED
+	PeerTagsAggregation    bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
+	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
+	PeerTags               []string      // additional tags to use for peer entity stats aggregation
+	// Deprecated/Experimental: only populated when the agent runs in a serverless
+	// context (Datadog AAS extension or cmd/serverless-init). See
+	// ConfiguredSpanDerivedPrimaryTagKeys.
+	SpanDerivedPrimaryTagKeys []string
 
 	// Sampler configuration
 	ExtraSampleRate float64
@@ -823,7 +842,20 @@ func (c *AgentConfig) ConfiguredPeerTags() []string {
 	if !c.PeerTagsAggregation {
 		return nil
 	}
-	return preparePeerTags(append(basePeerTags, c.PeerTags...))
+	return preparePeerTags(append(basePeerTags(), c.PeerTags...))
+}
+
+// ConfiguredSpanDerivedPrimaryTagKeys returns the configured span-derived primary
+// tag keys used for stats aggregation.
+//
+// Deprecated/Experimental: this is only populated in serverless contexts (the
+// Datadog AAS extension, or cmd/serverless-init for Cloud Run / Container Apps /
+// Cloud Run Functions). Tracers should send additional_metric_tags instead.
+func (c *AgentConfig) ConfiguredSpanDerivedPrimaryTagKeys() []string {
+	if len(c.SpanDerivedPrimaryTagKeys) == 0 {
+		return nil
+	}
+	return preparePeerTags(c.SpanDerivedPrimaryTagKeys)
 }
 
 func inAzureAppServices() bool {

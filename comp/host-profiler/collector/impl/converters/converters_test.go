@@ -24,7 +24,7 @@ import (
 
 func loadTestData(t *testing.T, filename string) confMap {
 	t.Helper()
-	path := filepath.Join("td", filename)
+	path := filepath.Join("testdata", filename)
 	data, err := os.ReadFile(path)
 	require.NoError(t, err, "failed to read test data file: %s", filename)
 
@@ -133,7 +133,7 @@ func TestGetIntermediateNodeNotMap(t *testing.T) {
 	require.False(t, ok)
 
 	// Intermediate node is array
-	_, ok = Get[string](cm, "exporters::otlphttp::headers")
+	_, ok = Get[string](cm, "exporters::otlp_http::headers")
 	require.False(t, ok)
 }
 
@@ -348,12 +348,12 @@ func TestConverterWithoutAgentPreservesExpandedValues(t *testing.T) {
 				"profiles": confMap{
 					"receivers":  []any{"profiling"},
 					"processors": []any{},
-					"exporters":  []any{"otlphttp"},
+					"exporters":  []any{"otlp_http"},
 				},
 			},
 		},
 		"exporters": confMap{
-			"otlphttp": confMap{
+			"otlp_http": confMap{
 				"headers": confMap{
 					"dd-api-key": xconfmap.ExpandedValue{Value: 6.7, Original: "6.7"},
 				},
@@ -373,7 +373,7 @@ func TestConverterWithoutAgentPreservesExpandedValues(t *testing.T) {
 	require.NoError(t, err)
 
 	convertedMap := xconfmap.ToStringMapRaw(conf)
-	headers, _ := Get[confMap](convertedMap, "exporters::otlphttp::headers")
+	headers, _ := Get[confMap](convertedMap, "exporters::otlp_http::headers")
 	expandedVal, ok := headers["dd-api-key"].(xconfmap.ExpandedValue)
 	require.True(t, ok, "dd-api-key should still be an ExpandedValue, got type: %T", headers["dd-api-key"])
 	require.Equal(t, 6.7, expandedVal.Value)

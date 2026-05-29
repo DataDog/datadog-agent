@@ -1,17 +1,16 @@
 exporters:
-    otlphttp/datadoghq.com_0:
+    otlp_http/datadoghq.com_0:
         compression: zstd
+        endpoint: https://otlp.datadoghq.com
         headers:
             dd-api-key: test_api_key_123
             dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
-        metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
-        profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
 extensions:
-    hpflare/default:
+    hpflare:
         endpoint: localhost:7778
 processors:
-    infraattributes/default:
+    infraattributes:
         allow_hostname_override: true
         cardinality: 2
     resource/dd-profiler-internal-metadata:
@@ -31,13 +30,13 @@ receivers:
                   site: datadoghq.com
 service:
     extensions:
-        - hpflare/default
+        - hpflare
     pipelines:
         profiles:
             exporters:
-                - otlphttp/datadoghq.com_0
+                - otlp_http/datadoghq.com_0
             processors:
-                - infraattributes/default
+                - infraattributes
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling

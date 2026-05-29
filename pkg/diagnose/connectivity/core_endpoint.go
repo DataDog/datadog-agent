@@ -20,11 +20,11 @@ import (
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
+	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
+	logstcp "github.com/DataDog/datadog-agent/comp/logs-library/client/tcp"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	logstcp "github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )

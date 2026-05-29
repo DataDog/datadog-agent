@@ -50,6 +50,7 @@ cluster_agent_cloudfoundry-build*    @Datadog/agent-integrations
 cluster_agent-build*                 @DataDog/container-integrations
 cluster_agent_fips-build*            @DataDog/container-integrations
 cws_instrumentation-build*           @DataDog/agent-security
+secret_generic_connector-build*      @DataDog/agent-configuration
 build_windows_container_entrypoint   @DataDog/windows-products
 generate_config_schema-linux         @DataDog/agent-configuration
 generate_config_schema-macos         @DataDog/agent-configuration
@@ -153,11 +154,15 @@ deploy_containers*                     @Datadog/agent-delivery
 deploy_latest_rc_only                  @Datadog/agent-delivery
 deploy_mutable_image_tags*             @Datadog/agent-delivery
 deploy_mutable_cws_instrumentation_tags*     @Datadog/agent-delivery
+deploy_mutable_secret_generic_connector_tags*  @Datadog/agent-delivery
 deploy_mutable_dca_tags*               @Datadog/agent-delivery
 deploy_mutable_ot_standalone_tags*     @Datadog/agent-delivery
 
 # Deploy CWS instrumentation
 deploy_containers-cws-instrumentation* @DataDog/agent-security
+
+# Deploy Secret Generic Connector
+deploy_containers-secret-generic-connector* @DataDog/agent-configuration
 
 # Trigger release
 trigger_manual_prod_release*            @DataDog/agent-delivery
@@ -222,6 +227,7 @@ new-e2e-ndm-snmp*                       @DataDog/network-device-monitoring-core
 new-e2e-ha-agent*                       @DataDog/network-device-monitoring-core
 # --- Pipelines (metrics / logs / traces) ---
 new-e2e-amp                             @DataDog/agent-metric-pipelines
+new-e2e-amp-adp                         @DataDog/agent-data-plane
 new-e2e-alp*                            @DataDog/agent-log-pipelines
 new-e2e-apm*                            @DataDog/agent-apm
 # --- Security ---
@@ -235,7 +241,7 @@ new-e2e-fleet*                          @DataDog/fleet
 new-e2e-installer*                      @DataDog/fleet
 # --- Agent packaging (install scripts, step-by-step, package signing) ---
 new-e2e-agent-platform-*                @DataDog/fleet
-new-e2e-platform-integrations-*         @DataDog/agent-runtimes
+new-e2e-platform-integrations-*         @DataDog/agent-integrations
 new-e2e-package-signing-*               @DataDog/agent-delivery
 # --- GPU ---
 new-e2e-gpu*                            @DataDog/ebpf-platform

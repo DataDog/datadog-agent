@@ -1,4 +1,0 @@
-rules:
-  - id: lading_open_monitor
-    expression: >-
-      open.file.path =~ "/lading-data/*" && open.flags & (O_CREAT | O_RDWR | O_WRONLY) > 0

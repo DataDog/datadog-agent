@@ -17,6 +17,7 @@ import (
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -1703,6 +1704,45 @@ func TestResourceNameFromMetric(t *testing.T) {
 	}
 	for k, v := range testCases {
 		assert.Equal(t, v, resourceNameFromMetric(k))
+	}
+}
+
+func TestUsesCustomResourceMetrics(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *KSMConfig
+		expected bool
+	}{
+		{
+			name:     "empty config",
+			config:   &KSMConfig{},
+			expected: false,
+		},
+		{
+			name: "custom resource metrics configured",
+			config: &KSMConfig{
+				CustomResource: customresourcestate.Metrics{
+					Spec: customresourcestate.MetricsSpec{
+						Resources: []customresourcestate.Resource{
+							{
+								GroupVersionKind: customresourcestate.GroupVersionKind{
+									Group:   "datadoghq.com",
+									Version: "v1",
+									Kind:    "DatadogAgent",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.config.usesCustomResourceMetrics())
+		})
 	}
 }
 

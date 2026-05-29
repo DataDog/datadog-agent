@@ -6,10 +6,11 @@ _SPECS = [
     struct(os = "windows", prefix = "bin/", format = "{}.dll"),
 ]
 
-def _gen_targets(base_name, src, libname, version, prefix, spec, attributes = None):
+def _gen_targets(base_name, src, libname, version, prefix, dest_dir, spec, attributes = None):
     name = "{}_{}".format(base_name, spec.os)
     platform = "@platforms//os:{}".format(spec.os)
-    dest_prefix = (prefix + "/" + spec.prefix) if prefix else spec.prefix
+    base = (dest_dir + "/") if dest_dir else spec.prefix
+    dest_prefix = base + (prefix + "/" if prefix else "")
     attributes = attributes or pkg_attributes(mode = "0644")
 
     # Windows: no symlinks, no renaming - just copy the DLL as-is
@@ -56,11 +57,11 @@ def _gen_targets(base_name, src, libname, version, prefix, spec, attributes = No
     pkg_filegroup(name = name, srcs = targets, target_compatible_with = [platform], package_metadata = [])
     return platform, [":{}".format(name)]
 
-def _so_symlink_impl(name, src, libname, version, prefix, visibility):
+def _so_symlink_impl(name, src, libname, version, prefix, dest_dir, visibility):
     src_str = ":{}".format(src.name)
     pkg_filegroup(
         name = name,
-        srcs = select(dict([_gen_targets(name, src_str, libname, version, prefix, spec) for spec in _SPECS])),
+        srcs = select(dict([_gen_targets(name, src_str, libname, version, prefix, dest_dir, spec) for spec in _SPECS])),
         package_metadata = [],
         visibility = visibility,
     )
@@ -94,7 +95,18 @@ so_symlink = macro(
             configurable = False,
         ),
         "prefix": attr.string(
-            doc = "Installation directory prefix (default: \"\")",
+            doc = """Optional subdirectory appended after the base directory.
+            Empty (default) means files land directly in the base. For example,
+            prefix = "foo/bar" places files under lib/foo/bar on Linux (or
+            <dest_dir>/foo/bar when dest_dir is set).""",
+            default = "",
+            configurable = False,
+        ),
+        "dest_dir": attr.string(
+            doc = """Optional override for the OS-determined base directory.
+            Empty (default) uses lib/ on Linux/macOS and bin/ on Windows.
+            When set, files land under <dest_dir>/ on all platforms; use this
+            for deps with non-standard install layouts.""",
             default = "",
             configurable = False,
         ),
