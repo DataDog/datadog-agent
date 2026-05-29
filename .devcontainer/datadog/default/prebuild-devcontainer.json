@@ -10,6 +10,16 @@
             "source": "${localEnv:HOME}/.cache",
             "target": "/var/cache/dd",
             "type": "bind"
+        },
+        {
+            "source": "dind-var-lib-docker-${devcontainerId}",
+            "target": "/var/lib/docker",
+            "type": "volume"
+        },
+        {
+            "source": "dind-var-lib-containerd-${devcontainerId}",
+            "target": "/var/lib/containerd",
+            "type": "volume"
         }
     ],
     "forwardPorts": [22],
