@@ -782,11 +782,17 @@ func getGpuInstanceProfileInfo(deviceIdx int, migChildCount int) nvml.GpuInstanc
 
 // GetMIGDeviceMock returns a mock of the MIG Device.
 func GetMIGDeviceMock(deviceIdx int, migDeviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Device {
-	return getMIGDeviceMockWithOptions(deviceIdx, migDeviceIdx, deviceOptions{
-		mode:               DeviceFeatureMIG,
-		compatibilityHooks: append([]func(*nvmlmock.Device){}, opts...),
-		fieldValues:        maps.Clone(DefaultFieldValues),
-	})
+	var mockOpts []NvmlMockOption
+	for _, opt := range opts {
+		mockOpts = append(mockOpts, WithCustomHook(opt))
+	}
+
+	// Route through newNvmlMockOptions so defaults (parentUUIDs, migChildUUIDs,
+	// fieldValues) are populated; getDeviceMockWithOptions indexes them directly.
+	libOpts := newNvmlMockOptions(mockOpts...)
+	libOpts.deviceOptions.mode = DeviceFeatureMIG
+
+	return getMIGDeviceMockWithOptions(deviceIdx, migDeviceIdx, libOpts.deviceOptions)
 }
 
 type nvmlMockOptions struct {
