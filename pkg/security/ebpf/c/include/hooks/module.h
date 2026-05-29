@@ -102,30 +102,39 @@ int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, 
         return 0;
     }
 
-    struct init_module_event_t event = {
-        .syscall.retval = retval,
-        .file = syscall->init_module.file,
-        .loaded_from_memory = syscall->init_module.loaded_from_memory,
-    };
+    // init_module_event_t lives in a per-CPU map rather than on the stack: at
+    // ~480 bytes it leaves no room for the bpf-to-bpf call into
+    // fill_span_context_go (combined stack budget is 512 bytes on pre-6.17
+    // verifiers).
+    u32 zero = 0;
+    struct init_module_event_t *event = bpf_map_lookup_elem(&init_module_event_gen, &zero);
+    if (!event) {
+        return 0;
+    }
+    __builtin_memset(event, 0, sizeof(*event));
 
-    bpf_probe_read_str(&event.args, sizeof(event.args), &syscall->init_module.args);
-    event.args_truncated = syscall->init_module.args_truncated;
+    event->syscall.retval = retval;
+    event->file = syscall->init_module.file;
+    event->loaded_from_memory = syscall->init_module.loaded_from_memory;
+
+    bpf_probe_read_str(&event->args, sizeof(event->args), &syscall->init_module.args);
+    event->args_truncated = syscall->init_module.args_truncated;
 
     if (!modname) {
-        bpf_probe_read_str(&event.name, sizeof(event.name), &syscall->init_module.name[0]);
+        bpf_probe_read_str(&event->name, sizeof(event->name), &syscall->init_module.name[0]);
     } else {
-        bpf_probe_read_str(&event.name, sizeof(event.name), modname);
+        bpf_probe_read_str(&event->name, sizeof(event->name), modname);
     }
 
     if (syscall->init_module.dentry != NULL) {
-        fill_file(syscall->init_module.dentry, &event.file);
+        fill_file(syscall->init_module.dentry, &event->file);
     }
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
+    fill_span_context(&event->span);
 
-    send_event(ctx, EVENT_INIT_MODULE, event);
+    send_event_ptr(ctx, EVENT_INIT_MODULE, event);
     return 0;
 }
 
