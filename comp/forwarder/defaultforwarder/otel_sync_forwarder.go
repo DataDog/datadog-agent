@@ -7,6 +7,7 @@ package defaultforwarder
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -21,6 +22,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+// ErrPermanentHTTPError is the sentinel wrapped into errors returned when the
+// intake responds with a permanent failure (400, 413, 403-drop). Callers at
+// the OTel exporter boundary can detect this with errors.Is and convert it to
+// consumererror.NewPermanent so the exporterhelper queue does not retry it.
+var ErrPermanentHTTPError = errors.New("permanent intake error")
 
 // OTelSyncForwarder is a synchronous forwarder that aggregates and returns
 // transaction errors instead of swallowing them. It is intended for use by the
@@ -93,7 +100,7 @@ func (f *OTelSyncForwarder) sendHTTPTransactions(ctx context.Context, transactio
 		origHandler := txn.CompletionHandler
 		txn.CompletionHandler = func(tx *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
 			if err == nil && (statusCode == 400 || statusCode == 413 || statusCode == 403) {
-				permanentErr = fmt.Errorf("permanent intake error %d: dropping transaction to %s%s", statusCode, tx.Domain, tx.Endpoint.Route)
+				permanentErr = fmt.Errorf("HTTP %d dropping transaction to %s%s: %w", statusCode, tx.Domain, tx.Endpoint.Route, ErrPermanentHTTPError)
 			}
 			origHandler(tx, statusCode, body, err)
 		}

@@ -152,7 +152,8 @@ func TestOTelSyncForwarder_sendHTTPTransactions_PermanentErrorOnBadRequest(t *te
 			txn.Payload = transaction.NewBytesPayloadWithoutMetaData([]byte("{}"))
 
 			err := f.sendHTTPTransactions(context.Background(), []*transaction.HTTPTransaction{txn})
-			assert.Error(t, err, "permanent %d should surface as an error instead of being silently dropped", status)
+			require.Error(t, err, "permanent %d should surface as an error instead of being silently dropped", status)
+			assert.ErrorIs(t, err, ErrPermanentHTTPError, "permanent %d must wrap ErrPermanentHTTPError so callers can mark it non-retryable", status)
 		})
 	}
 }
