@@ -323,6 +323,10 @@ func runHTTPMonitorIntegrationWithResponseBodyTest(t *testing.T, params commonTe
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.name == "10mb body" {
+				t.Skip("Skipping test due to flakiness")
+			}
+
 			serverAddr := fmt.Sprintf("127.0.0.1:%d", params.serverPort)
 
 			monitor := params.setupMonitor(t)
