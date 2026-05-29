@@ -27,7 +27,7 @@ The Datadog Agent collects metrics, traces, logs, and security events and forwar
 
 - `/packages/` - The declarations of what goes into each package we build for distribution.
 
-- `/omnibus/` - The legacy build system. Still in used, but we are trying not to add to it.
+- `/omnibus/` - The legacy build system. Still in use, but we are trying not to add to it.
 
 
 ## Development Workflow
