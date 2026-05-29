@@ -237,6 +237,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.bind_host", "0.0.0.0")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.stop_timeout", 5) // in seconds
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.users", []map[string]string{})
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.tags", []string{})
 
 	// NetFlow
 	config.BindEnvAndSetDefault("network_devices.netflow.enabled", false)
