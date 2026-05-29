@@ -932,7 +932,7 @@ func (m MockProcessInfoList) ProcessUtilizationSamples() []nvml.ProcessUtilizati
 // WithProcessData sets the process data returned by the mock.
 func WithProcessData(processData []MockProcessData, returnCode nvml.Return) NvmlMockOption {
 	return func(o *nvmlMockOptions) {
-		o.deviceOptions.processDataCallback = func(uuid string) (MockProcessInfoList, nvml.Return) {
+		o.deviceOptions.processDataCallback = func(_ string) (MockProcessInfoList, nvml.Return) {
 			return MockProcessInfoList(processData), returnCode
 		}
 	}
