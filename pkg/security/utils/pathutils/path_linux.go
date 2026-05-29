@@ -16,10 +16,12 @@ import (
 
 // PathPatternMatchOpts PathPatternMatch options
 type PathPatternMatchOpts struct {
-	WildcardLimit      int // max number of wildcard in the pattern
-	PrefixNodeRequired int // number of prefix nodes required
-	SuffixNodeRequired int // number of suffix nodes required
-	NodeSizeLimit      int // min size required to substitute with a wildcard
+	WildcardLimit           int  // max number of wildcard in the pattern
+	PrefixNodeRequired      int  // number of prefix nodes required
+	SuffixNodeRequired      int  // number of suffix nodes required
+	NodeSizeLimit           int  // min size required to substitute with a wildcard
+	NodeCommonCharsRequired int  // min number of common characters required for two differing nodes to be considered equal
+	ExtensionRequired       bool // require the path to have an extension in its last node (a non-leading '.')
 }
 
 // PathPatternMatch pattern builder for files
@@ -27,8 +29,10 @@ func PathPatternMatch(pattern string, path string, opts PathPatternMatchOpts) bo
 	var (
 		i, j, offsetPath                     = 0, 0, 0
 		wildcardCount, nodeCount, suffixNode = 0, 0, 0
+		nodeCommonChars                      = 0
+		pathNodeStartJ                       = 0
 		patternLen, pathLen                  = len(pattern), len(path)
-		wildcard                             bool
+		wildcard, pathHasExt                 bool
 
 		computeNode = func() bool {
 			if wildcard {
@@ -42,6 +46,9 @@ func PathPatternMatch(pattern string, path string, opts PathPatternMatchOpts) bo
 				if opts.NodeSizeLimit != 0 && j-offsetPath < opts.NodeSizeLimit {
 					return false
 				}
+				if opts.NodeCommonCharsRequired != 0 && nodeCommonChars < opts.NodeCommonCharsRequired {
+					return false
+				}
 
 				suffixNode = 0
 			} else {
@@ -49,6 +56,7 @@ func PathPatternMatch(pattern string, path string, opts PathPatternMatchOpts) bo
 			}
 
 			offsetPath = j
+			nodeCommonChars = 0
 
 			if i > 0 {
 				nodeCount++
@@ -72,14 +80,21 @@ func PathPatternMatch(pattern string, path string, opts PathPatternMatchOpts) bo
 				return false
 			}
 			wildcard = false
+			pathHasExt = false
 
 			i++
 			j++
+			pathNodeStartJ = j
 			continue
 		}
 
 		if pn != ph {
 			wildcard = true
+		} else if pn != '/' {
+			nodeCommonChars++
+		}
+		if ph == '.' && j > pathNodeStartJ {
+			pathHasExt = true
 		}
 		if pn != '/' {
 			i++
@@ -104,10 +119,17 @@ func PathPatternMatch(pattern string, path string, opts PathPatternMatchOpts) bo
 		if path[j] == '/' {
 			return false
 		}
+		if path[j] == '.' && j > pathNodeStartJ {
+			pathHasExt = true
+		}
 		j++
 	}
 
 	if !computeNode() {
+		return false
+	}
+
+	if opts.ExtensionRequired && !pathHasExt {
 		return false
 	}
 
@@ -128,9 +150,11 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternMatchOpts) 
 	var (
 		i, j                                 = 0, 0
 		wildcardCount, nodeCount, suffixNode = 0, 0, 0
+		nodeCommonChars                      = 0
+		pathNodeStartJ                       = 0
 		offsetPattern, offsetPath, size      = 0, 0, 0
 		patternLen, pathLen                  = len(pattern), len(path)
-		wildcard                             bool
+		wildcard, pathHasExt                 bool
 		result                               = make([]byte, lenMax)
 
 		computeNode = func() bool {
@@ -143,6 +167,9 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternMatchOpts) 
 					return false
 				}
 				if opts.NodeSizeLimit != 0 && j-offsetPath < opts.NodeSizeLimit {
+					return false
+				}
+				if opts.NodeCommonCharsRequired != 0 && nodeCommonChars < opts.NodeCommonCharsRequired {
 					return false
 				}
 
@@ -158,6 +185,7 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternMatchOpts) 
 			}
 
 			offsetPath = j
+			nodeCommonChars = 0
 
 			if i > 0 {
 				nodeCount++
@@ -181,14 +209,21 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternMatchOpts) 
 				return "", false
 			}
 			wildcard = false
+			pathHasExt = false
 
 			i++
 			j++
+			pathNodeStartJ = j
 			continue
 		}
 
 		if pn != ph {
 			wildcard = true
+		} else if pn != '/' {
+			nodeCommonChars++
+		}
+		if ph == '.' && j > pathNodeStartJ {
+			pathHasExt = true
 		}
 		if pn != '/' {
 			i++
@@ -213,6 +248,9 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternMatchOpts) 
 		if path[j] == '/' {
 			return "", false
 		}
+		if path[j] == '.' && j > pathNodeStartJ {
+			pathHasExt = true
+		}
 		j++
 	}
 
@@ -220,7 +258,16 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternMatchOpts) 
 		return "", false
 	}
 
+	if opts.ExtensionRequired && !pathHasExt {
+		return "", false
+	}
+
 	if opts.SuffixNodeRequired == 0 || suffixNode >= opts.SuffixNodeRequired {
+		if wildcardCount == 0 {
+			// no wildcard substitution — pattern equals the built result, return it
+			// directly to skip the string conversion allocation
+			return pattern, true
+		}
 		return string(result[:size]), true
 	}
 

@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 )
 
 // FileNode holds a tree representation of a list of files
@@ -105,6 +106,40 @@ func (fn *FileNode) buildNodeRow(prefix string) string {
 	return out
 }
 
+// Matches returns the unified path and true if the file event used to generate the file node matches the provided
+// model.FileEvent. When normalize is true, paths are compared via PathPatternBuilder so that paths differing only in
+// numeric or rotated suffixes (e.g. /var/log/syslog.1 vs /var/log/syslog.2) are unified into a wildcard pattern; the
+// path is required to carry an extension, to avoid collapsing unrelated files. When normalize is false, the literal
+// path is returned only when both sides are byte-equal.
+func (fn *FileNode) Matches(entry *model.FileEvent, normalize bool) bool {
+	if fn.File == nil || entry == nil {
+		return false
+	}
+	if normalize {
+		var (
+			prefixNodeRequired      = 1
+			nodeCommonCharsRequired = 5
+			extensionRequired       = true
+		)
+
+		// relax a bit for /tmp files
+		if strings.HasPrefix(entry.PathnameStr, "/tmp") {
+			prefixNodeRequired = 2
+			nodeCommonCharsRequired = 4
+			extensionRequired = false
+		}
+
+		return pathutils.PathPatternMatch(fn.File.PathnameStr, entry.PathnameStr, pathutils.PathPatternMatchOpts{
+			WildcardLimit:           3,
+			PrefixNodeRequired:      prefixNodeRequired,
+			NodeSizeLimit:           4,
+			NodeCommonCharsRequired: nodeCommonCharsRequired,
+			ExtensionRequired:       extensionRequired,
+		})
+	}
+	return fn.File.PathnameStr == entry.PathnameStr
+}
+
 func (fn *FileNode) enrichFromEvent(event *model.Event) {
 	if event == nil {
 		return
@@ -170,12 +205,27 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 
 		// create new child
 		newEntry = true
-		if dryRun {
+		if len(currentPath) <= nextParentIndex+1 {
+			// leaf: look for an existing sibling that matches the new file event by pattern
+			// before creating a fresh node
+			for _, sibling := range currentFn.Children {
+				if sibling.Matches(fileEvent, true) {
+					newEntry = false
+					if !dryRun {
+						sibling.IsPattern = sibling.File.PathnameStr != fileEvent.PathnameStr
+						sibling.enrichFromEvent(event)
+						sibling.AppendImageTagID(imageTagID, event.ResolveEventTime())
+					}
+					break
+				}
+			}
+			if newEntry && !dryRun {
+				currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, imageTagID, generationType, reducedPath, resolvers)
+				stats.FileNodes++
+			}
 			break
 		}
-		if len(currentPath) <= nextParentIndex+1 {
-			currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, imageTagID, generationType, reducedPath, resolvers)
-			stats.FileNodes++
+		if dryRun {
 			break
 		}
 		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, "", resolvers)

@@ -234,6 +234,90 @@ func TestPathPatternMatch(t *testing.T) {
 			Opts:           PathPatternMatchOpts{WildcardLimit: 1, SuffixNodeRequired: 1},
 			ExpectedResult: false,
 		},
+		{
+			Pattern:        "/bin/baz2",
+			Path:           "/bin/baz",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 3},
+			ExpectedResult: true,
+		},
+		{
+			Pattern:        "/bin/baz2",
+			Path:           "/bin/baz",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 4},
+			ExpectedResult: false,
+		},
+		{
+			Pattern:        "/var/run/abcdef/runc.pid",
+			Path:           "/var/run/abcxyz/runc.pid",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 3},
+			ExpectedResult: true,
+		},
+		{
+			Pattern:        "/var/run/abcdef/runc.pid",
+			Path:           "/var/run/abcxyz/runc.pid",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 4},
+			ExpectedResult: false,
+		},
+		{
+			Pattern:        "/var/run/12345/runc.pid",
+			Path:           "/var/run/67890/runc.pid",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 1},
+			ExpectedResult: false,
+		},
+		{
+			Pattern:        "/etc/passwd",
+			Path:           "/etc/passwd",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 100},
+			ExpectedResult: true,
+		},
+		{
+			Pattern:        "/var/log/syslog.1",
+			Path:           "/var/log/syslog.2",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult: true,
+		},
+		{
+			Pattern:        "/var/log/syslog",
+			Path:           "/var/log/syslog",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult: false,
+		},
+		{
+			Pattern:        "/var/log/syslog",
+			Path:           "/var/log/syslog.1",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult: true,
+		},
+		{
+			Pattern:        "/var/log/syslog.1",
+			Path:           "/var/log/syslog",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult: false,
+		},
+		{
+			Pattern:        "/home/user/.bashrc",
+			Path:           "/home/user/.bashrc",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult: false,
+		},
+		{
+			Pattern:        "/home/user/.bashrc",
+			Path:           "/home/user/.bashrc.bak",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult: true,
+		},
+		{
+			Pattern:        "/var/run/1234.pid/foo",
+			Path:           "/var/run/4321.pid/foo",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult: false,
+		},
+		{
+			Pattern:        "/etc/passwd",
+			Path:           "/etc/passwd",
+			Opts:           PathPatternMatchOpts{WildcardLimit: 1},
+			ExpectedResult: true,
+		},
 	}
 
 	for _, test := range tests {
@@ -504,6 +588,62 @@ func TestPathPatternBuilder(t *testing.T) {
 			ExpectedResult:  false,
 			ExpectedPattern: "",
 		},
+		{
+			Pattern:         "/bin/baz2",
+			Path:            "/bin/baz",
+			Opts:            PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 3},
+			ExpectedResult:  true,
+			ExpectedPattern: "/bin/*",
+		},
+		{
+			Pattern:         "/bin/baz2",
+			Path:            "/bin/baz",
+			Opts:            PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 4},
+			ExpectedResult:  false,
+			ExpectedPattern: "",
+		},
+		{
+			Pattern:         "/var/run/12345/runc.pid",
+			Path:            "/var/run/67890/runc.pid",
+			Opts:            PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 1},
+			ExpectedResult:  false,
+			ExpectedPattern: "",
+		},
+		{
+			Pattern:         "/etc/passwd",
+			Path:            "/etc/passwd",
+			Opts:            PathPatternMatchOpts{WildcardLimit: 1, NodeCommonCharsRequired: 100},
+			ExpectedResult:  true,
+			ExpectedPattern: "/etc/passwd",
+		},
+		{
+			Pattern:         "/var/log/syslog.1",
+			Path:            "/var/log/syslog.2",
+			Opts:            PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult:  true,
+			ExpectedPattern: "/var/log/*",
+		},
+		{
+			Pattern:         "/var/log/syslog",
+			Path:            "/var/log/syslog",
+			Opts:            PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult:  false,
+			ExpectedPattern: "",
+		},
+		{
+			Pattern:         "/home/user/.bashrc",
+			Path:            "/home/user/.bashrc",
+			Opts:            PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult:  false,
+			ExpectedPattern: "",
+		},
+		{
+			Pattern:         "/home/user/.bashrc",
+			Path:            "/home/user/.bashrc.bak",
+			Opts:            PathPatternMatchOpts{WildcardLimit: 1, ExtensionRequired: true},
+			ExpectedResult:  true,
+			ExpectedPattern: "/home/user/*",
+		},
 	}
 
 	for _, test := range tests {
@@ -519,6 +659,36 @@ func BenchmarkPathPatternMatch(b *testing.B) {
 	b.Run("pattern", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			PathPatternMatch("/var/run/1234/runc.pid", "/var/run/54321/runc.pid", PathPatternMatchOpts{WildcardLimit: 1, PrefixNodeRequired: 2, SuffixNodeRequired: 2})
+		}
+	})
+
+	b.Run("standard", func(b *testing.B) {
+		equal := func(a, b string) bool {
+			return a == b
+		}
+
+		for i := 0; i < b.N; i++ {
+			equal("/var/run/1234/runc.pid", "/var/run/54321/runc.pid")
+		}
+	})
+}
+
+func BenchmarkPathPatternBuilder(b *testing.B) {
+	b.Run("pattern", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			PathPatternBuilder("/var/run/1234/runc.pid", "/var/run/54321/runc.pid", PathPatternMatchOpts{WildcardLimit: 1, PrefixNodeRequired: 2, SuffixNodeRequired: 2})
+		}
+	})
+
+	b.Run("exact_match", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			PathPatternBuilder("/var/run/1234/runc.pid", "/var/run/1234/runc.pid", PathPatternMatchOpts{WildcardLimit: 1, PrefixNodeRequired: 2})
+		}
+	})
+
+	b.Run("wildcard_emit", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			PathPatternBuilder("/var/run/1234/runc.pid", "/var/run/54321/runc.pid", PathPatternMatchOpts{WildcardLimit: 1})
 		}
 	})
 
