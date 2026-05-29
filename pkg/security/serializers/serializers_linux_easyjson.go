@@ -2680,6 +2680,12 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers17(
 			} else {
 				(out.Variables).UnmarshalEasyJSON(in)
 			}
+		case "variables_with_depth":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				(out.VariablesWithDepth).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -2954,6 +2960,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers17(
 		const prefix string = ",\"variables\":"
 		out.RawString(prefix)
 		(in.Variables).MarshalEasyJSON(out)
+	}
+	if len(in.VariablesWithDepth) != 0 {
+		const prefix string = ",\"variables_with_depth\":"
+		out.RawString(prefix)
+		(in.VariablesWithDepth).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }

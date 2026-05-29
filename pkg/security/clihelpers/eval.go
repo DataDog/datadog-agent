@@ -278,8 +278,8 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 		switch v := v.(type) {
 		case string:
 			if rules.IsScopeVariable(k) {
-				variables[k] = eval.NewScopedStringVariable(func(_ *eval.Context, _ bool) (string, bool) {
-					return v, true
+				variables[k] = eval.NewScopedStringVariable(func(_ *eval.Context, _ bool) (string, bool, int) {
+					return v, true, 0
 				}, nil, varOpts)
 			} else {
 				variables[k] = eval.NewStringVariable(v, varOpts)
@@ -292,8 +292,8 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 					values[i] = value.(string)
 				}
 				if rules.IsScopeVariable(k) {
-					variables[k] = eval.NewScopedStringArrayVariable(func(_ *eval.Context, _ bool) ([]string, bool) {
-						return values, true
+					variables[k] = eval.NewScopedStringArrayVariable(func(_ *eval.Context, _ bool) ([]string, bool, int) {
+						return values, true, 0
 					}, nil, varOpts)
 				} else {
 					variables[k] = eval.NewStringArrayVariable(values, varOpts)
@@ -309,8 +309,8 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 				}
 
 				if rules.IsScopeVariable(k) {
-					variables[k] = eval.NewScopedIntArrayVariable(func(_ *eval.Context, _ bool) ([]int, bool) {
-						return values, true
+					variables[k] = eval.NewScopedIntArrayVariable(func(_ *eval.Context, _ bool) ([]int, bool, int) {
+						return values, true, 0
 					}, nil, varOpts)
 				} else {
 					variables[k] = eval.NewIntArrayVariable(values, varOpts)
@@ -324,16 +324,16 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 				return nil, fmt.Errorf("failed to convert %s to int: %w", v, err)
 			}
 			if rules.IsScopeVariable(k) {
-				variables[k] = eval.NewScopedIntVariable(func(_ *eval.Context, _ bool) (int, bool) {
-					return int(value), true
+				variables[k] = eval.NewScopedIntVariable(func(_ *eval.Context, _ bool) (int, bool, int) {
+					return int(value), true, 0
 				}, nil, varOpts)
 			} else {
 				variables[k] = eval.NewIntVariable(int(value), varOpts)
 			}
 		case bool:
 			if rules.IsScopeVariable(k) {
-				variables[k] = eval.NewScopedBoolVariable(func(_ *eval.Context, _ bool) (bool, bool) {
-					return v, true
+				variables[k] = eval.NewScopedBoolVariable(func(_ *eval.Context, _ bool) (bool, bool, int) {
+					return v, true, 0
 				}, nil, varOpts)
 			} else {
 				variables[k] = eval.NewBoolVariable(v, varOpts)

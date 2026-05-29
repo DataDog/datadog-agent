@@ -338,6 +338,8 @@ type ProcessSerializer struct {
 	Tracer *tracermetadata.TracerMetadata `json:"tracer,omitempty"`
 	// Variable values
 	Variables Variables `json:"variables,omitempty"`
+	// Variable values with depth
+	VariablesWithDepth Variables `json:"variables_with_depth,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -1395,7 +1397,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 		ProcessSerializer: newProcessSerializer(&pc.Process, e),
 	}
 
-	ps.Variables = newVariablesContext(e, rule, "process.")
+	ps.Variables, ps.VariablesWithDepth = newVariablesContext(e, rule, "process.")
 
 	// add the syscalls from the event only for the top level parent
 	if e.GetEventType() == model.SyscallsEventType {
@@ -1420,7 +1422,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 
 		// evaluate variables scoped to this ancestor
 		e.ProcessCacheEntry = pce
-		s.Variables = newVariablesContext(e, rule, "process.")
+		s.Variables, s.VariablesWithDepth = newVariablesContext(e, rule, "process.")
 		e.ProcessCacheEntry = originalPCE
 
 		ps.Ancestors = append(ps.Ancestors, s)
@@ -1621,20 +1623,26 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	}
 
 	if !event.ProcessContext.ContainerContext.IsNull() {
+		variables, variablesWithDepth := newVariablesContext(event, rule, "container.")
+
 		s.ContainerContextSerializer = &ContainerContextSerializer{
-			ID:        string(event.ProcessContext.ContainerContext.ContainerID),
-			Source:    event.ProcessContext.ContainerContext.ContainerSource.String(),
-			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(event.ProcessContext.ContainerContext.CreatedAt))),
-			Variables: newVariablesContext(event, rule, "container."),
+			ID:                 string(event.ProcessContext.ContainerContext.ContainerID),
+			Source:             event.ProcessContext.ContainerContext.ContainerSource.String(),
+			CreatedAt:          utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(event.ProcessContext.ContainerContext.CreatedAt))),
+			Variables:          variables,
+			VariablesWithDepth: variablesWithDepth,
 		}
 	}
 
 	if !event.ProcessContext.CGroup.IsNull() {
+		variables, variablesWithDepth := newVariablesContext(event, rule, "cgroup.")
+
 		s.CGroupContextSerializer = &CGroupContextSerializer{
-			ID:        string(event.ProcessContext.CGroup.CGroupID),
-			Source:    event.ProcessContext.CGroup.CGroupSource.String(),
-			CreatedAt: utils.NewEasyjsonTimeIfNotZero(event.ProcessContext.CGroup.UnixCreatedAt()),
-			Variables: newVariablesContext(event, rule, "cgroup."),
+			ID:                 string(event.ProcessContext.CGroup.CGroupID),
+			Source:             event.ProcessContext.CGroup.CGroupSource.String(),
+			CreatedAt:          utils.NewEasyjsonTimeIfNotZero(event.ProcessContext.CGroup.UnixCreatedAt()),
+			Variables:          variables,
+			VariablesWithDepth: variablesWithDepth,
 		}
 	}
 

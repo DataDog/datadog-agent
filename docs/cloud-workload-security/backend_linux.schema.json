@@ -229,6 +229,10 @@
         "variables": {
           "$ref": "#/$defs/Variables",
           "description": "Variable values"
+        },
+        "variables_with_depth": {
+          "$ref": "#/$defs/Variables",
+          "description": "VariablesWithDepth values with depth"
         }
       },
       "additionalProperties": false,
@@ -313,6 +317,10 @@
         "variables": {
           "$ref": "#/$defs/Variables",
           "description": "Variable values"
+        },
+        "variables_with_depth": {
+          "$ref": "#/$defs/Variables",
+          "description": "VariablesWithDepth values with depth"
         }
       },
       "additionalProperties": false,
@@ -439,6 +447,10 @@
         "variables": {
           "$ref": "#/$defs/Variables",
           "description": "Variable values"
+        },
+        "variables_with_depth": {
+          "$ref": "#/$defs/Variables",
+          "description": "VariablesWithDepth values with depth"
         },
         "rule_context": {
           "$ref": "#/$defs/RuleContext",
@@ -1493,6 +1505,10 @@
         "variables": {
           "$ref": "#/$defs/Variables",
           "description": "Variable values"
+        },
+        "variables_with_depth": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variable values with depth"
         }
       },
       "additionalProperties": false,
@@ -1676,6 +1692,10 @@
         "variables": {
           "$ref": "#/$defs/Variables",
           "description": "Variable values"
+        },
+        "variables_with_depth": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variable values with depth"
         },
         "parent": {
           "$ref": "#/$defs/Process",

@@ -498,7 +498,7 @@ func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVar
 				})
 				defer preparator.put(ctx)
 
-				value, found := scopedVariable.GetValue(ctx, true) // for status, let's not follow inheritance
+				value, found, _ := scopedVariable.GetValue(ctx, true) // for status, let's not follow inheritance
 				if !found {
 					return
 				}

@@ -1266,6 +1266,12 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(i
 			} else {
 				(out.Variables).UnmarshalEasyJSON(in)
 			}
+		case "variables_with_depth":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				(out.VariablesWithDepth).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -1583,6 +1589,11 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(o
 		const prefix string = ",\"variables\":"
 		out.RawString(prefix)
 		(in.Variables).MarshalEasyJSON(out)
+	}
+	if len(in.VariablesWithDepth) != 0 {
+		const prefix string = ",\"variables_with_depth\":"
+		out.RawString(prefix)
+		(in.VariablesWithDepth).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }
@@ -2872,6 +2883,12 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers18(
 			} else {
 				(out.Variables).UnmarshalEasyJSON(in)
 			}
+		case "variables_with_depth":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				(out.VariablesWithDepth).UnmarshalEasyJSON(in)
+			}
 		case "rule_context":
 			if in.IsNull() {
 				in.Skip()
@@ -2962,6 +2979,16 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers18(
 			out.RawString(prefix)
 		}
 		(in.Variables).MarshalEasyJSON(out)
+	}
+	if len(in.VariablesWithDepth) != 0 {
+		const prefix string = ",\"variables_with_depth\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(in.VariablesWithDepth).MarshalEasyJSON(out)
 	}
 	if true {
 		const prefix string = ",\"rule_context\":"
@@ -3285,6 +3312,12 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers22(
 			} else {
 				(out.Variables).UnmarshalEasyJSON(in)
 			}
+		case "variables_with_depth":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				(out.VariablesWithDepth).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -3334,6 +3367,16 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers22(
 			out.RawString(prefix)
 		}
 		(in.Variables).MarshalEasyJSON(out)
+	}
+	if len(in.VariablesWithDepth) != 0 {
+		const prefix string = ",\"variables_with_depth\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(in.VariablesWithDepth).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }
@@ -3401,6 +3444,12 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers23(
 			} else {
 				(out.Variables).UnmarshalEasyJSON(in)
 			}
+		case "variables_with_depth":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				(out.VariablesWithDepth).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -3460,6 +3509,16 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers23(
 			out.RawString(prefix)
 		}
 		(in.Variables).MarshalEasyJSON(out)
+	}
+	if len(in.VariablesWithDepth) != 0 {
+		const prefix string = ",\"variables_with_depth\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(in.VariablesWithDepth).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }

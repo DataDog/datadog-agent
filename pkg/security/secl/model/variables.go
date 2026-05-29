@@ -14,15 +14,15 @@ import (
 var (
 	// SECLVariables set of variables
 	SECLVariables = map[string]eval.SECLVariable{
-		"process.pid": eval.NewScopedIntVariable(func(ctx *eval.Context, _ bool) (int, bool) {
+		"process.pid": eval.NewScopedIntVariable(func(ctx *eval.Context, _ bool) (int, bool, int) {
 			pc := ctx.Event.(*Event).ProcessContext
 			if pc == nil {
-				return 0, false
+				return 0, false, 0
 			}
-			return int(pc.Process.Pid), true
+			return int(pc.Process.Pid), true, 0
 		}, nil, eval.VariableOpts{}),
-		"builtins.uuid4": eval.NewScopedStringVariable(func(_ *eval.Context, _ bool) (string, bool) {
-			return uuid.New().String(), true
+		"builtins.uuid4": eval.NewScopedStringVariable(func(_ *eval.Context, _ bool) (string, bool, int) {
+			return uuid.New().String(), true, 0
 		}, nil, eval.VariableOpts{}),
 	}
 )

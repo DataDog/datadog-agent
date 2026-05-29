@@ -240,6 +240,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "variables": {
                     "$ref": "#/$defs/Variables",
                     "description": "Variable values"
+                },
+                "variables_with_depth": {
+                    "$ref": "#/$defs/Variables",
+                    "description": "VariablesWithDepth values with depth"
                 }
             },
             "additionalProperties": false,
@@ -324,6 +328,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "variables": {
                     "$ref": "#/$defs/Variables",
                     "description": "Variable values"
+                },
+                "variables_with_depth": {
+                    "$ref": "#/$defs/Variables",
+                    "description": "VariablesWithDepth values with depth"
                 }
             },
             "additionalProperties": false,
@@ -450,6 +458,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "variables": {
                     "$ref": "#/$defs/Variables",
                     "description": "Variable values"
+                },
+                "variables_with_depth": {
+                    "$ref": "#/$defs/Variables",
+                    "description": "VariablesWithDepth values with depth"
                 },
                 "rule_context": {
                     "$ref": "#/$defs/RuleContext",
@@ -1504,6 +1516,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "variables": {
                     "$ref": "#/$defs/Variables",
                     "description": "Variable values"
+                },
+                "variables_with_depth": {
+                    "$ref": "#/$defs/Variables",
+                    "description": "Variable values with depth"
                 }
             },
             "additionalProperties": false,
@@ -1687,6 +1703,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "variables": {
                     "$ref": "#/$defs/Variables",
                     "description": "Variable values"
+                },
+                "variables_with_depth": {
+                    "$ref": "#/$defs/Variables",
+                    "description": "Variable values with depth"
                 },
                 "parent": {
                     "$ref": "#/$defs/Process",
@@ -2933,6 +2953,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "variables": {
             "$ref": "#/$defs/Variables",
             "description": "Variable values"
+        },
+        "variables_with_depth": {
+            "$ref": "#/$defs/Variables",
+            "description": "VariablesWithDepth values with depth"
         }
     },
     "additionalProperties": false,
@@ -2949,6 +2973,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `source` | Source of the cgroup entry (event or procfs) |
 | `created_at` | Timestamp of the creation of the cgroup |
 | `variables` | Variable values |
+| `variables_with_depth` | VariablesWithDepth values with depth |
 
 | References |
 | ---------- |
@@ -3077,6 +3102,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "variables": {
             "$ref": "#/$defs/Variables",
             "description": "Variable values"
+        },
+        "variables_with_depth": {
+            "$ref": "#/$defs/Variables",
+            "description": "VariablesWithDepth values with depth"
         }
     },
     "additionalProperties": false,
@@ -3092,6 +3121,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `source` | Source of the container entry (event or procfs) |
 | `created_at` | Creation time of the container |
 | `variables` | Variable values |
+| `variables_with_depth` | VariablesWithDepth values with depth |
 
 | References |
 | ---------- |
@@ -3282,6 +3312,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "$ref": "#/$defs/Variables",
             "description": "Variable values"
         },
+        "variables_with_depth": {
+            "$ref": "#/$defs/Variables",
+            "description": "VariablesWithDepth values with depth"
+        },
         "rule_context": {
             "$ref": "#/$defs/RuleContext",
             "description": "RuleContext rule context"
@@ -3306,6 +3340,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `async` | True if the event was asynchronous |
 | `matched_rules` | The list of rules that the event matched (only valid in the context of an anomaly) |
 | `variables` | Variable values |
+| `variables_with_depth` | VariablesWithDepth values with depth |
 | `rule_context` | RuleContext rule context |
 | `source` | Source of the event |
 
@@ -4753,6 +4788,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "variables": {
             "$ref": "#/$defs/Variables",
             "description": "Variable values"
+        },
+        "variables_with_depth": {
+            "$ref": "#/$defs/Variables",
+            "description": "Variable values with depth"
         }
     },
     "additionalProperties": false,
@@ -4808,6 +4847,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
 | `tracer` | Metadata from APM tracer instrumentation |
 | `variables` | Variable values |
+| `variables_with_depth` | Variable values with depth |
 
 | References |
 | ---------- |
@@ -4996,6 +5036,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "$ref": "#/$defs/Variables",
             "description": "Variable values"
         },
+        "variables_with_depth": {
+            "$ref": "#/$defs/Variables",
+            "description": "Variable values with depth"
+        },
         "parent": {
             "$ref": "#/$defs/Process",
             "description": "Parent process"
@@ -5065,6 +5109,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
 | `tracer` | Metadata from APM tracer instrumentation |
 | `variables` | Variable values |
+| `variables_with_depth` | Variable values with depth |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
 | `truncated_ancestors` | True if the ancestors list was truncated because it was too big |

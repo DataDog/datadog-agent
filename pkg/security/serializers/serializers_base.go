@@ -36,6 +36,8 @@ type ContainerContextSerializer struct {
 	CreatedAt *utils.EasyjsonTime `json:"created_at,omitempty"`
 	// Variable values
 	Variables Variables `json:"variables,omitempty"`
+	// VariablesWithDepth values with depth
+	VariablesWithDepth Variables `json:"variables_with_depth,omitempty"`
 }
 
 // CGroupContextSerializer serializes a cgroup context to JSON
@@ -51,6 +53,8 @@ type CGroupContextSerializer struct {
 	CreatedAt *utils.EasyjsonTime `json:"created_at,omitempty"`
 	// Variable values
 	Variables Variables `json:"variables,omitempty"`
+	// VariablesWithDepth values with depth
+	VariablesWithDepth Variables `json:"variables_with_depth,omitempty"`
 }
 
 // Variables serializes the variable values
@@ -87,6 +91,8 @@ type EventContextSerializer struct {
 	MatchedRules []MatchedRuleSerializer `json:"matched_rules,omitempty"`
 	// Variable values
 	Variables Variables `json:"variables,omitempty"`
+	// VariablesWithDepth values with depth
+	VariablesWithDepth Variables `json:"variables_with_depth,omitempty"`
 	// RuleContext rule context
 	RuleContext RuleContext `json:"rule_context,omitempty"`
 	// Source of the event
@@ -475,12 +481,14 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule, scrubber *util
 
 	eventType := model.EventType(event.Type)
 
+	variables, variablesWithDepth := newVariablesContext(event, rule, "")
 	s := &BaseEventSerializer{
 		EventContextSerializer: EventContextSerializer{
-			Name:        eventType.String(),
-			Variables:   newVariablesContext(event, rule, ""),
-			RuleContext: newRuleContext(event, rule, scrubber),
-			Source:      event.Source,
+			Name:               eventType.String(),
+			Variables:          variables,
+			VariablesWithDepth: variablesWithDepth,
+			RuleContext:        newRuleContext(event, rule, scrubber),
+			Source:             event.Source,
 		},
 		ProcessContextSerializer: newProcessContextSerializer(pc, event, rule),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
@@ -541,7 +549,10 @@ func newRuleContext(e *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) 
 	return ruleContext
 }
 
-func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (variables Variables) {
+func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (Variables, Variables) {
+	variables := make(Variables)
+	variablesWithDepth := make(Variables)
+
 	if rule != nil && rule.Opts != nil && rule.Opts.VariableStore != nil {
 		store := rule.Opts.VariableStore
 		for name, variable := range store.Variables {
@@ -564,35 +575,49 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (varia
 				continue
 			}
 
-			evaluator := variable.GetEvaluator()
-			if evaluator, ok := evaluator.(eval.Evaluator); ok {
-				value := evaluator.Eval(eval.NewContext(e))
-				if variables == nil {
-					variables = Variables{}
+			var (
+				value interface{}
+				depth int
+			)
+
+			scopedVariable, ok := variable.(eval.ScopedVariable)
+			if ok {
+				value, _, depth = scopedVariable.GetValue(eval.NewContext(e), false)
+			} else {
+				evaluator := variable.GetEvaluator()
+				if evaluator, ok := evaluator.(eval.Evaluator); ok {
+					value = evaluator.Eval(eval.NewContext(e))
 				}
-				if value != nil {
-					trimmedName := strings.TrimPrefix(name, prefix)
-					switch value := value.(type) {
-					case []string:
-						scrubbedValues := make([]string, 0, len(value))
-						for _, elem := range value {
-							if scrubbed, err := scrubber.ScrubString(elem); err == nil {
-								scrubbedValues = append(scrubbedValues, scrubbed)
-							}
+			}
+
+			if variables == nil {
+				variables = Variables{}
+			}
+
+			if value != nil {
+				trimmedName := strings.TrimPrefix(name, prefix)
+				switch value := value.(type) {
+				case []string:
+					scrubbedValues := make([]string, 0, len(value))
+					for _, elem := range value {
+						if scrubbed, err := scrubber.ScrubString(elem); err == nil {
+							scrubbedValues = append(scrubbedValues, scrubbed)
 						}
-						variables[trimmedName] = scrubbedValues
-					case string:
-						if scrubbed, err := scrubber.ScrubString(value); err == nil {
-							variables[trimmedName] = scrubbed
-						}
-					default:
-						variables[trimmedName] = value
 					}
+					variables[trimmedName] = scrubbedValues
+				case string:
+					if scrubbed, err := scrubber.ScrubString(value); err == nil {
+						variables[trimmedName] = scrubbed
+					}
+				default:
+					variables[trimmedName] = value
 				}
+
+				variablesWithDepth[trimmedName] = depth
 			}
 		}
 	}
-	return variables
+	return variables, variablesWithDepth
 }
 
 // EventStringerWrapper an event stringer wrapper

@@ -51,7 +51,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 				})
 				defer preparator.put(ctx)
 
-				value, found := scopedVariable.GetValue(ctx, true) // for status, let's not follow inheritance
+				value, found, _ := scopedVariable.GetValue(ctx, true) // for status, let's not follow inheritance
 				if !found {
 					return
 				}
@@ -80,7 +80,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 				})
 				defer preparator.put(ctx)
 
-				value, found := scopedVariable.GetValue(ctx, true) // for status, let's not follow inheritance
+				value, found, _ := scopedVariable.GetValue(ctx, true) // for status, let's not follow inheritance
 				if !found {
 					return
 				}
