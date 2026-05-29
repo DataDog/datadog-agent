@@ -315,6 +315,9 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileCleanupDelay time.Duration
 	// SecurityProfileV2EventTypes defines the list of event types that should be captured by the V2 security profile manager
 	SecurityProfileV2EventTypes []model.EventType
+	// SecurityProfileV2ExcludedImages defines the list of "image_name:image_tag" entries excluded from V2 profiling.
+	// The tag may be "*" to match any tag for the given image name.
+	SecurityProfileV2ExcludedImages []string
 
 	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	AnomalyDetectionEventTypes []model.EventType
@@ -644,6 +647,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileNodeEvictionTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.node_eviction_timeout"),
 		SecurityProfileCleanupDelay:        pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.profile_cleanup_delay"),
 		SecurityProfileV2EventTypes:        parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.v2.event_types")),
+		SecurityProfileV2ExcludedImages:    pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.v2.excluded_images"),
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),

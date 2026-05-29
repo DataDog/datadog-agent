@@ -24,6 +24,7 @@ def generate(ctx, pre_commit=False):
     proto_root = os.path.join(repo_root, "pkg", "proto")
     pbgo_dir = os.path.join(proto_root, "pbgo")
 
+<<<<<<< HEAD
     # protobuf defs
     print(f"generating protobuf code from: {proto_root}")
     # Find all the instances created with bazel/rules/write_pb_go/defs.bzl
