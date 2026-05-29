@@ -30,8 +30,6 @@ const (
 
 type ccmModeSuiteBase struct {
 	e2e.BaseSuite[environments.Host]
-
-	adpEnabled bool
 }
 
 type ccmModeDefaultTaggedSuite struct {
@@ -82,13 +80,6 @@ func runCCMModeSuite[T e2e.Suite[environments.Host]](t *testing.T, stackName str
 			),
 		),
 	), e2e.WithStackName(stackName))
-}
-
-func (s *ccmModeSuiteBase) assertADPRunningIfEnabled() {
-	s.T().Helper()
-	if s.adpEnabled {
-		common.AssertADPRunning(s.T(), s.Env().RemoteHost)
-	}
 }
 
 func (s *ccmModeSuiteBase) assertMetricHasInfrastructureModeTag(c *assert.CollectT, metricName, checkName string) {
