@@ -418,7 +418,7 @@ log "Bootstrapping pip using staging Python executable"
 log "ensurepip complete."
 
 log "Upgrading pip to 26.1, setuptools to 75.1.0, and installing wheel"
-"$EMBEDDED_DESTDIR/bin/pip${PYTHON_MAJ_MIN}" install --upgrade "pip==26.1" "setuptools==75.1.0" "wheel"
+"$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}" -m pip install --upgrade "pip==26.1" "setuptools==75.1.0" "wheel"
 log "pip bootstrap complete."
 
 # ─── Step 7b: Create AIX .a archive wrapper for libpython${PYTHON_MAJ_MIN}.so ─────────────

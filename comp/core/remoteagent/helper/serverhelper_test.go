@@ -8,6 +8,10 @@ package helper
 import (
 	"context"
 	"net"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -29,6 +33,108 @@ import (
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
+
+// shortUDSDir returns a short-path temp directory suitable for UDS sockets.
+// macOS limits sun_path to 104 bytes; the default t.TempDir() on macOS
+// produces paths that easily blow past that with long test names.
+func shortUDSDir(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("/tmp", "rar-uds-")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
+}
+
+func TestBuildRemoteAgentListener(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		_, err := buildRemoteAgentListener("")
+		require.Error(t, err)
+	})
+
+	t.Run("https", func(t *testing.T) {
+		ral, err := buildRemoteAgentListener("https://127.0.0.1:0")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = ral.listener.Close() })
+
+		assert.Empty(t, ral.cleanupSocketPath)
+		assert.True(t, strings.HasPrefix(ral.apiEndpointURI, "https://127.0.0.1:"), "got %q", ral.apiEndpointURI)
+		assert.NotEqual(t, "https://127.0.0.1:0", ral.apiEndpointURI, "random port should be resolved")
+	})
+
+	t.Run("unix", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("UDS not supported on Windows")
+		}
+		socketPath := filepath.Join(shortUDSDir(t), "ra.sock")
+		listenURI := "unix://" + socketPath
+
+		ral, err := buildRemoteAgentListener(listenURI)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = ral.listener.Close() })
+
+		assert.Equal(t, listenURI, ral.apiEndpointURI, "unix URI should round-trip into the advertised URI")
+		assert.Equal(t, socketPath, ral.cleanupSocketPath)
+
+		info, err := os.Stat(socketPath)
+		require.NoError(t, err)
+		assert.True(t, info.Mode()&os.ModeSocket != 0, "expected a socket at %q", socketPath)
+		assert.Equal(t, os.FileMode(0700), info.Mode().Perm(), "socket should be owner-only")
+	})
+
+	t.Run("unix_stale", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("UDS not supported on Windows")
+		}
+		socketPath := filepath.Join(shortUDSDir(t), "s.sock")
+
+		// Pre-create a socket and close it without unlinking the on-disk file, to
+		// simulate a process that crashed and left a stale socket inode behind.
+		first, err := net.Listen("unix", socketPath)
+		require.NoError(t, err)
+		first.(*net.UnixListener).SetUnlinkOnClose(false)
+		require.NoError(t, first.Close())
+		info, err := os.Stat(socketPath)
+		require.NoError(t, err)
+		require.NotZero(t, info.Mode()&os.ModeSocket, "precondition: stale socket file should exist on disk")
+
+		ral, err := buildRemoteAgentListener("unix://" + socketPath)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = ral.listener.Close() })
+		assert.Equal(t, socketPath, ral.cleanupSocketPath)
+	})
+
+	t.Run("unix_non_socket_file", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("UDS not supported on Windows")
+		}
+		filePath := filepath.Join(shortUDSDir(t), "f")
+		require.NoError(t, os.WriteFile(filePath, []byte("hi"), 0600))
+
+		_, err := buildRemoteAgentListener("unix://" + filePath)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not a socket")
+	})
+
+	t.Run("http_rejected", func(t *testing.T) {
+		_, err := buildRemoteAgentListener("http://127.0.0.1:0")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "http:// scheme is not supported")
+	})
+
+	t.Run("missing_scheme", func(t *testing.T) {
+		// listenURI must be either empty (legacy) or scheme-prefixed; a bare "host:port" is rejected
+		// to keep callsites unambiguous.
+		_, err := buildRemoteAgentListener("127.0.0.1:0")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "missing scheme")
+	})
+
+	t.Run("unsupported_scheme", func(t *testing.T) {
+		_, err := buildRemoteAgentListener("vsock://2:50051")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported remote agent listen URI scheme")
+	})
+}
 
 // TestNoSessionIDReturnsError tests that requests to the remote agent server
 // return errors when no session ID is set (i.e., before registration completes)

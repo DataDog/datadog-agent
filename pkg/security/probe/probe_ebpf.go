@@ -2698,6 +2698,13 @@ func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.variableStore = rs.GetVariableStore()
 	p.variableStoreMu.Unlock()
 
+	// Snapshot inherited SECL variables onto an entry before its parent link
+	// is changed, so the values resolved through inheritance survive the
+	// reparenting.
+	p.Resolvers.ProcessResolver.SetPreReparentCb(func(entry *model.ProcessCacheEntry) {
+		rs.CopyInheritedVariables(entry)
+	})
+
 	p.HandleRemediationStatus(rs)
 }
 
