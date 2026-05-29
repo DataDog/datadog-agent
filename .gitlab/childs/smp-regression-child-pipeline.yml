@@ -150,7 +150,7 @@ stages:
       if ! aws ecr describe-images --region us-west-2 --profile single-machine-performance \
         --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_TEAM_ID}-agent" \
         --image-ids imageTag="${CI_COMMIT_SHA}-7-full-amd64" > /dev/null 2>&1; then
-        echo "ERROR: Comparison image ${COMPARISON_IMAGE} not found in ECR. Rerun the `single_machine_performance-full-amd64-a7` if it ran more than 4 days ago."
+        echo "ERROR: Comparison image ${COMPARISON_IMAGE} not found in ECR. Rerun the single_machine_performance-full-amd64-a7 if it ran more than 4 days ago."
         datadog-ci tag --level job --tags smp_failure_mode:"missing-comparison-image"
         exit 1
       fi
