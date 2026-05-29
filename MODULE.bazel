@@ -297,11 +297,27 @@ winlibs_mingw_repository(
     url = "https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-mingw-w64msvcrt-12.0.0-r3.zip",
 )
 
+# Hermetic MSYS2 sh_toolchain sourced from a pinned MSYS2 base archive.
+# Phase 1 scope is bash-first only (no make/perl/autotools overlays yet).
+msys2_base_repository = use_repo_rule(
+    "//bazel/toolchains/msys2:msys2.bzl",
+    "msys2_base_repository",
+)
+
+msys2_base_repository(
+    name = "msys2_base",
+    overlay_packages = {},
+    sha256 = "7a3e5c0a728ebefd24dca6da179fe569dc98d6c7d20ce80981d8dc33fb15f7fc",
+    url = "https://repo.msys2.org/distrib/x86_64/msys2-base-x86_64-20260322.tar.zst",
+    version = "20260322",
+)
+
 # TODO{agent-build}: Find a way to register platform-specific toolchains dynamically
 register_toolchains(
     "@gcc_toolchain_x86_64//:cc_toolchain",
     "@gcc_toolchain_aarch64//:cc_toolchain",
     "@winlibs_mingw64//:mingw_cc_toolchain",
+    "@msys2_base//:sh_toolchain",
     "@llvm_toolchain//:all",  # last to avoid taking precedence over GCC toolchains
 )
 
