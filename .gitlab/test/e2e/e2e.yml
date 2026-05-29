@@ -795,7 +795,12 @@ new-e2e-fleet-config:
 new-e2e-fleet-upgrade:
   extends: .new_e2e_fleet_template
   variables:
-    EXTRA_PARAMS: --run TestFleetUpgrade
+    EXTRA_PARAMS: --run "TestFleetUpgrade/(TestUpgrade|TestODBC)"
+
+new-e2e-fleet-integration-preservation:
+  extends: .new_e2e_fleet_template
+  variables:
+    EXTRA_PARAMS: --run TestFleetUpgrade/TestIntegrationPreservation
 
 new-e2e-fleet-extensions:
   extends: .new_e2e_fleet_template
