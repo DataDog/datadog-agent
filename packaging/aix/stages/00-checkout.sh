@@ -16,6 +16,7 @@ exec > "$LOG" 2>&1
 log "=== Stage: $STAGE_NAME ==="
 
 # --- Input validation ---
+: "${AGENT_SRC:?AGENT_SRC must be set}"
 : "${BUILD_DIR:?BUILD_DIR must be set}"
 : "${STAGING:?STAGING must be set}"
 : "${INTEGRATIONS_CORE:?INTEGRATIONS_CORE must be set}"
@@ -44,8 +45,6 @@ trap cleanup EXIT
 #   tar czf /tmp/dd-agent-src.tar.gz --exclude='.git' --exclude='bin' ... .
 #   scp /tmp/dd-agent-src.tar.gz aix-host:/tmp/
 #   ssh aix-host 'mkdir -p <agent-repo> && gunzip -c /tmp/dd-agent-src.tar.gz | tar xf - -C <agent-repo>'
-
-: "${AGENT_SRC:?AGENT_SRC must be set}"
 
 if [ ! -f "$AGENT_SRC/go.mod" ]; then
     log "ERROR: agent source not found at $AGENT_SRC/go.mod"
