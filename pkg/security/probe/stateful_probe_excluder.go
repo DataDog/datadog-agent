@@ -14,10 +14,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cilium/ebpf"
+
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // availableFunctionsBasedExcluder is a FunctionExcluder based on reading entries in
@@ -68,6 +69,12 @@ func (af *availableFunctionsBasedExcluder) ShouldExcludeFunction(name string, pr
 	}
 
 	if strings.HasPrefix(prog.SectionName, "uprobe/") || strings.HasPrefix(prog.SectionName, "uretprobe/") {
+		return false
+	}
+
+	// iter programs (e.g. iter/task_file) attach to a bpf iterator target, not to a
+	// hookable kernel function, so they never appear in available_filter_functions.
+	if strings.HasPrefix(prog.SectionName, "iter/") {
 		return false
 	}
 

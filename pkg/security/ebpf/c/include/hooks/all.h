@@ -53,6 +53,7 @@
 #include "network/imds.h"
 #include "network/flow.h"
 #include "network/net_device.h"
+#include "network/snapshot.h"
 #include "network/stats_worker.h"
 #include "network/tc.h"
 #include "network/raw.h"

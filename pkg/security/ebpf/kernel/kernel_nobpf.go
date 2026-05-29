@@ -97,3 +97,15 @@ func (k *Version) HasBpfGetCurrentCgroupID() bool {
 func (k *Version) HasBpfGetSocketCookieForCgroupSocket() bool {
 	return false
 }
+
+// HasTaskFileIterator returns whether the kernel supports the iter/task_file eBPF
+// iterator program type, which walks every open file of every task. Added in 5.8.
+func (k *Version) HasTaskFileIterator() bool {
+	return false
+}
+
+// HasBpfSockFromFileHelper returns whether the kernel supports the bpf_sock_from_file
+// helper in tracing programs, used to resolve a socket from a file. Added in 5.11.
+func (k *Version) HasBpfSockFromFileHelper() bool {
+	return false
+}

@@ -199,6 +199,53 @@ func (k *Version) HasBpfGetSocketCookieForCgroupSocket() bool {
 	return features.HaveProgramHelper(ebpf.CGroupSock, asm.FnGetSocketCookie) == nil
 }
 
+// HasTaskFileIterator returns whether the kernel supports the iter/task_file eBPF
+// iterator program type, which walks every open file of every task. Added in 5.8.
+func (k *Version) HasTaskFileIterator() bool {
+	if features.HaveProgramType(ebpf.Tracing) != nil {
+		return false
+	}
+
+	spec := &ebpf.ProgramSpec{
+		Type:       ebpf.Tracing,
+		AttachType: ebpf.AttachTraceIter,
+		AttachTo:   "task_file",
+		Instructions: asm.Instructions{
+			asm.LoadImm(asm.R0, 0, asm.DWord),
+			asm.Return(),
+		},
+		License: "GPL",
+	}
+	prog, err := ebpf.NewProgramWithOptions(spec, ebpf.ProgramOptions{
+		LogDisabled: true,
+	})
+	if err != nil {
+		return false
+	}
+	defer prog.Close()
+
+	l, err := link.AttachIter(link.IterOptions{
+		Program: prog,
+	})
+	if err != nil {
+		return false
+	}
+	defer l.Close()
+
+	return true
+}
+
+// HasBpfSockFromFileHelper returns whether the kernel supports the bpf_sock_from_file
+// helper in tracing programs, used to resolve a socket from a file. Added in 5.11.
+func (k *Version) HasBpfSockFromFileHelper() bool {
+	// features.HaveProgramHelper doesn't fully implement feature testing for
+	// ebpf.Tracing, so fall back to a kernel version check when it can't tell.
+	if features.HaveProgramHelper(ebpf.Tracing, asm.FnSockFromFile) == nil {
+		return true
+	}
+	return k.Code != 0 && k.Code >= Kernel5_11
+}
+
 // HasJITBlindingSubprogsFix returns true if the kernel has the following fix
 // https://github.com/torvalds/linux/commit/4b6313cf99b0d51b49aeaea98ec76ca8161ecb80
 // which was merged in mainline starting with 5.19-rc1 and backported to 5.17.13 and 5.18.2

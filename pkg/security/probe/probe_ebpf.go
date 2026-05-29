@@ -2285,6 +2285,18 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 		activatedProbes = append(activatedProbes, probes.GetCapabilitiesMonitoringSelectors()...)
 	}
 
+	// Keep the task_file iterator that snapshots flow_pid enabled. updateProbes
+	// recomputes the activated set from scratch, so it must be listed here too or
+	// it would be detached right after being attached (see EBPFResolvers.snapshotFlowPid).
+	if p.shouldUseTaskFileFlowPidIterator() {
+		activatedProbes = append(activatedProbes, &manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          probes.SecurityAgentUID,
+				EBPFFuncName: probes.TaskFileIterResolveFlowPidFunc,
+			},
+		})
+	}
+
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
 		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) ||
@@ -3084,6 +3096,13 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetRawPacketTCProgramFunctions()...)
 	}
 
+	// the task_file iterator used to snapshot flow_pid relies on bpf_sock_from_file
+	// and the iter/task_file program type, both available from kernel 5.11. Exclude
+	// it when network monitoring is off or the kernel is too old, so it isn't loaded.
+	if !p.shouldUseTaskFileFlowPidIterator() {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.TaskFileIterResolveFlowPidFunc)
+	}
+
 	if !p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket() {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllSocketProgramFunctions()...)
 	}
@@ -3144,6 +3163,14 @@ func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 	if p.config.Probe.CapabilitiesMonitoringEnabled {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.GetCapabilitiesMonitoringSelectors()...)
 	}
+}
+
+// shouldUseTaskFileFlowPidIterator reports whether the iter/task_file based flow_pid
+// snapshot can run. When it returns false, the legacy procfs-based snapshot should be used instead.
+func (p *EBPFProbe) shouldUseTaskFileFlowPidIterator() bool {
+	return p.config.Probe.NetworkEnabled &&
+		p.kernelVersion.HasTaskFileIterator() &&
+		p.kernelVersion.HasBpfSockFromFileHelper()
 }
 
 // initManagerOptions initializes the eBPF manager options
