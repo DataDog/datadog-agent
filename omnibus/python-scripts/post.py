@@ -11,6 +11,7 @@ import sys
 import packages
 
 def post(install_directory, storage_location):
+    print(f"post: install_directory='{install_directory}', storage_location='{storage_location}'")
     try:
         if os.path.exists(install_directory) and os.path.exists(storage_location):
             post_python_installed_packages_file = packages.post_python_installed_packages_file(storage_location)
@@ -39,9 +40,13 @@ def post(install_directory, storage_location):
         else:
             print(f"Directory '{install_directory}' and '{storage_location}' not found.")
             return 1
+    except packages.IntegrationsRestoreError as e:
+        print(f"ERROR: post failed to restore custom integrations: {e}")
+        return 1
     except Exception as e:
         print(f"Error: {e}")
         return 1
+    print("post: completed successfully")
     return 0
 
 if os.name == 'nt':

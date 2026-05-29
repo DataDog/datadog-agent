@@ -1467,6 +1467,7 @@ workflow:
   - changes:
       paths:
         - tasks/**/*
+        - omnibus/python-scripts/**/*
         - .gitlab-ci.yml # A buildimage bump can also affect the invoke tasks
       compare_to: $COMPARE_TO_BRANCH
 
