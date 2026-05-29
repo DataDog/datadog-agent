@@ -86,6 +86,7 @@ type ManagerV2 struct {
 	pendingProfileRemovalsLock sync.Mutex
 
 	containerFilters workloadfilter.FilterBundle
+	imageExcluder    *imageExcluder
 }
 
 func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, filterStore workloadfilter.Component) (*ManagerV2, error) {
@@ -125,6 +126,11 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		}
 	}
 
+	imgExcluder, err := newImageExcluder(cfg.RuntimeSecurity.SecurityProfileV2ExcludedImages)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't build security profile v2 image excluder: %w", err)
+	}
+
 	m := &ManagerV2{
 		config:                    cfg,
 		statsdClient:              statsdClient,
@@ -145,6 +151,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
 		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
 		containerFilters:          containerFilter,
+		imageExcluder:             imgExcluder,
 	}
 
 	m.initMetricsMap()
@@ -753,6 +760,12 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 	containerName, imageName, podNamespace := utils.GetContainerFilterTags(event.ProcessContext.Process.ContainerContext.Tags)
 	if m.containerFilters != nil && m.containerFilters.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil))) {
 		seclog.Debugf("workload %s excluded by container filter (container=%s image=%s namespace=%s)", selector.String(), containerName, imageName, podNamespace)
+		return nil, errors.New("workload excluded")
+	}
+
+	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+	if m.imageExcluder.IsExcluded(imageName, imageTag) {
+		seclog.Debugf("workload %s excluded by image filter (image=%s tag=%s)", selector.String(), imageName, imageTag)
 		return nil, errors.New("workload excluded")
 	}
 

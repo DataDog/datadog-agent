@@ -316,7 +316,6 @@ use_repo(
     "com_github_spf13_cast",
     "com_github_spf13_cobra",
     "com_github_spf13_pflag",
-    "com_github_stormcat24_protodep",
     "com_github_stretchr_testify",
     "com_github_swaggest_jsonschema_go",
     "com_github_syndtr_gocapability",
