@@ -17,7 +17,7 @@ services:
 
   syslog-sender:
     image: public.ecr.aws/docker/library/alpine:latest
-    command: ["sleep", "infinity"]
+    entrypoint: ["sh", "-c", "apk add --no-cache openssl >/dev/null 2>&1 && exec sleep infinity"]
     depends_on:
       cert-init:
         condition: service_completed_successfully
