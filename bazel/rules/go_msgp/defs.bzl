@@ -23,12 +23,13 @@ def _impl(name, directives, io, out, out_test, patch_strip, patches, src, visibi
         tool = "@com_github_tinylib_msgp//:msgp",
     )
     for i, patch in enumerate(patches):
-        orig, files[out] = ":{}".format(files[out]), "{}_patch{}/{}".format(name, i, out)
+        cur = files[out]
+        files[out] = "{}_patch{}/{}".format(name, i, out)
         run_binary(
             name = "{}_patch{}".format(name, i),
-            args = ["-p{}".format(patch_strip), "$(execpath {})".format(orig), "$(execpath {})".format(patch), "$@"],
+            args = ["-p{}".format(patch_strip), "$(execpath :{})".format(cur), "$(execpath {})".format(patch), "$@"],
             outs = [files[out]],
-            srcs = [orig, patch],
+            srcs = [":{}".format(cur), patch],
             tool = "//bazel/rules/patch",
         )
     native.exports_files(files.keys(), visibility)
