@@ -9,6 +9,7 @@ package ntp
 
 import (
 	"os"
+	"path/filepath"
 	"sort"
 	"testing"
 
@@ -170,4 +171,59 @@ func TestGetLocalDefinedNTPServersIncludesTimesyncdPath(t *testing.T) {
 		t.Skip("a real ntp/chrony/timesyncd config exists on this host")
 	}
 	assert.Contains(t, err.Error(), "/etc/systemd/timesyncd.conf")
+}
+
+// withTimesyncdDropInDirs swaps the package-level drop-in dir list for the
+// duration of the test and restores it on cleanup.
+func withTimesyncdDropInDirs(t *testing.T, dirs []string) {
+	orig := timesyncdDropInDirs
+	timesyncdDropInDirs = dirs
+	t.Cleanup(func() { timesyncdDropInDirs = orig })
+}
+
+func TestGetLocalDefinedNTPServersReadsTimesyncdDropIn(t *testing.T) {
+	dir := t.TempDir()
+	err := os.WriteFile(filepath.Join(dir, "cloud-init.conf"),
+		[]byte("[Time]\nNTP=dropin-host.example\n"), 0644)
+	assert.NoError(t, err)
+
+	withTimesyncdDropInDirs(t, []string{dir})
+
+	servers, err := getLocalDefinedNTPServers()
+	assert.NoError(t, err)
+	assert.Contains(t, servers, "dropin-host.example")
+}
+
+func TestGetLocalDefinedNTPServersReadsMultipleTimesyncdDropInDirs(t *testing.T) {
+	dir1 := t.TempDir()
+	dir2 := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(dir1, "a.conf"),
+		[]byte("[Time]\nNTP=host-a.example\n"), 0644))
+	assert.NoError(t, os.WriteFile(filepath.Join(dir2, "b.conf"),
+		[]byte("[Time]\nNTP=host-b.example\n"), 0644))
+
+	withTimesyncdDropInDirs(t, []string{dir1, dir2})
+
+	servers, err := getLocalDefinedNTPServers()
+	assert.NoError(t, err)
+	assert.Contains(t, servers, "host-a.example")
+	assert.Contains(t, servers, "host-b.example")
+}
+
+func TestGetLocalDefinedNTPServersTimesyncdDropInIgnoresNonConfFiles(t *testing.T) {
+	dir := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, "valid.conf"),
+		[]byte("[Time]\nNTP=valid-host.example\n"), 0644))
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, "ignored.conf.bak"),
+		[]byte("[Time]\nNTP=ignored-host.example\n"), 0644))
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, "ignored.txt"),
+		[]byte("[Time]\nNTP=other-ignored-host.example\n"), 0644))
+
+	withTimesyncdDropInDirs(t, []string{dir})
+
+	servers, err := getLocalDefinedNTPServers()
+	assert.NoError(t, err)
+	assert.Contains(t, servers, "valid-host.example")
+	assert.NotContains(t, servers, "ignored-host.example")
+	assert.NotContains(t, servers, "other-ignored-host.example")
 }
