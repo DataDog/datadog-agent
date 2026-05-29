@@ -12,7 +12,7 @@ func initConfig() {
 	initCommonConfigComponents(ddcfg)
 }
 
-func fixupInitConfig {
+func fixupInitConfig() {
 	ddcfg := Datadog()
 	fixupInitCommonConfigComponents(ddcfg)
 }
