@@ -16,9 +16,28 @@ import (
 	"sort"
 	"strconv"
 	"sync"
-
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
+
+// ssBytes is a sorted byte slice type used for kernel symbol lookup.
+// Equivalent to pkg/process/util.SSBytes but defined locally to avoid
+// a dependency on pkg/process/util (which has heavy transitive deps).
+type ssBytes [][]byte
+
+func (ss ssBytes) Len() int           { return len(ss) }
+func (ss ssBytes) Less(i, j int) bool { return bytes.Compare(ss[i], ss[j]) < 0 }
+func (ss ssBytes) Swap(i, j int)      { ss[i], ss[j] = ss[j], ss[i] }
+
+// Search returns the index of element x if found or -1 otherwise.
+// ssBytes is expected to be sorted.
+func (ss ssBytes) Search(x []byte) int {
+	i := sort.Search(len(ss), func(i int) bool {
+		return bytes.Compare(ss[i], x) >= 0
+	})
+	if i < len(ss) && bytes.Equal(ss[i], x) {
+		return i
+	}
+	return -1
+}
 
 type existCache struct {
 	mtx  sync.Mutex
@@ -40,7 +59,7 @@ var funcCache = newExistCache("/proc/kallsyms")
 // GetKernelSymbolsAddressesNoCache returns the requested kernel symbols and addresses without using the cache
 // It expects a reader from which to read the kernel symbols.
 func GetKernelSymbolsAddressesNoCache(ksymsReader io.Reader, ksyms ...string) (map[string]uint64, error) {
-	var check util.SSBytes
+	var check ssBytes
 	for _, rf := range ksyms {
 		check = append(check, []byte(rf))
 	}
@@ -79,7 +98,7 @@ func (ec *existCache) verifyKernelFuncs(requiredKernelFuncs []string) (map[strin
 	}
 	defer f.Close()
 
-	var check util.SSBytes
+	var check ssBytes
 	for _, rf := range requiredKernelFuncs {
 		if _, ok := ec.c[rf]; !ok {
 			// only check for functions we don't know about yet
@@ -103,7 +122,7 @@ func (ec *existCache) verifyKernelFuncs(requiredKernelFuncs []string) (map[strin
 	return missingStrs, nil
 }
 
-func findKernelFuncs(ksymsReader io.Reader, writeKsym func(string, uint64), check util.SSBytes) error {
+func findKernelFuncs(ksymsReader io.Reader, writeKsym func(string, uint64), check ssBytes) error {
 	if len(check) != 0 {
 		sort.Sort(check)
 

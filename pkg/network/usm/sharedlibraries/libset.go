@@ -6,30 +6,27 @@
 // Package sharedlibraries contains implementation for monitoring of shared libraries opened by other programs
 package sharedlibraries
 
-// Libset is a type to represent sets of shared libraries that share the same filtering eBPF program
-type Libset string
-
-const (
-	// LibsetCrypto is the libset that contains the crypto libraries (libssl, libcrypto, libgnutls)
-	LibsetCrypto Libset = "crypto"
-
-	// LibsetGPU contains the libraries for GPU monitoring (libcudart)
-	LibsetGPU Libset = "gpu"
-
-	// LibsetLibc is the libset that contains the libc library (libc.so)
-	LibsetLibc Libset = "libc"
+import (
+	sharedlibtypes "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/types"
 )
 
-// LibsetToLibSuffixes maps a libset to a list of regexes that match the shared libraries that belong to that libset. Should be
-// the same as in the probes.h file
-var LibsetToLibSuffixes = map[Libset][]string{
-	LibsetCrypto: {"libssl", "crypto", "gnutls", "libnode"},
-	LibsetGPU:    {"libcudart", "libcuda"},
-	LibsetLibc:   {"libc"},
-}
+// Libset is a type alias for backward compatibility.
+// New code should import pkg/network/usm/sharedlibraries/types directly.
+type Libset = sharedlibtypes.Libset
 
-// IsLibsetValid checks if the given libset is valid (i.e., it's in the LibsetToLibSuffixes map)
+const (
+	// LibsetCrypto is the libset that contains the crypto libraries
+	LibsetCrypto = sharedlibtypes.LibsetCrypto
+	// LibsetGPU contains the libraries for GPU monitoring
+	LibsetGPU = sharedlibtypes.LibsetGPU
+	// LibsetLibc is the libset that contains the libc library
+	LibsetLibc = sharedlibtypes.LibsetLibc
+)
+
+// LibsetToLibSuffixes maps a libset to a list of regexes that match the shared libraries
+var LibsetToLibSuffixes = sharedlibtypes.LibsetToLibSuffixes
+
+// IsLibsetValid checks if the given libset is valid
 func IsLibsetValid(libset Libset) bool {
-	_, ok := LibsetToLibSuffixes[libset]
-	return ok
+	return sharedlibtypes.IsLibsetValid(libset)
 }

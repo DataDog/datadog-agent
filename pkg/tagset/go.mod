@@ -151,6 +151,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/trace/otel => ../../pkg/trace/otel
 	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../pkg/trace/stats
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../pkg/trace/traceutil
+	github.com/DataDog/datadog-agent/pkg/util/address => ../../pkg/util/address
+	github.com/DataDog/datadog-agent/pkg/util/archive => ../../pkg/util/archive
 	github.com/DataDog/datadog-agent/pkg/util/aws/creds => ../../pkg/util/aws/creds
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../pkg/util/buf
@@ -163,6 +165,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../pkg/util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/flavor => ../../pkg/util/flavor
+	github.com/DataDog/datadog-agent/pkg/util/funcs => ../../pkg/util/funcs
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ../../pkg/util/grpc
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo => ../../pkg/util/hostinfo
@@ -171,6 +174,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../pkg/util/jsonquery
+	github.com/DataDog/datadog-agent/pkg/util/kernel => ../../pkg/util/kernel
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace => ../../pkg/util/kubernetes/apiserver/common/namespace
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../pkg/util/log/setup
@@ -180,10 +184,12 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/prometheus => ../../pkg/util/prometheus
 	github.com/DataDog/datadog-agent/pkg/util/quantile => ../../pkg/util/quantile
 	github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest => ../../pkg/util/quantile/sketchtest
+	github.com/DataDog/datadog-agent/pkg/util/safeelf => ../../pkg/util/safeelf
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/sort => ../../pkg/util/sort
 	github.com/DataDog/datadog-agent/pkg/util/startstop => ../../pkg/util/startstop
 	github.com/DataDog/datadog-agent/pkg/util/statstracker => ../../pkg/util/statstracker
+	github.com/DataDog/datadog-agent/pkg/util/sync => ../../pkg/util/sync
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../pkg/util/system
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker => ../../pkg/util/utilizationtracker

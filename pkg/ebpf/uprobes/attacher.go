@@ -26,7 +26,7 @@ import (
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
-	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
+	sharedlibtypes "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/types"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -153,7 +153,7 @@ func (r *AttachRule) Validate(attacherConfig *AttacherConfig) error {
 			matchesAtLeastOneLib := false
 		outer:
 			for _, libset := range attacherConfig.SharedLibsLibsets {
-				suffixes := sharedlibraries.LibsetToLibSuffixes[libset]
+				suffixes := sharedlibtypes.LibsetToLibSuffixes[libset]
 				for _, libSuffix := range suffixes {
 					libSuffixWithExt := libSuffix + ".so"
 					if r.LibraryNameRegex.MatchString(libSuffixWithExt) || strings.Contains(r.LibraryNameRegex.String(), libSuffix) {
@@ -195,11 +195,15 @@ type ProcessMonitor interface {
 }
 
 // AttacherDependencies groups runtime dependencies for the uprobe attacher.
-// Telemetry is optional (can be nil).
+// Telemetry and SharedLibWatcher are optional (can be nil).
 type AttacherDependencies struct {
 	Inspector      BinaryInspector
 	ProcessMonitor ProcessMonitor
 	Telemetry      telemetryComponent.Component
+
+	// SharedLibWatcher provides shared library monitoring. If nil when shared
+	// libraries tracing is configured, the attacher will return an error at start.
+	SharedLibWatcher SharedLibraryWatcher
 }
 
 // AttacherConfig defines the configuration for the attacher
@@ -233,7 +237,7 @@ type AttacherConfig struct {
 
 	// If shared libraries tracing is enabled, this is the list of library sets to use to filter the events
 	// from the shared libraries program.
-	SharedLibsLibsets []sharedlibraries.Libset
+	SharedLibsLibsets []sharedlibtypes.Libset
 
 	// OnSyncCallback is an optional function that gets called when the attacher performs a sync. Receives as an argument
 	// the set of alive PIDs in the system.
@@ -295,7 +299,7 @@ func (ac *AttacherConfig) Validate() error {
 
 	if targetsSharedLibs {
 		for _, libset := range ac.SharedLibsLibsets {
-			if !sharedlibraries.IsLibsetValid(libset) {
+			if !sharedlibtypes.IsLibsetValid(libset) {
 				err = errors.Join(err, fmt.Errorf("invalid libset %s", libset))
 			}
 		}
@@ -379,7 +383,7 @@ type UprobeAttacher struct {
 
 	// soWatcher is the program that launches events whenever shared libraries are
 	// opened
-	soWatcher *sharedlibraries.EbpfProgram
+	soWatcher SharedLibraryWatcher
 
 	// handlesLibrariesCached is a cache for the handlesLibraries function, avoiding
 	// recomputation every time
@@ -433,6 +437,7 @@ func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr Probe
 		done:                   make(chan struct{}),
 		inspector:              deps.Inspector,
 		processMonitor:         deps.ProcessMonitor,
+		soWatcher:              deps.SharedLibWatcher,
 		scansPerPid:            make(map[uint32]int),
 		attachLimiter:          log.NewLogLimit(10, 10*time.Minute),
 		telemetry:              newUprobeAttacherTelemetry(deps.Telemetry, name),
@@ -491,18 +496,19 @@ func (ua *UprobeAttacher) Start() error {
 	cleanupExit = ua.processMonitor.SubscribeExit(ua.handleProcessExit)
 
 	if ua.handlesLibraries() {
-		if !sharedlibraries.IsSupported(ua.config.EbpfConfig) {
+		if ua.soWatcher == nil {
+			return errors.New("shared libraries tracing requires a SharedLibraryWatcher (none provided)")
+		}
+		if !ua.soWatcher.IsSupported() {
 			return errors.New("shared libraries tracing not supported for this platform")
 		}
-
-		ua.soWatcher = sharedlibraries.GetEBPFProgram(ua.config.EbpfConfig)
 
 		err := ua.soWatcher.InitWithLibsets(ua.config.SharedLibsLibsets...)
 		if err != nil {
 			return fmt.Errorf("error initializing shared library program: %w", err)
 		}
 
-		cleanupSharedLibs, err = ua.soWatcher.Subscribe(ua.handleLibraryOpen, ua.config.SharedLibsLibsets...)
+		cleanupSharedLibs, err = ua.soWatcher.SubscribeWithPath(ua.handleLibraryOpen, ua.config.SharedLibsLibsets...)
 		if err != nil {
 			return fmt.Errorf("error subscribing to shared libraries events: %w", err)
 		}
@@ -672,13 +678,12 @@ func (ua *UprobeAttacher) handleProcessExit(pid uint32) {
 	_ = ua.DetachPID(pid)
 }
 
-func (ua *UprobeAttacher) handleLibraryOpen(libpath sharedlibraries.LibPath) {
+func (ua *UprobeAttacher) handleLibraryOpen(event sharedlibtypes.LibraryOpenEvent) {
 	ua.telemetry.eventsHandledLibrary.Inc()
-	path := sharedlibraries.ToBytes(&libpath)
 
-	err := ua.AttachLibrary(string(path), libpath.Pid)
+	err := ua.AttachLibrary(event.Path, event.Pid)
 	if ua.shouldLogRegistryError(err) {
-		log.Warnf("could not attach to library %s (PID %d): %v", path, libpath.Pid, err)
+		log.Warnf("could not attach to library %s (PID %d): %v", event.Path, event.Pid, err)
 	}
 }
 

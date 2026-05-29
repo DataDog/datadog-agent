@@ -232,9 +232,10 @@ func newNodeJSMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protoco
 
 	procMon := monitor.GetProcessMonitor()
 	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, nodeJsAttacherName, attachCfg, mgr, uprobes.NopOnAttachCallback, uprobes.AttacherDependencies{
-		Inspector:      &uprobes.NativeBinaryInspector{},
-		ProcessMonitor: procMon,
-		Telemetry:      telemetryimpl.GetCompatComponent(),
+		Inspector:        &uprobes.NativeBinaryInspector{},
+		ProcessMonitor:   procMon,
+		Telemetry:        telemetryimpl.GetCompatComponent(),
+		SharedLibWatcher: sharedlibraries.GetEBPFProgram(&c.Config),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("cannot create uprobe attacher: %w", err)

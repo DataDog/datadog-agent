@@ -202,9 +202,10 @@ func NewSSLCertsProgram(mgr *manager.Manager, cfg *config.Config) (*SSLCertsProg
 	}
 
 	program.attacher, err = uprobes.NewUprobeAttacher(CNMModuleName, CNMTLSAttacherName, attacherConfig, mgr, uprobes.NopOnAttachCallback, uprobes.AttacherDependencies{
-		Inspector:      &uprobes.NativeBinaryInspector{},
-		ProcessMonitor: monitor.GetProcessMonitor(),
-		Telemetry:      telemetryimpl.GetCompatComponent(),
+		Inspector:        &uprobes.NativeBinaryInspector{},
+		ProcessMonitor:   monitor.GetProcessMonitor(),
+		Telemetry:        telemetryimpl.GetCompatComponent(),
+		SharedLibWatcher: sharedlibraries.GetEBPFProgram(&cfg.Config),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error initializing uprobes attacher: %w", err)

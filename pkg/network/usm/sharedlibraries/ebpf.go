@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	sharedlibtypes "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/types"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -109,7 +110,18 @@ type EbpfProgram struct {
 }
 
 // IsSupported returns true if the shared libraries monitoring is supported on the current system.
+// This method implements the uprobes.SharedLibraryWatcher interface.
+func (e *EbpfProgram) IsSupported() bool {
+	return isSupportedCfg(e.cfg)
+}
+
+// IsSupported is a package-level function that checks if shared libraries monitoring is supported.
+// It remains for backward compatibility with callers that don't have an EbpfProgram instance.
 func IsSupported(cfg *ddebpf.Config) bool {
+	return isSupportedCfg(cfg)
+}
+
+func isSupportedCfg(cfg *ddebpf.Config) bool {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
 		log.Warn("could not determine the current kernel version. shared libraries monitoring disabled.")
@@ -410,6 +422,18 @@ func (e *EbpfProgram) Subscribe(callback LibraryCallback, libsets ...Libset) (fu
 			unsub()
 		}
 	}, nil
+}
+
+// SubscribeWithPath is like Subscribe but provides a string path + PID callback,
+// matching the uprobes.SharedLibraryWatcher interface.
+func (e *EbpfProgram) SubscribeWithPath(callback func(sharedlibtypes.LibraryOpenEvent), libsets ...Libset) (func(), error) {
+	wrappedCB := func(libpath LibPath) {
+		callback(sharedlibtypes.LibraryOpenEvent{
+			Path: string(ToBytes(&libpath)),
+			Pid:  libpath.Pid,
+		})
+	}
+	return e.Subscribe(wrappedCB, libsets...)
 }
 
 // Stop stops the eBPF program if the refcount reaches 0

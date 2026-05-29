@@ -531,42 +531,71 @@ root module, making them impossible to import without pulling in the entire agen
 
 ### Current Blockers
 
-**Circular dependency:** `pkg/ebpf/uprobes/` imports `pkg/network/{go/bininspect,usm/sharedlibraries,usm/utils}`, while `pkg/network/` imports `pkg/ebpf/` (77 files). This must be broken before either can become a module.
+**Circular dependency (RESOLVED):** `pkg/ebpf/uprobes/` imported `pkg/network/usm/sharedlibraries`, which imported `pkg/ebpf`. This was broken by extracting shared types into `pkg/network/usm/sharedlibraries/types/` and introducing a `SharedLibraryWatcher` interface. See `docs/dev/ebpf-uprobes-circular-dep-fix.md`.
 
-**Root-module dependencies of `pkg/ebpf/`:**
-- `pkg/remoteconfig/state` (no go.mod)
-- `pkg/util/{log,kernel,funcs,archive}` (most already have go.mod)
-- `pkg/telemetry`, `pkg/version`, `comp/core/telemetry` (all have go.mod)
+**Address type (RESOLVED):** `pkg/process/util.Address` was used in 41 files. The type was extracted to a standalone `pkg/util/address` module with zero internal deps. `pkg/process/util` re-exports via type alias for backward compatibility.
+
+**Root-module dependencies of `pkg/ebpf/` (10 packages without go.mod):**
+- `pkg/process/util`, `pkg/system-probe/config`, `pkg/util/{archive,funcs,kernel,kernel/headers,safeelf,sync}`, `comp/remote-config/rcclient/def`, `pkg/template/text`
+- Go modules cannot extract `pkg/ebpf` until these are also extracted, because `go mod tidy` encounters ambiguous imports when the root module (in the Go module proxy) still contains `pkg/ebpf/` packages. This is a fundamental Go modules limitation.
 
 **Root-module dependencies of `pkg/network/` (after `pkg/ebpf/` extraction):**
-- `pkg/process/util` (no go.mod) -- **hardest blocker**, `Address` type used in 41 files
 - `pkg/eventmonitor` (no go.mod) -- 5 files
 - `pkg/process/monitor` (no go.mod) -- 6 files
 - `pkg/security/secl/model` (no go.mod) -- 6 files
 - `comp/core/sysprobeconfig` (no go.mod) -- 5 files
 - `pkg/system-probe/config` (no go.mod) -- 3 files
-- `pkg/config/setup` global functions (`SystemProbe()`) -- already bypassed by `toNetworkConfig()`
 
-### Extraction Order (Bottom-Up)
+### Extraction Order (Bottom-Up, Updated)
 
-| Phase | Extract | Key Work | Size |
-|-------|---------|----------|------|
-| 1 | `pkg/process/util` | Small package (Address type, IP buffers). Clean deps. | Small |
-| 2 | Break `pkg/ebpf/uprobes` circular dep | Move uprobes into `pkg/network/` or behind interface | Medium |
-| 3 | `pkg/ebpf/` | Resolve `pkg/remoteconfig/state` dep (extract or interface) | Large |
-| 4 | Remaining blockers | `pkg/eventmonitor`, `pkg/process/monitor`, `pkg/security/secl/model`, `comp/core/sysprobeconfig`, `pkg/system-probe/config` | Medium each |
-| 5 | `pkg/network/` | All blockers resolved, create module with `used_by_otel: true` | Large |
+| Phase | Extract | Status | Notes |
+|-------|---------|--------|-------|
+| 1 | `pkg/util/address` | **DONE** | Standalone module, `used_by_otel: true` |
+| 2 | Break uprobes circular dep | **DONE** | SharedLibraryWatcher interface + types/ |
+| 3a-i | Utility module extraction | **DONE** | `pkg/util/{archive,funcs,safeelf,sync,kernel}` extracted as modules |
+| 3a-ii | Remove `pkg/process/util` dep | **DONE** | `pkg/ebpf/ksyms.go` inlined `ssBytes` type locally |
+| 3a-iii | Remaining deps | **BLOCKED** | `comp/remote-config/rcclient/def`, `comp/core/telemetry/noopsimpl`, `pkg/system-probe/config` -- see blockers below |
+| 3b | `pkg/ebpf/` as module | **BLOCKED** | Blocked on 3a-iii + proxy issue |
+| 4 | `pkg/network/` remaining deps | **TODO** | `pkg/eventmonitor`, `pkg/process/monitor`, `pkg/security/secl/model`, `comp/core/sysprobeconfig` |
+| 5 | `pkg/network/` as module | **BLOCKED** | Blocked on 3b + 4 |
+
+### Remaining Blockers for pkg/ebpf Extraction
+
+**1. pkg/ebpf <-> pkg/system-probe/config circular dependency**
+
+`pkg/ebpf/config.go` imports `pkg/system-probe/config` (for `Adjust()`, `FullKeyPath()`),
+while `pkg/system-probe/config` imports `pkg/ebpf/prebuilt`. This is a second circular
+dependency that must be broken before either can be extracted. Solution: extract
+`FullKeyPath` and `Adjust` into a shared types/utils package, or have `pkg/ebpf/config.go`
+accept a config reader interface instead of calling system-probe config directly.
+
+**2. Go module proxy resolution**
+
+Newly created modules (not yet published to proxy.golang.org) cause `go mod tidy` to
+fail with "no matching versions for query latest" when the root module tries to resolve
+them. The replace directives point to local paths, but `go mod tidy` still needs a
+resolvable version for the `require` directive. This is solvable by:
+- Running `GONOSUMCHECK=* GONOSUMDB=*` (works for some modules)
+- Using `v0.0.0-00010101000000-000000000000` pseudo-versions in `require` (manual)
+- Coordinating with CI to publish initial versions before extraction
+
+**3. Scale of remaining work**
+
+Each module extraction touches ~190 go.mod files. The remaining extractions
+(`comp/remote-config/rcclient/def`, `comp/core/telemetry/noopsimpl`,
+`pkg/system-probe/config` after cycle break) should be coordinated as a single
+multi-PR effort with the eBPF team, rather than done incrementally.
 
 ### Mechanical Work per Module (Mostly Automated)
 
 For each new module:
 1. Create `go.mod` + add entry to `modules.yml` (manual)
-2. `dda inv modules.add-all-replace` -- generates ~180 replace directives (automated)
-3. `dda inv tidy` -- fixes all dependent modules (automated)
+2. `dda inv modules.add-all-replace` -- generates ~190 replace directives (automated)
+3. `dda inv tidy` -- fixes all dependent modules (automated, but may fail on proxy issues)
 4. `dda inv modules.go-work` -- updates go.work (automated)
 
-The repo already has 192 modules and mature tooling for managing them. The manual work
-is resolving dependency graph issues, not the mechanical go.mod management.
+The repo already has 197+ modules and mature tooling for managing them. The manual work
+is resolving circular dependencies and proxy resolution, not the mechanical go.mod management.
 
 ### Relationship to Phase 1
 

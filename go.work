@@ -147,6 +147,8 @@ use (
 	pkg/trace/otel
 	pkg/trace/stats
 	pkg/trace/traceutil
+	pkg/util/address
+	pkg/util/archive
 	pkg/util/aws/creds
 	pkg/util/backoff
 	pkg/util/buf
@@ -159,6 +161,7 @@ use (
 	pkg/util/executable
 	pkg/util/filesystem
 	pkg/util/flavor
+	pkg/util/funcs
 	pkg/util/fxutil
 	pkg/util/grpc
 	pkg/util/hostinfo
@@ -167,6 +170,7 @@ use (
 	pkg/util/http
 	pkg/util/json
 	pkg/util/jsonquery
+	pkg/util/kernel
 	pkg/util/kubernetes/apiserver/common/namespace
 	pkg/util/log
 	pkg/util/log/setup
@@ -176,10 +180,12 @@ use (
 	pkg/util/prometheus
 	pkg/util/quantile
 	pkg/util/quantile/sketchtest
+	pkg/util/safeelf
 	pkg/util/scrubber
 	pkg/util/sort
 	pkg/util/startstop
 	pkg/util/statstracker
+	pkg/util/sync
 	pkg/util/system
 	pkg/util/testutil
 	pkg/util/utilizationtracker

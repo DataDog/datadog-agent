@@ -565,9 +565,10 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 
 	var err error
 	o.attacher, err = uprobes.NewUprobeAttacher(consts.USMModuleName, UsmTLSAttacherName, attacherConfig, m, uprobes.NopOnAttachCallback, uprobes.AttacherDependencies{
-		Inspector:      &uprobes.NativeBinaryInspector{},
-		ProcessMonitor: monitor.GetProcessMonitor(),
-		Telemetry:      telemetryimpl.GetCompatComponent(),
+		Inspector:        &uprobes.NativeBinaryInspector{},
+		ProcessMonitor:   monitor.GetProcessMonitor(),
+		Telemetry:        telemetryimpl.GetCompatComponent(),
+		SharedLibWatcher: sharedlibraries.GetEBPFProgram(&c.Config),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error initializing uprobes attacher: %s", err)
