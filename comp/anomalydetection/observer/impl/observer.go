@@ -286,10 +286,10 @@ func NewComponent(deps Requires) Provides {
 
 	// Wire agent-internal logs into the observer via the pkg/util/log tap.
 	// anomaly_detection.logs.enabled is the parent gate; without it,
-	// agent_logs are also disabled. anomaly_detection.agent_logs.enabled
+	// internal logs are also disabled. anomaly_detection.logs.internal.enabled
 	// defaults to true when unset (explicit false disables it).
 	logsEnabled := !cfg.IsConfigured("anomaly_detection.logs.enabled") || cfg.GetBool("anomaly_detection.logs.enabled")
-	agentLogsEnabled := !cfg.IsConfigured("anomaly_detection.agent_logs.enabled") || cfg.GetBool("anomaly_detection.agent_logs.enabled")
+	agentLogsEnabled := !cfg.IsConfigured("anomaly_detection.logs.internal.enabled") || cfg.GetBool("anomaly_detection.logs.internal.enabled")
 	if (analysisEnabled || recorderEnabled) && logsEnabled && agentLogsEnabled {
 		sampleInfo := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_info")
 		sampleDebug := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_debug")

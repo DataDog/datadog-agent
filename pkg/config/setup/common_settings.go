@@ -2076,8 +2076,8 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	// Log-derived virtual metrics are unaffected.
 	config.BindEnvAndSetDefault("anomaly_detection.metrics.enabled", true)
 
-	// Agent-internal log sampling. Warn+ are never sampled.
-	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.enabled", true)
+	// Agent-internal log tap.
+	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_info", 0.2)
 	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_debug", 0.05)
 	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_trace", 0.0)
