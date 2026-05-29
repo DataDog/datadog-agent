@@ -15,7 +15,22 @@ The shim:
 
 ## Rebuilding
 
-Rebuild when `bash_shim.c` changes:
+Build via Bazel:
+
+```powershell
+bazel build //bazel/toolchains/msys2:bash_shim
+```
+
+On Windows, the built artifact is:
+
+`bazel-bin/bazel/toolchains/msys2/bash_shim.exe`
+
+If you need to refresh the committed launcher used by `.bazelrc`, copy that
+artifact to:
+
+`bazel/toolchains/msys2/bash_shim.exe`
+
+Equivalent direct compile command (fallback):
 
 ```powershell
 $gcc = "external/+winlibs_mingw_repository+winlibs_mingw64/bin/gcc.exe"

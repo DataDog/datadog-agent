@@ -4,7 +4,10 @@
 // running batch files; this .exe is invoked directly via CreateProcessW and
 // keeps the raw command line intact.
 //
-// Build (run once after editing this file, from the workspace root):
+// Build with Bazel:
+//   bazel build //bazel/toolchains/msys2:bash_shim
+//
+// Or compile directly (run once after editing this file, from workspace root):
 //   external/+winlibs_mingw_repository+winlibs_mingw64/bin/gcc.exe \
 //     -O2 -s -static -municode \
 //     -o bazel/toolchains/msys2/bash_shim.exe \

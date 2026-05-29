@@ -1,3 +1,15 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+package(default_visibility = ["//visibility:public"])
+
 # Hermetic MSYS2 sh_toolchain lives in @msys2_base//: (see msys2.BUILD.bazel).
-# This file exists only to mark the package; the BUILD template is loaded from
-# //bazel/toolchains/msys2:msys2.BUILD.bazel by the MSYS2 repository rule.
+# This package also builds the committed Windows launcher used by
+# --shell_executable in .bazelrc.
+cc_binary(
+    name = "bash_shim",
+    srcs = ["bash_shim.c"],
+    target_compatible_with = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+)

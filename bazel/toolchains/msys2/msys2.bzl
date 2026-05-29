@@ -10,7 +10,6 @@ fetch time and bake it into the generated BUILD.bazel via template
 substitution.
 """
 
-
 def _msys2_base_repository_impl(ctx):
     ctx.download_and_extract(
         url = ctx.attr.url,
@@ -41,7 +40,6 @@ def _msys2_base_repository_impl(ctx):
         },
         executable = False,
     )
-
 
 msys2_base_repository = repository_rule(
     implementation = _msys2_base_repository_impl,
