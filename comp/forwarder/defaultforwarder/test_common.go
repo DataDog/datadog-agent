@@ -59,7 +59,7 @@ func (t *testTransaction) GetCreatedAt() time.Time {
 	return t.Called().Get(0).(time.Time)
 }
 
-func (t *testTransaction) Process(ctx context.Context, _ config.Component, _ log.Component, _ secrets.Component, client *http.Client) error {
+func (t *testTransaction) Process(ctx context.Context, _ config.Component, _ log.Component, _ secrets.Component, client *http.Client, pointCountTelemetry transaction.PointCountTelemetry) error {
 	defer func() { t.processed <- true }()
 
 	var ret error
@@ -73,6 +73,13 @@ func (t *testTransaction) Process(ctx context.Context, _ config.Component, _ log
 
 	if t.shouldBlock {
 		<-ctx.Done()
+	}
+
+	// Mirror HTTPTransaction.internalProcess: a nil-error outcome counts the
+	// transaction's points as successfully sent. Tests of the worker rely on
+	// this to assert point.sent accounting.
+	if ret == nil && pointCountTelemetry != nil {
+		pointCountTelemetry.OnPointSuccessfullySent(t.pointCount)
 	}
 
 	return ret
@@ -141,6 +148,11 @@ func (tf *MockedForwarder) SubmitSeries(payload transaction.BytesPayloads, extra
 // SubmitV1Intake updates the internal mock struct
 func (tf *MockedForwarder) SubmitV1Intake(payload transaction.BytesPayloads, _ transaction.Kind, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
+}
+
+// SubmitV1IntakeDirect updates the internal mock struct
+func (tf *MockedForwarder) SubmitV1IntakeDirect(ctx context.Context, payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error {
+	return tf.Called(ctx, payload, kind, extra).Error(0)
 }
 
 // SubmitV1CheckRuns updates the internal mock struct

@@ -51,7 +51,7 @@ properties:
             tags: []
       health_port:
         node_type: setting
-        type: number
+        type: integer
         default: 0
         env_vars:
         - DD_SYSTEM_PROBE_HEALTH_PORT
@@ -61,7 +61,8 @@ properties:
           This is useful for orchestrators that support HTTP probes.
           Default is 0 (disabled). Set a valid port number (example: 5558) to enable.
         example: '0'
-        tags: []
+        tags:
+        - golang_type:int64
       adjusted:
         node_type: setting
         type: boolean
@@ -70,18 +71,18 @@ properties:
         - no-env
       allow_prebuilt_fallback:
         node_type: setting
+        type: boolean
+        default: false
         env_vars:
         - DD_ALLOW_PREBUILT_FALLBACK
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        tags: []
       allow_precompiled_fallback:
         node_type: setting
+        type: boolean
+        default: false
         env_vars:
         - DD_ALLOW_PRECOMPILED_FALLBACK
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        tags: []
       allow_runtime_compiled_fallback:
         node_type: setting
         type: boolean
@@ -134,14 +135,12 @@ properties:
         tags: []
       closed_channel_size:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: integer
+        default: 0
       closed_connection_flush_threshold:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: integer
+        default: 0
       collect_dns_domains:
         node_type: setting
         type: boolean
@@ -165,15 +164,15 @@ properties:
         tags: []
       conntrack_max_state_size:
         node_type: setting
-        type: number
+        type: integer
         default: 131072
       conntrack_rate_limit:
         node_type: setting
-        type: number
+        type: integer
         default: 500
       debug_port:
         node_type: setting
-        type: number
+        type: integer
         default: 0
       dest_excludes:
         node_type: setting
@@ -217,7 +216,7 @@ properties:
         tags: []
       dns_timeout_in_s:
         node_type: setting
-        type: number
+        type: integer
         default: 15
       enable_co_re:
         node_type: setting
@@ -239,22 +238,22 @@ properties:
         tags: []
       enable_kernel_header_download:
         node_type: setting
+        type: boolean
+        default: false
         env_vars:
         - DD_ENABLE_KERNEL_HEADER_DOWNLOAD
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        tags: []
       enable_oom_kill:
         node_type: setting
         type: boolean
         default: false
       enable_runtime_compiler:
         node_type: setting
+        type: boolean
+        default: false
         env_vars:
         - DD_ENABLE_RUNTIME_COMPILER
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        tags: []
       enable_tcp_queue_length:
         node_type: setting
         type: boolean
@@ -294,11 +293,11 @@ properties:
         tags: []
       http_idle_connection_ttl_in_s:
         node_type: setting
-        type: number
+        type: integer
         default: 30
       http_map_cleaner_interval_in_s:
         node_type: setting
-        type: number
+        type: integer
         default: 300
       internal_profiling:
         node_type: section
@@ -314,7 +313,7 @@ properties:
             tags: []
           block_profile_rate:
             node_type: setting
-            type: number
+            type: integer
             default: 0
           cpu_duration:
             node_type: setting
@@ -372,7 +371,7 @@ properties:
               type: string
           mutex_profile_fraction:
             node_type: setting
-            type: number
+            type: integer
             default: 0
           period:
             node_type: setting
@@ -425,25 +424,28 @@ properties:
         default: ''
       max_closed_connections_buffered:
         node_type: setting
+        type: integer
+        default: 0
         tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        - golang_type:int64
       max_connection_state_buffered:
         node_type: setting
-        type: number
+        type: integer
         default: 75000
       max_conns_per_message:
         node_type: setting
-        type: number
+        type: integer
         default: 600
       max_dns_stats:
         node_type: setting
-        type: number
+        type: integer
         default: 20000
       max_tracked_connections:
         node_type: setting
-        type: number
+        type: integer
         default: 65536
+        tags:
+        - golang_type:int64
       memory_controller:
         node_type: section
         type: object
@@ -470,8 +472,10 @@ properties:
               type: string
       offset_guess_threshold:
         node_type: setting
-        type: number
+        type: integer
         default: 400
+        tags:
+        - golang_type:int64
       process_config:
         node_type: section
         type: object
@@ -597,7 +601,8 @@ properties:
         example: |2-
 
             - 53
-        tags: []
+        tags:
+        - golang_type:[]int
       allow_netlink_conntracker_fallback:
         node_type: setting
         type: boolean
@@ -611,18 +616,16 @@ properties:
         - golang_type:duration
       closed_buffer_wakeup_count:
         node_type: setting
-        type: number
+        type: integer
         default: 4
       closed_channel_size:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: integer
+        default: 500
       closed_connection_flush_threshold:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: integer
+        default: 0
       collect_tcp_v4:
         node_type: setting
         type: boolean
@@ -657,7 +660,9 @@ properties:
       direct_send:
         node_type: setting
         type: boolean
-        default: false
+        platform_default:
+          linux: true
+          other: false
       dns_recorded_query_types:
         node_type: setting
         type: array
@@ -669,6 +674,10 @@ properties:
         type: boolean
         default: false
       enable_cilium_lb_conntracker:
+        node_type: setting
+        type: boolean
+        default: true
+      enable_co_re:
         node_type: setting
         type: boolean
         default: true
@@ -735,6 +744,10 @@ properties:
         node_type: setting
         type: boolean
         default: true
+      enable_sk_tracer:
+        node_type: setting
+        type: boolean
+        default: false
       enable_tcp_failed_connections:
         node_type: setting
         type: boolean
@@ -744,16 +757,17 @@ properties:
         tags: []
       http_max_request_fragment:
         node_type: setting
-        type: number
+        type: integer
         default: 512
       http_notification_threshold:
         node_type: setting
-        type: number
+        type: integer
         default: 512
       http_replace_rules:
         node_type: setting
         env_vars:
         - DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES
+        env_parser: json
         tags:
         - golang_type:nil
         - TODO:fix-missing-type
@@ -767,19 +781,20 @@ properties:
         tags: []
       max_failed_connections_buffered:
         node_type: setting
+        type: integer
+        default: 0
         tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        - golang_type:int64
       max_http_stats_buffered:
         node_type: setting
-        type: number
+        type: integer
         default: 100000
         env_vars:
         - DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED
         tags: []
       max_tracked_http_connections:
         node_type: setting
-        type: number
+        type: integer
         default: 1024
   service_monitoring_config:
     node_type: section
@@ -806,7 +821,7 @@ properties:
         tags: []
       data_channel_size:
         node_type: setting
-        type: number
+        type: integer
         default: 100
       direct_consumer:
         node_type: section
@@ -814,15 +829,15 @@ properties:
         properties:
           buffer_wakeup_count_per_cpu:
             node_type: setting
-            type: number
+            type: integer
             default: 8
           channel_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
           kernel_buffer_size_per_cpu:
             node_type: setting
-            type: number
+            type: integer
             default: 65536
       disable_map_preallocation:
         node_type: setting
@@ -873,30 +888,31 @@ properties:
             default: true
           idle_connection_ttl_seconds:
             node_type: setting
-            type: number
+            type: integer
             default: 30
           map_cleaner_interval_seconds:
             node_type: setting
-            type: number
+            type: integer
             default: 300
           max_request_fragment:
             node_type: setting
-            type: number
+            type: integer
             default: 512
           max_stats_buffered:
             node_type: setting
-            type: number
+            type: integer
             default: 100000
           max_tracked_connections:
             node_type: setting
-            type: number
+            type: integer
             default: 1024
           notification_threshold:
             node_type: setting
-            type: number
+            type: integer
             default: 512
           replace_rules:
             node_type: setting
+            env_parser: json
             tags:
             - golang_type:nil
             - TODO:fix-missing-type
@@ -911,7 +927,7 @@ properties:
         properties:
           dynamic_table_map_cleaner_interval_seconds:
             node_type: setting
-            type: number
+            type: integer
             default: 30
           enabled:
             node_type: setting
@@ -919,26 +935,27 @@ properties:
             default: false
       http2_dynamic_table_map_cleaner_interval_seconds:
         node_type: setting
-        type: number
+        type: integer
         default: 30
       http_idle_connection_ttl_in_s:
         node_type: setting
-        type: number
+        type: integer
         default: 30
       http_map_cleaner_interval_in_s:
         node_type: setting
-        type: number
+        type: integer
         default: 300
       http_max_request_fragment:
         node_type: setting
-        type: number
+        type: integer
         default: 512
       http_notification_threshold:
         node_type: setting
-        type: number
+        type: integer
         default: 512
       http_replace_rules:
         node_type: setting
+        env_parser: json
         tags:
         - golang_type:nil
         - TODO:fix-missing-type
@@ -953,11 +970,11 @@ properties:
             default: false
           max_stats_buffered:
             node_type: setting
-            type: number
+            type: integer
             default: 100000
       kernel_buffer_pages:
         node_type: setting
-        type: number
+        type: integer
         default: 16
       max_concurrent_requests:
         node_type: setting
@@ -966,15 +983,15 @@ properties:
         - TODO:fix-missing-type
       max_http_stats_buffered:
         node_type: setting
-        type: number
+        type: integer
         default: 100000
       max_kafka_stats_buffered:
         node_type: setting
-        type: number
+        type: integer
         default: 100000
       max_tracked_http_connections:
         node_type: setting
-        type: number
+        type: integer
         default: 1024
       postgres:
         node_type: section
@@ -986,11 +1003,11 @@ properties:
             default: false
           max_stats_buffered:
             node_type: setting
-            type: number
+            type: integer
             default: 100000
           max_telemetry_buffer:
             node_type: setting
-            type: number
+            type: integer
             default: 160
       process_service_inference:
         node_type: section
@@ -1020,7 +1037,7 @@ properties:
             default: false
           max_stats_buffered:
             node_type: setting
-            type: number
+            type: integer
             default: 100000
           track_resources:
             node_type: setting
@@ -1195,7 +1212,7 @@ properties:
             tags: []
           traced_cgroups_count:
             node_type: setting
-            type: number
+            type: integer
             default: 5
             visibility: public
             description: Defines the number of concurrent cgroups to be traced.
@@ -1256,7 +1273,7 @@ properties:
                   type: string
               max_dumps_count:
                 node_type: setting
-                type: number
+                type: integer
                 default: 100
               output_directory:
                 node_type: setting
@@ -1264,11 +1281,11 @@ properties:
                 default: ${run_path}/runtime-security/profiles
           max_dump_count_per_workload:
             node_type: setting
-            type: number
+            type: integer
             default: 25
           max_dump_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1750
           min_timeout:
             node_type: setting
@@ -1276,7 +1293,7 @@ properties:
             default: 10m
           rate_limiter:
             node_type: setting
-            type: number
+            type: integer
             default: 500
           silent_workloads:
             node_type: section
@@ -1356,7 +1373,7 @@ properties:
           type: string
       cookie_cache_size:
         node_type: setting
-        type: number
+        type: integer
         default: 100
       direct_send_from_system_probe:
         node_type: setting
@@ -1392,7 +1409,7 @@ properties:
                     default: true
                   max_allowed:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 5
                   period:
                     node_type: setting
@@ -1408,7 +1425,7 @@ properties:
                     default: true
                   max_allowed:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 5
                   period:
                     node_type: setting
@@ -1448,7 +1465,7 @@ properties:
           type: string
       etw_events_channel_size:
         node_type: setting
-        type: number
+        type: integer
         default: 16384
         tags:
         - no-env
@@ -1458,7 +1475,7 @@ properties:
         default: ''
       event_retry_queue_threshold:
         node_type: setting
-        type: number
+        type: integer
         default: 512
       event_sampling:
         node_type: section
@@ -1474,7 +1491,7 @@ properties:
                 default: false
               rate:
                 node_type: setting
-                type: number
+                type: integer
                 default: 500
           connect:
             node_type: section
@@ -1486,7 +1503,7 @@ properties:
                 default: false
               rate:
                 node_type: setting
-                type: number
+                type: integer
                 default: 500
           dns:
             node_type: section
@@ -1498,7 +1515,7 @@ properties:
                 default: false
               rate:
                 node_type: setting
-                type: number
+                type: integer
                 default: 500
           open:
             node_type: section
@@ -1510,7 +1527,7 @@ properties:
                 default: false
               rate:
                 node_type: setting
-                type: number
+                type: integer
                 default: 500
       event_server:
         node_type: section
@@ -1518,11 +1535,11 @@ properties:
         properties:
           burst:
             node_type: setting
-            type: number
+            type: integer
             default: 40
           rate:
             node_type: setting
-            type: number
+            type: integer
             default: 10
           retention:
             node_type: setting
@@ -1546,7 +1563,7 @@ properties:
         properties:
           cache_size:
             node_type: setting
-            type: number
+            type: integer
             default: 500
           enabled:
             node_type: setting
@@ -1571,11 +1588,11 @@ properties:
               type: string
           max_file_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5242880
           max_hash_rate:
             node_type: setting
-            type: number
+            type: integer
             default: 500
           replace:
             node_type: setting
@@ -1655,10 +1672,18 @@ properties:
             node_type: setting
             type: boolean
             default: false
+          enrichment_interval:
+            node_type: setting
+            type: string
+            default: 1m
           enrichment_ticker:
             node_type: setting
             type: string
             default: 1m
+          forward_interval:
+            node_type: setting
+            type: string
+            default: 20s
           generate_policies:
             node_type: setting
             type: boolean
@@ -1671,9 +1696,13 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+          refresh_interval:
+            node_type: setting
+            type: string
+            default: 3s
           workloads_cache_size:
             node_type: setting
-            type: number
+            type: integer
             default: 10
       security_profile:
         node_type: section
@@ -1716,11 +1745,11 @@ properties:
                 properties:
                   num_events_allowed:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 10
                   num_keys:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 256
                   period:
                     node_type: setting
@@ -1744,7 +1773,7 @@ properties:
                     default: true
               unstable_profile_size_threshold:
                 node_type: setting
-                type: number
+                type: integer
                 default: 5000000
               unstable_profile_time_threshold:
                 node_type: setting
@@ -1772,7 +1801,7 @@ properties:
                   type: string
           cache_size:
             node_type: setting
-            type: number
+            type: integer
             default: 10
           dir:
             node_type: setting
@@ -1780,7 +1809,7 @@ properties:
             default: ${run_path}/runtime-security/profiles
           dns_match_max_depth:
             node_type: setting
-            type: number
+            type: integer
             default: 3
           enabled:
             node_type: setting
@@ -1788,11 +1817,11 @@ properties:
             default: true
           max_count:
             node_type: setting
-            type: number
+            type: integer
             default: 400
           max_image_tags:
             node_type: setting
-            type: number
+            type: integer
             default: 20
           node_eviction_timeout:
             node_type: setting
@@ -1836,6 +1865,18 @@ properties:
             node_type: setting
             type: boolean
             default: true
+      syscalls:
+        node_type: section
+        type: object
+        properties:
+          capture_all_errors:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
       sysctl:
         node_type: section
         type: object
@@ -1888,7 +1929,7 @@ properties:
         properties:
           cache_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1024
           ssh:
             node_type: section
@@ -1900,7 +1941,7 @@ properties:
                 default: true
       windows_filename_cache_max:
         node_type: setting
-        type: number
+        type: integer
         default: 16384
         tags:
         - no-env
@@ -1912,13 +1953,13 @@ properties:
         - no-env
       windows_registry_cache_max:
         node_type: setting
-        type: number
+        type: integer
         default: 4096
         tags:
         - no-env
       windows_write_event_rate_limiter_max_allowed:
         node_type: setting
-        type: number
+        type: integer
         default: 4096
         tags:
         - no-env
@@ -2010,7 +2051,7 @@ properties:
             tags: []
           classifier_handle:
             node_type: setting
-            type: number
+            type: integer
             default: 0
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_NETWORK_CLASSIFIER_HANDLE
@@ -2018,7 +2059,7 @@ properties:
             tags: []
           classifier_priority:
             node_type: setting
-            type: number
+            type: integer
             default: 10
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_NETWORK_CLASSIFIER_PRIORITY
@@ -2116,7 +2157,7 @@ properties:
             tags: []
           raw_classifier_handle:
             node_type: setting
-            type: number
+            type: integer
             default: 0
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_NETWORK_RAW_CLASSIFIER_HANDLE
@@ -2144,12 +2185,20 @@ properties:
                 tags: []
               limiter_rate:
                 node_type: setting
-                type: number
+                type: integer
                 default: 10
                 env_vars:
                 - DD_EVENT_MONITORING_CONFIG_NETWORK_RAW_PACKET_LIMITER_RATE
                 - DD_RUNTIME_SECURITY_CONFIG_NETWORK_RAW_PACKET_LIMITER_RATE
                 tags: []
+      basename_approvers_size:
+        node_type: setting
+        type: integer
+        default: 4096
+        env_vars:
+        - DD_EVENT_MONITORING_CONFIG_BASENAME_APPROVERS_SIZE
+        - DD_RUNTIME_SECURITY_CONFIG_BASENAME_APPROVERS_SIZE
+        tags: []
       capabilities_monitoring:
         node_type: section
         type: object
@@ -2172,7 +2221,7 @@ properties:
             tags: []
       dentry_cache_size:
         node_type: setting
-        type: number
+        type: integer
         default: 8000
         env_vars:
         - DD_EVENT_MONITORING_CONFIG_DENTRY_CACHE_SIZE
@@ -2184,7 +2233,7 @@ properties:
         properties:
           cache_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1024
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_DNS_RESOLUTION_CACHE_SIZE
@@ -2273,7 +2322,7 @@ properties:
         properties:
           buffer_size:
             node_type: setting
-            type: number
+            type: integer
             default: 0
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_BUFFER_SIZE
@@ -2281,7 +2330,7 @@ properties:
             tags: []
           kretprobe_max_active:
             node_type: setting
-            type: number
+            type: integer
             default: 512
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_KRETPROBE_MAX_ACTIVE
@@ -2317,7 +2366,7 @@ properties:
         properties:
           polling_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 20
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENTS_STATS_POLLING_INTERVAL
@@ -2333,7 +2382,7 @@ properties:
             tags: []
       flush_discarder_window:
         node_type: setting
-        type: number
+        type: integer
         default: 3
         env_vars:
         - DD_EVENT_MONITORING_CONFIG_FLUSH_DISCARDER_WINDOW
@@ -2361,7 +2410,7 @@ properties:
                 default: true
               max_containers_tracked:
                 node_type: setting
-                type: number
+                type: integer
                 default: 1024
           enabled:
             node_type: setting
@@ -2380,7 +2429,7 @@ properties:
             - TODO:fix-missing-type
       pid_cache_size:
         node_type: setting
-        type: number
+        type: integer
         default: 10000
         env_vars:
         - DD_EVENT_MONITORING_CONFIG_PID_CACHE_SIZE
@@ -2412,7 +2461,7 @@ properties:
         properties:
           cache_size:
             node_type: setting
-            type: number
+            type: integer
             default: 4096
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_SPAN_TRACKING_CACHE_SIZE
@@ -2477,7 +2526,7 @@ properties:
               type: string
       validation_period:
         node_type: setting
-        type: number
+        type: integer
         default: 60
   bind_host:
     node_type: setting
@@ -2519,18 +2568,30 @@ properties:
       enabled:
         node_type: setting
         type: boolean
-        default: true
+        platform_default:
+          linux: true
+          other: false
       service_collection_interval:
         node_type: setting
         type: string
         default: 60s
+      service_map:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
       use_system_probe_lite:
         node_type: setting
         type: boolean
-        default: true
+        platform_default:
+          linux: true
+          other: false
   dogstatsd_port:
     node_type: setting
-    type: number
+    type: integer
     default: 8125
   dynamic_instrumentation:
     node_type: section
@@ -2580,12 +2641,16 @@ properties:
             default: true
           max_total_bytes:
             node_type: setting
-            type: number
+            type: integer
             default: 2147483648
+            tags:
+            - golang_type:int64
           required_disk_space_bytes:
             node_type: setting
-            type: number
+            type: integer
             default: 536870912
+            tags:
+            - golang_type:int64
           required_disk_space_percent:
             node_type: setting
             type: number
@@ -2648,19 +2713,19 @@ properties:
         properties:
           entries_for_iteration_restart_detection:
             node_type: setting
-            type: number
+            type: integer
             default: 100
           max_keys_buffer_size_bytes:
             node_type: setting
-            type: number
+            type: integer
             default: 524288
           max_restarts:
             node_type: setting
-            type: number
+            type: integer
             default: 3
           max_values_buffer_size_bytes:
             node_type: setting
-            type: number
+            type: integer
             default: 1048576
       kernel_bpf_stats:
         node_type: setting
@@ -2705,6 +2770,10 @@ properties:
         format: duration
         tags:
         - golang_type:duration
+      enable_ebpf_probes:
+        node_type: setting
+        type: boolean
+        default: true
       enable_fatbin_parsing:
         node_type: setting
         type: boolean
@@ -2715,7 +2784,7 @@ properties:
         default: false
       fatbin_request_queue_size:
         node_type: setting
-        type: number
+        type: integer
         default: 100
       initial_process_sync:
         node_type: setting
@@ -2723,16 +2792,19 @@ properties:
         default: true
       nvml_lib_path:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
+      prm_endpoint_enabled:
+        node_type: setting
+        type: boolean
+        default: true
       process_scan_interval_seconds:
         node_type: setting
-        type: number
+        type: integer
         default: 5
       ring_buffer_pages_per_device:
         node_type: setting
-        type: number
+        type: integer
         default: 32
       ringbuffer_flush_interval:
         node_type: setting
@@ -2743,7 +2815,7 @@ properties:
         - golang_type:duration
       ringbuffer_wakeup_size:
         node_type: setting
-        type: number
+        type: integer
         default: 3000
       streams:
         node_type: section
@@ -2751,27 +2823,27 @@ properties:
         properties:
           max_active:
             node_type: setting
-            type: number
+            type: integer
             default: 100
           max_kernel_launches:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
           max_mem_alloc_events:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
           max_pending_kernel_spans:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
           max_pending_memory_spans:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
           timeout_seconds:
             node_type: setting
-            type: number
+            type: integer
             default: 30
   ignore_host_etc:
     node_type: setting
@@ -2787,7 +2859,7 @@ properties:
         default: true
   log_file_max_rolls:
     node_type: setting
-    type: number
+    type: integer
     default: 1
   log_file_max_size:
     node_type: setting
@@ -2833,6 +2905,38 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      pmu_metrics:
+        node_type: section
+        type: object
+        properties:
+          branch_misses:
+            node_type: setting
+            type: boolean
+            default: false
+          cache_misses:
+            node_type: setting
+            type: boolean
+            default: false
+          cache_references:
+            node_type: setting
+            type: boolean
+            default: false
+          cpu_migrations:
+            node_type: setting
+            type: boolean
+            default: false
+          cycles:
+            node_type: setting
+            type: boolean
+            default: false
+          instructions:
+            node_type: setting
+            type: boolean
+            default: false
+          itlb_misses:
+            node_type: setting
+            type: boolean
+            default: false
   privileged_logs:
     node_type: section
     type: object
@@ -2857,7 +2961,7 @@ properties:
     default: false
   secret_backend_output_max_size:
     node_type: setting
-    type: number
+    type: integer
     default: 1048576
   secret_backend_skip_checks:
     node_type: setting
@@ -2865,7 +2969,7 @@ properties:
     default: false
   secret_backend_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 30
   syslog_rfc:
     node_type: setting

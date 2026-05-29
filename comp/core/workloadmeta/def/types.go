@@ -829,6 +829,7 @@ type KubernetesPod struct {
 	NamespaceAnnotations       map[string]string   `proto:"ignore"`
 	FinishedAt                 time.Time           `proto:"ignore"`
 	SecurityContext            *PodSecurityContext `proto:"ignore"`
+	Resources                  ContainerResources  `proto:"ignore"`
 
 	// The following fields are only needed for the kubelet check or KSM check
 	// when configured to emit pod metrics from the node agent. That means only
@@ -1434,6 +1435,7 @@ type ECSTask struct {
 	ContainerInstanceARN    string `proto:"ignore"`
 	ClusterARN              string `proto:"ignore"`
 	ServiceARN              string `proto:"ignore"`
+	DaemonARN               string `proto:"ignore"`
 	TaskDefinitionARN       string `proto:"ignore"`
 	AWSAccountID            string
 	Region                  string
@@ -1447,6 +1449,7 @@ type ECSTask struct {
 	ExecutionStoppedAt      *time.Time         `proto:"ignore"`
 	VPCID                   string             `proto:"ignore"`
 	ServiceName             string             `proto:"ignore"`
+	DaemonName              string             `proto:"ignore"`
 	EphemeralStorageMetrics map[string]int64   `proto:"ignore"`
 	Limits                  map[string]float64 `proto:"ignore"`
 	LaunchType              ECSLaunchType

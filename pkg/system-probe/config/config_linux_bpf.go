@@ -49,6 +49,11 @@ func ProcessEventDataStreamSupported() bool {
 	return true
 }
 
+// DirectSendSupported returns true if sending data CNM/USM directly from system-probe is supported
+func DirectSendSupported() bool {
+	return true
+}
+
 // RedisMonitoringSupported returns true if Redis monitoring is supported on the current kernel
 func RedisMonitoringSupported() bool {
 	kernelVersion, err := ebpfkernel.NewKernelVersion()
@@ -74,7 +79,7 @@ func allowPrebuiltEbpfFallback(cfg model.Config) {
 	// only allow falling back to prebuilt eBPF if the config
 	// is not explicitly set and prebuilt eBPF is not deprecated
 	// on the platform
-	if !cfg.IsSet(allowPrebuiltFallbackKey) && !prebuilt.IsDeprecated() {
+	if !cfg.IsConfigured(allowPrebuiltFallbackKey) && !prebuilt.IsDeprecated() {
 		cfg.Set(allowPrebuiltFallbackKey, true, model.SourceAgentRuntime)
 	}
 }

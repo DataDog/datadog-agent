@@ -29,64 +29,67 @@ type fakeContainer struct {
 	layerIDs   []string
 	imgMeta    *workloadmeta.ContainerImageMetadata
 	layerPaths []string
+	layers     []ftypes.LayerPath
 }
 
+// layerIDs and layerPaths must both be in image-config order (bottom-up);
+// paths from overlay mount syntax must be reversed by the caller, else each
+// DiffID is paired with the wrong layer and trivy's DiffID-keyed blob cache
+// gets poisoned. Empty-layer history markers in imgMeta.Layers are filtered
+// to keep the i-th non-empty entry aligned with layerIDs[i].
 func newFakeContainer(layerPaths []string, imgMeta *workloadmeta.ContainerImageMetadata, layerIDs []string) (*fakeContainer, error) {
 	imageLayers := lo.Filter(imgMeta.Layers, func(layer workloadmeta.ContainerImageLayer, _ int) bool {
 		return layer.Digest != ""
 	})
-	if len(layerIDs) > len(layerPaths) || len(layerIDs) > len(imageLayers) {
-		return nil, fmt.Errorf("mismatch count for layer IDs and paths (%v, %v, %v)", layerIDs, layerPaths, imgMeta)
+	// Path / DiffID alignment must be exact: these are what trivy looks up.
+	// imageLayers feeds the optional Digest annotation; tolerate the Docker
+	// fallback in layersFromDockerHistoryAndInspect that can emit more
+	// non-empty entries than RootFS.Layers.
+	if len(layerIDs) != len(layerPaths) || len(layerIDs) > len(imageLayers) {
+		return nil, fmt.Errorf("mismatch count for layer IDs, paths and image layers (ids=%d, paths=%d, layers=%d)",
+			len(layerIDs), len(layerPaths), len(imageLayers))
 	}
 
 	log.Debugf("create fake container with paths=%v", layerPaths)
+
+	layers := make([]ftypes.LayerPath, len(layerIDs))
+	for i, id := range layerIDs {
+		diffID, _ := v1.NewHash(id)
+		layers[i] = ftypes.LayerPath{
+			DiffID: diffID.String(),
+			Path:   layerPaths[i],
+			Digest: imageLayers[i].Digest,
+		}
+	}
 
 	return &fakeContainer{
 		layerIDs:   layerIDs,
 		imgMeta:    imgMeta,
 		layerPaths: layerPaths,
+		layers:     layers,
 	}, nil
 }
 
 func (c *fakeContainer) LayerByDiffID(hash string) (ftypes.LayerPath, error) {
-	for i, layer := range c.layerIDs {
-		diffID, _ := v1.NewHash(layer)
-		if diffID.String() == hash {
-			return ftypes.LayerPath{
-				DiffID: diffID.String(),
-				Path:   c.layerPaths[i],
-				Digest: c.imgMeta.Layers[i].Digest,
-			}, nil
+	for _, layer := range c.layers {
+		if layer.DiffID == hash {
+			return layer, nil
 		}
 	}
 	return ftypes.LayerPath{}, errors.New("not found")
 }
 
 func (c *fakeContainer) LayerByDigest(hash string) (ftypes.LayerPath, error) {
-	for i, layer := range c.layerIDs {
-		diffID, _ := v1.NewHash(layer)
-		if hash == c.imgMeta.Layers[i].Digest {
-			return ftypes.LayerPath{
-				DiffID: diffID.String(),
-				Path:   c.layerPaths[i],
-				Digest: c.imgMeta.Layers[i].Digest,
-			}, nil
+	for _, layer := range c.layers {
+		if layer.Digest == hash {
+			return layer, nil
 		}
 	}
 	return ftypes.LayerPath{}, errors.New("not found")
 }
 
-func (c *fakeContainer) Layers() (layers []ftypes.LayerPath) {
-	for i, layer := range c.layerIDs {
-		diffID, _ := v1.NewHash(layer)
-		layers = append(layers, ftypes.LayerPath{
-			DiffID: diffID.String(),
-			Path:   c.layerPaths[i],
-			Digest: c.imgMeta.Layers[i].Digest,
-		})
-	}
-
-	return layers
+func (c *fakeContainer) Layers() []ftypes.LayerPath {
+	return c.layers
 }
 
 func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftypes.Container, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (*Report, error) {

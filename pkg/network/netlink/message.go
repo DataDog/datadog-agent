@@ -8,10 +8,10 @@
 package netlink
 
 import (
+	"encoding/binary"
 	"syscall"
 
 	"github.com/mdlayher/netlink"
-	"github.com/mdlayher/netlink/nlenc"
 )
 
 // Copyright (C) 2016-2021 Matt Layher
@@ -37,7 +37,7 @@ func checkMessage(m netlink.Message) error {
 		return errShortErrorMessage
 	}
 
-	if c := nlenc.Int32(m.Data[0:4]); c != success {
+	if c := int32(binary.NativeEndian.Uint32(m.Data[0:4])); c != success {
 		// Error code is a negative integer, convert it into an OS-specific raw
 		// system call error, but do not wrap with os.NewSyscallError to signify
 		// that this error was produced by a netlink message; not a system call.
