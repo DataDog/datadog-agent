@@ -10,8 +10,8 @@ services:
       com.datadoghq.ad.logs: |
         [
           {
-            "type": "tcp",
-            "port": 10514,
+            "type": "udp",
+            "port": 10515,
             "format": "syslog",
             "source": "syslog-e2e",
             "service": "syslog-e2e"
