@@ -181,6 +181,17 @@ DATADOG_AGENT_RTLOADER_API int get_check_deprecated(rtloader_t *rtloader, rtload
                                                     const char *check_name, const char *agent_config,
                                                     const char *provider, rtloader_pyobject_t **check);
 
+/*! \fn char *discover_config(rtloader_t *, rtloader_pyobject_t *py_class, const char *service_json)
+    \brief Runs a check class's discovery bridge against a service JSON payload.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param py_class A rtloader_pyobject_t * pointer to the python check class we wish to run discovery against.
+    \param service_json A constant C-string containing service metadata for discovery.
+    \return A C-string with the JSON serialized discovered configs, or NULL if an error occurred.
+    \sa rtloader_pyobject_t, rtloader_t
+*/
+DATADOG_AGENT_RTLOADER_API char *discover_config(rtloader_t *, rtloader_pyobject_t *py_class,
+                                                 const char *service_json);
+
 /*! \fn char *run_check(rtloader_t *, rtloader_pyobject_t *check)
     \brief Runs a check instance.
     \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
