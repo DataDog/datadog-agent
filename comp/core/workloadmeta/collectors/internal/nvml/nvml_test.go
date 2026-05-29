@@ -34,10 +34,7 @@ func TestPull(t *testing.T) {
 
 	gpus := wmetaMock.ListGPUs()
 	require.Equal(t, testutil.GetTotalExpectedDevices(), len(gpus))
-	var expectedActivePIDs []int
-	for _, proc := range testutil.DefaultProcessInfo {
-		expectedActivePIDs = append(expectedActivePIDs, int(proc.Pid))
-	}
+	expectedActivePIDs := testutil.DefaultActivePIDs()
 
 	foundIDs := make(map[string]bool)
 	for _, gpu := range gpus {
@@ -169,8 +166,17 @@ func TestExtractGPUType(t *testing.T) {
 }
 
 func TestGpuProcessInfoUpdate(t *testing.T) {
+	// Seed the callback with the default process info so the first pull mirrors
+	// the package defaults without mutating any global state.
+	processInfo := slices.Clone(testutil.DefaultProcessInfo)
+	expectedActivePIDs := testutil.DefaultActivePIDs()
+
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	nvmlMock := testutil.GetBasicNvmlMock()
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithProcessDataCallback(func(_ string) (testutil.MockProcessInfoList, nvml.Return) {
+			return processInfo, nvml.SUCCESS
+		}),
+	)
 
 	c := newCollector(wmetaMock, nil)
 
@@ -182,11 +188,6 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 	gpus := wmetaMock.ListGPUs()
 	require.Equal(t, testutil.GetTotalExpectedDevices(), len(gpus))
 
-	var expectedActivePIDs []int
-	for _, proc := range testutil.DefaultProcessInfo {
-		expectedActivePIDs = append(expectedActivePIDs, int(proc.Pid))
-	}
-
 	for _, gpu := range gpus {
 		require.Equal(t, expectedActivePIDs, gpu.ActivePIDs)
 	}
@@ -194,14 +195,10 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 	// Now change those PIDs and make sure the store is updated and we get a complete override
 	// of the previous PIDs
 	expectedActivePIDs = []int{9761, 1234}
-	newProcessInfo := []nvml.ProcessInfo{
+	processInfo = testutil.MockProcessInfoList{
 		{Pid: uint32(expectedActivePIDs[0]), UsedGpuMemory: 100},
 		{Pid: uint32(expectedActivePIDs[1]), UsedGpuMemory: 200},
 	}
-	oldProcessInfo := testutil.DefaultProcessInfo
-	t.Cleanup(func() { testutil.DefaultProcessInfo = oldProcessInfo })
-
-	testutil.DefaultProcessInfo = newProcessInfo
 
 	c.Pull(context.Background())
 	gpus = wmetaMock.ListGPUs()
@@ -463,11 +460,7 @@ func TestPullWithMIGDevices(t *testing.T) {
 			require.Less(t, migGPU.TotalMemory, parentGPU.TotalMemory, "MIG device should have less memory than parent")
 
 			// Verify MIG device has process info
-			var expectedActivePIDs []int
-			for _, proc := range testutil.DefaultProcessInfo {
-				expectedActivePIDs = append(expectedActivePIDs, int(proc.Pid))
-			}
-			require.Equal(t, expectedActivePIDs, migGPU.ActivePIDs)
+			require.Equal(t, testutil.DefaultActivePIDs(), migGPU.ActivePIDs)
 		}
 	}
 

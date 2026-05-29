@@ -80,9 +80,19 @@ var DefaultGPUAttributes = nvml.DeviceAttributes{
 }
 
 // DefaultProcessInfo is the list of processes running on the default device returned by the mock
-var DefaultProcessInfo = []nvml.ProcessInfo{
+var DefaultProcessInfo = MockProcessInfoList{
 	{Pid: 1, UsedGpuMemory: 100},
 	{Pid: 5678, UsedGpuMemory: 200},
+}
+
+// DefaultActivePIDs returns the PIDs of DefaultProcessInfo, matching the active
+// PIDs the mock reports for a default device.
+func DefaultActivePIDs() []int {
+	pids := make([]int, len(DefaultProcessInfo))
+	for i, proc := range DefaultProcessInfo {
+		pids[i] = int(proc.Pid)
+	}
+	return pids
 }
 
 // DefaultTotalMemory is the total memory for the default device returned by the mock
@@ -398,7 +408,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 				return proc.ProcessInfo(), ret
 			}
 
-			return DefaultProcessInfo, nvml.SUCCESS
+			return DefaultProcessInfo.ProcessInfo(), nvml.SUCCESS
 		},
 		GetMemoryInfoFunc: func() (nvml.Memory, nvml.Return) {
 			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
