@@ -10,8 +10,8 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
-- `pip install` for C extensions (e.g. `ibm_db` for the DB2 check) no longer requires GCC 8 specifically; the embedded Python now records the compiler as `gcc` so any GCC version in the customer's PATH is used
 - Agent and trace-agent wrappers now append the caller's `LIBPATH` to the agent's own library search path, so operator-set paths (e.g. custom driver directories) are visible to the agent at runtime
+- `pip install` for C extensions (e.g. `ibm_db` for the DB2 check) no longer requires GCC 8 specifically; the embedded Python now records the compiler as `gcc` so any GCC version in the customer's PATH is used
 - Bundle `pymqi` in the package so the `ibm_mq` and `ibm_ace` checks work out of the box (no manual `pip install` required); IBM MQ Client 9.1+ must be installed on the target host at runtime
 - Go checks: bundle `conf.yaml.example` and `conf.yaml.default` from integrations-core for all Go checks that have them, supplementing the agent-repo config (agent-repo takes precedence on filename conflicts)
 - Keep Python headers (`embedded/include/`) in the package so users can build C extension packages (e.g. `ibm_db` for the DB2 check) against the embedded Python, matching Linux/macOS omnibus behaviour
