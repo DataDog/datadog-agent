@@ -33,8 +33,8 @@ yaml.add_representer(str, str_presenter)
 
 
 @task
-def compress(ctx):
-    bazel(ctx, "run", "//pkg/config/schema:write_compressed")
+def compress(ctx, output_dir=SCHEMA_DIR):
+    bazel(ctx, "run", "//pkg/config/schema:install_compressed", "--", f"--destdir={os.path.abspath(output_dir)}")
 
 
 @task
@@ -104,6 +104,8 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     print("Schema generation complete. Output files:")
     print(f"  {core}")
     print(f"  {sysprobe}")
+
+    compress(ctx)
 
 
 @task

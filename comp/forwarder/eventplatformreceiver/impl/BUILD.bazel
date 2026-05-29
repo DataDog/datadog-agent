@@ -14,7 +14,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface",
         "//comp/def",
-        "//comp/forwarder/eventplatform",
+        "//comp/forwarder/eventplatform/def",
         "//comp/forwarder/eventplatformreceiver/def",
         "//pkg/logs/diagnostic",
         "//pkg/logs/message",

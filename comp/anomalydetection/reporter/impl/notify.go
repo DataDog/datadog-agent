@@ -19,7 +19,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	pkgstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
@@ -51,12 +51,11 @@ const (
 
 	// changeEventIntegrationID identifies the publishing integration. The
 	// `edge-intelligence` integration is registered upstream in
-	// integrations-internal-core#3240 (source_type_id 78252213) and the
-	// event-management intake derives source_type from this value. We also
-	// emit changeEventSourceTypeID explicitly so the intake can validate the
-	// pairing without a registry lookup.
+	// integrations-internal-core#3240 and the event-management intake derives
+	// source_type from this value. The v2 Events API schema does not accept
+	// source_type_id as a field at $.data.attributes — integration_id alone
+	// is sufficient for routing.
 	changeEventIntegrationID = "edge-intelligence"
-	changeEventSourceTypeID  = 78252213
 
 	// changedResourceType is the resource classification carried in
 	// data.attributes.attributes.changed_resource.type.
@@ -171,16 +170,15 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 // buildChangeEventPayload returns the v2 Events API JSON envelope for a
 // correlation. Keys mirror the schema produced by datadog-api-client-go's
 // EventCreateRequestPayload (data.type=event, data.attributes.{title, message,
-// category, integration_id, source_type_id, tags, timestamp, aggregation_key,
-// attributes}). integration_id pins the publisher to the `edge-intelligence`
-// integration so the event-management intake can route and authorize the event.
+// category, integration_id, tags, timestamp, aggregation_key, attributes}).
+// integration_id pins the publisher to the `edge-intelligence` integration so
+// the event-management intake can route and authorize the event.
 func buildChangeEventPayload(c observerdef.ActiveCorrelation, msg, ts, aggKey, host string) map[string]any {
 	attrs := map[string]any{
 		"title":           c.Title,
 		"message":         msg,
 		"category":        "change",
 		"integration_id":  changeEventIntegrationID,
-		"source_type_id":  changeEventSourceTypeID,
 		"tags":            BuildEventTags(c),
 		"timestamp":       ts,
 		"aggregation_key": aggKey,

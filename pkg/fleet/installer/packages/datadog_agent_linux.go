@@ -137,8 +137,8 @@ var (
 	agentService = datadogAgentService{
 		SystemdMainUnitStable: "datadog-agent.service",
 		SystemdMainUnitExp:    "datadog-agent-exp.service",
-		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-ddot.service", "datadog-agent-procmgrd.service"},
-		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-ddot-exp.service", "datadog-agent-procmgrd-exp.service"},
+		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-ddot.service", "datadog-agent-procmgr.service"},
+		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-ddot-exp.service", "datadog-agent-procmgr-exp.service"},
 
 		UpstartMainService: "datadog-agent",
 		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action"},
@@ -151,6 +151,17 @@ var (
 	oldInstallerUnitPaths = file.Paths{
 		"datadog-installer-exp.service",
 		"datadog-installer.service",
+	}
+
+	// legacyProcmgrUnitNames are pre-rename systemd units for dd-procmgrd (retired on upgrade).
+	legacyProcmgrUnitNames = []string{
+		"datadog-agent-procmgrd.service",
+		"datadog-agent-procmgrd-exp.service",
+	}
+
+	legacyProcmgrUnitPaths = file.Paths{
+		"datadog-agent-procmgrd.service",
+		"datadog-agent-procmgrd-exp.service",
 	}
 )
 
@@ -214,7 +225,41 @@ func installFilesystem(ctx HookContext) (err error) {
 	if err = oldInstallerUnitPaths.EnsureAbsent(ctx, "/etc/systemd/system"); err != nil {
 		return fmt.Errorf("failed to remove old installer units: %v", err)
 	}
+
+	// 7. Stop and remove legacy procmgr unit names so only datadog-agent-procmgr.service runs dd-procmgrd
+	if err = retireLegacyProcmgrUnits(ctx); err != nil {
+		return fmt.Errorf("failed to retire legacy procmgr units: %w", err)
+	}
 	return nil
+}
+
+// retireLegacyProcmgrUnits stops, disables, and deletes pre-rename procmgr systemd units.
+// A host that upgraded from datadog-agent-procmgrd.service could otherwise run two dd-procmgrd
+// instances (socket and processes.d conflicts).
+func retireLegacyProcmgrUnits(ctx HookContext) error {
+	switch service.GetServiceManagerType() {
+	case service.SystemdType:
+	default:
+		return nil
+	}
+	running, err := systemd.IsRunning()
+	if err != nil {
+		return err
+	}
+	if running {
+		if err := systemd.StopUnits(ctx, legacyProcmgrUnitNames...); err != nil {
+			return err
+		}
+		if err := systemd.DisableUnits(ctx, legacyProcmgrUnitNames...); err != nil {
+			return err
+		}
+	}
+	for _, unitsPath := range systemdUnitInstallPaths {
+		if err := legacyProcmgrUnitPaths.EnsureAbsent(ctx, unitsPath); err != nil {
+			return err
+		}
+	}
+	return systemd.Reload(ctx)
 }
 
 // uninstallFilesystem cleans the filesystem by removing various temporary files, symlinks and installation metadata
@@ -297,6 +342,9 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	}
 	if err := installAgentExtensions(ctx, agentVersion, false); err != nil {
 		log.Warnf("failed to install extensions: %s", err)
+	}
+	if err := writeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to write DDOT process manager config: %v", err)
 	}
 	if err := agentService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
@@ -775,6 +823,8 @@ const (
 	debUnitsPath = "/lib/systemd/system"
 	rpmUnitsPath = "/usr/lib/systemd/system"
 )
+
+var systemdUnitInstallPaths = []string{ociUnitsPath, debUnitsPath, rpmUnitsPath}
 
 func removeUnits(ctx HookContext, units ...string) error {
 	var unitsPath string

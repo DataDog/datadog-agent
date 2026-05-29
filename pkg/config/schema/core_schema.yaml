@@ -433,7 +433,7 @@ properties:
     - template_section:Common
   aggregator_stop_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 2
     visibility: public
     description: |-
@@ -447,11 +447,10 @@ properties:
       'aggregator_stop_timeout' to 0.
     example: '2'
     tags:
-    - golang_type:int
     - template_section:Common
   aggregator_buffer_size:
     node_type: setting
-    type: number
+    type: integer
     default: 100
     visibility: public
     description: |-
@@ -460,21 +459,19 @@ properties:
       RSS usage with better performances.
     example: '100'
     tags:
-    - golang_type:int
     - template_section:Common
   forwarder_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 20
     visibility: public
     description: Forwarder timeout in seconds
     example: '20'
     tags:
-    - golang_type:int
     - template_section:Common
   forwarder_retry_queue_payloads_max_size:
     node_type: setting
-    type: number
+    type: integer
     default: 15728640
     visibility: public
     description: |-
@@ -483,21 +480,19 @@ properties:
       but no more than 2.5 times the payload size. The default is 15MB.
     example: '15728640'
     tags:
-    - golang_type:int
     - template_section:Common
   forwarder_num_workers:
     node_type: setting
-    type: number
+    type: integer
     default: 1
     visibility: public
     description: The number of workers used by the forwarder.
     example: '1'
     tags:
-    - golang_type:int
     - template_section:Common
   forwarder_stop_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 2
     visibility: public
     description: |-
@@ -511,7 +506,6 @@ properties:
       'forwarder_stop_timeout' to 0.
     example: '2'
     tags:
-    - golang_type:int
     - template_section:Common
   forwarder_http_protocol:
     node_type: setting
@@ -525,7 +519,7 @@ properties:
     - template_section:Common
   forwarder_max_concurrent_requests:
     node_type: setting
-    type: number
+    type: integer
     default: 10
     visibility: public
     description: |-
@@ -535,11 +529,10 @@ properties:
       each request can be sent before waiting for the response.
     example: '10'
     tags:
-    - golang_type:int
     - template_section:Common
   forwarder_storage_max_size_in_bytes:
     node_type: setting
-    type: number
+    type: integer
     default: 0
     visibility: public
     description: |-
@@ -548,7 +541,6 @@ properties:
       When `forwarder_storage_max_size_in_bytes` is `0`, the transactions are never stored on the disk.
     example: '50000000'
     tags:
-    - golang_type:int
     - template_section:Common
     comment: 0 means disabled. This is a BETA feature.
   forwarder_storage_max_disk_ratio:
@@ -570,7 +562,7 @@ properties:
       disk space is very small.
   forwarder_outdated_file_in_days:
     node_type: setting
-    type: number
+    type: integer
     default: 10
     visibility: public
     description: |-
@@ -579,11 +571,10 @@ properties:
       created more than `forwarder_outdated_file_in_days` days ago, they are removed.
     example: '10'
     tags:
-    - golang_type:int
     - template_section:Common
   forwarder_high_prio_buffer_size:
     node_type: setting
-    type: number
+    type: integer
     default: 100
     visibility: public
     description: |-
@@ -591,32 +582,29 @@ properties:
       Increasing the buffer size can help if payload drops occur due to high prio buffer being full.
     example: '100'
     tags:
-    - golang_type:int
     - template_section:Common
     comment: Forwarder channels buffer size
   forwarder_low_prio_buffer_size:
     node_type: setting
-    type: number
+    type: integer
     default: 100
     visibility: public
     description: Defines the size of the low prio buffer.
     example: '100'
     tags:
-    - golang_type:int
     - template_section:Common
   forwarder_requeue_buffer_size:
     node_type: setting
-    type: number
+    type: integer
     default: 100
     visibility: public
     description: Defines the size of the requeue prio buffer.
     example: '100'
     tags:
-    - golang_type:int
     - template_section:Common
   forwarder_backoff_base:
     node_type: setting
-    type: number
+    type: integer
     default: 2
     visibility: public
     description: |-
@@ -625,11 +613,10 @@ properties:
       higher rate of exponential growth.
     example: '2'
     tags:
-    - golang_type:int
     - template_section:Common
   forwarder_backoff_max:
     node_type: setting
-    type: number
+    type: integer
     default: 64
     visibility: public
     description: |-
@@ -638,7 +625,6 @@ properties:
       higher maximum backoff time.
     example: '64'
     tags:
-    - golang_type:int
     - template_section:Common
   cloud_provider_metadata:
     node_type: setting
@@ -746,13 +732,12 @@ properties:
     - template_section:Common
   ec2_metadata_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 300
     visibility: public
     description: Timeout in milliseconds on calls to the AWS EC2 metadata endpoints.
     example: '300'
     tags:
-    - golang_type:int
     - template_section:Common
     comment: value in milliseconds
   ec2_prefer_imdsv2:
@@ -870,13 +855,12 @@ properties:
     - template_section:Common
   gce_metadata_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 1000
     visibility: public
     description: Timeout in milliseconds on calls to the GCE metadata endpoints.
     example: '1000'
     tags:
-    - golang_type:int
     - template_section:Common
     comment: value in milliseconds
   collect_gpu_tags:
@@ -977,19 +961,16 @@ properties:
         default: false
       workload_tag_cache_size:
         node_type: setting
-        type: number
+        type: integer
         default: 1024
-        tags:
-        - golang_type:int
   azure_metadata_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 300
     visibility: public
     description: Timeout in milliseconds on calls to the Azure metadata endpoints.
     example: '300'
     tags:
-    - golang_type:int
     - template_section:Common
   azure_hostname_style:
     node_type: setting
@@ -1141,7 +1122,7 @@ properties:
             - template_section:Common
       validation_period:
         node_type: setting
-        type: number
+        type: integer
         default: 60
         visibility: public
         description: |-
@@ -1149,7 +1130,6 @@ properties:
           The value is verified every 30s. By default, three consecutive checks need to return true to trigger an automatic exit.
         example: '60'
         tags:
-        - golang_type:int
         - template_section:Common
         comment: Auto exit configuration
   remote_configuration:
@@ -1220,10 +1200,8 @@ properties:
         properties:
           cache_bypass_limit:
             node_type: setting
-            type: number
+            type: integer
             default: 5
-            tags:
-            - golang_type:int
           ttl_seconds:
             node_type: setting
             type: number
@@ -1257,10 +1235,8 @@ properties:
             default: ''
           refresh_interval_mins:
             node_type: setting
-            type: number
+            type: integer
             default: 60
-            tags:
-            - golang_type:int
       director_root:
         node_type: setting
         type: string
@@ -1366,10 +1342,8 @@ properties:
         default: true
       port_range_start:
         node_type: setting
-        type: number
+        type: integer
         default: 9803
-        tags:
-        - golang_type:int
       tls_verify:
         node_type: setting
         type: boolean
@@ -1492,28 +1466,26 @@ properties:
     - template_section:Agent
   expvar_port:
     node_type: setting
-    type: number
+    type: integer
     default: 5000
     visibility: public
     description: The port for the go_expvar server.
     example: '5000'
     tags:
-    - golang_type:int
     - template_section:Agent
     comment: Go_expvar server port
   cmd_port:
     node_type: setting
-    type: number
+    type: integer
     default: 5001
     visibility: public
     description: The port on which the IPC api listens.
     example: '5001'
     tags:
-    - golang_type:int
     - template_section:Agent
   GUI_port:
     node_type: setting
-    type: number
+    type: integer
     visibility: public
     description: |-
       The port for the browser GUI to be served.
@@ -1522,7 +1494,6 @@ properties:
        * Windows & macOS : `5002`
        * Linux: `-1`
     tags:
-    - golang_type:int
     - template_section:Agent
     platform_default:
       linux: -1
@@ -1530,7 +1501,7 @@ properties:
     comment: Agent GUI access port
   GUI_session_expiration:
     node_type: setting
-    type: number
+    type: integer
     default: 0
     visibility: public
     description: |-
@@ -1539,11 +1510,10 @@ properties:
       Default is "0s" (sessions do not expire).
     example: <SESSION_EXPIRATION_DURATION>
     tags:
-    - golang_type:int
     - template_section:Agent
   health_port:
     node_type: setting
-    type: number
+    type: integer
     default: 0
     visibility: public
     description: |-
@@ -1556,7 +1526,7 @@ properties:
     - template_section:Agent
   check_runners:
     node_type: setting
-    type: number
+    type: integer
     default: 4
     visibility: public
     description: |-
@@ -1604,13 +1574,12 @@ properties:
     - template_section:Agent
   server_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 30
     visibility: public
     description: IPC api server timeout in seconds.
     example: '30'
     tags:
-    - golang_type:int
     - template_section:Agent
     comment: IPC API server timeout
   procfs_path:
@@ -1645,14 +1614,13 @@ properties:
     - template_section:CoreAgent
   python3_linter_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 120
     visibility: public
     description: Timeout in seconds for validation of compatibility with python 3
       when running python 2.
     example: '120'
     tags:
-    - golang_type:int
     - template_section:CoreAgent
     comment: |-
       Python 3 linter timeout, in seconds
@@ -1766,7 +1734,7 @@ properties:
     - template_section:Agent
   secret_refresh_interval:
     node_type: setting
-    type: number
+    type: integer
     default: 0
     visibility: public
     description: |-
@@ -1774,11 +1742,10 @@ properties:
       For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management/#refreshing-apiapp-keys-at-runtime
     example: '0'
     tags:
-    - golang_type:int
     - template_section:Agent
   secret_refresh_on_api_key_failure_interval:
     node_type: setting
-    type: number
+    type: integer
     default: 0
     visibility: public
     description: |-
@@ -1790,7 +1757,6 @@ properties:
       For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management/#refreshing-apiapp-keys-at-runtime
     example: '0'
     tags:
-    - golang_type:int
     - template_section:Agent
   secret_refresh_scatter:
     node_type: setting
@@ -1838,24 +1804,22 @@ properties:
     - template_section:Agent
   secret_backend_output_max_size:
     node_type: setting
-    type: number
+    type: integer
     default: 1048576
     visibility: public
     description: The size in bytes of the buffer used to store the command answer
       (apply to both stdout and stderr)
     example: '1048576'
     tags:
-    - golang_type:int
     - template_section:Agent
   secret_backend_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 30
     visibility: public
     description: The timeout to execute the command in second
     example: '30'
     tags:
-    - golang_type:int
     - template_section:Agent
   secret_backend_skip_checks:
     node_type: setting
@@ -2098,13 +2062,12 @@ properties:
         comment: Transport protocol for log payloads
       http_timeout:
         node_type: setting
-        type: number
+        type: integer
         default: 10
         visibility: public
         description: The HTTP timeout to use for sending logs, in seconds.
         example: '10'
         tags:
-        - golang_type:int
         - template_section:LogsAgent
       force_use_tcp:
         node_type: setting
@@ -2131,7 +2094,7 @@ properties:
         - template_section:LogsAgent
       compression_level:
         node_type: setting
-        type: number
+        type: integer
         default: 6
         visibility: public
         description: |-
@@ -2140,7 +2103,6 @@ properties:
           `use_compression` is set to `true`.
         example: '6'
         tags:
-        - golang_type:int
         - template_section:LogsAgent
       batch_wait:
         node_type: setting
@@ -2155,27 +2117,25 @@ properties:
         - template_section:LogsAgent
       close_timeout:
         node_type: setting
-        type: number
+        type: integer
         default: 60
         visibility: public
         description: The maximum number of seconds the Agent spends reading from a
           file after it has been rotated.
         example: '60'
         tags:
-        - golang_type:int
         - template_section:LogsAgent
         comment: maximum time that the unix tailer will hold a log file open after
           it has been rotated
       open_files_limit:
         node_type: setting
-        type: number
+        type: integer
         visibility: public
         description: |-
           The maximum number of files that can be tailed in parallel.
           Note: the default for Mac OS is 200. The default for
           all other systems is 500.
         tags:
-        - golang_type:int
         - template_section:LogsAgent
         platform_default:
           darwin: 200
@@ -2218,7 +2178,7 @@ properties:
           more disk I/O at the wildcard log paths
       max_message_size_bytes:
         node_type: setting
-        type: number
+        type: integer
         default: 900000
         visibility: public
         description: |-
@@ -2231,30 +2191,27 @@ properties:
           remainder. See https://docs.datadoghq.com/api/latest/logs/ for details.
         example: '900000'
         tags:
-        - golang_type:int
         - template_section:LogsAgent
         comment: maximum log message size in bytes
       integrations_logs_files_max_size:
         node_type: setting
-        type: number
+        type: integer
         default: 100
         visibility: public
         description: The max size in MB that an integration logs file is allowed to
           use
         example: '100'
         tags:
-        - golang_type:int
         - template_section:LogsAgent
         comment: Max size in MB an integration logs file can use
       integrations_logs_total_usage:
         node_type: setting
-        type: number
+        type: integer
         default: 100
         visibility: public
         description: The total combined usage all integrations logs files can use
         example: '100'
         tags:
-        - golang_type:int
         - template_section:LogsAgent
         comment: Max disk usage in MB all integrations logs files are allowed to use
           in total
@@ -2306,10 +2263,8 @@ properties:
           type: object
       aggregation_timeout:
         node_type: setting
-        type: number
+        type: integer
         default: 1000
-        tags:
-        - golang_type:int
         comment: |-
           Timeout in milliseonds used when performing agreggation operations,
           including multi-line log processing rules and chunked line reaggregation.
@@ -2329,10 +2284,8 @@ properties:
           behavior is not supported on ECS Fargate.
       auditor_ttl:
         node_type: setting
-        type: number
+        type: integer
         default: 23
-        tags:
-        - golang_type:int
         comment: in hours
       auto_multi_line:
         node_type: section
@@ -2358,10 +2311,8 @@ properties:
             - golang_type:float64
           pattern_table_max_size:
             node_type: setting
-            type: number
+            type: integer
             default: 20
-            tags:
-            - golang_type:int
           tag_aggregated_json:
             node_type: setting
             type: boolean
@@ -2374,10 +2325,8 @@ properties:
             - golang_type:float64
           tokenizer_max_input_bytes:
             node_type: setting
-            type: number
+            type: integer
             default: 60
-            tags:
-            - golang_type:int
       auto_multi_line_default_match_threshold:
         node_type: setting
         type: number
@@ -2386,17 +2335,13 @@ properties:
         - golang_type:float64
       auto_multi_line_default_match_timeout:
         node_type: setting
-        type: number
+        type: integer
         default: 30
-        tags:
-        - golang_type:int
         comment: Seconds
       auto_multi_line_default_sample_size:
         node_type: setting
-        type: number
+        type: integer
         default: 500
-        tags:
-        - golang_type:int
       auto_multi_line_detection_custom_samples:
         node_type: setting
         type: array
@@ -2419,32 +2364,24 @@ properties:
           detection v1
       batch_max_concurrent_send:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       batch_max_content_size:
         node_type: setting
-        type: number
+        type: integer
         default: 5000000
-        tags:
-        - golang_type:int
       batch_max_size:
         node_type: setting
-        type: number
+        type: integer
         default: 1000
-        tags:
-        - golang_type:int
       compression_kind:
         node_type: setting
         type: string
         default: zstd
       connection_reset_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       container_runtime_waiting_timeout:
         node_type: setting
         type: string
@@ -2457,10 +2394,8 @@ properties:
           Timeout is in seconds.
       dd_port:
         node_type: setting
-        type: number
+        type: integer
         default: 10516
-        tags:
-        - golang_type:int
       dd_url:
         node_type: setting
         type: string
@@ -2491,10 +2426,8 @@ properties:
             default: ''
           refresh_interval_mins:
             node_type: setting
-            type: number
+            type: integer
             default: 60
-            tags:
-            - golang_type:int
       dev_mode_no_ssl:
         node_type: setting
         type: boolean
@@ -2512,10 +2445,8 @@ properties:
         comment: disable distributed senders
       docker_client_read_timeout:
         node_type: setting
-        type: number
+        type: integer
         default: 30
-        tags:
-        - golang_type:int
         comment: |-
           Configurable docker client timeout while communicating with the docker daemon.
           It could happen that the docker daemon takes a lot of time gathering timestamps
@@ -2607,10 +2538,8 @@ properties:
               as the same pattern.
           max_patterns:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
             comment: Maximum number of distinct patterns the sampler tracks at once.
           protect_important_logs:
             node_type: setting
@@ -2628,10 +2557,8 @@ properties:
             comment: Steady-state logs per second allowed for each matched pattern.
           tokenizer_max_input_bytes:
             node_type: setting
-            type: number
+            type: integer
             default: 2048
-            tags:
-            - golang_type:int
             comment: The sampler needs a larger tokenizer window than the auto-multiline
               labeler.
       experimental_auto_multi_line_detection:
@@ -2651,27 +2578,21 @@ properties:
         properties:
           count:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
             comment: default fingerprint configuration
           count_to_skip:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           fingerprint_strategy:
             node_type: setting
             type: string
             default: disabled
           max_bytes:
             node_type: setting
-            type: number
+            type: integer
             default: 100000
-            tags:
-            - golang_type:int
       force_auto_multi_line_detection_v1:
         node_type: setting
         type: boolean
@@ -2679,10 +2600,8 @@ properties:
         comment: Enable the legacy auto multiline detection (v1)
       frame_size:
         node_type: setting
-        type: number
+        type: integer
         default: 9000
-        tags:
-        - golang_type:int
         comment: 'increase the read buffer size of the UDP sockets:'
       http_connectivity_retry_interval_max:
         node_type: setting
@@ -2694,10 +2613,8 @@ properties:
           up to this ceiling, then continue checking at this interval. Default: 1 hour
       input_chan_size:
         node_type: setting
-        type: number
+        type: integer
         default: 100
-        tags:
-        - golang_type:int
       integrations_logs_disk_ratio:
         node_type: setting
         type: number
@@ -2720,16 +2637,12 @@ properties:
           to stream logs. Value in seconds.
       message_channel_size:
         node_type: setting
-        type: number
+        type: integer
         default: 100
-        tags:
-        - golang_type:int
       payload_channel_size:
         node_type: setting
-        type: number
+        type: integer
         default: 10
-        tags:
-        - golang_type:int
       pipeline_failover:
         node_type: section
         type: object
@@ -2741,16 +2654,12 @@ properties:
             comment: Pipeline failover configuration
           router_channel_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5
-            tags:
-            - golang_type:int
       pipelines:
         node_type: setting
-        type: number
+        type: integer
         default: 4
-        tags:
-        - golang_type:int
         comment: Number of logs pipeline instances. Defaults to number of logical
           CPU cores as defined by GOMAXPROCS or 4, whichever is lower.
       process_exclude_agent:
@@ -2784,10 +2693,8 @@ properties:
         - golang_type:float64
       sender_recovery_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 2
-        tags:
-        - golang_type:int
       sender_recovery_reset:
         node_type: setting
         type: boolean
@@ -2799,10 +2706,8 @@ properties:
         comment: 'add a socks5 proxy:'
       stop_grace_period:
         node_type: setting
-        type: number
+        type: integer
         default: 30
-        tags:
-        - golang_type:int
       tag_multi_line_logs:
         node_type: setting
         type: boolean
@@ -2815,10 +2720,8 @@ properties:
         comment: Add a tag to logs that are truncated by the agent
       tagger_warmup_duration:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
         comment: |-
           additional config to ensure initial logs are tagged with kubelet tags
           wait (seconds) for tagger before start fetching tags of new AD services
@@ -2865,19 +2768,15 @@ properties:
           the pod container ID is matching.
       windows_open_file_timeout:
         node_type: setting
-        type: number
+        type: integer
         default: 5
-        tags:
-        - golang_type:int
         comment: |-
           maximum time that the windows tailer will hold a log file open, while waiting for
           the downstream logs pipeline to be ready to accept more data
       zstd_compression_level:
         node_type: setting
-        type: number
+        type: integer
         default: 1
-        tags:
-        - golang_type:int
   apm_config:
     node_type: section
     title: Trace Collection Configuration
@@ -2918,7 +2817,7 @@ properties:
         - template_section:TraceAgent
       receiver_port:
         node_type: setting
-        type: number
+        type: integer
         default: 8126
         env_vars:
         - DD_APM_RECEIVER_PORT
@@ -2929,7 +2828,6 @@ properties:
           Set to 0 to disable the HTTP receiver.
         example: '8126'
         tags:
-        - golang_type:int
         - template_section:TraceAgent
       receiver_socket:
         node_type: setting
@@ -3560,7 +3458,7 @@ properties:
                 - template_section:TraceAgent
               max_size:
                 node_type: setting
-                type: number
+                type: integer
                 default: 5000000
                 env_vars:
                 - DD_APM_OBFUSCATION_CACHE_MAX_SIZE
@@ -3570,7 +3468,6 @@ properties:
                   Datadog stores a minimum of 1000 queries (5000000 / 5000) by default.
                 example: '5000000'
                 tags:
-                - golang_type:int
                 - template_section:TraceAgent
       sql_obfuscation_mode:
         node_type: setting
@@ -3745,7 +3642,7 @@ properties:
         - template_section:TraceAgent
       connection_limit:
         node_type: setting
-        type: number
+        type: integer
         default: 2000
         env_vars:
         - DD_APM_CONNECTION_LIMIT
@@ -3756,7 +3653,6 @@ properties:
           See https://docs.datadoghq.com/tracing/troubleshooting/agent_rate_limits/#max-connection-limit
         example: '2000'
         tags:
-        - golang_type:int
         - template_section:TraceAgent
       compute_stats_by_span_kind:
         node_type: setting
@@ -3872,7 +3768,7 @@ properties:
         properties:
           port:
             node_type: setting
-            type: number
+            type: integer
             default: 5012
             env_vars:
             - DD_APM_DEBUG_PORT
@@ -3881,7 +3777,6 @@ properties:
               to 0 to disable the server.
             example: '5012'
             tags:
-            - golang_type:int
             - template_section:TraceAgent
       instrumentation:
         node_type: section
@@ -3977,7 +3872,7 @@ properties:
             tags: []
       trace_buffer:
         node_type: setting
-        type: number
+        type: integer
         default: 0
         env_vars:
         - DD_APM_TRACE_BUFFER
@@ -3994,7 +3889,6 @@ properties:
           processor can process them.
         example: '0'
         tags:
-        - golang_type:int
         - template_section:TraceAgent
       probabilistic_sampler:
         node_type: section
@@ -4031,7 +3925,7 @@ properties:
             - template_section:TraceAgent
           hash_seed:
             node_type: setting
-            type: number
+            type: integer
             default: 0
             env_vars:
             - DD_APM_PROBABILISTIC_SAMPLER_HASH_SEED
@@ -4041,7 +3935,6 @@ properties:
                          collectors using the probabilistic sampler to ensure consistent sampling.
             example: '0'
             tags:
-            - golang_type:int
             - template_section:TraceAgent
       error_tracking_standalone:
         node_type: section
@@ -4064,7 +3957,7 @@ properties:
             - template_section:TraceAgent
       profiling_receiver_timeout:
         node_type: setting
-        type: number
+        type: integer
         default: 5
         env_vars:
         - DD_APM_PROFILING_RECEIVER_TIMEOUT
@@ -4075,7 +3968,6 @@ properties:
           Increase this value if you experience timeouts with large profile uploads.
         example: '5'
         tags:
-        - golang_type:int
         - template_section:TraceAgent
       additional_profile_tags:
         node_type: setting
@@ -4123,26 +4015,22 @@ properties:
         env_parser: traces_span
       bucket_size_seconds:
         node_type: setting
-        type: number
+        type: integer
         default: 10
-        tags:
-        - golang_type:int
       client_stats_flush_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 1
         env_vars:
         - DD_APM_CLIENT_STATS_FLUSH_INTERVAL
-        tags:
-        - golang_type:int
+        tags: []
       connection_reset_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 0
         env_vars:
         - DD_APM_CONNECTION_RESET_INTERVAL
-        tags:
-        - golang_type:int
+        tags: []
       dd_agent_bin:
         node_type: setting
         type: string
@@ -4213,20 +4101,18 @@ properties:
         tags: []
       decoder_timeout:
         node_type: setting
-        type: number
+        type: integer
         default: 1000
         env_vars:
         - DD_APM_DECODER_TIMEOUT
-        tags:
-        - golang_type:int
+        tags: []
       decoders:
         node_type: setting
-        type: number
+        type: integer
         default: 0
         env_vars:
         - DD_APM_DECODERS
-        tags:
-        - golang_type:int
+        tags: []
       disable_rare_sampler:
         node_type: setting
         type: boolean
@@ -4264,12 +4150,11 @@ properties:
         tags: []
       install_time:
         node_type: setting
-        type: number
+        type: integer
         default: 0
         env_vars:
         - DD_INSTRUMENTATION_INSTALL_TIME
-        tags:
-        - golang_type:int
+        tags: []
       install_type:
         node_type: setting
         type: string
@@ -4290,29 +4175,25 @@ properties:
             tags: []
       max_catalog_entries:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       max_catalog_services:
         node_type: setting
-        type: number
+        type: integer
         default: 0
         env_vars:
         - DD_APM_MAX_CATALOG_SERVICES
-        tags:
-        - golang_type:int
+        tags: []
       max_connections:
         node_type: setting
-        type: number
+        type: integer
         default: 1000
         env_vars:
         - DD_APM_MAX_CONNECTIONS
-        tags:
-        - golang_type:int
+        tags: []
       max_payload_size:
         node_type: setting
-        type: number
+        type: integer
         default: 26214400
         env_vars:
         - DD_APM_MAX_PAYLOAD_SIZE
@@ -4328,12 +4209,11 @@ properties:
         - golang_type:float64
       max_sender_retries:
         node_type: setting
-        type: number
+        type: integer
         default: 4
         env_vars:
         - DD_APM_MAX_SENDER_RETRIES
-        tags:
-        - golang_type:int
+        tags: []
       mode:
         node_type: setting
         type: string
@@ -4359,14 +4239,20 @@ properties:
         env_vars:
         - DD_APM_PROFILING_DD_URL
         tags: []
+      profiling_send_to_main_endpoint:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_APM_PROFILING_SEND_TO_MAIN_ENDPOINT
+        tags: []
       profiling_max_request_bytes:
         node_type: setting
-        type: number
+        type: integer
         default: 52428800
         env_vars:
         - DD_APM_PROFILING_MAX_REQUEST_BYTES
-        tags:
-        - golang_type:int
+        tags: []
       receiver_enabled:
         node_type: setting
         type: boolean
@@ -4376,12 +4262,11 @@ properties:
         tags: []
       receiver_timeout:
         node_type: setting
-        type: number
+        type: integer
         default: 0
         env_vars:
         - DD_APM_RECEIVER_TIMEOUT
-        tags:
-        - golang_type:int
+        tags: []
       send_all_internal_stats:
         node_type: setting
         type: boolean
@@ -4428,16 +4313,12 @@ properties:
         properties:
           connection_limit:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           queue_size:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
       symdb_additional_endpoints:
         node_type: setting
         type: object
@@ -4505,30 +4386,23 @@ properties:
         properties:
           connection_limit:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           queue_size:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
       watchdog_check_delay:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       windows_pipe_buffer_size:
         node_type: setting
-        type: number
+        type: integer
         default: 1000000
         env_vars:
         - DD_APM_WINDOWS_PIPE_BUFFER_SIZE
-        tags:
-        - golang_type:int
+        tags: []
       windows_pipe_name:
         node_type: setting
         type: string
@@ -4604,7 +4478,7 @@ properties:
             - template_section:CoreAgent
       expvar_port:
         node_type: setting
-        type: number
+        type: integer
         default: 6062
         env_vars:
         - DD_PROCESS_CONFIG_EXPVAR_PORT
@@ -4613,11 +4487,10 @@ properties:
         description: Port for the debug endpoints for the process Agent.
         example: '6062'
         tags:
-        - golang_type:int
         - template_section:CoreAgent
       cmd_port:
         node_type: setting
-        type: number
+        type: integer
         default: 6162
         env_vars:
         - DD_PROCESS_CONFIG_CMD_PORT
@@ -4626,7 +4499,6 @@ properties:
         description: Port for configuring runtime settings for the process Agent.
         example: '6162'
         tags:
-        - golang_type:int
         - template_section:CoreAgent
       log_file:
         node_type: setting
@@ -4651,7 +4523,7 @@ properties:
         properties:
           container:
             node_type: setting
-            type: number
+            type: integer
             default: 10
             env_vars:
             - DD_PROCESS_CONFIG_INTERVALS_CONTAINER
@@ -4660,11 +4532,10 @@ properties:
             description: The interval in seconds at which the container check runs.
             example: '10'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           container_realtime:
             node_type: setting
-            type: number
+            type: integer
             default: 2
             env_vars:
             - DD_PROCESS_CONFIG_INTERVALS_CONTAINER_REALTIME
@@ -4674,11 +4545,10 @@ properties:
               check runs.
             example: '2'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           process:
             node_type: setting
-            type: number
+            type: integer
             default: 10
             env_vars:
             - DD_PROCESS_CONFIG_INTERVALS_PROCESS
@@ -4687,7 +4557,6 @@ properties:
             description: The interval in seconds at which the process check runs.
             example: '10'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
             comment: |-
               The interval, in seconds, at which we will run each check. If you want consistent
@@ -4695,7 +4564,7 @@ properties:
               Defaults to 10s for normal checks and 2s for others.
           process_realtime:
             node_type: setting
-            type: number
+            type: integer
             default: 2
             env_vars:
             - DD_PROCESS_CONFIG_INTERVALS_PROCESS_REALTIME
@@ -4705,17 +4574,15 @@ properties:
               runs.
             example: '2'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           connections:
             node_type: setting
-            type: number
+            type: integer
             default: 30
             env_vars:
             - DD_PROCESS_CONFIG_INTERVALS_CONNECTIONS
             - DD_PROCESS_AGENT_INTERVALS_CONNECTIONS
-            tags:
-            - golang_type:int
+            tags: []
       process_discovery:
         node_type: section
         type: object
@@ -4759,13 +4626,12 @@ properties:
               Also bind old environment variables
           hint_frequency:
             node_type: setting
-            type: number
+            type: integer
             default: 60
             env_vars:
             - DD_PROCESS_CONFIG_PROCESS_DISCOVERY_HINT_FREQUENCY
             - DD_PROCESS_AGENT_PROCESS_DISCOVERY_HINT_FREQUENCY
-            tags:
-            - golang_type:int
+            tags: []
       blacklist_patterns:
         node_type: setting
         type: array
@@ -4784,7 +4650,7 @@ properties:
         - template_section:CoreAgent
       queue_size:
         node_type: setting
-        type: number
+        type: integer
         default: 256
         env_vars:
         - DD_PROCESS_CONFIG_QUEUE_SIZE
@@ -4793,11 +4659,10 @@ properties:
         description: The number of check results to buffer in memory when a POST fails.
         example: '256'
         tags:
-        - golang_type:int
         - template_section:CoreAgent
       process_queue_bytes:
         node_type: setting
-        type: number
+        type: integer
         default: 60000000
         env_vars:
         - DD_PROCESS_CONFIG_PROCESS_QUEUE_BYTES
@@ -4807,11 +4672,10 @@ properties:
           fails.
         example: '60000000'
         tags:
-        - golang_type:int
         - template_section:CoreAgent
       rt_queue_size:
         node_type: setting
-        type: number
+        type: integer
         default: 5
         env_vars:
         - DD_PROCESS_CONFIG_RT_QUEUE_SIZE
@@ -4821,11 +4685,10 @@ properties:
           a POST fails.
         example: '5'
         tags:
-        - golang_type:int
         - template_section:CoreAgent
       max_per_message:
         node_type: setting
-        type: number
+        type: integer
         default: 100
         env_vars:
         - DD_PROCESS_CONFIG_MAX_PER_MESSAGE
@@ -4834,7 +4697,6 @@ properties:
         description: The maximum number of processes or containers per message.
         example: '100'
         tags:
-        - golang_type:int
         - template_section:CoreAgent
       dd_agent_bin:
         node_type: setting
@@ -4960,13 +4822,12 @@ properties:
           It's a string as the possible values are "disabled", "false", "true"...
       grpc_connection_timeout_secs:
         node_type: setting
-        type: number
+        type: integer
         default: 60
         env_vars:
         - DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS
         - DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS
-        tags:
-        - golang_type:int
+        tags: []
       ignore_zombie_processes:
         node_type: setting
         type: boolean
@@ -4993,22 +4854,20 @@ properties:
         properties:
           grpc_port:
             node_type: setting
-            type: number
+            type: integer
             default: 6262
             env_vars:
             - DD_PROCESS_CONFIG_LANGUAGE_DETECTION_GRPC_PORT
             - DD_PROCESS_AGENT_LANGUAGE_DETECTION_GRPC_PORT
-            tags:
-            - golang_type:int
+            tags: []
       max_message_bytes:
         node_type: setting
-        type: number
+        type: integer
         default: 1000000
         env_vars:
         - DD_PROCESS_CONFIG_MAX_MESSAGE_BYTES
         - DD_PROCESS_AGENT_MAX_MESSAGE_BYTES
-        tags:
-        - golang_type:int
+        tags: []
       orchestrator_additional_endpoints:
         node_type: setting
         type: object
@@ -5109,34 +4968,31 @@ properties:
         properties:
           workers:
             node_type: setting
-            type: number
+            type: integer
             default: 4
             visibility: public
             description: The number of concurrent workers available for network path
               execution.
             example: '4'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           timeout:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
             visibility: public
             description: The timeout in milliseconds for a network path test.
             example: '1000'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           max_ttl:
             node_type: setting
-            type: number
+            type: integer
             default: 30
             visibility: public
             description: The maximum TTL (Time To Live) for traceroute tests.
             example: '30'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           pathtest_ttl:
             node_type: setting
@@ -5209,53 +5065,48 @@ properties:
             - template_section:CoreAgent
           traceroute_queries:
             node_type: setting
-            type: number
+            type: integer
             default: 3
             visibility: public
             description: The number of traceroute queries for static path tests.
             example: '3'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           e2e_queries:
             node_type: setting
-            type: number
+            type: integer
             default: 50
             visibility: public
             description: The number of end-to-end queries for static path tests.
             example: '50'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           input_chan_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
             visibility: public
             description: The size of the input channel buffer.
             example: '1000'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           processing_chan_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
             visibility: public
             description: The size of the processing channel buffer.
             example: '1000'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           pathtest_contexts_limit:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
             visibility: public
             description: The maximum number of pathtest contexts that can be maintained.
             example: '1000'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           dest_excludes:
             node_type: setting
@@ -5291,10 +5142,8 @@ properties:
             default: 30s
           pathtest_max_per_minute:
             node_type: setting
-            type: number
+            type: integer
             default: 150
-            tags:
-            - golang_type:int
           reverse_dns_enrichment:
             node_type: section
             type: object
@@ -5305,10 +5154,8 @@ properties:
                 default: true
               timeout:
                 node_type: setting
-                type: number
+                type: integer
                 default: 5000
-                tags:
-                - golang_type:int
           source_excludes:
             node_type: setting
             type: object
@@ -5337,22 +5184,16 @@ properties:
               type: object
           batch_max_concurrent_send:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           batch_max_content_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5000000
-            tags:
-            - golang_type:int
           batch_max_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           batch_wait:
             node_type: setting
             type: number
@@ -5365,16 +5206,12 @@ properties:
             default: zstd
           compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 6
-            tags:
-            - golang_type:int
           connection_reset_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           dd_url:
             node_type: setting
             type: string
@@ -5387,10 +5224,8 @@ properties:
             - no-env
           input_chan_size:
             node_type: setting
-            type: number
+            type: integer
             default: 100
-            tags:
-            - golang_type:int
           logs_dd_url:
             node_type: setting
             type: string
@@ -5419,10 +5254,8 @@ properties:
             - golang_type:float64
           sender_recovery_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
           sender_recovery_reset:
             node_type: setting
             type: boolean
@@ -5437,10 +5270,8 @@ properties:
             default: true
           zstd_compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 1
-            tags:
-            - golang_type:int
   synthetics:
     node_type: section
     title: 'Synthetics Configuration          '
@@ -5470,14 +5301,13 @@ properties:
             comment: Synthetics configuration
           workers:
             node_type: setting
-            type: number
+            type: integer
             default: 4
             visibility: public
             description: The `workers` refers to the number of concurrent workers
               available for synthetics tests execution.
             example: '4'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           flush_interval:
             node_type: setting
@@ -5501,22 +5331,16 @@ properties:
               type: object
           batch_max_concurrent_send:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           batch_max_content_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5000000
-            tags:
-            - golang_type:int
           batch_max_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           batch_wait:
             node_type: setting
             type: number
@@ -5529,16 +5353,12 @@ properties:
             default: zstd
           compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 6
-            tags:
-            - golang_type:int
           connection_reset_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           dd_url:
             node_type: setting
             type: string
@@ -5551,10 +5371,8 @@ properties:
             - no-env
           input_chan_size:
             node_type: setting
-            type: number
+            type: integer
             default: 100
-            tags:
-            - golang_type:int
           logs_dd_url:
             node_type: setting
             type: string
@@ -5583,10 +5401,8 @@ properties:
             - golang_type:float64
           sender_recovery_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
           sender_recovery_reset:
             node_type: setting
             type: boolean
@@ -5601,10 +5417,8 @@ properties:
             default: true
           zstd_compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 1
-            tags:
-            - golang_type:int
   compliance_config:
     node_type: section
     title: Security Agent Compliance Configuration
@@ -5648,14 +5462,13 @@ properties:
         - template_section:CoreAgent
       check_max_events_per_run:
         node_type: setting
-        type: number
+        type: integer
         default: 100
         visibility: public
         description: The maximum number of events emitted by a check each time it
           runs.
         example: '100'
         tags:
-        - golang_type:int
         - template_section:CoreAgent
       container_exclude:
         node_type: setting
@@ -5689,22 +5502,16 @@ properties:
               type: object
           batch_max_concurrent_send:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           batch_max_content_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5000000
-            tags:
-            - golang_type:int
           batch_max_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           batch_wait:
             node_type: setting
             type: number
@@ -5717,16 +5524,12 @@ properties:
             default: zstd
           compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 6
-            tags:
-            - golang_type:int
           connection_reset_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           dd_url:
             node_type: setting
             type: string
@@ -5739,10 +5542,8 @@ properties:
             - no-env
           input_chan_size:
             node_type: setting
-            type: number
+            type: integer
             default: 100
-            tags:
-            - golang_type:int
           logs_dd_url:
             node_type: setting
             type: string
@@ -5771,10 +5572,8 @@ properties:
             - golang_type:float64
           sender_recovery_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
           sender_recovery_reset:
             node_type: setting
             type: boolean
@@ -5789,10 +5588,8 @@ properties:
             default: true
           zstd_compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 1
-            tags:
-            - golang_type:int
       exclude_pause_container:
         node_type: setting
         type: boolean
@@ -5964,17 +5761,13 @@ properties:
             default: true
           scan_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
             comment: Integer seconds
           scan_timeout:
             node_type: setting
-            type: number
+            type: integer
             default: 600
-            tags:
-            - golang_type:int
             comment: Integer seconds
           use_mount:
             node_type: setting
@@ -5992,22 +5785,16 @@ properties:
           type: object
       batch_max_concurrent_send:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       batch_max_content_size:
         node_type: setting
-        type: number
+        type: integer
         default: 5000000
-        tags:
-        - golang_type:int
       batch_max_size:
         node_type: setting
-        type: number
+        type: integer
         default: 1000
-        tags:
-        - golang_type:int
       batch_wait:
         node_type: setting
         type: number
@@ -6025,10 +5812,8 @@ properties:
             comment: used by custom cache.
           max_disk_size:
             node_type: setting
-            type: number
+            type: integer
             default: 100000000
-            tags:
-            - golang_type:int
             comment: 'used by custom cache: max disk space used by cached objects.
               Not equal to max disk usage'
       cache_directory:
@@ -6045,20 +5830,16 @@ properties:
         default: zstd
       compression_level:
         node_type: setting
-        type: number
+        type: integer
         default: 6
-        tags:
-        - golang_type:int
       compute_dependencies:
         node_type: setting
         type: boolean
         default: true
       connection_reset_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       container:
         node_type: section
         type: object
@@ -6093,10 +5874,8 @@ properties:
                 comment: SBOM enrichment configuration
       input_chan_size:
         node_type: setting
-        type: number
+        type: integer
         default: 100
-        tags:
-        - golang_type:int
       logs_dd_url:
         node_type: setting
         type: string
@@ -6137,10 +5916,8 @@ properties:
         - golang_type:float64
       sender_recovery_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 2
-        tags:
-        - golang_type:int
       sender_recovery_reset:
         node_type: setting
         type: boolean
@@ -6159,10 +5936,8 @@ properties:
         default: true
       zstd_compression_level:
         node_type: setting
-        type: number
+        type: integer
         default: 1
-        tags:
-        - golang_type:int
   use_dogstatsd:
     node_type: setting
     title: DogStatsD Configuration
@@ -6176,7 +5951,7 @@ properties:
     comment: Dogstatsd
   dogstatsd_port:
     node_type: setting
-    type: number
+    type: integer
     default: 8125
     visibility: public
     description: |-
@@ -6184,7 +5959,6 @@ properties:
       Note: Make sure your client is sending to the same UDP port.
     example: '8125'
     tags:
-    - golang_type:int
     - template_section:Dogstatsd
     comment: 'Notice: 0 means UDP port closed'
   bind_host:
@@ -6243,13 +6017,12 @@ properties:
     - template_section:Dogstatsd
   dogstatsd_buffer_size:
     node_type: setting
-    type: number
+    type: integer
     default: 8192
     visibility: public
     description: The buffer size use to receive statsd packets, in bytes.
     example: '8192'
     tags:
-    - golang_type:int
     - template_section:Dogstatsd
     comment: |-
       The following options allow to configure how the dogstatsd intake buffers and queues incoming datagrams.
@@ -6299,7 +6072,7 @@ properties:
     - template_section:Dogstatsd
   dogstatsd_queue_size:
     node_type: setting
-    type: number
+    type: integer
     default: 1024
     visibility: public
     description: |-
@@ -6308,31 +6081,28 @@ properties:
       Dogstatsd server but as a trade-off, it could increase the number of packet drops.
     example: '1024'
     tags:
-    - golang_type:int
     - template_section:Dogstatsd
   dogstatsd_stats_buffer:
     node_type: setting
-    type: number
+    type: integer
     default: 10
     visibility: public
     description: Set how many items should be in the DogStatsD's stats circular buffer.
     example: '10'
     tags:
-    - golang_type:int
     - template_section:Dogstatsd
   dogstatsd_stats_port:
     node_type: setting
-    type: number
+    type: integer
     default: 5000
     visibility: public
     description: The port for the go_expvar server.
     example: '5000'
     tags:
-    - golang_type:int
     - template_section:Dogstatsd
   dogstatsd_so_rcvbuf:
     node_type: setting
-    type: number
+    type: integer
     default: 0
     visibility: public
     description: |-
@@ -6342,7 +6112,6 @@ properties:
       The maximum accepted value might change depending on the OS.
     example: '0'
     tags:
-    - golang_type:int
     - template_section:Dogstatsd
   dogstatsd_metrics_stats_enable:
     node_type: setting
@@ -6418,14 +6187,13 @@ properties:
     - template_section:Dogstatsd
   dogstatsd_mapper_cache_size:
     node_type: setting
-    type: number
+    type: integer
     default: 1000
     visibility: public
     description: Size of the cache (max number of mapping results) used by Dogstatsd
       mapping feature.
     example: '1000'
     tags:
-    - golang_type:int
     - template_section:Dogstatsd
   dogstatsd_entity_id_precedence:
     node_type: setting
@@ -6454,14 +6222,13 @@ properties:
     comment: Enable the no-aggregation pipeline.
   dogstatsd_no_aggregation_pipeline_batch_size:
     node_type: setting
-    type: number
+    type: integer
     default: 2048
     visibility: public
     description: How many metrics maximum in payloads sent by the no-aggregation pipeline
       to the intake.
     example: '2048'
     tags:
-    - golang_type:int
     - template_section:Dogstatsd
     comment: How many metrics maximum in payloads sent by the no-aggregation pipeline
       to the intake.
@@ -6479,13 +6246,12 @@ properties:
     - template_section:Dogstatsd
   statsd_forward_port:
     node_type: setting
-    type: number
+    type: integer
     default: 0
     visibility: public
     description: Port or the "statsd_forward_host" to forward StatsD packet to.
     example: '0'
     tags:
-    - golang_type:int
     - template_section:Dogstatsd
   statsd_metric_namespace:
     node_type: setting
@@ -6591,7 +6357,7 @@ properties:
     - template_section:CoreAgent
   jmx_max_restarts:
     node_type: setting
-    type: number
+    type: integer
     default: 3
     visibility: public
     description: Number of JMX restarts allowed in the restart-interval before giving
@@ -6602,7 +6368,7 @@ properties:
     - template_section:CoreAgent
   jmx_restart_interval:
     node_type: setting
-    type: number
+    type: integer
     default: 5
     visibility: public
     description: Duration of the restart interval in seconds.
@@ -6612,17 +6378,16 @@ properties:
     - template_section:CoreAgent
   jmx_check_period:
     node_type: setting
-    type: number
+    type: integer
     default: 15000
     visibility: public
     description: Duration of the period for check collections in milliseconds.
     example: '15000'
     tags:
-    - golang_type:int
     - template_section:CoreAgent
   jmx_thread_pool_size:
     node_type: setting
-    type: number
+    type: integer
     default: 3
     visibility: public
     description: |-
@@ -6632,22 +6397,20 @@ properties:
       A value of 1 processes instances serially.
     example: '3'
     tags:
-    - golang_type:int
     - template_section:CoreAgent
   jmx_collection_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 60
     visibility: public
     description: Defines the maximum waiting period in seconds before timing up on
       metric collection.
     example: '60'
     tags:
-    - golang_type:int
     - template_section:CoreAgent
   jmx_reconnection_thread_pool_size:
     node_type: setting
-    type: number
+    type: integer
     default: 3
     visibility: public
     description: |-
@@ -6657,18 +6420,16 @@ properties:
       A value of 1 processes instance reconnections serially.
     example: '3'
     tags:
-    - golang_type:int
     - template_section:CoreAgent
   jmx_reconnection_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 60
     visibility: public
     description: Determines the maximum waiting period in seconds before timing up
       on instance reconnection.
     example: '60'
     tags:
-    - golang_type:int
     - template_section:CoreAgent
   jmx_statsd_telemetry_enabled:
     node_type: setting
@@ -6764,7 +6525,7 @@ properties:
     - template_section:Logging
   log_file_max_rolls:
     node_type: setting
-    type: number
+    type: integer
     default: 1
     visibility: public
     description: |-
@@ -6772,7 +6533,6 @@ properties:
       Set to 0 to not limit the number of files to create.
     example: '1'
     tags:
-    - golang_type:int
     - template_section:Logging
   log_to_syslog:
     node_type: setting
@@ -6855,7 +6615,7 @@ properties:
     - template_section:CoreAgent
   autoconf_config_files_poll_interval:
     node_type: setting
-    type: number
+    type: integer
     default: 60
     visibility: public
     description: |-
@@ -6864,7 +6624,6 @@ properties:
       WARNING: Only files containing checks configuration are supported (logs configuration are not supported).
     example: '60'
     tags:
-    - golang_type:int
     - template_section:CoreAgent
   config_providers:
     node_type: setting
@@ -7077,7 +6836,7 @@ properties:
     - template_section:CoreAgent
   docker_query_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 5
     visibility: public
     description: Set the default timeout value when connecting to the Docker daemon.
@@ -7088,7 +6847,7 @@ properties:
     comment: Docker
   ad_config_poll_interval:
     node_type: setting
-    type: number
+    type: integer
     default: 10
     visibility: public
     description: |-
@@ -7101,7 +6860,7 @@ properties:
     comment: in seconds
   ad_tag_completeness_max_wait:
     node_type: setting
-    type: number
+    type: integer
     default: 0
     visibility: public
     description: |-
@@ -7113,7 +6872,6 @@ properties:
       discovered.
     example: '0'
     tags:
-    - golang_type:int
     - template_section:CoreAgent
     comment: in seconds, 0 means disabled
   ad_allowed_env_vars:
@@ -7237,17 +6995,16 @@ properties:
         - template_section:ClusterAgent
       max_leader_connections:
         node_type: setting
-        type: number
+        type: integer
         default: 100
         visibility: public
         description: Maximum number of connections between a follower and a leader.
         example: '100'
         tags:
-        - golang_type:int
         - template_section:ClusterAgent
       client_reconnect_period_seconds:
         node_type: setting
-        type: number
+        type: integer
         default: 1200
         visibility: public
         description: |-
@@ -7255,7 +7012,6 @@ properties:
           Set to 0 to disable periodic reconnection.
         example: '1200'
         tags:
-        - golang_type:int
         - template_section:ClusterAgent
       tagging_fallback:
         node_type: setting
@@ -7277,33 +7033,30 @@ properties:
         properties:
           read_timeout_seconds:
             node_type: setting
-            type: number
+            type: integer
             default: 2
             visibility: public
             description: Read timeout in seconds.
             example: '2'
             tags:
-            - golang_type:int
             - template_section:ClusterAgent
           write_timeout_seconds:
             node_type: setting
-            type: number
+            type: integer
             default: 2
             visibility: public
             description: Write timeout in seconds.
             example: '2'
             tags:
-            - golang_type:int
             - template_section:ClusterAgent
           idle_timeout_seconds:
             node_type: setting
-            type: number
+            type: integer
             default: 60
             visibility: public
             description: Idle timeout in seconds.
             example: '60'
             tags:
-            - golang_type:int
             - template_section:ClusterAgent
       tracing:
         node_type: section
@@ -7421,10 +7174,8 @@ properties:
         properties:
           grpc_max_message_size:
             node_type: setting
-            type: number
+            type: integer
             default: 4194304
-            tags:
-            - golang_type:int
             comment: |-
               partially deprecated: `agent_ipc.grpc_max_message_size` should now be used for configuring the maximum gRPC
               message size on the agent IPC server
@@ -7437,10 +7188,8 @@ properties:
               server instead of `agent_ipc.grpc_max_message_size`.
       cmd_port:
         node_type: setting
-        type: number
+        type: integer
         default: 5005
-        tags:
-        - golang_type:int
       collect_kubernetes_tags:
         node_type: setting
         type: boolean
@@ -7596,7 +7345,7 @@ properties:
         - template_section:ClusterChecks
       node_expiration_timeout:
         node_type: setting
-        type: number
+        type: integer
         default: 30
         visibility: public
         description: |-
@@ -7604,12 +7353,11 @@ properties:
           queried the cluster-agent are deleted, and their checks re-dispatched to other nodes.
         example: '30'
         tags:
-        - golang_type:int
         - template_section:ClusterChecks
         comment: value in seconds
       warmup_duration:
         node_type: setting
-        type: number
+        type: integer
         default: 30
         visibility: public
         description: |-
@@ -7617,7 +7365,6 @@ properties:
           node-agents to report to it before dispatching configurations.
         example: '30'
         tags:
-        - golang_type:int
         - template_section:ClusterChecks
         comment: value in seconds
       cluster_tag_name:
@@ -7669,7 +7416,7 @@ properties:
         - template_section:ClusterChecks
       clc_runners_port:
         node_type: setting
-        type: number
+        type: integer
         default: 5005
         visibility: public
         description: |-
@@ -7677,7 +7424,6 @@ properties:
           check runners and collect their stats.
         example: '5005'
         tags:
-        - golang_type:int
         - template_section:ClusterChecks
       crd_collection:
         node_type: setting
@@ -7703,10 +7449,8 @@ properties:
           nodes, others)'
       rebalance_min_percentage_improvement:
         node_type: setting
-        type: number
+        type: integer
         default: 10
-        tags:
-        - golang_type:int
         comment: Experimental. Subject to change. Rebalance only if the distribution
           found improves the current one by this.
       rebalance_period:
@@ -7725,10 +7469,8 @@ properties:
           TODO(CINT)(Agent 7.53+) Remove this flag when hybrid ignore_ad_tags is fully deprecated
       unscheduled_check_threshold:
         node_type: setting
-        type: number
+        type: integer
         default: 60
-        tags:
-        - golang_type:int
         comment: value in seconds
   admission_controller:
     node_type: section
@@ -7803,23 +7545,21 @@ properties:
         - template_section:AdmissionController
       port:
         node_type: setting
-        type: number
+        type: integer
         default: 8000
         visibility: public
         description: The admission controller server port.
         example: '8000'
         tags:
-        - golang_type:int
         - template_section:AdmissionController
       timeout_seconds:
         node_type: setting
-        type: number
+        type: integer
         default: 10
         visibility: public
         description: The admission controller server timeout in seconds.
         example: '10'
         tags:
-        - golang_type:int
         - template_section:AdmissionController
         comment: in seconds (see kubernetes/kubernetes#71508)
       service_name:
@@ -7843,13 +7583,12 @@ properties:
         - template_section:AdmissionController
       pod_owners_cache_validity:
         node_type: setting
-        type: number
+        type: integer
         default: 10
         visibility: public
         description: The in-memory cache TTL for pod owners in minutes.
         example: '10'
         tags:
-        - golang_type:int
         - template_section:AdmissionController
         comment: deprecated alias for `admission_controller.inject_tags.pod_owners_cache_validity`
       namespace_selector_fallback:
@@ -7873,27 +7612,25 @@ properties:
         properties:
           validity_bound:
             node_type: setting
-            type: number
+            type: integer
             default: 8760
             visibility: public
             description: The certificate's validity bound in hours, default 1 year
               (365*24).
             example: '8760'
             tags:
-            - golang_type:int
             - template_section:AdmissionController
             comment: validity bound of the certificate created by the controller (in
               hours, default 1 year)
           expiration_threshold:
             node_type: setting
-            type: number
+            type: integer
             default: 720
             visibility: public
             description: The certificate's refresh threshold in hours, default 1 month
               (30*24).
             example: '720'
             tags:
-            - golang_type:int
             - template_section:AdmissionController
             comment: how long before its expiration a certificate should be refreshed
               (in hours, default 1 month)
@@ -8008,10 +7745,8 @@ properties:
             - template_section:AdmissionController
           pod_owners_cache_validity:
             node_type: setting
-            type: number
+            type: integer
             default: 10
-            tags:
-            - golang_type:int
             comment: in minutes
       failure_policy:
         node_type: setting
@@ -8405,10 +8140,8 @@ properties:
                 default: ''
               health_port:
                 node_type: setting
-                type: number
+                type: integer
                 default: 8081
-                tags:
-                - golang_type:int
               image:
                 node_type: setting
                 type: string
@@ -8420,10 +8153,8 @@ properties:
                 default: latest
               port:
                 node_type: setting
-                type: number
+                type: integer
                 default: 8080
-                tags:
-                - golang_type:int
               resources:
                 node_type: section
                 type: object
@@ -8530,10 +8261,8 @@ properties:
                 default: false
           timeout:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
       kubernetes_admission_events:
         node_type: section
         type: object
@@ -8552,17 +8281,13 @@ properties:
             default: false
           grace_period:
             node_type: setting
-            type: number
+            type: integer
             default: 60
-            tags:
-            - golang_type:int
             comment: in seconds
           interval:
             node_type: setting
-            type: number
+            type: integer
             default: 60
-            tags:
-            - golang_type:int
             comment: in seconds
   docker_labels_as_tags:
     node_type: setting
@@ -8737,13 +8462,12 @@ properties:
     - template_section:ECS
   ecs_metadata_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 1000
     visibility: public
     description: Timeout in milliseconds on calls to the AWS ECS metadata endpoints.
     example: '1000'
     tags:
-    - golang_type:int
     - template_section:ECS
     comment: value in milliseconds
   ecs_task_collection_enabled:
@@ -8800,7 +8524,7 @@ properties:
       empty is disabled
   cri_connection_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 1
     visibility: public
     description: Configure the initial connection timeout in seconds.
@@ -8811,7 +8535,7 @@ properties:
     comment: in seconds
   cri_query_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 5
     visibility: public
     description: Configure the timeout in seconds for querying the CRI or Containerd
@@ -8892,7 +8616,7 @@ properties:
     comment: Kubernetes
   kubernetes_http_kubelet_port:
     node_type: setting
-    type: number
+    type: integer
     default: 10255
     visibility: public
     description: |-
@@ -8900,11 +8624,10 @@ properties:
       If you run into connectivity issues, set the http port here according to your cluster setup.
     example: '10255'
     tags:
-    - golang_type:int
     - template_section:Kubelet
   kubernetes_https_kubelet_port:
     node_type: setting
-    type: number
+    type: integer
     default: 10250
     visibility: public
     description: |-
@@ -8912,7 +8635,6 @@ properties:
       If you run into connectivity issues, set the https port here according to your cluster setup.
     example: '10250'
     tags:
-    - golang_type:int
     - template_section:Kubelet
   kubelet_tls_verify:
     node_type: setting
@@ -8965,14 +8687,13 @@ properties:
     - template_section:Kubelet
   kubelet_cache_pods_duration:
     node_type: setting
-    type: number
+    type: integer
     default: 0
     visibility: public
     description: Polling frequency in seconds of the Agent to the kubelet "/pods"
       endpoint.
     example: '0'
     tags:
-    - golang_type:int
     - template_section:Kubelet
     comment: |-
       Cache TTL for pod lists in the kubelet client. Set to 0 because it's only
@@ -8980,7 +8701,7 @@ properties:
       its own storage, so no need for an extra cache.
   kubernetes_pod_expiration_duration:
     node_type: setting
-    type: number
+    type: integer
     default: 900
     visibility: public
     description: |-
@@ -8988,7 +8709,6 @@ properties:
       Set the duration to 0 to disable this filtering.
     example: '900'
     tags:
-    - golang_type:int
     - template_section:Kubelet
     comment: in seconds, default 15 minutes
   kubernetes_kubeconfig_path:
@@ -9080,14 +8800,13 @@ properties:
     - template_section:KubeApiServer
   kubernetes_metadata_tag_update_freq:
     node_type: setting
-    type: number
+    type: integer
     default: 60
     visibility: public
     description: Set how often in secons the Agent refreshes the internal mapping
       of services to ContainerIDs.
     example: '60'
     tags:
-    - golang_type:int
     - template_section:KubeApiServer
     comment: Polling frequency of the Agent to the DCA in seconds (gets the local
       cache if the DCA is disabled)
@@ -9105,14 +8824,13 @@ properties:
     - template_section:KubeApiServer
   kubernetes_apiserver_client_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 10
     visibility: public
     description: Set the timeout for the Agent when connecting to the Kubernetes API
       server.
     example: '10'
     tags:
-    - golang_type:int
     - template_section:KubeApiServer
   collect_kubernetes_events:
     node_type: setting
@@ -9130,13 +8848,12 @@ properties:
     - template_section:KubeApiServer
   kubernetes_event_collection_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 100
     visibility: public
     description: Set the timeout between two successful event collections in milliseconds.
     example: '100'
     tags:
-    - golang_type:int
     - template_section:KubeApiServer
     comment: timeout between two successful event collections in milliseconds.
   leader_election:
@@ -9298,14 +9015,13 @@ properties:
           be handled by the prometheus config provider
       version:
         node_type: setting
-        type: number
+        type: integer
         default: 1
         visibility: public
         description: Version of the openmetrics check to be scheduled by the Prometheus
           auto-discovery
         example: '1'
         tags:
-        - golang_type:int
         - template_section:CoreAgent
         comment: Version of the openmetrics check to be scheduled by the Prometheus
           auto-discovery
@@ -9332,7 +9048,7 @@ properties:
         comment: Cloud Foundry BBS
       poll_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 15
         visibility: public
         description: |-
@@ -9340,7 +9056,6 @@ properties:
           performance of other operations in the cluster.
         example: '15'
         tags:
-        - golang_type:int
         - template_section:CloudFoundry
       ca_file:
         node_type: setting
@@ -9447,7 +9162,7 @@ properties:
         - template_section:CloudFoundry
       poll_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 60
         visibility: public
         description: |-
@@ -9455,18 +9170,16 @@ properties:
           performance of other operations in the cluster.
         example: '60'
         tags:
-        - golang_type:int
         - template_section:CloudFoundry
       apps_batch_size:
         node_type: setting
-        type: number
+        type: integer
         default: 5000
         visibility: public
         description: Number of apps per page to collect when calling the list apps
           endpoint of the CC API. Max 5000.
         example: '5000'
         tags:
-        - golang_type:int
         - template_section:CloudFoundry
   network_devices:
     node_type: section
@@ -9540,7 +9253,7 @@ properties:
         properties:
           workers:
             node_type: setting
-            type: number
+            type: integer
             default: 2
             visibility: public
             description: |-
@@ -9548,11 +9261,10 @@ properties:
               discovers devices faster but at the cost of increased resource consumption.
             example: '2'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           discovery_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 3600
             visibility: public
             description: |-
@@ -9561,14 +9273,13 @@ properties:
               but at the cost of increased resource consumption.
             example: '3600'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
             comment: |-
               network_devices.autodiscovery has precedence over snmp_listener config
               snmp_listener config is still here for legacy reasons
           discovery_allowed_failures:
             node_type: setting
-            type: number
+            type: integer
             default: 3
             visibility: public
             description: |-
@@ -9577,7 +9288,6 @@ properties:
               If a device shuts down, the Agent stops monitoring it after `discovery_interval * discovery_allowed_failures` seconds.
             example: '3'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           loader:
             node_type: setting
@@ -9593,7 +9303,7 @@ properties:
             - template_section:CoreAgent
           min_collection_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 15
             visibility: public
             description: |-
@@ -9603,7 +9313,6 @@ properties:
               https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
             example: '15'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           use_device_id_as_hostname:
             node_type: setting
@@ -9666,34 +9375,31 @@ properties:
                 - template_section:CoreAgent
               timeout:
                 node_type: setting
-                type: number
+                type: integer
                 default: 3000
                 visibility: public
                 description: Timeout in milliseconds
                 example: '3000'
                 tags:
-                - golang_type:int
                 - template_section:CoreAgent
               count:
                 node_type: setting
-                type: number
+                type: integer
                 default: 2
                 visibility: public
                 description: Number of ping packets to send per check run
                 example: '2'
                 tags:
-                - golang_type:int
                 - template_section:CoreAgent
               interval:
                 node_type: setting
-                type: number
+                type: integer
                 default: 10
                 visibility: public
                 description: Time between sending pings (up to `count` packets) in
                   milliseconds
                 example: '10'
                 tags:
-                - golang_type:int
                 - template_section:CoreAgent
               linux:
                 node_type: section
@@ -9730,7 +9436,7 @@ properties:
             - template_section:CoreAgent
           oid_batch_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5
             visibility: public
             description: |-
@@ -9739,29 +9445,26 @@ properties:
               By default, devices dynamically tune their batch size to optimize performance (agent version v7.73+).
             example: '5'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           timeout:
             node_type: setting
-            type: number
+            type: integer
             default: 5
             visibility: public
             description: The number of seconds before timing out. Applies to all configurations
               if not overridden.
             example: '5'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           retries:
             node_type: setting
-            type: number
+            type: integer
             default: 3
             visibility: public
             description: The number of retries before failure. Applies to all configurations
               if not overridden.
             example: '3'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           configs:
             node_type: setting
@@ -9979,10 +9682,8 @@ properties:
             - template_section:CoreAgent
           allowed_failures:
             node_type: setting
-            type: number
+            type: integer
             default: 3
-            tags:
-            - golang_type:int
           collect_device_metadata:
             node_type: setting
             type: boolean
@@ -10012,7 +9713,7 @@ properties:
             - template_section:CoreAgent
           port:
             node_type: setting
-            type: number
+            type: integer
             default: 9162
             visibility: public
             description: |-
@@ -10022,7 +9723,6 @@ properties:
               the Datadog Agent can listen on ports below 1024.
             example: '9162'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           community_strings:
             node_type: setting
@@ -10085,7 +9785,7 @@ properties:
             - template_section:CoreAgent
           stop_timeout:
             node_type: setting
-            type: number
+            type: integer
             default: 5
             visibility: public
             description: |-
@@ -10093,7 +9793,6 @@ properties:
               The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
             example: '5.0'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
             comment: in seconds
           forwarder:
@@ -10108,22 +9807,16 @@ properties:
                   type: object
               batch_max_concurrent_send:
                 node_type: setting
-                type: number
+                type: integer
                 default: 0
-                tags:
-                - golang_type:int
               batch_max_content_size:
                 node_type: setting
-                type: number
+                type: integer
                 default: 5000000
-                tags:
-                - golang_type:int
               batch_max_size:
                 node_type: setting
-                type: number
+                type: integer
                 default: 1000
-                tags:
-                - golang_type:int
               batch_wait:
                 node_type: setting
                 type: number
@@ -10136,16 +9829,12 @@ properties:
                 default: zstd
               compression_level:
                 node_type: setting
-                type: number
+                type: integer
                 default: 6
-                tags:
-                - golang_type:int
               connection_reset_interval:
                 node_type: setting
-                type: number
+                type: integer
                 default: 0
-                tags:
-                - golang_type:int
               dd_url:
                 node_type: setting
                 type: string
@@ -10158,10 +9847,8 @@ properties:
                 - no-env
               input_chan_size:
                 node_type: setting
-                type: number
+                type: integer
                 default: 100
-                tags:
-                - golang_type:int
               logs_dd_url:
                 node_type: setting
                 type: string
@@ -10190,10 +9877,8 @@ properties:
                 - golang_type:float64
               sender_recovery_interval:
                 node_type: setting
-                type: number
+                type: integer
                 default: 2
-                tags:
-                - golang_type:int
               sender_recovery_reset:
                 node_type: setting
                 type: boolean
@@ -10208,10 +9893,8 @@ properties:
                 default: true
               zstd_compression_level:
                 node_type: setting
-                type: number
+                type: integer
                 default: 1
-                tags:
-                - golang_type:int
       netflow:
         node_type: section
         type: object
@@ -10279,14 +9962,13 @@ properties:
             - template_section:CoreAgent
           stop_timeout:
             node_type: setting
-            type: number
+            type: integer
             default: 5
             visibility: public
             description: The maximum number of seconds to wait for the NetFlow listeners
               to stop when the Agent shuts down.
             example: '5'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           reverse_dns_enrichment_enabled:
             node_type: setting
@@ -10300,37 +9982,27 @@ properties:
             - template_section:CoreAgent
           aggregator_buffer_size:
             node_type: setting
-            type: number
+            type: integer
             default: 10000
-            tags:
-            - golang_type:int
           aggregator_flow_context_ttl:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
             comment: |-
               The default behavior for this value is to copy the "aggregator_flush_interval" when absent/zero. This is to avoid
               expiring flows too early when the flush interval is increased, while still allowing to set a custom TTL when needed.
           aggregator_flush_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 300
-            tags:
-            - golang_type:int
           aggregator_port_rollup_threshold:
             node_type: setting
-            type: number
+            type: integer
             default: 10
-            tags:
-            - golang_type:int
           aggregator_rollup_tracker_refresh_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 300
-            tags:
-            - golang_type:int
           forwarder:
             node_type: section
             type: object
@@ -10343,22 +10015,16 @@ properties:
                   type: object
               batch_max_concurrent_send:
                 node_type: setting
-                type: number
+                type: integer
                 default: 0
-                tags:
-                - golang_type:int
               batch_max_content_size:
                 node_type: setting
-                type: number
+                type: integer
                 default: 5000000
-                tags:
-                - golang_type:int
               batch_max_size:
                 node_type: setting
-                type: number
+                type: integer
                 default: 1000
-                tags:
-                - golang_type:int
               batch_wait:
                 node_type: setting
                 type: number
@@ -10371,16 +10037,12 @@ properties:
                 default: zstd
               compression_level:
                 node_type: setting
-                type: number
+                type: integer
                 default: 6
-                tags:
-                - golang_type:int
               connection_reset_interval:
                 node_type: setting
-                type: number
+                type: integer
                 default: 0
-                tags:
-                - golang_type:int
               dd_url:
                 node_type: setting
                 type: string
@@ -10393,10 +10055,8 @@ properties:
                 - no-env
               input_chan_size:
                 node_type: setting
-                type: number
+                type: integer
                 default: 100
-                tags:
-                - golang_type:int
               logs_dd_url:
                 node_type: setting
                 type: string
@@ -10425,10 +10085,8 @@ properties:
                 - golang_type:float64
               sender_recovery_interval:
                 node_type: setting
-                type: number
+                type: integer
                 default: 2
-                tags:
-                - golang_type:int
               sender_recovery_reset:
                 node_type: setting
                 type: boolean
@@ -10443,10 +10101,8 @@ properties:
                 default: true
               zstd_compression_level:
                 node_type: setting
-                type: number
+                type: integer
                 default: 1
-                tags:
-                - golang_type:int
       metadata:
         node_type: section
         type: object
@@ -10459,22 +10115,16 @@ properties:
               type: object
           batch_max_concurrent_send:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           batch_max_content_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5000000
-            tags:
-            - golang_type:int
           batch_max_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           batch_wait:
             node_type: setting
             type: number
@@ -10487,16 +10137,12 @@ properties:
             default: zstd
           compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 6
-            tags:
-            - golang_type:int
           connection_reset_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           dd_url:
             node_type: setting
             type: string
@@ -10509,10 +10155,8 @@ properties:
             - no-env
           input_chan_size:
             node_type: setting
-            type: number
+            type: integer
             default: 100
-            tags:
-            - golang_type:int
           logs_dd_url:
             node_type: setting
             type: string
@@ -10541,10 +10185,8 @@ properties:
             - golang_type:float64
           sender_recovery_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
           sender_recovery_reset:
             node_type: setting
             type: boolean
@@ -10559,10 +10201,8 @@ properties:
             default: true
           zstd_compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 1
-            tags:
-            - golang_type:int
   reverse_dns_enrichment:
     node_type: section
     type: object
@@ -10574,28 +10214,26 @@ properties:
     properties:
       workers:
         node_type: setting
-        type: number
+        type: integer
         default: 10
         visibility: public
         description: The number of concurrent workers used to perform reverse DNS
           lookups.
         example: '10'
         tags:
-        - golang_type:int
         - template_section:CoreAgent
         comment: |-
           Data Observability
           Reverse DNS Enrichment
       chan_size:
         node_type: setting
-        type: number
+        type: integer
         default: 5000
         visibility: public
         description: The size of the channel used to send reverse DNS lookup requests
           to the workers.
         example: '5000'
         tags:
-        - golang_type:int
         - template_section:CoreAgent
       cache:
         node_type: section
@@ -10653,7 +10291,7 @@ properties:
             - template_section:CoreAgent
           max_retries:
             node_type: setting
-            type: number
+            type: integer
             default: 10
             visibility: public
             description: The maximum number of retries to perform when a DNS lookup
@@ -10661,18 +10299,16 @@ properties:
               for the IP address.
             example: '10'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           max_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000000
             visibility: public
             description: The maximum size in entries of the cache, above which additional
               entries will not be cached.
             example: '1000000'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
       rate_limiter:
         node_type: section
@@ -10694,40 +10330,37 @@ properties:
             - template_section:CoreAgent
           limit_per_sec:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
             visibility: public
             description: The maximum number of reverse DNS lookups allowed per second
               by the rate limiter.
             example: '1000'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           limit_throttled_per_sec:
             node_type: setting
-            type: number
+            type: integer
             default: 1
             visibility: public
             description: The maximum number of reverse DNS lookups allowed per second
               when the rate limiter is throttled due to errors exceeding the threshold.
             example: '1'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           throttle_error_threshold:
             node_type: setting
-            type: number
+            type: integer
             default: 10
             visibility: public
             description: The number of consecutive errors that will trigger the rate
               limiter to throttle down to limit_throttled_per_sec.
             example: '10'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           recovery_intervals:
             node_type: setting
-            type: number
+            type: integer
             default: 5
             visibility: public
             description: The number of intervals over which to increase the rate limit
@@ -10735,7 +10368,6 @@ properties:
               throttled due to errors.
             example: '5'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           recovery_interval:
             node_type: setting
@@ -10854,7 +10486,7 @@ properties:
                     - template_section:CoreAgent
                   max_recv_msg_size_mib:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 0
                     visibility: public
                     description: |-
@@ -10862,7 +10494,6 @@ properties:
                       When set to 0 (the default), grpc-go applies its built-in 4 MiB limit.
                     example: '0'
                     tags:
-                    - golang_type:int
                     - template_section:CoreAgent
                   include_metadata:
                     node_type: setting
@@ -10882,22 +10513,16 @@ properties:
                             default: 5m
                   max_concurrent_streams:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 0
-                    tags:
-                    - golang_type:int
                   read_buffer_size:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 524288
-                    tags:
-                    - golang_type:int
                   write_buffer_size:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 0
-                    tags:
-                    - golang_type:int
               http:
                 node_type: section
                 type: object
@@ -10941,10 +10566,8 @@ properties:
                     default: false
                   max_request_body_size:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 0
-                    tags:
-                    - golang_type:int
       metrics:
         node_type: section
         type: object
@@ -11007,7 +10630,7 @@ properties:
             - template_section:CoreAgent
           delta_ttl:
             node_type: setting
-            type: number
+            type: integer
             default: 3600
             visibility: public
             description: |-
@@ -11015,7 +10638,6 @@ properties:
               calculating deltas for cumulative monotonic metrics.
             example: '3600'
             tags:
-            - golang_type:int
             - template_section:CoreAgent
           histograms:
             node_type: section
@@ -11135,24 +10757,22 @@ properties:
             properties:
               min_size:
                 node_type: setting
-                type: number
+                type: integer
                 default: 8192
                 visibility: public
                 description: The minimum number of metrics to batch before sending.
                 example: '8192'
                 tags:
-                - golang_type:int
                 - template_section:CoreAgent
               max_size:
                 node_type: setting
-                type: number
+                type: integer
                 default: 0
                 visibility: public
                 description: The maximum number of metrics to batch before sending.
                   0 means no limit on the maximum number.
                 example: '0'
                 tags:
-                - golang_type:int
                 - template_section:CoreAgent
               flush_timeout:
                 node_type: setting
@@ -11268,10 +10888,8 @@ properties:
                 - template_section:CoreAgent
           internal_port:
             node_type: setting
-            type: number
+            type: integer
             default: 5003
-            tags:
-            - golang_type:int
       logs:
         node_type: section
         type: object
@@ -11307,24 +10925,22 @@ properties:
             properties:
               min_size:
                 node_type: setting
-                type: number
+                type: integer
                 default: 8192
                 visibility: public
                 description: The minimum number of metrics to batch before sending.
                 example: '8192'
                 tags:
-                - golang_type:int
                 - template_section:CoreAgent
               max_size:
                 node_type: setting
-                type: number
+                type: integer
                 default: 0
                 visibility: public
                 description: The maximum number of logs to batch before sending. 0
                   means no limit on the maximum number.
                 example: '0'
                 tags:
-                - golang_type:int
                 - template_section:CoreAgent
               flush_timeout:
                 node_type: setting
@@ -11361,17 +10977,13 @@ properties:
             comment: Debug settings (default from OTel debugexporter)
       grpc_port:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
         comment: Legacy port keys (unused; 0 = disabled)
       http_port:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
   private_action_runner:
     node_type: section
     title: Private Action Runner Configuration
@@ -11408,24 +11020,22 @@ properties:
         - template_section:PrivateActionRunner
       task_concurrency:
         node_type: setting
-        type: number
+        type: integer
         default: 5
         visibility: public
         description: Maximum number of actions that can be executed concurrently.
         example: '5'
         tags:
-        - golang_type:int
         - template_section:PrivateActionRunner
       task_timeout_seconds:
         node_type: setting
-        type: number
+        type: integer
         default: 60
         visibility: public
         description: Maximum time in seconds an action is allowed to run before being
           terminated. Must be > 1.
         example: '60'
         tags:
-        - golang_type:int
         - template_section:PrivateActionRunner
       actions_allowlist:
         node_type: setting
@@ -11459,14 +11069,13 @@ properties:
         - template_section:PrivateActionRunner
       http_timeout_seconds:
         node_type: setting
-        type: number
+        type: integer
         default: 30
         visibility: public
         description: Maximum time in seconds for HTTP actions before timing out. Must
           be > 1.
         example: '30'
         tags:
-        - golang_type:int
         - template_section:PrivateActionRunner
       http_allowlist:
         node_type: setting
@@ -11570,32 +11179,24 @@ properties:
     properties:
       config_refresh_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       grpc_max_message_size:
         node_type: setting
-        type: number
+        type: integer
         default: 134217728
-        tags:
-        - golang_type:int
       grpc_warning_message_size:
         node_type: setting
-        type: number
+        type: integer
         default: 33554432
-        tags:
-        - golang_type:int
       host:
         node_type: setting
         type: string
         default: localhost
       port:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       socket_path:
         node_type: setting
         type: string
@@ -11616,22 +11217,16 @@ properties:
           type: object
       batch_max_concurrent_send:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       batch_max_content_size:
         node_type: setting
-        type: number
+        type: integer
         default: 5000000
-        tags:
-        - golang_type:int
       batch_max_size:
         node_type: setting
-        type: number
+        type: integer
         default: 1000
-        tags:
-        - golang_type:int
       batch_wait:
         node_type: setting
         type: number
@@ -11644,19 +11239,15 @@ properties:
         default: zstd
       compression_level:
         node_type: setting
-        type: number
+        type: integer
         default: 1
-        tags:
-        - golang_type:int
         comment: |-
           default compression first setup inside the next bindEnvAndSetLogsConfigKeys() function ...
           ... and overridden by the following two lines - do not switch these 3 lines order
       connection_reset_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       dd_url:
         node_type: setting
         type: string
@@ -11674,10 +11265,8 @@ properties:
         comment: Agent Telemetry
       input_chan_size:
         node_type: setting
-        type: number
+        type: integer
         default: 100
-        tags:
-        - golang_type:int
       logs_dd_url:
         node_type: setting
         type: string
@@ -11706,20 +11295,16 @@ properties:
         - golang_type:float64
       sender_recovery_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 2
-        tags:
-        - golang_type:int
       sender_recovery_reset:
         node_type: setting
         type: boolean
         default: false
       startup_trace_sampling:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       use_compression:
         node_type: setting
         type: boolean
@@ -11730,28 +11315,20 @@ properties:
         default: true
       zstd_compression_level:
         node_type: setting
-        type: number
+        type: integer
         default: 1
-        tags:
-        - golang_type:int
   aggregator_flush_metrics_and_serialize_in_parallel_buffer_size:
     node_type: setting
-    type: number
+    type: integer
     default: 4000
-    tags:
-    - golang_type:int
   aggregator_flush_metrics_and_serialize_in_parallel_chan_size:
     node_type: setting
-    type: number
+    type: integer
     default: 200
-    tags:
-    - golang_type:int
   aggregator_tag_filter_cache_capacity:
     node_type: setting
-    type: number
+    type: integer
     default: 1000
-    tags:
-    - golang_type:int
   aggregator_use_tags_store:
     node_type: setting
     type: boolean
@@ -11815,10 +11392,8 @@ properties:
         properties:
           dump_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           dump_path:
             node_type: setting
             type: string
@@ -11923,10 +11498,8 @@ properties:
                 default: true
               min_cluster_size:
                 node_type: setting
-                type: number
+                type: integer
                 default: 0
-                tags:
-                - golang_type:int
       enabled:
         node_type: setting
         type: boolean
@@ -11968,10 +11541,8 @@ properties:
               and replay.
           flush_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 60
-            tags:
-            - golang_type:int
           output_dir:
             node_type: setting
             type: string
@@ -12002,17 +11573,13 @@ properties:
             - golang_type:float64
           max_series:
             node_type: setting
-            type: number
+            type: integer
             default: 50000
-            tags:
-            - golang_type:int
             comment: Storage tuning. See storageConfig in the observer component.
           point_retention_secs:
             node_type: setting
-            type: number
+            type: integer
             default: 120
-            tags:
-            - golang_type:int
   appsec:
     node_type: section
     type: object
@@ -12040,10 +11607,8 @@ properties:
                 default: ''
               port:
                 node_type: setting
-                type: number
+                type: integer
                 default: 443
-                tags:
-                - golang_type:int
           proxies:
             node_type: setting
             type: array
@@ -12090,16 +11655,12 @@ properties:
                 properties:
                   min_on_demand_replicas:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 0
-                    tags:
-                    - golang_type:int
                   percentage:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 100
-                    tags:
-                    - golang_type:int
               enabled:
                 node_type: setting
                 type: boolean
@@ -12172,16 +11733,12 @@ properties:
                 default: false
           limit:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           num_workers:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
   basic_telemetry_add_container_tags:
     node_type: setting
     type: boolean
@@ -12243,10 +11800,8 @@ properties:
     default: true
   check_sampler_bucket_commits_count_expiry:
     node_type: setting
-    type: number
+    type: integer
     default: 2
-    tags:
-    - golang_type:int
     comment: |-
       The number of commits before expiring a context. The value is 2 to handle
       the case where a check miss to send a metric.
@@ -12308,10 +11863,8 @@ properties:
     default: ''
   clc_runner_port:
     node_type: setting
-    type: number
+    type: integer
     default: 5005
-    tags:
-    - golang_type:int
   clc_runner_remote_tagger_enabled:
     node_type: setting
     type: boolean
@@ -12339,16 +11892,12 @@ properties:
       emitting different resource metrics.
   clc_runner_server_readheader_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 10
-    tags:
-    - golang_type:int
   clc_runner_server_write_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 15
-    tags:
-    - golang_type:int
   cloud_foundry:
     node_type: setting
     type: boolean
@@ -12364,16 +11913,12 @@ properties:
     properties:
       retry_count:
         node_type: setting
-        type: number
+        type: integer
         default: 10
-        tags:
-        - golang_type:int
       retry_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 10
-        tags:
-        - golang_type:int
       shell_path:
         node_type: setting
         type: string
@@ -12453,10 +11998,8 @@ properties:
       type: string
   container_exclude_stopped_age:
     node_type: setting
-    type: number
+    type: integer
     default: 22
-    tags:
-    - golang_type:int
     comment: in hours
   container_image:
     node_type: section
@@ -12470,22 +12013,16 @@ properties:
           type: object
       batch_max_concurrent_send:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       batch_max_content_size:
         node_type: setting
-        type: number
+        type: integer
         default: 5000000
-        tags:
-        - golang_type:int
       batch_max_size:
         node_type: setting
-        type: number
+        type: integer
         default: 1000
-        tags:
-        - golang_type:int
       batch_wait:
         node_type: setting
         type: number
@@ -12498,16 +12035,12 @@ properties:
         default: zstd
       compression_level:
         node_type: setting
-        type: number
+        type: integer
         default: 6
-        tags:
-        - golang_type:int
       connection_reset_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       dd_url:
         node_type: setting
         type: string
@@ -12525,10 +12058,8 @@ properties:
         comment: Container image configuration
       input_chan_size:
         node_type: setting
-        type: number
+        type: integer
         default: 100
-        tags:
-        - golang_type:int
       logs_dd_url:
         node_type: setting
         type: string
@@ -12557,10 +12088,8 @@ properties:
         - golang_type:float64
       sender_recovery_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 2
-        tags:
-        - golang_type:int
       sender_recovery_reset:
         node_type: setting
         type: boolean
@@ -12575,10 +12104,8 @@ properties:
         default: true
       zstd_compression_level:
         node_type: setting
-        type: number
+        type: integer
         default: 1
-        tags:
-        - golang_type:int
   container_include:
     node_type: setting
     type: array
@@ -12609,22 +12136,16 @@ properties:
           type: object
       batch_max_concurrent_send:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       batch_max_content_size:
         node_type: setting
-        type: number
+        type: integer
         default: 5000000
-        tags:
-        - golang_type:int
       batch_max_size:
         node_type: setting
-        type: number
+        type: integer
         default: 1000
-        tags:
-        - golang_type:int
       batch_wait:
         node_type: setting
         type: number
@@ -12637,16 +12158,12 @@ properties:
         default: zstd
       compression_level:
         node_type: setting
-        type: number
+        type: integer
         default: 6
-        tags:
-        - golang_type:int
       connection_reset_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       dd_url:
         node_type: setting
         type: string
@@ -12664,10 +12181,8 @@ properties:
         comment: Container lifecycle configuration
       input_chan_size:
         node_type: setting
-        type: number
+        type: integer
         default: 100
-        tags:
-        - golang_type:int
       logs_dd_url:
         node_type: setting
         type: string
@@ -12696,10 +12211,8 @@ properties:
         - golang_type:float64
       sender_recovery_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 2
-        tags:
-        - golang_type:int
       sender_recovery_reset:
         node_type: setting
         type: boolean
@@ -12714,10 +12227,8 @@ properties:
         default: true
       zstd_compression_level:
         node_type: setting
-        type: number
+        type: integer
         default: 1
-        tags:
-        - golang_type:int
   container_pid_mapper:
     node_type: setting
     type: string
@@ -12769,22 +12280,16 @@ properties:
               type: object
           batch_max_concurrent_send:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           batch_max_content_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5000000
-            tags:
-            - golang_type:int
           batch_max_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           batch_wait:
             node_type: setting
             type: number
@@ -12797,16 +12302,12 @@ properties:
             default: zstd
           compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 6
-            tags:
-            - golang_type:int
           connection_reset_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           dd_url:
             node_type: setting
             type: string
@@ -12819,10 +12320,8 @@ properties:
             - no-env
           input_chan_size:
             node_type: setting
-            type: number
+            type: integer
             default: 100
-            tags:
-            - golang_type:int
           logs_dd_url:
             node_type: setting
             type: string
@@ -12851,10 +12350,8 @@ properties:
             - golang_type:float64
           sender_recovery_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
           sender_recovery_reset:
             node_type: setting
             type: boolean
@@ -12869,14 +12366,17 @@ properties:
             default: true
           zstd_compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 1
-            tags:
-            - golang_type:int
   data_plane:
     node_type: section
     type: object
     properties:
+      api_listen_address:
+        node_type: setting
+        type: string
+        default: tcp://0.0.0.0:5100
+        comment: Listen addresses must include a URL scheme (e.g. "tcp://").
       dogstatsd:
         node_type: section
         type: object
@@ -12890,6 +12390,10 @@ properties:
         type: boolean
         default: false
         comment: Data Plane
+      log_file:
+        node_type: setting
+        type: string
+        default: /opt/datadog-agent/logs/agent-data-plane.log
       otlp:
         node_type: section
         type: object
@@ -12906,6 +12410,22 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+              logs:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: true
+              metrics:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: true
               receiver:
                 node_type: section
                 type: object
@@ -12925,6 +12445,34 @@ properties:
                             comment: When the ADP OTLP proxy is enabled, ADP owns
                               the gRPC endpoint configured for the receiver (default
                               :4317) and the core agent uses the endpoint below
+              traces:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: true
+      remote_agent_enabled:
+        node_type: setting
+        type: boolean
+        default: true
+      secure_api_listen_address:
+        node_type: setting
+        type: string
+        default: tcp://0.0.0.0:5101
+      telemetry_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      telemetry_listen_addr:
+        node_type: setting
+        type: string
+        default: tcp://0.0.0.0:5102
+      use_new_config_stream_endpoint:
+        node_type: setting
+        type: boolean
+        default: true
   data_streams:
     node_type: section
     type: object
@@ -12941,22 +12489,16 @@ properties:
               type: object
           batch_max_concurrent_send:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           batch_max_content_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5000000
-            tags:
-            - golang_type:int
           batch_max_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           batch_wait:
             node_type: setting
             type: number
@@ -12970,16 +12512,12 @@ properties:
             default: zstd
           compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 6
-            tags:
-            - golang_type:int
           connection_reset_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           dd_url:
             node_type: setting
             type: string
@@ -12992,10 +12530,8 @@ properties:
             - no-env
           input_chan_size:
             node_type: setting
-            type: number
+            type: integer
             default: 100
-            tags:
-            - golang_type:int
           logs_dd_url:
             node_type: setting
             type: string
@@ -13024,10 +12560,8 @@ properties:
             - golang_type:float64
           sender_recovery_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
           sender_recovery_reset:
             node_type: setting
             type: boolean
@@ -13042,10 +12576,8 @@ properties:
             default: true
           zstd_compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 1
-            tags:
-            - golang_type:int
   database_monitoring:
     node_type: section
     type: object
@@ -13062,22 +12594,16 @@ properties:
               type: object
           batch_max_concurrent_send:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           batch_max_content_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5000000
-            tags:
-            - golang_type:int
           batch_max_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           batch_wait:
             node_type: setting
             type: number
@@ -13090,16 +12616,12 @@ properties:
             default: zstd
           compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 6
-            tags:
-            - golang_type:int
           connection_reset_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           dd_url:
             node_type: setting
             type: string
@@ -13112,10 +12634,8 @@ properties:
             - no-env
           input_chan_size:
             node_type: setting
-            type: number
+            type: integer
             default: 100
-            tags:
-            - golang_type:int
           logs_dd_url:
             node_type: setting
             type: string
@@ -13144,10 +12664,8 @@ properties:
             - golang_type:float64
           sender_recovery_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
           sender_recovery_reset:
             node_type: setting
             type: boolean
@@ -13162,10 +12680,8 @@ properties:
             default: true
           zstd_compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 1
-            tags:
-            - golang_type:int
       autodiscovery:
         node_type: section
         type: object
@@ -13180,10 +12696,8 @@ properties:
                 default: datadoghq.com/dbm:true
               discovery_interval:
                 node_type: setting
-                type: number
+                type: integer
                 default: 300
-                tags:
-                - golang_type:int
               enabled:
                 node_type: setting
                 type: boolean
@@ -13194,10 +12708,8 @@ properties:
                 default: datadoghq.com/global_view_db
               query_timeout:
                 node_type: setting
-                type: number
+                type: integer
                 default: 10
-                tags:
-                - golang_type:int
               region:
                 node_type: setting
                 type: string
@@ -13219,10 +12731,8 @@ properties:
                 default: datadoghq.com/dbm:true
               discovery_interval:
                 node_type: setting
-                type: number
+                type: integer
                 default: 300
-                tags:
-                - golang_type:int
               enabled:
                 node_type: setting
                 type: boolean
@@ -13233,10 +12743,8 @@ properties:
                 default: datadoghq.com/global_view_db
               query_timeout:
                 node_type: setting
-                type: number
+                type: integer
                 default: 10
-                tags:
-                - golang_type:int
               region:
                 node_type: setting
                 type: string
@@ -13260,22 +12768,16 @@ properties:
               type: object
           batch_max_concurrent_send:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           batch_max_content_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5000000
-            tags:
-            - golang_type:int
           batch_max_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           batch_wait:
             node_type: setting
             type: number
@@ -13288,16 +12790,12 @@ properties:
             default: zstd
           compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 6
-            tags:
-            - golang_type:int
           connection_reset_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           dd_url:
             node_type: setting
             type: string
@@ -13310,10 +12808,8 @@ properties:
             - no-env
           input_chan_size:
             node_type: setting
-            type: number
+            type: integer
             default: 100
-            tags:
-            - golang_type:int
           logs_dd_url:
             node_type: setting
             type: string
@@ -13342,10 +12838,8 @@ properties:
             - golang_type:float64
           sender_recovery_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
           sender_recovery_reset:
             node_type: setting
             type: boolean
@@ -13360,10 +12854,8 @@ properties:
             default: true
           zstd_compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 1
-            tags:
-            - golang_type:int
       samples:
         node_type: section
         type: object
@@ -13376,22 +12868,16 @@ properties:
               type: object
           batch_max_concurrent_send:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           batch_max_content_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5000000
-            tags:
-            - golang_type:int
           batch_max_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           batch_wait:
             node_type: setting
             type: number
@@ -13404,16 +12890,12 @@ properties:
             default: zstd
           compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 6
-            tags:
-            - golang_type:int
           connection_reset_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           dd_url:
             node_type: setting
             type: string
@@ -13426,10 +12908,8 @@ properties:
             - no-env
           input_chan_size:
             node_type: setting
-            type: number
+            type: integer
             default: 100
-            tags:
-            - golang_type:int
           logs_dd_url:
             node_type: setting
             type: string
@@ -13458,10 +12938,8 @@ properties:
             - golang_type:float64
           sender_recovery_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
           sender_recovery_reset:
             node_type: setting
             type: boolean
@@ -13476,16 +12954,12 @@ properties:
             default: true
           zstd_compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 1
-            tags:
-            - golang_type:int
   default_integration_http_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 9
-    tags:
-    - golang_type:int
   delegated_auth:
     node_type: section
     type: object
@@ -13508,10 +12982,8 @@ properties:
         default: ''
       refresh_interval_mins:
         node_type: setting
-        type: number
+        type: integer
         default: 60
-        tags:
-        - golang_type:int
   disable_unsafe_yaml:
     node_type: setting
     type: boolean
@@ -13536,10 +13008,8 @@ properties:
         comment: Data Jobs Monitoring config
   dogstatsd_capture_depth:
     node_type: setting
-    type: number
+    type: integer
     default: 0
-    tags:
-    - golang_type:int
     comment: |-
       Depth of the channel the capture writer reads before persisting to disk.
       Default is 0 - blocking channel
@@ -13550,10 +13020,8 @@ properties:
     comment: Location to store dogstatsd captures by default
   dogstatsd_context_expiry_seconds:
     node_type: setting
-    type: number
+    type: integer
     default: 20
-    tags:
-    - golang_type:int
     comment: Control how long we keep dogstatsd contexts in memory.
   dogstatsd_disable_verbose_logs:
     node_type: setting
@@ -13582,10 +13050,8 @@ properties:
         default: 127.0.0.1:8125
   dogstatsd_expiry_seconds:
     node_type: setting
-    type: number
+    type: integer
     default: 300
-    tags:
-    - golang_type:int
     comment: Control for how long counter would be sampled to 0 if not received
   dogstatsd_flush_incomplete_buckets:
     node_type: setting
@@ -13603,10 +13069,8 @@ properties:
     comment: Control how dogstatsd-stats logs can be generated
   dogstatsd_log_file_max_rolls:
     node_type: setting
-    type: number
+    type: integer
     default: 3
-    tags:
-    - golang_type:int
   dogstatsd_mem_based_rate_limiter:
     node_type: section
     type: object
@@ -13618,10 +13082,8 @@ properties:
         comment: To enable the following feature, GODEBUG must contain `madvdontneed=1`
       go_gc:
         node_type: setting
-        type: number
+        type: integer
         default: 1
-        tags:
-        - golang_type:int
         comment: 0 means don't call SetGCPercent
       high_soft_limit:
         node_type: setting
@@ -13637,7 +13099,7 @@ properties:
         - golang_type:float64
       memory_ballast:
         node_type: setting
-        type: number
+        type: integer
         default: 8589934592
         tags:
         - golang_type:int64
@@ -13647,16 +13109,12 @@ properties:
         properties:
           factor:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
           max:
             node_type: setting
-            type: number
+            type: integer
             default: 1
-            tags:
-            - golang_type:int
           min:
             node_type: setting
             type: number
@@ -13698,10 +13156,8 @@ properties:
     - golang_type:duration
   dogstatsd_packet_buffer_size:
     node_type: setting
-    type: number
+    type: integer
     default: 32
-    tags:
-    - golang_type:int
   dogstatsd_pipe_name:
     node_type: setting
     type: string
@@ -13712,10 +13168,8 @@ properties:
     default: false
   dogstatsd_pipeline_count:
     node_type: setting
-    type: number
+    type: integer
     default: 1
-    tags:
-    - golang_type:int
   dogstatsd_stream_log_too_big:
     node_type: setting
     type: boolean
@@ -13727,10 +13181,8 @@ properties:
     comment: 'Experimental || Notice: empty means feature disabled'
   dogstatsd_string_interner_size:
     node_type: setting
-    type: number
+    type: integer
     default: 4096
-    tags:
-    - golang_type:int
   dogstatsd_telemetry_enabled_listener_id:
     node_type: setting
     type: boolean
@@ -13755,10 +13207,8 @@ properties:
       "WD": Everyone
   dogstatsd_workers_count:
     node_type: setting
-    type: number
+    type: integer
     default: 0
-    tags:
-    - golang_type:int
     comment: Force the amount of dogstatsd workers (mainly used for benchmarks or
       some very specific use-case)
   ec2_imdsv2_transition_payload_enabled:
@@ -13767,10 +13217,8 @@ properties:
     default: true
   ec2_metadata_token_lifetime:
     node_type: setting
-    type: number
+    type: integer
     default: 21600
-    tags:
-    - golang_type:int
     comment: value in seconds
   ec2_use_dmi:
     node_type: setting
@@ -13800,10 +13248,8 @@ properties:
     - golang_type:duration
   ecs_metadata_retry_timeout_factor:
     node_type: setting
-    type: number
+    type: integer
     default: 3
-    tags:
-    - golang_type:int
   ecs_task_cache_ttl:
     node_type: setting
     type: number
@@ -13813,16 +13259,12 @@ properties:
     - golang_type:duration
   ecs_task_collection_burst:
     node_type: setting
-    type: number
+    type: integer
     default: 60
-    tags:
-    - golang_type:int
   ecs_task_collection_rate:
     node_type: setting
-    type: number
+    type: integer
     default: 35
-    tags:
-    - golang_type:int
   eks_fargate:
     node_type: setting
     type: boolean
@@ -13896,22 +13338,16 @@ properties:
               type: object
           batch_max_concurrent_send:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           batch_max_content_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5000000
-            tags:
-            - golang_type:int
           batch_max_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           batch_wait:
             node_type: setting
             type: number
@@ -13924,16 +13360,12 @@ properties:
             default: zstd
           compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 6
-            tags:
-            - golang_type:int
           connection_reset_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           dd_url:
             node_type: setting
             type: string
@@ -13946,10 +13378,8 @@ properties:
             - no-env
           input_chan_size:
             node_type: setting
-            type: number
+            type: integer
             default: 100
-            tags:
-            - golang_type:int
           logs_dd_url:
             node_type: setting
             type: string
@@ -13978,10 +13408,8 @@ properties:
             - golang_type:float64
           sender_recovery_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
           sender_recovery_reset:
             node_type: setting
             type: boolean
@@ -13996,10 +13424,8 @@ properties:
             default: true
           zstd_compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 1
-            tags:
-            - golang_type:int
   evp_proxy_config:
     node_type: section
     type: object
@@ -14042,10 +13468,8 @@ properties:
             default: ''
           refresh_interval_mins:
             node_type: setting
-            type: number
+            type: integer
             default: 60
-            tags:
-            - golang_type:int
       enabled:
         node_type: setting
         type: boolean
@@ -14058,16 +13482,14 @@ properties:
           and silently became false under serverless.
       max_payload_size:
         node_type: setting
-        type: number
+        type: integer
         default: 10485760
         tags:
         - golang_type:int64
       receiver_timeout:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
   expected_tags_duration:
     node_type: setting
     type: number
@@ -14101,25 +13523,19 @@ properties:
         comment: Override the Datadog APP Key for external metrics endpoint
       batch_window:
         node_type: setting
-        type: number
+        type: integer
         default: 10
-        tags:
-        - golang_type:int
         comment: value in seconds. Batch the events from the Autoscalers informer
           to push updates to the ConfigMap (GlobalStore)
       bucket_size:
         node_type: setting
-        type: number
+        type: integer
         default: 300
-        tags:
-        - golang_type:int
         comment: Window to query to get the metric from Datadog.
       chunk_size:
         node_type: setting
-        type: number
+        type: integer
         default: 35
-        tags:
-        - golang_type:int
         comment: Maximum number of queries to batch when querying Datadog.
       config:
         node_type: setting
@@ -14153,68 +13569,50 @@ properties:
         comment: List of redundant endpoints to query external metrics from
       local_copy_refresh_rate:
         node_type: setting
-        type: number
+        type: integer
         default: 30
-        tags:
-        - golang_type:int
         comment: value in seconds
       max_age:
         node_type: setting
-        type: number
+        type: integer
         default: 120
-        tags:
-        - golang_type:int
         comment: value in seconds. 4 cycles from the Autoscaler controller (up to
           Kubernetes 1.11) is enough to consider a metric stale
       max_parallel_queries:
         node_type: setting
-        type: number
+        type: integer
         default: 10
-        tags:
-        - golang_type:int
         comment: Maximum number of parallel queries sent to Datadog simultaneously
       max_time_window:
         node_type: setting
-        type: number
+        type: integer
         default: 86400
-        tags:
-        - golang_type:int
         comment: Maximum window to query to get the metric from Datadog.
       num_workers:
         node_type: setting
-        type: number
+        type: integer
         default: 2
-        tags:
-        - golang_type:int
         comment: Number of workers spawned by controller (only when CRD is used)
       port:
         node_type: setting
-        type: number
+        type: integer
         default: 8443
-        tags:
-        - golang_type:int
       query_validity_period:
         node_type: setting
-        type: number
+        type: integer
         default: 30
-        tags:
-        - golang_type:int
         comment: value in seconds. Represents grace period to account for delay between
           metric is resolved and when autoscaling controllers query for it
       refresh_period:
         node_type: setting
-        type: number
+        type: integer
         default: 30
-        tags:
-        - golang_type:int
         comment: value in seconds. Frequency of calls to Datadog to refresh metric
           values
       rollup:
         node_type: setting
-        type: number
+        type: integer
         default: 30
-        tags:
-        - golang_type:int
         comment: Bucket size to circumvent time aggregation side effects.
       split_batches_with_backoff:
         node_type: setting
@@ -14249,16 +13647,12 @@ properties:
         properties:
           blocking_rate:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           mutex_fraction:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           profile_duration:
             node_type: setting
             type: number
@@ -14308,24 +13702,18 @@ properties:
     comment: Directory to store fleet policies
   forwarder_apikey_validation_interval:
     node_type: setting
-    type: number
+    type: integer
     default: 60
-    tags:
-    - golang_type:int
     comment: in minutes
   forwarder_backoff_factor:
     node_type: setting
-    type: number
+    type: integer
     default: 2
-    tags:
-    - golang_type:int
     comment: Forwarder retry settings
   forwarder_connection_reset_interval:
     node_type: setting
-    type: number
+    type: integer
     default: 0
-    tags:
-    - golang_type:int
     comment: in seconds, 0 means disabled
   forwarder_flush_to_disk_mem_ratio:
     node_type: setting
@@ -14335,33 +13723,143 @@ properties:
     - golang_type:float64
   forwarder_recovery_interval:
     node_type: setting
-    type: number
+    type: integer
     default: 2
-    tags:
-    - golang_type:int
   forwarder_recovery_reset:
     node_type: setting
     type: boolean
     default: false
   forwarder_retry_queue_capacity_time_interval_sec:
     node_type: setting
-    type: number
+    type: integer
     default: 900
-    tags:
-    - golang_type:int
     comment: 15 mins
   forwarder_retry_queue_max_size:
     node_type: setting
-    type: number
+    type: integer
     default: 0
-    tags:
-    - golang_type:int
     comment: Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
   forwarder_storage_path:
     node_type: setting
     type: string
     default: ''
     comment: Forwarder storage on disk
+  genresources:
+    node_type: section
+    type: object
+    properties:
+      additional_endpoints:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: object
+      batch_max_concurrent_send:
+        node_type: setting
+        type: number
+        default: 0
+        tags:
+        - golang_type:int
+      batch_max_content_size:
+        node_type: setting
+        type: number
+        default: 5000000
+        tags:
+        - golang_type:int
+      batch_max_size:
+        node_type: setting
+        type: number
+        default: 1000
+        tags:
+        - golang_type:int
+      batch_wait:
+        node_type: setting
+        type: number
+        default: 5
+        tags:
+        - golang_type:float64
+      compression_kind:
+        node_type: setting
+        type: string
+        default: zstd
+      compression_level:
+        node_type: setting
+        type: number
+        default: 6
+        tags:
+        - golang_type:int
+      connection_reset_interval:
+        node_type: setting
+        type: number
+        default: 0
+        tags:
+        - golang_type:int
+      dd_url:
+        node_type: setting
+        type: string
+        default: ''
+      dev_mode_no_ssl:
+        node_type: setting
+        type: boolean
+        default: false
+        tags:
+        - no-env
+      input_chan_size:
+        node_type: setting
+        type: number
+        default: 100
+        tags:
+        - golang_type:int
+      logs_dd_url:
+        node_type: setting
+        type: string
+        default: ''
+      logs_no_ssl:
+        node_type: setting
+        type: boolean
+        default: false
+      sender_backoff_base:
+        node_type: setting
+        type: number
+        default: 1
+        tags:
+        - golang_type:float64
+      sender_backoff_factor:
+        node_type: setting
+        type: number
+        default: 2
+        tags:
+        - golang_type:float64
+      sender_backoff_max:
+        node_type: setting
+        type: number
+        default: 120
+        tags:
+        - golang_type:float64
+      sender_recovery_interval:
+        node_type: setting
+        type: number
+        default: 2
+        tags:
+        - golang_type:int
+      sender_recovery_reset:
+        node_type: setting
+        type: boolean
+        default: false
+      use_compression:
+        node_type: setting
+        type: boolean
+        default: true
+      use_v2_api:
+        node_type: setting
+        type: boolean
+        default: true
+      zstd_compression_level:
+        node_type: setting
+        type: number
+        default: 1
+        tags:
+        - golang_type:int
   go_core_dump:
     node_type: setting
     type: boolean
@@ -14380,10 +13878,8 @@ properties:
         properties:
           interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
       persist_on_kubernetes:
         node_type: setting
         type: boolean
@@ -14437,10 +13933,8 @@ properties:
             default: false
           period:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
       debug:
         node_type: section
         type: object
@@ -14468,27 +13962,21 @@ properties:
         properties:
           port:
             node_type: setting
-            type: number
+            type: integer
             default: 7778
-            tags:
-            - golang_type:int
   hpa_configmap_name:
     node_type: setting
     type: string
     default: datadog-custom-metrics
   hpa_watcher_gc_period:
     node_type: setting
-    type: number
+    type: integer
     default: 300
-    tags:
-    - golang_type:int
     comment: 5 minutes
   hpa_watcher_polling_freq:
     node_type: setting
-    type: number
+    type: integer
     default: 10
-    tags:
-    - golang_type:int
   http_dial_fallback_delay:
     node_type: setting
     tags:
@@ -14496,10 +13984,8 @@ properties:
     - TODO:fix-missing-type
   ibm_metadata_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 5
-    tags:
-    - golang_type:int
     comment: |-
       IBM cloud
       We use a long timeout here since the metadata and token API can be very slow sometimes.
@@ -14715,10 +14201,8 @@ properties:
     properties:
       block_profile_rate:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       capture_all_allocations:
         node_type: setting
         type: boolean
@@ -14766,10 +14250,8 @@ properties:
           type: string
       mutex_profile_fraction:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       period:
         node_type: setting
         type: number
@@ -14808,26 +14290,20 @@ properties:
     comment: inventories
   inventories_first_run_delay:
     node_type: setting
-    type: number
+    type: integer
     default: 60
-    tags:
-    - golang_type:int
     comment: Seconds to wait to sent metadata payload to the backend after startup
   inventories_max_interval:
     node_type: setting
-    type: number
+    type: integer
     default: 0
-    tags:
-    - golang_type:int
     comment: |-
       when updating the default here also update pkg/metadata/inventories/README.md
       0 == default interval from inventories
   inventories_min_interval:
     node_type: setting
-    type: number
+    type: integer
     default: 0
-    tags:
-    - golang_type:int
     comment: 0 == default interval from inventories
   iot_host:
     node_type: setting
@@ -14846,27 +14322,21 @@ properties:
     comment: used to override the path where the IPC cert/key files are stored/retrieved
   jmx_statsd_client_buffer_size:
     node_type: setting
-    type: number
+    type: integer
     default: 0
-    tags:
-    - golang_type:int
     comment: the "buffer" here is the socket send buffer (SO_SNDBUF) and the size
       is in bytes
   jmx_statsd_client_queue_size:
     node_type: setting
-    type: number
+    type: integer
     default: 4096
-    tags:
-    - golang_type:int
     comment: |-
       The following jmx_statsd_client-* options are internal and will not be documented
       the queue size is the no. of elements (metrics, event, service checks) it can hold.
   jmx_statsd_client_socket_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 0
-    tags:
-    - golang_type:int
     comment: the socket timeout (SO_SNDTIMEO) is in milliseconds
   jmx_statsd_client_use_non_blocking:
     node_type: setting
@@ -14874,10 +14344,8 @@ properties:
     default: false
   kube_cache_sync_timeout_seconds:
     node_type: setting
-    type: number
+    type: integer
     default: 10
-    tags:
-    - golang_type:int
   kube_resources_namespace:
     node_type: setting
     type: string
@@ -14903,22 +14371,16 @@ properties:
               type: object
           batch_max_concurrent_send:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           batch_max_content_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5000000
-            tags:
-            - golang_type:int
           batch_max_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           batch_wait:
             node_type: setting
             type: number
@@ -14931,16 +14393,12 @@ properties:
             default: zstd
           compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 6
-            tags:
-            - golang_type:int
           connection_reset_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           dd_url:
             node_type: setting
             type: string
@@ -14953,10 +14411,8 @@ properties:
             - no-env
           input_chan_size:
             node_type: setting
-            type: number
+            type: integer
             default: 100
-            tags:
-            - golang_type:int
           logs_dd_url:
             node_type: setting
             type: string
@@ -14985,10 +14441,8 @@ properties:
             - golang_type:float64
           sender_recovery_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
           sender_recovery_reset:
             node_type: setting
             type: boolean
@@ -15003,16 +14457,12 @@ properties:
             default: true
           zstd_compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 1
-            tags:
-            - golang_type:int
   kubelet_collector_pull_interval:
     node_type: setting
-    type: number
+    type: integer
     default: 0
-    tags:
-    - golang_type:int
     comment: not exposed yet. In seconds. 0 means use workloadmeta default
   kubelet_core_check_enabled:
     node_type: setting
@@ -15024,10 +14474,8 @@ properties:
     default: false
   kubernetes_apiserver_informer_client_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 0
-    tags:
-    - golang_type:int
   kubernetes_events_source_detection:
     node_type: section
     type: object
@@ -15038,10 +14486,8 @@ properties:
         default: false
   kubernetes_informers_resync_period:
     node_type: setting
-    type: number
+    type: integer
     default: 300
-    tags:
-    - golang_type:int
     comment: value in seconds. Default to 5 minutes
   kubernetes_kube_service_ignore_readiness:
     node_type: setting
@@ -15171,7 +14617,7 @@ properties:
       to be able to see the logs
   logging_frequency:
     node_type: setting
-    type: number
+    type: integer
     default: 500
     tags:
     - golang_type:int64
@@ -15186,10 +14632,8 @@ properties:
         comment: Logon Duration (EUDM)
   metadata_endpoints_max_hostname_size:
     node_type: setting
-    type: number
+    type: integer
     default: 255
-    tags:
-    - golang_type:int
     comment: |-
       Metadata endpoints
       Defines the maximum size of hostame gathered from EC2, GCE, Azure, Alibaba, Oracle and Tencent cloud metadata
@@ -15231,10 +14675,8 @@ properties:
       Set to false to apply tag stripping regardless of whether ADP is running.
   metrics_port:
     node_type: setting
-    type: number
+    type: integer
     default: 5000
-    tags:
-    - golang_type:int
   multi_region_failover:
     node_type: section
     type: object
@@ -15285,10 +14727,8 @@ properties:
             properties:
               cache_bypass_limit:
                 node_type: setting
-                type: number
+                type: integer
                 default: 5
-                tags:
-                - golang_type:int
               ttl_seconds:
                 node_type: setting
                 type: number
@@ -15374,22 +14814,16 @@ properties:
               type: object
           batch_max_concurrent_send:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           batch_max_content_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5000000
-            tags:
-            - golang_type:int
           batch_max_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           batch_wait:
             node_type: setting
             type: number
@@ -15402,16 +14836,12 @@ properties:
             default: zstd
           compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 6
-            tags:
-            - golang_type:int
           connection_reset_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           dd_url:
             node_type: setting
             type: string
@@ -15424,10 +14854,8 @@ properties:
             - no-env
           input_chan_size:
             node_type: setting
-            type: number
+            type: integer
             default: 100
-            tags:
-            - golang_type:int
           logs_dd_url:
             node_type: setting
             type: string
@@ -15456,10 +14884,8 @@ properties:
             - golang_type:float64
           sender_recovery_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
           sender_recovery_reset:
             node_type: setting
             type: boolean
@@ -15474,10 +14900,8 @@ properties:
             default: true
           zstd_compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 1
-            tags:
-            - golang_type:int
       rollback:
         node_type: section
         type: object
@@ -15514,10 +14938,8 @@ properties:
         default: ''
       api_version:
         node_type: setting
-        type: number
+        type: integer
         default: 2
-        tags:
-        - golang_type:int
       dd_url:
         node_type: setting
         type: string
@@ -15544,10 +14966,8 @@ properties:
             default: ''
           refresh_interval_mins:
             node_type: setting
-            type: number
+            type: integer
             default: 60
-            tags:
-            - golang_type:int
       enabled:
         node_type: setting
         type: boolean
@@ -15582,10 +15002,8 @@ properties:
         properties:
           max_count:
             node_type: setting
-            type: number
+            type: integer
             default: 5000
-            tags:
-            - golang_type:int
           ootb:
             node_type: section
             type: object
@@ -15765,10 +15183,8 @@ properties:
         comment: OTel Collector
       extension_timeout:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
         comment: in seconds, 0 for default value
       extension_url:
         node_type: setting
@@ -15780,10 +15196,8 @@ properties:
         properties:
           timeout:
             node_type: setting
-            type: number
+            type: integer
             default: 60
-            tags:
-            - golang_type:int
       gateway:
         node_type: section
         type: object
@@ -15924,10 +15338,8 @@ properties:
     properties:
       max_concurrent_sync:
         node_type: setting
-        type: number
+        type: integer
         default: 3
-        tags:
-        - golang_type:int
         comment: Remote tagger
   run_path:
     node_type: setting
@@ -15957,22 +15369,16 @@ properties:
                       type: object
                   batch_max_concurrent_send:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 0
-                    tags:
-                    - golang_type:int
                   batch_max_content_size:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 5000000
-                    tags:
-                    - golang_type:int
                   batch_max_size:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 1000
-                    tags:
-                    - golang_type:int
                   batch_wait:
                     node_type: setting
                     type: number
@@ -15985,16 +15391,12 @@ properties:
                     default: zstd
                   compression_level:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 6
-                    tags:
-                    - golang_type:int
                   connection_reset_interval:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 0
-                    tags:
-                    - golang_type:int
                   dd_url:
                     node_type: setting
                     type: string
@@ -16007,10 +15409,8 @@ properties:
                     - no-env
                   input_chan_size:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 100
-                    tags:
-                    - golang_type:int
                   logs_dd_url:
                     node_type: setting
                     type: string
@@ -16039,10 +15439,8 @@ properties:
                     - golang_type:float64
                   sender_recovery_interval:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 2
-                    tags:
-                    - golang_type:int
                   sender_recovery_reset:
                     node_type: setting
                     type: boolean
@@ -16057,10 +15455,8 @@ properties:
                     default: true
                   zstd_compression_level:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 1
-                    tags:
-                    - golang_type:int
       cmd_socket:
         node_type: setting
         type: string
@@ -16086,22 +15482,16 @@ properties:
               type: object
           batch_max_concurrent_send:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           batch_max_content_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5000000
-            tags:
-            - golang_type:int
           batch_max_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           batch_wait:
             node_type: setting
             type: number
@@ -16114,16 +15504,12 @@ properties:
             default: zstd
           compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 6
-            tags:
-            - golang_type:int
           connection_reset_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           dd_url:
             node_type: setting
             type: string
@@ -16136,10 +15522,8 @@ properties:
             - no-env
           input_chan_size:
             node_type: setting
-            type: number
+            type: integer
             default: 100
-            tags:
-            - golang_type:int
           logs_dd_url:
             node_type: setting
             type: string
@@ -16168,10 +15552,8 @@ properties:
             - golang_type:float64
           sender_recovery_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
           sender_recovery_reset:
             node_type: setting
             type: boolean
@@ -16186,10 +15568,8 @@ properties:
             default: true
           zstd_compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 1
-            tags:
-            - golang_type:int
       event_grpc_server:
         node_type: setting
         type: string
@@ -16206,10 +15586,8 @@ properties:
         default: true
   secret_audit_file_max_size:
     node_type: setting
-    type: number
+    type: integer
     default: 1048576
-    tags:
-    - golang_type:int
   secret_backend_command_allow_group_exec_perm:
     node_type: setting
     type: boolean
@@ -16220,10 +15598,8 @@ properties:
     properties:
       cmd_port:
         node_type: setting
-        type: number
+        type: integer
         default: 5010
-        tags:
-        - golang_type:int
         comment: Datadog security agent (common)
       disable_thp:
         node_type: setting
@@ -16231,10 +15607,8 @@ properties:
         default: true
       expvar_port:
         node_type: setting
-        type: number
+        type: integer
         default: 5011
-        tags:
-        - golang_type:int
       internal_profiling:
         node_type: section
         type: object
@@ -16249,10 +15623,8 @@ properties:
             tags: []
           block_profile_rate:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           cpu_duration:
             node_type: setting
             type: number
@@ -16301,10 +15673,8 @@ properties:
               type: string
           mutex_profile_fraction:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           period:
             node_type: setting
             type: number
@@ -16348,10 +15718,8 @@ properties:
     properties:
       compression_level:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       series:
         node_type: section
         type: object
@@ -16403,42 +15771,30 @@ properties:
             default: false
   serializer_max_payload_size:
     node_type: setting
-    type: number
+    type: integer
     default: 2621440
-    tags:
-    - golang_type:int
     comment: 'Warning: do not change the following values. Your payloads will get
       dropped by Datadog''s intake.'
   serializer_max_series_payload_size:
     node_type: setting
-    type: number
+    type: integer
     default: 512000
-    tags:
-    - golang_type:int
   serializer_max_series_points_per_payload:
     node_type: setting
-    type: number
+    type: integer
     default: 10000
-    tags:
-    - golang_type:int
   serializer_max_series_uncompressed_payload_size:
     node_type: setting
-    type: number
+    type: integer
     default: 5242880
-    tags:
-    - golang_type:int
   serializer_max_uncompressed_payload_size:
     node_type: setting
-    type: number
+    type: integer
     default: 4194304
-    tags:
-    - golang_type:int
   serializer_zstd_compressor_level:
     node_type: setting
-    type: number
+    type: integer
     default: 1
-    tags:
-    - golang_type:int
   serverless:
     node_type: section
     type: object
@@ -16491,22 +15847,16 @@ properties:
               type: object
           batch_max_concurrent_send:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           batch_max_content_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5000000
-            tags:
-            - golang_type:int
           batch_max_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           batch_wait:
             node_type: setting
             type: number
@@ -16519,16 +15869,12 @@ properties:
             default: zstd
           compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 6
-            tags:
-            - golang_type:int
           connection_reset_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           dd_url:
             node_type: setting
             type: string
@@ -16541,10 +15887,8 @@ properties:
             - no-env
           input_chan_size:
             node_type: setting
-            type: number
+            type: integer
             default: 100
-            tags:
-            - golang_type:int
           logs_dd_url:
             node_type: setting
             type: string
@@ -16573,10 +15917,8 @@ properties:
             - golang_type:float64
           sender_recovery_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
           sender_recovery_reset:
             node_type: setting
             type: boolean
@@ -16591,10 +15933,8 @@ properties:
             default: true
           zstd_compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 1
-            tags:
-            - golang_type:int
   shared_library_check:
     node_type: section
     type: object
@@ -16614,10 +15954,8 @@ properties:
     properties:
       allowed_failures:
         node_type: setting
-        type: number
+        type: integer
         default: 3
-        tags:
-        - golang_type:int
       collect_device_metadata:
         node_type: setting
         type: boolean
@@ -16634,56 +15972,44 @@ properties:
           type: object
       discovery_allowed_failures:
         node_type: setting
-        type: number
+        type: integer
         default: 3
-        tags:
-        - golang_type:int
       discovery_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 3600
-        tags:
-        - golang_type:int
       loader:
         node_type: setting
         type: string
         default: core
       min_collection_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 15
-        tags:
-        - golang_type:int
       namespace:
         node_type: setting
         type: string
         default: default
       oid_batch_size:
         node_type: setting
-        type: number
+        type: integer
         default: 5
-        tags:
-        - golang_type:int
       ping:
         node_type: section
         type: object
         properties:
           count:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
           enabled:
             node_type: setting
             type: boolean
             default: false
           interval:
             node_type: setting
-            type: number
+            type: integer
             default: 10
-            tags:
-            - golang_type:int
           linux:
             node_type: section
             type: object
@@ -16694,32 +16020,24 @@ properties:
                 default: false
           timeout:
             node_type: setting
-            type: number
+            type: integer
             default: 3000
-            tags:
-            - golang_type:int
       retries:
         node_type: setting
-        type: number
+        type: integer
         default: 3
-        tags:
-        - golang_type:int
       timeout:
         node_type: setting
-        type: number
+        type: integer
         default: 5
-        tags:
-        - golang_type:int
       use_device_id_as_hostname:
         node_type: setting
         type: boolean
         default: false
       workers:
         node_type: setting
-        type: number
+        type: integer
         default: 2
-        tags:
-        - golang_type:int
   software_inventory:
     node_type: section
     type: object
@@ -16741,22 +16059,16 @@ properties:
               type: object
           batch_max_concurrent_send:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           batch_max_content_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5000000
-            tags:
-            - golang_type:int
           batch_max_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           batch_wait:
             node_type: setting
             type: number
@@ -16769,16 +16081,12 @@ properties:
             default: zstd
           compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 6
-            tags:
-            - golang_type:int
           connection_reset_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           dd_url:
             node_type: setting
             type: string
@@ -16791,10 +16099,8 @@ properties:
             - no-env
           input_chan_size:
             node_type: setting
-            type: number
+            type: integer
             default: 100
-            tags:
-            - golang_type:int
           logs_dd_url:
             node_type: setting
             type: string
@@ -16823,10 +16129,8 @@ properties:
             - golang_type:float64
           sender_recovery_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 2
-            tags:
-            - golang_type:int
           sender_recovery_reset:
             node_type: setting
             type: boolean
@@ -16841,22 +16145,16 @@ properties:
             default: true
           zstd_compression_level:
             node_type: setting
-            type: number
+            type: integer
             default: 1
-            tags:
-            - golang_type:int
       interval:
         node_type: setting
-        type: number
+        type: integer
         default: 10
-        tags:
-        - golang_type:int
       jitter:
         node_type: setting
-        type: number
+        type: integer
         default: 60
-        tags:
-        - golang_type:int
   statsd_metric_blocklist:
     node_type: setting
     type: array
@@ -17060,10 +16358,8 @@ properties:
     default: false
   windows_counter_init_failure_limit:
     node_type: setting
-    type: number
+    type: integer
     default: 20
-    tags:
-    - golang_type:int
     comment: |-
       Added in Agent version 7.42
       Limits the number of times a check will attempt to initialize a performance counter before ceasing
@@ -17086,10 +16382,8 @@ properties:
       The default value of 20 means the Agent will retry counter intialization for roughly 5 minutes.
   windows_counter_refresh_interval:
     node_type: setting
-    type: number
+    type: integer
     default: 60
-    tags:
-    - golang_type:int
     comment: |-
       Windows Performance Counter refresh interval in seconds (introduced in 7.40, narrowed down
       in 7.42). Additional information can be found where it is used (refreshPdhObjectCache())

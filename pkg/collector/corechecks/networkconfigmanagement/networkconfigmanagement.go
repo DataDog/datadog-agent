@@ -52,11 +52,11 @@ type Check struct {
 	agentHostname string
 }
 
-// saveConfig saves the config if store is non-nil. Returns the resulting UUID, a bool
+// saveConfig saves the config if store is non-nil. Returns the resulting UUID, config hash, a bool
 // that is true when a new entry was written (false when deduplicated), and any error.
-func saveConfig(store store.ConfigStore, deviceID string, cType types.ConfigType, rawConfig []byte) (string, bool, error) {
+func saveConfig(store store.ConfigStore, deviceID string, cType types.ConfigType, rawConfig []byte) (string, string, bool, error) {
 	if store == nil {
-		return "", false, errors.New("local config store unavailable - will not save configs for rollback")
+		return "", "", false, errors.New("local config store unavailable - will not save configs for rollback")
 	}
 	return store.StoreConfig(deviceID, cType, string(rawConfig))
 }
@@ -116,12 +116,13 @@ func (c *Check) Run() error {
 		log.Warnf("unable to process rules for running config for device %s, using agent collection ts: %s", deviceID, checkErr)
 	} else {
 		// TODO: helper fn to take metadata that needs to be emitted as metrics + emit them
-		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.RUNNING, metadata, deviceTags, runningConfig))
-		if _, stored, err := saveConfig(configStore, deviceID, types.RUNNING, runningConfig); err != nil {
+		runningUUID, runningHash, stored, err := saveConfig(configStore, deviceID, types.RUNNING, runningConfig)
+		if err != nil {
 			log.Warnf("unable to store running config: %v", err)
 		} else if stored {
 			hasNewConfigs = true
 		}
+		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.RUNNING, metadata, deviceTags, runningConfig, runningUUID, runningHash))
 	}
 
 	rawStartupConfig, checkErr := c.remoteClient.RetrieveStartupConfig()
@@ -134,12 +135,13 @@ func (c *Check) Run() error {
 			log.Warnf("unable to process rules for startup config for device %s, using agent collection ts: %s", deviceID, checkErr)
 		} else {
 			// add the startup config to the payload if it was retrieved successfully
-			configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.STARTUP, metadata, deviceTags, startupConfig))
-			if _, stored, err := saveConfig(configStore, deviceID, types.STARTUP, startupConfig); err != nil {
+			startupUUID, startupHash, stored, err := saveConfig(configStore, deviceID, types.STARTUP, startupConfig)
+			if err != nil {
 				log.Warnf("unable to store startup config: %v", err)
 			} else if stored {
 				hasNewConfigs = true
 			}
+			configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.STARTUP, metadata, deviceTags, startupConfig, startupUUID, startupHash))
 		}
 	}
 
