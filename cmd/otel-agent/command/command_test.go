@@ -15,12 +15,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// unsetEnv unsets an environment variable for the duration of the test,
+// restoring the original value (or absence) on cleanup.
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
+	orig, ok := os.LookupEnv(key)
+	if err := os.Unsetenv(key); err != nil {
+		t.Fatalf("failed to unset %s: %v", key, err)
+	}
+	t.Cleanup(func() {
+		if ok {
+			os.Setenv(key, orig)
+		} else {
+			os.Unsetenv(key)
+		}
+	})
+}
+
 func TestValidateDurationEnvVars(t *testing.T) {
 	tests := []struct {
-		name        string
-		envVars     map[string]string
-		wantErr     bool
-		errContains []string
+		name               string
+		envVars            map[string]string
+		wantErr            bool
+		wantErrContains    []string
+		wantErrNotContains []string
 	}{
 		{
 			name:    "no env vars set",
@@ -43,18 +61,23 @@ func TestValidateDurationEnvVars(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "valid zero duration",
+			name:    "valid zero duration with suffix",
 			envVars: map[string]string{"DD_SYNC_DELAY": "0s"},
+			wantErr: false,
+		},
+		{
+			name:    "bare zero is valid without suffix",
+			envVars: map[string]string{"DD_SYNC_DELAY": "0"},
 			wantErr: false,
 		},
 		{
 			name:    "bare number without unit suffix",
 			envVars: map[string]string{"DD_SYNC_DELAY": "30"},
 			wantErr: true,
-			errContains: []string{
+			wantErrContains: []string{
 				`invalid value "30"`,
 				"DD_SYNC_DELAY",
-				"missing unit in duration",
+				"--sync-delay",
 				`did you mean "30s"`,
 			},
 		},
@@ -62,9 +85,10 @@ func TestValidateDurationEnvVars(t *testing.T) {
 			name:    "bare floating point without unit suffix",
 			envVars: map[string]string{"DD_SYNC_TO": "2.5"},
 			wantErr: true,
-			errContains: []string{
+			wantErrContains: []string{
 				`invalid value "2.5"`,
 				"DD_SYNC_TO",
+				"--sync-to",
 				`did you mean "2.5s"`,
 			},
 		},
@@ -72,10 +96,12 @@ func TestValidateDurationEnvVars(t *testing.T) {
 			name:    "non-numeric invalid string",
 			envVars: map[string]string{"DD_SYNC_DELAY": "abc"},
 			wantErr: true,
-			errContains: []string{
+			wantErrContains: []string{
 				`invalid value "abc"`,
 				"DD_SYNC_DELAY",
-				"invalid duration",
+			},
+			wantErrNotContains: []string{
+				"did you mean",
 			},
 		},
 		{
@@ -88,13 +114,21 @@ func TestValidateDurationEnvVars(t *testing.T) {
 			envVars: map[string]string{"DD_SYNC_DELAY": "30s", "DD_SYNC_TO": "5s"},
 			wantErr: false,
 		},
+		{
+			name:    "both invalid durations reports all errors",
+			envVars: map[string]string{"DD_SYNC_DELAY": "30", "DD_SYNC_TO": "5"},
+			wantErr: true,
+			wantErrContains: []string{
+				"DD_SYNC_DELAY",
+				"DD_SYNC_TO",
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			for envVar := range durationEnvVars {
-				t.Setenv(envVar, "")
-				os.Unsetenv(envVar)
+			for _, d := range durationEnvVars {
+				unsetEnv(t, d.envKey)
 			}
 			for k, v := range tt.envVars {
 				t.Setenv(k, v)
@@ -103,8 +137,13 @@ func TestValidateDurationEnvVars(t *testing.T) {
 			err := validateDurationEnvVars()
 			if tt.wantErr {
 				require.Error(t, err)
-				for _, s := range tt.errContains {
-					assert.Contains(t, err.Error(), s)
+				for i, s := range tt.wantErrContains {
+					assert.Contains(t, err.Error(), s,
+						"wantErrContains[%d]: expected error to contain %q", i, s)
+				}
+				for i, s := range tt.wantErrNotContains {
+					assert.NotContains(t, err.Error(), s,
+						"wantErrNotContains[%d]: expected error NOT to contain %q", i, s)
 				}
 			} else {
 				require.NoError(t, err)
