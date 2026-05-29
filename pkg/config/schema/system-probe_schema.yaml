@@ -51,7 +51,7 @@ properties:
             tags: []
       health_port:
         node_type: setting
-        type: number
+        type: integer
         default: 0
         env_vars:
         - DD_SYSTEM_PROBE_HEALTH_PORT
@@ -135,16 +135,12 @@ properties:
         tags: []
       closed_channel_size:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       closed_connection_flush_threshold:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       collect_dns_domains:
         node_type: setting
         type: boolean
@@ -168,22 +164,16 @@ properties:
         tags: []
       conntrack_max_state_size:
         node_type: setting
-        type: number
+        type: integer
         default: 131072
-        tags:
-        - golang_type:int
       conntrack_rate_limit:
         node_type: setting
-        type: number
+        type: integer
         default: 500
-        tags:
-        - golang_type:int
       debug_port:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       dest_excludes:
         node_type: setting
         type: object
@@ -226,10 +216,8 @@ properties:
         tags: []
       dns_timeout_in_s:
         node_type: setting
-        type: number
+        type: integer
         default: 15
-        tags:
-        - golang_type:int
       enable_co_re:
         node_type: setting
         type: boolean
@@ -305,16 +293,12 @@ properties:
         tags: []
       http_idle_connection_ttl_in_s:
         node_type: setting
-        type: number
+        type: integer
         default: 30
-        tags:
-        - golang_type:int
       http_map_cleaner_interval_in_s:
         node_type: setting
-        type: number
+        type: integer
         default: 300
-        tags:
-        - golang_type:int
       internal_profiling:
         node_type: section
         type: object
@@ -329,10 +313,8 @@ properties:
             tags: []
           block_profile_rate:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           cpu_duration:
             node_type: setting
             type: number
@@ -389,10 +371,8 @@ properties:
               type: string
           mutex_profile_fraction:
             node_type: setting
-            type: number
+            type: integer
             default: 0
-            tags:
-            - golang_type:int
           period:
             node_type: setting
             type: number
@@ -444,31 +424,25 @@ properties:
         default: ''
       max_closed_connections_buffered:
         node_type: setting
-        type: number
+        type: integer
         default: 0
         tags:
         - golang_type:int64
       max_connection_state_buffered:
         node_type: setting
-        type: number
+        type: integer
         default: 75000
-        tags:
-        - golang_type:int
       max_conns_per_message:
         node_type: setting
-        type: number
+        type: integer
         default: 600
-        tags:
-        - golang_type:int
       max_dns_stats:
         node_type: setting
-        type: number
+        type: integer
         default: 20000
-        tags:
-        - golang_type:int
       max_tracked_connections:
         node_type: setting
-        type: number
+        type: integer
         default: 65536
         tags:
         - golang_type:int64
@@ -498,7 +472,7 @@ properties:
               type: string
       offset_guess_threshold:
         node_type: setting
-        type: number
+        type: integer
         default: 400
         tags:
         - golang_type:int64
@@ -642,22 +616,16 @@ properties:
         - golang_type:duration
       closed_buffer_wakeup_count:
         node_type: setting
-        type: number
+        type: integer
         default: 4
-        tags:
-        - golang_type:int
       closed_channel_size:
         node_type: setting
-        type: number
+        type: integer
         default: 500
-        tags:
-        - golang_type:int
       closed_connection_flush_threshold:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       collect_tcp_v4:
         node_type: setting
         type: boolean
@@ -692,7 +660,9 @@ properties:
       direct_send:
         node_type: setting
         type: boolean
-        default: false
+        platform_default:
+          linux: true
+          other: false
       dns_recorded_query_types:
         node_type: setting
         type: array
@@ -787,16 +757,12 @@ properties:
         tags: []
       http_max_request_fragment:
         node_type: setting
-        type: number
+        type: integer
         default: 512
-        tags:
-        - golang_type:int
       http_notification_threshold:
         node_type: setting
-        type: number
+        type: integer
         default: 512
-        tags:
-        - golang_type:int
       http_replace_rules:
         node_type: setting
         env_vars:
@@ -815,24 +781,21 @@ properties:
         tags: []
       max_failed_connections_buffered:
         node_type: setting
-        type: number
+        type: integer
         default: 0
         tags:
         - golang_type:int64
       max_http_stats_buffered:
         node_type: setting
-        type: number
+        type: integer
         default: 100000
         env_vars:
         - DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED
-        tags:
-        - golang_type:int
+        tags: []
       max_tracked_http_connections:
         node_type: setting
-        type: number
+        type: integer
         default: 1024
-        tags:
-        - golang_type:int
   service_monitoring_config:
     node_type: section
     title: System Probe Universal Service monitoring Configuration
@@ -858,32 +821,24 @@ properties:
         tags: []
       data_channel_size:
         node_type: setting
-        type: number
+        type: integer
         default: 100
-        tags:
-        - golang_type:int
       direct_consumer:
         node_type: section
         type: object
         properties:
           buffer_wakeup_count_per_cpu:
             node_type: setting
-            type: number
+            type: integer
             default: 8
-            tags:
-            - golang_type:int
           channel_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           kernel_buffer_size_per_cpu:
             node_type: setting
-            type: number
+            type: integer
             default: 65536
-            tags:
-            - golang_type:int
       disable_map_preallocation:
         node_type: setting
         type: boolean
@@ -933,40 +888,28 @@ properties:
             default: true
           idle_connection_ttl_seconds:
             node_type: setting
-            type: number
+            type: integer
             default: 30
-            tags:
-            - golang_type:int
           map_cleaner_interval_seconds:
             node_type: setting
-            type: number
+            type: integer
             default: 300
-            tags:
-            - golang_type:int
           max_request_fragment:
             node_type: setting
-            type: number
+            type: integer
             default: 512
-            tags:
-            - golang_type:int
           max_stats_buffered:
             node_type: setting
-            type: number
+            type: integer
             default: 100000
-            tags:
-            - golang_type:int
           max_tracked_connections:
             node_type: setting
-            type: number
+            type: integer
             default: 1024
-            tags:
-            - golang_type:int
           notification_threshold:
             node_type: setting
-            type: number
+            type: integer
             default: 512
-            tags:
-            - golang_type:int
           replace_rules:
             node_type: setting
             env_parser: json
@@ -984,44 +927,32 @@ properties:
         properties:
           dynamic_table_map_cleaner_interval_seconds:
             node_type: setting
-            type: number
+            type: integer
             default: 30
-            tags:
-            - golang_type:int
           enabled:
             node_type: setting
             type: boolean
             default: false
       http2_dynamic_table_map_cleaner_interval_seconds:
         node_type: setting
-        type: number
+        type: integer
         default: 30
-        tags:
-        - golang_type:int
       http_idle_connection_ttl_in_s:
         node_type: setting
-        type: number
+        type: integer
         default: 30
-        tags:
-        - golang_type:int
       http_map_cleaner_interval_in_s:
         node_type: setting
-        type: number
+        type: integer
         default: 300
-        tags:
-        - golang_type:int
       http_max_request_fragment:
         node_type: setting
-        type: number
+        type: integer
         default: 512
-        tags:
-        - golang_type:int
       http_notification_threshold:
         node_type: setting
-        type: number
+        type: integer
         default: 512
-        tags:
-        - golang_type:int
       http_replace_rules:
         node_type: setting
         env_parser: json
@@ -1039,16 +970,12 @@ properties:
             default: false
           max_stats_buffered:
             node_type: setting
-            type: number
+            type: integer
             default: 100000
-            tags:
-            - golang_type:int
       kernel_buffer_pages:
         node_type: setting
-        type: number
+        type: integer
         default: 16
-        tags:
-        - golang_type:int
       max_concurrent_requests:
         node_type: setting
         tags:
@@ -1056,22 +983,16 @@ properties:
         - TODO:fix-missing-type
       max_http_stats_buffered:
         node_type: setting
-        type: number
+        type: integer
         default: 100000
-        tags:
-        - golang_type:int
       max_kafka_stats_buffered:
         node_type: setting
-        type: number
+        type: integer
         default: 100000
-        tags:
-        - golang_type:int
       max_tracked_http_connections:
         node_type: setting
-        type: number
+        type: integer
         default: 1024
-        tags:
-        - golang_type:int
       postgres:
         node_type: section
         type: object
@@ -1082,16 +1003,12 @@ properties:
             default: false
           max_stats_buffered:
             node_type: setting
-            type: number
+            type: integer
             default: 100000
-            tags:
-            - golang_type:int
           max_telemetry_buffer:
             node_type: setting
-            type: number
+            type: integer
             default: 160
-            tags:
-            - golang_type:int
       process_service_inference:
         node_type: section
         type: object
@@ -1120,10 +1037,8 @@ properties:
             default: false
           max_stats_buffered:
             node_type: setting
-            type: number
+            type: integer
             default: 100000
-            tags:
-            - golang_type:int
           track_resources:
             node_type: setting
             type: boolean
@@ -1297,13 +1212,12 @@ properties:
             tags: []
           traced_cgroups_count:
             node_type: setting
-            type: number
+            type: integer
             default: 5
             visibility: public
             description: Defines the number of concurrent cgroups to be traced.
             example: '5'
-            tags:
-            - golang_type:int
+            tags: []
           dump_duration:
             node_type: setting
             type: string
@@ -1359,36 +1273,28 @@ properties:
                   type: string
               max_dumps_count:
                 node_type: setting
-                type: number
+                type: integer
                 default: 100
-                tags:
-                - golang_type:int
               output_directory:
                 node_type: setting
                 type: string
                 default: ${run_path}/runtime-security/profiles
           max_dump_count_per_workload:
             node_type: setting
-            type: number
+            type: integer
             default: 25
-            tags:
-            - golang_type:int
           max_dump_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1750
-            tags:
-            - golang_type:int
           min_timeout:
             node_type: setting
             type: string
             default: 10m
           rate_limiter:
             node_type: setting
-            type: number
+            type: integer
             default: 500
-            tags:
-            - golang_type:int
           silent_workloads:
             node_type: section
             type: object
@@ -1467,10 +1373,8 @@ properties:
           type: string
       cookie_cache_size:
         node_type: setting
-        type: number
+        type: integer
         default: 100
-        tags:
-        - golang_type:int
       direct_send_from_system_probe:
         node_type: setting
         type: boolean
@@ -1505,10 +1409,8 @@ properties:
                     default: true
                   max_allowed:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 5
-                    tags:
-                    - golang_type:int
                   period:
                     node_type: setting
                     type: string
@@ -1523,10 +1425,8 @@ properties:
                     default: true
                   max_allowed:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 5
-                    tags:
-                    - golang_type:int
                   period:
                     node_type: setting
                     type: string
@@ -1565,10 +1465,9 @@ properties:
           type: string
       etw_events_channel_size:
         node_type: setting
-        type: number
+        type: integer
         default: 16384
         tags:
-        - golang_type:int
         - no-env
       event_grpc_server:
         node_type: setting
@@ -1576,10 +1475,8 @@ properties:
         default: ''
       event_retry_queue_threshold:
         node_type: setting
-        type: number
+        type: integer
         default: 512
-        tags:
-        - golang_type:int
       event_sampling:
         node_type: section
         type: object
@@ -1594,10 +1491,8 @@ properties:
                 default: false
               rate:
                 node_type: setting
-                type: number
+                type: integer
                 default: 500
-                tags:
-                - golang_type:int
           connect:
             node_type: section
             type: object
@@ -1608,10 +1503,8 @@ properties:
                 default: false
               rate:
                 node_type: setting
-                type: number
+                type: integer
                 default: 500
-                tags:
-                - golang_type:int
           dns:
             node_type: section
             type: object
@@ -1622,10 +1515,8 @@ properties:
                 default: false
               rate:
                 node_type: setting
-                type: number
+                type: integer
                 default: 500
-                tags:
-                - golang_type:int
           open:
             node_type: section
             type: object
@@ -1636,26 +1527,20 @@ properties:
                 default: false
               rate:
                 node_type: setting
-                type: number
+                type: integer
                 default: 500
-                tags:
-                - golang_type:int
       event_server:
         node_type: section
         type: object
         properties:
           burst:
             node_type: setting
-            type: number
+            type: integer
             default: 40
-            tags:
-            - golang_type:int
           rate:
             node_type: setting
-            type: number
+            type: integer
             default: 10
-            tags:
-            - golang_type:int
           retention:
             node_type: setting
             type: string
@@ -1678,10 +1563,8 @@ properties:
         properties:
           cache_size:
             node_type: setting
-            type: number
+            type: integer
             default: 500
-            tags:
-            - golang_type:int
           enabled:
             node_type: setting
             type: boolean
@@ -1705,16 +1588,12 @@ properties:
               type: string
           max_file_size:
             node_type: setting
-            type: number
+            type: integer
             default: 5242880
-            tags:
-            - golang_type:int
           max_hash_rate:
             node_type: setting
-            type: number
+            type: integer
             default: 500
-            tags:
-            - golang_type:int
           replace:
             node_type: setting
             type: object
@@ -1823,10 +1702,8 @@ properties:
             default: 3s
           workloads_cache_size:
             node_type: setting
-            type: number
+            type: integer
             default: 10
-            tags:
-            - golang_type:int
       security_profile:
         node_type: section
         type: object
@@ -1868,16 +1745,12 @@ properties:
                 properties:
                   num_events_allowed:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 10
-                    tags:
-                    - golang_type:int
                   num_keys:
                     node_type: setting
-                    type: number
+                    type: integer
                     default: 256
-                    tags:
-                    - golang_type:int
                   period:
                     node_type: setting
                     type: string
@@ -1900,10 +1773,8 @@ properties:
                     default: true
               unstable_profile_size_threshold:
                 node_type: setting
-                type: number
+                type: integer
                 default: 5000000
-                tags:
-                - golang_type:int
               unstable_profile_time_threshold:
                 node_type: setting
                 type: string
@@ -1930,36 +1801,28 @@ properties:
                   type: string
           cache_size:
             node_type: setting
-            type: number
+            type: integer
             default: 10
-            tags:
-            - golang_type:int
           dir:
             node_type: setting
             type: string
             default: ${run_path}/runtime-security/profiles
           dns_match_max_depth:
             node_type: setting
-            type: number
+            type: integer
             default: 3
-            tags:
-            - golang_type:int
           enabled:
             node_type: setting
             type: boolean
             default: true
           max_count:
             node_type: setting
-            type: number
+            type: integer
             default: 400
-            tags:
-            - golang_type:int
           max_image_tags:
             node_type: setting
-            type: number
+            type: integer
             default: 20
-            tags:
-            - golang_type:int
           node_eviction_timeout:
             node_type: setting
             type: string
@@ -2002,6 +1865,18 @@ properties:
             node_type: setting
             type: boolean
             default: true
+      syscalls:
+        node_type: section
+        type: object
+        properties:
+          capture_all_errors:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
       sysctl:
         node_type: section
         type: object
@@ -2054,10 +1929,8 @@ properties:
         properties:
           cache_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1024
-            tags:
-            - golang_type:int
           ssh:
             node_type: section
             type: object
@@ -2068,10 +1941,9 @@ properties:
                 default: true
       windows_filename_cache_max:
         node_type: setting
-        type: number
+        type: integer
         default: 16384
         tags:
-        - golang_type:int
         - no-env
       windows_probe_block_on_channel_send:
         node_type: setting
@@ -2081,17 +1953,15 @@ properties:
         - no-env
       windows_registry_cache_max:
         node_type: setting
-        type: number
+        type: integer
         default: 4096
         tags:
-        - golang_type:int
         - no-env
       windows_write_event_rate_limiter_max_allowed:
         node_type: setting
-        type: number
+        type: integer
         default: 4096
         tags:
-        - golang_type:int
         - no-env
       windows_write_event_rate_limiter_period:
         node_type: setting
@@ -2181,22 +2051,20 @@ properties:
             tags: []
           classifier_handle:
             node_type: setting
-            type: number
+            type: integer
             default: 0
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_NETWORK_CLASSIFIER_HANDLE
             - DD_RUNTIME_SECURITY_CONFIG_NETWORK_CLASSIFIER_HANDLE
-            tags:
-            - golang_type:int
+            tags: []
           classifier_priority:
             node_type: setting
-            type: number
+            type: integer
             default: 10
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_NETWORK_CLASSIFIER_PRIORITY
             - DD_RUNTIME_SECURITY_CONFIG_NETWORK_CLASSIFIER_PRIORITY
-            tags:
-            - golang_type:int
+            tags: []
           extra_private_ip_ranges:
             node_type: setting
             type: array
@@ -2289,13 +2157,12 @@ properties:
             tags: []
           raw_classifier_handle:
             node_type: setting
-            type: number
+            type: integer
             default: 0
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_NETWORK_RAW_CLASSIFIER_HANDLE
             - DD_RUNTIME_SECURITY_CONFIG_NETWORK_RAW_CLASSIFIER_HANDLE
-            tags:
-            - golang_type:int
+            tags: []
           raw_packet:
             node_type: section
             type: object
@@ -2318,13 +2185,20 @@ properties:
                 tags: []
               limiter_rate:
                 node_type: setting
-                type: number
+                type: integer
                 default: 10
                 env_vars:
                 - DD_EVENT_MONITORING_CONFIG_NETWORK_RAW_PACKET_LIMITER_RATE
                 - DD_RUNTIME_SECURITY_CONFIG_NETWORK_RAW_PACKET_LIMITER_RATE
-                tags:
-                - golang_type:int
+                tags: []
+      basename_approvers_size:
+        node_type: setting
+        type: integer
+        default: 4096
+        env_vars:
+        - DD_EVENT_MONITORING_CONFIG_BASENAME_APPROVERS_SIZE
+        - DD_RUNTIME_SECURITY_CONFIG_BASENAME_APPROVERS_SIZE
+        tags: []
       capabilities_monitoring:
         node_type: section
         type: object
@@ -2347,26 +2221,24 @@ properties:
             tags: []
       dentry_cache_size:
         node_type: setting
-        type: number
+        type: integer
         default: 8000
         env_vars:
         - DD_EVENT_MONITORING_CONFIG_DENTRY_CACHE_SIZE
         - DD_RUNTIME_SECURITY_CONFIG_DENTRY_CACHE_SIZE
-        tags:
-        - golang_type:int
+        tags: []
       dns_resolution:
         node_type: section
         type: object
         properties:
           cache_size:
             node_type: setting
-            type: number
+            type: integer
             default: 1024
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_DNS_RESOLUTION_CACHE_SIZE
             - DD_RUNTIME_SECURITY_CONFIG_DNS_RESOLUTION_CACHE_SIZE
-            tags:
-            - golang_type:int
+            tags: []
           enabled:
             node_type: setting
             type: boolean
@@ -2390,14 +2262,6 @@ properties:
         env_vars:
         - DD_EVENT_MONITORING_CONFIG_ENABLE_APPROVERS
         - DD_RUNTIME_SECURITY_CONFIG_ENABLE_APPROVERS
-        tags: []
-      basename_approvers_size:
-        node_type: setting
-        type: number
-        default: 4096
-        env_vars:
-        - DD_EVENT_MONITORING_CONFIG_BASENAME_APPROVERS_SIZE
-        - DD_RUNTIME_SECURITY_CONFIG_BASENAME_APPROVERS_SIZE
         tags: []
       enable_discarders:
         node_type: setting
@@ -2458,22 +2322,20 @@ properties:
         properties:
           buffer_size:
             node_type: setting
-            type: number
+            type: integer
             default: 0
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_BUFFER_SIZE
             - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_BUFFER_SIZE
-            tags:
-            - golang_type:int
+            tags: []
           kretprobe_max_active:
             node_type: setting
-            type: number
+            type: integer
             default: 512
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_KRETPROBE_MAX_ACTIVE
             - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_KRETPROBE_MAX_ACTIVE
-            tags:
-            - golang_type:int
+            tags: []
           use_fentry:
             node_type: setting
             type: boolean
@@ -2504,13 +2366,12 @@ properties:
         properties:
           polling_interval:
             node_type: setting
-            type: number
+            type: integer
             default: 20
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENTS_STATS_POLLING_INTERVAL
             - DD_RUNTIME_SECURITY_CONFIG_EVENTS_STATS_POLLING_INTERVAL
-            tags:
-            - golang_type:int
+            tags: []
           tags_cardinality:
             node_type: setting
             type: string
@@ -2521,13 +2382,12 @@ properties:
             tags: []
       flush_discarder_window:
         node_type: setting
-        type: number
+        type: integer
         default: 3
         env_vars:
         - DD_EVENT_MONITORING_CONFIG_FLUSH_DISCARDER_WINDOW
         - DD_RUNTIME_SECURITY_CONFIG_FLUSH_DISCARDER_WINDOW
-        tags:
-        - golang_type:int
+        tags: []
       map_dentry_resolution_enabled:
         node_type: setting
         type: boolean
@@ -2550,10 +2410,8 @@ properties:
                 default: true
               max_containers_tracked:
                 node_type: setting
-                type: number
+                type: integer
                 default: 1024
-                tags:
-                - golang_type:int
           enabled:
             node_type: setting
             type: boolean
@@ -2571,13 +2429,12 @@ properties:
             - TODO:fix-missing-type
       pid_cache_size:
         node_type: setting
-        type: number
+        type: integer
         default: 10000
         env_vars:
         - DD_EVENT_MONITORING_CONFIG_PID_CACHE_SIZE
         - DD_RUNTIME_SECURITY_CONFIG_PID_CACHE_SIZE
-        tags:
-        - golang_type:int
+        tags: []
       runtime_compilation:
         node_type: section
         type: object
@@ -2604,13 +2461,12 @@ properties:
         properties:
           cache_size:
             node_type: setting
-            type: number
+            type: integer
             default: 4096
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_SPAN_TRACKING_CACHE_SIZE
             - DD_RUNTIME_SECURITY_CONFIG_SPAN_TRACKING_CACHE_SIZE
-            tags:
-            - golang_type:int
+            tags: []
           enabled:
             node_type: setting
             type: boolean
@@ -2670,10 +2526,8 @@ properties:
               type: string
       validation_period:
         node_type: setting
-        type: number
+        type: integer
         default: 60
-        tags:
-        - golang_type:int
   bind_host:
     node_type: setting
     tags:
@@ -2714,7 +2568,9 @@ properties:
       enabled:
         node_type: setting
         type: boolean
-        default: false
+        platform_default:
+          linux: true
+          other: false
       service_collection_interval:
         node_type: setting
         type: string
@@ -2730,13 +2586,13 @@ properties:
       use_system_probe_lite:
         node_type: setting
         type: boolean
-        default: false
+        platform_default:
+          linux: true
+          other: false
   dogstatsd_port:
     node_type: setting
-    type: number
+    type: integer
     default: 8125
-    tags:
-    - golang_type:int
   dynamic_instrumentation:
     node_type: section
     type: object
@@ -2785,13 +2641,13 @@ properties:
             default: true
           max_total_bytes:
             node_type: setting
-            type: number
+            type: integer
             default: 2147483648
             tags:
             - golang_type:int64
           required_disk_space_bytes:
             node_type: setting
-            type: number
+            type: integer
             default: 536870912
             tags:
             - golang_type:int64
@@ -2857,28 +2713,20 @@ properties:
         properties:
           entries_for_iteration_restart_detection:
             node_type: setting
-            type: number
+            type: integer
             default: 100
-            tags:
-            - golang_type:int
           max_keys_buffer_size_bytes:
             node_type: setting
-            type: number
+            type: integer
             default: 524288
-            tags:
-            - golang_type:int
           max_restarts:
             node_type: setting
-            type: number
+            type: integer
             default: 3
-            tags:
-            - golang_type:int
           max_values_buffer_size_bytes:
             node_type: setting
-            type: number
+            type: integer
             default: 1048576
-            tags:
-            - golang_type:int
       kernel_bpf_stats:
         node_type: setting
         type: boolean
@@ -2936,10 +2784,8 @@ properties:
         default: false
       fatbin_request_queue_size:
         node_type: setting
-        type: number
+        type: integer
         default: 100
-        tags:
-        - golang_type:int
       initial_process_sync:
         node_type: setting
         type: boolean
@@ -2954,16 +2800,12 @@ properties:
         default: true
       process_scan_interval_seconds:
         node_type: setting
-        type: number
+        type: integer
         default: 5
-        tags:
-        - golang_type:int
       ring_buffer_pages_per_device:
         node_type: setting
-        type: number
+        type: integer
         default: 32
-        tags:
-        - golang_type:int
       ringbuffer_flush_interval:
         node_type: setting
         type: number
@@ -2973,50 +2815,36 @@ properties:
         - golang_type:duration
       ringbuffer_wakeup_size:
         node_type: setting
-        type: number
+        type: integer
         default: 3000
-        tags:
-        - golang_type:int
       streams:
         node_type: section
         type: object
         properties:
           max_active:
             node_type: setting
-            type: number
+            type: integer
             default: 100
-            tags:
-            - golang_type:int
           max_kernel_launches:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           max_mem_alloc_events:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           max_pending_kernel_spans:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           max_pending_memory_spans:
             node_type: setting
-            type: number
+            type: integer
             default: 1000
-            tags:
-            - golang_type:int
           timeout_seconds:
             node_type: setting
-            type: number
+            type: integer
             default: 30
-            tags:
-            - golang_type:int
   ignore_host_etc:
     node_type: setting
     type: boolean
@@ -3031,10 +2859,8 @@ properties:
         default: true
   log_file_max_rolls:
     node_type: setting
-    type: number
+    type: integer
     default: 1
-    tags:
-    - golang_type:int
   log_file_max_size:
     node_type: setting
     type: string
@@ -3135,20 +2961,16 @@ properties:
     default: false
   secret_backend_output_max_size:
     node_type: setting
-    type: number
+    type: integer
     default: 1048576
-    tags:
-    - golang_type:int
   secret_backend_skip_checks:
     node_type: setting
     type: boolean
     default: false
   secret_backend_timeout:
     node_type: setting
-    type: number
+    type: integer
     default: 30
-    tags:
-    - golang_type:int
   syslog_rfc:
     node_type: setting
     type: boolean

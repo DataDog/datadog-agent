@@ -6,7 +6,7 @@
 package com_datadoghq_remoteaction_networks
 
 import (
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )

@@ -1,5 +1,5 @@
 exporters:
-    otlphttp:
+    otlp_http:
         compression: zstd
         endpoint: http://localhost:4318
         headers:
@@ -9,12 +9,23 @@ exporters:
 extensions:
     custom:
         config: value
+    ddprofiling:
+        config: value
     other:
         config: value
 processors:
     batch:
         timeout: 10s
-    ddhostname/default: {}
+    cumulativetodelta/dd-hp-internal: {}
+    ddhostname/dd-autoconfigured: {}
+    filter/dd-hp-drop-internal:
+        metrics:
+            exclude:
+                match_type: regexp
+                metric_names:
+                    - ^scrape_.*$
+                    - ^up$
+                    - ^promhttp_metric_handler_errors_total$
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
@@ -23,7 +34,7 @@ processors:
             - action: upsert
               key: telemetry.distro.version
               value: 7.0.0-test
-    resourcedetection/default:
+    resourcedetection/dd-autoconfigured:
         detectors:
             - system
         system:
@@ -38,20 +49,46 @@ receivers:
     profiling:
         symbol_uploader:
             enabled: false
+    prometheus/dd-hp-internal:
+        config:
+            scrape_configs:
+                - fallback_scrape_protocol: PrometheusText0.0.4
+                  job_name: host-profiler-internal
+                  metric_name_escaping_scheme: underscores
+                  metric_name_validation_scheme: legacy
+                  scrape_interval: 60s
+                  scrape_protocols:
+                    - PrometheusText0.0.4
+                  static_configs:
+                    - targets:
+                        - 127.0.0.1:8889
 service:
     extensions:
+        - ddprofiling
         - custom
         - other
     pipelines:
         metrics:
             processors: []
+        metrics/profiler-internal-health:
+            exporters:
+                - otlp_http
+            processors:
+                - filter/dd-hp-drop-internal
+                - cumulativetodelta/dd-hp-internal
+                - batch
+                - resourcedetection/dd-autoconfigured
+                - ddhostname/dd-autoconfigured
+                - resource/dd-profiler-internal-metadata
+            receivers:
+                - prometheus/dd-hp-internal
         profiles:
             exporters:
-                - otlphttp
+                - otlp_http
             processors:
                 - batch
-                - resourcedetection/default
-                - ddhostname/default
+                - resourcedetection/dd-autoconfigured
+                - ddhostname/dd-autoconfigured
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling

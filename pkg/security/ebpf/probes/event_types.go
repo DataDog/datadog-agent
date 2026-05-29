@@ -557,6 +557,10 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "connect", hasFentry, EntryAndExit)},
 		},
+		// List of probes required to capture socket events
+		"socket": {
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "socket", hasFentry, EntryAndExit)},
+		},
 
 		// List of probes required to capture chdir events
 		"chdir": {

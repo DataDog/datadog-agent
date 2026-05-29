@@ -18,7 +18,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
@@ -343,6 +343,7 @@ func (d *AgentDemultiplexer) agentLifecycleEvent(agentVersion string, eventType 
 	}
 
 	return event.Event{
+		Title:          eventType,
 		Text:           "Version " + agentVersion,
 		SourceTypeName: "System",
 		Host:           d.aggregator.hostname,

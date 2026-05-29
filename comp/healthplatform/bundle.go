@@ -22,16 +22,16 @@ import (
 	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
 	egressfx "github.com/DataDog/datadog-agent/comp/healthplatform/egress/fx"
 	forwarderfx "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/fx"
-	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 
-	// Import issue modules to trigger their init() registration.
-	// The bundle is the correct place for side-effect imports; impl packages
-	// must not import other impl packages.
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig"
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions"
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/rofspermissions"
+	// Issue modules register themselves via init(); imported here for side effects.
+	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
+	registryfx "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/fx"
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig"       // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"    // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"      // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions" // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"     // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/rofspermissions"   // registers templates via init()
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	runnerfx "github.com/DataDog/datadog-agent/comp/healthplatform/runner/fx"
 	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
@@ -46,6 +46,7 @@ import (
 // Bundle defines the fx options for the health platform bundle.
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
+		registryfx.Module(),
 		runnerfx.Module(),
 		schedulerfx.Module(),
 		forwarderfx.Module(),
@@ -63,6 +64,7 @@ func Bundle() fxutil.BundleOptions {
 func bootstrapBuiltInHealthChecks(
 	cfg config.Component,
 	logger log.Component,
+	registry registrydef.Component,
 	runner runnerdef.Component,
 	scheduler schedulerdef.Component,
 	store storedef.Component,
@@ -72,7 +74,6 @@ func bootstrapBuiltInHealthChecks(
 	if !cfg.GetBool("health_platform.enabled") {
 		return
 	}
-	registry := buildRegistry(cfg)
 	lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			for _, once := range registry.GetBuiltInStartupHealthChecks() {
@@ -88,8 +89,8 @@ func bootstrapBuiltInHealthChecks(
 					for _, id := range newIDs {
 						newSet[id] = struct{}{}
 					}
-					for _, t := range once.IssueTypes {
-						for _, id := range store.GetActiveIssueIDsByIssueType(t) {
+					for _, t := range once.IssueNames {
+						for _, id := range store.GetActiveIssueIDsByIssueName(t) {
 							if _, still := newSet[id]; !still {
 								store.ResolveIssue(id)
 							}
@@ -99,8 +100,8 @@ func bootstrapBuiltInHealthChecks(
 			}
 			for _, check := range registry.GetBuiltInPeriodicHealthChecks() {
 				var initialIDs []string
-				for _, t := range check.IssueTypes {
-					initialIDs = append(initialIDs, store.GetActiveIssueIDsByIssueType(t)...)
+				for _, t := range check.IssueNames {
+					initialIDs = append(initialIDs, store.GetActiveIssueIDsByIssueName(t)...)
 				}
 				if err := scheduler.Schedule(check.Source, check.Fn, check.Interval, initialIDs); err != nil {
 					logger.Warnf("failed to schedule built-in health check %q: %v", check.Source, err)
@@ -109,15 +110,4 @@ func bootstrapBuiltInHealthChecks(
 			return nil
 		},
 	})
-}
-
-// buildRegistry instantiates all registered modules into a Registry.
-// TODO: this duplicates the registry built inside store.NewComponent (for template
-// lookups). Both will be unified when issues/registry is promoted to an fx component.
-func buildRegistry(cfg config.Component) *issuesmod.Registry {
-	registry := issuesmod.NewRegistry()
-	for _, module := range issuesmod.GetAllModules(cfg) {
-		registry.RegisterModule(module)
-	}
-	return registry
 }
