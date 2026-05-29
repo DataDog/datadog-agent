@@ -7,8 +7,6 @@
 package setup
 
 import (
-	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -17,7 +15,6 @@ import (
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func initCoreAgentFull(config pkgconfigmodel.Setup) {
@@ -599,7 +596,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("external_metrics_provider.split_batches_with_backoff", false)  // Splits batches and runs queries with errors individually with an exponential backoff
 	config.BindEnvAndSetDefault("external_metrics_provider.num_workers", 2)                     // Number of workers spawned by controller (only when CRD is used)
 	config.BindEnvAndSetDefault("external_metrics_provider.max_parallel_queries", 10)           // Maximum number of parallel queries sent to Datadog simultaneously
-	pkgconfigmodel.AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
 	// DatadogInstrumentation controller
 	config.BindEnvAndSetDefault("instrumentation_crd_controller.enabled", false)
 	// Cluster check Autodiscovery
@@ -1000,11 +996,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("appsec.proxy.auto_detect", true)
 	config.BindEnvAndSetDefault("appsec.proxy.proxies", []string{})
 
-	setupProcesses(config)
-
-	// Private Action Runner configuration
-	setupPrivateActionRunner(config)
-
 	// Installer configuration
 	config.BindEnvAndSetDefault("remote_updates", true)
 	config.BindEnvAndSetDefault("installer.mirror", "")
@@ -1118,11 +1109,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.enabled", true)
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.target", "127.0.0.1:8889")
 	config.BindEnvAndSetDefault("hostprofiler.hpflare.port", 7778)
-
-	// Remote Flags system
-	remoteflags(config)
-
-	anomalyDetection(config)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1318,30 +1304,6 @@ func agent(config pkgconfigmodel.Setup) {
 	// Event Management v2 API
 	// https://docs.datadoghq.com/api/latest/events#post-an-event
 	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
-
-	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
-	pkgconfigmodel.AddOverrideFunc(applyInfrastructureModeOverrides)
-	pkgconfigmodel.AddOverrideFunc(ApplyUseDogstatsdSuppression)
-}
-
-// ApplyUseDogstatsdSuppression is a post-load override that, when
-// use_dogstatsd is false, forces data_plane.dogstatsd.enabled to false
-// so the Agent Data Plane process (which reads the latter via the
-// config stream) skips its DogStatsD source. data_plane.enabled is
-// intentionally left alone so other ADP pipelines (e.g. OTLP) keep
-// working independently of the DogStatsD master toggle.
-//
-// It is registered as an override func (runs after datadog.yaml loads) and
-// also called explicitly after fleet policy merging, because fleet policies
-// are applied after the initial override pass.
-//
-// Matches the truth table at
-// https://github.com/DataDog/saluki/issues/1334#issuecomment-4292253054.
-func ApplyUseDogstatsdSuppression(config pkgconfigmodel.Config) {
-	if !config.GetBool("use_dogstatsd") && config.GetBool("data_plane.dogstatsd.enabled") {
-		log.Infof("Forcing data_plane.dogstatsd.enabled=false because use_dogstatsd=false")
-		config.Set("data_plane.dogstatsd.enabled", false, pkgconfigmodel.SourceAgentRuntime)
-	}
 }
 
 func fleet(config pkgconfigmodel.Setup) {
@@ -1451,46 +1413,9 @@ func autoconfig(config pkgconfigmodel.Setup) {
 }
 
 func containerSyspath(config pkgconfigmodel.Setup) {
-	procfsPathDefault := ""
-	containerProcRootDefault := ""
-	containerCgroupRootDefault := ""
-
-	if pkgconfigenv.IsContainerized() {
-		// In serverless-containerized environments (e.g Fargate)
-		// it's impossible to mount host volumes.
-		// Make sure the host paths exist before setting-up the default values.
-		// Fallback to the container paths if host paths aren't mounted.
-		if pathExists("/host/proc") {
-			procfsPathDefault = "/host/proc"
-			containerProcRootDefault = "/host/proc"
-
-			// Used by some librairies (like gopsutil)
-			if v := os.Getenv("HOST_PROC"); v == "" {
-				os.Setenv("HOST_PROC", "/host/proc")
-			}
-		} else {
-			procfsPathDefault = "/proc"
-			containerProcRootDefault = "/proc"
-		}
-		if pathExists("/host/sys/fs/cgroup/") {
-			containerCgroupRootDefault = "/host/sys/fs/cgroup/"
-		} else {
-			containerCgroupRootDefault = "/sys/fs/cgroup/"
-		}
-	} else {
-		containerProcRootDefault = "/proc"
-		// for amazon linux the cgroup directory on host is /cgroup/
-		// we pick memory.stat to make sure it exists and not empty
-		if _, err := os.Stat("/cgroup/memory/memory.stat"); !os.IsNotExist(err) {
-			containerCgroupRootDefault = "/cgroup/"
-		} else {
-			containerCgroupRootDefault = "/sys/fs/cgroup/"
-		}
-	}
-
-	config.BindEnvAndSetDefault("procfs_path", procfsPathDefault)
-	config.BindEnvAndSetDefault("container_proc_root", containerProcRootDefault)
-	config.BindEnvAndSetDefault("container_cgroup_root", containerCgroupRootDefault)
+	config.BindEnvAndSetDefault("procfs_path", "")
+	config.BindEnvAndSetDefault("container_proc_root", "")
+	config.BindEnvAndSetDefault("container_cgroup_root", "")
 	config.BindEnvAndSetDefault("container_pid_mapper", "")
 
 	config.BindEnvAndSetDefault("ignore_host_etc", false)
@@ -1926,8 +1851,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_tagging", true)
 
 	// Number of logs pipeline instances. Defaults to number of logical CPU cores as defined by GOMAXPROCS or 4, whichever is lower.
-	logsPipelines := min(4, runtime.GOMAXPROCS(0))
-	config.BindEnvAndSetDefault("logs_config.pipelines", logsPipelines)
+	config.BindEnvAndSetDefault("logs_config.pipelines", 4)
 
 	// If true, the agent looks for container logs in the location used by podman, rather
 	// than docker.  This is a temporary configuration parameter to support podman logs until
@@ -1997,16 +1921,14 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 // vector integration
 func vector(config pkgconfigmodel.Setup) {
-	bindVectorOptions(config, Metrics)
-	bindVectorOptions(config, Logs)
-}
-
-func bindVectorOptions(config pkgconfigmodel.Setup, datatype string) {
-	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype), false)
-	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.url", datatype), "")
-
-	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
-	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
+	config.BindEnvAndSetDefault("observability_pipelines_worker.metrics.enabled", false)
+	config.BindEnvAndSetDefault("observability_pipelines_worker.metrics.url", "")
+	config.BindEnvAndSetDefault("vector.metrics.enabled", false)
+	config.BindEnvAndSetDefault("vector.metrics.url", "")
+	config.BindEnvAndSetDefault("observability_pipelines_worker.logs.enabled", false)
+	config.BindEnvAndSetDefault("observability_pipelines_worker.logs.url", "")
+	config.BindEnvAndSetDefault("vector.logs.enabled", false)
+	config.BindEnvAndSetDefault("vector.logs.url", "")
 }
 
 func cloudfoundry(config pkgconfigmodel.Setup) {
