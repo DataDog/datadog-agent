@@ -1306,14 +1306,18 @@ func agent(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
 }
 
-// applyDataPlaneDefaults sets ADP-appropriate defaults for config keys that have different
+// ApplyDataPlaneDefaults sets ADP-appropriate defaults for config keys that have different
 // optimal values when the Agent Data Plane is handling metric processing. These defaults are
 // delivered to ADP via the config stream, so a single value in datadog.yaml controls both
 // the agent and ADP. User-provided values (file, env var) always take precedence.
 //
+// It is registered as an override func (runs after datadog.yaml loads) and also called
+// explicitly after fleet policy merging, because fleet policies are applied after the initial
+// override pass and may set data_plane.enabled or data_plane.dogstatsd.enabled.
+//
 // aggregator_tag_filter_cache_capacity: ADP processes significantly higher metric throughput
-// than the core agent aggregator, so it benefits from a larger dedup cache (100,000 vs 1,000).
-func applyDataPlaneDefaults(config pkgconfigmodel.Config) {
+// than the core agent aggregator, so it benefits from a larger cache (100,000 vs 1,000).
+func ApplyDataPlaneDefaults(config pkgconfigmodel.Config) {
 	if config.GetBool("data_plane.enabled") && config.GetBool("data_plane.dogstatsd.enabled") {
 		config.Set("aggregator_tag_filter_cache_capacity", 100000, pkgconfigmodel.SourceDefault)
 	}
