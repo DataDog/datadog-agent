@@ -30,6 +30,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadatamodel "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -1487,30 +1488,61 @@ func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 		return fmt.Errorf("failed to read tracer metadata: %w", err)
 	}
 
+	p.applyTracerMetadata(pid, tmeta)
+	return nil
+}
+
+// SnapshotTracer detects whether a pre-existing process (one that started
+// before the agent) is running a Datadog tracer and, if so, populates the
+// user-space tracer metadata and the kernel-side offset maps (go_labels_procs
+// or otel_tls) the same way the runtime tracer_memfd_seal event handler does.
+//
+// Called from the startup snapshot for every pid; processes without a tracer
+// memfd return cheaply via the GetTracerMetadata error path.
+func (p *EBPFResolver) SnapshotTracer(pid uint32) {
+	// Only do the (mildly expensive) /proc/<pid>/fd scan for pids that
+	// SyncCache actually entered into the cache — anything else can't be
+	// updated downstream anyway.
+	p.RLock()
+	hasEntry := p.entryCache[pid] != nil
+	p.RUnlock()
+	if !hasEntry {
+		return
+	}
+
+	tmeta, err := tracermetadata.GetTracerMetadata(int(pid), kernel.HostProc())
+	if err != nil {
+		// The common case for non-tracer processes — silent.
+		return
+	}
+
+	p.applyTracerMetadata(pid, tmeta)
+}
+
+// applyTracerMetadata stores tracer metadata on the process cache entry and
+// resolves the language-appropriate offset map (Go pprof labels or native
+// OTel TLS). Must be called WITHOUT the resolver lock held; ELF I/O happens
+// outside the lock.
+func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel.TracerMetadata) {
 	p.Lock()
-	entry := p.entryCache[pid]
-	if entry != nil {
+	if entry := p.entryCache[pid]; entry != nil {
 		entry.Tracer.Metadata = tmeta
 	}
 	p.Unlock()
 
-	// Attempt span context resolution based on the tracer language.
-	// Done outside the lock to avoid holding it during ELF I/O.
 	if tmeta.TracerLanguage == "go" {
 		// Go: resolve pprof label offsets for goroutine-level span context.
 		if err := p.resolveGoLabels(pid); err != nil {
 			seclog.Debugf("Go labels resolution for pid %d: %s", pid, err)
 		}
-	} else {
-		// Native: resolve OTel TLS symbol for TLSDESC-based span context.
-		if p.otelTLSMap != nil {
-			if err := p.resolveAndUpdateOTelTLS(pid, tmeta.TracerLanguage); err != nil {
-				seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
-			}
+		return
+	}
+	// Native: resolve OTel TLS symbol for TLSDESC-based span context.
+	if p.otelTLSMap != nil {
+		if err := p.resolveAndUpdateOTelTLS(pid, tmeta.TracerLanguage); err != nil {
+			seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
 		}
 	}
-
-	return nil
 }
 
 // resolveAndUpdateOTelTLS resolves the OTel TLS symbol from the process's ELF
