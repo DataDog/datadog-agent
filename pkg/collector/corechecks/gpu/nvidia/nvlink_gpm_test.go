@@ -63,7 +63,7 @@ func TestNVLinkGPMCollectorGetOrCreateGpmCollectorRejectsOutOfRangePort(t *testi
 		perPortCollector: make(map[int]*gpmCollector),
 	}
 
-	gpmCollector, err := collector.getOrCreateGpmCollector(maxNvlinkPorts)
+	gpmCollector, err := collector.getOrCreateGpmCollector(maxNvlinkPorts + 1)
 	require.Nil(t, gpmCollector)
 	require.ErrorIs(t, err, errUnsupportedDevice)
 	require.ErrorContains(t, err, "port 18 is out of range")
