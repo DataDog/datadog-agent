@@ -32,6 +32,7 @@ type trapForwarder struct {
 	sender    sender.Sender
 	stopChan  chan struct{}
 	logger    log.Component
+	extraTags []string
 }
 
 // Requires defines the dependencies for the forwarder component.
@@ -57,14 +58,15 @@ func NewComponent(dep Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
+	conf := dep.Config.Get()
 	tf := &trapForwarder{
 		trapsIn:   dep.Listener.Packets(),
 		formatter: dep.Formatter,
 		sender:    sender,
 		stopChan:  make(chan struct{}, 1),
 		logger:    dep.Logger,
+		extraTags: conf.Tags,
 	}
-	conf := dep.Config.Get()
 	if conf.Enabled {
 		dep.Lc.Append(compdef.Hook{
 			OnStart: func(_ context.Context) error {
@@ -119,6 +121,6 @@ func (tf *trapForwarder) sendTrap(packet *packet.SnmpPacket) {
 		return
 	}
 	tf.logger.Tracef("send trap payload: %s", string(data))
-	tf.sender.Count("datadog.snmp_traps.forwarded", 1, "", packet.GetTags())
+	tf.sender.Count("datadog.snmp_traps.forwarded", 1, "", append(packet.GetTags(), tf.extraTags...))
 	tf.sender.EventPlatformEvent(data, eventplatform.EventTypeSnmpTraps)
 }

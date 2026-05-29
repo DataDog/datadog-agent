@@ -100,13 +100,6 @@ func newTrapListener(lc compdef.Lifecycle, dep dependencies) (listener.Component
 		status:        dep.Status,
 	}
 
-	// One-shot warning at startup for any custom tags that exceed the sanity
-	// length limit. They are still emitted with each trap — the user controls
-	// these values via YAML — but the log surfaces the misconfiguration.
-	if oversized := cfg.OversizedTags(); len(oversized) > 0 {
-		dep.Logger.Warnf("network_devices.snmp_traps.tags has %d entries exceeding the recommended length of %d characters; they will still be emitted with traps but may indicate a misconfiguration: %v", len(oversized), 200, oversized)
-	}
-
 	gosnmpListener.OnNewTrap = tl.receiveTrap
 	if cfg.Enabled {
 		lc.Append(compdef.Hook{
@@ -174,8 +167,8 @@ func (t *trapListener) stop() error {
 }
 
 func (t *trapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-	pkt := &packet.SnmpPacket{Content: p, Addr: u, Timestamp: time.Now().UnixMilli(), Namespace: t.config.Namespace, Tags: t.config.Tags}
-	tags := pkt.GetTags()
+	pkt := &packet.SnmpPacket{Content: p, Addr: u, Timestamp: time.Now().UnixMilli(), Namespace: t.config.Namespace}
+	tags := append(pkt.GetTags(), t.config.Tags...)
 
 	t.sender.Count("datadog.snmp_traps.received", 1, "", tags)
 

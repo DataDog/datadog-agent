@@ -4543,6 +4543,22 @@ properties:
               Binds to 0.0.0.0 by default (accepting all packets).
             tags:
             - template_section:CoreAgent
+          tags:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            visibility: public
+            description: |-
+              A list of tags to attach to every trap forwarded to Datadog and to every
+              SNMP traps telemetry metric emitted by the Agent.
+            example: |2-
+
+                - "application:my-app"
+                - "team:netops"
+            tags:
+            - template_section:CoreAgent
           stop_timeout:
             node_type: setting
             type: integer

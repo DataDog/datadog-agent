@@ -42,43 +42,15 @@ type UserV3 struct {
 // TrapsConfig contains configuration for SNMP trap listeners.
 // YAML field tags provided for test marshalling purposes.
 type TrapsConfig struct {
-	Enabled          bool     `mapstructure:"enabled" yaml:"enabled"`
-	Port             uint16   `mapstructure:"port" yaml:"port"`
-	Users            []UserV3 `mapstructure:"users" yaml:"users"`
-	CommunityStrings []string `mapstructure:"community_strings" yaml:"community_strings"`
-	BindHost         string   `mapstructure:"bind_host" yaml:"bind_host"`
-	StopTimeout      int      `mapstructure:"stop_timeout" yaml:"stop_timeout"`
-	Namespace        string   `mapstructure:"namespace" yaml:"namespace"`
-	// Tags is an optional list of user-supplied tags (e.g. "application:foo")
-	// appended to every trap emitted by the listener. Tags are appended after
-	// the built-in tags (snmp_version, device_namespace, snmp_device) so
-	// dashboards/monitors that key on the existing tag prefixes are unaffected.
-	// Note: these tags also propagate to the listener's telemetry metrics
-	// (datadog.snmp_traps.*); avoid high-cardinality values.
+	Enabled               bool     `mapstructure:"enabled" yaml:"enabled"`
+	Port                  uint16   `mapstructure:"port" yaml:"port"`
+	Users                 []UserV3 `mapstructure:"users" yaml:"users"`
+	CommunityStrings      []string `mapstructure:"community_strings" yaml:"community_strings"`
+	BindHost              string   `mapstructure:"bind_host" yaml:"bind_host"`
+	StopTimeout           int      `mapstructure:"stop_timeout" yaml:"stop_timeout"`
+	Namespace             string   `mapstructure:"namespace" yaml:"namespace"`
 	Tags                  []string `mapstructure:"tags" yaml:"tags"`
 	authoritativeEngineID string   `mapstructure:"-" yaml:"-"`
-}
-
-// maxTagLength is the maximum length (in characters) of a single custom tag
-// emitted by the traps listener. Tags above this length are accepted but
-// flagged so misconfigured high-cardinality values surface in logs.
-const maxTagLength = 200
-
-// normalizeTags trims whitespace from each tag and drops empty entries, while
-// preserving the user's ordering. Returns the cleaned slice (never nil-only-on-input).
-func normalizeTags(tags []string) []string {
-	if len(tags) == 0 {
-		return tags
-	}
-	out := make([]string, 0, len(tags))
-	for _, t := range tags {
-		t = strings.TrimSpace(t)
-		if t == "" {
-			continue
-		}
-		out = append(out, t)
-	}
-	return out
 }
 
 // ReadConfig builds the traps configuration from the Agent configuration.
@@ -130,25 +102,16 @@ func (c *TrapsConfig) SetDefaults(host string, namespace string) error {
 		return fmt.Errorf("invalid config: %w", err)
 	}
 
-	c.Tags = normalizeTags(c.Tags)
-
-	return nil
-}
-
-// OversizedTags returns any custom tags exceeding maxTagLength. Used by callers
-// (the listener) to emit a one-shot warning at agent start. Returned tags are
-// returned in user-declared order; the slice is never nil-only-on-input.
-func (c *TrapsConfig) OversizedTags() []string {
-	if len(c.Tags) == 0 {
-		return nil
-	}
-	var bad []string
+	cleaned := c.Tags[:0]
 	for _, t := range c.Tags {
-		if len(t) > maxTagLength {
-			bad = append(bad, t)
+		t = strings.TrimSpace(t)
+		if t != "" {
+			cleaned = append(cleaned, t)
 		}
 	}
-	return bad
+	c.Tags = cleaned
+
+	return nil
 }
 
 // Addr returns the host:port address to listen on.

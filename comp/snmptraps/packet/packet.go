@@ -17,28 +17,19 @@ type SnmpPacket struct {
 	Content   *gosnmp.SnmpPacket
 	Addr      *net.UDPAddr
 	Namespace string
-	// Tags are user-supplied tags from the listener config. Appended after the
-	// built-in tags by GetTags(); empty/nil means "no extra tags."
-	Tags      []string
 	Timestamp int64
 }
 
 // PacketsChannel is the type of channels of trap packets.
 type PacketsChannel = chan *SnmpPacket
 
-// GetTags returns a list of tags associated to an SNMP trap packet. The built-in
-// tags (snmp_version, device_namespace, snmp_device) always come first, in that
-// order; any user-supplied Tags are appended afterwards in their declared order.
+// GetTags returns a list of tags associated to an SNMP trap packet.
 func (p *SnmpPacket) GetTags() []string {
-	tags := []string{
+	return []string{
 		"snmp_version:" + formatVersion(p.Content),
 		"device_namespace:" + p.Namespace,
 		"snmp_device:" + p.Addr.IP.String(),
 	}
-	if len(p.Tags) > 0 {
-		tags = append(tags, p.Tags...)
-	}
-	return tags
 }
 
 func formatVersion(packet *gosnmp.SnmpPacket) string {
