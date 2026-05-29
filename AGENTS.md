@@ -230,9 +230,7 @@ Secondary CI: pull-request/repository-configuration checks and release automatio
 
 ### Contributing
 PRs should follow `.github/PULL_REQUEST_TEMPLATE.md` and the guidelines in
-`docs/public/guidelines/` (contributing, coding style, components, etc.). When
-a PR changes behavior, configuration options, or APIs, update the corresponding
-documentation in the same PR — not as a follow-up.
+`docs/public/guidelines/` (contributing, coding style, components, etc.).
 
 ## Code Review
 
