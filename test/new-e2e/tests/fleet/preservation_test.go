@@ -50,7 +50,7 @@ func newPreservationSuite() e2e.Suite[environments.Host] {
 // All tests in this suite exercise Linux-specific behaviors (file ownership, pip install paths,
 // chown correctness) that are not applicable on Windows.
 func TestFleetIntegrationPreservation(t *testing.T) {
-	suite.Run(t, newPreservationSuite, suite.LinuxPlatforms)
+	suite.Run(t, newPreservationSuite, suite.Platforms())
 }
 
 // snapshotIntegrationState dumps the on-host state that determines whether
@@ -309,6 +309,9 @@ func (s *preservationSuite) TestIntegrationPreservationStableToOCIExperiment() {
 // and asserts that the restored integration files are owned by dd-agent in both the
 // experiment and stable locations.
 func (s *preservationSuite) runIntegrationOwnershipTest(installUser, label string) {
+	if s.Env().RemoteHost.OSFamily != e2eos.LinuxFamily {
+		s.T().Skip("ownership checks require Linux: InstallIntegrationAs and find -printf are not available on other platforms")
+	}
 	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
 	s.snapshotIntegrationState(label + ": after MustInstall (released OCI stable)")
