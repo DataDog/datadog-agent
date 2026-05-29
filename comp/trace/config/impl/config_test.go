@@ -443,6 +443,23 @@ func TestConfigHostname(t *testing.T) {
 			assert.Equal(t, "fallback.host", cfg.Hostname)
 		})
 
+		t.Run("empty+disallowed+containerized", func(t *testing.T) {
+			defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
+			osHostnameUsableFunc = func(_ context.Context) bool { return false }
+
+			bin := makeProgram(t, "", 0)
+			defer os.Remove(bin)
+
+			cfg := buildConfigComponent(t, false).Object()
+			require.NotNil(t, cfg)
+
+			cfg.DDAgentBin = bin
+			cfg.Features = map[string]struct{}{"disable_empty_hostname": {}}
+			err := acquireHostnameFallback(cfg)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "container UTS namespace")
+		})
+
 		t.Run("fallback1", func(t *testing.T) {
 			bin := makeProgram(t, "", 1)
 			defer os.Remove(bin)
@@ -699,6 +716,19 @@ func TestAcquireHostnameFallback(t *testing.T) {
 	assert.Nil(t, err)
 	host, _ := os.Hostname()
 	assert.Equal(t, host, c.Hostname)
+}
+
+func TestAcquireHostnameFallbackContainerized(t *testing.T) {
+	defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
+	osHostnameUsableFunc = func(_ context.Context) bool { return false }
+
+	t.Run("binary_fails", func(t *testing.T) {
+		c := traceconfig.New()
+		c.DDAgentBin = "/not/exist"
+		err := acquireHostnameFallback(c)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "Set DD_HOSTNAME")
+	})
 }
 
 func TestNormalizeEnvFromDDEnv(t *testing.T) {

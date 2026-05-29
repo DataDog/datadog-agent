@@ -22,12 +22,19 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
+	hostnamepkg "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // fallbackHostnameFunc specifies the function to use for obtaining the hostname
 // when it can not be obtained by any other means. It is replaced in tests.
 var fallbackHostnameFunc = os.Hostname
+
+// osHostnameUsableFunc reports whether os.Hostname() is trustworthy in the
+// current environment. It is replaced in tests.
+var osHostnameUsableFunc = func(ctx context.Context) bool {
+	return hostnamepkg.OsHostnameUsable(ctx)
+}
 
 func hostname(c *config.AgentConfig) error {
 	// no user-set hostname, try to acquire
@@ -90,6 +97,15 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 		}
 		// There was either an error retrieving the hostname from the core agent, or
 		// it was empty and its disallowed by the disable_empty_hostname feature flag.
+		if !osHostnameUsableFunc(context.Background()) {
+			// In a container, os.Hostname() returns the container/pod name, not the
+			// node hostname. Fail so the orchestrator can restart and retry once the
+			// core agent is healthy.
+			if err != nil {
+				return fmt.Errorf("couldn't get hostname from core agent at %q: %v. Set DD_HOSTNAME or hostname in the agent config", c.DDAgentBin, err)
+			}
+			return errors.New("core agent returned empty hostname and os.Hostname() is not usable in this environment (container UTS namespace). Set DD_HOSTNAME or hostname in the agent config")
+		}
 		host, err2 := fallbackHostnameFunc()
 		if err2 != nil {
 			return fmt.Errorf("couldn't get hostname from agent (%q), nor from OS (%q). Try specifying it by means of config or the DD_HOSTNAME env var", err, err2)
