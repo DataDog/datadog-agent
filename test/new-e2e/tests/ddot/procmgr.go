@@ -26,7 +26,8 @@ const (
 	procmgrConfigName  = "datadog-agent-ddot.yaml"
 	procmgrSocket      = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
 
-	ddotSystemdUnit = "datadog-agent-ddot.service"
+	ddotSystemdUnit    = "datadog-agent-ddot.service"
+	ddotSystemdUnitExp = "datadog-agent-ddot-exp.service"
 )
 
 // AssertDDOTManagedByProcmgr verifies extension DDOT is supervised by dd-procmgrd.
@@ -40,7 +41,7 @@ func AssertDDOTManagedByProcmgr(t *testing.T, host *components.RemoteHost) {
 	_, err = host.Execute("test -f " + procmgrConfigPath(installRoot))
 	require.NoError(t, err, "procmgr config should exist at %s", procmgrConfigPath(installRoot))
 
-	assertSystemdUnitNotActive(t, host)
+	assertSystemdUnitsNotActive(t, host)
 	assertManagedByProcmgr(t, host, installRoot)
 }
 
@@ -131,12 +132,14 @@ func assertNotManagedByProcmgr(t *testing.T, host *components.RemoteHost, instal
 	}, 2*time.Minute, 5*time.Second)
 }
 
-func assertSystemdUnitNotActive(t *testing.T, host *components.RemoteHost) {
+func assertSystemdUnitsNotActive(t *testing.T, host *components.RemoteHost) {
 	t.Helper()
-	out, err := host.Execute("systemctl is-active " + ddotSystemdUnit + " 2>/dev/null || true")
-	require.NoError(t, err)
-	assert.NotEqual(t, "active", strings.TrimSpace(out),
-		"%s should not be active when DDOT is managed by procmgr", ddotSystemdUnit)
+	for _, unit := range []string{ddotSystemdUnit, ddotSystemdUnitExp} {
+		out, err := host.Execute("systemctl is-active " + unit + " 2>/dev/null || true")
+		require.NoError(t, err)
+		assert.NotEqual(t, "active", strings.TrimSpace(out),
+			"%s should not be active when DDOT is managed by procmgr", unit)
+	}
 }
 
 func procmgrFieldValue(output, label string) string {
