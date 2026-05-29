@@ -63,11 +63,11 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		LastUpdated: defaultVersion,
 	}
 	prefixedAPPKeyReplacer := Replacer{
-		Regex: regexp.MustCompile(`ddapp_[a-zA-Z0-9]{28}_[a-zA-Z0-9]([a-zA-Z0-9]{4})`),
+		Regex: regexp.MustCompile(`ddapp_[a-zA-Z0-9_]{30}([a-zA-Z0-9_]{4})`),
 		Hints: []string{"ddapp_"},
 		Repl:  []byte(`************************************$1`),
 
-		LastUpdated: parseVersion("7.78.0"),
+		LastUpdated: parseVersion("7.78.5"),
 	}
 
 	// replacers are check one by one in order. We first try to scrub 64 bytes token, keeping the last 5 digit. If
