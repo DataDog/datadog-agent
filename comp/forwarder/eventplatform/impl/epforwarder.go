@@ -192,6 +192,14 @@ func Diagnose(teamDescs ...eventplatform.PipelineDesc) []diagnose.Diagnosis {
 			log.Debugf("Skipping diagnosis for event-management-intake because it does not support the empty payload")
 			continue
 		}
+		if desc.eventType == eventplatform.EventTypeDoQueryResults {
+			log.Debugf("Skipping diagnosis for data-obs-intake query-actions because it does not support the empty payload")
+			continue
+		}
+		if desc.eventType == eventplatform.EventTypeKubeActions {
+			log.Debugf("Skipping diagnosis for kubeactions-intake because it does not support the empty payload")
+			continue
+		}
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, cfg)
 		// Use ForDiagnostic variant to avoid registering config update callbacks
 		// since these endpoints are transient and will be discarded after the diagnostic check
