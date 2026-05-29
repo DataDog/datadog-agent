@@ -130,6 +130,8 @@ func (b *orderedBTFLoader) loadRemoteConfig(ctx context.Context) (*returnBTF, er
 				errorTags = append(errorTags, "timeout")
 			} else if errors.Is(err, errBTFNotInCatalog) {
 				errorTags = append(errorTags, "not_in_catalog")
+			} else if errors.Is(err, errBTFCatalogUnmarshal) {
+				errorTags = append(errorTags, "catalog_unmarshal")
 			} else if errors.Is(err, errBTFHashMismatch) {
 				errorTags = append(errorTags, "hash_mismatch")
 			} else if errors.Is(err, errBTFDownload) {
