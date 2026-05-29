@@ -2050,6 +2050,8 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.rrcf.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.scanmw.enabled", false)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.scanwelch.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.holt_residual.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.tukey_biweight.enabled", false)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.cross_signal.enabled", false)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.min_cluster_size", 0)
