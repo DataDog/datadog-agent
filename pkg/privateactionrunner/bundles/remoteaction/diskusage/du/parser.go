@@ -185,7 +185,9 @@ func parseInto(record []byte, recordSize int, entry *mftEntry, mode parseMode) (
 	if binary.LittleEndian.Uint32(record[0:4]) != mftSignature {
 		return 0, errBadSignature
 	}
-	applyFixups(record, recordSize)
+	if err := applyFixups(record, recordSize); err != nil {
+		return 0, err
+	}
 
 	flags := binary.LittleEndian.Uint16(record[0x16:0x18])
 	firstAttrOffset := binary.LittleEndian.Uint16(record[0x14:0x16])
@@ -362,15 +364,58 @@ func parseNonResidentData(attr []byte, entry *mftEntry) {
 // Multi-sector transfer protection (fixups)
 // -------------------------------------------------------------------------
 
-// applyFixups repairs the multi-sector transfer protection in an MFT record.
-// NTFS writes a 2-byte fixup at the end of each 512-byte sector and stores
-// the original values in the fixup array; we restore them in place.
-func applyFixups(record []byte, recordSize int) {
+// errTornWrite is returned by applyFixups when a sector-end USN does not
+// match the header USN, indicating the write that produced this record
+// did not complete atomically. The record's content is in an
+// indeterminate state and must not be parsed.
+var errTornWrite = errors.New("torn write detected (USN mismatch)")
+
+// applyFixups validates the multi-sector transfer protection on an MFT
+// record and restores the original sector-end bytes in place.
+//
+// NTFS writes records sector-by-sector. At write time it places a USN at
+// the last 2 bytes of every 512-byte sector (overwriting the real
+// content) and stashes the original bytes in the update sequence array
+// at the start of the record. On read we must:
+//
+//  1. Validate that every sector-end still equals the USN. A mismatch
+//     means the write was torn (process / power interrupted mid-write)
+//     and the sector contents are unreliable.
+//  2. Restore the original bytes from the USA back to the sector ends,
+//     so the parser sees the record's real content rather than the USN.
+//
+// Without step 2 the parser reads USN garbage at every 512-byte boundary;
+// without step 1 we silently parse a partially-written record. Matches
+// what the in-kernel NTFS driver does at the file API layer.
+func applyFixups(record []byte, recordSize int) error {
 	fixupOffset := binary.LittleEndian.Uint16(record[4:6])
 	fixupCount := binary.LittleEndian.Uint16(record[6:8])
 	if fixupCount < 2 || int(fixupOffset)+int(fixupCount)*2 > recordSize {
-		return
+		return nil
 	}
+
+	// First word of the USA is the USN; the remaining words are the saved
+	// original bytes for each sector.
+	usn0 := record[int(fixupOffset)]
+	usn1 := record[int(fixupOffset)+1]
+
+	// Pass 1: USN validation. Walk every sector and confirm its trailing
+	// 2 bytes still equal the header USN. If any sector fails, the write
+	// did not complete atomically and we must reject the record before
+	// touching its content.
+	for i := uint16(1); i < fixupCount; i++ {
+		sectorEnd := int(i)*512 - 2
+		if sectorEnd+2 > recordSize {
+			break
+		}
+		if record[sectorEnd] != usn0 || record[sectorEnd+1] != usn1 {
+			return errTornWrite
+		}
+	}
+
+	// Pass 2: restore. Copy the saved bytes from the USA back to each
+	// sector end. Cannot be folded into pass 1 because step 1 must
+	// complete (verify all sectors are intact) before we mutate anything.
 	for i := uint16(1); i < fixupCount; i++ {
 		sectorEnd := int(i)*512 - 2
 		if sectorEnd+2 > recordSize {
@@ -383,4 +428,5 @@ func applyFixups(record []byte, recordSize int) {
 		record[sectorEnd] = record[fvOff]
 		record[sectorEnd+1] = record[fvOff+1]
 	}
+	return nil
 }

@@ -441,13 +441,60 @@ func TestApplyFixups_RestoresSectorEnds(t *testing.T) {
 	binary.LittleEndian.PutUint16(buf[0x1FE:0x200], 0xCAFE)
 	binary.LittleEndian.PutUint16(buf[0x3FE:0x400], 0xCAFE)
 
-	applyFixups(buf, testRecordSize)
+	if err := applyFixups(buf, testRecordSize); err != nil {
+		t.Fatalf("applyFixups: %v", err)
+	}
 
 	if got := binary.LittleEndian.Uint16(buf[0x1FE:0x200]); got != 0xDEAD {
 		t.Errorf("sector 1 end = 0x%X, want 0xDEAD", got)
 	}
 	if got := binary.LittleEndian.Uint16(buf[0x3FE:0x400]); got != 0xBEEF {
 		t.Errorf("sector 2 end = 0x%X, want 0xBEEF", got)
+	}
+}
+
+func TestApplyFixups_DetectsTornWrite(t *testing.T) {
+	build := func() []byte {
+		buf := make([]byte, testRecordSize)
+		binary.LittleEndian.PutUint32(buf[0:4], mftSignature)
+		binary.LittleEndian.PutUint16(buf[4:6], 0x30) // USA offset
+		binary.LittleEndian.PutUint16(buf[6:8], 3)    // USA size: 1 USN + 2 sectors
+		// USN + saved-original bytes for each sector.
+		binary.LittleEndian.PutUint16(buf[0x30:0x32], 0xCAFE) // USN
+		binary.LittleEndian.PutUint16(buf[0x32:0x34], 0xDEAD) // sector 1 original
+		binary.LittleEndian.PutUint16(buf[0x34:0x36], 0xBEEF) // sector 2 original
+		// Both sector ends carry the USN (intact write).
+		binary.LittleEndian.PutUint16(buf[0x1FE:0x200], 0xCAFE)
+		binary.LittleEndian.PutUint16(buf[0x3FE:0x400], 0xCAFE)
+		return buf
+	}
+
+	// Sector 2 was torn (USN replaced with stale/random bytes).
+	torn := build()
+	binary.LittleEndian.PutUint16(torn[0x3FE:0x400], 0xBEEF)
+	if err := applyFixups(torn, testRecordSize); err == nil {
+		t.Error("torn sector 2 was accepted; expected errTornWrite")
+	}
+
+	// Sector 1 was torn.
+	torn1 := build()
+	binary.LittleEndian.PutUint16(torn1[0x1FE:0x200], 0xDEAD)
+	if err := applyFixups(torn1, testRecordSize); err == nil {
+		t.Error("torn sector 1 was accepted; expected errTornWrite")
+	}
+
+	// On detected torn-write, the record buffer must NOT be modified.
+	// Otherwise a caller that ignores the error would still see partially-
+	// restored data.
+	torn2 := build()
+	binary.LittleEndian.PutUint16(torn2[0x3FE:0x400], 0xBEEF)
+	before := make([]byte, len(torn2))
+	copy(before, torn2)
+	_ = applyFixups(torn2, testRecordSize)
+	for i := range before {
+		if before[i] != torn2[i] {
+			t.Fatalf("buffer mutated at offset 0x%X on torn-write detection", i)
+		}
 	}
 }
 

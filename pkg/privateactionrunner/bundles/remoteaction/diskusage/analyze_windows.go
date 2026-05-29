@@ -4,6 +4,7 @@ package com_datadoghq_remoteaction_diskusage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -102,7 +103,7 @@ func (h *AnalyzeHandler) Run(
 	}
 
 	if strings.TrimSpace(in.Target) == "" {
-		return nil, fmt.Errorf("target is required")
+		return nil, errors.New("target is required")
 	}
 
 	mode := in.Mode

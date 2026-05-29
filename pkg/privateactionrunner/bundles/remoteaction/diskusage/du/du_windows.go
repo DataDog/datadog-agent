@@ -1015,7 +1015,9 @@ func getMFTExtents(hVol windows.Handle, vol *volumeInfo) ([]extent, error) {
 	if binary.LittleEndian.Uint32(rec0[0:4]) != mftSignature {
 		return nil, errors.New("record 0 bad signature")
 	}
-	applyFixups(rec0, vol.recordSize)
+	if err := applyFixups(rec0, vol.recordSize); err != nil {
+		return nil, fmt.Errorf("record 0: %w", err)
+	}
 
 	firstAttrOff := int(binary.LittleEndian.Uint16(rec0[0x14:0x16]))
 	var inline []extent
@@ -1080,7 +1082,12 @@ func getMFTExtents(hVol windows.Handle, vol *volumeInfo) ([]extent, error) {
 		if binary.LittleEndian.Uint32(extRec[0:4]) != mftSignature {
 			continue
 		}
-		applyFixups(extRec, vol.recordSize)
+		if err := applyFixups(extRec, vol.recordSize); err != nil {
+			// Torn-write or malformed extension record — skip it.
+			// Some MFT extents may be missing from our list, but a wrong
+			// extent list is preferable to acting on corrupt bytes.
+			continue
+		}
 
 		efa := int(binary.LittleEndian.Uint16(extRec[0x14:0x16]))
 		for off := efa; off+8 <= vol.recordSize; {
