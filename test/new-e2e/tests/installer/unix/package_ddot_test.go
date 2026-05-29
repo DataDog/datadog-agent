@@ -10,9 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
@@ -20,15 +18,8 @@ import (
 
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/ddot"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
-)
-
-const (
-	fleetAgentStableDir    = "/opt/datadog-packages/datadog-agent/stable"
-	procmgrCLIBin          = fleetAgentStableDir + "/embedded/bin/dd-procmgr"
-	ddotProcmgrConfigPath  = fleetAgentStableDir + "/processes.d/datadog-agent-ddot.yaml"
-	ddotProcmgrProcessName = "datadog-agent-ddot"
-	procmgrSocket          = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
 )
 
 type packageDDOTSuite struct {
@@ -98,7 +89,7 @@ func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
 	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
 
 	// Extension DDOT (ext/ddot on the agent package) must run under dd-procmgrd, not datadog-agent-ddot.service.
-	s.assertDDOTManagedByProcmgr()
+	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
 }
 
 func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
@@ -202,7 +193,7 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 	state.AssertUnitsDead(ddotUnit)
 
 	// Extension DDOT (ext/ddot on the agent package) must run under dd-procmgrd, not datadog-agent-ddot.service.
-	s.assertDDOTManagedByProcmgr()
+	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
 }
 
 func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
@@ -217,7 +208,7 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	s.host.Run("sudo datadog-agent otel install --url " + agentPackageURL)
 
 	// Extension DDOT (ext/ddot on the agent package) must run under dd-procmgrd, not datadog-agent-ddot.service.
-	s.assertDDOTManagedByProcmgr()
+	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
 
 	state := s.host.State()
 	s.assertCoreUnits(state, true)
@@ -232,7 +223,7 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
 	state = s.host.State()
 	state.AssertUnitsDead(ddotUnit)
-	s.assertDDOTNotManagedByProcmgr()
+	ddot.AssertDDOTNotManagedByProcmgr(s.T(), s.Env().RemoteHost)
 	s.assertCoreUnits(state, true)
 }
 
@@ -288,78 +279,4 @@ func (s *packageDDOTSuite) assertDDOTUnits(state host.State, oldUnits bool) {
 	}
 
 	s.host.AssertUnitProperty(ddotUnit, "FragmentPath", filepath.Join(systemdPath, ddotUnit))
-}
-
-func (s *packageDDOTSuite) procmgrCLICmd(args string) string {
-	return "sudo -u dd-agent " + procmgrCLIBin + " " + args
-}
-
-func (s *packageDDOTSuite) waitForProcmgrSocket() {
-	s.T().Helper()
-
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		_, err := s.Env().RemoteHost.Execute(s.procmgrCLICmd("status"))
-		assert.NoError(t, err, "procmgr not reachable via %s", procmgrSocket)
-	}, 2*time.Minute, 2*time.Second)
-}
-
-func (s *packageDDOTSuite) assertDDOTManagedByProcmgr() {
-	s.T().Helper()
-
-	state := s.host.State()
-	state.AssertFileExists(procmgrCLIBin, 0755, "dd-agent", "dd-agent")
-
-	s.waitForProcmgrSocket()
-
-	describeCmd := s.procmgrCLICmd("describe " + ddotProcmgrProcessName)
-	var runningSince time.Time
-	const minRunningDuration = 5 * time.Second
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out, err := s.Env().RemoteHost.Execute(describeCmd)
-		if err != nil {
-			assert.Failf(t, "dd-procmgr describe failed", "err: %v\noutput:\n%s",
-				err, strings.TrimSpace(out))
-			return
-		}
-		state := procmgrFieldValue(out, "State")
-		if state != "Running" {
-			runningSince = time.Time{}
-			assert.Equal(t, "Running", state,
-				"DDOT should be running under dd-procmgrd; describe output:\n%s", strings.TrimSpace(out))
-			return
-		}
-		if runningSince.IsZero() {
-			runningSince = time.Now()
-			return
-		}
-		if time.Since(runningSince) < minRunningDuration {
-			return
-		}
-	}, 2*time.Minute, 5*time.Second)
-}
-
-func (s *packageDDOTSuite) assertDDOTNotManagedByProcmgr() {
-	s.T().Helper()
-
-	state := s.host.State()
-	state.AssertPathDoesNotExist(ddotProcmgrConfigPath)
-
-	s.waitForProcmgrSocket()
-
-	describeCmd := s.procmgrCLICmd("describe " + ddotProcmgrProcessName)
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		_, err := s.Env().RemoteHost.Execute(describeCmd)
-		assert.Error(t, err, "dd-procmgr should not manage DDOT after extension removal")
-	}, 2*time.Minute, 5*time.Second)
-}
-
-func procmgrFieldValue(output, label string) string {
-	needle := label + ":"
-	for _, line := range strings.Split(output, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, needle) {
-			return strings.TrimSpace(trimmed[len(needle):])
-		}
-	}
-	return ""
 }
