@@ -164,9 +164,7 @@ Key Bazel macros:
 ## Testing Strategy
 
 ### Unit Tests
-- Go tests run via `dda inv test` (not raw `go test`)
-- Python tests using pytest
-- Run with `dda inv test --targets=<package>`
+Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table above) or `bazel test //pkg/... //comp/...`; Python checks use pytest.
 
 ### End-to-End Tests
 - E2E tests live in `test/new-e2e/tests/` and use the framework in `test/e2e-framework/`
