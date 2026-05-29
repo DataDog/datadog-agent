@@ -4,6 +4,7 @@ package du
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -48,15 +49,40 @@ func requireAdmin(t *testing.T) {
 // Test helpers
 // -------------------------------------------------------------------------
 
-// scanOrSkip runs Scan(target). Requires admin (checked upfront).
+// scanOrSkip runs Scan(target). Requires admin (checked upfront). Skips the
+// test if the environment cannot perform raw MFT reads — e.g. Windows
+// Server Containers whose C: is a filesystem layer that exposes NTFS-shaped
+// volume metadata but rejects raw block reads. CI runs in containers, so
+// these tests are skipped rather than failed there.
 func scanOrSkip(t *testing.T, target string, opts Options) *Result {
 	t.Helper()
 	requireAdmin(t)
 	res, err := Scan(context.Background(), target, opts)
 	if err != nil {
+		if isRawMFTUnsupported(err) {
+			t.Skipf("raw MFT access not supported on this volume (likely a container filesystem): %v", err)
+		}
 		t.Fatalf("Scan: %v", err)
 	}
 	return res
+}
+
+// isRawMFTUnsupported reports whether the error indicates the underlying
+// volume / sandbox does not permit raw MFT access. Maps to:
+//   - ERROR_NOT_SUPPORTED (50) — typical for container filesystem layers
+//   - ERROR_INVALID_FUNCTION (1) — non-NTFS volume (e.g. ReFS)
+//   - ERROR_ACCESS_DENIED (5) — sandbox blocks the volume handle
+func isRawMFTUnsupported(err error) bool {
+	for _, code := range []windows.Errno{
+		windows.ERROR_NOT_SUPPORTED,
+		windows.ERROR_INVALID_FUNCTION,
+		windows.ERROR_ACCESS_DENIED,
+	} {
+		if errors.Is(err, code) {
+			return true
+		}
+	}
+	return false
 }
 
 // flushMetadataToDisk forces NTFS to flush the test file's $DATA, $FILE_NAME,
