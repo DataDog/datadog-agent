@@ -98,3 +98,8 @@ func (ss *safeSender) HistogramBucket(metric string, value int64, lowerBound, up
 func (ss *safeSender) SetCheckCustomTags(tags []string) {
 	ss.Sender.SetCheckCustomTags(cloneTags(tags))
 }
+
+// AppendInfraTags delegates to AppendInfraTags on the underlying sender.
+func (ss *safeSender) AppendInfraTags(tags []string) {
+	ss.Sender.AppendInfraTags(cloneTags(tags))
+}

@@ -42,6 +42,7 @@ type checkSender struct {
 	orchestratorManifestOut chan<- senderOrchestratorManifest
 	eventPlatformOut        chan<- senderEventPlatformEvent
 	checkTags               []string
+	infraTags               []string
 	service                 string
 	noIndex                 bool
 }
@@ -129,6 +130,16 @@ func (s *checkSender) SetCheckCustomTags(tags []string) {
 	s.checkTags = tags
 }
 
+// AppendInfraTags appends tags to the infrastructure-level tags without replacing existing ones.
+func (s *checkSender) AppendInfraTags(tags []string) {
+	if len(tags) == 0 {
+		return
+	}
+	tagsCopy := make([]string, len(tags))
+	copy(tagsCopy, tags)
+	s.infraTags = append(s.infraTags, tagsCopy...)
+}
+
 // SetCheckService appends the service as a tag for metrics, events, and service checks
 // This may be called any number of times, though the only the last call will have an effect
 func (s *checkSender) SetCheckService(service string) {
@@ -184,6 +195,8 @@ func (s *checkSender) sendMetricSample(
 	timestamp float64,
 ) {
 	tags = append(tags, s.checkTags...)
+	// add infra tags for only metrics
+	tags = append(tags, s.infraTags...)
 
 	if log.ShouldLog(log.TraceLvl) {
 		log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
@@ -289,6 +302,8 @@ func (s *checkSender) OpenmetricsBucket(metric string, value int64, lowerBound, 
 
 func (s *checkSender) sendHistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue, multipleBuckets bool) {
 	tags = append(tags, s.checkTags...)
+	// add infra tags for only metrics (same as sendMetricSample)
+	tags = append(tags, s.infraTags...)
 
 	log.Tracef(
 		"Histogram Bucket %s submitted: %v [%f-%f] monotonic: %v for host %s tags: %v",

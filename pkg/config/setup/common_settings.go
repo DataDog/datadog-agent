@@ -1233,6 +1233,9 @@ func agent(config pkgconfigmodel.Setup) {
 	// integration.end_user_device.allowed: empty means all checks are allowed
 	config.BindEnvAndSetDefault("integration.end_user_device.allowed", []string{})
 
+	// integration.cloud_cost_only.tagged: checks to tag when infrastructure_mode=cloud_cost_only (empty means all checks)
+	config.BindEnvAndSetDefault("integration.cloud_cost_only.tagged", []string{})
+
 	// Infrastructure basic mode section [UNDOCUMENTED]
 	// Note: All checks starting with "custom_" are always allowed.
 	// integration.basic.allowed: default allowed checks (internal, should not need user configuration)

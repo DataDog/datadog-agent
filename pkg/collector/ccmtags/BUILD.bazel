@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ccmtags",
+    srcs = ["ccmtags.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/ccmtags",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/check/id",
+        "//pkg/config/model",
+        "//pkg/util/log",
+        "@//pkg/aggregator/sender",
+    ],
+)
+
+go_test(
+    name = "ccmtags_test",
+    srcs = ["ccmtags_test.go"],
+    embed = [":ccmtags"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/collector/check/id",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "@//pkg/aggregator/mocksender",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+    ],
+)
