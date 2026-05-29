@@ -176,7 +176,6 @@ Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table abo
 - Run locally: `dda inv new-e2e-tests.run --targets=./tests/<area>/...`
 
 ### Linting
-- Go: golangci-lint via `dda inv linter.go`
 - Python: various linters via `dda inv linter.python`
 - YAML: yamllint
 - Shell: shellcheck
