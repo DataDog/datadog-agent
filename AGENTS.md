@@ -54,57 +54,16 @@ build the relevant component with `dda inv *.build`.
 
 ### Common Commands
 
-#### Building
-
 ```bash
-# install dda on mac OS
-brew install --cask dda
-
-# Install development tools
-dda inv install-tools
-
-# Build the main agent
-dda inv agent.build --build-exclude=systemd
-
-# Build specific components
-dda inv dogstatsd.build
-dda inv trace-agent.build
-dda inv system-probe.build
-
-# Build specific packages
-bazel build //packages/agent/linux:debian
-
-# Keep BUILD.bazel files in sync with go dependencies
-dda inv tidy
-```
-
-#### Testing
-```bash
-# Run all tests
-dda inv test
-
-# Test specific package
-dda inv test --targets=./pkg/aggregator
-bazel test //pkg/aggregator/...
-
-# Run Go linters
-dda inv linter.go
-
-# Run all linters
-dda inv linter.all
-```
-
-#### Running Locally
-```bash
-# Create dev config with testing API key
-echo "api_key: 0000001" > dev/dist/datadog.yaml
-
-# Run the agent
-./bin/agent/agent run -c bin/agent/dist/datadog.yaml
+dda inv install-tools                                 # one-time: install dev tooling
+dda inv agent.build --build-exclude=systemd           # build the main agent
+dda inv <component>.build                             # build a component (dogstatsd, trace-agent, system-probe, …)
+dda inv linter.all                                    # run all linters
+./bin/agent/agent run -c bin/agent/dist/datadog.yaml  # run the built agent
 ```
 
 ### Development Configuration
-The development configuration file should be placed at `dev/dist/datadog.yaml`. After building, it gets copied to `bin/agent/dist/datadog.yaml`.
+Place the dev config at `dev/dist/datadog.yaml` (e.g. `echo "api_key: 0000001" > dev/dist/datadog.yaml`); after building it is copied to `bin/agent/dist/datadog.yaml`.
 
 ## Key Components
 
