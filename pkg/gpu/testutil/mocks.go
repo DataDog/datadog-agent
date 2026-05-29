@@ -335,6 +335,12 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 	isMIGOrVGPUUnsupported := opts.shouldMarkMIGOrVGPUUnsupported()
 	deviceUUID := opts.parentUUIDs[deviceIdx]
 	deviceMigChildren := opts.migChildUUIDs[deviceIdx]
+	processDataUUID := func() string {
+		if opts.isMIGChild() {
+			return deviceMigChildren[*opts.migChildIndex]
+		}
+		return deviceUUID
+	}
 
 	mock := &nvmlmock.Device{
 		GetNumGpuCoresFunc: func() (int, nvml.Return) {
@@ -404,7 +410,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 		},
 		GetComputeRunningProcessesFunc: func() ([]nvml.ProcessInfo, nvml.Return) {
 			if opts.processDataCallback != nil {
-				proc, ret := opts.processDataCallback(deviceUUID)
+				proc, ret := opts.processDataCallback(processDataUUID())
 				return proc.ProcessInfo(), ret
 			}
 
@@ -600,11 +606,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 				return nil, nvml.ERROR_NOT_FOUND
 			}
 			if opts.processDataCallback != nil {
-				uuid := deviceUUID
-				if opts.isMIGChild() {
-					uuid = deviceMigChildren[*opts.migChildIndex]
-				}
-				processes, ret := opts.processDataCallback(uuid)
+				processes, ret := opts.processDataCallback(processDataUUID())
 				return processes.ProcessUtilizationSamples(), ret
 			}
 
@@ -692,10 +694,10 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			if profile != 0 {
 				return nvml.GpuInstanceProfileInfo{}, nvml.ERROR_INVALID_ARGUMENT
 			}
-			return getGpuInstanceProfileInfo(deviceIdx, max(1, len(opts.migChildUUIDs))), nvml.SUCCESS
+			return getGpuInstanceProfileInfo(deviceIdx, max(1, len(deviceMigChildren))), nvml.SUCCESS
 		},
 		ReadWritePRM_v1Func: func(buffer *nvml.PRMTLV_v1) nvml.Return {
-			if opts.isVGPU() || opts.isMIGMode() || opts.architecture < nvml.DEVICE_ARCH_BLACKWELL {
+			if opts.isVGPU() || opts.isMIGMode() || arch < nvml.DEVICE_ARCH_BLACKWELL {
 				return nvml.ERROR_NOT_SUPPORTED
 			}
 			fillMockPLRPRMResponse(buffer)
@@ -1050,7 +1052,9 @@ func WithDeviceFeatureMode(mode DeviceFeatureMode) NvmlMockOption {
 	case DeviceFeatureMIG:
 		return WithCombinedOptions(
 			WithDeviceCount(1),
-			WithMIGChildUUIDs(MIGChildrenUUIDs),
+			WithMIGChildUUIDs(map[int]map[int]string{
+				0: MIGChildrenUUIDs[DefaultMIGParentDeviceIdx],
+			}),
 			func(o *nvmlMockOptions) {
 				o.deviceOptions.migDisabled = false
 				o.deviceOptions.mode = DeviceFeatureMIG
