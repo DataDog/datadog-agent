@@ -732,16 +732,6 @@ func deepCopyIPNetArr(fieldToCopy []net.IPNet) []net.IPNet {
 	}
 	return copied
 }
-func deepCopybyteArr(fieldToCopy []byte) []byte {
-	if fieldToCopy == nil {
-		return nil
-	}
-	copied := make([]byte, len(fieldToCopy))
-	for i := range fieldToCopy {
-		copied[i] = fieldToCopy[i]
-	}
-	return copied
-}
 func deepCopyExecEvent(fieldToCopy ExecEvent) ExecEvent {
 	copied := ExecEvent{}
 	copied.FileMetadata = deepCopyFileMetadata(fieldToCopy.FileMetadata)
@@ -774,6 +764,16 @@ func deepCopyExitEvent(fieldToCopy ExitEvent) ExitEvent {
 func deepCopyFailedDNSEvent(fieldToCopy FailedDNSEvent) FailedDNSEvent {
 	copied := FailedDNSEvent{}
 	copied.Payload = deepCopybyteArr(fieldToCopy.Payload)
+	return copied
+}
+func deepCopybyteArr(fieldToCopy []byte) []byte {
+	if fieldToCopy == nil {
+		return nil
+	}
+	copied := make([]byte, len(fieldToCopy))
+	for i := range fieldToCopy {
+		copied[i] = fieldToCopy[i]
+	}
 	return copied
 }
 func deepCopyIMDSEvent(fieldToCopy IMDSEvent) IMDSEvent {
