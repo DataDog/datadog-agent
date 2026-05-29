@@ -24,6 +24,7 @@ const (
 	telemetryLogsInFlight   = "observer.logs.in_flight"
 	telemetryLogsIngested   = "observer.logs.ingested"
 	telemetryReportsEmitted = "observer.reports.emitted"
+	telemetryReportsOngoing = "observer.reports.ongoing"
 )
 
 // observerTestSuite is a minimal interface satisfied by all suite types in this

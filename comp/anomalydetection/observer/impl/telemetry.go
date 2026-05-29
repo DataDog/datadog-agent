@@ -20,7 +20,6 @@ const (
 	telemetryProcessedLogSize                = "observer.logs.processed_bytes"                // Total bytes processed from ingested logs.
 	telemetryDroppedLogs                     = "observer.logs.dropped"                        // Number of logs dropped before processing.
 	telemetrySeriesCount                     = "observer.series.count"                        // Number of active non-telemetry observer series.
-	telemetryReportsEmitted                  = "observer.reports.emitted"                     // Number of reports emitted by reporters.
 	telemetryLogsInFlightCount               = "observer.logs.in_flight"                      // Number of logs currently queued/in flight.
 	telemetryStorageSeriesEvicted            = "observer.storage.series_evicted"              // Number of storage series evicted to enforce bounds.
 	telemetryStorageCapacityHit              = "observer.storage.capacity_hit"                // Number of times storage capacity eviction was triggered.
@@ -39,7 +38,6 @@ type observerTelemetry struct {
 	processedLogSize telemetry.Counter
 	droppedLogs      telemetry.Counter
 	seriesCount      telemetry.Gauge
-	reportsEmitted   telemetry.Counter
 	logsInFlight     telemetry.Gauge
 	storageEvicted   telemetry.Counter
 	storageCapHit    telemetry.Counter
@@ -100,12 +98,6 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			nil,
 			"Number of non-telemetry series currently stored in observer storage",
 		),
-		reportsEmitted: telemetryComp.NewCounter(
-			"observer",
-			telemetryReportsEmitted,
-			[]string{"reporter"},
-			"Number of reports emitted by observer reporters",
-		),
 		logsInFlight: telemetryComp.NewGauge(
 			"observer",
 			telemetryLogsInFlightCount,
@@ -138,15 +130,15 @@ func (t *observerTelemetry) recordChannelDropped(source string) {
 }
 
 func (t *observerTelemetry) recordRRCFScore(detectorName string, score float64) {
-	t.rrcfScore.Set(score, "detector:"+detectorName)
+	t.rrcfScore.Set(score, detectorName)
 }
 
 func (t *observerTelemetry) recordRRCFThreshold(detectorName string, threshold float64) {
-	t.rrcfThreshold.Set(threshold, "detector:"+detectorName)
+	t.rrcfThreshold.Set(threshold, detectorName)
 }
 
 func (t *observerTelemetry) recordLogPatternCountDelta(detectorName string, delta float64) {
-	t.logPatternCount.Add(delta, "detector:"+detectorName)
+	t.logPatternCount.Add(delta, detectorName)
 }
 
 func (t *observerTelemetry) recordLogIngested(logSource string, sizeBytes int) {
@@ -182,10 +174,6 @@ func (t *observerTelemetry) initLogsInFlight() {
 
 func (t *observerTelemetry) setSeriesCount(count int) {
 	t.seriesCount.Set(float64(count))
-}
-
-func (t *observerTelemetry) recordReportEmitted(reporter string) {
-	t.reportsEmitted.Add(1, "reporter:"+reporter)
 }
 
 func (t *observerTelemetry) recordStorageSeriesEvicted(reason string, count int) {

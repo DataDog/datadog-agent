@@ -29,6 +29,7 @@ var observerMetricNames = []string{
 	"observer.logs.dropped",
 	telemetrySeriesCount,
 	telemetryReportsEmitted,
+	telemetryReportsOngoing,
 	telemetryLogsInFlight,
 	"observer.storage.series_evicted",
 	"observer.storage.capacity_hit",

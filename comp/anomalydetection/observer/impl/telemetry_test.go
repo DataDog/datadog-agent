@@ -24,7 +24,6 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.decrementLogsInFlight("internal")
 	tel.initLogsInFlight()
 	tel.setSeriesCount(42)
-	tel.recordReportEmitted("stdout_reporter")
 	tel.recordStorageSeriesEvicted("capacity", 3)
 	tel.recordStorageCapacityHit()
 	tel.recordAdvanceSkipped("input")
