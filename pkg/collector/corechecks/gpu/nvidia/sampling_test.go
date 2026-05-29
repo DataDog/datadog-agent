@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -38,12 +37,8 @@ func TestNewSampleCollector(t *testing.T) {
 			name: "Unsupported",
 			customSetup: testutil.WithCombinedOptions(
 				testutil.WithProcessData([]testutil.MockProcessData{}, nvml.ERROR_NOT_SUPPORTED),
-				testutil.WithCustomHook(func(device *mock.Device) {
-					// Make all sampling APIs return ERROR_NOT_SUPPORTED
-					device.GetSamplesFunc = func(_ nvml.SamplingType, _ uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
-						return nvml.ValueType(0), nil, nvml.ERROR_NOT_SUPPORTED
-					}
-				})),
+				testutil.WithSamplesUnsupported(),
+			),
 			expectError:           true,
 			expectedSupportedAPIs: 0, // Not relevant when error expected
 		},

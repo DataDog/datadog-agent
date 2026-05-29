@@ -38,11 +38,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 		return nil, errors.New("failure")
 	}
 
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
-	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache := ddnvml.NewDeviceCache()
-	devices, err := deviceCache.AllPhysicalDevices()
-	require.NoError(t, err)
+	devices := setupMockDevices(t, testutil.WithMIGDisabled())
 	deps := &CollectorDependencies{}
 	collectors, err := buildCollectors(devices, deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory}, nil)
 	require.NotNil(t, collectors)
@@ -133,19 +129,15 @@ func TestAllCollectorsWork(t *testing.T) {
 	// This test doesn't validate the results of the collectors, it only checks that they work with
 	// the basic mock, and we don't have any panics or anything.
 
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+	devices := setupMockDevices(t,
 		testutil.WithMIGDisabled(),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithMockAllFunctions(),
 		testutil.WithArchitecture("blackwell")) // Ensure all functions are marked as supported
 
-	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache := ddnvml.NewDeviceCache()
 	eventsGatherer := NewDeviceEventsGatherer()
 	require.NoError(t, eventsGatherer.Start())
 	t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
-	devices, err := deviceCache.AllPhysicalDevices()
-	require.NoError(t, err)
 
 	deps := &CollectorDependencies{
 		DeviceEventsGatherer: eventsGatherer,
@@ -247,17 +239,13 @@ func TestDisabledCollectors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup NVML mock
-			nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+			devices := setupMockDevices(t,
 				testutil.WithDeviceCount(1),
 				testutil.WithMIGDisabled(),
 				testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 				testutil.WithMockAllFunctions(),
 				testutil.WithArchitecture("blackwell"),
 			)
-			ddnvml.WithMockNVML(t, nvmlMock)
-			deviceCache := ddnvml.NewDeviceCache()
-			devices, err := deviceCache.AllPhysicalDevices()
-			require.NoError(t, err)
 
 			// Setup dependencies
 			eventsGatherer := NewDeviceEventsGatherer()
@@ -301,11 +289,7 @@ func TestDisabledCollectors(t *testing.T) {
 
 func TestDisabledCollectorsWithSystemProbe(t *testing.T) {
 	// Setup NVML mock
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
-	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache := ddnvml.NewDeviceCache()
-	devices, err := deviceCache.AllPhysicalDevices()
-	require.NoError(t, err)
+	devices := setupMockDevices(t, testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
 
 	// Setup dependencies with system-probe cache
 	eventsGatherer := NewDeviceEventsGatherer()

@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
@@ -118,11 +117,7 @@ func TestNVLinkPLRCollectorUnsupportedDevice(t *testing.T) {
 			name: "field API unsupported",
 			customize: []testutil.NvmlMockOption{
 				testutil.WithMockAllFunctions(),
-				testutil.WithCustomHook(func(device *mock.Device) {
-					device.GetFieldValuesFunc = func(_ []nvml.FieldValue) nvml.Return {
-						return nvml.ERROR_NOT_SUPPORTED
-					}
-				}),
+				testutil.WithFieldValuesReturn(nvml.ERROR_NOT_SUPPORTED),
 			},
 		},
 		{

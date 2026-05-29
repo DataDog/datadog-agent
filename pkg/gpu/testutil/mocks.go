@@ -229,13 +229,21 @@ type deviceOptions struct {
 	gpmSupported        *bool
 	nvlinkGeneration    int
 	nvlinkLinkCount     int
-	c2cSupported        bool
 	fieldValues         map[uint32]MockFieldValue
 	scopedFieldValues   map[uint32]map[uint32]MockFieldValue
 	nvlinkStates        []nvml.EnableState
 	nvlinkStateErrors   map[int]nvml.Return
 	migChildUUIDs       map[int]map[int]string
 	parentUUIDs         []string
+
+	fieldValuesReturn  *nvml.Return
+	samplesUnsupported bool
+	processDetailList  *processDetailListResponse
+}
+
+type processDetailListResponse struct {
+	processes []nvml.ProcessDetail_v1
+	ret       nvml.Return
 }
 
 func (o deviceOptions) isMIGChild() bool {
@@ -617,6 +625,9 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}, nvml.SUCCESS
 		},
 		GetSamplesFunc: func(samplingType nvml.SamplingType, lastSeenTimestamp uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
+			if opts.samplesUnsupported {
+				return nvml.VALUE_TYPE_UNSIGNED_INT, nil, nvml.ERROR_NOT_SUPPORTED
+			}
 			if isMIGUnsupported {
 				return nvml.VALUE_TYPE_UNSIGNED_INT, nil, nvml.ERROR_NOT_FOUND
 			}
@@ -632,6 +643,9 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return nvml.VALUE_TYPE_UNSIGNED_INT, samples, nvml.SUCCESS
 		},
 		GetFieldValuesFunc: func(values []nvml.FieldValue) nvml.Return {
+			if opts.fieldValuesReturn != nil {
+				return *opts.fieldValuesReturn
+			}
 			// Emulate monotonically increasing counters for field-based throughput metrics.
 			// Fields collector computes rates from consecutive values, so counters must increase
 			// between runs to emit nvlink.throughput.* metrics.
@@ -639,18 +653,16 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			for i := range values {
 				values[i].Timestamp = int64(time.Now().UnixMilli())
 
-				var value uint64
 				if mockFieldValue := opts.getFieldValue(values[i].FieldId, values[i].ScopeId); mockFieldValue != nil {
-					values[i].NvmlReturn = uint32(mockFieldValue.Return)
-					value = mockFieldValue.Value
-					values[i].ValueType = uint32(mockFieldValue.ValueType)
-				} else {
-					value = fieldValuesCounter + uint64(i)
-					if values[i].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
-						value = uint64(opts.nvlinkLinkCount)
-					}
-					values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_LONG)
+					ApplyMockFieldValue(&values[i], *mockFieldValue)
+					continue
 				}
+
+				value := fieldValuesCounter + uint64(i)
+				if values[i].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
+					value = uint64(opts.nvlinkLinkCount)
+				}
+				values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_LONG)
 
 				var encoded [8]byte
 				binary.LittleEndian.PutUint64(encoded[:], value)
@@ -703,6 +715,20 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			fillMockPLRPRMResponse(buffer)
 			return nvml.SUCCESS
 		},
+	}
+
+	if opts.processDetailList != nil {
+		resp := opts.processDetailList
+		mock.GetRunningProcessDetailListFunc = func() (nvml.ProcessDetailList, nvml.Return) {
+			if resp.ret != nvml.SUCCESS {
+				return nvml.ProcessDetailList{}, resp.ret
+			}
+			list := nvml.ProcessDetailList{NumProcArrayEntries: uint32(len(resp.processes))}
+			if len(resp.processes) > 0 {
+				list.ProcArray = &resp.processes[0]
+			}
+			return list, nvml.SUCCESS
+		}
 	}
 
 	for _, opt := range opts.compatibilityHooks {
@@ -974,6 +1000,30 @@ func WithProcessDataCallback(callback func(uuid string) (MockProcessInfoList, nv
 	}
 }
 
+// WithFieldValuesReturn forces GetFieldValues to return the given code for every call,
+// without populating any field values. Use it to exercise the path where the whole
+// field API fails (distinct from WithUnsupportedFields, which marks individual fields).
+func WithFieldValuesReturn(ret nvml.Return) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions.fieldValuesReturn = &ret
+	}
+}
+
+// WithSamplesUnsupported makes GetSamples return ERROR_NOT_SUPPORTED for all sampling types.
+func WithSamplesUnsupported() NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions.samplesUnsupported = true
+	}
+}
+
+// WithProcessDetailList configures GetRunningProcessDetailList to return the given
+// processes, or the given error code when ret is not nvml.SUCCESS.
+func WithProcessDetailList(processes []nvml.ProcessDetail_v1, ret nvml.Return) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions.processDetailList = &processDetailListResponse{processes: processes, ret: ret}
+	}
+}
+
 func WithCustomHook(hook func(*nvmlmock.Device)) NvmlMockOption {
 	return func(o *nvmlMockOptions) {
 		o.deviceOptions.compatibilityHooks = append(o.deviceOptions.compatibilityHooks, hook)
@@ -1045,28 +1095,26 @@ const (
 func WithDeviceFeatureMode(mode DeviceFeatureMode) NvmlMockOption {
 	switch mode {
 	case DeviceFeaturePhysical:
-		return func(o *nvmlMockOptions) {
-			o.deviceOptions.mode = DeviceFeaturePhysical
-			o.deviceOptions.migDisabled = true
-		}
+		return setMode(DeviceFeaturePhysical, true)
 	case DeviceFeatureMIG:
 		return WithCombinedOptions(
 			WithDeviceCount(1),
 			WithMIGChildUUIDs(map[int]map[int]string{
 				0: MIGChildrenUUIDs[DefaultMIGParentDeviceIdx],
 			}),
-			func(o *nvmlMockOptions) {
-				o.deviceOptions.migDisabled = false
-				o.deviceOptions.mode = DeviceFeatureMIG
-			},
+			setMode(DeviceFeatureMIG, false),
 		)
 	case DeviceFeatureVGPU:
-		return func(o *nvmlMockOptions) {
-			o.deviceOptions.mode = DeviceFeatureVGPU
-			o.deviceOptions.migDisabled = true
-		}
+		return setMode(DeviceFeatureVGPU, true)
 	default:
 		return func(*nvmlMockOptions) {}
+	}
+}
+
+func setMode(mode DeviceFeatureMode, migDisabled bool) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions.mode = mode
+		o.deviceOptions.migDisabled = migDisabled
 	}
 }
 
@@ -1103,7 +1151,6 @@ func WithCapabilities(caps Capabilities) NvmlMockOption {
 		func(o *nvmlMockOptions) {
 			o.deviceOptions.gpmSupported = &caps.GPM
 			o.deviceOptions.nvlinkGeneration = caps.NvLinkGenerationSupported
-			o.deviceOptions.c2cSupported = caps.C2C
 		},
 		WithNVLinkLinkCount(caps.NvLinkLinkCount),
 	}

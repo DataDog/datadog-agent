@@ -254,32 +254,24 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 // TestNVLinkCollector_Initialization tests NVLink collector initialization (migrated from nvlink_test.go)
 func TestNVLinkCollector_Initialization(t *testing.T) {
 	tests := []struct {
-		name        string
-		customSetup func(*mock.Device)
-		wantError   bool
-		wantLinks   int
+		name      string
+		mockOpts  []testutil.NvmlMockOption
+		wantError bool
+		wantLinks int
 	}{
 		{
-			name: "Unsupported device",
-			customSetup: func(device *mock.Device) {
-				device.GetFieldValuesFunc = func(_ []nvml.FieldValue) nvml.Return {
-					return nvml.ERROR_NOT_SUPPORTED
-				}
-			},
+			name:      "Unsupported device",
+			mockOpts:  []testutil.NvmlMockOption{testutil.WithFieldValuesReturn(nvml.ERROR_NOT_SUPPORTED)},
 			wantError: true,
 		},
 		{
-			name: "Unknown error",
-			customSetup: func(device *mock.Device) {
-				device.GetFieldValuesFunc = func(_ []nvml.FieldValue) nvml.Return {
-					return nvml.ERROR_UNKNOWN
-				}
-			},
+			name:      "Unknown error",
+			mockOpts:  []testutil.NvmlMockOption{testutil.WithFieldValuesReturn(nvml.ERROR_UNKNOWN)},
 			wantError: false,
 		},
 		{
 			name: "Success with 4 links",
-			customSetup: func(device *mock.Device) {
+			mockOpts: []testutil.NvmlMockOption{testutil.WithCustomHook(func(device *mock.Device) {
 				device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
 					require.Len(t, values, 1, "Expected one field value for total number of links, got %d", len(values))
 					require.Equal(t, values[0].FieldId, uint32(nvml.FI_DEV_NVLINK_LINK_COUNT), "Expected field ID to be FI_DEV_NVLINK_LINK_COUNT, got %d", values[0].FieldId)
@@ -287,7 +279,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 					testutil.ApplyMockFieldValue(&values[0], testutil.NewFieldValue(4))
 					return nvml.SUCCESS
 				}
-			},
+			})},
 			wantError: false,
 			wantLinks: 4,
 		},
@@ -321,7 +313,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 				}
 			}
 
-			mockDevice := setupMockDevice(t, testutil.WithCustomHook(tt.customSetup))
+			mockDevice := setupMockDevice(t, tt.mockOpts...)
 			c, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 
 			if tt.wantError {
@@ -530,17 +522,7 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 				testutil.WithProcessData(testutil.MockProcessInfoList{
 					{Pid: legacyPid, UsedGpuMemory: legacyMemory},
 				}, nvml.SUCCESS),
-				testutil.WithCustomHook(func(device *mock.Device) {
-					device.GetRunningProcessDetailListFunc = func() (nvml.ProcessDetailList, nvml.Return) {
-						if tt.detailListErr != nvml.SUCCESS {
-							return nvml.ProcessDetailList{}, tt.detailListErr
-						}
-						return nvml.ProcessDetailList{
-							NumProcArrayEntries: 1,
-							ProcArray:           &detailProc,
-						}, nvml.SUCCESS
-					}
-				}),
+				testutil.WithProcessDetailList([]nvml.ProcessDetail_v1{detailProc}, tt.detailListErr),
 			)
 
 			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
@@ -605,17 +587,14 @@ func TestProcessDetailListArchitectureSupport(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
+			detailListRet := nvml.ERROR_ARGUMENT_VERSION_MISMATCH
+			if tt.supported {
+				detailListRet = nvml.SUCCESS
+			}
 			mockDevice := setupMockDevice(t,
 				testutil.WithArchitecture(tt.name),
 				testutil.WithMockAllFunctions(),
-				testutil.WithCustomHook(func(device *mock.Device) {
-					device.GetRunningProcessDetailListFunc = func() (nvml.ProcessDetailList, nvml.Return) {
-						if tt.supported {
-							return nvml.ProcessDetailList{}, nvml.SUCCESS
-						}
-						return nvml.ProcessDetailList{}, nvml.ERROR_ARGUMENT_VERSION_MISMATCH
-					}
-				}))
+				testutil.WithProcessDetailList(nil, detailListRet))
 
 			wmeta := testutil.GetWorkloadMetaMockWithDefaultGPUs(t) // used only to avoid nil pointer dereferences in initialization
 			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{Workloadmeta: wmeta})
