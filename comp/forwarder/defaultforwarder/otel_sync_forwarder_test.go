@@ -222,11 +222,12 @@ func TestOTelSyncForwarder_GetDomainResolvers_NonEmpty(t *testing.T) {
 
 // newTestOTelSyncForwarderWithMRF builds an OTelSyncForwarder with both a primary
 // and an MRF endpoint in the EDS so MRF gating behaviour can be tested.
-func newTestOTelSyncForwarderWithMRF(t *testing.T, client *http.Client, failoverMetrics bool) *OTelSyncForwarder {
+func newTestOTelSyncForwarderWithMRF(t *testing.T, client *http.Client, mrfEnabled, failoverMetrics bool) *OTelSyncForwarder {
 	t.Helper()
 	cfg := configmock.New(t)
 	cfg.Set("api_key", "testapikey0000000000000000000000000", pkgconfigmodel.SourceFile)
 	cfg.Set("dd_url", "https://app.datadoghq.com", pkgconfigmodel.SourceDefault)
+	cfg.Set("multi_region_failover.enabled", mrfEnabled, pkgconfigmodel.SourceFile)
 	cfg.Set("multi_region_failover.failover_metrics", failoverMetrics, pkgconfigmodel.SourceFile)
 	log := logmock.New(t)
 	sec := secretsmock.New(t)
@@ -254,7 +255,7 @@ func TestOTelSyncForwarder_sendHTTPTransactions_SkipsMRFWhenFailoverMetricsDisab
 			w.WriteHeader(http.StatusOK)
 		}),
 	}
-	f := newTestOTelSyncForwarderWithMRF(t, client, false /* failover_metrics disabled */)
+	f := newTestOTelSyncForwarderWithMRF(t, client, true /* enabled */, false /* failover_metrics disabled */)
 
 	payload := transaction.BytesPayloads{
 		transaction.NewBytesPayloadWithoutMetaData([]byte(`{}`)),
@@ -269,6 +270,26 @@ func TestOTelSyncForwarder_sendHTTPTransactions_SkipsMRFWhenFailoverMetricsDisab
 	assert.NotContains(t, requestedHosts[0], "mrf", "MRF domain must not receive traffic when failover_metrics=false")
 }
 
+func TestOTelSyncForwarder_sendHTTPTransactions_SkipsMRFWhenMRFNotEnabled(t *testing.T) {
+	var requestedHosts []string
+	client := &http.Client{
+		Transport: handlerTransport(func(w http.ResponseWriter, r *http.Request) {
+			requestedHosts = append(requestedHosts, r.Host)
+			w.WriteHeader(http.StatusOK)
+		}),
+	}
+	// enabled=false but failover_metrics=true: MRF must still be skipped.
+	f := newTestOTelSyncForwarderWithMRF(t, client, false /* enabled */, true /* failover_metrics */)
+
+	payload := transaction.BytesPayloads{
+		transaction.NewBytesPayloadWithoutMetaData([]byte(`{}`)),
+	}
+	require.NoError(t, f.SubmitV1Series(payload, http.Header{}))
+
+	require.Len(t, requestedHosts, 1, "exactly one request expected when multi_region_failover.enabled=false")
+	assert.NotContains(t, requestedHosts[0], "mrf", "MRF domain must not receive traffic when enabled=false")
+}
+
 func TestOTelSyncForwarder_sendHTTPTransactions_SendsMRFWhenFailoverMetricsEnabled(t *testing.T) {
 	var requestedHosts []string
 	client := &http.Client{
@@ -277,7 +298,7 @@ func TestOTelSyncForwarder_sendHTTPTransactions_SendsMRFWhenFailoverMetricsEnabl
 			w.WriteHeader(http.StatusOK)
 		}),
 	}
-	f := newTestOTelSyncForwarderWithMRF(t, client, true /* failover_metrics enabled */)
+	f := newTestOTelSyncForwarderWithMRF(t, client, true /* enabled */, true /* failover_metrics enabled */)
 
 	payload := transaction.BytesPayloads{
 		transaction.NewBytesPayloadWithoutMetaData([]byte(`{}`)),
@@ -292,5 +313,5 @@ func TestOTelSyncForwarder_sendHTTPTransactions_SendsMRFWhenFailoverMetricsEnabl
 			mrfHits++
 		}
 	}
-	assert.Equal(t, 1, mrfHits, "MRF domain should receive exactly one request when failover_metrics=true")
+	assert.Equal(t, 1, mrfHits, "MRF domain should receive exactly one request when both MRF flags are true")
 }
