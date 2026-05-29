@@ -97,12 +97,17 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, fmt.Errorf("lookback: init store: %w", err)
 	}
 
+	checkNames := reqs.Config.GetStringSlice("lookback.checks")
+	checkInterval := reqs.Config.GetDuration("lookback.check_interval")
+
 	comp := &component{
-		store:      store,
-		ctxFile:    ctxFile,
-		log:        reqs.Log,
-		serializer: reqs.Demultiplexer.Serializer(),
-		hostname:   reqs.Hostname.GetSafe(context.Background()),
+		store:         store,
+		ctxFile:       ctxFile,
+		log:           reqs.Log,
+		serializer:    reqs.Demultiplexer.Serializer(),
+		hostname:      reqs.Hostname.GetSafe(context.Background()),
+		checkNames:    checkNames,
+		checkInterval: checkInterval,
 	}
 
 	var (
@@ -112,6 +117,14 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	reqs.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
+			// Start the independent check runner (if configured).
+			reqs.Log.Infof("lookback: check runner config: checks=%v interval=%s",
+				comp.checkNames, comp.checkInterval)
+			comp.checkRunner = newLookbackCheckRunner(
+				comp.checkNames, comp.checkInterval,
+				comp.store, comp.ctxFile, comp.log,
+			)
+
 			reqs.Log.Infof("lookback: subscribing to %d metric hook(s)", len(reqs.MetricHooks))
 			pool := &sync.Pool{New: func() any {
 				return make([]hook.MetricSampleSnapshot, 0, 64)
@@ -142,6 +155,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			for _, u := range us {
 				u()
 			}
+			comp.checkRunner.stop()
 			if err := store.stop(ctx); err != nil {
 				return err
 			}
@@ -164,11 +178,14 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 // component is the enabled implementation of lookback.Component.
 type component struct {
-	store      *shardedStore
-	ctxFile    *contextFile
-	log        log.Component
-	serializer pkgserializer.MetricSerializer
-	hostname   string
+	store         *shardedStore
+	ctxFile       *contextFile
+	log           log.Component
+	serializer    pkgserializer.MetricSerializer
+	hostname      string
+	checkNames    []string
+	checkInterval time.Duration
+	checkRunner   *lookbackCheckRunner
 }
 
 func (c *component) onSamples(samples []hook.MetricSampleSnapshot) {

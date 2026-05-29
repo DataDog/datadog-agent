@@ -1587,6 +1587,11 @@ func aggregator(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("lookback.max_age", time.Duration(24*time.Hour))
 	config.BindEnvAndSetDefault("lookback.max_disk_bytes", int64(1024*1024*1024))
 	config.BindEnvAndSetDefault("lookback.write_buffer_size", 64*1024)
+	// Independent check runner: list of core check names to run inside the lookback
+	// component at a custom interval (e.g. ["cpu", "memory", "load"]).
+	// Empty list (default) disables the runner.
+	config.BindEnvAndSetDefault("lookback.checks", []string{})
+	config.BindEnvAndSetDefault("lookback.check_interval", time.Duration(5*time.Second))
 }
 
 func serverless(config pkgconfigmodel.Setup) {
