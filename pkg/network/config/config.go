@@ -10,6 +10,8 @@ import (
 	"slices"
 	"time"
 
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -26,7 +28,34 @@ const (
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
+
+	// DNSPortsMax is the maximum number of distinct DNS ports the BPF filter
+	// can monitor. Matches DNS_PORTS_MAX in pkg/network/ebpf/c/prebuilt/dns.c.
+	// 8 covers every realistic configuration (53 + mDNS/LLMNR + the
+	// 1053/8053/9053/10053 unprivileged CoreDNS family + a spare slot).
+	// The limit applies AFTER dedup and after invalid/HTTP filtering; entries
+	// beyond the cap are dropped at config-load time rather than failing
+	// startup — observable via the network_tracer__dns.ports_dropped counter
+	// (reason=truncated).
+	DNSPortsMax = 8
+
+	// dnsTelModuleName is the umbrella telemetry subsystem for the DNS
+	// module. Mirrors dnsModuleName in pkg/network/dns/snooper.go — the
+	// config package can't import dns (would reverse the dependency), so the
+	// string is duplicated. Keep these in sync.
+	dnsTelModuleName = "network_tracer__dns"
 )
+
+// dnsTelemetry holds counters surfaced via agent telemetry for the DNS
+// monitoring port-list sanitization performed in config.New().
+var dnsTelemetry = struct {
+	portsDropped telemetry.Counter
+}{
+	telemetryimpl.GetCompatComponent().NewCounter(
+		dnsTelModuleName, "ports_dropped", []string{"reason"},
+		"Times an entry was dropped from the configured DNS port list (reason=invalid|http|truncated)",
+	),
+}
 
 // Config stores all flags used by the network eBPF tracer
 type Config struct {
@@ -342,13 +371,44 @@ func New() *Config {
 		c.DNSMonitoringPortList = []int{53}
 	}
 
+	dnsPortsKey := sysconfig.FullKeyPath(netNS, "dns_monitoring_ports")
 	c.DNSMonitoringPortList = slices.DeleteFunc(c.DNSMonitoringPortList, func(port int) bool {
-		isHTTP := port == 80 || port == 443
-		if isHTTP {
-			log.Warnf("CNM detected and removed HTTP port %d from %s, which is unsupported due to the large volume of traffic it would capture", port, sysconfig.FullKeyPath(netNS, "dns_monitoring_ports"))
+		if port < 1 || port > 65535 {
+			log.Warnf("CNM detected and removed invalid port %d from %s (must be 1-65535)", port, dnsPortsKey)
+			dnsTelemetry.portsDropped.Inc("invalid")
+			return true
 		}
-		return isHTTP
+		if port == 80 || port == 443 {
+			log.Warnf("CNM detected and removed HTTP port %d from %s, which is unsupported due to the large volume of traffic it would capture", port, dnsPortsKey)
+			dnsTelemetry.portsDropped.Inc("http")
+			return true
+		}
+		return false
 	})
+	// Sort + dedup before applying the slot cap. The prior BPF_MAP_TYPE_HASH
+	// naturally de-duplicated keys, so [53, 53, 5353] consumed only two
+	// slots — preserve that so duplicate config entries don't artificially
+	// inflate against DNSPortsMax.
+	slices.Sort(c.DNSMonitoringPortList)
+	c.DNSMonitoringPortList = slices.Compact(c.DNSMonitoringPortList)
+	if len(c.DNSMonitoringPortList) > DNSPortsMax {
+		// Truncate rather than fail. Sorted-ascending order means the lower-
+		// numbered ports (typically 53 + mDNS/LLMNR + unprivileged CoreDNS
+		// family) win; higher arbitrary user ports are the ones dropped. Loud
+		// WARN + telemetry counter (reason=truncated) make this observable.
+		dropped := slices.Clone(c.DNSMonitoringPortList[DNSPortsMax:])
+		c.DNSMonitoringPortList = c.DNSMonitoringPortList[:DNSPortsMax]
+		log.Warnf(
+			"%s has %d distinct entries, exceeding the maximum of %d. "+
+				"Monitoring only %v (sorted ascending). Ports %v will NOT be monitored. "+
+				"File a feature request with Datadog if you need to monitor more than %d DNS ports.",
+			dnsPortsKey, len(c.DNSMonitoringPortList)+len(dropped), DNSPortsMax,
+			c.DNSMonitoringPortList, dropped, DNSPortsMax,
+		)
+		for range dropped {
+			dnsTelemetry.portsDropped.Inc("truncated")
+		}
+	}
 
 	if !c.EnableProcessEventMonitoring {
 		log.Info("network process event monitoring disabled")

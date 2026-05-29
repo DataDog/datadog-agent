@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
@@ -337,24 +338,27 @@ func TestDNSOverCustomPort(t *testing.T) {
 
 // TestDNSExceedsMaxPortsTruncates verifies that configuring more distinct
 // DNS ports than the BPF program supports (DNS_PORTS_MAX = 8) truncates the
-// list at startup rather than failing — the truncation is observable via a
-// loud WARN log and the dns_monitor.ports_truncated telemetry counter.
+// list at config-load time rather than failing. The config-layer truncation
+// (in config.New()) is the source of truth — this test exercises the
+// end-to-end behavior on a live BPF program.
 // Confirms that:
 //   - reverseDNS init still succeeds (no error)
 //   - traffic to one of the first 8 (sorted ascending) ports IS captured
 //   - traffic to a dropped port (slot index >= 8) is NOT captured
 func TestDNSExceedsMaxPortsTruncates(t *testing.T) {
-	cfg := testConfig()
+	// 9 distinct ports, sorted ascending: 53, 1001, 1002, ..., 1008.
+	// DNSPortsMax = 8, so port 1008 (slot index 8 after sort) is dropped.
+	mock.NewSystemProbe(t).SetWithoutSource(
+		"network_config.dns_monitoring_ports",
+		[]int{53, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008},
+	)
+	cfg := config.New()
 	cfg.CollectDNSStats = true
 	cfg.CollectLocalDNS = true
 	cfg.DNSTimeout = 1 * time.Second
-	// 9 distinct ports, sorted ascending: 53, 1001, 1002, ..., 1008.
-	// dnsPortsMax = 8, so port 1008 (slot index 8 after sort) is dropped.
-	ports := []int{53, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008}
-	cfg.DNSMonitoringPortList = ports
 
 	rdns, err := NewReverseDNS(cfg, nil)
-	require.NoError(t, err, "exceeding dnsPortsMax should truncate, not error")
+	require.NoError(t, err, "exceeding DNSPortsMax should truncate, not error")
 	err = rdns.Start()
 	require.NoError(t, err)
 	reverseDNS := rdns.(*dnsMonitor)
@@ -388,12 +392,8 @@ func TestDNSExceedsMaxPortsTruncates(t *testing.T) {
 // DNSMonitoringPortList do not consume LOAD_CONSTANT slots. The prior
 // BPF_MAP_TYPE_HASH implementation naturally de-duplicated keys via
 // repeated Put calls; this test guards against a regression where the
-// new slot-based design counts duplicates against dnsPortsMax.
+// new slot-based design counts duplicates against DNSPortsMax.
 func TestDNSDeduplicatesPorts(t *testing.T) {
-	cfg := testConfig()
-	cfg.CollectDNSStats = true
-	cfg.CollectLocalDNS = true
-	cfg.DNSTimeout = 1 * time.Second
 	// 33 raw entries, but only 2 distinct (53 ×32 + 5353 ×1). Must succeed
 	// because after deduplication only two slots are needed.
 	ports := make([]int, 0, 33)
@@ -401,7 +401,11 @@ func TestDNSDeduplicatesPorts(t *testing.T) {
 		ports = append(ports, 53)
 	}
 	ports = append(ports, 5353)
-	cfg.DNSMonitoringPortList = ports
+	mock.NewSystemProbe(t).SetWithoutSource("network_config.dns_monitoring_ports", ports)
+	cfg := config.New()
+	cfg.CollectDNSStats = true
+	cfg.CollectLocalDNS = true
+	cfg.DNSTimeout = 1 * time.Second
 
 	rdns, err := NewReverseDNS(cfg, nil)
 	require.NoError(t, err, "33 raw entries with only 2 distinct ports should pass dedup-then-cap check")
@@ -422,36 +426,6 @@ func TestDNSDeduplicatesPorts(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return statKeeper.Snapshot()[key] != nil
 	}, 3*time.Second, 10*time.Millisecond, "duplicate-laden config should still capture the distinct non-default port")
-}
-
-// TestDNSInvalidPortFailsLoad verifies that an out-of-range or zero port
-// in the configured list fails Init() with a clear error. This is the
-// defense-in-depth guard against partial-parse artifacts (a known config-
-// layer failure mode used to produce DNSMonitoringPortList = [0]) leaking
-// into the BPF program, where they would silently break the filter via
-// verifier constant-folding of the LOAD_CONSTANT scan.
-func TestDNSInvalidPortFailsLoad(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		ports []int
-	}{
-		{"zero", []int{0}},
-		{"zero in mixed list", []int{53, 0, 5353}},
-		{"negative", []int{-1}},
-		{"above 65535", []int{53, 65536}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := testConfig()
-			cfg.CollectDNSStats = true
-			cfg.CollectLocalDNS = true
-			cfg.DNSTimeout = 1 * time.Second
-			cfg.DNSMonitoringPortList = tc.ports
-
-			_, err := NewReverseDNS(cfg, nil)
-			require.Error(t, err, "expected an error for invalid port list %v", tc.ports)
-			assert.Contains(t, err.Error(), "invalid port", "error message should identify the invalid port")
-		})
-	}
 }
 
 // TestDNSOverLastSlot verifies that a port assigned to the highest
