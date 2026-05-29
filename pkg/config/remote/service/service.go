@@ -591,7 +591,6 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	if options.databaseFilePath != "" {
 		databaseFilePath = options.databaseFilePath
 	}
-	log.Infof("RC database filepath at: %s", databaseFilePath)
 
 	dbMetadata := &uptane.Metadata{
 		Path:         path.Join(databaseFilePath, options.databaseFileName),
