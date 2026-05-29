@@ -199,6 +199,8 @@ anomaly_detection:
     enabled: false
   logs:
     enabled: true
+    containers:
+      min_severity: ""  # plain file logs have no severity; accept all levels
   agent_logs:
     enabled: false
   detectors:

@@ -117,7 +117,8 @@ func NewComponent(deps Requires) (Provides, error) {
 		pauseFilter = fs.GetContainerPausedFilters()
 	}
 
-	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle)
+	sampler := newLogSamplerFromConfig(deps.Config, nil)
+	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle, sampler)
 	logSources := sources.NewLogSources()
 	tracker := tailers.NewTailerTracker()
 	launchersMgr := launchers.NewLaunchers(logSources, pipeline, deps.Auditor, tracker)

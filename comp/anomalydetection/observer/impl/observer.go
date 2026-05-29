@@ -291,11 +291,14 @@ func NewComponent(deps Requires) Provides {
 	logsEnabled := !cfg.IsConfigured("anomaly_detection.logs.enabled") || cfg.GetBool("anomaly_detection.logs.enabled")
 	agentLogsEnabled := !cfg.IsConfigured("anomaly_detection.logs.internal.enabled") || cfg.GetBool("anomaly_detection.logs.internal.enabled")
 	if (analysisEnabled || recorderEnabled) && logsEnabled && agentLogsEnabled {
-		sampleInfo := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_info")
-		sampleDebug := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_debug")
-		sampleTrace := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_trace")
+		minSeverity := cfg.GetString("anomaly_detection.logs.internal.min_severity")
+		maxRateHigh := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_high_priority")
+		maxRateMedium := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_medium_priority")
+		maxRateLow := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_low_priority")
 		agentLogsHandle := obs.GetHandle("agent-internal-logs")
-		installAgentLogTap(agentLogsHandle, sampleInfo, sampleDebug, sampleTrace)
+		installAgentLogTap(agentLogsHandle, minSeverity, maxRateHigh, maxRateMedium, maxRateLow, func(priority string) {
+			obsTelemetry.recordSamplerDropped("internal", priority)
+		})
 		deps.Lifecycle.Append(compdef.Hook{
 			OnStop: func(_ context.Context) error {
 				pkglog.SetLogObserver(nil)
@@ -591,6 +594,7 @@ func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView)
 	return false
 }
 func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView) {}
+
 
 // DumpMetrics writes all stored metrics to the specified file as JSON.
 func (o *observerImpl) DumpMetrics(path string) error {
