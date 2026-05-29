@@ -78,7 +78,11 @@ exports_files(glob(
 # gazelle:exclude comp/checks/windowseventlog/impl/check/*.go
 # gazelle:exclude comp/checks/winregistry/fx
 # gazelle:exclude comp/checks/winregistry/impl
-# gazelle:exclude comp/collector
+# gazelle:exclude comp/collector/bundle.go
+# gazelle:exclude comp/collector/collector/fx
+# gazelle:exclude comp/collector/collector/impl
+# gazelle:exclude comp/collector/collector/mock
+# gazelle:exclude comp/collector/collector/noop-impl
 # gazelle:exclude comp/connectivitychecker/checker
 # gazelle:exclude comp/connectivitychecker/fx
 # gazelle:exclude comp/connectivitychecker/impl
@@ -200,7 +204,6 @@ exports_files(glob(
 # gazelle:exclude comp/networkpath/traceroute/fx-local
 # gazelle:exclude comp/networkpath/traceroute/fx-remote
 # gazelle:exclude comp/networkpath/traceroute/impl-local
-# gazelle:exclude comp/networkpath/traceroute/impl-remote
 # gazelle:exclude comp/notableevents/fx
 # gazelle:exclude comp/notableevents/impl
 # gazelle:exclude comp/offlinereporter/fx
@@ -241,7 +244,8 @@ exports_files(glob(
 # gazelle:exclude comp/remote-config/rcservice/impl
 # gazelle:exclude comp/remote-config/rcservicemrf/fx
 # gazelle:exclude comp/remote-config/rcservicemrf/impl
-# gazelle:exclude comp/snmpscan
+# gazelle:exclude comp/snmpscan/fx
+# gazelle:exclude comp/snmpscan/impl
 # gazelle:exclude comp/snmpscanmanager/fx
 # gazelle:exclude comp/snmpscanmanager/impl
 # gazelle:exclude comp/snmptraps/formatter/fx
@@ -574,8 +578,6 @@ exports_files(glob(
 # gazelle:exclude pkg/serverless/trace/span_modifier.go
 # gazelle:exclude pkg/serverless/trace/trace_test.go
 # gazelle:exclude pkg/serverless/trace/trace.go
-# gazelle:exclude pkg/snmp/devicededuper
-# gazelle:exclude pkg/snmp/snmpparse
 # gazelle:exclude pkg/status/clusteragent
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
 # gazelle:exclude pkg/system-probe/api/module
