@@ -2589,6 +2589,8 @@ github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1 h1:HnvrdC79xJ+RP
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1/go.mod h1:whJevzBpTrid75eZy99s3DqCmy05NfibNaF2Ol5Ox5A=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816 h1:8diKw2aLYE6LsjWfYxDEqx0ZmcyMMmqB+qapRJrGtys=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816/go.mod h1:7cPuErOAt7k/oVWAVJnxqAC6mwArrAazkvk0RXiih2A=
+github.com/DataDog/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.0.0-20260529094035-974ffcac91ce h1:b1JwtMbXlK5L+H6ElTwTEFXcSc/qey9ABeoAS2/PfMw=
+github.com/DataDog/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.0.0-20260529094035-974ffcac91ce/go.mod h1:6G4UZSMNew8wLDRU1DYIPnAN22ktg1Os0+xn+8yFK3o=
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260416144717-96f8924d6e18 h1:VbUS1B3mpSjponiKDWHXtofoNBp99Nckf5uZaBeQyPo=
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260416144717-96f8924d6e18/go.mod h1:34LtYk9Gh/SCItzi7v8ok9E5lk88AA5I+5aKoVKQClI=
 github.com/DataDog/rshell v0.0.20 h1:WO/GUY/SPplBBRU2wPVMLE8SCP4lZpFhVXu/h6KBzb0=
@@ -4535,8 +4537,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterproces
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.152.0/go.mod h1:Xxe1zO39JS3OAOZdfi8P3LC07JYXdozMf9FXmtA+J+w=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbyattrsprocessor v0.152.0 h1:gouwOijDYDNW/Jf/PefUmYjruYz20glAHJ37KNTo3ho=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbyattrsprocessor v0.152.0/go.mod h1:/ULTAaVvC3A48daWlOflCa5peWRefL9K+/L0tztXk3M=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.152.0 h1:QGnkMZaqd+lFEYsS69vddPerLvRjjCbwiZx+aLYb7M0=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.152.0/go.mod h1:6G4UZSMNew8wLDRU1DYIPnAN22ktg1Os0+xn+8yFK3o=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.152.0 h1:vt7mupvepVIO4XlZrJ+8yFECWxIqHMTAuEYFmsCbXao=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.152.0/go.mod h1:xRRQmHi6lbHw3rxl94RpKM5nttEV5D2uTOO9fj9YUk4=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor v0.152.0 h1:mTpbIBPCG7MYvD0s/JOpbjyolnKjf/sMcdOdVgrcF6A=
