@@ -749,10 +749,6 @@ exports_files(glob(
 # gazelle:exclude **/testdata/**/*.go
 # ======= END TESTDATA EXCLUDES =======
 
-# ======= PROTO EXCLUDES =======
-# gazelle:exclude pkg/proto/protodep
-# ======= END PROTO EXCLUDES =======
-
 # All custom build tags from tasks/build_tags.py ALL_TAGS, plus "test".
 # "test" is included so Gazelle analyzes test-only sources and generates their
 # deps. The go_build_tags Gazelle extension removes those files from go_library
