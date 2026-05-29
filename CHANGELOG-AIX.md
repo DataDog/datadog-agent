@@ -10,6 +10,7 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+- Remove static libraries (`libz.a`, `libbz2.a`) from the installed package to avoid conflicts when installing Python C extensions with pip
 - Agent and trace-agent wrappers now append the caller's `LIBPATH` to the agent's own library search path, so operator-set paths (e.g. custom driver directories) are visible to the agent at runtime
 - Agent and trace-agent wrappers include the `ibm_db` clidriver path (`embedded/lib/python3.13/site-packages/clidriver/lib`) in LIBPATH so the `ibm_db2` check can load `libdb2` at runtime after `pip install ibm_db`
 - Bundle `pymqi` in the package so the `ibm_mq` and `ibm_ace` checks work out of the box (no manual `pip install` required); IBM MQ Client 9.1+ must be installed on the target host at runtime
