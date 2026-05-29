@@ -46,6 +46,12 @@ func (pc *ProcessCacheEntry) RemoveChild(child *ProcessCacheEntry) {
 	pc.Children = slices.DeleteFunc(pc.Children, func(c *ProcessCacheEntry) bool {
 		return c == child
 	})
+	// slices.DeleteFunc reduces len but not cap; nil the slice when empty so
+	// the backing array can be reclaimed by the GC (important for long-lived
+	// processes such as subreapers that accumulate many transient children).
+	if len(pc.Children) == 0 {
+		pc.Children = nil
+	}
 }
 
 // HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a node has a missing parent

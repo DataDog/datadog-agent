@@ -18,11 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
-	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	syntheticstestscheduler "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/def"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 // Requires defines the dependencies for the syntheticstestscheduler component
@@ -38,8 +36,7 @@ type Requires struct {
 
 // Provides defines the output of the syntheticstestscheduler component
 type Provides struct {
-	Comp       syntheticstestscheduler.Component
-	RCListener rctypes.ListenerProvider
+	Comp syntheticstestscheduler.Component
 }
 
 // NewComponent creates a new syntheticstestscheduler component
@@ -48,10 +45,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if !configs.syntheticsSchedulerEnabled {
 		reqs.Logger.Debugf("Synthetics scheduler disabled")
 		var empty interface{}
-		return Provides{
-			RCListener: rctypes.ListenerProvider{ListenerProvider: rctypes.RCListener{}},
-			Comp:       empty,
-		}, nil
+		return Provides{Comp: empty}, nil
 	}
 
 	epForwarder, ok := reqs.EpForwarder.Get()
@@ -59,15 +53,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, reqs.Logger.Errorf("error getting EpForwarder")
 	}
 
-	onDemandPollerConfig := newOnDemandPollerConfig(reqs.AgentConfig)
-	poller := newOnDemandPoller(onDemandPollerConfig, reqs.HostnameService, reqs.Logger, time.Now)
+	pollerConfig := newTestPollerConfig(reqs.AgentConfig)
+	poller := newTestPoller(pollerConfig, reqs.HostnameService, reqs.Logger, time.Now)
 
 	scheduler := newSyntheticsTestScheduler(configs, epForwarder, reqs.Logger, reqs.HostnameService, time.Now, reqs.Statsd, reqs.Traceroute, poller)
-
-	var rcListener rctypes.ListenerProvider
-	rcListener.ListenerProvider = rctypes.RCListener{
-		state.ProductSyntheticsTest: scheduler.onConfigUpdate,
-	}
 
 	ctx := context.Background()
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -80,8 +69,5 @@ func NewComponent(reqs Requires) (Provides, error) {
 		},
 	})
 
-	return Provides{
-		RCListener: rcListener,
-		Comp:       scheduler,
-	}, nil
+	return Provides{Comp: scheduler}, nil
 }

@@ -136,6 +136,8 @@ Package configsync implements synchronizing the configuration using the core age
 
 ### [comp/core/diagnose](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/diagnose)
 
+*Datadog Team*: agent-configuration
+
 Package diagnose provides the diagnose suite for the agent.
 
 ### [comp/core/flare](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare)
@@ -331,9 +333,27 @@ Package orchestratorinterface defines the interface for the orchestrator forward
 Package healthplatform implements the "healthplatform" bundle, providing the
 health platform component for detecting and reporting agent health issues.
 
+### [comp/healthplatform/egress](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/egress)
+
+Package egress defines the interface for the health platform egress component.
+
 ### [comp/healthplatform/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/forwarder)
 
 Package forwarder defines the interface for the health platform forwarder.
+
+### [comp/healthplatform/issueregistry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry)
+
+Package issueregistry defines the interface for the health platform issue registry component.
+The registry is the single source of truth for issue templates and built-in health checks.
+It is built once at startup from all registered issue modules and shared by the runner
+(for template lookup on IssueReport) and the bundle (for bootstrapping built-in checks).
+
+### [comp/healthplatform/runner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/runner)
+
+Package runner defines the interface for the health platform runner component.
+The runner executes a single HealthCheckFunc once, translates each emitted
+IssueReport into a proto Issue (via the issue registry), forwards it to the
+store, and returns the set of IssueIds that were reported.
 
 ### [comp/healthplatform/scheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/scheduler)
 
@@ -343,9 +363,9 @@ Package scheduler defines the interface for the health platform scheduler
 ### [comp/healthplatform/store](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/store)
 
 Package store provides the interface for the health platform store component.
-The store collects and reports health information from the host system,
-sending it to the Datadog backend with hostname, host ID, organization ID,
-and a list of issues.
+The store is the central state owner: it receives issue reports, owns the
+in-memory issue map, persists state to disk, and exposes the local
+/health-platform/issues HTTP endpoint.
 
 ## [comp/host-profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/host-profiler) (Component Bundle)
 
@@ -794,6 +814,19 @@ observer without requiring the logs agent to be enabled.
 *Datadog Team*: q-branch
 
 Package observer provides a component for observing data flowing through the agent.
+
+### [comp/anomalydetection/recorder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/recorder)
+
+*Datadog Team*: q-branch
+
+Package recorder provides a middleware component for recording and replaying observer data.
+
+### [comp/anomalydetection/reporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/reporter)
+
+*Datadog Team*: q-branch
+
+Package reporter defines the reporter component contracts.
+Concrete reporters are provided through the `anomalydetection_reporters` Fx group.
 
 ### [comp/autoscaling/datadogclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient)
 

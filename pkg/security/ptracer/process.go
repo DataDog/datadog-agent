@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"golang.org/x/sys/unix"
 )
 
@@ -63,12 +64,15 @@ type SocketInfo struct {
 
 // Process represents a process context
 type Process struct {
-	Pid        int
-	Tgid       int
-	Nr         map[int]*ebpfless.SyscallMsg
-	FdRes      *FdResources
-	FsRes      *FSResources
-	FdToSocket map[int32]SocketInfo
+	Pid                      int
+	Tgid                     int
+	CGroupID                 containerutils.CGroupID
+	ContainerID              containerutils.ContainerID
+	containerContextResolved bool
+	Nr                       map[int]*ebpfless.SyscallMsg
+	FdRes                    *FdResources
+	FsRes                    *FSResources
+	FdToSocket               map[int32]SocketInfo
 }
 
 // NewProcess returns a new process
@@ -162,6 +166,8 @@ func (tc *ProcessCache) shareResources(process *Process, ppid int, cloneFlags ui
 	if cloneFlags&unix.CLONE_THREAD != 0 {
 		process.Tgid = parent.Tgid
 	}
+	process.CGroupID = parent.CGroupID
+	process.ContainerID = parent.ContainerID
 
 	if cloneFlags&unix.CLONE_FILES != 0 {
 		process.FdRes = parent.FdRes

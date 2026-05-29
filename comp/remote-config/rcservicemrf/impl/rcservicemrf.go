@@ -7,6 +7,7 @@
 package rcservicemrfimpl
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"time"
@@ -15,8 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
 	rctelemetryreporter "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/def"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -41,7 +44,8 @@ type Dependencies struct {
 type Provides struct {
 	compdef.Out
 
-	Comp option.Option[rcservicemrf.Component]
+	Comp          option.Option[rcservicemrf.Component]
+	FlareProvider flaretypes.Provider
 }
 
 // NewMrfRemoteConfigServiceOptional conditionally creates and configures a new MRF remote config service, based on whether RC is enabled.
@@ -57,7 +61,10 @@ func NewMrfRemoteConfigServiceOptional(deps Dependencies) Provides {
 		return Provides{Comp: none}
 	}
 
-	return Provides{Comp: option.New[rcservicemrf.Component](mrfConfigService)}
+	return Provides{
+		Comp:          option.New[rcservicemrf.Component](mrfConfigService),
+		FlareProvider: flaretypes.NewProvider(mrfFillFlare(mrfConfigService)),
+	}
 }
 
 // newMrfRemoteConfigService creates and configures a new service that receives remote config updates from the configured DD failover DC
@@ -122,6 +129,18 @@ func newMrfRemoteConfigService(deps Dependencies) (rcservicemrf.Component, error
 	}})
 
 	return mrfConfigService, nil
+}
+
+func mrfFillFlare(svc rcservicemrf.Component) func(context.Context, flaretypes.FlareBuilder) error {
+	return func(_ context.Context, fb flaretypes.FlareBuilder) error {
+		state, err := svc.ConfigGetState()
+		if err != nil {
+			return fmt.Errorf("couldn't get the MRF repositories state: %v", err)
+		}
+		var buf bytes.Buffer
+		rcservice.PrintRemoteConfigStates(&buf, nil, state)
+		return fb.AddFile("remote-config-state-ha.log", buf.Bytes())
+	}
 }
 
 func getHostTags(config cfgcomp.Component) func() []string {

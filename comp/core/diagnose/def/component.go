@@ -14,7 +14,7 @@ import (
 	"github.com/fatih/color"
 )
 
-// team: agent-runtimes
+// team: agent-configuration
 
 type metadataAvailDiagnoseCatalog map[string]func() error
 

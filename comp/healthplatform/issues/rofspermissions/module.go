@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 )
 
@@ -23,14 +24,12 @@ func init() {
 }
 
 const (
-	// IssueID is the unique identifier for ROFS permission issues
-	IssueID = "read-only-filesystem-error"
+	// IssueName is the identifier for ROFS permission issues,
+	// used as the template registry key and the proto IssueName field.
+	IssueName = "read-only-filesystem-error"
 
-	// CheckID is the unique identifier for the built-in check
-	CheckID = "rofs-permissions"
-
-	// CheckName is the human-readable name for the health check
-	CheckName = "ROFS Permissions Check"
+	// IssueID is the unique instance id used when reporting this issue
+	IssueID = "rofs-permissions"
 )
 
 type rofsPermissionsModule struct {
@@ -46,21 +45,25 @@ func NewModule(conf config.Component) issues.Module {
 	}
 }
 
-func (r *rofsPermissionsModule) IssueID() string {
-	return IssueID
+func (r *rofsPermissionsModule) IssueName() string {
+	return IssueName
 }
 
-func (r *rofsPermissionsModule) IssueTemplate() issues.IssueTemplate {
-	return r.template
+func (r *rofsPermissionsModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+	return r.template.BuildIssue(context)
 }
 
-func (r *rofsPermissionsModule) BuiltInCheck() *issues.BuiltInCheck {
-	return &issues.BuiltInCheck{
-		ID:   CheckID,
-		Name: CheckName,
-		CheckFn: func() (*healthplatform.IssueReport, error) {
+// BuiltInPeriodicHealthCheck returns nil — filesystem permission checks run once at startup, not periodically.
+func (r *rofsPermissionsModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
+	return nil
+}
+
+// BuiltInStartupHealthCheck runs the filesystem permission check once at agent startup.
+func (r *rofsPermissionsModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
+	return &runnerdef.BuiltInHealthCheck{
+		Source: "agent",
+		Fn: func() ([]runnerdef.IssueReport, error) {
 			return Check(r.conf)
 		},
-		Once: true,
 	}
 }

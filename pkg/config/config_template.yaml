@@ -1157,6 +1157,14 @@ api_key:
 #
 #   container_collect_all: false
 
+#   # @param use_container_timestamp - boolean - optional - default: false
+#   # @env DD_LOGS_CONFIG_USE_CONTAINER_TIMESTAMP - boolean - optional - default: false
+#   # Use the `time` field from container log files (when available) as the log timestamp instead of ingestion time.
+#   #
+#   # This affects logs collected from container runtimes that provide per-log-line timestamps (for example Docker JSON logs).
+#
+#   use_container_timestamp: false
+
 #   # @param logs_dd_url - string - optional - default: ""
 #   # @env DD_LOGS_CONFIG_LOGS_DD_URL - string - optional - default: ""
 #   # Define the endpoint and port to hit when using a proxy for logs.
@@ -3000,6 +3008,17 @@ api_key:
 #
 # ad_config_poll_interval: 10
 
+## @param ad_tag_completeness_max_wait - integer - optional - default: 0
+## @env DD_AD_TAG_COMPLETENESS_MAX_WAIT - integer - optional - default: 0
+## Maximum time in seconds that autodiscovery waits for an entity's tags to be
+## complete before scheduling checks for it. This avoids checks running briefly
+## with incomplete tags. This can happen when some sources (kubelet, container
+## runtime, etc.) have reported information for the entity, but others have not
+## yet. 0 disables waiting and checks are scheduled as soon as the entity is
+## discovered.
+#
+# ad_tag_completeness_max_wait: 0
+
 ## @param ad_allowed_env_vars - list of strings - optional - default: []
 ## @env DD_AD_ALLOWED_ENV_VARS - space-separated list of strings - optional - default: []
 ## The list of environment variables that are allowed to be resolved in check
@@ -3854,6 +3873,14 @@ api_key:
 ## Set how often in secons the Agent refreshes the internal mapping of services to ContainerIDs.
 #
 # kubernetes_metadata_tag_update_freq: 60
+
+## @param kubernetes_metadata_streaming - boolean - optional - default: true
+## @env DD_KUBERNETES_METADATA_STREAMING - boolean - optional - default: true
+## Stream Kubernetes metadata from the Cluster Agent instead of polling it every
+## `kubernetes_metadata_tag_update_freq` seconds. This propagates the associated
+## tags with less delay.
+#
+# kubernetes_metadata_streaming: true
 
 ## @param kubernetes_apiserver_client_timeout - integer - optional - default: 10
 ## @env DD_KUBERNETES_APISERVER_CLIENT_TIMEOUT - integer - optional - default: 10
