@@ -1,0 +1,46 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: dd-host-profiler
+  namespace: dd-host-profiler
+specs:
+- description: Egress to DNS
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: opentelemetry-collector
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: ANY
+      rules:
+        dns:
+        - matchPattern: '*'
+- description: Egress to Datadog intake (profiles, metrics, symbol upload, symbol query) — all sites and subdomains
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: opentelemetry-collector
+  egress:
+  - toFQDNs:
+    - matchPattern: "**.datadoghq.com"
+    - matchPattern: "**.datadoghq.eu"
+    - matchPattern: "**.ddog-gov.com"
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+- description: Egress to Kubernetes API server (k8sattributes processor)
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: opentelemetry-collector
+  egress:
+  - toEntities:
+    - kube-apiserver
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP

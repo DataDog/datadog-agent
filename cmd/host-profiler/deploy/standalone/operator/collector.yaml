@@ -1,0 +1,174 @@
+# Supplemental RBAC to allow the operator-created service account to authenticate
+# against the kubelet API for hostname resolution (DD hostname provider).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dd-host-profiler-kubelet
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "nodes/proxy", "nodes/spec"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dd-host-profiler-kubelet
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dd-host-profiler-kubelet
+subjects:
+  - kind: ServiceAccount
+    name: dd-host-profiler-collector
+    namespace: dd-host-profiler
+---
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: dd-host-profiler
+  namespace: dd-host-profiler
+spec:
+  mode: daemonset
+  image: <IMAGE_REPOSITORY>:<IMAGE_TAG>
+  hostPID: true
+
+  # AppArmor: set to localhost/dd-host-profiler once the profile is provisioned on nodes.
+  # Default unconfined — AppArmor provisioning is left to the cluster operator.
+  podSecurityContext:
+    appArmorProfile:
+      type: Unconfined
+
+  securityContext:
+    privileged: false
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      add:
+        - BPF
+        - PERFMON
+        - SYS_PTRACE
+        - SYS_RESOURCE
+        - DAC_READ_SEARCH
+        - SYSLOG
+        - CHECKPOINT_RESTORE
+      drop:
+        - ALL
+    seccompProfile:
+      type: Localhost
+      localhostProfile: dd-host-profiler
+
+  initContainers:
+    - name: install-seccomp
+      image: <IMAGE_REPOSITORY>:<IMAGE_TAG>
+      command: ["cp", "/etc/dd-host-profiler/seccomp.json", "/host-seccomp/dd-host-profiler"]
+      securityContext:
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      volumeMounts:
+        - name: host-seccomp
+          mountPath: /host-seccomp
+
+  volumes:
+    - name: tmpdir
+      emptyDir: {}
+    - name: tracefs
+      hostPath:
+        path: /sys/kernel/tracing
+        type: Directory
+    - name: host-seccomp
+      hostPath:
+        path: /var/lib/kubelet/seccomp
+        type: DirectoryOrCreate
+
+  volumeMounts:
+    - name: tmpdir
+      mountPath: /tmp
+    - name: tracefs
+      mountPath: /sys/kernel/tracing
+
+  env:
+    - name: K8S_NODE_IP
+      valueFrom:
+        fieldRef:
+          fieldPath: status.hostIP
+    - name: DD_KUBERNETES_KUBELET_HOST
+      valueFrom:
+        fieldRef:
+          fieldPath: status.hostIP
+    - name: MY_POD_IP
+      valueFrom:
+        fieldRef:
+          fieldPath: status.podIP
+    - name: DD_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: datadog-secret
+          key: api-key
+    - name: DD_SITE
+      value: "datadoghq.com"
+
+  config:
+    extensions:
+      health_check:
+        endpoint: ${env:MY_POD_IP}:13133
+      ddprofiling/default: {}
+      hpflare/default: {}
+    receivers:
+      profiling:
+        symbol_uploader:
+          enabled: true
+          symbol_endpoints:
+            - site: ${env:DD_SITE}
+              api_key: ${env:DD_API_KEY}
+      otlp:
+        protocols:
+          grpc: {}
+          http: {}
+    processors:
+      infraattributes/default:
+        cardinality: 2
+        allow_hostname_override: true
+      cumulativetodelta: {}
+      k8s_attributes:
+        pod_association:
+          - sources:
+              - from: resource_attribute
+                name: container.id
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.name
+          - sources:
+              - from: resource_attribute
+                name: host.name
+      resourcedetection:
+        detectors: ["system"]
+        system:
+          resource_attributes:
+            host.arch:
+              enabled: true
+            host.name:
+              enabled: false
+            os.type:
+              enabled: false
+    exporters:
+      otlp_http:
+        profiles_endpoint: https://intake.profile.${env:DD_SITE}/v1development/profiles
+        metrics_endpoint: https://otlp.${env:DD_SITE}/v1/metrics
+        headers:
+          dd-api-key: ${env:DD_API_KEY}
+          dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
+    service:
+      extensions: [health_check, hpflare/default]
+      pipelines:
+        logs: null
+        traces: null
+        metrics:
+          receivers: [otlp]
+          processors: [cumulativetodelta, resourcedetection, k8s_attributes, infraattributes/default]
+          exporters: [otlp_http]
+        profiles:
+          receivers: [profiling]
+          processors: [resourcedetection, k8s_attributes, infraattributes/default]
+          exporters: [otlp_http]

@@ -1,0 +1,57 @@
+config:
+  extensions:
+    # health_check is required by the Helm chart for readiness/liveness probes
+    health_check:
+      endpoint: ${env:MY_POD_IP}:13133
+
+  receivers:
+    jaeger: null
+    zipkin: null
+    prometheus: null
+    otlp:
+      protocols:
+        grpc: {}
+        http: {}
+    profiling:
+      symbol_uploader:
+        enabled: true
+        symbol_endpoints:
+          - site: ${env:DD_SITE}
+            api_key: ${env:DD_API_KEY}
+
+  processors:
+    batch: null
+    memory_limiter: null
+    cumulativetodelta: {}
+    resourcedetection:
+      detectors: ["system"]
+      system:
+        resource_attributes:
+          host.arch:
+            enabled: true
+          host.name:
+            enabled: false
+          os.type:
+            enabled: false
+
+  exporters:
+    otlp_http:
+      profiles_endpoint: https://intake.profile.${env:DD_SITE}/v1development/profiles
+      metrics_endpoint: https://otlp.${env:DD_SITE}/v1/metrics
+      headers:
+        dd-api-key: ${env:DD_API_KEY}
+        dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
+
+  service:
+    extensions: [health_check]
+    pipelines:
+      logs: null
+      traces: null
+      metrics:
+        receivers: [otlp]
+        processors: [cumulativetodelta, resourcedetection, k8sattributes]
+        exporters: [otlp_http]
+      profiles:
+        receivers: [profiling]
+        processors: [resourcedetection, k8sattributes]
+        exporters: [otlp_http]

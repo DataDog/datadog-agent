@@ -1,0 +1,89 @@
+mode: daemonset
+
+presets:
+  # Enables the profiling receiver, tracefs volume+mount, and profiles pipeline.
+  profiling:
+    enabled: true
+  kubernetesAttributes:
+    enabled: true
+    extractAllPodLabels: true
+
+image:
+  repository: <IMAGE_REPOSITORY>
+  tag: <IMAGE_TAG>
+
+command:
+  name: opt/datadog-agent/embedded/bin/host-profiler
+
+clusterRole:
+  rules:
+    - apiGroups: [""]
+      resources: ["nodes", "nodes/proxy", "nodes/spec"]
+      verbs: ["get", "list"]
+
+# AppArmor: set to localhost/dd-host-profiler once the profile is provisioned on nodes.
+# Default unconfined — AppArmor provisioning is left to the cluster operator.
+podAnnotations:
+  container.apparmor.security.beta.kubernetes.io/opentelemetry-collector: unconfined
+
+securityContext:
+  privileged: false
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    add:
+      - BPF
+      - PERFMON
+      - SYS_PTRACE
+      - SYS_RESOURCE
+      - DAC_READ_SEARCH
+      - SYSLOG
+      - CHECKPOINT_RESTORE
+    drop:
+      - ALL
+  seccompProfile:
+    type: Localhost
+    localhostProfile: dd-host-profiler
+
+initContainers:
+  - name: install-seccomp
+    image: <IMAGE_REPOSITORY>:<IMAGE_TAG>
+    command: ["cp", "/etc/dd-host-profiler/seccomp.json", "/host-seccomp/dd-host-profiler"]
+    securityContext:
+      readOnlyRootFilesystem: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+    volumeMounts:
+      - name: host-seccomp
+        mountPath: /host-seccomp
+
+extraVolumeMounts:
+  - name: tmpdir
+    mountPath: /tmp
+
+extraVolumes:
+  - name: tmpdir
+    emptyDir: {}
+  - name: host-seccomp
+    hostPath:
+      path: /var/lib/kubelet/seccomp
+      type: DirectoryOrCreate
+
+networkPolicy:
+  enabled: true
+  # Ingress only — egress is handled by CiliumNetworkPolicy (cilium-network-policy.yaml)
+  # on clusters with Cilium. Standard NetworkPolicy cannot express FQDN-based rules.
+
+extraEnvs:
+  - name: DD_KUBERNETES_KUBELET_HOST
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  - name: DD_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: datadog-secret
+        key: api-key
+  - name: DD_SITE
+    value: "datadoghq.com"
