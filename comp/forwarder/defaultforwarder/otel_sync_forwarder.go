@@ -29,10 +29,25 @@ import (
 // consumererror.NewPermanent so the exporterhelper queue does not retry it.
 var ErrPermanentHTTPError = errors.New("permanent intake error")
 
+// errOTelSyncNotSupported is returned by Forwarder interface methods that are
+// not used by the OTel serializer metrics path and therefore not implemented by
+// OTelSyncForwarder. It replaces a delegation to the stopped embedded
+// DefaultForwarder, which would return a less informative "forwarder is not
+// started" error.
+var errOTelSyncNotSupported = errors.New("not supported by OTelSyncForwarder: only the serializer metrics path is implemented")
+
 // OTelSyncForwarder is a synchronous forwarder that aggregates and returns
 // transaction errors instead of swallowing them. It is intended for use by the
 // OTel serializer exporter so that failures surface back through ConsumeMetrics
 // to the exporterhelper queue/retry layer (see OTAGENT-1024).
+//
+// Supported methods (the OTel serializer metrics path):
+//   - SubmitTransaction, SubmitV1Series, SubmitV1Intake, SubmitV1IntakeDirect
+//   - SubmitV1CheckRuns, SubmitHostMetadata, SubmitMetadata, SubmitAgentChecksMetadata
+//   - GetDomainResolvers
+//
+// All other Forwarder interface methods (process, container, orchestrator checks)
+// return errOTelSyncNotSupported; they exist only for interface compliance.
 //
 // Differences vs SyncForwarder:
 //   - Errors from HTTP transactions are returned (multierr-combined) rather than logged.
@@ -186,44 +201,44 @@ func (f *OTelSyncForwarder) SubmitAgentChecksMetadata(payload transaction.BytesP
 	return f.SubmitV1Intake(payload, transaction.Metadata, extra)
 }
 
-// SubmitProcessChecks sends process checks.
-func (f *OTelSyncForwarder) SubmitProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
-	return f.defaultForwarder.submitProcessLikePayload(endpoints.ProcessesEndpoint, payload, extra, true)
+// SubmitProcessChecks is not supported; see errOTelSyncNotSupported.
+func (f *OTelSyncForwarder) SubmitProcessChecks(_ transaction.BytesPayloads, _ http.Header) (chan Response, error) {
+	return nil, errOTelSyncNotSupported
 }
 
-// SubmitProcessDiscoveryChecks sends process discovery checks.
-func (f *OTelSyncForwarder) SubmitProcessDiscoveryChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
-	return f.defaultForwarder.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true)
+// SubmitProcessDiscoveryChecks is not supported; see errOTelSyncNotSupported.
+func (f *OTelSyncForwarder) SubmitProcessDiscoveryChecks(_ transaction.BytesPayloads, _ http.Header) (chan Response, error) {
+	return nil, errOTelSyncNotSupported
 }
 
-// SubmitRTProcessChecks sends real-time process checks.
-func (f *OTelSyncForwarder) SubmitRTProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
-	return f.defaultForwarder.submitProcessLikePayload(endpoints.RtProcessesEndpoint, payload, extra, false)
+// SubmitRTProcessChecks is not supported; see errOTelSyncNotSupported.
+func (f *OTelSyncForwarder) SubmitRTProcessChecks(_ transaction.BytesPayloads, _ http.Header) (chan Response, error) {
+	return nil, errOTelSyncNotSupported
 }
 
-// SubmitContainerChecks sends container checks.
-func (f *OTelSyncForwarder) SubmitContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
-	return f.defaultForwarder.submitProcessLikePayload(endpoints.ContainerEndpoint, payload, extra, true)
+// SubmitContainerChecks is not supported; see errOTelSyncNotSupported.
+func (f *OTelSyncForwarder) SubmitContainerChecks(_ transaction.BytesPayloads, _ http.Header) (chan Response, error) {
+	return nil, errOTelSyncNotSupported
 }
 
-// SubmitRTContainerChecks sends real-time container checks.
-func (f *OTelSyncForwarder) SubmitRTContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
-	return f.defaultForwarder.submitProcessLikePayload(endpoints.RtContainerEndpoint, payload, extra, false)
+// SubmitRTContainerChecks is not supported; see errOTelSyncNotSupported.
+func (f *OTelSyncForwarder) SubmitRTContainerChecks(_ transaction.BytesPayloads, _ http.Header) (chan Response, error) {
+	return nil, errOTelSyncNotSupported
 }
 
-// SubmitConnectionChecks sends connection checks.
-func (f *OTelSyncForwarder) SubmitConnectionChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
-	return f.defaultForwarder.submitProcessLikePayload(endpoints.ConnectionsEndpoint, payload, extra, true)
+// SubmitConnectionChecks is not supported; see errOTelSyncNotSupported.
+func (f *OTelSyncForwarder) SubmitConnectionChecks(_ transaction.BytesPayloads, _ http.Header) (chan Response, error) {
+	return nil, errOTelSyncNotSupported
 }
 
-// SubmitOrchestratorChecks sends orchestrator checks.
-func (f *OTelSyncForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) error {
-	return f.defaultForwarder.SubmitOrchestratorChecks(payload, extra, payloadType)
+// SubmitOrchestratorChecks is not supported; see errOTelSyncNotSupported.
+func (f *OTelSyncForwarder) SubmitOrchestratorChecks(_ transaction.BytesPayloads, _ http.Header, _ int) error {
+	return errOTelSyncNotSupported
 }
 
-// SubmitOrchestratorManifests sends orchestrator manifests.
-func (f *OTelSyncForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) error {
-	return f.defaultForwarder.SubmitOrchestratorManifests(payload, extra)
+// SubmitOrchestratorManifests is not supported; see errOTelSyncNotSupported.
+func (f *OTelSyncForwarder) SubmitOrchestratorManifests(_ transaction.BytesPayloads, _ http.Header) error {
+	return errOTelSyncNotSupported
 }
 
 // GetDomainResolvers returns the list of resolvers used by this forwarder.
