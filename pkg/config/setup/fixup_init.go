@@ -75,10 +75,10 @@ func fixupInitCommonConfigComponents(config pkgconfigmodel.Config) {
 }
 
 // called only for full-agent, NOT serverless-init, after declaring settings
-func fixupInitFullAgentOnlyComponents(config pkgconfigmodel.Config) {
+func fixupInitFullAgentOnlyComponents(_ pkgconfigmodel.Config) {
 	pkgconfigmodel.AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
 }
 
 // called only for system-probe, after declaring settings
-func fixupInitSystemProbe(config pkgconfigmodel.Config) {
+func fixupInitSystemProbe(_ pkgconfigmodel.Config) {
 }
