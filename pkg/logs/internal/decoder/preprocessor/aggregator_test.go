@@ -25,6 +25,12 @@ func newMessage(content string) *message.Message {
 	return m
 }
 
+func newMessageWithTimestamp(content, timestamp string) *message.Message {
+	m := newMessage(content)
+	m.ParsingExtra.Timestamp = timestamp
+	return m
+}
+
 func assertMessageContent(t *testing.T, m *message.Message, content string) {
 	t.Helper()
 	isMultiLine := len(strings.Split(content, "\\n")) > 1
@@ -122,6 +128,51 @@ func TestAggregateDoesntStartGroup(t *testing.T) {
 	msgs = processMsg(ag, newMessage("3"), aggregate)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "3")
+}
+
+// TestAggregateCarriesLastLineTimestamp asserts that when the auto-multiline
+// aggregator emits a combined message, its ParsingExtra.Timestamp equals the
+// LAST aggregated line's timestamp. The Docker socket tailer uses this field
+// as the lastSince offset; if it held the first line's timestamp instead,
+// any reader restart would cause Docker to replay lines 2..N as duplicates.
+func TestAggregateCarriesLastLineTimestamp(t *testing.T) {
+	const (
+		ts1 = "2026-05-11T10:00:00.000000001Z"
+		ts2 = "2026-05-11T10:00:00.000000002Z"
+		ts3 = "2026-05-11T10:00:00.000000003Z"
+		ts4 = "2026-05-11T10:00:00.000000004Z"
+	)
+
+	ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
+
+	require.Empty(t, processMsg(ag, newMessageWithTimestamp("1", ts1), startGroup))
+	require.Empty(t, processMsg(ag, newMessageWithTimestamp("2", ts2), aggregate))
+	require.Empty(t, processMsg(ag, newMessageWithTimestamp("3", ts3), aggregate))
+
+	// A new startGroup flushes the previous bucket [L1, L2, L3].
+	msgs := processMsg(ag, newMessageWithTimestamp("4", ts4), startGroup)
+	require.Len(t, msgs, 1)
+	assertMessageContent(t, msgs[0], "1\\n2\\n3")
+	assert.Equal(t, ts3, msgs[0].ParsingExtra.Timestamp,
+		"aggregated message must carry the LAST line's parser timestamp so the tailer offset advances past every combined line")
+
+	// The pending single-line "4" carries its own timestamp.
+	msgs = flushMsgs(ag)
+	require.Len(t, msgs, 1)
+	assertMessageContent(t, msgs[0], "4")
+	assert.Equal(t, ts4, msgs[0].ParsingExtra.Timestamp)
+}
+
+// TestSingleLineKeepsOwnTimestamp confirms the fix is a no-op for single-line
+// flushes (the carry-forward only runs when len(b.lines) > 1).
+func TestSingleLineKeepsOwnTimestamp(t *testing.T) {
+	const ts1 = "2026-05-11T10:00:00.000000001Z"
+
+	ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
+
+	msgs := processMsg(ag, newMessageWithTimestamp("solo", ts1), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, ts1, msgs[0].ParsingExtra.Timestamp)
 }
 
 func TestForceFlush(t *testing.T) {

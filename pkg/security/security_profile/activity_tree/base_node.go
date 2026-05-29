@@ -18,58 +18,118 @@ type ImageTagTimes struct {
 	LastSeen  time.Time
 }
 
-// NodeBase provides the base functionality for all nodes in the activity tree
+// seenEntry pairs an image tag ID with its observation timestamps.
+type seenEntry struct {
+	id    uint64
+	times ImageTagTimes
+}
+
+// NodeBase provides the base functionality for all nodes in the activity tree.
 type NodeBase struct {
-	Seen map[string]*ImageTagTimes // imageTag → timestamps
+	seen []seenEntry
 }
 
 // NewNodeBase creates a new NodeBase instance
 func NewNodeBase() NodeBase {
-	return NodeBase{Seen: make(map[string]*ImageTagTimes)}
+	return NodeBase{}
 }
 
-// AppendImageTag adds a new entry in the map or updates the LastSeen for the given imageTag at time 'now'.
-func (b *NodeBase) AppendImageTag(imageTag string, timestamp time.Time) {
-	if imageTag == "" {
+// AppendImageTagID adds a new entry in the slice or updates the LastSeen for the given imageTagID.
+// ID 0 is the null sentinel and is a no-op.
+func (b *NodeBase) AppendImageTagID(imageTagID uint64, timestamp time.Time) {
+	if imageTagID == 0 {
 		return
 	}
-	if vt, ok := b.Seen[imageTag]; ok {
-		vt.LastSeen = timestamp
+	for i, entry := range b.seen {
+		if entry.id == imageTagID {
+			b.seen[i].times.LastSeen = timestamp
+			return
+		}
+	}
+	// Three-index slice sets cap == len before append so Go allocates exactly one new slot,
+	// avoiding the default doubling strategy for a structure that stays small (typically ≤5 entries).
+	b.seen = append(b.seen[:len(b.seen):len(b.seen)], seenEntry{id: imageTagID, times: ImageTagTimes{FirstSeen: timestamp, LastSeen: timestamp}})
+}
+
+// RecordWithTimestamps sets both FirstSeen and LastSeen for the given imageTagID with the provided timestamps.
+// ID 0 is the null sentinel and is a no-op.
+func (b *NodeBase) RecordWithTimestamps(imageTagID uint64, firstSeen, lastSeen time.Time) {
+	if imageTagID == 0 {
 		return
 	}
-	b.Seen[imageTag] = &ImageTagTimes{FirstSeen: timestamp, LastSeen: timestamp}
-}
-
-// RecordWithTimestamps sets both FirstSeen and LastSeen for the given imageTag with the provided timestamps.
-func (b *NodeBase) RecordWithTimestamps(imageTag string, firstSeen, lastSeen time.Time) {
-	b.Seen[imageTag] = &ImageTagTimes{FirstSeen: firstSeen, LastSeen: lastSeen}
-}
-
-// EvictImageTag removes the stored timestamps for an imageTag returns false if the imageTag was not present or if the imageTag is empty
-// returns true if the imageTag was present and the map is now empty
-func (b *NodeBase) EvictImageTag(imageTag string) bool {
-	if !b.HasImageTag(imageTag) || imageTag == "" {
-		return false
+	for i, entry := range b.seen {
+		if entry.id == imageTagID {
+			b.seen[i].times = ImageTagTimes{FirstSeen: firstSeen, LastSeen: lastSeen}
+			return
+		}
 	}
-	delete(b.Seen, imageTag)
-	return len(b.Seen) == 0
+	b.seen = append(b.seen[:len(b.seen):len(b.seen)], seenEntry{id: imageTagID, times: ImageTagTimes{FirstSeen: firstSeen, LastSeen: lastSeen}})
 }
 
-// EvictBeforeTimestamp removes all imageTags whose LastSeen is before the given timestamp.
-// Returns the number of imageTags that were removed.
+// EvictImageTag removes the entry for imageTagID and returns true if the slice is now empty.
+// Returns false if imageTagID was not present.
+func (b *NodeBase) EvictImageTag(imageTagID uint64) bool {
+	for i, entry := range b.seen {
+		if entry.id == imageTagID {
+			// swap-and-truncate — order doesn't matter for this structure
+			b.seen[i] = b.seen[len(b.seen)-1]
+			b.seen = b.seen[:len(b.seen)-1]
+			return len(b.seen) == 0
+		}
+	}
+	return false
+}
+
+// EvictBeforeTimestamp removes all entries whose LastSeen is before the given timestamp.
+// Returns the number of entries removed.
 func (b *NodeBase) EvictBeforeTimestamp(before time.Time) int {
 	removed := 0
-	for imageTag, times := range b.Seen {
-		if times.LastSeen.Before(before) {
-			delete(b.Seen, imageTag)
+	i := 0
+	for i < len(b.seen) {
+		if b.seen[i].times.LastSeen.Before(before) {
+			b.seen[i] = b.seen[len(b.seen)-1]
+			b.seen = b.seen[:len(b.seen)-1]
 			removed++
+		} else {
+			i++
 		}
 	}
 	return removed
 }
 
-// HasImageTag returns true if the imageTag exists in the Seen map.
-func (b *NodeBase) HasImageTag(imageTag string) bool {
-	_, exists := b.Seen[imageTag]
-	return exists
+// HasImageTag returns true if imageTagID has an entry in the slice.
+func (b *NodeBase) HasImageTag(imageTagID uint64) bool {
+	for _, entry := range b.seen {
+		if entry.id == imageTagID {
+			return true
+		}
+	}
+	return false
+}
+
+// SeenIsEmpty returns true if no image tags are recorded.
+func (b *NodeBase) SeenIsEmpty() bool {
+	return len(b.seen) == 0
+}
+
+// SeenLen returns the number of recorded image tags.
+func (b *NodeBase) SeenLen() int {
+	return len(b.seen)
+}
+
+// GetSeenTimes returns the timestamps for the given imageTagID, or the zero value and false if not found.
+func (b *NodeBase) GetSeenTimes(imageTagID uint64) (ImageTagTimes, bool) {
+	for _, entry := range b.seen {
+		if entry.id == imageTagID {
+			return entry.times, true
+		}
+	}
+	return ImageTagTimes{}, false
+}
+
+// EachSeen calls fn for every recorded image tag ID and its timestamps.
+func (b *NodeBase) EachSeen(fn func(id uint64, times ImageTagTimes)) {
+	for _, entry := range b.seen {
+		fn(entry.id, entry.times)
+	}
 }

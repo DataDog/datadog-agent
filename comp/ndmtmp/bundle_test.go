@@ -10,11 +10,11 @@ package ndmtmp
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	ddagg "github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -26,7 +26,7 @@ func TestBundleDependencies(t *testing.T) {
 		demultiplexerimpl.MockModule(),
 		orchestratorForwarderImpl.MockModule(),
 		defaultforwarder.MockModule(),
-		eventplatformimpl.MockModule(),
+		eventplatformmock.MockModule(),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 	)

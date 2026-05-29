@@ -319,7 +319,7 @@ func tryBootstrap(ctx context.Context, clientName, addr, authToken string, clien
 	sessionID, _, err := helper.RegisterRemoteAgent(ctx, client, helper.RegistrationRequest{
 		Flavor:         flavor.GetFlavor(),
 		DisplayName:    clientName + " (bootstrap)",
-		APIEndpointURI: listener.Addr().String(),
+		APIEndpointURI: "https://" + listener.Addr().String(),
 	}, queryTimeout, 0, logger)
 	if err != nil {
 		return fmt.Errorf("register with RAR: %w", err)

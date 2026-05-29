@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "store",
+    srcs = [
+        "mem_store.go",
+        "store.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/networkconfigmanagement/types",
+        "//pkg/util/compression",
+        "//pkg/util/compression/selector",
+        "//pkg/version",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_google_uuid//:uuid",
+        "@io_etcd_go_bbolt//:bbolt",
+    ],
+)
+
+go_test(
+    name = "store_test",
+    srcs = [
+        "eviction_test.go",
+        "store_test.go",
+    ],
+    embed = [":store"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/networkconfigmanagement/types",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_etcd_go_bbolt//:bbolt",
+    ],
+)

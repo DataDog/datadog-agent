@@ -16,7 +16,7 @@ const (
 	issueName  = "ad_misconfiguration"
 	category   = "autodiscovery"
 	location   = "autodiscovery"
-	severity   = "medium"
+	severity   = healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM
 	source     = "autodiscovery"
 	unknownVal = "unknown"
 	failedMsg  = "Autodiscovery misconfiguration error detected"

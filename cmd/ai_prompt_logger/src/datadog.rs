@@ -40,20 +40,20 @@ impl DatadogClient {
     /// missing or not a file, a warning is logged and defaults are used (no fallback to
     /// auto-discovery for that explicit path).
     ///
-    /// If `config_path` is `None`, searches for `CONFIG_BASENAME` under the install prefix
-    /// inferred from the executable path (`{install_root}/embedded/bin/...`):
-    /// 1. `{install_root}/etc/datadog-agent/`
-    /// 2. `{install_root}/etc/`
+    /// If `config_path` is `None`, searches for `CONFIG_BASENAME`:
+    /// 1. On Windows, under the MSI `ConfigRoot` registry value.
+    /// 2. On Windows, under `%ProgramData%\Datadog`.
+    /// 3. Under the install prefix inferred from the executable path.
     ///
     /// YAML keys (defaults match the Agent trace receiver):
-    /// - `trace_agent_url` (default `http://localhost:8126`; use **http** only — the local trace
+    /// - `trace_agent_url` (default `http://127.0.0.1:8126`; use **http** only — the local trace
     ///   receiver is plain HTTP and this binary has no TLS client)
     /// - `evp_proxy_api_version` (default `2`)
     /// - `ai_usage_evp_subdomain` (default `event-platform-intake`)
     ///
     /// No `DD_API_KEY` is required here; the Agent injects the key when forwarding.
     pub fn load(config_path: Option<PathBuf>) -> Self {
-        let mut agent_base = "http://localhost:8126".to_string();
+        let mut agent_base = "http://127.0.0.1:8126".to_string();
         let mut proxy_version: u32 = 2;
         let mut evp_subdomain = AI_USAGE_EVP_SUBDOMAIN.to_string();
 
@@ -121,6 +121,57 @@ impl DatadogClient {
     }
 
     fn yaml_config_path() -> Option<PathBuf> {
+        #[cfg(windows)]
+        {
+            if let Some(path) = Self::windows_config_path_from_registry() {
+                return Some(path);
+            }
+
+            std::env::var_os("ProgramData").and_then(|program_data| {
+                Self::config_path_in_dir(PathBuf::from(program_data).join("Datadog"))
+            })
+        }
+
+        #[cfg(not(windows))]
+        Self::install_root_config_path()
+    }
+
+    fn config_path_in_dir(dir: impl AsRef<Path>) -> Option<PathBuf> {
+        let path = dir.as_ref().join(CONFIG_BASENAME);
+        if path.is_file() { Some(path) } else { None }
+    }
+
+    #[cfg(windows)]
+    fn windows_config_path_from_registry() -> Option<PathBuf> {
+        // Mirror pkg/util/winutil.GetProgramDataDir() and pkg/util/defaultpaths:
+        // prefer the MSI ConfigRoot registry value over the default ProgramData path.
+        let config_root =
+            Self::windows_registry_string("SOFTWARE\\Datadog\\Datadog Agent", "ConfigRoot")?;
+        Some(config_root.join(CONFIG_BASENAME))
+    }
+
+    #[cfg(windows)]
+    fn windows_registry_string(subkey: &str, value_name: &str) -> Option<PathBuf> {
+        use windows_registry::LOCAL_MACHINE;
+        use windows_sys::Win32::System::Registry::KEY_WOW64_64KEY;
+
+        let key = LOCAL_MACHINE
+            .options()
+            .read()
+            .access(KEY_WOW64_64KEY)
+            .open(subkey)
+            .ok()?;
+
+        let value = key.get_string(value_name).ok()?;
+        if value.is_empty() {
+            None
+        } else {
+            Some(PathBuf::from(value))
+        }
+    }
+
+    #[cfg(not(windows))]
+    fn install_root_config_path() -> Option<PathBuf> {
         let install_root = Self::install_root_from_exe()?;
         let etc_dd = install_root
             .join("etc")
@@ -129,14 +180,12 @@ impl DatadogClient {
         if etc_dd.is_file() {
             return Some(etc_dd);
         }
-        let etc_flat = install_root.join("etc").join(CONFIG_BASENAME);
-        if etc_flat.is_file() {
-            return Some(etc_flat);
-        }
-        None
+        Self::config_path_in_dir(install_root.join("etc"))
     }
 
-    /// `{install_dir}` when the binary lives at `{install_dir}/embedded/bin/<name>`.
+    /// Finds `{install_dir}` for packaged non-Windows layouts like
+    /// `{install_dir}/embedded/bin/<name>`.
+    #[cfg(not(windows))]
     fn install_root_from_exe() -> Option<PathBuf> {
         let exe = std::env::current_exe().ok()?;
         let bin_dir = exe.parent()?;
@@ -156,9 +205,11 @@ impl DatadogClient {
         };
 
         match ureq::post(&self.intake_url)
-            .timeout(AGENT_REQUEST_TIMEOUT)
-            .set("Content-Type", "application/json")
-            .set("X-Datadog-EVP-Subdomain", &self.evp_subdomain)
+            .config()
+            .timeout_global(Some(AGENT_REQUEST_TIMEOUT))
+            .build()
+            .header("Content-Type", "application/json")
+            .header("X-Datadog-EVP-Subdomain", &self.evp_subdomain)
             .send_json(&body)
         {
             Ok(resp) => {
