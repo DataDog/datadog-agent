@@ -11,6 +11,7 @@ package run
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -129,11 +130,14 @@ func run(collector collector.Component) error {
 // K8S_NODE_IP is set by upstream Helm charts for the node IP; we use it as
 // kubernetes_kubelet_host so the kubelet client can resolve the node hostname.
 func initStandaloneConfig() {
+	const kubeletHostAgentConfig = "kubernetes_kubelet_host"
 	pkgconfigenv.DetectFeatures(setup.Datadog())
-	k8sNodeIP, isSet := os.LookupEnv("K8S_NODE_IP")
+	k8sNodeIP := os.Getenv("K8S_NODE_IP")
 	// If not set, let's keep DD_KUBERNETES_KUBELET_HOST as fallback
-	if isSet {
-		setup.Datadog().Set("kubernetes_kubelet_host", k8sNodeIP, pkgconfigmodel.SourceAgentRuntime)
+	if k8sNodeIP != "" {
+		setup.Datadog().Set(kubeletHostAgentConfig, k8sNodeIP, pkgconfigmodel.SourceAgentRuntime)
+	} else if _, exists := os.LookupEnv("DD_KUBERNETES_KUBELET_HOST"); exists {
+		slog.Warn("DD_KUBERNETES_KUBELET_HOST used as fallback to K8S_NODE_IP but is not officially supported")
 	}
 }
 
