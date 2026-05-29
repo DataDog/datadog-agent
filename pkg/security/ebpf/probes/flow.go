@@ -10,8 +10,20 @@ package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
+// TaskFileIterResolveFlowPidFunc is the name of the iter/task_file eBPF program
+// that snapshots the flow_pid map from the open sockets of existing processes.
+// It is attached and run manually during the snapshot phase rather than being
+// activated like a regular probe.
+const TaskFileIterResolveFlowPidFunc = "bpf_iter__task_file_resolve_flow_pid"
+
 func getFlowProbes() []*manager.Probe {
 	return []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: TaskFileIterResolveFlowPidFunc,
+			},
+		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
