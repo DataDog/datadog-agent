@@ -272,12 +272,14 @@ func getSupportedNvlinkPorts(device ddnvml.Device, metricCollector func(int) ([]
 	for port := 1; port <= totalPorts; port++ {
 		_, err := metricCollector(port)
 		if err != nil {
-			if !ddnvml.IsAPIUnsupportedOnDevice(err, device) {
-				portErrors = append(portErrors, fmt.Errorf("collect metrics for port %d: %w", port, err))
-			}
+			portErrors = append(portErrors, fmt.Errorf("collect metrics for port %d: %w", port, err))
 
-			continue
+			if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+				// only ignore ports if the error is because the API is unsupported
+				continue
+			}
 		}
+
 		ports = append(ports, port)
 	}
 

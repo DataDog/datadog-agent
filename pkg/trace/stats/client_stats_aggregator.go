@@ -214,7 +214,7 @@ func (a *ClientStatsAggregator) flushPayloads(p []*pb.ClientStatsPayload) {
 
 func (a *ClientStatsAggregator) setVersionDataFromContainerTags(p *pb.ClientStatsPayload) {
 	// No need to go any further if we already have the information in the payload.
-	if p.ImageTag != "" && p.GitCommitSha != "" {
+	if p.ImageTag != "" && p.GitCommitSha != "" && p.Version != "" {
 		return
 	}
 	if p.ContainerID != "" {
@@ -222,13 +222,16 @@ func (a *ClientStatsAggregator) setVersionDataFromContainerTags(p *pb.ClientStat
 		if err != nil {
 			log.Error("Client stats aggregator is unable to resolve container ID (%s) to container tags: %v", p.ContainerID, err)
 		} else {
-			gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(cTags)
+			gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(cTags)
 			// Only override if the payload's original values were empty strings.
 			if p.ImageTag == "" {
 				p.ImageTag = imageTag
 			}
 			if p.GitCommitSha == "" {
 				p.GitCommitSha = gitCommitSha
+			}
+			if p.Version == "" {
+				p.Version = appVersion
 			}
 		}
 	}

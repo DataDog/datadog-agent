@@ -24,18 +24,7 @@ def generate(ctx, pre_commit=False):
     proto_root = os.path.join(repo_root, "pkg", "proto")
     pbgo_dir = os.path.join(proto_root, "pbgo")
 
-    print(f"generating protobuf code from: {proto_root}")
-    bazel(ctx, "run", "//pkg/proto/pbgo/core:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/dogstatsdhttp:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/languagedetection:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/mocks/core:api_mockgen")
-    bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/actionsclient:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/errorcode:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/privateactions:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/process:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/sbom:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/trace:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/trace/idx:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo:write_all")
 
     # Generate messagepack marshallers
     # msgp targets (file, io)

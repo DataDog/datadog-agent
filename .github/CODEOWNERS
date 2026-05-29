@@ -945,6 +945,7 @@
 /comp/anomalydetection/                  @DataDog/q-branch # Useful for AGENTS.md files etc. at the root of all AD components
 
 # AI-related files
+/.claude/rules/bazel.md               @DataDog/agent-build
 /.claude/skills/explain-lading-config @DataDog/single-machine-performance
 
 # Temporary during Bazel migration

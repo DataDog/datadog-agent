@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "logsagentpipeline",
+    srcs = [
+        "compat.go",
+        "doc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/otelcol/logsagentpipeline/def"],
+)

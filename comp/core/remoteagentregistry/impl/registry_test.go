@@ -9,6 +9,9 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -96,6 +99,63 @@ func TestGetRegisteredAgentsIdleTimeout(t *testing.T) {
 
 	agents = component.GetRegisteredAgents()
 	require.Len(t, agents, 0)
+}
+
+// TestRegistryDialsUDSRemoteAgent verifies the end-to-end UDS path: a remote agent
+// registers with a "unix:///path" api_endpoint_uri, and the registry then dials it
+// over a UDS connection to fetch status.
+func TestRegistryDialsUDSRemoteAgent(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("UDS not supported on Windows")
+	}
+
+	provides, lc, cfg, _, ipcComp := buildComponent(t)
+	cfg.SetWithoutSource("remote_agent.registry.query_timeout", 2*time.Second)
+
+	component := provides.Comp.(*remoteAgentRegistry)
+	require.NoError(t, lc.Start(context.Background()))
+	t.Cleanup(func() { _ = lc.Stop(context.Background()) })
+
+	// macOS limits sun_path to 104 bytes; use a short fixed prefix instead of t.TempDir().
+	udsDir, err := os.MkdirTemp("/tmp", "rar-uds-")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(udsDir) })
+	socketPath := filepath.Join(udsDir, "a.sock")
+	udsListener, err := net.Listen("unix", socketPath)
+	require.NoError(t, err)
+
+	agent := buildRemoteAgentOnListener(t, ipcComp, udsListener, "unix://"+socketPath,
+		"uds-agent", "UDS Agent", "9999",
+		withStatusProvider(map[string]string{"transport": "uds"}, nil),
+	)
+
+	sessionID, _, err := component.RegisterRemoteAgent(&agent.RegistrationData)
+	require.NoError(t, err)
+	agent.registeredSessionID = sessionID
+
+	// Issue a status RPC via the registry's normal call path and verify the response
+	// came from the UDS-backed agent.
+	type statusResult struct {
+		flavor string
+		fields map[string]string
+		err    error
+	}
+	results := callAgentsForService(component, StatusServiceName,
+		func(ctx context.Context, rac *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetStatusDetailsResponse, error) {
+			return rac.GetStatusDetails(ctx, &pb.GetStatusDetailsRequest{}, opts...)
+		},
+		func(reg remoteagent.RegisteredAgent, resp *pb.GetStatusDetailsResponse, err error) statusResult {
+			if err != nil || resp == nil || resp.MainSection == nil {
+				return statusResult{flavor: reg.Flavor, err: err}
+			}
+			return statusResult{flavor: reg.Flavor, fields: resp.MainSection.Fields}
+		},
+	)
+
+	require.Len(t, results, 1)
+	require.NoError(t, results[0].err)
+	assert.Equal(t, "uds-agent", results[0].flavor)
+	assert.Equal(t, "uds", results[0].fields["transport"])
 }
 
 func TestDisabled(t *testing.T) {
@@ -245,6 +305,20 @@ func withFakeSessionID(fakeSessionID string) func(*grpc.Server, *testRemoteAgent
 }
 
 func buildRemoteAgent(t *testing.T, ipcComp ipc.Component, agentFlavor string, agentName string, agentPID string, mockProviders ...mockProvider) *testRemoteAgentServer {
+	// Default to a random localhost TCP port; the advertised api_endpoint_uri is the
+	// bare host:port form (backwards-compatible default for the registry client).
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	return buildRemoteAgentOnListener(t, ipcComp, listener, listener.Addr().String(), agentFlavor, agentName, agentPID, mockProviders...)
+}
+
+// buildRemoteAgentOnListener is like buildRemoteAgent but reuses a caller-supplied
+// listener, letting tests exercise non-TCP transports (e.g. UDS).
+//
+// apiEndpointURI is recorded verbatim in RegistrationData and must match what the
+// registry-side client expects to dial — e.g. "unix:///path/to/sock" for UDS or
+// "https://host:port" for TLS-over-TCP.
+func buildRemoteAgentOnListener(t *testing.T, ipcComp ipc.Component, listener net.Listener, apiEndpointURI string, agentFlavor string, agentName string, agentPID string, mockProviders ...mockProvider) *testRemoteAgentServer {
 	testServer := &testRemoteAgentServer{
 		RegistrationData: remoteagent.RegistrationData{
 			AgentFlavor:      agentFlavor,
@@ -253,10 +327,6 @@ func buildRemoteAgent(t *testing.T, ipcComp ipc.Component, agentFlavor string, a
 			Services:         []string{}, // Will be populated by mock providers
 		},
 	}
-
-	// Make sure we can listen on the intended address.
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
 
 	// Create delay interceptor that uses testServer.responseDelay
 	delayInterceptor := func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
@@ -314,12 +384,14 @@ func buildRemoteAgent(t *testing.T, ipcComp ipc.Component, agentFlavor string, a
 
 	t.Cleanup(server.Stop)
 
-	testServer.RegistrationData.APIEndpointURI = listener.Addr().String()
+	testServer.RegistrationData.APIEndpointURI = apiEndpointURI
 	testServer.server = server
 
 	// block until the server is started
 	// initializing a dummy echo client to make sure the server is started
-	client, err := grpc.NewClient(listener.Addr().String(), grpc.WithTransportCredentials(credentials.NewTLS(ipcComp.GetTLSClientConfig())))
+	probeTarget, probeCreds, err := resolveDialTarget(apiEndpointURI, ipcComp.GetTLSClientConfig())
+	require.NoError(t, err)
+	client, err := grpc.NewClient(probeTarget, grpc.WithTransportCredentials(probeCreds))
 	require.NoError(t, err)
 	echoClient := echo.NewEchoClient(client)
 	_, err = echoClient.UnaryEcho(context.Background(), &echo.EchoRequest{}, grpc.WaitForReady(true))

@@ -1,0 +1,5 @@
+filegroup(
+    name = "default_profiles",
+    srcs = glob(["*"]),
+    visibility = ["//pkg/networkconfigmanagement/profile:__pkg__"],
+)

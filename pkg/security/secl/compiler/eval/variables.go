@@ -1062,6 +1062,10 @@ func (v *Variables) GetScopedVariables(_ string) map[ScopeHashKey]Variable {
 	return nil
 }
 
+// CopyInheritedVariables is a no-op for global variables, which have no
+// parent scope chain.
+func (v *Variables) CopyInheritedVariables(_ VariableScope) {}
+
 // MutableSECLVariable describes the interface implemented by mutable SECL variable
 type MutableSECLVariable interface {
 	Variable
@@ -1228,6 +1232,69 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 		}, setVariable, VariableOpts{}), nil
 	default:
 		return nil, fmt.Errorf("unsupported variable type %s for '%s'", reflect.TypeOf(value), name)
+	}
+}
+
+// CopyInheritedVariables snapshots all inherited variables visible to scope
+// through its parent chain into the scope's own variable storage. After this
+// call, the closest inherited value for each name is materialised directly
+// under scope, so subsequent changes to the parent chain (e.g. process
+// reparenting) no longer affect the values resolved against scope. Variables
+// already defined directly on scope are left untouched.
+func (v *ScopedVariables) CopyInheritedVariables(scope VariableScope) {
+	if scope == nil {
+		return
+	}
+	currentHash := scope.Hash()
+
+	v.varsLock.Lock()
+	defer v.varsLock.Unlock()
+
+	currentVars := v.vars[currentHash]
+
+	parent := scope
+	for {
+		var exists bool
+		if parent, exists = parent.ParentScope(); !exists {
+			break
+		}
+		parentVars := v.vars[parent.Hash()]
+		for name, variable := range parentVars {
+			if !variable.GetVariableOpts().Inherited {
+				continue
+			}
+			if _, exists := currentVars[name]; exists {
+				continue
+			}
+
+			if currentVars == nil {
+				scope.AppendReleaseCallback(func() {
+					v.ReleaseVariable(currentHash)
+				})
+				v.vars[currentHash] = make(map[string]MutableSECLVariable)
+				currentVars = v.vars[currentHash]
+			}
+
+			value, exists := variable.GetValue()
+			if !exists {
+				continue
+			}
+			opts := variable.GetVariableOpts()
+			newVar, err := newSECLVariable(value, opts)
+			if err != nil {
+				continue
+			}
+			if err := newVar.Set(nil, value); err != nil {
+				continue
+			}
+			currentVars[name] = newVar
+
+			if expirable, ok := newVar.(expirableVariable); ok && opts.TTL > 0 {
+				v.expirablesLock.Lock()
+				v.expirables[currentHash] = append(v.expirables[currentHash], expirable)
+				v.expirablesLock.Unlock()
+			}
+		}
 	}
 }
 

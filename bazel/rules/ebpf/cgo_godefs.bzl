@@ -73,10 +73,9 @@ def _cgo_godefs_impl(ctx):
         package_name = ctx.label.package.split("/")[-1]
         genpost_args = "$ROOT/{test} {pkg}".format(test = test_path_no_ext, pkg = package_name)
 
-    # TODO(ABLD-410): uses the system clang rather than a hermetic toolchain.
-    # On Windows, Go defaults to gcc (MinGW) — no CC override needed, matching
-    # the old ninja behavior.
-    cc_prefix = "CC=clang " if platform == "linux" else ""
+    # TODO(ABLD-410): Linux still shells out to the system clang.
+    # Windows points cgo at the hermetic MinGW gcc from the cc_toolchain.
+    cc_prefix = "CC=clang " if platform == "linux" else "CC=$ROOT/{} ".format(go.cgo_tools.c_compiler_path)
 
     cmd = (
         "set -euo pipefail && ROOT=$PWD && cd {src_dir} && " +

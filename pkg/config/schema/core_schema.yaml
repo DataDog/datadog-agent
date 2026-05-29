@@ -4239,6 +4239,13 @@ properties:
         env_vars:
         - DD_APM_PROFILING_DD_URL
         tags: []
+      profiling_send_to_main_endpoint:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_APM_PROFILING_SEND_TO_MAIN_ENDPOINT
+        tags: []
       profiling_max_request_bytes:
         node_type: setting
         type: integer
@@ -12365,6 +12372,11 @@ properties:
     node_type: section
     type: object
     properties:
+      api_listen_address:
+        node_type: setting
+        type: string
+        default: tcp://0.0.0.0:5100
+        comment: Listen addresses must include a URL scheme (e.g. "tcp://").
       dogstatsd:
         node_type: section
         type: object
@@ -12378,6 +12390,10 @@ properties:
         type: boolean
         default: false
         comment: Data Plane
+      log_file:
+        node_type: setting
+        type: string
+        default: /opt/datadog-agent/logs/agent-data-plane.log
       otlp:
         node_type: section
         type: object
@@ -12394,6 +12410,22 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+              logs:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: true
+              metrics:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: true
               receiver:
                 node_type: section
                 type: object
@@ -12413,6 +12445,34 @@ properties:
                             comment: When the ADP OTLP proxy is enabled, ADP owns
                               the gRPC endpoint configured for the receiver (default
                               :4317) and the core agent uses the endpoint below
+              traces:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: true
+      remote_agent_enabled:
+        node_type: setting
+        type: boolean
+        default: true
+      secure_api_listen_address:
+        node_type: setting
+        type: string
+        default: tcp://0.0.0.0:5101
+      telemetry_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      telemetry_listen_addr:
+        node_type: setting
+        type: string
+        default: tcp://0.0.0.0:5102
+      use_new_config_stream_endpoint:
+        node_type: setting
+        type: boolean
+        default: true
   data_streams:
     node_type: section
     type: object
@@ -13684,6 +13744,122 @@ properties:
     type: string
     default: ''
     comment: Forwarder storage on disk
+  genresources:
+    node_type: section
+    type: object
+    properties:
+      additional_endpoints:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: object
+      batch_max_concurrent_send:
+        node_type: setting
+        type: number
+        default: 0
+        tags:
+        - golang_type:int
+      batch_max_content_size:
+        node_type: setting
+        type: number
+        default: 5000000
+        tags:
+        - golang_type:int
+      batch_max_size:
+        node_type: setting
+        type: number
+        default: 1000
+        tags:
+        - golang_type:int
+      batch_wait:
+        node_type: setting
+        type: number
+        default: 5
+        tags:
+        - golang_type:float64
+      compression_kind:
+        node_type: setting
+        type: string
+        default: zstd
+      compression_level:
+        node_type: setting
+        type: number
+        default: 6
+        tags:
+        - golang_type:int
+      connection_reset_interval:
+        node_type: setting
+        type: number
+        default: 0
+        tags:
+        - golang_type:int
+      dd_url:
+        node_type: setting
+        type: string
+        default: ''
+      dev_mode_no_ssl:
+        node_type: setting
+        type: boolean
+        default: false
+        tags:
+        - no-env
+      input_chan_size:
+        node_type: setting
+        type: number
+        default: 100
+        tags:
+        - golang_type:int
+      logs_dd_url:
+        node_type: setting
+        type: string
+        default: ''
+      logs_no_ssl:
+        node_type: setting
+        type: boolean
+        default: false
+      sender_backoff_base:
+        node_type: setting
+        type: number
+        default: 1
+        tags:
+        - golang_type:float64
+      sender_backoff_factor:
+        node_type: setting
+        type: number
+        default: 2
+        tags:
+        - golang_type:float64
+      sender_backoff_max:
+        node_type: setting
+        type: number
+        default: 120
+        tags:
+        - golang_type:float64
+      sender_recovery_interval:
+        node_type: setting
+        type: number
+        default: 2
+        tags:
+        - golang_type:int
+      sender_recovery_reset:
+        node_type: setting
+        type: boolean
+        default: false
+      use_compression:
+        node_type: setting
+        type: boolean
+        default: true
+      use_v2_api:
+        node_type: setting
+        type: boolean
+        default: true
+      zstd_compression_level:
+        node_type: setting
+        type: number
+        default: 1
+        tags:
+        - golang_type:int
   go_core_dump:
     node_type: setting
     type: boolean

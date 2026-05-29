@@ -116,6 +116,9 @@ configure_make(
         ],
     }),
     build_data = select({
+        "@platforms//os:windows": [
+            "@winlibs_mingw64//:windres",
+        ],
         "@platforms//os:macos": [
             # Pull hermetic llvm-ar into the sandbox so $(execpath) below resolves.
             "@llvm_toolchain_llvm//:ar",
@@ -123,6 +126,12 @@ configure_make(
         "//conditions:default": [],
     }),
     env = select({
+        "@platforms//os:windows": {
+            # Configure resolves RC from RC or WINDRES, then emits it into Makefile.
+            # Keep both for clarity and to avoid tool lookup through PATH.
+            "RC": "$(execpath @winlibs_mingw64//:windres)",
+            "WINDRES": "$(execpath @winlibs_mingw64//:windres)",
+        },
         "@platforms//os:macos": {
             # `ar` defaults to `libtool` on darwin toolchains, which doesn't support the incremental
             # build of static archives that the openssl build system relies upon

@@ -278,6 +278,18 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultInputChanSize: 1000,
 		},
 		{
+			eventType:                     eventplatform.EventTypeGenResources,
+			category:                      "Generic Resources",
+			contentType:                   logshttp.ProtobufContentType,
+			endpointsConfigPrefix:         "genresources.",
+			hostnameEndpointPrefix:        "resources-intake.",
+			intakeTrackType:               "genresources",
+			defaultBatchMaxConcurrentSend: 10,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		},
+		{
 			eventType:                     eventplatform.EventTypeSynthetics,
 			category:                      "Synthetics",
 			contentType:                   logshttp.JSONContentType,

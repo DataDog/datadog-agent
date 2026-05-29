@@ -613,6 +613,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.profiling_additional_endpoints"; core.IsConfigured(k) {
 		c.ProfilingProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
+	if !core.GetBool("apm_config.profiling_send_to_main_endpoint") {
+		c.ProfilingProxy.MainEndpointMode = config.ProfilingMainEndpointSkip
+	}
 	if k := "apm_config.profiling_receiver_timeout"; core.IsConfigured(k) {
 		c.ProfilingProxy.ReceiverTimeout = core.GetInt(k)
 	}

@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix OTel Agent panic at startup when ``DD_SYNC_DELAY`` or ``DD_SYNC_TO``
+    is set to a bare number without a Go duration unit suffix (e.g. ``30``
+    instead of ``30s``). The agent now prints a clear error message with a
+    suggested fix instead of crashing with a stack trace.

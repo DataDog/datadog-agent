@@ -115,6 +115,21 @@ type EBPFResolver struct {
 	procFallbackLimiter *utils.Limiter[uint32]
 
 	exitedQueue []uint32
+
+	// preReparentCb, if non-nil, is invoked just before an entry's parent
+	// link is updated (e.g. subreaper or procfs reparenting). It is called
+	// with the resolver lock held; the implementation must not call back into
+	// the resolver. Used to snapshot inherited SECL variables so they keep
+	// their pre-reparent value after the parent chain changes.
+	preReparentCb func(*model.ProcessCacheEntry)
+}
+
+// SetPreReparentCb registers a callback invoked just before the parent
+// link of a process cache entry is updated.
+func (p *EBPFResolver) SetPreReparentCb(cb func(*model.ProcessCacheEntry)) {
+	p.Lock()
+	defer p.Unlock()
+	p.preReparentCb = cb
 }
 
 // reparentTo looks up newPPid in the cache (falling back to procfs) and
@@ -131,6 +146,9 @@ func (p *EBPFResolver) reparentTo(entry *model.ProcessCacheEntry, newPPid uint32
 		}
 	}
 	if newParent != nil {
+		if p.preReparentCb != nil {
+			p.preReparentCb(entry)
+		}
 		entry.Reparent(newParent)
 		p.reparentSuccessStats[callpathTag].Inc()
 	} else {
@@ -165,6 +183,9 @@ func (p *EBPFResolver) resolveParentFromProcfs(entry *model.ProcessCacheEntry, c
 	entry.PPid = newPPidU32
 
 	if newParent := p.entryCache[newPPidU32]; newParent != nil {
+		if p.preReparentCb != nil {
+			p.preReparentCb(entry)
+		}
 		entry.Reparent(newParent)
 		p.reparentSuccessStats[callpathTag].Inc()
 	} else {

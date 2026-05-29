@@ -266,12 +266,28 @@ const (
 	OrchestratorUnknown FargateOrchestratorName = "Unknown"
 )
 
+// ProfilingMainEndpointMode controls whether the profiling proxy forwards to
+// the implicit main Datadog intake.
+type ProfilingMainEndpointMode int
+
+const (
+	// ProfilingMainEndpointSend forwards profiles to the implicit main intake
+	// in addition to any AdditionalEndpoints. This is the default (zero value).
+	ProfilingMainEndpointSend ProfilingMainEndpointMode = iota
+	// ProfilingMainEndpointSkip skips the implicit main intake; only
+	// AdditionalEndpoints receive profiles.
+	ProfilingMainEndpointSkip
+)
+
 // ProfilingProxyConfig ...
 type ProfilingProxyConfig struct {
 	// DDURL ...
 	DDURL string
 	// AdditionalEndpoints ...
 	AdditionalEndpoints map[string][]string
+	// MainEndpointMode controls forwarding to the implicit main intake.
+	// Defaults to ProfilingMainEndpointSend.
+	MainEndpointMode ProfilingMainEndpointMode
 	// ReceiverTimeout is the timeout in seconds for profile upload requests
 	ReceiverTimeout int
 	// MaxRequestBytes is the maximum body size buffered when fanning out to

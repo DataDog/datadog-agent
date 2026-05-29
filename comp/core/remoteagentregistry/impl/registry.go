@@ -76,7 +76,7 @@ func newRegistry(reqs Requires) *remoteAgentRegistry {
 
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: func(context.Context) error {
-			go registry.start()
+			registry.start()
 			return nil
 		},
 		OnStop: func(context.Context) error {

@@ -204,7 +204,7 @@ func TestPLRMetricSpecEntries(t *testing.T) {
 		t.Run(metricName, func(t *testing.T) {
 			metricSpec, ok := spec.Metrics[metricName]
 			require.True(t, ok, "metric %s missing from spec", metricName)
-			require.Contains(t, metricSpec.CustomTags, "nvlink_port")
+			require.Contains(t, metricSpec.Tagsets, "nvlink")
 			require.True(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModePhysical))
 			require.False(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModeMIG))
 			require.False(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModeVGPU))
