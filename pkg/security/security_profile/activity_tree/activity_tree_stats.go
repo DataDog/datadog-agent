@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"fmt"
+	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
@@ -72,9 +73,19 @@ func NewActivityTreeNodeStats() *Stats {
 }
 
 // ApproximateSize returns the tracked in-memory size of the tree in bytes.
-// This value is updated incrementally at insertion time and recomputed after evictions.
+// Production paths update SizeBytes incrementally on insert and periodically through
+// recomputeSizeBytes. Some callers (FakeOverweight, test fixtures, legacy code that
+// pre-populates only node counts) build a Stats with non-zero counts but zero SizeBytes;
+// for those we fall back to the shallow per-process estimate the metric used before
+// becoming incremental, so overweight checks and the load controller keep working.
 func (stats *Stats) ApproximateSize() int64 {
-	return stats.SizeBytes
+	if stats.SizeBytes > 0 {
+		return stats.SizeBytes
+	}
+	if stats.ProcessNodes > 0 {
+		return stats.ProcessNodes * int64(unsafe.Sizeof(ProcessNode{}))
+	}
+	return 0
 }
 
 // SendStats sends metrics to Datadog

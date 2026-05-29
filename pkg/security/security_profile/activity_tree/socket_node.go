@@ -36,24 +36,31 @@ type SocketNode struct {
 }
 
 // size approximates this node's heap footprint, including all owned BindNodes.
-// Unlike the *Node siblings, SocketNode's children (BindNodes) are not separately walked
-// by the activity-tree size accounting, so they are folded in here. We count the Bind
-// slice's backing array plus each BindNode's struct, IP string, MatchedRules backing
-// array, and NodeBase.seen slice.
+// SocketNode's children (BindNodes) are not separately walked by the activity-tree
+// size accounting (recomputeSizeBytes/processNodeOwnActivitySize), so they are folded
+// in here. Incremental insert/evict paths must use bindSize() for individual binds
+// and only charge sn.size() at socket creation time.
 func (sn *SocketNode) size() int64 {
 	s := int64(unsafe.Sizeof(*sn))
 	s += seenBytes(sn.NodeBase)
 	s += int64(len(sn.Family))
 	s += sliceBackingBytes(cap(sn.Bind), unsafe.Sizeof((*BindNode)(nil)))
 	for _, bind := range sn.Bind {
-		if bind == nil {
-			continue
-		}
-		s += int64(unsafe.Sizeof(*bind))
-		s += seenBytes(bind.NodeBase)
-		s += int64(len(bind.IP))
-		s += sliceBackingBytes(cap(bind.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
+		s += bindSize(bind)
 	}
+	return s
+}
+
+// bindSize approximates the heap footprint of a single BindNode: struct overhead, the
+// IP string, the MatchedRules backing slice, and the NodeBase.seen slice.
+func bindSize(bn *BindNode) int64 {
+	if bn == nil {
+		return 0
+	}
+	s := int64(unsafe.Sizeof(*bn))
+	s += seenBytes(bn.NodeBase)
+	s += int64(len(bn.IP))
+	s += sliceBackingBytes(cap(bn.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
 	return s
 }
 
@@ -67,22 +74,29 @@ func (sn *SocketNode) Matches(toMatch *SocketNode) bool {
 	return sn.Family == toMatch.Family
 }
 
-func (sn *SocketNode) evictImageTag(imageTagID uint64) bool {
-	newBind := []*BindNode{}
+// evictImageTag removes the imageTag from each owned BindNode, dropping binds that have
+// no remaining tags. Returns (socketIsEmpty, bytesRemoved) where bytesRemoved is the sum
+// of bindSize() for every dropped BindNode — the caller subtracts this from Stats.SizeBytes
+// and additionally subtracts sn.size() if the socket itself ends up empty.
+func (sn *SocketNode) evictImageTag(imageTagID uint64) (bool, int64) {
+	var removed int64
+	newBind := sn.Bind[:0]
 	for _, bind := range sn.Bind {
-		if shouldRemoveNode := bind.EvictImageTag(imageTagID); !shouldRemoveNode {
-			newBind = append(newBind, bind)
+		if bind.EvictImageTag(imageTagID) {
+			removed += bindSize(bind)
+			continue
 		}
-	}
-	if len(newBind) == 0 {
-		return true
+		newBind = append(newBind, bind)
 	}
 	sn.Bind = newBind
-	return false
+	return len(newBind) == 0, removed
 }
 
-// InsertBindEvent inserts a bind even inside a socket node
-func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, imageTagID uint64, generationType NodeGenerationType, rules []*model.MatchedRule, dryRun bool) bool {
+// InsertBindEvent inserts a bind event inside a socket node. When a new BindNode is
+// created the caller-provided stats is charged its size, keeping Stats.SizeBytes honest
+// for bind-heavy workloads where the previous accounting only charged the socket once
+// at creation time and ignored subsequent binds.
+func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, imageTagID uint64, generationType NodeGenerationType, rules []*model.MatchedRule, stats *Stats, dryRun bool) bool {
 	evtIP := utils.GetIPStringFromIPNet(evt.Addr.IPNet)
 	for _, n := range sn.Bind {
 		if evt.Addr.Port == n.Port && evtIP == n.IP && evt.Protocol == n.Protocol {
@@ -110,6 +124,9 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, 
 
 		node.AppendImageTagID(imageTagID, event.ResolveEventTime())
 		sn.Bind = append(sn.Bind, node)
+		if stats != nil {
+			stats.SizeBytes += bindSize(node)
+		}
 	}
 	return true
 }

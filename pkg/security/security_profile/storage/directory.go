@@ -167,14 +167,34 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 			seclog.Warnf("profile loaded from file [%s] has no metadata", file.path)
 			continue
 		}
+		// GetWorkloadSelector may return a non-nil pointer to a zero-value selector
+		// (SecDump-formatted files with no Tags and no ContainerID/CGroupID), so we
+		// can't trust non-nil alone — check IsReady before treating it as usable.
 		selector := p.GetWorkloadSelector()
-		if selector == nil {
-			seclog.Warnf("profile loaded from file [%s] has no selector", file.path)
+
+		// Multiple persisted formats for the same profile share an LRU entry so
+		// SizesBySelector() can sum them and the eviction callback can delete every
+		// sibling file. Peek (not Get) avoids reordering the LRU during init.
+		if existing, ok := profiles.Peek(p.Metadata.Name); ok {
+			existing.filePaths = append(existing.filePaths, file.path)
+			// Upgrade a not-ready selector if a later file (e.g. the .profile sibling)
+			// gives us a usable one, so Load() can match the entry.
+			if !existing.selector.IsReady() && selector != nil && selector.IsReady() {
+				existing.selector = *selector
+			}
 			continue
 		}
-
+		// First time we see this profile name. Register the entry even when the
+		// selector isn't ready yet: a later sibling format can still upgrade it, and
+		// keeping the file in the LRU ensures eviction will clean every on-disk format
+		// (and SizesBySelector() can account for it). selector.IsReady() gates
+		// matching during Load() so a non-ready entry is invisible to lookups.
+		var sel cgroupModel.WorkloadSelector
+		if selector != nil {
+			sel = *selector
+		}
 		profiles.Add(p.Metadata.Name, &profileEntry{
-			selector:  *selector,
+			selector:  sel,
 			filePaths: []string{file.path},
 		})
 	}

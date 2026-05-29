@@ -368,8 +368,12 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, gener
 			}
 		}
 
-		// insert the new request
+		// Snapshot size around the append: DNSNode.size() includes every Question.Name
+		// and the Requests slice's backing capacity, both of which can grow here. Using a
+		// before/after delta keeps SizeBytes honest even when append doubles the cap.
+		sizeBefore := dnsNode.size()
 		dnsNode.Requests = append(dnsNode.Requests, evt.DNS)
+		stats.SizeBytes += dnsNode.size() - sizeBefore
 		return true
 	}
 
@@ -442,8 +446,8 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTagID uint64, gene
 		newNode = true
 	}
 
-	// Insert bind event
-	if sock.InsertBindEvent(&evt.Bind, evt, imageTagID, generationType, evt.Rules, dryRun) {
+	// Insert bind event (charges Stats.SizeBytes for any new BindNode it appends).
+	if sock.InsertBindEvent(&evt.Bind, evt, imageTagID, generationType, evt.Rules, stats, dryRun) {
 		newNode = true
 	}
 
@@ -579,11 +583,16 @@ func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKe
 
 	newSockets := []*SocketNode{}
 	for _, sock := range pn.Sockets {
-		if shouldRemoveNode := sock.evictImageTag(imageTagID); !shouldRemoveNode {
-			newSockets = append(newSockets, sock)
-		} else {
+		// evictImageTag mutates sn.Bind in place and reports the bytes dropped from
+		// individual BindNodes. If the socket itself is now empty we additionally
+		// charge for the socket wrapper struct.
+		shouldRemoveNode, bindBytes := sock.evictImageTag(imageTagID)
+		removed += bindBytes
+		if shouldRemoveNode {
 			removed += sock.size()
+			continue
 		}
+		newSockets = append(newSockets, sock)
 	}
 	pn.Sockets = newSockets
 
