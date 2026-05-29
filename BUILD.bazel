@@ -90,10 +90,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/autodiscovery/common/utils
 # gazelle:exclude comp/core/autodiscovery/configresolver
 # gazelle:exclude comp/core/autodiscovery/listeners
-# gazelle:exclude comp/core/bundle.go
-# gazelle:exclude comp/core/bundle_mock.go
-# gazelle:exclude comp/core/bundle_params.go
-# gazelle:exclude comp/core/bundle_test.go
 # gazelle:exclude comp/core/diagnose/fx
 # gazelle:exclude comp/core/diagnose/impl
 # gazelle:exclude comp/core/diagnose/local
@@ -152,14 +148,10 @@ exports_files(glob(
 # gazelle:exclude comp/dogstatsd/server/mock
 # gazelle:exclude comp/dogstatsd/status/fx
 # gazelle:exclude comp/dogstatsd/status/impl
-# gazelle:exclude comp/forwarder/eventplatform/fx
-# gazelle:exclude comp/forwarder/eventplatform/impl
-# gazelle:exclude comp/forwarder/eventplatform/mock
 # gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
 # gazelle:exclude comp/haagent/fx
 # gazelle:exclude comp/haagent/impl
 # gazelle:exclude comp/host-profiler/collector/fx
-# gazelle:exclude comp/host-profiler/collector/impl/agentprovider
 # gazelle:exclude comp/host-profiler/collector/impl/processor
 # gazelle:exclude comp/host-profiler/flare
 # gazelle:exclude comp/languagedetection/client/fx
@@ -167,8 +159,6 @@ exports_files(glob(
 # gazelle:exclude comp/logonduration/fx
 # gazelle:exclude comp/logonduration/impl
 # gazelle:exclude comp/anomalydetection/logssource/impl
-# gazelle:exclude comp/logs-library/pipeline
-# gazelle:exclude comp/logs-library/sender
 # gazelle:exclude comp/logs/adscheduler/fx
 # gazelle:exclude comp/logs/adscheduler/impl
 # gazelle:exclude comp/logs/agent/agentimpl
@@ -204,13 +194,10 @@ exports_files(glob(
 # gazelle:exclude comp/ndmtmp/*.go
 # gazelle:exclude comp/ndmtmp/forwarder/fx
 # gazelle:exclude comp/ndmtmp/forwarder/impl
-# gazelle:exclude comp/ndmtmp/forwarder/mock
 # gazelle:exclude comp/netflow/flowaggregator
 # gazelle:exclude comp/netflow/goflowlib/*.go
-# gazelle:exclude comp/netflow/goflowlib/netflowstate
 # gazelle:exclude comp/netflow/server/fx
 # gazelle:exclude comp/netflow/server/impl
-# gazelle:exclude comp/netflow/testutil
 # gazelle:exclude comp/netflow/topn
 # gazelle:exclude comp/networkpath/npcollector/fx
 # gazelle:exclude comp/networkpath/npcollector/mock
@@ -230,10 +217,7 @@ exports_files(glob(
 # gazelle:exclude comp/otelcol/converter/examples
 # gazelle:exclude comp/otelcol/ddflareextension/fx
 # gazelle:exclude comp/otelcol/ddflareextension/image
-# gazelle:exclude comp/otelcol/logsagentpipeline
-# gazelle:exclude comp/otelcol/otlp/components/exporter
 # gazelle:exclude comp/otelcol/otlp/integrationtest
-# gazelle:exclude comp/otelcol/otlp/internal
 # gazelle:exclude comp/privateactionrunner/fx
 # gazelle:exclude comp/privateactionrunner/impl
 # gazelle:exclude comp/process/agent/*.go
@@ -277,8 +261,6 @@ exports_files(glob(
 # gazelle:exclude comp/snmptraps/status/impl
 # gazelle:exclude comp/softwareinventory/fx
 # gazelle:exclude comp/softwareinventory/impl
-# gazelle:exclude comp/syntheticstestscheduler/fx
-# gazelle:exclude comp/syntheticstestscheduler/impl
 # gazelle:exclude comp/systray/systray/fx
 # gazelle:exclude comp/systray/systray/impl
 # gazelle:exclude comp/trace/config/fx
@@ -384,7 +366,6 @@ exports_files(glob(
 # gazelle:exclude pkg/config/legacy
 # gazelle:exclude pkg/databasemonitoring
 # gazelle:exclude pkg/diagnose/connectivity
-# gazelle:exclude pkg/diagnose/ports
 # gazelle:exclude pkg/discovery/language
 # gazelle:exclude pkg/discovery/module/rust/include
 # gazelle:exclude pkg/discovery/module/rust/src
@@ -479,7 +460,6 @@ exports_files(glob(
 # gazelle:exclude pkg/logs/client/tcp
 # gazelle:exclude pkg/logs/internal/tag
 # gazelle:exclude pkg/logs/internal/util/adlistener
-# gazelle:exclude pkg/logs/internal/util/containersorpods
 # gazelle:exclude pkg/logs/launchers/channel
 # gazelle:exclude pkg/logs/launchers/container/tailerfactory
 # gazelle:exclude pkg/logs/launchers/file
@@ -501,7 +481,6 @@ exports_files(glob(
 # gazelle:exclude pkg/network/filter
 # gazelle:exclude pkg/network/go/bininspect
 # gazelle:exclude pkg/network/netlink
-# gazelle:exclude pkg/network/protocols/amqp
 # gazelle:exclude pkg/network/protocols/http/debugging
 # gazelle:exclude pkg/network/protocols/http/gotls/lookup/luts.go
 # gazelle:exclude pkg/network/protocols/http/gotls/lookup/main.go
@@ -520,7 +499,6 @@ exports_files(glob(
 # gazelle:exclude pkg/network/protocols/postgres/telemetry_test.go
 # gazelle:exclude pkg/network/protocols/postgres/testutils.go
 # gazelle:exclude pkg/network/protocols/redis/debugging
-# gazelle:exclude pkg/network/protocols/testutil
 # gazelle:exclude pkg/network/protocols/tls/gotls/testutil/gotls_server
 # gazelle:exclude pkg/network/sender
 # gazelle:exclude pkg/network/tracer/connection
@@ -530,10 +508,6 @@ exports_files(glob(
 # gazelle:exclude pkg/network/usm/tests
 # gazelle:exclude pkg/network/usm/testutil/grpc
 # gazelle:exclude pkg/network/usm/utils
-# gazelle:exclude pkg/networkconfigmanagement/config
-# gazelle:exclude pkg/networkconfigmanagement/profile
-# gazelle:exclude pkg/networkconfigmanagement/remote
-# gazelle:exclude pkg/networkconfigmanagement/report
 # gazelle:exclude pkg/networkconfigmanagement/sender
 # gazelle:exclude pkg/networkconfigmanagement/test
 # gazelle:exclude pkg/networkdevice/pinger
@@ -563,11 +537,9 @@ exports_files(glob(
 # gazelle:exclude pkg/sbom/scanner
 # gazelle:exclude pkg/security/clihelpers
 # gazelle:exclude pkg/security/config
-# gazelle:exclude pkg/security/ebpf/*.go
-# gazelle:exclude pkg/security/ebpf/probes
-# gazelle:exclude pkg/security/ebpf/probes/rawpacket
-# gazelle:exclude pkg/security/ebpf/tests
 # gazelle:exclude pkg/security/ebpf/c
+# gazelle:exclude pkg/security/ebpf/probes
+# gazelle:exclude pkg/security/ebpf/tests
 # gazelle:exclude pkg/security/events
 # gazelle:exclude pkg/security/generators/backend_doc
 # gazelle:exclude pkg/security/module
@@ -606,12 +578,10 @@ exports_files(glob(
 # gazelle:exclude pkg/serverless/trace/trace_test.go
 # gazelle:exclude pkg/serverless/trace/trace.go
 # gazelle:exclude pkg/status/clusteragent
-# gazelle:exclude pkg/status/collector
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
 # gazelle:exclude pkg/system-probe/api/module
 # gazelle:exclude pkg/util/cloudproviders/kubernetes
 # gazelle:exclude pkg/util/cloudproviders/network
-# gazelle:exclude pkg/util/containers/metadata
 # gazelle:exclude pkg/util/containers/metrics/containerd
 # gazelle:exclude pkg/util/containers/metrics/docker
 # gazelle:exclude pkg/util/containers/metrics/kubelet
@@ -621,14 +591,7 @@ exports_files(glob(
 # gazelle:exclude pkg/util/ec2/tags
 # gazelle:exclude pkg/util/kubelet
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
-# gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/leaderelection.go
-# gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/leaderelection_engine.go
-# gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/leaderelection_engine_test.go
-# gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/leaderelection_stub.go
-# gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/leaderelection_test.go
-# gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status.go
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status_templates
-# gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status_test.go
 # gazelle:exclude pkg/util/kubernetes/cloudprovider
 # gazelle:exclude pkg/util/kubernetes/clusterinfo
 # gazelle:exclude pkg/util/kubernetes/clustername
@@ -639,7 +602,6 @@ exports_files(glob(
 #     - resource.go      -> k8s.io/apimachinery/pkg/api/resource
 #     - resource_test.go -> k8s.io/apimachinery/pkg/api/resource
 # gazelle:exclude pkg/util/kubernetes/hostname.go
-# gazelle:exclude pkg/util/kubernetes/kubelet
 # gazelle:exclude pkg/util/kubernetes/resource.go
 # gazelle:exclude pkg/util/kubernetes/resource_test.go
 # gazelle:exclude pkg/util/tags
@@ -707,6 +669,7 @@ exports_files(glob(
 # gazelle:exclude test/new-e2e/tests/cspm
 # gazelle:exclude test/new-e2e/tests/cws/api
 # gazelle:exclude test/new-e2e/tests/discovery
+# gazelle:exclude test/new-e2e/tests/ddot
 # gazelle:exclude test/new-e2e/tests/fips-compliance
 # gazelle:exclude test/new-e2e/tests/fleet
 # gazelle:exclude test/new-e2e/tests/gpu
@@ -754,10 +717,6 @@ exports_files(glob(
 # ======= TESTDATA EXCLUDES =======
 # gazelle:exclude **/testdata/**/*.go
 # ======= END TESTDATA EXCLUDES =======
-
-# ======= PROTO EXCLUDES =======
-# gazelle:exclude pkg/proto/protodep
-# ======= END PROTO EXCLUDES =======
 
 # All custom build tags from tasks/build_tags.py ALL_TAGS, plus "test".
 # "test" is included so Gazelle analyzes test-only sources and generates their
