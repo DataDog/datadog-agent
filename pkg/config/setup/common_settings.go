@@ -1320,6 +1320,8 @@ func agent(config pkgconfigmodel.Setup) {
 func ApplyDataPlaneDefaults(config pkgconfigmodel.Config) {
 	if config.GetBool("data_plane.enabled") && config.GetBool("data_plane.dogstatsd.enabled") {
 		config.Set("aggregator_tag_filter_cache_capacity", 100000, pkgconfigmodel.SourceDefault)
+	} else {
+		config.Set("aggregator_tag_filter_cache_capacity", 1000, pkgconfigmodel.SourceDefault)
 	}
 }
 
