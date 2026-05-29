@@ -112,120 +112,26 @@ func integrationCheckDirOwner(env *environments.Host, location, integrationName 
 	return strings.TrimSpace(out)
 }
 
-// ---- preservationSuite: cross-platform integration preservation tests ----
+// ---- integrationPreservationSuite ----
+//
+// Linux-only suite for integration-preservation and ownership tests that require
+// Linux-specific tooling (file ownership checks, find -printf, InstallIntegrationAs).
+// TestIntegrationPreservationDebToOCI and TestIntegrationPreservationOCIToOCI run on
+// all platforms and live in upgradeSuite instead.
 
-type preservationSuite struct {
+type integrationPreservationSuite struct {
 	suite.FleetSuite
 }
 
-func newPreservationSuite() e2e.Suite[environments.Host] {
-	return &preservationSuite{}
+func newIntegrationPreservationSuite() e2e.Suite[environments.Host] {
+	return &integrationPreservationSuite{}
 }
 
+// TestFleetIntegrationPreservation runs Linux-only. No Windows VMs are provisioned.
+// The -run regex used by new-e2e-fleet-upgrade is unanchored so it matches this
+// entry point alongside TestFleetUpgrade in the same CI job.
 func TestFleetIntegrationPreservation(t *testing.T) {
-	suite.Run(t, newPreservationSuite, suite.Platforms())
-}
-
-func (s *preservationSuite) TestIntegrationPreservationDebToOCI() {
-	s.Agent.MustInstall(agent.WithRemoteUpdates())
-	defer s.Agent.MustUninstall()
-	snapshotIntegrationState(s.T(), s.Env(), "DebToOCI: after MustInstall (pipeline DEB stable)")
-
-	err := s.Agent.InstallIntegration(thirdPartyIntegration)
-	s.Require().NoError(err)
-	snapshotIntegrationState(s.T(), s.Env(), "DebToOCI: after InstallIntegration")
-
-	installedIntegrations, err := s.Agent.InstalledIntegrations()
-	s.Require().NoError(err)
-	s.Require().Equal("1.0.2", installedIntegrations["ping"], "integration should be installed before experiment")
-
-	testingVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
-	targetVersion := s.Backend.Catalog().Latest(backend.BranchStable, "datadog-agent")
-	if targetVersion == testingVersion {
-		targetVersion = s.Backend.Catalog().LatestMinus(backend.BranchStable, "datadog-agent", 1)
-	}
-	err = s.Backend.StartExperiment("datadog-agent", targetVersion)
-	s.Require().NoError(err)
-	snapshotIntegrationState(s.T(), s.Env(), "DebToOCI: after StartExperiment to released OCI stable")
-
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		intgs, err := s.Agent.InstalledIntegrations()
-		require.NoError(c, err)
-		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved in experiment")
-		_, showErr := s.Agent.IntegrationShow("datadog-ping")
-		assert.NoError(c, showErr, "integration show should succeed after restoration in experiment")
-	}, 60*time.Second, 5*time.Second)
-
-	err = s.Backend.PromoteExperiment("datadog-agent")
-	s.Require().NoError(err)
-	snapshotIntegrationState(s.T(), s.Env(), "DebToOCI: after PromoteExperiment")
-
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		intgs, err := s.Agent.InstalledIntegrations()
-		require.NoError(c, err)
-		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved after promotion")
-		_, showErr := s.Agent.IntegrationShow("datadog-ping")
-		assert.NoError(c, showErr, "integration show should succeed after promotion")
-	}, 60*time.Second, 5*time.Second)
-}
-
-// TestIntegrationPreservationOCIToOCI tests that integrations are preserved during an OCI→OCI upgrade.
-// It first installs a stable DEB, then promotes to the pipeline's OCI version to reach an OCI-stable
-// state, then experiments from that OCI version to another OCI version and verifies the integration
-// is preserved throughout.
-func (s *preservationSuite) TestIntegrationPreservationOCIToOCI() {
-	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
-	defer s.Agent.MustUninstall()
-	snapshotIntegrationState(s.T(), s.Env(), "OCIToOCI: after MustInstall (released OCI stable)")
-
-	testingVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
-	err := s.Backend.StartExperiment("datadog-agent", testingVersion)
-	s.Require().NoError(err)
-	err = s.Backend.PromoteExperiment("datadog-agent")
-	s.Require().NoError(err)
-	snapshotIntegrationState(s.T(), s.Env(), "OCIToOCI: after preparatory promote to pipeline testing")
-
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		packageVersion, err := s.Agent.PackageVersion()
-		require.NoError(c, err)
-		require.Equal(c, testingVersion, packageVersion)
-	}, 300*time.Second, 30*time.Second)
-
-	err = s.Agent.InstallIntegration(thirdPartyIntegration)
-	s.Require().NoError(err)
-	snapshotIntegrationState(s.T(), s.Env(), "OCIToOCI: after InstallIntegration on pipeline stable")
-
-	installedIntegrations, err := s.Agent.InstalledIntegrations()
-	s.Require().NoError(err)
-	s.Require().Equal("1.0.2", installedIntegrations["ping"], "integration should be installed before OCI experiment")
-
-	targetVersion := s.Backend.Catalog().Latest(backend.BranchStable, "datadog-agent")
-	if targetVersion == testingVersion {
-		targetVersion = s.Backend.Catalog().LatestMinus(backend.BranchStable, "datadog-agent", 1)
-	}
-	err = s.Backend.StartExperiment("datadog-agent", targetVersion)
-	s.Require().NoError(err)
-	snapshotIntegrationState(s.T(), s.Env(), "OCIToOCI: after StartExperiment to released stable")
-
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		intgs, err := s.Agent.InstalledIntegrations()
-		require.NoError(c, err)
-		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved in OCI experiment")
-		_, showErr := s.Agent.IntegrationShow("datadog-ping")
-		assert.NoError(c, showErr, "integration show should succeed after restoration in OCI experiment")
-	}, 60*time.Second, 5*time.Second)
-
-	err = s.Backend.PromoteExperiment("datadog-agent")
-	s.Require().NoError(err)
-	snapshotIntegrationState(s.T(), s.Env(), "OCIToOCI: after PromoteExperiment")
-
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		intgs, err := s.Agent.InstalledIntegrations()
-		require.NoError(c, err)
-		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved after OCI promotion")
-		_, showErr := s.Agent.IntegrationShow("datadog-ping")
-		assert.NoError(c, showErr, "integration show should succeed after OCI promotion")
-	}, 60*time.Second, 5*time.Second)
+	suite.Run(t, newIntegrationPreservationSuite, suite.LinuxPlatforms)
 }
 
 // TestIntegrationPreservationStableToOCIExperiment verifies that a third-party integration
@@ -234,7 +140,7 @@ func (s *preservationSuite) TestIntegrationPreservationOCIToOCI() {
 // (old save) handing off to the pipeline build's postStartExperiment (new restore), which is the
 // production upgrade path customers follow. The existing TestIntegrationPreservationOCIToOCI
 // inverts that direction by promoting the pipeline build to stable first.
-func (s *preservationSuite) TestIntegrationPreservationStableToOCIExperiment() {
+func (s *integrationPreservationSuite) TestIntegrationPreservationStableToOCIExperiment() {
 	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
 	snapshotIntegrationState(s.T(), s.Env(), "StableToOCIExperiment: after MustInstall (released OCI stable)")
@@ -266,20 +172,14 @@ func (s *preservationSuite) TestIntegrationPreservationStableToOCIExperiment() {
 		assert.Contains(c, showOut, "1.0.2", "integration show should report the restored version")
 	}, 60*time.Second, 5*time.Second)
 
-	if s.Env().RemoteHost.OSFamily == e2eos.LinuxFamily {
-		// Failure mode 1: dist-info files must be owned by dd-agent after restoration.
-		// post.py calls pip as root (no privilege drop in executePythonScript / install_datadog_package),
-		// so without a post-install chown the files land as root:root. installFilesystem chowns the
-		// experiment tree before post.py runs, but pip overwrites ownership for the reinstalled package.
-		s.Assert().Equal("dd-agent", integrationDistInfoOwner(s.Env(), "experiment", "ping"),
-			"dist-info should be owned by dd-agent after restoration; root ownership blocks future 'agent integration install' from unlinking root-owned .pyc files")
+	// Failure mode 1: dist-info files must be owned by dd-agent after restoration.
+	s.Assert().Equal("dd-agent", integrationDistInfoOwner(s.Env(), "experiment", "ping"),
+		"dist-info should be owned by dd-agent after restoration; root ownership blocks future 'agent integration install' from unlinking root-owned .pyc files")
 
-		// Failure mode 2: the datadog_checks/<name> directory must be dd-agent-owned so the running
-		// agent can create and refresh __pycache__ inside it. If root-owned (mode 0755), dd-agent
-		// has r-x but not w, so Python silently skips writing bytecode and re-parses source on every import.
-		s.Assert().Equal("dd-agent", integrationCheckDirOwner(s.Env(), "experiment", "ping"),
-			"datadog_checks/ping should be owned by dd-agent after restoration; root ownership prevents dd-agent from writing __pycache__ entries")
-	}
+	// Failure mode 2: the datadog_checks/<name> directory must be dd-agent-owned so the running
+	// agent can create and refresh __pycache__ inside it.
+	s.Assert().Equal("dd-agent", integrationCheckDirOwner(s.Env(), "experiment", "ping"),
+		"datadog_checks/ping should be owned by dd-agent after restoration; root ownership prevents dd-agent from writing __pycache__ entries")
 
 	err = s.Backend.PromoteExperiment("datadog-agent")
 	s.Require().NoError(err)
@@ -308,7 +208,7 @@ func (s *preservationSuite) TestIntegrationPreservationStableToOCIExperiment() {
 // is still present on the (now reverted) stable after rollback. Locks in that
 // preStartExperiment must not destructively touch the stable's site-packages when only
 // saving for the experiment.
-func (s *preservationSuite) TestIntegrationPreservationOnExperimentRollback() {
+func (s *integrationPreservationSuite) TestIntegrationPreservationOnExperimentRollback() {
 	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
 	snapshotIntegrationState(s.T(), s.Env(), "Rollback: after MustInstall (released OCI stable)")
@@ -367,7 +267,7 @@ func (s *preservationSuite) TestIntegrationPreservationOnExperimentRollback() {
 // correctly refreshed after each promote so the next experiment's diff is computed
 // against the right baseline. A broken refresh would either drop the integration from
 // the diff (silent loss) or carry stale entries that the new agent can't reinstall.
-func (s *preservationSuite) TestIntegrationPreservationMultiHop() {
+func (s *integrationPreservationSuite) TestIntegrationPreservationMultiHop() {
 	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
 
@@ -438,7 +338,7 @@ func (s *preservationSuite) TestIntegrationPreservationMultiHop() {
 // to the pipeline testing version. This exercises the multi-package-diff branch of
 // create_diff_installed_packages_file: a single .diff_python_installed_packages.txt
 // containing multiple entries, all of which must be reinstalled by post.py.
-func (s *preservationSuite) TestIntegrationPreservationMixedCustomization() {
+func (s *integrationPreservationSuite) TestIntegrationPreservationMixedCustomization() {
 	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
 	snapshotIntegrationState(s.T(), s.Env(), "MixedCustomization: after MustInstall (released OCI stable)")
@@ -491,34 +391,12 @@ func (s *preservationSuite) TestIntegrationPreservationMixedCustomization() {
 	s.Assert().NoError(showErr, "integration show for puma should succeed after promotion")
 }
 
-// ---- ownershipSuite: Linux-only integration ownership tests ----
-//
-// These tests verify that integration file ownership (dist-info, datadog_checks/) is
-// correctly restored to dd-agent after an upgrade, regardless of which Unix user
-// performed the original install. They use InstallIntegrationAs and find -printf,
-// which are Linux-only, so no Windows VMs are provisioned for this suite.
-
-type ownershipSuite struct {
-	suite.FleetSuite
-}
-
-func newOwnershipSuite() e2e.Suite[environments.Host] {
-	return &ownershipSuite{}
-}
-
-// TestFleetIntegrationPreservationOwnership runs on Linux only. The -run regex
-// TestFleetIntegrationPreservation is unanchored and matches both this entry point
-// and TestFleetIntegrationPreservation, so the same CI job covers both suites.
-func TestFleetIntegrationPreservationOwnership(t *testing.T) {
-	suite.Run(t, newOwnershipSuite, suite.LinuxPlatforms)
-}
-
 // runIntegrationOwnershipTest is the shared body for TestIntegrationPreservationRootInstall
 // and TestIntegrationPreservationDDAgentInstall. It installs the agent, installs the
 // third-party integration as installUser, runs a stable→pipeline-experiment→promote cycle,
 // and asserts that the restored integration files are owned by dd-agent in both the
 // experiment and stable locations.
-func (s *ownershipSuite) runIntegrationOwnershipTest(installUser, label string) {
+func (s *integrationPreservationSuite) runIntegrationOwnershipTest(installUser, label string) {
 	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
 	snapshotIntegrationState(s.T(), s.Env(), label+": after MustInstall (released OCI stable)")
@@ -580,13 +458,13 @@ func (s *ownershipSuite) runIntegrationOwnershipTest(installUser, label string) 
 // by root survives a stable→pipeline-experiment→promote cycle with dd-agent ownership
 // restored. This is the adversarial ownership case: pre-upgrade files are root-owned,
 // so post.py must chown them (or run pip as dd-agent) to avoid blocking future installs.
-func (s *ownershipSuite) TestIntegrationPreservationRootInstall() {
+func (s *integrationPreservationSuite) TestIntegrationPreservationRootInstall() {
 	s.runIntegrationOwnershipTest("root", "RootInstall")
 }
 
 // TestIntegrationPreservationDDAgentInstall verifies that an integration initially installed
 // by dd-agent retains dd-agent ownership after a stable→pipeline-experiment→promote cycle.
 // This is the baseline / regression-guard case for the standard install path.
-func (s *ownershipSuite) TestIntegrationPreservationDDAgentInstall() {
+func (s *integrationPreservationSuite) TestIntegrationPreservationDDAgentInstall() {
 	s.runIntegrationOwnershipTest("dd-agent", "DDAgentInstall")
 }

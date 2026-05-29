@@ -100,6 +100,108 @@ func (s *upgradeSuite) TestUpgradeFailureHealth() {
 	}, 300*time.Second, 30*time.Second)
 }
 
+func (s *upgradeSuite) TestIntegrationPreservationDebToOCI() {
+	s.Agent.MustInstall(agent.WithRemoteUpdates())
+	defer s.Agent.MustUninstall()
+	snapshotIntegrationState(s.T(), s.Env(), "DebToOCI: after MustInstall (pipeline DEB stable)")
+
+	err := s.Agent.InstallIntegration(thirdPartyIntegration)
+	s.Require().NoError(err)
+	snapshotIntegrationState(s.T(), s.Env(), "DebToOCI: after InstallIntegration")
+
+	installedIntegrations, err := s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Require().Equal("1.0.2", installedIntegrations["ping"], "integration should be installed before experiment")
+
+	testingVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
+	targetVersion := s.Backend.Catalog().Latest(backend.BranchStable, "datadog-agent")
+	if targetVersion == testingVersion {
+		targetVersion = s.Backend.Catalog().LatestMinus(backend.BranchStable, "datadog-agent", 1)
+	}
+	err = s.Backend.StartExperiment("datadog-agent", targetVersion)
+	s.Require().NoError(err)
+	snapshotIntegrationState(s.T(), s.Env(), "DebToOCI: after StartExperiment to released OCI stable")
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved in experiment")
+		_, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed after restoration in experiment")
+	}, 60*time.Second, 5*time.Second)
+
+	err = s.Backend.PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+	snapshotIntegrationState(s.T(), s.Env(), "DebToOCI: after PromoteExperiment")
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved after promotion")
+		_, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed after promotion")
+	}, 60*time.Second, 5*time.Second)
+}
+
+// TestIntegrationPreservationOCIToOCI tests that integrations are preserved during an OCI→OCI upgrade.
+// It first installs a stable DEB, then promotes to the pipeline's OCI version to reach an OCI-stable
+// state, then experiments from that OCI version to another OCI version and verifies the integration
+// is preserved throughout.
+func (s *upgradeSuite) TestIntegrationPreservationOCIToOCI() {
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
+	defer s.Agent.MustUninstall()
+	snapshotIntegrationState(s.T(), s.Env(), "OCIToOCI: after MustInstall (released OCI stable)")
+
+	testingVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
+	err := s.Backend.StartExperiment("datadog-agent", testingVersion)
+	s.Require().NoError(err)
+	err = s.Backend.PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+	snapshotIntegrationState(s.T(), s.Env(), "OCIToOCI: after preparatory promote to pipeline testing")
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		packageVersion, err := s.Agent.PackageVersion()
+		require.NoError(c, err)
+		require.Equal(c, testingVersion, packageVersion)
+	}, 300*time.Second, 30*time.Second)
+
+	err = s.Agent.InstallIntegration(thirdPartyIntegration)
+	s.Require().NoError(err)
+	snapshotIntegrationState(s.T(), s.Env(), "OCIToOCI: after InstallIntegration on pipeline stable")
+
+	installedIntegrations, err := s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Require().Equal("1.0.2", installedIntegrations["ping"], "integration should be installed before OCI experiment")
+
+	targetVersion := s.Backend.Catalog().Latest(backend.BranchStable, "datadog-agent")
+	if targetVersion == testingVersion {
+		targetVersion = s.Backend.Catalog().LatestMinus(backend.BranchStable, "datadog-agent", 1)
+	}
+	err = s.Backend.StartExperiment("datadog-agent", targetVersion)
+	s.Require().NoError(err)
+	snapshotIntegrationState(s.T(), s.Env(), "OCIToOCI: after StartExperiment to released stable")
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved in OCI experiment")
+		_, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed after restoration in OCI experiment")
+	}, 60*time.Second, 5*time.Second)
+
+	err = s.Backend.PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+	snapshotIntegrationState(s.T(), s.Env(), "OCIToOCI: after PromoteExperiment")
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		intgs, err := s.Agent.InstalledIntegrations()
+		require.NoError(c, err)
+		assert.Equal(c, "1.0.2", intgs["ping"], "integration should be preserved after OCI promotion")
+		_, showErr := s.Agent.IntegrationShow("datadog-ping")
+		assert.NoError(c, showErr, "integration show should succeed after OCI promotion")
+	}, 60*time.Second, 5*time.Second)
+}
+
 // TestODBCConfigPreservedOnUpgrade verifies that customer-modified ODBC config files
 // (odbc.ini and odbcinst.ini) in the agent's embedded/etc/ directory survive a
 // Fleet Automation upgrade. This covers the SQL Server DBM use case where customers
