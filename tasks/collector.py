@@ -29,7 +29,7 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // Copyright 2016-present Datadog, Inc.
 """
 OCB_VERSION = "0.153.0"
-# The version the the core collector and collector-contrib may or may not match
+# The version the core collector and collector-contrib may or may not match
 OTEL_CONTRIB_VERSION = "0.153.0"
 
 MANDATORY_COMPONENTS = {
