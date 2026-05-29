@@ -207,11 +207,6 @@ See the marketplace README for installation instructions.
 - Never commit API keys or secrets
 - Use secret backend for credentials
 
-## Module System
-The project uses Go modules with multiple sub-modules.
-TODO: Describe specific strategies for managing modules, including any invoke
-tasks.
-
 ## Platform Support
 Ships on Linux (amd64, arm64), Windows (amd64), and macOS (amd64, arm64), plus containers (Docker/Kubernetes/ECS/containerd). AIX is not yet supported but in progress.
 
