@@ -15,6 +15,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/aws/creds/internal"
 )
@@ -77,9 +78,23 @@ func GetECSSecurityCredentials(ctx context.Context) (*SecurityCredentials, error
 		return nil, fmt.Errorf("failed to create ECS credential request: %w", err)
 	}
 
-	// AWS_CONTAINER_AUTHORIZATION_TOKEN is required for AWS_CONTAINER_CREDENTIALS_FULL_URI
-	if token := os.Getenv("AWS_CONTAINER_AUTHORIZATION_TOKEN"); token != "" {
-		req.Header.Set("Authorization", token)
+	// Resolve the authorization token.
+	// EKS Pod Identity sets AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE (file path) while
+	// ECS tasks set AWS_CONTAINER_AUTHORIZATION_TOKEN (plain value).
+	// Check the file-based variable first, fall back to the plain env var.
+	// See: https://docs.aws.amazon.com/sdkref/latest/guide/feature-container-credentials.html
+	authToken := ""
+	if tokenFile := os.Getenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE"); tokenFile != "" {
+		data, err := os.ReadFile(tokenFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE %q: %w", tokenFile, err)
+		}
+		authToken = strings.TrimSpace(string(data))
+	} else if token := os.Getenv("AWS_CONTAINER_AUTHORIZATION_TOKEN"); token != "" {
+		authToken = token
+	}
+	if authToken != "" {
+		req.Header.Set("Authorization", authToken)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
