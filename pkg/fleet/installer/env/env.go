@@ -19,6 +19,8 @@ import (
 	"time"
 
 	"golang.org/x/net/http/httpproxy"
+
+	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 )
 
 const (
@@ -276,6 +278,12 @@ func FromEnv() *Env {
 	splitFunc := func(c rune) bool {
 		return c == ','
 	}
+	// thisBinaryIsFips is true when the installer is running as the FIPS-compiled agent binary
+	// (embedded/bin/installer is a symlink to the agent binary in DEB/RPM packages).
+	thisBinaryIsFips, _ := pkgfips.Enabled()
+	// fipsIsRequested is true when the caller explicitly sets DD_FIPS_MODE=true,
+	// which is the signal used by the fleet OCI install path.
+	fipsIsRequested := strings.ToLower(os.Getenv(envFIPSMode)) == "true"
 
 	return &Env{
 		APIKey:               getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
@@ -345,7 +353,7 @@ func FromEnv() *Env {
 
 		IsCentos6:    DetectCentos6(),
 		IsFromDaemon: os.Getenv(envIsFromDaemon) == "true",
-		FIPSMode:     strings.ToLower(os.Getenv(envFIPSMode)) == "true",
+		FIPSMode:     fipsIsRequested || thisBinaryIsFips,
 	}
 }
 
