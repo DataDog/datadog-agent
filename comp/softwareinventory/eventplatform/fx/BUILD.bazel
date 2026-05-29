@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/softwareinventory/eventplatform/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/forwarder/eventplatform/def",
+        "//comp/softwareinventory/eventplatform",
+        "@org_uber_go_fx//:fx",
+    ],
+)

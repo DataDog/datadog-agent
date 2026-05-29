@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "eventplatform",
+    srcs = ["descs.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions/eventplatform",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/eventplatform/def",
+        "//comp/logs-library/client/http",
+        "//pkg/config/setup",
+        "//pkg/util/log",
+    ],
+)

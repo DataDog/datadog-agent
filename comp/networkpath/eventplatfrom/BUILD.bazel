@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "eventplatfrom",
+    srcs = ["desc.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpath/eventplatfrom",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/eventplatform/def",
+        "//comp/logs-library/client/http",
+        "//pkg/config/model",
+    ],
+)
