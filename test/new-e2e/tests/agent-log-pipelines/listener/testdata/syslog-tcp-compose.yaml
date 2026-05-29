@@ -3,7 +3,6 @@ services:
 
   syslog-sender:
     image: public.ecr.aws/docker/library/busybox:latest
-    container_name: syslog-sender
     command: ["sleep", "infinity"]
     depends_on:
       - agent
@@ -21,5 +20,5 @@ services:
 
   agent:
     environment:
-      DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: "false"
-      DD_LOGS_CONFIG_BATCH_WAIT: "1"
+      DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: false
+      DD_LOGS_CONFIG_BATCH_WAIT: 1

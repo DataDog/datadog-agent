@@ -78,6 +78,7 @@ func (s *dockerSyslogSuite) TestSyslogStructuredOutput() {
 		if !assert.NotEmpty(c, logs, "no logs matching 'Syslog e2e test message' found") {
 			return
 		}
+		t.Logf("matched %d logs in fakeintake for 'Syslog e2e test message'", len(logs))
 
 		log := logs[0]
 
