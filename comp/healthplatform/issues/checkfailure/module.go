@@ -9,8 +9,10 @@
 package checkfailure
 
 import (
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 func init() {
@@ -38,17 +40,16 @@ func (m *checkFailureModule) IssueName() string {
 	return issueName
 }
 
-// IssueTemplate returns the template for building complete issues
-func (m *checkFailureModule) IssueTemplate() issues.IssueTemplate {
-	return m.template
+func (m *checkFailureModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+	return m.template.BuildIssue(context)
 }
 
 // BuiltInPeriodicHealthCheck returns nil - check failures are reported by external integrations
-func (m *checkFailureModule) BuiltInPeriodicHealthCheck() *issues.BuiltInPeriodicHealthCheck {
+func (m *checkFailureModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
 	return nil
 }
 
 // BuiltInStartupHealthCheck returns nil - no startup-time check for this module
-func (m *checkFailureModule) BuiltInStartupHealthCheck() *issues.BuiltInStartupHealthCheck {
+func (m *checkFailureModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
 	return nil
 }

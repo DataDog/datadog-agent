@@ -199,12 +199,12 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/conv-nonstr-key-exp/out.yaml",
 		},
 		{
-			name:     "multiple-otlphttp-exporters",
+			name:     "multiple-otlp_http-exporters",
 			provided: "no_agent/multi-otlp-exp/in.yaml",
 			expected: "no_agent/multi-otlp-exp/out.yaml",
 		},
 		{
-			name:     "ignores-non-otlphttp",
+			name:     "ignores-non-otlp_http",
 			provided: "no_agent/ignore-non-otlp/in.yaml",
 			expected: "no_agent/ignore-non-otlp/out.yaml",
 		},
@@ -259,6 +259,16 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/int-metrics-infer-ep/out.yaml",
 		},
 		{
+			name:     "internal-metrics-reuses-exporter-with-bare-endpoint",
+			provided: "no_agent/int-metrics-bare-ep/in.yaml",
+			expected: "no_agent/int-metrics-bare-ep/out.yaml",
+		},
+		{
+			name:     "internal-metrics-endpoint-takes-precedence-over-profiles-endpoint",
+			provided: "no_agent/int-metrics-prefer-ep/in.yaml",
+			expected: "no_agent/int-metrics-prefer-ep/out.yaml",
+		},
+		{
 			name:     "internal-metrics-preserves-user-metrics-endpoint",
 			provided: "no_agent/int-metrics-existing-ep/in.yaml",
 			expected: "no_agent/int-metrics-existing-ep/out.yaml",
@@ -269,9 +279,14 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/int-metrics-level-none/out.yaml",
 		},
 		{
-			name:     "internal-metrics-only-includes-exporters-with-profiles-endpoint",
+			name:     "internal-metrics-skips-exporters-without-any-endpoint",
 			provided: "no_agent/int-metrics-mixed/in.yaml",
 			expected: "no_agent/int-metrics-mixed/out.yaml",
+		},
+		{
+			name:     "deprecated-otlphttp-name-accepted",
+			provided: "no_agent/deprecated-otlphttp/in.yaml",
+			expected: "no_agent/deprecated-otlphttp/out.yaml",
 		},
 	}
 
@@ -296,14 +311,14 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 			expectedError: "symbol_endpoints cannot be empty",
 		},
 		{
-			name:          "errors-when-no-otlphttp",
+			name:          "errors-when-no-otlp_http",
 			provided:      "no_agent/error-no-otlp/in.yaml",
-			expectedError: "no otlphttp exporter configured",
+			expectedError: "no otlp_http exporter configured",
 		},
 		{
 			name:          "empty-pipeline",
 			provided:      "no_agent/empty-pipeline/in.yaml",
-			expectedError: "no otlphttp exporter configured",
+			expectedError: "no otlp_http exporter configured",
 		},
 		{
 			name:          "non-string-processor-name-in-pipeline",

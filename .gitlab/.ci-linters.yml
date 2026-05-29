@@ -13,6 +13,8 @@ needs-rules:
     - deploy_mutable_image_tags
     - deploy_cws_instrumentation
     - deploy_cws_instrumentation_mutable_tags
+    - deploy_secret_generic_connector
+    - deploy_secret_generic_connector_mutable_tags
 
   allowed-jobs:
     - build_clang_arm64
