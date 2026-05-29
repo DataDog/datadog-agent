@@ -1,7 +1,7 @@
 # Datadog Agent - Project Overview for AI coding assistant
 
 ## Project Summary
-The Datadog Agent is a comprehensive monitoring and observability agent written primarily in Go. It collects metrics, traces, logs, and security events from systems and applications, forwarding them to the Datadog platform. This is the main repository for Agent versions 6 and 7.
+The Datadog Agent collects metrics, traces, logs, and security events and forwards them to the Datadog platform. Written primarily in Go; this is the main repository for Agent versions 6 and 7.
 
 ## Project Structure
 
@@ -17,20 +17,8 @@ The Datadog Agent is a comprehensive monitoring and observability agent written 
   - `privateactionrunner/` - Executing actions
 
 - `/pkg/` - Core Go packages and libraries
-  - `aggregator/` - Metrics aggregation
-  - `collector/` - Check scheduling and execution
-  - `config/` - Configuration management
-  - `logs/` - Log collection and processing
-  - `metrics/` - Metrics types and handling
-  - `network/` - Network monitoring
-  - `security/` - Security monitoring components
-  - `trace/` - APM tracing components
 
-- `/comp/` - Component-based architecture modules
-  - `core/` - Core components
-  - `metadata/` - Metadata collection
-  - `logs/` - Log components
-  - `trace/` - Trace components
+- `/comp/` - Component-based architecture modules (Fx components)
 
 - `/tasks/` - Python invoke tasks for development
   - Build, test, lint, and deployment automation
@@ -198,12 +186,7 @@ Key Bazel macros:
 ## Build System
 
 ### Invoke Tasks
-The project uses Python's Invoke framework with custom tasks. Main task categories:
-- `agent.*` - Core agent tasks
-- `test` - Testing tasks
-- `linter.*` - Linting tasks
-- `docker.*` - Docker image tasks
-- `release.*` - Release management
+The project uses Python's Invoke framework for custom tasks. Run `dda inv -l` to list them.
 
 ### Build Tags
 Go build tags control feature inclusion, some examples are:
@@ -215,18 +198,10 @@ Go build tags control feature inclusion, some examples are:
 - and MANY more, refer to ./tasks/build_tags.py for a full reference.
 
 ## Important Files
-
-### Configuration
 - `datadog.yaml` - Main agent configuration
 - `modules.yml` - Go module definitions
 - `release.json` - Release version information
 - `.gitlab-ci.yml` - CI/CD pipeline configuration
-
-### Documentation
-- `/docs/` - Internal documentation
-- `/docs/dev/` - Developer guides
-- `README.md` - Project overview
-- `CONTRIBUTING.md` - Contribution guidelines
 
 ## CI/CD Pipeline
 
@@ -254,9 +229,7 @@ is required. Run `dda inv -l | grep gitlab` for related tasks
 (`gitlab.print-job`, `gitlab.print-pipeline`, ...).
 
 ### GitHub Actions
-- Secondary CI for specific workflows
-- Tests about the pull-request settings or repository configuration
-- Release automation workflows
+Secondary CI: pull-request/repository-configuration checks and release automation.
 
 ### Contributing
 PRs should follow `.github/PULL_REQUEST_TEMPLATE.md` and the guidelines in
