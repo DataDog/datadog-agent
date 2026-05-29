@@ -65,6 +65,10 @@ func (f *OTelSyncForwarder) Start() error { return nil }
 // Stop is a no-op; the OTel exporterhelper owns the lifecycle.
 func (f *OTelSyncForwarder) Stop() {}
 
+// mrfChecker is satisfied by domainResolver so we can gate MRF transactions
+// without importing the resolver package.
+type mrfChecker interface{ IsMRF() bool }
+
 // sendHTTPTransactions sends each transaction synchronously and returns a
 // multierr-combined error covering all failures. Unlike SyncForwarder, no
 // per-transaction retry is performed: retries are the OTel layer's job.
@@ -73,9 +77,18 @@ func (f *OTelSyncForwarder) Stop() {}
 // and 403 without a secret refresh) by returning nil. We wrap the completion
 // handler to intercept those status codes and surface them as errors so the OTel
 // exporterhelper can count them and drive retries or permanent-error handling.
+//
+// MRF gating: non-metadata transactions for MRF resolvers are skipped unless
+// multi_region_failover.failover_metrics is enabled, mirroring the guard in
+// domainForwarder.shouldSendHTTPTransaction.
 func (f *OTelSyncForwarder) sendHTTPTransactions(ctx context.Context, transactions []*transaction.HTTPTransaction) error {
 	var errs error
 	for _, txn := range transactions {
+		if dr, ok := txn.Resolver.(mrfChecker); ok && dr.IsMRF() {
+			if txn.Kind != transaction.Metadata && !f.config.GetBool("multi_region_failover.failover_metrics") {
+				continue
+			}
+		}
 		var permanentErr error
 		origHandler := txn.CompletionHandler
 		txn.CompletionHandler = func(tx *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
