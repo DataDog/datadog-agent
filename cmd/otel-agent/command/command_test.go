@@ -105,9 +105,16 @@ func TestValidateDurationEnvVars(t *testing.T) {
 			},
 		},
 		{
-			name:    "empty value is ignored",
+			name:    "empty value is invalid",
 			envVars: map[string]string{"DD_SYNC_DELAY": ""},
-			wantErr: false,
+			wantErr: true,
+			wantErrContains: []string{
+				`invalid value ""`,
+				"DD_SYNC_DELAY",
+			},
+			wantErrNotContains: []string{
+				"did you mean",
+			},
 		},
 		{
 			name:    "both valid durations",

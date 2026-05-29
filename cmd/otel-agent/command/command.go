@@ -135,7 +135,7 @@ func validateDurationEnvVars() error {
 	var errs []error
 	for _, d := range durationEnvVars {
 		val, ok := os.LookupEnv(d.envKey)
-		if !ok || val == "" {
+		if !ok {
 			continue
 		}
 		if _, err := time.ParseDuration(val); err != nil {
