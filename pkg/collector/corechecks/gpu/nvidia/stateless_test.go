@@ -446,8 +446,6 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 
 		detailPid    = uint32(2002)
 		detailMemory = uint64(200)
-
-		totalMemory = uint64(1024 * 1024 * 1024) // 1 GiB
 	)
 
 	detailProc := nvml.ProcessDetail_v1{
@@ -553,7 +551,7 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 				case "memory.limit":
 					require.False(t, foundMemoryLimit, "memory.limit should be emitted only once")
 					foundMemoryLimit = true
-					require.Equal(t, float64(totalMemory), m.Value, "memory.limit should equal total device memory")
+					require.Equal(t, float64(testutil.DefaultTotalMemory), m.Value, "memory.limit should equal total device memory")
 					require.Len(t, m.AssociatedWorkloads, 1, "memory.limit should have one associated workload")
 					require.Equal(t, strconv.Itoa(int(tt.expectPid)), m.AssociatedWorkloads[0].ID, "memory.limit workload should match the winning process source")
 				}

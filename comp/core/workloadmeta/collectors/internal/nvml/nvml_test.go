@@ -44,10 +44,8 @@ func TestPull(t *testing.T) {
 			expectedName = testutil.DefaultGPUName + " MIG 3g.40gb"
 		} else if gpu.DeviceType == workloadmeta.GPUDeviceTypePhysical {
 			expectedName = testutil.DefaultGPUName
-			// We test totalMemory only for physical devices. MIG-enabled parents
-			// derive memory from the (approximate) GPU instance profile, so allow a
-			// small rounding tolerance from integer division across MIG children.
-			require.InDelta(t, testutil.DefaultTotalMemory, gpu.TotalMemory, float64(testutil.DefaultTotalMemory)*0.01, "unexpected device memory for device %s", gpu.ID)
+			//for now, we test totalMemory only for physical devices
+			require.Equal(t, testutil.DefaultTotalMemory, gpu.TotalMemory, "unexpected device memory for device %s", gpu.ID)
 		}
 		require.Equal(t, testutil.DefaultNvidiaDriverVersion, gpu.DriverVersion)
 		require.Equal(t, nvidiaVendor, gpu.Vendor)

@@ -95,8 +95,10 @@ func DefaultActivePIDs() []int {
 	return pids
 }
 
-// DefaultTotalMemory is the total memory for the default device returned by the mock
-var DefaultTotalMemory = uint64(1024 * 1024 * 1024)
+// DefaultTotalMemory is the total memory for the default device returned by the mock.
+// The MiB count (3072) is divisible by the MIG child counts used in tests (2 and 3) so
+// that the parent memory derived from GPU instance profiles round-trips exactly.
+var DefaultTotalMemory = uint64(3 * 1024 * 1024 * 1024)
 
 // DefaultMaxClockRates is an array of Max clock rates for the default device
 var DefaultMaxClockRates = map[nvml.ClockType]uint32{
