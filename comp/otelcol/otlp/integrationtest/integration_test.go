@@ -115,6 +115,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 				return nil, err
 			}
 			c.Set("otelcollector.enabled", true, pkgconfigmodel.SourceFile)
+			c.Set("hostname", "otel-integration-test", pkgconfigmodel.SourceFile)
 			pkgconfigenv.DetectFeatures(c)
 			return c, nil
 		}),
