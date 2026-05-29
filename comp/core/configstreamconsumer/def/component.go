@@ -25,6 +25,9 @@ type Params struct {
 	ClientName string
 	// CoreAgentAddress is the address of the core agent IPC endpoint
 	CoreAgentAddress string
+	// VSockAddr, when non-empty, routes the gRPC dial through a vsock dialer that targets
+	// CoreAgentAddress's port (cmd_port) on the parsed vsock CID.
+	VSockAddr string
 	// SessionID is the RAR session ID for authorization. Required if SessionIDProvider is nil.
 	SessionID string
 	// SessionIDProvider supplies the session ID at connect time (e.g. from remote agent component).

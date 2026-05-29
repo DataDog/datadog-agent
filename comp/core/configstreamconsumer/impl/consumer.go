@@ -16,18 +16,17 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 // Requires defines the dependencies for the configstreamconsumer component
@@ -209,10 +208,7 @@ func (c *consumer) streamLoop() {
 
 // connectAndStream establishes a gRPC connection and processes the config stream
 func (c *consumer) connectAndStream() error {
-	conn, err := grpc.NewClient(c.params.CoreAgentAddress,
-		grpc.WithTransportCredentials(credentials.NewTLS(c.ipc.GetTLSClientConfig())),
-		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(c.ipc.GetAuthToken())),
-	)
+	client, conn, err := helper.NewAgentSecureClient(c.params.CoreAgentAddress, c.ipc.GetAuthToken(), c.ipc.GetTLSClientConfig(), c.params.VSockAddr, c.log)
 	if err != nil {
 		return fmt.Errorf("failed to connect to core agent: %w", err)
 	}
@@ -221,7 +217,7 @@ func (c *consumer) connectAndStream() error {
 
 	c.streamLock.Lock()
 	c.conn = conn
-	c.client = pb.NewAgentSecureClient(conn)
+	c.client = client
 	c.streamLock.Unlock()
 
 	sessionID := c.params.SessionID

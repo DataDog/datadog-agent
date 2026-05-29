@@ -257,6 +257,7 @@ func configstreamFxOptions() fx.Option {
 			return configstreamconsumer.Params{
 				ClientName:        "system-probe",
 				CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
+				VSockAddr:         c.GetString("vsock_addr"),
 				SessionIDProvider: sessionProvider,
 			}
 		}),
