@@ -20,8 +20,6 @@ import (
 	_ "github.com/uber-go/gopatch"
 	_ "github.com/vektra/mockery/v3"
 	_ "github.com/wadey/gocovmerge"
-	_ "golang.org/x/mobile/cmd/gobind"
-	_ "golang.org/x/mobile/cmd/gomobile"
 	_ "golang.org/x/perf/cmd/benchstat"
 	_ "gotest.tools/gotestsum"
 )
