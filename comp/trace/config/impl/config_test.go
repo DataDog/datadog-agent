@@ -1768,6 +1768,18 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal(t, 30, coreConfig.GetInt("apm_config.profiling_receiver_timeout"))
 	})
 
+	env = "DD_APM_PROFILING_SEND_TO_MAIN_ENDPOINT"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "false")
+
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, traceconfig.ProfilingMainEndpointSkip, cfg.ProfilingProxy.MainEndpointMode)
+		assert.False(t, coreConfig.GetBool("apm_config.profiling_send_to_main_endpoint"))
+	})
+
 	env = "DD_APM_MODE"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "edge")
