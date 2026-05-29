@@ -101,6 +101,11 @@ func (f *OTelSyncForwarder) sendHTTPTransactions(ctx context.Context, transactio
 			errs = multierr.Append(errs, err)
 		} else if permanentErr != nil {
 			errs = multierr.Append(errs, permanentErr)
+		} else if ctxErr := ctx.Err(); ctxErr != nil {
+			// internalProcess silently drops canceled requests (returns nil).
+			// Propagate the cancellation so the OTel exporterhelper sees it.
+			errs = multierr.Append(errs, ctxErr)
+			break
 		}
 	}
 	return errs

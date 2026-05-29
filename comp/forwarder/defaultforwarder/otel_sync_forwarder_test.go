@@ -220,6 +220,38 @@ func TestOTelSyncForwarder_GetDomainResolvers_NonEmpty(t *testing.T) {
 	assert.NotEmpty(t, resolvers, "GetDomainResolvers should return at least one resolver")
 }
 
+// contextAwareTransport wraps an http.HandlerFunc but returns the request
+// context's error immediately if the context is already done, so that
+// internalProcess sees ctx.Err() == context.Canceled and takes the silent-drop
+// path — which is exactly what our new propagation check must catch.
+type contextAwareTransport http.HandlerFunc
+
+func (tr contextAwareTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if err := req.Context().Err(); err != nil {
+		return nil, err
+	}
+	return handlerTransport(tr).RoundTrip(req)
+}
+
+func TestOTelSyncForwarder_SubmitV1IntakeDirect_PropagatesCancellation(t *testing.T) {
+	client := &http.Client{
+		Transport: contextAwareTransport(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}),
+	}
+	f := newTestOTelSyncForwarder(t, client)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // pre-cancel so internalProcess takes the silent-drop path
+
+	payload := transaction.BytesPayloads{
+		transaction.NewBytesPayloadWithoutMetaData([]byte(`{}`)),
+	}
+	err := f.SubmitV1IntakeDirect(ctx, payload, transaction.Metadata, http.Header{})
+	require.Error(t, err, "canceled context must surface as an error through SubmitV1IntakeDirect")
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
 // newTestOTelSyncForwarderWithMRF builds an OTelSyncForwarder with both a primary
 // and an MRF endpoint in the EDS so MRF gating behaviour can be tested.
 func newTestOTelSyncForwarderWithMRF(t *testing.T, client *http.Client, mrfEnabled, failoverMetrics bool) *OTelSyncForwarder {
