@@ -68,6 +68,7 @@ profiles:
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return() // datadog.snmp.topology.local_interface_resolution
 	sender.On("Commit").Return()
 
 	packet := gosnmp.SnmpPacket{
@@ -839,6 +840,7 @@ profiles:
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return() // datadog.snmp.topology.local_interface_resolution
 	sender.On("Commit").Return()
 
 	packet := gosnmp.SnmpPacket{
@@ -1600,6 +1602,7 @@ profiles:
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return() // datadog.snmp.topology.local_interface_resolution
 	sender.On("Commit").Return()
 
 	packet := gosnmp.SnmpPacket{
@@ -2362,6 +2365,7 @@ profiles:
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return() // datadog.snmp.topology.local_interface_resolution
 	sender.On("Commit").Return()
 
 	packet := gosnmp.SnmpPacket{

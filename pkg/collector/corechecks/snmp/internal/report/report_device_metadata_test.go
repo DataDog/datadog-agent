@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	internalmetadata "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -1193,11 +1194,18 @@ func Test_getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(t *testing.T) {
 }
 
 func Test_resolveLocalInterface(t *testing.T) {
+	truePtr := true
+	falsePtr := false
 	interfaceIndexByIDType := map[string]map[string][]int32{
 		"mac_address": {
 			"00:00:00:00:00:01": []int32{1},
 			"00:00:00:00:00:02": []int32{2},
 			"00:00:00:00:00:03": []int32{3, 4},
+			// Physical-tiebreak scenarios:
+			"aa:bb:cc:dd:ee:01": []int32{10, 100}, // 10 physical, 100 virtual → tiebreak
+			"aa:bb:cc:dd:ee:02": []int32{20, 200}, // both virtual → unresolved_no_physical
+			"aa:bb:cc:dd:ee:03": []int32{30, 300}, // both physical → unresolved_multi_physical
+			"aa:bb:cc:dd:ee:04": []int32{40, 400}, // 40 physical, 400 has IsPhysical=nil (treated non-physical)
 		},
 		"interface_name": {
 			"eth1": []int32{1},
@@ -1216,90 +1224,162 @@ func Test_resolveLocalInterface(t *testing.T) {
 			"2": []int32{2},
 		},
 	}
+	interfaceByIndex := map[int32]metadata.InterfaceMetadata{
+		1:  {Index: 1, Type: 6, IsPhysical: &truePtr},
+		2:  {Index: 2, Type: 6, IsPhysical: &truePtr},
+		3:  {Index: 3, Type: 6, IsPhysical: &truePtr},
+		4:  {Index: 4, Type: 6, IsPhysical: &truePtr},
+		44: {Index: 44, Type: 6, IsPhysical: &truePtr}, // present so eth4 multi-match has 2 physical candidates
+		// Multi-match cases — IsPhysical drives the tiebreak.
+		10:  {Index: 10, Type: 6, IsPhysical: &truePtr},    // physical
+		100: {Index: 100, Type: 53, IsPhysical: &falsePtr}, // virtual (propVirtual)
+		20:  {Index: 20, Type: 24, IsPhysical: &falsePtr},  // loopback
+		200: {Index: 200, Type: 53, IsPhysical: &falsePtr}, // virtual
+		30:  {Index: 30, Type: 6, IsPhysical: &truePtr},
+		300: {Index: 300, Type: 117, IsPhysical: &truePtr},
+		40:  {Index: 40, Type: 6, IsPhysical: &truePtr},
+		400: {Index: 400, Type: 0, IsPhysical: nil}, // ifType not collected → nil
+	}
 	deviceID := "default:1.2.3.4"
 
 	tests := []struct {
-		name        string
-		localIDType string
-		localID     string
-		expectedID  string
+		name            string
+		localIDType     string
+		localID         string
+		expectedID      string
+		expectedOutcome string
 	}{
 		{
-			name:        "mac_address",
-			localIDType: "mac_address",
-			localID:     "00:00:00:00:00:01",
-			expectedID:  "default:1.2.3.4:1",
+			name:            "mac_address",
+			localIDType:     "mac_address",
+			localID:         "00:00:00:00:00:01",
+			expectedID:      "default:1.2.3.4:1",
+			expectedOutcome: localIfaceResolutionResolvedUnique,
 		},
 		{
-			name:        "mac_address cannot resolve due to multiple results",
-			localIDType: "mac_address",
-			localID:     "00:00:00:00:00:03",
-			expectedID:  "",
+			name:            "mac_address multi-match all physical: unresolved_multi_physical",
+			localIDType:     "mac_address",
+			localID:         "00:00:00:00:00:03",
+			expectedID:      "",
+			expectedOutcome: localIfaceResolutionUnresolvedMultiPhysical,
 		},
 		{
-			name:        "interface_name",
-			localIDType: "interface_name",
-			localID:     "eth2",
-			expectedID:  "default:1.2.3.4:2",
+			name:            "interface_name",
+			localIDType:     "interface_name",
+			localID:         "eth2",
+			expectedID:      "default:1.2.3.4:2",
+			expectedOutcome: localIfaceResolutionResolvedUnique,
 		},
 		{
-			name:        "interface_alias",
-			localIDType: "interface_alias",
-			localID:     "alias2",
-			expectedID:  "default:1.2.3.4:2",
+			name:            "interface_alias",
+			localIDType:     "interface_alias",
+			localID:         "alias2",
+			expectedID:      "default:1.2.3.4:2",
+			expectedOutcome: localIfaceResolutionResolvedUnique,
 		},
 		{
-			name:        "mac_address by trying",
-			localIDType: "",
-			localID:     "00:00:00:00:00:01",
-			expectedID:  "default:1.2.3.4:1",
+			name:            "mac_address by trying",
+			localIDType:     "",
+			localID:         "00:00:00:00:00:01",
+			expectedID:      "default:1.2.3.4:1",
+			expectedOutcome: localIfaceResolutionResolvedUnique,
 		},
 		{
-			name:        "interface_name by trying",
-			localIDType: "",
-			localID:     "eth2",
-			expectedID:  "default:1.2.3.4:2",
+			name:            "interface_name by trying",
+			localIDType:     "",
+			localID:         "eth2",
+			expectedID:      "default:1.2.3.4:2",
+			expectedOutcome: localIfaceResolutionResolvedUnique,
 		},
 		{
-			name:        "interface_alias by trying",
-			localIDType: "",
-			localID:     "alias2",
-			expectedID:  "default:1.2.3.4:2",
+			name:            "interface_alias by trying",
+			localIDType:     "",
+			localID:         "alias2",
+			expectedID:      "default:1.2.3.4:2",
+			expectedOutcome: localIfaceResolutionResolvedUnique,
 		},
 		{
-			name:        "interface_alias+interface_name match with same interface should resolve",
-			localIDType: "",
-			localID:     "eth3",
-			expectedID:  "default:1.2.3.4:3",
+			name:            "interface_alias+interface_name match with same interface should resolve",
+			localIDType:     "",
+			localID:         "eth3",
+			expectedID:      "default:1.2.3.4:3",
+			expectedOutcome: localIfaceResolutionResolvedUnique,
 		},
 		{
-			name:        "interface_alias+interface_name match with different interface should not resolve",
-			localIDType: "",
-			localID:     "eth4",
-			expectedID:  "",
+			name:            "interface_alias+interface_name match with different interface (both physical) should not resolve",
+			localIDType:     "",
+			localID:         "eth4",
+			expectedID:      "",
+			expectedOutcome: localIfaceResolutionUnresolvedMultiPhysical,
 		},
 		{
-			name:        "interface_index by trying",
-			localIDType: "",
-			localID:     "2",
-			expectedID:  "default:1.2.3.4:2",
+			name:            "interface_index by trying",
+			localIDType:     "",
+			localID:         "2",
+			expectedID:      "default:1.2.3.4:2",
+			expectedOutcome: localIfaceResolutionResolvedUnique,
 		},
 		{
-			name:        "mac_address not found",
-			localIDType: "mac_address",
-			localID:     "00:00:00:00:00:99",
-			expectedID:  "",
+			name:            "mac_address not found",
+			localIDType:     "mac_address",
+			localID:         "00:00:00:00:00:99",
+			expectedID:      "",
+			expectedOutcome: localIfaceResolutionUnresolvedNoMatch,
 		},
 		{
-			name:        "invalid",
-			localIDType: "invalid_type",
-			localID:     "invalidID",
-			expectedID:  "",
+			name:            "empty localInterfaceID",
+			localIDType:     "mac_address",
+			localID:         "",
+			expectedID:      "",
+			expectedOutcome: localIfaceResolutionUnresolvedNoMatch,
+		},
+		{
+			name:            "invalid",
+			localIDType:     "invalid_type",
+			localID:         "invalidID",
+			expectedID:      "",
+			expectedOutcome: localIfaceResolutionUnresolvedNoMatch,
+		},
+		// PRD success criterion #1 + scope item 5b: multi-match with exactly
+		// one physical → physical wins.
+		{
+			name:            "mac_address multi-match physical+virtual: physical tiebreak wins",
+			localIDType:     "mac_address",
+			localID:         "aa:bb:cc:dd:ee:01",
+			expectedID:      "default:1.2.3.4:10",
+			expectedOutcome: localIfaceResolutionResolvedPhysicalTiebreak,
+		},
+		// PRD scope item 5c: multi-match with zero physical → unresolved.
+		{
+			name:            "mac_address multi-match all virtual: unresolved_no_physical",
+			localIDType:     "mac_address",
+			localID:         "aa:bb:cc:dd:ee:02",
+			expectedID:      "",
+			expectedOutcome: localIfaceResolutionUnresolvedNoPhysical,
+		},
+		// PRD scope item 5d: multi-match with multiple physical → unresolved.
+		{
+			name:            "mac_address multi-match multiple physical: unresolved_multi_physical",
+			localIDType:     "mac_address",
+			localID:         "aa:bb:cc:dd:ee:03",
+			expectedID:      "",
+			expectedOutcome: localIfaceResolutionUnresolvedMultiPhysical,
+		},
+		// PRD scope item 5e + R2: nil IsPhysical treated as non-physical, so
+		// the only physical candidate wins the tiebreak.
+		{
+			name:            "mac_address multi-match physical+nil-IsPhysical: physical tiebreak wins (nil treated non-physical)",
+			localIDType:     "mac_address",
+			localID:         "aa:bb:cc:dd:ee:04",
+			expectedID:      "default:1.2.3.4:40",
+			expectedOutcome: localIfaceResolutionResolvedPhysicalTiebreak,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expectedID, resolveLocalInterface(deviceID, interfaceIndexByIDType, tt.localIDType, tt.localID))
+			gotID, gotOutcome := resolveLocalInterface(deviceID, interfaceIndexByIDType, interfaceByIndex, tt.localIDType, tt.localID)
+			assert.Equal(t, tt.expectedID, gotID)
+			assert.Equal(t, tt.expectedOutcome, gotOutcome)
 		})
 	}
 }
@@ -1331,7 +1411,7 @@ func Test_buildInterfaceIndexByIDType(t *testing.T) {
 	}
 
 	// Act
-	interfaceIndexByIDType := buildInterfaceIndexByIDType(interfaces)
+	interfaceIndexByIDType, interfaceByIndex := buildInterfaceIndexByIDType(interfaces)
 
 	// Assert
 	expectedInterfaceIndexByIDType := map[string]map[string][]int32{
@@ -1356,6 +1436,63 @@ func Test_buildInterfaceIndexByIDType(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expectedInterfaceIndexByIDType, interfaceIndexByIDType)
+
+	// interfaceByIndex carries the full InterfaceMetadata payload so
+	// resolveLocalInterface can apply the physical-vs-virtual tiebreak.
+	expectedInterfaceByIndex := map[int32]metadata.InterfaceMetadata{
+		1: interfaces[0],
+		2: interfaces[1],
+		3: interfaces[2],
+	}
+	assert.Equal(t, expectedInterfaceByIndex, interfaceByIndex)
+}
+
+// Test_buildNetworkTopologyMetadataWithLLDP_physicalTiebreak is the
+// integration-style test called for in PRD scope item 6 / success criterion #1.
+// It constructs an LLDP fixture where the locally-reported MAC `aa:bb:cc:dd:ee:ff`
+// is shared by ifIndex 1 (ifType 6, ethernetCsmacd → physical) and ifIndex 100
+// (ifType 53, propVirtual → virtual). Before this change, the resolver dropped
+// the local interface entirely; with the physical-tiebreak it picks ifIndex 1
+// and emits a `resolved_physical_tiebreak` telemetry sample.
+func Test_buildNetworkTopologyMetadataWithLLDP_physicalTiebreak(t *testing.T) {
+	truePtr := true
+	falsePtr := false
+	interfaces := []metadata.InterfaceMetadata{
+		{DeviceID: "default:1.2.3.4", Index: 1, MacAddress: "aa:bb:cc:dd:ee:ff", Name: "Gi1/0/1", Type: 6, IsPhysical: &truePtr},
+		{DeviceID: "default:1.2.3.4", Index: 100, MacAddress: "aa:bb:cc:dd:ee:ff", Name: "Vlan100", Type: 53, IsPhysical: &falsePtr},
+	}
+
+	// Build a metadata.Store with one LLDP remote entry whose local-port-num
+	// references the colliding MAC via lldp_local.interface_id_type=3
+	// (mac_address per lldp.PortIDSubTypeMap). The full lldp_remote index is
+	// "<timeMark>.<localPortNum>.<lldpRemIndex>"; using 1.5.7.
+	store := internalmetadata.NewMetadataStore()
+	const remoteIdx = "1.5.7"
+	const localPortNum = "5"
+	store.AddColumnValue("lldp_remote.interface_id", remoteIdx, valuestore.ResultValue{Value: "RemotePort1"})
+	store.AddColumnValue("lldp_remote.interface_id_type", remoteIdx, valuestore.ResultValue{Value: "5"}) // interface_name
+	store.AddColumnValue("lldp_remote.chassis_id", remoteIdx, valuestore.ResultValue{Value: []byte{0xde, 0xad, 0xbe, 0xef, 0x00, 0x01}})
+	store.AddColumnValue("lldp_remote.chassis_id_type", remoteIdx, valuestore.ResultValue{Value: "4"}) // mac_address
+	store.AddColumnValue("lldp_remote.device_name", remoteIdx, valuestore.ResultValue{Value: "peer-sw"})
+	// The local-side identifier is the colliding MAC; idType 3 = mac_address.
+	store.AddColumnValue("lldp_local.interface_id_type", localPortNum, valuestore.ResultValue{Value: "3"})
+	store.AddColumnValue("lldp_local.interface_id", localPortNum, valuestore.ResultValue{Value: []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}})
+
+	sender := mocksender.NewMockSender("testID")
+	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	ms := &MetricSender{hostname: "test", sender: sender}
+
+	links := ms.buildNetworkTopologyMetadataWithLLDP("default:1.2.3.4", store, interfaces, []string{"snmp_device:1.2.3.4"})
+
+	require.Len(t, links, 1)
+	// The physical interface (ifIndex 1) wins the tiebreak.
+	assert.Equal(t, "default:1.2.3.4:1", links[0].Local.Interface.DDID)
+	// Telemetry: one Count sample with outcome=resolved_physical_tiebreak.
+	sender.AssertMetric(t, "Count", localInterfaceResolutionMetric, 1, "test", []string{
+		"snmp_device:1.2.3.4",
+		"outcome:" + localIfaceResolutionResolvedPhysicalTiebreak,
+		"id_type:mac_address",
+	})
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_withInterfaceTypeAndIsPhysical(t *testing.T) {

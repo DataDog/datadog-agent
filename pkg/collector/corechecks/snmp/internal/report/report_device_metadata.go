@@ -35,6 +35,47 @@ const topologyLinkSourceTypeCDP = "cdp"
 const ciscoNetworkProtocolIPv4 = "1"
 const ciscoNetworkProtocolIPv6 = "20"
 
+// localInterfaceResolutionMetric is emitted once per CDP/LLDP local-interface
+// resolution attempt, tagged with `outcome:<bucket>` and `id_type:<type>`,
+// so we can size the post-release impact of the physical-interface tiebreak
+// (see resolveLocalInterface).
+const localInterfaceResolutionMetric = "datadog.snmp.topology.local_interface_resolution"
+
+// Local-interface resolution outcome buckets. Values are stable label
+// strings (≤5 cardinality) — see the topology.local_interface_resolution
+// metric.
+const (
+	localIfaceResolutionResolvedUnique           = "resolved_unique"
+	localIfaceResolutionResolvedPhysicalTiebreak = "resolved_physical_tiebreak"
+	localIfaceResolutionUnresolvedMultiPhysical  = "unresolved_multi_physical"
+	localIfaceResolutionUnresolvedNoPhysical     = "unresolved_no_physical"
+	localIfaceResolutionUnresolvedNoMatch        = "unresolved_no_match"
+)
+
+// physicalEthernetIfTypes is the canonical set of IF-MIB ifType values
+// (RFC 7224 IANAifType) that NDM treats as "physical ethernet":
+//   - 6   ethernetCsmacd
+//   - 62  fastEther
+//   - 69  fastEtherFX
+//   - 117 gigabitEthernet
+//
+// Shared between buildNetworkInterfacesMetadata (which sets
+// InterfaceMetadata.IsPhysical) and resolveLocalInterface (which uses
+// it as a tiebreak when one MAC is shared by a physical and one or more
+// virtual interfaces, e.g. SVIs / port-channels).
+var physicalEthernetIfTypes = map[int32]bool{
+	6:   true,
+	62:  true,
+	69:  true,
+	117: true,
+}
+
+// isPhysicalEthernetIfType reports whether the IF-MIB ifType represents a
+// physical ethernet interface. See physicalEthernetIfTypes.
+func isPhysicalEthernetIfType(ifType int32) bool {
+	return physicalEthernetIfTypes[ifType]
+}
+
 const inetAddressUnknown = "0"
 const inetAddressIPv4 = "1"
 
@@ -73,7 +114,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
-	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
+	topologyLinks := ms.buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces, metricTags)
 	vpnTunnels := buildVPNTunnelsMetadata(config.DeviceID, metadataStore)
 
 	metadataPayloads := devicemetadata.BatchPayloads(integrations.SNMP, config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks, vpnTunnels, nil, diagnoses)
@@ -309,11 +350,12 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []de
 		name := store.GetColumnAsString("interface.name", strIndex)
 		ifType := int32(store.GetColumnAsFloat("interface.type", strIndex))
 
-		// Compute is_physical based on ifType
-		// Physical ethernet types: 6 (ethernetCsmacd), 62 (fastEther), 69 (fastEtherFX), 117 (gigabitEthernet)
+		// Compute is_physical based on ifType. The canonical physical-ethernet
+		// ifType set lives in physicalEthernetIfTypes; reuse it here and in
+		// resolveLocalInterface so both stay in sync.
 		var isPhysical *bool
 		if ifType != 0 {
-			physical := ifType == 6 || ifType == 62 || ifType == 69 || ifType == 117
+			physical := isPhysicalEthernetIfType(ifType)
 			isPhysical = &physical
 		}
 
@@ -361,22 +403,26 @@ func buildNetworkIPAddressesMetadata(deviceID string, store *metadata.Store) []d
 	return ipAddresses
 }
 
-func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interfaces []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
+// buildNetworkTopologyMetadata is a method on *MetricSender so that the LLDP
+// path can emit the local-interface resolution telemetry counter
+// (localInterfaceResolutionMetric). The CDP path resolves locally from
+// cdpCacheIfIndex (no ambiguity), so no telemetry is emitted there.
+func (ms *MetricSender) buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interfaces []devicemetadata.InterfaceMetadata, metricTags []string) []devicemetadata.TopologyLinkMetadata {
 	if store == nil {
 		// it's expected that the value store is nil if we can't reach the device
 		// in that case, we just return a nil slice.
 		return nil
 	}
 
-	links := buildNetworkTopologyMetadataWithLLDP(deviceID, store, interfaces)
+	links := ms.buildNetworkTopologyMetadataWithLLDP(deviceID, store, interfaces, metricTags)
 	if len(links) == 0 {
 		links = buildNetworkTopologyMetadataWithCDP(deviceID, store, interfaces)
 	}
 	return links
 }
 
-func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store, interfaces []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
-	interfaceIndexByIDType := buildInterfaceIndexByIDType(interfaces)
+func (ms *MetricSender) buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store, interfaces []devicemetadata.InterfaceMetadata, metricTags []string) []devicemetadata.TopologyLinkMetadata {
+	interfaceIndexByIDType, interfaceByIndex := buildInterfaceIndexByIDType(interfaces)
 
 	remManAddrByLLDPRemIndexAndLLDPRemLocalPortNum := getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(store.GetColumnIndexes("lldp_remote_management.interface_id_type"))
 
@@ -410,7 +456,8 @@ func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store
 		localInterfaceIDType := lldp.PortIDSubTypeMap[store.GetColumnAsString("lldp_local.interface_id_type", localPortNum)]
 		localInterfaceID := formatID(localInterfaceIDType, store, "lldp_local.interface_id", localPortNum)
 
-		resolvedLocalInterfaceID := resolveLocalInterface(deviceID, interfaceIndexByIDType, localInterfaceIDType, localInterfaceID)
+		resolvedLocalInterfaceID, resolutionOutcome := resolveLocalInterface(deviceID, interfaceIndexByIDType, interfaceByIndex, localInterfaceIDType, localInterfaceID)
+		ms.emitLocalInterfaceResolutionMetric(resolutionOutcome, localInterfaceIDType, metricTags)
 
 		// remEntryUniqueID: The combination of localPortNum and lldpRemIndex is expected to be unique for each entry in
 		//                   lldpRemTable. We don't include lldpRemTimeMark (used for filtering only recent data) since it can change often.
@@ -536,9 +583,31 @@ func getRemDeviceAddressIfIPType(store *metadata.Store, strIndex string, address
 	return ""
 }
 
-func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string][]int32, localInterfaceIDType string, localInterfaceID string) string {
+// resolveLocalInterface maps a CDP/LLDP-reported local-side identifier to a
+// concrete local interface_id. It returns the resolved interface_id (empty
+// string when no unique resolution is possible) and a stable outcome bucket
+// used for telemetry tagging — see localInterfaceResolutionMetric for the
+// allowed bucket values.
+//
+// Disambiguation rules:
+//   - 0 matches → "unresolved_no_match", "".
+//   - 1 match → "resolved_unique", "<deviceID>:<ifIndex>".
+//   - >1 matches → partition candidates by InterfaceMetadata.IsPhysical (see
+//     physicalEthernetIfTypes). Exactly one physical wins
+//     ("resolved_physical_tiebreak"); 0 physical → "unresolved_no_physical";
+//     ≥2 physical → "unresolved_multi_physical". This matches the framing in
+//     the BSSID RFC (II/6664785860): physical interfaces are the
+//     overwhelmingly likely correct mapping when MACs collide with virtual
+//     interfaces (SVIs, sub-interfaces, port-channels), and any false
+//     positive is at minimum no worse than the previous "drop entirely"
+//     behavior. The telemetry bucket lets us measure the resolved_physical_tiebreak
+//     rate post-release.
+//
+// interfaceByIndex is consulted as a defensive lookup; an ifIndex missing
+// from it (or with IsPhysical == nil) is treated as non-physical (R2).
+func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string][]int32, interfaceByIndex map[int32]devicemetadata.InterfaceMetadata, localInterfaceIDType string, localInterfaceID string) (string, string) {
 	if localInterfaceID == "" {
-		return ""
+		return "", localIfaceResolutionUnresolvedNoMatch
 	}
 
 	var typesToTry []string
@@ -569,20 +638,76 @@ func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]ma
 		}
 		interfaceID := deviceID + ":" + strconv.Itoa(int(matchedIfIndexes[0]))
 		log.Tracef("[local interface resolution] found 1 matching interface (idType=%s, id=%s) resolved to interface_id `%s`", localInterfaceIDType, localInterfaceID, interfaceID)
-		return interfaceID
-	} else if len(matchedIfIndexesMap) > 1 {
-		log.Tracef("[local interface resolution] expected 1 matching interface but found %d (idType=%s, id=%s): %+v", len(matchedIfIndexesMap), localInterfaceIDType, localInterfaceID, matchedIfIndexesMap)
-	} else {
-		log.Tracef("[local interface resolution] expected 1 matching interface but found 0 (idType=%s, id=%s)", localInterfaceIDType, localInterfaceID)
+		return interfaceID, localIfaceResolutionResolvedUnique
 	}
-	return ""
+	if len(matchedIfIndexesMap) > 1 {
+		// >1 match: try the physical-interface tiebreak. The common cause is
+		// a physical interface sharing a MAC with one or more virtual
+		// interfaces (SVIs, sub-interfaces, port-channel members).
+		var physicalCandidates []int32
+		for ifIndex := range matchedIfIndexesMap {
+			iface, ok := interfaceByIndex[ifIndex]
+			if !ok {
+				continue
+			}
+			// IsPhysical is *bool; nil → treat as non-physical (R2).
+			if iface.IsPhysical != nil && *iface.IsPhysical {
+				physicalCandidates = append(physicalCandidates, ifIndex)
+			}
+		}
+		switch len(physicalCandidates) {
+		case 1:
+			interfaceID := deviceID + ":" + strconv.Itoa(int(physicalCandidates[0]))
+			log.Tracef("[local interface resolution] found %d matching interfaces (idType=%s, id=%s), physical-interface tiebreak resolved to interface_id `%s`", len(matchedIfIndexesMap), localInterfaceIDType, localInterfaceID, interfaceID)
+			return interfaceID, localIfaceResolutionResolvedPhysicalTiebreak
+		case 0:
+			log.Tracef("[local interface resolution] expected 1 matching interface but found %d (idType=%s, id=%s), 0 physical candidates: %+v", len(matchedIfIndexesMap), localInterfaceIDType, localInterfaceID, matchedIfIndexesMap)
+			return "", localIfaceResolutionUnresolvedNoPhysical
+		default:
+			log.Tracef("[local interface resolution] expected 1 matching interface but found %d (idType=%s, id=%s), %d physical candidates (cannot tiebreak): %+v", len(matchedIfIndexesMap), localInterfaceIDType, localInterfaceID, len(physicalCandidates), matchedIfIndexesMap)
+			return "", localIfaceResolutionUnresolvedMultiPhysical
+		}
+	}
+	log.Tracef("[local interface resolution] expected 1 matching interface but found 0 (idType=%s, id=%s)", localInterfaceIDType, localInterfaceID)
+	return "", localIfaceResolutionUnresolvedNoMatch
 }
 
-func buildInterfaceIndexByIDType(interfaces []devicemetadata.InterfaceMetadata) map[string]map[string][]int32 {
+// emitLocalInterfaceResolutionMetric emits one Count sample per local
+// interface resolution attempt, tagged with `outcome:<bucket>` and
+// `id_type:<id_type|smart>`. Cardinality is bounded: outcome has 5 values
+// (see localIfaceResolution* constants); id_type is one of the LLDP
+// PortIDSubTypeMap values or "smart" when the device did not report an
+// id type. Safe to call with a nil/uninitialized sender (no-op).
+func (ms *MetricSender) emitLocalInterfaceResolutionMetric(outcome, localInterfaceIDType string, metricTags []string) {
+	if ms == nil || ms.sender == nil {
+		return
+	}
+	idTypeTag := localInterfaceIDType
+	if idTypeTag == "" {
+		idTypeTag = "smart"
+	}
+	tags := make([]string, 0, len(metricTags)+2)
+	tags = append(tags, metricTags...)
+	tags = append(tags, "outcome:"+outcome, "id_type:"+idTypeTag)
+	ms.sender.Count(localInterfaceResolutionMetric, 1, ms.hostname, tags)
+}
+
+// buildInterfaceIndexByIDType returns two parallel lookup structures used by
+// resolveLocalInterface:
+//   - interfaceIndexByIDType: map[ID_TYPE]map[ID_VALUE][]IF_INDEX, the bare
+//     identifier→ifIndex lookup.
+//   - interfaceByIndex: map[IF_INDEX]InterfaceMetadata, used by the
+//     physical-vs-virtual tiebreak in resolveLocalInterface when more than
+//     one ifIndex matches a single identifier (e.g. duplicate MAC).
+//
+// The second map is intentionally small (one entry per interface) and reuses
+// the InterfaceMetadata slice that the caller already has on the heap.
+func buildInterfaceIndexByIDType(interfaces []devicemetadata.InterfaceMetadata) (map[string]map[string][]int32, map[int32]devicemetadata.InterfaceMetadata) {
 	interfaceIndexByIDType := make(map[string]map[string][]int32) // map[ID_TYPE]map[ID_VALUE]IF_INDEX
 	for _, idType := range []string{"mac_address", "interface_name", "interface_alias", "interface_index"} {
 		interfaceIndexByIDType[idType] = make(map[string][]int32)
 	}
+	interfaceByIndex := make(map[int32]devicemetadata.InterfaceMetadata, len(interfaces))
 	for _, devInterface := range interfaces {
 		interfaceIndexByIDType["mac_address"][devInterface.MacAddress] = append(interfaceIndexByIDType["mac_address"][devInterface.MacAddress], devInterface.Index)
 		interfaceIndexByIDType["interface_name"][devInterface.Name] = append(interfaceIndexByIDType["interface_name"][devInterface.Name], devInterface.Index)
@@ -591,8 +716,10 @@ func buildInterfaceIndexByIDType(interfaces []devicemetadata.InterfaceMetadata) 
 		// interface_index is not a type defined by LLDP, it's used in local interface "smart resolution" when the idType is not present
 		strIndex := strconv.Itoa(int(devInterface.Index))
 		interfaceIndexByIDType["interface_index"][strIndex] = append(interfaceIndexByIDType["interface_index"][strIndex], devInterface.Index)
+
+		interfaceByIndex[devInterface.Index] = devInterface
 	}
-	return interfaceIndexByIDType
+	return interfaceIndexByIDType, interfaceByIndex
 }
 
 func buildLLDPRemoteKey(localPortNum, lldpRemIndex string) string {

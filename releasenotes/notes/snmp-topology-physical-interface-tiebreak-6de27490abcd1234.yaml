@@ -1,0 +1,22 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    SNMP topology: when an LLDP-reported local-side identifier (typically a
+    MAC address) matches more than one local interface on the polled device
+    — common when a physical interface shares its MAC with virtual interfaces
+    such as SVIs, sub-interfaces, or port-channel members — the agent now
+    breaks the tie in favor of the physical ethernet interface
+    (IF-MIB ``ifType`` 6, 62, 69, or 117) and emits the topology link with
+    the physical interface's ``interface_id``. Previously the link was
+    reported with no local interface attribution. A new in-agent telemetry
+    metric ``datadog.snmp.topology.local_interface_resolution`` (tags:
+    ``outcome:<resolved_unique|resolved_physical_tiebreak|unresolved_multi_physical|unresolved_no_physical|unresolved_no_match>``
+    and ``id_type:<lldp_id_type|smart>``) records each resolution attempt so
+    the impact of the tiebreak can be measured post-release.
