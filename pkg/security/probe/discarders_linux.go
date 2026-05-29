@@ -581,6 +581,11 @@ func applyDNSDefaultDropMaskFromRules(manager *manager.Manager, rs *rules.RuleSe
 
 		isDiscarder := true
 		for _, r := range bucket.GetRules() {
+			if ruleNeedsFullDNSResponse(r) {
+				isDiscarder = false
+				break
+			}
+
 			ok, err := r.PartialEval(ctx, "dns.response.code")
 			if err != nil {
 				var nf *eval.ErrFieldNotFound
@@ -590,7 +595,7 @@ func applyDNSDefaultDropMaskFromRules(manager *manager.Manager, rs *rules.RuleSe
 				isDiscarder = false
 				break
 			}
-			if ok || ruleNeedsFullDNSResponse(r) {
+			if ok {
 				isDiscarder = false
 				break
 			}
@@ -606,6 +611,13 @@ func applyDNSDefaultDropMaskFromRules(manager *manager.Manager, rs *rules.RuleSe
 
 func ruleNeedsFullDNSResponse(rule *rules.Rule) bool {
 	fields := rule.GetFields()
+
+	for _, field := range fields {
+		if strings.HasPrefix(field, "dns.response.") && field != "dns.response.code" {
+			return true
+		}
+	}
+
 	return slices.Contains(fields, "dns.response.code") && len(fields) > 1
 }
 
