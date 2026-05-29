@@ -41,6 +41,7 @@ import (
 	com_datadoghq_kubernetes_discovery "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/discovery"
 	com_datadoghq_mongodb "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/mongodb"
 	com_datadoghq_remoteaction "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction"
+	com_datadoghq_remoteaction_diskusage "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/diskusage"
 	com_datadoghq_remoteaction_networks "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networks"
 	com_datadoghq_remoteaction_rshell "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/rshell"
 	com_datadoghq_script "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/script"
@@ -85,6 +86,7 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 			"com.datadoghq.kubernetes.discovery":       com_datadoghq_kubernetes_discovery.NewKubernetesDiscovery(),
 			"com.datadoghq.mongodb":                    com_datadoghq_mongodb.NewMongoDB(),
 			"com.datadoghq.remoteaction":               com_datadoghq_remoteaction.NewRemoteAction(configuration),
+			"com.datadoghq.remoteaction.diskusage":     com_datadoghq_remoteaction_diskusage.NewDiskUsageBundle(),
 			"com.datadoghq.remoteaction.networks":      com_datadoghq_remoteaction_networks.NewNetworks(traceroute, eventPlatform),
 			"com.datadoghq.remoteaction.rshell":        com_datadoghq_remoteaction_rshell.NewRshellBundle(configuration),
 			"com.datadoghq.script":                     com_datadoghq_script.NewScript(),
