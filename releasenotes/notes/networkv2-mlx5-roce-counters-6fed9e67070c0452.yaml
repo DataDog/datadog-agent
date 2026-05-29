@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Added collection of mlx5_core RoCE/PFC ethtool counters to the network check:
+    per-priority pause, pause duration/transition, ECN marking, and buffer/congestion
+    discards (exposed under a new ``prio:`` tag dimension), global link-level (802.3x)
+    pause counters, and PCIe, FEC, pause-storm, and module-health Layer 1 globals.
+    These are gated by the existing ``collect_ethtool_metrics`` option.
