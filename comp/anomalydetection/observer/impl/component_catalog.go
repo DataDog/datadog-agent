@@ -204,6 +204,36 @@ func defaultCatalog() *componentCatalog {
 				factory:        func(any) any { return NewScanWelchDetector() },
 				defaultEnabled: false,
 			},
+			{
+				name:           "holt_residual",
+				displayName:    "HoltResidual",
+				kind:           componentDetector,
+				defaultConfig:  DefaultHoltResidualConfig(),
+				factory:        func(cfg any) any { return NewHoltResidualDetectorWithConfig(cfg.(HoltResidualConfig)) },
+				defaultEnabled: false,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(HoltResidualConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
+			},
+			{
+				name:           "tukey_biweight",
+				displayName:    "TukeyBiweight",
+				kind:           componentDetector,
+				defaultConfig:  DefaultTukeyBiweightConfig(),
+				factory:        func(cfg any) any { return NewTukeyBiweightDetectorWithConfig(cfg.(TukeyBiweightConfig)) },
+				defaultEnabled: false,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(TukeyBiweightConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
+			},
 			// ---- Correlators ----
 			{
 				name:           "cross_signal",

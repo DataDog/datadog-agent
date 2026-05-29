@@ -195,6 +195,9 @@ func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 		dictionary["Path"] = c.Path
 		dictionary["TailingMode"] = c.TailingMode
 		dictionary["Identifier"] = c.Identifier
+		if c.Format != "" {
+			dictionary["Format"] = c.Format
+		}
 	case config.DockerType:
 		dictionary["Image"] = c.Image
 		dictionary["Label"] = c.Label

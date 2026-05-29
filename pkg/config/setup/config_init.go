@@ -14,3 +14,12 @@ func initConfig() {
 	sysprobe := GlobalSystemProbeConfigBuilder()
 	InitSystemProbeConfig(sysprobe)
 }
+
+func fixupInitConfig() {
+	ddcfg := Datadog()
+	fixupInitCommonConfigComponents(ddcfg)
+	fixupInitFullAgentOnlyComponents(ddcfg)
+
+	sysprobe := SystemProbe()
+	fixupInitSystemProbe(sysprobe)
+}
