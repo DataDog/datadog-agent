@@ -94,7 +94,6 @@
 /.gitlab/maintenance_jobs/*                          @DataDog/agent-devx
 /.gitlab/notify/*                                    @DataDog/agent-devx
 /.gitlab/pkg_metrics/*                               @DataDog/agent-devx
-/.gitlab/post_rc_build/*                             @DataDog/agent-devx
 /.gitlab/setup/*                                     @DataDog/agent-devx
 /.gitlab/trigger_distribution/*                      @DataDog/agent-delivery
 /.gitlab/trigger_release/*                           @DataDog/agent-devx @DataDog/agent-delivery
@@ -545,7 +544,6 @@
 /pkg/logs/launchers/windowsevent        @DataDog/agent-log-pipelines @DataDog/windows-products
 /pkg/logs/tailers/windowsevent          @DataDog/agent-log-pipelines @DataDog/windows-products
 /pkg/logs/util/windowsevent             @DataDog/agent-log-pipelines @DataDog/windows-products
-/pkg/logs/client                        @DataDog/agent-log-pipelines
 /pkg/logs/diagnostic                    @DataDog/agent-log-pipelines
 /pkg/logs/message                       @DataDog/agent-log-pipelines
 /pkg/logs/pipeline                      @DataDog/agent-log-pipelines

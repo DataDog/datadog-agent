@@ -14,8 +14,6 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
-	"github.com/hashicorp/go-multierror"
-
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -227,7 +225,7 @@ func (c *gpmCollector) Name() CollectorName {
 	return gpm
 }
 
-func (c *gpmCollector) Collect() ([]Metric, error) {
+func (c *gpmCollector) Collect() ([]*Metric, error) {
 	err := c.collectSample()
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect GPM sample: %w", err)
@@ -239,16 +237,17 @@ func (c *gpmCollector) Collect() ([]Metric, error) {
 	}
 
 	metrics := make([]Metric, 0, len(c.metricsToCollect))
+	var errs []error
 	for i := uint32(0); i < gpmMetrics.NumMetrics; i++ {
 		metric := gpmMetrics.Metrics[i]
 		if metric.NvmlReturn != uint32(nvml.SUCCESS) {
-			err = multierror.Append(err, fmt.Errorf("failed to get GPM metric %d: %s", metric.MetricId, nvml.ErrorString(nvml.Return(metric.NvmlReturn))))
+			errs = append(errs, fmt.Errorf("failed to get GPM metric %d: %s", metric.MetricId, nvml.ErrorString(nvml.Return(metric.NvmlReturn))))
 			continue
 		}
 
 		metricData, ok := c.metricsToCollect[nvml.GpmMetricId(metric.MetricId)]
 		if !ok {
-			err = multierror.Append(err, fmt.Errorf("unknown metric ID %d: %s", metric.MetricId, nvml.ErrorString(nvml.Return(metric.NvmlReturn))))
+			errs = append(errs, fmt.Errorf("unknown metric ID %d: %s", metric.MetricId, nvml.ErrorString(nvml.Return(metric.NvmlReturn))))
 			continue
 		}
 
@@ -260,5 +259,5 @@ func (c *gpmCollector) Collect() ([]Metric, error) {
 		})
 	}
 
-	return metrics, err
+	return metricValuesToPointers(metrics), errors.Join(errs...)
 }

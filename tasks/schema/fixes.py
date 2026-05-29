@@ -105,6 +105,18 @@ sysprobe_defaults = {
         "windows": "localhost:3335",
         "other": "${install_path}/run/runtime-security.sock",
     },
+    "network_config.direct_send": {
+        "linux": True,
+        "other": False,
+    },
+    "discovery.enabled": {
+        "linux": True,
+        "other": False,
+    },
+    "discovery.use_system_probe_lite": {
+        "linux": True,
+        "other": False,
+    },
 }
 
 # extra_tags
@@ -117,6 +129,24 @@ core_extra_tags = {
 
 system_probe_extra_tags = {
     "windows_crash_detection": ["platform_only:windows"],
+}
+
+# fix env_parser
+#
+# Some settings use custom env var parsing logic that cannot be captured automatically
+# by the schema generator. The env_parser field documents the parsing strategy.
+
+core_env_parsers = {
+    "apm_config.analyzed_spans": "traces_span",
+    "apm_config.ignore_resources": "csv_comma_separated",
+    "apm_config.features": "comma_then_space_separated",
+    "apm_config.filter_tags.require": "json_list_or_space_separated",
+    "apm_config.filter_tags.reject": "json_list_or_space_separated",
+    "apm_config.filter_tags_regex.require": "json_list_or_space_separated",
+    "apm_config.filter_tags_regex.reject": "json_list_or_space_separated",
+    "apm_config.obfuscation.credit_cards.keep_values": "json_list_or_space_separated",
+    "otelcollector.converter.features": "comma_and_space_separated",
+    "process_config.custom_sensitive_words": "json_list_or_comma_separated",
 }
 
 # fix custom env vars
@@ -158,7 +188,16 @@ def fix_tags(core_schema, sysprobe_schema):
             for k in key.split("."):
                 node = node["properties"][k]
 
-            node["tags"] = list(set(node.get("tags", []) + tags))
+            node["tags"] = sorted(set(node.get("tags", []) + tags))
+    return core_schema, sysprobe_schema
+
+
+def fix_env_parsers(core_schema, sysprobe_schema):
+    for key, parser in core_env_parsers.items():
+        node = core_schema
+        for k in key.split("."):
+            node = node["properties"][k]
+        node["env_parser"] = parser
     return core_schema, sysprobe_schema
 
 
@@ -178,6 +217,7 @@ def fix_schema(core_schema, sysprobe_schema):
     core_schema, sysprobe_schema = fix_defaults(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_tags(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_missing_env_doc(core_schema, sysprobe_schema)
+    core_schema, sysprobe_schema = fix_env_parsers(core_schema, sysprobe_schema)
 
     # special edge case for api_key
     core_schema["properties"]["api_key"]["type"] = "string"

@@ -7,7 +7,6 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/env.sh"
 
 STAGE_NAME="00-checkout"
-SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
@@ -15,12 +14,6 @@ mkdir -p "$BUILD_DIR/logs"
 exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
-
-# --- Idempotency check ---
-if [ -f "$SENTINEL" ]; then
-    log "Already complete (sentinel: $SENTINEL) — skipping."
-    exit 0
-fi
 
 # --- Input validation ---
 : "${BUILD_DIR:?BUILD_DIR must be set}"
@@ -111,7 +104,4 @@ fi
 git -C "$INTEGRATIONS_CORE" checkout --quiet "$INTEGRATIONS_CORE_VERSION"
 log "Checked out integrations-core at $(git -C "$INTEGRATIONS_CORE" rev-parse HEAD)"
 
-# --- Mark complete ---
-mkdir -p "$(dirname "$SENTINEL")"
-touch "$SENTINEL"
 log "=== $STAGE_NAME complete ==="

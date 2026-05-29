@@ -10,7 +10,6 @@ package nvidia
 import (
 	"encoding/binary"
 	"testing"
-	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
@@ -94,137 +93,32 @@ func TestFieldsCollector_AllMetricsEmitted(t *testing.T) {
 	collector, err := newFieldsCollector(device, nil)
 	require.NoError(t, err)
 
-	fc, ok := collector.(*fieldsCollector)
-	require.True(t, ok, "expected *fieldsCollector")
-	now := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	fc.now = func() time.Time {
-		t := now
-		now = now.Add(time.Second)
-		return t
-	}
-
-	// First collect: sets baseline for rate metrics (they won't be emitted yet)
-	_, err = fc.Collect()
+	collected, err := collector.Collect()
 	require.NoError(t, err)
 
-	// Bump rate metric values by a fixed delta before the second collect.
-	// With a 1s clock step, rate = rateDelta / 1s = rateDelta.
-	// This is intentionally different from the base values so the test
-	// would fail if rate computation were accidentally skipped (the raw
-	// value would be base + rateDelta, not rateDelta).
-	const rateDelta uint32 = 500
-	for _, fm := range allFieldMetrics {
-		if fm.computeRate {
-			returnValues[fm.fieldValueID] += rateDelta
-		}
-	}
-
-	// Second collect: all metrics including rate-computed ones should appear
-	collected, err := fc.Collect()
-	require.NoError(t, err)
-
-	// Build expected values.
-	// Non-rate: the map holds mockFieldValues[fieldID] (unchanged) → expected = base.
-	// Rate:     delta = rateDelta, timeDelta = 1s → expected = rateDelta.
+	// The fields collector now emits raw field values and annotates how rates
+	// should be calculated later in the pipeline.
 	expectedValues := make(map[string][]float64)
+	expectedRateModes := make(map[string][]RateCalculationMode)
 	for _, fm := range allFieldMetrics {
-		if fm.computeRate {
-			expectedValues[fm.name] = append(expectedValues[fm.name], float64(rateDelta))
-		} else {
-			expectedValues[fm.name] = append(expectedValues[fm.name], float64(mockFieldValues[fm.fieldValueID]))
-		}
+		expectedValues[fm.name] = append(expectedValues[fm.name], float64(mockFieldValues[fm.fieldValueID]))
+		expectedRateModes[fm.name] = append(expectedRateModes[fm.name], fm.rateCalculationMode)
 	}
 
 	emittedValues := make(map[string][]float64)
+	emittedRateModes := make(map[string][]RateCalculationMode)
 	for _, m := range collected {
 		emittedValues[m.Name] = append(emittedValues[m.Name], m.Value)
+		emittedRateModes[m.Name] = append(emittedRateModes[m.Name], m.RateCalculationMode)
 	}
 
 	require.Equal(t, len(expectedValues), len(emittedValues), "number of unique metric names should match")
 	for name, expectedVals := range expectedValues {
 		require.ElementsMatch(t, expectedVals, emittedValues[name], "values mismatch for metric %s", name)
+		require.ElementsMatch(t, expectedRateModes[name], emittedRateModes[name], "rate modes mismatch for metric %s", name)
 	}
 }
-
-func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
-	tests := []struct {
-		name             string
-		unsupportedField uint32 // field ID to mark as unsupported; 0 means all supported
-		expectPriority   MetricPriority
-		expectValue      float64
-	}{
-		{
-			name:           "both supported, newer wins after dedup",
-			expectPriority: MediumLow,
-			expectValue:    float64(mockFieldValues[nvml.FI_DEV_NVLINK_GET_SPEED]),
-		},
-		{
-			name:             "newer unsupported, legacy selected",
-			unsupportedField: nvml.FI_DEV_NVLINK_GET_SPEED,
-			expectPriority:   Low,
-			expectValue:      float64(mockFieldValues[nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON]),
-		},
-		{
-			name:             "legacy unsupported, newer selected",
-			unsupportedField: nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON,
-			expectPriority:   MediumLow,
-			expectValue:      float64(mockFieldValues[nvml.FI_DEV_NVLINK_GET_SPEED]),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			returnValues := copyMockFieldValues()
-			device := setupMockDevice(t, func(d *mock.Device) *mock.Device {
-				d.GetFieldValuesFunc = fieldValuesMockFunc(returnValues, tt.unsupportedField)
-				return d
-			})
-
-			collector, err := newFieldsCollector(device, nil)
-			require.NoError(t, err)
-
-			fc, ok := collector.(*fieldsCollector)
-			require.True(t, ok, "expected *fieldsCollector")
-			now := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-			fc.now = func() time.Time {
-				t := now
-				now = now.Add(time.Second)
-				return t
-			}
-
-			// Two collects so rate metrics are also present
-			_, err = fc.Collect()
-			require.NoError(t, err)
-
-			for _, fm := range allFieldMetrics {
-				if fm.computeRate {
-					returnValues[fm.fieldValueID] += 500
-				}
-			}
-
-			collected, err := fc.Collect()
-			require.NoError(t, err)
-
-			// Run through RemoveDuplicateMetrics, same as the real check
-			deduped := RemoveDuplicateMetrics(map[CollectorName][]Metric{
-				field: collected,
-			})
-
-			var nvlinkSpeed []Metric
-			for _, m := range deduped {
-				if m.Name == "nvlink.speed" {
-					nvlinkSpeed = append(nvlinkSpeed, m)
-				}
-			}
-
-			require.Len(t, nvlinkSpeed, 1, "exactly one nvlink.speed metric should survive dedup")
-			require.Equal(t, tt.expectPriority, nvlinkSpeed[0].Priority)
-			require.Equal(t, tt.expectValue, nvlinkSpeed[0].Value)
-		})
-	}
-}
-
-func TestFieldsCollectorNegativeDelta(t *testing.T) {
+func TestFieldsCollectorPreservesRawValuesForRateMetrics(t *testing.T) {
 	returnValues := make(map[uint32]uint32)
 	device := setupMockDevice(t, func(d *mock.Device) *mock.Device {
 		d.GetFieldValuesFunc = fieldValuesMockFunc(returnValues, 0)
@@ -236,35 +130,19 @@ func TestFieldsCollectorNegativeDelta(t *testing.T) {
 
 	fc, ok := collector.(*fieldsCollector)
 	require.True(t, ok, "expected *fieldsCollector")
-	now := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	fc.now = func() time.Time {
-		t := now
-		now = now.Add(time.Second)
-		return t
-	}
 
-	deltaPositiveID := uint32(1)
-	deltaNegativeID := uint32(2)
-	deltaZeroID := uint32(3)
+	positiveID := uint32(1)
+	negativeID := uint32(2)
+	zeroID := uint32(3)
 	fc.fieldMetrics = []fieldValueMetric{
-		{name: "deltaPositive", fieldValueID: deltaPositiveID, metricType: metrics.GaugeType, computeRate: true},
-		{name: "deltaNegative", fieldValueID: deltaNegativeID, metricType: metrics.GaugeType, computeRate: true},
-		{name: "deltaZero", fieldValueID: deltaZeroID, metricType: metrics.GaugeType, computeRate: true},
+		{name: "deltaPositive", fieldValueID: positiveID, metricType: metrics.GaugeType, rateCalculationMode: PerSecondRateCalculation},
+		{name: "deltaNegative", fieldValueID: negativeID, metricType: metrics.GaugeType, rateCalculationMode: PerSecondRateCalculation},
+		{name: "deltaZero", fieldValueID: zeroID, metricType: metrics.GaugeType, rateCalculationMode: PerSecondRateCalculation},
 	}
 
-	baseValue := uint32(1000)
-	returnValues[deltaPositiveID] = baseValue
-	returnValues[deltaNegativeID] = baseValue
-	returnValues[deltaZeroID] = baseValue
-
-	// First collection, ignore these values
-	_, err = fc.Collect()
-	require.NoError(t, err)
-
-	// Now increment to create the deltas we want
-	delta := uint32(500)
-	returnValues[deltaPositiveID] = returnValues[deltaPositiveID] + delta
-	returnValues[deltaNegativeID] = returnValues[deltaNegativeID] - delta
+	returnValues[positiveID] = 1500
+	returnValues[negativeID] = 500
+	returnValues[zeroID] = 1000
 
 	collected, err := fc.Collect()
 	require.NoError(t, err)
@@ -273,15 +151,18 @@ func TestFieldsCollectorNegativeDelta(t *testing.T) {
 	for _, m := range collected {
 		if m.Name == "deltaPositive" {
 			foundPositive = true
-			require.Equal(t, float64(delta), m.Value)
+			require.Equal(t, 1500.0, m.Value)
+			require.Equal(t, PerSecondRateCalculation, m.RateCalculationMode)
 		}
 		if m.Name == "deltaNegative" {
 			foundNegative = true
-			require.Equal(t, float64(0), m.Value)
+			require.Equal(t, 500.0, m.Value)
+			require.Equal(t, PerSecondRateCalculation, m.RateCalculationMode)
 		}
 		if m.Name == "deltaZero" {
 			foundZero = true
-			require.Equal(t, float64(0), m.Value)
+			require.Equal(t, 1000.0, m.Value)
+			require.Equal(t, PerSecondRateCalculation, m.RateCalculationMode)
 		}
 	}
 
@@ -316,8 +197,6 @@ func TestFieldsCollectorTreatsInvalidArgumentAsUnsupportedOnlyWhenConfigured(t *
 				switch fv[i].FieldId {
 				case nvml.FI_DEV_C2C_LINK_ERROR_INTR:
 					fv[i].NvmlReturn = uint32(nvml.ERROR_INVALID_ARGUMENT)
-				case nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS:
-					fv[i].NvmlReturn = uint32(nvml.ERROR_INVALID_ARGUMENT)
 				default:
 					fv[i].NvmlReturn = uint32(nvml.SUCCESS)
 					fv[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
@@ -336,16 +215,12 @@ func TestFieldsCollectorTreatsInvalidArgumentAsUnsupportedOnlyWhenConfigured(t *
 	require.True(t, ok, "expected *fieldsCollector")
 
 	foundC2CInterrupt := false
-	foundNvlinkEffective := false
 	for _, metric := range fc.fieldMetrics {
 		switch metric.name {
 		case "c2c.errors.interrupt":
 			foundC2CInterrupt = true
-		case "nvlink.errors.effective":
-			foundNvlinkEffective = true
 		}
 	}
 
 	require.False(t, foundC2CInterrupt, "c2c.errors.interrupt should be removed when INVALID_ARGUMENT is explicitly mapped to unsupported")
-	require.True(t, foundNvlinkEffective, "nvlink.errors.effective should remain when INVALID_ARGUMENT is not explicitly mapped to unsupported")
 }

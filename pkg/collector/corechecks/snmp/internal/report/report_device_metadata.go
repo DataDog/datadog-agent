@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	sortutil "github.com/DataDog/datadog-agent/pkg/util/sort"
@@ -147,6 +147,15 @@ func computeInterfaceStatus(adminStatus devicemetadata.IfAdminStatus, operStatus
 	return devicemetadata.InterfaceStatusDown
 }
 
+// isEmptyMetadataScalarValue: polled scalar has no usable string (trim empty, ToString err); try next symbol.
+func isEmptyMetadataScalarValue(value valuestore.ResultValue) bool {
+	s, err := value.ToString()
+	if err != nil {
+		return true
+	}
+	return strings.TrimSpace(s) == ""
+}
+
 func buildMetadataStore(metadataConfigs profiledefinition.MetadataConfig, values *valuestore.ResultValueStore) *metadata.Store {
 	metadataStore := metadata.NewMetadataStore()
 	if values == nil {
@@ -171,6 +180,9 @@ func buildMetadataStore(metadataConfigs profiledefinition.MetadataConfig, values
 					value, err := getScalarValueFromSymbol(values, symbol)
 					if err != nil {
 						log.Debugf("error getting scalar value: %v", err)
+						continue
+					}
+					if isEmptyMetadataScalarValue(value) {
 						continue
 					}
 					metadataStore.AddScalarValue(fieldFullName, value)

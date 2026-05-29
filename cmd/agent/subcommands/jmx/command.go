@@ -21,8 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/agent"
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
+	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
@@ -35,12 +34,11 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -129,7 +127,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			dualTaggerfx.Module(common.DualTaggerParams()),
 			autodiscoveryimpl.Module(),
 			healthplatform.Bundle(),
-			agent.Bundle(jmxloggerimpl.NewCliParams(cliParams.logFile)),
+			agent.Bundle(jmxlogger.NewCliParams(cliParams.logFile)),
 			// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 			// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 			// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
@@ -272,13 +270,9 @@ func disableCmdPort() {
 // with the Console reporter
 func runJmxCommandConsole(config config.Component,
 	cliParams *cliParams,
-	wmeta workloadmeta.Component,
 	ac autodiscovery.Component,
-	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
 	jmxLogger jmxlogger.Component,
-	tagger tagger.Component,
-	filterStore workloadfilter.Component,
 	ipc ipc.Component) (err error) {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
@@ -287,7 +281,7 @@ func runJmxCommandConsole(config config.Component,
 
 	// The Autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
-	common.LoadComponents(secretResolver, wmeta, tagger, filterStore, ac, config.GetString("confd_path"))
+	common.LoadComponents(ac, config.GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// if cliSelectedChecks is empty, then we want to fetch all check configs;

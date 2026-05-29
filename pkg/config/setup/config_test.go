@@ -33,6 +33,26 @@ func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfi
 	return conf
 }
 
+// can be used to ensure proxy tests are isolated from proxy env vars set by CI
+func unsetProxyEnvForTest(t *testing.T) {
+	t.Helper()
+
+	for _, key := range []string{
+		"DD_PROXY_HTTP",
+		"DD_PROXY_HTTPS",
+		"DD_PROXY_NO_PROXY",
+		"HTTP_PROXY",
+		"HTTPS_PROXY",
+		"NO_PROXY",
+		"http_proxy",
+		"https_proxy",
+		"no_proxy",
+	} {
+		t.Setenv(key, "")
+		require.NoError(t, os.Unsetenv(key))
+	}
+}
+
 func TestDefaults(t *testing.T) {
 	config := newTestConf(t)
 
@@ -49,6 +69,9 @@ func TestDefaults(t *testing.T) {
 		"hint_frequency": 60,
 		"interval":       4 * time.Hour,
 	}, config.GetStringMap("process_config.process_discovery"))
+
+	assert.True(t, config.GetBool("logs_config.tag_multi_line_logs"))
+	assert.True(t, config.GetBool("logs_config.tag_truncated_logs"))
 }
 
 func TestUnexpectedUnicode(t *testing.T) {
@@ -430,6 +453,7 @@ func TestProxy(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			unsetProxyEnvForTest(t)
 
 			config := newTestConf(t)
 			config.SetWithoutSource("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
@@ -850,6 +874,21 @@ data_plane:
 		assert.True(t, cfg.GetBool("data_plane.enabled"),
 			"data_plane.enabled must not be touched by the suppression override")
 	})
+}
+
+func TestDataPlaneDefaults(t *testing.T) {
+	cfg := confFromYAML(t, "")
+
+	assert.True(t, cfg.GetBool("data_plane.use_new_config_stream_endpoint"))
+	assert.True(t, cfg.GetBool("data_plane.remote_agent_enabled"))
+	assert.Equal(t, "tcp://0.0.0.0:5100", cfg.GetString("data_plane.api_listen_address"))
+	assert.Equal(t, "tcp://0.0.0.0:5101", cfg.GetString("data_plane.secure_api_listen_address"))
+	assert.False(t, cfg.GetBool("data_plane.telemetry_enabled"))
+	assert.Equal(t, "tcp://0.0.0.0:5102", cfg.GetString("data_plane.telemetry_listen_addr"))
+	assert.Equal(t, DefaultDataPlaneLogFile, cfg.GetString("data_plane.log_file"))
+	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.traces.enabled"))
+	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.metrics.enabled"))
+	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.logs.enabled"))
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
@@ -1485,6 +1524,13 @@ func TestServerlessConfigInit(t *testing.T) {
 	// ensure some non-serverless configs are not declared
 	assert.False(t, conf.IsKnown("sbom.enabled"))
 	assert.False(t, conf.IsKnown("inventories_enabled"))
+
+	// comp/trace/config reads these unconditionally; serverless builds only run
+	// initCommonConfigComponents, so the defaults must be reachable from here.
+	assert.True(t, conf.GetBool("evp_proxy_config.enabled"))
+	assert.Equal(t, int64(10*1024*1024), conf.GetInt64("evp_proxy_config.max_payload_size"))
+	assert.True(t, conf.GetBool("ol_proxy_config.enabled"))
+	assert.Equal(t, 2, conf.GetInt("ol_proxy_config.api_version"))
 }
 
 func TestDisableCoreAgent(t *testing.T) {
@@ -1604,6 +1650,7 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 	tests := []struct {
 		name         string
 		goos         string
+		forceEnable  string // value of DD_DATA_PLANE_FORCE_ENABLE
 		initialValue bool
 		wantValue    bool
 		wantSource   pkgconfigmodel.Source
@@ -1645,6 +1692,41 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantValue:    false,
 			wantSource:   pkgconfigmodel.SourceAgentRuntime,
 		},
+		{
+			name:         "darwin bypass: force-enable=true preserves true",
+			goos:         "darwin",
+			forceEnable:  "true",
+			initialValue: true,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
+		},
+		{
+			name:         "windows bypass: force-enable=true preserves true",
+			goos:         "windows",
+			forceEnable:  "true",
+			initialValue: true,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
+		},
+		{
+			// Garbage value in the env var does NOT bypass the gate.
+			name:         "darwin bypass: force-enable=yes is ignored (gate applies)",
+			goos:         "darwin",
+			forceEnable:  "yes",
+			initialValue: true,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+		},
+		{
+			// When bypass is active and value is already false, gate is still skipped —
+			// SourceAgentRuntime override is not applied.
+			name:         "darwin bypass: force-enable=true preserves false",
+			goos:         "darwin",
+			forceEnable:  "true",
+			initialValue: false,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceFile,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1652,7 +1734,13 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			cfg := newTestConf(t)
 			cfg.Set("data_plane.enabled", tt.initialValue, pkgconfigmodel.SourceFile)
 
-			sanitizeDataPlaneConfig(cfg, tt.goos)
+			envLookup := func(key string) string {
+				if key == "DD_DATA_PLANE_FORCE_ENABLE" {
+					return tt.forceEnable
+				}
+				return ""
+			}
+			sanitizeDataPlaneConfig(cfg, tt.goos, envLookup)
 
 			assert.Equal(t, tt.wantValue, cfg.GetBool("data_plane.enabled"))
 			assert.Equal(t, tt.wantSource, cfg.GetSource("data_plane.enabled"))

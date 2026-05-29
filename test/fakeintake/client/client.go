@@ -66,6 +66,7 @@ import (
 const (
 	fakeintakeIDHeader           = "Fakeintake-ID"
 	metricsEndpoint              = "/api/v2/series"
+	sketchesEndpoint             = "/api/beta/sketches"
 	intakeEndpoint               = "/intake/"
 	checkRunsEndpoint            = "/api/v1/check_run"
 	logsEndpoint                 = "/api/v2/logs"
@@ -129,6 +130,7 @@ type Client struct {
 	getBackoffDelay   time.Duration
 
 	metricAggregator               aggregator.MetricAggregator
+	sketchAggregator               aggregator.SketchAggregator
 	checkRunAggregator             aggregator.CheckRunAggregator
 	eventAggregator                aggregator.EventAggregator
 	logAggregator                  aggregator.LogAggregator
@@ -162,6 +164,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		getBackoffDelay:                5 * time.Second,
 		fakeIntakeURL:                  strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:               aggregator.NewMetricAggregator(),
+		sketchAggregator:               aggregator.NewSketchAggregator(),
 		checkRunAggregator:             aggregator.NewCheckRunAggregator(),
 		eventAggregator:                aggregator.NewEventAggregator(),
 		logAggregator:                  aggregator.NewLogAggregator(),
@@ -358,6 +361,14 @@ func (c *Client) getHostTags() error {
 	return c.hostAggregator.UnmarshallPayloads(payloads)
 }
 
+func (c *Client) getSketches() error {
+	payloads, err := c.getFakePayloads(sketchesEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.sketchAggregator.UnmarshallPayloads(payloads)
+}
+
 func (c *Client) getAgentHealth() error {
 	payloads, err := c.getFakePayloads(agentHealthEndpoint)
 	if err != nil {
@@ -374,6 +385,16 @@ func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.Metr
 		return nil, err
 	}
 	return filterPayload(metrics, options...)
+}
+
+// FilterSketches fetches fakeintake on `/api/beta/sketches` and returns sketches
+// matching `name` and any [MatchOpt](#MatchOpt) options. Use this for distribution
+// metrics — counters/gauges go through FilterMetrics instead.
+func (c *Client) FilterSketches(name string, options ...MatchOpt[*aggregator.Sketch]) ([]*aggregator.Sketch, error) {
+	if err := c.getSketches(); err != nil {
+		return nil, err
+	}
+	return filterPayload(c.sketchAggregator.GetPayloadsByName(name), options...)
 }
 
 // FilterCheckRuns fetches fakeintake on `/api/v1/check_run` endpoint and returns
@@ -515,6 +536,15 @@ func (c *Client) GetMetricNames() ([]string, error) {
 		return nil, err
 	}
 	return c.metricAggregator.GetNames(), nil
+}
+
+// GetSketchNames fetches fakeintake on `/api/beta/sketches` and returns every
+// distinct sketch metric name received.
+func (c *Client) GetSketchNames() ([]string, error) {
+	if err := c.getSketches(); err != nil {
+		return nil, err
+	}
+	return c.sketchAggregator.GetNames(), nil
 }
 
 // WithTags filters by `tags`
@@ -680,6 +710,7 @@ func (c *Client) FlushServerAndResetAggregators() error {
 	c.checkRunAggregator.Reset()
 	c.connectionAggregator.Reset()
 	c.metricAggregator.Reset()
+	c.sketchAggregator.Reset()
 	c.logAggregator.Reset()
 	c.apmStatsAggregator.Reset()
 	c.traceAggregator.Reset()

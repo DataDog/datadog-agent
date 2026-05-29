@@ -1,0 +1,35 @@
+# gazelle:go_proto_compilers @rules_go//proto:go_proto,//bazel/rules/go_proto_compiler:go_vtproto_serde
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+load("//bazel/rules/protoc_go_inject_tag:defs.bzl", "protoc_go_inject_tag")
+
+proto_library(
+    name = "trace_proto",
+    srcs = [
+        "agent_payload.proto",
+        "span.proto",
+        "stats.proto",
+        "tracer_payload.proto",
+    ],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/proto/datadog/trace/idx:idx_proto"],
+)
+
+go_proto_library(
+    name = "trace_go_proto",
+    compilers = [
+        "@rules_go//proto:go_proto",
+        "//bazel/rules/go_proto_compiler:go_vtproto_serde",
+    ],
+    importpath = "pkg/proto/pbgo/trace",
+    proto = ":trace_proto",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/proto/datadog/trace/idx:idx_go_proto"],
+)
+
+protoc_go_inject_tag(
+    name = "trace_go_proto_tagged",
+    go_proto_library = ":trace_go_proto",
+    visibility = ["//visibility:public"],
+)

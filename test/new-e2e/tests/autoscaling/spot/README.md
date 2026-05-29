@@ -26,8 +26,14 @@ Run from the **repo root**. The test creates the kind cluster automatically and 
 DD_TEST_CLUSTER_AGENT_IMAGE=${USER}/cluster-agent:test \
   PULUMI_CONFIG_PASSPHRASE=dummy \
   dda inv new-e2e-tests.run --targets=./tests/autoscaling/spot/... \
-  -e "-test.timeout 10m"
+  --run "^TestSpotSchedulingKind$" \
+  -e "-test.timeout 25m"
 ```
+
+The `--run "^TestSpotSchedulingKind$"` filter is required to exclude `TestSpotSchedulingKindCI`,
+which runs the same suite on an AWS-provisioned kind VM and is intended for CI pipelines only.
+Without the anchored filter, `dda inv` auto-detects the pipeline ID and the CI test runs
+locally, competing with the local kind cluster for the same Pulumi stack.
 
 If `DD_TEST_CLUSTER_AGENT_IMAGE` is not set, tests are skipped.
 
@@ -35,11 +41,11 @@ If `DD_TEST_CLUSTER_AGENT_IMAGE` is not set, tests are skipped.
 
 1. `localkubernetes.Provisioner` creates a 3-node kind cluster via Pulumi:
    - 1 control-plane node
-   - 1 worker labeled `karpenter.sh/capacity-type=on-demand`
-   - 1 worker labeled `karpenter.sh/capacity-type=spot` with a `autoscaling.datadoghq.com/capacity-type=interruptible:NoSchedule` taint
+   - 1 on-demand worker (no capacity-type label)
+   - 1 worker labeled `autoscaling.datadoghq.com/capacity-type=interruptible` with a `autoscaling.datadoghq.com/capacity-type=interruptible:NoSchedule` taint
 2. The cluster-agent image is loaded into kind via `WithKindLoadImage`.
 3. The cluster-agent is deployed via Helm with spot scheduling enabled and short timeouts.
-4. Tests create Deployments, observe pod placement via the k8s API, and verify spot/on-demand ratios.
+4. Tests create Deployments and StatefulSets, observe pod placement via the k8s API, and verify spot/on-demand ratios.
 
 ## Debug
 
@@ -49,7 +55,8 @@ Use `E2E_DEV_MODE=true` to keep the kind cluster alive after test failures so yo
 DD_TEST_CLUSTER_AGENT_IMAGE=${USER}/cluster-agent:test \
   PULUMI_CONFIG_PASSPHRASE=dummy \
   E2E_DEV_MODE=true \
-  dda inv new-e2e-tests.run --targets=./tests/autoscaling/spot/...
+  dda inv new-e2e-tests.run --targets=./tests/autoscaling/spot/... \
+  --run "^TestSpotSchedulingKind$"
 ```
 
 After inspecting, destroy the stack — this deletes the kind cluster and removes all Pulumi state:

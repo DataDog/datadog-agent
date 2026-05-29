@@ -193,7 +193,6 @@ stages:
   - dynamic_test
   - junit_upload
   - internal_kubernetes_deploy
-  - post_rc_build
   - check_merge
   - .post
 
@@ -269,25 +268,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v110159745-8628883e
+  CI_IMAGE_BTF_GEN: v114725131-b7fd2a07
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v110159745-8628883e
+  CI_IMAGE_DOCKER_X64: v114725131-b7fd2a07
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v110159745-8628883e
+  CI_IMAGE_DOCKER_ARM64: v114725131-b7fd2a07
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v110159745-8628883e
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v114725131-b7fd2a07
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v110159745-8628883e
+  CI_IMAGE_LINUX: v114725131-b7fd2a07
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v110159745-8628883e
+  CI_IMAGE_RPM_X64: v114725131-b7fd2a07
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v110159745-8628883e
+  CI_IMAGE_RPM_ARM64: v114725131-b7fd2a07
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v110159745-8628883e
+  CI_IMAGE_RPM_ARMHF: v114725131-b7fd2a07
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v107034079-0ba6ff53
+  CI_IMAGE_WIN_LTSC2022_X64: v114471858-795a98da
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v107034079-0ba6ff53
+  CI_IMAGE_WIN_LTSC2025_X64: v114471858-795a98da
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -319,8 +318,6 @@ variables:
   CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key # windows-products
   CODECOV_TOKEN: ci.datadog-agent.codecov_token # agent-devx
   CRC_PULL_SECRET: ci.datadog-agent.crc-pull-secret # container-integrations
-  DOCKER_REGISTRY_LOGIN: ci.datadog-agent.docker_hub_login # container-integrations
-  DOCKER_REGISTRY_PWD: ci.datadog-agent.docker_hub_pwd # container-integrations
   VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url # windows-products
   WINGET_PAT: ci.datadog-agent.winget_pat # windows-products
   # End aws ssm variables
@@ -329,7 +326,7 @@ variables:
   AGENT_API_KEY_ORG2: agent-api-key-org-2 # agent-devx
   AGENT_APP_KEY_ORG2: agent-app-key-org-2 # agent-devx
   AGENT_QA_E2E: agent-qa-e2e # agent-devx
-  ATLASSIAN_WRITE: atlassian-write # agent-devx
+  ATLASSIAN_WRITE: atlassian-write # agent-delivery
   CODECOV: codecov # agent-devx
   DOCKER_REGISTRY_RO: dockerhub-readonly # agent-delivery
   DYNAMIC_TESTS_BREAKGLASS: dynamic-tests-breakglass # agent-devx
@@ -353,7 +350,6 @@ variables:
   DDA_FEATURE_FLAGS_CI_VAULT_KEY: token
   DDA_FEATURE_FLAGS_CI_VAULT_PATH: k8s/gitlab-runner-datadog-agent/datadog-agent/$DDA_CLIENT_TOKEN
 
-  DD_PKG_VERSION: "latest"
   DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
@@ -499,6 +495,12 @@ variables:
 #
 workflow:
   rules:
+    - <<: *if_scheduled_main
+      variables:
+        WINDOWS_SIGNING_CERT: "s3://windows-code-signing-certificates/certs/beta/kms-signed.crt"
+        WINDOWS_SIGNING_CONFIG: "s3://windows-code-signing-certificates/certs/beta/config.json"
+        BAZEL_CACHE_POLICY_SUFFIX: "-push"
+        GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_triggered_pipeline
     - <<: *if_main_branch
       variables:
@@ -1172,6 +1174,16 @@ workflow:
   - when: manual
     allow_failure: true
 
+.on_anomalydetection_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/anomalydetection/**/*
+        - test/new-e2e/tests/anomalydetection/**/*
+        - test/new-e2e/go.mod
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_ha_agent_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
@@ -1382,7 +1394,7 @@ workflow:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
       paths:
-        - comp/core/gui/guiimpl/systray/**/*
+        - comp/core/gui/impl/systray/**/*
         - "**/*.m"
       compare_to: $COMPARE_TO_BRANCH
 
@@ -1487,7 +1499,6 @@ workflow:
 
 .on_gpu_integration_tests:
   - !reference [.on_scheduled_main]
-  - !reference [.manual]
   # Run on GPU-related changes
   - changes:
       paths:
@@ -1497,6 +1508,7 @@ workflow:
         - .gitlab/build/source_test/linux.yml
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
+  - !reference [.manual]
 
 .on_installer_systemd_changes:
   - <<: *if_main_branch

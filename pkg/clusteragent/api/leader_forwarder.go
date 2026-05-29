@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"strconv"
 	"sync"
 	"time"
@@ -121,8 +122,16 @@ func (lf *LeaderForwarder) SetLeaderIP(leaderIP string) {
 	lf.proxy = &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
 			req.URL.Scheme = "https"
-			req.URL.Host = leaderIP + ":" + lf.apiPort
+			req.URL.Host = net.JoinHostPort(leaderIP, lf.apiPort)
 			req.Header.Add(forwardHeader, "true")
+			// http.StripPrefix modifies r.URL.Path but not r.RequestURI.
+			// Restore the original path so the leader receives the full
+			// /api/v1/... or /api/v2/... URL it expects.
+			if u, err := url.ParseRequestURI(req.RequestURI); err == nil {
+				req.URL.Path = u.Path
+				req.URL.RawPath = u.RawPath
+				req.URL.RawQuery = u.RawQuery
+			}
 		},
 		Transport: lf.transport,
 		ErrorLog:  lf.logger,

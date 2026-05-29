@@ -485,7 +485,7 @@ func (a *Agent) Process(p *api.Payload) {
 		a.TracerPayloadModifier.Modify(p.TracerPayload)
 	}
 
-	gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
+	gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(p.ContainerTags)
 
 	a.discardSpans(p)
 
@@ -555,7 +555,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 		a.setPayloadAttributes(p, root, chunk)
 
-		pt := processedTrace(p, chunk, root, imageTag, gitCommitSha)
+		pt := processedTrace(p, chunk, root, imageTag, gitCommitSha, appVersion)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
 		}
@@ -664,7 +664,7 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 		}
 	}
 
-	gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
+	gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(p.ContainerTags)
 
 	// TODO: Implement this when we support v1 on serverless
 	// a.discardSpans(p)
@@ -732,7 +732,7 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 			traceutil.ComputeTopLevelV1(chunk)
 		}
 
-		pt := processedTraceV1(p, chunk, root, imageTag, gitCommitSha)
+		pt := processedTraceV1(p, chunk, root, imageTag, gitCommitSha, appVersion)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
 		}
@@ -843,7 +843,7 @@ func normalizeAPMModeSpanTag(apmMode string) string {
 }
 
 // processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.
-func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, imageTag string, gitCommitSha string) *traceutil.ProcessedTrace {
+func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, imageTag string, gitCommitSha string, appVersion string) *traceutil.ProcessedTrace {
 	pt := &traceutil.ProcessedTrace{
 		TraceChunk:             chunk,
 		Root:                   root,
@@ -859,23 +859,32 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, imageTa
 	if pt.GitCommitSha == "" {
 		pt.GitCommitSha = gitCommitSha
 	}
+	// Only override AppVersion if it was not set in the tracer payload or span tags.
+	if pt.AppVersion == "" {
+		pt.AppVersion = appVersion
+	}
 	return pt
 }
 
 // processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.
-func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx.InternalSpan, imageTag string, gitCommitSha string) *traceutil.ProcessedTraceV1 {
+func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx.InternalSpan, imageTag string, gitCommitSha string, appVersion string) *traceutil.ProcessedTraceV1 {
 	pt := &traceutil.ProcessedTraceV1{
 		TraceChunk:             chunk,
 		Root:                   root,
 		AppVersion:             p.TracerPayload.AppVersion(),
 		TracerEnv:              p.TracerPayload.Env(),
 		TracerHostname:         p.TracerPayload.Hostname(),
+		Lang:                   p.TracerPayload.LanguageName(),
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.TracerPayload.Chunks)),
 		GitCommitSha:           gitCommitSha,
 	}
 	pt.ImageTag = imageTag
 	if payloadGitCommitSha, ok := p.TracerPayload.GetAttributeAsString("_dd.git.commit.sha"); ok {
 		pt.GitCommitSha = payloadGitCommitSha
+	}
+	// Only override AppVersion if it was not set in the tracer payload.
+	if pt.AppVersion == "" {
+		pt.AppVersion = appVersion
 	}
 	return pt
 }

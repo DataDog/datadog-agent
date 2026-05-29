@@ -13,10 +13,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func TestDownloadKernelHeaders(t *testing.T) {
+	flake.Mark(t) // flaky because it reaches out to real package repos
+	ebpftest.LogLevel(t, "debug")
 	t.Cleanup(func() { HeaderProvider = nil })
 
 	opts := HeaderOptions{

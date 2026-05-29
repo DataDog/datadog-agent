@@ -87,8 +87,7 @@ check_aix_devel /opt/freeware/include/ncurses.h       ncurses-devel
 check_aix_devel /opt/freeware/lib64/libncursesw.a     ncurses-devel
 check_aix_devel /opt/freeware/include/readline/readline.h  readline-devel
 check_aix_devel /opt/freeware/lib64/libreadline.a     readline-devel
-check_aix_devel /opt/freeware/include/sqlite3.h       sqlite-devel
-check_aix_devel /opt/freeware/lib64/libsqlite3.a      sqlite-devel
+
 check_aix_devel /opt/freeware/include/gdbm.h          gdbm-devel
 check_aix_devel /opt/freeware/lib/libgdbm.a           gdbm-devel
 check_aix_devel /opt/freeware/include/libxslt/xslt.h  libxslt-devel

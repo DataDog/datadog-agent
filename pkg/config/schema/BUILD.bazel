@@ -1,38 +1,46 @@
-load("@bazel_lib//lib:run_binary.bzl", "run_binary")
-load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("//bazel/rules:zstd.bzl", "zstd_compress")
 
-run_binary(
-    name = "compress",
-    srcs = [
-        "core_schema.yaml",
-        "system-probe_schema.yaml",
-    ],
-    outs = [
-        "core_schema.yaml.zstd",
-        "system-probe_schema.yaml.zstd",
-    ],
-    args = [
-        "$(location core_schema.yaml)",
-        "$(location core_schema.yaml.zstd)",
-        "$(location system-probe_schema.yaml)",
-        "$(location system-probe_schema.yaml.zstd)",
-    ],
-    tool = "//pkg/config/schema/compressor",
+ZSTD_ARGS = [
+    "--no-check",  # match DataDog/zstd Go library behavior: no XXH64 frame checksum
+    "-5",  # match DataDog/zstd: DefaultCompression = 5
+]
+
+zstd_compress(
+    name = "compress_core",
+    src = "core_schema.yaml",
+    out = "compressed/core_schema.yaml.zstd",
+    args = ZSTD_ARGS,
 )
 
-write_source_files(
-    name = "write_compressed",
-    files = {
-        "compressed/core_schema.yaml.zstd": ":core_schema.yaml.zstd",
-        "compressed/system-probe_schema.yaml.zstd": ":system-probe_schema.yaml.zstd",
-    },
+zstd_compress(
+    name = "compress_system_probe",
+    src = "system-probe_schema.yaml",
+    out = "compressed/system-probe_schema.yaml.zstd",
+    args = ZSTD_ARGS,
+)
+
+pkg_files(
+    name = "compressed",
+    srcs = [
+        ":compress_core",
+        ":compress_system_probe",
+    ],
+    prefix = "compressed",
+)
+
+pkg_install(
+    name = "install_compressed",
+    srcs = [":compressed"],
 )
 
 go_library(
     name = "schema",
     srcs = ["schema.go"],
     embedsrcs = [
+        "compressed/.embed",
         "compressed/core_schema.yaml.zstd",
         "compressed/system-probe_schema.yaml.zstd",
     ],
