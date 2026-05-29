@@ -74,18 +74,24 @@ func NewActivityTreeNodeStats() *Stats {
 
 // ApproximateSize returns the tracked in-memory size of the tree in bytes.
 // Production paths update SizeBytes incrementally on insert and periodically through
-// recomputeSizeBytes. Some callers (FakeOverweight, test fixtures, legacy code that
-// pre-populates only node counts) build a Stats with non-zero counts but zero SizeBytes;
-// for those we fall back to the shallow per-process estimate the metric used before
-// becoming incremental, so overweight checks and the load controller keep working.
+// recomputeSizeBytes. Some callers (FakeOverweight, test fixtures, code that hydrates
+// a Stats from a proto without running through Insert) build a Stats with non-zero
+// counts but zero SizeBytes; for those we fall back to the old per-type shallow estimate
+// so overweight checks and the load controller keep working until the next recompute.
 func (stats *Stats) ApproximateSize() int64 {
 	if stats.SizeBytes > 0 {
 		return stats.SizeBytes
 	}
-	if stats.ProcessNodes > 0 {
-		return stats.ProcessNodes * int64(unsafe.Sizeof(ProcessNode{}))
-	}
-	return 0
+	var total int64
+	total += stats.ProcessNodes * int64(unsafe.Sizeof(ProcessNode{}))
+	total += stats.FileNodes * int64(unsafe.Sizeof(FileNode{}))
+	total += stats.DNSNodes * int64(unsafe.Sizeof(DNSNode{}))
+	total += stats.SocketNodes * int64(unsafe.Sizeof(SocketNode{}))
+	total += stats.IMDSNodes * int64(unsafe.Sizeof(IMDSNode{}))
+	total += stats.SyscallNodes * int64(unsafe.Sizeof(SyscallNode{}))
+	total += stats.FlowNodes * int64(unsafe.Sizeof(FlowNode{}))
+	total += stats.CapabilityNodes * int64(unsafe.Sizeof(CapabilityNode{}))
+	return total
 }
 
 // SendStats sends metrics to Datadog

@@ -80,6 +80,8 @@ func (sn *SocketNode) Matches(toMatch *SocketNode) bool {
 // and additionally subtracts sn.size() if the socket itself ends up empty.
 func (sn *SocketNode) evictImageTag(imageTagID uint64) (bool, int64) {
 	var removed int64
+	// Filter in place, then clear the tail so we don't pin evicted *BindNode pointers in the
+	// backing array (they'd otherwise stay alive until the SocketNode itself is GC'd).
 	newBind := sn.Bind[:0]
 	for _, bind := range sn.Bind {
 		if bind.EvictImageTag(imageTagID) {
@@ -88,6 +90,7 @@ func (sn *SocketNode) evictImageTag(imageTagID uint64) (bool, int64) {
 		}
 		newBind = append(newBind, bind)
 	}
+	clear(sn.Bind[len(newBind):])
 	sn.Bind = newBind
 	return len(newBind) == 0, removed
 }
@@ -95,7 +98,8 @@ func (sn *SocketNode) evictImageTag(imageTagID uint64) (bool, int64) {
 // InsertBindEvent inserts a bind event inside a socket node. When a new BindNode is
 // created the caller-provided stats is charged its size, keeping Stats.SizeBytes honest
 // for bind-heavy workloads where the previous accounting only charged the socket once
-// at creation time and ignored subsequent binds.
+// at creation time and ignored subsequent binds. stats must be non-nil — same contract as
+// every other Insert*Event method.
 func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, imageTagID uint64, generationType NodeGenerationType, rules []*model.MatchedRule, stats *Stats, dryRun bool) bool {
 	evtIP := utils.GetIPStringFromIPNet(evt.Addr.IPNet)
 	for _, n := range sn.Bind {
@@ -124,9 +128,7 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, 
 
 		node.AppendImageTagID(imageTagID, event.ResolveEventTime())
 		sn.Bind = append(sn.Bind, node)
-		if stats != nil {
-			stats.SizeBytes += bindSize(node)
-		}
+		stats.SizeBytes += bindSize(node)
 	}
 	return true
 }

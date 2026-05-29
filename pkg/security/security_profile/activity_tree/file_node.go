@@ -51,12 +51,7 @@ func (fn *FileNode) size() int64 {
 	s += seenBytes(fn.NodeBase)
 	s += int64(len(fn.Name))
 	if fn.File != nil {
-		s += int64(len(fn.File.PathnameStr))
-		s += int64(len(fn.File.BasenameStr))
-		s += int64(len(fn.File.Filesystem))
-		s += int64(len(fn.File.PkgName))
-		s += int64(len(fn.File.PkgVersion))
-		s += stringSliceBytes(fn.File.Hashes)
+		s += fileEventStringsBytes(fn.File)
 	}
 	if fn.Open != nil {
 		s += int64(unsafe.Sizeof(*fn.Open))

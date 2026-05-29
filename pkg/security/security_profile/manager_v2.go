@@ -603,24 +603,38 @@ func (m *ManagerV2) SendStats() error {
 		}
 	}
 
-	// Per-profile size (RAM and disk reported under the same metric, differentiated by storage tag)
-	diskSizes := m.localStorage.SizesBySelector()
-
+	// Per-profile size (RAM and disk reported under the same metric, differentiated by storage tag).
+	// Snapshot the active-profiles map under the lock and then call ComputeInMemorySize / statsd
+	// outside it — ComputeInMemorySize takes the per-profile lock, and we don't want to hold
+	// profilesLock across that or across the statsd send.
+	type profileEntry struct {
+		selector cgroupModel.WorkloadSelector
+		profile  *profile.Profile
+	}
 	m.profilesLock.Lock()
+	ramEntries := make([]profileEntry, 0, len(m.profiles))
 	for selector, p := range m.profiles {
-		tags := []string{
-			"profile_image_name:" + selector.Image,
-			"profile_image_tag:" + selector.Tag,
-			"storage:ram",
-		}
-		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(p.ComputeInMemorySize()), tags, 1.0); err != nil {
-			m.profilesLock.Unlock()
-			return err
-		}
+		ramEntries = append(ramEntries, profileEntry{selector: selector, profile: p})
 	}
 	m.profilesLock.Unlock()
 
-	for selector, size := range diskSizes {
+	for _, entry := range ramEntries {
+		tags := []string{
+			"profile_image_name:" + entry.selector.Image,
+			"profile_image_tag:" + entry.selector.Tag,
+			"storage:ram",
+		}
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(entry.profile.ComputeInMemorySize()), tags, 1.0); err != nil {
+			return err
+		}
+	}
+
+	for selector, size := range m.localStorage.SizesBySelector() {
+		// Skip entries with an unresolved selector: the on-disk file is tracked for cleanup
+		// but emitting metrics with empty image/tag tags pollutes cardinality without adding signal.
+		if !selector.IsReady() {
+			continue
+		}
 		tags := []string{
 			"profile_image_name:" + selector.Image,
 			"profile_image_tag:" + selector.Tag,
