@@ -47,13 +47,13 @@ func TestNVLinkGPMCollectorGetOrCreateGpmCollector(t *testing.T) {
 		perPortCollector: make(map[int]*gpmCollector),
 		device:           mockDevice,
 	}
-	gpmCollector, err := collector.getOrCreateGpmCollector(1)
+	gpmCollector, err := collector.getOrCreateGpmCollector(2)
 	require.NoError(t, err)
 	require.Len(t, gpmCollector.metricsToCollect, 2)
 	require.Equal(t, gpmMetric{name: "nvlink.throughput.data.rx", metricType: metrics.GaugeType}, gpmCollector.metricsToCollect[expectedRxMetricID])
 	require.Equal(t, gpmMetric{name: "nvlink.throughput.data.tx", metricType: metrics.GaugeType}, gpmCollector.metricsToCollect[expectedTxMetricID])
 
-	cachedCollector, err := collector.getOrCreateGpmCollector(1)
+	cachedCollector, err := collector.getOrCreateGpmCollector(2)
 	require.NoError(t, err)
 	require.Same(t, gpmCollector, cachedCollector)
 }
