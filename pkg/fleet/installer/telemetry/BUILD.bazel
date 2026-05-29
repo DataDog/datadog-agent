@@ -22,10 +22,10 @@ go_library(
 
 go_test(
     name = "telemetry_test",
-    srcs = [
-        "cmd_wrapper_test.go",
-        "telemetry_test.go",
-    ],
+    srcs = ["telemetry_test.go"] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["cmd_wrapper_test.go"],
+    }),
     embed = [":telemetry"],
     gotags = ["test"],
     deps = [
