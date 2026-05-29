@@ -86,10 +86,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/autodiscovery/common/utils
 # gazelle:exclude comp/core/autodiscovery/configresolver
 # gazelle:exclude comp/core/autodiscovery/listeners
-# gazelle:exclude comp/core/bundle.go
-# gazelle:exclude comp/core/bundle_mock.go
-# gazelle:exclude comp/core/bundle_params.go
-# gazelle:exclude comp/core/bundle_test.go
 # gazelle:exclude comp/core/diagnose/fx
 # gazelle:exclude comp/core/diagnose/impl
 # gazelle:exclude comp/core/diagnose/local
