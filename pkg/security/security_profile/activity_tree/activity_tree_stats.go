@@ -72,16 +72,16 @@ func NewActivityTreeNodeStats() *Stats {
 	return ats
 }
 
-// ApproximateSize returns the tracked in-memory size of the tree in bytes.
-// Production paths update SizeBytes incrementally on insert and periodically through
-// recomputeSizeBytes. Some callers (FakeOverweight, test fixtures, code that hydrates
-// a Stats from a proto without running through Insert) build a Stats with non-zero
-// counts but zero SizeBytes; for those we fall back to the old per-type shallow estimate
-// so overweight checks and the load controller keep working until the next recompute.
+// ApproximateSize returns the legacy shallow size estimate of the tree in bytes:
+// node counts × struct header sizes. This is what V1 (legacy Manager / ActivityDump
+// path) has always used to drive `activity_dump.max_dump_size` and
+// `anomaly_detection.unstable_profile_size_threshold`, and the behavior is preserved
+// verbatim so V1 deployments don't shift.
+//
+// V2 must call HeapSize() instead — it returns the incrementally-tracked real heap
+// footprint (strings, slice backings, map buckets) populated by Insert/Evict paths
+// and corrected by recomputeSizeBytes.
 func (stats *Stats) ApproximateSize() int64 {
-	if stats.SizeBytes > 0 {
-		return stats.SizeBytes
-	}
 	var total int64
 	total += stats.ProcessNodes * int64(unsafe.Sizeof(ProcessNode{}))
 	total += stats.FileNodes * int64(unsafe.Sizeof(FileNode{}))
@@ -92,6 +92,22 @@ func (stats *Stats) ApproximateSize() int64 {
 	total += stats.FlowNodes * int64(unsafe.Sizeof(FlowNode{}))
 	total += stats.CapabilityNodes * int64(unsafe.Sizeof(CapabilityNode{}))
 	return total
+}
+
+// HeapSize returns the tree's tracked real heap footprint in bytes (strings, slice
+// backings, map buckets, struct headers). Used by V2 callers for max-size checks and
+// the profile_size RAM metric.
+//
+// SizeBytes is maintained incrementally by Insert and Evict paths and periodically
+// corrected by recomputeSizeBytes (called from ComputeActivityTreeStats). When SizeBytes
+// hasn't been populated yet — proto rehydration before recompute fires, FakeOverweight,
+// hand-built test fixtures — we fall back to ApproximateSize so overweight checks and
+// the load controller still produce a usable number.
+func (stats *Stats) HeapSize() int64 {
+	if stats.SizeBytes > 0 {
+		return stats.SizeBytes
+	}
+	return stats.ApproximateSize()
 }
 
 // SendStats sends metrics to Datadog

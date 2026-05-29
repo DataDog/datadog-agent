@@ -604,8 +604,8 @@ func (m *ManagerV2) SendStats() error {
 	}
 
 	// Per-profile size (RAM and disk reported under the same metric, differentiated by storage tag).
-	// Snapshot the active-profiles map under the lock and then call ComputeInMemorySize / statsd
-	// outside it — ComputeInMemorySize takes the per-profile lock, and we don't want to hold
+	// Snapshot the active-profiles map under the lock and then call ComputeHeapSize / statsd
+	// outside it — ComputeHeapSize takes the per-profile lock, and we don't want to hold
 	// profilesLock across that or across the statsd send.
 	type profileEntry struct {
 		selector cgroupModel.WorkloadSelector
@@ -624,7 +624,7 @@ func (m *ManagerV2) SendStats() error {
 			"profile_image_tag:" + entry.selector.Tag,
 			"storage:ram",
 		}
-		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(entry.profile.ComputeInMemorySize()), tags, 1.0); err != nil {
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(entry.profile.ComputeHeapSize()), tags, 1.0); err != nil {
 			return err
 		}
 	}
@@ -682,9 +682,11 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	workload := m.getOrCreateWorkload(event, selector, workloadID)
 	m.linkWorkloadToProfile(secprof, workload)
 
-	// Check if profile has reached max size
+	// Check if profile has reached max size. V2 uses its own knob evaluated against the
+	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
+	// semantics for ActivityDump/legacy Manager paths.
 	// TODO: we should handle this in a better way
-	if secprof.ActivityTree.Stats.ApproximateSize() >= int64(m.config.RuntimeSecurity.ActivityDumpMaxDumpSize()) {
+	if secprof.ActivityTree.Stats.HeapSize() >= int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
 		m.eventsDroppedMaxSize.Inc()
 		return nil, false

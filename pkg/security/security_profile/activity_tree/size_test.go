@@ -11,6 +11,7 @@ package activitytree
 import (
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -137,18 +138,21 @@ func populateRichTree(t *testing.T, tree *ActivityTree, tagID uint64) *ProcessNo
 	return root
 }
 
-// TestSizeBytes_EmptyTree confirms an empty tree reports zero so the metric doesn't lie
-// when no profile data exists yet.
+// TestSizeBytes_EmptyTree confirms an empty tree reports zero on both the legacy V1
+// estimate (ApproximateSize) and the V2 accurate estimate (HeapSize) so neither metric
+// lies when no profile data exists yet.
 func TestSizeBytes_EmptyTree(t *testing.T) {
 	tree := newSizeTestTree()
 	assert.Equal(t, int64(0), tree.Stats.SizeBytes)
 	assert.Equal(t, int64(0), tree.Stats.ApproximateSize())
+	assert.Equal(t, int64(0), tree.Stats.HeapSize())
 }
 
-// TestSizeBytes_FallbackUsesAllNodeTypes locks in the regression fix: when SizeBytes hasn't
-// been populated (proto rehydration, test fixtures), ApproximateSize must account for every
-// node type, not just ProcessNodes.
-func TestSizeBytes_FallbackUsesAllNodeTypes(t *testing.T) {
+// TestApproximateSize_LegacyShallowSemantics locks in V1's legacy behavior: ApproximateSize
+// is *only* node counts × struct header sizes, regardless of SizeBytes. V1 thresholds
+// (activity_dump.max_dump_size, anomaly_detection.unstable_profile_size_threshold) are
+// tuned against this number — any drift here shifts production V1 behavior silently.
+func TestApproximateSize_LegacyShallowSemantics(t *testing.T) {
 	tests := []struct {
 		name  string
 		stats Stats
@@ -164,21 +168,42 @@ func TestSizeBytes_FallbackUsesAllNodeTypes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, int64(0), tt.stats.SizeBytes)
 			assert.Greater(t, tt.stats.ApproximateSize(), int64(0),
-				"fallback path should contribute for %s", tt.name)
+				"every counted node type must contribute to ApproximateSize for %s", tt.name)
 		})
 	}
 }
 
-// TestSizeBytes_FallbackPrefersIncremental verifies that once SizeBytes is populated the
-// fallback path is skipped — incremental tracking is the source of truth.
-func TestSizeBytes_FallbackPrefersIncremental(t *testing.T) {
+// TestApproximateSize_IgnoresSizeBytes nails down V1's invariant: ApproximateSize never
+// consults SizeBytes, even when it's set. If a future refactor wires SizeBytes into
+// ApproximateSize, V1 max-size and unstable-threshold behavior would change without anyone
+// touching the V1 config knobs.
+func TestApproximateSize_IgnoresSizeBytes(t *testing.T) {
+	stats := Stats{ProcessNodes: 1, SizeBytes: 999999}
+	expected := int64(unsafe.Sizeof(ProcessNode{}))
+	assert.Equal(t, expected, stats.ApproximateSize(),
+		"ApproximateSize must stay on the legacy shallow path (count × unsafe.Sizeof)")
+}
+
+// TestHeapSize_PrefersIncremental verifies V2's accurate path: once SizeBytes is populated,
+// HeapSize returns it directly. Falls back to ApproximateSize only when SizeBytes is zero
+// (test fixtures, proto rehydration before recompute fires).
+func TestHeapSize_PrefersIncremental(t *testing.T) {
 	stats := Stats{
 		ProcessNodes: 1000, // would dominate the fallback
 		SizeBytes:    42,
 	}
-	assert.Equal(t, int64(42), stats.ApproximateSize())
+	assert.Equal(t, int64(42), stats.HeapSize())
+}
+
+// TestHeapSize_FallsBackToApproximateSize verifies V2's fallback: when SizeBytes hasn't
+// been populated yet, HeapSize must still produce a non-zero number so the V2 max-size
+// check and the profile_size metric stay useful until recomputeSizeBytes runs.
+func TestHeapSize_FallsBackToApproximateSize(t *testing.T) {
+	stats := Stats{ProcessNodes: 1}
+	require.Equal(t, int64(0), stats.SizeBytes)
+	assert.Equal(t, stats.ApproximateSize(), stats.HeapSize(),
+		"HeapSize must fall back to ApproximateSize when SizeBytes is unset")
 }
 
 // TestSizeBytes_IncrementalUndercountsByBoundedDrift documents the production design: the
