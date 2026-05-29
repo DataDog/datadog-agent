@@ -256,13 +256,6 @@ tasks.
 ## Platform Support
 Ships on Linux (amd64, arm64), Windows (amd64), and macOS (amd64, arm64), plus containers (Docker/Kubernetes/ECS/containerd). AIX is not yet supported but in progress.
 
-## Best Practices
-1. **Always run linters before committing**: `dda inv linter.go`
-2. **Always test your changes**: `dda inv test --targets=<your_package>` `bazel test //pkg/... //comp/...`
-3. **Follow Go conventions**: Use gofmt, follow project structure
-4. **Update documentation**: Keep docs in sync with code changes
-6. **Check for security implications**: Review security-sensitive changes carefully
-
 ## Troubleshooting Development Issues
 
 ### Common Build Issues
