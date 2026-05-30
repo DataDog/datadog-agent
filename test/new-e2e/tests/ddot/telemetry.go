@@ -56,22 +56,6 @@ func AssertProcmgrDDOTTelemetry(t *testing.T, host *components.RemoteHost) {
 	}, 7*time.Minute, 10*time.Second, "procmgr DDOT telemetry gauges should be emitted")
 }
 
-func filterProcmgrTelemetryOutput(output string) string {
-	const prefix = "runtime__"
-	var lines []string
-	for _, line := range strings.Split(output, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, prefix) &&
-			(strings.Contains(trimmed, "procmgr") || strings.Contains(trimmed, "agent_service")) {
-			lines = append(lines, trimmed)
-		}
-	}
-	if len(lines) == 0 {
-		return "(no procmgr telemetry gauges in agent-full-telemetry output)"
-	}
-	return strings.Join(lines, "\n")
-}
-
 func assertTelemetryGaugeTrue(c *assert.CollectT, output, metric string, labels map[string]string) {
 	c.Helper()
 
