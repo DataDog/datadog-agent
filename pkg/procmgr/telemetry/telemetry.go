@@ -8,10 +8,7 @@ package telemetry
 
 import (
 	"os"
-	"path/filepath"
 	"runtime"
-
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 const (
@@ -65,24 +62,6 @@ type ServiceSnapshot struct {
 type Snapshot struct {
 	Daemon   DaemonSnapshot
 	Services []ServiceSnapshot
-}
-
-func agentInstallRoot() string {
-	if runtime.GOOS == "windows" {
-		return defaultpaths.GetInstallPath()
-	}
-	return filepath.Clean(filepath.Join(defaultpaths.GetInstallPath(), "..", ".."))
-}
-
-func procmgrConfigPath(installRoot, configFile string) string {
-	return filepath.Join(installRoot, processesDirRel, configFile)
-}
-
-func installMarkerPath(installRoot, markerRel string) string {
-	if runtime.GOOS == "windows" && filepath.Ext(markerRel) == "" {
-		return filepath.Join(installRoot, markerRel+".exe")
-	}
-	return filepath.Join(installRoot, markerRel)
 }
 
 func procmgrSocketPath() string {

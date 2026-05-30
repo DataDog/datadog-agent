@@ -5,10 +5,15 @@ go_library(
     srcs = [
         "client.go",
         "client_grpc.go",
+        "client_grpc_unix.go",
+        "client_grpc_windows.go",
         "collector.go",
         "collector_linux.go",
         "collector_other.go",
         "collector_windows.go",
+        "paths_linux.go",
+        "paths_other.go",
+        "paths_windows.go",
         "reporter.go",
         "services.go",
         "telemetry.go",
@@ -22,7 +27,10 @@ go_library(
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//credentials/insecure",
     ] + select({
-        "@rules_go//go/platform:windows": ["//pkg/util/winutil"],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "@com_github_microsoft_go_winio//:go-winio",
+        ],
         "//conditions:default": [],
     }),
 )

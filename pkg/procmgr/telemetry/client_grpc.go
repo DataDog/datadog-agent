@@ -7,12 +7,6 @@ package telemetry
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"runtime"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 )
@@ -67,28 +61,12 @@ func (c *grpcClient) ListProcesses(ctx context.Context) (map[string]ProcessSnaps
 }
 
 func (c *grpcClient) connect(_ context.Context) (pb.ProcessManagerClient, func(), error) {
-	if runtime.GOOS != "windows" {
-		if _, err := os.Stat(c.socketPath); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	conn, err := grpc.NewClient(
-		grpcDialTarget(c.socketPath),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
+	conn, err := dialProcmgrGRPC(c.socketPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("connect to dd-procmgrd: %w", err)
+		return nil, nil, err
 	}
 
 	return pb.NewProcessManagerClient(conn), func() { _ = conn.Close() }, nil
-}
-
-func grpcDialTarget(socketPath string) string {
-	if runtime.GOOS == "windows" {
-		return "npipe://" + socketPath
-	}
-	return "unix://" + socketPath
 }
 
 func processStateString(state pb.ProcessState) string {

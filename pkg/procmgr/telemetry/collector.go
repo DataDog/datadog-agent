@@ -61,7 +61,7 @@ func (c *Collector) collectService(service MigratableService, processes map[stri
 		ManagementMode: ManagementModeNone,
 	}
 
-	if _, err := os.Stat(installMarkerPath(c.installRoot, service.InstallMarkerRel)); err != nil {
+	if _, err := os.Stat(installMarkerPath(c.installRoot, service)); err != nil {
 		return status
 	}
 	status.Installed = true
