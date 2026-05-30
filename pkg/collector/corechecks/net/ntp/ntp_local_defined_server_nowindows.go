@@ -21,6 +21,7 @@ import (
 var timesyncdDropInDirs = []string{
 	"/etc/systemd/timesyncd.conf.d",
 	"/run/systemd/timesyncd.conf.d",
+	"/usr/local/lib/systemd/timesyncd.conf.d",
 	"/usr/lib/systemd/timesyncd.conf.d",
 }
 

@@ -10,7 +10,8 @@ enhancements:
   - |
     Extended the ntp check's ``systemd-timesyncd`` discovery to also
     read drop-in files under ``/etc/systemd/timesyncd.conf.d/``,
-    ``/run/systemd/timesyncd.conf.d/``, and
+    ``/run/systemd/timesyncd.conf.d/``,
+    ``/usr/local/lib/systemd/timesyncd.conf.d/``, and
     ``/usr/lib/systemd/timesyncd.conf.d/``. This covers hosts where
     ``NTP=`` is set by cloud-init or another tool that writes a
     drop-in instead of editing the main configuration file.
