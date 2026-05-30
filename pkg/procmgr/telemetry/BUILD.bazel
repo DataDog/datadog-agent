@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "telemetry",
+    srcs = [
+        "client.go",
+        "collector.go",
+        "collector_linux.go",
+        "collector_other.go",
+        "collector_windows.go",
+        "reporter.go",
+        "services.go",
+        "telemetry.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/procmgr/telemetry",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry/def",
+        "//pkg/util/defaultpaths",
+    ] + select({
+        "@rules_go//go/platform:windows": ["//pkg/util/winutil"],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "telemetry_test",
+    srcs = ["collector_test.go"],
+    embed = [":telemetry"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

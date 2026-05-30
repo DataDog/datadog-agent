@@ -187,6 +187,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	procmgrtelemetry "github.com/DataDog/datadog-agent/pkg/procmgr/telemetry"
 	hostSbom "github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
@@ -650,6 +651,7 @@ func startAgent(
 	common.SetupInternalProfiling(settings, cfg, "")
 
 	ctx, _ := pkgcommon.GetMainCtxCancel()
+	procmgrtelemetry.StartReporter(ctx, tlm)
 
 	// Setup expvar server
 	telemetryHandler := tlm.Handler()

@@ -258,6 +258,21 @@ profiles:
       - name: runtime.ddot_otlp_metrics_events
       - name: runtime.ddot_otlp_traces_requests
       - name: runtime.ddot_otlp_traces_events
+      - name: runtime.procmgr_daemon_reachable
+      - name: runtime.procmgr_daemon_ready
+      - name: runtime.procmgr_process_running
+        preserve_tags:
+          - process
+      - name: runtime.agent_service_installed
+        preserve_tags:
+          - service
+      - name: runtime.agent_service_procmgr_configured
+        preserve_tags:
+          - service
+      - name: runtime.agent_service_management_mode
+        preserve_tags:
+          - service
+          - mode
   schedule:
     start_after: 30
     iterations: 0
