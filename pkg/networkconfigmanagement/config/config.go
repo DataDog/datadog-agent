@@ -7,6 +7,7 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -161,7 +162,7 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 
 // GetNCMContextFromCoreCheck retrieves the NCM configurations from the agent's config for the integration
 // TODO: tests for this to come when the component is refactored / we're working on the trigger-based approach for config changes
-func GetNCMContextFromCoreCheck(client ipc.HTTPClient) (*NcmComponentContext, error) {
+func GetNCMContextFromCoreCheck(ctx context.Context, client ipc.HTTPClient) (*NcmComponentContext, error) {
 	// Call the agent's config check endpoint to retrieve the NCM configs (from core check)
 	endpoint, err := client.NewIPCEndpoint("/agent/config-check")
 	if err != nil {
@@ -169,7 +170,7 @@ func GetNCMContextFromCoreCheck(client ipc.HTTPClient) (*NcmComponentContext, er
 	}
 	urlValues := url.Values{}
 	urlValues.Set("raw", "true")
-	res, err := endpoint.DoGet(ipchttp.WithValues(urlValues))
+	res, err := endpoint.DoGet(ipchttp.WithContext(ctx), ipchttp.WithValues(urlValues))
 	if err != nil {
 		return nil, err
 	}
