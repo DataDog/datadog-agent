@@ -7,6 +7,7 @@
 package telemetry
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 
@@ -14,9 +15,9 @@ import (
 )
 
 const (
-	defaultProcmgrSocket = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
-	procmgrCLIRel        = "embedded/bin/dd-procmgr"
-	processesDirRel      = "processes.d"
+	defaultProcmgrSocketLinux = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
+	defaultProcmgrSocketWin   = `\\.\pipe\datadog-procmgrd`
+	processesDirRel           = "processes.d"
 
 	// ManagementModeNone means the service is not supervised by procmgr or a known legacy supervisor.
 	ManagementModeNone ManagementMode = "none"
@@ -74,10 +75,6 @@ func agentInstallRoot() string {
 	return filepath.Clean(filepath.Join(defaultpaths.GetInstallPath(), "..", ".."))
 }
 
-func procmgrCLIPath(installRoot string) string {
-	return filepath.Join(installRoot, procmgrCLIRel)
-}
-
 func procmgrConfigPath(installRoot, configFile string) string {
 	return filepath.Join(installRoot, processesDirRel, configFile)
 }
@@ -87,4 +84,14 @@ func installMarkerPath(installRoot, markerRel string) string {
 		return filepath.Join(installRoot, markerRel+".exe")
 	}
 	return filepath.Join(installRoot, markerRel)
+}
+
+func procmgrSocketPath() string {
+	if path := os.Getenv("DD_PM_SOCKET_PATH"); path != "" {
+		return path
+	}
+	if runtime.GOOS == "windows" {
+		return defaultProcmgrSocketWin
+	}
+	return defaultProcmgrSocketLinux
 }

@@ -16,10 +16,10 @@ type Collector struct {
 	client      Client
 }
 
-// NewCollector creates a collector using the default dd-procmgr CLI client.
+// NewCollector creates a collector using the default dd-procmgr gRPC client.
 func NewCollector() *Collector {
 	installRoot := agentInstallRoot()
-	return NewCollectorWithClient(installRoot, newCLIClient(installRoot))
+	return NewCollectorWithClient(installRoot, newDefaultClient())
 }
 
 // NewCollectorWithClient creates a collector with a custom install root and procmgr client.

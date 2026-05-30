@@ -4,6 +4,7 @@ go_library(
     name = "telemetry",
     srcs = [
         "client.go",
+        "client_grpc.go",
         "collector.go",
         "collector_linux.go",
         "collector_other.go",
@@ -16,7 +17,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/def",
+        "//pkg/proto/pbgo/procmgr",
         "//pkg/util/defaultpaths",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
     ] + select({
         "@rules_go//go/platform:windows": ["//pkg/util/winutil"],
         "//conditions:default": [],
