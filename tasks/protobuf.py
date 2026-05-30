@@ -15,14 +15,13 @@ def generate(ctx, pre_commit=False):
 
     We must build the packages one at a time due to protoc-gen-go limitations
     """
-    proto_file = re.compile(r"pkg/proto/pbgo/.*\.pb\.go$")
+    proto_file = re.compile(r"pkg/proto/.*(\.pb|_gen(_test)?)\.go$")
     old_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file, include_deleted_files=True))
     old_untracked_proto_files = set(get_untracked_files(ctx, re_filter=proto_file))
     bt = BazelTools(ctx)
     base = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(base, ".."))
     proto_root = os.path.join(repo_root, "pkg", "proto")
-    pbgo_dir = os.path.join(proto_root, "pbgo")
 
     # protobuf defs
     print(f"generating protobuf code from: {proto_root}")
@@ -45,23 +44,24 @@ def generate(ctx, pre_commit=False):
     # Generate messagepack marshallers
     # msgp targets (file, io)
     msgp_targets = {
-        'trace': [
+        'pbgo/trace': [
             ('trace.go', False),
             ('span.pb.go', False),
             ('stats.pb.go', True),
             ('tracer_payload.pb.go', False),
             ('agent_payload.pb.go', False),
         ],
-        'core': [('remoteconfig.pb.go', False)],
+        'pbgo/core': [('remoteconfig.pb.go', False)],
+        'msgpgo': [('key.go', True)],
     }
     # Per-file extra directives, keyed by (pkg, src).
     # stats.pb.go is protoc-generated so the limit directive cannot live in the
     # file itself; pass it on the command line instead.
     msgp_file_directives = {
-        ('trace', 'stats.pb.go'): '-d "limit arrays:500000 maps:500000"',
-        ('trace', 'span.pb.go'): '-d "limit arrays:500000 maps:500000"',
-        ('trace', 'tracer_payload.pb.go'): '-d "limit arrays:500000 maps:500000"',
-        ('trace', 'agent_payload.pb.go'): '-d "limit arrays:500000 maps:500000"',
+        ('pbgo/trace', 'stats.pb.go'): '-d "limit arrays:500000 maps:500000"',
+        ('pbgo/trace', 'span.pb.go'): '-d "limit arrays:500000 maps:500000"',
+        ('pbgo/trace', 'tracer_payload.pb.go'): '-d "limit arrays:500000 maps:500000"',
+        ('pbgo/trace', 'agent_payload.pb.go'): '-d "limit arrays:500000 maps:500000"',
     }
     for pkg, files in msgp_targets.items():
         for src, io_gen in files:
@@ -69,7 +69,7 @@ def generate(ctx, pre_commit=False):
             dst = os.path.splitext(dst)[0]  # .pb
             extra_flags = msgp_file_directives.get((pkg, src), '')
             ctx.run(
-                f"{bt.msgp} -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io={io_gen} {extra_flags}",
+                f"{bt.msgp} -file {proto_root}/{pkg}/{src} -o={proto_root}/{pkg}/{dst}_gen.go -io={io_gen} {extra_flags}",
                 env=bt.go_env,
             )
 
@@ -77,7 +77,7 @@ def generate(ctx, pre_commit=False):
     # msgp patches key is `pkg` : (patch, destination)
     #     if `destination` is `None` diff will target inherent patch files
     msgp_patches = {
-        'trace': [
+        'pbgo/trace': [
             ('0001-Customize-msgpack-parsing.patch', '-p4'),
             ('0002-Make-nil-map-deserialization-retrocompatible.patch', '-p4'),
         ],
@@ -86,7 +86,7 @@ def generate(ctx, pre_commit=False):
         for patch in patches:
             patch_file = os.path.join(proto_root, "patches", patch[0])
             switches = patch[1] if patch[1] else ''
-            ctx.run(f'git apply {switches} --unsafe-paths --directory="{pbgo_dir}/{pkg}" {patch_file}')
+            ctx.run(f'git apply {switches} --unsafe-paths --directory="{proto_root}/{pkg}" {patch_file}')
 
     # Check the generated files were properly committed
     current_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file, include_deleted_files=True))
