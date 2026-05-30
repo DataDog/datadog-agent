@@ -335,6 +335,7 @@ full_agent_only_paths = [
     "workloadmeta",
 ]
 
+
 # extra_tags
 
 core_extra_tags = {
@@ -376,12 +377,17 @@ core_extra_env = {
 }
 
 
+def fetch_node(root, key):
+    curr = root
+    for k in key.split("."):
+        curr = curr["properties"][k]
+    return curr
+
+
 def fix_defaults(core_schema, sysprobe_schema):
     for schema, custom_defaults in [[core_schema, core_defaults], [sysprobe_schema, sysprobe_defaults]]:
         for key, default in custom_defaults.items():
-            node = schema
-            for k in key.split("."):
-                node = node["properties"][k]
+            node = fetch_node(schema, key)
 
             if "example" in node:
                 del node["example"]
@@ -400,19 +406,14 @@ def fix_defaults(core_schema, sysprobe_schema):
 def fix_tags(core_schema, sysprobe_schema):
     for schema, new_tags in [[core_schema, core_extra_tags], [sysprobe_schema, system_probe_extra_tags]]:
         for key, tags in new_tags.items():
-            node = schema
-            for k in key.split("."):
-                node = node["properties"][k]
-
+            node = fetch_node(schema, key)
             node["tags"] = sorted(set(node.get("tags", []) + tags))
     return core_schema, sysprobe_schema
 
 
 def fix_env_parsers(core_schema, sysprobe_schema):
     for key, parser in core_env_parsers.items():
-        node = core_schema
-        for k in key.split("."):
-            node = node["properties"][k]
+        node = fetch_node(core_schema, key)
         node["env_parser"] = parser
     return core_schema, sysprobe_schema
 
@@ -421,16 +422,23 @@ def fix_missing_env_doc(core_schema, sysprobe_schema):
     # no extra env for sysprobe
     for schema, env_lines in [[core_schema, core_extra_env]]:
         for key, line in env_lines.items():
-            node = schema
-            for k in key.split("."):
-                node = node["properties"][k]
-
+            node = fetch_node(schema, key)
             node["description"] = line + "\n" + node.get("description", "")
+    return core_schema, sysprobe_schema
+
+
+def fix_full_agent_only(core_schema, sysprobe_schema):
+    for key in full_agent_only_paths:
+        node = fetch_node(core_schema, key)
+        if "tags" not in node:
+            node["tags"] = []
+        node["tags"].append("full-agent-only:true")
     return core_schema, sysprobe_schema
 
 
 def fix_schema(core_schema, sysprobe_schema):
     core_schema, sysprobe_schema = fix_defaults(core_schema, sysprobe_schema)
+    core_schema, sysprobe_schema = fix_full_agent_only(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_tags(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_missing_env_doc(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_env_parsers(core_schema, sysprobe_schema)
