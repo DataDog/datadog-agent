@@ -207,6 +207,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+    - full-agent-only:true
     comment: |-
       if/when the default is changed to true, make the default platform
       dependent; default should remain false on Windows to maintain backward
@@ -225,6 +226,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+    - full-agent-only:true
     comment: |-
       By default the Agent does not trust the hostname value retrieved from non-root UTS namespace.
       When enabled, the Agent will trust the value retrieved from non-root UTS namespace instead of failing
@@ -248,6 +250,7 @@ properties:
         - <ALIAS-2>
     tags:
     - template_section:Common
+    - full-agent-only:true
   tags:
     node_type: setting
     type: array
@@ -310,6 +313,7 @@ properties:
     example: 'true'
     tags:
     - template_section:Common
+    - full-agent-only:true
     comment: Installer configuration
   tag_value_split_separator:
     node_type: setting
@@ -351,6 +355,7 @@ properties:
     example: '"low"'
     tags:
     - template_section:Common
+    - full-agent-only:true
     comment: |-
       Set defaults for config keys that may be accessed but aren't relevant in serverless environments
       to avoid "config key is unknown" and "unable to cast nil" warnings
@@ -370,6 +375,7 @@ properties:
     example: '"low"'
     tags:
     - template_section:Common
+    - full-agent-only:true
   histogram_aggregates:
     node_type: setting
     type: array
@@ -682,6 +688,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+    - full-agent-only:true
   collect_ec2_instance_info:
     node_type: setting
     type: boolean
@@ -701,6 +708,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+    - full-agent-only:true
   exclude_ec2_tags:
     node_type: setting
     type: array
@@ -716,6 +724,7 @@ properties:
     example: '[]'
     tags:
     - template_section:Common
+    - full-agent-only:true
   collect_ec2_tags_use_imds:
     node_type: setting
     type: boolean
@@ -728,6 +737,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+    - full-agent-only:true
   ec2_metadata_timeout:
     node_type: setting
     type: integer
@@ -737,6 +747,7 @@ properties:
     example: '300'
     tags:
     - template_section:Common
+    - full-agent-only:true
     comment: value in milliseconds
   ec2_prefer_imdsv2:
     node_type: setting
@@ -753,6 +764,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+    - full-agent-only:true
   ec2_prioritize_instance_id_as_hostname:
     node_type: setting
     type: boolean
@@ -766,6 +778,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+    - full-agent-only:true
     comment: used to bypass the hostname detection logic and force the EC2 instance
       ID as a hostname.
   collect_gce_tags:
@@ -777,6 +790,7 @@ properties:
     example: 'true'
     tags:
     - template_section:Common
+    - full-agent-only:true
     comment: GCE
   exclude_gce_tags:
     node_type: setting
@@ -840,6 +854,7 @@ properties:
         - "windows-startup-script-ps1"
     tags:
     - template_section:Common
+    - full-agent-only:true
   gce_send_project_id_tag:
     node_type: setting
     type: boolean
@@ -851,6 +866,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+    - full-agent-only:true
   gce_metadata_timeout:
     node_type: setting
     type: integer
@@ -860,6 +876,7 @@ properties:
     example: '1000'
     tags:
     - template_section:Common
+    - full-agent-only:true
     comment: value in milliseconds
   collect_gpu_tags:
     node_type: setting
@@ -870,6 +887,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+    - full-agent-only:true
     comment: GPU
   gpu:
     node_type: section
@@ -878,6 +896,7 @@ properties:
     description: GPU monitoring configuration.
     tags:
     - template_section:Common
+    - full-agent-only:true
     properties:
       nccl:
         node_type: section
@@ -970,6 +989,7 @@ properties:
     example: '300'
     tags:
     - template_section:Common
+    - full-agent-only:true
   azure_hostname_style:
     node_type: setting
     type: string
@@ -987,6 +1007,7 @@ properties:
     example: '"os"'
     tags:
     - template_section:Common
+    - full-agent-only:true
     comment: Azure
   azure_metadata_api_version:
     node_type: setting
@@ -999,6 +1020,7 @@ properties:
     example: '"2021-02-01"'
     tags:
     - template_section:Common
+    - full-agent-only:true
   scrubber:
     node_type: section
     type: object
@@ -1061,6 +1083,7 @@ properties:
     example: 'true'
     tags:
     - template_section:Common
+    - full-agent-only:true
     comment: controls the agent configurations
   metadata_ip_resolution_from_hostname:
     node_type: setting
@@ -1076,6 +1099,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+    - full-agent-only:true
     comment: resolve the hostname to get the IP address
   auto_exit:
     node_type: section
@@ -1472,6 +1496,7 @@ properties:
     example: '5000'
     tags:
     - template_section:Agent
+    - full-agent-only:true
     comment: Go_expvar server port
   cmd_port:
     node_type: setting
@@ -1580,6 +1605,7 @@ properties:
     example: '30'
     tags:
     - template_section:Agent
+    - full-agent-only:true
     comment: IPC API server timeout
   procfs_path:
     node_type: setting
@@ -1613,6 +1639,7 @@ properties:
     example: '120'
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
     comment: |-
       Python 3 linter timeout, in seconds
       NOTE: linter is notoriously slow, in the absence of a better solution we
@@ -1671,6 +1698,7 @@ properties:
     example: 'false'
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
     comment: Whether to honour the value of PYTHONPATH, if set, on Windows. On other
       OSes we always do.
   secret_backend_type:
@@ -1688,6 +1716,7 @@ properties:
     example: <BACKEND_TYPE>
     tags:
     - template_section:Agent
+    - full-agent-only:true
     comment: secrets backend
   secret_backend_config:
     node_type: setting
@@ -1704,6 +1733,7 @@ properties:
     tags:
     - golang_type:map[string]interface{}
     - template_section:Agent
+    - full-agent-only:true
   multi_secret_backends:
     node_type: setting
     type: object
@@ -1723,6 +1753,7 @@ properties:
     tags:
     - golang_type:map[string]interface{}
     - template_section:Agent
+    - full-agent-only:true
   secret_refresh_interval:
     node_type: setting
     type: integer
@@ -1734,6 +1765,7 @@ properties:
     example: '0'
     tags:
     - template_section:Agent
+    - full-agent-only:true
   secret_refresh_on_api_key_failure_interval:
     node_type: setting
     type: integer
@@ -1749,6 +1781,7 @@ properties:
     example: '0'
     tags:
     - template_section:Agent
+    - full-agent-only:true
   secret_refresh_scatter:
     node_type: setting
     type: boolean
@@ -1761,6 +1794,7 @@ properties:
     example: 'true'
     tags:
     - template_section:Agent
+    - full-agent-only:true
   secret_backend_command:
     node_type: setting
     type: string
@@ -1832,6 +1866,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Agent
+    - full-agent-only:true
   secret_scope_integration_to_their_k8s_namespace:
     node_type: setting
     type: boolean
@@ -1849,6 +1884,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Agent
+    - full-agent-only:true
   secret_allowed_k8s_namespace:
     node_type: setting
     type: array
@@ -1868,6 +1904,7 @@ properties:
     example: '[]'
     tags:
     - template_section:Agent
+    - full-agent-only:true
   secret_image_to_handle:
     node_type: setting
     type: object
@@ -1897,6 +1934,7 @@ properties:
           - ...
     tags:
     - template_section:Agent
+    - full-agent-only:true
   system_tray:
     node_type: section
     title: Datadog Agent Manager System Tray Configuration
@@ -1904,6 +1942,7 @@ properties:
     visibility: public
     description: This section configures the Datadog Agent Manager System Tray
     tags:
+    - full-agent-only:true
     - platform_only:windows
     - template_section:Agent
     properties:
@@ -4940,6 +4979,7 @@ properties:
     visibility: public
     description: Network Path configuration
     tags:
+    - full-agent-only:true
     - platform_only:windows,linux
     - template_section:CoreAgent
     properties:
@@ -5287,6 +5327,7 @@ properties:
     description: Enter specific configuration for Synthetics tests.
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
     properties:
       collector:
         node_type: section
@@ -5446,6 +5487,7 @@ properties:
         example: 'false'
         tags:
         - template_section:CoreAgent
+        - full-agent-only:true
         comment: Datadog security agent (compliance)
       dir:
         node_type: setting
@@ -5457,6 +5499,7 @@ properties:
         example: '"/etc/datadog-agent/compliance.d"'
         tags:
         - template_section:CoreAgent
+        - full-agent-only:true
       check_interval:
         node_type: setting
         type: number
@@ -5469,6 +5512,7 @@ properties:
         tags:
         - golang_type:duration
         - template_section:CoreAgent
+        - full-agent-only:true
       check_max_events_per_run:
         node_type: setting
         type: integer
@@ -5479,18 +5523,23 @@ properties:
         example: '100'
         tags:
         - template_section:CoreAgent
+        - full-agent-only:true
       container_exclude:
         node_type: setting
         type: array
         default: []
         items:
           type: string
+        tags:
+        - full-agent-only:true
       container_include:
         node_type: setting
         type: array
         default: []
         items:
           type: string
+        tags:
+        - full-agent-only:true
       database_benchmarks:
         node_type: section
         type: object
@@ -5603,6 +5652,8 @@ properties:
         node_type: setting
         type: boolean
         default: true
+        tags:
+        - full-agent-only:true
       host_benchmarks:
         node_type: section
         type: object
@@ -5611,6 +5662,8 @@ properties:
             node_type: setting
             type: boolean
             default: true
+        tags:
+        - full-agent-only:true
       metrics:
         node_type: section
         type: object
@@ -5619,6 +5672,8 @@ properties:
             node_type: setting
             type: boolean
             default: false
+        tags:
+        - full-agent-only:true
       opa:
         node_type: section
         type: object
@@ -5631,6 +5686,8 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+        tags:
+        - full-agent-only:true
       run_commands_as:
         node_type: setting
         tags:
@@ -5640,6 +5697,8 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        tags:
+        - full-agent-only:true
       xccdf:
         node_type: section
         type: object
@@ -5649,6 +5708,8 @@ properties:
             type: boolean
             default: false
             comment: deprecated, use host_benchmarks instead
+        tags:
+        - full-agent-only:true
   sbom:
     node_type: section
     type: object
@@ -5657,6 +5718,7 @@ properties:
       Management feature
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
     properties:
       enabled:
         node_type: setting
@@ -6310,6 +6372,7 @@ properties:
         - /jmx-jars/jboss-cli-client.jar
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
     comment: JMXFetch
   jmx_use_cgroup_memory_limit:
     node_type: setting
@@ -6325,6 +6388,7 @@ properties:
     example: 'false'
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
   jmx_use_container_support:
     node_type: setting
     type: boolean
@@ -6339,6 +6403,7 @@ properties:
     example: 'false'
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
   jmx_max_ram_percentage:
     node_type: setting
     type: number
@@ -6355,6 +6420,7 @@ properties:
     tags:
     - golang_type:float64
     - template_section:CoreAgent
+    - full-agent-only:true
   jmx_log_file:
     node_type: setting
     type: string
@@ -6375,6 +6441,7 @@ properties:
     tags:
     - golang_type:int64
     - template_section:CoreAgent
+    - full-agent-only:true
   jmx_restart_interval:
     node_type: setting
     type: integer
@@ -6385,6 +6452,7 @@ properties:
     tags:
     - golang_type:int64
     - template_section:CoreAgent
+    - full-agent-only:true
   jmx_check_period:
     node_type: setting
     type: integer
@@ -6394,6 +6462,7 @@ properties:
     example: '15000'
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
   jmx_thread_pool_size:
     node_type: setting
     type: integer
@@ -6407,6 +6476,7 @@ properties:
     example: '3'
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
   jmx_collection_timeout:
     node_type: setting
     type: integer
@@ -6417,6 +6487,7 @@ properties:
     example: '60'
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
   jmx_reconnection_thread_pool_size:
     node_type: setting
     type: integer
@@ -6430,6 +6501,7 @@ properties:
     example: '3'
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
   jmx_reconnection_timeout:
     node_type: setting
     type: integer
@@ -6440,6 +6512,7 @@ properties:
     example: '60'
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
   jmx_statsd_telemetry_enabled:
     node_type: setting
     type: boolean
@@ -6449,6 +6522,7 @@ properties:
     example: 'false'
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
   jmx_telemetry_enabled:
     node_type: setting
     type: boolean
@@ -6458,6 +6532,7 @@ properties:
     example: 'false'
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
   jmx_java_tool_options:
     node_type: setting
     type: string
@@ -6469,6 +6544,7 @@ properties:
     example: -javaagent:/path/to/agent.jar -XX:+UseG1GC
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
   log_level:
     node_type: setting
     title: Logging Configuration
@@ -6853,6 +6929,7 @@ properties:
     tags:
     - golang_type:int64
     - template_section:CoreAgent
+    - full-agent-only:true
     comment: Docker
   ad_config_poll_interval:
     node_type: setting
@@ -6918,6 +6995,7 @@ properties:
     description: Settings for Cloudfoundry application container autodiscovery.
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
     properties:
       listen_network:
         node_type: setting
@@ -6963,6 +7041,7 @@ properties:
       See https://docs.datadoghq.com/agent/cluster_agent/
     tags:
     - template_section:ClusterAgent
+    - full-agent-only:true
     properties:
       enabled:
         node_type: setting
@@ -7342,6 +7421,7 @@ properties:
       See https://docs.datadoghq.com/agent/kubernetes/cluster/
     tags:
     - template_section:ClusterChecks
+    - full-agent-only:true
     properties:
       enabled:
         node_type: setting
@@ -7496,6 +7576,7 @@ properties:
       See https://docs.datadoghq.com/agent/cluster_agent/admission_controller/
     tags:
     - template_section:AdmissionController
+    - full-agent-only:true
     properties:
       enabled:
         node_type: setting
@@ -8317,6 +8398,7 @@ properties:
         <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
     tags:
     - template_section:DockerTagging
+    - full-agent-only:true
   docker_env_as_tags:
     node_type: setting
     type: object
@@ -8334,6 +8416,7 @@ properties:
         <ENVVAR_NAME>: <TAG_KEY>
     tags:
     - template_section:DockerTagging
+    - full-agent-only:true
   kubernetes_pod_labels_as_tags:
     node_type: setting
     title: Kubernetes tag extraction
@@ -8353,6 +8436,7 @@ properties:
         <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
     tags:
     - template_section:KubernetesTagging
+    - full-agent-only:true
   kubernetes_pod_annotations_as_tags:
     node_type: setting
     type: object
@@ -8371,6 +8455,7 @@ properties:
         <HIGH_CARDINALITY_ANNOTATION>: +<TAG_KEY>
     tags:
     - template_section:KubernetesTagging
+    - full-agent-only:true
   kubernetes_namespace_labels_as_tags:
     node_type: setting
     type: object
@@ -8389,6 +8474,7 @@ properties:
         <HIGH_CARDINALITY_NAMESPACE_LABEL_NAME>: +<TAG_KEY>
     tags:
     - template_section:KubernetesTagging
+    - full-agent-only:true
   container_env_as_tags:
     node_type: setting
     type: object
@@ -8433,6 +8519,7 @@ properties:
     example: '"ecs-agent"'
     tags:
     - template_section:ECS
+    - full-agent-only:true
   ecs_agent_url:
     node_type: setting
     type: string
@@ -8445,6 +8532,7 @@ properties:
     example: http://localhost:51678
     tags:
     - template_section:ECS
+    - full-agent-only:true
     comment: |-
       ECS
       Will be autodetected
@@ -8459,6 +8547,7 @@ properties:
     example: 'false'
     tags:
     - template_section:ECS
+    - full-agent-only:true
   ecs_resource_tags_replace_colon:
     node_type: setting
     type: boolean
@@ -8469,6 +8558,7 @@ properties:
     example: 'false'
     tags:
     - template_section:ECS
+    - full-agent-only:true
   ecs_metadata_timeout:
     node_type: setting
     type: integer
@@ -8478,6 +8568,7 @@ properties:
     example: '1000'
     tags:
     - template_section:ECS
+    - full-agent-only:true
     comment: value in milliseconds
   ecs_task_collection_enabled:
     node_type: setting
@@ -8492,6 +8583,7 @@ properties:
     example: 'true'
     tags:
     - template_section:ECS
+    - full-agent-only:true
   ecs_deployment_mode:
     node_type: setting
     type: string
@@ -8509,6 +8601,7 @@ properties:
     example: '"auto"'
     tags:
     - template_section:ECS
+    - full-agent-only:true
   cri_socket_path:
     node_type: setting
     title: CRI and Containerd integration Configuration
@@ -8735,6 +8828,7 @@ properties:
     example: '""'
     tags:
     - template_section:KubeApiServer
+    - full-agent-only:true
     comment: Kube ApiServer
   kubernetes_apiserver_ca_path:
     node_type: setting
@@ -8748,6 +8842,7 @@ properties:
     example: '""'
     tags:
     - template_section:KubeApiServer
+    - full-agent-only:true
   kubernetes_apiserver_tls_verify:
     node_type: setting
     type: boolean
@@ -8760,6 +8855,7 @@ properties:
     example: 'true'
     tags:
     - template_section:KubeApiServer
+    - full-agent-only:true
   kubernetes_apiserver_use_protobuf:
     node_type: setting
     type: boolean
@@ -8807,6 +8903,7 @@ properties:
     example: 'true'
     tags:
     - template_section:KubeApiServer
+    - full-agent-only:true
   kubernetes_metadata_tag_update_freq:
     node_type: setting
     type: integer
@@ -8864,6 +8961,7 @@ properties:
     example: '100'
     tags:
     - template_section:KubeApiServer
+    - full-agent-only:true
     comment: timeout between two successful event collections in milliseconds.
   leader_election:
     node_type: setting
@@ -8876,6 +8974,7 @@ properties:
     example: 'false'
     tags:
     - template_section:KubeApiServer
+    - full-agent-only:true
   leader_lease_duration:
     node_type: setting
     type: string
@@ -8885,6 +8984,7 @@ properties:
     example: '"60"'
     tags:
     - template_section:KubeApiServer
+    - full-agent-only:true
   kubernetes_node_labels_as_tags:
     node_type: setting
     type: object
@@ -8903,6 +9003,7 @@ properties:
         beta.kubernetes.io/os: os
     tags:
     - template_section:KubeApiServer
+    - full-agent-only:true
   kubernetes_node_annotations_as_tags:
     node_type: setting
     type: object
@@ -8920,6 +9021,7 @@ properties:
         cluster.k8s.io/machine: machine
     tags:
     - template_section:KubeApiServer
+    - full-agent-only:true
   kubernetes_node_annotations_as_host_aliases:
     node_type: setting
     type: array
@@ -8937,6 +9039,7 @@ properties:
         - cluster.k8s.io/machine
     tags:
     - template_section:KubeApiServer
+    - full-agent-only:true
   cluster_name:
     node_type: setting
     type: string
@@ -8954,6 +9057,7 @@ properties:
     example: <CLUSTER_IDENTIFIER>
     tags:
     - template_section:KubeApiServer
+    - full-agent-only:true
   disable_cluster_name_tag_key:
     node_type: setting
     type: boolean
@@ -8966,6 +9070,7 @@ properties:
     example: 'false'
     tags:
     - template_section:KubeApiServer
+    - full-agent-only:true
   kubernetes_ad_tags_disabled:
     node_type: setting
     type: array
@@ -8989,6 +9094,7 @@ properties:
       annotations
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
     properties:
       enabled:
         node_type: setting
@@ -9044,6 +9150,7 @@ properties:
       necessary for autodiscovery on BBS-based Cloud Foundry deployments.
     tags:
     - template_section:CloudFoundry
+    - full-agent-only:true
     properties:
       url:
         node_type: setting
@@ -9128,6 +9235,7 @@ properties:
       necessary for autodiscovery on Cloud Foundry deployments.
     tags:
     - template_section:CloudFoundry
+    - full-agent-only:true
     properties:
       url:
         node_type: setting
@@ -9198,6 +9306,7 @@ properties:
     description: Configuration related to Network Devices Monitoring
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
     properties:
       namespace:
         node_type: setting
@@ -10333,6 +10442,7 @@ properties:
       can be used by other components in the Datadog Agent.
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
     properties:
       workers:
         node_type: setting
@@ -10517,6 +10627,7 @@ properties:
     description: This section configures High Availability Agent feature.
     tags:
     - template_section:CoreAgent
+    - full-agent-only:true
     properties:
       enabled:
         node_type: setting
@@ -11463,6 +11574,8 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    tags:
+    - full-agent-only:true
     comment: |-
       When the Python full interpreter path cannot be deduced via heuristics, the agent
       is expected to prevent rtloader from initializing. When set to true, this override
@@ -11769,6 +11882,8 @@ properties:
             default: []
             items:
               type: string
+    tags:
+    - full-agent-only:true
   auth_init_timeout:
     node_type: setting
     type: number
@@ -11916,6 +12031,8 @@ properties:
     node_type: setting
     type: array
     default: []
+    tags:
+    - full-agent-only:true
     comment: Agent Workload Filtering config
   cf_os_hostname_aliasing:
     node_type: setting
@@ -11952,10 +12069,14 @@ properties:
     node_type: setting
     type: boolean
     default: true
+    tags:
+    - full-agent-only:true
   check_sampler_bucket_commits_count_expiry:
     node_type: setting
     type: integer
     default: 2
+    tags:
+    - full-agent-only:true
     comment: |-
       The number of commits before expiring a context. The value is 2 to handle
       the case where a check miss to send a metric.
@@ -11963,10 +12084,14 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    tags:
+    - full-agent-only:true
   check_sampler_expire_metrics:
     node_type: setting
     type: boolean
     default: true
+    tags:
+    - full-agent-only:true
   check_sampler_stateful_metric_expiration_time:
     node_type: setting
     type: number
@@ -11974,6 +12099,7 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+    - full-agent-only:true
     comment: |-
       The number of seconds before removing stateful metric data after expiring a
       context. Default is 25h, to minimise problems for checks that emit metircs
@@ -12005,24 +12131,34 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    tags:
+    - full-agent-only:true
     comment: Cluster check runner
   clc_runner_host:
     node_type: setting
     type: string
     default: ''
+    tags:
+    - full-agent-only:true
     comment: must be set using the Kubernetes downward API
   clc_runner_id:
     node_type: setting
     type: string
     default: ''
+    tags:
+    - full-agent-only:true
   clc_runner_port:
     node_type: setting
     type: integer
     default: 5005
+    tags:
+    - full-agent-only:true
   clc_runner_remote_tagger_enabled:
     node_type: setting
     type: boolean
     default: true
+    tags:
+    - full-agent-only:true
     comment: |-
       Enabling remote tagger in cluster check runners by default allows
       enriching the cluster check runners with tags sourced from the
@@ -12048,10 +12184,14 @@ properties:
     node_type: setting
     type: integer
     default: 10
+    tags:
+    - full-agent-only:true
   clc_runner_server_write_timeout:
     node_type: setting
     type: integer
     default: 15
+    tags:
+    - full-agent-only:true
   cloud_foundry:
     node_type: setting
     type: boolean
@@ -12078,6 +12218,8 @@ properties:
         type: string
         default: /bin/sh
         comment: Cloud Foundry Container Tagger
+    tags:
+    - full-agent-only:true
   cluster_trust_chain:
     node_type: section
     type: object
@@ -12098,6 +12240,8 @@ properties:
         default: false
         comment: Check that the trust chain is valid for Agent cross-node communications
           (NodeAgent->DCA / CLC->DCA / DCA->CLC).
+    tags:
+    - full-agent-only:true
   cmd:
     node_type: section
     type: object
@@ -12121,6 +12265,8 @@ properties:
     node_type: setting
     type: boolean
     default: true
+    tags:
+    - full-agent-only:true
   common_root:
     node_type: setting
     type: string
@@ -12260,6 +12406,8 @@ properties:
         node_type: setting
         type: integer
         default: 1
+    tags:
+    - full-agent-only:true
   container_include:
     node_type: setting
     type: array
@@ -12383,6 +12531,8 @@ properties:
         node_type: setting
         type: integer
         default: 1
+    tags:
+    - full-agent-only:true
   container_pid_mapper:
     node_type: setting
     type: string
@@ -12418,6 +12568,8 @@ properties:
         type: boolean
         default: false
         comment: CSI driver
+    tags:
+    - full-agent-only:true
   data_observability:
     node_type: section
     type: object
@@ -12627,6 +12779,8 @@ properties:
         node_type: setting
         type: boolean
         default: true
+    tags:
+    - full-agent-only:true
   data_streams:
     node_type: section
     type: object
@@ -13142,6 +13296,8 @@ properties:
     node_type: setting
     type: boolean
     default: true
+    tags:
+    - full-agent-only:true
     comment: Defaults to safe YAML methods in base and custom checks.
   disk_check:
     node_type: section
@@ -13151,6 +13307,8 @@ properties:
         node_type: setting
         type: boolean
         default: true
+    tags:
+    - full-agent-only:true
   djm_config:
     node_type: section
     type: object
@@ -13160,6 +13318,8 @@ properties:
         type: boolean
         default: false
         comment: Data Jobs Monitoring config
+    tags:
+    - full-agent-only:true
   dogstatsd_capture_depth:
     node_type: setting
     type: integer
@@ -13216,6 +13376,8 @@ properties:
     node_type: setting
     type: string
     default: /var/run/datadog
+    tags:
+    - full-agent-only:true
   dogstatsd_log_file:
     node_type: setting
     type: string
@@ -13369,15 +13531,21 @@ properties:
     node_type: setting
     type: boolean
     default: true
+    tags:
+    - full-agent-only:true
   ec2_metadata_token_lifetime:
     node_type: setting
     type: integer
     default: 21600
+    tags:
+    - full-agent-only:true
     comment: value in seconds
   ec2_use_dmi:
     node_type: setting
     type: boolean
     default: true
+    tags:
+    - full-agent-only:true
     comment: should the agent leverage DMI information to know if it's running on
       EC2 or not. Enabling this will add the instance ID from DMI to the host alias
       list.
@@ -13385,6 +13553,8 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    tags:
+    - full-agent-only:true
     comment: EC2
   ecs_metadata_retry_initial_interval:
     node_type: setting
@@ -13393,6 +13563,7 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+    - full-agent-only:true
   ecs_metadata_retry_max_elapsed_time:
     node_type: setting
     type: number
@@ -13400,10 +13571,13 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+    - full-agent-only:true
   ecs_metadata_retry_timeout_factor:
     node_type: setting
     type: integer
     default: 3
+    tags:
+    - full-agent-only:true
   ecs_task_cache_ttl:
     node_type: setting
     type: number
@@ -13411,14 +13585,19 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+    - full-agent-only:true
   ecs_task_collection_burst:
     node_type: setting
     type: integer
     default: 60
+    tags:
+    - full-agent-only:true
   ecs_task_collection_rate:
     node_type: setting
     type: integer
     default: 35
+    tags:
+    - full-agent-only:true
   eks_fargate:
     node_type: setting
     type: boolean
@@ -13461,6 +13640,8 @@ properties:
     node_type: setting
     type: boolean
     default: true
+    tags:
+    - full-agent-only:true
   enhanced_metrics:
     node_type: setting
     type: boolean
@@ -13661,6 +13842,8 @@ properties:
         type: string
         default: avg
         comment: aggregator used for the external metrics. Choose from [avg,sum,max,min]
+    tags:
+    - full-agent-only:true
   external_metrics_provider:
     node_type: section
     type: object
@@ -13784,6 +13967,8 @@ properties:
         type: boolean
         default: false
         comment: Activates the controller for Watermark Pod Autoscalers.
+    tags:
+    - full-agent-only:true
   flare:
     node_type: section
     type: object
@@ -13825,6 +14010,8 @@ properties:
             format: duration
             tags:
             - golang_type:duration
+    tags:
+    - full-agent-only:true
   flare_provider_timeout:
     node_type: setting
     type: number
@@ -13832,6 +14019,7 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+    - full-agent-only:true
     comment: flare configs
   flare_stripped_keys:
     node_type: setting
@@ -14026,6 +14214,8 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    tags:
+    - full-agent-only:true
     comment: overridden in Heroku buildpack
   hostname_drift_initial_delay:
     node_type: setting
@@ -14034,6 +14224,7 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+    - full-agent-only:true
     comment: |-
       Internal hostname drift detection configuration
       These options are not exposed to customers and are used for testing purposes
@@ -14044,10 +14235,13 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+    - full-agent-only:true
   hostname_force_config_as_canonical:
     node_type: setting
     type: boolean
     default: false
+    tags:
+    - full-agent-only:true
     comment: |-
       When enabled, hostname defined in the configuration (datadog.yaml) and starting with `ip-` or `domu` on EC2 is used as
       canonical hostname, otherwise the instance-id is used as canonical hostname.
@@ -14102,19 +14296,27 @@ properties:
             node_type: setting
             type: integer
             default: 7778
+    tags:
+    - full-agent-only:true
   hpa_configmap_name:
     node_type: setting
     type: string
     default: datadog-custom-metrics
+    tags:
+    - full-agent-only:true
   hpa_watcher_gc_period:
     node_type: setting
     type: integer
     default: 300
+    tags:
+    - full-agent-only:true
     comment: 5 minutes
   hpa_watcher_polling_freq:
     node_type: setting
     type: integer
     default: 10
+    tags:
+    - full-agent-only:true
   http_dial_fallback_delay:
     node_type: setting
     tags:
@@ -14124,6 +14326,8 @@ properties:
     node_type: setting
     type: integer
     default: 5
+    tags:
+    - full-agent-only:true
     comment: |-
       IBM cloud
       We use a long timeout here since the metadata and token API can be very slow sometimes.
@@ -14184,6 +14388,8 @@ properties:
             node_type: setting
             type: string
             default: ''
+    tags:
+    - full-agent-only:true
   instrumentation_crd_controller:
     node_type: section
     type: object
@@ -14193,6 +14399,8 @@ properties:
         type: boolean
         default: false
         comment: DatadogInstrumentation controller
+    tags:
+    - full-agent-only:true
   integration:
     node_type: section
     type: object
@@ -14296,11 +14504,15 @@ properties:
     default: []
     items:
       type: string
+    tags:
+    - full-agent-only:true
     comment: Allowlisted file paths for untrusted providers (empty = allow all).
   integration_ignore_untrusted_file_params:
     node_type: setting
     type: boolean
     default: false
+    tags:
+    - full-agent-only:true
     comment: |-
       Integration security
       When enabled, integrations will ignore configuration parameters that refer to file paths
@@ -14315,6 +14527,8 @@ properties:
     default: []
     items:
       type: string
+    tags:
+    - full-agent-only:true
     comment: Integrations excluded from these restrictions.
   integration_tracing:
     node_type: setting
@@ -14332,6 +14546,8 @@ properties:
     - remote-config
     items:
       type: string
+    tags:
+    - full-agent-only:true
     comment: 'Trusted config providers (others are untrusted). Defaults: file, remote-config.'
   internal_profiling:
     node_type: section
@@ -14407,15 +14623,21 @@ properties:
         type: string
         default: ''
         comment: file system path to a unix socket, e.g. `/var/run/datadog/apm.socket`
+    tags:
+    - full-agent-only:true
   inventories_checks_configuration_enabled:
     node_type: setting
     type: boolean
     default: true
+    tags:
+    - full-agent-only:true
     comment: controls the checks configurations
   inventories_collect_cloud_provider_account_id:
     node_type: setting
     type: boolean
     default: true
+    tags:
+    - full-agent-only:true
     comment: collect collection of `cloud_provider_account_id`
   inventories_diagnostics_enabled:
     node_type: setting
@@ -14425,16 +14647,22 @@ properties:
     node_type: setting
     type: boolean
     default: true
+    tags:
+    - full-agent-only:true
     comment: inventories
   inventories_first_run_delay:
     node_type: setting
     type: integer
     default: 60
+    tags:
+    - full-agent-only:true
     comment: Seconds to wait to sent metadata payload to the backend after startup
   inventories_max_interval:
     node_type: setting
     type: integer
     default: 0
+    tags:
+    - full-agent-only:true
     comment: |-
       when updating the default here also update pkg/metadata/inventories/README.md
       0 == default interval from inventories
@@ -14442,11 +14670,15 @@ properties:
     node_type: setting
     type: integer
     default: 0
+    tags:
+    - full-agent-only:true
     comment: 0 == default interval from inventories
   iot_host:
     node_type: setting
     type: boolean
     default: false
+    tags:
+    - full-agent-only:true
     comment: overridden in IoT Agent main
   ipc_address:
     node_type: setting
@@ -14462,12 +14694,16 @@ properties:
     node_type: setting
     type: integer
     default: 0
+    tags:
+    - full-agent-only:true
     comment: the "buffer" here is the socket send buffer (SO_SNDBUF) and the size
       is in bytes
   jmx_statsd_client_queue_size:
     node_type: setting
     type: integer
     default: 4096
+    tags:
+    - full-agent-only:true
     comment: |-
       The following jmx_statsd_client-* options are internal and will not be documented
       the queue size is the no. of elements (metrics, event, service checks) it can hold.
@@ -14475,19 +14711,27 @@ properties:
     node_type: setting
     type: integer
     default: 0
+    tags:
+    - full-agent-only:true
     comment: the socket timeout (SO_SNDTIMEO) is in milliseconds
   jmx_statsd_client_use_non_blocking:
     node_type: setting
     type: boolean
     default: false
+    tags:
+    - full-agent-only:true
   kube_cache_sync_timeout_seconds:
     node_type: setting
     type: integer
     default: 10
+    tags:
+    - full-agent-only:true
   kube_resources_namespace:
     node_type: setting
     type: string
     default: ''
+    tags:
+    - full-agent-only:true
   kubeactions:
     node_type: section
     type: object
@@ -14626,6 +14870,8 @@ properties:
     node_type: setting
     type: integer
     default: 300
+    tags:
+    - full-agent-only:true
     comment: value in seconds. Default to 5 minutes
   kubernetes_kube_service_ignore_readiness:
     node_type: setting
@@ -14665,18 +14911,26 @@ properties:
     default: {}
     additionalProperties:
       type: string
+    tags:
+    - full-agent-only:true
   kubernetes_node_label_as_cluster_name:
     node_type: setting
     type: string
     default: ''
+    tags:
+    - full-agent-only:true
   kubernetes_persistent_volume_claims_as_tags:
     node_type: setting
     type: boolean
     default: true
+    tags:
+    - full-agent-only:true
   kubernetes_resources_annotations_as_tags:
     node_type: setting
     type: string
     default: '{}'
+    tags:
+    - full-agent-only:true
     comment: |-
       kubernetes_resources_annotations_as_tags should be parseable as map[string]map[string]string
       it maps group resources to annotations as tags maps
@@ -14690,6 +14944,8 @@ properties:
     node_type: setting
     type: string
     default: '{}'
+    tags:
+    - full-agent-only:true
     comment: |-
       kubernetes_resources_labels_as_tags should be parseable as map[string]map[string]string
       it maps group resources to labels as tags maps
@@ -14730,18 +14986,26 @@ properties:
             comment: TTL refresh period represents how frequently actively detected
               languages are refreshed by reporting them again to the language detection
               handler in the cluster agent
+    tags:
+    - full-agent-only:true
   leader_election_default_resource:
     node_type: setting
     type: string
     default: configmap
+    tags:
+    - full-agent-only:true
   leader_election_release_on_shutdown:
     node_type: setting
     type: boolean
     default: true
+    tags:
+    - full-agent-only:true
   leader_lease_name:
     node_type: setting
     type: string
     default: datadog-leader-election
+    tags:
+    - full-agent-only:true
   log_enabled:
     node_type: setting
     type: boolean
@@ -14772,6 +15036,8 @@ properties:
     node_type: setting
     type: integer
     default: 255
+    tags:
+    - full-agent-only:true
     comment: |-
       Metadata endpoints
       Defines the maximum size of hostame gathered from EC2, GCE, Azure, Alibaba, Oracle and Tencent cloud metadata
@@ -14791,6 +15057,8 @@ properties:
     default: []
     items:
       type: string
+    tags:
+    - full-agent-only:true
     comment: |-
       Delegated authentication (global)
       Cloud provider and region are auto-detected if not specified
@@ -14800,14 +15068,20 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    tags:
+    - full-agent-only:true
   metric_tag_filterlist:
     node_type: setting
     type: array
     default: []
+    tags:
+    - full-agent-only:true
   metric_tag_filterlist_adp_only:
     node_type: setting
     type: boolean
     default: true
+    tags:
+    - full-agent-only:true
     comment: |-
       When true (default), metric_tag_filterlist tag stripping is only applied when data_plane.enabled is true.
       Set to false to apply tag stripping regardless of whether ADP is running.
@@ -14815,6 +15089,8 @@ properties:
     node_type: setting
     type: integer
     default: 5000
+    tags:
+    - full-agent-only:true
   multi_region_failover:
     node_type: section
     type: object
@@ -14936,6 +15212,8 @@ properties:
         platform_default:
           darwin: false
           other: true
+    tags:
+    - full-agent-only:true
   notable_events:
     node_type: section
     type: object
@@ -15161,6 +15439,8 @@ properties:
         tags:
         - TODO:fix-no-default
         - TODO:fix-missing-type
+    tags:
+    - full-agent-only:true
   origin_detection_unified:
     node_type: setting
     type: boolean
@@ -15172,6 +15452,8 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    tags:
+    - full-agent-only:true
     comment: |-
       otel_standalone controls whether otel-agent runs in standalone mode (with full secrets, tagger server)
       or connected mode (expects core agent for secrets and tagger)
@@ -15240,10 +15522,14 @@ properties:
         type: boolean
         default: false
         comment: dev flag - to be removed
+    tags:
+    - full-agent-only:true
   prioritize_go_check_loader:
     node_type: setting
     type: boolean
     default: true
+    tags:
+    - full-agent-only:true
     comment: If true, then the go loader will be prioritized over the python loader.
   proc_root:
     node_type: setting
@@ -15276,6 +15562,8 @@ properties:
         comment: |-
           DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
           [DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs instead.
+    tags:
+    - full-agent-only:true
   provider_kind:
     node_type: setting
     tags:
@@ -15285,6 +15573,8 @@ properties:
     node_type: setting
     type: boolean
     default: true
+    tags:
+    - full-agent-only:true
     comment: |-
       If true, Python is loaded when the first Python check is loaded.
       Otherwise, Python is loaded when the collector is initialized.
@@ -15341,6 +15631,8 @@ properties:
             format: duration
             tags:
             - golang_type:duration
+    tags:
+    - full-agent-only:true
   remote_flags:
     node_type: section
     type: object
@@ -15366,6 +15658,8 @@ properties:
         type: integer
         default: 3
         comment: Remote tagger
+    tags:
+    - full-agent-only:true
   run_path:
     node_type: setting
     type: string
@@ -15613,6 +15907,8 @@ properties:
     node_type: setting
     type: integer
     default: 1048576
+    tags:
+    - full-agent-only:true
   secret_backend_command_allow_group_exec_perm:
     node_type: setting
     type: boolean
@@ -15733,6 +16029,8 @@ properties:
         node_type: setting
         type: string
         default: ${log_path}/security-agent.log
+    tags:
+    - full-agent-only:true
   serializer_compressor_kind:
     node_type: setting
     type: string
@@ -15973,6 +16271,8 @@ properties:
         node_type: setting
         type: string
         default: ${conf_path}/checks.d
+    tags:
+    - full-agent-only:true
   snmp_listener:
     node_type: section
     type: object
@@ -16063,6 +16363,8 @@ properties:
         node_type: setting
         type: integer
         default: 2
+    tags:
+    - full-agent-only:true
   software_inventory:
     node_type: section
     type: object
@@ -16186,10 +16488,14 @@ properties:
     default: []
     items:
       type: string
+    tags:
+    - full-agent-only:true
   statsd_metric_blocklist_match_prefix:
     node_type: setting
     type: boolean
     default: false
+    tags:
+    - full-agent-only:true
   statsd_metric_namespace_blacklist:
     node_type: setting
     type: array
@@ -16293,6 +16599,8 @@ properties:
     node_type: setting
     type: string
     default: /var/run/datadog
+    tags:
+    - full-agent-only:true
   tracemalloc_blacklist:
     node_type: setting
     type: string
@@ -16307,6 +16615,8 @@ properties:
     node_type: setting
     type: boolean
     default: true
+    tags:
+    - full-agent-only:true
     comment: |-
       If true, then new version of disk v2 check will be used.
       Otherwise, the python version of disk check will be used.
@@ -16320,6 +16630,8 @@ properties:
     platform_default:
       darwin: false
       other: true
+    tags:
+    - full-agent-only:true
     comment: |-
       the darwin and bsd network check has not been ported from python
       If true, then new version of network v2 check will be used.
@@ -16376,6 +16688,8 @@ properties:
     node_type: setting
     type: string
     default: ''
+    tags:
+    - full-agent-only:true
     comment: Vsock
   win_skip_com_init:
     node_type: setting
@@ -16385,6 +16699,8 @@ properties:
     node_type: setting
     type: integer
     default: 20
+    tags:
+    - full-agent-only:true
     comment: |-
       Added in Agent version 7.42
       Limits the number of times a check will attempt to initialize a performance counter before ceasing
@@ -16409,6 +16725,8 @@ properties:
     node_type: setting
     type: integer
     default: 60
+    tags:
+    - full-agent-only:true
     comment: |-
       Windows Performance Counter refresh interval in seconds (introduced in 7.40, narrowed down
       in 7.42). Additional information can be found where it is used (refreshPdhObjectCache())
@@ -16439,6 +16757,8 @@ properties:
             default: true
             comment: debug config to enable a remote client to receive data from the
               workloadmeta agent without a timeout
+    tags:
+    - full-agent-only:true
 $schema: https://json-schema.org/draft/2020-12/schema
 $id: https://raw.githubusercontent.com/DataDog/schema/main/agent/datadog.yaml.schema.json
 title: DataDog Agent configuration schema
