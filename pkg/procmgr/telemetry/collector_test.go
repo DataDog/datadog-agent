@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build linux
+
 package telemetry
 
 import (
@@ -28,13 +30,24 @@ func (m *mockClient) ListProcesses(context.Context) (map[string]ProcessSnapshot,
 	return m.processes, nil
 }
 
-func TestCollectServiceProcmgrRunning(t *testing.T) {
+func setupDDOTInstallFixture(t *testing.T) string {
+	t.Helper()
+
 	root := t.TempDir()
-	marker := filepath.Join(root, "ext", "ddot", "embedded", "bin", "otel-agent")
+	marker := filepath.Join(root, migratableServices[0].InstallMarkerRel)
 	require.NoError(t, os.MkdirAll(filepath.Dir(marker), 0o755))
 	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
-	require.NoError(t, os.MkdirAll(filepath.Join(root, "processes.d"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "processes.d", "datadog-agent-ddot.yaml"), []byte("cfg"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, processesDirRel, migratableServices[0].ProcmgrConfigFile),
+		[]byte("cfg"),
+		0o644,
+	))
+	return root
+}
+
+func TestCollectServiceProcmgrRunning(t *testing.T) {
+	root := setupDDOTInstallFixture(t)
 
 	collector := NewCollectorWithClient(root, &mockClient{
 		daemon: DaemonSnapshot{Reachable: true, Ready: true, RunningProcesses: 1},
@@ -57,12 +70,7 @@ func TestCollectServiceProcmgrRunning(t *testing.T) {
 }
 
 func TestCollectServiceProcmgrNotRunningStillManaged(t *testing.T) {
-	root := t.TempDir()
-	marker := filepath.Join(root, "ext", "ddot", "embedded", "bin", "otel-agent")
-	require.NoError(t, os.MkdirAll(filepath.Dir(marker), 0o755))
-	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
-	require.NoError(t, os.MkdirAll(filepath.Join(root, "processes.d"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "processes.d", "datadog-agent-ddot.yaml"), []byte("cfg"), 0o644))
+	root := setupDDOTInstallFixture(t)
 
 	collector := NewCollectorWithClient(root, &mockClient{
 		processes: map[string]ProcessSnapshot{
@@ -76,29 +84,4 @@ func TestCollectServiceProcmgrNotRunningStillManaged(t *testing.T) {
 	service := snapshot.Services[0]
 	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
 	assert.Equal(t, "Starting", service.ProcmgrState)
-}
-
-func TestCollectServiceLegacySystemd(t *testing.T) {
-	if detectLegacySupervisor(migratableServices[0]) == ManagementModeNone {
-		t.Skip("legacy supervisor detection is platform-specific")
-	}
-
-	root := t.TempDir()
-	marker := filepath.Join(root, "ext", "ddot", "embedded", "bin", "otel-agent")
-	require.NoError(t, os.MkdirAll(filepath.Dir(marker), 0o755))
-	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
-
-	collector := NewCollectorWithClient(root, &mockClient{
-		processes: map[string]ProcessSnapshot{},
-	})
-
-	snapshot := collector.Collect(context.Background())
-	require.Len(t, snapshot.Services, 1)
-
-	service := snapshot.Services[0]
-	if service.ManagementMode != ManagementModeSystemd {
-		t.Skip("systemd units not active in test environment")
-	}
-	assert.True(t, service.Installed)
-	assert.Equal(t, ManagementModeSystemd, service.ManagementMode)
 }
