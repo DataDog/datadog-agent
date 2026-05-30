@@ -55,18 +55,34 @@ func StartReporter(ctx context.Context, tlm telemetry.Component) {
 
 	collector := NewCollector()
 	report(ctx, g, collector)
-	go func() {
-		ticker := time.NewTicker(reportInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				report(ctx, g, collector)
-			}
+	go runReporterLoop(ctx, g, collector)
+}
+
+func runReporterLoop(ctx context.Context, g gauges, collector *Collector) {
+	ticker := time.NewTicker(reportInterval)
+	defer ticker.Stop()
+
+	// DDOT install/upgrade can restart procmgr and the agent shortly after the
+	// initial snapshot; refresh a few times before the regular 5-minute cadence.
+	for _, delay := range []time.Duration{30 * time.Second, 2 * time.Minute} {
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+			report(ctx, g, collector)
 		}
-	}()
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			report(ctx, g, collector)
+		}
+	}
 }
 
 func report(ctx context.Context, g gauges, collector *Collector) {
