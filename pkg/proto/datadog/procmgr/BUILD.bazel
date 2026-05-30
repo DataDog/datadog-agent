@@ -1,7 +1,7 @@
-exports_files(["process_manager.proto"])
-
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_go//proto:def.bzl", "go_proto_library")
+
+exports_files(["process_manager.proto"])
 
 proto_library(
     name = "procmgr_proto",
