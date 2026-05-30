@@ -1,0 +1,75 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+# gazelle:exclude cgo_align.go
+
+go_library(
+    name = "ebpftest",
+    srcs = [
+        "bpfdebug_linux.go",
+        "bpfdebug_unsupported.go",
+        "buildmode.go",
+        "buildmode_linux.go",
+        "buildmode_windows.go",
+        "dumpmaps_helper.go",
+        "fail_log.go",
+        "log.go",
+        "trace_pipe.go",
+        "trace_pipe_linux.go",
+        "version_linux.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest",
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "//pkg/util/log/slog",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/config/mock",
+            "//pkg/ebpf/prebuilt",
+            "//pkg/util/funcs",
+            "//pkg/util/kernel",
+            "@com_github_cilium_ebpf//rlimit",
+            "@com_github_datadog_ebpf_manager//tracefs",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/mock",
+            "//pkg/ebpf/prebuilt",
+            "//pkg/util/funcs",
+            "//pkg/util/kernel",
+            "@com_github_cilium_ebpf//rlimit",
+            "@com_github_datadog_ebpf_manager//tracefs",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# keep
+go_library(
+    name = "cgo_align",
+    srcs = ["cgo_align.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+go_test(
+    name = "ebpftest_test",
+    srcs = [
+        "buildmode_test.go",
+        "jobenv_test.go",
+        "trace_pipe_linux_test.go",
+    ],
+    embed = [":ebpftest"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/ebpf",
+        "@com_github_stretchr_testify//assert",
+    ],
+)
