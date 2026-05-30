@@ -17,12 +17,12 @@ import (
 )
 
 const (
-	metricProcmgrDaemonReachable        = "runtime_procmgr_daemon_reachable"
-	metricProcmgrDaemonReady            = "runtime_procmgr_daemon_ready"
-	metricProcmgrProcessRunning         = "runtime_procmgr_process_running"
-	metricAgentServiceInstalled         = "runtime_agent_service_installed"
-	metricAgentServiceProcmgrConfigured = "runtime_agent_service_procmgr_configured"
-	metricAgentServiceManagementMode    = "runtime_agent_service_management_mode"
+	metricProcmgrDaemonReachable        = "runtime__procmgr_daemon_reachable"
+	metricProcmgrDaemonReady            = "runtime__procmgr_daemon_ready"
+	metricProcmgrProcessRunning         = "runtime__procmgr_process_running"
+	metricAgentServiceInstalled         = "runtime__agent_service_installed"
+	metricAgentServiceProcmgrConfigured = "runtime__agent_service_procmgr_configured"
+	metricAgentServiceManagementMode    = "runtime__agent_service_management_mode"
 	ddotServiceID                       = "ddot"
 	ddotManagementModeProcmgr           = "procmgr"
 )
@@ -37,8 +37,6 @@ func AssertProcmgrDDOTTelemetry(t *testing.T, host *components.RemoteHost) {
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		out, err := host.Execute("sudo datadog-agent diagnose show-metadata agent-full-telemetry")
 		require.NoError(c, err)
-		t.Logf("procmgr telemetry gauges:\n%s", filterProcmgrTelemetryOutput(out))
-		logProcmgrDiagnostics(t, host)
 
 		assertTelemetryGaugeTrue(c, out, metricProcmgrDaemonReachable, nil)
 		assertTelemetryGaugeTrue(c, out, metricProcmgrDaemonReady, nil)
@@ -72,44 +70,6 @@ func filterProcmgrTelemetryOutput(output string) string {
 		return "(no procmgr telemetry gauges in agent-full-telemetry output)"
 	}
 	return strings.Join(lines, "\n")
-}
-
-func logProcmgrDiagnostics(t *testing.T, host *components.RemoteHost) {
-	t.Helper()
-
-	installRoot := resolveAgentInstallRoot(host)
-	for _, cmd := range []string{"status", "list"} {
-		out, err := host.Execute(procmgrCLICmd(installRoot, cmd))
-		t.Logf("dd-procmgr %s (err=%v):\n%s", cmd, err, strings.TrimSpace(out))
-	}
-
-	if out, err := host.Execute("test -S " + procmgrSocket + " && ls -la " + procmgrSocket + " 2>&1 || true"); err == nil {
-		t.Logf("procmgr socket:\n%s", strings.TrimSpace(out))
-	}
-
-	for _, unit := range []string{"datadog-agent-procmgr.service", "datadog-agent-procmgr-exp.service"} {
-		out, err := host.Execute("sudo journalctl -u " + unit + " -n 200 --no-pager 2>/dev/null || true")
-		if err != nil {
-			t.Logf("%s journal unavailable: %v", unit, err)
-			continue
-		}
-		if strings.TrimSpace(out) == "" {
-			continue
-		}
-		t.Logf("%s journal:\n%s", unit, strings.TrimSpace(out))
-	}
-
-	if out, err := host.Execute(`sudo journalctl -u datadog-agent.service -n 500 --no-pager 2>/dev/null | grep -iE 'procmgr|telemetry' || true`); err == nil {
-		if trimmed := strings.TrimSpace(out); trimmed != "" {
-			t.Logf("datadog-agent procmgr/telemetry logs:\n%s", trimmed)
-		}
-	}
-
-	if out, err := host.Execute(`test -f /var/log/datadog/dd-procmgr.log && sudo tail -n 200 /var/log/datadog/dd-procmgr.log || true`); err == nil {
-		if trimmed := strings.TrimSpace(out); trimmed != "" {
-			t.Logf("dd-procmgr.log:\n%s", trimmed)
-		}
-	}
 }
 
 func assertTelemetryGaugeTrue(c *assert.CollectT, output, metric string, labels map[string]string) {
