@@ -71,8 +71,23 @@ if [ ! -x /opt/freeware/bin/gcc-8 ]; then
     printf 'ERROR: gcc-8 not found. Install it with: yum install -y gcc8 gcc8-c++\n' >&2
     exit 1
 fi
-CC=/opt/freeware/bin/gcc-8
-CXX=/opt/freeware/bin/g++-8
+
+# Create private gcc/g++ symlinks pointing to gcc-8 in $BUILD_DIR/bin and
+# prepend that directory to PATH. This lets us set CC=gcc (the generic name)
+# so Python records 'gcc' in _sysconfigdata_, not '/opt/freeware/bin/gcc-8'.
+# Customers can then build C extensions (e.g. ibm_db) with any gcc version in
+# their PATH, not just gcc-8 specifically.
+# /opt/freeware/bin/gcc already exists on the build host but points to gcc-13;
+# using a private directory avoids clobbering that symlink.
+mkdir -p "$BUILD_DIR/bin"
+ln -sf /opt/freeware/bin/gcc-8 "$BUILD_DIR/bin/gcc"
+ln -sf /opt/freeware/bin/g++-8 "$BUILD_DIR/bin/g++"
+# $BUILD_DIR/bin is prepended to PATH in the Go toolchain section below,
+# after that section establishes /opt/go/bin and /opt/freeware/bin, so our
+# directory wins the gcc/g++ name lookup.
+
+CC=gcc
+CXX=g++
 NM="/usr/bin/nm -X64"
 ARFLAGS="-X64 -cru"
 OBJECT_MODE=64
@@ -97,7 +112,7 @@ export CFLAGS CXXFLAGS LDFLAGS CPPFLAGS
 
 # ── PATH and Go toolchain ─────────────────────────────────────────────────────
 
-PATH=/opt/go/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:$PATH
+PATH=$BUILD_DIR/bin:/opt/go/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:$PATH
 GOPATH=/home/gopath
 GOROOT=/opt/go
 CGO_ENABLED=1
