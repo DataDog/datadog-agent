@@ -8,10 +8,21 @@ load("@rules_rust_prost//:defs.bzl", "rust_prost_library")
 # ============================================================================
 # Protobuf / gRPC
 # ============================================================================
+#
+# rules_proto requires proto srcs in the same package as the consuming rule.
+# Copy the canonical proto from pkg/proto at build time instead of duplicating
+# or symlinking it in this directory.
+
+genrule(
+    name = "process_manager_proto_file",
+    srcs = ["//pkg/proto/datadog/procmgr:process_manager.proto"],
+    outs = ["proto/process_manager.proto"],
+    cmd = "mkdir -p $$(dirname $@) && cp $< $@",
+)
 
 proto_library(
     name = "process_manager_proto",
-    srcs = ["//pkg/proto/datadog/procmgr:process_manager.proto"],
+    srcs = [":process_manager_proto_file"],
 )
 
 _LINUX_OR_WINDOWS = select({
