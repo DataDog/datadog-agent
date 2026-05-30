@@ -11,7 +11,7 @@ load("@rules_rust_prost//:defs.bzl", "rust_prost_library")
 
 proto_library(
     name = "process_manager_proto",
-    srcs = ["proto/process_manager.proto"],
+    srcs = ["//pkg/proto/datadog/procmgr:process_manager.proto"],
 )
 
 _LINUX_OR_WINDOWS = select({
