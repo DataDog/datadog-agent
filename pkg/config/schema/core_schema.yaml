@@ -310,9 +310,7 @@ properties:
     example: 'true'
     tags:
     - template_section:Common
-    comment: |-
-      Private Action Runner configuration
-      Installer configuration
+    comment: Installer configuration
   tag_value_split_separator:
     node_type: setting
     type: object
@@ -1433,6 +1431,7 @@ properties:
             example: 'false'
             tags:
             - template_section:Common
+            comment: Vector options for traces
           url:
             node_type: setting
             type: string
@@ -1595,14 +1594,6 @@ properties:
     example: <PROCFS_PATH>
     tags:
     - template_section:Agent
-    comment: |-
-      In serverless-containerized environments (e.g Fargate)
-      it's impossible to mount host volumes.
-      Make sure the host paths exist before setting-up the default values.
-      Fallback to the container paths if host paths aren't mounted.
-      Used by some librairies (like gopsutil)
-      for amazon linux the cgroup directory on host is /cgroup/
-      we pick memory.stat to make sure it exists and not empty
   disable_py3_validation:
     node_type: setting
     type: boolean
@@ -3835,6 +3826,22 @@ properties:
                 - system-ns
             tags:
             - template_section:TraceAgent
+          csi_driver_detection_enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            env_vars:
+            - DD_APM_INSTRUMENTATION_CSI_DRIVER_DETECTION_ENABLED
+            tags: []
+            comment: |-
+              Temporary feature flag controlling whether the auto-instrumentation
+              library injection auto provider switches to the CSI provider when the
+              Datadog CSI driver is detected in the cluster (via workloadmeta). When
+              false, the auto provider always falls back to the init-container
+              provider.
+
+              TODO(apm-auto-instrumentation): once CSI auto-detection has been
+              validated in production, remove this flag and the associated wiring in.
           injection_mode:
             node_type: setting
             type: string
@@ -4239,19 +4246,19 @@ properties:
         env_vars:
         - DD_APM_PROFILING_DD_URL
         tags: []
-      profiling_send_to_main_endpoint:
-        node_type: setting
-        type: boolean
-        default: true
-        env_vars:
-        - DD_APM_PROFILING_SEND_TO_MAIN_ENDPOINT
-        tags: []
       profiling_max_request_bytes:
         node_type: setting
         type: integer
         default: 52428800
         env_vars:
         - DD_APM_PROFILING_MAX_REQUEST_BYTES
+        tags: []
+      profiling_send_to_main_endpoint:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_APM_PROFILING_SEND_TO_MAIN_ENDPOINT
         tags: []
       receiver_enabled:
         node_type: setting
@@ -5298,7 +5305,9 @@ properties:
             example: 'false'
             tags:
             - template_section:CoreAgent
-            comment: Synthetics configuration
+            comment: |-
+              Generic resources configuration
+              Synthetics configuration
           workers:
             node_type: setting
             type: integer
@@ -10103,6 +10112,119 @@ properties:
                 node_type: setting
                 type: integer
                 default: 1
+      config_management:
+        node_type: section
+        type: object
+        properties:
+          forwarder:
+            node_type: section
+            type: object
+            properties:
+              additional_endpoints:
+                node_type: setting
+                type: array
+                default: []
+                items:
+                  type: object
+              batch_max_concurrent_send:
+                node_type: setting
+                type: integer
+                default: 0
+              batch_max_content_size:
+                node_type: setting
+                type: integer
+                default: 5000000
+              batch_max_size:
+                node_type: setting
+                type: integer
+                default: 1000
+              batch_wait:
+                node_type: setting
+                type: number
+                default: 5
+                tags:
+                - golang_type:float64
+              compression_kind:
+                node_type: setting
+                type: string
+                default: zstd
+              compression_level:
+                node_type: setting
+                type: integer
+                default: 6
+              connection_reset_interval:
+                node_type: setting
+                type: integer
+                default: 0
+              dd_url:
+                node_type: setting
+                type: string
+                default: ''
+              dev_mode_no_ssl:
+                node_type: setting
+                type: boolean
+                default: false
+                tags:
+                - no-env
+              input_chan_size:
+                node_type: setting
+                type: integer
+                default: 100
+              logs_dd_url:
+                node_type: setting
+                type: string
+                default: ''
+              logs_no_ssl:
+                node_type: setting
+                type: boolean
+                default: false
+              sender_backoff_base:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+              sender_backoff_factor:
+                node_type: setting
+                type: number
+                default: 2
+                tags:
+                - golang_type:float64
+              sender_backoff_max:
+                node_type: setting
+                type: number
+                default: 120
+                tags:
+                - golang_type:float64
+              sender_recovery_interval:
+                node_type: setting
+                type: integer
+                default: 2
+              sender_recovery_reset:
+                node_type: setting
+                type: boolean
+                default: false
+              use_compression:
+                node_type: setting
+                type: boolean
+                default: true
+              use_v2_api:
+                node_type: setting
+                type: boolean
+                default: true
+              zstd_compression_level:
+                node_type: setting
+                type: integer
+                default: 1
+          rollback:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+                comment: Network Config Management
       metadata:
         node_type: section
         type: object
@@ -11439,6 +11561,14 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+          holt_residual:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
           log_metrics_extractor:
             node_type: section
             type: object
@@ -11488,22 +11618,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
-          holt_residual:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
-          tukey_biweight:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
           time_cluster:
             node_type: section
             type: object
@@ -11516,6 +11630,14 @@ properties:
                 node_type: setting
                 type: integer
                 default: 0
+          tukey_biweight:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
       enabled:
         node_type: setting
         type: boolean
@@ -11526,6 +11648,14 @@ properties:
         node_type: section
         type: object
         properties:
+          containers:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
           enabled:
             node_type: setting
             type: boolean
@@ -11533,6 +11663,14 @@ properties:
             comment: |-
               Log ingestion gate. When false, container/journald logs are not routed
               into the anomaly detection pipeline (recording is unaffected).
+          kubelet:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
       metrics:
         node_type: section
         type: object
@@ -13772,22 +13910,16 @@ properties:
           type: object
       batch_max_concurrent_send:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       batch_max_content_size:
         node_type: setting
-        type: number
+        type: integer
         default: 5000000
-        tags:
-        - golang_type:int
       batch_max_size:
         node_type: setting
-        type: number
+        type: integer
         default: 1000
-        tags:
-        - golang_type:int
       batch_wait:
         node_type: setting
         type: number
@@ -13800,16 +13932,12 @@ properties:
         default: zstd
       compression_level:
         node_type: setting
-        type: number
+        type: integer
         default: 6
-        tags:
-        - golang_type:int
       connection_reset_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 0
-        tags:
-        - golang_type:int
       dd_url:
         node_type: setting
         type: string
@@ -13822,10 +13950,8 @@ properties:
         - no-env
       input_chan_size:
         node_type: setting
-        type: number
+        type: integer
         default: 100
-        tags:
-        - golang_type:int
       logs_dd_url:
         node_type: setting
         type: string
@@ -13854,10 +13980,8 @@ properties:
         - golang_type:float64
       sender_recovery_interval:
         node_type: setting
-        type: number
+        type: integer
         default: 2
-        tags:
-        - golang_type:int
       sender_recovery_reset:
         node_type: setting
         type: boolean
@@ -13872,10 +13996,8 @@ properties:
         default: true
       zstd_compression_level:
         node_type: setting
-        type: number
+        type: integer
         default: 1
-        tags:
-        - golang_type:int
   go_core_dump:
     node_type: setting
     type: boolean
@@ -14814,119 +14936,6 @@ properties:
         platform_default:
           darwin: false
           other: true
-  network_config_management:
-    node_type: section
-    type: object
-    properties:
-      forwarder:
-        node_type: section
-        type: object
-        properties:
-          additional_endpoints:
-            node_type: setting
-            type: array
-            default: []
-            items:
-              type: object
-          batch_max_concurrent_send:
-            node_type: setting
-            type: integer
-            default: 0
-          batch_max_content_size:
-            node_type: setting
-            type: integer
-            default: 5000000
-          batch_max_size:
-            node_type: setting
-            type: integer
-            default: 1000
-          batch_wait:
-            node_type: setting
-            type: number
-            default: 5
-            tags:
-            - golang_type:float64
-          compression_kind:
-            node_type: setting
-            type: string
-            default: zstd
-          compression_level:
-            node_type: setting
-            type: integer
-            default: 6
-          connection_reset_interval:
-            node_type: setting
-            type: integer
-            default: 0
-          dd_url:
-            node_type: setting
-            type: string
-            default: ''
-          dev_mode_no_ssl:
-            node_type: setting
-            type: boolean
-            default: false
-            tags:
-            - no-env
-          input_chan_size:
-            node_type: setting
-            type: integer
-            default: 100
-          logs_dd_url:
-            node_type: setting
-            type: string
-            default: ''
-          logs_no_ssl:
-            node_type: setting
-            type: boolean
-            default: false
-          sender_backoff_base:
-            node_type: setting
-            type: number
-            default: 1
-            tags:
-            - golang_type:float64
-          sender_backoff_factor:
-            node_type: setting
-            type: number
-            default: 2
-            tags:
-            - golang_type:float64
-          sender_backoff_max:
-            node_type: setting
-            type: number
-            default: 120
-            tags:
-            - golang_type:float64
-          sender_recovery_interval:
-            node_type: setting
-            type: integer
-            default: 2
-          sender_recovery_reset:
-            node_type: setting
-            type: boolean
-            default: false
-          use_compression:
-            node_type: setting
-            type: boolean
-            default: true
-          use_v2_api:
-            node_type: setting
-            type: boolean
-            default: true
-          zstd_compression_level:
-            node_type: setting
-            type: integer
-            default: 1
-      rollback:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
-            comment: Network Config Management
   notable_events:
     node_type: section
     type: object
