@@ -72,11 +72,8 @@ func (c *Collector) collectService(service MigratableService, processes map[stri
 
 	if process, ok := processes[service.ProcmgrProcessName]; ok {
 		status.ProcmgrState = process.State
-		if process.State == "Running" {
-			status.ProcmgrRunning = true
-			status.ManagementMode = ManagementModeProcmgr
-			return status
-		}
+		status.ManagementMode = ManagementModeProcmgr
+		return status
 	}
 
 	if legacyMode := detectLegacySupervisor(service); legacyMode != ManagementModeNone {

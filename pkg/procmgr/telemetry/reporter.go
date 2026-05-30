@@ -83,7 +83,7 @@ func report(ctx context.Context, g gauges, collector *Collector) {
 
 		setBoolGauge(g.serviceInstalled, service.Installed, service.ID)
 		setBoolGauge(g.serviceProcmgrConfigured, service.ProcmgrConfigured, service.ID)
-		setBoolGauge(g.processRunning, service.ProcmgrRunning, spec.ProcmgrProcessName)
+		setBoolGauge(g.processRunning, service.ProcmgrState == "Running", spec.ProcmgrProcessName)
 
 		for _, mode := range managementModes {
 			setBoolGauge(g.serviceManagementMode, service.ManagementMode == mode, service.ID, string(mode))

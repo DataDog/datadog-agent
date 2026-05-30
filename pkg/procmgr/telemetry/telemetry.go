@@ -57,7 +57,6 @@ type ServiceSnapshot struct {
 	ID                string
 	Installed         bool
 	ProcmgrConfigured bool
-	ProcmgrRunning    bool
 	ProcmgrState      string
 	ManagementMode    ManagementMode
 }
