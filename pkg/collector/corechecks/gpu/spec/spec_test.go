@@ -21,6 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
+func ptrTo[T any](v T) *T {
+	return &v
+}
+
 func TestLoadSpecNotEmpty(t *testing.T) {
 	specs, err := LoadSpecs()
 	require.NoError(t, err)
@@ -232,6 +236,37 @@ func TestLoadedMetricsIncludeMetadata(t *testing.T) {
 	}
 }
 
+func TestUnsupportedFieldsForModeIncludesHigherNVLinkGenerations(t *testing.T) {
+	archSpecs := &ArchitecturesSpec{
+		NVLinkGenerations: map[int]FieldSupportSpec{
+			1: {SupportedFields: []string{"FI_DEV_NVLINK_LINK_COUNT"}},
+			2: {SupportedFields: []string{"FI_DEV_NVLINK_THROUGHPUT_DATA_RX"}},
+			3: {SupportedFields: []string{"FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT"}},
+		},
+		C2C: FieldSupportSpec{SupportedFields: []string{"FI_DEV_C2C_LINK_ERROR_INTR"}},
+	}
+	archSpec := ArchitectureSpec{
+		Support: []ArchitectureSupportSpec{
+			{
+				DeviceModes: []DeviceMode{DeviceModePhysical},
+				Capabilities: ArchitectureCapabilitiesOverride{
+					NVLink: ptrTo(1),
+					C2C:    ptrTo(false),
+				},
+				UnsupportedFields: []string{"FI_DEV_MEMORY_TEMP"},
+			},
+		},
+	}
+
+	unsupported := archSpec.UnsupportedFieldsForMode(DeviceModePhysical, archSpecs)
+
+	assert.Contains(t, unsupported, "FI_DEV_MEMORY_TEMP")
+	assert.NotContains(t, unsupported, "FI_DEV_NVLINK_LINK_COUNT")
+	assert.Contains(t, unsupported, "FI_DEV_NVLINK_THROUGHPUT_DATA_RX")
+	assert.Contains(t, unsupported, "FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT")
+	assert.Contains(t, unsupported, "FI_DEV_C2C_LINK_ERROR_INTR")
+}
+
 // TestMockCapabilitiesMatchArchitectureSpec ensures that for each architecture and supported device mode,
 // the NVML mock configured from architectures.yaml returns API behavior that matches the capability flags
 // (gpm, unsupported_fields_by_device_mode). This validates that the mock actually applies the spec.
@@ -244,7 +279,7 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 		subtestName := fmt.Sprintf("arch=%s/mode=%s", config.Architecture, config.DeviceMode)
 		t.Run(subtestName, func(t *testing.T) {
 			archSpec := specs.Architectures.Architectures[config.Architecture]
-			opts := BuildMockOptionsForConfig(t, config, archSpec)
+			opts := BuildMockOptionsForConfig(t, config, specs.Architectures, archSpec)
 
 			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
 
@@ -257,7 +292,8 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 			support, err := dev.GpmQueryDeviceSupport()
 			require.NoError(t, err, "GpmQueryDeviceSupport should not report an error")
 			expected := uint32(0)
-			if archSpec.Capabilities.GPM {
+			effectiveCapabilities := archSpec.EffectiveCapabilities(config.DeviceMode)
+			if effectiveCapabilities.GPM {
 				expected = 1
 			}
 			if config.DeviceMode == DeviceModeVGPU {
@@ -265,19 +301,32 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 				// where physical devices support GPM.
 				expected = 0
 			}
-			assert.Equal(t, expected, support.IsSupportedDevice, "GpmQueryDeviceSupport.IsSupportedDevice should be %d when gpm=%v", expected, archSpec.Capabilities.GPM)
+			assert.Equal(t, expected, support.IsSupportedDevice, "GpmQueryDeviceSupport.IsSupportedDevice should be %d when gpm=%v", expected, effectiveCapabilities.GPM)
 
 			// Check also that GpmSampleGet returns NOT_SUPPORTED when GPM is not supported
 			var sample testutil.MockGpmSample
 			err = dev.GpmSampleGet(sample)
-			if archSpec.Capabilities.GPM && config.DeviceMode != DeviceModeVGPU {
+			if effectiveCapabilities.GPM && config.DeviceMode != DeviceModeVGPU {
 				require.NoError(t, err, "GpmSampleGet should not return an error")
 			} else {
 				require.Error(t, err, "GpmSampleGet should return an error")
 				require.True(t, ddnvml.IsUnsupported(err), "GpmSampleGet should return an API_UNSUPPORTED_ON_DEVICE error")
 			}
 
-			unsupportedIDs := UnsupportedFieldIDsForMode(t, archSpec, config.DeviceMode)
+			nvlinkState, err := dev.GetNvLinkState(0)
+			if effectiveCapabilities.NVLink > 0 {
+				require.NoError(t, err, "GetNvLinkState should not return an error")
+				if config.NVLinkLinkCount > 0 {
+					assert.Equal(t, nvml.FEATURE_ENABLED, nvlinkState, "GetNvLinkState should report enabled when NVLink links are active")
+				} else {
+					assert.Equal(t, nvml.FEATURE_DISABLED, nvlinkState, "GetNvLinkState should report disabled when no NVLink links are active")
+				}
+			} else {
+				require.Error(t, err, "GetNvLinkState should return an error")
+				require.True(t, ddnvml.IsUnsupported(err), "GetNvLinkState should return an API_UNSUPPORTED_ON_DEVICE error")
+			}
+
+			unsupportedIDs := UnsupportedFieldIDsForConfig(t, specs.Architectures, archSpec, config.DeviceMode)
 			unsupportedSet := make(map[uint32]struct{}, len(unsupportedIDs))
 			for _, id := range unsupportedIDs {
 				unsupportedSet[id] = struct{}{}
@@ -310,8 +359,9 @@ func TestBuildMockOptionsCreatesCorrectDevices(t *testing.T) {
 		require.True(t, IsModeSupportedByArchitecture(arch, mode))
 
 		t.Run(string(mode), func(t *testing.T) {
-			config := GPUConfig{Architecture: archName, DeviceMode: mode}
-			opts := BuildMockOptionsForConfig(t, config, arch)
+			capabilities := arch.EffectiveCapabilities(mode)
+			config := GPUConfig{Architecture: archName, DeviceMode: mode, Capabilities: capabilities}
+			opts := BuildMockOptionsForConfig(t, config, archSpec, arch)
 			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
 
 			lib, err := ddnvml.GetSafeNvmlLib()
