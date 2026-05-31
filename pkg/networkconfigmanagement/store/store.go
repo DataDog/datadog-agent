@@ -117,7 +117,7 @@ func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType,
 	// Setup + marshal everything first (does not require DB lock)
 	configUUID := uuid.New().String()
 	now := time.Now().Unix()
-	rawHash := hashConfig(rawConfig)
+	rawHash := HashConfig(rawConfig)
 
 	// Raw text
 	rawConfigJSON, err := json.Marshal(rawConfig)
@@ -273,8 +273,8 @@ func (cs *configStore) DeleteConfig(key string) error {
 	})
 }
 
-// hashConfig returns a SHA-256 hash of the config content as a string
-func hashConfig(raw string) string {
+// HashConfig returns a SHA-256 hash of the config content as a string
+func HashConfig(raw string) string {
 	hash := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(hash[:])
 }
