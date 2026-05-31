@@ -29,6 +29,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -39,6 +40,10 @@ type MockDCAClient struct {
 func (m *MockDCAClient) PostLanguageMetadata(_ context.Context, request *pbgo.ParentLanguageAnnotationRequest) error {
 	go func() { m.respCh <- request }()
 	return nil
+}
+
+func (m *MockDCAClient) PostKSMAggregates(_ context.Context, _ clusteragent.KSMNodePartialRequest) (clusteragent.KSMNodePartialReply, error) {
+	return clusteragent.KSMNodePartialReply{}, nil
 }
 
 func newTestClient(t *testing.T) (*languageDetectionClientImpl, chan *pbgo.ParentLanguageAnnotationRequest) {

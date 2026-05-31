@@ -444,3 +444,20 @@ func defaultMetricAggregators() map[string]metricAggregator {
 		),
 	}
 }
+
+// clusterAggregateSourceMetrics are the 4 KSM source metric families whose
+// aggregated outputs (.total) are emitted by the cluster-agent exclusively in
+// node_kubelet/cluster_aggregates_only topology.
+var clusterAggregateSourceMetrics = map[string]struct{}{
+	"kube_pod_container_resource_with_owner_tag_requests":      {},
+	"kube_pod_container_resource_with_owner_tag_limits":        {},
+	"kube_pod_init_container_resource_with_owner_tag_requests": {},
+	"kube_pod_init_container_resource_with_owner_tag_limits":   {},
+}
+
+// isClusterAggregateSourceMetric returns true when name is one of the 4 source
+// families whose .total aggregation must come from a single authoritative source.
+func isClusterAggregateSourceMetric(name string) bool {
+	_, ok := clusterAggregateSourceMetrics[name]
+	return ok
+}

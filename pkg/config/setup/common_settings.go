@@ -323,6 +323,18 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.max_leader_connections", 100)
 	config.BindEnvAndSetDefault("cluster_agent.client_reconnect_period_seconds", 1200)
 	config.BindEnvAndSetDefault("cluster_agent.collect_kubernetes_tags", false)
+	// Enables KSM cluster-aggregate (.total) collection via node-agent → cluster-agent
+	// push: node agents push per-node partials and suppress local .total emission; the
+	// cluster-agent combines them into the authoritative series. MUST be set cluster-wide
+	// — on BOTH the node agents (so they push + suppress) and the cluster-agent (so it
+	// serves the endpoint + runs the emitter) — alongside pod_collection_mode:
+	// cluster_aggregates_only on the cluster-agent. If set only on the cluster-agent, no
+	// node partials are pushed and no .total is produced.
+	config.BindEnvAndSetDefault("kubernetes_state_core.cluster_aggregates.enabled", false)
+	// How long a pushed per-node partial is considered fresh by the cluster-agent. Must
+	// exceed the node KSM collection interval; partials older than this are dropped from
+	// the combined .total. Default 300s tolerates intervals well above the 15s default.
+	config.BindEnvAndSetDefault("kubernetes_state_core.cluster_aggregates.partial_ttl_seconds", 300)
 	config.BindEnvAndSetDefault("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude", []string{
 		`^kubectl\.kubernetes\.io\/last-applied-configuration$`,
 		`^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$`,

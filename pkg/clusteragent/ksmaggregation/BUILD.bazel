@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ksmaggregation",
+    srcs = ["store.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/ksmaggregation",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/kubestatemetrics/store"],
+)
+
+go_test(
+    name = "ksmaggregation_test",
+    srcs = ["store_test.go"],
+    embed = [":ksmaggregation"],
+    gotags = ["test"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

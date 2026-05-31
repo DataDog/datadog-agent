@@ -43,6 +43,7 @@ const (
 	// RealIPHeader refers to the cluster level check runner ip passed in the request headers
 	RealIPHeader          = "X-Real-Ip"
 	languageDetectionPath = "api/v1/languagedetection"
+	ksmAggregationPath    = "api/v1/ksmaggregation"
 )
 
 var globalClusterAgentClient *DCAClient
@@ -89,7 +90,27 @@ type DCAClientInterface interface {
 	GetKubernetesClusterID() (string, error)
 
 	PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error
+	PostKSMAggregates(ctx context.Context, req KSMNodePartialRequest) (KSMNodePartialReply, error)
 	SupportsNamespaceMetadataCollection() bool
+}
+
+// KSMAggValue is a single label+value pair from a node's pre-aggregated KSM source metric.
+type KSMAggValue struct {
+	Labels map[string]string `json:"labels"`
+	Value  float64           `json:"value"`
+}
+
+// KSMNodePartialRequest is sent by a node agent to the cluster-agent to contribute its
+// share of the cluster-wide KSM .total aggregates.
+type KSMNodePartialRequest struct {
+	NodeName string                   `json:"node_name"`
+	Metrics  map[string][]KSMAggValue `json:"metrics"` // source_metric_name → []label+val
+}
+
+// KSMNodePartialReply is the cluster-agent's response to a KSMNodePartialRequest.
+type KSMNodePartialReply struct {
+	Accepted      bool `json:"accepted"`
+	SuppressLocal bool `json:"suppress_local"` // true → node should drop its local .total
 }
 
 // DCAClient is required to query the API of Datadog cluster agent
@@ -495,6 +516,24 @@ func (c *DCAClient) PostLanguageMetadata(ctx context.Context, data *pbgo.ParentL
 	// query https://host:port/api/v1/languagedetection without expecting a response
 	_, err = c.doQuery(ctx, languageDetectionPath, "POST", bytes.NewBuffer(queryBody), false, false)
 	return err
+}
+
+// PostKSMAggregates sends a node-local KSM partial to the cluster-agent and returns the
+// verdict (whether this node should suppress its local .total emission).
+func (c *DCAClient) PostKSMAggregates(ctx context.Context, req KSMNodePartialRequest) (KSMNodePartialReply, error) {
+	body, err := json.Marshal(req)
+	if err != nil {
+		return KSMNodePartialReply{}, err
+	}
+	respBody, err := c.doQuery(ctx, ksmAggregationPath, "POST", bytes.NewBuffer(body), true, false)
+	if err != nil {
+		return KSMNodePartialReply{}, err
+	}
+	var reply KSMNodePartialReply
+	if err := json.Unmarshal(respBody, &reply); err != nil {
+		return KSMNodePartialReply{}, err
+	}
+	return reply, nil
 }
 
 // SupportsNamespaceMetadataCollection returns true only if the cluster agent supports collecting namespace metadata
