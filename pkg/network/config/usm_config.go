@@ -138,6 +138,11 @@ type USMConfig struct {
 	// MaxPostgresTelemetryBuffer represents the maximum size of the telemetry buffer size for Postgres
 	MaxPostgresTelemetryBuffer int
 
+	// PostgresUseDirectConsumer forces the use of direct consumer for Postgres monitoring instead of batch consumer
+	// When true, direct consumer is used if kernel supports it (>=5.8.0), otherwise falls back to batch consumer
+	// When false (default), batch consumer is always used regardless of kernel version
+	PostgresUseDirectConsumer bool
+
 	// ========================================
 	// Redis Protocol Configuration
 	// ========================================
@@ -227,6 +232,7 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		EnablePostgresMonitoring:   cfg.GetBool(sysconfig.FullKeyPath(smNS, "postgres", "enabled")),
 		MaxPostgresStatsBuffered:   cfg.GetInt(sysconfig.FullKeyPath(smNS, "postgres", "max_stats_buffered")),
 		MaxPostgresTelemetryBuffer: cfg.GetInt(sysconfig.FullKeyPath(smNS, "postgres", "max_telemetry_buffer")),
+		PostgresUseDirectConsumer:  cfg.GetBool(sysconfig.FullKeyPath(smNS, "postgres", "use_direct_consumer")),
 
 		// Redis Protocol Configuration
 		EnableRedisMonitoring: cfg.GetBool(sysconfig.FullKeyPath(smNS, "redis", "enabled")),

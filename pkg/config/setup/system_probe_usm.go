@@ -118,6 +118,7 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("service_monitoring_config.postgres.enabled", false)
 	cfg.BindEnvAndSetDefault("service_monitoring_config.postgres.max_stats_buffered", 100000)
 	cfg.BindEnvAndSetDefault("service_monitoring_config.postgres.max_telemetry_buffer", 160)
+	cfg.BindEnvAndSetDefault("service_monitoring_config.postgres.use_direct_consumer", false)
 
 	// ========================================
 	// Redis Protocol Configuration

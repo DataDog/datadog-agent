@@ -82,6 +82,22 @@ static __always_inline __maybe_unused u32 pktbuf_data_end(pktbuf_t pkt)
     return 0;
 }
 
+// Returns the underlying program context for the packet, suitable as the
+// first argument to bpf_perf_event_output (the socket-filter skb for SKB
+// packets, the uprobe pt_regs for TLS packets).
+static __always_inline __maybe_unused void* pktbuf_get_ctx(pktbuf_t pkt)
+{
+    switch (pkt.type) {
+    case PKTBUF_SKB:
+        return (void *)pkt.skb;
+    case PKTBUF_TLS:
+        return (void *)pkt.ctx;
+    }
+
+    pktbuf_invalid_operation();
+    return NULL;
+}
+
 static __always_inline long pktbuf_load_bytes_with_telemetry(pktbuf_t pkt, u32 offset, void *to, u32 len)
 {
     switch (pkt.type) {

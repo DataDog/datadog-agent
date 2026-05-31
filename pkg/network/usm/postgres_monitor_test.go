@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
@@ -768,6 +769,69 @@ func getPostgresDefaultTestConfiguration(enableTLS bool) *config.Config {
 	cfg.GoTLSExcludeSelf = false
 	cfg.BypassEnabled = true
 	return cfg
+}
+
+// TestDirectConsumerFunctionality verifies that Postgres stats are captured when the
+// direct consumer is enabled (kernel >= 5.8.0), for both plaintext and GoTLS traffic,
+// mirroring the batch-consumer path. The TLS case also exercises the uprobe emit path
+// (pktbuf_get_ctx -> postgres_output_event with a pt_regs context).
+func (s *postgresProtocolParsingSuite) TestDirectConsumerFunctionality() {
+	t := s.T()
+
+	// Skip test if kernel version doesn't support direct consumer
+	if !events.SupportsDirectConsumer() {
+		t.Skip("Direct consumer requires kernel >= 5.8.0")
+	}
+
+	for name, isTLS := range map[string]bool{"without TLS": false, "with TLS": true} {
+		t.Run(name, func(t *testing.T) {
+			if isTLS && !gotlstestutil.GoTLSSupported(t, config.New()) {
+				t.Skip("GoTLS not supported for this setup")
+			}
+			s.testDirectConsumerFunctionality(t, isTLS)
+		})
+	}
+}
+
+func (s *postgresProtocolParsingSuite) testDirectConsumerFunctionality(t *testing.T, isTLS bool) {
+	serverHost := "127.0.0.1"
+	serverAddress := net.JoinHostPort(serverHost, postgresPort)
+	require.NoError(t, postgres.RunServer(t, serverHost, postgresPort, isTLS))
+	waitForPostgresServer(t, serverAddress, isTLS)
+
+	// With non-TLS, packets are seen twice (Docker), so the expected count is doubled.
+	// In the TLS case the data comes from uprobes on the binary, so it is seen once.
+	adjustCount := func(count int) int {
+		if isTLS {
+			return count
+		}
+		return count * 2
+	}
+
+	// Enable the direct consumer for Postgres.
+	cfg := getPostgresDefaultTestConfiguration(isTLS)
+	cfg.PostgresUseDirectConsumer = true
+
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+	if isTLS {
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
+	}
+
+	pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+		ServerAddress: serverAddress,
+		EnableTLS:     isTLS,
+	})
+	require.NoError(t, err)
+	require.NoError(t, pg.Ping())
+	t.Cleanup(pg.Close)
+
+	require.NoError(t, pg.RunQuery(createTableQuery))
+
+	validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+		"dummy": {
+			postgres.CreateTableOP: adjustCount(1),
+		},
+	}, isTLS)
 }
 
 func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]map[postgres.Operation]int, tls bool) {

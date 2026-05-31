@@ -1,6 +1,7 @@
 #ifndef __POSTGRES_USM_EVENTS_H
 #define __POSTGRES_USM_EVENTS_H
 
+#include "protocols/direct_consumer.h"
 #include "protocols/events.h"
 #include "protocols/postgres/types.h"
 
@@ -8,5 +9,8 @@
 #define POSTGRES_BATCH_SIZE (MAX_BATCH_SIZE(postgres_event_t))
 
 USM_EVENTS_INIT(postgres, postgres_event_t, POSTGRES_BATCH_SIZE);
+
+// Initialize DirectConsumer utilities for Postgres protocol
+USM_DIRECT_CONSUMER_INIT(postgres, postgres_event_t, postgres_batch_events)
 
 #endif

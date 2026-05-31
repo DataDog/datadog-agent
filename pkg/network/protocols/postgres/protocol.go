@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -52,7 +53,8 @@ const (
 type protocol struct {
 	cfg                   *config.Config
 	telemetry             *Telemetry
-	eventsConsumer        *events.BatchConsumer[postgresebpf.EbpfEvent]
+	consumer              *events.KernelAdaptiveConsumer[postgresebpf.EbpfEvent]
+	useDirectConsumer     bool
 	mapCleaner            *ddebpf.MapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx]
 	statskeeper           *StatKeeper
 	kernelTelemetry       *kernelTelemetry // retrieves Postgres metrics from kernel
@@ -156,14 +158,29 @@ func newPostgresProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Pr
 		return nil, nil
 	}
 
-	return &protocol{
+	p := &protocol{
 		cfg:                   cfg,
 		telemetry:             NewTelemetry(cfg),
 		statskeeper:           NewStatkeeper(cfg),
 		kernelTelemetry:       newKernelTelemetry(),
 		kernelTelemetryStopCh: make(chan struct{}),
 		mgr:                   mgr,
-	}, nil
+	}
+
+	// Create adaptive consumer that determines kernel version and callback internally
+	if err := p.createAdaptiveConsumer(); err != nil {
+		return nil, err
+	}
+
+	return p, nil
+}
+
+// Modifiers implements the ModifierProvider interface
+func (p *protocol) Modifiers() []ddebpf.Modifier {
+	if p.consumer == nil {
+		return nil
+	}
+	return p.consumer.Modifiers()
 }
 
 // Name returns the name of the protocol.
@@ -177,31 +194,47 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	netifProbeID := manager.ProbeIdentificationPair{
-		EBPFFuncName: netifProbe,
-		UID:          eventStream,
+
+	// Only activate the flush tracepoint when using BatchConsumer.
+	// DirectConsumer doesn't need it since it uses direct event output.
+	if !p.useDirectConsumer {
+		netifProbeID := manager.ProbeIdentificationPair{
+			EBPFFuncName: netifProbe,
+			UID:          eventStream,
+		}
+		if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
+			netifProbeID.EBPFFuncName = netifProbe414
+		}
+		opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
+	} else {
+		// When using DirectConsumer, exclude flush probes to avoid loading/verifying them
+		opts.ExcludedFunctions = append(opts.ExcludedFunctions, netifProbe, netifProbe414)
 	}
-	if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
-		netifProbeID.EBPFFuncName = netifProbe414
-	}
-	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
+
 	utils.EnableOption(opts, "postgres_monitoring_enabled")
+	utils.AddBoolConst(opts, p.useDirectConsumer, "postgres_use_direct_consumer")
+
 	// Configure event stream
 	events.Configure(p.cfg, eventStream, p.mgr, opts)
 }
 
 // PreStart runs setup required before starting the protocol.
 func (p *protocol) PreStart() (err error) {
-	p.eventsConsumer, err = events.NewBatchConsumer(
-		eventStream,
-		p.mgr,
-		p.processPostgres,
-	)
-	if err != nil {
-		return
+	// If using BatchConsumer, create it now (after manager initialization).
+	// The DirectConsumer is already created in the factory via createAdaptiveConsumer().
+	if !p.useDirectConsumer {
+		batchConsumer, err := events.NewBatchConsumer(eventStream, p.mgr, p.processPostgres)
+		if err != nil {
+			return err
+		}
+		p.consumer = events.NewKernelAdaptiveConsumer[postgresebpf.EbpfEvent](
+			batchConsumer,
+			[]ddebpf.Modifier{}, // BatchConsumer needs no modifiers
+		)
 	}
 
-	p.eventsConsumer.Start()
+	// Start the consumer (works for both DirectConsumer and BatchConsumer)
+	p.consumer.Start()
 
 	return
 }
@@ -219,8 +252,8 @@ func (p *protocol) Stop() {
 	// mapCleaner handles nil pointer receivers
 	p.mapCleaner.Stop()
 
-	if p.eventsConsumer != nil {
-		p.eventsConsumer.Stop()
+	if p.consumer != nil {
+		p.consumer.Stop()
 	}
 	if p.kernelTelemetryStopCh != nil {
 		close(p.kernelTelemetryStopCh)
@@ -258,7 +291,7 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 
 // GetStats returns a map of Postgres stats and a callback to clean resources.
 func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
-	p.eventsConsumer.Sync()
+	p.consumer.Sync()
 	p.kernelTelemetry.Log()
 
 	stats := p.statskeeper.GetAndResetAllStats()
@@ -285,6 +318,48 @@ func (p *protocol) processPostgres(events []postgresebpf.EbpfEvent) {
 		p.statskeeper.Process(eventWrapper)
 		p.telemetry.Count(tx, eventWrapper)
 	}
+}
+
+func (p *protocol) processPostgresDirect(event *postgresebpf.EbpfEvent) {
+	eventWrapper := NewEventWrapper(event)
+	p.statskeeper.Process(eventWrapper)
+	p.telemetry.Count(event, eventWrapper)
+}
+
+// createAdaptiveConsumer creates the appropriate consumer based on configuration and kernel version
+// and determines which callback method to use internally.
+func (p *protocol) createAdaptiveConsumer() error {
+	// Check if direct consumer is explicitly requested via configuration
+	if p.cfg.PostgresUseDirectConsumer {
+		if events.SupportsDirectConsumer() {
+			// Use DirectConsumer for kernel ≥5.8 (supports bpf_perf_event_output in socket filters)
+			directConsumer, err := events.NewDirectConsumer(eventStream, p.processPostgresDirect, p.cfg)
+			if err != nil {
+				return err
+			}
+			p.consumer = events.NewKernelAdaptiveConsumer[postgresebpf.EbpfEvent](
+				directConsumer,
+				[]ddebpf.Modifier{&directConsumer.EventHandler},
+			)
+			p.useDirectConsumer = true
+			log.Debugf("Postgres monitoring: using direct consumer (requested via configuration)")
+		} else {
+			// Fall back to BatchConsumer on unsupported kernels
+			kernelVersion, err := kernel.HostVersion()
+			if err != nil {
+				log.Warnf("Postgres monitoring: direct consumer requested but unable to determine kernel version (%v), falling back to batch consumer", err)
+			} else {
+				log.Warnf("Postgres monitoring: direct consumer requested but kernel version %v < 5.8.0, falling back to batch consumer", kernelVersion)
+			}
+			p.useDirectConsumer = false
+		}
+	} else {
+		// Default behavior: use BatchConsumer regardless of kernel version
+		log.Debugf("Postgres monitoring: using batch consumer (default behavior)")
+		p.useDirectConsumer = false
+	}
+
+	return nil
 }
 
 func (p *protocol) setupMapCleaner() {

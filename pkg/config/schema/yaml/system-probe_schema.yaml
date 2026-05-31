@@ -1006,6 +1006,10 @@ properties:
             node_type: setting
             type: integer
             default: 160
+          use_direct_consumer:
+            node_type: setting
+            type: boolean
+            default: false
       process_service_inference:
         node_type: section
         type: object
