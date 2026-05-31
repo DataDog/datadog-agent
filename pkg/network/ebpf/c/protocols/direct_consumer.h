@@ -4,6 +4,13 @@
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
 
+// Stringify helper for building per-stream LOAD_CONSTANT names (e.g.
+// "http2_ringbuffer_wakeup_size"). Mirrors events.h; guarded so it does not
+// clash when both headers are included in the same translation unit.
+#ifndef _STR
+#define _STR(x) #x
+#endif
+
 /* USM_DIRECT_CONSUMER_INIT defines utility functions for DirectConsumer pattern.
    DirectConsumer is used for kernel >= 5.8 where events are sent directly via
    bpf_perf_event_output/bpf_ringbuf_output instead of map-based batching.
@@ -20,7 +27,10 @@
 #define USM_DIRECT_CONSUMER_INIT(name, event_type, map_name)                                                \
     static __always_inline __u64 name##_get_ringbuf_flags(size_t data_size) {                               \
         __u64 ringbuffer_wakeup_size = 0;                                                                   \
-        LOAD_CONSTANT("ringbuffer_wakeup_size", ringbuffer_wakeup_size);                                    \
+        /* Per-stream constant: protocols with two simultaneous streams (e.g. http2 +     \
+           terminated_http2) need independent wakeup thresholds, so the name is namespaced \
+           by `name` to match the Go side (NewDirectConsumer installs <proto>_ringbuffer_wakeup_size). */ \
+        LOAD_CONSTANT(_STR(name##_ringbuffer_wakeup_size), ringbuffer_wakeup_size);                                    \
         if (ringbuffer_wakeup_size == 0) {                                                                  \
             return 0;                                                                                       \
         }                                                                                                   \

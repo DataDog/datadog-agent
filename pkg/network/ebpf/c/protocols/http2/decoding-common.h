@@ -124,7 +124,7 @@ static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_
 // stream, before it actually enqueues the stream's stats.
 //
 // See RFC 7540 section 5.1: https://datatracker.ietf.org/doc/html/rfc7540#section-5.1
-static __always_inline void handle_end_of_stream(http2_stream_t *current_stream, http2_stream_key_t *http2_stream_key_template, http2_telemetry_t *http2_tel) {
+static __always_inline void handle_end_of_stream(void *ctx, http2_stream_t *current_stream, http2_stream_key_t *http2_stream_key_template, http2_telemetry_t *http2_tel) {
     // We want to see the EOS twice for a given stream: one for the client, one for the server.
     if (!current_stream->end_of_stream_seen) {
         current_stream->end_of_stream_seen = true;
@@ -139,8 +139,18 @@ static __always_inline void handle_end_of_stream(http2_stream_t *current_stream,
     if (event) {
         event->tuple = http2_stream_key_template->tup;
         event->stream = *current_stream;
-        // enqueue
-        http2_batch_enqueue(event);
+
+        // Check which consumer type to use based on kernel version capability
+        __u64 http2_use_direct_consumer = 0;
+        LOAD_CONSTANT("http2_use_direct_consumer", http2_use_direct_consumer);
+
+        if (http2_use_direct_consumer) {
+            // Direct consumer path - use perf/ring buffer output (kernel >= 5.8)
+            http2_output_event(ctx, event);
+        } else {
+            // Batch consumer path - use map-based batching (kernel < 5.8)
+            http2_batch_enqueue(event);
+        }
     }
 
     bpf_map_delete_elem(&http2_in_flight, http2_stream_key_template);

@@ -152,7 +152,12 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 		mode,
 		perf.SendTelemetry(config.InternalTelemetryEnabled),
 		perf.RingBufferEnabledConstantName("ringbuffers_enabled"),
-		perf.RingBufferWakeupSize("ringbuffer_wakeup_size", ringBufferWakeupSize),
+		// Namespace the wakeup-size constant per stream. The size is derived from the
+		// event type (eventSize above), so protocols with two simultaneous streams
+		// (e.g. http2 + terminated_http2) compute different values; a shared constant
+		// name would let one stream's EventHandler overwrite the other's threshold.
+		// Must match the eBPF side: LOAD_CONSTANT(_STR(name##_ringbuffer_wakeup_size)).
+		perf.RingBufferWakeupSize(proto+"_ringbuffer_wakeup_size", ringBufferWakeupSize),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create event handler for protocol %s: %w", proto, err)

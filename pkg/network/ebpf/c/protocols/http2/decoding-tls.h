@@ -131,7 +131,7 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
 
     pktbuf_t pkt = pktbuf_from_tls(ctx, &dispatcher_args_copy);
 
-    eos_parser(pkt, &dispatcher_args_copy, &dispatcher_args_copy.tup);
+    eos_parser(ctx, pkt, &dispatcher_args_copy, &dispatcher_args_copy.tup);
 
     return 0;
 }
@@ -149,7 +149,16 @@ int uprobe__http2_tls_termination(struct pt_regs *ctx) {
 
     bpf_map_delete_elem(&tls_http2_iterations, &args->tup);
 
-    terminated_http2_batch_enqueue(&args->tup);
+    // Check which consumer type to use based on kernel version capability
+    __u64 http2_use_direct_consumer = 0;
+    LOAD_CONSTANT("http2_use_direct_consumer", http2_use_direct_consumer);
+    if (http2_use_direct_consumer) {
+        // Direct consumer path - use perf/ring buffer output (kernel >= 5.8)
+        terminated_http2_output_event(ctx, &args->tup);
+    } else {
+        // Batch consumer path - use map-based batching (kernel < 5.8)
+        terminated_http2_batch_enqueue(&args->tup);
+    }
     // Deleting the entry for the original tuple.
     bpf_map_delete_elem(&http2_incomplete_frames, &args->tup);
     bpf_map_delete_elem(&http2_dynamic_counter_table, &args->tup);

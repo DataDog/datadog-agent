@@ -757,7 +757,16 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
         // Deleting the entry for the original tuple.
         bpf_map_delete_elem(&http2_incomplete_frames, &dispatcher_args_copy.tup);
         bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
-        terminated_http2_batch_enqueue(&dispatcher_args_copy.tup);
+        // Check which consumer type to use based on kernel version capability
+        __u64 http2_use_direct_consumer = 0;
+        LOAD_CONSTANT("http2_use_direct_consumer", http2_use_direct_consumer);
+        if (http2_use_direct_consumer) {
+            // Direct consumer path - use perf/ring buffer output (kernel >= 5.8)
+            terminated_http2_output_event(skb, &dispatcher_args_copy.tup);
+        } else {
+            // Batch consumer path - use map-based batching (kernel < 5.8)
+            terminated_http2_batch_enqueue(&dispatcher_args_copy.tup);
+        }
         // In case of local host, the protocol will be deleted for both (client->server) and (server->client),
         // so we won't reach for that path again in the code, so we're deleting the opposite side as well.
         flip_tuple(&dispatcher_args_copy.tup);
@@ -1108,7 +1117,7 @@ int socket__http2_dynamic_table_cleaner(struct __sk_buff *skb) {
     return 0;
 }
 
-static __always_inline void eos_parser(pktbuf_t pkt, void *map_key, conn_tuple_t *tup) {
+static __always_inline void eos_parser(void *ctx, pktbuf_t pkt, void *map_key, conn_tuple_t *tup) {
     const __u32 zero = 0;
 
     pktbuf_map_lookup_option_t http2_iterations_array[] = {
@@ -1190,7 +1199,7 @@ static __always_inline void eos_parser(pktbuf_t pkt, void *map_key, conn_tuple_t
         } else if ((current_frame.frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
             __sync_fetch_and_add(&http2_tel->end_of_stream, 1);
         }
-        handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
+        handle_end_of_stream(ctx, current_stream, &http2_ctx->http2_stream_key, http2_tel);
 
         // If we reached here, it means that we saw End Of Stream. If the End of Stream came from a request,
         // thus we except it to have a valid path and method. If the End of Stream came from a response, we except it to
@@ -1239,7 +1248,7 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
 
     pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
 
-    eos_parser(pkt, &dispatcher_args_copy, &dispatcher_args_copy.tup);
+    eos_parser(skb, pkt, &dispatcher_args_copy, &dispatcher_args_copy.tup);
     return 0;
 }
 #endif

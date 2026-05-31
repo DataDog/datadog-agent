@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	usmhttp "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
@@ -169,6 +170,66 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	count := utils.CountMapEntries(t, dynamicTableMap)
 	require.GreaterOrEqual(t, count, 0)
 
+	require.Eventually(t, func() bool {
+		return utils.CountMapEntries(t, dynamicTableMap) == 0
+	}, cfg.HTTP2DynamicTableMapCleanerInterval*4, time.Millisecond*100)
+}
+
+// TestDirectConsumerFunctionality verifies that HTTP/2 stats are captured when the
+// direct consumer is enabled (kernel >= 5.8.0), exercising BOTH HTTP/2 event streams:
+// the main stream (request stats) and the terminated_http2 stream (which drives the
+// dynamic table cleanup). Runs for both plaintext and GoTLS traffic.
+func (s *usmHTTP2Suite) TestDirectConsumerFunctionality() {
+	t := s.T()
+
+	if !events.SupportsDirectConsumer() {
+		t.Skip("Direct consumer requires kernel >= 5.8.0")
+	}
+
+	cfg := s.getCfg()
+	cfg.HTTP2UseDirectConsumer = true
+	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second
+
+	// Start local server and register its cleanup.
+	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
+
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+	}
+
+	clients := getHTTP2UnixClientArray(2, unixPath)
+	for i := 0; i < usmhttp2.HTTP2TerminatedBatchSize; i++ {
+		req, err := clients[i%2].Post(fmt.Sprintf("%s/test-%d", http2SrvAddr, i+1), "application/json", bytes.NewReader([]byte("test")))
+		require.NoError(t, err, "could not make request")
+		_ = req.Body.Close()
+	}
+
+	// Main stream: verify request stats are captured via the direct consumer.
+	matches := PrintableInt(0)
+	require.Eventuallyf(t, func() bool {
+		matches = PrintableInt(0)
+		for key, stat := range getHTTPLikeProtocolStats(t, monitor, protocols.HTTP2) {
+			if (key.DstPort == srvPort || key.SrcPort == srvPort) && key.Method == usmhttp.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
+				matches.Add(stat.Data[200].Count)
+			}
+		}
+		return matches.Load() == usmhttp2.HTTP2TerminatedBatchSize
+	}, time.Second*10, time.Millisecond*100, "%v != %v", &matches, usmhttp2.HTTP2TerminatedBatchSize)
+
+	for _, client := range clients {
+		client.CloseIdleConnections()
+	}
+
+	// Terminated stream: closing connections should be delivered via the direct
+	// consumer and drive the dynamic table cleanup to empty.
+	dynamicTableMap, _, err := monitor.ebpfProgram.GetMap("http2_dynamic_table")
+	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		return utils.CountMapEntries(t, dynamicTableMap) == 0
 	}, cfg.HTTP2DynamicTableMapCleanerInterval*4, time.Millisecond*100)

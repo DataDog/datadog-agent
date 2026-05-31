@@ -115,6 +115,11 @@ type USMConfig struct {
 	// HTTP2DynamicTableMapCleanerInterval is the interval to run the cleaner function
 	HTTP2DynamicTableMapCleanerInterval time.Duration
 
+	// HTTP2UseDirectConsumer forces the use of direct consumer for HTTP2 monitoring instead of batch consumer
+	// When true, direct consumer is used if kernel supports it (>=5.8.0), otherwise falls back to batch consumer
+	// When false (default), batch consumer is always used regardless of kernel version
+	HTTP2UseDirectConsumer bool
+
 	// ========================================
 	// Kafka Protocol Configuration
 	// ========================================
@@ -218,6 +223,7 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		// HTTP2 Protocol Configuration
 		EnableHTTP2Monitoring:               cfg.GetBool(sysconfig.FullKeyPath(smNS, "http2", "enabled")),
 		HTTP2DynamicTableMapCleanerInterval: time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http2", "dynamic_table_map_cleaner_interval_seconds"))) * time.Second,
+		HTTP2UseDirectConsumer:              cfg.GetBool(sysconfig.FullKeyPath(smNS, "http2", "use_direct_consumer")),
 
 		// Kafka Protocol Configuration
 		EnableKafkaMonitoring: cfg.GetBool(sysconfig.FullKeyPath(smNS, "kafka", "enabled")),
