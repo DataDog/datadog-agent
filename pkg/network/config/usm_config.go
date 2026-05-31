@@ -151,6 +151,11 @@ type USMConfig struct {
 	// MaxRedisStatsBuffered represents the maximum number of Redis stats we'll buffer in memory
 	MaxRedisStatsBuffered int
 
+	// RedisUseDirectConsumer forces the use of direct consumer for Redis monitoring instead of batch consumer
+	// When true, direct consumer is used if kernel supports it (>=5.8.0), otherwise falls back to batch consumer
+	// When false (default), batch consumer is always used regardless of kernel version
+	RedisUseDirectConsumer bool
+
 	// ========================================
 	// Native TLS Configuration (OpenSSL, GnuTLS, LibCrypto)
 	// ========================================
@@ -229,9 +234,10 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		MaxPostgresTelemetryBuffer: cfg.GetInt(sysconfig.FullKeyPath(smNS, "postgres", "max_telemetry_buffer")),
 
 		// Redis Protocol Configuration
-		EnableRedisMonitoring: cfg.GetBool(sysconfig.FullKeyPath(smNS, "redis", "enabled")),
-		RedisTrackResources:   cfg.GetBool(sysconfig.FullKeyPath(smNS, "redis", "track_resources")),
-		MaxRedisStatsBuffered: cfg.GetInt(sysconfig.FullKeyPath(smNS, "redis", "max_stats_buffered")),
+		EnableRedisMonitoring:  cfg.GetBool(sysconfig.FullKeyPath(smNS, "redis", "enabled")),
+		RedisTrackResources:    cfg.GetBool(sysconfig.FullKeyPath(smNS, "redis", "track_resources")),
+		MaxRedisStatsBuffered:  cfg.GetInt(sysconfig.FullKeyPath(smNS, "redis", "max_stats_buffered")),
+		RedisUseDirectConsumer: cfg.GetBool(sysconfig.FullKeyPath(smNS, "redis", "use_direct_consumer")),
 
 		// TLS Configuration
 		EnableNativeTLSMonitoring: cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "native", "enabled")),

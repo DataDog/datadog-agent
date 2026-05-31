@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,8 +43,9 @@ const (
 
 type protocol struct {
 	cfg                 *config.Config
-	eventsConsumer      *events.BatchConsumer[EbpfEvent]
-	keyedEventsConsumer *events.BatchConsumer[EbpfKeyedEvent]
+	eventsConsumer      *events.KernelAdaptiveConsumer[EbpfEvent]
+	keyedEventsConsumer *events.KernelAdaptiveConsumer[EbpfKeyedEvent]
+	useDirectConsumer   bool
 	mapCleaner          *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
 	statskeeper         *StatsKeeper
 	mgr                 *manager.Manager
@@ -112,11 +114,74 @@ func newRedisProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Proto
 		return nil, nil
 	}
 
-	return &protocol{
+	p := &protocol{
 		cfg:         cfg,
 		statskeeper: NewStatsKeeper(cfg),
 		mgr:         mgr,
-	}, nil
+	}
+
+	// Create adaptive consumer that determines kernel version and callback internally
+	if err := p.createAdaptiveConsumer(); err != nil {
+		return nil, err
+	}
+
+	return p, nil
+}
+
+// Modifiers implements the ModifierProvider interface. Only one of the two Redis
+// streams (keyed or unkeyed) is active at a time, selected by RedisTrackResources.
+func (p *protocol) Modifiers() []ddebpf.Modifier {
+	if p.eventsConsumer != nil {
+		return p.eventsConsumer.Modifiers()
+	}
+	if p.keyedEventsConsumer != nil {
+		return p.keyedEventsConsumer.Modifiers()
+	}
+	return nil
+}
+
+// createAdaptiveConsumer creates the appropriate consumer (direct or batch) for the
+// active Redis stream, based on configuration and kernel version. The active stream
+// (keyed vs unkeyed) is selected by RedisTrackResources.
+func (p *protocol) createAdaptiveConsumer() error {
+	if !p.cfg.RedisUseDirectConsumer {
+		log.Debugf("Redis monitoring: using batch consumer (default behavior)")
+		return nil
+	}
+
+	if !events.SupportsDirectConsumer() {
+		kernelVersion, err := kernel.HostVersion()
+		if err != nil {
+			log.Warnf("Redis monitoring: direct consumer requested but unable to determine kernel version (%v), falling back to batch consumer", err)
+		} else {
+			log.Warnf("Redis monitoring: direct consumer requested but kernel version %v < 5.8.0, falling back to batch consumer", kernelVersion)
+		}
+		return nil
+	}
+
+	if p.cfg.RedisTrackResources {
+		directConsumer, err := events.NewDirectConsumer(keyedEventStream, p.processKeyedRedisDirect, p.cfg)
+		if err != nil {
+			return err
+		}
+		p.keyedEventsConsumer = events.NewKernelAdaptiveConsumer[EbpfKeyedEvent](
+			directConsumer,
+			[]ddebpf.Modifier{&directConsumer.EventHandler},
+		)
+	} else {
+		directConsumer, err := events.NewDirectConsumer(name, p.processRedisDirect, p.cfg)
+		if err != nil {
+			return err
+		}
+		p.eventsConsumer = events.NewKernelAdaptiveConsumer[EbpfEvent](
+			directConsumer,
+			[]ddebpf.Modifier{&directConsumer.EventHandler},
+		)
+	}
+	p.useDirectConsumer = true
+	log.Debugf("Redis monitoring: using direct consumer (requested via configuration)")
+
+	return nil
 }
 
 // Name returns the name of the protocol.
@@ -139,14 +204,23 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		Flags:      mapFlags,
 		EditorFlag: editorFlag,
 	}
-	netifProbeID := manager.ProbeIdentificationPair{
-		EBPFFuncName: netifProbe,
-		UID:          name,
+	// Only activate the flush tracepoint when using BatchConsumer. DirectConsumer
+	// doesn't need it since it emits events directly. A single redis_use_direct_consumer
+	// flag controls whichever Redis stream is active.
+	if !p.useDirectConsumer {
+		netifProbeID := manager.ProbeIdentificationPair{
+			EBPFFuncName: netifProbe,
+			UID:          name,
+		}
+		if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
+			netifProbeID.EBPFFuncName = netifProbe414
+		}
+		opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
+	} else {
+		opts.ExcludedFunctions = append(opts.ExcludedFunctions, netifProbe, netifProbe414)
 	}
-	if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
-		netifProbeID.EBPFFuncName = netifProbe414
-	}
-	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
+
+	utils.AddBoolConst(opts, p.useDirectConsumer, "redis_use_direct_consumer")
 
 	if p.cfg.RedisTrackResources {
 		utils.EnableOption(opts, "redis_with_key_monitoring_enabled")
@@ -168,25 +242,35 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 }
 
 func (p *protocol) PreStart() (err error) {
-	if p.cfg.RedisTrackResources {
-		p.keyedEventsConsumer, err = events.NewBatchConsumer(
-			keyedEventStream,
-			p.mgr,
-			p.processKeyedRedis,
-		)
-		if err != nil {
-			return
+	// If using BatchConsumer, create it now (after manager initialization) for the
+	// active stream. The DirectConsumer is already created in the factory.
+	if !p.useDirectConsumer {
+		if p.cfg.RedisTrackResources {
+			batchConsumer, err := events.NewBatchConsumer(keyedEventStream, p.mgr, p.processKeyedRedis)
+			if err != nil {
+				return err
+			}
+			p.keyedEventsConsumer = events.NewKernelAdaptiveConsumer[EbpfKeyedEvent](
+				batchConsumer,
+				[]ddebpf.Modifier{}, // BatchConsumer needs no modifiers
+			)
+		} else {
+			batchConsumer, err := events.NewBatchConsumer(name, p.mgr, p.processRedis)
+			if err != nil {
+				return err
+			}
+			p.eventsConsumer = events.NewKernelAdaptiveConsumer[EbpfEvent](
+				batchConsumer,
+				[]ddebpf.Modifier{}, // BatchConsumer needs no modifiers
+			)
 		}
+	}
+
+	// Start whichever consumer is active (works for both DirectConsumer and BatchConsumer).
+	if p.keyedEventsConsumer != nil {
 		p.keyedEventsConsumer.Start()
-	} else {
-		p.eventsConsumer, err = events.NewBatchConsumer(
-			name,
-			p.mgr,
-			p.processRedis,
-		)
-		if err != nil {
-			return
-		}
+	}
+	if p.eventsConsumer != nil {
 		p.eventsConsumer.Start()
 	}
 	return
@@ -268,12 +352,22 @@ func (p *protocol) processKeyedRedis(events []EbpfKeyedEvent) {
 	}
 }
 
+func (p *protocol) processKeyedRedisDirect(event *EbpfKeyedEvent) {
+	eventWrapper := NewEventWrapper(&event.Header, &event.Key)
+	p.statskeeper.Process(eventWrapper)
+}
+
 func (p *protocol) processRedis(events []EbpfEvent) {
 	for i := range events {
 		tx := &events[i]
 		eventWrapper := NewEventWrapper(tx, nil)
 		p.statskeeper.Process(eventWrapper)
 	}
+}
+
+func (p *protocol) processRedisDirect(event *EbpfEvent) {
+	eventWrapper := NewEventWrapper(event, nil)
+	p.statskeeper.Process(eventWrapper)
 }
 
 func (p *protocol) setupMapCleaner() {

@@ -211,7 +211,7 @@ static void __always_inline redis_tcp_termination(conn_tuple_t *tup) {
 
 // Enqueues a batch of events to the user-space. To spare stack size, we take a scratch buffer from the map, copy
 // the connection tuple and the transaction to it, and then enqueue the event.
-static __always_inline void redis_batch_enqueue_wrapper(conn_tuple_t *tuple, redis_transaction_t *tx) {
+static __always_inline void redis_batch_enqueue_wrapper(void *ctx, conn_tuple_t *tuple, redis_transaction_t *tx) {
     u32 zero = 0;
     redis_event_t *event = bpf_map_lookup_elem(&redis_scratch_buffer, &zero);
     if (!event) {
@@ -220,12 +220,23 @@ static __always_inline void redis_batch_enqueue_wrapper(conn_tuple_t *tuple, red
 
     bpf_memcpy(&event->tuple, tuple, sizeof(conn_tuple_t));
     bpf_memcpy(&event->tx, tx, sizeof(redis_transaction_t));
-    redis_batch_enqueue(event);
+
+    // Check which consumer type to use based on kernel version capability
+    __u64 redis_use_direct_consumer = 0;
+    LOAD_CONSTANT("redis_use_direct_consumer", redis_use_direct_consumer);
+
+    if (redis_use_direct_consumer) {
+        // Direct consumer path - use perf/ring buffer output (kernel >= 5.8)
+        redis_output_event(ctx, event);
+    } else {
+        // Batch consumer path - use map-based batching (kernel < 5.8)
+        redis_batch_enqueue(event);
+    }
 }
 
 // Enqueues a batch of events to the user-space. To spare stack size, we take a scratch buffer from the map, copy
 // the connection tuple and the transaction to it, and then enqueue the event.
-static __always_inline void redis_with_key_batch_enqueue_wrapper(conn_tuple_t *tuple, redis_transaction_t *tx, redis_key_data_t *key) {
+static __always_inline void redis_with_key_batch_enqueue_wrapper(void *ctx, conn_tuple_t *tuple, redis_transaction_t *tx, redis_key_data_t *key) {
     u32 zero = 0;
     redis_with_key_event_t *event = bpf_map_lookup_elem(&redis_with_key_scratch_buffer, &zero);
     if (!event) {
@@ -235,7 +246,18 @@ static __always_inline void redis_with_key_batch_enqueue_wrapper(conn_tuple_t *t
     bpf_memcpy(&event->header.tuple, tuple, sizeof(conn_tuple_t));
     bpf_memcpy(&event->header.tx, tx, sizeof(redis_transaction_t));
     bpf_memcpy(&event->key, key, sizeof(redis_key_data_t));
-    redis_with_key_batch_enqueue(event);
+
+    // Check which consumer type to use based on kernel version capability
+    __u64 redis_use_direct_consumer = 0;
+    LOAD_CONSTANT("redis_use_direct_consumer", redis_use_direct_consumer);
+
+    if (redis_use_direct_consumer) {
+        // Direct consumer path - use perf/ring buffer output (kernel >= 5.8)
+        redis_with_key_output_event(ctx, event);
+    } else {
+        // Batch consumer path - use map-based batching (kernel < 5.8)
+        redis_with_key_batch_enqueue(event);
+    }
 }
 
 // Checks if a byte represents a valid RESP (Redis Serialization Protocol) response type prefix.
@@ -274,7 +296,7 @@ static __always_inline bool is_resp_error(char first_byte) {
 
 // Processes Redis response messages and validates their format.
 // Handles all RESP2 and RESP3 response types for comprehensive monitoring coverage.
-static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *tup, redis_transaction_t *transaction) {
+static void __always_inline process_redis_response(void *ctx, pktbuf_t pkt, conn_tuple_t *tup, redis_transaction_t *transaction) {
     redis_key_data_t *key = NULL;
     redis_key_data_t empty_key = {};  // For PING commands when resource tracking is enabled
     if (is_redis_with_key_monitoring_enabled()) {
@@ -316,9 +338,9 @@ enqueue:
     // When resource tracking is enabled, ALL commands (including PING) go to the keyed stream
     // PING commands use an empty key, GET/SET commands use their actual keys
     if (is_redis_with_key_monitoring_enabled()) {
-        redis_with_key_batch_enqueue_wrapper(tup, transaction, key);
+        redis_with_key_batch_enqueue_wrapper(ctx, tup, transaction, key);
     } else {
-        redis_batch_enqueue_wrapper(tup, transaction);
+        redis_batch_enqueue_wrapper(ctx, tup, transaction);
     }
 cleanup:
     bpf_map_delete_elem(&redis_in_flight, tup);
@@ -348,7 +370,7 @@ int socket__redis_process(struct __sk_buff *skb) {
     if (transaction == NULL) {
         process_redis_request(pkt, &conn_tuple, NO_TAGS);
     } else {
-        process_redis_response(pkt, &conn_tuple, transaction);
+        process_redis_response(skb, pkt, &conn_tuple, transaction);
     }
 
     return 0;
@@ -374,7 +396,7 @@ int uprobe__redis_tls_process(struct pt_regs *ctx) {
     if (transaction == NULL) {
         process_redis_request(pkt, &tup, (__u8)args->tags);
     } else {
-        process_redis_response(pkt, &tup, transaction);
+        process_redis_response(ctx, pkt, &tup, transaction);
     }
     return 0;
 }

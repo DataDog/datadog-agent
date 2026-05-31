@@ -125,6 +125,7 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("service_monitoring_config.redis.enabled", false)
 	cfg.BindEnvAndSetDefault("service_monitoring_config.redis.track_resources", false)
 	cfg.BindEnvAndSetDefault("service_monitoring_config.redis.max_stats_buffered", 100000)
+	cfg.BindEnvAndSetDefault("service_monitoring_config.redis.use_direct_consumer", false)
 
 	// ========================================
 	// Native TLS Configuration

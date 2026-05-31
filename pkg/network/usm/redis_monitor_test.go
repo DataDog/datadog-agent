@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	ebpftls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
@@ -123,6 +124,118 @@ func (s *redisProtocolParsingSuite) TestDecoding() {
 			testRedisDecoding(t, tt.isTLS, tt.protocolVersion, tt.trackResources)
 		})
 	}
+}
+
+// TestDirectConsumerFunctionality verifies that Redis stats are captured when the
+// direct consumer is enabled (kernel >= 5.8.0). It is table-driven over the
+// RedisTrackResources dimension so that BOTH direct streams are exercised: the
+// unkeyed "redis" stream (trackResources=false) and the keyed "redis_with_key"
+// stream (trackResources=true), each for plaintext and GoTLS traffic.
+func (s *redisProtocolParsingSuite) TestDirectConsumerFunctionality() {
+	t := s.T()
+
+	if !events.SupportsDirectConsumer() {
+		t.Skip("Direct consumer requires kernel >= 5.8.0")
+	}
+
+	tests := []struct {
+		name           string
+		isTLS          bool
+		trackResources bool
+	}{
+		{name: "without TLS unkeyed", isTLS: false, trackResources: false},
+		{name: "without TLS keyed", isTLS: false, trackResources: true},
+		{name: "with TLS unkeyed", isTLS: true, trackResources: false},
+		{name: "with TLS keyed", isTLS: true, trackResources: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, NewUSMEmptyConfig()) {
+				t.Skip("GoTLS not supported for this setup")
+			}
+			s.testDirectConsumerFunctionality(t, tt.isTLS, tt.trackResources)
+		})
+	}
+}
+
+func (s *redisProtocolParsingSuite) testDirectConsumerFunctionality(t *testing.T, isTLS, trackResources bool) {
+	const version = 2
+	serverHost := "127.0.0.1"
+	serverAddress := net.JoinHostPort(serverHost, redisPort)
+	require.NoError(t, redis.RunServer(t, serverHost, redisPort, isTLS))
+	waitForRedisServer(t, serverAddress, isTLS, version)
+
+	cfg := getRedisDefaultTestConfiguration(isTLS)
+	cfg.RedisTrackResources = trackResources
+	cfg.RedisUseDirectConsumer = true
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+	if isTLS {
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
+	}
+
+	// With non-TLS, packets are seen twice (Docker), so the expected count is doubled.
+	adjustCount := func(count int) int {
+		if isTLS {
+			return count
+		}
+		return count * 2
+	}
+
+	// Establish the connection while the monitor is paused so the client handshake
+	// (HELLO/CLIENT SETINFO) is not captured.
+	require.NoError(t, monitor.Pause())
+	dialer := &net.Dialer{}
+	redisClient, err := redis.NewClient(serverAddress, dialer, isTLS, version)
+	require.NoError(t, err)
+	require.NotNil(t, redisClient)
+	require.NoError(t, redisClient.Ping(context.Background()).Err())
+	t.Cleanup(func() {
+		redisClient.Close()
+		cleanProtocolMaps(t, "redis", monitor.ebpfProgram.Manager.Manager)
+	})
+	require.NoError(t, monitor.Resume())
+	// Wait until the monitor is actually capturing before sending the counted traffic.
+	// A fixed sleep is flaky: on a slow/loaded CI host the direct consumer may not be
+	// ready within the window and the PING/SET/GET below get missed. Probe with throwaway
+	// PINGs and drain their stats (GetProtocolStats resets on read) so the readiness
+	// traffic does not count toward the assertion.
+	require.Eventually(t, func() bool {
+		if err := redisClient.Ping(context.Background()).Err(); err != nil {
+			return false
+		}
+		statsObj, cleaners := monitor.GetProtocolStats()
+		defer cleaners()
+		_, ok := statsObj[protocols.Redis]
+		return ok
+	}, 5*time.Second, 100*time.Millisecond, "redis monitor did not start capturing after resume")
+
+	// One captured warmup PING, then a SET and a GET.
+	require.NoError(t, redisClient.Ping(context.Background()).Err())
+	require.NoError(t, redisClient.Set(context.Background(), "test-key", "test-value", 0).Err())
+	val, err := redisClient.Get(context.Background(), "test-key").Result()
+	require.NoError(t, err)
+	require.Equal(t, "test-value", val)
+	require.NoError(t, monitor.Pause())
+
+	keyName := ""
+	if trackResources {
+		keyName = "test-key"
+	}
+	expected := map[string]map[redis.CommandType]int{
+		keyName: {
+			redis.GetCommand: adjustCount(1),
+			redis.SetCommand: adjustCount(1),
+		},
+	}
+	// PING has no key; with resource tracking it lands under the empty key.
+	if keyName == "" {
+		expected[""][redis.PingCommand] = adjustCount(1)
+	} else {
+		expected[""] = map[redis.CommandType]int{
+			redis.PingCommand: adjustCount(1),
+		}
+	}
+	validateRedis(t, monitor, expected, isTLS)
 }
 
 func waitForRedisServer(t *testing.T, serverAddress string, enableTLS bool, version int) {
