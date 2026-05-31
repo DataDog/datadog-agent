@@ -125,6 +125,11 @@ type USMConfig struct {
 	// MaxKafkaStatsBuffered represents the maximum number of Kafka stats we'll buffer in memory
 	MaxKafkaStatsBuffered int
 
+	// KafkaUseDirectConsumer forces the use of direct consumer for Kafka monitoring instead of batch consumer
+	// When true, direct consumer is used if kernel supports it (>=5.8.0), otherwise falls back to batch consumer
+	// When false (default), batch consumer is always used regardless of kernel version
+	KafkaUseDirectConsumer bool
+
 	// ========================================
 	// Postgres Protocol Configuration
 	// ========================================
@@ -220,8 +225,9 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		HTTP2DynamicTableMapCleanerInterval: time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http2", "dynamic_table_map_cleaner_interval_seconds"))) * time.Second,
 
 		// Kafka Protocol Configuration
-		EnableKafkaMonitoring: cfg.GetBool(sysconfig.FullKeyPath(smNS, "kafka", "enabled")),
-		MaxKafkaStatsBuffered: cfg.GetInt(sysconfig.FullKeyPath(smNS, "kafka", "max_stats_buffered")),
+		EnableKafkaMonitoring:  cfg.GetBool(sysconfig.FullKeyPath(smNS, "kafka", "enabled")),
+		MaxKafkaStatsBuffered:  cfg.GetInt(sysconfig.FullKeyPath(smNS, "kafka", "max_stats_buffered")),
+		KafkaUseDirectConsumer: cfg.GetBool(sysconfig.FullKeyPath(smNS, "kafka", "use_direct_consumer")),
 
 		// Postgres Protocol Configuration
 		EnablePostgresMonitoring:   cfg.GetBool(sysconfig.FullKeyPath(smNS, "postgres", "enabled")),

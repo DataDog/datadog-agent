@@ -1782,3 +1782,28 @@ func TestHTTPUseDirectConsumer(t *testing.T) {
 		assert.True(t, cfg.HTTPUseDirectConsumer)
 	})
 }
+
+func TestKafkaUseDirectConsumer(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.False(t, cfg.KafkaUseDirectConsumer)
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetInTest("service_monitoring_config.kafka.use_direct_consumer", true)
+		cfg := New()
+
+		assert.True(t, cfg.KafkaUseDirectConsumer)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_KAFKA_USE_DIRECT_CONSUMER", "true")
+		cfg := New()
+
+		assert.True(t, cfg.KafkaUseDirectConsumer)
+	})
+}

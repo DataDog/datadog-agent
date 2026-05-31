@@ -9,7 +9,7 @@
 
 // forward declaration
 static __always_inline bool kafka_allow_packet(skb_info_t *skb_info);
-static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, kafka_telemetry_t *kafka_tel);
+static __always_inline bool kafka_process(void *ctx, conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, kafka_telemetry_t *kafka_tel);
 static __always_inline bool kafka_process_response(void *ctx, conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, skb_info_t *skb_info);
 static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u64 size);
 
@@ -88,7 +88,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         return 0;
     }
 
-    (void)kafka_process(&tup, kafka, pkt, kafka_tel);
+    (void)kafka_process(skb, &tup, kafka, pkt, kafka_tel);
     return 0;
 }
 
@@ -120,7 +120,7 @@ int uprobe__kafka_tls_filter(struct pt_regs *ctx) {
         return 0;
     }
 
-    kafka_process(&tup, kafka, pkt, kafka_tel);
+    kafka_process(ctx, &tup, kafka, pkt, kafka_tel);
     return 0;
 }
 
@@ -142,7 +142,7 @@ int uprobe__kafka_tls_termination(struct pt_regs *ctx) {
 
 PKTBUF_READ_INTO_BUFFER(topic_name_parser, TOPIC_NAME_MAX_STRING_SIZE, BLK_SIZE)
 
-static __always_inline void kafka_batch_enqueue_wrapper(kafka_info_t *kafka, conn_tuple_t *tup, kafka_transaction_t *transaction) {
+static __always_inline void kafka_batch_enqueue_wrapper(void *ctx, kafka_info_t *kafka, conn_tuple_t *tup, kafka_transaction_t *transaction) {
     kafka_event_t *event = &kafka->event;
 
     bpf_memcpy(&event->tup, tup, sizeof(conn_tuple_t));
@@ -152,7 +152,23 @@ static __always_inline void kafka_batch_enqueue_wrapper(kafka_info_t *kafka, con
         bpf_memcpy(&event->transaction, transaction, sizeof(kafka_transaction_t));
     }
 
+#if KAFKA_DIRECT_CONSUMER_ENABLED
+    // Check which consumer type to use based on kernel version capability
+    __u64 kafka_use_direct_consumer = 0;
+    LOAD_CONSTANT("kafka_use_direct_consumer", kafka_use_direct_consumer);
+
+    if (kafka_use_direct_consumer) {
+        // Direct consumer path - use perf/ring buffer output (kernel >= 5.8)
+        kafka_output_event(ctx, event);
+    } else {
+        // Batch consumer path - use map-based batching (kernel < 5.8)
+        kafka_batch_enqueue(event);
+    }
+#else
+    // Direct consumer compiled out (see KAFKA_DIRECT_CONSUMER_ENABLED); batch path only.
+    (void)ctx;
     kafka_batch_enqueue(event);
+#endif
 }
 
 enum parse_result {
@@ -1197,7 +1213,7 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
 
         if (ret == RET_DONE) {
             extra_debug("enqueue, records_count %d, error_code %d",  response->transaction.records_count, response->transaction.error_code);
-            kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
+            kafka_batch_enqueue_wrapper(ctx, kafka, tup, &response->transaction);
             return ret;
         }
     } else {
@@ -1214,7 +1230,7 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
                 extra_debug("enqueue from new condition, records_count %d, error_code %d",
                     response->transaction.records_count,
                     response->partition_error_code);
-                kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
+                kafka_batch_enqueue_wrapper(ctx, kafka, tup, &response->transaction);
                 response->transaction.records_count = 0;
                 response->transaction.error_code = 0;
                 return ret;
@@ -1226,7 +1242,7 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
         if (ret == RET_DONE) {
             if (response->partitions_count == 0) {
                 extra_debug("enqueue, records_count %d",  response->transaction.records_count);
-                kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
+                kafka_batch_enqueue_wrapper(ctx, kafka, tup, &response->transaction);
                 return ret;
             }
 
@@ -1357,7 +1373,7 @@ enum parser_level level, u32 min_api_version, u32 max_api_version, u32 target_ap
         // we have.
         if (response->transaction.records_count) {
             extra_debug("enqueue (loop exceeded), records_count %d", response->transaction.records_count);
-            kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
+            kafka_batch_enqueue_wrapper(ctx, kafka, tup, &response->transaction);
         }
         break;
     }
@@ -1586,7 +1602,7 @@ static __always_inline bool kafka_process_response(void *ctx, conn_tuple_t *tup,
 
         if (response->transaction.records_count) {
             extra_debug("enqueue (broken stream), records_count %d", response->transaction.records_count);
-            kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
+            kafka_batch_enqueue_wrapper(ctx, kafka, tup, &response->transaction);
         }
 
         bpf_map_delete_elem(&kafka_response, tup);
@@ -1596,7 +1612,7 @@ static __always_inline bool kafka_process_response(void *ctx, conn_tuple_t *tup,
     return kafka_process_new_response(ctx, tup, kafka, pkt, skb_info);
 }
 
-static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, kafka_telemetry_t *kafka_tel) {
+static __always_inline bool kafka_process(void *ctx, conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, kafka_telemetry_t *kafka_tel) {
     /*
         We perform Kafka request validation as we can get kafka traffic that is not relevant for parsing (unsupported requests, responses, etc)
     */
@@ -1782,7 +1798,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
 
     if (kafka_header.api_key == KAFKA_PRODUCE && produce_required_acks == 0) {
         // If we have a produce request with required acks set to 0, we can enqueue it immediately, as there will be no produce response.
-        kafka_batch_enqueue_wrapper(kafka, tup, kafka_transaction);
+        kafka_batch_enqueue_wrapper(ctx, kafka, tup, kafka_transaction);
         return true;
     }
 

@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
@@ -546,6 +547,113 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 			tt.testBody(t, &tt.context, monitor)
 		})
 	}
+}
+
+// TestDirectConsumerFunctionality verifies that Kafka stats are captured when the
+// direct consumer is enabled (kernel >= 5.8.0), for both plaintext and GoTLS traffic,
+// mirroring the batch-consumer path. The TLS case also exercises the uprobe emit path.
+func (s *KafkaProtocolParsingSuite) TestDirectConsumerFunctionality() {
+	t := s.T()
+
+	if !events.SupportsDirectConsumer() {
+		t.Skip("Direct consumer requires kernel >= 5.8.0")
+	}
+
+	for mode, name := range map[bool]string{false: "without TLS", true: "with TLS"} {
+		t.Run(name, func(t *testing.T) {
+			if mode && !gotlsutils.GoTLSSupported(t, NewUSMEmptyConfig()) {
+				t.Skip("GoTLS not supported for this setup")
+			}
+			s.testDirectConsumerFunctionality(t, mode)
+		})
+	}
+}
+
+func (s *KafkaProtocolParsingSuite) testDirectConsumerFunctionality(t *testing.T, tls bool) {
+	const (
+		targetHost = "127.0.0.1"
+		serverHost = "127.0.0.1"
+		unixPath   = "/tmp/transparent.sock"
+	)
+
+	port := kafkaPort
+	if tls {
+		port = kafkaTLSPort
+	}
+
+	serverAddress := net.JoinHostPort(serverHost, port)
+	targetAddress := net.JoinHostPort(targetHost, port)
+
+	dialFn := func(ctx context.Context, _, _ string) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, "unix", unixPath)
+	}
+
+	// With non-TLS, packets are seen twice (Docker), so the expected count is doubled.
+	// In the TLS case the data comes from uprobes on the binary, so it is seen once.
+	fixCount := func(count int) int {
+		if tls {
+			return count
+		}
+		return count * 2
+	}
+
+	version := kversion.V2_5_0()
+	produceVersion, found := version.LookupMaxKeyVersion(kafka.ProduceAPIKey)
+	require.True(t, found)
+	fetchVersion, found := version.LookupMaxKeyVersion(kafka.FetchAPIKey)
+	require.True(t, found)
+
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, serverAddress, tls, false)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
+	// Enable the direct consumer for Kafka.
+	cfg := getDefaultTestConfiguration(tls)
+	cfg.KafkaUseDirectConsumer = true
+
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+	if tls && cfg.EnableGoTLSSupport {
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+	}
+
+	topicName := s.getTopicName()
+	client, err := kafka.NewClient(kafka.Options{
+		ServerAddress: targetAddress,
+		DialFn:        dialFn,
+		CustomOptions: []kgo.Opt{
+			kgo.MaxVersions(version),
+			kgo.RecordPartitioner(kgo.ManualPartitioner()),
+			kgo.ClientID("xk6-kafka_linux_amd64@foobar (github.com/segmentio/kafka-go)"),
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { client.Client.Close() })
+	require.NoError(t, client.CreateTopic(topicName))
+
+	ctxTimeout, cancelTimeout := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancelTimeout()
+
+	record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
+	require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+
+	req := kmsg.NewFetchRequest()
+	topic := kmsg.NewFetchRequestTopic()
+	topic.Topic = topicName
+	partition := kmsg.NewFetchRequestTopicPartition()
+	partition.PartitionMaxBytes = 1024
+	topic.Partitions = append(topic.Partitions, partition)
+	req.Topics = append(req.Topics, topic)
+	_, err = req.RequestWith(ctxTimeout, client.Client)
+	require.NoError(t, err)
+
+	getAndValidateKafkaStats(t, monitor, fixCount(2), topicName, kafkaParsingValidation{
+		expectedNumberOfProduceRequests: fixCount(1),
+		expectedNumberOfFetchRequests:   fixCount(1),
+		expectedAPIVersionProduce:       int(produceVersion),
+		expectedAPIVersionFetch:         int(fetchVersion),
+		tlsEnabled:                      tls,
+	}, kafkaSuccessErrorCode)
 }
 
 func generateFetchRequest(apiVersion int, topic string) kmsg.FetchRequest {

@@ -968,6 +968,10 @@ properties:
             node_type: setting
             type: integer
             default: 100000
+          use_direct_consumer:
+            node_type: setting
+            type: boolean
+            default: false
       kernel_buffer_pages:
         node_type: setting
         type: integer

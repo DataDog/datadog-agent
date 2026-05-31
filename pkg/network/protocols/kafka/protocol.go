@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,7 +33,8 @@ type protocol struct {
 	telemetry          *Telemetry
 	statkeeper         *StatKeeper
 	inFlightMapCleaner *ddebpf.MapCleaner[KafkaTransactionKey, KafkaTransaction]
-	eventsConsumer     *events.BatchConsumer[EbpfTx]
+	consumer           *events.KernelAdaptiveConsumer[EbpfTx]
+	useDirectConsumer  bool
 
 	kernelTelemetry            *kernelTelemetry
 	kernelTelemetryStopChannel chan struct{}
@@ -248,13 +250,28 @@ func newKafkaProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Proto
 		return nil, nil
 	}
 
-	return &protocol{
+	p := &protocol{
 		cfg:                        cfg,
 		telemetry:                  NewTelemetry(),
 		kernelTelemetry:            newKernelTelemetry(),
 		kernelTelemetryStopChannel: make(chan struct{}),
 		mgr:                        mgr,
-	}, nil
+	}
+
+	// Create adaptive consumer that determines kernel version and callback internally
+	if err := p.createAdaptiveConsumer(); err != nil {
+		return nil, err
+	}
+
+	return p, nil
+}
+
+// Modifiers implements the ModifierProvider interface
+func (p *protocol) Modifiers() []ddebpf.Modifier {
+	if p.consumer == nil {
+		return nil
+	}
+	return p.consumer.Modifiers()
 }
 
 // Name returns the name of the protocol.
@@ -283,32 +300,46 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		Flags:      mapFlags,
 		EditorFlag: editorFlag,
 	}
-	netifProbeID := manager.ProbeIdentificationPair{
-		EBPFFuncName: netifProbe,
-		UID:          eventStreamName,
+	// Only activate the flush tracepoint when using BatchConsumer.
+	// DirectConsumer doesn't need it since it uses direct event output.
+	if !p.useDirectConsumer {
+		netifProbeID := manager.ProbeIdentificationPair{
+			EBPFFuncName: netifProbe,
+			UID:          eventStreamName,
+		}
+		if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
+			netifProbeID.EBPFFuncName = netifProbe414
+		}
+		opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
+	} else {
+		// When using DirectConsumer, exclude flush probes to avoid loading/verifying them
+		opts.ExcludedFunctions = append(opts.ExcludedFunctions, netifProbe, netifProbe414)
 	}
-	if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
-		netifProbeID.EBPFFuncName = netifProbe414
-	}
-	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
+
 	events.Configure(p.cfg, eventStreamName, p.mgr, opts)
 	utils.EnableOption(opts, "kafka_monitoring_enabled")
+	utils.AddBoolConst(opts, p.useDirectConsumer, "kafka_use_direct_consumer")
 }
 
 // PreStart creates the kafka events consumer and starts it.
 func (p *protocol) PreStart() error {
-	var err error
-	p.eventsConsumer, err = events.NewBatchConsumer(
-		eventStreamName,
-		p.mgr,
-		p.processKafka,
-	)
-	if err != nil {
-		return err
+	// If using BatchConsumer, create it now (after manager initialization).
+	// The DirectConsumer is already created in the factory via createAdaptiveConsumer().
+	if !p.useDirectConsumer {
+		batchConsumer, err := events.NewBatchConsumer(eventStreamName, p.mgr, p.processKafka)
+		if err != nil {
+			return err
+		}
+		p.consumer = events.NewKernelAdaptiveConsumer[EbpfTx](
+			batchConsumer,
+			[]ddebpf.Modifier{}, // BatchConsumer needs no modifiers
+		)
 	}
 
 	p.statkeeper = NewStatkeeper(p.cfg, p.telemetry)
-	p.eventsConsumer.Start()
+
+	// Start the consumer (works for both DirectConsumer and BatchConsumer)
+	p.consumer.Start()
 
 	return nil
 }
@@ -323,8 +354,8 @@ func (p *protocol) PostStart() error {
 func (p *protocol) Stop() {
 	// inFlightMapCleaner handles nil receiver pointers.
 	p.inFlightMapCleaner.Stop()
-	if p.eventsConsumer != nil {
-		p.eventsConsumer.Stop()
+	if p.consumer != nil {
+		p.consumer.Stop()
 	}
 	if p.kernelTelemetryStopChannel != nil {
 		close(p.kernelTelemetryStopChannel)
@@ -369,6 +400,54 @@ func (p *protocol) processKafka(events []EbpfTx) {
 	}
 }
 
+func (p *protocol) processKafkaDirect(event *EbpfTx) {
+	p.telemetry.Count(&event.Transaction)
+	p.statkeeper.Process(event)
+}
+
+// createAdaptiveConsumer creates the appropriate consumer based on configuration and kernel version
+// and determines which callback method to use internally.
+func (p *protocol) createAdaptiveConsumer() error {
+	// Check if direct consumer is explicitly requested via configuration
+	if p.cfg.KafkaUseDirectConsumer {
+		// The eBPF direct-emit path is compiled out of the prebuilt object (it would push the
+		// Kafka v12 parser past the 4096-instruction verifier limit on kernels < 5.2). Only CO-RE
+		// and runtime-compiled objects keep it, so don't enable the userspace DirectConsumer when
+		// neither is available, otherwise we'd read from a ring buffer the program never writes to.
+		if !p.cfg.EnableCORE && !p.cfg.EnableRuntimeCompiler {
+			log.Warnf("Kafka monitoring: direct consumer requested but neither CO-RE nor runtime compilation is enabled; the prebuilt object does not emit direct events, falling back to batch consumer")
+			p.useDirectConsumer = false
+		} else if events.SupportsDirectConsumer() {
+			// Use DirectConsumer for kernel ≥5.8 (supports bpf_perf_event_output in socket filters)
+			directConsumer, err := events.NewDirectConsumer(eventStreamName, p.processKafkaDirect, p.cfg)
+			if err != nil {
+				return err
+			}
+			p.consumer = events.NewKernelAdaptiveConsumer[EbpfTx](
+				directConsumer,
+				[]ddebpf.Modifier{&directConsumer.EventHandler},
+			)
+			p.useDirectConsumer = true
+			log.Debugf("Kafka monitoring: using direct consumer (requested via configuration)")
+		} else {
+			// Fall back to BatchConsumer on unsupported kernels
+			kernelVersion, err := kernel.HostVersion()
+			if err != nil {
+				log.Warnf("Kafka monitoring: direct consumer requested but unable to determine kernel version (%v), falling back to batch consumer", err)
+			} else {
+				log.Warnf("Kafka monitoring: direct consumer requested but kernel version %v < 5.8.0, falling back to batch consumer", kernelVersion)
+			}
+			p.useDirectConsumer = false
+		}
+	} else {
+		// Default behavior: use BatchConsumer regardless of kernel version
+		log.Debugf("Kafka monitoring: using batch consumer (default behavior)")
+		p.useDirectConsumer = false
+	}
+
+	return nil
+}
+
 func (p *protocol) setupInFlightMapCleaner() error {
 	kafkaInFlight, _, err := p.mgr.GetMap(inFlightMap)
 	if err != nil {
@@ -393,7 +472,7 @@ func (p *protocol) setupInFlightMapCleaner() error {
 // The format of the stats:
 // [source, dest tuple, request path] -> RequestStats object
 func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
-	p.eventsConsumer.Sync()
+	p.consumer.Sync()
 	p.telemetry.Log()
 	stats := p.statkeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
