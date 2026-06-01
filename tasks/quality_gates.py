@@ -29,6 +29,7 @@ from tasks.static_quality_gates.gates import (
     GateExecutionError,
     GateMetricHandler,
     GateResult,
+    InventoryReportMeasurer,
     QualityGateFactory,
     StaticQualityGate,
     byte_to_string,
@@ -91,6 +92,11 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     if os.environ.get("SKIP_WINDOWS") == "true":
         gate_list = [gate for gate in gate_list if gate.config.os != "windows"]
         print(color_message("SKIP_WINDOWS is set: skipping Windows MSI quality gates", "orange"))
+
+    # Pull every inventory report in one batched `aws s3 sync` so each gate
+    # can read its report from local disk instead of paying per-gate CLI
+    # startup + cold-connection overhead.
+    InventoryReportMeasurer.prefetch_reports(ctx, os.environ["CI_COMMIT_SHA"])
 
     # python 3.11< does not allow to use \n in f-strings
     delimiter = '\n'

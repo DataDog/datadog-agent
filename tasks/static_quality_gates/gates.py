@@ -257,6 +257,28 @@ class InventoryReportMeasurer:
     """
 
     GATE_REPORTS_PREFIX = f"{S3_REPORT_PATH}/GATE_REPORTS"
+    # Set by `prefetch_reports` to point at a temp dir holding every report
+    # for `$CI_COMMIT_SHA`. When defined, `_fetch_report` reads from disk
+    # instead of issuing a per-gate `aws s3 cp`.
+    LOCAL_DIR_ENV = "SQG_REPORTS_LOCAL_DIR"
+
+    @classmethod
+    def prefetch_reports(cls, ctx: Context, commit_sha: str) -> str:
+        """Sync the per-commit report prefix from S3 to a temp dir.
+
+        Returns the temp dir path. Subsequent `_fetch_report` calls read
+        from there (33 small subprocess invocations collapse into one
+        `aws s3 sync` with persistent HTTPS connections).
+        """
+        import tempfile
+
+        local_dir = tempfile.mkdtemp(prefix="sqg-reports-")
+        s3_prefix = f"{cls.GATE_REPORTS_PREFIX}/{commit_sha}/"
+        result = ctx.run(f"aws s3 sync --only-show-errors {s3_prefix} {local_dir}", warn=True)
+        if result.exited != 0:
+            raise InfraError(f"aws s3 sync failed for {s3_prefix}: {result.stderr.strip()}")
+        os.environ[cls.LOCAL_DIR_ENV] = local_dir
+        return local_dir
 
     def measure(self, ctx: Context, config: QualityGateConfig) -> ArtifactMeasurement:
         try:
@@ -274,9 +296,10 @@ class InventoryReportMeasurer:
     def _fetch_report(self, ctx: Context, gate_name: str) -> dict:
         commit_sha = os.environ.get("CI_COMMIT_SHA")
         pipeline_id = os.environ.get("CI_PIPELINE_ID")
-        if not commit_sha or not pipeline_id:
+        local_dir = os.environ.get(self.LOCAL_DIR_ENV)
+        if not commit_sha or not pipeline_id or not local_dir:
             raise StaticQualityGateError(
-                f"CI_COMMIT_SHA / CI_PIPELINE_ID must be set to fetch the S3 report for {gate_name}"
+                f"CI_COMMIT_SHA, CI_PIPELINE_ID, and {self.LOCAL_DIR_ENV} must be set to read the report for {gate_name}"
             )
 
         prefix = gate_name.removeprefix("static_quality_gate_")
@@ -285,12 +308,14 @@ class InventoryReportMeasurer:
             filename = f"{prefix}_size_report_{pipeline_id}_{commit_sha[:8]}.yml"
         else:
             filename = f"{prefix}_size_report_{commit_sha[:8]}.yml"
-        s3_uri = f"{self.GATE_REPORTS_PREFIX}/{commit_sha}/{filename}"
 
-        result = ctx.run(f"aws s3 cp --only-show-errors {s3_uri} -", hide=True, warn=True)
-        if result.exited != 0:
-            raise InfraError(f"aws s3 cp failed for {s3_uri}: {result.stderr.strip()}")
-        return yaml.safe_load(result.stdout)
+        try:
+            with open(os.path.join(local_dir, filename)) as f:
+                return yaml.safe_load(f)
+        except FileNotFoundError as e:
+            raise StaticQualityGateError(
+                f"Report {filename} missing from prefetched dir {local_dir}; check that the producer uploaded it"
+            ) from e
 
 
 class StaticQualityGate:

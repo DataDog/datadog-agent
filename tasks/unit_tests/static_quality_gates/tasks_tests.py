@@ -87,8 +87,8 @@ def _gate_scenarios_fixture(*scenarios: GateScenario, ancestor_sha: str):
     """
     Context manager that wires up gate scenarios for integration tests.
 
-    Patches InventoryReportMeasurer.measure and query_gate_metrics_for_commit
-    for the duration of the test.
+    Patches InventoryReportMeasurer.measure / .prefetch_reports and
+    query_gate_metrics_for_commit for the duration of the test.
 
     Yields the path to a temp YAML file with the gate limits.
     """
@@ -121,6 +121,10 @@ def _gate_scenarios_fixture(*scenarios: GateScenario, ancestor_sha: str):
             patch(
                 "tasks.static_quality_gates.gates.InventoryReportMeasurer.measure",
                 side_effect=_measure,
+            ),
+            patch(
+                "tasks.static_quality_gates.gates.InventoryReportMeasurer.prefetch_reports",
+                return_value="/tmp/fake-reports",
             ),
         ):
             yield config_path
@@ -560,7 +564,10 @@ class TestQualityGatesIntegration(unittest.TestCase):
         )
 
         # Mock one gate to raise an infrastructure error
-        with patch.object(InventoryReportMeasurer, 'measure', side_effect=InfraError("Test infra error message")):
+        with (
+            patch.object(InventoryReportMeasurer, 'measure', side_effect=InfraError("Test infra error message")),
+            patch.object(InventoryReportMeasurer, 'prefetch_reports', return_value="/tmp/fake-reports"),
+        ):
             with self.assertRaises(Exit) as cm:
                 parse_and_trigger_gates(ctx, "tasks/unit_tests/testdata/quality_gate_config_test.yml")
                 self.assertIn("Test infra error message", str(cm.exception))
