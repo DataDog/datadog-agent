@@ -834,7 +834,7 @@
           "ENV:CARGO_BAZEL_REPIN \\0",
           "ENV:CARGO_BAZEL_REPIN_ONLY \\0",
           "ENV:CARGO_BAZEL_TIMEOUT \\0",
-          "ENV:REPIN \\0",
+          "ENV:REPIN 1",
           "REPO_MAPPING:bazel_features+,bazel_features_globals bazel_features++version_extension+bazel_features_globals",
           "REPO_MAPPING:bazel_features+,bazel_features_version bazel_features++version_extension+bazel_features_version",
           "REPO_MAPPING:rules_cc+,bazel_skylib bazel_skylib+",
