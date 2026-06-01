@@ -397,7 +397,7 @@ require (
 	github.com/prometheus/alertmanager v0.31.1 // indirect
 	github.com/prometheus/client_golang v1.23.3-0.20251103151724-a5ae20370e5e // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.67.5 // indirect
+	github.com/prometheus/common v0.68.0 // indirect
 	github.com/prometheus/common/assets v0.2.0 // indirect
 	github.com/prometheus/exporter-toolkit v0.16.0 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
