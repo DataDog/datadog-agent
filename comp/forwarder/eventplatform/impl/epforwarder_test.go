@@ -8,10 +8,12 @@ package eventplatformimpl
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformreceiver "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/def"
 	eventplatformreceivermock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/mock"
 	laconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -44,6 +46,28 @@ func (suite *EventPlatformForwarderTestSuite) SetupTest() {
 
 func TestEventPlatformForwarderTestSuite(t *testing.T) {
 	suite.Run(t, new(EventPlatformForwarderTestSuite))
+}
+
+func TestPassthroughPipelineDescriptions(t *testing.T) {
+	descs := getPassthroughPipelines()
+	require.NotEmpty(t, descs)
+
+	seenEventTypes := make(map[string]struct{}, len(descs))
+	for _, desc := range descs {
+		require.NotEmpty(t, desc.EventType)
+		if _, found := seenEventTypes[desc.EventType]; found {
+			t.Fatalf("duplicate event-platform pipeline descriptor for eventType=%s", desc.EventType)
+		}
+		seenEventTypes[desc.EventType] = struct{}{}
+
+		require.NotEmpty(t, desc.ContentType, "missing content type for eventType=%s", desc.EventType)
+		require.NotEmpty(t, desc.EndpointsConfigPrefix, "missing config prefix for eventType=%s", desc.EventType)
+		require.NotEmpty(t, desc.HostnameEndpointPrefix, "missing hostname endpoint prefix for eventType=%s", desc.EventType)
+		require.GreaterOrEqual(t, desc.DefaultBatchMaxConcurrentSend, 0, "invalid batch concurrency default for eventType=%s", desc.EventType)
+		require.Positive(t, desc.DefaultBatchMaxContentSize, "missing batch content size default for eventType=%s", desc.EventType)
+		require.Positive(t, desc.DefaultBatchMaxSize, "missing batch size default for eventType=%s", desc.EventType)
+		require.Positive(t, desc.DefaultInputChanSize, "missing input channel default for eventType=%s", desc.EventType)
+	}
 }
 
 func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineCompression() {
@@ -126,9 +150,9 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 
 			t.configSetup(suite.config)
 
-			desc := passthroughPipelineDesc{
+			desc := eventplatform.PipelineDesc{
 				// Only registered config prefixes trigger correct parsing and defaults.
-				endpointsConfigPrefix: "database_monitoring.metrics.",
+				EndpointsConfigPrefix: "database_monitoring.metrics.",
 			}
 
 			pipeline, err := newHTTPPassthroughPipeline(
@@ -144,7 +168,7 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 			suite.Require().NoError(err)
 			suite.Require().NotNil(pipeline)
 
-			configKeys := laconfig.NewLogsConfigKeys(desc.endpointsConfigPrefix, suite.config)
+			configKeys := laconfig.NewLogsConfigKeys(desc.EndpointsConfigPrefix, suite.config)
 			endpoints, err := laconfig.BuildHTTPEndpointsWithConfig(
 				suite.config,
 				configKeys,
@@ -164,19 +188,6 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 		})
 		suite.resetCompression()
 	}
-}
-
-func (suite *EventPlatformForwarderTestSuite) TestGetECSFargateTaskARN() {
-	suite.Run("returns empty when not on fargate", func() {
-		// ECS_FARGATE is not set in test environment
-		suite.Equal("", getECSFargateTaskARN())
-	})
-
-	suite.Run("returns empty when on fargate but metadata unavailable", func() {
-		suite.T().Setenv("ECS_FARGATE", "true")
-		// No ECS metadata endpoint available in test, should degrade gracefully
-		suite.Equal("", getECSFargateTaskARN())
-	})
 }
 
 func (suite *EventPlatformForwarderTestSuite) resetCompression() {
