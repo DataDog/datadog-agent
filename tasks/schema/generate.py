@@ -12,6 +12,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.build.bazel import bazel
 from tasks.schema.add_comments import add_comments
+from tasks.schema.codegen_init_settings import run_codegen
 from tasks.schema.fixes import fix_schema
 from tasks.schema.settings_source_analyzer import extract_imperative_code_hints
 from tasks.schema.template_parser import parse_template
@@ -132,3 +133,18 @@ def extract_comments(ctx):
             comment_assoc_map[setting_name] = comment
 
     return comment_assoc_map
+
+
+@task
+def codegen(ctx, schema_file, keep_orig_order=False):
+    # `keep_orig_order` controls whether:
+    #   False: settings are output in order from core_schema.yaml
+    #   True:  settings are output in order from common_settings.go (easier to diff)
+
+    with open(schema_file) as f:
+        core_schema = yaml.safe_load(f)
+    hints = extract_imperative_code_hints()
+
+    tmpdir = tempfile.mkdtemp()
+    run_codegen(core_schema, hints, keep_orig_order, tmpdir)
+    print("Codegen complete. Output dir: %s" % tmpdir)
