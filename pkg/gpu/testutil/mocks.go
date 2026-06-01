@@ -398,7 +398,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			if opts.isMIGChild() || opts.migDisabled {
 				return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
 			}
-			if deviceMigChildren != nil && len(deviceMigChildren) > 0 {
+			if len(deviceMigChildren) > 0 {
 				return nvml.DEVICE_MIG_ENABLE, 0, nvml.SUCCESS
 			}
 			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
