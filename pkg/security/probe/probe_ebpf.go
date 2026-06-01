@@ -3828,7 +3828,7 @@ func dnsAnswerIPNet(answer layers.DNSResourceRecord) (net.IPNet, bool) {
 		return net.IPNet{IP: append(net.IP(nil), ip...), Mask: net.CIDRMask(32, 32)}, true
 	case layers.DNSTypeAAAA:
 		ip := answer.IP.To16()
-		if ip == nil || ip.To4() != nil {
+		if ip == nil {
 			return net.IPNet{}, false
 		}
 		return net.IPNet{IP: append(net.IP(nil), ip...), Mask: net.CIDRMask(128, 128)}, true
