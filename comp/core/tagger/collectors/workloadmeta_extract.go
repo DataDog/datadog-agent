@@ -877,6 +877,10 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 			tagList.AddLow(tags.KubeAppPartOf, value)
 		case kubernetes.KubeAppManagedByLabelKey:
 			tagList.AddLow(tags.KubeAppManagedBy, value)
+		case kubernetes.KueueLocalQueueNameLabelKey:
+			tagList.AddLow(tags.KueueLocalQueue, value)
+		case kubernetes.KueueClusterQueueNameLabelKey:
+			tagList.AddLow(tags.KueueClusterQueue, value)
 		}
 
 		k8smetadata.AddMetadataAsTags(name, value, c.k8sResourcesLabelsAsTags["pods"], c.globK8sResourcesLabels["pods"], tagList)
