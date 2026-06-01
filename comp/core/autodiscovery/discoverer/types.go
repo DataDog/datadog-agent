@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 )
 
 // Result is the output of a successful Discover call.
@@ -42,12 +43,9 @@ type Discoverer interface {
 }
 
 // Bridge is the boundary between the discoverer and the Python runtime.
-// Production uses a cgo-backed implementation; tests use an in-memory fake.
+// Production uses pkg/collector/python; tests use an in-memory fake.
 type Bridge interface {
-	// RunDiscover invokes <check_class>.discover(service) on the integration
-	// named integrationName, passing the JSON-encoded service. Returns the
-	// JSON-encoded Python result on success (a list of dicts, possibly empty),
-	// or "null" if discover() returned None. Returns an error on Python-side
-	// exceptions or marshalling failures.
-	RunDiscover(integrationName string, serviceJSON string) (string, error)
+	// DiscoverConfig invokes the integration's Python discovery bridge for the
+	// service and returns discovered instance configs.
+	DiscoverConfig(integrationName string, service python.DiscoveryService) ([]integration.Data, error)
 }

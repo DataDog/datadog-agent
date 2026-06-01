@@ -7,11 +7,11 @@ package discoverer
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -51,18 +51,6 @@ func New(bridge Bridge) Discoverer {
 	return newDiscoverer(bridge)
 }
 
-// servicePayload is the JSON shape passed across the rtloader bridge.
-type servicePayload struct {
-	ID    string        `json:"id"`
-	Host  string        `json:"host"`
-	Ports []portPayload `json:"ports"`
-}
-
-type portPayload struct {
-	Number int    `json:"number"`
-	Name   string `json:"name"`
-}
-
 func (d *defaultDiscoverer) Discover(_ context.Context, integrationName string, svc listeners.Service) (Result, bool) {
 	svcID := svc.GetServiceID()
 	state := d.cache.lookup(svcID, integrationName)
@@ -91,31 +79,14 @@ func (d *defaultDiscoverer) Discover(_ context.Context, integrationName string, 
 		return Result{}, false
 	}
 
-	payload := servicePayload{ID: svcID, Host: host}
+	payload := python.DiscoveryService{ID: svcID, Host: host}
 	for _, p := range exposed {
-		payload.Ports = append(payload.Ports, portPayload{Number: p.Port, Name: p.Name})
-	}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		log.Errorf("autodiscovery/discoverer: marshal failed for %s: %v", svcID, err)
-		d.cache.putFailure(svcID, integrationName, d.retrySchedule)
-		return Result{}, false
+		payload.Ports = append(payload.Ports, python.DiscoveryPort{Number: p.Port, Name: p.Name})
 	}
 
-	resJSON, err := d.bridge.RunDiscover(integrationName, string(body))
+	instances, err := d.bridge.DiscoverConfig(integrationName, payload)
 	if err != nil {
-		log.Warnf("autodiscovery/discoverer: %s.discover() failed for %s: %v", integrationName, svcID, err)
-		d.cache.putFailure(svcID, integrationName, d.retrySchedule)
-		return Result{}, false
-	}
-	if resJSON == "" || resJSON == "null" {
-		d.cache.putFailure(svcID, integrationName, d.retrySchedule)
-		return Result{}, false
-	}
-
-	var instances []json.RawMessage
-	if err := json.Unmarshal([]byte(resJSON), &instances); err != nil {
-		log.Errorf("autodiscovery/discoverer: %s returned non-list JSON for %s: %v", integrationName, svcID, err)
+		log.Warnf("autodiscovery/discoverer: %s.discover_config() failed for %s: %v", integrationName, svcID, err)
 		d.cache.putFailure(svcID, integrationName, d.retrySchedule)
 		return Result{}, false
 	}
@@ -124,14 +95,12 @@ func (d *defaultDiscoverer) Discover(_ context.Context, integrationName string, 
 		return Result{}, false
 	}
 
-	configs := make([]integration.Config, 0, len(instances))
-	for _, raw := range instances {
-		configs = append(configs, integration.Config{
+	r := Result{
+		Configs: []integration.Config{{
 			Name:      integrationName,
-			Instances: []integration.Data{integration.Data(raw)},
-		})
+			Instances: instances,
+		}},
 	}
-	r := Result{Configs: configs}
 	d.cache.putSuccess(svcID, integrationName, r)
 	return r, true
 }
