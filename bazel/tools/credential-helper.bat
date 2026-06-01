@@ -17,7 +17,7 @@ if defined CI (
 )
 
 :: Dev: mint a Vault OIDC token, logging in if needed, cached by `bazel` as per --credential_helper_cache_duration
-if not defined VAULT_ADDR set "VAULT_ADDR=https://vault.us1.ddbuild.staging.dog"
+if not defined VAULT_ADDR set "VAULT_ADDR=https://vault.us1.ddbuild.io"
 call :fetch_token
 if defined token (
   call :write_auth_headers "%token%"
