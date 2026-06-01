@@ -282,6 +282,10 @@ func TestConfigHostname(t *testing.T) {
 			fallbackHostnameFunc = os.Hostname
 		}()
 
+		// Force the non-containerized path so the test exercises fallbackHostnameFunc.
+		defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
+		osHostnameUsableFunc = func(_ context.Context) bool { return true }
+
 		taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
 		fxutil.TestStart(t, fx.Options(
@@ -313,6 +317,9 @@ func TestConfigHostname(t *testing.T) {
 			// can't say
 			t.Skip()
 		}
+
+		defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
+		osHostnameUsableFunc = func(_ context.Context) bool { return true }
 
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
 		coreConfig.SetWithoutSource("apm_config.dd_agent_bin", "/not/exist")
@@ -400,6 +407,11 @@ func TestConfigHostname(t *testing.T) {
 
 		defer func(old func() (string, error)) { fallbackHostnameFunc = old }(fallbackHostnameFunc)
 		fallbackHostnameFunc = func() (string, error) { return "fallback.host", nil }
+
+		// Force the non-containerized path for all external subtests. The containerized
+		// path is covered separately in TestAcquireHostnameFallbackContainerized.
+		defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
+		osHostnameUsableFunc = func(_ context.Context) bool { return true }
 
 		t.Run("good", func(t *testing.T) {
 			bin := makeProgram(t, "host.name", 0)
