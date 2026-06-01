@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-	issuereporter "github.com/DataDog/datadog-agent/comp/healthplatform/issuereporter/def"
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -101,5 +101,5 @@ var ErrSkipCheckInstance = errors.New("refused to load the check instance")
 // SetIssueReporter before invoking Run, so checks can report health issues directly
 // into the health platform store without polling or dedicated core checks.
 type IssueAwareCheck interface {
-	SetIssueReporter(reporter issuereporter.Component)
+	SetIssueReporter(reporter healthplatformstore.Component)
 }

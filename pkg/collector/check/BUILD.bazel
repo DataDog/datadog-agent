@@ -16,7 +16,7 @@ go_library(
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/diagnose/def",
-        "//comp/healthplatform/issuereporter/def",
+        "//comp/healthplatform/store/def",
         "//comp/metadata/inventorychecks/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check/id",

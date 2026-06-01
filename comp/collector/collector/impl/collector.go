@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	issuereporter "github.com/DataDog/datadog-agent/comp/healthplatform/issuereporter/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	metadata "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -214,7 +213,7 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	ch := middleware.NewCheckWrapper(inner, c.senderManager, c.agentTelemetry, option.New[issuereporter.Component](c.healthPlatform))
+	ch := middleware.NewCheckWrapper(inner, c.senderManager, c.agentTelemetry, option.New[healthplatform.Component](c.healthPlatform))
 
 	var emptyID checkid.ID
 

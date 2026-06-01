@@ -348,11 +348,6 @@ The registry is the single source of truth for issue templates and built-in heal
 It is built once at startup from all registered issue modules and shared by the runner
 (for template lookup on IssueReport) and the bundle (for bootstrapping built-in checks).
 
-### [comp/healthplatform/issuereporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/issuereporter)
-
-Package issuereporter defines the interface that Go integrations use to report
-health issues into the health platform store.
-
 ### [comp/healthplatform/runner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/runner)
 
 Package runner defines the interface for the health platform runner component.
