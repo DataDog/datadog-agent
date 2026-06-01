@@ -75,13 +75,42 @@ set_selinux_permissive() {
   log "SELinux set to permissive (lab requirement)"
 }
 
+# Probe for the highest EL minor that has a Whamcloud 2.15 repo.
+# Whamcloud publishes versioned dirs (lustre-2.15.5/el9.4, lustre-2.15.6/el9.5,
+# etc.) but latest-release/ symlinks don't exist for every EL minor. Walk down
+# from the detected minor until we find a valid server repomd.xml.
+resolve_el_repo_dir() {
+  local el_minor="$1"          # e.g. "9.6"
+  local el_major="${el_minor%%.*}"  # "9"
+  local el_m="${el_minor##*.}"      # "6"
+
+  for (( m = el_m; m >= 3; m-- )); do
+    local candidate="el${el_major}.${m}"
+    local probe_url="${WHAMCLOUD_BASE}/lustre/latest-release/${candidate}/server/repodata/repomd.xml"
+    if curl -sfI --max-time 10 "${probe_url}" >/dev/null 2>&1; then
+      log "Whamcloud latest-release resolved to ${candidate}"
+      echo "${candidate}"
+      return 0
+    fi
+    log "no Whamcloud latest-release for ${candidate}, trying lower minor"
+  done
+
+  err "no Whamcloud latest-release found for el${el_major}.3 through el${el_major}.${el_m}"
+  err "check https://downloads.whamcloud.com/public/lustre/ for available builds"
+  return 1
+}
+
 write_repos() {
   local el_minor="$1"
-  local el_dir="el${el_minor}"
-  log "configuring Whamcloud repos for Lustre ${LUSTRE_VERSION} on ${el_dir}"
+  log "configuring Whamcloud repos for Lustre ${LUSTRE_VERSION} on el${el_minor}"
+
+  local el_dir
+  el_dir="$(resolve_el_repo_dir "${el_minor}")"
 
   # Lustre server (includes ldiskfs/osd backend + mkfs.lustre kmods) and client.
-  # baseurl is resolved to the latest 2.15.x point release for this EL minor.
+  # el_dir may be a lower EL minor than the running kernel if Whamcloud hasn't
+  # published packages for the exact minor yet. DKMS rebuilds the modules
+  # against the running kernel so this is safe.
   cat >/etc/yum.repos.d/lustre.repo <<EOF
 [lustre-server]
 name=lustre-server
@@ -101,6 +130,7 @@ baseurl=${WHAMCLOUD_BASE}/e2fsprogs/latest/el9
 enabled=1
 gpgcheck=0
 EOF
+  log "repos written for ${el_dir}"
 }
 
 install_packages() {
