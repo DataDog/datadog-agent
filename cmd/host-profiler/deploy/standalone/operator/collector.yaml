@@ -93,10 +93,6 @@ spec:
       valueFrom:
         fieldRef:
           fieldPath: status.hostIP
-    - name: DD_KUBERNETES_KUBELET_HOST
-      valueFrom:
-        fieldRef:
-          fieldPath: status.hostIP
     - name: MY_POD_IP
       valueFrom:
         fieldRef:

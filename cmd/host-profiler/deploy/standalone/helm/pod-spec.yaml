@@ -76,10 +76,6 @@ networkPolicy:
   # on clusters with Cilium. Standard NetworkPolicy cannot express FQDN-based rules.
 
 extraEnvs:
-  - name: DD_KUBERNETES_KUBELET_HOST
-    valueFrom:
-      fieldRef:
-        fieldPath: status.hostIP
   - name: DD_API_KEY
     valueFrom:
       secretKeyRef:
