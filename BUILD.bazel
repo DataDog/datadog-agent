@@ -275,7 +275,6 @@ exports_files(glob(
 # gazelle:exclude pkg/clusteragent/autoscaling/workload/metrics
 # gazelle:exclude pkg/clusteragent/autoscaling/workload/provider
 # gazelle:exclude pkg/clusteragent/languagedetection
-# gazelle:exclude pkg/clusteragent/mcp
 # gazelle:exclude pkg/clusteragent/metricsstore
 # gazelle:exclude pkg/clusteragent/orchestrator
 # gazelle:exclude pkg/collector/aggregator
