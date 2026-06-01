@@ -269,6 +269,39 @@
   },
   "selectedYankedVersions": {},
   "moduleExtensions": {
+    "//bazel/dotslash:dotslash_tool.bzl%dotslash": {
+      "general": {
+        "bzlTransitiveDigest": "QPIE5nFAOfuE1FIxJC13mpZkbyWjVK19NOB7oKt4v+M=",
+        "usagesDigest": "XZ3Kqnyhvzp6gAHcF6zNQTLMD9N51Ug0Uys39tLlk6c=",
+        "recordedInputs": [
+          "FILE:@@//tools/bin/buildifier 8adddf2c64eb696c5353b80d2a6cd8e6a4a6bcf74d9817bf1c788558c20cec0a",
+          "FILE:@@//tools/bin/vault 6fa34872d07240cd488983b9465f85b790db7d7c25a12164793c82f9c5f9aeac"
+        ],
+        "generatedRepoSpecs": {
+          "dotslash_buildifier": {
+            "repoRuleId": "@@//bazel/dotslash:dotslash_tool.bzl%dotslash_tool",
+            "attributes": {
+              "manifest": "@@//tools/bin:buildifier"
+            }
+          },
+          "dotslash_vault": {
+            "repoRuleId": "@@//bazel/dotslash:dotslash_tool.bzl%dotslash_tool",
+            "attributes": {
+              "manifest": "@@//tools/bin:vault"
+            }
+          },
+          "dotslash": {
+            "repoRuleId": "@@//bazel/dotslash:dotslash_tool.bzl%dotslash_hub",
+            "attributes": {
+              "tools": {
+                "buildifier": "@dotslash_buildifier//:tool",
+                "vault": "@dotslash_vault//:tool"
+              }
+            }
+          }
+        }
+      }
+    },
     "//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl%llvm_bpf_extension": {
       "general": {
         "bzlTransitiveDigest": "eOYXODssdQNOf4X8CCImpZYvyFCF/VqCz/43DBjJieA=",

@@ -12,7 +12,7 @@ exclude_patterns = [
 
 buildifier(
     name = "buildifier",
-    buildifier = "@multitool//tools/buildifier",
+    buildifier = "@dotslash//:buildifier",
     exclude_patterns = exclude_patterns,
     lint_mode = "fix",
     mode = "fix",
@@ -25,7 +25,7 @@ buildifier(
 # - requires additional arguments: `no_sandbox` and `workspace`
 buildifier_test(
     name = "test",
-    buildifier = "@multitool//tools/buildifier",
+    buildifier = "@dotslash//:buildifier",
     exclude_patterns = exclude_patterns,
     lint_mode = "warn",
     mode = "diff",
