@@ -19,7 +19,7 @@ import yaml
 from invoke import Context
 
 from tasks.libs.common.color import color_message
-from tasks.libs.package.size import extract_package, file_size
+from tasks.libs.package.size import extract_package
 from tasks.static_quality_gates.gates import (
     QualityGateConfig,
     create_quality_gate_config,
@@ -216,8 +216,25 @@ class InPlaceArtifactReport:
         return self.file_inventory[:10]
 
 
+@dataclass(frozen=True)
+class MeasurementResult:
+    """
+    On-disk measurement returned by an ArtifactProcessor.
+
+    Wire size is measured separately via ArtifactProcessor.compute_wire_size.
+    """
+
+    disk_size: int
+    file_inventory: list[FileInfo]
+    metadata: Any | None = None
+
+
 class ArtifactProcessor(Protocol):
     """Protocol for processing different types of artifacts (packages, docker images, etc.)"""
+
+    def compute_wire_size(self, ctx: Context, artifact_ref: str) -> int:
+        """Return the on-wire (compressed/transport) size of the artifact in bytes."""
+        ...
 
     def measure_artifact(
         self,
@@ -226,13 +243,8 @@ class ArtifactProcessor(Protocol):
         gate_config: QualityGateConfig,
         debug: bool,
         filter: Callable[[str], bool] = lambda _: True,
-    ) -> tuple[int, int, list[FileInfo], Any]:
-        """
-        Measure an artifact and return wire size, disk size, file inventory, and optional metadata.
-
-        Returns:
-            Tuple of (wire_size, disk_size, file_inventory, artifact_specific_metadata)
-        """
+    ) -> MeasurementResult:
+        """Extract the artifact, walk it, return its on-disk size and file inventory."""
         ...
 
 
@@ -630,19 +642,26 @@ class UniversalArtifactMeasurer:
         """
         gate_config = self.config_manager.get_gate_config(gate_name)
 
-        wire_size, disk_size, file_inventory, artifact_metadata = self.processor.measure_artifact(
-            ctx, artifact_ref, gate_config, debug, filter
-        )
+        # Fetch wire size first so a missing/broken manifest fails fast,
+        # before we spend time extracting the artifact.
+        wire_size = self.processor.compute_wire_size(ctx, artifact_ref)
+
+        result = self.processor.measure_artifact(ctx, artifact_ref, gate_config, debug, filter)
+
+        # Print the wire size after `measure_artifact` so it lands under the
+        # same "analysis completed" debug header.
+        if debug:
+            print(f"   • Wire size: {wire_size:,} bytes")
 
         return self.report_builder.create_report(
             artifact_ref=artifact_ref,
             gate_name=gate_name,
             gate_config=gate_config,
             wire_size=wire_size,
-            disk_size=disk_size,
-            file_inventory=file_inventory,
+            disk_size=result.disk_size,
+            file_inventory=result.file_inventory,
             build_job_name=build_job_name,
-            artifact_metadata=artifact_metadata,
+            artifact_metadata=result.metadata,
         )
 
     def save_report_to_yaml(self, report: InPlaceArtifactReport, output_path: str) -> None:
@@ -653,6 +672,11 @@ class UniversalArtifactMeasurer:
 class PackageProcessor:
     """Package artifact processor implementing the ArtifactProcessor protocol."""
 
+    def compute_wire_size(self, ctx: Context, artifact_ref: str) -> int:
+        if not os.path.exists(artifact_ref):
+            raise ValueError(f"Package file not found: {artifact_ref}")
+        return os.path.getsize(artifact_ref)
+
     def measure_artifact(
         self,
         ctx: Context,
@@ -660,15 +684,13 @@ class PackageProcessor:
         gate_config: QualityGateConfig,
         debug: bool,
         filter: Callable[[str], bool] = lambda _: True,
-    ) -> tuple[int, int, list[FileInfo], Any]:
+    ) -> MeasurementResult:
         """Measure package artifact using extraction and analysis."""
         if not os.path.exists(artifact_ref):
             raise ValueError(f"Package file not found: {artifact_ref}")
 
         if debug:
             print(f"📦 Measuring package: {artifact_ref}")
-
-        wire_size = file_size(artifact_ref)
 
         with tempfile.TemporaryDirectory() as extract_dir:
             if debug:
@@ -680,11 +702,10 @@ class PackageProcessor:
 
             if debug:
                 print("✅ Package analysis completed:")
-                print(f"   • Wire size: {wire_size:,} bytes")
                 print(f"   • Disk size: {disk_size:,} bytes")
                 print(f"   • Files inventoried: {len(file_inventory):,}")
 
-            return wire_size, disk_size, file_inventory, None
+            return MeasurementResult(disk_size=disk_size, file_inventory=file_inventory)
 
 
 class DockerProcessor:
@@ -695,6 +716,25 @@ class DockerProcessor:
     regardless of image layer structure while maintaining detailed file analysis.
     """
 
+    def compute_wire_size(self, ctx: Context, artifact_ref: str) -> int:
+        """Calculate Docker image compressed size using manifest inspection."""
+        try:
+            # Use jq to properly parse JSON and sum config size + all layer sizes
+            manifest_output = ctx.run(
+                f"crane manifest {artifact_ref} | jq '[.config.size, (.layers[].size)] | add'",
+                hide=True,
+            )
+
+            if manifest_output.exited != 0:
+                raise RuntimeError(f"crane manifest failed for {artifact_ref}")
+
+            return int(manifest_output.stdout.strip())
+
+        except ValueError as e:
+            raise RuntimeError(f"Failed to parse manifest size output for {artifact_ref}: {e}") from e
+        except Exception as e:
+            raise RuntimeError(f"Failed to calculate wire size from manifest for {artifact_ref}: {e}") from e
+
     def measure_artifact(
         self,
         ctx: Context,
@@ -702,16 +742,14 @@ class DockerProcessor:
         gate_config: QualityGateConfig,
         debug: bool,
         filter: Callable[[str], bool] = lambda _: True,
-    ) -> tuple[int, int, list[FileInfo], DockerImageInfo]:
-        """Measure Docker image using manifest inspection for wire size and crane pull for disk analysis."""
+    ) -> MeasurementResult:
+        """Measure Docker image using crane pull for disk analysis and file inventory."""
         if debug:
             print(f"🐳 Measuring Docker image: {artifact_ref}")
 
-        wire_size = self._get_wire_size(ctx, artifact_ref, debug)
-
         disk_size, file_inventory, docker_info = self._measure_on_disk_size(ctx, artifact_ref, debug, filter)
 
-        return wire_size, disk_size, file_inventory, docker_info
+        return MeasurementResult(disk_size=disk_size, file_inventory=file_inventory, metadata=docker_info)
 
     def _measure_on_disk_size(
         self,
@@ -747,33 +785,6 @@ class DockerProcessor:
 
         except Exception as e:
             raise RuntimeError(f"Failed to analyze image {image_ref}: {e}") from e
-
-    def _get_wire_size(self, ctx: Context, image_ref: str, debug: bool = False) -> int:
-        """Calculate Docker image compressed size using manifest inspection."""
-        try:
-            if debug:
-                print(f"📋 Calculating wire size from manifest for {image_ref}...")
-
-            # Use jq to properly parse JSON and sum config size + all layer sizes
-            manifest_output = ctx.run(
-                f"crane manifest {image_ref} | jq '[.config.size, (.layers[].size)] | add'",
-                hide=True,
-            )
-
-            if manifest_output.exited != 0:
-                raise RuntimeError(f"crane manifest failed for {image_ref}")
-
-            wire_size = int(manifest_output.stdout.strip())
-
-            if debug:
-                print(f"✅ Wire size from manifest: {wire_size:,} bytes ({wire_size / 1024 / 1024:.2f} MB)")
-
-            return wire_size
-
-        except ValueError as e:
-            raise RuntimeError(f"Failed to parse manifest size output for {image_ref}: {e}") from e
-        except Exception as e:
-            raise RuntimeError(f"Failed to calculate wire size from manifest for {image_ref}: {e}") from e
 
     def _analyze_extracted_docker_layers(
         self,

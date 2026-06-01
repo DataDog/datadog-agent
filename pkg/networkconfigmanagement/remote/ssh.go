@@ -9,10 +9,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"slices"
-	"strings"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
@@ -40,7 +38,7 @@ func init() {
 
 // SSHClient implements Client using SSH
 type SSHClient struct {
-	client *ssh.Client
+	client *RetryingSSHClient
 	device *ncmconfig.DeviceInstance // Device configuration for authentication
 	prof   *profile.NCMProfile
 }
@@ -53,7 +51,7 @@ type SSHSession struct {
 // NewSSHClient creates a new SSH client for the given device configuration
 func NewSSHClient(device *ncmconfig.DeviceInstance) (*SSHClient, error) {
 	if device.Auth.SSH != nil {
-		if err := validateClientConfig(device.Auth.SSH); err != nil {
+		if err := ValidateSSHConfig(device.Auth.SSH); err != nil {
 			return nil, fmt.Errorf("error validating ssh client config: %w", err)
 		}
 	}
@@ -110,7 +108,7 @@ func buildAuthMethods(auth ncmconfig.AuthCredentials) ([]ssh.AuthMethod, error) 
 	return methods, nil
 }
 
-func validateClientConfig(config *ncmconfig.SSHConfig) error {
+func ValidateSSHConfig(config *ncmconfig.SSHConfig) error {
 	var validCiphers, validKeyExchanges, validHostKeys []string
 	if config.AllowLegacyAlgorithms {
 		// Log a warning about the insecure nature of algorithms, still check that it's a "valid" algorithm vs. only a safe/supported algo
@@ -146,22 +144,11 @@ func (c *SSHClient) SetProfile(profile *profile.NCMProfile) {
 	c.prof = profile
 }
 
-// redial attempts to re-establish the SSH connection to the device
-func (c *SSHClient) redial() error {
-	if c.client != nil {
-		_ = c.client.Close()
-	}
-	newClient, err := connectToHost(c.device.IPAddress, c.device.Auth, c.device.Auth.SSH)
-	if err != nil {
-		return err
-	}
-	c.client = newClient
-	return nil
-}
-
 // Connect establishes a new SSH connection to the specified IP address using the provided authentication credentials
 func (c *SSHClient) Connect() error {
-	client, err := connectToHost(c.device.IPAddress, c.device.Auth, c.device.Auth.SSH)
+	client, err := NewRetryingSSHClient(func() (*ssh.Client, error) {
+		return connectToDevice(c.device)
+	})
 	if err != nil {
 		return err
 	}
@@ -172,26 +159,10 @@ func (c *SSHClient) Connect() error {
 // NewSession creates a new SSH session for the client (needed for every command execution)
 func (c *SSHClient) NewSession() (Session, error) {
 	sess, err := c.client.NewSession()
-	if err != nil && isTransientSSH(err) {
-		if rerr := c.redial(); rerr == nil {
-			sess, err = c.client.NewSession()
-		}
-	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to create SSH session: %w", err)
 	}
 	return &SSHSession{session: sess}, nil
-}
-
-// isTransientSSH checks if the error is transient and can be retried (devices that may only accept a limited number of connections)
-func isTransientSSH(err error) bool {
-	if err == io.EOF {
-		return true
-	}
-	s := err.Error()
-	return strings.Contains(s, "unexpected packet in response to channel open") ||
-		strings.Contains(s, "channel open") ||
-		strings.Contains(s, "connection reset by peer")
 }
 
 // CombinedOutput runs a command using the SSH session and returns its output
@@ -276,6 +247,11 @@ func (c *SSHClient) Close() error {
 // Close closes the SSH session
 func (s *SSHSession) Close() error {
 	return s.session.Close()
+}
+
+// connectToDevice is a shorthand for connectToHost with parameters from the device
+func connectToDevice(device *ncmconfig.DeviceInstance) (*ssh.Client, error) {
+	return connectToHost(device.IPAddress, device.Auth, device.Auth.SSH)
 }
 
 // connectToHost establishes an SSH connection to the specified IP address using the provided authentication credentials

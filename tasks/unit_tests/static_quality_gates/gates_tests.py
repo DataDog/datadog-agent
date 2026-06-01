@@ -235,13 +235,13 @@ class TestPackageArtifactMeasurer(unittest.TestCase):
 
         self.assertIn("Couldn't find any DEB file", str(cm.exception))
 
-    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': '/test/pkg'})
+    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': '/test/pkg', 'OMNIBUS_PACKAGE_DIR_SUSE': '/test/suse/pkg'})
     def test_find_package_path_patterns(self):
         test_cases = [
             ("static_quality_gate_agent_deb_amd64", "/test/pkg/datadog-agent_7*amd64.deb"),
             ("static_quality_gate_agent_deb_amd64_fips", "/test/pkg/datadog-fips-agent_7*amd64.deb"),
             ("static_quality_gate_iot_agent_rpm_arm64", "/test/pkg/datadog-iot-agent-7*aarch64.rpm"),
-            ("static_quality_gate_dogstatsd_suse_amd64", "/test/pkg/datadog-dogstatsd-7*x86_64.rpm"),
+            ("static_quality_gate_dogstatsd_suse_amd64", "/test/suse/pkg/datadog-dogstatsd-7*x86_64.rpm"),
             ("static_quality_gate_agent_heroku_amd64", "/test/pkg/datadog-heroku-agent_7*amd64.deb"),
         ]
 

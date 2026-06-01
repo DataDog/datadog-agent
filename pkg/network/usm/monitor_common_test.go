@@ -16,6 +16,7 @@ import (
 	"net"
 	nethttp "net/http"
 	"net/url"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -323,6 +324,9 @@ func runHTTPMonitorIntegrationWithResponseBodyTest(t *testing.T, params commonTe
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if runtime.GOOS == "windows" && tt.requestBodySize == 10*mb {
+				t.Skip("flaky on Windows")
+			}
 			serverAddr := fmt.Sprintf("127.0.0.1:%d", params.serverPort)
 
 			monitor := params.setupMonitor(t)

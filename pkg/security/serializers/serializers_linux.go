@@ -1014,7 +1014,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			psSerializer.UserSession = newUserSessionContextSerializer(&ps.UserSession, e)
 		}
 
-		awsSecurityCredentials := e.FieldHandlers.ResolveAWSSecurityCredentials(e)
+		awsSecurityCredentials := e.FieldHandlers.ResolveAWSSecurityCredentials(e, ps)
 		if len(awsSecurityCredentials) > 0 {
 			for _, creds := range awsSecurityCredentials {
 				psSerializer.AWSSecurityCredentials = append(psSerializer.AWSSecurityCredentials, newAWSSecurityCredentialsSerializer(&creds))
