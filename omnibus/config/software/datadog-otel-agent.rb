@@ -68,7 +68,6 @@ build do
     command "dda inv -- -e otel-agent.build --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
 
     copy File.join('bin', 'otel-agent', binary_name), embedded_bin_dir
-    copy File.join('bin', 'otel-agent', "#{binary_name}.pdb"), embedded_bin_dir if windows_target?
     move 'bin/otel-agent/dist/otel-config.yaml', File.join(conf_dir, 'otel-config.yaml.example')
 
     if fips_mode?
