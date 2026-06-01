@@ -32,6 +32,16 @@ func IsTagged(checkName string, cfg pkgconfigmodel.Reader) bool {
 	return slices.Contains(taggedChecks, checkName)
 }
 
+type infraTagsAppender interface {
+	AppendInfraTags(tags []string)
+}
+
+func appendCCMInfraTags(s infraTagsAppender, cfg pkgconfigmodel.Reader) {
+	if infraMode := cfg.GetString("infrastructure_mode"); infraMode == "cloud_cost_only" {
+		s.AppendInfraTags([]string{"infrastructure_mode:" + infraMode})
+	}
+}
+
 // ApplySenderTags appends infrastructure_mode:<value> to the check sender's infra tags when the
 // integration is eligible for CCM mode tagging.
 func ApplySenderTags(senderManager sender.SenderManager, id checkid.ID, integrationName string, cfg pkgconfigmodel.Reader) {
@@ -43,9 +53,5 @@ func ApplySenderTags(senderManager sender.SenderManager, id checkid.ID, integrat
 		log.Debugf("CCM mode tags: skipping %s (%s): %v", integrationName, id, err)
 		return
 	}
-
-	if infraMode := cfg.GetString("infrastructure_mode"); infraMode == "cloud_cost_only" {
-		ccmTag := "infrastructure_mode:" + infraMode
-		s.AppendInfraTags([]string{ccmTag})
-	}
+	appendCCMInfraTags(s, cfg)
 }
