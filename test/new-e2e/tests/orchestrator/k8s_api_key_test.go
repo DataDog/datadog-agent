@@ -17,6 +17,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	fakeintakescenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	scenariokindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	awskindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
@@ -38,6 +39,7 @@ func (suite *k8sSuite) TestZzzClusterAgentAPIKeyRefresh() {
 	suite.UpdateEnv(
 		awskindvm.Provisioner(
 			awskindvm.WithRunOptions(
+				scenariokindvm.WithFakeintakeOptions(fakeintakescenario.WithLoadBalancer()),
 				scenariokindvm.WithAgentOptions(
 					kubernetesagentparams.WithNamespace(namespace),
 					kubernetesagentparams.WithHelmValues(fmt.Sprintf(agentAPIKeyRefreshValuesFmt, suite.Env().FakeIntake.URL)),

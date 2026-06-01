@@ -20,6 +20,7 @@ import (
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	fakeintakescenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	scenariokindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -42,6 +43,7 @@ func TestKindSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awskindvm.Provisioner(
 			awskindvm.WithRunOptions(
+				scenariokindvm.WithFakeintakeOptions(fakeintakescenario.WithLoadBalancer()),
 				scenariokindvm.WithDeployTestWorkload(),
 				scenariokindvm.WithAgentOptions(
 					kubernetesagentparams.WithDualShipping(),
