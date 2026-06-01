@@ -548,6 +548,8 @@ require (
 
 replace github.com/googleapis/gnostic v0.5.6 => github.com/googleapis/gnostic v0.5.5
 
+replace github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor => github.com/DataDog/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.0.0-20260529094035-974ffcac91ce
+
 replace github.com/docker/go-connections v0.4.1-0.20210727194412-58542c764a11 => github.com/docker/go-connections v0.4.0
 
 replace github.com/mattn/go-ieproxy => github.com/mattn/go-ieproxy v0.0.1
