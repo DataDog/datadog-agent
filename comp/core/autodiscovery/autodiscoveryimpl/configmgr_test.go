@@ -776,12 +776,12 @@ func TestPendingDiscoveryPopulatedOnUnmatched(t *testing.T) {
 	disco := newFakeDiscoverer()
 	disco.pending["docker://abc|krakend"] = true
 
-	cm := newReconcilingConfigManager(&mockResolver, hp, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, disco).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "krakend",
 		ADIdentifiers: []string{"krakend"},
-		Discovery:     &integration.Discovery{},
+		Discovery:     &integration.DiscoveryConfig{},
 		Provider:      "file",
 	}
 	svc := &dummyService{
@@ -802,12 +802,12 @@ func TestPendingDiscoveryPrunedOnGiveUp(t *testing.T) {
 	disco := newFakeDiscoverer()
 	disco.pending["docker://abc|krakend"] = true
 
-	cm := newReconcilingConfigManager(&mockResolver, hp, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, disco).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "krakend",
 		ADIdentifiers: []string{"krakend"},
-		Discovery:     &integration.Discovery{},
+		Discovery:     &integration.DiscoveryConfig{},
 		Provider:      "file",
 	}
 	svc := &dummyService{
@@ -819,7 +819,7 @@ func TestPendingDiscoveryPrunedOnGiveUp(t *testing.T) {
 	cm.processNewService(svc)
 	require.Contains(t, cm.pendingDiscovery, "docker://abc", "service should start tracked")
 
-	// Discoverer transitions from pending → given-up.
+	// Discoverer transitions from pending to given-up.
 	disco.pending["docker://abc|krakend"] = false
 
 	// Re-reconcile (what the retry tick will do in Task 5).
@@ -836,12 +836,12 @@ func TestProcessDelServiceCallsForget(t *testing.T) {
 	disco := newFakeDiscoverer()
 	disco.pending["docker://abc|krakend"] = true
 
-	cm := newReconcilingConfigManager(&mockResolver, hp, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, disco).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "krakend",
 		ADIdentifiers: []string{"krakend"},
-		Discovery:     &integration.Discovery{},
+		Discovery:     &integration.DiscoveryConfig{},
 		Provider:      "file",
 	}
 	svc := &dummyService{
@@ -865,12 +865,12 @@ func TestPendingDiscoveryPrunedOnSuccess(t *testing.T) {
 	disco := newFakeDiscoverer()
 	disco.pending["docker://abc|krakend"] = true
 
-	cm := newReconcilingConfigManager(&mockResolver, hp, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, disco).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "krakend",
 		ADIdentifiers: []string{"krakend"},
-		Discovery:     &integration.Discovery{},
+		Discovery:     &integration.DiscoveryConfig{},
 		Provider:      "file",
 	}
 	svc := &dummyService{
@@ -903,14 +903,14 @@ func TestPendingDiscoveryNotPopulatedForNonDiscoveryTemplate(t *testing.T) {
 	// trigger pendingDiscovery membership.
 	disco.pending["docker://abc|krakend"] = true
 
-	cm := newReconcilingConfigManager(&mockResolver, hp, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, disco).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "krakend",
 		ADIdentifiers: []string{"krakend"},
 		Instances:     []integration.Data{integration.Data("host: %%host%%")},
 		Provider:      "file",
-		// Discovery is nil — plain template.
+		// Discovery is nil: plain template.
 	}
 	svc := &dummyService{
 		ID:            "docker://abc",
@@ -930,12 +930,12 @@ func TestRetryPendingDiscoveriesScheduledOnLateMatch(t *testing.T) {
 	disco := newFakeDiscoverer()
 	disco.pending["docker://abc|krakend"] = true // initial: pending, no match
 
-	cm := newReconcilingConfigManager(&mockResolver, hp, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, disco).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "krakend",
 		ADIdentifiers: []string{"krakend"},
-		Discovery:     &integration.Discovery{},
+		Discovery:     &integration.DiscoveryConfig{},
 		Provider:      "file",
 	}
 	svc := &dummyService{
@@ -974,7 +974,7 @@ func TestRetryPendingDiscoveriesNoOpWhenEmpty(t *testing.T) {
 	hp := healthplatformmock.Mock(t)
 	disco := newFakeDiscoverer()
 
-	cm := newReconcilingConfigManager(&mockResolver, hp, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, disco).(*reconcilingConfigManager)
 
 	changes := cm.retryPendingDiscoveries()
 	assert.Empty(t, changes.Schedule)
@@ -987,12 +987,12 @@ func TestRetryPendingDiscoveriesNoChangeWhenStillPending(t *testing.T) {
 	disco := newFakeDiscoverer()
 	disco.pending["docker://abc|krakend"] = true
 
-	cm := newReconcilingConfigManager(&mockResolver, hp, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, disco).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "krakend",
 		ADIdentifiers: []string{"krakend"},
-		Discovery:     &integration.Discovery{},
+		Discovery:     &integration.DiscoveryConfig{},
 		Provider:      "file",
 	}
 	svc := &dummyService{
@@ -1004,7 +1004,7 @@ func TestRetryPendingDiscoveriesNoChangeWhenStillPending(t *testing.T) {
 	cm.processNewService(svc)
 	require.Contains(t, cm.pendingDiscovery, "docker://abc")
 
-	// Discoverer still pending, still not matching — retry tick produces nothing.
+	// Discoverer still pending, still not matching: retry tick produces nothing.
 	changes := cm.retryPendingDiscoveries()
 
 	assert.Empty(t, changes.Schedule, "no schedule when service still pending")
