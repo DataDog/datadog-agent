@@ -175,6 +175,7 @@ components_missing_implementation_folder = [
     "comp/dogstatsd/statsd",
     "comp/forwarder/orchestrator/orchestratorinterface",
     "comp/core/hostname/hostnameinterface",
+    "comp/healthplatform/issuereporter",
 ]
 
 ignore_fx_import = [

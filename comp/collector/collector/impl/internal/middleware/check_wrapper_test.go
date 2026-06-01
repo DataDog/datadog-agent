@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	issuereporter "github.com/DataDog/datadog-agent/comp/healthplatform/issuereporter/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -59,6 +60,7 @@ func TestCheckWrapperCreatesSpan(t *testing.T) {
 		mockCheck,
 		nil, // senderManager is not needed for this test
 		option.New[agenttelemetry.Component](mockTelemetry),
+		option.None[issuereporter.Component](),
 	)
 
 	// Run the check
