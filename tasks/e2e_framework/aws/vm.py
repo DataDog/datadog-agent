@@ -131,10 +131,10 @@ def create_vm(
         notify(ctx, "Your VM is now created")
 
     if add_known_host:
-        host = get_host(ctx, remote_hostname, scenario_name, stack_name)
+        host = get_host(ctx, remote_hostname, scenario_name, stack_name, config_path)
         add_known_host_func(ctx, host.address)
 
-    show_connection_message(ctx, remote_hostname, full_stack_name, interactive)
+    show_connection_message(ctx, remote_hostname, full_stack_name, interactive, config_path)
 
 
 @task(
@@ -154,7 +154,7 @@ def destroy_vm(
     Destroy a new virtual machine on aws.
     """
 
-    host = get_host(ctx, remote_hostname, scenario_name, stack_name)
+    host = get_host(ctx, remote_hostname, scenario_name, stack_name, config_path)
 
     destroy(
         ctx,
@@ -244,8 +244,9 @@ def _get_windows_password(
     use_aws_vault: bool | None = True,
     instance_id: str | None = None,
     ip: str | None = None,
+    config_path: str | None = None,
 ):
-    resources = tool.get_stack_json_resources(ctx, full_stack_name)
+    resources = tool.get_stack_json_resources(ctx, full_stack_name, config_path)
     vms = []
     for r in resources:
         if not r["type"].startswith("aws:ec2/instance:Instance"):
@@ -311,6 +312,7 @@ def get_vm_password(
         use_aws_vault=use_aws_vault,
         instance_id=instance_id,
         ip=ip,
+        config_path=config_path,
     )
     if not out:
         raise Exit(
@@ -347,7 +349,7 @@ def rdp_vm(
     if not stack_name:
         raise Exit("Please provide a stack name to connect to.")
 
-    out = tool.get_stack_json_outputs(ctx, stack_name)
+    out = tool.get_stack_json_outputs(ctx, stack_name, config_path)
     if not out:
         raise Exit("No VM found in the stack.")
 

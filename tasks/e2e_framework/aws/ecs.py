@@ -83,7 +83,7 @@ def _show_connection_message(ctx: Context, config_path: str | None, full_stack_n
 
     from tasks.e2e_framework import config
 
-    outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
+    outputs = tool.get_stack_json_outputs(ctx, full_stack_name, config_path)
     cluster_name = outputs["dd-Cluster-ecs"]["clusterName"]
 
     try:

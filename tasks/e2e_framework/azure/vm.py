@@ -115,10 +115,10 @@ def create_vm(
         tool.notify(ctx, "Your VM is now created")
 
     if add_known_host:
-        host = get_host(ctx, remote_hostname, scenario_name, stack_name)
+        host = get_host(ctx, remote_hostname, scenario_name, stack_name, config_path)
         add_known_host_func(ctx, host.address)
 
-    show_connection_message(ctx, remote_hostname, full_stack_name, interactive)
+    show_connection_message(ctx, remote_hostname, full_stack_name, interactive, config_path)
 
 
 @task(
@@ -138,7 +138,7 @@ def destroy_vm(
     Destroy a new virtual machine on azure.
     """
 
-    host = get_host(ctx, remote_hostname, scenario_name, stack_name)
+    host = get_host(ctx, remote_hostname, scenario_name, stack_name, config_path)
 
     destroy(
         ctx,

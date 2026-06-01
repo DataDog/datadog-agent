@@ -70,11 +70,13 @@ def create_docker(
     if interactive:
         tool.notify(ctx, "Your Docker environment is now created")
 
-    _show_connection_message(ctx, full_stack_name, interactive)
+    _show_connection_message(ctx, full_stack_name, interactive, config_path)
 
 
-def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboard: bool | None):
-    outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
+def _show_connection_message(
+    ctx: Context, full_stack_name: str, copy_to_clipboard: bool | None, config_path: str | None = None
+):
+    outputs = tool.get_stack_json_outputs(ctx, full_stack_name, config_path)
     remoteHost = tool.RemoteHost("aws-dockervm", outputs)
     host = remoteHost.address
     user = remoteHost.user

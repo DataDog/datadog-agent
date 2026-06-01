@@ -122,7 +122,7 @@ def _show_connection_message(ctx: Context, full_stack_name: str, config_path: st
 
     from tasks.e2e_framework import config
 
-    outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
+    outputs = tool.get_stack_json_outputs(ctx, full_stack_name, config_path)
     kubeconfig_output = json.loads(outputs["dd-Cluster-eks"]["kubeConfig"])
     kubeconfig_content = yaml.dump(kubeconfig_output)
     kubeconfig = f"{full_stack_name}-kubeconfig.yaml"

@@ -12,6 +12,8 @@ from tasks.e2e_framework.tool import info, is_linux, is_windows, warn
 # Length matches Pulumi cloud-generated passphrases. token_urlsafe yields ~43 chars from 32 bytes.
 _PASSPHRASE_BYTES = 32
 
+_PULUMI_PASSPHRASE_ENV = "PULUMI_CONFIG_PASSPHRASE"
+
 
 def setup_pulumi_config(config: Config):
     """
@@ -38,6 +40,8 @@ def setup_pulumi_config(config: Config):
         info("✓ Generated Pulumi passphrase (stored in ~/.test_infra_config.yaml, chmod 0600)")
     else:
         info("✓ Pulumi passphrase already configured")
+
+    os.environ[_PULUMI_PASSPHRASE_ENV] = pulumi.passphrase
 
 
 def pulumi_version(ctx: Context) -> tuple[str, bool]:

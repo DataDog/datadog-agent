@@ -1,3 +1,4 @@
+import os
 import subprocess
 
 from invoke.context import Context
@@ -25,15 +26,22 @@ def destroy(
     full_stack_name = get_stack_name(stack, scenario_name)
     pulumi_dir_flag = tool.get_pulumi_dir_flag()
 
-    short_stack_names, full_stack_names = _get_existing_stacks(pulumi_dir_flag.split(" "))
+    passphrase_env: dict[str, str] = {}
+
+    try:
+        cfg = config.get_local_config(config_path)
+    except ValidationError as e:
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
+
+    if "PULUMI_CONFIG_PASSPHRASE" not in os.environ:
+        passphrase = config.get_pulumi_passphrase(cfg)
+        if passphrase:
+            passphrase_env["PULUMI_CONFIG_PASSPHRASE"] = passphrase
+
+    short_stack_names, full_stack_names = _get_existing_stacks(pulumi_dir_flag.split(" "), passphrase_env)
     if len(short_stack_names) == 0:
         info("No stack to destroy")
         return
-
-    try:
-        config.get_local_config(config_path)
-    except ValidationError as e:
-        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
 
     if stack is not None:
         if stack in short_stack_names:
@@ -55,15 +63,18 @@ def destroy(
         pty = True
         if tool.is_windows():
             pty = False
-        ret = ctx.run(cmd, pty=pty, warn=True)
+        ret = ctx.run(cmd, pty=pty, warn=True, env=passphrase_env)
         if ret is not None and ret.exited != 0:
             # run with refresh on first destroy attempt failure
             cmd += " --refresh"
-            ctx.run(cmd, pty=pty)
+            ctx.run(cmd, pty=pty, env=passphrase_env)
 
 
-def _get_existing_stacks(pulumi_dir_flag: list[str]) -> tuple[list[str], list[str]]:
-    output = subprocess.check_output(["pulumi", *pulumi_dir_flag, "stack", "ls", "--all"])
+def _get_existing_stacks(
+    pulumi_dir_flag: list[str], extra_env: dict[str, str] | None = None
+) -> tuple[list[str], list[str]]:
+    env = {**os.environ, **(extra_env or {})}
+    output = subprocess.check_output(["pulumi", *pulumi_dir_flag, "stack", "ls", "--all"], env=env)
     output = output.decode("utf-8")
     lines = output.splitlines()
     lines = lines[1:]  # skip headers

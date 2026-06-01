@@ -93,7 +93,22 @@ def get_stack_name_prefix() -> str:
     return user_name.replace(".", "-").replace(" ", "-")
 
 
-def get_stack_json_outputs(ctx: Context, full_stack_name: str) -> Any:
+def _get_pulumi_passphrase_env(config_path: str | None = None) -> dict[str, str]:
+    """Return env dict with PULUMI_CONFIG_PASSPHRASE if not already set in the environment."""
+    if "PULUMI_CONFIG_PASSPHRASE" in os.environ:
+        return {}
+    try:
+        from tasks.e2e_framework.config import get_local_config, get_pulumi_passphrase
+
+        passphrase = get_pulumi_passphrase(get_local_config(config_path))
+        if passphrase:
+            return {"PULUMI_CONFIG_PASSPHRASE": passphrase}
+    except Exception:
+        pass
+    return {}
+
+
+def get_stack_json_outputs(ctx: Context, full_stack_name: str, config_path: str | None = None) -> Any:
     buffer = StringIO()
 
     cmd_parts: list[str] = [
@@ -109,16 +124,18 @@ def get_stack_json_outputs(ctx: Context, full_stack_name: str) -> Any:
     ctx.run(
         " ".join(cmd_parts),
         out_stream=buffer,
+        env=_get_pulumi_passphrase_env(config_path),
     )
     return json.loads(buffer.getvalue())
 
 
-def get_stack_json_resources(ctx: Context, full_stack_name: str) -> Any:
+def get_stack_json_resources(ctx: Context, full_stack_name: str, config_path: str | None = None) -> Any:
     buffer = StringIO()
     with ctx.cd(_get_root_path()):
         ctx.run(
             f"pulumi stack export -s {full_stack_name}",
             out_stream=buffer,
+            env=_get_pulumi_passphrase_env(config_path),
         )
     out = json.loads(buffer.getvalue())
     return out['deployment']['resources']
@@ -255,9 +272,13 @@ class RemoteHost:
 
 
 def show_connection_message(
-    ctx: Context, remote_host_name: str, full_stack_name: str, copy_to_clipboard: bool | None = True
+    ctx: Context,
+    remote_host_name: str,
+    full_stack_name: str,
+    copy_to_clipboard: bool | None = True,
+    config_path: str | None = None,
 ):
-    outputs = get_stack_json_outputs(ctx, full_stack_name)
+    outputs = get_stack_json_outputs(ctx, full_stack_name, config_path)
     remoteHost = RemoteHost(remote_host_name, outputs)
     address = remoteHost.address
     user = remoteHost.user
@@ -296,10 +317,16 @@ def clean_known_hosts(ctx: Context, host: str) -> None:
     ctx.run(f"ssh-keygen -R {host}", hide=True)
 
 
-def get_host(ctx: Context, remote_host_name: str, scenario_name: str, stack_name: str | None = None) -> RemoteHost:
+def get_host(
+    ctx: Context,
+    remote_host_name: str,
+    scenario_name: str,
+    stack_name: str | None = None,
+    config_path: str | None = None,
+) -> RemoteHost:
     """
     Get the host of the VM.
     """
     full_stack_name = get_stack_name(stack_name, scenario_name)
-    outputs = get_stack_json_outputs(ctx, full_stack_name)
+    outputs = get_stack_json_outputs(ctx, full_stack_name, config_path)
     return RemoteHost(remote_host_name, outputs)

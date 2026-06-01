@@ -76,6 +76,13 @@ def deploy(
     except ValidationError as e:
         raise Exit(f"Error in config {config.get_full_profile_path(config_path)}") from e
 
+    if "PULUMI_CONFIG_PASSPHRASE" not in os.environ:
+        passphrase = config.get_pulumi_passphrase(cfg)
+        if passphrase:
+            if pulumi_env is None:
+                pulumi_env = {}
+            pulumi_env.setdefault("PULUMI_CONFIG_PASSPHRASE", passphrase)
+
     flags["scenario"] = scenario_name
     flags["ddagent:version"] = agent_version
     flags["ddagent:flavor"] = agent_flavor
@@ -167,8 +174,8 @@ def check_s3_image_exists(_, pipeline_id: str, deploy_job: str):
 
 
 # creates a stack with the given stack_name if it doesn't already exists
-def _create_stack(ctx: Context, stack_name: str, global_flags: str):
-    result = ctx.run(f"pulumi {global_flags} stack ls --all", hide="stdout")
+def _create_stack(ctx: Context, stack_name: str, global_flags: str, pulumi_env: dict[str, str] | None = None):
+    result = ctx.run(f"pulumi {global_flags} stack ls --all", hide="stdout", env=pulumi_env)
     if not result:
         return
 
@@ -179,7 +186,7 @@ def _create_stack(ctx: Context, stack_name: str, global_flags: str):
         if ls_stack_name == stack_name:
             return
 
-    ctx.run(f"pulumi {global_flags} stack init --no-select {stack_name}")
+    ctx.run(f"pulumi {global_flags} stack init --no-select {stack_name}", env=pulumi_env)
 
 
 def _deploy(
@@ -220,14 +227,13 @@ def _deploy(
             up_flags += " --debug"
 
     global_flags = " ".join(global_flags_array)
-    _create_stack(ctx, stack_name, global_flags)
+    _create_stack(ctx, stack_name, global_flags, pulumi_env)
     extra = f" {pulumi_extra_args}" if pulumi_extra_args else ""
-    env_prefix = " ".join(f"{k}={v}" for k, v in (pulumi_env or {}).items())
-    env_prefix = f"{env_prefix} " if env_prefix else ""
-    cmd = f"{env_prefix}pulumi {global_flags} up --yes{extra} -s {stack_name} {up_flags}"
+    cmd = f"pulumi {global_flags} up --yes{extra} -s {stack_name} {up_flags}"
 
     pty = not pulumi_extra_args  # disable pty when extra args are set (e.g. --non-interactive)
     if tool.is_windows():
         pty = False
-    ctx.run(cmd, pty=pty)
+    print(f"cmd: {cmd} env: {pulumi_env}")
+    ctx.run(cmd, pty=pty, env=pulumi_env)
     return stack_name
