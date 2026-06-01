@@ -71,6 +71,7 @@ go_test(
     gotags = ["test"],
     tags = ["manual"],  # keep
     deps = [
+        "//comp/core",
         "//comp/core/autodiscovery/common/types",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/providers/names",
@@ -94,7 +95,6 @@ go_test(
         "//pkg/util/option",
         "//pkg/util/retry",
         "//pkg/util/testutil",
-        "@//comp/core",
         "@//comp/core/autodiscovery/common/utils",
         "@//comp/core/autodiscovery/listeners",
         "@//comp/core/tagger/fx-mock",
