@@ -45,6 +45,7 @@ type rcServerState struct {
 	rootJSON []byte
 
 	keyPath          string
+	keyData          string // hex-encoded seed; takes precedence over keyPath when non-empty
 	initialStatePath string
 }
 
@@ -142,6 +143,20 @@ func WithRemoteConfigKeyPath(path string) Option {
 	}
 }
 
+// WithRemoteConfigKeyData supplies the ed25519 signing key as a hex-encoded
+// 32-byte seed string. When set, the key is never written to disk and
+// WithRemoteConfigKeyPath is ignored. Use this for ephemeral environments
+// (e.g. ECS Fargate) where a fixed, pre-known key is required so the agent's
+// config_root/director_root can be set at provisioning time.
+func WithRemoteConfigKeyData(hexSeed string) Option {
+	return func(fi *Server) {
+		if fi.rc == nil {
+			return
+		}
+		fi.rc.keyData = hexSeed
+	}
+}
+
 // WithRemoteConfigVersion seeds the version counter (default 1). Used to keep
 // the agent's remote-config.db in sync across restarts.
 func WithRemoteConfigVersion(v uint64) Option {
@@ -183,9 +198,25 @@ func (fi *Server) initRC() error {
 		return nil
 	}
 
-	priv, generated, err := rcstore.LoadOrCreateSigningKey(rc.keyPath)
-	if err != nil {
-		return fmt.Errorf("rc signing key: %w", err)
+	var (
+		priv ed25519.PrivateKey
+		err  error
+	)
+	if rc.keyData != "" {
+		priv, err = rcstore.KeyFromHexSeed(rc.keyData)
+		if err != nil {
+			return fmt.Errorf("rc signing key (from --rc-key-data): %w", err)
+		}
+		log.Println("Remote Config: loaded signing key from --rc-key-data")
+	} else {
+		var generated bool
+		priv, generated, err = rcstore.LoadOrCreateSigningKey(rc.keyPath)
+		if err != nil {
+			return fmt.Errorf("rc signing key: %w", err)
+		}
+		if generated {
+			log.Println("Remote Config: generated new signing key — agent's remote-config.db must be flushed")
+		}
 	}
 	rc.signing = priv
 
@@ -203,9 +234,6 @@ func (fi *Server) initRC() error {
 	rc.rootJSON = root
 
 	log.Printf("Remote Config: keyid=%s pubkey=%s", keyID, pubHex)
-	if generated {
-		log.Println("Remote Config: generated new signing key — agent's remote-config.db must be flushed")
-	}
 	log.Printf("Remote Config: paste into datadog.yaml:\n  remote_configuration.config_root: '%s'\n  remote_configuration.director_root: '%s'", root, root)
 
 	if rc.initialStatePath != "" {
