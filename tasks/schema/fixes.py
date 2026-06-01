@@ -105,6 +105,18 @@ sysprobe_defaults = {
         "windows": "localhost:3335",
         "other": "${install_path}/run/runtime-security.sock",
     },
+    "network_config.direct_send": {
+        "linux": True,
+        "other": False,
+    },
+    "discovery.enabled": {
+        "linux": True,
+        "other": False,
+    },
+    "discovery.use_system_probe_lite": {
+        "linux": True,
+        "other": False,
+    },
 }
 
 # extra_tags
@@ -176,7 +188,7 @@ def fix_tags(core_schema, sysprobe_schema):
             for k in key.split("."):
                 node = node["properties"][k]
 
-            node["tags"] = list(set(node.get("tags", []) + tags))
+            node["tags"] = sorted(set(node.get("tags", []) + tags))
     return core_schema, sysprobe_schema
 
 

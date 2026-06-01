@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "networks",
+    srcs = [
+        "entrypoint.go",
+        "run_network_path.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/eventplatform/def",
+        "//comp/networkpath/traceroute/def",
+        "//pkg/config/setup",
+        "//pkg/logs/message",
+        "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/config",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+    ],
+)
+
+go_test(
+    name = "networks_test",
+    srcs = ["run_network_path_test.go"],
+    embed = [":networks"],
+    gotags = ["test"],
+    deps = [
+        "//comp/forwarder/eventplatform/def",
+        "//pkg/config/setup",
+        "//pkg/logs/message",
+        "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/config",
+        "//pkg/privateactionrunner/types",
+        "//pkg/util/option",
+        "@com_github_stretchr_testify//require",
+    ],
+)

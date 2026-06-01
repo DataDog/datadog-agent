@@ -15,9 +15,9 @@ import (
 )
 
 const (
-	defaultAgentImageRepo            = "gcr.io/datadoghq/agent"
-	defaultClusterAgentImageRepo     = "gcr.io/datadoghq/cluster-agent"
-	defaultOTelAgentGatewayImageRepo = "gcr.io/datadoghq/ddot-collector"
+	defaultAgentImageRepo            = "registry.datadoghq.com/agent"
+	defaultClusterAgentImageRepo     = "registry.datadoghq.com/cluster-agent"
+	defaultOTelAgentGatewayImageRepo = "registry.datadoghq.com/ddot-collector"
 	defaultAgentImageTag             = "latest"
 	defaultAgent6ImageTag            = "6"
 	defaultDevAgentImageRepo         = "datadog/agent-dev" // Used as default repository for images that are not stable and released yet, should not be used in the CI

@@ -11,13 +11,13 @@ import (
 	"sync"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -108,6 +108,11 @@ type reconcilingConfigManager struct {
 	// methods correspond exactly to changes in this map.
 	scheduledConfigs map[string]integration.Config
 
+	// staticConfigIndex is a shared name set published to listeners so they
+	// can deduplicate templates against static configs (see ProcessService).
+	// May be nil; callers that don't need cross-listener dedup can omit it.
+	staticConfigIndex *listeners.StaticConfigIndex
+
 	secretResolver secrets.Component
 	healthPlatform healthplatformdef.Component
 }
@@ -115,7 +120,7 @@ type reconcilingConfigManager struct {
 var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
-func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component) configManager {
+func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex) configManager {
 	return &reconcilingConfigManager{
 		activeConfigs:      map[string]integration.Config{},
 		activeServices:     map[string]serviceAndADIDs{},
@@ -123,6 +128,7 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 		servicesByADID:     newMultimap(),
 		serviceResolutions: map[string]map[string]string{},
 		scheduledConfigs:   map[string]integration.Config{},
+		staticConfigIndex:  staticConfigIndex,
 		secretResolver:     secretResolver,
 		healthPlatform:     healthPlatform,
 	}
@@ -244,6 +250,18 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 		}
 
 		changes.ScheduleConfig(decryptedConfig)
+
+		// Publish to the cross-listener index so that subsequently
+		// reconciled services (e.g. ProcessService) can deduplicate
+		// templates against this static config (must have instances).
+		//
+		// TODO: re-reconcile already-resolved services whose templates of
+		// this name would now be deduplicated. Without this, a static
+		// config that arrives after a dynamic process discovery leaves the
+		// duplicate scheduled until something else perturbs the service.
+		if len(decryptedConfig.Instances) > 0 {
+			cm.staticConfigIndex.Add(config.Name)
+		}
 	}
 
 	//  4. update scheduledConfigs
@@ -295,6 +313,11 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 			}
 
 			changes.UnscheduleConfig(config)
+
+			// Update the cross-listener index.
+			if len(config.Instances) > 0 {
+				cm.staticConfigIndex.Remove(config.Name)
+			}
 		}
 
 		//  4. update scheduledConfigs
@@ -367,7 +390,7 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 	// the service, in which case no resolutions are expected.
 	if svc != nil {
 		// Warning: this must be called with the configs stored in cm.activeConfigs
-		// which contain the compiled matchingProgram for the config template.
+		// which contain the compiled matchingPrograms for the config template.
 		svc.FilterTemplates(expectedResolutions)
 	}
 
@@ -435,16 +458,23 @@ func (cm *reconcilingConfigManager) reportTemplateResolutionFailure(tpl integrat
 	if cm.healthPlatform == nil {
 		return
 	}
-	checkID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
-	report := &healthplatformpayload.IssueReport{
-		IssueId: healthplatformdef.ADMisconfigurationIssueID,
-		Context: map[string]string{
-			"entityName":   tpl.Name + " (" + svc.GetServiceID() + ")",
-			"errorMessage": err.Error(),
-			"errorSource":  string(types.TemplateResolutionSource),
-		},
+	issueID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
+	context := map[string]string{
+		"entityName":   tpl.Name + " (" + svc.GetServiceID() + ")",
+		"errorMessage": err.Error(),
+		"errorSource":  string(types.TemplateResolutionSource),
 	}
-	if reportErr := cm.healthPlatform.ReportIssue(checkID, healthplatformdef.ADMisconfigurationCheckName, report); reportErr != nil {
+	issue, buildErr := admisconfig.NewADMisconfigurationIssue().BuildIssue(context)
+	if buildErr != nil {
+		issue = &healthplatformpayload.Issue{
+			Id:        issueID,
+			IssueName: healthplatformdef.ADMisconfigurationIssueName,
+			Source:    healthplatformdef.ADMisconfigurationSource,
+		}
+	} else {
+		issue.Id = issueID
+	}
+	if reportErr := cm.healthPlatform.ReportIssue(issue); reportErr != nil {
 		log.Debugf("Failed to report template resolution issue: %v", reportErr)
 	}
 }
@@ -454,10 +484,8 @@ func (cm *reconcilingConfigManager) clearTemplateResolutionFailure(tpl integrati
 	if cm.healthPlatform == nil {
 		return
 	}
-	checkID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
-	if err := cm.healthPlatform.ReportIssue(checkID, healthplatformdef.ADMisconfigurationCheckName, nil); err != nil {
-		log.Debugf("Failed to clear template resolution issue %s: %v", checkID, err)
-	}
+	issueID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
+	cm.healthPlatform.ResolveIssue(issueID)
 }
 
 // clearTemplateResolutionFailureByID clears a health issue using string identifiers.
@@ -466,10 +494,8 @@ func (cm *reconcilingConfigManager) clearTemplateResolutionFailureByID(tplName, 
 	if cm.healthPlatform == nil {
 		return
 	}
-	checkID := "ad-template:" + tplName + ":" + svcID + ":" + tplDigest
-	if err := cm.healthPlatform.ReportIssue(checkID, healthplatformdef.ADMisconfigurationCheckName, nil); err != nil {
-		log.Debugf("Failed to clear template resolution issue %s: %v", checkID, err)
-	}
+	issueID := "ad-template:" + tplName + ":" + svcID + ":" + tplDigest
+	cm.healthPlatform.ResolveIssue(issueID)
 }
 
 // applyChanges applies the given changes to cm.scheduledConfigs

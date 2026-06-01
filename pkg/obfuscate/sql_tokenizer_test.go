@@ -79,6 +79,13 @@ func FuzzTokenizeFloatStrings(f *testing.F) {
 	f.Add(float64(-12.3456789))
 
 	f.Fuzz(func(t *testing.T, f float64) {
+		// NaN and Inf are not valid SQL numeric literals; strconv.FormatFloat
+		// renders them as "NaN", "+Inf", or "-Inf", which the tokenizer correctly
+		// does not classify as Number tokens.  Skip them rather than asserting
+		// a property they cannot satisfy.
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			return
+		}
 		for _, format := range []byte{'e', 'E', 'f'} {
 			value := strconv.FormatFloat(f, format, -1, 64)
 			testTokenizeNumber(t, value)

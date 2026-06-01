@@ -142,7 +142,7 @@ func listDataToResolve(config *integration.Config) []dataToResolve {
 
 	if config.IsLogConfig() {
 		p := tmplvar.YAMLParser
-		if config.Provider == names.Container || config.Provider == names.Kubernetes || config.Provider == names.KubeContainer {
+		if config.Provider == names.Container || config.Provider == names.Kubernetes || config.Provider == names.KubeContainer || config.Provider == names.InstrumentationChecks {
 			p = tmplvar.JSONParser
 		}
 		res = append(res, dataToResolve{
