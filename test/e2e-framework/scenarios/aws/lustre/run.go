@@ -102,26 +102,20 @@ func Run(ctx *pulumi.Context) error {
 
 	// --- Infrastructure: single all-in-one x86_64 EL9 host ------------------
 	//
-	// os.RedHat9 is the primary descriptor: NewDescriptor(RedHat, "9") and it
-	// is wired with a default AMI in the framework. RedHat and RockyLinux are
-	// both dnf-family EL9, so the component's bootstrap script works on either.
+	// os.RedHat8 (RHEL 8, "86" in platforms.json) is required because
+	// Whamcloud only publishes pre-built Lustre server RPMs for EL8.
+	// EL9 ships client-only packages; there are no server-side packages
+	// (lustre-osd-ldiskfs, lustre-all-dkms, kmod-lustre) for EL9 or Ubuntu.
 	//
-	// WithOSArch(..., os.AMD64Arch) is explicit even though RedHat9 already
-	// defaults to x86_64, to make the arch requirement unmistakable: the
-	// Whamcloud el9 server RPMs are x86_64-only.
+	// The DKMS path (lustre-all-dkms) builds modules against the running
+	// kernel on the EL8 host without requiring the Lustre-patched kernel.
 	//
-	// NOTE (root volume): the bootstrap places the MGT/MDT/OST loop backing
-	// files plus the Whamcloud RPMs and DKMS build artifacts on the root
-	// volume, which needs ~30-40 GB. ec2.NewVM does not expose a root-volume
-	// size option; the size comes from the framework default
-	// (env.DefaultInstanceStorageSize()). If that default is smaller than
-	// ~40 GB, raise it for this stack via the `ddinfra:aws/defaultInstanceStorageSize`
-	// Pulumi config (or an equivalent infra config key) when running the
-	// create task. This is a deploy-time knob, not a code change.
+	// WithOSArch(..., os.AMD64Arch) is explicit: Whamcloud el8 server RPMs
+	// are x86_64-only.
 	vm, err := ec2.NewVM(
 		env,
 		vmName,
-		ec2.WithOSArch(os.RedHat9, os.AMD64Arch),
+		ec2.WithOSArch(os.RedHat8, os.AMD64Arch),
 		ec2.WithInstanceType(instanceType),
 	)
 	if err != nil {
