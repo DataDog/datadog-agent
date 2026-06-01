@@ -272,7 +272,6 @@ exports_files(glob(
 # gazelle:exclude pkg/cli/subcommands/experimental
 # gazelle:exclude pkg/cli/subcommands/processchecks
 # gazelle:exclude pkg/cli/subcommands/workloadfilter
-# gazelle:exclude pkg/cli/subcommands/workloadlist
 # gazelle:exclude pkg/cloudfoundry
 # gazelle:exclude pkg/clusteragent/admission
 # gazelle:exclude pkg/clusteragent/appsec
