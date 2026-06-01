@@ -175,7 +175,7 @@ func NewComponent(deps Requires) Provides {
 	settings := settingsFromAgentConfig(catalog, cfg)
 	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
 
-	storageCfg := defaultStorageConfig()
+	storageCfg := DefaultStorageConfig()
 	if cfg != nil {
 		if cfg.IsConfigured("anomaly_detection.storage.max_series") {
 			storageCfg.MaxSeries = cfg.GetInt("anomaly_detection.storage.max_series")
@@ -629,11 +629,11 @@ func (o *observerImpl) Flush() {
 }
 
 // Reset clears all engine state and reconfigures with new settings. Implements DebugView.
-func (o *observerImpl) Reset(settings ComponentSettings) {
+func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) {
 	o.Flush()
 	detectors, correlators, extractors, _ := o.catalog.Instantiate(settings)
 	o.replayMu.Lock()
-	o.engine.ResetForReplay(detectors, correlators, extractors)
+	o.engine.ResetForReplay(detectors, correlators, extractors, storageCfg)
 	o.replayMu.Unlock()
 }
 
@@ -699,6 +699,29 @@ func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
 		result := o.engine.advanceWithReason(req.upToSec, req.reason)
 		o.telemetryHandler.handleTelemetry(result.telemetry)
 	}
+	o.replayMu.Unlock()
+}
+
+// IngestLogNoAdvance feeds a log directly into the engine without driving any
+// scheduler-triggered advances. Implements DebugView. Used during batch
+// pre-loading in the testbench replay path so that extractor state is built up
+// and log metrics are written to storage, but detector/correlator advances are
+// deferred to the subsequent ReplayStoredData call.
+func (o *observerImpl) IngestLogNoAdvance(source string, msg observerdef.LogView) {
+	timestampMs := msg.GetTimestampUnixMilli()
+	lo := &logObs{
+		content:     msg.GetContent(),
+		status:      msg.GetStatus(),
+		tags:        copyTags(msg.Tags()),
+		hostname:    msg.GetHostname(),
+		timestampMs: timestampMs,
+	}
+	o.replayMu.Lock()
+	_, logTelemetry := o.engine.IngestLog(source, lo)
+	if len(logTelemetry) > 0 {
+		o.telemetryHandler.handleTelemetry(logTelemetry)
+	}
+	// Advance requests are intentionally discarded.
 	o.replayMu.Unlock()
 }
 

@@ -46,6 +46,43 @@ func TestUpdateRegistry_AtomicSwap(t *testing.T) {
 	assert.Equal(t, "test-version", DefaultRegistry().Version())
 }
 
+func TestRegistryEqual_SameVersion(t *testing.T) {
+	a, err := NewRegistryFromJSON([]byte(`{"version":"1.0.0","concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`))
+	require.NoError(t, err)
+	b, err := NewRegistryFromJSON([]byte(`{"version":"1.0.0","concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`))
+	require.NoError(t, err)
+	assert.True(t, RegistryEqual(a, b))
+}
+
+func TestRegistryEqual_DifferentVersion(t *testing.T) {
+	a, err := NewRegistryFromJSON([]byte(`{"version":"1.0.0","concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`))
+	require.NoError(t, err)
+	b, err := NewRegistryFromJSON([]byte(`{"version":"2.0.0","concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`))
+	require.NoError(t, err)
+	assert.False(t, RegistryEqual(a, b))
+}
+
+// TestRegistryEqual_SameVersionDifferentConcepts documents the current
+// limitation: RegistryEqual relies solely on Version(), so two registries that
+// happen to share a version string compare equal even if their concepts
+// differ. This is acceptable while the publisher stamps a stable
+// content-bound version and is captured by the TODO on RegistryEqual.
+func TestRegistryEqual_SameVersionDifferentConcepts(t *testing.T) {
+	a, err := NewRegistryFromJSON([]byte(`{"version":"x","concepts":{"db.statement":{"canonical":"db.statement","fallbacks":[{"name":"db.statement","provider":"datadog","type":"string"}]}}}`))
+	require.NoError(t, err)
+	b, err := NewRegistryFromJSON([]byte(`{"version":"x","concepts":{"http.method":{"canonical":"http.method","fallbacks":[{"name":"http.method","provider":"otel","type":"string"}]}}}`))
+	require.NoError(t, err)
+	assert.True(t, RegistryEqual(a, b), "version-only equality treats same-version payloads as equal regardless of content")
+}
+
+func TestRegistryEqual_NilHandling(t *testing.T) {
+	assert.True(t, RegistryEqual(nil, nil))
+	r, err := NewRegistryFromJSON(mappingsJSON)
+	require.NoError(t, err)
+	assert.False(t, RegistryEqual(nil, r))
+	assert.False(t, RegistryEqual(r, nil))
+}
+
 func TestUpdateRegistry_ConcurrentReadWrite(_ *testing.T) {
 	const goroutines = 10
 	const iterations = 500

@@ -838,11 +838,10 @@ func (c *AgentConfig) MRFFailoverAPM() bool {
 
 // ConfiguredPeerTags returns the set of peer tags that should be used
 // for aggregation based on the various config values and the base set of tags.
+// For callers that need to cache the result against the live semantic registry
+// version (e.g. the Concentrator's hot path), use PeerTagsCache instead.
 func (c *AgentConfig) ConfiguredPeerTags() []string {
-	if !c.PeerTagsAggregation {
-		return nil
-	}
-	return preparePeerTags(append(basePeerTags(), c.PeerTags...))
+	return c.PeerTagsCache().Keys
 }
 
 // ConfiguredSpanDerivedPrimaryTagKeys returns the configured span-derived primary

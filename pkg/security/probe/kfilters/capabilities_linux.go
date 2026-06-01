@@ -83,6 +83,25 @@ func buildFileCapabilities(event string, fields ...string) rules.FieldCapabiliti
 				TypeBitmask:  eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
 				ValidateFnc:  validatePathFilter,
 				FilterWeight: 300,
+				// FilterWeightFnc adjusts the path approver weight depending on what can actually
+				// be pushed to the kernel. A precise leaf-basename approver keeps the full weight,
+				// while a coarse parent-basename approver is demoted below the flags approvers.
+				FilterWeightFnc: func(value rules.FilterValue) int {
+					strValue, ok := value.Value.(string)
+					if !ok {
+						// only string paths can be demoted to a parent-basename approver; keep the full weight
+						return 300
+					}
+					// the leaf basename is a usable kernel approver (a plain basename, or a wildcard
+					// with a prefix of at least patternPrefixSize bytes): keep the full weight
+					if validateBasenameFilter(path.Base(strValue)) {
+						return 300
+					}
+					// otherwise only the parent directory basename can be pushed to the kernel, which is
+					// a coarse approver: weigh it below the flags approvers (open.flags is 100,
+					// open.file.in_upper_layer is 50) so a more selective field is preferred when available
+					return 20
+				},
 			},
 			{
 				Field:        event + "." + field + ".name",

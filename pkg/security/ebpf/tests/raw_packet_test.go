@@ -22,7 +22,11 @@ import (
 )
 
 const (
-	instLen = 60
+	// Len tailCallInsts: 4
+	// Len headerInsts: 14
+	// Len filterInsts: 36
+	// Len footerInsts: 8
+	instLen = 62
 )
 
 func testRawPacketFilter(t *testing.T, filters []rawpacket.Filter, progName string, expRetCode int64, expProgNum int, opts rawpacket.ProgOpts, catchCompilerError bool) {

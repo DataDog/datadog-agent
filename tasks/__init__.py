@@ -11,6 +11,7 @@ from tasks import (
     agent,
     agent_ci_api,
     ami,
+    anomalydetection,
     auth,
     bench,
     buildimages,
@@ -195,6 +196,7 @@ ns.add_task(build_and_upload_fuzz)
 # To deprecate
 ns.add_task(lint_go)
 # add namespaced tasks to the root
+ns.add_collection(anomalydetection)
 ns.add_collection(auth)
 ns.add_collection(agent)
 ns.add_collection(ami)
