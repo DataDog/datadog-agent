@@ -248,5 +248,5 @@ func getInstallPathFromExecutable(start string) string {
 
 // GetEmbeddedBinPath returns the path of the embedded binary.
 func GetEmbeddedBinPath() string {
-	return filepath.Join(GetInstallPath(), "..", "..", "embedded", "bin")
+	return filepath.Join(GetInstallPath(), "embedded", "bin")
 }
