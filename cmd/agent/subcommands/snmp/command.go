@@ -36,6 +36,7 @@ import (
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	ndmeventplatformfx "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata/eventplatform/fx"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -101,6 +102,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				snmpscanfx.Module(),
 				orchestratorimpl.Module(orchestratorimpl.NewDisabledParams()),
 				eventplatformfx.Module(eventplatform.NewDefaultParams()),
+				ndmeventplatformfx.Module(),
 				nooptagger.Module(),
 				eventplatformreceiverimpl.Module(),
 				haagentfx.Module(),
@@ -163,6 +165,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				hostnameimpl.Module(),
 				orchestratorimpl.Module(orchestratorimpl.NewDisabledParams()),
 				eventplatformfx.Module(eventplatform.NewDefaultParams()),
+				ndmeventplatformfx.Module(),
 				eventplatformreceiverimpl.Module(),
 				nooptagger.Module(),
 				snmpscanfx.Module(),
