@@ -127,7 +127,7 @@ func TestDeregisterCheckSampler(t *testing.T) {
 	deps := createAggrDeps(t)
 	demux := deps.Demultiplexer
 
-	defer demux.Stop(false)
+	defer demux.Stop()
 
 	agg := demux.Aggregator()
 	agg.checkSamplers = make(map[checkid.ID]*CheckSampler)
@@ -380,8 +380,9 @@ func TestSeriesTooManyTags(t *testing.T) {
 
 			s.On("AreSeriesEnabled").Return(true)
 			s.On("AreSketchesEnabled").Return(true)
-			s.On("SendServiceChecks", mock.Anything).Return(nil).Times(1)
-			s.On("SendIterableSeries", mock.Anything).Return(nil).Times(1)
+			// Stop() performs a final flush, so allow these to be called more than once.
+			s.On("SendServiceChecks", mock.Anything).Return(nil)
+			s.On("SendIterableSeries", mock.Anything).Return(nil)
 
 			demux.ForceFlushToSerializer(start, true)
 			s.AssertNotCalled(t, "SendEvents")
@@ -396,7 +397,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 			assert.Equal(t, expMap, gotMap)
 
 			// reset telemetry for next tests
-			demux.Stop(false)
+			demux.Stop()
 			recurrentSeries = metrics.Series{}
 			tagsetTlm.reset()
 		}
