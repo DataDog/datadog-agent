@@ -340,6 +340,22 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			defaultInputChanSize:          500,
 		},
+		{
+			eventType: eventplatform.EventTypeSDSResult,
+			category:  "DSPM",
+			// Protobuf content type makes the pipeline use the stream strategy
+			// (one payload per request, no JSON-array wrapping) and sets the
+			// "application/x-protobuf" Content-Type header. Body compression
+			// (Content-Encoding: gzip) is handled automatically by the destination.
+			contentType:                   logshttp.ProtobufContentType,
+			endpointsConfigPrefix:         "sds_result.forwarder.",
+			hostnameEndpointPrefix:        "sds-intake.",
+			intakeTrackType:               "sdsresult",
+			defaultBatchMaxConcurrentSend: 10,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		},
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("kubeactions.enabled") {
