@@ -97,7 +97,13 @@ func setupAppArmor(ctx context.Context) (err error) {
 	}
 
 	// check if apparmor is running properly by executing aa-status
-	if err = telemetry.CommandContext(ctx, "aa-status").Run(); err != nil {
+	// https://manpages.ubuntu.com/manpages/noble/man8/aa-status.8.html
+	if err = telemetry.CommandContext(ctx, "aa-status").
+		WithExpectedExitCodes(
+			1, // apparmor not enabled/loaded
+			2, // apparmor enabled but no policy loaded
+			3, // apparmor control files unavailable under /sys/kernel/security/ (common in containers)
+		).Run(); err != nil {
 		// no-op is apparmor is not running properly
 		return nil
 	}
