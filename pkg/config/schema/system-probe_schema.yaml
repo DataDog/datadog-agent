@@ -592,6 +592,7 @@ properties:
         type: array
         default:
         - 53
+        env_parser: json
         items:
           type: number
         visibility: public

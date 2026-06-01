@@ -66,7 +66,7 @@
 #   enabled: false
 
 #   # @param dns_monitoring_ports - list of integers - optional - default: [53]
-#   # @env DD_NETWORK_CONFIG_DNS_MONITORING_PORTS - space-separated list of integers - optional - default: "53"
+#   # @env DD_NETWORK_CONFIG_DNS_MONITORING_PORTS - JSON array of integers - optional - default: "[53]"
 #   # A list of ports that should be monitored for DNS traffic.
 #
 #   dns_monitoring_ports:
