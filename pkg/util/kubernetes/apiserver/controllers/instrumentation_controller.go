@@ -53,7 +53,7 @@ func waitForInstrumentationCRD(ctx context.Context, dynamicClient dynamic.Interf
 	exp.Reset()
 
 	check := func() error {
-		_, err := dynamicClient.Resource(instrumentation.DatadogInstrumentationGVR).List(context.TODO(), metav1.ListOptions{})
+		_, err := dynamicClient.Resource(instrumentation.DatadogInstrumentationGVR).List(ctx, metav1.ListOptions{})
 		return err
 	}
 
