@@ -125,6 +125,13 @@ func TestGetIntegrationConfig(t *testing.T) {
 	require.Nil(t, err)
 	require.NotNil(t, config.Discovery, "discovery: {} should produce a non-nil Discovery field")
 
+	discoveryOnlyConfig := path.Join(t.TempDir(), "discovery_only.yaml")
+	require.NoError(t, os.WriteFile(discoveryOnlyConfig, []byte("ad_identifiers:\n  - foo_id\ndiscovery: {}\ninit_config:\ninstances: []\n"), 0o644))
+	config, _, err = GetIntegrationConfigFromFile("foo", discoveryOnlyConfig)
+	require.Nil(t, err)
+	require.NotNil(t, config.Discovery, "discovery: {} should be valid without static instances")
+	assert.Empty(t, config.Instances)
+
 	// no discovery: a regular config leaves Discovery nil.
 	config, _, err = GetIntegrationConfigFromFile("foo", "tests/testcheck.yaml")
 	require.Nil(t, err)
