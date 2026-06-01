@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/test/e2e-framework
 
-go 1.25.6
+go 1.26.0
 
 require (
 	cloud.google.com/go/compute v1.63.0

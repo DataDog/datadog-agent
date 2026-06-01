@@ -2,7 +2,7 @@
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended", ":enablePreCommit", "schedule:nonOfficeHours"],
     "constraints": {
-      "go": "1.25.10"
+      "go": "1.26.3"
     },
     "constraintsFiltering": "strict",
     "minimumReleaseAge": "7 days",

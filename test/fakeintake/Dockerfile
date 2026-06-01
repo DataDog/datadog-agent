@@ -2,7 +2,7 @@
 # syntax=docker/dockerfile:1
 ARG GO_BASE_IMAGE_REGISTRY=docker.io
 ARG ALPINE_BASE_IMAGE_REGISTRY=docker.io
-ARG GO_VERSION=1.25.10
+ARG GO_VERSION=1.26.3
 
 ## Build
 FROM ${GO_BASE_IMAGE_REGISTRY}/library/golang:${GO_VERSION} AS build
