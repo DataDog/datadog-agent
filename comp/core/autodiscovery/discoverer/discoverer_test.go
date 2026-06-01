@@ -22,10 +22,10 @@ import (
 
 type fakeBridge struct {
 	calls   int
-	respond func(integrationName string, service python.DiscoveryService) ([]integration.Data, error)
+	respond func(integrationName string, service python.DiscoveryService) ([]integration.Config, error)
 }
 
-func (f *fakeBridge) DiscoverConfig(integrationName string, service python.DiscoveryService) ([]integration.Data, error) {
+func (f *fakeBridge) DiscoverConfig(integrationName string, service python.DiscoveryService) ([]integration.Config, error) {
 	f.calls++
 	return f.respond(integrationName, service)
 }
@@ -60,28 +60,35 @@ func newFakeService() *fakeService {
 }
 
 func TestDiscoverHappyPath(t *testing.T) {
-	bridge := &fakeBridge{respond: func(name string, _ python.DiscoveryService) ([]integration.Data, error) {
+	bridge := &fakeBridge{respond: func(name string, _ python.DiscoveryService) ([]integration.Config, error) {
 		require.Equal(t, "krakend", name)
-		return []integration.Data{integration.Data(`{"openmetrics_endpoint": "http://10.0.0.1:9090/metrics"}`)}, nil
+		return []integration.Config{{
+			InitConfig: integration.Data(`{"from":"discovery"}`),
+			Instances:  []integration.Data{integration.Data(`{"openmetrics_endpoint": "http://10.0.0.1:9090/metrics"}`)},
+			LogsConfig: integration.Data(`[{"source":"krakend"}]`),
+		}}, nil
 	}}
 	d := newDiscoverer(bridge)
 	r, ok := d.Discover(context.Background(), "krakend", newFakeService())
 	require.True(t, ok)
 	require.Len(t, r.Configs, 1)
 	assert.Equal(t, "krakend", r.Configs[0].Name)
+	assert.JSONEq(t, `{"from":"discovery"}`, string(r.Configs[0].InitConfig))
 	assert.Contains(t, string(r.Configs[0].Instances[0]), "10.0.0.1")
 	assert.Contains(t, string(r.Configs[0].Instances[0]), "9090")
+	assert.JSONEq(t, `[{"source":"krakend"}]`, string(r.Configs[0].LogsConfig))
+	assert.Nil(t, r.Configs[0].Discovery)
 }
 
 func TestDiscoverEmptyListNoMatch(t *testing.T) {
-	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Data, error) { return nil, nil }}
+	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Config, error) { return nil, nil }}
 	d := newDiscoverer(bridge)
 	_, ok := d.Discover(context.Background(), "krakend", newFakeService())
 	assert.False(t, ok)
 }
 
 func TestDiscoverErrorIsFailureCached(t *testing.T) {
-	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Data, error) {
+	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Config, error) {
 		return nil, errors.New("python blew up")
 	}}
 	d := newDiscoverer(bridge)
@@ -93,8 +100,8 @@ func TestDiscoverErrorIsFailureCached(t *testing.T) {
 }
 
 func TestDiscoverSuccessCached(t *testing.T) {
-	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Data, error) {
-		return []integration.Data{integration.Data(`{"openmetrics_endpoint":"x"}`)}, nil
+	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Config, error) {
+		return []integration.Config{{Instances: []integration.Data{integration.Data(`{"openmetrics_endpoint":"x"}`)}}}, nil
 	}}
 	d := newDiscoverer(bridge)
 	d.Discover(context.Background(), "krakend", newFakeService())
@@ -104,7 +111,7 @@ func TestDiscoverSuccessCached(t *testing.T) {
 
 func TestDiscoverServicePayload(t *testing.T) {
 	var captured python.DiscoveryService
-	bridge := &fakeBridge{respond: func(_ string, service python.DiscoveryService) ([]integration.Data, error) {
+	bridge := &fakeBridge{respond: func(_ string, service python.DiscoveryService) ([]integration.Config, error) {
 		captured = service
 		return nil, nil
 	}}
@@ -117,7 +124,7 @@ func TestDiscoverServicePayload(t *testing.T) {
 }
 
 func TestDiscoverGivenUpNeverProbesAgain(t *testing.T) {
-	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Data, error) {
+	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Config, error) {
 		return nil, nil
 	}}
 	d := newDiscoverer(bridge)
@@ -134,7 +141,7 @@ func TestDiscoverGivenUpNeverProbesAgain(t *testing.T) {
 }
 
 func TestDiscoverIsPendingAfterFailure(t *testing.T) {
-	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Data, error) {
+	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Config, error) {
 		return nil, nil
 	}}
 	d := newDiscoverer(bridge)
@@ -145,7 +152,7 @@ func TestDiscoverIsPendingAfterFailure(t *testing.T) {
 }
 
 func TestDiscoverIsPendingFalseAfterGiveUp(t *testing.T) {
-	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Data, error) {
+	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Config, error) {
 		return nil, nil
 	}}
 	d := newDiscoverer(bridge)
@@ -162,8 +169,8 @@ func TestDiscoverIsPendingFalseAfterGiveUp(t *testing.T) {
 }
 
 func TestDiscoverIsPendingFalseAfterSuccess(t *testing.T) {
-	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Data, error) {
-		return []integration.Data{integration.Data(`{"openmetrics_endpoint":"x"}`)}, nil
+	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Config, error) {
+		return []integration.Config{{Instances: []integration.Data{integration.Data(`{"openmetrics_endpoint":"x"}`)}}}, nil
 	}}
 	d := newDiscoverer(bridge)
 	d.Discover(context.Background(), "krakend", newFakeService())
@@ -171,7 +178,7 @@ func TestDiscoverIsPendingFalseAfterSuccess(t *testing.T) {
 }
 
 func TestDiscoverForgetClearsEntries(t *testing.T) {
-	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Data, error) {
+	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Config, error) {
 		return nil, nil
 	}}
 	d := newDiscoverer(bridge)
@@ -183,7 +190,7 @@ func TestDiscoverForgetClearsEntries(t *testing.T) {
 }
 
 func TestDiscoverForgetNoop(t *testing.T) {
-	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Data, error) { return nil, nil }}
+	bridge := &fakeBridge{respond: func(string, python.DiscoveryService) ([]integration.Config, error) { return nil, nil }}
 	d := newDiscoverer(bridge)
 	d.Forget("never-seen") // must not panic / error
 	assert.False(t, d.IsPending("never-seen", "krakend"))

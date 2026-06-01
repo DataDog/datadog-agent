@@ -744,6 +744,7 @@ type fakeDiscoverer struct {
 	results map[string]bool // key svcID|integ -> match (true = scheduled)
 	pending map[string]bool // key svcID|integ -> pending
 	forgot  map[string]bool // svcIDs that received Forget
+	configs map[string]integration.Config
 }
 
 func newFakeDiscoverer() *fakeDiscoverer {
@@ -751,13 +752,18 @@ func newFakeDiscoverer() *fakeDiscoverer {
 		results: map[string]bool{},
 		pending: map[string]bool{},
 		forgot:  map[string]bool{},
+		configs: map[string]integration.Config{},
 	}
 }
 
 func (f *fakeDiscoverer) Discover(_ context.Context, integ string, svc listeners.Service) (discoverer.Result, bool) {
 	k := svc.GetServiceID() + "|" + integ
 	if f.results[k] {
-		return discoverer.Result{Configs: []integration.Config{{Name: integ, Instances: []integration.Data{integration.Data("{}")}}}}, true
+		config, ok := f.configs[k]
+		if !ok {
+			config = integration.Config{Name: integ, InitConfig: integration.Data("{}"), Instances: []integration.Data{integration.Data("{}")}}
+		}
+		return discoverer.Result{Configs: []integration.Config{config}}, true
 	}
 	return discoverer.Result{}, false
 }
@@ -893,6 +899,51 @@ func TestPendingDiscoveryPrunedOnSuccess(t *testing.T) {
 
 	assert.NotContains(t, cm.pendingDiscovery, "docker://abc",
 		"successful discovery must remove svcID from pendingDiscovery")
+}
+
+func TestDiscoveryTemplateUsesFullDiscoveredConfig(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	hp := healthplatformmock.Mock(t)
+	disco := newFakeDiscoverer()
+
+	k := "docker://abc|krakend"
+	disco.results[k] = true
+	disco.configs[k] = integration.Config{
+		Name:                    "ignored",
+		InitConfig:              integration.Data(`{"discovered":true}`),
+		Instances:               []integration.Data{integration.Data(`{"openmetrics_endpoint":"http://%%host%%:9090/metrics"}`)},
+		LogsConfig:              integration.Data(`[{"type":"file","path":"/var/log/%%host%%.log"}]`),
+		IgnoreAutodiscoveryTags: true,
+		CheckTagCardinality:     "high",
+	}
+
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, disco).(*reconcilingConfigManager)
+	tpl := integration.Config{
+		Name:          "krakend",
+		ADIdentifiers: []string{"krakend"},
+		InitConfig:    integration.Data(`{"template":true}`),
+		LogsConfig:    integration.Data(`[{"type":"file","path":"/template.log"}]`),
+		Discovery:     &integration.DiscoveryConfig{},
+		Provider:      "file",
+	}
+	svc := &dummyService{
+		ID:            "docker://abc",
+		ADIdentifiers: []string{"krakend"},
+		Hosts:         map[string]string{"main": "10.0.0.1"},
+	}
+
+	resolved, ok := cm.resolveTemplateForService(tpl, svc)
+
+	require.True(t, ok)
+	assert.Equal(t, "krakend", resolved.Name)
+	assert.Nil(t, resolved.Discovery)
+	assert.Contains(t, string(resolved.InitConfig), "discovered: true")
+	require.Len(t, resolved.Instances, 1)
+	assert.Contains(t, string(resolved.Instances[0]), "openmetrics_endpoint: http://10.0.0.1:9090/metrics")
+	assert.Contains(t, string(resolved.LogsConfig), "/var/log/10.0.0.1.log")
+	assert.Contains(t, string(resolved.LogsConfig), "type: file")
+	assert.True(t, resolved.IgnoreAutodiscoveryTags)
+	assert.Equal(t, "high", resolved.CheckTagCardinality)
 }
 
 func TestPendingDiscoveryNotPopulatedForNonDiscoveryTemplate(t *testing.T) {

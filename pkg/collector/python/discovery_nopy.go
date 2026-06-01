@@ -14,6 +14,6 @@ import (
 )
 
 // DiscoverConfig is unavailable when the Agent is built without Python support.
-func DiscoverConfig(_ string, _ DiscoveryService) ([]integration.Data, error) {
+func DiscoverConfig(_ string, _ DiscoveryService) ([]integration.Config, error) {
 	return nil, errors.New("python support is not available")
 }

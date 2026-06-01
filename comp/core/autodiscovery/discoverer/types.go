@@ -4,9 +4,9 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package discoverer implements probe-based "advanced auto-config" by
-// dispatching the probe decision to a Python discover() classmethod on the
-// integration's check class. The Python side returns the resolved instance
-// configs directly; this package handles caching, time budgeting, and
+// dispatching the probe decision to a Python discover_config() classmethod on
+// the integration's check class. The Python side returns resolved configs
+// directly; this package handles caching, time budgeting, and
 // marshalling.
 package discoverer
 
@@ -20,9 +20,8 @@ import (
 
 // Result is the output of a successful Discover call.
 type Result struct {
-	// Configs are the integration.Config values to schedule, one per dict
-	// returned by the Python discover() classmethod. Each carries Name set to
-	// the integration name and Instances populated from the Python result.
+	// Configs are the integration.Config values to schedule, one per config
+	// returned by the Python discover_config() classmethod.
 	Configs []integration.Config
 }
 
@@ -46,6 +45,6 @@ type Discoverer interface {
 // Production uses pkg/collector/python; tests use an in-memory fake.
 type Bridge interface {
 	// DiscoverConfig invokes the integration's Python discovery bridge for the
-	// service and returns discovered instance configs.
-	DiscoverConfig(integrationName string, service python.DiscoveryService) ([]integration.Data, error)
+	// service and returns discovered configs.
+	DiscoverConfig(integrationName string, service python.DiscoveryService) ([]integration.Config, error)
 }

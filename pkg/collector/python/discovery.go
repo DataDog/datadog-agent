@@ -28,8 +28,8 @@ static inline void call_free(void* ptr) {
 import "C"
 
 // DiscoverConfig calls a Python integration's discovery bridge for a service and
-// returns the discovered instance configs.
-func DiscoverConfig(integrationName string, service DiscoveryService) ([]integration.Data, error) {
+// returns the discovered configs.
+func DiscoverConfig(integrationName string, service DiscoveryService) ([]integration.Config, error) {
 	if err := ensurePythonRuntime(); err != nil {
 		return nil, err
 	}
@@ -69,8 +69,19 @@ func DiscoverConfig(integrationName string, service DiscoveryService) ([]integra
 	return parseDiscoveryResult(integrationName, C.GoString(discoveryResult))
 }
 
-func parseDiscoveryResult(integrationName string, resultJSON string) ([]integration.Data, error) {
-	var rawConfigs []json.RawMessage
+type discoveredConfig struct {
+	CheckName               string            `json:"check_name"`
+	Name                    string            `json:"name"`
+	Instances               []json.RawMessage `json:"instances"`
+	InitConfig              json.RawMessage   `json:"init_config"`
+	MetricConfig            json.RawMessage   `json:"metric_config"`
+	LogsConfig              json.RawMessage   `json:"logs"`
+	IgnoreAutodiscoveryTags bool              `json:"ignore_autodiscovery_tags"`
+	CheckTagCardinality     string            `json:"check_tag_cardinality"`
+}
+
+func parseDiscoveryResult(integrationName string, resultJSON string) ([]integration.Config, error) {
+	var rawConfigs []discoveredConfig
 	if err := json.Unmarshal([]byte(resultJSON), &rawConfigs); err != nil {
 		return nil, fmt.Errorf("could not parse discovered configs for python check %s: %w", integrationName, err)
 	}
@@ -79,9 +90,33 @@ func parseDiscoveryResult(integrationName string, resultJSON string) ([]integrat
 		return nil, nil
 	}
 
-	configs := make([]integration.Data, 0, len(rawConfigs))
+	configs := make([]integration.Config, 0, len(rawConfigs))
 	for _, rawConfig := range rawConfigs {
-		configs = append(configs, integration.Data(rawConfig))
+		name := integrationName
+		if rawConfig.Name != "" {
+			name = rawConfig.Name
+		}
+		if rawConfig.CheckName != "" {
+			name = rawConfig.CheckName
+		}
+
+		initConfig := rawConfig.InitConfig
+		if len(initConfig) == 0 {
+			initConfig = json.RawMessage("{}")
+		}
+
+		config := integration.Config{
+			Name:                    name,
+			InitConfig:              integration.Data(initConfig),
+			MetricConfig:            integration.Data(rawConfig.MetricConfig),
+			LogsConfig:              integration.Data(rawConfig.LogsConfig),
+			IgnoreAutodiscoveryTags: rawConfig.IgnoreAutodiscoveryTags,
+			CheckTagCardinality:     rawConfig.CheckTagCardinality,
+		}
+		for _, instance := range rawConfig.Instances {
+			config.Instances = append(config.Instances, integration.Data(instance))
+		}
+		configs = append(configs, config)
 	}
 
 	return configs, nil

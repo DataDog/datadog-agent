@@ -50,12 +50,19 @@ func TestParseDiscoveryResult(t *testing.T) {
 	})
 
 	t.Run("valid array", func(t *testing.T) {
-		configs, err := parseDiscoveryResult("fake_check", `[{"host":"127.0.0.1"},{"host":"127.0.0.2"}]`)
+		configs, err := parseDiscoveryResult(
+			"fake_check",
+			`[{"init_config":{"a":1},"instances":[{"host":"127.0.0.1"}],"logs":[{"source":"fake"}]},{"check_name":"custom","instances":[{"host":"127.0.0.2"}]}]`,
+		)
 		require.NoError(t, err)
-		assert.Equal(t, []integration.Data{
-			integration.Data(`{"host":"127.0.0.1"}`),
-			integration.Data(`{"host":"127.0.0.2"}`),
-		}, configs)
+		require.Len(t, configs, 2)
+		assert.Equal(t, "fake_check", configs[0].Name)
+		assert.JSONEq(t, `{"a":1}`, string(configs[0].InitConfig))
+		assert.Equal(t, []integration.Data{integration.Data(`{"host":"127.0.0.1"}`)}, configs[0].Instances)
+		assert.JSONEq(t, `[{"source":"fake"}]`, string(configs[0].LogsConfig))
+		assert.Equal(t, "custom", configs[1].Name)
+		assert.JSONEq(t, `{}`, string(configs[1].InitConfig))
+		assert.Equal(t, []integration.Data{integration.Data(`{"host":"127.0.0.2"}`)}, configs[1].Instances)
 	})
 
 	t.Run("malformed", func(t *testing.T) {

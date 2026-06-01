@@ -19,6 +19,6 @@ func NewPythonBridge() Bridge {
 	return &pythonBridge{}
 }
 
-func (b *pythonBridge) DiscoverConfig(integrationName string, service python.DiscoveryService) ([]integration.Data, error) {
+func (b *pythonBridge) DiscoverConfig(integrationName string, service python.DiscoveryService) ([]integration.Config, error) {
 	return python.DiscoverConfig(integrationName, service)
 }

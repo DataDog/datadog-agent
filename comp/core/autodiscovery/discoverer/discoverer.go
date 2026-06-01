@@ -9,7 +9,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -84,23 +83,24 @@ func (d *defaultDiscoverer) Discover(_ context.Context, integrationName string, 
 		payload.Ports = append(payload.Ports, python.DiscoveryPort{Number: p.Port, Name: p.Name})
 	}
 
-	instances, err := d.bridge.DiscoverConfig(integrationName, payload)
+	configs, err := d.bridge.DiscoverConfig(integrationName, payload)
 	if err != nil {
 		log.Warnf("autodiscovery/discoverer: %s.discover_config() failed for %s: %v", integrationName, svcID, err)
 		d.cache.putFailure(svcID, integrationName, d.retrySchedule)
 		return Result{}, false
 	}
-	if len(instances) == 0 {
+	if len(configs) == 0 {
 		d.cache.putFailure(svcID, integrationName, d.retrySchedule)
 		return Result{}, false
 	}
 
-	r := Result{
-		Configs: []integration.Config{{
-			Name:      integrationName,
-			Instances: instances,
-		}},
+	for i := range configs {
+		if configs[i].Name == "" {
+			configs[i].Name = integrationName
+		}
+		configs[i].Discovery = nil
 	}
+	r := Result{Configs: configs}
 	d.cache.putSuccess(svcID, integrationName, r)
 	return r, true
 }

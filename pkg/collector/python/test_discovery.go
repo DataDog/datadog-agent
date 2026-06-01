@@ -80,7 +80,7 @@ func setupDiscoveryTest(t *testing.T) {
 
 func testDiscoverConfig(t *testing.T) {
 	setupDiscoveryTest(t)
-	C.discover_config_return = C.CString(`[{"url":"http://10.0.0.1:8080"}]`)
+	C.discover_config_return = C.CString(`[{"init_config":{"enabled":true},"instances":[{"url":"http://10.0.0.1:8080"}],"logs":[{"source":"fake"}]}]`)
 
 	configs, err := DiscoverConfig("fake_check", DiscoveryService{
 		ID:   "svc",
@@ -91,7 +91,11 @@ func testDiscoverConfig(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, []integration.Data{integration.Data(`{"url":"http://10.0.0.1:8080"}`)}, configs)
+	require.Len(t, configs, 1)
+	assert.Equal(t, "fake_check", configs[0].Name)
+	assert.JSONEq(t, `{"enabled":true}`, string(configs[0].InitConfig))
+	assert.Equal(t, []integration.Data{integration.Data(`{"url":"http://10.0.0.1:8080"}`)}, configs[0].Instances)
+	assert.JSONEq(t, `[{"source":"fake"}]`, string(configs[0].LogsConfig))
 	assert.Equal(t, 1, int(C.discover_config_calls))
 	assert.Equal(t, C.get_class_dd_wheel_py_class, C.discover_config_py_class)
 	assert.Equal(t, `{"id":"svc","host":"10.0.0.1","ports":[{"number":8080,"name":"http"}]}`, C.GoString(C.discover_config_service_json))
@@ -105,7 +109,7 @@ func testDiscoverConfigCustomCheck(t *testing.T) {
 	C.get_class_return = 1
 	C.get_class_py_module = newMockPyObjectPtr()
 	C.get_class_py_class = newMockPyObjectPtr()
-	C.discover_config_return = C.CString(`[{"url":"http://10.0.0.1:8080"}]`)
+	C.discover_config_return = C.CString(`[{"instances":[{"url":"http://10.0.0.1:8080"}]}]`)
 
 	configs, err := DiscoverConfig("fake_check", DiscoveryService{
 		ID:    "svc",
@@ -114,7 +118,8 @@ func testDiscoverConfigCustomCheck(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, []integration.Data{integration.Data(`{"url":"http://10.0.0.1:8080"}`)}, configs)
+	require.Len(t, configs, 1)
+	assert.Equal(t, []integration.Data{integration.Data(`{"url":"http://10.0.0.1:8080"}`)}, configs[0].Instances)
 	assert.Equal(t, C.get_class_py_class, C.discover_config_py_class)
 }
 

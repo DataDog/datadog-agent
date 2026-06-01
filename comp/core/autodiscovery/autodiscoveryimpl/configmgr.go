@@ -527,9 +527,15 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 		if len(result.Configs) == 0 {
 			return tpl, false
 		}
+		discovered := result.Configs[0]
 		resolved := tpl
 		resolved.Discovery = nil
-		resolved.Instances = result.Configs[0].Instances
+		resolved.InitConfig = discovered.InitConfig
+		resolved.Instances = discovered.Instances
+		resolved.MetricConfig = discovered.MetricConfig
+		resolved.LogsConfig = discovered.LogsConfig
+		resolved.IgnoreAutodiscoveryTags = discovered.IgnoreAutodiscoveryTags
+		resolved.CheckTagCardinality = discovered.CheckTagCardinality
 		config, err := configresolver.Resolve(resolved, svc)
 		if err != nil {
 			msg := fmt.Sprintf("error resolving discovered config %s for service %s: %v", resolved.Name, svc.GetServiceID(), err)
@@ -537,6 +543,8 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 			cm.reportTemplateResolutionFailure(tpl, svc, err)
 			return resolved, false
 		}
+		config.IgnoreAutodiscoveryTags = resolved.IgnoreAutodiscoveryTags
+		config.CheckTagCardinality = resolved.CheckTagCardinality
 		resolvedConfig, err := decryptConfig(config, cm.secretResolver, digest)
 		if err != nil {
 			msg := fmt.Sprintf("error decrypting secrets in config %s for service %s: %v", resolved.Name, svc.GetServiceID(), err)
