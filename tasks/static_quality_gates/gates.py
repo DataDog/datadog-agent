@@ -98,6 +98,36 @@ def read_byte_input(byte_input: str | int) -> int:
         return byte_input
 
 
+def _read_report_header(stream) -> dict:
+    """
+    Read only the scalar top-level fields of an inventory report YAML.
+
+    `ReportBuilder.save_report_to_yaml` places the fields we need at the
+    beginning of the document and the `file_inventory` list at the end, so
+    this skips the bulk of the file by stopping at that key.
+    """
+    header: dict = {}
+    current_key: str | None = None
+    depth = 0
+    for event in yaml.parse(stream):
+        if isinstance(event, yaml.MappingStartEvent):
+            depth += 1
+            continue
+        if isinstance(event, yaml.MappingEndEvent):
+            depth -= 1
+            continue
+        if depth != 1 or not isinstance(event, yaml.ScalarEvent):
+            continue
+        if current_key is None:
+            if event.value == "file_inventory":
+                break
+            current_key = event.value
+        else:
+            header[current_key] = event.value
+            current_key = None
+    return header
+
+
 class StaticQualityGateError(Exception):
     """
     Exception raised when a static quality gate fails
@@ -311,7 +341,7 @@ class InventoryReportMeasurer:
 
         try:
             with open(os.path.join(local_dir, filename)) as f:
-                return yaml.safe_load(f)
+                return _read_report_header(f)
         except FileNotFoundError as e:
             raise StaticQualityGateError(
                 f"Report {filename} missing from prefetched dir {local_dir}; check that the producer uploaded it"
