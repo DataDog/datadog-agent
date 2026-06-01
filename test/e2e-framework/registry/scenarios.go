@@ -18,6 +18,7 @@ import (
 	awsgensimeks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/gensim-eks"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/installer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/lustre"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/microVMs/microvms"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/aks"
 	computerun "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/compute/run"
@@ -37,6 +38,7 @@ func Scenarios() ScenarioRegistry {
 		"aws/eks":         eks.Run,
 		"aws/gensim-eks":  awsgensimeks.Run,
 		"aws/installer":   installer.Run,
+		"aws/lustre":      lustre.Run,
 		"aws/microvms":    microvms.Run,
 		"aws/kind":        kindvm.Run,
 		"az/vm":           computerun.VMRun,
