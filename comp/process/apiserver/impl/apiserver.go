@@ -51,9 +51,7 @@ type dependencies struct {
 }
 
 // NewComponent creates a new apiserver component.
-//
-//nolint:revive // TODO(PROC) Fix revive linter
-func NewComponent(deps dependencies) apiserver.Component {
+func NewComponent(deps dependencies) (apiserver.Component, error) {
 	r := http.NewServeMux()
 	api.SetupAPIServerHandlers(api.APIServerDeps{
 		Config:       deps.Config,
@@ -67,7 +65,7 @@ func NewComponent(deps dependencies) apiserver.Component {
 
 	addr, err := getProcessAPIAddressPort(deps.Config, deps.Log)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	deps.Log.Infof("API server listening on %s", addr)
 	timeout := time.Duration(deps.Config.GetInt("server_timeout")) * time.Second
@@ -108,7 +106,7 @@ func NewComponent(deps dependencies) apiserver.Component {
 		},
 	})
 
-	return s
+	return s, nil
 }
 
 const defaultProcessCmdPort = 6162
