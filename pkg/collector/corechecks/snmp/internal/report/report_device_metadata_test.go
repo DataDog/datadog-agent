@@ -1326,8 +1326,7 @@ func Test_buildInterfaceIndexByIDType(t *testing.T) {
 			IsPhysical: &truePtr,
 		},
 		{
-			// Virtual sub-interface sharing a MAC with ifIndex 2 — exercise
-			// the physical/virtual classification carried into the index.
+			// Virtual sub-interface sharing a MAC with ifIndex 2.
 			DeviceID:   "default:1.2.3.4",
 			Index:      3,
 			MacAddress: "00:00:00:00:00:02",
@@ -1351,78 +1350,71 @@ func Test_buildInterfaceIndexByIDType(t *testing.T) {
 	// Assert
 	expectedInterfaceIndexByIDType := map[string]map[string][]interfaceCandidate{
 		"mac_address": {
-			"00:00:00:00:00:01": {{ifIndex: 1, isPhysical: true}},
-			"00:00:00:00:00:02": {{ifIndex: 2, isPhysical: true}, {ifIndex: 3, isPhysical: false}},
-			"00:00:00:00:00:04": {{ifIndex: 4, isPhysical: false}},
+			"00:00:00:00:00:01": {{ifIndex: 1, isPhysical: true, macAddress: "00:00:00:00:00:01"}},
+			"00:00:00:00:00:02": {{ifIndex: 2, isPhysical: true, macAddress: "00:00:00:00:00:02"}, {ifIndex: 3, isPhysical: false, macAddress: "00:00:00:00:00:02"}},
+			"00:00:00:00:00:04": {{ifIndex: 4, isPhysical: false, macAddress: "00:00:00:00:00:04"}},
 		},
 		"interface_name": {
-			"eth1": {{ifIndex: 1, isPhysical: true}},
-			"eth2": {{ifIndex: 2, isPhysical: true}},
-			"eth3": {{ifIndex: 3, isPhysical: false}},
-			"eth4": {{ifIndex: 4, isPhysical: false}},
+			"eth1": {{ifIndex: 1, isPhysical: true, macAddress: "00:00:00:00:00:01"}},
+			"eth2": {{ifIndex: 2, isPhysical: true, macAddress: "00:00:00:00:00:02"}},
+			"eth3": {{ifIndex: 3, isPhysical: false, macAddress: "00:00:00:00:00:02"}},
+			"eth4": {{ifIndex: 4, isPhysical: false, macAddress: "00:00:00:00:00:04"}},
 		},
 		"interface_alias": {
-			"alias1": {{ifIndex: 1, isPhysical: true}},
-			"alias2": {{ifIndex: 2, isPhysical: true}},
-			"alias3": {{ifIndex: 3, isPhysical: false}},
-			"alias4": {{ifIndex: 4, isPhysical: false}},
+			"alias1": {{ifIndex: 1, isPhysical: true, macAddress: "00:00:00:00:00:01"}},
+			"alias2": {{ifIndex: 2, isPhysical: true, macAddress: "00:00:00:00:00:02"}},
+			"alias3": {{ifIndex: 3, isPhysical: false, macAddress: "00:00:00:00:00:02"}},
+			"alias4": {{ifIndex: 4, isPhysical: false, macAddress: "00:00:00:00:00:04"}},
 		},
 		"interface_index": {
-			"1": {{ifIndex: 1, isPhysical: true}},
-			"2": {{ifIndex: 2, isPhysical: true}},
-			"3": {{ifIndex: 3, isPhysical: false}},
-			"4": {{ifIndex: 4, isPhysical: false}},
+			"1": {{ifIndex: 1, isPhysical: true, macAddress: "00:00:00:00:00:01"}},
+			"2": {{ifIndex: 2, isPhysical: true, macAddress: "00:00:00:00:00:02"}},
+			"3": {{ifIndex: 3, isPhysical: false, macAddress: "00:00:00:00:00:02"}},
+			"4": {{ifIndex: 4, isPhysical: false, macAddress: "00:00:00:00:00:04"}},
 		},
 	}
 	assert.Equal(t, expectedInterfaceIndexByIDType, interfaceIndexByIDType)
 }
 
-// Test_resolveLocalInterface_physicalPreferenceTiebreaker covers the
-// multi-match tiebreaker matrix from the PRD:
-//
-//	(a) 1 physical + N virtual    → resolve to the physical
-//	(b) 0 physical (all-virtual)  → unchanged: empty + trace
-//	(c) ≥2 physical               → unchanged: empty + trace
-//	(d) 1 physical via different idType match (smart resolution)
 func Test_resolveLocalInterface_physicalPreferenceTiebreaker(t *testing.T) {
 	deviceID := "default:1.2.3.4"
 
-	// Shared fixture:
-	//   ifIndex 10 = physical Ethernet
-	//   ifIndex 11 = sub-interface on top of 10 (virtual, shares MAC)
-	//   ifIndex 12 = another virtual sibling (loopback-ish, shares MAC too)
-	//   ifIndex 20 = physical Ethernet B
-	//   ifIndex 21 = physical Ethernet C (used for the 2-physical collision case)
-	//   ifIndex 30, 31 = two virtuals sharing a MAC (no physical at all)
 	macPhysicalPlusVirtuals := "aa:bb:cc:00:00:10"
 	macAllVirtual := "aa:bb:cc:00:00:30"
 	macTwoPhysical := "aa:bb:cc:00:00:20"
 	macSingle := "aa:bb:cc:00:00:99"
 
+	macSharedByName := "aa:bb:cc:00:00:50"
+
 	interfaceIndexByIDType := map[string]map[string][]interfaceCandidate{
 		"mac_address": {
 			macPhysicalPlusVirtuals: {
-				{ifIndex: 10, isPhysical: true},
-				{ifIndex: 11, isPhysical: false},
-				{ifIndex: 12, isPhysical: false},
+				{ifIndex: 10, isPhysical: true, macAddress: macPhysicalPlusVirtuals},
+				{ifIndex: 11, isPhysical: false, macAddress: macPhysicalPlusVirtuals},
+				{ifIndex: 12, isPhysical: false, macAddress: macPhysicalPlusVirtuals},
 			},
 			macAllVirtual: {
-				{ifIndex: 30, isPhysical: false},
-				{ifIndex: 31, isPhysical: false},
+				{ifIndex: 30, isPhysical: false, macAddress: macAllVirtual},
+				{ifIndex: 31, isPhysical: false, macAddress: macAllVirtual},
 			},
 			macTwoPhysical: {
-				{ifIndex: 20, isPhysical: true},
-				{ifIndex: 21, isPhysical: true},
+				{ifIndex: 20, isPhysical: true, macAddress: macTwoPhysical},
+				{ifIndex: 21, isPhysical: true, macAddress: macTwoPhysical},
 			},
 			macSingle: {
-				{ifIndex: 99, isPhysical: true},
+				{ifIndex: 99, isPhysical: true, macAddress: macSingle},
 			},
 		},
 		"interface_name": {
-			// Same-named pair where the physical wins on a name lookup.
+			// Same-name collision with NO shared MAC — must not tiebreak.
 			"GigabitEthernet1/0/1": {
 				{ifIndex: 10, isPhysical: true},
 				{ifIndex: 11, isPhysical: false},
+			},
+			// Same-name collision where candidates share a MAC — must tiebreak.
+			"Ten1/0/1-shared": {
+				{ifIndex: 50, isPhysical: true, macAddress: macSharedByName},
+				{ifIndex: 51, isPhysical: false, macAddress: macSharedByName},
 			},
 		},
 		"interface_alias": {},
@@ -1436,46 +1428,52 @@ func Test_resolveLocalInterface_physicalPreferenceTiebreaker(t *testing.T) {
 		expectedID  string
 	}{
 		{
-			name:        "(a) physical + 1 virtual MAC collision -> resolves to physical",
+			name:        "one physical + virtuals on same MAC resolves to physical",
 			localIDType: "mac_address",
 			localID:     macPhysicalPlusVirtuals,
 			expectedID:  "default:1.2.3.4:10",
 		},
 		{
-			name:        "(a) physical + 1 virtual MAC collision via smart resolution -> resolves to physical",
-			localIDType: "", // smart resolution
+			name:        "one physical + virtuals via smart resolution resolves to physical",
+			localIDType: "",
 			localID:     macPhysicalPlusVirtuals,
 			expectedID:  "default:1.2.3.4:10",
 		},
 		{
-			name:        "(b) all-virtual MAC collision -> empty (no tiebreaker possible)",
+			name:        "all-virtual collision stays unresolved",
 			localIDType: "mac_address",
 			localID:     macAllVirtual,
 			expectedID:  "",
 		},
 		{
-			name:        "(c) two-physical MAC collision -> empty (out of scope per PRD)",
+			name:        "multi-physical collision stays unresolved",
 			localIDType: "mac_address",
 			localID:     macTwoPhysical,
 			expectedID:  "",
 		},
 		{
-			name:        "(c) two-physical MAC collision via smart resolution -> empty",
+			name:        "multi-physical collision via smart resolution stays unresolved",
 			localIDType: "",
 			localID:     macTwoPhysical,
 			expectedID:  "",
 		},
 		{
-			name:        "(d) single-match happy path unchanged",
+			name:        "single-match happy path unchanged",
 			localIDType: "mac_address",
 			localID:     macSingle,
 			expectedID:  "default:1.2.3.4:99",
 		},
 		{
-			name:        "(d) tiebreaker applies to interface_name idType too",
+			name:        "interface_name multi-match without shared MAC stays unresolved",
 			localIDType: "interface_name",
 			localID:     "GigabitEthernet1/0/1",
-			expectedID:  "default:1.2.3.4:10",
+			expectedID:  "",
+		},
+		{
+			name:        "interface_name multi-match with shared MAC resolves to physical",
+			localIDType: "interface_name",
+			localID:     "Ten1/0/1-shared",
+			expectedID:  "default:1.2.3.4:50",
 		},
 	}
 	for _, tt := range tests {

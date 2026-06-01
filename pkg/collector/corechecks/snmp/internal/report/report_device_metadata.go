@@ -473,12 +473,6 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 
 		remoteDeviceAddress := getRemDeviceAddressByCDPRemIndex(store, strIndex)
 
-		// CDP's local-side identifier is the ifIndex itself (cdpCacheIfIndex
-		// is taken straight from the OID index), so there is no multi-match
-		// ambiguity here — no need for the physical-preference tiebreaker
-		// used by the LLDP path in resolveLocalInterface. If CDP ever gains
-		// a smart-resolution fallback by other id types, route it through
-		// resolveLocalInterface to inherit the tiebreaker.
 		resolvedLocalInterfaceID := deviceID + ":" + cdpCacheIfIndex
 
 		// remEntryUniqueID: The combination of cdpCacheIfIndex and cdpCacheDeviceIndex is expected to be unique for each entry in cdpCacheTable
@@ -542,13 +536,37 @@ func getRemDeviceAddressIfIPType(store *metadata.Store, strIndex string, address
 	return ""
 }
 
-// interfaceCandidate represents one candidate interface match during local
-// interface resolution. `isPhysical` mirrors `InterfaceMetadata.IsPhysical`
-// (set today from ifType ∈ {6, 62, 69, 117}); a nil/false value is treated as
-// non-physical so the physical-preference tiebreaker is conservative.
 type interfaceCandidate struct {
 	ifIndex    int32
 	isPhysical bool
+	macAddress string
+}
+
+// singlePhysicalCandidateSharingMAC returns the sole physical candidate among
+// candidates iff (a) all candidates share the same non-empty MAC and (b)
+// exactly one of them is physical. The shared-MAC precondition is what makes
+// the physical-preference choice sound: LLDP frames originate on the physical
+// port, virtual siblings sharing a MAC (sub-interfaces, VLAN SVIs, LAG
+// members) are invisible on the wire.
+func singlePhysicalCandidateSharingMAC(candidates map[int32]interfaceCandidate) (interfaceCandidate, bool) {
+	var found interfaceCandidate
+	var physicalCount int
+	var sharedMAC string
+	for _, c := range candidates {
+		if sharedMAC == "" {
+			sharedMAC = c.macAddress
+		} else if c.macAddress != sharedMAC {
+			return interfaceCandidate{}, false
+		}
+		if c.isPhysical {
+			found = c
+			physicalCount++
+			if physicalCount > 1 {
+				return interfaceCandidate{}, false
+			}
+		}
+	}
+	return found, physicalCount == 1 && sharedMAC != ""
 }
 
 func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string][]interfaceCandidate, localInterfaceIDType string, localInterfaceID string) string {
@@ -561,18 +579,6 @@ func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]ma
 		// "smart resolution" by multiple types when localInterfaceIDType is not provided (which is often the case).
 		// CAVEAT: In case the smart resolution returns false positives, the solution is to configure the device to provide a proper localInterfaceIDType.
 		// The order of `typesToTry` has been arbitrary define (not sure if there is an order that can lead to lower false positive).
-		//
-		// TIEBREAKER: when multiple candidates match (commonly a physical
-		// interface sharing a MAC with one or more virtual interfaces — e.g.
-		// sub-interfaces, VLAN SVIs, LAG members layered on top of an
-		// Ethernet port), the neighbor's LLDP/CDP frame almost always
-		// originated on the physical port — virtual interfaces are local
-		// abstractions invisible on the wire. We therefore prefer the
-		// physical candidate (ifType ∈ {6, 62, 69, 117} per
-		// `InterfaceMetadata.IsPhysical`) when exactly one physical
-		// candidate is present. Multi-physical collisions (e.g.
-		// misconfigured LAGs) still fall back to the historical
-		// "return empty + trace" behavior. See NDMC-173.
 		typesToTry = []string{"mac_address", "interface_name", "interface_alias", "interface_index"}
 	} else {
 		typesToTry = []string{localInterfaceIDType}
@@ -598,25 +604,12 @@ func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]ma
 		log.Tracef("[local interface resolution] found 1 matching interface (idType=%s, id=%s) resolved to interface_id `%s`", localInterfaceIDType, localInterfaceID, interfaceID)
 		return interfaceID
 	} else if len(matchedCandidates) > 1 {
-		// Multi-match tiebreaker: if exactly one of the matched candidates
-		// is a physical interface, prefer it. See comment block above.
-		physicalCandidates := make([]interfaceCandidate, 0, 1)
-		for _, c := range matchedCandidates {
-			if c.isPhysical {
-				physicalCandidates = append(physicalCandidates, c)
-			}
-		}
-		if len(physicalCandidates) == 1 {
-			physical := physicalCandidates[0]
+		if physical, ok := singlePhysicalCandidateSharingMAC(matchedCandidates); ok {
 			interfaceID := deviceID + ":" + strconv.Itoa(int(physical.ifIndex))
-			matchedIfIndexes := make([]int32, 0, len(matchedCandidates))
-			for k := range matchedCandidates {
-				matchedIfIndexes = append(matchedIfIndexes, k)
-			}
-			log.Tracef("[local interface resolution] physical-preference tiebreaker: found %d matching interfaces (candidates=%+v, idType=%s, id=%s), resolved to physical interface_id `%s`", len(matchedCandidates), matchedIfIndexes, localInterfaceIDType, localInterfaceID, interfaceID)
+			log.Tracef("[local interface resolution] resolved %d candidates to single physical interface_id `%s` (idType=%s, id=%s)", len(matchedCandidates), interfaceID, localInterfaceIDType, localInterfaceID)
 			return interfaceID
 		}
-		log.Tracef("[local interface resolution] expected 1 matching interface but found %d (idType=%s, id=%s): %+v (physical_candidates=%d)", len(matchedCandidates), localInterfaceIDType, localInterfaceID, matchedCandidates, len(physicalCandidates))
+		log.Tracef("[local interface resolution] expected 1 matching interface but found %d (idType=%s, id=%s): %+v", len(matchedCandidates), localInterfaceIDType, localInterfaceID, matchedCandidates)
 	} else {
 		log.Tracef("[local interface resolution] expected 1 matching interface but found 0 (idType=%s, id=%s)", localInterfaceIDType, localInterfaceID)
 	}
@@ -629,10 +622,12 @@ func buildInterfaceIndexByIDType(interfaces []devicemetadata.InterfaceMetadata) 
 		interfaceIndexByIDType[idType] = make(map[string][]interfaceCandidate)
 	}
 	for _, devInterface := range interfaces {
-		// nil or false IsPhysical → non-physical, used by the
-		// physical-preference tiebreaker in resolveLocalInterface.
 		isPhysical := devInterface.IsPhysical != nil && *devInterface.IsPhysical
-		candidate := interfaceCandidate{ifIndex: devInterface.Index, isPhysical: isPhysical}
+		candidate := interfaceCandidate{
+			ifIndex:    devInterface.Index,
+			isPhysical: isPhysical,
+			macAddress: devInterface.MacAddress,
+		}
 
 		interfaceIndexByIDType["mac_address"][devInterface.MacAddress] = append(interfaceIndexByIDType["mac_address"][devInterface.MacAddress], candidate)
 		interfaceIndexByIDType["interface_name"][devInterface.Name] = append(interfaceIndexByIDType["interface_name"][devInterface.Name], candidate)
