@@ -6,8 +6,10 @@ import os
 import re
 import sys
 from collections import defaultdict
+from contextlib import chdir
 from fnmatch import fnmatch
 from glob import glob
+from io import StringIO
 from pathlib import Path
 
 import yaml
@@ -23,6 +25,7 @@ from tasks.libs.ciproviders.gitlab_api import (
     full_config_get_all_leaf_jobs,
     full_config_get_all_stages,
 )
+from tasks.libs.common import utils as common_utils
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
@@ -32,7 +35,8 @@ from tasks.libs.common.git import (
     get_file_modifications,
     get_staged_files,
 )
-from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
+from tasks.libs.common.utils import get_repo_root, gitlab_section, is_pr_context, join_command, running_in_ci
+from tasks.libs.linter.buildifier import buildifier_commands, select_buildifier_files
 from tasks.libs.linter.gitlab import (
     ALL_GITLABCI_SUBLINTERS,
     PREPUSH_GITLABCI_SUBLINTERS,
@@ -170,6 +174,113 @@ def go(
 def update_go(_):
     _update_references(warn=False, version="1.2.3", dry_run=True)
     _update_go_mods(warn=False, version="1.2.3", include_otel_modules=True, dry_run=True)
+
+
+# === BAZEL === #
+def _raise_buildifier_contract_error(message, result):
+    diagnostics = "\n".join(output.strip() for output in (result.stderr, result.stdout) if output and output.strip())
+    if diagnostics:
+        message = f"{message}\n{diagnostics}"
+    raise Exit(message, code=1)
+
+
+def _check_buildifier_cli_contract(ctx, executable):
+    """Verify that the pinned executable implements Buildifier's public stdin check and fix contract."""
+    check_command = join_command([str(executable), "-config=off", "-mode=check", "-lint=off", "-type=bzl", "-"])
+    fix_command = join_command([str(executable), "-config=off", "-mode=fix", "-lint=off", "-type=bzl", "-"])
+    formatted_source = "value = [1, 2]\n"
+    unformatted_source = "value=[1,2]\n"
+    formatted = ctx.run(
+        check_command,
+        warn=True,
+        hide=True,
+        encoding="utf-8",
+        in_stream=StringIO(formatted_source),
+    )
+    unformatted = ctx.run(
+        check_command,
+        warn=True,
+        hide=True,
+        encoding="utf-8",
+        in_stream=StringIO(unformatted_source),
+    )
+    if formatted.exited:
+        _raise_buildifier_contract_error(
+            "The pinned Buildifier executable rejected the formatted stdin contract probe.", formatted
+        )
+    if not unformatted.exited:
+        _raise_buildifier_contract_error(
+            "The pinned Buildifier executable accepted the unformatted stdin contract probe.", unformatted
+        )
+
+    fixed = ctx.run(
+        fix_command,
+        warn=True,
+        hide=True,
+        encoding="utf-8",
+        in_stream=StringIO(unformatted_source),
+    )
+    if fixed.exited:
+        _raise_buildifier_contract_error("The pinned Buildifier executable rejected the stdin fix probe.", fixed)
+    if not fixed.stdout or fixed.stdout == unformatted_source:
+        _raise_buildifier_contract_error(
+            "The pinned Buildifier executable did not repair the unformatted stdin contract probe.", fixed
+        )
+
+    repaired = ctx.run(
+        check_command,
+        warn=True,
+        hide=True,
+        encoding="utf-8",
+        in_stream=StringIO(fixed.stdout),
+    )
+    if repaired.exited:
+        _raise_buildifier_contract_error(
+            "The pinned Buildifier executable produced fix output that does not pass its check mode.", repaired
+        )
+
+
+@task(help={"fix": "Fix formatting and lint findings instead of checking them."})
+def buildifier(ctx, fix=False):
+    """Checks or fixes repository-owned Starlark files with the pinned Buildifier CLI."""
+    repo_root = get_repo_root()
+    on_windows = common_utils.is_windows()
+    if on_windows and "%" in str(repo_root):
+        raise Exit("Buildifier cannot run from a path containing '%' on Windows because cmd.exe expands it.", code=2)
+
+    git_command = join_command(
+        ["git", "-C", str(repo_root), "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
+    )
+    git_result = ctx.run(git_command, hide=True, encoding="utf-8")
+    files = select_buildifier_files(git_result.stdout.split("\0"), repo_root)
+    if not files:
+        raise Exit("Buildifier selected no repository-owned Starlark files, so the check cannot continue.", code=2)
+    if on_windows and any("%" in path for path in files):
+        raise Exit("Buildifier cannot process a path containing '%' on Windows because cmd.exe expands it.", code=2)
+
+    executable = repo_root / "tools" / "bin" / ("buildifier.exe" if on_windows else "buildifier")
+    command_files = [path.replace("/", "\\") for path in files] if on_windows else files
+    diff_command = "FC" if on_windows else "diff --unified"
+
+    try:
+        commands = buildifier_commands(str(executable), command_files, fix=fix, diff_command=diff_command)
+    except ValueError as error:
+        raise Exit(str(error), code=2) from error
+
+    if not commands:
+        raise Exit("Buildifier produced no commands for the selected Starlark files.", code=2)
+
+    _check_buildifier_cli_contract(ctx, executable)
+
+    failed = False
+    with chdir(repo_root):
+        for command in commands:
+            result = ctx.run(join_command(command), warn=True, encoding="utf-8")
+            if result.exited:
+                failed = True
+
+    if failed:
+        raise Exit(code=1)
 
 
 # === PYTHON === #

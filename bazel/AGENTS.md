@@ -10,7 +10,7 @@ specified in `.bazelversion`. Never invoke a pinned `bazel` binary directly — 
 
 ```sh
 # Format and lint all BUILD/.bzl files
-bazel run //bazel/buildifier
+mise exec -- dda inv linter.buildifier --fix
 
 # Resolve and fetch all external deps (updates MODULE.bazel.lock as a side-effect)
 bazel mod deps
@@ -197,7 +197,7 @@ generators and for other languages, sourced from third-party rulesets or written
 
 ```sh
 bazel run //:gazelle -- ./path/to/package   # generate or update BUILD.bazel
-bazel run //bazel/buildifier                # format
+mise exec -- dda inv linter.buildifier --fix # format
 ```
 
 Do not hand-write `BUILD.bazel` content that Gazelle can infer. A Gazelle extension's job is precisely to keep that
@@ -248,8 +248,7 @@ case-sensitive filesystem — Docker Desktop can expose the two as the same inod
 
 ### Formatting and structure
 
-- `buildifier` is mandatory. Run `bazel run //bazel/buildifier` before committing. It is the single source of truth for
-  formatting — do not debate style in code review.
+- `buildifier` is mandatory. Run `mise exec -- dda inv linter.buildifier --fix` before committing. It is the single source of truth for formatting, so do not debate style in code review.
 - File structure order: package description comment → `load()` statements → `package()` → rules (leaves first).
 - Standalone comments (not attached to a specific rule) require an empty line after them; attached comments do not.
 - Single blank line between top-level definitions.

@@ -8,9 +8,7 @@ case-insensitive filesystem collisions.
 
 ## Formatting
 
-`buildifier` is mandatory before committing. Flag any PR that modifies `BUILD.bazel` or `.bzl` files with no evidence
-of having run `bazel run //bazel/buildifier`. Missing formatting indicates the file was edited without the required
-toolchain step.
+`buildifier` is mandatory before committing. Flag any PR that modifies `BUILD.bazel` or `.bzl` files with no evidence of having run `mise exec -- dda inv linter.buildifier --fix`. Missing formatting indicates the file was edited without the required tool step.
 
 ## Dependencies
 

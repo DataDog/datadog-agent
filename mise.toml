@@ -1,7 +1,15 @@
 [settings]
+# Keep repository tool manifests ahead of same-named global commands.
+activate_aggressive = true
 # Only explicit tasks/tools drive mise here; never act on .go-version,
 # .bazelversion, etc.
 idiomatic_version_file = false
+
+[tools]
+dotslash = "0.5.9"
+
+[env]
+_.path = ["{{config_root}}/tools/bin"]
 
 # Tools that do not fit DotSlash (no prebuilt artifact, or need a runtime) are
 # exposed as tasks and run via `mise run <tool>` / `mise <tool>`. Each task scopes

@@ -33,9 +33,10 @@ bazel:mod-tidy:
 bazel:run-buildifier-test:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
   script:
-    - bazel run //bazel/buildifier:test
+    - mise install dotslash
+    - mise exec -- dda inv linter.buildifier
   variables:
-    FIX_COMMAND: "bazel run //bazel/buildifier"
+    FIX_COMMAND: "mise exec -- dda inv linter.buildifier --fix"
 
 bazel:run-gazelle:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]

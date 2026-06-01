@@ -1,7 +1,5 @@
 # Foundational packages
 
-http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-
 http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
 
 env_vars = use_repo_rule("//bazel/repo:env_vars.bzl", "env_vars")
@@ -72,7 +70,6 @@ bazel_dep(name = "rules_cc", version = "0.2.22")
 bazel_dep(name = "rules_flex", version = "0.4.1")
 bazel_dep(name = "rules_go", version = "0.63.0")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
-bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
 bazel_dep(name = "rules_python", version = "2.3.2")
 bazel_dep(name = "rules_rs", version = "0.0.27")
@@ -156,28 +153,6 @@ register_toolchains(
     dev_dependency = True,
 )
 
-#########################
-## Prebuilt binaries   ##
-#########################
-
-http_archive(
-    name = "com_github_bazelbuild_buildtools",
-    patch_strip = 1,
-    patches = [
-        "//bazel/patches:buildifier-build.patch",  # bazelbuild/buildtools#1398
-        "//bazel/patches:buildifier-internal-factory.patch",  # bazelbuild/buildtools#1399
-        "//bazel/patches:buildifier-runner-bat-template.patch",  # bazelbuild/buildtools#1400
-        "//bazel/patches:buildifier-runner-bash-template.patch",  # bazelbuild/buildtools#1454
-    ],
-    sha256 = "f3b800e9f6ca60bdef3709440f393348f7c18a29f30814288a7326285c80aab9",
-    strip_prefix = "buildtools-8.5.1",
-    type = "tar.gz",
-    urls = [
-        "https://codeload.github.com/bazelbuild/buildtools/tar.gz/refs/tags/v8.5.1",
-        "https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.5.1.tar.gz",
-    ],
-)
-
 # Upstream Linux kernel syscall tables, used by
 # //pkg/security/utils:utils_syscall_table to (re)generate
 # pkg/security/utils/syscalls.go. Bumping the kernel version requires updating
@@ -193,11 +168,6 @@ http_file(
     sha256 = "53b1df8caee4a4c2ff37d0ec895e22663a0e61b188de61b98f025709ba6c8e18",
     urls = ["https://raw.githubusercontent.com/torvalds/linux/v6.13/include/uapi/asm-generic/unistd.h"],
 )
-
-multitool = use_extension("@rules_multitool//multitool:extension.bzl", "multitool")
-multitool.hub(lockfile = "//bazel:prebuilt_buildtools.json")
-multitool.hub(lockfile = "//bazel:prebuilt_jq.json")
-use_repo(multitool, "multitool")
 
 register_toolchains(
     "//bazel/toolchains/patchelf:patchelf_built_toolchain",

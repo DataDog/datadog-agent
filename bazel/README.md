@@ -29,13 +29,10 @@ In that case, please consider adding a link to `bazelisk` named `bazel` in your 
 
 ### Autocorrection of `bazel` files: `buildifier`
 
-To help us maintain good `bazel` file hygiene, please preferably run the version of `buildifier` specified in the branch
-you wish to work in:
+Install the pinned DotSlash runner once with `mise install dotslash`, then use the branch's checked-in Buildifier manifest to maintain `bazel` file hygiene:
 
 ```sh
-dda bzl run //bazel/buildifier
-# or
-bazel run //bazel/buildifier
+mise exec -- dda inv linter.buildifier --fix
 ```
 
 ### Lock file maintenance
