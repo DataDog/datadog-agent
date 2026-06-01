@@ -182,7 +182,10 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 		return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, nil, false, nil
 	}
 
-	rcService := setupRemoteConfig(hostname)
+	var rcService *remoteconfig.CoreAgentService
+	if os.Getenv(mode.RemoteConfigPreviewEnvVar) == "true" {
+		rcService = setupRemoteConfig(hostname)
+	}
 
 	traceTags := serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags)
 	traceAgent := setupTraceAgent(traceTags, tagConfig.ConfiguredTags, tagger, origin, rcService)
@@ -328,18 +331,13 @@ func (noopRcTelemetryReporter) SetConfigSubscriptionsActive(int)           {}
 func (noopRcTelemetryReporter) SetConfigSubscriptionClientsTracked(int)    {}
 
 // setupRemoteConfig starts the embedded RC service that backs the trace agent's
-// /v0.7/config proxy. Returns nil if RC is disabled, the preview flag is not set, or setup fails.
+// /v0.7/config proxy. Returns nil if RC is disabled or setup fails.
 func setupRemoteConfig(hostname hostnameinterface.Component) *remoteconfig.CoreAgentService {
 	cfg := pkgconfigsetup.Datadog()
 	if !configUtils.IsRemoteConfigEnabled(cfg) {
 		log.Debug("Remote Config is disabled, skipping RC service setup")
 		return nil
 	}
-	if os.Getenv(mode.RemoteConfigPreviewEnvVar) != "true" {
-		log.Debug("Remote Config serverless preview is not enabled, skipping RC service setup")
-		return nil
-	}
-
 	apiKey := configUtils.SanitizeAPIKey(cfg.GetString("api_key"))
 	if cfg.IsSet("remote_configuration.api_key") {
 		apiKey = configUtils.SanitizeAPIKey(cfg.GetString("remote_configuration.api_key"))
