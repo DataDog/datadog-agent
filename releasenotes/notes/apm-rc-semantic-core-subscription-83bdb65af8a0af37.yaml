@@ -1,22 +1,19 @@
 ---
 features:
   - |
-    APM: The trace-agent can now subscribe to ``APM_SEMANTIC_CORE_DD`` Remote
-    Configuration updates and apply span tag equivalence / peer tag mapping
-    changes at runtime. The new opt-in flag
-    ``remote_configuration.apm_semantics.enabled`` (default ``false``) controls
-    this subscription. The Concentrator picks up updated peer-tag keys on its
-    next stat-span invocation by comparing its cached snapshot's version
-    against the live registry's version, so stats aggregation reflects the new
-    mappings without an agent restart. If a previously-applied RC payload is
-    later removed or untargeted by the backend, the trace-agent reverts to the
-    embedded mappings rather than holding the last-applied registry. Existing
-    deployments see no behavior change with default settings; opt in by setting
-    ``remote_configuration.apm_semantics.enabled: true``.
+    APM: The trace-agent can now receive span tag equivalence and peer tag
+    mapping updates over Remote Configuration and apply them at runtime,
+    without an agent restart. The feature is opt-in via the new
+    ``remote_configuration.apm_semantics.enabled`` setting (default ``false``).
+    Stats aggregation picks up the updated peer-tag keys on the next span
+    processed. If the backend removes or untargets a previously-applied
+    payload, the trace-agent reverts to the mappings it ships with. Existing
+    deployments see no behavior change with default settings.
   - |
     APM: ``remote_configuration.agent_config.enabled`` is now a settable
-    configuration entry that controls the trace-agent's ``AGENT_CONFIG``
-    Remote Configuration subscription independently from ``apm_sampling``.
-    When the user does not set it explicitly, it inherits
-    ``remote_configuration.apm_sampling.enabled`` so existing configurations
-    continue to behave exactly as before.
+    configuration entry that controls the trace-agent's Remote Configuration
+    subscription for agent-config updates (such as runtime log-level
+    overrides) independently from ``remote_configuration.apm_sampling.enabled``.
+    When the user has explicitly set ``apm_sampling.enabled`` but not
+    ``agent_config.enabled``, the trace-agent mirrors the former into the
+    latter so existing configurations continue to behave exactly as before.
