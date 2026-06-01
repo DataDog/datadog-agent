@@ -113,10 +113,24 @@ func (h *StorageClassHandlers) ResourceList(ctx processors.ProcessorContext, lis
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource.DeepCopy())
+		resources = append(resources, resource)
 	}
 
 	return resources
+}
+
+// CloneResource returns a deep copy of the resource.
+//
+//nolint:revive
+func (h *StorageClassHandlers) CloneResource(resource interface{}) interface{} {
+	return resource.(*storagev1.StorageClass).DeepCopy()
+}
+
+// ResourceVersionFromRaw returns the resource version from the raw resource.
+//
+//nolint:revive
+func (h *StorageClassHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
+	return resource.(*storagev1.StorageClass).ResourceVersion
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.

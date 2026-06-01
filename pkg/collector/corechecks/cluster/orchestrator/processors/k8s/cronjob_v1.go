@@ -113,10 +113,24 @@ func (h *CronJobV1Handlers) ResourceList(ctx processors.ProcessorContext, list i
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource.DeepCopy())
+		resources = append(resources, resource)
 	}
 
 	return resources
+}
+
+// CloneResource returns a deep copy of the resource.
+//
+//nolint:revive
+func (h *CronJobV1Handlers) CloneResource(resource interface{}) interface{} {
+	return resource.(*batchv1.CronJob).DeepCopy()
+}
+
+// ResourceVersionFromRaw returns the resource version from the raw resource.
+//
+//nolint:revive
+func (h *CronJobV1Handlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
+	return resource.(*batchv1.CronJob).ResourceVersion
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.

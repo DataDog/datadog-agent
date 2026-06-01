@@ -115,9 +115,19 @@ func (rh *TestResourceHandlers) ResourceList(ctx ProcessorContext, list any) (re
 	}
 	resources = make([]any, 0, len(list.([]*processorstest.Resource)))
 	for _, resource := range list.([]*processorstest.Resource) {
-		resources = append(resources, resource.DeepCopy())
+		resources = append(resources, resource)
 	}
 	return resources
+}
+
+//nolint:revive
+func (rh *TestResourceHandlers) CloneResource(resource any) any {
+	return resource.(*processorstest.Resource).DeepCopy()
+}
+
+//nolint:revive
+func (rh *TestResourceHandlers) ResourceVersionFromRaw(_ ProcessorContext, resource any) string {
+	return resource.(*processorstest.Resource).ResourceVersion
 }
 
 //nolint:revive

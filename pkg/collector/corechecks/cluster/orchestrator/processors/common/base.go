@@ -34,6 +34,24 @@ func (BaseHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext, re
 	return ExtractModelManifests(ctx, resourceManifests, groupSize)
 }
 
+// CloneResource returns the resource unchanged. Handlers that mutate resources
+// during ScrubBeforeExtraction, BeforeMarshalling, or ScrubBeforeMarshalling
+// must override this to return a deep copy so the informer cache is not corrupted.
+//
+//nolint:revive
+func (BaseHandlers) CloneResource(resource interface{}) interface{} {
+	return resource
+}
+
+// ResourceVersionFromRaw returns an empty string, indicating that the resource
+// version cannot be determined without model extraction. Override in handlers
+// where the version is directly available from the raw resource.
+//
+//nolint:revive
+func (BaseHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, _ interface{}) string {
+	return ""
+}
+
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (BaseHandlers) GetNodeName(ctx processors.ProcessorContext, resource interface{}) string {
 	return ""

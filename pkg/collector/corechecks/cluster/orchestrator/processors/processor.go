@@ -202,6 +202,20 @@ type Handlers interface {
 	// ScrubBeforeMarshalling replaces sensitive information in the resource
 	// before resource marshalling.
 	ScrubBeforeMarshalling(ctx ProcessorContext, resource interface{})
+
+	// CloneResource creates a deep copy of a resource before mutation begins.
+	// Called once per resource that passes the early cache check. Handlers that
+	// mutate resources during scrubbing or marshalling must return a deep copy
+	// so the informer cache is not corrupted.
+	CloneResource(resource interface{}) interface{}
+
+	// ResourceVersionFromRaw returns the resource version directly from the raw,
+	// unprocessed resource without requiring model extraction. An empty string
+	// signals that the version cannot be determined without extraction (e.g., Pods
+	// use a custom hash computed from the extracted model). When non-empty, the
+	// processor uses this for an early cache check that skips DeepCopy, model
+	// extraction, and tagger lookup for unchanged resources.
+	ResourceVersionFromRaw(ctx ProcessorContext, resource interface{}) string
 }
 
 // Processor is a generic resource processing component. It relies on a set of
@@ -245,15 +259,34 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 	// Make sure to recover if a panic occurs.
 	defer RecoverOnPanic()
 
-	resourceList := p.h.ResourceList(ctx, list)
-	resourceMetadataModels := make([]interface{}, 0, len(resourceList))
-	resourceManifestModels := make([]interface{}, 0, len(resourceList))
+	// ResourceList now returns raw (uncopied) references from the informer cache.
+	rawList := p.h.ResourceList(ctx, list)
+	resourceMetadataModels := make([]interface{}, 0, len(rawList))
+	resourceManifestModels := make([]interface{}, 0, len(rawList))
 	now := ctx.GetClock().Now()
 
-	for _, resource := range resourceList {
+	for _, rawResource := range rawList {
+		// Attempt an early cache check on the raw resource before the expensive
+		// DeepCopy, model extraction, and tagger lookup. This fires for all typed
+		// k8s resources (every handler except Pod and ECS Task) where the resource
+		// version is available directly without model extraction.
+		cacheChecked := false
+		if rawVersion := p.h.ResourceVersionFromRaw(ctx, rawResource); rawVersion != "" {
+			uid := p.h.ResourceUID(ctx, rawResource)
+			if orchestrator.SkipKubernetesResource(uid, rawVersion, ctx.GetNodeType()) {
+				continue
+			}
+			cacheChecked = true
+		}
+
+		// Clone the raw resource before any mutation so the informer cache is
+		// not corrupted by scrubbing, Kind/APIVersion injection, or marshalling.
+		resource := p.h.CloneResource(rawResource)
+
 		if ctx.IsTerminatedResources() {
 			resource = insertDeletionTimestampIfPossible(resource, now)
 		}
+
 		// Scrub before extraction.
 		p.h.ScrubBeforeExtraction(ctx, resource)
 
@@ -265,12 +298,15 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 			continue
 		}
 
-		// Cache check
 		resourceUID := p.h.ResourceUID(ctx, resource)
 		resourceVersion := p.h.ResourceVersion(ctx, resource, resourceMetadataModel)
 
-		if orchestrator.SkipKubernetesResource(resourceUID, resourceVersion, ctx.GetNodeType()) {
-			continue
+		// For handlers that could not pre-check (Pod with custom version hashing,
+		// ECS Task), perform the cache check now using the extracted model version.
+		if !cacheChecked {
+			if orchestrator.SkipKubernetesResource(resourceUID, resourceVersion, ctx.GetNodeType()) {
+				continue
+			}
 		}
 
 		// Execute code before marshalling.
@@ -288,7 +324,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 			continue
 		}
 
-		// Stop sending yaml if manifest collecion is enabled
+		// Stop sending yaml if manifest collection is enabled
 		if !ctx.GetOrchestratorConfig().IsManifestCollectionEnabled {
 			// Execute code after marshalling.
 			if skip := p.h.AfterMarshalling(ctx, resource, resourceMetadataModel, yaml); skip {
@@ -321,7 +357,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 		processResult.ManifestMessages = ChunkManifest(ctx, p.h.BuildManifestMessageBody, resourceManifestModels)
 	}
 
-	return processResult, len(resourceList), len(resourceMetadataModels)
+	return processResult, len(rawList), len(resourceMetadataModels)
 }
 
 // ChunkManifest is to chunk Manifest payloads
