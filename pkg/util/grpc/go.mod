@@ -10,7 +10,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/system v0.61.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
-	github.com/mdlayher/vsock v1.2.1
+	github.com/mdlayher/vsock v1.3.0
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.81.1
 )
