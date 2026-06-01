@@ -18,6 +18,7 @@ type SnmpPacket struct {
 	Addr      *net.UDPAddr
 	Namespace string
 	Timestamp int64
+	Tags      []string
 }
 
 // PacketsChannel is the type of channels of trap packets.
@@ -25,11 +26,13 @@ type PacketsChannel = chan *SnmpPacket
 
 // GetTags returns a list of tags associated to an SNMP trap packet.
 func (p *SnmpPacket) GetTags() []string {
-	return []string{
-		"snmp_version:" + formatVersion(p.Content),
-		"device_namespace:" + p.Namespace,
-		"snmp_device:" + p.Addr.IP.String(),
-	}
+	tags := make([]string, 0, 3+len(p.Tags))
+	tags = append(tags,
+		"snmp_version:"+formatVersion(p.Content),
+		"device_namespace:"+p.Namespace,
+		"snmp_device:"+p.Addr.IP.String(),
+	)
+	return append(tags, p.Tags...)
 }
 
 func formatVersion(packet *gosnmp.SnmpPacket) string {

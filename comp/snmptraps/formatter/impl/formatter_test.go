@@ -14,8 +14,6 @@ import (
 	"go.uber.org/fx"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	config "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
-	configfx "github.com/DataDog/datadog-agent/comp/snmptraps/config/fx"
 	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
 	oidresolver "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/def"
 	oidresolverfx "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/fx"
@@ -218,7 +216,6 @@ var (
 )
 
 var testOptions = fx.Options(
-	configfx.MockModule(),
 	senderhelper.Opts,
 	oidresolverfx.MockModule(),
 	fxutil.ProvideComponentConstructor(NewComponent),
@@ -379,11 +376,11 @@ func TestNewJSONFormatterWithNilStillWorks(t *testing.T) {
 }
 
 func TestFormatPacketIncludesCustomTagsInDDTags(t *testing.T) {
-	f := fxutil.Test[formatter.Component](t,
-		testOptions,
-		fx.Replace(&config.TrapsConfig{Enabled: true, Tags: []string{"application:my-app", "team:netops"}}),
-	)
+	var mockSender *mocksender.MockSender
+	f := fxutil.Test[formatter.Component](t, testOptions, fx.Populate(&mockSender))
+
 	pkt := packet.CreateTestPacket(packet.NetSNMPExampleHeartbeatNotification)
+	pkt.Tags = []string{"application:my-app", "team:netops"}
 
 	formattedPacket, err := f.FormatPacket(pkt)
 	require.NoError(t, err)
@@ -394,23 +391,6 @@ func TestFormatPacketIncludesCustomTagsInDDTags(t *testing.T) {
 	assert.Equal(t,
 		"snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1,application:my-app,team:netops",
 		trapContent["ddtags"])
-}
-
-func TestFormatPacketCustomTagsOnTelemetry(t *testing.T) {
-	var mockSender *mocksender.MockSender
-	f := fxutil.Test[formatter.Component](t,
-		testOptions,
-		fx.Replace(&config.TrapsConfig{Enabled: true, Tags: []string{"application:foo", "team:netops"}}),
-		fx.Populate(&mockSender),
-	)
-
-	expectedTags := []string{
-		"snmp_version:2",
-		"device_namespace:totoro",
-		"snmp_device:127.0.0.1",
-		"application:foo",
-		"team:netops",
-	}
 
 	unknownTrap := gosnmp.SnmpTrap{
 		Variables: []gosnmp.SnmpPDU{
@@ -418,12 +398,21 @@ func TestFormatPacketCustomTagsOnTelemetry(t *testing.T) {
 			{Name: "1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.OctetString, Value: "1.3.6.1.99.99.99.99"},
 		},
 	}
-	pkt := packet.CreateTestPacket(unknownTrap)
-	_, err := f.FormatPacket(pkt)
+	expectedTags := []string{
+		"snmp_version:2",
+		"device_namespace:totoro",
+		"snmp_device:127.0.0.1",
+		"application:my-app",
+		"team:netops",
+	}
+	pktUnknown := packet.CreateTestPacket(unknownTrap)
+	pktUnknown.Tags = []string{"application:my-app", "team:netops"}
+	_, err = f.FormatPacket(pktUnknown)
 	require.NoError(t, err)
 	mockSender.AssertMetric(t, "Count", "datadog.snmp_traps.traps_not_enriched", 1, "", expectedTags)
 
 	pktBad := packet.CreateTestPacket(unknownTrap)
+	pktBad.Tags = []string{"application:my-app", "team:netops"}
 	pktBad.Content.Variables = []gosnmp.SnmpPDU{}
 	_, err = f.FormatPacket(pktBad)
 	require.Error(t, err)

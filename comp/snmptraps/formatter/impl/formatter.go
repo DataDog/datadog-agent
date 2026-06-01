@@ -17,7 +17,6 @@ import (
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	config "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
 	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
 	oidresolver "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
@@ -28,7 +27,6 @@ import (
 type Requires struct {
 	compdef.In
 
-	Config      config.Component
 	OIDResolver oidresolver.Component
 	Demux       demultiplexer.Component
 	Logger      log.Component
@@ -43,7 +41,7 @@ type Provides struct {
 
 // NewComponent creates a new formatter component.
 func NewComponent(reqs Requires) (Provides, error) {
-	comp, err := newJSONFormatter(reqs.OIDResolver, reqs.Demux, reqs.Logger, reqs.Config.Get().Tags)
+	comp, err := newJSONFormatter(reqs.OIDResolver, reqs.Demux, reqs.Logger)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -60,11 +58,6 @@ type JSONFormatter struct {
 	oidResolver oidresolver.Component
 	sender      sender.Sender
 	logger      log.Component
-	extraTags   []string
-}
-
-func (f JSONFormatter) tagsFor(p *packet.SnmpPacket) []string {
-	return append(p.GetTags(), f.extraTags...)
 }
 
 type trapVariable struct {
@@ -83,12 +76,12 @@ const (
 )
 
 // newJSONFormatter creates a new JSONFormatter instance with an optional OIDResolver variable.
-func newJSONFormatter(oidResolver oidresolver.Component, demux demultiplexer.Component, logger log.Component, extraTags []string) (formatter.Component, error) {
+func newJSONFormatter(oidResolver oidresolver.Component, demux demultiplexer.Component, logger log.Component) (formatter.Component, error) {
 	sender, err := demux.GetDefaultSender()
 	if err != nil {
 		return nil, err
 	}
-	return JSONFormatter{oidResolver, sender, logger, extraTags}, nil
+	return JSONFormatter{oidResolver, sender, logger}, nil
 }
 
 // FormatPacket converts a raw SNMP trap packet to a FormattedSnmpPacket containing the JSON data and the tags to attach
@@ -127,7 +120,7 @@ func (f JSONFormatter) FormatPacket(packet *packet.SnmpPacket) ([]byte, error) {
 		}
 	}
 	formattedTrap["ddsource"] = ddsource
-	formattedTrap["ddtags"] = strings.Join(f.tagsFor(packet), ",")
+	formattedTrap["ddtags"] = strings.Join(packet.GetTags(), ",")
 	formattedTrap["timestamp"] = packet.Timestamp
 	payload["trap"] = formattedTrap
 	return json.Marshal(payload)
@@ -135,7 +128,7 @@ func (f JSONFormatter) FormatPacket(packet *packet.SnmpPacket) ([]byte, error) {
 
 func (f JSONFormatter) formatV1Trap(packet *packet.SnmpPacket) map[string]interface{} {
 	content := packet.Content
-	tags := f.tagsFor(packet)
+	tags := packet.GetTags()
 
 	data := make(map[string]interface{})
 	data["uptime"] = uint32(content.Timestamp)
@@ -178,7 +171,7 @@ func (f JSONFormatter) formatTrap(packet *packet.SnmpPacket) (map[string]interfa
 		{sysUpTime.0, snmpTrapOID.0, additionalDataVariables...}
 		See: https://tools.ietf.org/html/rfc3416#section-4.2.6
 	*/
-	tags := f.tagsFor(packet)
+	tags := packet.GetTags()
 
 	variables := packet.Content.Variables
 	if len(variables) < 2 {

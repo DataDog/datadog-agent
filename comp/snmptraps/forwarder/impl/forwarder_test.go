@@ -15,7 +15,6 @@ import (
 	"go.uber.org/fx"
 
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
-	config "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
 	configfx "github.com/DataDog/datadog-agent/comp/snmptraps/config/fx"
 	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
 	formatterfx "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/fx"
@@ -42,19 +41,6 @@ func setUp(t *testing.T) *services {
 	t.Helper()
 	s := fxutil.Test[services](t,
 		configfx.MockModule(),
-		senderhelper.Opts,
-		formatterfx.MockModule(),
-		listenerfx.MockModule(),
-		fxutil.ProvideComponentConstructor(NewComponent),
-	)
-	return &s
-}
-
-func setUpWithConfig(t *testing.T, cfg *config.TrapsConfig) *services {
-	t.Helper()
-	s := fxutil.Test[services](t,
-		configfx.MockModule(),
-		fx.Replace(cfg),
 		senderhelper.Opts,
 		formatterfx.MockModule(),
 		listenerfx.MockModule(),
@@ -114,9 +100,10 @@ func TestForwarderTelemetry(t *testing.T) {
 }
 
 func TestForwarderCustomTagsOnForwardedMetric(t *testing.T) {
-	cfg := &config.TrapsConfig{Enabled: true, Tags: []string{"application:my-app", "team:netops"}}
-	s := setUpWithConfig(t, cfg)
-	s.Listener.Send(makeSnmpPacket(packet.NetSNMPExampleHeartbeatNotification))
+	s := setUp(t)
+	pkt := makeSnmpPacket(packet.NetSNMPExampleHeartbeatNotification)
+	pkt.Tags = []string{"application:my-app", "team:netops"}
+	s.Listener.Send(pkt)
 	time.Sleep(100 * time.Millisecond)
 	s.Sender.AssertMetric(t, "Count", "datadog.snmp_traps.forwarded", 1, "", []string{
 		"snmp_version:2",
