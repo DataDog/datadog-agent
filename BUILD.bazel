@@ -564,7 +564,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status_templates
 # gazelle:exclude pkg/util/kubernetes/cloudprovider
-# gazelle:exclude pkg/util/kubernetes/clusterinfo
 # TODO(agent-build): re-include the following files once their unmigrated deps are
 #   reachable from Bazel-migrated targets:
 #     - hostname.go      -> pkg/util/kubernetes/apiserver, pkg/util/kubernetes/clustername
