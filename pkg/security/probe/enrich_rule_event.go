@@ -134,13 +134,13 @@ func applyFullProcessValues(pr *model.Process, values []string, kind enrichKind)
 }
 
 // sameProcessAsCached returns true when /proc/<pr.Pid>/exe still points to
-// the inode the eBPF probe captured at exec time. We use the inode rather
-// than pr.FileEvent.PathnameStr because the path is resolved lazily by a
-// field handler and may be empty here (a rule that only references
-// exec.file.name never triggers ResolveFilePath).
+// the (device, inode) pair the eBPF probe captured at exec time. The
+// device check guards against PID-reuse where the new executable's inode
+// happens to collide with the cached one on a different filesystem.
 func sameProcessAsCached(pr *model.Process) bool {
 	cachedInode := pr.FileEvent.Inode
-	if cachedInode == 0 {
+	cachedDevice := pr.FileEvent.Device
+	if cachedInode == 0 || cachedDevice == 0 {
 		return false
 	}
 	exePath := filepath.Join(utilkernel.ProcFSRoot(), strconv.FormatUint(uint64(pr.Pid), 10), "exe")
@@ -148,5 +148,6 @@ func sameProcessAsCached(pr *model.Process) bool {
 	if err := unix.Stat(exePath, &st); err != nil {
 		return false
 	}
-	return st.Ino == cachedInode
+	expectedStatDev := unix.Mkdev(cachedDevice>>20, cachedDevice&0xFFFFF)
+	return st.Ino == cachedInode && st.Dev == expectedStatDev
 }
