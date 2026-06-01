@@ -1978,6 +1978,10 @@
             "https://files.pythonhosted.org/packages/ee/db/7aa11b44bae4e7474feb1201d8dee04fabe5651c7cb51409ebda94a4ed67/nh3-0.3.0-cp38-abi3-musllinux_1_2_armv7l.whl": "b0612ccf5de8a480cf08f047b08f9d3fecc12e63d2ee91769cb19d7290614c23",
             "https://files.pythonhosted.org/packages/f3/ba/59e204d90727c25b253856e456ea61265ca810cda8ee802c35f3fadaab00/nh3-0.3.0-cp313-cp313t-musllinux_1_2_armv7l.whl": "e90883f9f85288f423c77b3f5a6f4486375636f25f793165112679a7b6363b35"
           },
+          "patch-ng": {
+            "https://files.pythonhosted.org/packages/2c/ef/c60c07b2f9d973672608815e4c176943146c353d3b60fdab914a6dcd44e8/patch_ng-1.19.1-py3-none-any.whl": "d45fd47b3f74b48c3e336690341876bb26244a077a06f5f7e6e47c19c15c1ca4",
+            "https://files.pythonhosted.org/packages/da/b6/8ea8095f964f93567bbe28709298b30104ad418b50d4217538387bf48f7d/patch_ng-1.19.1.tar.gz": "036a3cc00134ec53f37e92333958ee75e117f2e62a5ec2b85c7122e5e815c29e"
+          },
           "pkginfo": {
             "https://files.pythonhosted.org/packages/24/03/e26bf3d6453b7fda5bd2b84029a426553bb373d6277ef6b5ac8863421f87/pkginfo-1.12.1.2.tar.gz": "5cd957824ac36f140260964eba3c6be6442a8359b8c48f4adf90210f33a04b7b",
             "https://files.pythonhosted.org/packages/fa/3d/f4f2ba829efb54b6cd2d91349c7463316a9cc55a43fc980447416c88540f/pkginfo-1.12.1.2-py3-none-any.whl": "c783ac885519cab2c34927ccfa6bf64b5a704d7c69afaea583dd9b7afe969343"
@@ -2128,6 +2132,7 @@
           "mdurl": "/simple/mdurl/",
           "more_itertools": "/simple/more-itertools/",
           "nh3": "/simple/nh3/",
+          "patch_ng": "/simple/patch-ng/",
           "pkginfo": "/simple/pkginfo/",
           "pycparser": "/simple/pycparser/",
           "pygments": "/simple/pygments/",
