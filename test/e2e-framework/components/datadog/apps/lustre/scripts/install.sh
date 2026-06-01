@@ -75,27 +75,34 @@ set_selinux_permissive() {
   log "SELinux set to permissive (lab requirement)"
 }
 
-# Probe for the highest EL minor that has a Whamcloud 2.15 repo.
-# Whamcloud publishes versioned dirs (lustre-2.15.5/el9.4, lustre-2.15.6/el9.5,
-# etc.) but latest-release/ symlinks don't exist for every EL minor. Walk down
-# from the detected minor until we find a valid server repomd.xml.
-resolve_el_repo_dir() {
-  local el_minor="$1"          # e.g. "9.6"
+# Probe for a versioned Whamcloud 2.15.x build that exists for this host.
+# Whamcloud publishes per-release versioned dirs: lustre-2.15.5/el9.4/,
+# lustre-2.15.6/el9.5/, etc. The latest-release/ symlink is unreliable
+# across EL minors. Walk patch versions 9..0 against the detected EL minor,
+# then fall back to lower EL minors until a valid server repomd.xml is found.
+# DKMS rebuilds modules against the running kernel, so using el9.5 RPMs on
+# an el9.6 host is safe.
+resolve_lustre_baseurl() {
+  local el_minor="$1"               # e.g. "9.6"
   local el_major="${el_minor%%.*}"  # "9"
   local el_m="${el_minor##*.}"      # "6"
 
   for (( m = el_m; m >= 3; m-- )); do
-    local candidate="el${el_major}.${m}"
-    local probe_url="${WHAMCLOUD_BASE}/lustre/latest-release/${candidate}/server/repodata/repomd.xml"
-    if curl -sfI --max-time 10 "${probe_url}" >/dev/null 2>&1; then
-      log "Whamcloud latest-release resolved to ${candidate}"
-      echo "${candidate}"
-      return 0
-    fi
-    log "no Whamcloud latest-release for ${candidate}, trying lower minor"
+    local el_dir="el${el_major}.${m}"
+    for patch in 9 8 7 6 5 4 3 2 1 0; do
+      local ver="${LUSTRE_VERSION}.${patch}"
+      local base="${WHAMCLOUD_BASE}/lustre/lustre-${ver}/${el_dir}"
+      local probe="${base}/server/repodata/repomd.xml"
+      if curl -sfI --max-time 10 "${probe}" >/dev/null 2>&1; then
+        log "resolved: lustre-${ver}/${el_dir}"
+        echo "${base}"
+        return 0
+      fi
+    done
+    log "no Whamcloud lustre-${LUSTRE_VERSION}.x for ${el_dir}, trying lower minor"
   done
 
-  err "no Whamcloud latest-release found for el${el_major}.3 through el${el_major}.${el_m}"
+  err "no Whamcloud lustre-${LUSTRE_VERSION}.x found for el${el_major}.3..${el_major}.${el_m}"
   err "check https://downloads.whamcloud.com/public/lustre/ for available builds"
   return 1
 }
@@ -104,23 +111,22 @@ write_repos() {
   local el_minor="$1"
   log "configuring Whamcloud repos for Lustre ${LUSTRE_VERSION} on el${el_minor}"
 
-  local el_dir
-  el_dir="$(resolve_el_repo_dir "${el_minor}")"
+  local base_url
+  base_url="$(resolve_lustre_baseurl "${el_minor}")"
 
-  # Lustre server (includes ldiskfs/osd backend + mkfs.lustre kmods) and client.
-  # el_dir may be a lower EL minor than the running kernel if Whamcloud hasn't
-  # published packages for the exact minor yet. DKMS rebuilds the modules
-  # against the running kernel so this is safe.
+  # el_dir in base_url may be a lower EL minor than the running kernel when
+  # Whamcloud hasn't published packages for the exact minor yet. DKMS rebuilds
+  # modules against the running kernel so this is safe.
   cat >/etc/yum.repos.d/lustre.repo <<EOF
 [lustre-server]
 name=lustre-server
-baseurl=${WHAMCLOUD_BASE}/lustre/latest-release/${el_dir}/server
+baseurl=${base_url}/server
 enabled=1
 gpgcheck=0
 
 [lustre-client]
 name=lustre-client
-baseurl=${WHAMCLOUD_BASE}/lustre/latest-release/${el_dir}/client
+baseurl=${base_url}/client
 enabled=1
 gpgcheck=0
 
@@ -130,7 +136,7 @@ baseurl=${WHAMCLOUD_BASE}/e2fsprogs/latest/el9
 enabled=1
 gpgcheck=0
 EOF
-  log "repos written for ${el_dir}"
+  log "repos written (baseurl=${base_url})"
 }
 
 install_packages() {
