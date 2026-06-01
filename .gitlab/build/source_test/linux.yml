@@ -63,6 +63,19 @@ tests_linux-x64-py3:
   variables:
     CONDA_ENV: ddpy3
 
+tests_linux-x64-py3_hybrid:
+  extends:
+    - .linux_tests
+    - .linux_x64
+  after_script:
+    - !reference [.upload_junit_source]
+    - !reference [.upload_coverage]
+    - !reference [.upload_coverage_datadog]
+  variables:
+    CONDA_ENV: ddpy3
+    EXPERIMENTAL_USE_BAZEL_TESTS: "1"
+    BAZEL_CACHE_JOB_NAME: "bazel:test:linux-amd64"
+
 tests_nodetreemodel:
   extends:
     - .linux_tests
