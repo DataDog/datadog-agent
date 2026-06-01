@@ -39,7 +39,6 @@ exports_files(glob(
 # gazelle:exclude cmd/serverless-init
 # gazelle:exclude cmd/system-probe/modules
 # gazelle:exclude cmd/system-probe/subcommands/compliance
-# gazelle:exclude cmd/system-probe/subcommands/config
 # gazelle:exclude cmd/system-probe/subcommands/coverage
 # gazelle:exclude cmd/system-probe/subcommands/debug
 # gazelle:exclude cmd/system-probe/subcommands/ebpf
