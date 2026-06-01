@@ -231,6 +231,78 @@ func TestApproverParentWildcardBasename(t *testing.T) {
 	}
 }
 
+// TestApproverParentBasenameWeightVsFlags ensures that a coarse parent-basename path
+// approver (which can only push the parent directory name to the kernel) does not shadow
+// a more selective flags approver. The path field weight is lowered to 20 via
+// FilterWeightFnc, so open.flags (weight 100) is preferred over the path field.
+func TestApproverParentBasenameWeightVsFlags(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/var/run/secrets/*" && open.flags & O_CREAT > 0`)
+	capabilities, exists := allCapabilities["open"]
+	if !exists {
+		t.Fatal("no capabilities for open")
+	}
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if values, exists := approvers["open.file.path"]; exists {
+		t.Fatalf("expected no path approver, the flags approver should be preferred: %v", values)
+	}
+
+	values, exists := approvers["open.flags"]
+	if !exists || len(values) != 1 {
+		t.Fatalf("expected flags approver not found: %v", values)
+	}
+
+	valueInt, ok := values[0].Value.(int)
+	if !ok {
+		t.Fatalf("expected int value, got %v", values[0].Value)
+	}
+	assert.Equal(t, unix.O_CREAT, valueInt, "expected O_CREAT flags approver, got %d", valueInt)
+}
+
+// TestApproverLeafBasenameWeightVsFlags ensures that a precise leaf-basename path approver
+// still wins over a flags approver. The basename wildcard has a long enough prefix to be a
+// useful kernel approver, so the path field keeps its full weight (300) and is preferred
+// over open.flags (weight 100).
+func TestApproverLeafBasenameWeightVsFlags(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/var/run/secret*" && open.flags & O_CREAT > 0`)
+	capabilities, exists := allCapabilities["open"]
+	if !exists {
+		t.Fatal("no capabilities for open")
+	}
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if values, exists := approvers["open.flags"]; exists {
+		t.Fatalf("expected no flags approver, the path approver should be preferred: %v", values)
+	}
+
+	values, exists := approvers["open.file.path"]
+	if !exists || len(values) != 1 {
+		t.Fatalf("expected path approver not found: %v", values)
+	}
+
+	valueString, ok := values[0].Value.(string)
+	if !ok {
+		t.Fatalf("expected string value, got %v", values[0].Value)
+	}
+	assert.Equal(t, "/var/run/secret*", valueString)
+}
+
 func TestApproverInUpperLayer(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 
