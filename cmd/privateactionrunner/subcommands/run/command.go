@@ -9,8 +9,13 @@ package run
 import (
 	"context"
 	"errors"
+	"fmt"
+	"path"
+	"strings"
 
+	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -31,6 +36,7 @@ import (
 	rcclientfx "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/fx"
 	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -44,6 +50,14 @@ type cliParams struct {
 // runPrivateActionRunner runs the private action runner with the given configuration and context.
 // This function is shared between the CLI run command and the Windows service.
 func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles []string) error {
+	enabled, err := privateActionRunnerEnabled(confPath, extraConfFiles)
+	if err != nil {
+		return err
+	}
+	if !enabled {
+		return nil
+	}
+
 	fxOptions := []fx.Option{
 		// Provide context for cancellation (Windows service uses this for graceful shutdown)
 		fx.Provide(func() context.Context { return ctx }),
@@ -80,7 +94,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		privateactionrunnerfx.Module(),
 	}
 
-	err := fxutil.Run(fxOptions...)
+	err = fxutil.Run(fxOptions...)
 	if errors.Is(err, privateactionrunner.ErrNotEnabled) {
 		return nil
 	}
@@ -103,4 +117,38 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 
 	return []*cobra.Command{runCmd}
+}
+
+func privateActionRunnerEnabled(confPath string, extraConfFiles []string) (bool, error) {
+	// Initialize the global config objects with the same config library selection
+	// used by the full config component, then load enough config to decide
+	// whether the PAR Fx graph should be constructed.
+	params := config.NewAgentParams(confPath, config.WithExtraConfFiles(extraConfFiles))
+	cfg := pkgconfigsetup.GlobalConfigBuilder()
+
+	if params.ConfFilePath != "" {
+		cfg.AddConfigPath(params.ConfFilePath)
+		if strings.HasSuffix(params.ConfFilePath, ".yaml") || strings.HasSuffix(params.ConfFilePath, ".yml") {
+			cfg.SetConfigFile(params.ConfFilePath)
+		}
+	}
+	cfg.AddConfigPath(config.DefaultConfPath)
+
+	if err := cfg.AddExtraConfigPaths(params.ExtraConfFilePath); err != nil {
+		return false, err
+	}
+
+	err := pkgconfigsetup.LoadDatadog(cfg, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, pkgconfigsetup.SystemProbe().GetEnvVars())
+	if err != nil && (!errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) || params.ConfFilePath != "") {
+		return false, fmt.Errorf("unable to load Datadog config file: %w", err)
+	}
+
+	if fleetPoliciesDirPath := cfg.GetString("fleet_policies_dir"); fleetPoliciesDirPath != "" {
+		if err := cfg.MergeFleetPolicy(path.Join(fleetPoliciesDirPath, "datadog.yaml")); err != nil {
+			return false, err
+		}
+		pkgconfigsetup.ApplyUseDogstatsdSuppression(cfg)
+	}
+
+	return cfg.GetBool(privateactionrunner.PAREnabled), nil
 }
