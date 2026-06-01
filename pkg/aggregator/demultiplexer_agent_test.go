@@ -8,6 +8,7 @@
 package aggregator
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -552,6 +553,234 @@ type DemultiplexerAgentTestDeps struct {
 	Tagger          tagger.Component
 	HaAgent         haagent.Component
 	Telemetry       telemetry.Component
+}
+
+// TestWaitForPendingSamplesReturnsAfterDrain verifies that
+// WaitForPendingSamples returns nil once all per-shard timeSamplerWorker
+// channels have been consumed. We seed the channel directly and then
+// simulate a worker pickup by reading from it from a goroutine.
+func TestWaitForPendingSamplesReturnsAfterDrain(t *testing.T) {
+	require := require.New(t)
+
+	opts := demuxTestOptions()
+	deps := createDemultiplexerAgentTestDeps(t)
+	// initAgentDemultiplexer (not InitAndStart): no worker goroutine runs,
+	// so anything we enqueue stays buffered until we read it.
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+
+	demux.AggregateSample(metrics.MetricSample{
+		Name:      "test.metric",
+		Value:     1,
+		Mtype:     metrics.GaugeType,
+		Timestamp: 1657099120.0,
+	})
+	require.Equal(1, demux.pendingSampleCount(), "sample should be buffered in worker channel")
+
+	// Drain the sample asynchronously, mimicking the worker picking it up.
+	go func() {
+		time.Sleep(5 * time.Millisecond)
+		<-demux.statsd.workers[0].samplesChan
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.NoError(demux.WaitForPendingSamples(ctx))
+	require.Equal(0, demux.pendingSampleCount())
+}
+
+// TestWaitForPendingSamplesReturnsCtxErrOnTimeout verifies that
+// WaitForPendingSamples respects ctx cancellation when samples are
+// never drained.
+func TestWaitForPendingSamplesReturnsCtxErrOnTimeout(t *testing.T) {
+	require := require.New(t)
+
+	opts := demuxTestOptions()
+	deps := createDemultiplexerAgentTestDeps(t)
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+
+	demux.AggregateSample(metrics.MetricSample{
+		Name:      "stuck.metric",
+		Value:     1,
+		Mtype:     metrics.GaugeType,
+		Timestamp: 1657099120.0,
+	})
+	require.Equal(1, demux.pendingSampleCount())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	err := demux.WaitForPendingSamples(ctx)
+	require.ErrorIs(err, context.DeadlineExceeded)
+	require.Equal(1, demux.pendingSampleCount(), "sample must still be buffered")
+}
+
+// TestWaitForPendingSamplesReturnsImmediatelyWhenEmpty verifies the
+// no-pending-samples fast path.
+func TestWaitForPendingSamplesReturnsImmediatelyWhenEmpty(t *testing.T) {
+	require := require.New(t)
+
+	opts := demuxTestOptions()
+	deps := createDemultiplexerAgentTestDeps(t)
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+
+	require.Equal(0, demux.pendingSampleCount())
+
+	// Cancelled context: should still return nil because pending count is 0
+	// and the function checks pending count before consulting ctx.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.NoError(demux.WaitForPendingSamples(ctx))
+}
+
+// TestWaitForPendingSamplesInvariant pins the dequeue-then-sample ordering
+// contract that WaitForPendingSamples relies on: once it returns nil, a
+// subsequent ForceFlushToSerializer must include the drained sample.
+//
+// This is the canary for timeSamplerWorker.run()'s loop invariant: the worker
+// must fully incorporate a dequeued batch into the sampler (sample +
+// PutBatch) before its next select iteration, so that observing
+// len(samplesChan)==0 implies the sample is already visible to a flush.
+// If the worker ever moves to double-buffering or async sample handling this
+// test must fail, alerting the author to revisit the WaitForPendingSamples
+// correctness comment.
+//
+// Unlike the other WaitForPendingSamples tests, this one uses
+// InitAndStartAgentDemultiplexer (live worker goroutines) so the actual
+// timeSamplerWorker.run() loop is exercised, not just the channel length check.
+func TestWaitForPendingSamplesInvariant(t *testing.T) {
+	require := require.New(t)
+
+	opts := demuxTestOptions()
+	deps := createDemultiplexerAgentTestDeps(t)
+
+	// Use a live demux so the real timeSamplerWorker.run() loop runs and
+	// dequeues samples into the time sampler.
+	demux := InitAndStartAgentDemultiplexer(
+		deps.Log,
+		NewForwarderTest(deps.Log),
+		deps.OrchestratorFwd,
+		opts,
+		deps.EventPlatform,
+		deps.HaAgent,
+		deps.Compressor,
+		deps.Tagger,
+		deps.FilterList,
+		"",
+	)
+
+	// Wire in a mock serializer so we can inspect what ForceFlushToSerializer
+	// sends, without needing a real network forwarder.
+	s := &MockSerializerIterableSerie{}
+	s.On("AreSeriesEnabled").Return(true)
+	s.On("AreSketchesEnabled").Return(true)
+	s.On("SendServiceChecks", mock.Anything).Return(nil).Maybe()
+	demux.aggregator.serializer = s
+	demux.sharedSerializer = s
+
+	const metricName = "waitforpending.invariant.gauge"
+	const metricValue = float64(42)
+	const metricTimestamp = float64(1657099120)
+
+	demux.AggregateSample(metrics.MetricSample{
+		Name:      metricName,
+		Value:     metricValue,
+		Mtype:     metrics.GaugeType,
+		Timestamp: metricTimestamp,
+	})
+
+	// WaitForPendingSamples must return nil (sample fully in sampler) before
+	// the flush. This is the barrier whose correctness the comment documents.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	require.NoError(demux.WaitForPendingSamples(ctx))
+	require.Equal(0, demux.pendingSampleCount())
+
+	// Flush at a time well past the sample's timestamp so the time sampler
+	// considers the bucket closed and includes it in the output.
+	demux.ForceFlushToSerializer(time.Unix(int64(metricTimestamp)+60, 0), true)
+
+	// The sample must appear in the flushed series. If WaitForPendingSamples
+	// returned before the sample was incorporated into the time sampler, the
+	// flush would race the worker and this assertion would fail non-deterministically.
+	idx := slices.IndexFunc(s.series, func(serie *metrics.Serie) bool {
+		return serie.Name == metricName
+	})
+	require.NotEqualf(-1, idx, "gauge %q not found in flushed series %+v — WaitForPendingSamples drain barrier may be broken", metricName, s.series)
+
+	demux.Stop(false)
+}
+
+// TestStopSkipsDrainWhenDisabled is the deterministic negative of the drain
+// behavior: with aggregator_drain_samples_on_stop unset (the long-running-agent
+// default), AgentDemultiplexer.Stop(true) must NOT run the WaitForPendingSamples
+// drain barrier.
+//
+// The signal is deterministic, not race-dependent: we use a non-started demux
+// (initAgentDemultiplexer, no worker goroutine) and enqueue one sample, so it is
+// PROVABLY stuck in the worker's samplesChan forever (nothing consumes it). If
+// the drain ran it would therefore block for the full aggregator_stop_timeout
+// before giving up; if it is correctly skipped, Stop reaches its flush trigger
+// immediately. We set a multi-second aggregator_stop_timeout and assert Stop
+// returns in well under it — which can only happen if the drain was skipped.
+//
+// Helper goroutines stand in for the (unstarted) flushLoop and worker/aggregator
+// shutdown receivers so the real Stop(true) can run to completion: they drain the
+// flush trigger (replying on its blockChan) and the worker/aggregator stop sends.
+func TestStopSkipsDrainWhenDisabled(t *testing.T) {
+	require := require.New(t)
+
+	mockConfig := configmock.New(t)
+	// aggregator_drain_samples_on_stop intentionally left unset (defaults to false).
+	// A multi-second stop timeout: if the drain wrongly ran on the stuck sample it
+	// would burn this whole budget, so a fast Stop proves the drain was skipped.
+	const stopTimeout = 2 * time.Second
+	mockConfig.SetWithoutSource("aggregator_stop_timeout", int(stopTimeout/time.Second))
+
+	opts := demuxTestOptions()
+	deps := createDemultiplexerAgentTestDeps(t)
+	// initAgentDemultiplexer (not InitAndStart): no worker goroutine runs, so the
+	// enqueued sample stays buffered in samplesChan and the drain, if it ran, can
+	// never complete.
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+
+	demux.AggregateSample(metrics.MetricSample{
+		Name:      "stuck.metric",
+		Value:     1,
+		Mtype:     metrics.GaugeType,
+		Timestamp: 1657099120.0,
+	})
+	require.Equal(1, demux.pendingSampleCount(), "sample must be buffered with no worker to drain it")
+
+	// Stand in for the (unstarted) flushLoop and worker/aggregator shutdown
+	// receivers so the real Stop(true) can run to completion. Each of these
+	// channel sends happens exactly once during Stop, so a single-receive
+	// goroutine per channel is sufficient and avoids hot-spinning. The flush
+	// trigger receiver replies on blockChan so Stop's flush phase unblocks.
+	go func() {
+		trigger := <-demux.stopChan
+		if trigger != nil && trigger.blockChan != nil {
+			trigger.blockChan <- struct{}{}
+		}
+	}()
+	go func() { <-demux.aggregator.stopChan }()
+	for _, w := range demux.statsd.workers {
+		go func(w *timeSamplerWorker) { <-w.stopChan }(w)
+	}
+
+	done := make(chan struct{})
+	start := time.Now()
+	go func() {
+		demux.Stop(true)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		elapsed := time.Since(start)
+		require.Less(elapsed, stopTimeout/2,
+			"with aggregator_drain_samples_on_stop unset, Stop(true) must skip the WaitForPendingSamples drain; taking ~aggregator_stop_timeout (%s) means the drain ran on the stuck sample", stopTimeout)
+	case <-time.After(stopTimeout + time.Second):
+		require.Fail("Stop(true) did not return in time", "the drain barrier was not skipped with the gate off")
+	}
 }
 
 func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {

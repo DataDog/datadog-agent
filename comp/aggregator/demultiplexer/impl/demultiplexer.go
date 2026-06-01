@@ -119,5 +119,7 @@ func createAgentDemultiplexerOptions(config config.Component, params Params) agg
 	if v, ok := params.flushInterval.Get(); ok {
 		options.FlushInterval = v
 	}
+
+	options.DrainSamplesOnStop = config.GetBool("aggregator_drain_samples_on_stop")
 	return options
 }

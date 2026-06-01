@@ -91,6 +91,11 @@ type AgentDemultiplexerOptions struct {
 
 	UseDogstatsdContextLimiter bool
 	DogstatsdMaxMetricsTags    int
+
+	// DrainSamplesOnStop makes Stop(flush=true) block until samples already
+	// enqueued in the time-sampler worker channels have been consumed before
+	// flushing. Serverless opts in so the final flush observes late samples.
+	DrainSamplesOnStop bool
 }
 
 // DefaultAgentDemultiplexerOptions returns the default options to initialize an AgentDemultiplexer.
@@ -434,6 +439,21 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 	// do a manual complete flush then stop
 	// stop all automatic flush & the mainloop,
 	if flush {
+		// When draining is enabled (serverless), block until samples already
+		// enqueued in the time-sampler worker channels have been consumed, so
+		// the flush below observes them. The drain shares the aggregator_stop_timeout
+		// budget with the flush: time spent draining is subtracted from the flush
+		// timeout so the total stays bounded and the drain can't starve the flush.
+		if d.options.DrainSamplesOnStop {
+			drainStart := time.Now()
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			if err := d.WaitForPendingSamples(ctx); err != nil {
+				d.log.Warnf("draining pending samples on Stop() timed out with %d batches still buffered: %v", d.pendingSampleCount(), err)
+			}
+			cancel()
+			timeout = timeout - time.Since(drainStart)
+		}
+
 		trigger := trigger{
 			time:              time.Now(),
 			blockChan:         make(chan struct{}),
@@ -774,4 +794,60 @@ func (d *AgentDemultiplexer) GetDefaultSender() (sender.Sender, error) {
 	}
 
 	return d.senders.GetDefaultSender()
+}
+
+// WaitForPendingSamples blocks until every sample enqueued via
+// AggregateSample / AggregateSamples has been consumed by a
+// timeSamplerWorker, or ctx is done. It is the metrics analogue of
+// pkg/trace/agent.Agent.WaitForStopped: a shutdown synchronization
+// primitive for callers that need their final samples drained before
+// the demultiplexer's flush runs.
+//
+// Correctness relies on timeSamplerWorker.run()'s loop body fully
+// incorporating a dequeued batch into the sampler (sampler.sample +
+// metricSamplePool.PutBatch) before the next select iteration. Because
+// flushChan is unbuffered and only received in that next iteration,
+// observing len(samplesChan)==0 implies the dequeued sample is already
+// visible to any subsequent flush. If timeSamplerWorker.run() ever moves
+// to double-buffering or async sample handling, this barrier must be
+// revisited.
+//
+// TestWaitForPendingSamplesInvariant in demultiplexer_agent_test.go is the
+// canary for this contract: it enqueues a sample, calls WaitForPendingSamples,
+// then flushes and asserts the sample appears in the output. Any change to
+// the worker loop's dequeue-then-sample ordering should fail that test first.
+func (d *AgentDemultiplexer) WaitForPendingSamples(ctx context.Context) error {
+	const tick = 1 * time.Millisecond
+	t := time.NewTicker(tick)
+	defer t.Stop()
+	for {
+		if d.pendingSampleCount() == 0 {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-t.C:
+		}
+	}
+}
+
+// PendingSampleCount returns the total number of sample batches still
+// buffered in the per-shard time-sampler worker channels. It is exposed for
+// observability at shutdown (e.g. to include in a warn-log when a drain
+// timeout fires) without broadening the main Demultiplexer interface.
+func (d *AgentDemultiplexer) PendingSampleCount() int {
+	return d.pendingSampleCount()
+}
+
+// pendingSampleCount returns the total number of sample batches still
+// buffered in the per-shard time-sampler worker channels.
+func (d *AgentDemultiplexer) pendingSampleCount() int {
+	d.m.RLock()
+	defer d.m.RUnlock()
+	n := 0
+	for _, w := range d.statsd.workers {
+		n += len(w.samplesChan)
+	}
+	return n
 }
