@@ -70,8 +70,8 @@ import (
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
 	grpcAgentfx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-agent"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
+	collectorimpl "github.com/DataDog/datadog-agent/comp/collector/collector/impl"
 	connectivitycheckerfx "github.com/DataDog/datadog-agent/comp/connectivitychecker/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -401,7 +401,7 @@ func run(log log.Component,
 		"Establish if the agent is running",
 	)
 
-	// agentStarted and agentRunning are metrics used for Cross-org Agent Telemetry (COAT)
+	// agentStarted and agentRunning are metrics used for internal agent telemetry
 	// for more details on the scheduling config check comp/core/agenttelemetry/impl/config.go
 	agentStarted.Inc()
 	agentRunning.Set(1)

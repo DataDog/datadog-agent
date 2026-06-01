@@ -26,7 +26,7 @@ func (m *mockIssueTemplate) BuildIssue(context map[string]string) (*healthplatfo
 	return &healthplatform.Issue{
 		Title:       "Test Issue: " + m.issueID,
 		Description: "Context value: " + context["key"],
-		Severity:    "medium",
+		Severity:    healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
 	}, nil
 }
 

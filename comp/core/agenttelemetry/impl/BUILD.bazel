@@ -5,6 +5,8 @@ go_library(
     srcs = [
         "agenttelemetry.go",
         "config.go",
+        "errortracking_sender.go",
+        "logs_payload.go",
         "runner.go",
         "sender.go",
         "utils.go",
@@ -23,6 +25,8 @@ go_library(
         "//pkg/fleet/installer/telemetry",
         "//pkg/util/hostinfo",
         "//pkg/util/http",
+        "//pkg/util/log/errortracking",
+        "//pkg/util/log/setup",
         "//pkg/util/scrubber",
         "//pkg/version",
         "@com_github_datadog_zstd//:zstd",
@@ -34,7 +38,10 @@ go_library(
 
 go_test(
     name = "impl_test",
-    srcs = ["agenttelemetry_test.go"],
+    srcs = [
+        "agenttelemetry_test.go",
+        "errortracking_sender_test.go",
+    ],
     embed = [":impl"],
     gotags = ["test"],
     deps = [
@@ -42,9 +49,11 @@ go_test(
         "//comp/core/log/mock",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/mock",
+        "//comp/logs/agent/config",
         "//pkg/config/mock",
         "//pkg/util/fxutil",
         "//pkg/util/jsonquery",
+        "//pkg/util/log/errortracking",
         "@com_github_datadog_zstd//:zstd",
         "@com_github_prometheus_client_model//go",
         "@com_github_stretchr_testify//assert",

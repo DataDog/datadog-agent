@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package errortracking forwards Agent error logs to Datadog Cross-Org Agent
-// Telemetry (COAT). It exposes:
+// Package errortracking forwards Agent error logs to the internal agent
+// telemetry intake. It exposes:
 //
 //   - ErrorLog: the value-type that crosses the boundary from
 //     pkg/util/log into comp/core/agenttelemetry. Keeping a plain struct on

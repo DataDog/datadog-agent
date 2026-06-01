@@ -306,6 +306,9 @@ data_streams.forwarder.logs_dd_url: %[1]s:%[2]d
 data_streams.forwarder.logs_no_ssl: true
 event_management.forwarder.logs_dd_url: %[1]s:%[2]d
 event_management.forwarder.logs_no_ssl: true
+agent_telemetry.logs_dd_url: %[1]s:%[2]d
+agent_telemetry.logs_no_ssl: true
+agent_telemetry.use_compression: false
 `, hostname, port, scheme)
 		p.ExtraAgentConfig = append(p.ExtraAgentConfig, extraConfig)
 		return nil

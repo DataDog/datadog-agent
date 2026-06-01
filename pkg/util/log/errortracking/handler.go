@@ -133,7 +133,7 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	var pcs [MaxStackFrames]uintptr
 	pcsLen := runtime.Callers(stackSkipBase, pcs[:])
 
-	count := uint32(1)
+	var count uint32
 	// Bouncer check: a Bouncer is mandatory for submission. Both a nil
 	// loader (no bouncer registered at all) and a loader that returns nil
 	// (temporarily unavailable during Fx startup/shutdown) cause the
