@@ -552,7 +552,6 @@ exports_files(glob(
 # gazelle:exclude pkg/security/probe/selftests
 # gazelle:exclude pkg/security/process_list
 # gazelle:exclude pkg/security/proto/api/transform
-# gazelle:exclude pkg/security/reporter
 # gazelle:exclude pkg/security/resolvers/dentry
 # gazelle:exclude pkg/security/resolvers/dns
 # gazelle:exclude pkg/security/resolvers/envvars
