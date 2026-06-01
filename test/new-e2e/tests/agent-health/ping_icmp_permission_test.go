@@ -87,7 +87,7 @@ func (suite *pingICMPPermissionSuite) TestPingICMPPermissionIssueLifecycle() {
 		assert.Equal(t, pingICMPIssueID, pingIssue.Id)
 		assert.Equal(t, "ping_icmp_permissions", pingIssue.IssueName)
 		assert.Equal(t, "permissions", pingIssue.Category)
-		assert.Equal(t, "medium", pingIssue.Severity)
+		assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, pingIssue.Severity)
 		assert.Equal(t, "ping", pingIssue.Source)
 		assert.NotNil(t, pingIssue.Remediation, "Remediation should be provided")
 		assert.NotEmpty(t, pingIssue.Remediation.Steps, "Remediation steps should not be empty")
