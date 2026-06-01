@@ -258,7 +258,6 @@ exports_files(glob(
 # gazelle:exclude pkg/cli/subcommands/clusterchecks
 # gazelle:exclude pkg/cli/subcommands/dcaconfigcheck
 # gazelle:exclude pkg/cli/subcommands/dcaflare
-# gazelle:exclude pkg/cli/subcommands/experimental
 # gazelle:exclude pkg/cli/subcommands/processchecks
 # gazelle:exclude pkg/cloudfoundry
 # gazelle:exclude pkg/clusteragent/admission
