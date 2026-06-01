@@ -9,6 +9,7 @@ package nvidia
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -63,10 +64,11 @@ func TestNVLinkGPMCollectorGetOrCreateGpmCollectorRejectsOutOfRangePort(t *testi
 		perPortCollector: make(map[int]*gpmCollector),
 	}
 
-	gpmCollector, err := collector.getOrCreateGpmCollector(maxNvlinkPorts + 1)
+	portToCheck := maxNvlinkPorts + 1
+	gpmCollector, err := collector.getOrCreateGpmCollector(portToCheck)
 	require.Nil(t, gpmCollector)
 	require.ErrorIs(t, err, errUnsupportedDevice)
-	require.ErrorContains(t, err, "port 18 is out of range")
+	require.ErrorContains(t, err, fmt.Sprintf("port %d is out of range", portToCheck))
 }
 
 func TestNVLinkGPMCollectorGetPortMetricsConvertsValuesAndSetsPriority(t *testing.T) {
@@ -118,6 +120,7 @@ func TestNVLinkGPMCollectorGetPortMetricsConvertsValuesAndSetsPriority(t *testin
 	for _, metric := range collectedMetrics {
 		require.Equal(t, metrics.GaugeType, metric.Type)
 		require.Equal(t, High, metric.Priority)
+		require.Contains(t, metric.Tags, "nvlink_port:1")
 		valuesByName[metric.Name] = metric.Value
 	}
 	require.Equal(t, 1.5*1024, valuesByName["nvlink.throughput.data.rx"])
@@ -168,7 +171,7 @@ func TestNVLinkGPMCollectorCollectReturnsPartialMetricsAndErrors(t *testing.T) {
 
 	collectedMetrics, err := collector.Collect()
 	require.Error(t, err)
-	require.ErrorContains(t, err, "collect metrics for port 2")
+	require.ErrorContains(t, err, "get port metrics for port 2")
 	require.ErrorContains(t, err, "sample unavailable")
 	require.Len(t, collectedMetrics, 1)
 	require.Equal(t, "nvlink.throughput.data.rx", collectedMetrics[0].Name)
