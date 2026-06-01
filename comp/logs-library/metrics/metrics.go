@@ -134,9 +134,9 @@ var (
 	TlmHTTPConnectivityCheck = telemetryimpl.GetCompatComponent().NewCounter("logs", "http_connectivity_check",
 		[]string{"status"}, "Count of HTTP connectivity checks with status")
 
-	// TlmHTTPConnectivityFailureCause tracks the root cause of HTTP connectivity check failures.
+	// TlmHTTPConnectivityFailure tracks HTTP connectivity check failures broken down by root cause.
 	// Tags: failure_cause — use the FailureCause* constants defined below.
-	TlmHTTPConnectivityFailureCause = telemetryimpl.GetCompatComponent().NewCounter("logs", "http_connectivity_failure_cause",
+	TlmHTTPConnectivityFailure = telemetryimpl.GetCompatComponent().NewCounter("logs", "http_connectivity_failure",
 		[]string{"failure_cause"}, "Count of HTTP connectivity check failures broken down by root cause")
 
 	// TlmHTTPConnectivityRetryAttempt tracks HTTP connectivity retry attempts
@@ -175,7 +175,7 @@ var (
 		[]string{"listener_type"}, "Count of connections or datagrams rejected by IP allow/deny filters")
 )
 
-// FailureCause* are the stable tag values for the logs.http_connectivity_failure_cause
+// FailureCause* are the stable tag values for the logs.http_connectivity_failure
 // counter's failure_cause tag. Dashboards and monitors filter on these literal strings,
 // so they must not change across agent versions.
 const (

@@ -648,7 +648,7 @@ func CheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) conf
 	if err != nil {
 		cause := classifyConnectivityError(err)
 		log.Warnf("HTTP connectivity failure: %v (failure_cause=%s)", err, cause)
-		metrics.TlmHTTPConnectivityFailureCause.Inc(cause)
+		metrics.TlmHTTPConnectivityFailure.Inc(cause)
 	} else {
 		log.Info("HTTP connectivity successful")
 	}
