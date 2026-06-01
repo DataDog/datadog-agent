@@ -16,7 +16,6 @@ exports_files(glob(
 ))
 
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
-# gazelle:exclude cmd/agent/command
 # gazelle:exclude cmd/agent/subcommands
 # gazelle:exclude cmd/agent/windows
 # gazelle:exclude cmd/cluster-agent
