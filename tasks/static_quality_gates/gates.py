@@ -337,6 +337,9 @@ class PackageArtifactMeasurer:
         package_dir = os.environ['OMNIBUS_PACKAGE_DIR']
         if config.os == "windows":
             package_dir = f"{package_dir}/pipeline-{os.environ['CI_PIPELINE_ID']}"
+        elif config.os == "suse":
+            # SUSE producer jobs relocate their RPM to OMNIBUS_PACKAGE_DIR_SUSE.
+            package_dir = os.environ['OMNIBUS_PACKAGE_DIR_SUSE']
 
         # Map architecture for certain OSes
         arch = config.arch
