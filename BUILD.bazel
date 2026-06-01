@@ -1,6 +1,6 @@
 # Global build settings
 
-load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_source_files")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
@@ -945,4 +945,31 @@ config_setting(
     flag_values = {
         "//:release": "True",
     },
+)
+
+# bazel run //:write_all regenerates all protobuf-generated Go files in the repo.
+write_source_files(
+    name = "write_all",
+    additional_update_targets = [
+        "//comp/forwarder/defaultforwarder/internal/retry:write_pb_go",
+        "//pkg/proto/msgpgo:key_gen",
+        "//pkg/proto/pbgo/core:remoteconfig_gen",
+        "//pkg/proto/pbgo/core:write_pb_go",
+        "//pkg/proto/pbgo/dogstatsdhttp:write_pb_go",
+        "//pkg/proto/pbgo/languagedetection:write_pb_go",
+        "//pkg/proto/pbgo/mocks/core:api_mockgen",
+        "//pkg/proto/pbgo/privateactionrunner/actionsclient:write_pb_go",
+        "//pkg/proto/pbgo/privateactionrunner/errorcode:write_pb_go",
+        "//pkg/proto/pbgo/privateactionrunner/privateactions:write_pb_go",
+        "//pkg/proto/pbgo/process:write_pb_go",
+        "//pkg/proto/pbgo/sbom:write_pb_go",
+        "//pkg/proto/pbgo/trace:agent_payload_gen",
+        "//pkg/proto/pbgo/trace:span_gen",
+        "//pkg/proto/pbgo/trace:stats_gen",
+        "//pkg/proto/pbgo/trace:trace_gen",
+        "//pkg/proto/pbgo/trace:tracer_payload_gen",
+        "//pkg/proto/pbgo/trace:write_pb_go",
+        "//pkg/proto/pbgo/trace/idx:write_pb_go",
+        "//pkg/security/proto/api:write_pb_go",
+    ],
 )
