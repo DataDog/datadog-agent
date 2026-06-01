@@ -224,7 +224,7 @@ func runLocalDiagnose(s *systrayImpl) []byte {
 			return ports.DiagnosePortSuite()
 		},
 		diagnose.EventPlatformConnectivity: func(_ diagnose.Config) []diagnose.Diagnosis {
-			return eventplatformimpl.Diagnose()
+			return eventplatformimpl.Diagnose(s.pipelineDescs...)
 		},
 		diagnose.AutodiscoveryConnectivity: func(_ diagnose.Config) []diagnose.Diagnosis {
 			return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()

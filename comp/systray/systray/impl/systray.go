@@ -26,6 +26,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	systray "github.com/DataDog/datadog-agent/comp/systray/systray/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -45,12 +46,13 @@ type Requires struct {
 	Lifecycle  compdef.Lifecycle
 	Shutdowner compdef.Shutdowner
 
-	Log      log.Component
-	Config   config.Component
-	Flare    flare.Component
-	Diagnose diagnose.Component
-	Params   systray.Params
-	Client   ipc.HTTPClient
+	Log           log.Component
+	Config        config.Component
+	Flare         flare.Component
+	Diagnose      diagnose.Component
+	Params        systray.Params
+	Client        ipc.HTTPClient
+	PipelineDescs []eventplatform.PipelineDesc `group:"ep_pipeline_descs"`
 }
 
 // Provides defines the output of the systray component
@@ -62,12 +64,13 @@ type systrayImpl struct {
 	// For triggering Shutdown
 	shutdowner compdef.Shutdowner
 
-	log      log.Component
-	config   config.Component
-	flare    flare.Component
-	diagnose diagnose.Component
-	params   systray.Params
-	client   ipc.HTTPClient
+	log           log.Component
+	config        config.Component
+	flare         flare.Component
+	diagnose      diagnose.Component
+	params        systray.Params
+	client        ipc.HTTPClient
+	pipelineDescs []eventplatform.PipelineDesc
 	// allocated in start, destroyed in stop
 	singletonEventHandle windows.Handle
 
@@ -125,13 +128,14 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// fx init
 	s := &systrayImpl{
-		log:        reqs.Log,
-		config:     reqs.Config,
-		flare:      reqs.Flare,
-		diagnose:   reqs.Diagnose,
-		params:     reqs.Params,
-		client:     reqs.Client,
-		shutdowner: reqs.Shutdowner,
+		log:           reqs.Log,
+		config:        reqs.Config,
+		flare:         reqs.Flare,
+		diagnose:      reqs.Diagnose,
+		params:        reqs.Params,
+		client:        reqs.Client,
+		shutdowner:    reqs.Shutdowner,
+		pipelineDescs: reqs.PipelineDescs,
 	}
 
 	// fx lifecycle hooks

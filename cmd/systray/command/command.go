@@ -19,6 +19,7 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	datastreamseventplatformfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams/eventplatform/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -27,11 +28,20 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	doeventplatformfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/eventplatform/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
+	ncmeventplatformfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/eventplatform/fx"
+	networkpatheventplatformfx "github.com/DataDog/datadog-agent/comp/networkpath/eventplatfrom/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	softinveventplatformfx "github.com/DataDog/datadog-agent/comp/softwareinventory/eventplatform/fx"
+	syntheticseventplatformfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/eventplatform/fx"
 	systray "github.com/DataDog/datadog-agent/comp/systray/systray/def"
 	systrayfx "github.com/DataDog/datadog-agent/comp/systray/systray/fx"
+	kubeactionseventplatformfx "github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions/eventplatform/fx"
+	containereventplatformfx "github.com/DataDog/datadog-agent/pkg/containerlifecycle/eventplatform/fx"
+	dbmeventplatformfx "github.com/DataDog/datadog-agent/pkg/databasemonitoring/eventplatform/fx"
+	ndmeventplatformfx "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata/eventplatform/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -119,6 +129,17 @@ func MakeCommand() *cobra.Command {
 				fx.Provide(func() serializer.MetricSerializer {
 					return nil
 				}),
+				// EP pipeline descriptors for doflare connectivity check
+				dbmeventplatformfx.Module(),
+				ndmeventplatformfx.Module(),
+				networkpatheventplatformfx.Module(),
+				ncmeventplatformfx.Module(),
+				containereventplatformfx.Module(),
+				syntheticseventplatformfx.Module(),
+				datastreamseventplatformfx.Module(),
+				doeventplatformfx.Module(),
+				kubeactionseventplatformfx.Module(),
+				softinveventplatformfx.Module(),
 				// systray
 				fx.Supply(systrayParams),
 				systrayfx.Module(),
