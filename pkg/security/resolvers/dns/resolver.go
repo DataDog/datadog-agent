@@ -39,9 +39,14 @@ type Resolver struct {
 
 // NewDNSResolver returns a new resolver
 func NewDNSResolver(cfg *config.Config, statsdClient statsd.ClientInterface) (*Resolver, error) {
+	cnameMaxDepth := cfg.DNSResolverCnameMaxDepth
+	if cnameMaxDepth < 0 {
+		cnameMaxDepth = 0
+	}
+
 	ret := &Resolver{
 		statsdClient:  statsdClient,
-		cnameMaxDepth: cfg.DNSResolverCnameMaxDepth,
+		cnameMaxDepth: cnameMaxDepth,
 		resolverStats: &CacheStats{},
 		cnameStats:    &CacheStats{},
 	}
@@ -71,7 +76,7 @@ func NewDNSResolver(cfg *config.Config, statsdClient statsd.ClientInterface) (*R
 
 // fillWithCnames Recursively fills the set with all the cname aliases for the hostname
 func (r *Resolver) fillWithCnames(hostname string, hostnames *[]string, depth int) {
-	if depth == 0 {
+	if depth <= 0 {
 		return
 	}
 

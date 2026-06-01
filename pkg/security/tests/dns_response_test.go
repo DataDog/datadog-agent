@@ -69,6 +69,13 @@ func TestDNSResponse(t *testing.T) {
 		},
 	}
 
+	ruleDefsResponseIPOnly := []*rules.RuleDefinition{
+		{
+			ID:         "dns_response_ip_only",
+			Expression: `dns.response.ips in [34.149.115.158]`,
+		},
+	}
+
 	test, err := newTestModule(t, nil, ruleDefsRcodeOK, withStaticOpts(testOpts{
 		dnsPort: DNSPort,
 	}))
@@ -95,6 +102,31 @@ func TestDNSResponse(t *testing.T) {
 
 			test.validateDNSSchema(t, event)
 		}, "dns_response_ok")
+	})
+	test.Close()
+
+	test, err = newTestModule(t, nil, ruleDefsResponseIPOnly, withStaticOpts(testOpts{
+		dnsPort: DNSPort,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("catch-dns-response-ip-only", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			hexDump := "00000000000000000000000008004500004ef53c40000111862c7f0000357f00000115b18bb0003a96af5ac281800001000100000000037777770964617461646f6768710265750000010001c00c000100010000003c00042295739e"
+			err = injectHexDump("lo", hexDump)
+
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "dns_response_ip_only")
+			assert.Equal(t, "dns", event.GetType(), "wrong event type")
+			assert.Equal(t, "www.datadoghq.eu", event.DNS.Question.Name, "wrong domain name")
+			assert.Len(t, event.DNS.Response.IPs, 1, "wrong resolved IP count")
+			assert.Equal(t, "34.149.115.158", event.DNS.Response.IPs[0].IP.String(), "wrong resolved IP")
+
+			test.validateDNSSchema(t, event)
+		}, "dns_response_ip_only")
 	})
 	test.Close()
 

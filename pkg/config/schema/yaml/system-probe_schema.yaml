@@ -2247,8 +2247,9 @@ properties:
             tags: []
           cname_max_depth:
             node_type: setting
-            type: number
+            type: integer
             default: 2
+            minimum: 0
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_DNS_RESOLUTION_CNAME_MAX_DEPTH
             - DD_RUNTIME_SECURITY_CONFIG_DNS_RESOLUTION_CNAME_MAX_DEPTH

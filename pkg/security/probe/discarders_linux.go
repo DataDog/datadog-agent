@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"math"
 	"path"
-	"slices"
 	"strings"
 	"time"
 
@@ -581,15 +580,16 @@ func applyDNSDefaultDropMaskFromRules(manager *manager.Manager, rs *rules.RuleSe
 
 		isDiscarder := true
 		for _, r := range bucket.GetRules() {
-			if ruleNeedsFullDNSResponse(r) {
-				isDiscarder = false
-				break
-			}
+			needsFullResponse := ruleNeedsFullDNSResponse(r)
 
 			ok, err := r.PartialEval(ctx, "dns.response.code")
 			if err != nil {
 				var nf *eval.ErrFieldNotFound
 				if errors.As(err, &nf) {
+					if needsFullResponse {
+						isDiscarder = false
+						break
+					}
 					continue
 				}
 				isDiscarder = false
@@ -610,15 +610,13 @@ func applyDNSDefaultDropMaskFromRules(manager *manager.Manager, rs *rules.RuleSe
 }
 
 func ruleNeedsFullDNSResponse(rule *rules.Rule) bool {
-	fields := rule.GetFields()
-
-	for _, field := range fields {
+	for _, field := range rule.GetFields() {
 		if strings.HasPrefix(field, "dns.response.") && field != "dns.response.code" {
 			return true
 		}
 	}
 
-	return slices.Contains(fields, "dns.response.code") && len(fields) > 1
+	return false
 }
 
 func prCtlDiscarder(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, _ Discarder) (bool, error) {
