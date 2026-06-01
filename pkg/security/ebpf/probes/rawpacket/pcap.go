@@ -182,7 +182,7 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 // we want to creates progs like that
 // prog1 -> tc1 -> footer -> prog2 -> tc2 -> footer -> progN -> footer
 // where each prog is like this
-// header -> filter 1 -> tc1 -> filter 2 -> tc2 -> ... -> filter n -> footer
+// header -> filter 1 -> filter 2 -> ... -> filter n -> footer
 func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, footerInsts asm.Instructions) ([]asm.Instructions, *multierror.Error) {
 	var (
 		progInsts []asm.Instructions
