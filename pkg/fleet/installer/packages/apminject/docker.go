@@ -28,9 +28,7 @@ import (
 
 type dockerDaemonConfig map[string]interface{}
 
-var (
-	dockerDaemonPath = "/etc/docker/daemon.json"
-)
+const dockerDaemonPath = "/etc/docker/daemon.json"
 
 // sanitizeJSON removes Docker daemon.json extensions that encoding/json rejects.
 // It strips a leading UTF-8 BOM and Docker 28-style comments while preserving
@@ -105,22 +103,12 @@ func sanitizeJSON(content []byte) []byte {
 
 func unmarshalDockerConfigContent(content []byte, dockerConfig *dockerDaemonConfig) error {
 	if err := json.Unmarshal(sanitizeJSON(content), dockerConfig); err != nil {
-		return invalidDockerConfigError(err)
+		return wrapDockerConfigError(err)
 	}
 	return nil
 }
 
-func invalidDockerConfigError(err error) error {
-	var syntaxErr *json.SyntaxError
-	if errors.As(err, &syntaxErr) {
-		return fmt.Errorf("%s appears to contain invalid JSON (syntax error at offset %d): %w", dockerDaemonPath, syntaxErr.Offset, err)
-	}
-
-	var typeErr *json.UnmarshalTypeError
-	if errors.As(err, &typeErr) {
-		return fmt.Errorf("%s appears to contain invalid JSON (type error at offset %d): %w", dockerDaemonPath, typeErr.Offset, err)
-	}
-
+func wrapDockerConfigError(err error) error {
 	return fmt.Errorf("%s appears to contain invalid JSON: %w", dockerDaemonPath, err)
 }
 

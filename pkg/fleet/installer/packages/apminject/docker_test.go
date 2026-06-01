@@ -9,6 +9,8 @@ package apminject
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -264,7 +266,7 @@ func TestRemoveDockerConfig(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			output, err := a.deleteDockerConfigContent(context.TODO(), []byte(tc.input))
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, tc.expected, string(output))
 		})
 	}
@@ -274,23 +276,45 @@ func TestDockerConfigInvalidJSONError(t *testing.T) {
 	a := &InjectorInstaller{
 		installPath: "/tmp/stable",
 	}
-	input := []byte(`{
+
+	tests := []struct {
+		name  string
+		input []byte
+	}{
+		{
+			name: "comment stripped but invalid JSON",
+			input: []byte(`{
     // The comment is stripped, but the config is still invalid.
     "raw-logs":
-}`)
+}`),
+		},
+		{
+			name:  "unterminated block comment",
+			input: []byte(`{"raw-logs": false /* unterminated`),
+		},
+	}
 
-	_, err := a.setDockerConfigContent(context.TODO(), input)
-	assertInvalidDockerConfigError(t, err)
-
-	_, err = a.deleteDockerConfigContent(context.TODO(), input)
-	assertInvalidDockerConfigError(t, err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Run("setDockerConfigContent", func(t *testing.T) {
+				_, err := a.setDockerConfigContent(context.TODO(), tc.input)
+				assertInvalidDockerConfigError(t, err)
+			})
+			t.Run("deleteDockerConfigContent", func(t *testing.T) {
+				_, err := a.deleteDockerConfigContent(context.TODO(), tc.input)
+				assertInvalidDockerConfigError(t, err)
+			})
+		})
+	}
 }
 
 func assertInvalidDockerConfigError(t *testing.T, err error) {
 	t.Helper()
 	if assert.Error(t, err) {
 		assert.Contains(t, err.Error(), "/etc/docker/daemon.json appears to contain invalid JSON")
-		assert.Contains(t, err.Error(), "offset")
-		assert.Contains(t, err.Error(), "invalid character")
+		var syntaxErr *json.SyntaxError
+		var typeErr *json.UnmarshalTypeError
+		assert.True(t, errors.As(err, &syntaxErr) || errors.As(err, &typeErr),
+			"expected wrapped *json.SyntaxError or *json.UnmarshalTypeError")
 	}
 }
