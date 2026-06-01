@@ -26,7 +26,6 @@ exports_files(glob(
 # gazelle:exclude cmd/installer/subcommands
 # gazelle:exclude cmd/iot-agent
 # gazelle:exclude cmd/otel-agent/command
-# gazelle:exclude cmd/otel-agent/config
 # gazelle:exclude cmd/otel-agent/subcommands/flare
 # gazelle:exclude cmd/otel-agent/subcommands/run
 # gazelle:exclude cmd/privateactionrunner/subcommands
