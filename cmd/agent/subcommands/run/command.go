@@ -76,7 +76,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
-	datastreamseventplatform "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams/eventplatform"
 	datastreamseventplatformfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams/eventplatform/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamfx "github.com/DataDog/datadog-agent/comp/core/configstream/fx"
@@ -114,7 +113,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	doeventplatform "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/eventplatform"
 	doeventplatformfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/eventplatform/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdhttp "github.com/DataDog/datadog-agent/comp/dogstatsd/http/def"
@@ -135,21 +133,13 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
-	ncmeventplatform "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/eventplatform"
 	ncmeventplatformfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/eventplatform/fx"
-	networkpatheventplatfrom "github.com/DataDog/datadog-agent/comp/networkpath/eventplatfrom"
 	networkpatheventplatfromfx "github.com/DataDog/datadog-agent/comp/networkpath/eventplatfrom/fx"
-	softinveventplatform "github.com/DataDog/datadog-agent/comp/softwareinventory/eventplatform"
 	softinveventplatformfx "github.com/DataDog/datadog-agent/comp/softwareinventory/eventplatform/fx"
-	syntheticseventplatform "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/eventplatform"
 	syntheticseventplatformfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/eventplatform/fx"
-	kubeactionseventplatform "github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions/eventplatform"
 	kubeactionseventplatformfx "github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions/eventplatform/fx"
-	containereventplatform "github.com/DataDog/datadog-agent/pkg/containerlifecycle/eventplatform"
 	containereventplatformfx "github.com/DataDog/datadog-agent/pkg/containerlifecycle/eventplatform/fx"
-	dbmeventplatform "github.com/DataDog/datadog-agent/pkg/databasemonitoring/eventplatform"
 	dbmeventplatformfx "github.com/DataDog/datadog-agent/pkg/databasemonitoring/eventplatform/fx"
-	ndmeventplatform "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata/eventplatform"
 	ndmeventplatformfx "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata/eventplatform/fx"
 
 	hostProfilerFlareFx "github.com/DataDog/datadog-agent/comp/host-profiler/flare/fx"
@@ -761,19 +751,7 @@ func startAgent(
 	})
 
 	diagnosecatalog.Register(diagnose.EventPlatformConnectivity, func(_ diagnose.Config) []diagnose.Diagnosis {
-		cfg := pkgconfigsetup.Datadog()
-		var teamDescs []eventplatform.PipelineDesc
-		teamDescs = append(teamDescs, dbmeventplatform.Descs()...)
-		teamDescs = append(teamDescs, ndmeventplatform.Descs()...)
-		teamDescs = append(teamDescs, networkpatheventplatfrom.Descs(cfg)...)
-		teamDescs = append(teamDescs, ncmeventplatform.Descs(cfg)...)
-		teamDescs = append(teamDescs, containereventplatform.Descs()...)
-		teamDescs = append(teamDescs, syntheticseventplatform.Descs(cfg)...)
-		teamDescs = append(teamDescs, datastreamseventplatform.Descs(cfg)...)
-		teamDescs = append(teamDescs, doeventplatform.Descs(cfg)...)
-		teamDescs = append(teamDescs, kubeactionseventplatform.Descs()...)
-		teamDescs = append(teamDescs, softinveventplatform.Descs(cfg)...)
-		return eventplatformimpl.Diagnose(teamDescs...)
+		return eventplatformimpl.Diagnose(common.AllTeamEPDescs(pkgconfigsetup.Datadog())...)
 	})
 
 	diagnosecatalog.Register(diagnose.AutodiscoveryConnectivity, func(_ diagnose.Config) []diagnose.Diagnosis {

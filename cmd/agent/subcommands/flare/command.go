@@ -416,7 +416,7 @@ func runLocalDiagnoseInner(
 	tagger tagger.Component,
 	config config.Component) []byte {
 
-	result, err := diagnoseLocal.Run(diagnoseComponent, diagnose.Config{Verbose: true}, log, filterStore, ac, tagger, config)
+	result, err := diagnoseLocal.Run(diagnoseComponent, diagnose.Config{Verbose: true}, log, filterStore, ac, tagger, config, common.AllTeamEPDescs(pkgconfigsetup.Datadog()))
 
 	if err != nil {
 		return []byte(color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))

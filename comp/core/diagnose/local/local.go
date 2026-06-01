@@ -20,6 +20,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -38,6 +39,7 @@ func Run(
 	ac autodiscovery.Component,
 	tagger tagger.Component,
 	config config.Component,
+	teamEPDescs []eventplatform.PipelineDesc,
 ) (*diagnose.Result, error) {
 
 	localSuite := diagnose.Suites{
@@ -45,7 +47,7 @@ func Run(
 			return ports.DiagnosePortSuite()
 		},
 		diagnose.EventPlatformConnectivity: func(_ diagnose.Config) []diagnose.Diagnosis {
-			return eventplatformimpl.Diagnose()
+			return eventplatformimpl.Diagnose(teamEPDescs...)
 		},
 		diagnose.AutodiscoveryConnectivity: func(_ diagnose.Config) []diagnose.Diagnosis {
 			return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
