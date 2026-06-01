@@ -407,26 +407,22 @@ func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
 	}
 
 	if d.HasResponse() {
+		var ips []string
+		if len(d.Response.IPs) > 0 {
+			ips = make([]string, 0, len(d.Response.IPs))
+			for _, ip := range d.Response.IPs {
+				ips = append(ips, utils.GetIPStringFromIPNet(ip))
+			}
+		}
+
 		ret.Response = &DNSResponseEventSerializer{
 			RCode:  d.Response.ResponseCode,
-			IPs:    newDNSResponseIPsSerializer(d.Response),
+			IPs:    ips,
 			CNames: d.Response.CNames,
 		}
 	}
 
 	return ret
-}
-
-func newDNSResponseIPsSerializer(response *model.DNSResponse) []string {
-	if len(response.IPs) == 0 {
-		return nil
-	}
-
-	ips := make([]string, 0, len(response.IPs))
-	for _, ip := range response.IPs {
-		ips = append(ips, utils.GetIPStringFromIPNet(ip))
-	}
-	return ips
 }
 
 // nolint: deadcode, unused
