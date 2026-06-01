@@ -25,13 +25,13 @@ func Descs(cfg pkgconfigmodel.Reader) []eventplatform.PipelineDesc {
 			EventType:                     eventplatform.EventTypeNetworkConfigManagement,
 			Category:                      "Network Config Management",
 			ContentType:                   logshttp.JSONContentType,
-			EndpointsConfigPrefix:         "network_config_management.forwarder.",
+			EndpointsConfigPrefix:         "network_devices.config_management.forwarder.",
 			HostnameEndpointPrefix:        "ndm-intake.",
 			IntakeTrackType:               "ndmconfig",
 			DefaultBatchMaxConcurrentSend: 10,
-			DefaultBatchMaxContentSize:    cfg.GetInt("network_config_management.forwarder.batch_max_content_size"),
-			DefaultBatchMaxSize:           cfg.GetInt("network_config_management.forwarder.batch_max_size"),
-			DefaultInputChanSize:          cfg.GetInt("network_config_management.forwarder.input_chan_size"),
+			DefaultBatchMaxContentSize:    cfg.GetInt("network_devices.config_management.forwarder.batch_max_content_size"),
+			DefaultBatchMaxSize:           cfg.GetInt("network_devices.config_management.forwarder.batch_max_size"),
+			DefaultInputChanSize:          cfg.GetInt("network_devices.config_management.forwarder.input_chan_size"),
 		},
 	}
 }
