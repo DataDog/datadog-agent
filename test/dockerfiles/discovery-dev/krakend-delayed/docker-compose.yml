@@ -1,4 +1,4 @@
-# Reproducer for the discovery probe retry behaviour. The krakend service's
+# Reproducer for the discovery trial-run retry behavior. The krakend service's
 # entrypoint sleeps before exec'ing the binary so the AD event fires while
 # the HTTP endpoint at :9090 is still unreachable. Used by the smoke
 # procedure in docs/superpowers/2026-05-06-discover-e2e-smoke.md.

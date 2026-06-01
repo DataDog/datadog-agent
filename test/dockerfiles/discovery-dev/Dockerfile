@@ -2,7 +2,7 @@
 ARG BASE_IMAGE=datadog/agent-dev:nightly-main-py3-jmx
 FROM ${BASE_IMAGE}
 
-# REPO_PATH must match the host path where the agent was built — the
+# REPO_PATH must match the host path where the agent was built - the
 # agent binary's RUNPATH and the bazel-built rtloader's RPATH are
 # absolute paths inside the source checkout. Mirroring the path inside
 # the image lets the dynamic linker resolve everything without relinking.
@@ -16,5 +16,5 @@ COPY dev/embedded/ ${REPO_PATH}/dev/embedded/
 
 # Sanity check: fail the build early if the new symbols are missing.
 # Use grep -a (treat binary as text) since nm/binutils are not in the base image.
-RUN grep -aq runDiscover ${REPO_PATH}/dev/lib/libdatadog-agent-three.so \
-    && grep -aq run_discover ${REPO_PATH}/dev/lib/libdatadog-agent-rtloader.so
+RUN grep -aq discoverConfig ${REPO_PATH}/dev/lib/libdatadog-agent-three.so \
+    && grep -aq discover_config ${REPO_PATH}/dev/lib/libdatadog-agent-rtloader.so

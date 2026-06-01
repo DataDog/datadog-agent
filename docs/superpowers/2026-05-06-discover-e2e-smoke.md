@@ -1,6 +1,6 @@
-# End-to-end smoke test: krakend discover() via rtloader bridge
+# End-to-end smoke test: krakend discover_config via rtloader bridge
 
-This file captures how to validate the discover() bridge end-to-end against
+This file captures how to validate the discover_config bridge end-to-end against
 a real krakend container, using `dda inv discovery-dev.build-image` to
 produce a self-contained dev image and `ddev env test` (from
 integrations-core) to drive the e2e harness.
@@ -10,22 +10,24 @@ integrations-core) to drive the e2e harness.
 1. Agent autodiscovery parses `auto_conf_discovery.yaml`.
 2. AD reconciles the krakend template against the running krakend container.
 3. The Go `discoverer` package marshals the service to JSON and crosses
-   it into Python via the cgo `run_discover` C API → C++ `Three::runDiscover`
-   → `datadog_checks.base.utils.discovery._run_discover` Python helper.
-4. The helper builds a `Service` dataclass, calls `KrakendCheck.discover(service)`.
-5. Krakend's `discover()` runs an HTTP probe (`http_probe` +
-   `is_prometheus_exposition`) against the container's port 9090.
+   it into Python via the cgo `discover_config` C API to
+   C++ `Three::discoverConfig`, which calls `AgentCheck.discover_config`.
+4. `AgentCheck.discover_config` builds a `Service` dataclass, calls
+   `KrakendCheck.generate_configs(service)`, and trial-runs each generated
+   config with the real check implementation.
+5. Krakend's OpenMetrics candidate for port 9090 succeeds.
 6. The returned `list[dict]` JSON-roundtrips back to Go.
 7. The agent schedules the krakend check with the resolved
    `openmetrics_endpoint`, and the check successfully scrapes metrics.
 
 ## Repos and branches involved
 
-- `datadog-agent` branch `vitkyrka/disco-autoconfig` — agent-side Go + C++
-  + cgo bridge.
-- `integrations-core` branch `vitkyrka/disco-autoconfig` — Plan A Python
-  helpers in `datadog_checks_base.utils.discovery`, the `_run_discover`
-  bridge helper, and the krakend `discover()` migration.
+- `datadog-agent` branch `poc/config-discovery-c-agent` - agent-side AD,
+  discoverer retry loop, C++/cgo `discover_config` bridge, and the local dev
+  image task.
+- `integrations-core` branch `poc/config-discovery-c-integrations` - Python
+  `AgentCheck.discover_config`, OpenMetrics `generate_configs`, and the
+  krakend discovery autoconf/e2e test.
 
 Both repos must be at matching tip commits for the smoke test to work.
 
@@ -44,13 +46,13 @@ discovery-dev image mirrors that absolute path inside the container so
 the dynamic linker resolves correctly without relinking. Three artifacts
 need to be present in the source tree before building the image:
 
-- `bin/agent/agent` — the agent binary with the `discoverer` package and
-  `run_discover` cgo wrapper.
-- `dev/lib/libdatadog-agent-{rtloader,three}.so*` — linked against the
+- `bin/agent/agent` - the agent binary with the `discoverer` package and
+  `discover_config` cgo wrapper.
+- `dev/lib/libdatadog-agent-{rtloader,three}.so*` - linked against the
   Python the container ships (3.13). The default cmake build links
   against the host's `python3.X-dev` package and produces a .so the
   container can't load; the bazel build avoids this.
-- `dev/embedded/{lib,include}` — `libpython3.13.so.1.0` and supporting
+- `dev/embedded/{lib,include}` - `libpython3.13.so.1.0` and supporting
   libs. The bazel-built rtloader has RPATH `<repo>/dev/embedded/lib`.
 
 ### 1. Build the agent binary
@@ -96,14 +98,14 @@ dda inv discovery-dev.build-image
 
 Produces `datadog/agent-dev:discovery-local`. The task fails fast if
 `dev/lib`'s rtloader points at a libpython that isn't present in
-`dev/embedded/lib` — the canonical "you forgot to restore the bazel
+`dev/embedded/lib` - the canonical "you forgot to restore the bazel
 rtloader after agent.build" failure mode.
 
 The Dockerfile (`test/dockerfiles/discovery-dev/Dockerfile`) layers the
 agent binary and `dev/lib` + `dev/embedded` onto
 `datadog/agent-dev:nightly-main-py3-jmx`, mirroring the host repo path
-so RUNPATH/RPATH resolve. It also greps for the `runDiscover` and
-`run_discover` symbols so a missing-symbol regression fails the build,
+so RUNPATH/RPATH resolve. It also greps for the `discoverConfig` and
+`discover_config` symbols so a missing-symbol regression fails the build,
 not the e2e.
 
 ## Test phase
@@ -121,9 +123,9 @@ keeps it from pulling and overwriting it. `--dev` mounts the local
 integration source so Python-side changes in `datadog_checks_base.utils.discovery`
 or `krakend/datadog_checks/krakend` are picked up without rebuilding.
 
-The test asserts metrics arrive from the discovered `openmetrics_endpoint` —
-proof that the bridge round-tripped (Go → Python `discover()` → resolved
-config → scheduled check → scrape).
+The test asserts metrics arrive from the discovered `openmetrics_endpoint` -
+proof that the bridge round-tripped from Go to Python `discover_config`, to a
+resolved config, to a scheduled check, to a successful scrape.
 
 Stop the env when done:
 
@@ -137,13 +139,12 @@ The e2e covers the default-port happy path. Two more scenarios are valuable
 smoke targets:
 
 1. **Non-default port.** Edit `krakend.json` and the compose file to listen
-   on a non-9090 port. On AD reconcile, krakend's `discover()` should fall
-   back to scanning the rest of the container's exposed ports and find it.
+   on a non-9090 port. On AD reconcile, OpenMetrics `generate_configs` should
+   fall back to scanning the rest of the container's exposed ports and find it.
 
 2. **Negative case.** Start a non-krakend container labelled with
    `com.datadoghq.ad.check_names='["krakend"]'` (e.g. `nginx:alpine`).
-   `discover()` probes /metrics, gets a non-Prometheus response, returns
-   `None`. No krakend check should be scheduled.
+   Each candidate trial run should fail. No krakend check should be scheduled.
 
 ## Pitfalls
 
@@ -179,15 +180,15 @@ discovery template fires).
 
 ## Late-arriving service: delayed-startup retry
 
-The discovery probe retry validation uses a krakend container whose
+The discovery trial-run retry validation uses a krakend container whose
 entrypoint sleeps before exec'ing the actual binary, so the AD event
 fires while the HTTP endpoint is still unreachable. The reproducer is
 committed at `test/dockerfiles/discovery-dev/krakend-delayed/`:
 
-- `docker-compose.yml` — the krakend service with the delayed entrypoint.
+- `docker-compose.yml` - the krakend service with the delayed entrypoint.
   Reads `${INTEGRATIONS_CORE_REPO}` from the environment to bind-mount
   the krakend test fixtures from the integrations-core checkout.
-- `run_repro.sh` — orchestrates the run (starts agent, then the delayed
+- `run_repro.sh` - orchestrates the run (starts agent, then the delayed
   krakend, watches logs, prints `agent configcheck` and `agent status`).
   By default it expects integrations-core at `../integrations-core`
   next to the agent repo; override with `INTEGRATIONS_CORE_REPO=/path`.
@@ -200,21 +201,19 @@ bash test/dockerfiles/discovery-dev/krakend-delayed/run_repro.sh
 
 Expected sequence with the retry loop in place:
 
-- t ≈ 2 s: first probe, `discover did not match` (HTTP connection refused).
-- t ≈ 5-10 s: fast retry slots fire (still no match).
-- t ≈ 10-60 s: 30 s retry slots fire periodically (still no match).
-- t ≈ 60 s: krakend starts listening on :9090.
-- Next retry tick after that (≤ 5 s later): probe succeeds, `discoveryRetryLoop` debug log
-  fires showing 1 schedule applied, krakend check goes [OK].
+- t ~= 2 s: first `discover_config` trial run fails because the endpoint
+  is not listening.
+- t ~= 5-10 s: fast retry slots fire, still with no match.
+- t ~= 10-60 s: 30 s retry slots fire periodically, still with no match.
+- t ~= 60 s: krakend starts listening on :9090.
+- Next retry tick after that (within 5 s): the generated OpenMetrics
+  candidate succeeds, `discoveryRetryLoop` logs 1 schedule applied, and the
+  krakend check goes [OK].
 
-Observed in manual smoke run (2026-05-06, agent `db7f3c8ebcf`):
+Expected log shape:
 
 ~~~
-10:16:14  python discover: krakend returned 4 bytes   # initial probe, no match
-10:16:24  python discover: krakend returned 4 bytes   # 1st retry (5 s slot)
-10:16:34  python discover: krakend returned 4 bytes   # 2nd retry (5 s slot)
-10:17:09  python discover: krakend returned 4 bytes   # 3rd retry (30 s slot)
-10:17:44  python discover: krakend returned 62 bytes  # 4th retry — SUCCESS (krakend started ~10:17:13)
+autodiscovery/discoverer: krakend.discover_config() failed for ...
 10:17:44  autodiscovery: discovery retry tick applied 1 schedule(s), 0 unschedule(s)
 ~~~
 
@@ -235,5 +234,5 @@ krakend (1.4.1)
   Metric Samples: Last Run: 84, Total: 168
 ~~~
 
-discover() was called 5 times total (1 initial + 4 retries); the 5th call succeeded
+discover_config was called 5 times total (1 initial + 4 retries); the 5th call succeeded
 and `discoveryRetryLoop` applied the resulting ConfigChange.

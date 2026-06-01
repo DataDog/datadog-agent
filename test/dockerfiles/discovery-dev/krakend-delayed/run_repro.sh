@@ -1,8 +1,8 @@
 #!/bin/bash
-# Manual reproducer for the discovery probe retry behaviour: starts the
+# Manual reproducer for the discovery trial-run retry behavior: starts the
 # agent, then a krakend container whose entrypoint sleeps 60 s before
 # exec'ing the binary. AD fires while the HTTP endpoint is unreachable;
-# the retry loop must keep probing until the application is up.
+# the retry loop must keep trying discover_config until the application is up.
 #
 # See docs/superpowers/2026-05-06-discover-e2e-smoke.md for context and
 # expected output. Requires datadog/agent-dev:discovery-local already
@@ -63,7 +63,7 @@ echo "=== watching ==="
 echo "t=$(date +%H:%M:%S) krakend container started; should listen on :9090 around $(date -d "@$KRAKEND_LISTEN_EPOCH" +%H:%M:%S)"
 
 # Phase 1: 0-15s after krakend container start
-# AD should fire, discover() should be tried, http_probe should fail
+# AD should fire, discover_config should be tried, and the trial run should fail
 sleep 15
 echo
 echo "=== t+~20s after agent start (~15s after krakend container) ==="
@@ -86,7 +86,7 @@ if [ "$WAIT" -gt 0 ]; then
 fi
 
 echo
-echo "=== t=$(date +%H:%M:%S) — krakend should now be listening ==="
+echo "=== t=$(date +%H:%M:%S) - krakend should now be listening ==="
 echo "--- krakend listening test (expect 200): ---"
 curl -s -o /dev/null -w "%{http_code}\n" --max-time 5 http://localhost:9090/metrics
 
