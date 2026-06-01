@@ -65,29 +65,33 @@ set_selinux_permissive() {
 }
 
 # Probe versioned Whamcloud paths lustre-2.15.X/el8.Y/server/ for the highest
-# available build. Walk patch versions 9..0 against the detected EL8 minor,
-# falling back to lower minors. First hit wins.
+# available build. Try patch versions 9..0; for each, try el8.10 down to el8.6.
+# DKMS rebuilds against the running kernel so the EL minor of the RPM tree need
+# not match the running AMI minor exactly.
+#
+# IMPORTANT: log() calls inside this function MUST go to stderr (&2) so that
+# only the resolved base URL is captured when the caller does base=$(resolve...).
 resolve_lustre_baseurl() {
-  local el_minor="$1"               # e.g. "8.10"
-  local el_major="${el_minor%%.*}"  # "8"
-  local el_m="${el_minor##*.}"      # "10"
+  local el_major="8"  # EL8 is the only supported major for Lustre server RPMs
 
   for patch in 9 8 7 6 5 4 3 2 1 0; do
     local ver="${LUSTRE_VERSION}.${patch}"
-    for (( m = el_m; m >= 6; m-- )); do
+    for m in 10 9 8 7 6; do
       local el_dir="el${el_major}.${m}"
       local base="${WHAMCLOUD_BASE}/lustre/lustre-${ver}/${el_dir}"
       local probe="${base}/server/repodata/repomd.xml"
-      if curl -sf --max-time 10 -o /dev/null -w "%{http_code}" "${probe}" 2>/dev/null | grep -q "^200"; then
-        log "resolved: lustre-${ver}/${el_dir}"
+      local code
+      code=$(curl -sf --max-time 10 -o /dev/null -w "%{http_code}" "${probe}" 2>/dev/null || echo "000")
+      if [[ "${code}" == "200" ]]; then
+        log "resolved: lustre-${ver}/${el_dir}" >&2
         echo "${base}"
         return 0
       fi
     done
   done
 
-  err "no Whamcloud lustre-${LUSTRE_VERSION}.x server repo found for el${el_major}.6..${el_major}.${el_m}"
-  err "check https://downloads.whamcloud.com/public/lustre/ for available builds"
+  err "no Whamcloud lustre-${LUSTRE_VERSION}.x server repo found (tried el8.6..el8.10)" >&2
+  err "check https://downloads.whamcloud.com/public/lustre/ for available builds" >&2
   return 1
 }
 
