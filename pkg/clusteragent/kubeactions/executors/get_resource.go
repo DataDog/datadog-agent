@@ -19,13 +19,14 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
 )
 
 const (
-	maxResourceOutputSize = 4 * 1024 // 4KB
+	// maxResourceOutputSize is the maximum size of the resource output in bytes
+	// it is set to 1.5MB to avoid filling the database with large resources
+	// largest expected resource is a 1MB for configMap, so 1.5MB is a safe margin
+	maxResourceOutputSize int = 1.5 * 1024 * 1024 // 1.5MB
 )
 
 type GetResourceExecutor struct {
@@ -117,15 +118,17 @@ func (e *GetResourceExecutor) Execute(ctx context.Context, action *kubeactions.K
 
 	output = bytes.TrimSpace(output)
 	if len(output) > maxResourceOutputSize {
-		log.Warnf("output for resource %s/%s of type %s is too large (%d bytes), truncating to %d bytes", namespace, name, kind, len(output), maxResourceOutputSize)
-		output = output[:maxResourceOutputSize]
+		return ExecutionResult{
+			Status:  StatusFailed,
+			Message: fmt.Sprintf("resource is too large (%d bytes), maximum size is %d bytes", len(output), maxResourceOutputSize),
+		}
 	}
 
 	return ExecutionResult{
 		Status:  StatusSuccess,
 		Message: fmt.Sprintf("get resource %s/%s success", kind, name),
 		Payloads: map[string][]byte{
-			"resource": []byte(output),
+			namespace + "/" + name: output,
 		},
 	}
 }
