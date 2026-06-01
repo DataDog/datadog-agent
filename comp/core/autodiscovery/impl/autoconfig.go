@@ -20,14 +20,13 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/util/slices"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscoverydef "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
@@ -44,13 +43,13 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -59,10 +58,10 @@ import (
 
 var listenerCandidateIntl = 30 * time.Second
 
-// dependencies is the set of dependencies for the AutoConfig component.
-type dependencies struct {
-	fx.In
-	Lc             fx.Lifecycle
+// Requires is the set of dependencies for the AutoConfig component.
+type Requires struct {
+	compdef.In
+	Lc             compdef.Lifecycle
 	Config         configComponent.Component
 	Log            logComp.Component
 	TaggerComp     tagger.Component
@@ -114,35 +113,28 @@ const (
 	wmetaCheckMaxElapsedTime = 10 * time.Second
 )
 
-type provides struct {
-	fx.Out
+// Provides is the set of outputs for the AutoConfig component.
+type Provides struct {
+	compdef.Out
 
-	Comp           autodiscovery.Component
+	Comp           autodiscoverydef.Component
 	StatusProvider status.InformationProvider
 	Endpoint       api.AgentEndpointProvider
 	FlareProvider  flaretypes.Provider
 }
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(
-			newProvides,
-		))
-}
-
-func newProvides(deps dependencies) provides {
-	ac := newAutoConfig(deps)
-	return provides{
-		Comp:           ac,
-		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(ac, deps.FilterStore)),
-
-		Endpoint:      api.NewAgentEndpointProvider(ac.writeConfigCheck, "/config-check", "GET"),
-		FlareProvider: flaretypes.NewProvider(ac.fillFlare),
+// NewComponent creates a new AutoConfig component.
+func NewComponent(deps Requires) Provides {
+	c := newAutoConfig(deps)
+	return Provides{
+		Comp:           c,
+		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c, deps.FilterStore)),
+		Endpoint:       api.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheck, "/config-check", "GET"),
+		FlareProvider:  flaretypes.NewProvider(c.(*AutoConfig).fillFlare),
 	}
 }
 
-var _ autodiscovery.Component = (*AutoConfig)(nil)
+var _ autodiscoverydef.Component = (*AutoConfig)(nil)
 
 type listenerCandidate struct {
 	factory listeners.ServiceListenerFactory
@@ -154,7 +146,7 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 }
 
 // newAutoConfig creates an AutoConfig instance and starts it.
-func newAutoConfig(deps dependencies) *AutoConfig {
+func newAutoConfig(deps Requires) autodiscoverydef.Component {
 	schController := scheduler.NewController()
 	// Non-blocking start of the scheduler controller
 	go func() {
@@ -184,7 +176,7 @@ func newAutoConfig(deps dependencies) *AutoConfig {
 	}()
 
 	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform)
-	deps.Lc.Append(fx.Hook{
+	deps.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
 			ac.start()
 			return nil
@@ -195,6 +187,12 @@ func newAutoConfig(deps dependencies) *AutoConfig {
 		},
 	})
 	return ac
+}
+
+// NewAutoConfigFromDeps creates an AutoConfig instance from explicit dependencies (without starting).
+// Exported for use by the mock package.
+func NewAutoConfigFromDeps(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp option.Option[healthplatformdef.Component]) *AutoConfig {
+	return createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logs, telemetryComp, filterStore, hp)
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
