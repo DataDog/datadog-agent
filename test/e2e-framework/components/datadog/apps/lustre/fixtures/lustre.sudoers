@@ -1,0 +1,12 @@
+# Datadog Agent (dd-agent) passwordless sudo for the Lustre check.
+#
+# The lustre integration shells out to these three allowlisted absolute binary
+# paths (most calls with sudo=True). Without this drop-in the check cannot read
+# privileged Lustre parameters and produces no metrics.
+#
+# Installed by configure.sh to /etc/sudoers.d/lustre-dd-agent with mode 0440
+# after passing `visudo -cf`. Contains no secrets.
+#
+# Verify after install with:
+#   sudo -u dd-agent sudo /usr/sbin/lctl dl
+dd-agent ALL=(ALL) NOPASSWD: /usr/sbin/lctl, /usr/sbin/lnetctl, /usr/bin/lfs

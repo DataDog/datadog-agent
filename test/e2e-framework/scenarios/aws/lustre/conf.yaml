@@ -1,0 +1,71 @@
+## Datadog Agent `lustre` check configuration for the all-in-one E2E lab.
+##
+## NOTE: this file is the scenario-local copy delivered to the Agent via
+## agentparams.WithIntegration("lustre.d", ...). It MUST stay in sync with the
+## component package's config/conf.yaml
+## (test/e2e-framework/components/datadog/apps/lustre/config/conf.yaml), which is
+## the canonical source. //go:embed cannot read across package directories, so
+## the scenario keeps its own copy.
+##
+## The lab co-locates every Lustre role (MGS, MDS+MDT, OSS+OST, client) on one
+## host. node_type autodetection (`lctl dl -y`) on an all-in-one host returns
+## ONLY `mds` (because an MDT is present), which would silently skip the client
+## and oss metric families. We therefore configure THREE explicit instances,
+## one pinned to each node_type, so the check emits all families:
+##
+##   client -> llite/osc/mdc/filesystem + ldlm
+##   mds    -> mdt/mds.mdt/mgs.exports/osd + ldlm + job_stats
+##   oss    -> obdfilter/ost/oss/osd       + ldlm + job_stats
+##
+## `enable_extra_params: true` is required on every instance to unlock the
+## osc/mdc/mdt/obdfilter/ost/ldlm/export stat families.
+##
+## `filesystems: [lustre]` is pinned to match the fsname created by the
+## bootstrap (configure.sh FSNAME=lustre) and the component's FilesystemName
+## constant.
+##
+## No secrets are referenced in this file.
+
+init_config:
+
+instances:
+  ## Client node: filesystem (llite), osc, mdc, ldlm families, and changelog
+  ## logs. Changelog collection additionally requires `logs_enabled: true` in
+  ## datadog.yaml (set by the scenario) and a registered changelog user
+  ## (configure.sh runs `lctl changelog_register` on the MDT).
+  - node_type: client
+    filesystems:
+      - lustre
+    enable_extra_params: true
+    enable_changelogs: true
+    enable_lnetctl_detailed: true
+    tags:
+      - lustre_lab:all-in-one
+      - lustre_role:client
+
+  ## Metadata server: mdt, mds.mdt, mds.mdt.exports, mgs.exports, osd, ldlm,
+  ## and job_stats (job_stats only submitted when node_type is mds or oss).
+  - node_type: mds
+    filesystems:
+      - lustre
+    enable_extra_params: true
+    tags:
+      - lustre_lab:all-in-one
+      - lustre_role:mds
+
+  ## Object storage server: obdfilter, ost, oss, obdfilter.exports, osd, ldlm,
+  ## and job_stats.
+  - node_type: oss
+    filesystems:
+      - lustre
+    enable_extra_params: true
+    tags:
+      - lustre_lab:all-in-one
+      - lustre_role:oss
+
+## Changelog logs (client node only). The scenario sets `logs_enabled: true`
+## in datadog.yaml; this stanza wires the client instance's changelog stream.
+logs:
+  - type: integration
+    source: lustre
+    service: lustre

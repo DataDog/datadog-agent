@@ -1,0 +1,22 @@
+[Unit]
+Description=Lustre lab continuous I/O + metadata workload
+Documentation=https://github.com/DataDog/datadog-agent test/e2e-framework/components/datadog/apps/lustre
+After=remote-fs.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# The executable name is lustre-load.sh so that with jobid_var=procname_uid
+# the Lustre jobstats are tagged job_id:lustre-load.<uid>, a recognizable id
+# that makes lustre.job_stats.* rows appear for the mds and oss node types.
+ExecStart=/usr/local/bin/lustre-load.sh
+Environment=MOUNT_POINT=/mnt/lustre
+Restart=always
+RestartSec=10
+# Workload must run as root so it can drop the page cache before reads
+# (echo 3 > /proc/sys/vm/drop_caches), which is required for OSC/OST read
+# counters to advance.
+User=root
+
+[Install]
+WantedBy=multi-user.target

@@ -43,3 +43,6 @@ mem.pprof
 
 # Python cache files
 **/__pycache__/
+
+# agint:generate-lab workspace (fetched source repos + research scratch)
+.agint-generate-lab/
