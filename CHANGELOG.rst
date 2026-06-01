@@ -2,6 +2,56 @@
 Release Notes
 =============
 
+.. _Release Notes_7.79.1:
+
+7.79.1
+======
+
+.. _Release Notes_7.79.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-05-28
+
+- Please refer to the `7.79.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7791>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.79.1_Security Notes:
+
+Security Notes
+--------------
+
+- Bump ``github.com/prometheus/prometheus`` to ``v0.311.4`` to address
+  CVE-2026-42151 and CVE-2026-42154.
+
+
+.. _Release Notes_7.79.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Windows: Fix CD-ROM drives being monitored by the disk check since Agent 7.73.0.
+  The diskv2 check now uses the Windows ``GetDriveType()`` API to properly
+  detect and exclude CD-ROM drives, matching the behavior of the previous
+  Python disk check. This fixes false alerts on ``system.disk.in_use`` for
+  CD-ROM drives with inserted media.
+
+- Fix a bug in the workload autoscaling controller where annotation-only edits
+  (e.g. ``autoscaling.datadoghq.com/preview``) on a locally-owned
+  ``DatadogPodAutoscaler`` were not picked up until the next ``.spec`` change or
+  cluster-agent restart, because the controller gated re-sync on
+  ``.metadata.generation`` (which annotations do not bump). Toggling burstable
+  mode via the preview annotation now takes effect on the next reconcile.
+
+- MacOS agent GUI app needs to ignore SIGPIPE to avoid process termination.
+
+- On macOS, preserve user customizations to ``system-probe.yaml`` across Agent upgrades.
+
+- Fixed a bug on Windows where the NPM TCP failure rate could exceed 100% and
+  climb indefinitely.
+
+
 .. _Release Notes_7.79.0:
 
 7.79.0

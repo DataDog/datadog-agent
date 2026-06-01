@@ -663,8 +663,6 @@ func startAgent(
 	if configUtils.IsRemoteConfigEnabled(cfg) {
 		// Subscribe to `AGENT_TASK` product
 		rcclient.SubscribeAgentTask()
-		liveMessagesController := datastreams.NewController(ac, rcclient)
-		ac.AddConfigProvider(liveMessagesController, false, 0)
 		actionsController := datastreams.NewActionsController(ac, rcclient)
 		ac.AddConfigProvider(actionsController, false, 0)
 

@@ -87,6 +87,7 @@ import (
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster"
@@ -625,7 +626,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform)
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -651,6 +652,12 @@ func start(log log.Component,
 			log.Info("Auto instrumentation patcher is disabled")
 		}
 
+		var csiDriverWatcher libraryinjection.CSIDriverWatcher
+		if config.GetBool("admission_controller.auto_instrumentation.enabled") &&
+			config.GetBool("apm_config.instrumentation.csi_driver_detection_enabled") {
+			csiDriverWatcher = libraryinjection.NewCSIDriverWatcher(mainCtx, wmeta)
+		}
+
 		admissionCtx := admissionpkg.ControllerContext{
 			LeadershipStateSubscribeFunc: le.Subscribe,
 			SecretInformers:              apiCl.CertificateSecretInformerFactory,
@@ -663,6 +670,7 @@ func start(log log.Component,
 			Demultiplexer:                demultiplexer,
 			FilterStore:                  filterStore,
 			InstrumentationHandlers:      instrHandlers,
+			CSIDriverWatcher:             csiDriverWatcher,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, datadogConfig, wmeta, pp, sh, healthPlatform)
@@ -773,6 +781,7 @@ func startPrivateActionRunner(
 	tagger tagger.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
+	ipc ipc.Component,
 ) (func(), error) {
 	if rcClient == nil {
 		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
@@ -781,7 +790,7 @@ func startPrivateActionRunner(
 		return nil, errors.New("leader election is not enabled on the Cluster Agent. The private action runner needs leader election for identity coordination across replicas")
 	}
 	le.StartLeaderElectionRun()
-	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform)
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc)
 	if err != nil {
 		return nil, err
 	}
