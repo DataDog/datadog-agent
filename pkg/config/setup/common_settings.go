@@ -1503,8 +1503,7 @@ func aggregator(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("aggregator_buffer_size", 100)
 	config.BindEnvAndSetDefault("aggregator_use_tags_store", true)
 	config.BindEnvAndSetDefault("aggregator_tag_filter_cache_capacity", 1000)
-	// ADP processes significantly higher metric throughput than the core agent aggregator,
-	// so it benefits from a larger cache. Delivered to ADP via the config stream.
+	// ADP can cache more efficiently so we use a higher default
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.aggregator_tag_filter_cache_capacity", 100000)
 	config.BindEnvAndSetDefault("basic_telemetry_add_container_tags", false) // configure adding the agent container tags to the basic agent telemetry metrics (e.g. `datadog.agent.running`)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_chan_size", 200)
