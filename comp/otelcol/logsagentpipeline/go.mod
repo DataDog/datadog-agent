@@ -69,7 +69,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.78.1 // indirect
 	github.com/DataDog/viper v1.15.1 // indirect
-	github.com/DataDog/zstd v1.5.7 // indirect
+	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 )
 
 require (
