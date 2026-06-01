@@ -594,6 +594,7 @@
 /pkg/procmgr/rust/src/transport/named_pipe.rs       @DataDog/agent-runtimes @DataDog/windows-products
 /pkg/privateactionrunner/               @DataDog/action-platform
 /pkg/privateactionrunner/bundles/remoteaction  @DataDog/action-platform @DataDog/dd-agent-mcp
+/pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement  @DataDog/action-platform @DataDog/ndm-integrations
 /pkg/privateactionrunner/bundles/remoteaction/networks  @DataDog/action-platform @Datadog/network-path
 /pkg/proto/                             @DataDog/agent-runtimes
 /pkg/proto/datadog/dogstatsdhttp        @DataDog/agent-metric-pipelines
@@ -755,6 +756,7 @@
 /tasks/msi.py                           @DataDog/windows-products
 /tasks/agent.py                         @DataDog/agent-runtimes
 /tasks/build_tags.py                    @DataDog/agent-devx @DataDog/agent-build
+/tasks/anomalydetection.py              @DataDog/q-branch
 /tasks/loader.py                        @DataDog/agent-runtimes
 /tasks/go_deps.py                       @DataDog/agent-runtimes
 /tasks/dogstatsd.py                     @DataDog/agent-metric-pipelines
@@ -942,6 +944,7 @@
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
 
 /q_branch/                               @DataDog/q-branch
+/internal/qbranch/                       @DataDog/q-branch
 /comp/anomalydetection/                  @DataDog/q-branch # Useful for AGENTS.md files etc. at the root of all AD components
 
 # AI-related files

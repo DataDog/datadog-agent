@@ -8,6 +8,7 @@
 package networkconfigmanagement
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -120,6 +121,10 @@ func (m *MockRemoteClient) RetrieveStartupConfig() ([]byte, error) {
 	}
 	output, err := m.Session.CombinedOutput(runningCommand[0])
 	return output, err
+}
+
+func (m *MockRemoteClient) PushConfig(_ context.Context, _ string) error {
+	return errors.New("not implemented")
 }
 
 func (m *MockRemoteClient) SetProfile(np *profile.NCMProfile) {

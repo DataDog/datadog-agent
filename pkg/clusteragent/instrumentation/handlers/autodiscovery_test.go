@@ -18,7 +18,9 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 )
 
@@ -29,10 +31,16 @@ func newHandler() *AutodiscoveryHandler {
 }
 
 func newCR(name, namespace string, targetKind, targetName string, checks []datadoghq.DatadogInstrumentationCheckConfig) *datadoghq.DatadogInstrumentation {
+	return newCRWithGeneration(name, namespace, targetKind, targetName, checks, 1)
+}
+
+func newCRWithGeneration(name, namespace string, targetKind, targetName string, checks []datadoghq.DatadogInstrumentationCheckConfig, generation int64) *datadoghq.DatadogInstrumentation {
 	return &datadoghq.DatadogInstrumentation{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name:       name,
+			Namespace:  namespace,
+			Generation: generation,
+			UID:        k8stypes.UID(namespace + "/" + name),
 		},
 		Spec: datadoghq.DatadogInstrumentationSpec{
 			TargetRef: autoscalingv2.CrossVersionObjectReference{
@@ -256,14 +264,16 @@ func TestHandle_Delete(t *testing.T) {
 	// First create checkStore
 	_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
 	require.NoError(t, err)
-	assert.Len(t, h.ListConfigs(), 1)
+	configs, _ := h.checkStore.ListConfigs()
+	assert.Len(t, configs, 1)
 
 	// Then delete
 	status, err := h.Handle(context.Background(), instrumentation.EventDelete, cr)
 	require.NoError(t, err)
 	assert.Equal(t, metav1.ConditionTrue, status.Status)
 	assert.Equal(t, "Deleted", status.Reason)
-	assert.Empty(t, h.ListConfigs())
+	configs, _ = h.checkStore.ListConfigs()
+	assert.Empty(t, configs)
 }
 
 func TestHandle_CreateAndUpdate(t *testing.T) {
@@ -282,7 +292,7 @@ func TestHandle_CreateAndUpdate(t *testing.T) {
 	assert.Equal(t, "Configured", status.Reason)
 	assert.Contains(t, status.Message, "1 check(s) configured")
 
-	configs := h.ListConfigs()
+	configs, _ := h.checkStore.ListConfigs()
 	require.Len(t, configs, 1)
 	assert.Equal(t, "redisdb", configs[0].Name)
 	assert.Equal(t, "datadoginstrumentation:default/test", configs[0].Source)
@@ -296,7 +306,8 @@ func TestHandle_CreateAndUpdate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, metav1.ConditionTrue, status.Status)
 	assert.Contains(t, status.Message, "2 check(s) configured")
-	assert.Len(t, h.ListConfigs(), 2)
+	configs, _ = h.checkStore.ListConfigs()
+	assert.Len(t, configs, 2)
 }
 
 func TestHandle_MultipleCRs(t *testing.T) {
@@ -312,12 +323,13 @@ func TestHandle_MultipleCRs(t *testing.T) {
 	require.NoError(t, err)
 	_, err = h.Handle(context.Background(), instrumentation.EventCreate, cr2)
 	require.NoError(t, err)
-	assert.Len(t, h.ListConfigs(), 2)
+	configs, _ := h.checkStore.ListConfigs()
+	assert.Len(t, configs, 2)
 
 	// Delete first CR; second should remain
 	_, err = h.Handle(context.Background(), instrumentation.EventDelete, cr1)
 	require.NoError(t, err)
-	configs := h.ListConfigs()
+	configs, _ = h.checkStore.ListConfigs()
 	require.Len(t, configs, 1)
 	assert.Equal(t, "nginx", configs[0].Name)
 }
@@ -404,7 +416,7 @@ func TestTranslateCheck(t *testing.T) {
 			_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
 			require.NoError(t, err)
 
-			configs := h.ListConfigs()
+			configs, _ := h.checkStore.ListConfigs()
 			require.Len(t, configs, 1)
 			assert.Equal(t, tt.expectedInit, string(configs[0].InitConfig))
 			require.Len(t, configs[0].Instances, tt.expectedInstLen)
@@ -423,6 +435,53 @@ func TestTranslateCheck(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConfigHash(t *testing.T) {
+	store := NewCheckStore()
+	cfg := []integration.Config{{Name: "check1"}}
+
+	baseline := store.Hash()
+
+	t.Run("create changes hash", func(t *testing.T) {
+		store.setConfigs("ns/cr1", cfg, 1, "uid-a")
+		assert.NotEqual(t, baseline, store.Hash())
+	})
+	after1 := store.Hash()
+
+	t.Run("generation bump changes hash", func(t *testing.T) {
+		store.setConfigs("ns/cr1", cfg, 2, "uid-a")
+		assert.NotEqual(t, after1, store.Hash())
+	})
+	after2 := store.Hash()
+
+	t.Run("same generation and UID is idempotent", func(t *testing.T) {
+		store.setConfigs("ns/cr1", cfg, 2, "uid-a")
+		assert.Equal(t, after2, store.Hash())
+	})
+
+	t.Run("recreate with same generation but new UID changes hash", func(t *testing.T) {
+		store.deleteConfigs("ns/cr1")
+		store.setConfigs("ns/cr1", cfg, 1, "uid-b")
+		assert.NotEqual(t, after1, store.Hash())
+	})
+	afterRecreate := store.Hash()
+
+	t.Run("adding a second key changes hash", func(t *testing.T) {
+		store.setConfigs("ns/cr2", cfg, 1, "uid-c")
+		assert.NotEqual(t, afterRecreate, store.Hash())
+	})
+	after3 := store.Hash()
+
+	t.Run("delete changes hash", func(t *testing.T) {
+		store.deleteConfigs("ns/cr1")
+		assert.NotEqual(t, after3, store.Hash())
+	})
+
+	t.Run("empty store returns to baseline", func(t *testing.T) {
+		store.deleteConfigs("ns/cr2")
+		assert.Equal(t, baseline, store.Hash())
+	})
 }
 
 func TestBuildCELSelector(t *testing.T) {
