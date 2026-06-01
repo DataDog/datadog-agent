@@ -146,6 +146,61 @@ func TestProfilingEndpoints(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("skip_main_endpoint", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "main_api_key"
+		cfg.ProfilingProxy = config.ProfilingProxyConfig{
+			DDURL:            "://invalid-main-url",
+			MainEndpointMode: config.ProfilingMainEndpointSkip,
+			AdditionalEndpoints: map[string][]string{
+				"https://ddstaging.datadoghq.com": {"api_key_1", "api_key_2"},
+			},
+		}
+		urls, keys, err := profilingEndpoints(cfg)
+		assert.NoError(t, err)
+		assert.Equal(t, makeURLs(t, "https://ddstaging.datadoghq.com", "https://ddstaging.datadoghq.com"), urls)
+		assert.Equal(t, []string{"api_key_1", "api_key_2"}, keys)
+	})
+
+	t.Run("skip_main_endpoint_without_additional_endpoints", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "main_api_key"
+		cfg.ProfilingProxy = config.ProfilingProxyConfig{MainEndpointMode: config.ProfilingMainEndpointSkip}
+		urls, keys, err := profilingEndpoints(cfg)
+		assert.Nil(t, urls)
+		assert.Nil(t, keys)
+		assert.EqualError(t, err, "profiling proxy has no valid endpoints configured")
+	})
+
+	t.Run("skip_main_endpoint_multiple_additional_endpoints_deterministic_order", func(t *testing.T) {
+		// multiTransport.RoundTrip returns the response from target index 0 to
+		// the client. With the main endpoint skipped, the first additional
+		// endpoint must be deterministic across runs so behaviour does not
+		// depend on Go's map iteration order. Run several times to make a
+		// non-deterministic order detectable.
+		for i := 0; i < 10; i++ {
+			cfg := config.New()
+			cfg.Endpoints[0].APIKey = "main_api_key"
+			cfg.ProfilingProxy = config.ProfilingProxyConfig{
+				MainEndpointMode: config.ProfilingMainEndpointSkip,
+				AdditionalEndpoints: map[string][]string{
+					"https://intake.zzz.example.com": {"key_z"},
+					"https://intake.aaa.example.com": {"key_a"},
+					"https://intake.mmm.example.com": {"key_m1", "key_m2"},
+				},
+			}
+			urls, keys, err := profilingEndpoints(cfg)
+			assert.NoError(t, err)
+			assert.Equal(t, makeURLs(t,
+				"https://intake.aaa.example.com",
+				"https://intake.mmm.example.com",
+				"https://intake.mmm.example.com",
+				"https://intake.zzz.example.com",
+			), urls)
+			assert.Equal(t, []string{"key_a", "key_m1", "key_m2", "key_z"}, keys)
+		}
+	})
 }
 
 func TestProfileProxyHandler(t *testing.T) {
@@ -280,6 +335,63 @@ func TestProfileProxyHandler(t *testing.T) {
 			srv2.URL + "|dummy_api_key_2": true,
 		}
 		assert.Equal(t, expected, called, "The request should be proxied to all valid targets")
+	})
+
+	t.Run("skip_main_endpoint", func(t *testing.T) {
+		var mainCalled bool
+		mainSrv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			mainCalled = true
+		}))
+		defer mainSrv.Close()
+
+		var additionalCalled bool
+		additionalSrv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+			additionalCalled = true
+			assert.Equal(t, "additional_api_key", req.Header.Get("DD-API-KEY"))
+		}))
+		defer additionalSrv.Close()
+
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "main_api_key"
+		cfg.Hostname = "myhost"
+		cfg.ProfilingProxy = config.ProfilingProxyConfig{
+			DDURL:            mainSrv.URL,
+			MainEndpointMode: config.ProfilingMainEndpointSkip,
+			AdditionalEndpoints: map[string][]string{
+				additionalSrv.URL: {"additional_api_key"},
+			},
+			MaxRequestBytes: cfg.ProfilingProxy.MaxRequestBytes,
+		}
+
+		req, err := http.NewRequest("POST", "/some/path", bytes.NewBuffer([]byte("abc")))
+		if err != nil {
+			t.Fatal(err)
+		}
+		receiver := newTestReceiverFromConfig(cfg)
+		receiver.profileProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
+
+		assert.False(t, mainCalled, "The main endpoint should not be contacted")
+		assert.True(t, additionalCalled, "The additional endpoint should be contacted")
+	})
+
+	t.Run("skip_main_endpoint_without_additional_endpoints", func(t *testing.T) {
+		conf := newTestReceiverConfig()
+		conf.ProfilingProxy = config.ProfilingProxyConfig{MainEndpointMode: config.ProfilingMainEndpointSkip}
+		req, err := http.NewRequest("POST", "/some/path", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec := httptest.NewRecorder()
+		receiver := newTestReceiverFromConfig(conf)
+		receiver.profileProxyHandler().ServeHTTP(rec, req)
+		res := rec.Result()
+		assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
+		slurp, err := io.ReadAll(res.Body)
+		res.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Contains(t, string(slurp), "profiling proxy has no valid endpoints configured")
 	})
 
 	t.Run("azure_container_app", func(t *testing.T) {
