@@ -2,7 +2,7 @@
 services:
 
   cert-init:
-    image: public.ecr.aws/docker/library/alpine:latest
+    image: public.ecr.aws/docker/library/alpine:3.20.3
     command:
       - sh
       - -c
@@ -16,7 +16,8 @@ services:
       - certs:/certs
 
   syslog-sender:
-    image: public.ecr.aws/docker/library/alpine:latest
+    image: public.ecr.aws/docker/library/alpine:3.20.3
+    container_name: syslog-sender
     entrypoint: ["sh", "-c", "apk add --no-cache openssl >/dev/null 2>&1 && exec sleep infinity"]
     depends_on:
       cert-init:

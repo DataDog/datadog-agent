@@ -2,7 +2,8 @@
 services:
 
   syslog-sender:
-    image: public.ecr.aws/docker/library/busybox:latest
+    image: public.ecr.aws/docker/library/busybox:1.37.0
+    container_name: syslog-sender
     command: ["sleep", "infinity"]
     depends_on:
       - agent
