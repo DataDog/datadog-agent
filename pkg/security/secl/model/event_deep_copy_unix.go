@@ -729,6 +729,8 @@ func deepCopyIPNetArr(fieldToCopy []net.IPNet) []net.IPNet {
 	copied := make([]net.IPNet, len(fieldToCopy))
 	for i := range fieldToCopy {
 		copied[i] = fieldToCopy[i]
+		copied[i].IP = append(net.IP(nil), fieldToCopy[i].IP...)
+		copied[i].Mask = append(net.IPMask(nil), fieldToCopy[i].Mask...)
 	}
 	return copied
 }
