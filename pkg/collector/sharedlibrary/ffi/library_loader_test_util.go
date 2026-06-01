@@ -7,10 +7,6 @@
 
 package ffi
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-)
-
 /*
 #cgo CFLAGS: -I "${SRCDIR}/../../../../rtloader/include"
 #include "ffi.h"
@@ -46,7 +42,7 @@ func (*NoopSharedLibraryLoader) Close(_ *Library) error {
 }
 
 // Run does nothing
-func (*NoopSharedLibraryLoader) Run(_ *Library, _ string, _ string, _ string, _ string, _ sender.SenderManager) error {
+func (*NoopSharedLibraryLoader) Run(_ *Library, _ string, _ string, _ string, _ string) error {
 	return nil
 }
 

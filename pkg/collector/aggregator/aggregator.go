@@ -9,7 +9,6 @@ package aggregator
 import (
 	"unsafe"
 
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,69 +27,29 @@ import "C"
 //
 //export SubmitMetric
 func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.char, value C.double, tags **C.char, hostname *C.char, flushFirstValue C.bool) {
-	goCheckID := C.GoString(checkID)
-
-	checkContext, err := GetCheckContext()
-	if err != nil {
-		log.Errorf("check context: %v", err)
-		return
-	}
-
-	sender, err := checkContext.GetSender(checkid.ID(goCheckID))
-	if err != nil || sender == nil {
-		log.Errorf("Error submitting metric to the Sender: %v", err)
-		return
-	}
-
-	_name := C.GoString(metricName)
-	_value := float64(value)
-	_hostname := C.GoString(hostname)
-	_tags := CStringArrayToSlice(unsafe.Pointer(tags))
-	_flushFirstValue := bool(flushFirstValue)
-
-	switch metricType {
-	case C.DATADOG_AGENT_RTLOADER_GAUGE:
-		sender.Gauge(_name, _value, _hostname, _tags)
-	case C.DATADOG_AGENT_RTLOADER_RATE:
-		sender.Rate(_name, _value, _hostname, _tags)
-	case C.DATADOG_AGENT_RTLOADER_COUNT:
-		sender.Count(_name, _value, _hostname, _tags)
-	case C.DATADOG_AGENT_RTLOADER_MONOTONIC_COUNT:
-		sender.MonotonicCountWithFlushFirstValue(_name, _value, _hostname, _tags, _flushFirstValue)
-	case C.DATADOG_AGENT_RTLOADER_COUNTER:
-		sender.Counter(_name, _value, _hostname, _tags)
-	case C.DATADOG_AGENT_RTLOADER_HISTOGRAM:
-		sender.Histogram(_name, _value, _hostname, _tags)
-	case C.DATADOG_AGENT_RTLOADER_HISTORATE:
-		sender.Historate(_name, _value, _hostname, _tags)
-	}
+	SubmitMetricForCheck(
+		C.GoString(checkID),
+		int(metricType),
+		C.GoString(metricName),
+		float64(value),
+		CStringArrayToSlice(unsafe.Pointer(tags)),
+		C.GoString(hostname),
+		bool(flushFirstValue),
+	)
 }
 
 // SubmitServiceCheck is the method exposed to scripts to submit service checks
 //
 //export SubmitServiceCheck
 func SubmitServiceCheck(checkID *C.char, scName *C.char, status C.int, tags **C.char, hostname *C.char, message *C.char) {
-	goCheckID := C.GoString(checkID)
-
-	checkContext, err := GetCheckContext()
-	if err != nil {
-		log.Errorf("check context: %v", err)
-		return
-	}
-
-	sender, err := checkContext.GetSender(checkid.ID(goCheckID))
-	if err != nil || sender == nil {
-		log.Errorf("Error submitting metric to the Sender: %v", err)
-		return
-	}
-
-	_name := C.GoString(scName)
-	_status := servicecheck.ServiceCheckStatus(status)
-	_tags := CStringArrayToSlice(unsafe.Pointer(tags))
-	_hostname := C.GoString(hostname)
-	_message := C.GoString(message)
-
-	sender.ServiceCheck(_name, _status, _hostname, _tags, _message)
+	SubmitServiceCheckForCheck(
+		C.GoString(checkID),
+		C.GoString(scName),
+		servicecheck.ServiceCheckStatus(status),
+		CStringArrayToSlice(unsafe.Pointer(tags)),
+		C.GoString(hostname),
+		C.GoString(message),
+	)
 }
 
 func eventParseString(value *C.char, fieldName string) string {
@@ -105,20 +64,6 @@ func eventParseString(value *C.char, fieldName string) string {
 //
 //export SubmitEvent
 func SubmitEvent(checkID *C.char, event *C.event_t) {
-	goCheckID := C.GoString(checkID)
-
-	checkContext, err := GetCheckContext()
-	if err != nil {
-		log.Errorf("check context: %v", err)
-		return
-	}
-
-	sender, err := checkContext.GetSender(checkid.ID(goCheckID))
-	if err != nil || sender == nil {
-		log.Errorf("Error submitting metric to the Sender: %v", err)
-		return
-	}
-
 	_event := metricsevent.Event{
 		Title:          eventParseString(event.title, "msg_title"),
 		Text:           eventParseString(event.text, "msg_text"),
@@ -131,53 +76,33 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 		Ts:             int64(event.ts),
 	}
 
-	sender.Event(_event)
+	SubmitEventForCheck(C.GoString(checkID), _event)
 }
 
 // SubmitHistogramBucket is the method exposed to scripts to submit metrics
 //
 //export SubmitHistogramBucket
 func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
-	goCheckID := C.GoString(checkID)
-	checkContext, err := GetCheckContext()
-	if err != nil {
-		log.Errorf("check context: %v", err)
-		return
-	}
-
-	sender, err := checkContext.GetSender(checkid.ID(goCheckID))
-	if err != nil || sender == nil {
-		log.Errorf("Error submitting histogram bucket to the Sender: %v", err)
-		return
-	}
-
-	_name := C.GoString(metricName)
-	_value := int64(value)
-	_lowerBound := float64(lowerBound)
-	_upperBound := float64(upperBound)
-	_monotonic := (monotonic != 0)
-	_hostname := C.GoString(hostname)
-	_tags := CStringArrayToSlice(unsafe.Pointer(tags))
-	_flushFirstValue := bool(flushFirstValue)
-
-	sender.OpenmetricsBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
+	SubmitHistogramBucketForCheck(
+		C.GoString(checkID),
+		C.GoString(metricName),
+		int64(value),
+		float64(lowerBound),
+		float64(upperBound),
+		monotonic != 0,
+		C.GoString(hostname),
+		CStringArrayToSlice(unsafe.Pointer(tags)),
+		bool(flushFirstValue),
+	)
 }
 
 // SubmitEventPlatformEvent is the method exposed to scripts to submit event platform events
 //
 //export SubmitEventPlatformEvent
 func SubmitEventPlatformEvent(checkID *C.char, rawEventPtr *C.char, rawEventSize C.int, eventType *C.char) {
-	_checkID := C.GoString(checkID)
-	checkContext, err := GetCheckContext()
-	if err != nil {
-		log.Errorf("check context: %v", err)
-		return
-	}
-
-	sender, err := checkContext.GetSender(checkid.ID(_checkID))
-	if err != nil || sender == nil {
-		log.Errorf("Error submitting event platform event to the Sender: %v", err)
-		return
-	}
-	sender.EventPlatformEvent(C.GoBytes(unsafe.Pointer(rawEventPtr), rawEventSize), C.GoString(eventType))
+	SubmitEventPlatformEventForCheck(
+		C.GoString(checkID),
+		C.GoBytes(unsafe.Pointer(rawEventPtr), rawEventSize),
+		C.GoString(eventType),
+	)
 }

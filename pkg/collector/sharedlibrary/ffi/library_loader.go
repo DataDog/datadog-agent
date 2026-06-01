@@ -15,11 +15,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"sync"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -33,11 +31,11 @@ import (
 #cgo CFLAGS: -I "${SRCDIR}/../../../../rtloader/include"
 #include "ffi.h"
 
-// run_check_with_ctx wraps run_check_shared_library, converting a uintptr_t
-// context ID to void* so Go code doesn't need unsafe.Pointer(uintptr) casts
-// that trigger go vet warnings.
-static void run_check_with_ctx(check_run_function_t *check_run_ptr, const char *init_config, const char *instance_config, const char *enrichment, const callback_t *callback, uintptr_t ctx_id, const char **error) {
-	run_check_shared_library(check_run_ptr, init_config, instance_config, enrichment, callback, (void *)ctx_id, error);
+// run_check_with_id passes check_id as the void* ctx argument expected by the
+// check_run ABI, performing the char* → void* cast in C to avoid go vet
+// warnings about unsafe pointer conversions in Go code.
+static void run_check_with_id(check_run_function_t *check_run_ptr, const char *init_config, const char *instance_config, const char *enrichment, const callback_t *callback, const char *check_id, const char **error) {
+	run_check_shared_library(check_run_ptr, init_config, instance_config, enrichment, callback, (void *)check_id, error);
 }
 */
 import "C"
@@ -66,7 +64,7 @@ type Library struct {
 type LibraryLoader interface {
 	Open(name string) (*Library, error)
 	Close(lib *Library) error
-	Run(lib *Library, checkID string, initConfig string, instanceConfig string, enrichment string, senderManager sender.SenderManager) error
+	Run(lib *Library, checkID string, initConfig string, instanceConfig string, enrichment string) error
 	Version(lib *Library) (string, error)
 	ComputeLibraryPath(name string) (string, error)
 }
@@ -146,9 +144,9 @@ func (l *SharedLibraryLoader) Close(lib *Library) error {
 }
 
 // Run calls the `check_run` symbol of the shared library to execute the check's implementation.
-// It creates a bridge context containing the senderManager and checkID, populates a callback_t
-// struct with Go bridge functions, and passes both through to the Rust check.
-func (l *SharedLibraryLoader) Run(lib *Library, checkID string, initConfig string, instanceConfig string, enrichment string, senderManager sender.SenderManager) error {
+// The check ID is passed as the opaque ctx pointer so bridge callbacks can recover it and route
+// submissions through pkg/collector/aggregator — the same path used by Python checks.
+func (l *SharedLibraryLoader) Run(lib *Library, checkID string, initConfig string, instanceConfig string, enrichment string) error {
 	if lib == nil {
 		return errors.New("Pointer to 'Library' struct is NULL")
 	}
@@ -162,20 +160,15 @@ func (l *SharedLibraryLoader) Run(lib *Library, checkID string, initConfig strin
 	cEnrichment := C.CString(enrichment)
 	defer C.free(unsafe.Pointer(cEnrichment))
 
-	// Register a bridge context so callbacks can route to the correct sender
-	bc := &BridgeContext{
-		senderManager: senderManager,
-		checkID:       checkid.ID(checkID),
-	}
-	ctxID := registerBridgeContext(bc)
-	defer unregisterBridgeContext(ctxID)
+	cCheckID := C.CString(checkID)
+	defer C.free(unsafe.Pointer(cCheckID))
 
 	// Build the callback struct with our Go bridge functions
 	callback := buildCallback()
 
 	var cErr *C.char
 
-	C.run_check_with_ctx(lib.checkRun, cInitConfig, cInstanceConfig, cEnrichment, &callback, C.uintptr_t(ctxID), &cErr)
+	C.run_check_with_id(lib.checkRun, cInitConfig, cInstanceConfig, cEnrichment, &callback, cCheckID, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 		return fmt.Errorf("Failed to run check: %s", C.GoString(cErr))
@@ -227,48 +220,11 @@ func NewSharedLibraryLoader(folderPath string) (*SharedLibraryLoader, error) {
 	}, nil
 }
 
-// ---- Bridge context management ----
-// A BridgeContext maps an opaque void* pointer back to the Go-side sender
-// for a specific check instance. This replaces the old model where check_id
-// was passed as a string through the C ABI.
-
-// BridgeContext holds the sender manager and check ID for callback routing
-type BridgeContext struct {
-	senderManager sender.SenderManager
-	checkID       checkid.ID
-}
-
-var (
-	bridgeMu       sync.Mutex
-	bridgeContexts = map[uintptr]*BridgeContext{}
-	bridgeNextID   uintptr
-)
-
-func registerBridgeContext(bc *BridgeContext) uintptr {
-	bridgeMu.Lock()
-	defer bridgeMu.Unlock()
-	bridgeNextID++
-	bridgeContexts[bridgeNextID] = bc
-	return bridgeNextID
-}
-
-func unregisterBridgeContext(id uintptr) {
-	bridgeMu.Lock()
-	defer bridgeMu.Unlock()
-	delete(bridgeContexts, id)
-}
-
-func lookupBridgeContext(ctx unsafe.Pointer) *BridgeContext {
-	id := uintptr(ctx)
-	bridgeMu.Lock()
-	defer bridgeMu.Unlock()
-	return bridgeContexts[id]
-}
-
 // ---- Bridge callback functions ----
 // These are Go functions exported to C that match the callback_t function
-// pointer signatures. They extract the BridgeContext from the ctx pointer
-// and route submissions to the appropriate sender.
+// pointer signatures. They recover the check ID from the opaque ctx pointer
+// (set by run_check_with_id) and delegate to pkg/collector/aggregator — the
+// same submission path used by Python checks.
 
 // cStringArrayToSlice converts a null-terminated array of const char* to a Go string slice.
 func cStringArrayToSlice(tags **C.char) []string {
@@ -284,63 +240,29 @@ func cStringArrayToSlice(tags **C.char) []string {
 
 //export BridgeSubmitMetric
 func BridgeSubmitMetric(ctx unsafe.Pointer, metricType C.int, name *C.char, value C.double, tags **C.char, hostname *C.char, flushFirst C.int) {
-	bc := lookupBridgeContext(ctx)
-	if bc == nil {
-		log.Error("BridgeSubmitMetric: invalid bridge context")
-		return
-	}
-
-	s, err := bc.senderManager.GetSender(bc.checkID)
-	if err != nil || s == nil {
-		log.Errorf("BridgeSubmitMetric: error getting sender: %v", err)
-		return
-	}
-
-	_name := C.GoString(name)
-	_value := float64(value)
-	_hostname := C.GoString(hostname)
-	_tags := cStringArrayToSlice(tags)
-	_flushFirst := (flushFirst != 0)
-
-	switch metricType {
-	case 0: // Gauge
-		s.Gauge(_name, _value, _hostname, _tags)
-	case 1: // Rate
-		s.Rate(_name, _value, _hostname, _tags)
-	case 2: // Count
-		s.Count(_name, _value, _hostname, _tags)
-	case 3: // MonotonicCount
-		s.MonotonicCountWithFlushFirstValue(_name, _value, _hostname, _tags, _flushFirst)
-	case 4: // Counter
-		s.Counter(_name, _value, _hostname, _tags)
-	case 5: // Histogram
-		s.Histogram(_name, _value, _hostname, _tags)
-	case 6: // Historate
-		s.Historate(_name, _value, _hostname, _tags)
-	}
+	checkID := C.GoString((*C.char)(ctx))
+	collectoraggregator.SubmitMetricForCheck(
+		checkID,
+		int(metricType),
+		C.GoString(name),
+		float64(value),
+		cStringArrayToSlice(tags),
+		C.GoString(hostname),
+		flushFirst != 0,
+	)
 }
 
 //export BridgeSubmitServiceCheck
 func BridgeSubmitServiceCheck(ctx unsafe.Pointer, name *C.char, status C.int, tags **C.char, hostname *C.char, message *C.char) {
-	bc := lookupBridgeContext(ctx)
-	if bc == nil {
-		log.Error("BridgeSubmitServiceCheck: invalid bridge context")
-		return
-	}
-
-	s, err := bc.senderManager.GetSender(bc.checkID)
-	if err != nil || s == nil {
-		log.Errorf("BridgeSubmitServiceCheck: error getting sender: %v", err)
-		return
-	}
-
-	_name := C.GoString(name)
-	_status := servicecheck.ServiceCheckStatus(status)
-	_tags := cStringArrayToSlice(tags)
-	_hostname := C.GoString(hostname)
-	_message := C.GoString(message)
-
-	s.ServiceCheck(_name, _status, _hostname, _tags, _message)
+	checkID := C.GoString((*C.char)(ctx))
+	collectoraggregator.SubmitServiceCheckForCheck(
+		checkID,
+		C.GoString(name),
+		servicecheck.ServiceCheckStatus(status),
+		cStringArrayToSlice(tags),
+		C.GoString(hostname),
+		C.GoString(message),
+	)
 }
 
 func bridgeEventParseString(value *C.char, fieldName string) string {
@@ -353,101 +275,51 @@ func bridgeEventParseString(value *C.char, fieldName string) string {
 
 //export BridgeSubmitEvent
 func BridgeSubmitEvent(ctx unsafe.Pointer, event *C.slim_event_t) {
-	bc := lookupBridgeContext(ctx)
-	if bc == nil {
-		log.Error("BridgeSubmitEvent: invalid bridge context")
-		return
-	}
-
-	s, err := bc.senderManager.GetSender(bc.checkID)
-	if err != nil || s == nil {
-		log.Errorf("BridgeSubmitEvent: error getting sender: %v", err)
-		return
-	}
-
-	_event := metricsevent.Event{
-		Title:          bridgeEventParseString(event.title, "title"),
-		Text:           bridgeEventParseString(event.text, "text"),
-		Priority:       metricsevent.Priority(bridgeEventParseString(event.priority, "priority")),
-		Host:           bridgeEventParseString(event.host, "host"),
-		Tags:           cStringArrayToSlice((**C.char)(unsafe.Pointer(event.tags))),
-		AlertType:      metricsevent.AlertType(bridgeEventParseString(event.alert_type, "alert_type")),
-		AggregationKey: bridgeEventParseString(event.aggregation_key, "aggregation_key"),
-		SourceTypeName: bridgeEventParseString(event.source_type_name, "source_type_name"),
-		Ts:             int64(event.ts),
-	}
-
-	s.Event(_event)
+	checkID := C.GoString((*C.char)(ctx))
+	collectoraggregator.SubmitEventForCheck(
+		checkID,
+		metricsevent.Event{
+			Title:          bridgeEventParseString(event.title, "title"),
+			Text:           bridgeEventParseString(event.text, "text"),
+			Priority:       metricsevent.Priority(bridgeEventParseString(event.priority, "priority")),
+			Host:           bridgeEventParseString(event.host, "host"),
+			Tags:           cStringArrayToSlice((**C.char)(unsafe.Pointer(event.tags))),
+			AlertType:      metricsevent.AlertType(bridgeEventParseString(event.alert_type, "alert_type")),
+			AggregationKey: bridgeEventParseString(event.aggregation_key, "aggregation_key"),
+			SourceTypeName: bridgeEventParseString(event.source_type_name, "source_type_name"),
+			Ts:             int64(event.ts),
+		},
+	)
 }
 
 //export BridgeSubmitHistogram
 func BridgeSubmitHistogram(ctx unsafe.Pointer, name *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirst C.int) {
-	bc := lookupBridgeContext(ctx)
-	if bc == nil {
-		log.Error("BridgeSubmitHistogram: invalid bridge context")
-		return
-	}
-
-	s, err := bc.senderManager.GetSender(bc.checkID)
-	if err != nil || s == nil {
-		log.Errorf("BridgeSubmitHistogram: error getting sender: %v", err)
-		return
-	}
-
-	_name := C.GoString(name)
-	_value := int64(value)
-	_lowerBound := float64(lowerBound)
-	_upperBound := float64(upperBound)
-	_monotonic := (monotonic != 0)
-	_hostname := C.GoString(hostname)
-	_tags := cStringArrayToSlice(tags)
-	_flushFirst := (flushFirst != 0)
-
-	s.HistogramBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirst)
+	checkID := C.GoString((*C.char)(ctx))
+	collectoraggregator.SubmitHistogramBucketForCheck(
+		checkID,
+		C.GoString(name),
+		int64(value),
+		float64(lowerBound),
+		float64(upperBound),
+		monotonic != 0,
+		C.GoString(hostname),
+		cStringArrayToSlice(tags),
+		flushFirst != 0,
+	)
 }
 
 //export BridgeSubmitEventPlatformEvent
 func BridgeSubmitEventPlatformEvent(ctx unsafe.Pointer, rawEventPtr *C.char, rawEventSize C.int, eventType *C.char) {
-	bc := lookupBridgeContext(ctx)
-	if bc == nil {
-		log.Error("BridgeSubmitEventPlatformEvent: invalid bridge context")
-		return
-	}
-
-	s, err := bc.senderManager.GetSender(bc.checkID)
-	if err != nil || s == nil {
-		log.Errorf("BridgeSubmitEventPlatformEvent: error getting sender: %v", err)
-		return
-	}
-
-	s.EventPlatformEvent(C.GoBytes(unsafe.Pointer(rawEventPtr), rawEventSize), C.GoString(eventType))
+	checkID := C.GoString((*C.char)(ctx))
+	collectoraggregator.SubmitEventPlatformEventForCheck(
+		checkID,
+		C.GoBytes(unsafe.Pointer(rawEventPtr), rawEventSize),
+		C.GoString(eventType),
+	)
 }
 
 //export BridgeSubmitLog
 func BridgeSubmitLog(ctx unsafe.Pointer, level C.int, message *C.char) {
-	bc := lookupBridgeContext(ctx)
-	if bc == nil {
-		log.Error("BridgeSubmitLog: invalid bridge context")
-		return
-	}
-
-	_message := C.GoString(message)
-
-	// Route log messages to the appropriate log level
-	switch level {
-	case 7: // Trace
-		log.Tracef("[check:%s] %s", bc.checkID, _message)
-	case 10: // Debug
-		log.Debugf("[check:%s] %s", bc.checkID, _message)
-	case 20: // Info
-		log.Infof("[check:%s] %s", bc.checkID, _message)
-	case 30: // Warning
-		log.Warnf("[check:%s] %s", bc.checkID, _message)
-	case 40: // Error
-		log.Errorf("[check:%s] %s", bc.checkID, _message)
-	case 50: // Critical
-		log.Criticalf("[check:%s] %s", bc.checkID, _message)
-	default:
-		log.Infof("[check:%s] %s", bc.checkID, _message)
-	}
+	checkID := C.GoString((*C.char)(ctx))
+	collectoraggregator.LogMessage(int(level), fmt.Sprintf("[check:%s] %s", checkID, C.GoString(message)))
 }

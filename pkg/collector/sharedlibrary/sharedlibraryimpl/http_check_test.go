@@ -33,10 +33,15 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/enrichment"
 	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // httpCheckPluginPath resolves the path to the built HTTP check plugin shared library.
@@ -74,7 +79,8 @@ func TestHTTPCheckPlugin(t *testing.T) {
 	defer ts.Close()
 
 	// Create the real shared library loader
-	loader := ffi.NewSharedLibraryLoader(filepath.Dir(pluginPath))
+	loader, err := ffi.NewSharedLibraryLoader(filepath.Dir(pluginPath))
+	require.NoError(t, err, "failed to create shared library loader")
 
 	// Open the HTTP check plugin
 	lib, err := loader.Open(pluginPath)
@@ -106,7 +112,15 @@ func TestHTTPCheckPlugin(t *testing.T) {
 	mockSender := mocksender.NewMockSender(t, checkID)
 	mockSender.SetupAcceptAll()
 
-	senderManager := mockSender.GetSenderManager()
+	// Wire the global check context so the callback bridge can resolve the mock
+	// sender from the check ID.
+	release := collectoraggregator.ScopeInitCheckContext(
+		mockSender.GetSenderManager(),
+		option.None[integrations.Component](),
+		nooptagger.NewComponent(),
+		workloadfilterfxmock.SetupMockFilter(t),
+	)
+	defer release()
 
 	// Build the instance config as YAML (matching the ACR's http_check config::Instance struct)
 	instanceConfig := fmt.Sprintf(`name: test-http
@@ -120,7 +134,7 @@ check_certificate_expiration: false
 	enrichmentYAML := provider.GetEnrichmentYAML()
 
 	// Run the check through the FFI bridge
-	err = loader.Run(lib, string(checkID), initConfig, instanceConfig, enrichmentYAML, senderManager)
+	err = loader.Run(lib, string(checkID), initConfig, instanceConfig, enrichmentYAML)
 	require.NoError(t, err, "HTTP check run failed")
 
 	// Verify the submitted metrics
@@ -174,7 +188,8 @@ func TestHTTPCheckPluginFailure(t *testing.T) {
 	unreachableURL := ts.URL
 	ts.Close()
 
-	loader := ffi.NewSharedLibraryLoader(filepath.Dir(pluginPath))
+	loader, err := ffi.NewSharedLibraryLoader(filepath.Dir(pluginPath))
+	require.NoError(t, err)
 
 	lib, err := loader.Open(pluginPath)
 	require.NoError(t, err)
@@ -189,7 +204,14 @@ func TestHTTPCheckPluginFailure(t *testing.T) {
 	checkID := checkid.ID("http_check:test_failure:abcdef1234567890")
 	mockSender := mocksender.NewMockSender(t, checkID)
 	mockSender.SetupAcceptAll()
-	senderManager := mockSender.GetSenderManager()
+
+	release := collectoraggregator.ScopeInitCheckContext(
+		mockSender.GetSenderManager(),
+		option.None[integrations.Component](),
+		nooptagger.NewComponent(),
+		workloadfilterfxmock.SetupMockFilter(t),
+	)
+	defer release()
 
 	instanceConfig := fmt.Sprintf(`name: test-http-fail
 url: %s
@@ -203,7 +225,7 @@ connect_timeout: 2
 
 	// The check should not return an error itself -- it handles errors internally
 	// by submitting a critical service check
-	err = loader.Run(lib, string(checkID), initConfig, instanceConfig, enrichmentYAML, senderManager)
+	err = loader.Run(lib, string(checkID), initConfig, instanceConfig, enrichmentYAML)
 	require.NoError(t, err, "HTTP check run should not return an error for connection failures")
 
 	// The service check should still be submitted (with Critical status)

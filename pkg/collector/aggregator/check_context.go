@@ -65,7 +65,7 @@ func GetCheckContext() (*CheckContext, error) {
 	defer checkContextMutex.Unlock()
 
 	if checkCtx == nil {
-		return nil, errors.New("Python check context was not set")
+		return nil, errors.New("check context was not initialized")
 	}
 	return checkCtx, nil
 }
