@@ -523,6 +523,10 @@ func (c *LogsConfig) Validate() error {
 		return fmt.Errorf("unsupported format %q (supported: %q or empty)", c.Format, SyslogFormat)
 	}
 
+	if c.Format == SyslogFormat && c.Encoding != "" {
+		log.Warn("non-UTF-8 encodings are not currently supported by the syslog format. The encoding setting will be ignored.")
+	}
+
 	err := ValidateFingerprintConfig(c.FingerprintConfig)
 	if err != nil {
 		return err

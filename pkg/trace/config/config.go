@@ -266,12 +266,28 @@ const (
 	OrchestratorUnknown FargateOrchestratorName = "Unknown"
 )
 
+// ProfilingMainEndpointMode controls whether the profiling proxy forwards to
+// the implicit main Datadog intake.
+type ProfilingMainEndpointMode int
+
+const (
+	// ProfilingMainEndpointSend forwards profiles to the implicit main intake
+	// in addition to any AdditionalEndpoints. This is the default (zero value).
+	ProfilingMainEndpointSend ProfilingMainEndpointMode = iota
+	// ProfilingMainEndpointSkip skips the implicit main intake; only
+	// AdditionalEndpoints receive profiles.
+	ProfilingMainEndpointSkip
+)
+
 // ProfilingProxyConfig ...
 type ProfilingProxyConfig struct {
 	// DDURL ...
 	DDURL string
 	// AdditionalEndpoints ...
 	AdditionalEndpoints map[string][]string
+	// MainEndpointMode controls forwarding to the implicit main intake.
+	// Defaults to ProfilingMainEndpointSend.
+	MainEndpointMode ProfilingMainEndpointMode
 	// ReceiverTimeout is the timeout in seconds for profile upload requests
 	ReceiverTimeout int
 	// MaxRequestBytes is the maximum body size buffered when fanning out to
@@ -822,11 +838,10 @@ func (c *AgentConfig) MRFFailoverAPM() bool {
 
 // ConfiguredPeerTags returns the set of peer tags that should be used
 // for aggregation based on the various config values and the base set of tags.
+// For callers that need to cache the result against the live semantic registry
+// version (e.g. the Concentrator's hot path), use PeerTagsCache instead.
 func (c *AgentConfig) ConfiguredPeerTags() []string {
-	if !c.PeerTagsAggregation {
-		return nil
-	}
-	return preparePeerTags(append(basePeerTags(), c.PeerTags...))
+	return c.PeerTagsCache().Keys
 }
 
 // ConfiguredSpanDerivedPrimaryTagKeys returns the configured span-derived primary
