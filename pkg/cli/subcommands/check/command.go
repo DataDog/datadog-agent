@@ -60,7 +60,8 @@ import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	orchestratordef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
@@ -198,7 +199,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithFlushInterval(0))),
-				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewNoopParams()),
+				orchestratorForwarderImpl.Module(orchestratordef.NewNoopParams()),
 				eventplatformfx.Module(eventplatforParams),
 				eventplatformreceiverimpl.Module(),
 				fx.Supply(

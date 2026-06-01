@@ -5,13 +5,12 @@
 
 //go:build test
 
-package orchestratorimpl
+// Package orchestratormock provides a mock for the orchestrator forwarder component.
+package orchestratormock
 
 import (
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	orchestrator "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -19,10 +18,10 @@ import (
 // MockModule defines the fx options for this mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(NewMockOrchestratorForwarder))
+		fxutil.ProvideComponentConstructor(NewMockOrchestratorForwarder))
 }
 
-// NewMockOrchestratorForwarder returns an orchestratorForwarder
+// NewMockOrchestratorForwarder returns a mock orchestratorForwarder.
 func NewMockOrchestratorForwarder() orchestrator.Component {
 	forwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	return &forwarder

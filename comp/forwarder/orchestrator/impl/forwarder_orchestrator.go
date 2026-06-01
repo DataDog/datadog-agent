@@ -18,9 +18,10 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
-	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	orchestrator "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -28,45 +29,58 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+// Requires defines the dependencies of the orchestrator forwarder component.
+type Requires struct {
+	compdef.In
+
+	Lc      compdef.Lifecycle
+	Log     log.Component
+	Config  config.Component
+	Secrets secrets.Component
+	Tagger  tagger.Component
+	Params  orchestrator.Params
+}
+
 // Module defines the fx options for this component.
-func Module(params Params) fxutil.Module {
+func Module(params orchestrator.Params) fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newOrchestratorForwarder),
-		fx.Supply(params))
+		fxutil.ProvideComponentConstructor(newOrchestratorForwarder),
+		fx.Supply(params),
+	)
 }
 
 // newOrchestratorForwarder returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
-func newOrchestratorForwarder(log log.Component, config config.Component, secrets secrets.Component, tagger tagger.Component, lc fx.Lifecycle, params Params) orchestrator.Component {
-	if params.useNoopOrchestratorForwarder {
+func newOrchestratorForwarder(deps Requires) orchestrator.Component {
+	if deps.Params.UseNoopOrchestratorForwarder() {
 		return createComponent(defaultforwarder.NoopForwarder{})
 	}
-	if params.useOrchestratorForwarder {
+	if deps.Params.UseOrchestratorForwarder() {
 		isOrchestratorEnv := env.IsKubernetes() || env.IsECS() || env.IsECSFargate() || env.IsECSManagedInstances()
-		orchestratorExplorerEnabled := config.GetBool(orchestratorconfig.OrchestratorNSKey("enabled"))
+		orchestratorExplorerEnabled := deps.Config.GetBool(orchestratorconfig.OrchestratorNSKey("enabled"))
 		if !orchestratorExplorerEnabled || !isOrchestratorEnv {
 			forwarder := option.None[defaultforwarder.Forwarder]()
 			return &forwarder
 		}
-		globalTags, err := tagger.GlobalTags(types.LowCardinality)
+		globalTags, err := deps.Tagger.GlobalTags(types.LowCardinality)
 		if err != nil {
-			log.Debugf("Error getting global tags for orchestrator config: %s", err)
+			deps.Log.Debugf("Error getting global tags for orchestrator config: %s", err)
 		}
 		orchestratorCfg := orchestratorconfig.NewDefaultOrchestratorConfig(globalTags)
 		if err := orchestratorCfg.Load(); err != nil {
-			log.Errorf("Error loading the orchestrator config: %s", err)
+			deps.Log.Errorf("Error loading the orchestrator config: %s", err)
 		}
 		keysPerDomain := apicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
 		resolver, err := resolver.NewSingleDomainResolvers(keysPerDomain)
 		if err != nil {
-			log.Errorf("Error creating domain resolver: %s", err)
+			deps.Log.Errorf("Error creating domain resolver: %s", err)
 		}
-		orchestratorForwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver)
+		orchestratorForwarderOpts := defaultforwarder.NewOptionsWithResolvers(deps.Config, deps.Log, resolver)
 		orchestratorForwarderOpts.DisableAPIKeyChecking = true
-		orchestratorForwarderOpts.Secrets = secrets
+		orchestratorForwarderOpts.Secrets = deps.Secrets
 
-		forwarder := defaultforwarder.NewDefaultForwarder(config, log, orchestratorForwarderOpts)
-		lc.Append(fx.Hook{
+		forwarder := defaultforwarder.NewDefaultForwarder(deps.Config, deps.Log, orchestratorForwarderOpts)
+		deps.Lc.Append(compdef.Hook{
 			OnStart: func(context.Context) error {
 				_ = forwarder.Start()
 				return nil

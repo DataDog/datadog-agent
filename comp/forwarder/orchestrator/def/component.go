@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package orchestrator implements the orchestrator forwarder component.
+// Package orchestrator defines the interface for the orchestrator forwarder component.
 package orchestrator
 
-import "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
+import orchestratorinterface "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface/def"
 
 // team: kubernetes-experiences
 
-// Component is the alias of orchestratorinterface.Component.
+// Component is the component type.
 type Component = orchestratorinterface.Component

@@ -62,7 +62,8 @@ import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	orchestrator "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -111,7 +112,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers())),
 				filterlistfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
-				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
+				orchestratorForwarderImpl.Module(orchestrator.NewDisabledParams()),
 				eventplatformfx.Module(eventplatform.NewDisabledParams()),
 				eventplatformreceiverimpl.Module(),
 

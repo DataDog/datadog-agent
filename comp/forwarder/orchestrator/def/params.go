@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package orchestratorimpl
+package orchestrator
 
 // Params defines the parameters for the orchestrator forwarder.
 type Params struct {
@@ -25,3 +25,9 @@ func NewDisabledParams() Params {
 func NewNoopParams() Params {
 	return Params{useOrchestratorForwarder: false, useNoopOrchestratorForwarder: true}
 }
+
+// UseNoopOrchestratorForwarder returns true if the noop orchestrator forwarder should be used.
+func (p Params) UseNoopOrchestratorForwarder() bool { return p.useNoopOrchestratorForwarder }
+
+// UseOrchestratorForwarder returns true if the orchestrator forwarder should be used.
+func (p Params) UseOrchestratorForwarder() bool { return p.useOrchestratorForwarder }
