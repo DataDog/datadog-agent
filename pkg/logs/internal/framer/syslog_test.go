@@ -584,14 +584,15 @@ func TestSyslogSplitTruncationFlags(t *testing.T) {
 		assert.Equal(t, validMsg, contents[lastIdx])
 	})
 
-	t.Run("flush continuation inherits truncation from split", func(t *testing.T) {
-		// Octet-counted frame whose body exceeds the limit. After the
-		// first split chunk the continuation bytes (all 'x') have no
-		// syslog sync point, so they stay buffered until Flush.
+	t.Run("octet continuation emitted promptly and truncated", func(t *testing.T) {
+		// Octet-counted frame whose declared body exceeds the limit. Because
+		// MSG-LEN is the authoritative boundary, the continuation bytes are
+		// emitted as raw chunks as soon as they are available — they are never
+		// re-run through frame detection or deferred to Flush.
 		limit := 15
 		body := "<34>1 " + strings.Repeat("x", 14) // 20 bytes
 		frame := fmt.Sprintf("%d %s", len(body), body)
-		input := []byte(frame) // no following message — forces Flush path
+		input := []byte(frame)
 
 		tailerInfo := status.NewInfoRegistry()
 		var contents []string
@@ -604,14 +605,48 @@ func TestSyslogSplitTruncationFlags(t *testing.T) {
 		}
 		fr := NewSyslogFramer(outputFn, limit, tailerInfo)
 		fr.Process(message.NewMessage(input, nil, "", 0))
-		require.Len(t, contents, 1, "first split chunk emitted by Process")
+		require.Len(t, contents, 2, "oversized octet frame split into two chunks during Process")
+		assert.True(t, truncated[0], "first split chunk should be truncated")
+		assert.True(t, truncated[1], "continuation chunk should be truncated")
+
+		fr.Flush()
+		require.Len(t, contents, 2, "nothing left to flush")
+
+		// The header (MSG-LEN SP) is stripped; concatenated output is the body.
+		combined := strings.Join(contents, "")
+		assert.Equal(t, body, combined)
+	})
+
+	t.Run("octet continuation deferred to flush when under-delivered", func(t *testing.T) {
+		// Declared length exceeds the bytes actually delivered. After the
+		// first split chunk, the remaining declared bytes have not all arrived
+		// so the continuation cannot complete during Process; Flush drains
+		// what was received, still flagged truncated.
+		limit := 15
+		declared := 25
+		body := "<34>1 " + strings.Repeat("x", 12) // 18 bytes delivered, < declared
+		frame := fmt.Sprintf("%d %s", declared, body)
+		input := []byte(frame)
+
+		tailerInfo := status.NewInfoRegistry()
+		var contents []string
+		var truncated []bool
+		outputFn := func(msg *message.Message, _ int) {
+			if len(msg.GetContent()) > 0 {
+				contents = append(contents, string(msg.GetContent()))
+				truncated = append(truncated, msg.ParsingExtra.IsTruncated)
+			}
+		}
+		fr := NewSyslogFramer(outputFn, limit, tailerInfo)
+		fr.Process(message.NewMessage(input, nil, "", 0))
+		require.Len(t, contents, 1, "only the first bounded chunk fits during Process")
 		assert.True(t, truncated[0], "split chunk should be truncated")
 
 		fr.Flush()
-		require.Len(t, contents, 2, "continuation emitted by Flush")
+		require.Len(t, contents, 2, "remaining delivered bytes flushed at EOF")
 		assert.True(t, truncated[1], "flush continuation should be truncated")
 
-		// The header (MSG-LEN SP) is stripped; concatenated output is the body.
+		// Header is stripped; only the bytes actually delivered are emitted.
 		combined := strings.Join(contents, "")
 		assert.Equal(t, body, combined)
 	})
@@ -778,6 +813,134 @@ func TestSyslogMalformedOctetCount(t *testing.T) {
 			}
 		}
 		assert.True(t, found, "valid frame should be recovered after discarding invalid octet-count prefix")
+	})
+}
+
+func TestSyslogOversizedSelfBounding(t *testing.T) {
+	// collectSyslog runs a stream through a real Framer and returns every
+	// emitted chunk plus its raw length and truncation flag.
+	collectSyslog := func(t *testing.T, limit int, chunks [][]byte) (contents []string, rawLens []int, truncated []bool, info *status.InfoRegistry) {
+		t.Helper()
+		info = status.NewInfoRegistry()
+		outputFn := func(msg *message.Message, rawDataLen int) {
+			if len(msg.GetContent()) > 0 {
+				contents = append(contents, string(msg.GetContent()))
+				rawLens = append(rawLens, rawDataLen)
+				truncated = append(truncated, msg.ParsingExtra.IsTruncated)
+			}
+		}
+		fr := NewSyslogFramer(outputFn, limit, info)
+		for _, c := range chunks {
+			fr.Process(message.NewMessage(c, nil, "", 0))
+		}
+		fr.Flush()
+		return
+	}
+
+	t.Run("emitted chunks never exceed the content limit", func(t *testing.T) {
+		// A single huge frame must never produce content larger than the
+		// limit, regardless of framing method — the buffer is self-bounded.
+		limit := 16
+		for _, tc := range []struct {
+			name  string
+			input []byte
+		}{
+			{"octet-counted", func() []byte {
+				body := "<34>1 " + strings.Repeat("x", 500)
+				return []byte(fmt.Sprintf("%d %s", len(body), body))
+			}()},
+			{"non-transparent", []byte("<34>1 " + strings.Repeat("y", 500) + "\n")},
+			{"malformed", []byte(strings.Repeat("Z", 500) + "<34>1 ok\n")},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				got, _, _, _ := collectSyslog(t, limit, [][]byte{tc.input})
+				for i, c := range got {
+					assert.LessOrEqual(t, len(c), limit, "chunk %d (%q) exceeds the content limit", i, c)
+				}
+			})
+		}
+	})
+
+	t.Run("octet continuation preserves embedded delimiter (no re-dispatch)", func(t *testing.T) {
+		// MSG-LEN is authoritative: an embedded LF inside an oversized
+		// octet-counted body is message data, not a frame boundary. The buggy
+		// re-dispatch path would route the continuation through delimiter
+		// detection and silently drop the LF.
+		limit := 10
+		body := "<34>1 ABCD\nEFGHIJKLMN" // 21 bytes, LF at index 10 (past chunk 1)
+		input := []byte(fmt.Sprintf("%d %s", len(body), body))
+
+		got, _, _, _ := collectSyslog(t, limit, [][]byte{input})
+
+		require.Len(t, got, 3, "21-byte body at limit 10 splits into 3 size-driven chunks")
+		combined := strings.Join(got, "")
+		assert.Equal(t, body, combined, "embedded LF must be preserved, not consumed as a delimiter")
+		assert.Contains(t, combined, "\n", "the embedded newline must survive")
+	})
+
+	t.Run("octet continuation is byte-fragmentation safe", func(t *testing.T) {
+		// Same guarantee when bytes arrive one at a time.
+		limit := 10
+		body := "<34>1 ABCD\nEFGHIJKLMN"
+		full := []byte(fmt.Sprintf("%d %s", len(body), body))
+		chunks := make([][]byte, len(full))
+		for i, b := range full {
+			chunks[i] = []byte{b}
+		}
+
+		got, _, _, _ := collectSyslog(t, limit, chunks)
+		assert.Equal(t, body, strings.Join(got, ""))
+	})
+
+	t.Run("non-transparent continuation is not re-detected as octet framing", func(t *testing.T) {
+		// An oversized non-transparent frame whose continuation happens to
+		// begin with a "digit SP <" sequence must not be reparsed as an
+		// octet-counted frame (which would consume the wrong byte count).
+		limit := 10
+		body := "<34>1 AAAA5 <99>injected payload here" // no embedded delimiter
+		input := []byte(body + "\n")
+
+		got, _, _, _ := collectSyslog(t, limit, [][]byte{input})
+
+		combined := strings.Join(got, "")
+		assert.Equal(t, body, combined, "every byte of the body must be emitted verbatim")
+		// Splitting is size-driven, not content-driven: all but the last
+		// chunk are exactly `limit` bytes.
+		for i := 0; i < len(got)-1; i++ {
+			assert.Len(t, got[i], limit, "non-final chunk %d should be a full bounded chunk", i)
+		}
+	})
+
+	t.Run("oversized frame is counted exactly once", func(t *testing.T) {
+		limit := 10
+		body := "<34>1 " + strings.Repeat("x", 40) // 46 bytes -> 5 chunks
+		input := []byte(fmt.Sprintf("%d %s", len(body), body))
+
+		got, _, _, info := collectSyslog(t, limit, [][]byte{input})
+		require.Greater(t, len(got), 1, "frame should have been split")
+
+		rendered := info.Rendered()
+		oversized := rendered["Syslog Oversized Frames"]
+		require.NotEmpty(t, oversized)
+		assert.Equal(t, "1", oversized[0], "an oversized frame must be counted once, not once per chunk")
+	})
+
+	t.Run("malformed discarded bytes counted exactly once", func(t *testing.T) {
+		// A 25-byte malformed run split across multiple bounded chunks must
+		// report exactly 25 discarded bytes. The previous re-dispatch path
+		// re-counted the (shrinking) remainder on every chunk, over-counting.
+		limit := 10
+		junk := strings.Repeat("Z", 25)
+		validMsg := "<34>1 msg"
+		input := []byte(junk + validMsg + "\n")
+
+		got, _, _, info := collectSyslog(t, limit, [][]byte{input})
+		assert.Equal(t, validMsg, got[len(got)-1], "valid frame recovered after the malformed run")
+
+		rendered := info.Rendered()
+		discarded := rendered["Syslog Discarded Bytes"]
+		require.NotEmpty(t, discarded)
+		assert.Equal(t, "25", discarded[0], "discarded bytes must equal the malformed run length exactly")
 	})
 }
 
