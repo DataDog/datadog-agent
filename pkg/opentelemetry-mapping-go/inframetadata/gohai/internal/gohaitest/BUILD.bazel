@@ -4,8 +4,7 @@ go_test(
     name = "gohaitest_test",
     srcs = ["gohai_test.go"],
     gotags = ["test"],
-    # TODO(ABLD-468): Make sysctl available in macos sandbox.
-    target_compatible_with = ["@platforms//os:linux"],
+    env_inherit = ["PATH"],
     deps = [
         "//pkg/opentelemetry-mapping-go/inframetadata/gohai",
         "@com_github_datadog_gohai//cpu",
