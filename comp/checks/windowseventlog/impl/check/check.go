@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/impl/check/eventdatafilter"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -71,6 +72,13 @@ type Check struct {
 	userRenderContext      evtapi.EventRenderContextHandle
 	bookmarkManager        evtbookmark.Manager
 	publisherMetadataCache publishermetadatacache.Component
+	issueReporter          healthplatformstore.Component
+}
+
+// SetIssueReporter sets the health platform store used to report issues from this check.
+// This implements the check.IssueAwareCheck interface.
+func (c *Check) SetIssueReporter(reporter healthplatformstore.Component) {
+	c.issueReporter = reporter
 }
 
 // Run updates sender stats, restarts the subscription if it failed, and saves the bookmark.
