@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "component.go",
         "params.go",
+        "pipeline.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def",
     visibility = ["//visibility:public"],

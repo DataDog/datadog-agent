@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "eventplatform",
+    srcs = ["pipelines.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams/eventplatform",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/eventplatform/def",
+        "//pkg/config/env",
+        "//pkg/util/ecs/metadata",
+        "//pkg/util/log",
+        "//pkg/version",
+    ],
+)
+
+go_test(
+    name = "eventplatform_test",
+    srcs = ["pipelines_test.go"],
+    embed = [":eventplatform"],
+    gotags = ["test"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)
