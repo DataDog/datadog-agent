@@ -553,6 +553,9 @@ func singlePhysicalCandidateSharingMAC(candidates map[int32]interfaceCandidate) 
 	var physicalCount int
 	var sharedMAC string
 	for _, c := range candidates {
+		if c.macAddress == "" {
+			return interfaceCandidate{}, false
+		}
 		if sharedMAC == "" {
 			sharedMAC = c.macAddress
 		} else if c.macAddress != sharedMAC {
@@ -566,7 +569,7 @@ func singlePhysicalCandidateSharingMAC(candidates map[int32]interfaceCandidate) 
 			}
 		}
 	}
-	return found, physicalCount == 1 && sharedMAC != ""
+	return found, physicalCount == 1
 }
 
 func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string][]interfaceCandidate, localInterfaceIDType string, localInterfaceID string) string {

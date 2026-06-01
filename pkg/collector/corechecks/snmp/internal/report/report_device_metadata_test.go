@@ -1416,6 +1416,11 @@ func Test_resolveLocalInterface_physicalPreferenceTiebreaker(t *testing.T) {
 				{ifIndex: 50, isPhysical: true, macAddress: macSharedByName},
 				{ifIndex: 51, isPhysical: false, macAddress: macSharedByName},
 			},
+			// One candidate carries a MAC, the other does not — must not tiebreak.
+			"Mixed1/0/1": {
+				{ifIndex: 60, isPhysical: true, macAddress: macSharedByName},
+				{ifIndex: 61, isPhysical: false},
+			},
 		},
 		"interface_alias": {},
 		"interface_index": {},
@@ -1474,6 +1479,12 @@ func Test_resolveLocalInterface_physicalPreferenceTiebreaker(t *testing.T) {
 			localIDType: "interface_name",
 			localID:     "Ten1/0/1-shared",
 			expectedID:  "default:1.2.3.4:50",
+		},
+		{
+			name:        "interface_name multi-match with one empty MAC stays unresolved",
+			localIDType: "interface_name",
+			localID:     "Mixed1/0/1",
+			expectedID:  "",
 		},
 	}
 	for _, tt := range tests {
