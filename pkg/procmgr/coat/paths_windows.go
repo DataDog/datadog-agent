@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package telemetry
+package coat
 
 import (
 	"os"

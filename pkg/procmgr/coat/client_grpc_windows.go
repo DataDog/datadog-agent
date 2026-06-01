@@ -3,26 +3,27 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build !windows
+//go:build windows
 
-package telemetry
+package coat
 
 import (
+	"context"
 	"fmt"
-	"os"
+	"net"
 
+	"github.com/Microsoft/go-winio"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 func dialProcmgrGRPC(socketPath string) (*grpc.ClientConn, error) {
-	if _, err := os.Stat(socketPath); err != nil {
-		return nil, err
-	}
-
 	conn, err := grpc.NewClient(
-		"unix://"+socketPath,
+		"passthrough:///procmgr",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
+			return winio.DialPipe(socketPath, nil)
+		}),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("connect to dd-procmgrd: %w", err)

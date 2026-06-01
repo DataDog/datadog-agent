@@ -1,7 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "telemetry",
+    name = "coat",
     srcs = [
         "client.go",
         "client_grpc.go",
@@ -16,9 +16,9 @@ go_library(
         "paths_windows.go",
         "reporter.go",
         "services.go",
-        "telemetry.go",
+        "snapshot.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/procmgr/telemetry",
+    importpath = "github.com/DataDog/datadog-agent/pkg/procmgr/coat",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/def",
@@ -36,9 +36,9 @@ go_library(
 )
 
 go_test(
-    name = "telemetry_test",
+    name = "coat_test",
     srcs = ["collector_test.go"],
-    embed = [":telemetry"],
+    embed = [":coat"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

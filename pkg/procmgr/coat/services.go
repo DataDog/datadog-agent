@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package telemetry
+package coat
 
 // MigratableService describes an agent service that can be supervised by dd-procmgrd.
 // Add future migrations by appending to migratableServices.

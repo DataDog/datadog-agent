@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package telemetry
+package coat
 
 import (
 	"path/filepath"

@@ -5,7 +5,7 @@
 
 //go:build !linux && !windows
 
-package telemetry
+package coat
 
 func detectLegacySupervisor(_ MigratableService) ManagementMode {
 	return ManagementModeNone

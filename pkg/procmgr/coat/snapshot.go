@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package telemetry reports dd-procmgrd health and agent service supervision mode to COAT.
-package telemetry
+// Package coat reports dd-procmgrd health and agent service supervision mode via COAT gauges.
+package coat
 
 import (
 	"os"
