@@ -9,7 +9,6 @@ package python
 
 import (
 	"sync"
-
 )
 
 var (
