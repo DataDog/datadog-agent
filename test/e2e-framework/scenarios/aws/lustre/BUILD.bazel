@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "lustre",
+    srcs = ["run.go"],
+    embedsrcs = ["conf.yaml"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/lustre",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_datadog_datadog_agent_test_e2e_framework//common/utils",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/agent",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/agentparams",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/apps/lustre",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/os",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//resources/aws",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//scenarios/aws/ec2",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)
