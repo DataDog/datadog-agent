@@ -225,6 +225,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 							"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
 							"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
 							"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
+							"internal_profiling_period":      commonsettings.NewProfilingPeriod(),
 							"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-cluster-agent"),
 						},
 						Config: c,
