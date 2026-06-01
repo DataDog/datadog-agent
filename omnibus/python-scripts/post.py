@@ -32,10 +32,7 @@ def post(install_directory, storage_location):
                     print(f"File '{diff_python_installed_packages_file}' not found.")
                     return 0
             else:
-                if not os.path.exists(flag_path):
-                    print(f"File '{flag_path}' found: no third party integration will be installed.")
-                else:
-                    print(f"No third party integration will be installed.")
+                print(f"File '{flag_path}' found: no third party integration will be installed.")
                 return 0
         else:
             print(f"Directory '{install_directory}' and '{storage_location}' not found.")

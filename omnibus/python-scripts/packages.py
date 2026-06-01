@@ -274,12 +274,15 @@ def install_diff_packages_file(install_directory, filename, exclude_filename):
     print(f"Installing python packages from: '{filename}'")
     install_packages = load_requirements(filename)
     exclude_packages = load_requirements(exclude_filename)
-    total = len(install_packages)
+    attempted = 0
+    skipped = 0
     failures = []
     for install_package_name, (install_package_line, _) in install_packages.items():
         if install_package_name in exclude_packages:
+            skipped += 1
             print(f"Skipping '{install_package_name}' as it's already included in '{exclude_filename}' file")
         else:
+            attempted += 1
             dep_name = packaging.requirements.Requirement(install_package_line).name
             try:
                 if install_package_line.startswith('datadog-') and dep_name not in DEPS_STARTING_WITH_DATADOG:
@@ -289,8 +292,8 @@ def install_diff_packages_file(install_directory, filename, exclude_filename):
             except IntegrationInstallError as e:
                 print(f"ERROR: {e}")
                 failures.append(e)
-    restored = total - len(failures)
-    print(f"Restore summary: {restored}/{total} package(s) restored successfully")
+    restored = attempted - len(failures)
+    print(f"Restore summary: {restored}/{attempted} package(s) restored successfully ({skipped} skipped)")
     if failures:
         names = ", ".join(e.package for e in failures)
         print(f"ERROR: failed to restore {len(failures)} package(s): {names}")
