@@ -15,6 +15,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/enrichment"
 	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi"
@@ -30,7 +31,12 @@ type CheckLoader struct {
 	enrichmentProvider enrichment.Provider
 }
 
-func newCheckLoader(_ sender.SenderManager, _ option.Option[integrations.Component], _ tagger.Component, _ workloadfilter.Component, loader ffi.LibraryLoader, enrichmentProvider enrichment.Provider) (*CheckLoader, error) {
+func newCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component, loader ffi.LibraryLoader, enrichmentProvider enrichment.Provider) (*CheckLoader, error) {
+	// Initialize the shared check context so the callback bridge can resolve a
+	// check's sender from its ID, the same way Python checks do. It is a no-op if
+	// another loader (e.g. the Python loader) already initialized it.
+	collectoraggregator.InitializeCheckContext(senderManager, logReceiver, tagger, filter)
+
 	return &CheckLoader{
 		loader:             loader,
 		enrichmentProvider: enrichmentProvider,

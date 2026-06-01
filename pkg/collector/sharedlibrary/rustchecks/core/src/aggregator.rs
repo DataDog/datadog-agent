@@ -1,7 +1,6 @@
 use crate::cstring::{CStringArrayGuard, CStringGuard};
 
-use std::ffi::{c_char, c_double, c_float, c_int, c_longlong, c_void};
-use std::os::raw::c_ulong;
+use std::ffi::{c_char, c_double, c_float, c_int, c_long, c_longlong, c_void};
 
 use anyhow::{Ok, Result};
 
@@ -38,13 +37,13 @@ pub enum ServiceCheckStatus {
     UNKNOWN = 3,
 }
 
-/// Event struct matching the ACR's C ABI layout.
-/// All string fields use `*const c_char` and timestamp is `c_ulong`.
+/// Event struct matching the slim_event_t C ABI layout.
+/// All string fields use `*const c_char` and timestamp is `c_long` to match `event_t.ts`.
 #[repr(C)]
 pub struct Event {
     pub title: *const c_char,
     pub text: *const c_char,
-    pub ts: c_ulong,
+    pub ts: c_long,
     pub priority: *const c_char,
     pub host: *const c_char,
     pub tags: *const *const c_char,
@@ -206,7 +205,7 @@ impl CallbackContext {
         &self,
         title: &str,
         text: &str,
-        timestamp: c_ulong,
+        timestamp: c_long,
         priority: &str,
         host: &str,
         tags: &[String],

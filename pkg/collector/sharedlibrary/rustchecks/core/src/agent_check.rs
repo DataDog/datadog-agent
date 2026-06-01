@@ -5,8 +5,7 @@ use super::config::Config;
 use super::enrichment::{EnrichmentData, K8sConnectionInfo};
 
 use std::collections::HashMap;
-use std::ffi::c_int;
-use std::os::raw::c_ulong;
+use std::ffi::{c_int, c_long};
 
 pub struct AgentCheck {
     callback: CallbackContext,  // submit callbacks via ACR-compatible ABI
@@ -72,6 +71,21 @@ impl AgentCheck {
         self.callback.submit_log(level, message)
     }
 
+    /// Submit a metric of the given type via the callback. The typed helpers
+    /// below (`gauge`, `rate`, ...) all delegate here.
+    fn submit_metric(
+        &self,
+        metric_type: MetricType,
+        name: &str,
+        value: f64,
+        tags: &[String],
+        hostname: &str,
+        flush_first_value: bool,
+    ) -> Result<()> {
+        self.callback
+            .submit_metric(metric_type, name, value, tags, hostname, flush_first_value)
+    }
+
     /// Send Gauge metric
     pub fn gauge(
         &self,
@@ -81,7 +95,7 @@ impl AgentCheck {
         hostname: &str,
         flush_first_value: bool,
     ) -> Result<()> {
-        self.callback.submit_metric(
+        self.submit_metric(
             MetricType::Gauge,
             name,
             value,
@@ -100,7 +114,7 @@ impl AgentCheck {
         hostname: &str,
         flush_first_value: bool,
     ) -> Result<()> {
-        self.callback.submit_metric(
+        self.submit_metric(
             MetricType::Rate,
             name,
             value,
@@ -119,7 +133,7 @@ impl AgentCheck {
         hostname: &str,
         flush_first_value: bool,
     ) -> Result<()> {
-        self.callback.submit_metric(
+        self.submit_metric(
             MetricType::Count,
             name,
             value,
@@ -138,7 +152,7 @@ impl AgentCheck {
         hostname: &str,
         flush_first_value: bool,
     ) -> Result<()> {
-        self.callback.submit_metric(
+        self.submit_metric(
             MetricType::MonotonicCount,
             name,
             value,
@@ -157,7 +171,7 @@ impl AgentCheck {
         hostname: &str,
         flush_first_value: bool,
     ) -> Result<()> {
-        self.callback.submit_metric(
+        self.submit_metric(
             MetricType::Counter,
             name,
             value,
@@ -176,7 +190,7 @@ impl AgentCheck {
         hostname: &str,
         flush_first_value: bool,
     ) -> Result<()> {
-        self.callback.submit_metric(
+        self.submit_metric(
             MetricType::Histogram,
             name,
             value,
@@ -195,7 +209,7 @@ impl AgentCheck {
         hostname: &str,
         flush_first_value: bool,
     ) -> Result<()> {
-        self.callback.submit_metric(
+        self.submit_metric(
             MetricType::Historate,
             name,
             value,
@@ -223,7 +237,7 @@ impl AgentCheck {
         &self,
         title: &str,
         text: &str,
-        timestamp: c_ulong,
+        timestamp: c_long,
         priority: &str,
         host: &str,
         tags: &[String],

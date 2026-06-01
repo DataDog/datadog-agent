@@ -27,11 +27,11 @@ typedef void (run_function_t)(char *, char *, char *, const aggregator_t *, cons
 
 // ---- New ACR-compatible types ----
 
-// Event struct for slim checks (const pointers, unsigned long ts)
+// Event struct for slim checks (const pointers, signed long ts matching event_t)
 typedef struct slim_event_s {
     const char *title;
     const char *text;
-    unsigned long ts;
+    long ts;
     const char *priority;
     const char *host;
     const char **tags;
