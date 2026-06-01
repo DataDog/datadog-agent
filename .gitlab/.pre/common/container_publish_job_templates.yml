@@ -8,33 +8,75 @@
   SRC_DDOT_EBPF: registry.ddbuild.io/ci/datadog-agent/ddot-ebpf
   SRC_SGC: registry.ddbuild.io/ci/datadog-agent/secret-generic-connector
 
+.legacy_public_images_publish:
+  variables:
+    PUBLIC_IMAGES_USE_LEGACY_TRIGGER: "true"
+
 .docker_publish_job_definition:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
   variables:
     <<: *docker_variables
+    DD_PKG_ARCH: x86_64
     IMG_VARIABLES: ""
     IMG_SIGNING: "false"
-  script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
+    PUBLIC_IMAGES_USE_LEGACY_TRIGGER: "false"
+  script:
     - |
+      export IMG_SIGNING=false
+
       if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMG_SOURCES" =~ "$SRC_AGENT" || "$IMG_SOURCES" =~ "$SRC_OTEL_AGENT" || "$IMG_SOURCES" =~ "$SRC_DDOT_EBPF" || "$IMG_SOURCES" =~ "$SRC_DCA" || "$IMG_SOURCES" =~ "$SRC_CWS_INSTRUMENTATION" || "$IMG_SOURCES" =~ "$SRC_SGC" || "$IMG_VARIABLES" =~ "$SRC_AGENT" || "$IMG_VARIABLES" =~ "$SRC_DDOT_EBPF" || "$IMG_VARIABLES" =~ "$SRC_DCA" || "$IMG_VARIABLES" =~ "$SRC_CWS_INSTRUMENTATION" || "$IMG_VARIABLES" =~ "$SRC_SGC" ) ]]; then
         export ECR_RELEASE_SUFFIX="-nightly"
       else
         export ECR_RELEASE_SUFFIX="${CI_COMMIT_TAG+-release}"
       fi
-    - IMG_VARIABLES="$(sed -E "s#(${SRC_AGENT}|${SRC_OTEL_AGENT}|${SRC_DDOT_EBPF}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION}|${SRC_SGC})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_VARIABLES")"
-    - IMG_SOURCES="$(sed -E "s#(${SRC_AGENT}|${SRC_OTEL_AGENT}|${SRC_DDOT_EBPF}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION}|${SRC_SGC})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_SOURCES")"
-    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/public-images --git-ref main --timeout 1800
-      --variable IMG_VARIABLES
-      --variable IMG_REGISTRIES
-      --variable IMG_SOURCES
-      --variable IMG_DESTINATIONS
-      --variable IMG_TAG_REFERENCE
-      --variable IMG_NEW_TAGS
-      --variable IMG_SIGNING
-      --variable APPS
-      --variable BAZEL_TARGET
-      --variable DDR
-      --variable DDR_WORKFLOW_ID
-      --variable TARGET_ENV
-      --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+      IMG_VARIABLES="$(sed -E "s#(${SRC_AGENT}|${SRC_OTEL_AGENT}|${SRC_DDOT_EBPF}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION}|${SRC_SGC})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_VARIABLES")"
+      IMG_SOURCES="$(sed -E "s#(${SRC_AGENT}|${SRC_OTEL_AGENT}|${SRC_DDOT_EBPF}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION}|${SRC_SGC})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_SOURCES")"
+
+      publish_with_legacy_trigger() {
+        dda inv pipeline.trigger-child-pipeline --project-name DataDog/public-images --git-ref main --timeout 1800 \
+          --variable IMG_VARIABLES \
+          --variable IMG_REGISTRIES \
+          --variable IMG_SOURCES \
+          --variable IMG_DESTINATIONS \
+          --variable IMG_TAG_REFERENCE \
+          --variable IMG_NEW_TAGS \
+          --variable IMG_SIGNING \
+          --variable APPS \
+          --variable BAZEL_TARGET \
+          --variable DDR \
+          --variable DDR_WORKFLOW_ID \
+          --variable TARGET_ENV \
+          --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS
+      }
+
+      ensure_dd_pkg() {
+        if ! command -v dd-pkg >/dev/null 2>&1; then
+          curl --retry 5 -sSL "https://dd-package-tools.s3.amazonaws.com/dd-pkg/${DD_PKG_VERSION}/dd-pkg_Linux_${DD_PKG_ARCH}.tar.gz" | tar -xz -C /usr/local/bin dd-pkg
+        fi
+        dd-pkg version
+      }
+
+      publish_with_dd_pkg() {
+        ensure_dd_pkg
+
+        args=(publish-image --timeout 1800 --poll-interval 30)
+
+        if [[ -n "${IMG_REGISTRIES:-}" ]]; then args+=(--registries "${IMG_REGISTRIES}"); fi
+        if [[ -n "${IMG_SOURCES:-}" ]]; then args+=(--sources "${IMG_SOURCES}"); fi
+        if [[ -n "${IMG_DESTINATIONS:-}" ]]; then args+=(--destinations "${IMG_DESTINATIONS}"); fi
+        if [[ -n "${IMG_DESTINATIONS_REGEX:-}" ]]; then args+=(--regex-expression "${IMG_DESTINATIONS_REGEX}"); fi
+        if [[ -n "${IMG_DESTINATIONS_REGEX_REPL:-}" ]]; then args+=(--regex-replacement "${IMG_DESTINATIONS_REGEX_REPL}"); fi
+        if [[ -n "${IMG_TAG_REFERENCE:-}" ]]; then args+=(--tag-reference "${IMG_TAG_REFERENCE}"); fi
+        if [[ -n "${IMG_NEW_TAGS:-}" ]]; then args+=(--new-tags "${IMG_NEW_TAGS}"); fi
+        if [[ -n "${IMG_VARIABLES:-}" ]]; then args+=(--variables "${IMG_VARIABLES}"); fi
+        if [[ -n "${IMG_MERGE_STRATEGY:-}" ]]; then args+=(--merge-strategy "${IMG_MERGE_STRATEGY}"); fi
+
+        dd-pkg "${args[@]}"
+      }
+
+      if [[ "${PUBLIC_IMAGES_USE_LEGACY_TRIGGER:-}" == "true" ]]; then
+        publish_with_legacy_trigger
+      else
+        publish_with_dd_pkg
+      fi
