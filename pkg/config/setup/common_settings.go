@@ -1306,25 +1306,6 @@ func agent(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
 }
 
-// ApplyDataPlaneDefaults sets ADP-appropriate defaults for config keys that have different
-// optimal values when the Agent Data Plane is handling metric processing. These defaults are
-// delivered to ADP via the config stream, so a single value in datadog.yaml controls both
-// the agent and ADP. User-provided values (file, env var) always take precedence.
-//
-// It is registered as an override func (runs after datadog.yaml loads) and also called
-// explicitly after fleet policy merging, because fleet policies are applied after the initial
-// override pass and may set data_plane.enabled or data_plane.dogstatsd.enabled.
-//
-// aggregator_tag_filter_cache_capacity: ADP processes significantly higher metric throughput
-// than the core agent aggregator, so it benefits from a larger cache (100,000 vs 1,000).
-func ApplyDataPlaneDefaults(config pkgconfigmodel.Config) {
-	if config.GetBool("data_plane.enabled") && config.GetBool("data_plane.dogstatsd.enabled") {
-		config.Set("aggregator_tag_filter_cache_capacity", 100000, pkgconfigmodel.SourceDefault)
-	} else {
-		config.Set("aggregator_tag_filter_cache_capacity", 1000, pkgconfigmodel.SourceDefault)
-	}
-}
-
 func fleet(config pkgconfigmodel.Setup) {
 	// Directory to store fleet policies
 	config.BindEnv("fleet_policies_dir") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -1522,6 +1503,9 @@ func aggregator(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("aggregator_buffer_size", 100)
 	config.BindEnvAndSetDefault("aggregator_use_tags_store", true)
 	config.BindEnvAndSetDefault("aggregator_tag_filter_cache_capacity", 1000)
+	// ADP processes significantly higher metric throughput than the core agent aggregator,
+	// so it benefits from a larger cache. Delivered to ADP via the config stream.
+	config.BindEnvAndSetDefault("data_plane.dogstatsd.aggregator_tag_filter_cache_capacity", 100000)
 	config.BindEnvAndSetDefault("basic_telemetry_add_container_tags", false) // configure adding the agent container tags to the basic agent telemetry metrics (e.g. `datadog.agent.running`)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_chan_size", 200)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size", 4000)
