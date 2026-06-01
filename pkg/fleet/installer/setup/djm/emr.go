@@ -177,31 +177,34 @@ func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 	emrResponseRaw, err := common.ExecuteCommandWithTimeout(s, "aws", "emr", "describe-cluster", "--cluster-id", jobFlowID)
 	if err != nil {
 		log.Warnf("error describing emr cluster, using cluster id as name: %v", err)
-		setEmrClusterNameSpanTags(span, jobFlowID, "job_flow_id", "aws_emr_describe_cluster_failed")
+		setEmrClusterNameSpanTags(span, jobFlowID, "job flow ID", "AWS EMR describe-cluster failed; using job flow ID as cluster name", err.Error())
 		err = nil
 		return jobFlowID
 	}
 	var response emrResponse
 	if err = json.Unmarshal(emrResponseRaw, &response); err != nil {
 		log.Warnf("error unmarshalling AWS EMR response,  using cluster id as name: %v", err)
-		setEmrClusterNameSpanTags(span, jobFlowID, "job_flow_id", "aws_emr_describe_cluster_response_unmarshal_failed")
+		setEmrClusterNameSpanTags(span, jobFlowID, "job flow ID", "Could not parse AWS EMR describe-cluster response; using job flow ID as cluster name", err.Error())
 		err = nil
 		return jobFlowID
 	}
 	clusterName := response.Cluster.Name
 	if clusterName == "" {
 		log.Warn("clusterName is empty, using cluster id as name")
-		setEmrClusterNameSpanTags(span, jobFlowID, "job_flow_id", "aws_emr_describe_cluster_returned_empty_name")
+		setEmrClusterNameSpanTags(span, jobFlowID, "job flow ID", "AWS EMR describe-cluster returned an empty cluster name; using job flow ID as cluster name", "")
 		return jobFlowID
 	}
-	setEmrClusterNameSpanTags(span, clusterName, "aws_emr_describe_cluster", "resolved_from_aws_emr_describe_cluster")
+	setEmrClusterNameSpanTags(span, clusterName, "AWS EMR describe-cluster", "Resolved cluster name from AWS EMR describe-cluster", "")
 	return clusterName
 }
 
-func setEmrClusterNameSpanTags(span *telemetry.Span, clusterName, source, reason string) {
+func setEmrClusterNameSpanTags(span *telemetry.Span, clusterName, source, reason, errorMessage string) {
 	span.SetTag("cluster_name", clusterName)
 	span.SetTag("cluster_name_source", source)
 	span.SetTag("cluster_name_resolution_reason", reason)
+	if errorMessage != "" {
+		span.SetTag("cluster_name_resolution_error_message", errorMessage)
+	}
 }
 
 func enableEmrLogs(s *common.Setup) {
