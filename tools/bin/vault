@@ -1,0 +1,66 @@
+#!/usr/bin/env dotslash
+{
+  "name": "vault",
+  "platforms": {
+    "macos-x86_64": {
+      "size": 159201453,
+      "hash": "sha256",
+      "digest": "3fde3001f454b853a6ab5155046866fe15192ec82e323f11c93cfcf67ed1e7b1",
+      "format": "zip",
+      "path": "vault",
+      "providers": [
+        {
+          "url": "https://releases.hashicorp.com/vault/1.17.2/vault_1.17.2_darwin_amd64.zip"
+        }
+      ]
+    },
+    "macos-aarch64": {
+      "size": 150964185,
+      "hash": "sha256",
+      "digest": "db43a2a5654b238424f55264231e33122c2180dbf86419b836d18dcc7ba66d3f",
+      "format": "zip",
+      "path": "vault",
+      "providers": [
+        {
+          "url": "https://releases.hashicorp.com/vault/1.17.2/vault_1.17.2_darwin_arm64.zip"
+        }
+      ]
+    },
+    "linux-x86_64": {
+      "size": 148550274,
+      "hash": "sha256",
+      "digest": "a0c0449e640c8be5dcf7b7b093d5884f6a85406dbb86bbad0ea06becad5aaab8",
+      "format": "zip",
+      "path": "vault",
+      "providers": [
+        {
+          "url": "https://releases.hashicorp.com/vault/1.17.2/vault_1.17.2_linux_amd64.zip"
+        }
+      ]
+    },
+    "linux-aarch64": {
+      "size": 140361278,
+      "hash": "sha256",
+      "digest": "1cdfd33e218ef145dbc3d71ac4164b89e453ff81b780ed178274bc1ba070e6e9",
+      "format": "zip",
+      "path": "vault",
+      "providers": [
+        {
+          "url": "https://releases.hashicorp.com/vault/1.17.2/vault_1.17.2_linux_arm64.zip"
+        }
+      ]
+    },
+    "windows-x86_64": {
+      "size": 151502536,
+      "hash": "sha256",
+      "digest": "7ed488aa8bbae5da75cbb909d454c5e86d7ac18389bdd9f844ce58007c6e3ac3",
+      "format": "zip",
+      "path": "vault.exe",
+      "providers": [
+        {
+          "url": "https://releases.hashicorp.com/vault/1.17.2/vault_1.17.2_windows_amd64.zip"
+        }
+      ]
+    }
+  }
+}
