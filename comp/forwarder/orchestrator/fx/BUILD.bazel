@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/forwarder/orchestrator/def",
-        "//pkg/util/fxutil",
         "//comp/forwarder/orchestrator/impl",
+        "//pkg/util/fxutil",
     ],
 )
