@@ -45,6 +45,7 @@ func detectParquetFormat(dir string) ParquetFormat {
 	return FormatV1
 }
 
+
 // ---- Metric reader ----
 
 type fgmMetric struct {
