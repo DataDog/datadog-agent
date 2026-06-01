@@ -7,10 +7,10 @@ package discoverer
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -78,14 +78,26 @@ func (d *defaultDiscoverer) Discover(_ context.Context, integrationName string, 
 		return Result{}, false
 	}
 
-	payload := python.DiscoveryService{ID: svcID, Host: host}
+	payload := discoveryService{ID: svcID, Host: host, Ports: []discoveryPort{}}
 	for _, p := range exposed {
-		payload.Ports = append(payload.Ports, python.DiscoveryPort{Number: p.Port, Name: p.Name})
+		payload.Ports = append(payload.Ports, discoveryPort{Number: p.Port, Name: p.Name})
+	}
+	serviceJSON, err := json.Marshal(payload)
+	if err != nil {
+		log.Warnf("autodiscovery/discoverer: could not marshal discovery service for %s: %v", svcID, err)
+		d.cache.putFailure(svcID, integrationName, d.retrySchedule)
+		return Result{}, false
 	}
 
-	configs, err := d.bridge.DiscoverConfig(integrationName, payload)
+	resultJSON, err := d.bridge.DiscoverConfig(integrationName, string(serviceJSON))
 	if err != nil {
 		log.Warnf("autodiscovery/discoverer: %s.discover_config() failed for %s: %v", integrationName, svcID, err)
+		d.cache.putFailure(svcID, integrationName, d.retrySchedule)
+		return Result{}, false
+	}
+	configs, err := parseDiscoveryResult(integrationName, resultJSON)
+	if err != nil {
+		log.Warnf("autodiscovery/discoverer: %s.discover_config() returned invalid config for %s: %v", integrationName, svcID, err)
 		d.cache.putFailure(svcID, integrationName, d.retrySchedule)
 		return Result{}, false
 	}

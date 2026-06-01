@@ -5,9 +5,8 @@
 
 // Package discoverer implements probe-based "advanced auto-config" by
 // dispatching the probe decision to a Python discover_config() classmethod on
-// the integration's check class. The Python side returns resolved configs
-// directly; this package handles caching, time budgeting, and
-// marshalling.
+// the integration's check class. This package owns the autodiscovery request
+// and response schemas, caching, time budgeting, and marshalling.
 package discoverer
 
 import (
@@ -15,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 )
 
 // Result is the output of a successful Discover call.
@@ -45,6 +43,6 @@ type Discoverer interface {
 // Production uses pkg/collector/python; tests use an in-memory fake.
 type Bridge interface {
 	// DiscoverConfig invokes the integration's Python discovery bridge for the
-	// service and returns discovered configs.
-	DiscoverConfig(integrationName string, service python.DiscoveryService) ([]integration.Config, error)
+	// service JSON payload and returns raw discovery result JSON.
+	DiscoverConfig(integrationName string, serviceJSON string) (string, error)
 }

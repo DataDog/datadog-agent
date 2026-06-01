@@ -9,11 +9,9 @@ package python
 
 import (
 	"errors"
-
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
 
 // DiscoverConfig is unavailable when the Agent is built without Python support.
-func DiscoverConfig(_ string, _ DiscoveryService) ([]integration.Config, error) {
-	return nil, errors.New("python support is not available")
+func DiscoverConfig(_ string, _ string) (string, error) {
+	return "", errors.New("python support is not available")
 }

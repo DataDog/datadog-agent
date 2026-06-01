@@ -8,7 +8,6 @@
 package discoverer
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 )
 
@@ -19,6 +18,6 @@ func NewPythonBridge() Bridge {
 	return &pythonBridge{}
 }
 
-func (b *pythonBridge) DiscoverConfig(integrationName string, service python.DiscoveryService) ([]integration.Config, error) {
-	return python.DiscoverConfig(integrationName, service)
+func (b *pythonBridge) DiscoverConfig(integrationName string, serviceJSON string) (string, error) {
+	return python.DiscoverConfig(integrationName, serviceJSON)
 }
