@@ -14,6 +14,9 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/cenkalti/backoff/v5"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8serrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -194,27 +197,85 @@ func startAutoscalersController(ctx *ControllerContext, c chan error) {
 	autoscalersController.runControllerLoop(ctx.StopCh)
 }
 
-// startDatadogInstrumentationController starts the shared DatadogInstrumentation reconciliation controller.
-func startDatadogInstrumentationController(ctx *ControllerContext, c chan error) {
-	controller, err := instrumentation.NewController(
-		ctx.DynamicUpdateClient,
-		ctx.DynamicInformerFactory,
-		ctx.InstrumentationHandlers,
-		ctx.IsLeaderFunc,
-	)
-	if err != nil {
-		c <- err
-		return
+// isInstrumentationCRDNotFound returns true if the error indicates the DatadogInstrumentation CRD
+// is not installed in the cluster (i.e., the API group is not registered).
+func isInstrumentationCRDNotFound(err error) bool {
+	status, ok := err.(*apierrors.StatusError)
+	if !ok {
+		return false
+	}
+	details := status.Status().Details
+	return status.Status().Reason == metav1.StatusReasonNotFound &&
+		details != nil &&
+		details.Group == instrumentation.DatadogInstrumentationGVR.Group
+}
+
+func tryCheckInstrumentationCRD(check checkAPI) error {
+	if err := check(); err != nil {
+		if isInstrumentationCRDNotFound(err) {
+			return err
+		}
+		log.Errorf("DatadogInstrumentation CRD check failed: not retryable: %s", err)
+		return backoff.Permanent(err)
+	}
+	log.Info("DatadogInstrumentation CRD check successful")
+	return nil
+}
+
+func waitForInstrumentationCRD(ctx context.Context, dynamicClient dynamic.Interface) {
+	exp := backoff.NewExponentialBackOff()
+	exp.InitialInterval = crdCheckInitialInterval
+	exp.RandomizationFactor = 0
+	exp.Multiplier = crdCheckMultiplier
+	exp.MaxInterval = crdCheckMaxInterval
+	exp.Reset()
+
+	check := func() error {
+		_, err := dynamicClient.Resource(instrumentation.DatadogInstrumentationGVR).List(context.TODO(), metav1.ListOptions{})
+		return err
 	}
 
+	attempt := 0
+	_, _ = backoff.Retry(ctx, func() (any, error) {
+		err := tryCheckInstrumentationCRD(check)
+		if err != nil && isInstrumentationCRDNotFound(err) {
+			attempt++
+			log.Warnf("DatadogInstrumentation CRD missing (attempt=%d): will retry", attempt)
+		}
+		return nil, err
+	}, backoff.WithBackOff(exp), backoff.WithMaxElapsedTime(crdCheckMaxElapsedTime))
+}
+
+// startDatadogInstrumentationController starts the shared DatadogInstrumentation reconciliation controller.
+// It waits asynchronously for the DatadogInstrumentation CRD to be installed before starting.
+func startDatadogInstrumentationController(ctx *ControllerContext, _ chan error) {
 	controllerCtx, cancel := context.WithCancel(context.Background())
 	go func() {
 		<-ctx.StopCh
 		cancel()
 	}()
 
-	go controller.Run(controllerCtx)
-	ctx.DynamicInformerFactory.Start(ctx.StopCh)
+	go func() {
+		waitForInstrumentationCRD(controllerCtx, ctx.DynamicClient)
+
+		if controllerCtx.Err() != nil {
+			return
+		}
+
+		controller, err := instrumentation.NewController(
+			ctx.DynamicUpdateClient,
+			ctx.DynamicInformerFactory,
+			ctx.InstrumentationHandlers,
+			ctx.IsLeaderFunc,
+		)
+		if err != nil {
+			log.Errorf("Failed to create DatadogInstrumentation controller: %v", err)
+			return
+		}
+
+		go controller.Run(controllerCtx)
+		ctx.DynamicInformerFactory.Start(ctx.StopCh)
+	}()
 }
 
 // registerServicesInformer registers the services informer.
