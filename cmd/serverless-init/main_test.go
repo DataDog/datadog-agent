@@ -8,20 +8,25 @@
 package main
 
 import (
+	"context"
+	"os"
 	"slices"
 	"testing"
 	"time"
 
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	agentmock "github.com/DataDog/datadog-agent/comp/logs/agent/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -29,6 +34,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// fakeHostname implements hostnameinterface.Component for tests.
+type fakeHostname struct{}
+
+func (fakeHostname) Get(_ context.Context) (string, error) { return "test-host", nil }
+func (fakeHostname) GetSafe(_ context.Context) string       { return "test-host" }
+func (fakeHostname) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
+	return hostnameinterface.Data{Hostname: "test-host", Provider: "test"}, nil
+}
 
 func TestTagsSetup(t *testing.T) {
 	configmock.New(t)
@@ -131,6 +145,29 @@ func TestSetupWithoutAPIKey(t *testing.T) {
 		traceAgent.SetTags(map[string]string{"test": "value"})
 		traceAgent.Stop()
 	})
+}
+
+func TestRCServiceNilWhenPreviewFlagAbsent(t *testing.T) {
+	var rcService *remoteconfig.CoreAgentService
+	if os.Getenv(mode.RemoteConfigPreviewEnvVar) == "true" {
+		rcService = setupRemoteConfig(fakeHostname{})
+	}
+	assert.Nil(t, rcService)
+}
+
+func TestRCServiceCreatedWhenPreviewFlagSet(t *testing.T) {
+	t.Setenv(mode.RemoteConfigPreviewEnvVar, "true")
+	t.Setenv("DD_API_KEY", "test-api-key")
+	t.Setenv("DD_RUN_PATH", t.TempDir())
+	configmock.New(t)
+	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t), nil)
+
+	var rcService *remoteconfig.CoreAgentService
+	if os.Getenv(mode.RemoteConfigPreviewEnvVar) == "true" {
+		rcService = setupRemoteConfig(fakeHostname{})
+	}
+	require.NotNil(t, rcService)
+	rcService.Stop()
 }
 
 // TestSetupOtlpAgentNoPanic ensures setupOtlpAgent does not panic when OTLP is enabled.
