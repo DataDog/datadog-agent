@@ -61,10 +61,9 @@ func (c *Collector) collectService(service MigratableService, processes map[stri
 		ManagementMode: ManagementModeNone,
 	}
 
-	if _, err := os.Stat(installMarkerPath(c.installRoot, service)); err != nil {
-		return status
+	if _, err := os.Stat(installMarkerPath(c.installRoot, service)); err == nil {
+		status.Installed = true
 	}
-	status.Installed = true
 
 	if _, err := os.Stat(procmgrConfigPath(c.installRoot, service.ProcmgrConfigFile)); err == nil {
 		status.ProcmgrConfigured = true
@@ -77,6 +76,7 @@ func (c *Collector) collectService(service MigratableService, processes map[stri
 	}
 
 	if legacyMode := detectLegacySupervisor(service); legacyMode != ManagementModeNone {
+		status.Installed = true
 		status.ManagementMode = legacyMode
 	}
 
