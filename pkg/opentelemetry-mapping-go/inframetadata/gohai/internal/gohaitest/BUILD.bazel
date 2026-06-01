@@ -3,8 +3,8 @@ load("@rules_go//go:def.bzl", "go_test")
 go_test(
     name = "gohaitest_test",
     srcs = ["gohai_test.go"],
-    gotags = ["test"],
     env_inherit = ["PATH"],
+    gotags = ["test"],
     deps = [
         "//pkg/opentelemetry-mapping-go/inframetadata/gohai",
         "@com_github_datadog_gohai//cpu",
