@@ -5,8 +5,12 @@ Each call runs `msgp` on `src` to produce `out` with any `patches` applied in or
 
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("@bazel_skylib//rules:select_file.bzl", "select_file")
 
-def _impl(name, directives, io, out, out_test, patch_strip, patches, src, visibility):
+def _impl(name, directives, io, out, out_test, patch_strip, patches, src, src_file, visibility):
+    if src_file:
+        select_file(name = "{}_src".format(name), srcs = src, subpath = src_file)
+        src = ":{}_src".format(name)
     files = {out: "{}_msgp/{}".format(name, out)}
     if out_test:
         files[out_test] = "{}_msgp/{}".format(name, out_test)
@@ -49,5 +53,6 @@ go_msgp = macro(
         "patch_strip": attr.int(configurable = False),
         "patches": attr.label_list(configurable = False),
         "src": attr.label(mandatory = True, allow_single_file = True, configurable = False),
+        "src_file": attr.string(configurable = False),
     },
 )
