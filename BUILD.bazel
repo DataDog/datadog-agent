@@ -567,7 +567,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/containers/metrics/mock
 # gazelle:exclude pkg/util/containers/metrics/system
 # gazelle:exclude pkg/util/crashreport
-# gazelle:exclude pkg/util/ec2/tags
 # gazelle:exclude pkg/util/kubelet
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status_templates
