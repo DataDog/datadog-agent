@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/discovery/configingestion/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/discovery/configingestion/def",
+        "//comp/discovery/configingestion/impl",
+        "//pkg/util/fxutil",
+    ],
+)

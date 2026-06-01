@@ -1692,6 +1692,10 @@ type Service struct {
 	// LogFiles are the log files associated with this service
 	LogFiles []string `proto:"ignore"`
 
+	// ConfigFiles are the configuration files associated with this service, discovered
+	// from the process command line and well-known paths.
+	ConfigFiles []string `proto:"ignore"`
+
 	// GeneratedNameSource indicates the source of the generated name
 	GeneratedNameSource string
 

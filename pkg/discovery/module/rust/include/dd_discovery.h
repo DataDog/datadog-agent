@@ -76,6 +76,7 @@ struct dd_service {
   struct dd_u16_slice tcp_ports;
   struct dd_u16_slice udp_ports;
   struct dd_strs log_files;
+  struct dd_strs config_files;
   bool apm_instrumentation;
   struct dd_str language;
 };

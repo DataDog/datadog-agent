@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "configingestion",
+    srcs = [
+        "content_type.go",
+        "envelope.go",
+        "integration.go",
+        "redact.go",
+        "sender.go",
+        "watcher.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/discovery/configingestion",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@//comp/core/workloadmeta/def",
+    ],
+)
+
+go_test(
+    name = "configingestion_test",
+    srcs = ["watcher_test.go"],
+    embed = [":configingestion"],
+    gotags = ["test"],
+    deps = [
+        "@//comp/core/workloadmeta/def",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

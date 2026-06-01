@@ -350,8 +350,12 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// Discovery config
 	cfg.BindEnvAndSetDefault("discovery.enabled", runtime.GOOS == "linux")
 	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", runtime.GOOS == "linux")
+	cfg.BindEnvAndSetDefault("discovery.use_rust_library", false)
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
+	cfg.BindEnvAndSetDefault("discovery.config_ingestion.enabled", false)
+	cfg.BindEnvAndSetDefault("discovery.config_ingestion.intake_url",
+		"https://all-internal-intake-logs.staging.dog/v2/track/demoalpha/org/47653")
 
 	// Privileged Logs config
 	cfg.BindEnvAndSetDefault("privileged_logs.enabled", false)

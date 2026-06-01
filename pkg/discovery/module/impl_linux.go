@@ -66,6 +66,8 @@ type discovery struct {
 func NewDiscoveryModule(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 	cfg := core.NewConfig()
 
+	InitDiscoveryLogger()
+
 	d := &discovery{
 		core: core.Discovery{
 			Config: cfg,
@@ -534,6 +536,11 @@ func (s *discovery) getPorts(context parsingContext, pid int32, sockets []uint64
 func (s *discovery) getServices(params core.Params) (*model.ServicesResponse, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
+
+	if s.config.UseRustLibrary {
+		return rustGetServices(params)
+	}
+
 	response := &model.ServicesResponse{
 		Services: make([]model.Service, 0),
 	}

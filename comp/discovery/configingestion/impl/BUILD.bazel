@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["impl.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/discovery/configingestion/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/discovery/configingestion/def",
+        "//pkg/discovery/configingestion",
+        "//pkg/util/option",
+        "@//comp/core/workloadmeta/def",
+        "@//pkg/util/hostname",
+    ],
+)
