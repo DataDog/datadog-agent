@@ -199,12 +199,12 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/conv-nonstr-key-exp/out.yaml",
 		},
 		{
-			name:     "multiple-otlphttp-exporters",
+			name:     "multiple-otlp_http-exporters",
 			provided: "no_agent/multi-otlp-exp/in.yaml",
 			expected: "no_agent/multi-otlp-exp/out.yaml",
 		},
 		{
-			name:     "ignores-non-otlphttp",
+			name:     "ignores-non-otlp_http",
 			provided: "no_agent/ignore-non-otlp/in.yaml",
 			expected: "no_agent/ignore-non-otlp/out.yaml",
 		},
@@ -283,6 +283,11 @@ func TestConverterWithoutAgent(t *testing.T) {
 			provided: "no_agent/int-metrics-mixed/in.yaml",
 			expected: "no_agent/int-metrics-mixed/out.yaml",
 		},
+		{
+			name:     "deprecated-otlphttp-name-accepted",
+			provided: "no_agent/deprecated-otlphttp/in.yaml",
+			expected: "no_agent/deprecated-otlphttp/out.yaml",
+		},
 	}
 
 	runSuccessTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)
@@ -306,14 +311,14 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 			expectedError: "symbol_endpoints cannot be empty",
 		},
 		{
-			name:          "errors-when-no-otlphttp",
+			name:          "errors-when-no-otlp_http",
 			provided:      "no_agent/error-no-otlp/in.yaml",
-			expectedError: "no otlphttp exporter configured",
+			expectedError: "no otlp_http exporter configured",
 		},
 		{
 			name:          "empty-pipeline",
 			provided:      "no_agent/empty-pipeline/in.yaml",
-			expectedError: "no otlphttp exporter configured",
+			expectedError: "no otlp_http exporter configured",
 		},
 		{
 			name:          "non-string-processor-name-in-pipeline",
