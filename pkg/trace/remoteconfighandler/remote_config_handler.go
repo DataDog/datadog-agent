@@ -321,10 +321,6 @@ func (h *RemoteConfigHandler) onSemanticCoreUpdate(
 	}
 	sort.Strings(cfgPaths)
 
-	if len(cfgPaths) > 1 {
-		pkglog.Warnf("semantic-core RC update delivered %d configs; expected 1. Using lex-last cfgPath: %s", len(cfgPaths), cfgPaths[len(cfgPaths)-1])
-	}
-
 	var chosen semantics.Registry
 	var chosenPath string
 	statuses := make(map[string]state.ApplyStatus, len(updates))
@@ -339,6 +335,10 @@ func (h *RemoteConfigHandler) onSemanticCoreUpdate(
 		// Last valid wins (cfgPaths is lex-sorted).
 		chosen = r
 		chosenPath = cfgPath
+	}
+
+	if len(cfgPaths) > 1 {
+		pkglog.Warnf("semantic-core RC update delivered %d configs; expected 1. Using lex-last cfgPath: %s", len(cfgPaths), chosenPath)
 	}
 
 	if chosen != nil {
