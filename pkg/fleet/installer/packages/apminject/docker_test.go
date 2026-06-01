@@ -69,6 +69,84 @@ func TestSetDockerConfig(t *testing.T) {
 	}
 }
 
+func TestSetDockerConfigWithSanitizedJSON(t *testing.T) {
+	a := &InjectorInstaller{
+		installPath: "/tmp/stable",
+	}
+
+	expected := `{
+    "default-runtime": "dd-shim",
+    "raw-logs": false,
+    "runtimes": {
+        "dd-shim": {
+            "path": "/tmp/stable/inject/auto_inject_runc"
+        }
+    }
+}`
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "UTF8BOM",
+			input: "\xEF\xBB\xBF" + `{
+    "raw-logs": false
+}`,
+			expected: expected,
+		},
+		{
+			name: "LineComments",
+			input: `{
+    // Docker 28 supports line comments in daemon.json
+    "raw-logs": false // inline comments are also accepted
+}`,
+			expected: expected,
+		},
+		{
+			name: "BlockComments",
+			input: `{
+    /*
+     * Docker 28 supports block comments in daemon.json
+     */
+    "raw-logs": false
+}`,
+			expected: expected,
+		},
+		{
+			name: "BOMAndComments",
+			input: "\xEF\xBB\xBF" + `{
+    // Comments outside strings should be stripped
+    "raw-logs": false,
+    "registry-mirrors": [
+        "https://mirror.example.com/path//value/*literal*/"
+    ] /* while comment markers inside strings are preserved */
+}`,
+			expected: `{
+    "default-runtime": "dd-shim",
+    "raw-logs": false,
+    "registry-mirrors": [
+        "https://mirror.example.com/path//value/*literal*/"
+    ],
+    "runtimes": {
+        "dd-shim": {
+            "path": "/tmp/stable/inject/auto_inject_runc"
+        }
+    }
+}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			output, err := a.setDockerConfigContent(context.TODO(), []byte(tc.input))
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, string(output))
+		})
+	}
+}
+
 func TestRemoveDockerConfig(t *testing.T) {
 	a := &InjectorInstaller{
 		installPath: "/tmp/stable",
@@ -165,6 +243,23 @@ func TestRemoveDockerConfig(t *testing.T) {
     }
 }`,
 		},
+		{
+			name: "FileWithBOMAndComments",
+			input: "\xEF\xBB\xBF" + `{
+    // Docker 28 supports comments in daemon.json
+    "default-runtime": "dd-shim",
+    "runtimes": {
+        /* injected runtime */
+        "dd-shim": {
+            "path": "/tmp/stable/inject/auto_inject_runc"
+        }
+    }
+}`,
+			expected: `{
+    "default-runtime": "runc",
+    "runtimes": {}
+}`,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -172,5 +267,30 @@ func TestRemoveDockerConfig(t *testing.T) {
 			assert.Nil(t, err)
 			assert.Equal(t, tc.expected, string(output))
 		})
+	}
+}
+
+func TestDockerConfigInvalidJSONError(t *testing.T) {
+	a := &InjectorInstaller{
+		installPath: "/tmp/stable",
+	}
+	input := []byte(`{
+    // The comment is stripped, but the config is still invalid.
+    "raw-logs":
+}`)
+
+	_, err := a.setDockerConfigContent(context.TODO(), input)
+	assertInvalidDockerConfigError(t, err)
+
+	_, err = a.deleteDockerConfigContent(context.TODO(), input)
+	assertInvalidDockerConfigError(t, err)
+}
+
+func assertInvalidDockerConfigError(t *testing.T, err error) {
+	t.Helper()
+	if assert.Error(t, err) {
+		assert.Contains(t, err.Error(), "/etc/docker/daemon.json appears to contain invalid JSON")
+		assert.Contains(t, err.Error(), "offset")
+		assert.Contains(t, err.Error(), "invalid character")
 	}
 }
