@@ -230,7 +230,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			eventType:                     eventplatform.EventTypeNetworkConfigManagement,
 			category:                      "Network Config Management",
 			contentType:                   logshttp.JSONContentType,
-			endpointsConfigPrefix:         "network_config_management.forwarder.",
+			endpointsConfigPrefix:         "network_devices.config_management.forwarder.",
 			hostnameEndpointPrefix:        "ndm-intake.",
 			intakeTrackType:               "ndmconfig",
 			defaultBatchMaxConcurrentSend: 10,
@@ -276,6 +276,18 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			// container images in the workloadmeta store. This can be a lot of
 			// payloads at once, so we need a large input channel size to avoid dropping
 			defaultInputChanSize: 1000,
+		},
+		{
+			eventType:                     eventplatform.EventTypeGenResources,
+			category:                      "Generic Resources",
+			contentType:                   logshttp.ProtobufContentType,
+			endpointsConfigPrefix:         "genresources.",
+			hostnameEndpointPrefix:        "resources-intake.",
+			intakeTrackType:               "genresources",
+			defaultBatchMaxConcurrentSend: 10,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 		},
 		{
 			eventType:                     eventplatform.EventTypeSynthetics,

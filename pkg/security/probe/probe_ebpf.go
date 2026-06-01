@@ -575,7 +575,7 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname)
+		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname, p.opts.FilterStore)
 		if err != nil {
 			return err
 		}
@@ -1765,6 +1765,12 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if event.SetSockOpt.IsFilterTruncated {
 			p.BPFFilterTruncated.Add(1)
 		}
+
+	case model.SocketEventType:
+		if !p.regularUnmarshalEvent(&event.Socket, eventType, offset, dataLen, data) {
+			return false
+		}
+
 	case model.SetrlimitEventType:
 		if !p.regularUnmarshalEvent(&event.Setrlimit, eventType, offset, dataLen, data) {
 			return false
@@ -2691,6 +2697,13 @@ func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.variableStoreMu.Lock()
 	p.variableStore = rs.GetVariableStore()
 	p.variableStoreMu.Unlock()
+
+	// Snapshot inherited SECL variables onto an entry before its parent link
+	// is changed, so the values resolved through inheritance survive the
+	// reparenting.
+	p.Resolvers.ProcessResolver.SetPreReparentCb(func(entry *model.ProcessCacheEntry) {
+		rs.CopyInheritedVariables(entry)
+	})
 
 	p.HandleRemediationStatus(rs)
 }

@@ -18,6 +18,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/def",
+        "//pkg/config/basic",
         "//pkg/config/helper",
         "//pkg/config/model",
         "@com_github_stretchr_testify//assert",

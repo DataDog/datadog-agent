@@ -312,8 +312,7 @@ Starlark is Python-like but with deliberate restrictions for hermeticity and par
 ### .bzl file organisation
 
 - Limit exported symbols per `.bzl` file — broad "utility" files cause wide rebuilds when anything changes.
-- Each file should export multiple symbols only when they are always used together. Otherwise split into separate files,
-  each wrapped with `bzl_library` from `bazel-skylib`.
+- Each file should export multiple symbols only when they are always used together. Otherwise split into separate files.
 
 ## Labels and references
 
