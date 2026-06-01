@@ -12,6 +12,8 @@ cd cmd/host-profiler/deploy
 
 **Otherwise**, use **[Standalone](standalone/README.md)** mode. The host profiler runs independently with no Agent required.
 
+If something isn't working, see [Troubleshooting](troubleshooting.md).
+
 ## Requirements
 
 **OS:** Linux (kernel 5.10+)

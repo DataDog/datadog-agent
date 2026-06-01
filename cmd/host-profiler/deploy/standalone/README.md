@@ -24,3 +24,7 @@ kubectl create secret generic datadog-secret \
   --from-literal=api-key="$DD_API_KEY" \
   --namespace dd-host-profiler
 ```
+
+## Verification
+
+After deploying the host profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Profiler Troubleshooting] guide.
