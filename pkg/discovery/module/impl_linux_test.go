@@ -25,7 +25,6 @@ import (
 	"testing"
 	"time"
 
-	gorillamux "github.com/gorilla/mux"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -60,7 +59,7 @@ type testDiscoveryModule struct {
 func setupRustLibraryDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	t.Helper()
 
-	mux := gorillamux.NewRouter()
+	mux := http.NewServeMux()
 
 	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
 	require.NoError(t, err)

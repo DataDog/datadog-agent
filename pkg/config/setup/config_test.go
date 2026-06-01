@@ -876,6 +876,21 @@ data_plane:
 	})
 }
 
+func TestDataPlaneDefaults(t *testing.T) {
+	cfg := confFromYAML(t, "")
+
+	assert.True(t, cfg.GetBool("data_plane.use_new_config_stream_endpoint"))
+	assert.True(t, cfg.GetBool("data_plane.remote_agent_enabled"))
+	assert.Equal(t, "tcp://0.0.0.0:5100", cfg.GetString("data_plane.api_listen_address"))
+	assert.Equal(t, "tcp://0.0.0.0:5101", cfg.GetString("data_plane.secure_api_listen_address"))
+	assert.False(t, cfg.GetBool("data_plane.telemetry_enabled"))
+	assert.Equal(t, "tcp://0.0.0.0:5102", cfg.GetString("data_plane.telemetry_listen_addr"))
+	assert.Equal(t, DefaultDataPlaneLogFile, cfg.GetString("data_plane.log_file"))
+	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.traces.enabled"))
+	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.metrics.enabled"))
+	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.logs.enabled"))
+}
+
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
 	// If use_podman_logs is true and docker_path_override is set, the config should return an error
 	datadogYaml := `
