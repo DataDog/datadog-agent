@@ -2,6 +2,7 @@
 name: agent-supply-chain-newsletter
 description: Generate the Agent Supply Chain newsletter by researching team activity on GitHub and Confluence, then creating a Confluence draft and Gmail draft
 argument-hint: "<period e.g. 'February-March 2026'>"
+model: sonnet
 ---
 
 Generate the Agent Supply Chain newsletter for the period **$ARGUMENTS** by researching what team members accomplished on GitHub and Confluence, then producing both a Confluence blog post draft and a Gmail draft.

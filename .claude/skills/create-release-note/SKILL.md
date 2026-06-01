@@ -3,6 +3,7 @@ name: create-release-note
 description: Create a reno release note for a PR or change
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 argument-hint: "[topic]"
+model: sonnet
 ---
 
 Create a release note file using the reno format. Release notes are **mandatory** for all PRs unless labeled `changelog/no-changelog`.

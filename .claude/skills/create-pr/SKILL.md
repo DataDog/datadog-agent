@@ -4,6 +4,7 @@ description: Create a pull request for the current branch with proper labels and
 disable-model-invocation: true
 allowed-tools: Bash, Read, Glob
 argument-hint: "[--real] [additional labels...]"
+model: sonnet
 ---
 
 Create a pull request for the current branch following the Datadog Agent contributing guidelines.
