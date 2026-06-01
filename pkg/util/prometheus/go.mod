@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/util/prometheus
 go 1.25.0
 
 require (
-	github.com/prometheus/common v0.67.5
+	github.com/prometheus/common v0.68.0
 	github.com/prometheus/prometheus v0.311.4-0.20260507094802-91c184a899b8
 	github.com/stretchr/testify v1.11.1
 )
@@ -30,7 +30,6 @@ require (
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/crypto v0.52.0 // indirect
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
