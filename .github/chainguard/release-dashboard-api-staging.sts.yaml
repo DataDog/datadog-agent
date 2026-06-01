@@ -3,5 +3,5 @@ issuer: https://vault.us1.staging.dog/v1/identity/oidc
 subject: rapid-agent-delivery.release-dashboard-api@kubernetes.us1.staging.dog
 
 permissions:
-	contents: read
-	pull_requests: read
+  contents: read
+  pull_requests: read
