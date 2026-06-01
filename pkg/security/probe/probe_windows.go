@@ -1564,6 +1564,11 @@ func (p *WindowsProbe) NewEvent() *model.Event {
 	return NewWindowsEvent(p.fieldHandlers)
 }
 
+// EnrichRuleEvent is a no-op on Windows. The Windows process model does not
+// share the Linux argv/envp truncation pipeline, so there is nothing to
+// backfill here.
+func (p *WindowsProbe) EnrichRuleEvent(_ *model.Event) {}
+
 // HandleActions executes the actions of a triggered rule
 func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 	ev := ctx.Event.(*model.Event)

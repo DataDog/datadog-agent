@@ -586,6 +586,9 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 		return false
 	}
 
+	// best-effort: re-resolve the matched process's argv/envp from /proc
+	e.probe.EnrichRuleEvent(ev)
+
 	// ensure that all the fields are resolved before sending
 	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ProcessContext.Process.ContainerContext)
 
