@@ -3,15 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package com_datadoghq_remotequeries
+package com_datadoghq_remoteaction_queries
 
 import "github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 
 const (
 	// BundleID is the local-only Remote Queries PAR bundle FQN.
-	BundleID = "com.datadoghq.remotequeries"
+	BundleID = "com.datadoghq.remoteaction.queries"
 
-	// ExecuteActionName is the action part of com.datadoghq.remotequeries.execute.
+	// ExecuteActionName is the action part of com.datadoghq.remoteaction.queries.execute.
 	ExecuteActionName = "execute"
 )
 

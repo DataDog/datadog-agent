@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build remotequeries_live && !windows
+//go:build remoteaction_queries_live && !windows
 
-package com_datadoghq_remotequeries_test
+package com_datadoghq_remoteaction_queries_test
 
 import (
 	"context"
@@ -23,7 +23,7 @@ import (
 
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
-	com_datadoghq_remotequeries "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remotequeries"
+	com_datadoghq_remoteaction_queries "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/queries"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -42,7 +42,7 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopAndFakeintake(t *testing.T) {
 	row, err := structpb.NewStruct(map[string]interface{}{"value": 1})
 	require.NoError(t, err)
 	bridgeRequests := make(chan *pb.RemoteQueryExecuteRequest, 1)
-	restoreFactory := com_datadoghq_remotequeries.SetBridgeClientFactoryForTest(func() (com_datadoghq_remotequeries.BridgeClient, error) {
+	restoreFactory := com_datadoghq_remoteaction_queries.SetBridgeClientFactoryForTest(func() (com_datadoghq_remoteaction_queries.BridgeClient, error) {
 		return &captureAgentSecureClient{
 			requests: bridgeRequests,
 			response: &pb.RemoteQueryExecuteResponse{Status: "SUCCEEDED", Rows: []*structpb.Struct{row}},
@@ -70,8 +70,8 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopAndFakeintake(t *testing.T) {
 		require.NoError(t, workflowRunner.Stop(stopCtx))
 	}()
 
-	taskID := "remotequeries-live-par-local-proof"
-	require.NoError(t, fakeintakeClient.EnqueuePARTask(taskID, com_datadoghq_remotequeries.BundleID+"."+com_datadoghq_remotequeries.ExecuteActionName, map[string]interface{}{
+	taskID := "remoteaction-queries-live-par-local-proof"
+	require.NoError(t, fakeintakeClient.EnqueuePARTask(taskID, com_datadoghq_remoteaction_queries.BundleID+"."+com_datadoghq_remoteaction_queries.ExecuteActionName, map[string]interface{}{
 		"integration": "postgres",
 		"target": map[string]interface{}{
 			"host":   "localhost",
@@ -127,15 +127,15 @@ func newLivePARTestConfig(t *testing.T, fakeintakeURL string) *parconfig.Config 
 
 	return &parconfig.Config{
 		ActionsAllowlist: map[string]sets.Set[string]{
-			com_datadoghq_remotequeries.BundleID: sets.New[string](com_datadoghq_remotequeries.ExecuteActionName),
+			com_datadoghq_remoteaction_queries.BundleID: sets.New[string](com_datadoghq_remoteaction_queries.ExecuteActionName),
 		},
 		DDHost:             fakeintakeURL,
 		DDApiHost:          "unused.local",
 		DatadogSite:        "local",
 		OrgId:              123456,
 		PrivateKey:         privateKey,
-		RunnerId:           "remotequeries-live-par-local-proof-runner",
-		Urn:                "urn:dd:apps:on-prem-runner:us1:123456:remotequeries-live-par-local-proof-runner",
+		RunnerId:           "remoteaction-queries-live-par-local-proof-runner",
+		Urn:                "urn:dd:apps:on-prem-runner:us1:123456:remoteaction-queries-live-par-local-proof-runner",
 		LoopInterval:       10 * time.Millisecond,
 		MinBackoff:         10 * time.Millisecond,
 		MaxBackoff:         50 * time.Millisecond,

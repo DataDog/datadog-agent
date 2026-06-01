@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build remotequeries_live && !windows
+//go:build remoteaction_queries_live && !windows
 
-package com_datadoghq_remotequeries_test
+package com_datadoghq_remoteaction_queries_test
 
 import (
 	"bytes"
@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
-	com_datadoghq_remotequeries "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remotequeries"
+	com_datadoghq_remoteaction_queries "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/queries"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	fakeintakeserver "github.com/DataDog/datadog-agent/test/fakeintake/server"
@@ -77,7 +77,7 @@ func TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC(t *t
 
 	waitForStandalonePARPolling(t, fakeintakeClient, cmd, parLog, &stdout, &stderr)
 
-	taskID := fmt.Sprintf("remotequeries-standalone-par-proof-%d", time.Now().UnixNano())
+	taskID := fmt.Sprintf("remoteaction-queries-standalone-par-proof-%d", time.Now().UnixNano())
 	proofQuery := remoteQueriesProofQueryFromEnv()
 	format := os.Getenv("RQ_REMOTE_FORMAT")
 	if format == "" {
@@ -95,7 +95,7 @@ func TestRemoteQueriesActionRunsThroughStandalonePARProcessWithRealAgentIPC(t *t
 	require.NoError(t, err)
 	requireNoCredentialShape(t, requestEvidence)
 
-	fqn := com_datadoghq_remotequeries.BundleID + "." + com_datadoghq_remotequeries.ExecuteActionName
+	fqn := com_datadoghq_remoteaction_queries.BundleID + "." + com_datadoghq_remoteaction_queries.ExecuteActionName
 	t.Logf("fakeintake task enqueued: task_id=%s action_fqn=%s inputs=%s", taskID, fqn, requestEvidence)
 	t.Logf("real AgentSecure IPC configured for standalone PAR: 127.0.0.1:%d RemoteQueryExecuteStream", cmdPortInt)
 	require.NoError(t, fakeintakeClient.EnqueuePARTask(taskID, fqn, inputs))
@@ -172,12 +172,12 @@ apm_config.enabled: false
 private_action_runner:
   enabled: true
   self_enroll: false
-  urn: "urn:dd:apps:on-prem-runner:us1:123456:remotequeries-standalone-par-local-proof-runner"
+  urn: "urn:dd:apps:on-prem-runner:us1:123456:remoteaction-queries-standalone-par-local-proof-runner"
   private_key: %q
   log_file: %q
   default_actions_enabled: false
   actions_allowlist:
-    - "com.datadoghq.remotequeries.execute"
+    - "com.datadoghq.remoteaction.queries.execute"
   task_concurrency: 1
   task_timeout_seconds: 120
 `, fakeintakeURL, cmdPort, authTokenFile, ipcCertFile, privateKeyB64, logFile)

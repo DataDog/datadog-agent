@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build remotequeries_live && !windows
+//go:build remoteaction_queries_live && !windows
 
-package com_datadoghq_remotequeries_test
+package com_datadoghq_remoteaction_queries_test
 
 import (
 	"bytes"
@@ -21,7 +21,7 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	parapp "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
-	com_datadoghq_remotequeries "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remotequeries"
+	com_datadoghq_remoteaction_queries "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/queries"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
@@ -90,7 +90,7 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC(t *testing.T)
 		require.NoError(t, workflowRunner.Stop(stopCtx))
 	}()
 
-	taskID := fmt.Sprintf("remotequeries-fused-local-proof-%d", time.Now().UnixNano())
+	taskID := fmt.Sprintf("remoteaction-queries-fused-local-proof-%d", time.Now().UnixNano())
 	proofQuery := remoteQueriesProofQueryFromEnv()
 	inputs := map[string]interface{}{
 		"integration": "postgres",
@@ -106,7 +106,7 @@ func TestRemoteQueriesActionRunsThroughLivePARLoopWithRealAgentIPC(t *testing.T)
 	require.NotContains(t, string(requestEvidence), "token")
 	require.NotContains(t, string(requestEvidence), "secret")
 
-	fqn := com_datadoghq_remotequeries.BundleID + "." + com_datadoghq_remotequeries.ExecuteActionName
+	fqn := com_datadoghq_remoteaction_queries.BundleID + "." + com_datadoghq_remoteaction_queries.ExecuteActionName
 	t.Logf("fakeintake task enqueued: task_id=%s action_fqn=%s inputs=%s", taskID, fqn, requestEvidence)
 	t.Logf("real AgentSecure IPC configured: 127.0.0.1:%d RemoteQueryExecuteStream", cmdPortInt)
 	require.NoError(t, fakeintakeClient.EnqueuePARTask(taskID, fqn, inputs))

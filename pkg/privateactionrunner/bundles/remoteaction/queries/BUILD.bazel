@@ -1,13 +1,13 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "remotequeries",
+    name = "queries",
     srcs = [
         "entrypoint.go",
         "execute.go",
         "ipc_client.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remotequeries",
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/queries",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/api/security/cert",
@@ -23,9 +23,9 @@ go_library(
 )
 
 go_test(
-    name = "remotequeries_test",
+    name = "queries_test",
     srcs = ["execute_test.go"],
-    embed = [":remotequeries"],
+    embed = [":queries"],
     gotags = ["test"],
     deps = [
         "//pkg/privateactionrunner/libs/privateconnection",

@@ -42,8 +42,8 @@ import (
 	com_datadoghq_mongodb "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/mongodb"
 	com_datadoghq_remoteaction "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction"
 	com_datadoghq_remoteaction_networks "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networks"
+	com_datadoghq_remoteaction_queries "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/queries"
 	com_datadoghq_remoteaction_rshell "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/rshell"
-	com_datadoghq_remotequeries "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remotequeries"
 	com_datadoghq_script "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/script"
 	com_datadoghq_temporal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/temporal"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -87,8 +87,8 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 			"com.datadoghq.mongodb":                    com_datadoghq_mongodb.NewMongoDB(),
 			"com.datadoghq.remoteaction":               com_datadoghq_remoteaction.NewRemoteAction(configuration),
 			"com.datadoghq.remoteaction.networks":      com_datadoghq_remoteaction_networks.NewNetworks(traceroute, eventPlatform),
+			"com.datadoghq.remoteaction.queries":       com_datadoghq_remoteaction_queries.NewRemoteQueriesBundle(),
 			"com.datadoghq.remoteaction.rshell":        com_datadoghq_remoteaction_rshell.NewRshellBundle(configuration),
-			"com.datadoghq.remotequeries":              com_datadoghq_remotequeries.NewRemoteQueriesBundle(),
 			"com.datadoghq.script":                     com_datadoghq_script.NewScript(),
 			"com.datadoghq.temporal":                   com_datadoghq_temporal.NewTemporal(),
 		},
