@@ -165,6 +165,11 @@ type dsdServer struct {
 	ServerlessMode bool
 	udpLocalAddr   string
 
+	// flushOnStop, when true, drains every worker's batched samples into the
+	// time sampler during stop() before the worker loops are torn down. Cached
+	// from dogstatsd_flush_on_stop at construction (serverless opts in).
+	flushOnStop bool
+
 	// originTelemetry is true if we want to report telemetry per origin.
 	originTelemetry bool
 
@@ -312,6 +317,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		pidMap:               pidMap,
 		cachedOriginCounters: make(map[string]cachedOriginCounter),
 		ServerlessMode:       serverless,
+		flushOnStop:          cfg.GetBool("dogstatsd_flush_on_stop"),
 		enrichConfig: enrichConfig{
 			metricPrefix:              metricPrefix,
 			metricPrefixBlacklist:     metricPrefixBlacklist,
@@ -513,6 +519,26 @@ func (s *dsdServer) stop(context.Context) error {
 	for _, l := range s.listeners {
 		l.Stop()
 	}
+
+	// When flush-on-stop is enabled (serverless), drain every worker's batched
+	// samples into the time sampler before tearing down the worker loops. Each
+	// worker receives once on its own flushChan and runs batcher.flush() exactly
+	// once. This must happen BEFORE close(s.stopChan): once the stop channel is
+	// closed, workers exit their run loop and would never observe the flush.
+	//
+	// The send on the unbuffered flushChan is intentionally unguarded (no select
+	// on s.stopChan). It is safe only because we hold startedMtx.Lock and
+	// early-returned on !IsRunning above: every worker is still in its run loop
+	// (workers exit only on close(s.stopChan), which happens below after this
+	// loop), so each send is guaranteed a receiver and cannot deadlock. Do not
+	// add a stopChan guard here.
+	if s.flushOnStop {
+		s.log.Debug("dogstatsd_flush_on_stop: draining worker batchers before stop")
+		for _, w := range s.workers {
+			w.flushChan <- struct{}{}
+		}
+	}
+
 	close(s.stopChan)
 
 	if s.Statistics != nil {

@@ -38,6 +38,11 @@ type worker struct {
 
 	FilterListUpdate chan utilstrings.Matcher
 	filterList       utilstrings.Matcher
+
+	// flushChan is per-worker. The flush-on-stop path (dsdServer.stop) sends
+	// once to each worker's channel to guarantee every worker's batcher is
+	// flushed exactly once before the worker loop is torn down.
+	flushChan chan struct{}
 }
 
 func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry, filterList utilstrings.Matcher) *worker {
@@ -56,6 +61,7 @@ func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Com
 		packetsTelemetry: packetsTelemetry,
 		FilterListUpdate: make(chan utilstrings.Matcher),
 		filterList:       filterList,
+		flushChan:        make(chan struct{}),
 	}
 }
 
@@ -65,7 +71,7 @@ func (w *worker) run() {
 		case <-w.server.stopChan:
 			return
 		case <-w.server.health.C:
-		case <-w.server.serverlessFlushChan:
+		case <-w.flushChan:
 			w.batcher.flush()
 		case filterList := <-w.FilterListUpdate:
 			w.filterList = filterList
