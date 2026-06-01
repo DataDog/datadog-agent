@@ -182,7 +182,10 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 		return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, nil, false, nil
 	}
 
-	rcService := setupRemoteConfigIfPreviewEnabled(hostname)
+	var rcService *remoteconfig.CoreAgentService
+	if os.Getenv(mode.RemoteConfigPreviewEnvVar) == "true" {
+		rcService = setupRemoteConfig(hostname)
+	}
 
 	traceTags := serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags)
 	traceAgent := setupTraceAgent(traceTags, tagConfig.ConfiguredTags, tagger, origin, rcService)
@@ -326,16 +329,6 @@ func (noopRcTelemetryReporter) IncConfigSubscriptionsConnectedCounter()    {}
 func (noopRcTelemetryReporter) IncConfigSubscriptionsDisconnectedCounter() {}
 func (noopRcTelemetryReporter) SetConfigSubscriptionsActive(int)           {}
 func (noopRcTelemetryReporter) SetConfigSubscriptionClientsTracked(int)    {}
-
-// setupRemoteConfigIfPreviewEnabled returns nil unless the serverless RC preview
-// flag is opted in; otherwise it delegates to setupRemoteConfig. This is the gate
-// that keeps Remote Config off by default in serverless-init.
-func setupRemoteConfigIfPreviewEnabled(hostname hostnameinterface.Component) *remoteconfig.CoreAgentService {
-	if os.Getenv(mode.RemoteConfigPreviewEnvVar) != "true" {
-		return nil
-	}
-	return setupRemoteConfig(hostname)
-}
 
 // setupRemoteConfig starts the embedded RC service that backs the trace agent's
 // /v0.7/config proxy. Returns nil if RC is disabled or setup fails.
