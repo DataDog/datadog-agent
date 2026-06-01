@@ -317,9 +317,7 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 }
 
 // noopRcTelemetryReporter satisfies RcTelemetryReporter for remoteconfig.NewService.
-// comp/core/telemetry is disabled on serverless builds (//go:build !serverless),
-// so we can't use the real DdRcTelemetryReporter. The six skipped metrics cover
-// RC-internal health (rate limiting, subscription churn) and are not functional.
+// The skipped metrics cover RC-internal health (rate limiting, subscription churn) and are not user-observable.
 type noopRcTelemetryReporter struct{}
 
 func (noopRcTelemetryReporter) IncTimeout()                                {}
@@ -337,7 +335,7 @@ func setupRemoteConfig(hostname hostnameinterface.Component) *remoteconfig.CoreA
 		log.Debug("Remote Config is disabled, skipping RC service setup")
 		return nil
 	}
-	if os.Getenv("DD_REMOTE_CONFIGURATION_ENABLED_SERVERLESS_PREVIEW") != "true" {
+	if os.Getenv(mode.RemoteConfigPreviewEnvVar) != "true" {
 		log.Debug("Remote Config serverless preview is not enabled, skipping RC service setup")
 		return nil
 	}

@@ -147,10 +147,17 @@ func TestAddToString(t *testing.T) {
 	assert.Equal(t, "0:1", addToString(oldStr, ":", "1"))
 }
 
-func TestDetectModeDoesNotForceDisableRemoteConfig(t *testing.T) {
+func TestDetectModeDoesNotForceDisableRemoteConfigWhenPreviewEnabled(t *testing.T) {
+	t.Setenv(RemoteConfigPreviewEnvVar, "true")
 	conf := DetectMode()
 	_, rcPresent := conf.EnvDefaults["DD_REMOTE_CONFIGURATION_ENABLED"]
 	_, telPresent := conf.EnvDefaults["DD_INSTRUMENTATION_TELEMETRY_ENABLED"]
-	assert.False(t, rcPresent, "DD_REMOTE_CONFIGURATION_ENABLED must not be overridden by serverless-init")
-	assert.False(t, telPresent, "DD_INSTRUMENTATION_TELEMETRY_ENABLED must not be overridden by serverless-init")
+	assert.False(t, rcPresent, "DD_REMOTE_CONFIGURATION_ENABLED must not be overridden by serverless-init when preview is enabled")
+	assert.False(t, telPresent, "DD_INSTRUMENTATION_TELEMETRY_ENABLED must not be overridden by serverless-init when preview is enabled")
+}
+
+func TestDetectModeForceDisablesRCWithoutPreviewFlag(t *testing.T) {
+	conf := DetectMode()
+	assert.Equal(t, "false", conf.EnvDefaults["DD_REMOTE_CONFIGURATION_ENABLED"])
+	assert.Equal(t, "false", conf.EnvDefaults["DD_INSTRUMENTATION_TELEMETRY_ENABLED"])
 }

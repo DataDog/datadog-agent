@@ -151,7 +151,7 @@ func TestSetupRemoteConfigReturnsNilWithoutPreviewFlag(t *testing.T) {
 
 func TestSetupRemoteConfigReturnsNilWithNoAPIKey(t *testing.T) {
 	configmock.New(t)
-	t.Setenv("DD_REMOTE_CONFIGURATION_ENABLED_SERVERLESS_PREVIEW", "true")
+	t.Setenv(mode.RemoteConfigPreviewEnvVar, "true")
 	t.Setenv("DD_API_KEY", "")
 	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t), nil)
 
