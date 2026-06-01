@@ -205,9 +205,11 @@ impl DatadogClient {
         };
 
         match ureq::post(&self.intake_url)
-            .timeout(AGENT_REQUEST_TIMEOUT)
-            .set("Content-Type", "application/json")
-            .set("X-Datadog-EVP-Subdomain", &self.evp_subdomain)
+            .config()
+            .timeout_global(Some(AGENT_REQUEST_TIMEOUT))
+            .build()
+            .header("Content-Type", "application/json")
+            .header("X-Datadog-EVP-Subdomain", &self.evp_subdomain)
             .send_json(&body)
         {
             Ok(resp) => {

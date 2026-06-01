@@ -33,7 +33,7 @@ func TestBuildExportersAdditionalHTTPHeaders(t *testing.T) {
 
 	exporters, ok := conf["exporters"].(confMap)
 	require.True(t, ok)
-	exporter, ok := exporters["otlphttp/datadoghq.com_0"].(confMap)
+	exporter, ok := exporters["otlp_http/datadoghq.com_0"].(confMap)
 	require.True(t, ok)
 	headers, ok := exporter["headers"].(confMap)
 	require.True(t, ok)
@@ -56,7 +56,7 @@ func TestBuildExportersNoAdditionalHTTPHeaders(t *testing.T) {
 
 	exporters, ok := conf["exporters"].(confMap)
 	require.True(t, ok)
-	exporter, ok := exporters["otlphttp/datadoghq.com_0"].(confMap)
+	exporter, ok := exporters["otlp_http/datadoghq.com_0"].(confMap)
 	require.True(t, ok)
 	headers, ok := exporter["headers"].(confMap)
 	require.True(t, ok)
@@ -80,7 +80,7 @@ func TestBuildConfigDDProfilingEnabled(t *testing.T) {
 
 	extensions, ok := conf["extensions"].(confMap)
 	require.True(t, ok)
-	ddprofiling, ok := extensions["ddprofiling/default"].(confMap)
+	ddprofiling, ok := extensions[ddprofilingName].(confMap)
 	require.True(t, ok)
 	assert.Empty(t, ddprofiling, "ddprofiling config should be empty when period is not set")
 
@@ -88,8 +88,8 @@ func TestBuildConfigDDProfilingEnabled(t *testing.T) {
 	require.True(t, ok)
 	svcExtensions, ok := service["extensions"].([]any)
 	require.True(t, ok)
-	assert.Contains(t, svcExtensions, "ddprofiling/default")
-	assert.Contains(t, svcExtensions, "hpflare/default")
+	assert.Contains(t, svcExtensions, ddprofilingName)
+	assert.Contains(t, svcExtensions, hpflareName)
 }
 
 func TestBuildConfigDDProfilingEnabledWithPeriod(t *testing.T) {
@@ -107,7 +107,7 @@ func TestBuildConfigDDProfilingEnabledWithPeriod(t *testing.T) {
 
 	extensions, ok := conf["extensions"].(confMap)
 	require.True(t, ok)
-	ddprofiling, ok := extensions["ddprofiling/default"].(confMap)
+	ddprofiling, ok := extensions[ddprofilingName].(confMap)
 	require.True(t, ok)
 	profilerOptions, ok := ddprofiling["profiler_options"].(confMap)
 	require.True(t, ok)
@@ -117,7 +117,7 @@ func TestBuildConfigDDProfilingEnabledWithPeriod(t *testing.T) {
 	require.True(t, ok)
 	svcExtensions, ok := service["extensions"].([]any)
 	require.True(t, ok)
-	assert.Contains(t, svcExtensions, "ddprofiling/default")
+	assert.Contains(t, svcExtensions, ddprofilingName)
 }
 
 func TestBuildConfigDDProfilingDisabled(t *testing.T) {
@@ -132,15 +132,15 @@ func TestBuildConfigDDProfilingDisabled(t *testing.T) {
 
 	extensions, ok := conf["extensions"].(confMap)
 	require.True(t, ok)
-	_, ok = extensions["ddprofiling/default"]
+	_, ok = extensions[ddprofilingName]
 	assert.False(t, ok, "ddprofiling extension should not be present when disabled")
 
 	service, ok := conf["service"].(confMap)
 	require.True(t, ok)
 	svcExtensions, ok := service["extensions"].([]any)
 	require.True(t, ok)
-	assert.NotContains(t, svcExtensions, "ddprofiling/default")
-	assert.Contains(t, svcExtensions, "hpflare/default")
+	assert.NotContains(t, svcExtensions, ddprofilingName)
+	assert.Contains(t, svcExtensions, hpflareName)
 }
 
 func TestBuildConfigHPFlareCustomPort(t *testing.T) {
@@ -158,7 +158,7 @@ func TestBuildConfigHPFlareCustomPort(t *testing.T) {
 
 	extensions, ok := conf["extensions"].(confMap)
 	require.True(t, ok)
-	hpflare, ok := extensions["hpflare/default"].(confMap)
+	hpflare, ok := extensions[hpflareName].(confMap)
 	require.True(t, ok)
 	assert.Equal(t, "localhost:9999", hpflare["endpoint"])
 }
@@ -175,7 +175,7 @@ func TestBuildConfigHPFlareDefaultPort(t *testing.T) {
 
 	extensions, ok := conf["extensions"].(confMap)
 	require.True(t, ok)
-	hpflare, ok := extensions["hpflare/default"].(confMap)
+	hpflare, ok := extensions[hpflareName].(confMap)
 	require.True(t, ok)
 	assert.Equal(t, "localhost:7778", hpflare["endpoint"])
 }
@@ -198,7 +198,7 @@ func TestBuildExportersAdditionalHTTPHeadersDoNotOverrideRequired(t *testing.T) 
 
 	exporters, ok := conf["exporters"].(confMap)
 	require.True(t, ok)
-	exporter, ok := exporters["otlphttp/datadoghq.com_0"].(confMap)
+	exporter, ok := exporters["otlp_http/datadoghq.com_0"].(confMap)
 	require.True(t, ok)
 	headers, ok := exporter["headers"].(confMap)
 	require.True(t, ok)
