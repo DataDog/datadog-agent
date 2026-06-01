@@ -85,6 +85,14 @@ func TestSetDockerConfigWithSanitizedJSON(t *testing.T) {
         }
     }
 }`
+	emptyExpected := `{
+    "default-runtime": "dd-shim",
+    "runtimes": {
+        "dd-shim": {
+            "path": "/tmp/stable/inject/auto_inject_runc"
+        }
+    }
+}`
 
 	tests := []struct {
 		name     string
@@ -137,6 +145,14 @@ func TestSetDockerConfigWithSanitizedJSON(t *testing.T) {
         }
     }
 }`,
+		},
+		{
+			name: "BOMAndOnlyComments",
+			input: "\xEF\xBB\xBF" + `// Docker 28 supports comment-only daemon.json files
+/*
+ * Empty config expressed with comments only.
+ */`,
+			expected: emptyExpected,
 		},
 	}
 
@@ -257,6 +273,17 @@ func TestRemoveDockerConfig(t *testing.T) {
         }
     }
 }`,
+			expected: `{
+    "default-runtime": "runc",
+    "runtimes": {}
+}`,
+		},
+		{
+			name: "FileWithOnlyBOMAndComments",
+			input: "\xEF\xBB\xBF" + `// Docker 28 supports comment-only daemon.json files
+/*
+ * Empty config expressed with comments only.
+ */`,
 			expected: `{
     "default-runtime": "runc",
     "runtimes": {}

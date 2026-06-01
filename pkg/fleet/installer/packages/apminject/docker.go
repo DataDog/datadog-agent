@@ -102,7 +102,11 @@ func sanitizeJSON(content []byte) []byte {
 }
 
 func unmarshalDockerConfigContent(content []byte, dockerConfig *dockerDaemonConfig) error {
-	if err := json.Unmarshal(sanitizeJSON(content), dockerConfig); err != nil {
+	content = bytes.TrimSpace(sanitizeJSON(content))
+	if len(content) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(content, dockerConfig); err != nil {
 		return wrapDockerConfigError(err)
 	}
 	return nil
