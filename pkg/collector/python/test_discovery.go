@@ -12,8 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
 
 /*
@@ -80,21 +78,17 @@ func setupDiscoveryTest(t *testing.T) {
 
 func testDiscoverConfig(t *testing.T) {
 	setupDiscoveryTest(t)
-	C.discover_config_return = C.CString(`[{"url":"http://10.0.0.1:8080"}]`)
+	resultJSON := `[{"init_config":{"enabled":true},"instances":[{"url":"http://10.0.0.1:8080"}],"logs":[{"source":"fake"}]}]`
+	serviceJSON := `{"id":"svc","host":"10.0.0.1","ports":[{"number":8080,"name":"http"}]}`
+	C.discover_config_return = C.CString(resultJSON)
 
-	configs, err := DiscoverConfig("fake_check", DiscoveryService{
-		ID:   "svc",
-		Host: "10.0.0.1",
-		Ports: []DiscoveryPort{
-			{Number: 8080, Name: "http"},
-		},
-	})
+	got, err := DiscoverConfig("fake_check", serviceJSON)
 
 	require.NoError(t, err)
-	assert.Equal(t, []integration.Data{integration.Data(`{"url":"http://10.0.0.1:8080"}`)}, configs)
+	assert.Equal(t, resultJSON, got)
 	assert.Equal(t, 1, int(C.discover_config_calls))
 	assert.Equal(t, C.get_class_dd_wheel_py_class, C.discover_config_py_class)
-	assert.Equal(t, `{"id":"svc","host":"10.0.0.1","ports":[{"number":8080,"name":"http"}]}`, C.GoString(C.discover_config_service_json))
+	assert.Equal(t, serviceJSON, C.GoString(C.discover_config_service_json))
 }
 
 func testDiscoverConfigCustomCheck(t *testing.T) {
@@ -105,16 +99,13 @@ func testDiscoverConfigCustomCheck(t *testing.T) {
 	C.get_class_return = 1
 	C.get_class_py_module = newMockPyObjectPtr()
 	C.get_class_py_class = newMockPyObjectPtr()
-	C.discover_config_return = C.CString(`[{"url":"http://10.0.0.1:8080"}]`)
+	resultJSON := `[{"instances":[{"url":"http://10.0.0.1:8080"}]}]`
+	C.discover_config_return = C.CString(resultJSON)
 
-	configs, err := DiscoverConfig("fake_check", DiscoveryService{
-		ID:    "svc",
-		Host:  "10.0.0.1",
-		Ports: []DiscoveryPort{},
-	})
+	got, err := DiscoverConfig("fake_check", `{"id":"svc","host":"10.0.0.1","ports":[]}`)
 
 	require.NoError(t, err)
-	assert.Equal(t, []integration.Data{integration.Data(`{"url":"http://10.0.0.1:8080"}`)}, configs)
+	assert.Equal(t, resultJSON, got)
 	assert.Equal(t, C.get_class_py_class, C.discover_config_py_class)
 }
 
@@ -124,14 +115,10 @@ func testDiscoverConfigNoConfigs(t *testing.T) {
 			setupDiscoveryTest(t)
 			C.discover_config_return = C.CString(result)
 
-			configs, err := DiscoverConfig("fake_check", DiscoveryService{
-				ID:    "svc",
-				Host:  "10.0.0.1",
-				Ports: []DiscoveryPort{},
-			})
+			got, err := DiscoverConfig("fake_check", `{"id":"svc","host":"10.0.0.1","ports":[]}`)
 
 			require.NoError(t, err)
-			assert.Empty(t, configs)
+			assert.Equal(t, result, got)
 		})
 	}
 }
@@ -142,27 +129,19 @@ func testDiscoverConfigRtloaderError(t *testing.T) {
 	C.has_error_return = 1
 	C.get_error_return = C.CString("discover failed")
 
-	configs, err := DiscoverConfig("fake_check", DiscoveryService{
-		ID:    "svc",
-		Host:  "10.0.0.1",
-		Ports: []DiscoveryPort{},
-	})
+	got, err := DiscoverConfig("fake_check", `{"id":"svc","host":"10.0.0.1","ports":[]}`)
 
 	require.Error(t, err)
-	assert.Nil(t, configs)
+	assert.Empty(t, got)
 	assert.Contains(t, err.Error(), "discover failed")
 }
 
-func testDiscoverConfigMalformedResult(t *testing.T) {
+func testDiscoverConfigReturnsMalformedResult(t *testing.T) {
 	setupDiscoveryTest(t)
 	C.discover_config_return = C.CString("{")
 
-	configs, err := DiscoverConfig("fake_check", DiscoveryService{
-		ID:    "svc",
-		Host:  "10.0.0.1",
-		Ports: []DiscoveryPort{},
-	})
+	got, err := DiscoverConfig("fake_check", `{"id":"svc","host":"10.0.0.1","ports":[]}`)
 
-	require.Error(t, err)
-	assert.Nil(t, configs)
+	require.NoError(t, err)
+	assert.Equal(t, "{", got)
 }
