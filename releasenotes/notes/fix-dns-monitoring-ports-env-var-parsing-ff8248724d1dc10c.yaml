@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix ``DD_NETWORK_CONFIG_DNS_MONITORING_PORTS`` parsing so the env var now
+    accepts a space-separated list of integers (for example ``"53 5353"``).
+    Single-value forms (``"53"``) continue to work. Previously, multi-port
+    values configured via env silently fell through to ``[0]`` and disabled
+    DNS monitoring.

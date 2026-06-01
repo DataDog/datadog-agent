@@ -597,6 +597,7 @@ properties:
         type: array
         default:
         - 53
+        env_parser: space_separated
         items:
           type: number
         visibility: public
