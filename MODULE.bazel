@@ -154,6 +154,15 @@ http_file(
     urls = ["https://raw.githubusercontent.com/torvalds/linux/v6.13/include/uapi/asm-generic/unistd.h"],
 )
 
+dotslash = use_extension("//bazel/dotslash:dotslash_tool.bzl", "dotslash")
+dotslash.tools(
+    manifests = [
+        "//tools/bin:buildifier",
+        "//tools/bin:vault",
+    ],
+)
+use_repo(dotslash, "dotslash")
+
 multitool = use_extension("@rules_multitool//multitool:extension.bzl", "multitool")
 multitool.hub(lockfile = "//bazel:prebuilt_buildtools.json")
 multitool.hub(lockfile = "//bazel:prebuilt_jq.json")

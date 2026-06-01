@@ -5,6 +5,8 @@ Dockerfiles/dogstatsd/alpine/static/
 vendor/
 .vendor-new/
 bin/
+# DotSlash manifests live on PATH.
+!/tools/bin/
 /dev/
 /site/
 __pycache__
@@ -24,6 +26,8 @@ target
 *.pyc
 *.swp
 *.exe
+# DotSlash Windows shims are checked in.
+!/tools/bin/*.exe
 *.syso
 *.log
 /main

@@ -1,0 +1,61 @@
+#!/usr/bin/env dotslash
+{
+  "name": "buildifier",
+  "platforms": {
+    "macos-x86_64": {
+      "size": 7776816,
+      "hash": "sha256",
+      "digest": "9f8cffceb82f4e6722a32a021cbc9a5344b386b77b9f79ee095c61d087aaea06",
+      "path": "buildifier",
+      "providers": [
+        {
+          "url": "https://github.com/bazelbuild/buildtools/releases/download/v8.2.1/buildifier-darwin-amd64"
+        }
+      ]
+    },
+    "macos-aarch64": {
+      "size": 7717890,
+      "hash": "sha256",
+      "digest": "cfab310ae22379e69a3b1810b433c4cd2fc2c8f4a324586dfe4cc199943b8d5a",
+      "path": "buildifier",
+      "providers": [
+        {
+          "url": "https://github.com/bazelbuild/buildtools/releases/download/v8.2.1/buildifier-darwin-arm64"
+        }
+      ]
+    },
+    "linux-x86_64": {
+      "size": 7882884,
+      "hash": "sha256",
+      "digest": "6ceb7b0ab7cf66fceccc56a027d21d9cc557a7f34af37d2101edb56b92fcfa1a",
+      "path": "buildifier",
+      "providers": [
+        {
+          "url": "https://github.com/bazelbuild/buildtools/releases/download/v8.2.1/buildifier-linux-amd64"
+        }
+      ]
+    },
+    "linux-aarch64": {
+      "size": 7755744,
+      "hash": "sha256",
+      "digest": "3baa1cf7eb41d51f462fdd1fff3a6a4d81d757275d05b2dd5f48671284e9a1a5",
+      "path": "buildifier",
+      "providers": [
+        {
+          "url": "https://github.com/bazelbuild/buildtools/releases/download/v8.2.1/buildifier-linux-arm64"
+        }
+      ]
+    },
+    "windows-x86_64": {
+      "size": 8020480,
+      "hash": "sha256",
+      "digest": "802104da0bcda0424a397ac5be0004c372665a70289a6d5146e652ee497c0dc6",
+      "path": "buildifier.exe",
+      "providers": [
+        {
+          "url": "https://github.com/bazelbuild/buildtools/releases/download/v8.2.1/buildifier-windows-amd64.exe"
+        }
+      ]
+    }
+  }
+}
