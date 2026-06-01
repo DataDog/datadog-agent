@@ -33,7 +33,7 @@ func TestReportHealthIssue_StoresIssue(t *testing.T) {
 	storeMock := healthplatformmock.Mock(t)
 	srv := serverWithStore(storeMock)
 
-	issue := &healthplatformpayload.Issue{Id: "test-issue", Title: "Test Issue", Severity: "high"}
+	issue := &healthplatformpayload.Issue{Id: "test-issue", Title: "Test Issue", Severity: healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_HIGH}
 	packed, err := anypb.New(issue)
 	require.NoError(t, err)
 
@@ -43,7 +43,7 @@ func TestReportHealthIssue_StoresIssue(t *testing.T) {
 	got := storeMock.GetIssue("test-issue")
 	require.NotNil(t, got)
 	assert.Equal(t, "Test Issue", got.Title)
-	assert.Equal(t, "high", got.Severity)
+	assert.Equal(t, healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_HIGH, got.Severity)
 }
 
 // TestReportHealthIssue_StoreUnavailable verifies Unavailable when the store option is empty.

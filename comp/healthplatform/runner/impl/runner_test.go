@@ -42,6 +42,7 @@ func (m *mockStore) ReportIssue(issue *healthplatformpayload.Issue) error {
 	return nil
 }
 
+func (m *mockStore) AcceptIssue(_ *healthplatformpayload.Issue) error             { return nil }
 func (m *mockStore) ResolveIssue(_ string)                                        {}
 func (m *mockStore) ResolveAllIssues()                                            {}
 func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue               { return nil }

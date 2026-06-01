@@ -421,7 +421,7 @@ func TestAcceptIssue_StoresIssue(t *testing.T) {
 	issue := &healthplatformpayload.Issue{
 		Id:       "kubelet-rbac-forbidden:node",
 		Title:    "Agent Lacks Kubernetes RBAC Permissions",
-		Severity: "high",
+		Severity: healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_HIGH,
 		Source:   "kubelet",
 	}
 
@@ -431,7 +431,7 @@ func TestAcceptIssue_StoresIssue(t *testing.T) {
 	require.NotNil(t, got)
 	assert.Equal(t, "kubelet-rbac-forbidden:node", got.Id)
 	assert.Equal(t, "Agent Lacks Kubernetes RBAC Permissions", got.Title)
-	assert.Equal(t, "high", got.Severity)
+	assert.Equal(t, healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_HIGH, got.Severity)
 }
 
 func TestAcceptIssue_RejectsNil(t *testing.T) {
@@ -458,7 +458,7 @@ func TestAcceptIssue_OverwritesPreviousIssue(t *testing.T) {
 func TestAcceptIssue_ResolveIssue_RoundTrip(t *testing.T) {
 	store := newTestStore(t)
 
-	require.NoError(t, store.AcceptIssue(&healthplatformpayload.Issue{Id: "transient-issue", Severity: "low"}))
+	require.NoError(t, store.AcceptIssue(&healthplatformpayload.Issue{Id: "transient-issue", Severity: healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_LOW}))
 	require.NotNil(t, store.GetIssue("transient-issue"))
 
 	store.ResolveIssue("transient-issue")
