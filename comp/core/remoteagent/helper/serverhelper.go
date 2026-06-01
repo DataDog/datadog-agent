@@ -83,7 +83,8 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 		return nil, err
 	}
 
-	agentClient, err := newAgentSecureClient(ipcComp, agentIpcAddress, config, log)
+	// Conn held until process exit.
+	agentClient, _, err := NewAgentSecureClient(agentIpcAddress, ipcComp.GetAuthToken(), ipcComp.GetTLSClientConfig(), config.GetString("vsock_addr"), log)
 	if err != nil {
 		log.Errorf("failed to create agent client: %v", err)
 		if ral.cleanupSocketPath != "" {
@@ -386,12 +387,6 @@ func NewAgentSecureClient(agentIpcAddress, authToken string, tlsConfig *tls.Conf
 	}
 
 	return pbcore.NewAgentSecureClient(conn), conn, nil
-}
-
-func newAgentSecureClient(ipcComp ipc.Component, agentIpcAddress string, cfg config.Component, log log.Component) (pbcore.AgentSecureClient, error) {
-	// Conn held until process exit
-	client, _, err := NewAgentSecureClient(agentIpcAddress, ipcComp.GetAuthToken(), ipcComp.GetTLSClientConfig(), cfg.GetString("vsock_addr"), log)
-	return client, err
 }
 
 // RegistrationRequest is the input for RegisterRemoteAgent.

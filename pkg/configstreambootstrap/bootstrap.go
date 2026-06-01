@@ -44,8 +44,8 @@ import (
 )
 
 const (
-	// EnabledEnvVar gates whether the bootstrap runs.
-	EnabledEnvVar = "DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED"
+	// enabledEnvVar gates whether the bootstrap runs.
+	enabledEnvVar = "DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED"
 
 	envAuthTokenFilePath  = "DD_AUTH_TOKEN_FILE_PATH"
 	envIPCCertFilePath    = "DD_IPC_CERT_FILE_PATH"
@@ -67,14 +67,16 @@ const (
 type Params struct {
 	ClientName    string
 	CLIConfigPath string
-	LookupEnv     func(string) (string, bool)
 }
+
+// lookupEnv is os.LookupEnv by default; tests override it.
+var lookupEnv = os.LookupEnv
 
 // IsEnabled returns the configstream consumer flag from env or datadog.yaml.
 // A YAML parse error returns false; users with malformed datadog.yaml should
 // set DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED so the env path wins.
-func IsEnabled(cliConfigPath string, lookupEnv func(string) (string, bool)) bool {
-	if v, ok := lookupEnv(EnabledEnvVar); ok {
+func IsEnabled(cliConfigPath string) bool {
+	if v, ok := lookupEnv(enabledEnvVar); ok {
 		if enabled, err := strconv.ParseBool(v); err == nil {
 			return enabled
 		}
@@ -111,7 +113,7 @@ type settings struct {
 // readSettings resolves bootstrap values from env, then a YAML parse bounded
 // to a small set of keys (so malformed sections elsewhere don't abort).
 // Empty env values are treated as unset, so YAML fallback still applies.
-func readSettings(cliConfigPath string, lookupEnv func(string) (string, bool)) settings {
+func readSettings(cliConfigPath string) settings {
 	bs := settings{CmdHost: defaultCmdHost, CmdPort: defaultCmdPort, RARRegistryEnabled: defaultRARRegistryEnabled}
 
 	authEnv, _ := lookupEnv(envAuthTokenFilePath)
@@ -203,7 +205,9 @@ func yamlCandidates(cliConfigPath string) []string {
 
 func seedGlobalBuilder(bs settings, cliConfigPath string) {
 	b := pkgconfigsetup.GlobalConfigBuilder()
-	// Lets the IPC primitives' filepath.Dir(ConfigFileUsed()) fallback resolve.
+	// Bootstrap skips LoadDatadog/ReadInConfig, so ConfigFileUsed() is empty by default.
+	// Set it explicitly so pkgtoken.GetAuthTokenFilepath / cert.getCertFilepath resolve
+	// fallback paths next to datadog.yaml instead of ./auth_token in the cwd.
 	if candidates := yamlCandidates(cliConfigPath); len(candidates) > 0 {
 		b.SetConfigFile(candidates[0])
 	}
@@ -229,11 +233,7 @@ func Run(ctx context.Context, params Params) error {
 	if params.ClientName == "" {
 		return errors.New("bootstrap: ClientName is required")
 	}
-	if params.LookupEnv == nil {
-		params.LookupEnv = os.LookupEnv
-	}
-
-	bs := readSettings(params.CLIConfigPath, params.LookupEnv)
+	bs := readSettings(params.CLIConfigPath)
 
 	if !bs.RARRegistryEnabled {
 		return fmt.Errorf("configstream consumer requires remote_agent.registry.enabled=true; refusing to start %s without RAR", params.ClientName)

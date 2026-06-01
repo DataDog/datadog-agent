@@ -125,13 +125,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Run the System Probe",
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			cfgstream := configstreambootstrap.IsEnabled(globalParams.DatadogConfFilePath(), os.LookupEnv)
+			cfgstream := configstreambootstrap.IsEnabled(globalParams.DatadogConfFilePath())
 			var configParams config.Params
 			if cfgstream {
 				err := configstreambootstrap.Run(context.Background(), configstreambootstrap.Params{
 					ClientName:    systemProbeBootstrapClient,
 					CLIConfigPath: globalParams.DatadogConfFilePath(),
-					LookupEnv:     os.LookupEnv,
 				})
 				if err != nil {
 					return err
