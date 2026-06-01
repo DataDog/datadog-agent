@@ -12,10 +12,14 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/windowsagentinstability",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
-        "//comp/healthplatform/issues",
-        "//comp/healthplatform/runner/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@org_golang_google_protobuf//types/known/structpb",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//comp/core/config",
+            "//comp/healthplatform/issues",
+            "//comp/healthplatform/runner/def",
+        ],
+        "//conditions:default": [],
+    }),
 )
