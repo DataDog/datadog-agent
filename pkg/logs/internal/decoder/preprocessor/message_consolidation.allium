@@ -1,0 +1,398 @@
+-- allium: 3
+-- message_consolidation.allium
+
+-- Scope: The input-to-output consolidation contract of the
+--   auto-multiline-enabled preprocessor suite in the Datadog Agent's
+--   logs pipeline. Specifies how an ordered set of one or more input
+--   messages relates to the output payload of (possibly combined,
+--   possibly standalone) output messages that emerges from the suite.
+-- Includes:
+--   - The priority cascade that decides how lines consolidate
+--     (complete JSON, multi-line JSON, Go stack trace, leading
+--     timestamp, fallback).
+--   - The recognition primitives the cascade depends on, as contracts
+--     (JSON completeness, leading-timestamp detection, Go stack trace
+--     parsing).
+--   - Structural guarantees over the mapping: order preservation,
+--     contiguity, and full coverage of the input by the output.
+-- Excludes:
+--   - The flush/timeout mechanism that bounds how long a partially
+--     accumulated group waits before emission (deferred to a later
+--     pass; see Open Questions).
+--   - The internal buffering / labeling mechanics of the aggregators
+--     (CombiningAggregator, JSONAggregator) and the tokenizer; this
+--     spec is the boundary contract, not the implementation.
+--   - Adaptive sampling (see adaptive_sampler.allium), which is a
+--     separate, downstream stage.
+--   - Per-source and global configuration resolution.
+-- Dependencies: tokenizer behaviour is specified in
+--   adaptive_sampler.allium (Tokenization contract).
+--
+-- Note on style: the consolidation constraints are expressed as
+-- behaviour the suite must exhibit (which lines end up together),
+-- never as the labeling/buffering mechanism that achieves it. The
+-- recognition primitives are black boxes (contracts), so the same
+-- spec admits any implementation that honours them.
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+-- The raw bytes of a single log line's content. Recognition
+-- primitives operate over individual lines (ByteArray) and over
+-- ordered runs of lines (Sequence<ByteArray>).
+
+value StackTraceMatch {
+    -- Result of attempting to parse a Go crash dump from a run of
+    -- lines whose first line is a recognised start marker.
+    --
+    -- committed_length is the number of leading lines that form a
+    -- single self-contained, combinable trace. Lines beyond this
+    -- offset (the parser's "uncommitted" tail, plus everything after
+    -- the trace ends) are NOT part of the trace and are subject to
+    -- every other consolidation constraint in their own right.
+    --
+    -- combinable is true iff the parsed prefix contains at least one
+    -- chunk (a goroutine stack, runtime stack, or register dump). A
+    -- lone header (e.g. "panic: ...") with no chunk is recognised as
+    -- a start but is not combinable.
+    committed_length: Integer
+    combinable: Boolean
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract JsonRecognition {
+    -- A single line is a complete JSON object on its own (object,
+    -- not array, not a fragment).
+    is_complete_object: (content: ByteArray) -> Boolean
+
+    -- The number of leading lines of the run that together form
+    -- exactly one complete JSON object. Returns 0 when the first
+    -- line does not begin a JSON object. Returns 1 when the first
+    -- line is itself a complete object.
+    object_run_length: (lines: Sequence<ByteArray>) -> Integer
+
+    @invariant ObjectsNotArrays
+        -- Only JSON objects ({...}) consolidate. A top-level JSON
+        -- array is not treated as a consolidation unit.
+
+    @invariant SingleLineIsRunOfOne
+        -- is_complete_object(lines.first) implies
+        -- object_run_length(lines) = 1. A line that is already a
+        -- complete object never absorbs following lines.
+
+    @invariant MinimalCompleteRun
+        -- object_run_length returns the SHORTEST leading run that
+        -- completes one object, so a complete object never absorbs
+        -- trailing unrelated lines.
+}
+
+contract TimestampRecognition {
+    -- True when a recognised timestamp appears in the initial bytes
+    -- of the line, considering only the first max_bytes of content.
+    -- The detection window max_bytes is config.tokenizer_max_input_bytes.
+    has_leading_timestamp: (content: ByteArray, max_bytes: Integer) -> Boolean
+
+    @invariant WindowBounded
+        -- Only the first max_bytes of content are inspected. Two lines
+        -- that differ only after max_bytes are classified identically.
+
+    @invariant Determinism
+        -- has_leading_timestamp is pure: identical (content, max_bytes)
+        -- always yields the same result.
+}
+
+contract GoStackTraceRecognition {
+    -- True when the line is a Go crash header: one of "panic:",
+    -- "fatal error:", "runtime:", "unexpected fault address", or
+    -- "SIG<name>: " (a SIG prefix followed by ": ").
+    is_start: (content: ByteArray) -> Boolean
+
+    -- Parse a Go crash dump from a run of lines whose first line
+    -- satisfies is_start. Returns the committed trace length and
+    -- whether the prefix is combinable (see StackTraceMatch).
+    parse: (lines: Sequence<ByteArray>) -> StackTraceMatch
+
+    @invariant StartRequired
+        -- parse is only meaningful when is_start(lines.first). When
+        -- the first line is not a start, the run does not begin a
+        -- trace (committed_length = 0, combinable = false).
+
+    @invariant ChunkRequiredToCombine
+        -- combinable is true iff at least one chunk (goroutine stack,
+        -- runtime stack, or register dump) was parsed. A header with
+        -- no chunk is not combinable.
+
+    @invariant TerminatesAtFirstInvalid
+        -- The committed trace ends at the earliest of: the first line
+        -- between chunks that is not a valid chunk start; the first
+        -- line within a chunk that fails that chunk's continuation
+        -- grammar; or a new start marker (which begins a separate
+        -- trace, never a continuation).
+
+    @invariant UncommittedExcluded
+        -- Tentatively accepted trailing lines that are not confirmed
+        -- as trace content (e.g. a function-name line still awaiting
+        -- its tab-indented file line) are excluded from
+        -- committed_length and re-enter consolidation on their own.
+
+    @invariant SelfContained
+        -- Each trace is self-contained. Adjacent traces never merge:
+        -- once past the header, a start marker bounds the current trace
+        -- and opens the next. The header is the exception: while still
+        -- in the header, "fatal error:" and "runtime:" are valid header
+        -- continuations even though they are also start markers, so a
+        -- multi-line crash header (e.g. "panic: ..." followed by
+        -- "runtime: ...") is one trace, not two.
+}
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity ProcessedBatch {
+    -- One invocation of the suite: an ordered input sequence and the
+    -- output payload produced from it.
+    inputs: InputMessage with batch = this
+    outputs: OutputMessage with batch = this
+}
+
+entity InputMessage {
+    -- A single raw line entering the suite, positioned in the input
+    -- stream by sequence_index (strictly increasing within a batch).
+    batch: ProcessedBatch
+    sequence_index: Integer
+    content: ByteArray
+
+    -- The output message this input contributed to. Every input maps
+    -- to exactly one output (see InputBelongsToItsOutput).
+    output: OutputMessage
+
+    -- Adjacent lines in the same batch. Singular relationships: each
+    -- resolves to the one neighbouring message or null at a boundary.
+    predecessor: InputMessage with batch = this.batch and sequence_index = this.sequence_index - 1
+    successor: InputMessage with batch = this.batch and sequence_index = this.sequence_index + 1
+
+    -- The ordered line contents from this message to the end of the
+    -- batch. Black box: the recognition primitives need an ordered run
+    -- starting here to decide how far a structure extends.
+    tail_contents: contents_from(this)
+
+    -- Line-local classification. Each depends only on this line's
+    -- content, never on neighbouring lines.
+    is_complete_json_object: is_complete_object(content)
+    starts_with_timestamp: has_leading_timestamp(content, config.tokenizer_max_input_bytes)
+    begins_go_stack_trace: is_start(content)
+
+    -- Run-based classification. How far a JSON object or stack trace
+    -- starting at this line extends, evaluated over tail_contents.
+    json_run_length: object_run_length(tail_contents)
+    trace_match: parse(tail_contents)
+
+    -- Group-opening roles. A line "opens" a structure when a JSON
+    -- object or combinable trace begins at it.
+    opens_json: json_run_length >= 1
+    opens_combinable_trace: begins_go_stack_trace and trace_match.combinable
+
+    -- A line starts a new group when it carries a leading timestamp or
+    -- opens a structure. Group starters are never absorbed into a
+    -- preceding group; everything else may be.
+    is_group_starter: starts_with_timestamp or opens_json or opens_combinable_trace
+}
+
+entity OutputMessage {
+    -- A message in the output payload: the content of one or more
+    -- contiguous input messages, combined or passed through.
+    batch: ProcessedBatch
+    sources: InputMessage with output = this
+
+    -- Derived: span and contiguity.
+    source_count: sources.count
+    first_source: min_by(sources, s => s.sequence_index)
+    last_source: max_by(sources, s => s.sequence_index)
+    first_index: first_source.sequence_index
+    last_index: last_source.sequence_index
+    span: last_index - first_index + 1
+    is_contiguous: span = source_count
+    is_combined: source_count > 1
+
+    -- Derived: how this output was classified, by inspecting its head.
+    head_is_timestamp: first_source.starts_with_timestamp
+    head_opens_json: first_source.opens_json
+    head_opens_trace: first_source.opens_combinable_trace
+    head_json_run: first_source.json_run_length
+    head_trace_committed: first_source.trace_match.committed_length
+}
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    -- Maximum bytes of a line's leading content inspected for a
+    -- timestamp. Matches the labeler byte window resolved by the
+    -- decoder from logs_config.auto_multi_line.tokenizer_max_input_bytes,
+    -- which defaults to 60 (distinct from the adaptive sampler's own
+    -- tokenizer_max_input_bytes, which defaults to 2048).
+    tokenizer_max_input_bytes: Integer = 60
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+-- == Structural backbone =================================
+-- The output payload partitions the input sequence into contiguous,
+-- order-preserving runs with no gaps and no overlap.
+
+invariant ContiguousSources {
+    -- Every output's sources form a gap-free run of input indices.
+    for o in OutputMessages:
+        o.is_contiguous
+}
+
+invariant NonOverlappingOutputs {
+    -- No two outputs share or interleave input indices; output order
+    -- follows input order.
+    for a in OutputMessages:
+        for b in OutputMessages:
+            a != b implies (a.last_index < b.first_index or b.last_index < a.first_index)
+}
+
+invariant InputBelongsToItsOutput {
+    -- The forward reference (input -> output) and the back-relationship
+    -- (output -> sources) agree. With ContiguousSources and
+    -- NonOverlappingOutputs, this makes the outputs a partition of the
+    -- inputs: every input contributes to exactly one output, with no
+    -- gaps and no overlap.
+    for m in InputMessages:
+        m in m.output.sources
+}
+
+invariant OutputsHaveSources {
+    -- No empty output messages are emitted.
+    for o in OutputMessages:
+        o.source_count >= 1
+}
+
+-- == Constraint C1: single complete JSON object ==========
+
+invariant SingleCompleteJsonStandalone {
+    -- A line that is itself a complete JSON object is emitted on its
+    -- own and never combined with any other line.
+    for m in InputMessages:
+        m.is_complete_json_object implies m.output.source_count = 1
+}
+
+-- == Constraint C2: multi-line complete JSON object ======
+
+invariant JsonObjectStartsAreHeads {
+    -- A line that begins a complete JSON object (over one or more
+    -- lines) always heads its output. JSON has the highest priority in
+    -- the cascade and is never absorbed by a preceding group.
+    for m in InputMessages:
+        m.opens_json implies m.output.first_index = m.sequence_index
+}
+
+invariant JsonConsolidationExact {
+    -- An output headed by a JSON object start contains exactly the
+    -- lines of that object -- object_run_length, no more and no fewer.
+    -- (For a single-line object this is 1, matching C1.)
+    for o in OutputMessages:
+        o.head_opens_json implies o.source_count = o.head_json_run
+}
+
+-- == Constraint C3: leading timestamp never joins prior ==
+
+invariant TimestampStartsItsOutput {
+    -- A line carrying a leading timestamp is always the first source
+    -- of its output: it never joins a preceding message.
+    for m in InputMessages:
+        m.starts_with_timestamp implies m.output.first_index = m.sequence_index
+}
+
+-- == Constraint C4: Go stack trace =======================
+
+invariant CombinableTraceStartsAreHeads {
+    -- A line that begins a combinable Go stack trace heads its output,
+    -- outranking any open timestamp group. (A coincident JSON object
+    -- start would outrank it, hence the not-opens_json guard.)
+    for m in InputMessages:
+        (m.opens_combinable_trace and not m.opens_json)
+            implies m.output.first_index = m.sequence_index
+}
+
+invariant StackTraceConsolidationExact {
+    -- An output headed by a combinable trace start (and not claimed by
+    -- higher-priority JSON) contains exactly the committed trace lines
+    -- and nothing else.
+    for o in OutputMessages:
+        (o.head_opens_trace and not o.head_opens_json)
+            implies o.source_count = o.head_trace_committed
+}
+
+-- == Constraint C5: timestamp absorbs following lines ====
+
+invariant TimestampGroupMembersAreContinuations {
+    -- Every member of a timestamp-headed output other than the head is
+    -- a non-starter: the group grows only by absorbing lines that open
+    -- no structure and carry no timestamp of their own.
+    for o in OutputMessages:
+        o.head_is_timestamp implies
+            (for s in o.sources:
+                s = o.first_source or not s.is_group_starter)
+}
+
+invariant TimestampGroupMaximal {
+    -- A timestamp group extends as far as it can: it closes only
+    -- because the next line starts a new group (or the batch ends).
+    -- It never stops early while a continuation line remains.
+    for o in OutputMessages:
+        (o.head_is_timestamp and exists o.last_source.successor)
+            implies o.last_source.successor.is_group_starter
+}
+
+-- == Fallback: non-absorbing heads stand alone ===========
+
+invariant NonAbsorbingHeadsAreStandalone {
+    -- The only outputs that may contain more than one line are JSON
+    -- objects, stack traces, and timestamp groups. A line that opens no
+    -- structure and carries no timestamp -- and so heads no absorbing
+    -- group -- is emitted on its own.
+    for o in OutputMessages:
+        (not o.head_is_timestamp and not o.head_opens_json and not o.head_opens_trace)
+            implies o.source_count = 1
+}
+
+-- == Behavioural narrative (overview, not a state predicate) ==
+--
+-- PriorityCascade: each input line is consolidated by the FIRST of the
+-- following constraints that applies, highest priority first. The
+-- expression-bearing invariants above pin each level; this narrative
+-- records the ordering they jointly produce.
+--   1. Complete JSON object on one line (C1) -- standalone.
+--   2. Multi-line complete JSON object (C2) -- combined.
+--   3. Go stack trace (C4) -- combined; outranks an open timestamp
+--      group, so a start marker closes any group accumulated so far
+--      and the trace consolidates on its own.
+--   4. Leading timestamp (C3 + C5) -- starts a new group that absorbs
+--      subsequent non-triggering lines. Because consecutive timestamped
+--      lines each start their own group, a run of timestamped lines is
+--      emitted as individual standalone outputs.
+--   5. Fallback -- a line matching none of the above, with no open
+--      group, is emitted standalone.
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "Flush/timeout: how does a partially accumulated group resolve when no terminating line arrives? Deferred from this pass; the steady-state contract above assumes the full input sequence is available. TimestampGroupMaximal currently allows a group to close at batch end with no following starter -- the timeout mechanism would refine this."
+
+open question "Non-standard trace starts (e.g. the singleflight 'goroutine running on other thread; stack unavailable' pattern) are not recognised by is_start and fall through to the timestamp/fallback constraints. Confirm this is the intended boundary."
+
+open question "Multi-source files: when lines from distinct producers are interleaved in one stream with auto-multiline enabled, timestamp absorption can merge unrelated lines. Is bounding this in scope, or is it out of scope as a deployment/config concern?"
+
+open question "C4 head-priority wiring: CombinableTraceStartsAreHeads and StackTraceConsolidationExact depend on combined-trace messages being labeled noAggregate so the CombiningAggregator flushes any open timestamp group before emitting the trace standalone. That labeling rule (IsMultiLine -> noAggregate) lives in the v2 pipeline wiring (branch ryan.hall/go-stack-trace-v2), not in the stack trace parser/aggregator branch (ryan.hall/go-stack-trace). Without it a combined trace arriving mid-timestamp-group is absorbed instead of heading its own output. Merge order must land the wiring with (or before) the parser for C4 to hold."
