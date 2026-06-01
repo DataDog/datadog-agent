@@ -186,73 +186,92 @@ func TestWorkerResetConnections(t *testing.T) {
 	w.Stop(false)
 }
 
-func TestWorkerCancelsInFlight(t *testing.T) {
+// TestWorkerStopDoesNotCancelInFlight verifies that when forwarder_stop_wait_for_inflight
+// is enabled and Worker.Stop is called while a transaction is in flight, Stop waits for
+// the transaction's Process call to return rather than cancelling its context.
+// The transaction completes successfully and is not requeued.
+func TestWorkerStopDoesNotCancelInFlight(t *testing.T) {
 	highPrio := make(chan transaction.Transaction, 1)
 	lowPrio := make(chan transaction.Transaction, 1)
 	requeue := make(chan transaction.Transaction, 1)
 
-	// Wait to ensure the server has fully started
-	stop := make(chan struct{}, 1)
-
-	// Wait to ensure the server has finished stopping
-	stopped := make(chan struct{}, 1)
-
 	mockConfig := mock.New(t)
-
+	mockConfig.SetWithoutSource("forwarder_stop_wait_for_inflight", true)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
 	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig, nil))
-
-	go func() {
-		w.Start()
-		<-stop
-		w.Stop(false)
-		stopped <- struct{}{}
-	}()
 
 	var processedwg sync.WaitGroup
 	processedwg.Add(1)
 
 	mockTransaction := newTestTransaction()
-	mockTransaction.shouldBlock = true
+	// release holds Process until the test closes the channel, simulating an
+	// in-flight HTTP request that hasn't yet returned a response.
+	mockTransaction.release = make(chan struct{})
 	mockTransaction.
 		On("Process", w.Client.GetClient()).
 		Run(func(_args tmock.Arguments) {
 			processedwg.Done()
 		}).
-		Return(errors.New("Cancelled")).Times(1)
-
+		Return(nil).Times(1)
 	mockTransaction.On("GetTarget").Return("").Times(1)
 
+	w.Start()
 	highPrio <- mockTransaction
 
+	// Wait until Process has been entered (i.e. the request is in flight).
 	processedwg.Wait()
-	stop <- struct{}{}
 
-	// Wait for the server to fully stop
-	<-stopped
+	stopReturned := make(chan struct{})
+	go func() {
+		w.Stop(false)
+		close(stopReturned)
+	}()
+
+	// Stop must block here while the request is held. 50 ms is well above
+	// scheduler noise but far below the 2 s forwarder_stop_timeout, so a
+	// regression that cancels in-flight requests is trivially detectable.
+	select {
+	case <-stopReturned:
+		t.Fatal("Stop returned before in-flight Process completed")
+	case <-time.After(50 * time.Millisecond):
+		// expected — Stop is waiting for in-flight to finish
+	}
+
+	close(mockTransaction.release)
 
 	select {
-	case requeued := <-requeue:
-		assert.Equal(t, mockTransaction, requeued)
-	default:
-		assert.Fail(t, "Transaction not requeued")
+	case <-stopReturned:
+		// expected — Stop drained after release
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop did not return after in-flight Process completed")
 	}
+
+	mockTransaction.AssertExpectations(t)
+	mockTransaction.AssertNumberOfCalls(t, "Process", 1)
+	assert.Equal(t, 0, len(requeue), "successfully-completed transaction must not be requeued")
 }
 
-func TestWorkerCancelsWaitingTransactions(t *testing.T) {
+// TestWorkerStopWaitsForSemaphoreBlockedTransactions exercises the semaphore-contention
+// case during shutdown when forwarder_stop_wait_for_inflight is enabled. With
+// forwarder_max_concurrent_requests=3 and 5 queued transactions, the first three hold
+// the semaphore (held by `release` channels), the fourth is blocked acquiring the
+// semaphore, and the fifth remains in HighPrio when Stop(true) is called.
+//
+// Stop must:
+//  1. Wait for all three in-flight Process calls to return (no cancellation).
+//  2. Once the first three release the semaphore, the fourth (semaphore-blocked)
+//     transaction acquires it and completes.
+//  3. The purge loop runs HighPrio's remaining fifth transaction.
+//
+// All five complete successfully; nothing is requeued.
+func TestWorkerStopWaitsForSemaphoreBlockedTransactions(t *testing.T) {
 	highPrio := make(chan transaction.Transaction, 10)
 	lowPrio := make(chan transaction.Transaction, 10)
 	requeue := make(chan transaction.Transaction, 10)
 
-	// Wait to ensure the server has fully started
-	stop := make(chan struct{}, 1)
-
-	// Wait to ensure the server has finished stopping
-	stopped := make(chan struct{}, 1)
-
 	mockConfig := mock.New(t)
-
+	mockConfig.SetWithoutSource("forwarder_stop_wait_for_inflight", true)
 	log := logmock.New(t)
 
 	// Configure the worker to have 3 maximum concurrent requests
@@ -262,34 +281,27 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 	secrets := secretsmock.New(t)
 	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, requests, mockConfig, nil))
 
-	go func() {
-		w.Start()
-		<-stop
-		w.Stop(true)
-		stopped <- struct{}{}
-	}()
+	var inFlightWg sync.WaitGroup
+	inFlightWg.Add(requests)
 
-	var processedwg sync.WaitGroup
-	processedwg.Add(requests)
-
-	// Create enough transactions that some will be waiting on the semaphore when we cancel.
+	// Create enough transactions that some will be waiting on the semaphore at Stop time.
 	transactions := []*testTransaction{}
 	for i := 0; i < 5; i++ {
 		mockTransaction := newTestTransaction()
 
-		// The first three transactions will block when sent to ensure they are currently holding
-		// the semaphore when we want to stop the server. When we cancel the semaphore, these should
-		// exit with an error.
-		if i <= 3 {
-			mockTransaction.shouldBlock = true
+		// The first three transactions hold the semaphore via a per-transaction
+		// release channel. The fourth blocks acquiring the semaphore (so Process
+		// never starts until one of the first three releases). The fifth stays
+		// in HighPrio for the purge loop to pick up.
+		if i < requests {
+			mockTransaction.release = make(chan struct{})
 			mockTransaction.
 				On("Process", w.Client.GetClient()).
 				Run(func(_args tmock.Arguments) {
-					processedwg.Done()
+					inFlightWg.Done()
 				}).
-				Return(errors.New("Cancelled")).Times(1)
+				Return(nil).Times(1)
 		} else {
-			// The other transactions succeed.
 			mockTransaction.On("Process", w.Client.GetClient()).Return(nil).Times(1)
 		}
 
@@ -298,72 +310,266 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 		mockTransaction.On("GetTarget").Return("Target" + strconv.Itoa(i))
 
 		transactions = append(transactions, mockTransaction)
-		highPrio <- mockTransaction
 	}
 
-	// Wait for three (the number of concurrent requests allowed) process calls to be made.
-	processedwg.Wait()
+	w.Start()
+	for _, txn := range transactions {
+		highPrio <- txn
+	}
 
-	// Ensure the four possible transactions (three that have been processed, and one that doesn't get
-	// past the semaphore) have been processed by the `Start` loop.
+	// Wait for three (the number of concurrent requests allowed) Process calls
+	// to actually be entered. At this point the semaphore is fully held.
+	inFlightWg.Wait()
+
+	// Ensure the Start loop has tried to pick up at least four transactions
+	// (the three in flight plus the fourth that is now blocked on the
+	// semaphore). The fifth must still be sitting in HighPrio when Stop runs
+	// so the purge loop can drain it.
 	for len(highPrio) > 1 {
-		time.Sleep(time.Nanosecond)
+		time.Sleep(time.Millisecond)
 	}
 
-	stop <- struct{}{}
+	stopReturned := make(chan struct{})
+	go func() {
+		w.Stop(true)
+		close(stopReturned)
+	}()
 
-	// Wait for the server to fully stop
-	<-stopped
+	// Stop must NOT return while in-flight transactions are still held.
+	select {
+	case <-stopReturned:
+		t.Fatal("Stop returned before in-flight Process calls completed")
+	case <-time.After(50 * time.Millisecond):
+		// expected — Stop is blocked on requestWg.Wait()
+	}
 
-	// The first three transactions get through the semaphore and are processed.
-	transactions[0].AssertNumberOfCalls(t, "Process", 1)
-	transactions[1].AssertNumberOfCalls(t, "Process", 1)
-	transactions[2].AssertNumberOfCalls(t, "Process", 1)
-	// The fourth transaction was waiting on the semaphore.
-	// The semaphore was cancelled so it gets requeued straight away.
-	transactions[3].AssertNumberOfCalls(t, "Process", 0)
+	// Release the three in-flight transactions. Once they return, the
+	// semaphore frees and the fourth (semaphore-blocked) transaction proceeds.
+	for i := 0; i < requests; i++ {
+		close(transactions[i].release)
+	}
 
-	// The final transaction is resent due to passing `purgeHighPrio=true` to
-	// the `Stop` function that will attempt to send anything waiting in the
-	// high priority queue.
-	transactions[4].AssertNumberOfCalls(t, "Process", 1)
+	select {
+	case <-stopReturned:
+		// expected — Stop drained after all transactions completed
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop did not return after in-flight Process calls completed")
+	}
 
-	// 4 transactions get requeued, the first three that were cancelled inflight
-	// and the fourth one that was stuck waiting on the MaxRequests semaphore.
-	assert.Equal(t, 4, len(requeue))
+	// All five transactions ran their Process call successfully.
+	for i, txn := range transactions {
+		txn.AssertNumberOfCalls(t, "Process", 1)
+		assert.NoError(t, nil, "transaction %d", i)
+	}
+
+	// None of them requeued.
+	assert.Equal(t, 0, len(requeue), "no transactions should requeue under graceful shutdown")
 }
 
-func TestWorkerPurgeOnStop(t *testing.T) {
+// TestWorkerStopWaitsForInFlightHTTPRequest pins the shutdown contract when
+// forwarder_stop_wait_for_inflight is enabled: an in-flight transaction must
+// complete before Worker.Stop returns, even when purgeHighPrio=true (which is
+// what DefaultForwarder.Stop passes).
+func TestWorkerStopWaitsForInFlightHTTPRequest(t *testing.T) {
+	requestEntered := make(chan struct{})
+	releaseResponse := make(chan struct{})
+	var processed atomic.Bool
+
 	highPrio := make(chan transaction.Transaction, 1)
 	lowPrio := make(chan transaction.Transaction, 1)
 	requeue := make(chan transaction.Transaction, 1)
 	mockConfig := mock.New(t)
+	mockConfig.SetWithoutSource("forwarder_stop_wait_for_inflight", true)
 	log := logmock.New(t)
-
 	secrets := secretsmock.New(t)
-	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig, nil))
-	close(w.stopped)
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue,
+		newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{},
+		NewSharedConnection(log, false, 1, mockConfig, nil))
 
-	mockTransaction := newTestTransaction()
-	mockTransaction.On("Process", w.Client.GetClient()).Return(nil).Times(1)
-	mockTransaction.On("GetTarget").Return("").Times(1)
-	highPrio <- mockTransaction
+	txn := newTestTransaction()
+	txn.On("GetTarget").Return("")
+	txn.
+		On("Process", w.Client.GetClient()).
+		Run(func(_ tmock.Arguments) {
+			close(requestEntered)
+			<-releaseResponse
+			processed.Store(true)
+		}).
+		Return(nil).Times(1)
 
-	mockRetryTransaction := newTestTransaction()
-	mockRetryTransaction.On("Process", w.Client.GetClient()).Return(nil).Times(1)
-	mockRetryTransaction.On("GetTarget").Return("").Times(1)
-	lowPrio <- mockRetryTransaction
+	w.Start()
+	highPrio <- txn
+	<-requestEntered // worker has picked up the transaction and HTTP is "in flight"
 
-	// First test without purging
-	w.Stop(false)
-	mockTransaction.AssertNumberOfCalls(t, "Process", 0)
-	mockRetryTransaction.AssertNumberOfCalls(t, "Process", 0)
+	stopReturned := make(chan struct{})
+	go func() {
+		w.Stop(true) // purgeHighPrio=true mirrors what DefaultForwarder.Stop does
+		close(stopReturned)
+	}()
 
-	// Then with purging new transactions only
-	w.Stop(true)
-	mockTransaction.AssertExpectations(t)
-	mockTransaction.AssertNumberOfCalls(t, "Process", 1)
-	mockRetryTransaction.AssertNumberOfCalls(t, "Process", 0)
+	// Stop must block here until releaseResponse is closed.
+	select {
+	case <-stopReturned:
+		t.Fatal("Stop returned before in-flight request completed")
+	case <-time.After(50 * time.Millisecond):
+		// expected — Stop is waiting for in-flight to finish
+	}
+
+	close(releaseResponse)
+
+	select {
+	case <-stopReturned:
+		// expected — Stop drained after release
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop did not return after in-flight request completed")
+	}
+
+	assert.True(t, processed.Load(), "transaction must complete before Stop returns")
+	assert.Equal(t, 0, len(requeue), "successfully-completed transaction must not be requeued")
+	txn.AssertNumberOfCalls(t, "Process", 1)
+}
+
+func TestWorkerPurgeOnStop(t *testing.T) {
+	// This test exercises Worker.Stop's purge path in isolation: it never
+	// calls Worker.Start, instead pre-closing w.stopped so that Stop's
+	// <-w.stopped wait returns immediately. That lets us assert what Stop
+	// does with queued transactions without racing the Start goroutine.
+	//
+	// Stop closes stopChan and so is not idempotent; each subcase constructs
+	// a fresh Worker.
+
+	newPreClosedWorker := func() (*Worker, chan transaction.Transaction, chan transaction.Transaction) {
+		highPrio := make(chan transaction.Transaction, 1)
+		lowPrio := make(chan transaction.Transaction, 1)
+		requeue := make(chan transaction.Transaction, 1)
+		mockConfig := mock.New(t)
+		log := logmock.New(t)
+		secrets := secretsmock.New(t)
+		w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig, nil))
+		close(w.stopped)
+		return w, highPrio, lowPrio
+	}
+
+	t.Run("without purge", func(t *testing.T) {
+		w, highPrio, lowPrio := newPreClosedWorker()
+
+		mockTransaction := newTestTransaction()
+		mockTransaction.On("Process", w.Client.GetClient()).Return(nil).Times(1)
+		mockTransaction.On("GetTarget").Return("").Times(1)
+		highPrio <- mockTransaction
+
+		mockRetryTransaction := newTestTransaction()
+		mockRetryTransaction.On("Process", w.Client.GetClient()).Return(nil).Times(1)
+		mockRetryTransaction.On("GetTarget").Return("").Times(1)
+		lowPrio <- mockRetryTransaction
+
+		w.Stop(false)
+		mockTransaction.AssertNumberOfCalls(t, "Process", 0)
+		mockRetryTransaction.AssertNumberOfCalls(t, "Process", 0)
+	})
+
+	t.Run("with purge", func(t *testing.T) {
+		w, highPrio, lowPrio := newPreClosedWorker()
+
+		mockTransaction := newTestTransaction()
+		mockTransaction.On("Process", w.Client.GetClient()).Return(nil).Times(1)
+		mockTransaction.On("GetTarget").Return("").Times(1)
+		highPrio <- mockTransaction
+
+		mockRetryTransaction := newTestTransaction()
+		mockRetryTransaction.On("Process", w.Client.GetClient()).Return(nil).Times(1)
+		mockRetryTransaction.On("GetTarget").Return("").Times(1)
+		lowPrio <- mockRetryTransaction
+
+		w.Stop(true)
+		mockTransaction.AssertExpectations(t)
+		mockTransaction.AssertNumberOfCalls(t, "Process", 1)
+		mockRetryTransaction.AssertNumberOfCalls(t, "Process", 0)
+	})
+}
+
+// TestWorkerStopCancelsContextRequeuesSemaphoreBlocked verifies the default shutdown path
+// (forwarder_stop_wait_for_inflight=false). With forwarder_max_concurrent_requests=1 and one
+// transaction holding the single semaphore slot, a second transaction is blocked in
+// acquireRequestSemaphore. When Stop is called, workerCtx is cancelled immediately; the blocked
+// transaction receives a context.Canceled error from semaphore.Acquire and is requeued rather
+// than processed.
+func TestWorkerStopCancelsContextRequeuesSemaphoreBlocked(t *testing.T) {
+	highPrio := make(chan transaction.Transaction, 2)
+	lowPrio := make(chan transaction.Transaction, 1)
+	requeue := make(chan transaction.Transaction, 2)
+
+	mockConfig := mock.New(t)
+	// forwarder_stop_wait_for_inflight is intentionally left at its default (false) to exercise
+	// the cancel-on-stop path.
+	mockConfig.SetWithoutSource("forwarder_max_concurrent_requests", 1)
+	log := logmock.New(t)
+	secrets := secretsmock.New(t)
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue,
+		newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{},
+		NewSharedConnection(log, false, 1, mockConfig, nil))
+
+	// firstTxn holds the single semaphore slot until release is closed.
+	firstEntered := make(chan struct{})
+	release := make(chan struct{})
+
+	firstTxn := newTestTransaction()
+	firstTxn.release = release
+	firstTxn.
+		On("Process", w.Client.GetClient()).
+		Run(func(_ tmock.Arguments) {
+			close(firstEntered)
+		}).
+		Return(nil).Times(1)
+	firstTxn.On("GetTarget").Return("")
+
+	// secondTxn will block on semaphore acquisition; it should be requeued, not processed.
+	secondTxn := newTestTransaction()
+	secondTxn.On("Process", w.Client.GetClient()).Return(nil).Maybe()
+	secondTxn.On("GetTarget").Return("").Maybe()
+
+	w.Start()
+	highPrio <- firstTxn
+	<-firstEntered // semaphore fully held
+
+	highPrio <- secondTxn // worker will pick this up then block on semaphore
+
+	// Wait deterministically until the worker has drained secondTxn from HighPrio
+	// (mirrors the polling pattern in TestWorkerStopWaitsForSemaphoreBlockedTransactions).
+	// Once HighPrio is empty, the worker is committed to processing secondTxn and is
+	// either entering or already inside semaphore.Acquire. A subsequent cancel()
+	// guarantees Acquire returns ctx.Err and callProcess requeues secondTxn.
+	for len(highPrio) > 0 {
+		time.Sleep(time.Millisecond)
+	}
+
+	// Stop with waitForInflight=false: cancels workerCtx immediately.
+	stopReturned := make(chan struct{})
+	go func() {
+		w.Stop(false)
+		close(stopReturned)
+	}()
+
+	// Wait for Stop's cancel() to propagate — otherwise close(release) below
+	// can race with cancel, free the semaphore first, and let secondTxn's
+	// Acquire succeed (defeating the test).
+	for w.workerCtx.Err() == nil {
+		time.Sleep(time.Microsecond)
+	}
+
+	// Release the first in-flight transaction so requestWg.Wait() can complete.
+	close(release)
+
+	select {
+	case <-stopReturned:
+		// expected — Stop returned after context cancel propagated
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop did not return after context cancellation")
+	}
+
+	// secondTxn must have been requeued (context cancel → semaphore.Acquire error → requeue).
+	assert.Equal(t, 1, len(requeue), "semaphore-blocked transaction must be requeued when Stop cancels workerCtx")
+	firstTxn.AssertNumberOfCalls(t, "Process", 1)
 }
 
 func TestWorkerRequeueDropsTracksPointsDropped(t *testing.T) {

@@ -29,8 +29,11 @@ type testTransaction struct {
 	pointCount   int
 	kind         transaction.Kind
 	destination  transaction.Destination
-	shouldBlock  bool
-	Name         string
+	// release, if non-nil, causes Process to block until the channel is
+	// closed (or receives a value). Used to simulate an in-flight HTTP
+	// request that hasn't yet returned.
+	release chan struct{}
+	Name    string
 }
 
 func newTestTransaction() *testTransaction {
@@ -59,7 +62,7 @@ func (t *testTransaction) GetCreatedAt() time.Time {
 	return t.Called().Get(0).(time.Time)
 }
 
-func (t *testTransaction) Process(ctx context.Context, _ config.Component, _ log.Component, _ secrets.Component, client *http.Client, pointCountTelemetry transaction.PointCountTelemetry) error {
+func (t *testTransaction) Process(_ context.Context, _ config.Component, _ log.Component, _ secrets.Component, client *http.Client, pointCountTelemetry transaction.PointCountTelemetry) error {
 	defer func() { t.processed <- true }()
 
 	var ret error
@@ -71,8 +74,8 @@ func (t *testTransaction) Process(ctx context.Context, _ config.Component, _ log
 		ret = t.Called(client).Error(0)
 	}
 
-	if t.shouldBlock {
-		<-ctx.Done()
+	if t.release != nil {
+		<-t.release
 	}
 
 	// Mirror HTTPTransaction.internalProcess: a nil-error outcome counts the
