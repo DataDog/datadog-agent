@@ -113,7 +113,6 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 			if tc.setupTagger != nil {
 				tc.setupTagger(fakeTagger)
 			}
-			ddnvml.WithMockNVML(t, nvmlMock)
 
 			// Execute
 			deviceCache := ddnvml.NewDeviceCache()
