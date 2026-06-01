@@ -27,7 +27,6 @@ import (
 type CheckWrapper struct {
 	senderManager  sender.SenderManager
 	agentTelemetry option.Option[agenttelemetry.Component]
-	issueReporter  option.Option[issuereporter.Component]
 
 	inner check.Check
 	// done is true when the check was cancelled and must not run.
@@ -38,11 +37,15 @@ type CheckWrapper struct {
 
 // NewCheckWrapper returns a wrapped check.
 func NewCheckWrapper(inner check.Check, senderManager sender.SenderManager, agentTelemetry option.Option[agenttelemetry.Component], issueReporter option.Option[issuereporter.Component]) *CheckWrapper {
+	if reporter, isSet := issueReporter.Get(); isSet {
+		if aware, ok := inner.(check.IssueAwareCheck); ok {
+			aware.SetIssueReporter(reporter)
+		}
+	}
 	return &CheckWrapper{
 		inner:          inner,
 		senderManager:  senderManager,
 		agentTelemetry: agentTelemetry,
-		issueReporter:  issueReporter,
 	}
 }
 
@@ -58,13 +61,6 @@ func (c *CheckWrapper) Run() (err error) {
 	if telemetry, isSet := c.agentTelemetry.Get(); isSet {
 		span, _ := telemetry.StartStartupSpan("check." + c.inner.String())
 		defer span.Finish(err)
-	}
-
-	// Inject the issue reporter if the check opts in via IssueAwareCheck.
-	if reporter, isSet := c.issueReporter.Get(); isSet {
-		if aware, ok := c.inner.(check.IssueAwareCheck); ok {
-			aware.SetIssueReporter(reporter)
-		}
 	}
 
 	// Run the check

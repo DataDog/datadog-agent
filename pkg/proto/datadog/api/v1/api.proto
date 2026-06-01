@@ -76,7 +76,11 @@ service AgentSecure {
     rpc StreamKubeMetadata(datadog.kubemetadata.KubeMetadataStreamRequest) returns (stream datadog.kubemetadata.KubeMetadataStreamResponse);
 
     // Reports a fully-built health issue from a sub-agent to the core agent's health platform store.
-    // The Any payload must contain a datadog.healthplatform.Issue proto.
+    // The Any payload must contain a datadog.healthplatform.Issue proto
+    // (type URL: type.googleapis.com/datadog.healthplatform.Issue).
+    // google.protobuf.Any is used here because agent-payload's healthplatform.proto
+    // cannot be imported into this proto file directly (different module boundary);
+    // type safety is enforced at the handler level via anypb.UnmarshalTo.
     // The issue is stored as-is; no template lookup is performed.
     rpc ReportHealthIssue(google.protobuf.Any) returns (google.protobuf.Empty);
 

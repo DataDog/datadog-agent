@@ -48,6 +48,50 @@ func (m *mockTelemetry) SendEvent(_ string, _ []byte) error {
 	return nil
 }
 
+type mockIssueReporter struct {
+	issuereporter.Component
+}
+
+type issueAwareCheck struct {
+	mockCheck
+	reporter issuereporter.Component
+}
+
+func (c *issueAwareCheck) SetIssueReporter(r issuereporter.Component) {
+	c.reporter = r
+}
+
+func TestCheckWrapperInjectsIssueReporter(t *testing.T) {
+	reporter := &mockIssueReporter{}
+	inner := &issueAwareCheck{}
+
+	wrapper := NewCheckWrapper(
+		inner,
+		nil,
+		option.None[agenttelemetry.Component](),
+		option.New[issuereporter.Component](reporter),
+	)
+
+	require.NotNil(t, wrapper)
+	assert.Equal(t, reporter, inner.reporter, "reporter should be injected at construction")
+}
+
+func TestCheckWrapperSkipsNonIssueAwareCheck(t *testing.T) {
+	reporter := &mockIssueReporter{}
+	inner := &mockCheck{}
+
+	wrapper := NewCheckWrapper(
+		inner,
+		nil,
+		option.None[agenttelemetry.Component](),
+		option.New[issuereporter.Component](reporter),
+	)
+
+	require.NotNil(t, wrapper)
+	err := wrapper.Run()
+	require.NoError(t, err)
+}
+
 func TestCheckWrapperCreatesSpan(t *testing.T) {
 	// Create a mock check
 	mockCheck := &mockCheck{}

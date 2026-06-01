@@ -191,7 +191,11 @@ type AgentSecureClient interface {
 	// Streams pod-to-service metadata for a specific node.
 	StreamKubeMetadata(ctx context.Context, in *KubeMetadataStreamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[KubeMetadataStreamResponse], error)
 	// Reports a fully-built health issue from a sub-agent to the core agent's health platform store.
-	// The Any payload must contain a datadog.healthplatform.Issue proto.
+	// The Any payload must contain a datadog.healthplatform.Issue proto
+	// (type URL: type.googleapis.com/datadog.healthplatform.Issue).
+	// google.protobuf.Any is used here because agent-payload's healthplatform.proto
+	// cannot be imported into this proto file directly (different module boundary);
+	// type safety is enforced at the handler level via anypb.UnmarshalTo.
 	// The issue is stored as-is; no template lookup is performed.
 	ReportHealthIssue(ctx context.Context, in *anypb.Any, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Resolves (clears) a previously reported health issue by its unique ID.
@@ -503,7 +507,11 @@ type AgentSecureServer interface {
 	// Streams pod-to-service metadata for a specific node.
 	StreamKubeMetadata(*KubeMetadataStreamRequest, grpc.ServerStreamingServer[KubeMetadataStreamResponse]) error
 	// Reports a fully-built health issue from a sub-agent to the core agent's health platform store.
-	// The Any payload must contain a datadog.healthplatform.Issue proto.
+	// The Any payload must contain a datadog.healthplatform.Issue proto
+	// (type URL: type.googleapis.com/datadog.healthplatform.Issue).
+	// google.protobuf.Any is used here because agent-payload's healthplatform.proto
+	// cannot be imported into this proto file directly (different module boundary);
+	// type safety is enforced at the handler level via anypb.UnmarshalTo.
 	// The issue is stored as-is; no template lookup is performed.
 	ReportHealthIssue(context.Context, *anypb.Any) (*emptypb.Empty, error)
 	// Resolves (clears) a previously reported health issue by its unique ID.
