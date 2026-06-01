@@ -183,7 +183,7 @@ func WaitForJobPodRunning(ctx context.Context, client kubernetes.Interface, name
 	var lastListErr error
 
 	// Tracks when we first observed a transient waiting reason per container.
-	// Key: "podName/containerName"
+	// Key: "podName/containerName/reason"
 	transientFirstSeen := make(map[string]time.Time)
 
 	for {
