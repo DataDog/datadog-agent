@@ -877,6 +877,16 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 			tagList.AddLow(tags.KubeAppPartOf, value)
 		case kubernetes.KubeAppManagedByLabelKey:
 			tagList.AddLow(tags.KubeAppManagedBy, value)
+		case kubernetes.KueueQueueNameLabelKey:
+			// TODO(kueue): replace this fallback by resolving LocalQueue -> ClusterQueue mapping.
+			// For now, assume queue-name can be used as both local and cluster queue names
+			// when explicit pod labels are not present.
+			if _, ok := pod.Labels[kubernetes.KueueLocalQueueNameLabelKey]; !ok {
+				tagList.AddLow(tags.KueueLocalQueue, value)
+			}
+			if _, ok := pod.Labels[kubernetes.KueueClusterQueueNameLabelKey]; !ok {
+				tagList.AddLow(tags.KueueClusterQueue, value)
+			}
 		case kubernetes.KueueLocalQueueNameLabelKey:
 			tagList.AddLow(tags.KueueLocalQueue, value)
 		case kubernetes.KueueClusterQueueNameLabelKey:
