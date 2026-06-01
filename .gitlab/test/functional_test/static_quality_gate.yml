@@ -126,66 +126,6 @@ static_quality_gates:
     OVERRIDE_GIT_STRATEGY: "clone" # needed because this job uses git merge-base
     KUBERNETES_CPU_REQUEST: 8
 
-# TEMPORARY: parity check between the new InventoryReportMeasurer (S3) and
-# the legacy artifact-extracting measurers. Remove together with the legacy
-# measurers in the follow-up cleanup PR.
-static_quality_gates_compare:
-  stage: functional_test
-  rules:
-    - !reference [.except_coverage_pipeline]
-    - !reference [.on_dev_branches_with_artifact_changes]
-    - when: manual
-      allow_failure: true
-  extends: .dd_octo_sts
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  tags: ["arch:amd64", "specific:true"]
-  # Own needs list (artifacts enabled by default) so the legacy measurers can
-  # actually extract the packages. Removed together with the parity tooling.
-  needs:
-    - agent_deb-x64-a7
-    - agent_deb-x64-a7-fips
-    - agent_rpm-x64-a7
-    - agent_rpm-x64-a7-fips
-    - agent_rpm-arm64-a7
-    - agent_rpm-arm64-a7-fips
-    - agent_suse-x64-a7
-    - agent_suse-x64-a7-fips
-    - agent_suse-arm64-a7
-    - agent_suse-arm64-a7-fips
-    - agent_heroku_deb-x64-a7
-    - docker_build_agent7
-    - docker_build_agent7_arm64
-    - docker_build_agent7_jmx
-    - docker_build_agent7_jmx_arm64
-    - docker_build_cluster_agent_amd64
-    - docker_build_cluster_agent_arm64
-    - docker_build_cws_instrumentation_amd64
-    - docker_build_cws_instrumentation_arm64
-    - docker_build_dogstatsd_amd64
-    - docker_build_dogstatsd_arm64
-    - docker_build_host_profiler_standalone_amd64
-    - docker_build_host_profiler_standalone_arm64
-    - dogstatsd_deb-x64
-    - dogstatsd_deb-arm64
-    - dogstatsd_rpm-x64
-    - dogstatsd_suse-x64
-    - iot_agent_deb-x64
-    - iot_agent_deb-arm64
-    - iot_agent_deb-armhf
-    - iot_agent_rpm-x64
-    - iot_agent_suse-x64
-    - job: windows_msi_and_bosh_zip_x64-a7
-      optional: true
-  before_script:
-    - !reference [.login_to_docker_readonly_crane]
-  script:
-    - dda inv -- quality-gates.compare-measurers
-  allow_failure: true
-  variables:
-    GIT_DEPTH: 0
-    OVERRIDE_GIT_STRATEGY: "clone"
-    KUBERNETES_CPU_REQUEST: 8
-
 manual_gate_threshold_update:
   stage: functional_test
   rules:

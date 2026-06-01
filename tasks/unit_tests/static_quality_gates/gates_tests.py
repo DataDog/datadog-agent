@@ -1,4 +1,3 @@
-import json
 import os
 import tempfile
 import unittest
@@ -6,19 +5,15 @@ from unittest.mock import MagicMock, mock_open, patch
 
 from invoke import MockContext, Result
 
-from tasks.libs.package.size import InfraError
 from tasks.static_quality_gates.gates import (
     ArtifactMeasurement,
-    DockerArtifactMeasurer,
     GateMetricHandler,
     GateResult,
     InventoryReportMeasurer,
-    PackageArtifactMeasurer,
     QualityGateConfig,
     QualityGateFactory,
     SizeViolation,
     StaticQualityGate,
-    StaticQualityGateError,
     _extract_arch_from_gate_name,
     _extract_os_from_gate_name,
     byte_to_string,
@@ -184,292 +179,6 @@ class TestArchitectureAndOSExtraction(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             _extract_os_from_gate_name("static_quality_gate_unknown")
-
-
-class TestPackageArtifactMeasurer(unittest.TestCase):
-    def setUp(self):
-        self.measurer = PackageArtifactMeasurer()
-        self.mock_ctx = MagicMock()
-
-    def test_extract_package_flavor(self):
-        self.assertEqual(self.measurer._extract_package_flavor("agent_deb_amd64"), "datadog-agent")
-        self.assertEqual(self.measurer._extract_package_flavor("dogstatsd_deb_amd64"), "datadog-dogstatsd")
-        self.assertEqual(self.measurer._extract_package_flavor("iot_agent_deb_amd64"), "datadog-iot-agent")
-        self.assertEqual(self.measurer._extract_package_flavor("agent_deb_amd64_fips"), "datadog-fips-agent")
-        self.assertEqual(self.measurer._extract_package_flavor("agent_heroku_amd64"), "datadog-heroku-agent")
-
-    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': '/test/pkg'})
-    @patch('tasks.static_quality_gates.gates.glob.glob')
-    def test_find_package_by_pattern_success(self, mock_glob):
-        mock_glob.return_value = ['/test/pkg/datadog-agent_7.0.0-1_amd64.deb']
-
-        config = QualityGateConfig("test", 1000, 2000, "amd64", "debian")
-        result = self.measurer._find_package_by_pattern("datadog-agent", "deb", config, "_")
-
-        self.assertEqual(result, '/test/pkg/datadog-agent_7.0.0-1_amd64.deb')
-        mock_glob.assert_called_once_with('/test/pkg/datadog-agent_7*amd64.deb')
-
-    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': '/test/pkg'})
-    @patch('tasks.static_quality_gates.gates.glob.glob')
-    def test_find_package_by_pattern_multiple_files(self, mock_glob):
-        mock_glob.return_value = [
-            '/test/pkg/datadog-agent_7.0.0-1_amd64.deb',
-            '/test/pkg/datadog-agent_7.0.1-1_amd64.deb',
-        ]
-
-        config = QualityGateConfig("test", 1000, 2000, "amd64", "debian")
-
-        with self.assertRaises(ValueError) as cm:
-            self.measurer._find_package_by_pattern("datadog-agent", "deb", config, "_")
-
-        self.assertIn("Too many DEB files", str(cm.exception))
-
-    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': '/test/pkg'})
-    @patch('tasks.static_quality_gates.gates.glob.glob')
-    def test_find_package_by_pattern_no_files(self, mock_glob):
-        mock_glob.return_value = []
-
-        config = QualityGateConfig("test", 1000, 2000, "amd64", "debian")
-
-        with self.assertRaises(ValueError) as cm:
-            self.measurer._find_package_by_pattern("datadog-agent", "deb", config, "_")
-
-        self.assertIn("Couldn't find any DEB file", str(cm.exception))
-
-    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': '/test/pkg', 'OMNIBUS_PACKAGE_DIR_SUSE': '/test/suse/pkg'})
-    def test_find_package_path_patterns(self):
-        test_cases = [
-            ("static_quality_gate_agent_deb_amd64", "/test/pkg/datadog-agent_7*amd64.deb"),
-            ("static_quality_gate_agent_deb_amd64_fips", "/test/pkg/datadog-fips-agent_7*amd64.deb"),
-            ("static_quality_gate_iot_agent_rpm_arm64", "/test/pkg/datadog-iot-agent-7*aarch64.rpm"),
-            ("static_quality_gate_dogstatsd_suse_amd64", "/test/suse/pkg/datadog-dogstatsd-7*x86_64.rpm"),
-            ("static_quality_gate_agent_heroku_amd64", "/test/pkg/datadog-heroku-agent_7*amd64.deb"),
-        ]
-
-        for gate_name, expected_pattern in test_cases:
-            with self.subTest(gate_name=gate_name):
-                config = create_quality_gate_config(
-                    gate_name, {"max_on_wire_size": "100 MiB", "max_on_disk_size": "350 MiB"}
-                )
-
-                mock_glob = MagicMock(return_value=["/test/pkg/some_package.ext"])
-                with patch('tasks.static_quality_gates.gates.glob.glob', mock_glob):
-                    with patch.object(self.measurer, '_calculate_package_sizes', return_value=(100, 350)):
-                        self.measurer.measure(self.mock_ctx, config)
-
-                actual_pattern = mock_glob.call_args_list[0][0][0]  # First call's first argument
-                self.assertEqual(actual_pattern, expected_pattern)
-
-    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': '/test/pkg', 'CI_PIPELINE_ID': '123'})
-    @patch('tasks.static_quality_gates.gates.glob.glob')
-    def test_find_package_path_msi_dual_file(self, mock_glob):
-        # First call returns ZIP file, second call returns MSI file
-        mock_glob.side_effect = [
-            ["/test/pkg/pipeline-123/datadog-agent-7.50.0-x86_64.zip"],
-            ["/test/pkg/pipeline-123/datadog-agent-7.50.0-x86_64.msi"],
-        ]
-
-        config = create_quality_gate_config(
-            "static_quality_gate_agent_msi", {"max_on_wire_size": "100 MiB", "max_on_disk_size": "350 MiB"}
-        )
-
-        with patch.object(self.measurer, '_calculate_package_sizes', return_value=(100, 350)):
-            measurement = self.measurer.measure(self.mock_ctx, config)
-
-        # Verify MSI file is used as the primary artifact path
-        self.assertEqual(measurement.artifact_path, "/test/pkg/pipeline-123/datadog-agent-7.50.0-x86_64.msi")
-
-
-class TestDockerArtifactMeasurer(unittest.TestCase):
-    def setUp(self):
-        self.measurer = DockerArtifactMeasurer()
-        self.mock_ctx = MagicMock()
-
-    @patch.dict('os.environ', {'BUCKET_BRANCH': 'main', 'CI_PIPELINE_ID': '12345', 'CI_COMMIT_SHORT_SHA': 'abc123'})
-    def test_get_image_url_agent(self):
-        config = QualityGateConfig("docker_agent_amd64", 1000, 2000, "amd64", "docker")
-
-        url = self.measurer._get_image_url(config)
-
-        expected = "registry.ddbuild.io/ci/datadog-agent/agent:v12345-abc123-7-amd64"
-        self.assertEqual(url, expected)
-
-    @patch.dict('os.environ', {'BUCKET_BRANCH': 'main', 'CI_PIPELINE_ID': '12345', 'CI_COMMIT_SHORT_SHA': 'abc123'})
-    def test_get_image_url_jmx(self):
-        config = QualityGateConfig("docker_agent_jmx_amd64", 1000, 2000, "amd64", "docker")
-
-        url = self.measurer._get_image_url(config)
-
-        expected = "registry.ddbuild.io/ci/datadog-agent/agent:v12345-abc123-7-jmx-amd64"
-        self.assertEqual(url, expected)
-
-    @patch.dict('os.environ', {'BUCKET_BRANCH': 'nightly', 'CI_PIPELINE_ID': '12345', 'CI_COMMIT_SHORT_SHA': 'abc123'})
-    def test_get_image_url_nightly(self):
-        """Test Docker image URL generation for nightly"""
-        config = QualityGateConfig("docker_agent_amd64", 1000, 2000, "amd64", "docker")
-
-        url = self.measurer._get_image_url(config)
-
-        expected = "registry.ddbuild.io/ci/datadog-agent/agent-nightly:v12345-abc123-7-amd64"
-        self.assertEqual(url, expected)
-
-    @patch.dict('os.environ', {}, clear=True)
-    def test_get_image_url_missing_ci_vars(self):
-        """Test Docker image URL generation with missing CI variables"""
-        config = QualityGateConfig("docker_agent_amd64", 1000, 2000, "amd64", "docker")
-
-        with self.assertRaises(StaticQualityGateError) as cm:
-            self.measurer._get_image_url(config)
-
-        self.assertIn("CI environment", str(cm.exception))
-
-    @patch.dict('os.environ', {'BUCKET_BRANCH': 'main', 'CI_PIPELINE_ID': '71580015', 'CI_COMMIT_SHORT_SHA': '668844'})
-    def test_get_image_url(self):
-        test_cases = [
-            (
-                "static_quality_gate_docker_agent_amd64",
-                "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-7-amd64",
-            ),
-            (
-                "static_quality_gate_docker_cluster_amd64",
-                "registry.ddbuild.io/ci/datadog-agent/cluster-agent:v71580015-668844-amd64",
-            ),
-            (
-                "static_quality_gate_docker_dogstatsd_arm64",
-                "registry.ddbuild.io/ci/datadog-agent/dogstatsd:v71580015-668844-arm64",
-            ),
-            (
-                "static_quality_gate_docker_cws_instrumentation_amd64",
-                "registry.ddbuild.io/ci/datadog-agent/cws-instrumentation:v71580015-668844-amd64",
-            ),
-            (
-                "static_quality_gate_docker_agent_jmx_amd64",
-                "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-7-jmx-amd64",
-            ),
-            (
-                "static_quality_gate_docker_host_profiler_amd64",
-                "registry.ddbuild.io/ci/datadog-agent/ddot-ebpf:v71580015-668844-7-amd64",
-            ),
-            (
-                "static_quality_gate_docker_host_profiler_arm64",
-                "registry.ddbuild.io/ci/datadog-agent/ddot-ebpf:v71580015-668844-7-arm64",
-            ),
-        ]
-
-        for gate_name, expected_url in test_cases:
-            with self.subTest(gate_name=gate_name):
-                config = create_quality_gate_config(
-                    gate_name, {"max_on_wire_size": "100 MiB", "max_on_disk_size": "100 MiB"}
-                )
-                actual_url = self.measurer._get_image_url(config)
-                self.assertEqual(actual_url, expected_url)
-
-    @patch.dict(
-        'os.environ', {'BUCKET_BRANCH': 'nightly', 'CI_PIPELINE_ID': '71580015', 'CI_COMMIT_SHORT_SHA': '668844'}
-    )
-    def test_get_image_url_nightly_flavors(self):
-        test_cases = [
-            (
-                "static_quality_gate_docker_agent_amd64",
-                "registry.ddbuild.io/ci/datadog-agent/agent-nightly:v71580015-668844-7-amd64",
-            ),
-            (
-                "static_quality_gate_docker_cluster_amd64",
-                "registry.ddbuild.io/ci/datadog-agent/cluster-agent-nightly:v71580015-668844-amd64",
-            ),
-            (
-                "static_quality_gate_docker_host_profiler_amd64",
-                "registry.ddbuild.io/ci/datadog-agent/ddot-ebpf-nightly:v71580015-668844-7-amd64",
-            ),
-        ]
-
-        for gate_name, expected_url in test_cases:
-            with self.subTest(gate_name=gate_name):
-                config = create_quality_gate_config(
-                    gate_name, {"max_on_wire_size": "100 MiB", "max_on_disk_size": "100 MiB"}
-                )
-                actual_url = self.measurer._get_image_url(config)
-                self.assertEqual(actual_url, expected_url)
-
-    def test_get_image_url_error_cases(self):
-        """Test Docker image URL generation error cases"""
-        # Test unknown flavor
-        with self.assertRaises(ValueError) as context:
-            config = create_quality_gate_config(
-                "static_quality_gate_docker_unknown_flavor_amd64",
-                {"max_on_wire_size": "100 MiB", "max_on_disk_size": "100 MiB"},
-            )
-            self.measurer._get_image_url(config)
-        self.assertIn("Unknown docker image flavor for gate", str(context.exception))
-
-        # Test missing CI_PIPELINE_ID
-        with patch.dict('os.environ', {"CI_PIPELINE_ID": ""}):
-            config = create_quality_gate_config(
-                "static_quality_gate_docker_agent_amd64", {"max_on_wire_size": "100 MiB", "max_on_disk_size": "100 MiB"}
-            )
-            with self.assertRaises(StaticQualityGateError) as context:
-                self.measurer._get_image_url(config)
-            self.assertIn("Missing CI_PIPELINE_ID, CI_COMMIT_SHORT_SHA", str(context.exception))
-
-        # Test missing CI_COMMIT_SHORT_SHA
-        with patch.dict('os.environ', {"CI_COMMIT_SHORT_SHA": ""}):
-            config = create_quality_gate_config(
-                "static_quality_gate_docker_agent_amd64", {"max_on_wire_size": "100 MiB", "max_on_disk_size": "100 MiB"}
-            )
-            with self.assertRaises(StaticQualityGateError) as context:
-                self.measurer._get_image_url(config)
-            self.assertIn("Missing CI_PIPELINE_ID, CI_COMMIT_SHORT_SHA", str(context.exception))
-
-    def test_calculate_image_wire_size_sums_manifest_sizes(self):
-        self.mock_ctx.run.return_value = Result(
-            stdout=json.dumps(
-                [
-                    {
-                        "Ref": "gcr.io/datadoghq/agent:7@sha256:aaa",
-                        "Descriptor": {"size": 1, "platform": {"architecture": "amd64", "os": "linux"}},
-                        "Raw": "eyJzaXplIjoxfQ==",
-                        "SchemaV2Manifest": {
-                            "config": {"size": 10},
-                            "layers": [{"size": 100}],
-                        },
-                    },
-                    {
-                        "Ref": "gcr.io/datadoghq/agent:7@sha256:bbb",
-                        "Descriptor": {"size": 1_000, "platform": {"architecture": "arm64", "os": "linux"}},
-                        "Raw": "eyJzaXplIjoyfQ==",
-                        "SchemaV2Manifest": {
-                            "config": {"size": 10_000},
-                            "layers": [{"size": 100_000}],
-                        },
-                    },
-                ]
-            )
-        )
-
-        self.assertEqual(self.measurer._calculate_image_wire_size(self.mock_ctx, "img"), 111_111)
-
-    def test_calculate_image_wire_size_zero_result_raises(self):
-        """Test the silent-zero condition the earlier `grep size | awk` reported as a sane 0-byte image now fails"""
-        self.mock_ctx.run.return_value = Result(stdout=json.dumps([]))
-
-        with self.assertRaises(StaticQualityGateError) as cm:
-            self.measurer._calculate_image_wire_size(self.mock_ctx, "img")
-        self.assertIn("wire size of 0 bytes", str(cm.exception))
-
-    def test_calculate_image_wire_size_invalid_json_raises(self):
-        """Test invalid JSON outputs ignored by earlier `grep | awk` pipeline are now reported as such"""
-        self.mock_ctx.run.return_value = Result(stdout="not json")
-
-        with self.assertRaises(json.JSONDecodeError):
-            self.measurer._calculate_image_wire_size(self.mock_ctx, "img")
-
-    def test_calculate_image_wire_size_non_zero_exit_raises_infra_error(self):
-        """Test `docker manifest inspect` non-zero exit codes swallowed by earlier `grep | awk` are now retriable"""
-        self.mock_ctx.run.return_value = Result(exited=1)
-
-        with self.assertRaises(InfraError) as cm:
-            self.measurer._calculate_image_wire_size(self.mock_ctx, "img")
-        self.assertIn("Docker manifest inspect failed to retrieve img", str(cm.exception))
 
 
 class TestStaticQualityGate(unittest.TestCase):
@@ -662,19 +371,6 @@ class TestArchitectureMapping(unittest.TestCase):
                     create_quality_gate_config(
                         invalid_name, {"max_on_wire_size": "100 MiB", "max_on_disk_size": "200 MiB"}
                     )
-
-
-class TestOnDiskImageSizeCalculation(unittest.TestCase):
-    def tearDown(self):
-        try:
-            os.remove('./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_archive.tar.gz')
-            os.remove('./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_metadata.json')
-        except OSError:
-            pass
-        try:
-            os.remove('./tasks/unit_tests/testdata/fake_agent_image/without_tar_gz_archive/some_metadata.json')
-        except OSError:
-            pass
 
 
 class TestMetricsDictDelta(unittest.TestCase):
