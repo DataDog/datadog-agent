@@ -8,6 +8,7 @@
 package python
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -41,4 +42,40 @@ func TestEmitAgentTelemetry(t *testing.T) {
 
 func TestObfuscaterConfig(t *testing.T) {
 	testObfuscaterConfig(t)
+}
+
+func TestLoadSQLConfig(t *testing.T) {
+	testLoadSQLConfig(t)
+}
+
+func TestObfuscateSQL(t *testing.T) {
+	testObfuscateSQL(t)
+}
+
+// BenchmarkLoadSQLConfig compares the memoized lookup against the json.Unmarshal it replaces.
+func BenchmarkLoadSQLConfig(b *testing.B) {
+	optStr := `{"dbms":"postgresql","obfuscation_mode":"obfuscate_and_normalize","table_names":true,"collect_commands":true,"collect_comments":true,"keep_sql_alias":true,"dollar_quoted_func":true,"return_json_metadata":true}`
+
+	b.Run("Memoized", func(b *testing.B) {
+		if _, err := loadSQLConfig(optStr); err != nil { // prime the cache
+			b.Fatal(err)
+		}
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if _, err := loadSQLConfig(optStr); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	b.Run("UnmarshalEachCall", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			var c sqlConfig
+			if err := json.Unmarshal([]byte(optStr), &c); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
 }
