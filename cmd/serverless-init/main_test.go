@@ -9,7 +9,6 @@ package main
 
 import (
 	"context"
-	"os"
 	"slices"
 	"testing"
 	"time"
@@ -26,7 +25,6 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	agentmock "github.com/DataDog/datadog-agent/comp/logs/agent/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -147,14 +145,20 @@ func TestSetupWithoutAPIKey(t *testing.T) {
 	})
 }
 
+// TestRCServiceNilWhenPreviewFlagAbsent verifies the preview gate short-circuits:
+// without the opt-in flag, no RC service is created even when RC is otherwise
+// enabled and an API key is present.
 func TestRCServiceNilWhenPreviewFlagAbsent(t *testing.T) {
-	var rcService *remoteconfig.CoreAgentService
-	if os.Getenv(mode.RemoteConfigPreviewEnvVar) == "true" {
-		rcService = setupRemoteConfig(fakeHostname{})
-	}
-	assert.Nil(t, rcService)
+	t.Setenv("DD_API_KEY", "test-api-key")
+	t.Setenv("DD_RUN_PATH", t.TempDir())
+	configmock.New(t)
+	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t), nil)
+
+	assert.Nil(t, setupRemoteConfigIfPreviewEnabled(fakeHostname{}))
 }
 
+// TestRCServiceCreatedWhenPreviewFlagSet verifies that opting into the preview
+// flag drives the gate to actually build the RC service.
 func TestRCServiceCreatedWhenPreviewFlagSet(t *testing.T) {
 	t.Setenv(mode.RemoteConfigPreviewEnvVar, "true")
 	t.Setenv("DD_API_KEY", "test-api-key")
@@ -162,10 +166,7 @@ func TestRCServiceCreatedWhenPreviewFlagSet(t *testing.T) {
 	configmock.New(t)
 	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t), nil)
 
-	var rcService *remoteconfig.CoreAgentService
-	if os.Getenv(mode.RemoteConfigPreviewEnvVar) == "true" {
-		rcService = setupRemoteConfig(fakeHostname{})
-	}
+	rcService := setupRemoteConfigIfPreviewEnabled(fakeHostname{})
 	require.NotNil(t, rcService)
 	rcService.Stop()
 }
