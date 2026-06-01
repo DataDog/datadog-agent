@@ -16,8 +16,8 @@ import (
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	cloudfoundrycontainer "github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/def"
 	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	etwfx "github.com/DataDog/datadog-agent/comp/etw/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 
 	// checks implemented as components
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	agentcrashdetect "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/def"
 	agentcrashdetectfx "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/fx"
 	windowseventlog "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/def"
@@ -50,15 +50,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
+	guidef "github.com/DataDog/datadog-agent/comp/core/gui/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -142,7 +142,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ expvarserver.Component,
 			jmxlogger jmxlogger.Component,
 			settings settings.Component,
-			_ option.Option[gui.Component],
+			_ option.Option[guidef.Component],
 			agenttelemetryComponent agenttelemetry.Component,
 			hostname hostnameinterface.Component,
 			ipc ipc.Component,

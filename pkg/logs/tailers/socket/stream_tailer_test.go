@@ -232,6 +232,58 @@ func TestStreamTailer_Syslog_NULFraming(t *testing.T) {
 	tailer.Stop()
 }
 
+// ---------------------------------------------------------------------------
+// AGNTLOG-434: connect-send-close-per-message framing
+// ---------------------------------------------------------------------------
+//
+// Some forwarders frame each message as its own TCP connection: connect,
+// write a single message *without* a trailing newline/delimiter, then close.
+// These tests verify the agent receives the message via the decoder's
+// end-of-stream flush rather than dropping it on EOF.
+
+func TestStreamTailer_Unstructured_NoTrailingNewlineOnClose(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+
+	source := sources.NewLogSource("test", &config.LogsConfig{})
+	outputChan := make(chan *message.Message, 10)
+
+	tailer := NewStreamTailer(source, serverConn, outputChan, testFrameSize, 0, "", nil)
+	tailer.Start()
+
+	// Customer behaviour: connect, send a single message with no trailing
+	// newline, then close the connection.
+	clientConn.Write([]byte("orphan-message"))
+	clientConn.Close()
+
+	msg := recvMsg(t, outputChan)
+	assert.Equal(t, "orphan-message", string(msg.GetContent()))
+
+	tailer.Stop()
+}
+
+func TestStreamTailer_Syslog_NonTransparent_NoTrailerOnClose(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+
+	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
+	outputChan := make(chan *message.Message, 10)
+
+	tailer := NewStreamTailer(source, serverConn, outputChan, testFrameSize, 0, "", nil)
+	tailer.Start()
+
+	// Non-transparent syslog framing without a trailing LF — the message
+	// boundary is the connection close itself.
+	clientConn.Write([]byte("<14>1 2003-10-11T22:14:15.003Z myhost myapp - - - one-shot message"))
+	clientConn.Close()
+
+	msg := recvMsg(t, outputChan)
+	assert.Equal(t, message.StateStructured, msg.State)
+	assert.Equal(t, "one-shot message", string(msg.GetContent()))
+
+	tailer.Stop()
+}
+
 func TestStreamTailer_Syslog_NoSourceServiceOverride(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()

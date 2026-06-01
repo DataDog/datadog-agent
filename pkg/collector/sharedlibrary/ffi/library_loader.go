@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"path"
 	"runtime"
+	"strings"
 	"unsafe"
 
 	_ "github.com/DataDog/datadog-agent/pkg/collector/aggregator" // import submit functions
@@ -72,7 +73,22 @@ type LibraryLoader interface {
 	Close(lib *Library) error
 	Run(lib *Library, checkID string, initConfig string, instanceConfig string) error
 	Version(lib *Library) (string, error)
-	ComputeLibraryPath(name string) string
+	ComputeLibraryPath(name string) (string, error)
+}
+
+// validateLibraryName ensures that name can be used as a filename component
+// without enabling path traversal. The agent loader concatenates the name
+// into "libdatadog-agent-<name>.<ext>", so any path separator or relative
+// segment would let an attacker who controls check names (e.g. via container
+// labels in autodiscovery) point dlopen at an arbitrary library on disk.
+func validateLibraryName(name string) error {
+	if name == "" {
+		return errors.New("name is empty")
+	}
+	if strings.ContainsAny(name, `/\`+"\x00") {
+		return fmt.Errorf("name %q contains a path separator or NUL byte", name)
+	}
+	return nil
 }
 
 // SharedLibraryLoader loads and uses shared libraries
@@ -158,10 +174,14 @@ func (l *SharedLibraryLoader) Version(lib *Library) (string, error) {
 
 }
 
-// ComputeLibraryPath returns the full expected path of the library
-func (l *SharedLibraryLoader) ComputeLibraryPath(name string) string {
+// ComputeLibraryPath returns the full expected path of the library, after
+// validating that the name cannot escape the configured library folder.
+func (l *SharedLibraryLoader) ComputeLibraryPath(name string) (string, error) {
+	if err := validateLibraryName(name); err != nil {
+		return "", err
+	}
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
-	return path.Join(l.folderPath, "libdatadog-agent-"+name+"."+getLibExtension())
+	return path.Join(l.folderPath, "libdatadog-agent-"+name+"."+getLibExtension()), nil
 }
 
 // NewSharedLibraryLoader creates a new SharedLibraryLoader

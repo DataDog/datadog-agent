@@ -117,7 +117,7 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 	allProbes = append(allProbes, getSetrlimitProbes(fentry)...)
 	allProbes = append(allProbes, getCapabilitiesMonitoringProbes()...)
 	allProbes = append(allProbes, getPrCtlProbes(fentry)...)
-	allProbes = append(allProbes, getSocketProbes(cgroup2MountPoint)...)
+	allProbes = append(allProbes, getSocketProbes(fentry, cgroup2MountPoint)...)
 	allProbes = append(allProbes, getMemfdProbes(fentry)...)
 	allProbes = appendSyscallProbes(allProbes, fentry, EntryAndExit, false, "setsid")
 
@@ -452,6 +452,7 @@ func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, networkFlowMonit
 	routes = append(routes, getExecTailCallRoutes()...)
 	routes = append(routes, getDentryResolverTailCallRoutes(eRPCDentryResolutionEnabled, supportMmapableMaps)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
+	routes = append(routes, getCacheSyscallTailCallRoutes()...)
 	if networkEnabled {
 		routes = append(routes, getTCTailCallRoutes(rawPacketEnabled)...)
 	}

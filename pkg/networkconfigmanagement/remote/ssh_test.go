@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build test && ncm
+//go:build test
 
 package remote
 
@@ -20,11 +20,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestSSHClient_RetrieveRunningConfig_Success(t *testing.T) {
@@ -266,7 +267,7 @@ func TestValidateClientConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateClientConfig(tt.config)
+			err := ValidateSSHConfig(tt.config)
 
 			if tt.errContains != "" {
 				assert.Error(t, err)

@@ -79,6 +79,7 @@ use (
 	comp/trace/compression/def
 	comp/trace/compression/impl-gzip
 	comp/trace/compression/impl-zstd
+	internal/qbranch/anomalydetection-testbench
 	internal/tools
 	internal/tools/gotest-custom
 	internal/tools/independent-lint
@@ -110,7 +111,6 @@ use (
 	pkg/fips
 	pkg/fleet/installer
 	pkg/gohai
-	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message
 	pkg/logs/sources
