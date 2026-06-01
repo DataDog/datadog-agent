@@ -1092,9 +1092,8 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            tags:
-            - TODO:fix-no-default
-            comment: No static default; inherits remote_configuration.apm_sampling.enabled when unset.
+            default: true
+            comment: Gates the trace-agent's AGENT_CONFIG subscription. When the user sets apm_sampling.enabled but not this flag, the trace-agent inherits apm_sampling.enabled to preserve legacy bundled behavior.
       agent_integrations:
         node_type: section
         type: object

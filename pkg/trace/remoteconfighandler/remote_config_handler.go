@@ -54,8 +54,12 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 		return nil
 	}
 
-	if conf.DebugServerPort == 0 {
-		log.Errorf("debug server(apm_config.debug.port) was disabled, server is required for remote config, RC is disabled.")
+	// The debug server is only required by AGENT_CONFIG (log-level writes).
+	// If it's disabled and no other RC product is enabled, the handler has
+	// nothing useful to do — disable RC. Otherwise we continue and skip just
+	// the AGENT_CONFIG subscription in Start().
+	if conf.DebugServerPort == 0 && !conf.RemoteConfigAPMSamplingEnabled && !conf.RemoteConfigAPMSemanticsEnabled {
+		log.Errorf("debug server(apm_config.debug.port) was disabled and no other RC product is enabled, RC is disabled.")
 		return nil
 	}
 
@@ -95,7 +99,14 @@ func (h *RemoteConfigHandler) Start() {
 		h.client.Subscribe(state.ProductAPMSampling, h.onUpdate)
 	}
 	if h.agentConfig.RemoteConfigAgentConfigEnabled {
-		h.client.Subscribe(state.ProductAgentConfig, h.onAgentConfigUpdate)
+		// AGENT_CONFIG writes (log level overrides) require the debug server.
+		// Skip the subscription if it isn't running so the rest of the handler
+		// still works — see New() for the construction-time policy.
+		if h.agentConfig.DebugServerPort == 0 {
+			log.Warnf("AGENT_CONFIG remote config requested but the debug server (apm_config.debug.port) is disabled; skipping subscription.")
+		} else {
+			h.client.Subscribe(state.ProductAgentConfig, h.onAgentConfigUpdate)
+		}
 	}
 	if h.agentConfig.RemoteConfigAPMSemanticsEnabled {
 		h.client.Subscribe(state.ProductAPMSemanticCoreDD, h.onSemanticCoreUpdate)
@@ -338,7 +349,7 @@ func (h *RemoteConfigHandler) onSemanticCoreUpdate(
 	}
 
 	if len(cfgPaths) > 1 {
-		pkglog.Warnf("semantic-core RC update delivered %d configs; expected 1. Using lex-last cfgPath: %s", len(cfgPaths), chosenPath)
+		pkglog.Warnf("semantic-core RC update delivered %d configs; expected 1. Using lex-last valid cfgPath: %s", len(cfgPaths), chosenPath)
 	}
 
 	if chosen != nil {

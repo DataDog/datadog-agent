@@ -2426,7 +2426,9 @@ func TestMultiRegionFailoverConfig(t *testing.T) {
 }
 
 // TestRemoteConfigPerProductEnable covers the per-product RC enable flags and
-// the agent_config.enabled inheritance rule. See plan.md for the truth table.
+// the agent_config.enabled inheritance rule: agent_config.enabled inherits
+// apm_sampling.enabled when the user has explicitly set apm_sampling.enabled
+// but not agent_config.enabled, preserving the legacy bundled behavior.
 func TestRemoteConfigPerProductEnable(t *testing.T) {
 	t.Run("defaults: apm_sampling on, agent_config inherits true, semantics off", func(t *testing.T) {
 		config := buildConfigComponent(t, true)

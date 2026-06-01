@@ -112,14 +112,17 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	rcEnabled := utils.IsRemoteConfigEnabled(coreConfigObject)
 	cfg.RemoteConfigAPMSamplingEnabled = rcEnabled && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled")
 	cfg.RemoteConfigAPMSemanticsEnabled = rcEnabled && coreConfigObject.GetBool("remote_configuration.apm_semantics.enabled")
+	cfg.RemoteConfigAgentConfigEnabled = rcEnabled && coreConfigObject.GetBool("remote_configuration.agent_config.enabled")
 
-	// agent_config.enabled has no static default. If unset, inherit
-	// apm_sampling.enabled to preserve historical behavior (where
-	// apm_sampling.enabled implicitly gated the AGENT_CONFIG subscription
-	// by virtue of bundling them onto the same RC client).
-	cfg.RemoteConfigAgentConfigEnabled = cfg.RemoteConfigAPMSamplingEnabled
-	if coreConfigObject.IsConfigured("remote_configuration.agent_config.enabled") {
-		cfg.RemoteConfigAgentConfigEnabled = rcEnabled && coreConfigObject.GetBool("remote_configuration.agent_config.enabled")
+	// Backward-compat inheritance: when the user has explicitly set
+	// apm_sampling.enabled (typically to false) but has NOT explicitly set
+	// agent_config.enabled, mirror apm_sampling.enabled into agent_config.
+	// This preserves the legacy behavior where apm_sampling.enabled
+	// implicitly gated the AGENT_CONFIG subscription by virtue of bundling
+	// both onto the same RC client.
+	if coreConfigObject.IsConfigured("remote_configuration.apm_sampling.enabled") &&
+		!coreConfigObject.IsConfigured("remote_configuration.agent_config.enabled") {
+		cfg.RemoteConfigAgentConfigEnabled = cfg.RemoteConfigAPMSamplingEnabled
 	}
 
 	var products []string

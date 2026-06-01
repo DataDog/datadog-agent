@@ -136,6 +136,68 @@ func TestStartNoRemoteClient(t *testing.T) {
 	assert.NotPanics(t, h.Start)
 }
 
+// TestNew_NoDebugServerWithSemanticsOnly verifies that the handler is built
+// successfully when the debug server is disabled but apm_semantics RC is
+// requested — semantics RC does not depend on the debug server.
+func TestNew_NoDebugServerWithSemanticsOnly(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	remoteClient := NewMockRemoteClient(ctrl)
+	agentConfig := config.AgentConfig{
+		RemoteConfigClient:              remoteClient,
+		DebugServerPort:                 0,
+		RemoteConfigAPMSemanticsEnabled: true,
+	}
+	pkglog.SetupLogger(pkglog.Default(), "debug")
+
+	h := New(&agentConfig, NewMockprioritySampler(ctrl), NewMockrareSampler(ctrl), NewMockerrorsSampler(ctrl))
+	require.NotNil(t, h, "handler must be constructed when a debug-server-independent product is enabled")
+
+	remoteClient.EXPECT().Subscribe(state.ProductAPMSemanticCoreDD, gomock.Any()).Times(1)
+	remoteClient.EXPECT().Start().Times(1)
+	h.Start()
+}
+
+// TestNew_NoDebugServerNoOtherProducts verifies that the handler returns nil
+// when the debug server is disabled and only AGENT_CONFIG could have been
+// requested — there is nothing useful for the handler to do.
+func TestNew_NoDebugServerNoOtherProducts(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	remoteClient := NewMockRemoteClient(ctrl)
+	agentConfig := config.AgentConfig{
+		RemoteConfigClient:             remoteClient,
+		DebugServerPort:                0,
+		RemoteConfigAgentConfigEnabled: true,
+	}
+	pkglog.SetupLogger(pkglog.Default(), "debug")
+
+	h := New(&agentConfig, NewMockprioritySampler(ctrl), NewMockrareSampler(ctrl), NewMockerrorsSampler(ctrl))
+	assert.Nil(t, h, "handler must be nil: debug server is disabled and AGENT_CONFIG is the only requested product")
+}
+
+// TestStart_AgentConfigSkippedWithoutDebugServer verifies that with a mix of
+// APM_SAMPLING + AGENT_CONFIG requested but debug server disabled, the handler
+// is still built and subscribes to APM_SAMPLING only; the AGENT_CONFIG
+// subscription is skipped with a warning.
+func TestStart_AgentConfigSkippedWithoutDebugServer(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	remoteClient := NewMockRemoteClient(ctrl)
+	agentConfig := config.AgentConfig{
+		RemoteConfigClient:             remoteClient,
+		DebugServerPort:                0,
+		RemoteConfigAPMSamplingEnabled: true,
+		RemoteConfigAgentConfigEnabled: true,
+	}
+	pkglog.SetupLogger(pkglog.Default(), "debug")
+
+	h := New(&agentConfig, NewMockprioritySampler(ctrl), NewMockrareSampler(ctrl), NewMockerrorsSampler(ctrl))
+	require.NotNil(t, h)
+
+	// Only APM_SAMPLING is subscribed; AGENT_CONFIG is intentionally skipped.
+	remoteClient.EXPECT().Subscribe(state.ProductAPMSampling, gomock.Any()).Times(1)
+	remoteClient.EXPECT().Start().Times(1)
+	h.Start()
+}
+
 func TestPrioritySampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	remoteClient := NewMockRemoteClient(ctrl)
