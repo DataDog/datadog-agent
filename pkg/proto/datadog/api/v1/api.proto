@@ -85,6 +85,9 @@ service AgentSecure {
     rpc ReportHealthIssue(google.protobuf.Any) returns (google.protobuf.Empty);
 
     // Resolves (clears) a previously reported health issue by its unique ID.
+    // This is an idempotent delete: OK is returned whether the issue existed or not.
+    // Callers cannot distinguish "resolved" from "never reported" — do not treat
+    // OK as confirmation that a prior ReportHealthIssue succeeded.
     rpc ResolveHealthIssue(datadog.api.v1.HealthIssueResolve) returns (google.protobuf.Empty);
 }
 

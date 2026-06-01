@@ -199,6 +199,9 @@ type AgentSecureClient interface {
 	// The issue is stored as-is; no template lookup is performed.
 	ReportHealthIssue(ctx context.Context, in *anypb.Any, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Resolves (clears) a previously reported health issue by its unique ID.
+	// This is an idempotent delete: OK is returned whether the issue existed or not.
+	// Callers cannot distinguish "resolved" from "never reported" — do not treat
+	// OK as confirmation that a prior ReportHealthIssue succeeded.
 	ResolveHealthIssue(ctx context.Context, in *HealthIssueResolve, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
@@ -515,6 +518,9 @@ type AgentSecureServer interface {
 	// The issue is stored as-is; no template lookup is performed.
 	ReportHealthIssue(context.Context, *anypb.Any) (*emptypb.Empty, error)
 	// Resolves (clears) a previously reported health issue by its unique ID.
+	// This is an idempotent delete: OK is returned whether the issue existed or not.
+	// Callers cannot distinguish "resolved" from "never reported" — do not treat
+	// OK as confirmation that a prior ReportHealthIssue succeeded.
 	ResolveHealthIssue(context.Context, *HealthIssueResolve) (*emptypb.Empty, error)
 	mustEmbedUnimplementedAgentSecureServer()
 }
