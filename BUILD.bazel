@@ -512,7 +512,6 @@ exports_files(glob(
 # gazelle:exclude pkg/orchestrator/config
 # gazelle:exclude pkg/privateactionrunner/autoconnections
 # gazelle:exclude pkg/privateactionrunner/bundles/remoteaction/rshell
-# gazelle:exclude pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement
 # gazelle:exclude pkg/privateactionrunner/enrollment
 # gazelle:exclude pkg/privateactionrunner/runners
 # gazelle:exclude pkg/privileged-logs/module
