@@ -48,7 +48,7 @@ type AutoscalerWatcher struct {
 	autogenEnabled          bool
 	autogenExpirationPeriod time.Duration
 	autogenNamespace        string
-	hpaLabelSelector        labels.Selector
+	autogenLabelSelector    labels.Selector
 	autoscalerLister        cache.GenericLister
 	autoscalerListerSynced  cache.InformerSynced
 	wpaLister               cache.GenericLister
@@ -76,7 +76,7 @@ func NewAutoscalerWatcher(
 	autogenEnabled bool,
 	autogenExpirationPeriodHours int64,
 	autogenNamespace string,
-	hpaLabelSelector labels.Selector,
+	autogenLabelSelector labels.Selector,
 	client kubernetes.Interface,
 	informer informers.SharedInformerFactory,
 	wpaInformer dynamic_informer.DynamicSharedInformerFactory,
@@ -119,8 +119,8 @@ func NewAutoscalerWatcher(
 		wpaListerSynced = wpaInformer.ForResource(gvr).Informer().HasSynced
 	}
 
-	if hpaLabelSelector == nil {
-		hpaLabelSelector = labels.Everything()
+	if autogenLabelSelector == nil {
+		autogenLabelSelector = labels.Everything()
 	}
 
 	autoscalerWatcher := &AutoscalerWatcher{
@@ -128,7 +128,7 @@ func NewAutoscalerWatcher(
 		autogenEnabled:          autogenEnabled,
 		autogenExpirationPeriod: time.Duration(autogenExpirationPeriodHours) * time.Hour,
 		autogenNamespace:        autogenNamespace,
-		hpaLabelSelector:        hpaLabelSelector,
+		autogenLabelSelector:    autogenLabelSelector,
 		autoscalerLister:        autoscalerLister,
 		autoscalerListerSynced:  autoscalerListerSynced,
 		wpaLister:               wpaLister,
@@ -292,6 +292,7 @@ func (w *AutoscalerWatcher) getAutoscalerReferences() (map[string]*externalMetri
 				continue
 			}
 
+			allowAutogen := w.autogenLabelSelector.Matches(labels.Set(wpa.Labels))
 			for _, metric := range wpa.Spec.Metrics {
 				if metric.External == nil {
 					continue
@@ -299,10 +300,9 @@ func (w *AutoscalerWatcher) getAutoscalerReferences() (map[string]*externalMetri
 
 				external := metric.External
 				ref := buildAutoscalerReference(autoscalerWPAKindKey, wpa.ObjectMeta)
-				// WPAs are not filtered by the HPA label selector, so autogeneration is always allowed.
-				ddMetricID, metricName, labels, ok := w.extractAutoscalerReference(external.MetricName, external.MetricSelector, true)
+				ddMetricID, metricName, metricLabels, ok := w.extractAutoscalerReference(external.MetricName, external.MetricSelector, allowAutogen)
 				if ok {
-					addAutoscalerReference(ddMetricID, ref, metricName, labels)
+					addAutoscalerReference(ddMetricID, ref, metricName, metricLabels)
 				}
 			}
 		}
@@ -332,7 +332,7 @@ func (w *AutoscalerWatcher) processHPAReference(addAutoscalerReference addAutosc
 }
 
 func (w *AutoscalerWatcher) processHPAv2beta1Reference(addAutoscalerReference addAutoscalerReferenceFn, hpa *autoscalingv2beta1.HorizontalPodAutoscaler) {
-	allowAutogen := w.hpaLabelSelector.Matches(labels.Set(hpa.Labels))
+	allowAutogen := w.autogenLabelSelector.Matches(labels.Set(hpa.Labels))
 	ref := buildAutoscalerReference(autoscalerHPAKindKey, hpa.ObjectMeta)
 	for _, metric := range hpa.Spec.Metrics {
 		if metric.Type != autoscalingv2beta1.ExternalMetricSourceType || metric.External == nil {
@@ -348,7 +348,7 @@ func (w *AutoscalerWatcher) processHPAv2beta1Reference(addAutoscalerReference ad
 }
 
 func (w *AutoscalerWatcher) processHPAv2beta2Reference(addAutoscalerReference addAutoscalerReferenceFn, hpa *autoscalingv2beta2.HorizontalPodAutoscaler) {
-	allowAutogen := w.hpaLabelSelector.Matches(labels.Set(hpa.Labels))
+	allowAutogen := w.autogenLabelSelector.Matches(labels.Set(hpa.Labels))
 	ref := buildAutoscalerReference(autoscalerHPAKindKey, hpa.ObjectMeta)
 	for _, metric := range hpa.Spec.Metrics {
 		if metric.Type != autoscalingv2beta2.ExternalMetricSourceType || metric.External == nil {
@@ -364,7 +364,7 @@ func (w *AutoscalerWatcher) processHPAv2beta2Reference(addAutoscalerReference ad
 }
 
 func (w *AutoscalerWatcher) processHPAv2Reference(addAutoscalerReference addAutoscalerReferenceFn, hpa *autoscalingv2.HorizontalPodAutoscaler) {
-	allowAutogen := w.hpaLabelSelector.Matches(labels.Set(hpa.Labels))
+	allowAutogen := w.autogenLabelSelector.Matches(labels.Set(hpa.Labels))
 	ref := buildAutoscalerReference(autoscalerHPAKindKey, hpa.ObjectMeta)
 	for _, metric := range hpa.Spec.Metrics {
 		if metric.Type != autoscalingv2.ExternalMetricSourceType || metric.External == nil {

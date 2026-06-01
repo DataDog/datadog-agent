@@ -132,6 +132,14 @@ func newFakeHorizontalPodAutoscalerWithLabels(ns, name string, hpaLabels map[str
 }
 
 func newFakeWatermarkPodAutoscaler(ns, name string, metrics []interface{}) *unstructured.Unstructured {
+	return newFakeWatermarkPodAutoscalerWithLabels(ns, name, nil, metrics)
+}
+
+func newFakeWatermarkPodAutoscalerWithLabels(ns, name string, wpaLabels map[string]string, metrics []interface{}) *unstructured.Unstructured {
+	labelsMap := map[string]interface{}{}
+	for k, v := range wpaLabels {
+		labelsMap[k] = v
+	}
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": "datadoghq.com/v1alpha1",
@@ -139,6 +147,7 @@ func newFakeWatermarkPodAutoscaler(ns, name string, metrics []interface{}) *unst
 			"metadata": map[string]interface{}{
 				"name":      name,
 				"namespace": ns,
+				"labels":    labelsMap,
 			},
 			"spec": map[string]interface{}{
 				"metrics": metrics,
@@ -495,7 +504,7 @@ func TestCleanUpAutogenDatadogMetrics(t *testing.T) {
 	compareDatadogMetricInternal(t, &ddm, f.store.Get("default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412"))
 }
 
-func TestHPALabelSelectorFiltering(t *testing.T) {
+func TestAutoscalerAutogenLabelSelectorFiltering(t *testing.T) {
 	f := newAutoscalerFixture(t)
 
 	f.hpaLister = []*autoscaler.HorizontalPodAutoscaler{
@@ -509,7 +518,7 @@ func TestHPALabelSelectorFiltering(t *testing.T) {
 				},
 			},
 		}),
-		// hpa1 does NOT match label selector, but has datadogmetric@ reference — included via OR
+		// hpa1 does NOT match label selector, but has datadogmetric@ reference — included via direct reference
 		newFakeHorizontalPodAutoscalerWithLabels("ns0", "hpa1", map[string]string{"app.kubernetes.io/managed-by": "keda-operator"}, []autoscaler.MetricSpec{
 			{
 				Type: autoscaler.ExternalMetricSourceType,
@@ -530,6 +539,37 @@ func TestHPALabelSelectorFiltering(t *testing.T) {
 		}),
 	}
 
+	f.wpaLister = []*unstructured.Unstructured{
+		// wpa0 matches label selector, no datadogmetric@ reference — included via label match
+		newFakeWatermarkPodAutoscalerWithLabels("ns0", "wpa0", map[string]string{"team": "infra"}, []interface{}{
+			map[string]interface{}{
+				"external": map[string]interface{}{
+					"metricName": "docker.cpu.usage",
+					"metricSelector": map[string]interface{}{
+						"matchLabels": map[string]interface{}{
+							"bar": "foo",
+						},
+					},
+				},
+				"type": "External",
+			},
+		}),
+		// wpa1 does NOT match label selector and has no datadogmetric@ reference — excluded
+		newFakeWatermarkPodAutoscalerWithLabels("ns0", "wpa1", map[string]string{"app.kubernetes.io/managed-by": "keda-operator"}, []interface{}{
+			map[string]interface{}{
+				"external": map[string]interface{}{
+					"metricName": "keda_wpa_metric",
+					"metricSelector": map[string]interface{}{
+						"matchLabels": map[string]interface{}{
+							"queue": "jobs",
+						},
+					},
+				},
+				"type": "External",
+			},
+		}),
+	}
+
 	ddm := model.DatadogMetricInternal{
 		ID:         "default/dd-metric-ref",
 		Active:     false,
@@ -541,7 +581,7 @@ func TestHPALabelSelectorFiltering(t *testing.T) {
 	ddm.SetQueries("metric query ref")
 	f.store.Set("default/dd-metric-ref", ddm, "utest")
 
-	// Parse a selector that excludes HPAs with app.kubernetes.io/managed-by=keda-operator
+	// Parse a selector that excludes autoscalers with app.kubernetes.io/managed-by=keda-operator
 	selector, err := labels.Parse("app.kubernetes.io/managed-by!=keda-operator")
 	assert.NoError(t, err)
 
@@ -556,12 +596,20 @@ func TestHPALabelSelectorFiltering(t *testing.T) {
 	// Check all store entries for autoscaler references
 	foundHpa0Ref := false
 	foundHpa2Ref := false
+	foundWpa0Ref := false
+	foundWpa1Ref := false
 	for _, m := range f.store.GetAll() {
 		if m.AutoscalerReferences == "hpa:ns0/hpa0" {
 			foundHpa0Ref = true
 		}
 		if m.AutoscalerReferences == "hpa:ns0/hpa2" {
 			foundHpa2Ref = true
+		}
+		if m.AutoscalerReferences == "wpa:ns0/wpa0" {
+			foundWpa0Ref = true
+		}
+		if m.AutoscalerReferences == "wpa:ns0/wpa1" {
+			foundWpa1Ref = true
 		}
 	}
 
@@ -576,4 +624,10 @@ func TestHPALabelSelectorFiltering(t *testing.T) {
 
 	// hpa2 should be excluded — no label match, no datadogmetric@ reference
 	assert.False(t, foundHpa2Ref, "hpa2 should be excluded (no label match and no datadogmetric@ reference)")
+
+	// wpa0 matched label selector — should be included and create autogen metric
+	assert.True(t, foundWpa0Ref, "wpa0 should be included (matches label selector)")
+
+	// wpa1 should be excluded — no label match, no datadogmetric@ reference
+	assert.False(t, foundWpa1Ref, "wpa1 should be excluded (no label match and no datadogmetric@ reference)")
 }
