@@ -452,14 +452,16 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("empty+disallowed+containerized", func(t *testing.T) {
-			defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
-			osHostnameUsableFunc = func(_ context.Context) bool { return false }
-
 			bin := makeProgram(t, "", 0)
 			defer os.Remove(bin)
 
+			// Build the config first (uses TestMain's osHostnameUsableFunc=true),
+			// then override to false so only acquireHostnameFallback sees it.
 			cfg := buildConfigComponent(t, false).Object()
 			require.NotNil(t, cfg)
+
+			defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
+			osHostnameUsableFunc = func(_ context.Context) bool { return false }
 
 			cfg.DDAgentBin = bin
 			cfg.Features = map[string]struct{}{"disable_empty_hostname": {}}
