@@ -1,0 +1,2 @@
+# Package delimiter — patch files in this directory are referenced as Bazel
+# labels by the git_override() in MODULE.bazel.

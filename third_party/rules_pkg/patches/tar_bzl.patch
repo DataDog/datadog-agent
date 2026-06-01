@@ -1,0 +1,48 @@
+--- a/pkg/private/tar/tar.bzl
++++ b/pkg/private/tar/tar.bzl
+@@ -57,9 +57,13 @@
+     files = []
+     outputs, output_file, _ = setup_output_files(ctx)
+ 
++    # Declare the md5sums sidecar output.
++    md5sums_file = ctx.actions.declare_file(ctx.label.name + ".md5sums")
++
+     # Start building the arguments.
+     args = ctx.actions.args()
+     args.add("--output", output_file.path)
++    args.add("--md5sums_output", md5sums_file.path)
+     args.add("--mode", ctx.attr.mode)
+     args.add("--owner", ctx.attr.owner)
+     args.add("--owner_name", ctx.attr.ownername)
+@@ -198,7 +202,7 @@
+         tools = [ctx.executable.compressor] if ctx.executable.compressor else [],
+         executable = ctx.executable._build_tar,
+         arguments = [args],
+-        outputs = [output_file],
++        outputs = [output_file, md5sums_file],
+         env = {
+             "LANG": "en_US.UTF-8",
+             "LC_CTYPE": "UTF-8",
+@@ -218,6 +222,7 @@
+         # Depend on it at your own risk!
+         OutputGroupInfo(
+             manifest = [manifest_file],
++            md5sums = depset([md5sums_file]),
+         ),
+     ]
+ 
+@@ -327,8 +332,13 @@
+         "private_stamp_detect": attr.bool(default = False),
+ 
+         # Implicit dependencies.
++        # Points to dd_tar_writer, a Go binary that replaces the upstream Python
++        # build_tar tool and additionally emits a .md5sums sidecar file.
++        # Label uses @@// (canonical root-module prefix in bzlmod) so that this
++        # reference resolves to the main repository even though this file lives
++        # inside the rules_pkg module.
+         "_build_tar": attr.label(
+-            default = Label("//pkg/private/tar:build_tar"),
++            default = Label("@@//bazel/rules/dd_tar_writer:dd_tar_writer"),
+             cfg = "exec",
+             executable = True,
+             allow_files = True,

@@ -1,0 +1,255 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "pkg_mkdirs")
+load("@rules_pkg//pkg:pkg.bzl", "pkg_tar")
+load("@rules_pkg//pkg:verify_archive.bzl", "verify_archive_test")
+
+go_library(
+    name = "dd_tar_writer_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/bazel/rules/dd_tar_writer",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_ulikunitz_xz//:xz",
+    ],
+)
+
+go_binary(
+    name = "dd_tar_writer",
+    embed = [":dd_tar_writer_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "dd_tar_writer_test",
+    srcs = ["main_test.go"],
+    embed = [":dd_tar_writer_lib"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+# ——————————————————————————————————————————
+# Declarative archive-structure tests
+#
+# These verify that pkg_tar (which uses dd_tar_writer as its back-end) places
+# files, directories, and symlinks at the expected paths inside the archive.
+# Compression auto-detection is handled by verify_archive_test.
+#
+# Unit-level tests for md5sums content, file modes, and entry ordering remain
+# in main_test.go where they need to inspect the binary's output directly.
+# ——————————————————————————————————————————
+
+# Shared test-data files.
+# strip_prefix = "." in pkg_tar strips the Bazel package path from each source
+# file, leaving only the filename as the archive entry name.
+genrule(
+    name = "_td_agent",
+    testonly = True,
+    outs = ["td_agent"],
+    cmd = "echo -n binary > $@",
+)
+
+genrule(
+    name = "_td_data",
+    testonly = True,
+    outs = ["td_data.txt"],
+    cmd = "echo -n data > $@",
+)
+
+genrule(
+    name = "_td_local",
+    testonly = True,
+    outs = ["td_local.txt"],
+    cmd = "echo -n local > $@",
+)
+
+genrule(
+    name = "_td_merged",
+    testonly = True,
+    outs = ["td_merged.txt"],
+    cmd = "echo -n merged > $@",
+)
+
+genrule(
+    name = "_td_tree_a",
+    testonly = True,
+    outs = ["td_tree_a.txt"],
+    cmd = "echo -n aaa > $@",
+)
+
+genrule(
+    name = "_td_tree_b",
+    testonly = True,
+    outs = ["td_tree_b.txt"],
+    cmd = "echo -n bbb > $@",
+)
+
+# — TestDirectoryPrefix: package_dir places a file at the correct archive path.
+pkg_tar(
+    name = "test_directory_prefix_tar",
+    testonly = True,
+    srcs = [":_td_agent"],
+    package_dir = "opt/datadog-agent/bin",
+    strip_prefix = ".",
+)
+
+verify_archive_test(
+    name = "test_directory_prefix",
+    testonly = True,
+    must_contain = ["opt/datadog-agent/bin/td_agent"],
+    target = ":test_directory_prefix_tar",
+)
+
+# — TestCreateParents: auto-created parent directories precede their children.
+pkg_tar(
+    name = "test_create_parents_tar",
+    testonly = True,
+    srcs = [":_td_agent"],
+    package_dir = "opt/agent/bin",
+    strip_prefix = ".",
+)
+
+verify_archive_test(
+    name = "test_create_parents",
+    testonly = True,
+    # Python's tarfile strips trailing slashes when reading, so directory
+    # entries appear without them even though the tar header has the slash.
+    must_contain = [
+        "opt",
+        "opt/agent",
+        "opt/agent/bin",
+        "opt/agent/bin/td_agent",
+    ],
+    target = ":test_create_parents_tar",
+)
+
+# — TestSymlinkStructure: symlink entry is present with the correct target.
+pkg_tar(
+    name = "test_symlink_tar",
+    testonly = True,
+    symlinks = {"opt/agent/current": "/opt/agent/7.0.0"},
+)
+
+verify_archive_test(
+    name = "test_symlink_structure",
+    testonly = True,
+    target = ":test_symlink_tar",
+    verify_links = {"opt/agent/current": "/opt/agent/7.0.0"},
+)
+
+# — TestDirStructure: explicit directory entry appears with a trailing slash.
+pkg_mkdirs(
+    name = "_dir_logs",
+    testonly = True,
+    dirs = ["opt/agent/logs"],
+)
+
+pkg_tar(
+    name = "test_dir_tar",
+    testonly = True,
+    srcs = [":_dir_logs"],
+)
+
+verify_archive_test(
+    name = "test_dir_structure",
+    testonly = True,
+    # Python's tarfile strips trailing slashes when reading.
+    must_contain = ["opt/agent/logs"],
+    target = ":test_dir_tar",
+)
+
+# — TestGzipCompression: gzip-compressed archive is readable, contains the file.
+pkg_tar(
+    name = "test_gzip_tar",
+    testonly = True,
+    srcs = [":_td_data"],
+    extension = "tar.gz",
+    strip_prefix = ".",
+)
+
+verify_archive_test(
+    name = "test_gzip_compression",
+    testonly = True,
+    must_contain = ["td_data.txt"],
+    target = ":test_gzip_tar",
+)
+
+# — TestXzCompression: xz-compressed archive is readable, contains the file.
+pkg_tar(
+    name = "test_xz_tar",
+    testonly = True,
+    srcs = [":_td_data"],
+    extension = "tar.xz",
+    strip_prefix = ".",
+)
+
+verify_archive_test(
+    name = "test_xz_compression",
+    testonly = True,
+    must_contain = ["td_data.txt"],
+    target = ":test_xz_tar",
+)
+
+# — TestMergeTarStructure: merging tars via deps produces an archive with all files.
+pkg_tar(
+    name = "_merge_dep_tar",
+    testonly = True,
+    srcs = [":_td_merged"],
+    package_dir = "merged",
+    strip_prefix = ".",
+)
+
+pkg_tar(
+    name = "test_merge_tar",
+    testonly = True,
+    srcs = [":_td_local"],
+    strip_prefix = ".",
+    deps = [":_merge_dep_tar"],
+)
+
+verify_archive_test(
+    name = "test_merge_tar_structure",
+    testonly = True,
+    must_contain = [
+        "td_local.txt",
+        "merged/td_merged.txt",
+    ],
+    target = ":test_merge_tar",
+)
+
+# — TestAddTree: files at different paths, assembled via pkg_files.
+# pkg_files places each source at prefix/<basename> without needing strip_prefix.
+pkg_files(
+    name = "_tree_root_files",
+    testonly = True,
+    srcs = [":_td_tree_a"],
+    prefix = "opt/agent",
+)
+
+pkg_files(
+    name = "_tree_sub_files",
+    testonly = True,
+    srcs = [":_td_tree_b"],
+    prefix = "opt/agent/sub",
+)
+
+pkg_tar(
+    name = "test_add_tree_tar",
+    testonly = True,
+    srcs = [
+        ":_tree_root_files",
+        ":_tree_sub_files",
+    ],
+)
+
+verify_archive_test(
+    name = "test_add_tree",
+    testonly = True,
+    must_contain = [
+        "opt/agent/td_tree_a.txt",
+        "opt/agent/sub/td_tree_b.txt",
+    ],
+    target = ":test_add_tree_tar",
+)

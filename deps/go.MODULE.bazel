@@ -346,6 +346,7 @@ use_repo(
     "com_github_twmb_franz_go_pkg_kmsg",
     "com_github_twmb_murmur3",
     "com_github_uber_go_gopatch",
+    "com_github_ulikunitz_xz",
     "com_github_uptrace_bun",
     "com_github_uptrace_bun_dialect_pgdialect",
     "com_github_uptrace_bun_driver_pgdriver",
