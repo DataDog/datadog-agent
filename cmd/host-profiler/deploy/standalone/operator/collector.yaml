@@ -158,8 +158,6 @@ spec:
     service:
       extensions: [health_check, hpflare/default]
       pipelines:
-        logs: null
-        traces: null
         metrics:
           receivers: [otlp]
           processors: [cumulativetodelta, resourcedetection, k8s_attributes, infraattributes/default]
