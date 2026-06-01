@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -31,6 +32,7 @@ type Requires struct {
 	Log            log.Component
 	Config         config.Component
 	InventoryAgent inventoryagent.Component
+	PipelineDescs  []eventplatform.PipelineDesc `group:"ep_pipeline_descs"`
 }
 
 // Provides defines the output of the connectivitychecker component
@@ -42,6 +44,7 @@ type inventoryImpl struct {
 	log            log.Component
 	config         config.Component
 	inventoryAgent inventoryagent.Component
+	pipelineDescs  []eventplatform.PipelineDesc
 	timerStopCh    chan struct{}
 	collectCtx     context.Context
 	collectCancel  context.CancelFunc
@@ -54,6 +57,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		log:            reqs.Log,
 		config:         reqs.Config,
 		inventoryAgent: reqs.InventoryAgent,
+		pipelineDescs:  reqs.PipelineDescs,
 		timerStopCh:    make(chan struct{}),
 		collectCtx:     collectCtx,
 		collectCancel:  collectCancel,
@@ -112,7 +116,7 @@ func (c *inventoryImpl) restartTimer() {
 }
 
 func (c *inventoryImpl) collect() {
-	diagnoses, err := checker.Check(c.collectCtx, c.config, c.log)
+	diagnoses, err := checker.Check(c.collectCtx, c.config, c.log, c.pipelineDescs)
 	if err != nil {
 		// Check if the error is due to context cancellation
 		if c.collectCtx.Err() == context.Canceled {

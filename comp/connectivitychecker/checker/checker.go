@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 )
@@ -36,6 +37,7 @@ func Check(
 	ctx context.Context,
 	config config.Component,
 	log log.Component,
+	teamEPDescs []eventplatform.PipelineDesc,
 ) (map[string][]DiagnosisPayload, error) {
 	diagnoses, err := connectivity.DiagnoseInventory(ctx, config, log)
 	if err != nil {
@@ -47,7 +49,7 @@ func Check(
 		diagnosesPayload = append(diagnosesPayload, toPayload(diagnosis))
 	}
 
-	eventplatformDiagnoses := eventplatformimpl.Diagnose()
+	eventplatformDiagnoses := eventplatformimpl.Diagnose(teamEPDescs...)
 	for _, diagnosis := range eventplatformDiagnoses {
 		diagnosesPayload = append(diagnosesPayload, toPayload(diagnosis))
 	}
