@@ -33,7 +33,7 @@ const (
 // serverless preview. When set to "true" it both lifts serverless-init's
 // suppression of the tracer's RC/telemetry env defaults (here) and starts the
 // embedded RC service (in main.setupRemoteConfig).
-const RemoteConfigPreviewEnvVar = "DD_REMOTE_CONFIGURATION_ENABLED_SERVERLESS_PREVIEW"
+const RemoteConfigPreviewEnvVar = "DD_REMOTE_CONFIGURATION_ENABLED_SERVERLESS_INIT_PREVIEW"
 
 // DetectMode detects the mode in which the serverless agent should run
 func DetectMode() Conf {
