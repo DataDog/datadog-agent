@@ -32,6 +32,9 @@ var (
 	dockerDaemonPath = "/etc/docker/daemon.json"
 )
 
+// sanitizeJSON removes Docker daemon.json extensions that encoding/json rejects.
+// It strips a leading UTF-8 BOM and Docker 28-style comments while preserving
+// comment markers inside JSON string values.
 func sanitizeJSON(content []byte) []byte {
 	content = bytes.TrimPrefix(content, []byte{0xEF, 0xBB, 0xBF})
 
@@ -85,6 +88,8 @@ func sanitizeJSON(content []byte) []byte {
 					i++
 				}
 				if !closed {
+					// Keep unterminated block comments so json.Unmarshal can report
+					// the invalid content instead of silently discarding it.
 					sanitized = sanitized[:sanitizedLen]
 					sanitized = append(sanitized, content[blockStart:]...)
 				}
