@@ -2,8 +2,8 @@
 
 This directory contains the GPU corecheck specification files:
 
-- `gpu_metrics.yaml`: metric catalog (metric names, required tagsets/custom tags, and support matrix by architecture/device mode).
-- `architectures.yaml`: architecture capabilities (GPM support, unsupported NVML fields by mode, and unsupported device modes such as `mig`/`vgpu`).
+- `gpu_metrics.yaml`: metric catalog (metric names, required tagsets/custom tags, and support matrix by architecture/device mode/capability).
+- `architectures.yaml`: architecture capabilities (GPM, NVLink generation, C2C support, unsupported NVML fields by mode, and unsupported device modes such as `mig`/`vgpu`).
 - `tags.yaml`: reusable tag definitions (`tags`) and reusable tag groups (`tagsets`), including workload-only tagsets and regex validation for tag values.
 
 Each YAML file has headers describing the schema.

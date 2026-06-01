@@ -115,6 +115,21 @@ type EBPFResolver struct {
 	procFallbackLimiter *utils.Limiter[uint32]
 
 	exitedQueue []uint32
+
+	// preReparentCb, if non-nil, is invoked just before an entry's parent
+	// link is updated (e.g. subreaper or procfs reparenting). It is called
+	// with the resolver lock held; the implementation must not call back into
+	// the resolver. Used to snapshot inherited SECL variables so they keep
+	// their pre-reparent value after the parent chain changes.
+	preReparentCb func(*model.ProcessCacheEntry)
+}
+
+// SetPreReparentCb registers a callback invoked just before the parent
+// link of a process cache entry is updated.
+func (p *EBPFResolver) SetPreReparentCb(cb func(*model.ProcessCacheEntry)) {
+	p.Lock()
+	defer p.Unlock()
+	p.preReparentCb = cb
 }
 
 // reparentTo looks up newPPid in the cache (falling back to procfs) and
@@ -131,6 +146,9 @@ func (p *EBPFResolver) reparentTo(entry *model.ProcessCacheEntry, newPPid uint32
 		}
 	}
 	if newParent != nil {
+		if p.preReparentCb != nil {
+			p.preReparentCb(entry)
+		}
 		entry.Reparent(newParent)
 		p.reparentSuccessStats[callpathTag].Inc()
 	} else {
@@ -165,6 +183,9 @@ func (p *EBPFResolver) resolveParentFromProcfs(entry *model.ProcessCacheEntry, c
 	entry.PPid = newPPidU32
 
 	if newParent := p.entryCache[newPPidU32]; newParent != nil {
+		if p.preReparentCb != nil {
+			p.preReparentCb(entry)
+		}
 		entry.Reparent(newParent)
 		p.reparentSuccessStats[callpathTag].Inc()
 	} else {
@@ -281,17 +302,33 @@ func (p *EBPFResolver) tryReparentChildrenFromProcfs(exitedEntry *model.ProcessC
 	copy(children, exitedEntry.Children)
 
 	for _, child := range children {
-		p.tryReparentEntryFromProcfs(child, exitedEntry.Pid, callpathTag, newEntryCb)
+		if child.Pid == exitedEntry.Pid {
+			// The child shares the PID with the exited entry: it is the exec
+			// continuation (pre-exec → post-exec link). Attempting to reparent
+			// it via procfs would read its real ppid (grandparent) and break
+			// the exec chain stored in the Ancestor pointer.  Skip it; the
+			// exec-chain link must be preserved.
+			continue
+		}
+		p.tryReparentEntryFromProcfs(child, exitedEntry, callpathTag, newEntryCb)
 	}
 }
 
 // tryReparentEntryFromProcfs reads the current ppid of a single entry from
 // procfs and updates its parent link. If procfs hasn't been updated yet (race)
 // or fails, the entry stays linked to the dead parent.
+// When the child is no longer visible in procfs at all (process fully reaped),
+// it is detached from exitedEntry.Children immediately so it is not re-visited
+// on subsequent reparent attempts.
 // Must be called with the lock held.
-func (p *EBPFResolver) tryReparentEntryFromProcfs(child *model.ProcessCacheEntry, exitedPid uint32, callpathTag string, newEntryCb func(*model.ProcessCacheEntry, error)) {
+func (p *EBPFResolver) tryReparentEntryFromProcfs(child *model.ProcessCacheEntry, exitedEntry *model.ProcessCacheEntry, callpathTag string, newEntryCb func(*model.ProcessCacheEntry, error)) {
 	proc, err := process.NewProcess(int32(child.Pid))
 	if err != nil {
+		// The child process is gone from procfs entirely: it has been fully
+		// reaped and its exit event has been (or will be) delivered separately.
+		// Remove it from the dead parent's Children list eagerly so that future
+		// calls to tryReparentChildrenFromProcfs do not keep re-visiting it.
+		exitedEntry.RemoveChild(child)
 		return
 	}
 
@@ -301,7 +338,7 @@ func (p *EBPFResolver) tryReparentEntryFromProcfs(child *model.ProcessCacheEntry
 	}
 
 	newPPidU32 := uint32(newPPid)
-	if newPPidU32 == 0 || newPPidU32 == exitedPid {
+	if newPPidU32 == 0 || newPPidU32 == exitedEntry.Pid {
 		p.reparentFailedStats[callpathTag].Inc()
 		return
 	}
@@ -943,6 +980,15 @@ func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
 		entry.Ancestor.RemoveChild(entry)
 	}
 
+	// Release the Children backing array.  By the time deleteEntry is called
+	// (either directly on an exit event or via DequeueExited after ~1 minute),
+	// the lazy walker in TryReparentFromProcfs has had multiple chances to
+	// reparent any remaining children.  Setting Children to nil frees the
+	// backing array and breaks the parent→child direction of the cycle so the
+	// GC can reclaim the entry as soon as its last child exits and drops its
+	// Ancestor pointer.
+	entry.Children = nil
+
 	entry.Exit(exitTime)
 	delete(p.entryCache, entry.Pid)
 }
@@ -1461,30 +1507,27 @@ func (p *EBPFResolver) UpdateAWSSecurityCredentials(pid uint32, e *model.Event) 
 	}
 }
 
-// FetchAWSSecurityCredentials returns the list of AWS Security Credentials valid at the time of the event, and prunes
-// expired entries
-func (p *EBPFResolver) FetchAWSSecurityCredentials(e *model.Event) []model.AWSSecurityCredentials {
+// FetchAWSSecurityCredentials returns the list of AWS Security Credentials valid at the time of the event for the
+// provided process, and prunes expired entries. Credentials are attributed to the process that made the IMDS request,
+// so only that process should report them (not its ancestors).
+func (p *EBPFResolver) FetchAWSSecurityCredentials(e *model.Event, process *model.Process) []model.AWSSecurityCredentials {
 	p.Lock()
 	defer p.Unlock()
 
-	entry := p.entryCache[e.ProcessContext.Pid]
-	if entry != nil {
-		// check if we should delete
-		var toDelete []int
-		for id, key := range entry.AWSSecurityCredentials {
-			if key.Expiration.Before(e.ResolveEventTime()) {
-				toDelete = append([]int{id}, toDelete...)
-			}
+	// check if we should delete
+	var toDelete []int
+	for id, key := range process.AWSSecurityCredentials {
+		if key.Expiration.Before(e.ResolveEventTime()) {
+			toDelete = append([]int{id}, toDelete...)
 		}
-
-		// delete expired entries
-		for _, id := range toDelete {
-			entry.AWSSecurityCredentials = append(entry.AWSSecurityCredentials[0:id], entry.AWSSecurityCredentials[id+1:]...)
-		}
-
-		return entry.AWSSecurityCredentials
 	}
-	return nil
+
+	// delete expired entries
+	for _, id := range toDelete {
+		process.AWSSecurityCredentials = append(process.AWSSecurityCredentials[0:id], process.AWSSecurityCredentials[id+1:]...)
+	}
+
+	return process.AWSSecurityCredentials
 }
 
 // Start starts the resolver

@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -51,9 +51,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	hostfx "github.com/DataDog/datadog-agent/comp/metadata/host/fx"
 	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
+	inventoryhostfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/fx"
 	runnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
@@ -139,7 +139,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			}),
 			logfx.Module(),
 			ipcfx.ModuleReadWrite(),
-			configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
+			configsyncfx.Module(configsync.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 			pidfx.Module(),
 			fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 			converterfx.Module(),
@@ -285,15 +285,15 @@ func standaloneAgentFxOptions(params *cliParams) fx.Option {
 	return fx.Options(
 		// Metadata collection (host inventory, runner) for dogtelextension
 		runnerfx.Module(),
-		hostimpl.Module(),
-		inventoryhostimpl.Module(),
+		hostfx.Module(),
+		inventoryhostfx.Module(),
 		// Real secrets backend so ENC[] handles in OTel/DD config are resolved locally
 		secretsfx.Module(),
 		// Resolve hostname locally; no core agent to ask
 		hostnameimpl.Module(),
 		// No on-init config sync (no core agent to sync from); periodic sync is also
 		// effectively disabled by the default agent_ipc.config_refresh_interval=0
-		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, false, params.SyncOnInitTimeout)),
+		configsyncfx.Module(configsync.NewParams(params.SyncTimeout, false, params.SyncOnInitTimeout)),
 		// Local workloadmeta-backed tagger so the infraattributes processor can enrich
 		// spans with K8s tags (pod, namespace, deployment, ...) without a core agent
 		taggerfx.Module(),
@@ -310,7 +310,7 @@ func connectedAgentFxOptions(params *cliParams) fx.Option {
 		// Ask core agent for hostname first, fall back to local resolution
 		remotehostnameimpl.Module(),
 		// Sync config from core agent on init and periodically
-		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
+		configsyncfx.Module(configsync.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 		// Remote tagger proxying tag lookups to core agent
 		remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: isCmdPortNegative}, tagger.NewRemoteParams()),
 	)

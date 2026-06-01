@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "admissionprobe",
+    srcs = [
+        "issue.go",
+        "module.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/healthplatform/issues",
+        "//comp/healthplatform/runner/def",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)
+
+go_test(
+    name = "admissionprobe_test",
+    srcs = ["issue_test.go"],
+    embed = [":admissionprobe"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

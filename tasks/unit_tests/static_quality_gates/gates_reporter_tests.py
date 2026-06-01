@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+from tasks.static_quality_gates.decisions import GateFailureKind, GateVerdict
 from tasks.static_quality_gates.gates_reporter import QualityGateOutputFormatter
 
 
@@ -113,10 +114,10 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
 
         gate_list = [mock_gate1, mock_gate2]
 
-        # Create gate states (all passed)
-        gate_states = [
-            {"name": "static_quality_gate_agent_deb_amd64", "error_type": None},
-            {"name": "static_quality_gate_docker_agent_amd64", "error_type": None},
+        # Create gate verdicts (all passed)
+        gate_verdicts = [
+            GateVerdict(name="static_quality_gate_agent_deb_amd64", failure=None),
+            GateVerdict(name="static_quality_gate_docker_agent_amd64", failure=None),
         ]
 
         # Mock metric handler with measurement data
@@ -132,7 +133,7 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
             },
         }
 
-        QualityGateOutputFormatter.print_summary_table(gate_list, gate_states, mock_metric_handler)
+        QualityGateOutputFormatter.print_summary_table(gate_list, gate_verdicts, mock_metric_handler)
 
         # Verify print was called multiple times for the table
         self.assertGreater(mock_print.call_count, 10)
@@ -181,10 +182,14 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
 
         gate_list = [mock_gate1, mock_gate2]
 
-        # Create gate states (one failed)
-        gate_states = [
-            {"name": "static_quality_gate_agent_deb_amd64", "error_type": None},
-            {"name": "static_quality_gate_docker_agent_amd64", "error_type": "AssertionError"},
+        # Create gate verdicts (one failed)
+        gate_verdicts = [
+            GateVerdict(name="static_quality_gate_agent_deb_amd64", failure=None),
+            GateVerdict(
+                name="static_quality_gate_docker_agent_amd64",
+                failure=GateFailureKind.AbsoluteLimitExceeded,
+                blocking=True,
+            ),
         ]
 
         # Mock metric handler with measurement data (gate2 over limit)
@@ -200,7 +205,7 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
             },
         }
 
-        QualityGateOutputFormatter.print_summary_table(gate_list, gate_states, mock_metric_handler)
+        QualityGateOutputFormatter.print_summary_table(gate_list, gate_verdicts, mock_metric_handler)
 
         calls = [str(call) for call in mock_print.call_args_list]
         output_text = ' '.join(calls)
@@ -226,10 +231,10 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
         mock_gate.config.max_on_disk_size = 2000 * 1024 * 1024  # 2000MB
 
         gate_list = [mock_gate]
-        gate_states = [{"name": "static_quality_gate_test", "error_type": None}]
+        gate_verdicts = [GateVerdict(name="static_quality_gate_test", failure=None)]
 
         # No metric handler provided, so no measurement data
-        QualityGateOutputFormatter.print_summary_table(gate_list, gate_states, None)
+        QualityGateOutputFormatter.print_summary_table(gate_list, gate_verdicts, None)
 
         calls = [str(call) for call in mock_print.call_args_list]
         output_text = ' '.join(calls)

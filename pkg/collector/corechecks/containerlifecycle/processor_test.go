@@ -115,11 +115,6 @@ func (f *fakeStore) GetContainer(id string) (*workloadmeta.Container, error) {
 }
 
 func TestProcessContainer(t *testing.T) {
-	p := &processor{
-		containersQueue: &queue{},
-		store:           &fakeStore{},
-	}
-
 	now := time.Now()
 	exitCode := int64(1)
 	podContainer := workloadmeta.Container{
@@ -134,16 +129,22 @@ func TestProcessContainer(t *testing.T) {
 	}
 	taskContainer := podContainer
 	taskContainer.ID = "cont2"
+
+	p := &processor{
+		containersQueue: &queue{},
+		handlers:        []Handler{NewContainerTerminationHandler(&fakeStore{})},
+	}
+
+	p.processEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{Type: workloadmeta.EventTypeUnset, Entity: &podContainer},
+			{Type: workloadmeta.EventTypeUnset, Entity: &taskContainer},
+		},
+	})
+
 	hostName, _ := hostname.Get(context.TODO())
 
-	err := p.processContainer(&podContainer, []workloadmeta.Source{workloadmeta.SourceRuntime})
-	assert.NoError(t, err)
-
-	err = p.processContainer(&taskContainer, []workloadmeta.Source{workloadmeta.SourceRuntime})
-	assert.NoError(t, err)
-
 	assert.Len(t, p.containersQueue.data, 2)
-
 	assert.EqualValues(t, []*model.EventsPayload{
 		{Version: "v1",
 			Host: hostName,

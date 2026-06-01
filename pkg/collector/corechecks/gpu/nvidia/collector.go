@@ -16,7 +16,7 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -37,7 +37,9 @@ const (
 	gpm          CollectorName = "gpm"
 	ebpf         CollectorName = "ebpf"
 	deviceEvents CollectorName = "device_events"
-	nvlink       CollectorName = "nvlink"
+	nvlinkPLR    CollectorName = "nvlink_plr"
+	nvlinkFEC    CollectorName = "nvlink_fec"
+	nvlinkFields CollectorName = "nvlink_fields"
 )
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
@@ -52,7 +54,9 @@ var factory = map[CollectorName]subsystemBuilder{
 
 	// Specialized collectors that remain unchanged (complex or unique logic)
 	field:        newFieldsCollector,
-	nvlink:       newNVLinkCollector,
+	nvlinkPLR:    newNVLinkPLRCollector,
+	nvlinkFEC:    newNVLinkFECCollector,
+	nvlinkFields: newNVLinkFieldsCollector,
 	gpm:          newGPMCollector,
 	deviceEvents: newDeviceEventsCollector,
 }
@@ -63,6 +67,8 @@ type CollectorDependencies struct {
 	DeviceEventsGatherer *DeviceEventsGatherer
 	// SystemProbeCache is a (optional) cache of the latest metrics obtained from system probe
 	SystemProbeCache *SystemProbeCache
+	// PRMCache is a cache of privileged PRM metrics obtained from system-probe
+	PRMCache *PRMCache
 	// Telemetry is the telemetry component to use for collecting metrics
 	Telemetry *CollectorTelemetry
 	// Workloadmeta is used for getting auxialiary metadata about containers and GPUs
@@ -85,7 +91,7 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 
 	// Check that the disabled collectors are valid
 	for _, disabled := range disabledCollectors {
-		if _, ok := builders[CollectorName(disabled)]; !ok {
+		if _, ok := builders[CollectorName(disabled)]; !ok && CollectorName(disabled) != ebpf {
 			log.Warnf("invalid disabled collector: %s", disabled)
 			continue
 		}

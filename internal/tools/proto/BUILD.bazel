@@ -1,0 +1,3 @@
+# Tools-only module (//go:build tools tracker for protobuf-related `go install`
+# dependencies). No Bazel targets are generated.
+# gazelle:ignore

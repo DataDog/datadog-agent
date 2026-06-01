@@ -54,14 +54,6 @@ type Config struct {
 	// ActuatorConfig is the configuration for the actuator.
 	ActuatorConfig actuator.Config
 
-	// UseMultiAttach causes the loader to use the uprobe_multi link type
-	// (BPF_LINK_TYPE_UPROBE_MULTI) when attaching probes. This batches
-	// many attachments into a single bpf_link_create call and is much
-	// faster for programs with many attachpoints, but requires kernel
-	// support (Linux 6.6+). The caller is responsible for only enabling
-	// this on supported kernels.
-	UseMultiAttach bool
-
 	TestingKnobs struct {
 		LoaderOptions             []loader.Option
 		IRGeneratorOverride       func(IRGenerator) IRGenerator

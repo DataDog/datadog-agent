@@ -1115,6 +1115,32 @@ func TestConcentratorInputV1(t *testing.T) {
 			}(),
 		},
 		{
+			name: "lang propagated from tracer payload",
+			in: func() *api.PayloadV1 {
+				strings := idx.NewStringTable()
+				payload := &api.PayloadV1{
+					TracerPayload: &idx.InternalTracerPayload{
+						Strings: strings,
+						Chunks:  []*idx.InternalTraceChunk{spansToChunkV1(rootSpan(strings))},
+					},
+				}
+				payload.TracerPayload.SetLanguageName("python")
+				return payload
+			}(),
+			expected: func() stats.InputV1 {
+				strings := idx.NewStringTable()
+				return stats.InputV1{
+					Traces: []traceutil.ProcessedTraceV1{
+						{
+							Root:       rootSpan(strings),
+							TraceChunk: spansToChunkV1(rootSpan(strings)),
+							Lang:       "python",
+						},
+					},
+				}
+			}(),
+		},
+		{
 			name: "no tracer tags",
 			in: func() *api.PayloadV1 {
 				strings := idx.NewStringTable()
@@ -1227,6 +1253,7 @@ func assertStatsInputsV1Equal(t *testing.T, expected stats.InputV1, actual stats
 		assert.Equal(t, expectedTrace.ClientDroppedP0sWeight, actualTrace.ClientDroppedP0sWeight)
 		assert.Equal(t, expectedTrace.GitCommitSha, actualTrace.GitCommitSha)
 		assert.Equal(t, expectedTrace.ImageTag, actualTrace.ImageTag)
+		assert.Equal(t, expectedTrace.Lang, actualTrace.Lang)
 		assertInternalSpanEqual(t, expectedTrace.Root, actualTrace.Root)
 		assertInternalTraceChunkEqual(t, expectedTrace.TraceChunk, actualTrace.TraceChunk)
 	}
@@ -4145,7 +4172,7 @@ func TestProcessedTrace(t *testing.T) {
 			},
 			ClientDroppedP0s: 1,
 		}
-		pt := processedTrace(apiPayload, chunk, root, "abc", "abc123")
+		pt := processedTrace(apiPayload, chunk, root, "abc", "abc123", "")
 		expectedPt := &traceutil.ProcessedTrace{
 			TraceChunk:             chunk,
 			Root:                   root,
@@ -4181,7 +4208,7 @@ func TestProcessedTrace(t *testing.T) {
 			},
 			ClientDroppedP0s: 1,
 		}
-		pt := processedTrace(apiPayload, chunk, root, "abc", "def456")
+		pt := processedTrace(apiPayload, chunk, root, "abc", "def456", "")
 		expectedPt := &traceutil.ProcessedTrace{
 			TraceChunk:             chunk,
 			Root:                   root,
@@ -4193,6 +4220,55 @@ func TestProcessedTrace(t *testing.T) {
 			ClientDroppedP0sWeight: 1,
 		}
 		assert.Equal(t, expectedPt, pt)
+	})
+
+	t.Run("app version comes from container tag when not set in payload or span", func(t *testing.T) {
+		root := &pb.Span{
+			Service:  "testsvc",
+			Name:     "parent",
+			TraceID:  1,
+			SpanID:   1,
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: time.Millisecond.Nanoseconds(),
+		}
+		chunk := testutil.TraceChunkWithSpan(root)
+		apiPayload := &api.Payload{
+			TracerPayload: &pb.TracerPayload{
+				Env:         "test",
+				Hostname:    "test-host",
+				ContainerID: "1",
+				Chunks:      []*pb.TraceChunk{chunk},
+			},
+			ClientDroppedP0s: 1,
+		}
+		pt := processedTrace(apiPayload, chunk, root, "img-from-ctag", "sha-from-ctag", "ver-from-ctag")
+		assert.Equal(t, "ver-from-ctag", pt.AppVersion)
+		assert.Equal(t, "sha-from-ctag", pt.GitCommitSha)
+		assert.Equal(t, "img-from-ctag", pt.ImageTag)
+	})
+
+	t.Run("payload app version overrides container tag", func(t *testing.T) {
+		root := &pb.Span{
+			Service:  "testsvc",
+			Name:     "parent",
+			TraceID:  1,
+			SpanID:   1,
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: time.Millisecond.Nanoseconds(),
+		}
+		chunk := testutil.TraceChunkWithSpan(root)
+		apiPayload := &api.Payload{
+			TracerPayload: &pb.TracerPayload{
+				Env:         "test",
+				Hostname:    "test-host",
+				ContainerID: "1",
+				Chunks:      []*pb.TraceChunk{chunk},
+				AppVersion:  "payload-version",
+			},
+			ClientDroppedP0s: 1,
+		}
+		pt := processedTrace(apiPayload, chunk, root, "", "", "ctag-version")
+		assert.Equal(t, "payload-version", pt.AppVersion)
 	})
 
 	t.Run("no results from container lookup", func(t *testing.T) {
@@ -4221,7 +4297,7 @@ func TestProcessedTrace(t *testing.T) {
 			},
 			ClientDroppedP0s: 1,
 		}
-		pt := processedTrace(apiPayload, chunk, root, "", "")
+		pt := processedTrace(apiPayload, chunk, root, "", "", "")
 		expectedPt := &traceutil.ProcessedTrace{
 			TraceChunk:             chunk,
 			Root:                   root,

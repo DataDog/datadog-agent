@@ -66,8 +66,9 @@ type ntpInstanceConfig struct {
 type ntpInitConfig struct{}
 
 type ntpConfig struct {
-	instance ntpInstanceConfig
-	initConf ntpInitConfig
+	instance       ntpInstanceConfig
+	initConf       ntpInitConfig
+	hostsFromCloud bool // true if NTP hosts came from cloud detection
 }
 
 func (c *NTPCheck) String() string {
@@ -100,6 +101,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	defaultOffsetThreshold := 60
 
 	defaultHosts := getCloudProviderNTPHosts(context.TODO())
+	hostsFromCloud := defaultHosts != nil
 
 	// Default to our domains on pool.ntp.org if no cloud provider detected
 	if defaultHosts == nil {
@@ -139,8 +141,12 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 		}
 		c.instance.Hosts = hosts
 	}
+	// Reached only when the user did not configure NTP servers (no hosts:/host:
+	// in YAML, no use_local_defined_servers: true returning OS-configured NTP).
+	// The agent is picking the list itself based on cloud-provider detection.
 	if c.instance.Hosts == nil {
 		c.instance.Hosts = defaultHosts
+		c.hostsFromCloud = hostsFromCloud
 	}
 
 	log.Infof("Using NTP servers: [ %s ]", strings.Join(c.instance.Hosts, ", "))
@@ -206,6 +212,8 @@ func (c *NTPCheck) Run() error {
 				c.cfg.instance.Hosts = servers // Update the list of hosts for this run
 			}
 			// Silent when no change - removed repetitive debug logging
+			// Local servers are active; clear hostsFromCloud so the waterfall does not fire.
+			c.cfg.hostsFromCloud = false
 		}
 	}
 
@@ -267,34 +275,52 @@ func (c *NTPCheck) queryOffset() (float64, float64, error) {
 		timestamp float64
 	}
 
-	samples := []sample{}
-
-	for _, host := range c.cfg.instance.Hosts {
-		response, err := ntpQuery(host, ntp.QueryOptions{
-			Version: c.cfg.instance.Version,
-			Port:    c.cfg.instance.Port,
-			Timeout: time.Duration(c.cfg.instance.Timeout) * time.Second,
-		})
-		if err != nil {
-			log.Debugf("Error querying ntp host %s: %s", host, err)
-			continue
+	querySamples := func(hosts []string) []sample {
+		var samples []sample
+		for _, host := range hosts {
+			response, err := ntpQuery(host, ntp.QueryOptions{
+				Version: c.cfg.instance.Version,
+				Port:    c.cfg.instance.Port,
+				Timeout: time.Duration(c.cfg.instance.Timeout) * time.Second,
+			})
+			if err != nil {
+				log.Debugf("Error querying ntp host %s: %s", host, err)
+				continue
+			}
+			if err := response.Validate(); err != nil {
+				log.Infof("Invalid ntp response for host %s: %s", host, err)
+				continue
+			}
+			samples = append(samples, sample{
+				offset:    response.ClockOffset.Seconds(),
+				timestamp: float64(response.Time.UnixNano()) / 1e9, // fractional seconds since epoch
+			})
 		}
+		return samples
+	}
 
-		if err := response.Validate(); err != nil {
-			log.Infof("Invalid ntp response for host %s: %s", host, err)
-			continue
-		}
+	samples := querySamples(c.cfg.instance.Hosts)
 
-		samples = append(samples, sample{
-			offset:    response.ClockOffset.Seconds(),
-			timestamp: float64(response.Time.UnixNano()) / 1e9, // fractional seconds since epoch
-		})
+	// Waterfall: if every cloud-detected host failed, retry against the
+	// public Datadog pool. Gated on hostsFromCloud so user-configured
+	// hosts are never silently overridden.
+	if len(samples) == 0 && c.cfg.hostsFromCloud {
+		log.Warnf("Cloud-provider NTP hosts unreachable: [%s]. Falling back to public Datadog pool: [%s]",
+			strings.Join(c.cfg.instance.Hosts, ", "),
+			strings.Join(defaultDatadogPool, ", "))
+		samples = querySamples(defaultDatadogPool)
 	}
 
 	if len(samples) == 0 {
+		hostMsg := fmt.Sprintf("[ %s ]", strings.Join(c.cfg.instance.Hosts, ", "))
+		if c.cfg.hostsFromCloud {
+			hostMsg = fmt.Sprintf("cloud hosts [ %s ] and fallback pool [ %s ] both unreachable",
+				strings.Join(c.cfg.instance.Hosts, ", "),
+				strings.Join(defaultDatadogPool, ", "))
+		}
 		return 0, 0, fmt.Errorf(
-			"failed to get clock offset from any ntp host: [ %s ]. See https://docs.datadoghq.com/agent/troubleshooting/ntp/ for more details on how to debug this issue",
-			strings.Join(c.cfg.instance.Hosts, ", "),
+			"failed to get clock offset from any ntp host: %s. See https://docs.datadoghq.com/agent/troubleshooting/ntp/ for more details on how to debug this issue",
+			hostMsg,
 		)
 	}
 

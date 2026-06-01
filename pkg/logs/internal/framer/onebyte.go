@@ -15,11 +15,27 @@ type oneByteNewLineMatcher struct {
 	// contentLenLimit is the maximum content length that will be returned.
 	// Lines longer than this value will be split into multiple frames.
 	contentLenLimit int
+
+	// flushPartial, when true, causes FlushFrame to emit any remaining
+	// buffered bytes as a final frame. Used by stream-oriented transports
+	// (UTF8NewlineStream) where the connection close is a legitimate
+	// boundary for the final message.
+	flushPartial bool
 }
 
-// FlushFrame implements FrameMatcher. Partial newline-delimited lines are
-// not emitted at end-of-stream.
-func (ob *oneByteNewLineMatcher) FlushFrame([]byte) ([]byte, int) { return nil, 0 }
+// FlushFrame implements FrameMatcher. By default, partial newline-delimited
+// lines are not emitted at end-of-stream. When flushPartial is set, any
+// remaining buffered bytes are emitted as a final frame, capped at
+// contentLenLimit.
+func (ob *oneByteNewLineMatcher) FlushFrame(buf []byte) ([]byte, int) {
+	if !ob.flushPartial || len(buf) == 0 {
+		return nil, 0
+	}
+	if len(buf) > ob.contentLenLimit {
+		return buf[:ob.contentLenLimit], ob.contentLenLimit
+	}
+	return buf, len(buf)
+}
 
 // FindFrame implements FrameMatcher#FindFrame.
 func (ob *oneByteNewLineMatcher) FindFrame(buf []byte, seen int) ([]byte, int, bool) {

@@ -10,7 +10,6 @@ package python
 import (
 	"sync"
 
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
 )
 
 var (

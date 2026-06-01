@@ -9,8 +9,8 @@ import (
 	"bytes"
 	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 // JSONAggregator is the interface for the JSON aggregation stage of the Preprocessor.

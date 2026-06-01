@@ -21,6 +21,8 @@ type HistogramBucket struct {
 	Host            string
 	Timestamp       float64
 	FlushFirstValue bool
+	// MultipleBuckets tells check sampler to expect more buckets for the given context.
+	MultipleBuckets bool
 	Source          MetricSource
 }
 

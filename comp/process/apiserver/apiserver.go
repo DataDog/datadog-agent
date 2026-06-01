@@ -13,10 +13,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -33,29 +33,28 @@ type dependencies struct {
 
 	Lc fx.Lifecycle
 
-	Log logComp.Component
-
-	IPC ipc.Component
+	Config config.Component
+	Log    logComp.Component
+	IPC    ipc.Component
 
 	APIServerDeps api.APIServerDeps
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func newApiServer(deps dependencies) Component {
-	r := mux.NewRouter()
-	r.Use(deps.IPC.HTTPMiddleware)
+	r := http.NewServeMux()
 	api.SetupAPIServerHandlers(deps.APIServerDeps, r) // Set up routes
 
-	addr, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
+	addr, err := pkgconfigsetup.GetProcessAPIAddressPort(deps.Config)
 	if err != nil {
 		return err
 	}
 	deps.Log.Infof("API server listening on %s", addr)
-	timeout := time.Duration(pkgconfigsetup.Datadog().GetInt("server_timeout")) * time.Second
+	timeout := time.Duration(deps.Config.GetInt("server_timeout")) * time.Second
 
 	apiserver := &apiserver{
 		server: &http.Server{
-			Handler:      r,
+			Handler:      deps.IPC.HTTPMiddleware(r),
 			Addr:         addr,
 			ReadTimeout:  timeout,
 			WriteTimeout: timeout,

@@ -656,17 +656,17 @@ func createMockCacheWithStats(statsTuples []model.ProcessStatsTuple) *SystemProb
 	return cache
 }
 
-func findMetric(metrics []Metric, name string) *Metric {
+func findMetric(metrics []*Metric, name string) *Metric {
 	for _, metric := range metrics {
 		if metric.Name == name {
-			return &metric
+			return metric
 		}
 	}
 	return nil
 }
 
-func findAllMetricsWithName(metrics []Metric, name string) []Metric {
-	var result []Metric
+func findAllMetricsWithName(metrics []*Metric, name string) []*Metric {
+	var result []*Metric
 	for _, metric := range metrics {
 		if metric.Name == name {
 			result = append(result, metric)
