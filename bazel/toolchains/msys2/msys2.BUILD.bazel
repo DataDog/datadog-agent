@@ -1,8 +1,7 @@
 """BUILD template instantiated by msys2_base_repository.
 
-%VERSION% and %BASH_ABSOLUTE_PATH% are substituted at fetch time so the URL
-pin in MODULE.bazel stays the single source of truth for which MSYS2 archive
-we use, and so the sh_toolchain points at the actual extracted bash.exe.
+%VERSION% is substituted at fetch time so the URL pin in MODULE.bazel stays the
+single source of truth for which MSYS2 archive we use.
 """
 
 load("@rules_shell//shell/toolchains:sh_toolchain.bzl", "sh_toolchain")
@@ -33,7 +32,7 @@ filegroup(
 
 sh_toolchain(
     name = "msys2_bash",
-    path = "%BASH_ABSOLUTE_PATH%",
+    path = "usr/bin/bash.exe",
     launcher = "@bazel_tools//tools/launcher",
     launcher_maker = "@bazel_tools//tools/launcher:launcher_maker",
 )

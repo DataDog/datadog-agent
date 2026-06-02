@@ -5,9 +5,9 @@ Pins URL, SHA256 and release date together in MODULE.bazel so bumping the
 archive stays a single atomic change.
 
 `sh_toolchain.path` is a string attribute documented as "Absolute path to the
-shell interpreter". We compute the absolute path to the extracted bash.exe at
-fetch time and bake it into the generated BUILD.bazel via template
-substitution.
+shell interpreter", but the rule only forwards the string to Bazel. Keep it
+relative to the generated repository so action keys do not depend on the active
+Bazel output_base.
 """
 
 def _msys2_base_repository_impl(ctx):
@@ -27,16 +27,11 @@ def _msys2_base_repository_impl(ctx):
             sha256 = spec[1],
         )
 
-    # Bazel passes this path verbatim to its action executor; forward slashes
-    # work for both cmd.exe and bash on Windows.
-    bash_abs_path = str(ctx.path("usr/bin/bash.exe")).replace("\\", "/")
-
     ctx.template(
         "BUILD.bazel",
         ctx.attr._build_file_template,
         substitutions = {
             "%VERSION%": ctx.attr.version,
-            "%BASH_ABSOLUTE_PATH%": bash_abs_path,
         },
         executable = False,
     )
