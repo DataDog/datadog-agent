@@ -83,13 +83,10 @@ const highSeverityThreshold   = 0.75;
 
 // ---- Unified event chart (timeline + rolling score) ------------------------
 //
-// A single SVG chart that shows:
-//   • severity-threshold bands as background (high / medium)
-//   • rolling-max score line (5-min window)
-//   • one dot per event, coloured by severity, positioned by score on the Y axis
-//     – diamond shape for severity-change events
-//   • phase-marker vertical lines
-//   • clickable dots (select / deselect the event)
+// Geometric elements (bands, lines, score path, dots) live in an SVG with
+// preserveAspectRatio="none" so they scale correctly to any container width.
+// ALL text labels are HTML elements absolutely-positioned over the wrapper –
+// HTML text is never distorted by non-uniform SVG scaling.
 
 function EventChart({ events, selected, onSelect, phaseMarkers, minTs: extMinTs, maxTs: extMaxTs }: {
   events: AnomalyEvent[];
@@ -113,8 +110,12 @@ function EventChart({ events, selected, onSelect, phaseMarkers, minTs: extMinTs,
   const maxTs = extMaxTs ?? (tsValues.length > 0 ? Math.max(...tsValues) : 1);
   const span  = Math.max(maxTs - minTs, 1);
 
-  const toX = (t: number) => ((t - minTs) / span) * (WIDTH - 10) + 5;
-  const toY = (s: number) => HEIGHT - s * (HEIGHT - 12) - 6;
+  // SVG coordinate helpers (viewBox space: 0..WIDTH × 0..HEIGHT)
+  const toX    = (t: number) => ((t - minTs) / span) * (WIDTH - 10) + 5;
+  const toY    = (s: number) => HEIGHT - s * (HEIGHT - 12) - 6;
+  // CSS-% helpers for the HTML overlay (0..100 of the wrapper dimensions)
+  const toPctX = (t: number) => ((t - minTs) / span) * 100;
+  const toPctY = (s: number) => (toY(s) / HEIGHT) * 100;
 
   // Rolling-max score line
   const rollingPoints = events.map(evt => {
@@ -133,6 +134,8 @@ function EventChart({ events, selected, onSelect, phaseMarkers, minTs: extMinTs,
 
   const yMedium = toY(mediumSeverityThreshold);
   const yHigh   = toY(highSeverityThreshold);
+  const pctYMedium = toPctY(mediumSeverityThreshold);
+  const pctYHigh   = toPctY(highSeverityThreshold);
 
   // Diamond path helper for severity-change events
   const diamond = (cx: number, cy: number, r: number) =>
@@ -140,46 +143,48 @@ function EventChart({ events, selected, onSelect, phaseMarkers, minTs: extMinTs,
 
   return (
     <div className="mb-2">
-      <div className="text-xs text-slate-400 mb-0.5">Rolling max score · dots = events · ◆ = severity change</div>
-      <div style={{ height: HEIGHT, overflow: 'hidden' }}>
-        <svg width="100%" height="100%" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none"
-          className="bg-slate-900 rounded border border-slate-700">
+      <div className="text-xs text-slate-400 mb-0.5">Rolling max score · ● events · ◆ severity change</div>
+      {/* Wrapper: fixed height, relative so HTML labels can be absolutely positioned */}
+      <div className="relative rounded border border-slate-700 bg-slate-900" style={{ height: HEIGHT, overflow: 'hidden' }}>
+
+        {/* ── SVG layer: geometry only, no text ── */}
+        <svg width="100%" height="100%"
+          viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+          preserveAspectRatio="none"
+          style={{ position: 'absolute', top: 0, left: 0 }}>
 
           {/* Severity threshold bands */}
           <rect x="0" y={yHigh}   width={WIDTH} height={yMedium - yHigh} fill="rgba(234,179,8,0.07)" />
           <rect x="0" y="0"       width={WIDTH} height={yHigh}           fill="rgba(239,68,68,0.07)" />
           <line x1="0" y1={yMedium} x2={WIDTH} y2={yMedium} stroke="#ca8a04" strokeWidth="0.5" strokeDasharray="3,3" />
           <line x1="0" y1={yHigh}   x2={WIDTH} y2={yHigh}   stroke="#dc2626" strokeWidth="0.5" strokeDasharray="3,3" />
-          <text x="3" y={yMedium - 2} fill="#ca8a04" fontSize="7">medium</text>
-          <text x="3" y={yHigh   - 2} fill="#dc2626" fontSize="7">high</text>
 
-          {/* Phase markers */}
+          {/* Phase-marker vertical lines (no labels here – labels are HTML below) */}
           {(phaseMarkers ?? []).map(pm => {
             const x = toX(pm.timestamp);
             if (x < 0 || x > WIDTH) return null;
             const c = phaseColor(pm.key);
             return (
-              <g key={pm.key}>
-                <line x1={x} y1={0} x2={x} y2={HEIGHT} stroke={c.line} strokeWidth="1" strokeDasharray="4,3" opacity="0.7" />
-                <text x={x + 2} y={HEIGHT - 3} fill={c.label} fontSize="7" fontWeight="600">{pm.label}</text>
-              </g>
+              <line key={pm.key}
+                x1={x} y1={0} x2={x} y2={HEIGHT}
+                stroke={c.line} strokeWidth="1" strokeDasharray="4,3" opacity="0.7" />
             );
           })}
 
-          {/* Rolling-max score line (drawn below dots) */}
+          {/* Rolling-max score line */}
           {pathD && <path d={pathD} fill="none" stroke="#8b5cf6" strokeWidth="1.5" opacity="0.9" />}
 
-          {/* Event dots — circles for normal, diamonds for severity changes */}
+          {/* Event dots */}
           {events.map(evt => {
-            const x  = toX(evt.trigger.timestamp);
-            const y  = toY(evt.score);
-            const fc = evt.severity === 'high' ? '#ef4444' : evt.severity === 'medium' ? '#eab308' : '#64748b';
+            const x   = toX(evt.trigger.timestamp);
+            const y   = toY(evt.score);
+            const fc  = evt.severity === 'high' ? '#ef4444' : evt.severity === 'medium' ? '#eab308' : '#64748b';
             const sel = evt.id === selected;
             return evt.severityChanged
               ? <path key={evt.id} d={diamond(x, y, sel ? 5 : 4)} fill={fc} opacity="0.95"
                   style={{ cursor: 'pointer' }} onClick={() => onSelect(evt.id)}
                   stroke={sel ? 'white' : 'none'} strokeWidth="1">
-                  <title>{formatTs(evt.trigger.timestamp)} {evt.severity} ↑ change</title>
+                  <title>{formatTs(evt.trigger.timestamp)} {evt.severity} ◆ change</title>
                 </path>
               : <circle key={evt.id} cx={x} cy={y} r={sel ? 4 : 2.5} fill={fc} opacity="0.85"
                   style={{ cursor: 'pointer' }} onClick={() => onSelect(evt.id)}
@@ -188,6 +193,33 @@ function EventChart({ events, selected, onSelect, phaseMarkers, minTs: extMinTs,
                 </circle>;
           })}
         </svg>
+
+        {/* ── HTML label layer: never distorted by SVG scaling ── */}
+
+        {/* Threshold labels on the left */}
+        <span className="absolute text-[10px] font-medium text-amber-500 pointer-events-none"
+          style={{ top: `${pctYMedium}%`, left: 4, transform: 'translateY(-100%)' }}>
+          medium
+        </span>
+        <span className="absolute text-[10px] font-medium text-red-500 pointer-events-none"
+          style={{ top: `${pctYHigh}%`, left: 4, transform: 'translateY(-100%)' }}>
+          high
+        </span>
+
+        {/* Phase-marker labels at the bottom */}
+        {(phaseMarkers ?? []).map(pm => {
+          const pct = toPctX(pm.timestamp);
+          if (pct < 0 || pct > 100) return null;
+          const c = phaseColor(pm.key);
+          return (
+            <span key={pm.key}
+              className="absolute text-[10px] font-semibold pointer-events-none whitespace-nowrap"
+              style={{ bottom: 3, left: `${pct}%`, transform: 'translateX(3px)', color: c.label,
+                       textShadow: '0 0 4px #0f172a' }}>
+              {pm.label}
+            </span>
+          );
+        })}
       </div>
     </div>
   );
