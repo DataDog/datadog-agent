@@ -942,6 +942,15 @@ new-e2e-ha-agent-failover:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
+new-e2e-anomalydetection:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_anomalydetection_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/anomalydetection
+    TEAM: q-branch
+
 new-e2e-netpath:
   extends: .new_e2e_template_needs_deb_x64
   rules:
@@ -1194,6 +1203,7 @@ new-e2e-cspm:
     - !reference [.needs_new_e2e_template]
     - qa_agent_linux
     - qa_dca
+    - agent_deb-x64-a7
   variables:
     TARGETS: ./tests/cspm
     TEAM: cspm
