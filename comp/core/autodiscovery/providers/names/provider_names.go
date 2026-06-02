@@ -61,6 +61,8 @@ const (
 	DataStreamsKafkaActions = "dsm-kafka-actions"
 	// DOQueryActions provides check configurations for Database Observability query-level actions.
 	DOQueryActions = "do-query-actions"
+	// DataSecurity provides check configurations pushed via Remote Configuration for the data security feature.
+	DataSecurity = "data-security"
 	// PrometheusHTTPSD discovers check configurations from a Prometheus HTTP Service Discovery endpoint.
 	PrometheusHTTPSD = "prometheus-http-sd"
 	// InstrumentationChecks pulls AD configurations derived from DatadogInstrumentation CRs via the cluster-agent.
