@@ -23,6 +23,11 @@ const (
 	// postgresIntegrationName is the integration whose instance we take over and
 	// enrich with the data_security rules. Only postgres is supported for now.
 	postgresIntegrationName = "postgres"
+
+	// dataSecuritySection is the key of the instance section that the rules are
+	// merged into and that carries the per-instance opt-in (enabled: true). The
+	// section may already hold other settings, which are preserved.
+	dataSecuritySection = "data_security"
 )
 
 // debugPayload is the flat DEBUG RC payload this component understands:
@@ -138,7 +143,7 @@ func (c *component) applyConfig(path string, payload debugPayload, changes *inte
 	if !existed {
 		originals = c.findPostgresConfigs(payload.Host)
 		if len(originals) == 0 {
-			return fmt.Errorf("no postgres integration configured for host %q to attach data_security rules to", payload.Host)
+			return fmt.Errorf("no supported integration with data_security.enabled: true found for host %q", payload.Host)
 		}
 	}
 
@@ -181,13 +186,38 @@ func (c *component) revertPath(path string, changes *integration.ConfigChanges) 
 	changes.Schedule = append(changes.Schedule, prev.originals...)
 }
 
-// findPostgresConfigs returns the postgres configs currently known to
-// autodiscovery that have at least one instance matching host. Configs this
-// component scheduled itself are skipped so we never enrich our own output.
+// isSupportedIntegration reports whether name is a supported DB integration.
+// Only postgres is supported for now.
+func isSupportedIntegration(name string) bool {
+	return name == postgresIntegrationName
+}
+
+// instanceHasDataSecurityEnabled reports whether a parsed instance has opted
+// into data security via data_security.enabled: true.
+func instanceHasDataSecurityEnabled(instance map[string]any) bool {
+	ds, ok := instance[dataSecuritySection].(map[string]any)
+	if !ok {
+		return false
+	}
+	enabled, _ := ds["enabled"].(bool)
+	return enabled
+}
+
+// instanceMatches reports whether a parsed instance targets host and has opted
+// into data security.
+func instanceMatches(instance map[string]any, host string) bool {
+	h, _ := instance["host"].(string)
+	return h == host && instanceHasDataSecurityEnabled(instance)
+}
+
+// findPostgresConfigs returns the supported DB configs currently known to
+// autodiscovery that have at least one instance targeting host with
+// data_security.enabled: true. Configs this component scheduled itself are
+// skipped so we never enrich our own output.
 func (c *component) findPostgresConfigs(host string) []integration.Config {
 	var out []integration.Config
 	for _, cfg := range c.ac.GetUnresolvedConfigs() {
-		if cfg.Name != postgresIntegrationName || cfg.Provider == names.DataSecurity {
+		if !isSupportedIntegration(cfg.Name) || cfg.Provider == names.DataSecurity {
 			continue
 		}
 		for _, instanceData := range cfg.Instances {
@@ -195,7 +225,7 @@ func (c *component) findPostgresConfigs(host string) []integration.Config {
 			if err := yaml.Unmarshal(instanceData, &instance); err != nil {
 				continue
 			}
-			if h, _ := instance["host"].(string); h == host {
+			if instanceMatches(instance, host) {
 				out = append(out, cfg)
 				break
 			}
@@ -219,19 +249,19 @@ func (c *component) buildEnrichedConfigs(originals []integration.Config, host st
 				return nil, fmt.Errorf("failed to parse postgres instance: %w", err)
 			}
 
-			if h, _ := instance["host"].(string); h != host {
+			if !instanceMatches(instance, host) {
 				newInstances = append(newInstances, instanceData)
 				continue
 			}
 
 			// Enrich the instance's existing data_security section with the
 			// rules as-is, preserving any keys already configured there.
-			dataSecurity, _ := instance[dataSecurityProductType].(map[string]any)
+			dataSecurity, _ := instance[dataSecuritySection].(map[string]any)
 			if dataSecurity == nil {
 				dataSecurity = map[string]any{}
 			}
 			dataSecurity["rules"] = rules
-			instance[dataSecurityProductType] = dataSecurity
+			instance[dataSecuritySection] = dataSecurity
 
 			instanceYAML, err := yaml.Marshal(instance)
 			if err != nil {
