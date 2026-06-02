@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import type { AnomalyEvent, AnomalySeverity } from '../api/client';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
+import type { PhaseMarker } from './ChartWithAnomalyDetails';
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -66,18 +67,36 @@ function SummaryCards({ events }: { events: AnomalyEvent[] }) {
 
 // ---- Timeline --------------------------------------------------------------
 
-function Timeline({ events, selected, onSelect }: {
+const PHASE_COLORS: Record<string, { line: string; label: string }> = {
+  baseline:   { line: '#3b82f6', label: '#60a5fa' },
+  warmup:     { line: '#6366f1', label: '#818cf8' },
+  disruption: { line: '#ef4444', label: '#f87171' },
+  cooldown:   { line: '#f59e0b', label: '#fbbf24' },
+};
+
+function phaseColor(key: string): { line: string; label: string } {
+  return PHASE_COLORS[key.toLowerCase()] ?? { line: '#94a3b8', label: '#cbd5e1' };
+}
+
+function Timeline({ events, selected, onSelect, phaseMarkers, minTs: extMinTs, maxTs: extMaxTs }: {
   events: AnomalyEvent[];
   selected: string | null;
   onSelect: (id: string) => void;
+  phaseMarkers?: PhaseMarker[];
+  minTs?: number;
+  maxTs?: number;
 }) {
-  if (events.length === 0) {
+  if (events.length === 0 && (!phaseMarkers || phaseMarkers.length === 0)) {
     return <div className="text-slate-500 text-sm py-4 text-center">No events in current filter</div>;
   }
 
-  const minTs = events[0].trigger.timestamp;
-  const maxTs = events[events.length - 1].trigger.timestamp;
+  const tsValues = events.map(e => e.trigger.timestamp);
+  if (phaseMarkers) phaseMarkers.forEach(m => tsValues.push(m.timestamp));
+  const minTs = extMinTs ?? (tsValues.length > 0 ? Math.min(...tsValues) : 0);
+  const maxTs = extMaxTs ?? (tsValues.length > 0 ? Math.max(...tsValues) : 1);
   const span = Math.max(maxTs - minTs, 1);
+
+  const toLeft = (ts: number) => ((ts - minTs) / span) * 96 + 2;
 
   return (
     <div className="relative h-20 bg-slate-900 rounded-lg border border-slate-700 overflow-hidden mb-4">
@@ -91,11 +110,26 @@ function Timeline({ events, selected, onSelect }: {
           <span className="absolute left-1 top-0.5 text-[10px] text-slate-600">{sev}</span>
         </div>
       ))}
+      {/* Phase marker lines */}
+      {(phaseMarkers ?? []).map(pm => {
+        const left = toLeft(pm.timestamp);
+        if (left < 0 || left > 100) return null;
+        const c = phaseColor(pm.key);
+        return (
+          <div key={pm.key} className="absolute top-0 bottom-0 flex flex-col items-center" style={{ left: `${left}%` }}>
+            <div className="absolute top-0 bottom-0 w-px" style={{ backgroundColor: c.line, opacity: 0.7 }} />
+            <span className="absolute top-0.5 text-[9px] font-semibold px-0.5 rounded whitespace-nowrap"
+              style={{ color: c.label, left: '3px', textShadow: '0 0 4px #0f172a' }}>
+              {pm.label}
+            </span>
+          </div>
+        );
+      })}
       {/* Event dots */}
       {events.map(evt => {
         const lanes: Record<AnomalySeverity, number> = { high: 8, medium: 37, low: 62 };
         const top = lanes[evt.severity] ?? 37;
-        const left = ((evt.trigger.timestamp - minTs) / span) * 96 + 2;
+        const left = toLeft(evt.trigger.timestamp);
         const isSelected = evt.id === selected;
         const isChange = evt.severityChanged;
         const c = SEVERITY_COLOR[evt.severity] ?? SEVERITY_COLOR.low;
@@ -119,15 +153,22 @@ function Timeline({ events, selected, onSelect }: {
 
 // ---- Smoothed score chart --------------------------------------------------
 
-function SmoothedScoreChart({ events }: { events: AnomalyEvent[] }) {
-  if (events.length === 0) return null;
+function SmoothedScoreChart({ events, phaseMarkers, minTs: extMinTs, maxTs: extMaxTs }: {
+  events: AnomalyEvent[];
+  phaseMarkers?: PhaseMarker[];
+  minTs?: number;
+  maxTs?: number;
+}) {
+  if (events.length === 0 && (!phaseMarkers || phaseMarkers.length === 0)) return null;
 
   const WINDOW = 300; // 5 min
   const WIDTH = 600;
   const HEIGHT = 80;
 
-  const minTs = events[0].trigger.timestamp;
-  const maxTs = events[events.length - 1].trigger.timestamp;
+  const tsValues = events.map(e => e.trigger.timestamp);
+  if (phaseMarkers) phaseMarkers.forEach(m => tsValues.push(m.timestamp));
+  const minTs = extMinTs ?? (tsValues.length > 0 ? Math.min(...tsValues) : 0);
+  const maxTs = extMaxTs ?? (tsValues.length > 0 ? Math.max(...tsValues) : 1);
   const span = Math.max(maxTs - minTs, 1);
 
   // Rolling max over WINDOW seconds
@@ -145,9 +186,9 @@ function SmoothedScoreChart({ events }: { events: AnomalyEvent[] }) {
   const toX = (t: number) => ((t - minTs) / span) * (WIDTH - 10) + 5;
   const toY = (s: number) => HEIGHT - s * (HEIGHT - 10) - 5;
 
-  const pathD = points.map((p, i) =>
-    `${i === 0 ? 'M' : 'L'} ${toX(p.t).toFixed(1)} ${toY(p.score).toFixed(1)}`
-  ).join(' ');
+  const pathD = points.length > 0
+    ? points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(p.t).toFixed(1)} ${toY(p.score).toFixed(1)}`).join(' ')
+    : '';
 
   // Threshold lines
   const yMedium = toY(mediumSeverityThreshold);
@@ -164,8 +205,20 @@ function SmoothedScoreChart({ events }: { events: AnomalyEvent[] }) {
         <line x1="0" y1={yHigh} x2={WIDTH} y2={yHigh} stroke="#dc2626" strokeWidth="0.5" strokeDasharray="3,3" />
         <text x="4" y={yMedium - 2} fill="#ca8a04" fontSize="8">medium</text>
         <text x="4" y={yHigh - 2} fill="#dc2626" fontSize="8">high</text>
+        {/* Phase marker lines */}
+        {(phaseMarkers ?? []).map(pm => {
+          const x = toX(pm.timestamp);
+          if (x < 0 || x > WIDTH) return null;
+          const c = phaseColor(pm.key);
+          return (
+            <g key={pm.key}>
+              <line x1={x} y1={0} x2={x} y2={HEIGHT} stroke={c.line} strokeWidth="1" strokeDasharray="4,3" opacity="0.7" />
+              <text x={x + 2} y={HEIGHT - 3} fill={c.label} fontSize="7" fontWeight="600">{pm.label}</text>
+            </g>
+          );
+        })}
         {/* Score line */}
-        <path d={pathD} fill="none" stroke="#8b5cf6" strokeWidth="1.5" />
+        {pathD && <path d={pathD} fill="none" stroke="#8b5cf6" strokeWidth="1.5" />}
         {/* Event dots */}
         {events.map(evt => {
           const x = toX(evt.trigger.timestamp);
@@ -316,13 +369,26 @@ function EventRow({ event, selected, onSelect }: {
 
 // ---- Main view -------------------------------------------------------------
 
+// Log-extractor namespaces: events triggered by these are categorised as "log"
+// even though they flow through the metric detection path.
+const LOG_EXTRACTOR_NAMESPACES = new Set(['log_pattern_extractor', 'log_metrics_extractor']);
+
+function isLogTrigger(evt: AnomalyEvent): boolean {
+  if (evt.trigger.type === 'log') return true;
+  // The trigger source string is "<namespace>/<name>" or just "<name>" – check namespace prefix.
+  const src = evt.trigger.source ?? '';
+  const ns = src.split('/')[0];
+  return LOG_EXTRACTOR_NAMESPACES.has(ns);
+}
+
 interface AnomalyEventsViewProps {
   state: ObserverState;
   actions: ObserverActions;
   sidebarWidth: number;
+  phaseMarkers?: PhaseMarker[];
 }
 
-export function AnomalyEventsView({ state, sidebarWidth }: AnomalyEventsViewProps) {
+export function AnomalyEventsView({ state, sidebarWidth, phaseMarkers }: AnomalyEventsViewProps) {
   const events = state.anomalyEvents ?? [];
 
   // Filters
@@ -340,7 +406,11 @@ export function AnomalyEventsView({ state, sidebarWidth }: AnomalyEventsViewProp
 
   const filtered = useMemo(() => events.filter(evt => {
     if (severityFilter !== 'all' && evt.severity !== severityFilter) return false;
-    if (typeFilter !== 'all' && evt.trigger.type !== typeFilter) return false;
+    if (typeFilter !== 'all') {
+      const isLog = isLogTrigger(evt);
+      if (typeFilter === 'log' && !isLog) return false;
+      if (typeFilter === 'metric' && isLog) return false;
+    }
     if (changeFilter === 'changes' && !evt.severityChanged) return false;
     if (changeFilter === 'upgrades' && evt.severityDirection !== 'up') return false;
     if (detectorFilter && evt.trigger.detectorName !== detectorFilter) return false;
@@ -348,6 +418,14 @@ export function AnomalyEventsView({ state, sidebarWidth }: AnomalyEventsViewProp
   }), [events, severityFilter, typeFilter, changeFilter, detectorFilter]);
 
   const selectedEvent = filtered.find(e => e.id === selectedId) ?? null;
+
+  // Compute timeline bounds across all events + phase markers so scales align.
+  const { timelineMinTs, timelineMaxTs } = useMemo(() => {
+    const tsVals: number[] = events.map(e => e.trigger.timestamp);
+    (phaseMarkers ?? []).forEach(m => tsVals.push(m.timestamp));
+    if (tsVals.length === 0) return { timelineMinTs: undefined, timelineMaxTs: undefined };
+    return { timelineMinTs: Math.min(...tsVals), timelineMaxTs: Math.max(...tsVals) };
+  }, [events, phaseMarkers]);
 
   return (
     <div className="flex flex-1 min-h-0">
@@ -452,8 +530,16 @@ export function AnomalyEventsView({ state, sidebarWidth }: AnomalyEventsViewProp
               events={filtered}
               selected={selectedId}
               onSelect={id => setSelectedId(prev => prev === id ? null : id)}
+              phaseMarkers={phaseMarkers}
+              minTs={timelineMinTs}
+              maxTs={timelineMaxTs}
             />
-            <SmoothedScoreChart events={filtered} />
+            <SmoothedScoreChart
+              events={filtered}
+              phaseMarkers={phaseMarkers}
+              minTs={timelineMinTs}
+              maxTs={timelineMaxTs}
+            />
 
             {selectedEvent && (
               <div className="mb-4">

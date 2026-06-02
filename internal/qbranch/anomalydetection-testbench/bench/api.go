@@ -1158,34 +1158,37 @@ func (api *BenchAPI) handleAnomalyEvents(w http.ResponseWriter, r *http.Request)
 	var result []eventResponse
 	for _, evt := range events {
 		t := evt.Trigger
-		// severity filter
-		if severityFilter != "" && string(evt.Severity) != severityFilter {
-			continue
-		}
-		// type filter
-		if typeFilter != "" && string(t.Type) != typeFilter {
-			continue
-		}
-		// changes-only filter
-		if changesOnly && !evt.SeverityChanged {
-			continue
-		}
-		// upgrades-only filter
-		if upgradesOnly && evt.SeverityDirection != "up" {
-			continue
-		}
-		// detector filter
-		if detectorFilter != "" && t.DetectorName != detectorFilter {
-			continue
-		}
-
-		trigType := string(t.Type)
-		if trigType == "" {
-			trigType = "metric"
+		// Determine trigger type first so it can be used in the type filter below.
+		// Determine trigger type: explicit log anomalies OR log-extractor-derived metrics.
+		// Metrics produced by log_pattern_extractor / log_metrics_extractor originate from
+		// log data but travel through the metric detection path (Type == AnomalyTypeMetric).
+		// For filtering purposes, treat them as "log" triggers so the UI log/metric filter works.
+		trigType := "metric"
+		if t.Type == observerdef.AnomalyTypeLog {
+			trigType = "log"
+		} else if t.Source.Namespace == "log_pattern_extractor" || t.Source.Namespace == "log_metrics_extractor" {
+			trigType = "log"
 		}
 		trigSeverity := ""
 		if t.Severity != "" {
 			trigSeverity = string(t.Severity)
+		}
+
+		// Apply filters after computing trigType so the type filter is accurate.
+		if severityFilter != "" && string(evt.Severity) != severityFilter {
+			continue
+		}
+		if typeFilter != "" && trigType != typeFilter {
+			continue
+		}
+		if changesOnly && !evt.SeverityChanged {
+			continue
+		}
+		if upgradesOnly && evt.SeverityDirection != "up" {
+			continue
+		}
+		if detectorFilter != "" && t.DetectorName != detectorFilter {
+			continue
 		}
 
 		sigs := make([]signalEvidenceResponse, len(evt.Signals))

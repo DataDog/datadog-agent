@@ -719,6 +719,7 @@ function App() {
             state={state}
             actions={actions}
             sidebarWidth={sidebarWidth}
+            phaseMarkers={phaseMarkers}
           />
         </div>
       </div>

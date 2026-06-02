@@ -11,13 +11,31 @@ import (
 	"os"
 	"sort"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	reporterimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl"
 )
 
 // ObserverOutput is the top-level JSON structure produced by headless mode.
 type ObserverOutput struct {
-	Metadata       ObserverMetadata      `json:"metadata"`
-	AnomalyPeriods []ObserverCorrelation `json:"anomaly_periods"`
+	Metadata       ObserverMetadata       `json:"metadata"`
+	AnomalyPeriods []ObserverCorrelation  `json:"anomaly_periods"`
+	AnomalyEvents  []ObserverAnomalyEvent `json:"anomaly_events,omitempty"`
+}
+
+// ObserverAnomalyEvent is one scored anomaly event candidate (verbose only).
+type ObserverAnomalyEvent struct {
+	ID                string  `json:"id"`
+	TriggerTimestamp  int64   `json:"trigger_timestamp"`
+	TriggerSource     string  `json:"trigger_source"`
+	TriggerDetector   string  `json:"trigger_detector"`
+	TriggerType       string  `json:"trigger_type"`
+	Score             float64 `json:"score"`
+	Severity          string  `json:"severity"`
+	PreviousSeverity  string  `json:"previous_severity,omitempty"`
+	SeverityChanged   bool    `json:"severity_changed"`
+	SeverityDirection string  `json:"severity_direction,omitempty"`
+	SignalCount       int     `json:"signal_count"`
+	EffectiveSignals  int     `json:"effective_signals"`
 }
 
 // ObserverMetadata describes the scenario and pipeline configuration.
@@ -55,7 +73,8 @@ type ObserverAnomaly struct {
 
 // WriteObserverOutput collects correlations and metadata from the Bench
 // and writes a structured JSON results file.
-// When verbose is true, correlations include title, member series, and nested anomalies.
+// When verbose is true, correlations include title, member series, nested anomalies,
+// and the full list of scored anomaly events.
 // When verbose is false, correlations include only the time span (pattern, period_start, period_end).
 func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 	tb.mu.RLock()
@@ -91,6 +110,7 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 	}
 
 	replayStats := tb.replayStats
+	anomalyEvents := sv.AnomalyEvents()
 	tb.mu.RUnlock()
 
 	sort.Strings(detectorNames)
@@ -135,6 +155,37 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 		outCorrelations[i] = oc
 	}
 
+	var outAnomalyEvents []ObserverAnomalyEvent
+	if verbose && len(anomalyEvents) > 0 {
+		outAnomalyEvents = make([]ObserverAnomalyEvent, 0, len(anomalyEvents))
+		for _, ae := range anomalyEvents {
+			trigType := "metric"
+			if ae.Trigger.Type == observerdef.AnomalyTypeLog {
+				trigType = "log"
+			} else if ae.Trigger.Source.Namespace == "log_pattern_extractor" || ae.Trigger.Source.Namespace == "log_metrics_extractor" {
+				trigType = "log"
+			}
+			prevSev := ""
+			if ae.PreviousSeverity != "" {
+				prevSev = string(ae.PreviousSeverity)
+			}
+			outAnomalyEvents = append(outAnomalyEvents, ObserverAnomalyEvent{
+				ID:                ae.ID,
+				TriggerTimestamp:  ae.Trigger.Timestamp,
+				TriggerSource:     ae.Trigger.Source.String(),
+				TriggerDetector:   ae.Trigger.DetectorName,
+				TriggerType:       trigType,
+				Score:             ae.Score,
+				Severity:          string(ae.Severity),
+				PreviousSeverity:  prevSev,
+				SeverityChanged:   ae.SeverityChanged,
+				SeverityDirection: ae.SeverityDirection,
+				SignalCount:       ae.Breakdown.SignalCount,
+				EffectiveSignals:  ae.Breakdown.EffectiveSignalCount,
+			})
+		}
+	}
+
 	output := ObserverOutput{
 		Metadata: ObserverMetadata{
 			Scenario:            scenario,
@@ -147,6 +198,7 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 			Stats:               replayStats,
 		},
 		AnomalyPeriods: outCorrelations,
+		AnomalyEvents:  outAnomalyEvents,
 	}
 
 	data, err := json.MarshalIndent(output, "", "  ")
