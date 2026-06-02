@@ -229,6 +229,20 @@ func NewComponent(deps Requires) Provides {
 		processingTimeGauge.Set(nanos, detectorTag)
 	}
 
+	// Wire anomaly event telemetry: emitted once per scored event without going
+	// through the ObserverTelemetry dispatch path.
+	anomalyEventCounter := th.telemetryCounters[telemetryAnomalyEventTotal]
+	anomalyEventEWMAGauge := th.telemetryGauges[telemetryAnomalyEventEWMAScore]
+	anomalyEventSeverityGauge := th.telemetryGauges[telemetryAnomalyEventSeverityState]
+	eng.onAnomalyEvent = func(evt observerdef.ScoredAnomalyEvent) {
+		sev := string(evt.Score.Severity)
+		scope := evt.Scope
+		detector := evt.Anomaly.DetectorName
+		anomalyEventCounter.Add(1, "scope:"+scope, "detector:"+detector, "severity:"+sev)
+		anomalyEventEWMAGauge.Set(evt.Score.EWMA, "scope:"+scope)
+		anomalyEventSeverityGauge.Set(severityToFloat(evt.Score.Severity), "scope:"+scope, "severity:"+sev)
+	}
+
 	obs := &observerImpl{
 		engine:               eng,
 		catalog:              catalog,

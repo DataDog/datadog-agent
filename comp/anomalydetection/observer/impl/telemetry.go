@@ -29,6 +29,18 @@ const (
 
 	// Log pattern extractor — counter: delta (new clusters) per processed log
 	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count"
+
+	// Anomaly event scorer
+	// telemetryAnomalyEventTotal counts every scored anomaly event.
+	// Tagged by scope, detector, and severity so callers can filter by severity band.
+	telemetryAnomalyEventTotal = "observer.anomaly_event.total"
+	// telemetryAnomalyEventEWMAScore is the per-scope EWMA score after each event.
+	// Tracks the smoothed anomaly pressure for a given service/env scope over time.
+	telemetryAnomalyEventEWMAScore = "observer.anomaly_event.ewma_score"
+	// telemetryAnomalyEventSeverityState encodes the current severity band as a
+	// numeric level: 0=low, 1=medium, 2=high. Tagged by scope and severity so
+	// monitors can alert when severity_state{severity="high"} > 0.
+	telemetryAnomalyEventSeverityState = "observer.anomaly_event.severity_state"
 )
 
 // This is used to:
@@ -93,6 +105,26 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 		telemetryObsChannelDropped,
 		[]string{"source"},
 		"Observations dropped because the internal channel was full, tagged by source handle",
+	)
+
+	// Anomaly event scorer metrics
+	gauges[telemetryAnomalyEventEWMAScore] = telemetryComp.NewGauge(
+		"observer",
+		telemetryAnomalyEventEWMAScore,
+		[]string{"scope"},
+		"Smoothed (EWMA) anomaly event score per scope; tracks anomaly pressure over time",
+	)
+	gauges[telemetryAnomalyEventSeverityState] = telemetryComp.NewGauge(
+		"observer",
+		telemetryAnomalyEventSeverityState,
+		[]string{"scope", "severity"},
+		"Current severity level per scope: 0=low, 1=medium, 2=high",
+	)
+	counters[telemetryAnomalyEventTotal] = telemetryComp.NewCounter(
+		"observer",
+		telemetryAnomalyEventTotal,
+		[]string{"scope", "detector", "severity"},
+		"Total number of scored anomaly events, tagged by scope, detector, and severity band",
 	)
 
 	return &telemetryHandler{
@@ -166,6 +198,19 @@ func newTelemetryGauge(tags []string, telemetryName string, value float64, dataT
 			tags:      tagsCopy,
 			timestamp: dataTimeSec,
 		},
+	}
+}
+
+// severityToFloat maps an AnomalyEventSeverity to a numeric level for the
+// telemetryAnomalyEventSeverityState gauge (0=low, 1=medium, 2=high).
+func severityToFloat(sev observerdef.AnomalyEventSeverity) float64 {
+	switch sev {
+	case observerdef.AnomalyEventSeverityHigh:
+		return 2
+	case observerdef.AnomalyEventSeverityMedium:
+		return 1
+	default:
+		return 0
 	}
 }
 

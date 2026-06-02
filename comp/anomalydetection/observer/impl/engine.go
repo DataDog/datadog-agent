@@ -101,6 +101,11 @@ type engine struct {
 	replayAnomalies       atomic.Int64
 	replayPhase           atomic.Value // string: "", "loading", "detecting", "done"
 
+	// onAnomalyEvent is an optional callback invoked synchronously after each
+	// ScoredAnomalyEvent is produced (lock released, consumers already notified).
+	// Used to emit per-event telemetry without going through the ObserverTelemetry path.
+	onAnomalyEvent func(observerdef.ScoredAnomalyEvent)
+
 	// Optional instrumentation for live/replay parity debugging.
 	onDetectDigest func(detectDigest)
 	instrStorage   *instrumentedStorage
@@ -847,6 +852,10 @@ func (e *engine) scoreAnomalyEvent(anomaly observerdef.Anomaly) {
 
 	for _, c := range consumers {
 		c.ProcessAnomalyEvent(evt)
+	}
+
+	if e.onAnomalyEvent != nil {
+		e.onAnomalyEvent(evt)
 	}
 }
 
