@@ -8,32 +8,29 @@
 package nvidia
 
 import (
-	"encoding/binary"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestNVLinkFieldsCollectorQueriesAllConfiguredPorts(t *testing.T) {
 	var requestedScopes []uint32
-	device := setupMockDevice(t, func(d *mock.Device) *mock.Device {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(d *mock.Device) {
 		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
 			require.NotEmpty(t, fv)
 			requestedScopes = append(requestedScopes, fv[0].ScopeId)
 			for i := range fv {
 				require.Equal(t, fv[0].ScopeId, fv[i].ScopeId, "all fields in a call should target the same NVLink port")
-				fv[i].NvmlReturn = uint32(nvml.SUCCESS)
-				fv[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-				binary.LittleEndian.PutUint32(fv[i].Value[:], mockFieldValues[fv[i].FieldId])
+				testutil.ApplyMockFieldValue(&fv[i], testutil.DefaultFieldValues[fv[i].FieldId])
 			}
 			return nvml.SUCCESS
 		}
-		return d
-	})
+	}))
 
 	collector := &nvlinkFieldsCollector{
 		device: device,
@@ -54,35 +51,25 @@ func TestNVLinkFieldsCollectorQueriesAllConfiguredPorts(t *testing.T) {
 }
 
 func TestNVLinkFieldsCollectorAddsTotals(t *testing.T) {
-	values := map[uint32]map[uint32]uint32{
+	values := map[uint32]map[uint32]testutil.MockFieldValue{
 		nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX: {
-			0: 10,
-			1: 20,
-			2: 30,
+			0: testutil.NewFieldValue(10),
+			1: testutil.NewFieldValue(20),
+			2: testutil.NewFieldValue(30),
 		},
 		nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX: {
-			0: 1,
-			1: 2,
-			2: 3,
+			0: testutil.NewFieldValue(1),
+			1: testutil.NewFieldValue(2),
+			2: testutil.NewFieldValue(3),
 		},
 		nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS: {
-			0: 100,
-			1: 200,
-			2: 300,
+			0: testutil.NewFieldValue(100),
+			1: testutil.NewFieldValue(200),
+			2: testutil.NewFieldValue(300),
 		},
 	}
 
-	device := setupMockDevice(t, func(d *mock.Device) *mock.Device {
-		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
-			for i := range fv {
-				fv[i].NvmlReturn = uint32(nvml.SUCCESS)
-				fv[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-				binary.LittleEndian.PutUint32(fv[i].Value[:], values[fv[i].FieldId][fv[i].ScopeId])
-			}
-			return nvml.SUCCESS
-		}
-		return d
-	})
+	device := setupMockDevice(t, testutil.WithScopedFieldValues(values))
 
 	collector := &nvlinkFieldsCollector{
 		device: device,
@@ -144,7 +131,7 @@ func TestNVLinkFieldsCollectorAddsTotals(t *testing.T) {
 
 func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
 	var requestedFieldsByScope = make(map[uint32][]uint32)
-	device := setupMockDevice(t, func(d *mock.Device) *mock.Device {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(d *mock.Device) {
 		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
 			for i := range fv {
 				requestedFieldsByScope[fv[i].ScopeId] = append(requestedFieldsByScope[fv[i].ScopeId], fv[i].FieldId)
@@ -153,14 +140,11 @@ func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
 					continue
 				}
 
-				fv[i].NvmlReturn = uint32(nvml.SUCCESS)
-				fv[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-				binary.LittleEndian.PutUint32(fv[i].Value[:], uint32(fv[i].ScopeId+1))
+				testutil.ApplyMockFieldValue(&fv[i], testutil.NewFieldValue(uint64(fv[i].ScopeId+1)))
 			}
 			return nvml.SUCCESS
 		}
-		return d
-	})
+	}))
 
 	collector := &nvlinkFieldsCollector{
 		device: device,
@@ -194,6 +178,39 @@ func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
 	require.NotContains(t, requestedFieldsByScope[1], uint32(nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS))
 }
 
+func TestNVLinkFieldsCollectorCollectDoesNotPanicWhenMetricsBecomeEmpty(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(d *mock.Device) {
+		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
+			if len(fv) == 0 {
+				panic("GetFieldValues called with empty fields")
+			}
+			for i := range fv {
+				fv[i].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
+			}
+			return nvml.SUCCESS
+		}
+	}))
+
+	collector := &nvlinkFieldsCollector{
+		device: device,
+		ports:  []int{1, 2},
+		metrics: []nvlinkFieldValueMetric{
+			{
+				name:         "nvlink.tx.discards",
+				fieldValueID: nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS,
+				metricType:   metrics.GaugeType,
+			},
+		},
+	}
+
+	var err error
+	require.NotPanics(t, func() {
+		_, err = collector.Collect()
+	})
+	require.ErrorIs(t, err, errUnsupportedDevice)
+	require.ErrorContains(t, err, "no metrics to collect")
+}
+
 func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -204,30 +221,29 @@ func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
 		{
 			name:           "both supported, newer wins after dedup",
 			expectPriority: MediumLow,
-			expectValue:    float64(mockFieldValues[nvml.FI_DEV_NVLINK_GET_SPEED]),
+			expectValue:    float64(testutil.DefaultFieldValues[nvml.FI_DEV_NVLINK_GET_SPEED].Value),
 		},
 		{
 			name:             "newer unsupported, legacy selected",
 			unsupportedField: nvml.FI_DEV_NVLINK_GET_SPEED,
 			expectPriority:   Low,
-			expectValue:      float64(mockFieldValues[nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON]),
+			expectValue:      float64(testutil.DefaultFieldValues[nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON].Value),
 		},
 		{
 			name:             "legacy unsupported, newer selected",
 			unsupportedField: nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON,
 			expectPriority:   MediumLow,
-			expectValue:      float64(mockFieldValues[nvml.FI_DEV_NVLINK_GET_SPEED]),
+			expectValue:      float64(testutil.DefaultFieldValues[nvml.FI_DEV_NVLINK_GET_SPEED].Value),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			returnValues := copyMockFieldValues()
-			returnValues[nvml.FI_DEV_NVLINK_LINK_COUNT] = 1
-			device := setupMockDevice(t, func(d *mock.Device) *mock.Device {
-				d.GetFieldValuesFunc = fieldValuesMockFunc(returnValues, tt.unsupportedField)
-				return d
-			})
+			opts := []testutil.NvmlMockOption{testutil.WithNVLinkLinkCount(1)}
+			if tt.unsupportedField != 0 {
+				opts = append(opts, testutil.WithUnsupportedFields(tt.unsupportedField))
+			}
+			device := setupMockDevice(t, opts...)
 
 			collector, err := newNVLinkFieldsCollector(device, nil)
 			require.NoError(t, err)
@@ -255,24 +271,7 @@ func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
 }
 
 func TestNVlinkFieldsCollectorTreatsInvalidArgumentAsUnsupportedOnlyWhenConfigured(t *testing.T) {
-	returnValues := copyMockFieldValues()
-	returnValues[nvml.FI_DEV_NVLINK_LINK_COUNT] = 1
-	device := setupMockDevice(t, func(d *mock.Device) *mock.Device {
-		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
-			for i := range fv {
-				switch fv[i].FieldId {
-				case nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS:
-					fv[i].NvmlReturn = uint32(nvml.ERROR_INVALID_ARGUMENT)
-				default:
-					fv[i].NvmlReturn = uint32(nvml.SUCCESS)
-					fv[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-					binary.LittleEndian.PutUint32(fv[i].Value[:], returnValues[fv[i].FieldId])
-				}
-			}
-			return nvml.SUCCESS
-		}
-		return d
-	})
+	device := setupMockDevice(t, testutil.WithInvalidArgumentFields(nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS), testutil.WithNVLinkLinkCount(1))
 
 	collector, err := newNVLinkFieldsCollector(device, nil)
 	require.NoError(t, err)

@@ -158,6 +158,11 @@ func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
 }
 
 func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]*Metric, error) {
+	// Metrics might have been removed in the previous run, so we check if there are any metrics to collect.
+	if len(c.metrics) == 0 {
+		return nil, fmt.Errorf("%w: no metrics to collect", errUnsupportedDevice)
+	}
+
 	fields := make([]nvml.FieldValue, len(c.metrics))
 	for i, metric := range c.metrics {
 		fields[i].FieldId = metric.fieldValueID
@@ -219,6 +224,11 @@ func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]*Metric, error) {
 		if fieldValueMetric.addTotalMetric {
 			c.totals[fieldValueMetric.fieldValueID] += value
 		}
+	}
+
+	if len(c.metrics) == 0 {
+		// All metrics were removed, so we return an error to indicate that the device is unsupported.
+		return nil, fmt.Errorf("%w: no metrics to collect", errUnsupportedDevice)
 	}
 
 	return metrics, errors.Join(errs...)
