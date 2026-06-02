@@ -56,6 +56,7 @@ go_test(
     srcs = [
         "agenthealthAggregator_test.go",
         "apmStatsAggregator_test.go",
+        "apmTelemetryAggregator_test.go",
         "checkRunAggregator_test.go",
         "common_test.go",
         "connectionsAggregator_test.go",
@@ -101,6 +102,7 @@ go_test(
         "fixtures/orchmanif_bytes",
         "fixtures/sbom_bytes",
         "fixtures/trace_bytes",
+        "fixtures/apm_telemetry_bytes",
     ],
     gotags = ["test"],
     deps = [
