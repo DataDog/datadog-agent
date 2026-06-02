@@ -179,7 +179,7 @@ func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
 }
 
 func TestNVLinkFieldsCollectorCollectDoesNotPanicWhenMetricsBecomeEmpty(t *testing.T) {
-	device := setupMockDevice(t, func(d *mock.Device) *mock.Device {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(d *mock.Device) {
 		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
 			if len(fv) == 0 {
 				panic("GetFieldValues called with empty fields")
@@ -189,8 +189,7 @@ func TestNVLinkFieldsCollectorCollectDoesNotPanicWhenMetricsBecomeEmpty(t *testi
 			}
 			return nvml.SUCCESS
 		}
-		return d
-	})
+	}))
 
 	collector := &nvlinkFieldsCollector{
 		device: device,
