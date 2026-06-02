@@ -6,6 +6,7 @@
 package grpc
 
 import (
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
@@ -22,6 +23,13 @@ import (
 )
 
 const grpcSecondaryBufferSize = 10000
+
+var tlmDualSendSecondaryDropped = telemetryimpl.GetCompatComponent().NewCounter(
+	"logs_sender_grpc_dual_strategy",
+	"secondary_dropped",
+	[]string{"pipeline", "reason"},
+	"Number of logs dropped from the secondary side of the gRPC dual-send strategy",
+)
 
 // DualStrategy fans messages to two transports simultaneously.
 //
@@ -250,6 +258,8 @@ func (d *DualStrategy) startHTTPSecondary() {
 	destCtx := client.NewDestinationsContext()
 	destCtx.Start()
 
+	httpAckSink := newNoopPayloadSink(100)
+
 	// One input channel per HTTP destination for fan-out of payloads.
 	destPayloadChans := make([]chan *message.Payload, len(d.httpEndpoints))
 	httpStopChans := make([]<-chan struct{}, len(d.httpEndpoints))
@@ -258,10 +268,11 @@ func (d *DualStrategy) startHTTPSecondary() {
 		destPayloadChans[i] = ch
 		destMeta := client.NewDestinationMetadata("logs", d.instanceID, "additional-http", ep.Host, "")
 		dest := httpClient.NewDestination(ep, httpClient.JSONContentType, destCtx, true, destMeta, d.cfg, 1, 4, d.pipelineMonitor, d.instanceID, nil)
-		httpStopChans[i] = dest.Start(ch, nil, nil)
+		httpStopChans[i] = dest.Start(ch, httpAckSink, nil)
 	}
 
 	// HTTP batch strategy: clonedChan → JSON payloads → httpOutputChan
+	httpCloneInput := make(chan *message.Message, grpcSecondaryBufferSize)
 	clonedChan := make(chan *message.Message, grpcSecondaryBufferSize)
 	httpOutputChan := make(chan *message.Payload, 100)
 	httpFlushChan := make(chan struct{}, 1)
@@ -280,6 +291,9 @@ func (d *DualStrategy) startHTTPSecondary() {
 		d.instanceID,
 	)
 	httpBatch.Start()
+
+	// Clone and encode HTTP-secondary messages off the primary fan-out goroutine.
+	go d.encodeHTTPSecondary(httpCloneInput, clonedChan)
 
 	// Fan httpOutputChan payloads to all HTTP destinations.
 	go func() {
@@ -308,20 +322,41 @@ func (d *DualStrategy) startHTTPSecondary() {
 		for msg := range d.inputChan {
 			d.primaryChan <- msg // gRPC primary (unmodified)
 
-			// Clone the message and JSON-encode for HTTP.
-			// Message embeds MessageContent by value so a copy is safe;
-			// JSONEncoder replaces the Content slice rather than modifying in place.
-			cloned := *msg
-			if err := processor.JSONEncoder.Encode(&cloned, msg.MessageMetadata.Hostname); err != nil {
-				log.Errorf("dual_strategy: failed to JSON-encode message for HTTP secondary: %v", err)
-				continue
+			select {
+			case httpCloneInput <- msg:
+			default:
+				tlmDualSendSecondaryDropped.Inc(d.instanceID, "http_clone_queue_full")
 			}
-			clonedChan <- &cloned
 		}
 
 		close(d.primaryChan)
-		close(clonedChan)
+		close(httpCloneInput)
 	}()
+}
+
+func (d *DualStrategy) encodeHTTPSecondary(input <-chan *message.Message, output chan<- *message.Message) {
+	defer close(output)
+	for msg := range input {
+		// Message embeds MessageContent by value so a copy is safe; JSONEncoder replaces
+		// the Content slice rather than modifying in place.
+		cloned := *msg
+		if err := processor.JSONEncoder.Encode(&cloned, msg.MessageMetadata.Hostname); err != nil {
+			log.Errorf("dual_strategy: failed to JSON-encode message for HTTP secondary: %v", err)
+			tlmDualSendSecondaryDropped.Inc(d.instanceID, "http_encode_error")
+			continue
+		}
+		output <- &cloned
+	}
+}
+
+func newNoopPayloadSink(bufferSize int) chan *message.Payload {
+	sink := make(chan *message.Payload, bufferSize)
+	go func() {
+		for payload := range sink {
+			_ = payload
+		}
+	}()
+	return sink
 }
 
 func (d *DualStrategy) Stop() {
