@@ -4,10 +4,8 @@ go_library(
     name = "windowsagentinstability",
     srcs = [
         "check.go",
-        "check_noop.go",
         "issue.go",
         "module.go",
-        "module_noop.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/windowsagentinstability",
     visibility = ["//visibility:public"],
