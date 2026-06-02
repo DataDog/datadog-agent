@@ -210,7 +210,14 @@ def get_bazel_test_targets(ctx, flavor: str, modules: list[GoModule], bazel_flag
     scope = ' + '.join(bazel_patterns)
     if not bazel_flags:
         bazel_flags = []
-    output = bazel(ctx, "cquery", *bazel_flags, f"kind(go_test, {scope})", capture_output=True, capture_stderr=True)
+    output = bazel(
+        ctx,
+        "cquery",
+        *bazel_flags,
+        f"kind(go_test, {scope}) except attr(tags, manual, {scope})",
+        capture_output=True,
+        capture_stderr=True,
+    )
     if not output:
         return {}
 
@@ -272,7 +279,7 @@ def _run_bazel_tests(
     # Windows-safe command-length limit.
     # TODO: on Linux runners, the limit is much higher; consider platform-specific batching.
     MAX_CMD_LENGTH = 32000
-    base_args = ["test", "--keep_going"]
+    base_args = ["test", "--keep_going", "--build_tests_only"]
     if bazel_flags:
         base_args.extend(bazel_flags)
     fixed_len = sum([len(a) for a in base_args]) + len(base_args) + 1  # args + spaces
