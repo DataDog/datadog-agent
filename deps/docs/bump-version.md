@@ -43,7 +43,7 @@ Try in order, stop at the first hit:
 
 ## 3. Apply the edits
 
-- For `deps/<dep-name>/<dep-name>.MODULE.bazel` or the entry in `deps/repos.MODULE.bazel`: update `version` (if present), `strip_prefix` (typically `<dep-name>-<version>`), `sha256`, and rewrite the URL with the new version. Preserve the `dd-agent-omnibus.s3.amazonaws.com/bazel/...` mirror URL as the first entry if present.
+- For `deps/<dep-name>/<dep-name>.MODULE.bazel` or the entry in `deps/repos.MODULE.bazel`: update `version` (if present), `strip_prefix` (typically `<dep-name>-<version>`), `sha256`, and rewrite the URL with the new version. Deps fetch upstream through ADMS/Depot's pull-through mirror (the `rewrite` rules in `.adms/bazel/adms.mirror.cfg`), so there is no separate mirror URL to maintain.
 - For `release.json`-driven deps: update `<NAME>_VERSION` and `<NAME>_SHA256`.
 
 Return to the orchestrator's Step 3.
