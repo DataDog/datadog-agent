@@ -197,7 +197,9 @@ function SmoothedScoreChart({ events, phaseMarkers, minTs: extMinTs, maxTs: extM
   return (
     <div className="mb-4">
       <div className="text-xs text-slate-400 mb-1">Rolling max score (5 min window)</div>
-      <svg width="100%" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="bg-slate-900 rounded border border-slate-700" style={{ display: 'block' }}>
+      {/* Fixed-height wrapper prevents the SVG from growing taller when the container widens */}
+      <div style={{ height: HEIGHT, overflow: 'hidden' }}>
+      <svg width="100%" height="100%" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" className="bg-slate-900 rounded border border-slate-700">
         {/* Threshold bands */}
         <rect x="0" y={yHigh} width={WIDTH} height={yMedium - yHigh} fill="rgba(234,179,8,0.06)" />
         <rect x="0" y="0" width={WIDTH} height={yHigh} fill="rgba(239,68,68,0.06)" />
@@ -227,6 +229,7 @@ function SmoothedScoreChart({ events, phaseMarkers, minTs: extMinTs, maxTs: extM
           return <circle key={evt.id} cx={x} cy={y} r="2.5" fill={c} opacity="0.8" />;
         })}
       </svg>
+      </div>
     </div>
   );
 }
@@ -517,49 +520,54 @@ export function AnomalyEventsView({ state, sidebarWidth, phaseMarkers }: Anomaly
         </div>
       </div>
 
-      {/* Main panel */}
-      <div className="flex-1 flex flex-col min-h-0 p-4 overflow-y-auto overflow-x-hidden min-w-0">
+      {/* Main panel — flex column: fixed top, scrollable bottom */}
+      <div className="flex-1 flex flex-col min-h-0 min-w-0">
         {events.length === 0 ? (
-          <div className="text-slate-500 text-sm mt-8 text-center">
+          <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">
             No anomaly events yet. Load a scenario to see scored events.
           </div>
         ) : (
           <>
-            <SummaryCards events={events} />
-            <Timeline
-              events={filtered}
-              selected={selectedId}
-              onSelect={id => setSelectedId(prev => prev === id ? null : id)}
-              phaseMarkers={phaseMarkers}
-              minTs={timelineMinTs}
-              maxTs={timelineMaxTs}
-            />
-            <SmoothedScoreChart
-              events={filtered}
-              phaseMarkers={phaseMarkers}
-              minTs={timelineMinTs}
-              maxTs={timelineMaxTs}
-            />
-
-            {selectedEvent && (
-              <div className="mb-4">
-                <EventDetailPanel event={selectedEvent} onClose={() => setSelectedId(null)} />
-              </div>
-            )}
-
-            <div className="text-xs text-slate-500 mb-2">
-              {filtered.length} event{filtered.length !== 1 ? 's' : ''}
-              {filtered.length !== events.length ? ` (of ${events.length} total)` : ''}
+            {/* ── Fixed top section: cards + timeline + score chart ── */}
+            <div className="flex-none px-4 pt-4 pb-1 min-w-0">
+              <SummaryCards events={events} />
+              <Timeline
+                events={filtered}
+                selected={selectedId}
+                onSelect={id => setSelectedId(prev => prev === id ? null : id)}
+                phaseMarkers={phaseMarkers}
+                minTs={timelineMinTs}
+                maxTs={timelineMaxTs}
+              />
+              <SmoothedScoreChart
+                events={filtered}
+                phaseMarkers={phaseMarkers}
+                minTs={timelineMinTs}
+                maxTs={timelineMaxTs}
+              />
             </div>
-            <div className="space-y-1.5">
-              {filtered.map(evt => (
-                <EventRow
-                  key={evt.id}
-                  event={evt}
-                  selected={evt.id === selectedId}
-                  onSelect={() => setSelectedId(prev => prev === evt.id ? null : evt.id)}
-                />
-              ))}
+
+            {/* ── Scrollable bottom section: detail panel + event list ── */}
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pb-4">
+              {selectedEvent && (
+                <div className="mb-3">
+                  <EventDetailPanel event={selectedEvent} onClose={() => setSelectedId(null)} />
+                </div>
+              )}
+              <div className="text-xs text-slate-500 mb-2">
+                {filtered.length} event{filtered.length !== 1 ? 's' : ''}
+                {filtered.length !== events.length ? ` (of ${events.length} total)` : ''}
+              </div>
+              <div className="space-y-1.5">
+                {filtered.map(evt => (
+                  <EventRow
+                    key={evt.id}
+                    event={evt}
+                    selected={evt.id === selectedId}
+                    onSelect={() => setSelectedId(prev => prev === evt.id ? null : evt.id)}
+                  />
+                ))}
+              </div>
             </div>
           </>
         )}
