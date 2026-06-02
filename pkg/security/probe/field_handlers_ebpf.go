@@ -702,8 +702,8 @@ func (fh *EBPFFieldHandlers) ResolveProcessCmdArgv(ev *model.Event, process *mod
 }
 
 // ResolveAWSSecurityCredentials resolves and updates the AWS security credentials of the input process entry
-func (fh *EBPFFieldHandlers) ResolveAWSSecurityCredentials(e *model.Event) []model.AWSSecurityCredentials {
-	return fh.resolvers.ProcessResolver.FetchAWSSecurityCredentials(e)
+func (fh *EBPFFieldHandlers) ResolveAWSSecurityCredentials(e *model.Event, process *model.Process) []model.AWSSecurityCredentials {
+	return fh.resolvers.ProcessResolver.FetchAWSSecurityCredentials(e, process)
 }
 
 // ResolveSyscallCtxArgs resolve syscall ctx
