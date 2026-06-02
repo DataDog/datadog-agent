@@ -49,16 +49,16 @@ function SummaryCards({ events }: { events: AnomalyEvent[] }) {
     : 'low';
 
   return (
-    <div className="grid grid-cols-4 gap-3 mb-4">
+    <div className="grid grid-cols-4 gap-2 mb-2">
       {[
         { label: 'Total Events', value: total, color: 'text-slate-200' },
         { label: 'High Severity', value: high, color: 'text-red-400' },
         { label: 'Severity Changes', value: changed, color: 'text-yellow-300' },
         { label: 'Current Max', value: maxSev.toUpperCase(), color: SEVERITY_COLOR[maxSev].text },
       ].map(({ label, value, color }) => (
-        <div key={label} className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-          <div className="text-xs text-slate-400 mb-1">{label}</div>
-          <div className={`text-2xl font-bold ${color}`}>{value}</div>
+        <div key={label} className="bg-slate-800 rounded-lg px-3 py-1.5 border border-slate-700 flex items-center gap-3">
+          <div className={`text-xl font-bold ${color} leading-none`}>{value}</div>
+          <div className="text-xs text-slate-400 leading-tight">{label}</div>
         </div>
       ))}
     </div>
@@ -99,7 +99,7 @@ function Timeline({ events, selected, onSelect, phaseMarkers, minTs: extMinTs, m
   const toLeft = (ts: number) => ((ts - minTs) / span) * 96 + 2;
 
   return (
-    <div className="relative h-20 bg-slate-900 rounded-lg border border-slate-700 overflow-hidden mb-4">
+    <div className="relative h-14 bg-slate-900 rounded-lg border border-slate-700 overflow-hidden mb-2">
       {/* Severity lanes background */}
       {(['high', 'medium', 'low'] as AnomalySeverity[]).map((sev, i) => (
         <div
@@ -163,7 +163,7 @@ function SmoothedScoreChart({ events, phaseMarkers, minTs: extMinTs, maxTs: extM
 
   const WINDOW = 300; // 5 min
   const WIDTH = 600;
-  const HEIGHT = 80;
+  const HEIGHT = 56;
 
   const tsValues = events.map(e => e.trigger.timestamp);
   if (phaseMarkers) phaseMarkers.forEach(m => tsValues.push(m.timestamp));
@@ -195,8 +195,8 @@ function SmoothedScoreChart({ events, phaseMarkers, minTs: extMinTs, maxTs: extM
   const yHigh = toY(highSeverityThreshold);
 
   return (
-    <div className="mb-4">
-      <div className="text-xs text-slate-400 mb-1">Rolling max score (5 min window)</div>
+    <div className="mb-2">
+      <div className="text-xs text-slate-400 mb-0.5">Rolling max score (5 min window)</div>
       {/* Fixed-height wrapper prevents the SVG from growing taller when the container widens */}
       <div style={{ height: HEIGHT, overflow: 'hidden' }}>
       <svg width="100%" height="100%" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" className="bg-slate-900 rounded border border-slate-700">
@@ -529,7 +529,7 @@ export function AnomalyEventsView({ state, sidebarWidth, phaseMarkers }: Anomaly
         ) : (
           <>
             {/* ── Fixed top section: cards + timeline + score chart ── */}
-            <div className="flex-none px-4 pt-4 pb-1 min-w-0">
+            <div className="flex-none px-4 pt-3 pb-1 min-w-0">
               <SummaryCards events={events} />
               <Timeline
                 events={filtered}
