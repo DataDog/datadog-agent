@@ -52,6 +52,7 @@ go_test(
     name = "preprocessor_test",
     srcs = [
         "aggregator_test.go",
+        "go_stack_trace_parser_test.go",
         "incremental_json_validator_test.go",
         "json_aggregator_benchmark_test.go",
         "json_aggregator_test.go",
