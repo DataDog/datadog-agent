@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/agent-payload/v5/healthplatform"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
@@ -121,7 +123,8 @@ func TestDockerPermissionSuite(t *testing.T) {
 }
 
 // TestDockerPermissionIssueLifecycle verifies that restricting the docker socket
-// permissions triggers the health issue, and that restoring them resolves it.
+// permissions triggers the health issue as NEW in fakeintake, and that restoring
+// them causes the issue to stop being reported (or be reported as RESOLVED).
 //
 // Cross-restart persistence is tested separately in TestResilienceSuite.
 func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
@@ -129,10 +132,7 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 	agent := suite.Env().Agent
 	fi := suite.Env().Fakeintake.Client()
 
-	const (
-		issueName = "Docker"
-		issueID   = "docker-socket-permissions"
-	)
+	const issueID = "docker-socket-permissions"
 
 	suite.T().Run("PreCondition", func(t *testing.T) {
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
@@ -154,9 +154,7 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 	suite.T().Run("IssueDetection", func(t *testing.T) {
 		host.MustExecute("sudo chmod 660 /var/run/docker.sock")
 
-		AssertIssueDetectedViaDiagnose(t, agent, issueName)
-
-		issues := waitForIssuesInFakeintake(t, fi, issueID)
+		issues := waitForIssueInState(t, fi, issueID, healthplatform.IssueState_ISSUE_STATE_NEW)
 		require.NotEmpty(t, issues)
 		issue := issues[0]
 		assert.Equal(t, "docker-socket-permissions", issue.Id)
@@ -188,6 +186,6 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 			assert.True(ct, agent.Client.IsReady())
 		}, 2*time.Minute, 10*time.Second, "agent not ready after fix restart")
 
-		AssertIssueAbsentViaDiagnose(t, agent, issueName)
+		assertIssueResolvedOrAbsent(t, fi, issueID)
 	})
 }

@@ -52,19 +52,16 @@ func TestResilienceSuite(t *testing.T) {
 }
 
 // TestHealthPlatformResilience verifies that a health issue persists across an
-// agent restart: the issue must re-appear in fakeintake with ONGOING state and
-// the same first_seen timestamp as before the restart.
+// agent restart: after restart the issue must be re-reported to fakeintake as
+// ONGOING with the same first_seen timestamp as before the restart.
 func (suite *resilienceSuite) TestHealthPlatformResilience() {
 	agent := suite.Env().Agent
 	fi := suite.Env().FakeIntake.Client()
 
-	const (
-		issueName = "broken_check"
-		issueID   = "check-execution-failure:broken_check*"
-	)
+	const issueID = "check-execution-failure:broken_check*"
 
-	// Wait for the issue to appear before the restart so we have a first_seen to compare.
-	initialIssues := waitForIssuesInFakeintake(suite.T(), fi, issueID)
+	// Wait for the initial NEW report so we have a first_seen to compare.
+	initialIssues := waitForIssueInState(suite.T(), fi, issueID, healthplatform.IssueState_ISSUE_STATE_NEW)
 	require.NotEmpty(suite.T(), initialIssues)
 
 	var firstSeen string
@@ -80,14 +77,10 @@ func (suite *resilienceSuite) TestHealthPlatformResilience() {
 		assert.True(ct, agent.Client.IsReady())
 	}, 2*time.Minute, 10*time.Second, "agent not ready after restart")
 
-	// Issue must still appear in diagnose after restart (loaded from on-disk store).
-	AssertIssueDetectedViaDiagnose(suite.T(), agent, issueName)
-
-	// Issue must be re-reported to fakeintake as ONGOING with the same first_seen.
-	reloadedIssues := waitForIssuesInFakeintake(suite.T(), fi, issueID)
+	// After restart the issue must be re-reported as ONGOING (loaded from on-disk store).
+	reloadedIssues := waitForIssueInState(suite.T(), fi, issueID, healthplatform.IssueState_ISSUE_STATE_ONGOING)
 	require.NotEmpty(suite.T(), reloadedIssues)
 	require.NotNil(suite.T(), reloadedIssues[0].PersistedIssue)
-	assert.Equal(suite.T(), healthplatform.IssueState_ISSUE_STATE_ONGOING, reloadedIssues[0].PersistedIssue.State)
 	if firstSeen != "" {
 		assert.Equal(suite.T(), firstSeen, reloadedIssues[0].PersistedIssue.FirstSeen,
 			"first_seen must be preserved across restart")

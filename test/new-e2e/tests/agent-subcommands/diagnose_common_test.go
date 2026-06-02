@@ -21,12 +21,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// diagnoseResult is a local alias for agentclient.DiagnoseResult so existing
-// test code in this package does not need to be updated.
-type diagnoseResult = agentclient.DiagnoseResult
+// counters contains the count of the diagnosis results
+type counters struct {
+	Total         int `json:"total,omitempty"`
+	Success       int `json:"success,omitempty"`
+	Fail          int `json:"fail,omitempty"`
+	Warnings      int `json:"warnings,omitempty"`
+	UnexpectedErr int `json:"unexpected_error,omitempty"`
+}
 
-// counters is a local alias for agentclient.DiagnoseCounters.
-type counters = agentclient.DiagnoseCounters
+// diagnoseResult contains the results of the diagnose command
+type diagnoseResult struct {
+	Summary counters `json:"summary"`
+}
 
 type baseDiagnoseSuite struct {
 	e2e.BaseSuite[environments.Host]

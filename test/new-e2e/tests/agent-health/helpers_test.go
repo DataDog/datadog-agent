@@ -6,7 +6,6 @@
 package agenthealth
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -18,92 +17,18 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
 const (
-	// healthIssueSuite is the diagnose suite name for health platform issues.
-	healthIssueSuite = "health-issues"
-
-	// defaultIssueTimeout is the default timeout for issue detection / resolution.
+	// defaultIssueTimeout is the default timeout for issue detection.
 	defaultIssueTimeout = 2 * time.Minute
-	// defaultIssuePollInterval is the poll cadence for EventuallyWithT.
+	// defaultIssuePollInterval is the poll cadence for EventuallyWithT / Never.
 	defaultIssuePollInterval = 10 * time.Second
-	// defaultIssueAbsenceWindow is how long we verify an issue stays absent.
+	// defaultIssueAbsenceWindow is how long we verify an issue stays absent/resolved.
 	defaultIssueAbsenceWindow = 45 * time.Second
 )
-
-// ============================================================================
-// diagnose helpers
-// ============================================================================
-
-// runHealthDiagnose calls `agent diagnose --include health-issues --json` and
-// returns the parsed agentclient.DiagnoseResult. The types (DiagnoseResult,
-// DiagnoseRun, DiagnoseEntry) live in the agentclient package so they can be
-// shared across all e2e test packages.
-func runHealthDiagnose(t testing.TB, agent *components.RemoteHostAgent) agentclient.DiagnoseResult {
-	t.Helper()
-	raw := agent.Client.Diagnose(agentclient.WithArgs([]string{"--include", healthIssueSuite, "--json"}))
-	var out agentclient.DiagnoseResult
-	// The command may include a non-JSON preamble; find the first '{' to be safe.
-	if start := strings.Index(raw, "{"); start >= 0 {
-		raw = raw[start:]
-	}
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
-		t.Logf("diagnose raw output: %s", raw)
-		require.NoError(t, err, "failed to parse diagnose JSON output")
-	}
-	return out
-}
-
-// findDiagnosesByName searches all runs and returns all entries whose Name
-// contains issueName (case-sensitive substring match).
-func findDiagnosesByName(out agentclient.DiagnoseResult, issueName string) []*agentclient.DiagnoseEntry {
-	var results []*agentclient.DiagnoseEntry
-	for r := range out.Runs {
-		for i := range out.Runs[r].Diagnoses {
-			if strings.Contains(out.Runs[r].Diagnoses[i].Name, issueName) {
-				results = append(results, &out.Runs[r].Diagnoses[i])
-			}
-		}
-	}
-	return results
-}
-
-// AssertIssueDetectedViaDiagnose polls `agent diagnose --include health-issues` until
-// an entry matching issueName appears with a non-passing status (Fail or Warning).
-func AssertIssueDetectedViaDiagnose(t *testing.T, agent *components.RemoteHostAgent, issueName string) {
-	t.Helper()
-	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		out := runHealthDiagnose(t, agent)
-		totalEntries := 0
-		for _, r := range out.Runs {
-			totalEntries += len(r.Diagnoses)
-		}
-		ds := findDiagnosesByName(out, issueName)
-		if !assert.NotEmptyf(ct, ds, "health issue %q not found in diagnose (have %d entries across %d runs)",
-			issueName, totalEntries, len(out.Runs)) {
-			t.Logf("diagnose runs: %+v", out.Runs)
-			return
-		}
-		for _, d := range ds {
-			assert.NotEqualf(ct, "Pass", d.Status, "health issue %q should not be passing", issueName)
-		}
-	}, defaultIssueTimeout, defaultIssuePollInterval, "health issue %q not detected via diagnose within timeout", issueName)
-}
-
-// AssertIssueAbsentViaDiagnose verifies that no health diagnose entry matching issueName
-// appears within defaultIssueAbsenceWindow.
-func AssertIssueAbsentViaDiagnose(t *testing.T, agent *components.RemoteHostAgent, issueName string) {
-	t.Helper()
-	require.Never(t, func() bool {
-		out := runHealthDiagnose(t, agent)
-		return len(findDiagnosesByName(out, issueName)) > 0
-	}, defaultIssueAbsenceWindow, defaultIssuePollInterval,
-		"health issue %q appeared in diagnose output after fix", issueName)
-}
 
 // ============================================================================
 // fakeintake helpers
@@ -133,8 +58,7 @@ func findIssuesByID(t testing.TB, report *aggregator.AgentHealthPayload, issueID
 }
 
 // findIssuesByPrefix searches for all issues whose ID starts with prefix.
-// Useful for issue types where the ID includes a runtime-generated hash suffix
-// (e.g. "check-execution-failure:broken_check:a1b2c3d4").
+// Useful for issue types where the ID includes a runtime-generated hash suffix.
 func findIssuesByPrefix(report *aggregator.AgentHealthPayload, prefix string) []*healthplatform.Issue {
 	if report == nil || report.HealthReport == nil {
 		return nil
@@ -148,27 +72,64 @@ func findIssuesByPrefix(report *aggregator.AgentHealthPayload, prefix string) []
 	return results
 }
 
-// waitForIssuesInFakeintake polls fakeintake until at least one issue matching issueID is found,
-// then returns all matching issues. Fails the test on timeout.
-// If issueID ends with "*" it is treated as a prefix match (useful for check-failure IDs
-// that include a runtime hash suffix).
-func waitForIssuesInFakeintake(t *testing.T, fi *fakeintakeclient.Client, issueID string) []*healthplatform.Issue {
+// waitForIssueInState polls fakeintake until at least one issue matching issueID
+// is found with the specified state, then returns all matching issues.
+// If issueID ends with "*" it is treated as a prefix match.
+func waitForIssueInState(t *testing.T, fi *fakeintakeclient.Client, issueID string, state healthplatform.IssueState) []*healthplatform.Issue {
 	t.Helper()
 	prefix, usePrefix := strings.CutSuffix(issueID, "*")
 	var found []*healthplatform.Issue
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		payloads, err := fi.GetAgentHealth()
 		assert.NoError(ct, err)
+		found = nil
 		for _, p := range payloads {
+			var candidates []*healthplatform.Issue
 			if usePrefix {
-				found = append(found, findIssuesByPrefix(p, prefix)...)
+				candidates = findIssuesByPrefix(p, prefix)
 			} else {
-				found = append(found, findIssuesByID(t, p, issueID)...)
+				candidates = findIssuesByID(t, p, issueID)
+			}
+			for _, iss := range candidates {
+				if iss.PersistedIssue != nil && iss.PersistedIssue.State == state {
+					found = append(found, iss)
+				}
 			}
 		}
-		assert.NotEmpty(ct, found, "issue with id/prefix %q not found in fakeintake", issueID)
-	}, defaultIssueTimeout, defaultIssuePollInterval, "issue %q not found in fakeintake within timeout", issueID)
+		assert.NotEmptyf(ct, found, "issue %q with state %v not found in fakeintake", issueID, state)
+	}, defaultIssueTimeout, defaultIssuePollInterval,
+		"issue %q with state %v not found in fakeintake within timeout", issueID, state)
 	return found
+}
+
+// assertIssueResolvedOrAbsent verifies that after a fix and agent restart the
+// issue either stops being reported to fakeintake, or is only reported with
+// RESOLVED state. Fails if any non-resolved payload for the issue arrives
+// within defaultIssueAbsenceWindow.
+func assertIssueResolvedOrAbsent(t *testing.T, fi *fakeintakeclient.Client, issueID string) {
+	t.Helper()
+	prefix, usePrefix := strings.CutSuffix(issueID, "*")
+	require.Never(t, func() bool {
+		payloads, err := fi.GetAgentHealth()
+		if err != nil {
+			return false
+		}
+		for _, p := range payloads {
+			var candidates []*healthplatform.Issue
+			if usePrefix {
+				candidates = findIssuesByPrefix(p, prefix)
+			} else {
+				candidates = findIssuesByID(t, p, issueID)
+			}
+			for _, iss := range candidates {
+				if iss.PersistedIssue == nil || iss.PersistedIssue.State != healthplatform.IssueState_ISSUE_STATE_RESOLVED {
+					return true
+				}
+			}
+		}
+		return false
+	}, defaultIssueAbsenceWindow, defaultIssuePollInterval,
+		"issue %q still reported as non-resolved after fix", issueID)
 }
 
 // ============================================================================
@@ -177,8 +138,7 @@ func waitForIssuesInFakeintake(t *testing.T, fi *fakeintakeclient.Client, issueI
 
 // writeCheckFile writes a Python custom check to the agent's checks.d directory.
 // It writes to a world-writable temp path via SFTP, then uses sudo to move the
-// file into the protected directory and set ownership. This helper is shared
-// across all health platform e2e tests that exercise check-failure scenarios.
+// file into the protected directory and set ownership.
 func writeCheckFile(t *testing.T, h *components.RemoteHost, content string) {
 	t.Helper()
 	const (

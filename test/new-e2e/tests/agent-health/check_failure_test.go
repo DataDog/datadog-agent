@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/agent-payload/v5/healthplatform"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -60,8 +62,9 @@ func TestCheckFailureSuite(t *testing.T) {
 }
 
 // TestCheckFailureIssueLifecycle verifies that a check execution failure is
-// detected via diagnose and fakeintake, and that replacing the failing check
-// with a working version resolves the issue.
+// detected in fakeintake as NEW and that replacing the failing check with a
+// working version causes the issue to stop being reported (or be reported as
+// RESOLVED).
 //
 // Cross-restart persistence is tested separately in TestResilienceSuite.
 func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
@@ -69,16 +72,11 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 	agent := suite.Env().Agent
 	fi := suite.Env().FakeIntake.Client()
 
-	const (
-		issueName = "broken_check"
-		issueID   = "check-execution-failure:broken_check*"
-	)
+	const issueID = "check-execution-failure:broken_check*"
 
 	suite.T().Run("IssueDetection", func(t *testing.T) {
 		// broken_check.py is deployed by the provisioner; agent is ready at suite start.
-		AssertIssueDetectedViaDiagnose(t, agent, issueName)
-
-		issues := waitForIssuesInFakeintake(t, fi, issueID)
+		issues := waitForIssueInState(t, fi, issueID, healthplatform.IssueState_ISSUE_STATE_NEW)
 		require.NotEmpty(t, issues)
 		issue := issues[0]
 		assert.Equal(t, "check_execution_failure", issue.IssueName)
@@ -97,6 +95,6 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 			assert.True(ct, agent.Client.IsReady())
 		}, 2*time.Minute, 10*time.Second, "agent not ready after fix restart")
 
-		AssertIssueAbsentViaDiagnose(t, agent, issueName)
+		assertIssueResolvedOrAbsent(t, fi, issueID)
 	})
 }
