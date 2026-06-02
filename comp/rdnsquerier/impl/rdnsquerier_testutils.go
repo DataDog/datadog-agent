@@ -70,6 +70,10 @@ type testState struct {
 	logComp       log.Component
 }
 
+func (ts *testState) stop(t *testing.T) {
+	assert.NoError(t, ts.lc.Stop(ts.ctx))
+}
+
 func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeIPResults map[string]*fakeResults, delay time.Duration) *testState {
 	lc := compdef.NewTestLifecycle(t)
 
@@ -77,6 +81,8 @@ func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeI
 	if configOverrides == nil {
 		configOverrides = make(map[string]interface{})
 	}
+	// Ensure run_path is sandboxed so cache.persist() on stop doesn't write to
+	// the system path (/opt/datadog-agent/run on POSIX systems).
 	if _, ok := configOverrides["run_path"]; !ok {
 		configOverrides["run_path"] = t.TempDir()
 	}
@@ -175,17 +181,6 @@ func (ts *testState) validateMinimum(t *testing.T, minimumTelemetry map[string]f
 		assert.NoError(t, err)
 		assert.Len(t, metrics, 1)
 		assert.GreaterOrEqual(t, metrics[0].Value(), expected)
-	}
-}
-
-// validate that telemetry counter values are less than or equal to the expected maximum values
-func (ts *testState) validateMaximum(t *testing.T, maximumTelemetry map[string]float64) {
-	for name, expected := range maximumTelemetry {
-		ts.logComp.Debugf("Validating maximum telemetry counter %s", name)
-		metrics, err := ts.telemetryMock.GetCountMetric(moduleName, name)
-		assert.NoError(t, err)
-		assert.Len(t, metrics, 1)
-		assert.LessOrEqual(t, metrics[0].Value(), expected)
 	}
 }
 

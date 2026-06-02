@@ -141,8 +141,8 @@ func doDoFetchScalarOids(session session.Session, oids []string) (*gosnmp.SnmpPa
 		log.Debug(fetchErr.Error())
 		return nil, fetchErr
 	}
-	if log.ShouldLog(log.DebugLvl) {
-		log.Debugf("fetch scalar: results: %s", gosnmplib.PacketAsString(results))
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("fetch scalar: results: %s", gosnmplib.PacketAsString(results))
 	}
 	return results, nil
 }

@@ -1,7 +1,7 @@
 """
 Schema linter for the Datadog Agent configuration schemas.
 
-Validates generated YAML schema files (pkg/config/schema/*.yaml) against
+Validates generated YAML schema files (pkg/config/schema/yaml/*.yaml) against
 a set of quality rules. Run with:
 
     dda inv schema.lint
@@ -15,13 +15,26 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-SCHEMA_DIR = os.path.join("pkg", "config", "schema")
+from tasks.schema.merge_schema import resolve_schema
+
+SCHEMA_DIR = os.path.join("pkg", "config", "schema", "yaml")
 EXCEPTIONS_FILE = os.path.join(os.path.dirname(__file__), "lint_exceptions.yaml")
 
-VALID_TYPES = {"string", "number", "boolean", "array", "object"}
+VALID_TYPES = {"string", "number", "integer", "boolean", "array", "object"}
 VALID_NODE_TYPES = {"section", "setting"}
 VALID_PLATFORM_KEYS = {"darwin", "windows", "linux", "container", "other"}
 REQUIRED_PLATFORM_KEYS_WITHOUT_OTHER = {"darwin", "windows", "linux"}
+VALID_ENV_PARSERS = {
+    "comma_separated",
+    "space_separated",
+    "json",
+    "comma_and_space_separated",
+    "traces_span",
+    "csv_comma_separated",
+    "comma_then_space_separated",
+    "json_list_or_comma_separated",
+    "json_list_or_space_separated",
+}
 
 SLACK_HINT = "If you have any question please reach out on #agent-configuration"
 
@@ -528,6 +541,39 @@ def check_relative_defaults(path, schema):
 
 
 # ---------------------------------------------------------------------------
+# Check 13: env_parser value validation
+# ---------------------------------------------------------------------------
+
+
+def check_env_parser(path, schema):
+    """
+    Check that 'env_parser' fields:
+      - only appear on setting nodes (not section nodes)
+      - use a recognised value
+
+    Returns a list of error strings.
+    """
+    errors = []
+    for node_path, node in walk_nodes(schema):
+        env_parser = node.get("env_parser")
+        if env_parser is None:
+            continue
+        if node.get("node_type") == "section":
+            errors.append(
+                f"{path}: [{node_path}] 'env_parser' is not valid on section nodes. "
+                f"Fix: remove 'env_parser' from this section node."
+            )
+            continue
+        if env_parser not in VALID_ENV_PARSERS:
+            errors.append(
+                f"{path}: [{node_path}] Invalid 'env_parser' value '{env_parser}'. "
+                f"Must be one of: {sorted(VALID_ENV_PARSERS)}. "
+                f"Fix: change 'env_parser' to a valid value."
+            )
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Exception list loading
 # ---------------------------------------------------------------------------
 
@@ -583,8 +629,10 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
             # Cannot continue linting an unparseable file
             continue
 
-        with open(schema_path) as f:
-            schema = yaml.safe_load(f)
+        # Use resolve_schema so that lint checks see the fully merged content
+        # (split sub-files inlined). Linting operates on the logical schema,
+        # not on the on-disk fragments.
+        schema = resolve_schema(schema_path)
 
         all_errors.extend(check_json_schema_structure(schema_path, schema, exc["array_no_items"]))
         all_errors.extend(check_public_descriptions(schema_path, schema))
@@ -597,6 +645,7 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
         all_errors.extend(check_public_section_has_public_child(schema_path, schema))
         all_errors.extend(check_text_scalar_mode(schema_path))
         all_errors.extend(check_relative_defaults(schema_path, schema))
+        all_errors.extend(check_env_parser(schema_path, schema))
 
     if all_errors:
         print(f"\nFound {len(all_errors)} schema linting error(s):\n")

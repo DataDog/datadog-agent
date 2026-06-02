@@ -28,21 +28,33 @@ func NewFactoryWithoutAgent() confmap.ConverterFactory {
 
 type confMap = map[string]any
 
+// AutoConfiguredID is the OTEL component name suffix used for all components
+// that are automatically injected by the host profiler (as opposed to components
+// explicitly declared by the user).
+const AutoConfiguredID = "dd-autoconfigured"
+
 // Component type names for OTEL configuration
 const (
-	componentTypeInfraAttributes   = "infraattributes"
-	componentTypeResourceDetection = "resourcedetection"
-	componentTypeProfiling         = "profiling"
-	componentTypeOtlpHTTP          = "otlphttp"
-	componentTypeDDProfiling       = "ddprofiling"
-	componentTypeHPFlare           = "hpflare"
+	componentTypeInfraAttributes     = "infraattributes"
+	componentTypeResourceDetection   = "resourcedetection"
+	componentTypeDDHostNameProcessor = "ddhostname"
+	componentTypeProfiling           = "profiling"
+	componentTypeDDProfiling         = "ddprofiling"
+	componentTypeHPFlare             = "hpflare"
+)
+
+// Component type names for otlp_http
+const (
+	componentTypeOtlpHTTP           = "otlp_http"
+	componentTypeOtlpHTTPDeprecated = "otlphttp"
 )
 
 // Default component names
 const (
-	defaultInfraAttributesName   = "infraattributes/default"
-	defaultResourceDetectionName = "resourcedetection/default"
-	defaultProfilingName         = "profiling"
+	defaultInfraAttributesName     = componentTypeInfraAttributes + "/" + AutoConfiguredID
+	defaultResourceDetectionName   = componentTypeResourceDetection + "/" + AutoConfiguredID
+	defaultDDHostNameProcessorName = componentTypeDDHostNameProcessor + "/" + AutoConfiguredID
+	defaultProfilingName           = "profiling"
 )
 
 // Reserved component names for internal metrics pipeline
@@ -77,9 +89,14 @@ const (
 
 // isComponentType checks if a component name matches a specific type.
 // OTEL components follow the naming convention: "type" or "type/id"
-// Examples: "otlphttp", "otlphttp/prod", "profiling/custom"
+// Examples: "otlp_http", "otlp_http/prod", "profiling/custom"
 func isComponentType(name, componentType string) bool {
 	return name == componentType || strings.HasPrefix(name, componentType+"/")
+}
+
+// isComponentTypeOtlpHTTP checks for both the current ("otlp_http") and deprecated ("otlphttp") component names.
+func isComponentTypeOtlpHTTP(name string) bool {
+	return isComponentType(name, componentTypeOtlpHTTP) || isComponentType(name, componentTypeOtlpHTTPDeprecated)
 }
 
 // Get retrieves a value of type T from the confMap at the given path.
@@ -232,6 +249,7 @@ func ensureKeyStringValue(config confMap, key string) bool {
 
 // addProfilerMetadataTags always creates a dedicated resource/profiler-metadata processor
 // without searching for existing resource processors.
+// This function emits OTel semantic convention tags and must only be called from the standalone (no-agent) path.
 func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, error) {
 	const resourceProcessorName = "resource/dd-profiler-internal-metadata"
 
@@ -258,12 +276,12 @@ func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, err
 	}
 
 	profilerNameElement := confMap{
-		"key":    "profiler_name",
-		"value":  version.ProfilerName,
+		"key":    version.OTelProfilerNameKey,
+		"value":  version.StandaloneProfilerName,
 		"action": "upsert",
 	}
 	profilerVersionElement := confMap{
-		"key":    "profiler_version",
+		"key":    version.OTelProfilerVersionKey,
 		"value":  version.ProfilerVersion,
 		"action": "upsert",
 	}

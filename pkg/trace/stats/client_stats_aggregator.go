@@ -214,7 +214,7 @@ func (a *ClientStatsAggregator) flushPayloads(p []*pb.ClientStatsPayload) {
 
 func (a *ClientStatsAggregator) setVersionDataFromContainerTags(p *pb.ClientStatsPayload) {
 	// No need to go any further if we already have the information in the payload.
-	if p.ImageTag != "" && p.GitCommitSha != "" {
+	if p.ImageTag != "" && p.GitCommitSha != "" && p.Version != "" {
 		return
 	}
 	if p.ContainerID != "" {
@@ -222,13 +222,16 @@ func (a *ClientStatsAggregator) setVersionDataFromContainerTags(p *pb.ClientStat
 		if err != nil {
 			log.Error("Client stats aggregator is unable to resolve container ID (%s) to container tags: %v", p.ContainerID, err)
 		} else {
-			gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(cTags)
+			gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(cTags)
 			// Only override if the payload's original values were empty strings.
 			if p.ImageTag == "" {
 				p.ImageTag = imageTag
 			}
 			if p.GitCommitSha == "" {
 				p.GitCommitSha = gitCommitSha
+			}
+			if p.Version == "" {
+				p.Version = appVersion
 			}
 		}
 	}
@@ -287,7 +290,7 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 		agg.duration += gs.Duration
 
 		// Decode, if needed, the raw ddsketches from the first payload that reached the bucket
-		if agg.okDistributionRaw != nil {
+		if len(agg.okDistributionRaw) > 0 {
 			sketch, err := decodeSketch(agg.okDistributionRaw)
 			if err != nil {
 				log.Errorf("Unable to decode OK distribution ddsketch: %v", err)
@@ -296,7 +299,7 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 			}
 			agg.okDistributionRaw = nil
 		}
-		if agg.errDistributionRaw != nil {
+		if len(agg.errDistributionRaw) > 0 {
 			sketch, err := decodeSketch(agg.errDistributionRaw)
 			if err != nil {
 				log.Errorf("Unable to decode Error distribution ddsketch: %v", err)
@@ -458,7 +461,7 @@ type aggregatedStats struct {
 
 // mergeSketch take an existing DDSketch, and merges a second one, decoding its contents
 func mergeSketch(s1 *ddsketch.DDSketch, raw []byte) (*ddsketch.DDSketch, error) {
-	if raw == nil {
+	if len(raw) == 0 {
 		return s1, nil
 	}
 
@@ -479,6 +482,9 @@ func mergeSketch(s1 *ddsketch.DDSketch, raw []byte) (*ddsketch.DDSketch, error) 
 }
 
 func normalizeSketch(s *ddsketch.DDSketch) *ddsketch.DDSketch {
+	if s == nil {
+		return nil
+	}
 	if s.IndexMapping.Equals(ddsketchMapping) {
 		// already normalized
 		return s

@@ -25,7 +25,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
@@ -77,6 +77,7 @@ type GenericCollector struct {
 	CollectorID   string
 	Catalog       workloadmeta.AgentType
 	StreamHandler StreamHandler
+	Config        pkgconfigmodel.Reader
 
 	store        workloadmeta.Component
 	resyncNeeded bool
@@ -106,7 +107,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 
 	address := c.StreamHandler.Address()
 	opts := []grpc.DialOption{grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
-		if vsockAddr := pkgconfigsetup.Datadog().GetString("vsock_addr"); vsockAddr != "" {
+		if vsockAddr := c.Config.GetString("vsock_addr"); vsockAddr != "" {
 			cid, err := socket.ParseVSockAddress(vsockAddr)
 			if err != nil {
 				return nil, err
@@ -122,7 +123,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 	opts = append(opts, grpc.WithTransportCredentials(c.StreamHandler.Credentials()))
 
 	// Same max message size as core agent AgentSecure gRPC (impl-agent.BuildServer).
-	maxMsgSize := pkgconfigsetup.Datadog().GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
+	maxMsgSize := c.Config.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 	opts = append(opts, grpc.WithDefaultCallOptions(
 		grpc.MaxCallRecvMsgSize(maxMsgSize),
 		grpc.MaxCallSendMsgSize(maxMsgSize),
@@ -191,7 +192,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 
 // Run will run the generic collector streaming loop
 func (c *GenericCollector) Run() {
-	recvWithoutTimeout := pkgconfigsetup.Datadog().GetBool("workloadmeta.remote.recv_without_timeout")
+	recvWithoutTimeout := c.Config.GetBool("workloadmeta.remote.recv_without_timeout")
 
 	for {
 		select {

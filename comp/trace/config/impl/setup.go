@@ -32,6 +32,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -107,8 +109,34 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	if p := pkgconfigsetup.Datadog().GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
-	if utils.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote(c, ipcAddress, ipc)
+	rcEnabled := utils.IsRemoteConfigEnabled(coreConfigObject)
+	cfg.RemoteConfigAPMSamplingEnabled = rcEnabled && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled")
+	cfg.RemoteConfigAPMSemanticsEnabled = rcEnabled && coreConfigObject.GetBool("remote_configuration.apm_semantics.enabled")
+	cfg.RemoteConfigAgentConfigEnabled = rcEnabled && coreConfigObject.GetBool("remote_configuration.agent_config.enabled")
+
+	// Backward-compat inheritance: when the user has explicitly set
+	// apm_sampling.enabled (typically to false) but has NOT explicitly set
+	// agent_config.enabled, mirror apm_sampling.enabled into agent_config.
+	// This preserves the legacy behavior where apm_sampling.enabled
+	// implicitly gated the AGENT_CONFIG subscription by virtue of bundling
+	// both onto the same RC client.
+	if coreConfigObject.IsConfigured("remote_configuration.apm_sampling.enabled") &&
+		!coreConfigObject.IsConfigured("remote_configuration.agent_config.enabled") {
+		cfg.RemoteConfigAgentConfigEnabled = cfg.RemoteConfigAPMSamplingEnabled
+	}
+
+	var products []string
+	if cfg.RemoteConfigAPMSamplingEnabled {
+		products = append(products, state.ProductAPMSampling)
+	}
+	if cfg.RemoteConfigAgentConfigEnabled {
+		products = append(products, state.ProductAgentConfig)
+	}
+	if cfg.RemoteConfigAPMSemanticsEnabled {
+		products = append(products, state.ProductAPMSemanticCoreDD)
+	}
+	if len(products) > 0 {
+		client, err := remote(c, ipcAddress, ipc, products)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
@@ -294,6 +322,17 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 
 	if core.IsConfigured("apm_config.peer_tags") {
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
+	}
+
+	// Deprecated/Experimental: apm_config.span_derived_primary_tags is only honored
+	// in serverless contexts — the Datadog Azure App Services extension (detected
+	// via DD_AZURE_APP_SERVICES=1) and cmd/serverless-init (which sets
+	// serverless.enabled=true before loading this config). Outside of those it is
+	// silently ignored. Tracers should populate additional_metric_tags directly.
+	if (serverlessenv.IsAzureAppServicesExtension() || core.GetBool("serverless.enabled")) &&
+		core.IsConfigured("apm_config.span_derived_primary_tags") {
+		c.SpanDerivedPrimaryTagKeys = core.GetStringSlice("apm_config.span_derived_primary_tags")
+		log.Infof("span_derived_primary_tags configured (serverless): %v", c.SpanDerivedPrimaryTagKeys)
 	}
 
 	if core.IsConfigured("apm_config.extra_sample_rate") {
@@ -601,9 +640,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.profiling_additional_endpoints"; core.IsConfigured(k) {
 		c.ProfilingProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
+	if !core.GetBool("apm_config.profiling_send_to_main_endpoint") {
+		c.ProfilingProxy.MainEndpointMode = config.ProfilingMainEndpointSkip
+	}
 	if k := "apm_config.profiling_receiver_timeout"; core.IsConfigured(k) {
 		c.ProfilingProxy.ReceiverTimeout = core.GetInt(k)
 	}
+	c.ProfilingProxy.MaxRequestBytes = int64(core.GetInt("apm_config.profiling_max_request_bytes"))
+
+	c.DebuggerLogsEnabled = core.GetBool("logs_enabled") || core.GetBool("log_enabled") || core.GetBool("apm_config.debugger_logs_enabled_override")
 	if k := "apm_config.debugger_dd_url"; core.IsConfigured(k) {
 		c.DebuggerProxy.DDURL = core.GetString(k)
 	}
@@ -637,12 +682,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if k := "evp_proxy_config.api_key"; core.IsConfigured(k) {
 		c.EVPProxy.APIKey = core.GetString(k)
-	}
-	if k := "evp_proxy_config.app_key"; core.IsSet(k) {
-		c.EVPProxy.ApplicationKey = core.GetString(k)
-	} else {
-		// Default to the agent-wide app_key if set
-		c.EVPProxy.ApplicationKey = core.GetString("app_key")
 	}
 	if k := "evp_proxy_config.additional_endpoints"; core.IsConfigured(k) {
 		c.EVPProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)

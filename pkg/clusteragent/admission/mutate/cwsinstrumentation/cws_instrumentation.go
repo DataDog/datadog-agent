@@ -91,7 +91,7 @@ type WebhookForPods struct {
 	name            string
 	isEnabled       bool
 	endpoint        string
-	resources       map[string][]string
+	resources       []common.WebhookResourceRule
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 	admissionFunc   admission.WebhookFunc
@@ -104,7 +104,7 @@ func newWebhookForPods(admissionFunc admission.WebhookFunc) *WebhookForPods {
 		isEnabled: pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.enabled") &&
 			len(pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_name")) > 0,
 		endpoint:        pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.pod_endpoint"),
-		resources:       map[string][]string{"": {"pods"}},
+		resources:       []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		admissionFunc:   admissionFunc,
@@ -134,7 +134,7 @@ func (w *WebhookForPods) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *WebhookForPods) Resources() map[string][]string {
+func (w *WebhookForPods) Resources() []common.WebhookResourceRule {
 	return w.resources
 }
 
@@ -171,7 +171,7 @@ type WebhookForCommands struct {
 	name            string
 	isEnabled       bool
 	endpoint        string
-	resources       map[string][]string
+	resources       []common.WebhookResourceRule
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 	admissionFunc   admission.WebhookFunc
@@ -184,7 +184,7 @@ func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForComma
 		isEnabled: pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.enabled") &&
 			len(pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_name")) > 0,
 		endpoint:        pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.command_endpoint"),
-		resources:       map[string][]string{"": {"pods/exec"}},
+		resources:       []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods/exec"}}},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Connect},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		admissionFunc:   admissionFunc,
@@ -214,7 +214,7 @@ func (w *WebhookForCommands) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *WebhookForCommands) Resources() map[string][]string {
+func (w *WebhookForCommands) Resources() []common.WebhookResourceRule {
 	return w.resources
 }
 
@@ -516,7 +516,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	}
 
 	// is the namespace / container targeted by the instrumentation ?
-	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", exec.Container, "", workloadfilter.CreatePod("", "", ns, nil))) {
+	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", exec.Container, "", workloadfilter.CreatePod("", "", ns, nil, nil))) {
 		metrics.CWSExecMutationAttempts.Inc(ci.mode.String(), "false", cwsExcludedResourceReason)
 		return false, nil
 	}
@@ -536,7 +536,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	}
 
 	// is the pod targeted by the instrumentation ?
-	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", "", "", workloadfilter.CreatePod("", "", "", pod.Annotations))) {
+	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", "", "", workloadfilter.CreatePod("", "", "", pod.Annotations, nil))) {
 		metrics.CWSExecMutationAttempts.Inc(ci.mode.String(), "false", cwsExcludedByAnnotationReason)
 		return false, nil
 	}
@@ -691,7 +691,7 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 	}
 
 	// is the pod targeted by the instrumentation ?
-	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", "", "", workloadfilter.CreatePod("", "", ns, pod.Annotations))) {
+	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", "", "", workloadfilter.CreatePod("", "", ns, pod.Annotations, nil))) {
 		metrics.CWSPodMutationAttempts.Inc(ci.mode.String(), "false", cwsExcludedResourceReason)
 		return false, nil
 	}

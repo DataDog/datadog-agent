@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
 	"github.com/stretchr/testify/assert"
@@ -117,7 +118,7 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			Hostname:       "hostname",
 		}
 		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.Nil(c.peerTagKeys)
+		assert.Nil(c.getPeerTagKeys())
 	})
 	t.Run("with peer tags", func(t *testing.T) {
 		assert := assert.New(t)
@@ -130,8 +131,39 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			PeerTags:            []string{"zz_tag"},
 		}
 		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.Equal(cfg.ConfiguredPeerTags(), c.peerTagKeys)
+		assert.Equal(cfg.ConfiguredPeerTags(), c.getPeerTagKeys())
 	})
+}
+
+// TestConcentrator_PeerTagKeysFollowRegistry verifies that getPeerTagKeys
+// rebuilds the cached peer-tag set when the live semantic registry has been
+// swapped (e.g. by an RC update) — driven entirely by the registry's
+// Version() string, with no explicit notification from the RC handler.
+func TestConcentrator_PeerTagKeysFollowRegistry(t *testing.T) {
+	original, err := semantics.NewEmbeddedRegistry()
+	require.NoError(t, err)
+	t.Cleanup(func() { semantics.UpdateRegistry(original) })
+
+	cfg := config.AgentConfig{
+		BucketInterval:      time.Duration(testBucketInterval),
+		AgentVersion:        "0.99.0",
+		DefaultEnv:          "env",
+		Hostname:            "hostname",
+		PeerTagsAggregation: true,
+	}
+	c := NewConcentrator(&cfg, noopStatsWriter{}, time.Now(), &statsd.NoOpClient{})
+	originalKeys := c.getPeerTagKeys()
+	assert.Contains(t, originalKeys, "peer.service", "embedded registry maps peer.service concept")
+
+	// Install a registry with a different Version() and a remapped peer.service concept.
+	customJSON := `{"version":"test-custom-1","concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.custom.peer","provider":"datadog","type":"string"}]}}}`
+	custom, err := semantics.NewRegistryFromJSON([]byte(customJSON))
+	require.NoError(t, err)
+	semantics.UpdateRegistry(custom)
+
+	refreshedKeys := c.getPeerTagKeys()
+	assert.Contains(t, refreshedKeys, "x.custom.peer", "getPeerTagKeys must pick up the new peer-tag mapping after the registry was swapped")
+	assert.NotContains(t, refreshedKeys, "peer.service", "the old peer.service mapping must be gone after the version-keyed cache invalidates")
 }
 
 // TestTracerHostname tests if `Concentrator` uses the tracer hostname rather than agent hostname, if there is one.
@@ -807,7 +839,12 @@ func TestPeerTags(t *testing.T) {
 		traceutil.ComputeTopLevel(spans)
 		testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 		c := NewTestConcentrator(now)
-		c.peerTagKeys = []string{"db.instance", "db.system", "peer.service"}
+		// Inject a peer-tag key set directly, keyed by the live registry's
+		// version so getPeerTagKeys returns it without rebuilding from conf.
+		c.peerTagsCache.Store(&config.PeerTagsCache{
+			Version: semantics.DefaultRegistry().Version(),
+			Keys:    []string{"db.instance", "db.system", "peer.service"},
+		})
 		c.addNow(testTrace, infraTags{})
 		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
@@ -1402,4 +1439,43 @@ func BenchmarkConcentrator(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		c.addNow(testTrace, infraTags{})
 	}
+}
+
+func TestLangInStatsV1(t *testing.T) {
+	now := time.Now()
+	c := NewTestConcentrator(now)
+	alignedNow := alignTs(now.UnixNano(), c.bsize)
+	c.spanConcentrator.oldestTs = alignedNow - int64(c.spanConcentrator.bufferLen)*c.bsize
+
+	strings := idx.NewStringTable()
+	start := getTsInBucket(alignedNow, testBucketInterval, 0) - 50
+	span := idx.NewInternalSpan(strings, &idx.Span{
+		SpanID:      1,
+		ParentID:    0,
+		ServiceRef:  strings.Add("A1"),
+		NameRef:     strings.Add("query"),
+		ResourceRef: strings.Add("resource1"),
+		TypeRef:     strings.Add("db"),
+		Start:       uint64(start),
+		Duration:    50,
+		Attributes: map[uint32]*idx.AnyValue{
+			strings.Add("_top_level"): {Value: &idx.AnyValue_DoubleValue{DoubleValue: 1}},
+		},
+	})
+	chunk := idx.NewInternalTraceChunk(strings, 0, "", nil, []*idx.InternalSpan{span}, false, nil, 0)
+
+	testTrace := &traceutil.ProcessedTraceV1{
+		TraceChunk: chunk,
+		Root:       span,
+		TracerEnv:  "none",
+		Lang:       "python",
+	}
+	c.addNowV1(testTrace, infraTags{})
+
+	stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+	require.Len(t, stats.Stats, 1)
+
+	// addNowV1 does not set Lang in the aggregation key, so the language is lost.
+	// This assertion fails: stats.Stats[0].Lang will be "" instead of "python".
+	assert.Equal(t, "python", stats.Stats[0].Lang)
 }

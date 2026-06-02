@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
+	"github.com/twmb/murmur3"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,6 +45,18 @@ const (
 	// CustomRecommenderAnnotationKey is the key used to store custom recommender configuration in annotations
 	CustomRecommenderAnnotationKey = "autoscaling.datadoghq.com/custom-recommender"
 )
+
+// resyncLabelKeysFromPodAutoscaler lists the label keys read by UpdateFromPodAutoscaler.
+var resyncLabelKeysFromPodAutoscaler = []string{
+	ProfileLabelKey,
+}
+
+// resyncAnnotationKeysFromPodAutoscaler lists the annotation keys read by UpdateFromPodAutoscaler.
+var resyncAnnotationKeysFromPodAutoscaler = []string{
+	PreviewAnnotationKey,
+	ProfileTemplateHashAnnotation,
+	CustomRecommenderAnnotationKey,
+}
 
 // PodAutoscalerInternal holds the necessary data to work with the `DatadogPodAutoscaler` CRD.
 type PodAutoscalerInternal struct {
@@ -82,6 +95,11 @@ type PodAutoscalerInternal struct {
 
 	// previewOptions holds the parsed preview feature flags from the DPA annotations
 	previewOptions previewOptions
+
+	// metadataHash fingerprints the K8s state read by UpdateFromPodAutoscaler
+	// (.metadata.generation plus watched labels/annotations), so that a single
+	// equality check captures both spec changes and out-of-spec edits.
+	metadataHash uint64
 
 	// scalingValues represents the active scaling values that should be used
 	scalingValues ScalingValues
@@ -184,6 +202,10 @@ type PodAutoscalerInternal struct {
 	// customRecommenderConfiguration holds the configuration for custom recommenders,
 	// Parsed from annotations on the autoscaler
 	customRecommenderConfiguration *RecommenderConfiguration
+
+	// submittedPodOps maps pod UID to the recommendationID of the last accepted patch or eviction,
+	// used to suppress redundant API calls during the informer-cache lag window.
+	submittedPodOps map[string]string
 }
 
 // NewPodAutoscalerInternal creates a new PodAutoscalerInternal from a Kubernetes CR
@@ -293,8 +315,17 @@ func (p *PodAutoscalerInternal) UpdateFromProfile(
 	p.horizontalEventsRetention, p.horizontalRecommendationsRetention = getHorizontalRetentionValues(dpaSpec.ApplyPolicy)
 }
 
-// UpdateFromPodAutoscaler updates the PodAutoscalerInternal from a PodAutoscaler object inside K8S
+// UpdateFromPodAutoscaler updates the PodAutoscalerInternal from a PodAutoscaler object inside K8S.
+// For local-owner DPAs it short-circuits when the cached metadata fingerprint is unchanged.
 func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
+	if podAutoscaler.Spec.Owner == datadoghqcommon.DatadogPodAutoscalerLocalOwner {
+		newHash := computePodAutoscalerMetadataHash(podAutoscaler)
+		if p.metadataHash == newHash {
+			return
+		}
+		p.metadataHash = newHash
+	}
+
 	if v, ok := podAutoscaler.Labels[ProfileLabelKey]; ok {
 		p.profileName = v
 	}
@@ -410,9 +441,15 @@ func (p *PodAutoscalerInternal) RemoveValues() {
 }
 
 // RemoveMainValues clears main autoscaling values data from the PodAutoscalerInternal as we stopped autoscaling
-func (p *PodAutoscalerInternal) RemoveMainValues() {
+func (p *PodAutoscalerInternal) RemoveMainValues() (removed bool, previous ScalingValues) {
+	if p.mainScalingValuesVersion == 0 && p.mainScalingValues.IsEmpty() {
+		return false, ScalingValues{}
+	}
+
+	previousMainScalingValues := p.mainScalingValues
 	p.mainScalingValues = ScalingValues{}
 	p.mainScalingValuesVersion = 0
+	return true, previousMainScalingValues
 }
 
 // RemoveLocalValues clears local autoscaling values data from the PodAutoscalerInternal as we stopped autoscaling
@@ -866,6 +903,40 @@ func (p *PodAutoscalerInternal) InPlaceResizeCompletedCount() uint {
 // InPlaceResizeCompletedInc increments the resize completed counter
 func (p *PodAutoscalerInternal) InPlaceResizeCompletedInc() {
 	p.inPlaceResizeCompletedCount++
+}
+
+// TrackPodOperation records that a patch or eviction for podUID was accepted by the API server.
+func (p *PodAutoscalerInternal) TrackPodOperation(podUID, recommendationID string) {
+	if p.submittedPodOps == nil {
+		p.submittedPodOps = make(map[string]string)
+	}
+	p.submittedPodOps[podUID] = recommendationID
+}
+
+// HasPendingOperation reports whether podUID has a tracked operation for the current recommendationID.
+func (p *PodAutoscalerInternal) HasPendingOperation(podUID, recommendationID string) bool {
+	if p.submittedPodOps == nil {
+		return false
+	}
+	return p.submittedPodOps[podUID] == recommendationID
+}
+
+// ClearPodOperations drops all tracked pod operations; called on resize completion.
+func (p *PodAutoscalerInternal) ClearPodOperations() {
+	p.submittedPodOps = nil
+}
+
+// PrunePodOperations removes entries whose stored recommendationID no longer matches
+// the current one, and entries whose pod UID have been removed from the livePodUIDs map.
+func (p *PodAutoscalerInternal) PrunePodOperations(recommendationID string, livePodUIDs map[string]struct{}) {
+	for uid, rid := range p.submittedPodOps {
+		if rid != recommendationID {
+			delete(p.submittedPodOps, uid)
+		}
+		if _, ok := livePodUIDs[uid]; !ok {
+			delete(p.submittedPodOps, uid)
+		}
+	}
 }
 
 // CurrentReplicas returns the current number of PODs for the targetRef
@@ -1333,4 +1404,19 @@ func parseCustomConfigurationAnnotation(annotations map[string]string) (*Recomme
 	}
 
 	return &customConfiguration, nil
+}
+
+// computePodAutoscalerMetadataHash returns a fingerprint of the K8s state
+// read by UpdateFromPodAutoscaler — .metadata.generation plus the watched
+// labels/annotations — used to identify any change worth re-syncing.
+func computePodAutoscalerMetadataHash(podAutoscaler *datadoghq.DatadogPodAutoscaler) uint64 {
+	hasher := murmur3.New64()
+	_, _ = fmt.Fprintf(hasher, "G\x00%d\x00", podAutoscaler.Generation)
+	for _, key := range resyncLabelKeysFromPodAutoscaler {
+		_, _ = hasher.Write([]byte("L\x00" + key + "\x00" + podAutoscaler.Labels[key] + "\x00"))
+	}
+	for _, key := range resyncAnnotationKeysFromPodAutoscaler {
+		_, _ = hasher.Write([]byte("A\x00" + key + "\x00" + podAutoscaler.Annotations[key] + "\x00"))
+	}
+	return hasher.Sum64()
 }

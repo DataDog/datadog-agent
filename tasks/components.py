@@ -92,8 +92,6 @@ components_to_migrate = [
     "comp/dogstatsd/server/component.go",
     "comp/forwarder/defaultforwarder/component.go",
     "comp/metadata/inventoryagent/component.go",
-    "comp/netflow/config/component.go",
-    "comp/netflow/server/component.go",
     "comp/remote-config/rcclient/component.go",
     "comp/trace/config/component.go",
     "comp/process/apiserver/component.go",
@@ -114,21 +112,16 @@ components_classic_style = [
     'comp/checks/agentcrashdetect/agentcrashdetectimpl',
     "comp/checks/winregistry/impl",
     'comp/collector/collector/collectorimpl',
-    'comp/core/autodiscovery/autodiscoveryimpl',
     'comp/core/configsync/configsyncimpl',
-    'comp/core/gui/guiimpl',
     'comp/core/hostname/hostnameimpl',
     'comp/core/pid/pidimpl',
-    'comp/core/settings/settingsimpl',
     'comp/core/status/statusimpl',
-    'comp/core/sysprobeconfig/sysprobeconfigimpl',
     'comp/dogstatsd/pidmap/pidmapimpl',
     'comp/dogstatsd/serverDebug/serverdebugimpl',
     'comp/dogstatsd/status/statusimpl',
     'comp/etw/impl',
     'comp/forwarder/eventplatform/eventplatformimpl',
     'comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl',
-    'comp/forwarder/orchestrator/orchestratorimpl',
     'comp/logs/adscheduler/adschedulerimpl',
     'comp/logs/agent/agentimpl',
     'comp/metadata/host/hostimpl',
@@ -162,7 +155,6 @@ components_classic_style = [
     'comp/snmptraps/forwarder/forwarderimpl',
     'comp/snmptraps/listener/listenerimpl',
     'comp/snmptraps/oidresolver/oidresolverimpl',
-    'comp/snmptraps/server/serverimpl',
     'comp/snmptraps/status/statusimpl',
     'comp/systray/systray/systrayimpl',
     'comp/trace/etwtracer/etwtracerimpl',
@@ -184,16 +176,28 @@ components_missing_implementation_folder = [
 ]
 
 ignore_fx_import = [
+    "comp/aggregator/demultiplexer",
+    "comp/forwarder/eventplatform",
+    "comp/collector/collector",
+    "comp/forwarder/eventplatformreceiver",
+    "comp/forwarder/orchestrator",
     "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/rdnsquerier",
     "comp/trace/agent",
+    "comp/snmptraps/server",
 ]
 
 ignore_provide_component_constructor_missing = [
+    "comp/aggregator/demultiplexer",
+    "comp/forwarder/eventplatform",
+    "comp/collector/collector",
+    "comp/forwarder/eventplatformreceiver",
+    "comp/forwarder/orchestrator",
     "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/trace/agent",
+    "comp/core/configsync",
 ]
 
 mock_definitions = [
@@ -314,7 +318,7 @@ def locate_implementation_folders(comp):
             continue
 
         if to_posix_path(entry) in components_missing_implementation_folder:
-            return 'skip'
+            continue
 
         if comp.version == 2:
             # Check for component implementation using the new-style folder structure: comp/<component>/impl[-suffix]

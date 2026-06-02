@@ -61,13 +61,42 @@ export AGENT_VERSION AGENT_BUILD AGENT_BRANCH AGENT_VRMF
 
 # ── Toolchain ─────────────────────────────────────────────────────────────────
 
-CC=/opt/freeware/bin/gcc
-CXX=/opt/freeware/bin/g++
+# GCC 8 is required for AIX 7.2 TL2 compatibility.
+# GCC 8's libstdc++ does not reference strftime_l (added to AIX libc only at
+# TL3+); GCC 10/13 do.  Code compiled by GCC 8 also calls ostringstream
+# constructors that GCC 8's libstdc++ actually exports, so the resulting
+# binaries run on AIX 7.2 without any compatibility stubs.
+# Install on the build host with: yum install -y gcc8 gcc8-c++
+if [ ! -x /opt/freeware/bin/gcc-8 ]; then
+    printf 'ERROR: gcc-8 not found. Install it with: yum install -y gcc8 gcc8-c++\n' >&2
+    exit 1
+fi
+
+# Create private gcc/g++ symlinks pointing to gcc-8 in $BUILD_DIR/bin and
+# prepend that directory to PATH. This lets us set CC=gcc (the generic name)
+# so Python records 'gcc' in _sysconfigdata_, not '/opt/freeware/bin/gcc-8'.
+# Customers can then build C extensions (e.g. ibm_db) with any gcc version in
+# their PATH, not just gcc-8 specifically.
+# /opt/freeware/bin/gcc already exists on the build host but points to gcc-13;
+# using a private directory avoids clobbering that symlink.
+mkdir -p "$BUILD_DIR/bin"
+ln -sf /opt/freeware/bin/gcc-8 "$BUILD_DIR/bin/gcc"
+ln -sf /opt/freeware/bin/g++-8 "$BUILD_DIR/bin/g++"
+# $BUILD_DIR/bin is prepended to PATH in the Go toolchain section below,
+# after that section establishes /opt/go/bin and /opt/freeware/bin, so our
+# directory wins the gcc/g++ name lookup.
+
+CC=gcc
+CXX=g++
 NM="/usr/bin/nm -X64"
 ARFLAGS="-X64 -cru"
 OBJECT_MODE=64
+# gcc-8 checks AIX_OBJECT_MODE (not OBJECT_MODE) for startup-file selection.
+# Without it, gcc-8 passes 32-bit /lib/crt0.o to ld, which ld running in
+# 64-bit mode rejects. AIX_OBJECT_MODE=64 makes gcc-8 use /lib/crt0_64.o.
+AIX_OBJECT_MODE=64
 
-export CC CXX NM ARFLAGS OBJECT_MODE
+export CC CXX NM ARFLAGS OBJECT_MODE AIX_OBJECT_MODE
 
 # ── Compiler/linker flags ─────────────────────────────────────────────────────
 # -I and -L always reference $EMBEDDED_DESTDIR (staging), not $EMBEDDED (final path).
@@ -83,7 +112,7 @@ export CFLAGS CXXFLAGS LDFLAGS CPPFLAGS
 
 # ── PATH and Go toolchain ─────────────────────────────────────────────────────
 
-PATH=/opt/go/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:$PATH
+PATH=$BUILD_DIR/bin:/opt/go/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:$PATH
 GOPATH=/home/gopath
 GOROOT=/opt/go
 CGO_ENABLED=1
@@ -94,8 +123,23 @@ GOPROXY=https://proxy.golang.org,direct
 # toolchain version (go.mod may require a newer patch than is installed).
 # Auto-download spawns extra processes and consumes significant memory on AIX.
 GOTOOLCHAIN=local
+# On hosts with less than 6 GiB of RAM, restrict Go compilation to one package
+# at a time and cap the heap to prevent swap thrash. Each compile process can
+# use 3-4 GiB; without -p=1 multiple would compete for the same RAM.
+# On larger hosts, the default parallelism is fine.
+_mem_kb=$(lsattr -El sys0 -a realmem 2>/dev/null | awk '{print $2}')
+if [ -n "$_mem_kb" ] && [ "$_mem_kb" -lt 6291456 ]; then
+    GOFLAGS="-p=1"
+    GOMEMLIMIT=2GiB
+    export GOFLAGS GOMEMLIMIT
+fi
+unset _mem_kb
+# Redirect the Go build cache off /tmp (which is only 12 GB) to the larger
+# build volume so that large packages like datadogV2 don't exhaust /tmp.
+GOCACHE=/opt/dd-build/gocache
+mkdir -p "$GOCACHE"
 
-export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN
+export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOCACHE
 
 # ── Utility functions ─────────────────────────────────────────────────────────
 

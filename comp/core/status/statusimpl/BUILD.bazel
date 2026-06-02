@@ -28,7 +28,6 @@ go_library(
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "//pkg/version",
-        "@com_github_gorilla_mux//:mux",
         "@org_golang_x_text//cases",
         "@org_golang_x_text//language",
         "@org_uber_go_fx//:fx",
@@ -43,7 +42,7 @@ go_test(
         "status_test.go",
     ],
     embed = [":statusimpl"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
@@ -54,7 +53,6 @@ go_test(
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "//pkg/version",
-        "@com_github_gorilla_mux//:mux",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",

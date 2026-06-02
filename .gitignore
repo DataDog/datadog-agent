@@ -254,3 +254,6 @@ AUTO_JIRA.md
 
 # Ignoring compressed schema
 pkg/config/schema/compressed/*.zstd
+.python-nix-home
+.venv-nix
+flake.lock

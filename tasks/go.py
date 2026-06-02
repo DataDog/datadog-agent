@@ -120,7 +120,8 @@ def run_golangci_lint(
     tags_arg = " ".join(sorted(set(tags)))
     timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
     # Compose the targets string for the command
-    targets_str = " ".join(f"{target}{'/...' if recursive else ''}" for target in targets)
+    targets_rec = [f"{target}/..." if not target.endswith("/...") else target for target in targets]
+    targets_str = " ".join(targets_rec if recursive else targets)
     cmd = (
         f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} '
         f'--build-tags "{tags_arg}" --path-prefix "{base_path}" {golangci_lint_kwargs} {targets_str}'
@@ -400,7 +401,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.25.9 linux/amd64"
+    # result is like "go version go1.25.10 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

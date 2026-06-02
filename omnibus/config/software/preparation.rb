@@ -19,6 +19,8 @@ name "preparation"
 description "the steps required to preprare the build"
 default_version "1.0.0"
 
+skip_transitive_dependency_licensing true
+
 build do
   block do
     %w{embedded/lib embedded/bin bin}.each do |dir|

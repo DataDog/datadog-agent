@@ -11,6 +11,7 @@ from tasks import (
     agent,
     agent_ci_api,
     ami,
+    anomalydetection,
     auth,
     bench,
     buildimages,
@@ -69,6 +70,7 @@ from tasks import (
     python_version,
     quality_gates,
     release,
+    renovate,
     rtloader,
     sbomgen,
     schema,
@@ -194,6 +196,7 @@ ns.add_task(build_and_upload_fuzz)
 # To deprecate
 ns.add_task(lint_go)
 # add namespaced tasks to the root
+ns.add_collection(anomalydetection)
 ns.add_collection(auth)
 ns.add_collection(agent)
 ns.add_collection(ami)
@@ -240,6 +243,7 @@ ns.add_collection(selinux)
 ns.add_collection(setup)
 ns.add_collection(systray)
 ns.add_collection(release)
+ns.add_collection(renovate)
 ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)

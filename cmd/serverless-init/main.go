@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
@@ -34,7 +34,7 @@ import (
 	localTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
-	healthplatformnoopfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx-noop"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 
@@ -74,8 +74,8 @@ func main() {
 		run,
 		delegatedauthfx.Module(),
 		workloadfilterfx.Module(),
-		autodiscoveryimpl.Module(),
-		healthplatformnoopfx.Module(),
+		adfx.Module(),
+		healthplatform.Bundle(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
 			return healthprobeDef.Options{
 				Port:           config.GetInt("health_port"),
@@ -279,6 +279,13 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 	}
 
 	// Note: serverless trace tag logic also in comp/trace/payload-modifier/impl/payloadmodifier_test.go
+	//
+	// Note: the deprecated DD_APM_SPAN_DERIVED_PRIMARY_TAGS option is honored for
+	// serverless-init (and the AAS extension) inside comp/trace/config/impl/setup.go
+	// (gated on serverless.enabled || IsAzureAppServicesExtension()). It lives there
+	// rather than here because the AAS extension shares the same gate but doesn't go
+	// through StartServerlessTraceAgent. Treat that block as serverless-only despite
+	// its location in shared trace-agent config code.
 	functionTags := strings.Join(configuredTags, ",")
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:               pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),

@@ -252,6 +252,11 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 		return nil, fmt.Errorf("unable to extract layers from overlayfs mounts %+v for image %s", mounts, imgMeta.ID)
 	}
 
+	// RootFS.Layers is bottom-up; overlay mount syntax is top-down.
+	for i, j := 0, len(layers)-1; i < j; i, j = i+1, j-1 {
+		layers[i], layers[j] = layers[j], layers[i]
+	}
+
 	fakeContainer, err := newFakeContainer(layers, imgMeta, fanalImage.inspect.RootFS.Layers)
 	if err != nil {
 		return nil, err

@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -319,9 +320,13 @@ func InitConfigObjects(cliPath string, defaultDir string) {
 	SetDatadog(create.NewConfig("datadog", configLib))          // nolint: forbidigo // legitimate use of SetDatadog
 	SetSystemProbe(create.NewConfig("system-probe", configLib)) // nolint: forbidigo // legitimate use of SetDatadog
 
-	// Configuration defaults
+	// Configuration defaults, should only be logic-free calls to BindEnvAndSetDefault / BindEnv / SetDefault
 	initConfig()
 
+	// Post-init fixups, custom logic to tweak certain settings
+	fixupInitConfig()
+
+	// Build the environment variable layer
 	datadog.(pkgconfigmodel.BuildableConfig).BuildSchema()
 	systemProbe.(pkgconfigmodel.BuildableConfig).BuildSchema()
 
@@ -341,14 +346,30 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Add them to common_settings.go instead
 	// -------------------------------------------------------------
 
-	// Settings that are shared in common between serverless and core-agent, split up by feature / product
+	// Settings that are shared in common between serverless and the full agent, split up by feature / product
 	initCommonConfigComponents(config)
-	// Settings just for the core-agent in general
+	// Settings just for the full agent in general
 	initCoreAgentFull(config)
+	// Settings associated with a feature / product that only appear in the full agent, not in serverless
+	initFullAgentOnlyComponents(config)
 }
 
+// settings shared by full agent and serverless
 func initCommonConfigComponents(config pkgconfigmodel.Setup) {
 	for _, f := range commonConfigComponents {
+		f(config)
+	}
+}
+
+// settings that are only initialized by the full agent, not serverless
+func initFullAgentOnlyComponents(config pkgconfigmodel.Setup) {
+	comps := []func(pkgconfigmodel.Setup){
+		setupProcesses,
+		setupPrivateActionRunner,
+		remoteflags,
+		anomalyDetection,
+	}
+	for _, f := range comps {
 		f(config)
 	}
 }
@@ -682,6 +703,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 
 	sanitizeAPIKeyConfig(config, "api_key")
 	sanitizeAPIKeyConfig(config, "logs_config.api_key")
+	sanitizeDataPlaneConfig(config, runtime.GOOS, os.Getenv)
 	setNumWorkers(config)
 
 	flareStrippedKeys := config.GetStringSlice("flare_stripped_keys")
@@ -992,11 +1014,18 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 // See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
 func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Component, origin string) error {
 	log.Info("Starting to resolve secrets")
+
+	var multiBackends map[string]secrets.SecretBackendConfig
+	if err := structure.UnmarshalKey(config, "multi_secret_backends", &multiBackends); err != nil {
+		log.Warnf("multi_secret_backends: %v", err)
+	}
+
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
 		Type:                         config.GetString("secret_backend_type"),
 		Config:                       config.GetStringMap("secret_backend_config"),
+		MultiBackends:                multiBackends,
 		Command:                      config.GetString("secret_backend_command"),
 		Arguments:                    config.GetStringSlice("secret_backend_arguments"),
 		Timeout:                      config.GetInt("secret_backend_timeout"),
@@ -1013,7 +1042,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		APIKeyFailureRefreshInterval: config.GetInt("secret_refresh_on_api_key_failure_interval"),
 	})
 
-	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {
+	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" || len(multiBackends) > 0 {
 		// Viper doesn't expose the final location of the file it
 		// loads. Since we are searching for 'datadog.yaml' in multiple
 		// locations we let viper determine the one to use before
@@ -1183,6 +1212,31 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 		return
 	}
 	config.Set(key, trimmed, pkgconfigmodel.SourceAgentRuntime)
+}
+
+// sanitizeDataPlaneConfig gates data_plane.enabled to Linux only.
+// The Agent Data Plane (ADP) is a Linux-only component. On non-Linux platforms
+// this function always installs a SourceAgentRuntime override of false, which
+// beats file and fleet-policy sources and prevents them from re-enabling ADP
+// after this call returns. A warning is emitted only when the value was
+// explicitly set to true at call time.
+//
+// The goos parameter is the target OS string (normally runtime.GOOS). It is
+// exposed as a parameter so that tests can exercise both branches without
+// needing to cross-compile.
+//
+// The envLookup parameter is normally os.Getenv. It is exposed as a parameter
+// so tests can inject a stub without touching global state.
+// When DD_DATA_PLANE_FORCE_ENABLE=true the OS gate is skipped entirely; this
+// is intended for local development on macOS/Windows only.
+func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string, envLookup func(string) string) {
+	if goos == "linux" || envLookup("DD_DATA_PLANE_FORCE_ENABLE") == "true" {
+		return
+	}
+	if config.GetBool(DataPlaneEnabled) {
+		log.Warnf("%s is not supported on %s and will be ignored", DataPlaneEnabled, goos)
+	}
+	config.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceAgentRuntime)
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
@@ -1448,10 +1502,30 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	}
 }
 
+// ApplyUseDogstatsdSuppression is a post-load override that, when
+// use_dogstatsd is false, forces data_plane.dogstatsd.enabled to false
+// so the Agent Data Plane process (which reads the latter via the
+// config stream) skips its DogStatsD source. data_plane.enabled is
+// intentionally left alone so other ADP pipelines (e.g. OTLP) keep
+// working independently of the DogStatsD master toggle.
+//
+// It is registered as an override func (runs after datadog.yaml loads) and
+// also called explicitly after fleet policy merging, because fleet policies
+// are applied after the initial override pass.
+//
+// Matches the truth table at
+// https://github.com/DataDog/saluki/issues/1334#issuecomment-4292253054.
+func ApplyUseDogstatsdSuppression(config pkgconfigmodel.Config) {
+	if !config.GetBool("use_dogstatsd") && config.GetBool("data_plane.dogstatsd.enabled") {
+		log.Infof("Forcing data_plane.dogstatsd.enabled=false because use_dogstatsd=false")
+		config.Set("data_plane.dogstatsd.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+	}
+}
+
 func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
-	config.BindEnv(prefix + "logs_dd_url")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
-	config.BindEnv(prefix + "dd_url")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv(prefix + "additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault(prefix+"logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault(prefix+"dd_url", "")
+	config.BindEnvAndSetDefault(prefix+"additional_endpoints", []map[string]interface{}{})
 	config.BindEnvAndSetDefault(prefix+"use_compression", true)
 	config.BindEnvAndSetDefault(prefix+"compression_kind", DefaultLogCompressionKind)
 	config.BindEnvAndSetDefault(prefix+"zstd_compression_level", DefaultZstdCompressionLevel) // Default level for the zstd algorithm

@@ -84,6 +84,28 @@ ssh-add -L
 
 Follow GitHub's [guide](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account) for adding the key to your GitHub account and [test](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/testing-your-ssh-connection) that it works. The path to the public key is the path to the key from the previous step with a `.pub` file extension e.g. `/root/.ssh/dda.pub`.
 
+## Repository configuration
+
+The Agent is a monorepo containing many Go submodules. Each submodule is published with its own version tag (`pkg/<name>/v*`, `comp/<name>/v*`, `cmd/<name>/v*`, `test/<name>/v*`), so the repository accumulates tens of thousands of tags over time. By default `git fetch` auto-follows tags and `fetch.pruneTags` reconciles them on every pull, which can make `git pull` and `git fetch` extremely slow — sometimes minutes or hours — against a long-lived clone.
+
+After cloning, configure the local repository to skip these tags:
+
+```
+git config remote.origin.tagOpt --no-tags
+```
+
+If you have an existing clone that has already accumulated submodule tags, delete them once. They will not come back with `--no-tags` set:
+
+```
+git tag -l 'pkg/*' 'comp/*' 'cmd/*' 'test/*' | xargs git tag -d
+```
+
+You can still fetch a specific submodule tag on demand when you need one:
+
+```
+git fetch origin tag pkg/aggregator/v0.65.0
+```
+
 ## Next steps
 
 Follow the developer environment [tutorial](../tutorials/dev/env.md) to get started.

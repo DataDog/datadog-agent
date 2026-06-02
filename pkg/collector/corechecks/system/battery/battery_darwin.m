@@ -1,6 +1,8 @@
 #import <Foundation/Foundation.h>
 #import <IOKit/IOKitLib.h>
 #import <IOKit/IOKitKeys.h>
+#import <IOKit/ps/IOPowerSources.h>
+#import <IOKit/ps/IOPSKeys.h>
 #import "battery_darwin.h"
 
 // kIOMainPortDefault was introduced in macOS 12.0, use kIOMasterPortDefault for older versions
@@ -9,6 +11,39 @@
 #else
 #define IOKIT_MAIN_PORT kIOMasterPortDefault
 #endif
+
+// hasInternalBattery reports whether macOS sees a real internal battery via the
+// PowerSources API. This avoids false positives on Mac minis, where an
+// AppleSmartBattery IOKit stub may be present even though no battery exists.
+bool hasInternalBattery(void) {
+    CFTypeRef blob = IOPSCopyPowerSourcesInfo();
+    if (blob == NULL) {
+        return false;
+    }
+    CFArrayRef list = IOPSCopyPowerSourcesList(blob);
+    if (list == NULL) {
+        CFRelease(blob);
+        return false;
+    }
+    bool found = false;
+    CFIndex count = CFArrayGetCount(list);
+    for (CFIndex i = 0; i < count; i++) {
+        CFTypeRef ps = CFArrayGetValueAtIndex(list, i);
+        CFDictionaryRef desc = IOPSGetPowerSourceDescription(blob, ps);
+        if (desc == NULL) {
+            continue;
+        }
+        CFStringRef type = CFDictionaryGetValue(desc, CFSTR(kIOPSTypeKey));
+        if (type != NULL &&
+            CFStringCompare(type, CFSTR(kIOPSInternalBatteryType), 0) == kCFCompareEqualTo) {
+            found = true;
+            break;
+        }
+    }
+    CFRelease(list);
+    CFRelease(blob);
+    return found;
+}
 
 static NSDictionary *getSmartBatteryProperties(void) {
     CFMutableDictionaryRef matching = IOServiceMatching("AppleSmartBattery");
@@ -39,8 +74,6 @@ BatteryInfo getBatteryInfo(void) {
         if (!props) {
             return info;
         }
-
-        info.found = true;
 
         if (props[@"DesignCapacity"] != nil) {
             info.designCapacity = (OptionalInt){true, [props[@"DesignCapacity"] intValue]};

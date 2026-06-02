@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -338,6 +339,35 @@ func TestToEnv(t *testing.T) {
 	}
 }
 
+func TestFromEnvFIPSMode(t *testing.T) {
+	thisBinaryIsFips, _ := pkgfips.Enabled()
+	if thisBinaryIsFips {
+		t.Skip("DD_FIPS_MODE env var is irrelevant when the binary itself is FIPS-compiled")
+	}
+	tests := []struct {
+		value    string
+		expected bool
+	}{
+		{"true", true},
+		{"True", true},
+		{"TRUE", true},
+		{"false", false},
+		{"", false},
+		{"1", false}, // we explicitly require "true" (case-insensitive)
+	}
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			t.Setenv("DD_FIPS_MODE", tt.value)
+			assert.Equal(t, tt.expected, FromEnv().FIPSMode)
+		})
+	}
+}
+
+func TestToEnvFIPSMode(t *testing.T) {
+	assert.NotContains(t, (&Env{FIPSMode: false}).ToEnv(), "DD_FIPS_MODE=true")
+	assert.Contains(t, (&Env{FIPSMode: true}).ToEnv(), "DD_FIPS_MODE=true")
+}
+
 func TestAgentUserVars(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -387,6 +417,17 @@ func TestAgentUserVars(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "keep rights set",
+			envVars: map[string]string{
+				envAgentUserKeepRights: "1",
+			},
+			expected: &Env{
+				MsiParams: MsiParamsEnv{
+					AgentUserKeepRights: "1",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -397,6 +438,7 @@ func TestAgentUserVars(t *testing.T) {
 			}
 			result := FromEnv()
 			assert.Equal(t, tt.expected.MsiParams.AgentUserName, result.MsiParams.AgentUserName)
+			assert.Equal(t, tt.expected.MsiParams.AgentUserKeepRights, result.MsiParams.AgentUserKeepRights)
 		})
 	}
 }

@@ -16,10 +16,12 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -35,41 +37,64 @@ const (
 )
 
 // profilingEndpoints returns the profiling intake urls and their corresponding
-// api keys based on agent configuration. The main endpoint is always returned as
-// the first element in the slice.
+// api keys based on agent configuration. Unless the main endpoint is skipped
+// via MainEndpointMode, it is returned as the first element in the slice.
 func profilingEndpoints(conf *config.AgentConfig) (urls []*url.URL, apiKeys []string, err error) {
-	main := profilingURLDefault
-	if v := conf.ProfilingProxy.DDURL; v != "" {
-		main = v
-		if strings.HasSuffix(main, profilingV1EndpointSuffix) {
-			log.Warnf("The configured url %s for apm_config.profiling_dd_url is deprecated. "+
-				"The updated endpoint path is /api/v2/profile.", v)
+	if conf.ProfilingProxy.MainEndpointMode == config.ProfilingMainEndpointSend {
+		main := mainProfilingURL(conf)
+		u, err := url.Parse(main)
+		if err != nil {
+			// if the main intake URL is invalid we don't use additional endpoints
+			return nil, nil, fmt.Errorf("error parsing main profiling intake URL %s: %v", main, err)
 		}
-	} else if conf.Site != "" {
-		main = fmt.Sprintf(profilingURLTemplate, conf.Site)
+		urls = append(urls, u)
+		apiKeys = append(apiKeys, conf.APIKey())
 	}
-	u, err := url.Parse(main)
-	if err != nil {
-		// if the main intake URL is invalid we don't use additional endpoints
-		return nil, nil, fmt.Errorf("error parsing main profiling intake URL %s: %v", main, err)
-	}
-	urls = append(urls, u)
-	apiKeys = append(apiKeys, conf.APIKey())
 
 	if extra := conf.ProfilingProxy.AdditionalEndpoints; extra != nil {
-		for endpoint, keys := range extra {
+		// Iterate AdditionalEndpoints in sorted order so the target slice is
+		// deterministic across restarts. multiTransport.RoundTrip returns the
+		// response from index 0 to the client; without sorting, when the main
+		// endpoint is skipped the "primary" additional endpoint would be picked
+		// at random from Go's map iteration order.
+		endpoints := make([]string, 0, len(extra))
+		for endpoint := range extra {
+			endpoints = append(endpoints, endpoint)
+		}
+		sort.Strings(endpoints)
+		for _, endpoint := range endpoints {
 			u, err := url.Parse(endpoint)
 			if err != nil {
 				log.Errorf("Error parsing additional profiling intake URL %s: %v", endpoint, err)
 				continue
 			}
-			for _, key := range keys {
+			for _, key := range extra[endpoint] {
 				urls = append(urls, u)
 				apiKeys = append(apiKeys, key)
 			}
 		}
 	}
+	if len(urls) == 0 {
+		return nil, nil, errors.New("profiling proxy has no valid endpoints configured")
+	}
 	return urls, apiKeys, nil
+}
+
+// mainProfilingURL returns the main profiling intake URL, preferring an
+// explicit DDURL override, then deriving from Site, then falling back to the
+// default intake.
+func mainProfilingURL(conf *config.AgentConfig) string {
+	if v := conf.ProfilingProxy.DDURL; v != "" {
+		if strings.HasSuffix(v, profilingV1EndpointSuffix) {
+			log.Warnf("The configured url %s for apm_config.profiling_dd_url is deprecated. "+
+				"The updated endpoint path is /api/v2/profile.", v)
+		}
+		return v
+	}
+	if conf.Site != "" {
+		return fmt.Sprintf(profilingURLTemplate, conf.Site)
+	}
+	return profilingURLDefault
 }
 
 // profileProxyHandler returns a new HTTP handler which will proxy requests to the profiling intakes.
@@ -171,7 +196,7 @@ func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string
 	return &httputil.ReverseProxy{
 		Director:     director,
 		ErrorLog:     stdlog.New(logger, "profiling.Proxy: ", 0),
-		Transport:    &multiTransport{ptransport, targets, keys},
+		Transport:    &multiTransport{rt: ptransport, targets: targets, keys: keys, maxRequestBytes: conf.ProfilingProxy.MaxRequestBytes},
 		ErrorHandler: handleProxyError,
 	}
 }
@@ -240,9 +265,10 @@ func handleProxyError(w http.ResponseWriter, r *http.Request, err error) {
 // response is discarded. There is no de-duplication done between endpoint
 // hosts or api keys.
 type multiTransport struct {
-	rt      http.RoundTripper
-	targets []*url.URL
-	keys    []string
+	rt              http.RoundTripper
+	targets         []*url.URL
+	keys            []string
+	maxRequestBytes int64
 }
 
 func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
@@ -270,6 +296,7 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 		}
 		return rresp, rerr
 	}
+	req.Body = apiutil.NewLimitedReader(req.Body, m.maxRequestBytes)
 	slurp, err := io.ReadAll(req.Body)
 	if err != nil {
 		return nil, err

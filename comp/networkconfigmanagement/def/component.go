@@ -1,0 +1,22 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+// Package networkconfigmanagement provides the component for retrieving network device configurations.
+package networkconfigmanagement
+
+// team: ndm-integrations
+
+import (
+	"time"
+
+	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
+)
+
+// Component is the component type.
+type Component interface {
+	GetConfigStore() ncmstore.ConfigStore
+	MeetsInventoryReportRequirements(hasNewConfigs bool, maxInterval time.Duration, now time.Time) bool
+	MarkInventoryReportSent(now time.Time)
+}

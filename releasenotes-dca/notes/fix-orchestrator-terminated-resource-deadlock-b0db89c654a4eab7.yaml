@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix a deadlock in the orchestrator check that caused ``Cancel`` to hang
+    indefinitely, leaking goroutines and preventing the check from being
+    rescheduled. The issue occurred when ``TerminatedResourceBundle.Disable``
+    tried to flush manifests through a channel whose consumer goroutine had
+    already stopped.

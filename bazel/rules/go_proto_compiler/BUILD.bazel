@@ -1,0 +1,34 @@
+load("@rules_go//proto:compiler.bzl", "go_proto_compiler")
+
+# https://github.com/grpc/grpc-go/blob/master/cmd/protoc-gen-go-grpc/README.md#future-proofing-services
+go_proto_compiler(
+    name = "go_grpc_futureproof",
+    options = ["require_unimplemented_servers=true"],
+    plugin = "@org_golang_google_grpc_cmd_protoc_gen_go_grpc//:protoc-gen-go-grpc",
+    suffix = "_grpc.pb.go",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ],
+)
+
+# https://github.com/planetscale/vtprotobuf#usage
+[
+    go_proto_compiler(
+        name = name,
+        options = options,
+        plugin = "@com_github_planetscale_vtprotobuf//cmd/protoc-gen-go-vtproto",
+        suffix = "_vtproto.pb.go",
+        visibility = ["//visibility:public"],
+        deps = [
+            "@com_github_planetscale_vtprotobuf//protohelpers",
+            "@com_github_planetscale_vtprotobuf//types/known/timestamppb",
+        ],
+    )
+    for name, options in {
+        "go_vtproto_full": [],  # default: "If no features are given, all the codegen steps will be performed"
+        "go_vtproto_serde": ["features=marshal+unmarshal+size"],  # SERialize/DEserialize: "Example from Vitess"
+    }.items()
+]

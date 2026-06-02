@@ -1768,6 +1768,18 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal(t, 30, coreConfig.GetInt("apm_config.profiling_receiver_timeout"))
 	})
 
+	env = "DD_APM_PROFILING_SEND_TO_MAIN_ENDPOINT"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "false")
+
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, traceconfig.ProfilingMainEndpointSkip, cfg.ProfilingProxy.MainEndpointMode)
+		assert.False(t, coreConfig.GetBool("apm_config.profiling_send_to_main_endpoint"))
+	})
+
 	env = "DD_APM_MODE"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "edge")
@@ -2016,6 +2028,54 @@ func TestPeerTagsAggregation(t *testing.T) {
 		assert.Contains(t, cfg.ConfiguredPeerTags(), "db.system")     // known peer tag precursors that should be loaded from peer_tags.ini
 		assert.Contains(t, cfg.ConfiguredPeerTags(), "peer.hostname") // known peer tag precursors that should be loaded from peer_tags.ini
 		assert.Contains(t, cfg.ConfiguredPeerTags(), "peer.service")  // known peer tag precursors that should be loaded from peer_tags.ini
+	})
+}
+
+// TestSpanDerivedPrimaryTagsServerlessGate verifies that DD_APM_SPAN_DERIVED_PRIMARY_TAGS
+// is only honored when the agent runs in a serverless context (AAS extension or
+// cmd/serverless-init), and is silently ignored everywhere else.
+func TestSpanDerivedPrimaryTagsServerlessGate(t *testing.T) {
+	t.Run("aas-extension-honored", func(t *testing.T) {
+		t.Setenv("DD_AZURE_APP_SERVICES", "1")
+		overrides := map[string]interface{}{
+			"apm_config.span_derived_primary_tags": []string{"datacenter", "tier"},
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.Equal(t, []string{"datacenter", "tier"}, cfg.SpanDerivedPrimaryTagKeys)
+	})
+
+	t.Run("serverless-init-honored", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"serverless.enabled":                   true,
+			"apm_config.span_derived_primary_tags": []string{"datacenter", "tier"},
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.Equal(t, []string{"datacenter", "tier"}, cfg.SpanDerivedPrimaryTagKeys)
+	})
+
+	t.Run("regular-agent-ignored", func(t *testing.T) {
+		// Neither AAS env var nor serverless.enabled set: the option must be
+		// silently dropped on the floor.
+		overrides := map[string]interface{}{
+			"apm_config.span_derived_primary_tags": []string{"datacenter", "tier"},
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.Empty(t, cfg.SpanDerivedPrimaryTagKeys)
+	})
+
+	t.Run("aas-extension-unset-env", func(t *testing.T) {
+		t.Setenv("DD_AZURE_APP_SERVICES", "1")
+		// Gate is open but no value provided — field should remain empty.
+		config := buildConfigComponent(t, true)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.Empty(t, cfg.SpanDerivedPrimaryTagKeys)
 	})
 }
 
@@ -2365,6 +2425,87 @@ func TestMultiRegionFailoverConfig(t *testing.T) {
 	})
 }
 
+// TestRemoteConfigPerProductEnable covers the per-product RC enable flags and
+// the agent_config.enabled inheritance rule: agent_config.enabled inherits
+// apm_sampling.enabled when the user has explicitly set apm_sampling.enabled
+// but not agent_config.enabled, preserving the legacy bundled behavior.
+func TestRemoteConfigPerProductEnable(t *testing.T) {
+	t.Run("defaults: apm_sampling on, agent_config inherits true, semantics off", func(t *testing.T) {
+		config := buildConfigComponent(t, true)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.True(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.True(t, cfg.RemoteConfigAgentConfigEnabled, "agent_config should inherit apm_sampling.enabled (true) when unset")
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("apm_sampling=false, agent_config inherits false", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.apm_sampling.enabled": false,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.False(t, cfg.RemoteConfigAgentConfigEnabled, "agent_config should inherit apm_sampling.enabled (false) when unset")
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("apm_sampling=false, agent_config explicitly true", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.apm_sampling.enabled": false,
+			"remote_configuration.agent_config.enabled": true,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.True(t, cfg.RemoteConfigAgentConfigEnabled, "explicit agent_config.enabled=true should override inheritance")
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("apm_sampling=true, agent_config explicitly false", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.apm_sampling.enabled": true,
+			"remote_configuration.agent_config.enabled": false,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.True(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.False(t, cfg.RemoteConfigAgentConfigEnabled, "explicit agent_config.enabled=false should override inheritance")
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("apm_semantics enabled independently", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.apm_sampling.enabled":  false,
+			"remote_configuration.apm_semantics.enabled": true,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.False(t, cfg.RemoteConfigAgentConfigEnabled, "agent_config should NOT be pulled in by apm_semantics")
+		assert.True(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("remote_configuration.enabled=false zeros everything", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.enabled":               false,
+			"remote_configuration.apm_sampling.enabled":  true,
+			"remote_configuration.agent_config.enabled":  true,
+			"remote_configuration.apm_semantics.enabled": true,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.False(t, cfg.RemoteConfigAgentConfigEnabled)
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+}
+
 // buildComponentWithBufferLogger builds a component using a logger that writes to a buffer
 func buildComponentWithBufferLogger(t *testing.T, setHostnameInConfig bool, coreConfig configcomp.Component, logBuffer *bytes.Buffer) Component {
 	// Create a logger component that writes to the buffer instead of t.Log()
@@ -2443,6 +2584,37 @@ func TestNormalizeAPMMode(t *testing.T) {
 			} else {
 				assert.NotContains(t, logOutput, "invalid value for 'DD_APM_MODE'")
 			}
+		})
+	}
+}
+
+func TestDebuggerLogsEnabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected bool
+	}{
+		{
+			name:     "logs_enabled_only",
+			settings: map[string]interface{}{"logs_enabled": true},
+			expected: true,
+		},
+		{
+			name:     "override_when_logs_disabled",
+			settings: map[string]interface{}{"logs_enabled": false, "apm_config.debugger_logs_enabled_override": true},
+			expected: true,
+		},
+		{
+			name:     "logs_disabled_no_override",
+			settings: map[string]interface{}{"logs_enabled": false},
+			expected: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := buildConfigComponentFromOverrides(t, true, tt.settings).Object()
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.DebuggerLogsEnabled)
 		})
 	}
 }

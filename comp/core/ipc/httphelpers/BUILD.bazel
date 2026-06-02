@@ -22,7 +22,7 @@ go_test(
     name = "httphelpers_test",
     srcs = ["client_test.go"],
     embed = [":httphelpers"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/ipc/def",

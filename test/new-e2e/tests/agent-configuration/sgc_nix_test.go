@@ -26,7 +26,7 @@ type sgcLinuxRuntimeSuite struct {
 }
 
 //go:embed sgc-embedded/fixtures/secrets.yaml
-var embeddedSecretFile string
+var embeddedSecretFileYAML string
 
 func TestSGCLinuxRuntimeSuite(t *testing.T) {
 	t.Parallel()
@@ -42,7 +42,7 @@ secret_backend_config:
 	unixPermission := perms.NewUnixPermissions(perms.WithPermissions("0400"), perms.WithOwner("dd-agent"), perms.WithGroup("dd-agent"))
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(scenec2.WithAgentOptions(
-			agentparams.WithFileWithPermissions("/tmp/secrets.yaml", embeddedSecretFile, true, unixPermission),
+			agentparams.WithFileWithPermissions("/tmp/secrets.yaml", embeddedSecretFileYAML, true, unixPermission),
 			agentparams.WithSkipAPIKeyInConfig(),
 			agentparams.WithAgentConfig(config),
 		)),

@@ -27,8 +27,6 @@ unless do_repackage?
 
   dependency "python3"
 
-  dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
-
   dependency 'datadog-agent-dependencies'
 end
 
@@ -86,11 +84,6 @@ build do
     command "dda inv -- -e systray.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   else
     command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir='#{install_dir}'"
-    sh_ext = if linux_target? then "so" else "dylib" end
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //bazel/rules:replace_prefix" \
-      " --prefix '#{install_dir}/embedded'" \
-      " #{install_dir}/embedded/lib/libdatadog-agent-rtloader.#{sh_ext}" \
-      " #{install_dir}/embedded/lib/libdatadog-agent-three.#{sh_ext}"
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
@@ -129,6 +122,7 @@ build do
   else
     copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/agent.exe', "#{install_dir}/bin/agent"
+    copy 'bin/agent/agent.exe.pdb', "#{install_dir}/bin/agent"
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
     mkdir "#{install_dir}/bin/scripts/"
     copy "#{project_dir}/omnibus/windows-scripts/iis-instrumentation.bat", "#{install_dir}/bin/scripts/"
@@ -146,6 +140,7 @@ build do
   elsif windows_target?
     command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
+    move 'bin/installer/installer.exe.pdb', "#{install_dir}/datadog-installer.exe.pdb"
   end
 
   if linux_target?
@@ -162,6 +157,7 @@ build do
 
   if windows_target?
     copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
+    copy 'bin/trace-agent/trace-agent.exe.pdb', "#{install_dir}/bin/agent"
   else
     copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
   end
@@ -173,6 +169,7 @@ build do
 
   if windows_target?
     copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
+    copy 'bin/process-agent/process-agent.exe.pdb', "#{install_dir}/bin/agent"
   elsif not heroku_target?
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
   end
@@ -183,6 +180,7 @@ build do
 
     if windows_target?
       copy 'bin/privateactionrunner/privateactionrunner.exe', "#{install_dir}/bin/agent"
+      copy 'bin/privateactionrunner/privateactionrunner.exe.pdb', "#{install_dir}/bin/agent"
     elsif not heroku_target?
       copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
     end
@@ -199,6 +197,7 @@ build do
 
     if windows_target?
       copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
+      copy 'bin/system-probe/system-probe.exe.pdb', "#{install_dir}/bin/agent"
     else
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
     end
@@ -241,7 +240,7 @@ build do
   end
 
   # dd-procmgrd (process manager daemon)
-  if linux_target? and !heroku_target?
+  if (linux_target? || windows_target?) && !heroku_target?
     command_on_repo_root "bazelisk run #{bazel_flags} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
@@ -250,6 +249,7 @@ build do
     command "dda inv -- -e security-agent.build #{fips_args} --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
+      copy 'bin/security-agent/security-agent.exe.pdb', "#{install_dir}/bin/agent"
     else
       copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
     end
@@ -278,15 +278,26 @@ build do
   if osx_target?
     command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/macos/app:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
 
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
     mkdir "#{app_temp_dir}/MacOS"
-    systray_build_dir = "#{project_dir}/comp/core/gui/guiimpl/systray"
+    systray_build_dir = "#{project_dir}/comp/core/gui/impl/systray"
     # Add @executable_path/../Frameworks to rpath to find the swift libs in the Frameworks folder.
     target = "#{arm_target? ? 'arm64' : 'x86_64'}-apple-macos12.0" # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
     command "swiftc -O -swift-version \"5\" -target \"#{target}\" -Xlinker '-rpath' -Xlinker '@executable_path/../Frameworks' Sources/*.swift -o gui", cwd: systray_build_dir
     copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"
+  end
+
+  if windows_target?
+    # AI usage Chrome native messaging host (Rust). Mirrors the macOS osx_target? branch above:
+    # the Bazel target installs the .exe into bin/agent (Windows convention; see
+    # //pkg/procmgr/rust:install for the same Linux-vs-Windows prefix split). The final Chrome
+    # Native Messaging Host manifest is staged under bin/agent/dist so the MSI owns the file
+    # during rollback/uninstall. The MSI custom action rewrites it with the final installation path.
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   # APM Hands Off config file

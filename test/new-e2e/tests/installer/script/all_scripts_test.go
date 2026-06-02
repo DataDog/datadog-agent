@@ -113,17 +113,8 @@ type installerScriptSuite interface {
 }
 
 func newInstallerScriptSuite(pkg string, e2eos e2eos.Descriptor, arch e2eos.Architecture, opts ...awshost.ProvisionerOption) installerScriptBaseSuite {
-	var scriptURLPrefix string
-	if pipelineID, ok := os.LookupEnv("E2E_PIPELINE_ID"); ok {
-		scriptURLPrefix = fmt.Sprintf("https://s3.amazonaws.com/installtesting.datad0g.com/pipeline-%s/scripts/", pipelineID)
-	} else if commitHash, ok := os.LookupEnv("CI_COMMIT_SHA"); ok {
-		scriptURLPrefix = fmt.Sprintf("https://s3.amazonaws.com/installtesting.datad0g.com/%s/scripts/", commitHash)
-	} else {
-		require.FailNowf(nil, "missing script identifier", "CI_COMMIT_SHA or CI_PIPELINE_ID must be set")
-	}
-
 	return installerScriptBaseSuite{
-		scriptURLPrefix: scriptURLPrefix,
+		scriptURLPrefix: "https://" + installer.InstallerScriptBaseURL() + "/scripts/",
 		os:              e2eos,
 		arch:            arch,
 		pkg:             pkg,

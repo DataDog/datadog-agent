@@ -63,12 +63,19 @@ func (b *builder) ParseEnvAsMapStringInterface(_ string, _ func(string) map[stri
 	// pass
 }
 
-func (b *builder) ParseEnvAsSliceMapString(_ string, _ func(string) []map[string]string) {
-	// pass
+// ParseEnvSplitComma sets env_parser: comma_separated on the schema node for key.
+func (b *builder) ParseEnvSplitComma(key string) {
+	b.setEnvParser(key, "comma_separated")
 }
 
-func (b *builder) ParseEnvAsSlice(_ string, _ func(string) []interface{}) {
-	// pass
+// ParseEnvSplitSpace sets env_parser: space_separated on the schema node for key.
+func (b *builder) ParseEnvSplitSpace(key string) {
+	b.setEnvParser(key, "space_separated")
+}
+
+// ParseEnvJSON sets env_parser: json on the schema node for key.
+func (b *builder) ParseEnvJSON(key string, _ any) {
+	b.setEnvParser(key, "json")
 }
 
 func (b *builder) SetKnown(key string) {
@@ -277,6 +284,11 @@ func (b *builder) Warnings() *model.Warnings {
 	return nil
 }
 
+func (b *builder) StartTime() time.Time {
+	b.notImplemented()
+	return time.Time{}
+}
+
 func (b *builder) Object() model.Reader {
 	b.notImplemented()
 	return nil
@@ -292,7 +304,7 @@ func (b *builder) Stringify(_ model.Source, _ ...model.StringifyOption) string {
 }
 
 func (b *builder) Set(_ string, _ interface{}, _ model.Source) {
-	b.notImplemented()
+	// pass
 }
 
 func (b *builder) SetWithoutSource(_ string, _ interface{}) {

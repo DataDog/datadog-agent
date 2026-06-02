@@ -1,6 +1,4 @@
 """Agent assets - typically configuration files that ship with the product."""
-# Don't let gazelle delete this based on the top level exclude.
-# gazelle:exclude
 
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
