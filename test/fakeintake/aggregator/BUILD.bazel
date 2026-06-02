@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "agenthealthAggregator.go",
         "apmStatsAggregator.go",
+        "apmTelemetryAggregator.go",
         "checkRunAggregator.go",
         "common.go",
         "connectionsAggregator.go",
