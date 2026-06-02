@@ -63,19 +63,6 @@ func FindProfile(sysOID string) (profiledefinition.ProfileDefinition, error) {
 	return snmp.BuildProfileForSysObjectID(sysOID)
 }
 
-// profileDefinitions returns profile definitions for the given profile names. Returns error if any profile fails to load.
-func profileDefinitions(profileNames []string) ([]profiledefinition.ProfileDefinition, error) {
-	var defs []profiledefinition.ProfileDefinition
-	for _, name := range profileNames {
-		profileDef, err := snmp.GetProfileDefinition(name)
-		if err != nil {
-			return nil, fmt.Errorf("profile %s: %w", name, err)
-		}
-		defs = append(defs, profileDef)
-	}
-	return defs, nil
-}
-
 func normalizeOID(oid string) string {
 	s := strings.TrimPrefix(oid, ".")
 	s = strings.TrimSpace(s)
@@ -166,15 +153,8 @@ func Analyze(pdus []gosnmp.SnmpPDU, sysOID string) (
 	}
 	profileName = profileDef.Name
 
-	// Build list of profile definitions: root profile first, then extended profiles (e.g. _base, _generic-if).
 	extendedProfiles = profileDef.Extends
-	extendedProfileDefs, err := profileDefinitions(profileDef.Extends)
-	if err != nil {
-		return nil, nil, "", nil, err
-	}
-	var allProfileDefs []profiledefinition.ProfileDefinition
-	allProfileDefs = append(allProfileDefs, profileDef)
-	allProfileDefs = append(allProfileDefs, extendedProfileDefs...)
+	allProfileDefs := []profiledefinition.ProfileDefinition{profileDef}
 
 	// Map each known OID to the profile name; columnBases are used only for prefix (table instance) lookup.
 	profileByOID, nameByOID, columnBases := oidMap(allProfileDefs)
