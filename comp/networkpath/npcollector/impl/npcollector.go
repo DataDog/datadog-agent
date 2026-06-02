@@ -255,10 +255,21 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 	return vpcSubnets, nil
 }
 
-func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
-	if !s.collectorConfigs.networkPathCollectorEnabled() {
+func (s *npCollectorImpl) ScheduleNetworkTrafficPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
+	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
+	s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns)
+}
+
+func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
+	if !s.collectorConfigs.netflowMonitoringEnabled {
+		return
+	}
+	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns)
+}
+
+func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection]) {
 	vpcSubnets, err := s.getVPCSubnets()
 	if err != nil {
 		s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
@@ -269,6 +280,7 @@ func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.Networ
 	connCount := 0
 	for conn := range conns {
 		connCount++
+		conn.Origin = origin
 		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets) {
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
 			continue

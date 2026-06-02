@@ -28,7 +28,6 @@ import (
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
 	"github.com/DataDog/datadog-agent/pkg/network/remoteservice"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -220,7 +219,7 @@ func (c *ConnectionsCheck) Cleanup() {
 }
 
 func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) {
-	c.npCollector.ScheduleNetworkPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
+	c.npCollector.ScheduleNetworkTrafficPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
 		for _, conn := range conns.Conns {
 			srcIP, err := netip.ParseAddr(conn.Laddr.GetIp())
 			if err != nil {
@@ -245,7 +244,6 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) {
 				Dest:              dest,
 				TranslatedDest:    transDest,
 				SourceContainerID: conn.Laddr.GetContainerId(),
-				Origin:            payload.PathOriginNetworkTraffic,
 				Domain:            getDNSNameForIP(conns, conn.Raddr.GetIp()),
 				Type:              conn.Type,
 				Direction:         conn.Direction,

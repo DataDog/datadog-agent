@@ -56,8 +56,17 @@ type capturingNPCollector struct {
 	conns []npmodel.NetworkPathConnection
 }
 
-func (c *capturingNPCollector) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
+func (c *capturingNPCollector) ScheduleNetworkTrafficPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
+	c.capture(payload.PathOriginNetworkTraffic, conns)
+}
+
+func (c *capturingNPCollector) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
+	c.capture(payload.PathOriginNetflow, conns)
+}
+
+func (c *capturingNPCollector) capture(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection]) {
 	for conn := range conns {
+		conn.Origin = origin
 		c.conns = append(c.conns, conn)
 	}
 }

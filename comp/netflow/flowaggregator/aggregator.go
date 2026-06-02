@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
@@ -202,12 +201,11 @@ func (agg *FlowAggregator) scheduleNetworkPathForFlow(flow *common.Flow) {
 		family = model.ConnectionFamily_v6
 	}
 
-	agg.npCollector.ScheduleNetworkPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
+	agg.npCollector.ScheduleNetflowPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
 		yield(npmodel.NetworkPathConnection{
 			Source:             netip.AddrPortFrom(srcIP, srcPort),
 			Dest:               netip.AddrPortFrom(dstIP, dstPort),
 			Namespace:          flow.Namespace,
-			Origin:             payload.PathOriginNetflow,
 			ReverseDNSHostname: normalizeReverseDNSHostname(flow.DstReverseDNSHostname),
 			Type:               connType,
 			Direction:          model.ConnectionDirection_outgoing,
