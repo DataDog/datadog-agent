@@ -58,16 +58,11 @@ func TestWithCLIOverride(t *testing.T) {
 	assert.Equal(t, map[string]interface{}{"test.setting": true, "test.setting2": "test"}, params.cliOverride)
 }
 
-func TestWithDefaultConfPathOverridesNewAgentParamsDefault(t *testing.T) {
+func TestWithoutDefaultConfPath(t *testing.T) {
 	// NewAgentParams hardcodes defaultConfPath to DefaultConfPath. Verify
-	// WithDefaultConfPath (applied via options) overrides that hardcoded
-	// value, including the ability to set it to the empty string so the
-	// config component's search-directory fallback is disabled.
-	params := NewAgentParams("", WithDefaultConfPath(""))
-	assert.Equal(t, "", params.defaultConfPath, "WithDefaultConfPath should override the hardcoded DefaultConfPath")
-
-	params = NewAgentParams("", WithDefaultConfPath("/custom/path"))
-	assert.Equal(t, "/custom/path", params.defaultConfPath)
+	// WithoutDefaultConfPath disables the search-directory fallback.
+	params := NewAgentParams("", WithoutDefaultConfPath())
+	assert.Equal(t, "", params.defaultConfPath, "WithoutDefaultConfPath should clear the hardcoded DefaultConfPath")
 
 	// Without the option, the platform default is preserved.
 	params = NewAgentParams("")

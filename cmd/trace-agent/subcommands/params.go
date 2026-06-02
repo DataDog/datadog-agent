@@ -31,7 +31,7 @@ func AgentParamsOptions(p *GlobalParams) []func(*coreconfig.Params) {
 		coreconfig.WithFleetPoliciesDirPath(p.FleetPoliciesDirPath),
 	}
 	if p.ConfPath == "" {
-		opts = append(opts, coreconfig.WithDefaultConfPath(""))
+		opts = append(opts, coreconfig.WithoutDefaultConfPath())
 	}
 	return opts
 }
