@@ -18,6 +18,7 @@ import (
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/impl/check/eventdatafilter"
+	windowseventlogchannels "github.com/DataDog/datadog-agent/comp/healthplatform/issues/windowseventlogchannels"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -28,7 +29,6 @@ import (
 	evtsession "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
 	evtsubscribe "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
 	"golang.org/x/sys/windows"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func (c *Check) getChannelPath() (string, error) {
@@ -136,8 +136,15 @@ func (c *Check) startSubscription() error {
 	if err != nil {
 		if errors.Is(err, windows.ERROR_EVT_CHANNEL_NOT_FOUND) && c.issueReporter != nil {
 			channelPath, _ := c.getChannelPath()
-			if issue := buildChannelNotFoundIssue(channelPath); issue != nil {
-				_ = c.issueReporter.AcceptIssue(issue)
+			issueID := fmt.Sprintf("%s:%s", windowseventlogchannels.IssueIDPrefix, string(c.ID()))
+			issue, buildErr := windowseventlogchannels.NewWindowsEventLogChannelsIssue().BuildIssue(map[string]string{"channelPath": channelPath})
+			if buildErr != nil {
+				issue = &healthplatformpayload.Issue{Id: issueID, IssueName: windowseventlogchannels.IssueName, Source: CheckName}
+			} else {
+				issue.Id = issueID
+			}
+			if reportErr := c.issueReporter.ReportIssue(issue); reportErr != nil {
+				log.Warnf("win32_event_log: failed to report channel-not-found issue for %s: %v", channelPath, reportErr)
 			}
 		}
 		return err
@@ -384,35 +391,4 @@ func (c *Check) loadDDSecurityProfile(level string) (eventdatafilter.Filter, err
 		return nil, fmt.Errorf("failed to load security profile: %w", err)
 	}
 	return f, nil
-}
-
-// buildChannelNotFoundIssue builds a health platform issue for a Windows Event Log channel that does not exist.
-func buildChannelNotFoundIssue(channelPath string) *healthplatformpayload.Issue {
-	extra, err := structpb.NewStruct(map[string]any{
-		"channelPath": channelPath,
-	})
-	if err != nil {
-		return nil
-	}
-	return &healthplatformpayload.Issue{
-		Id:          "windows-eventlog-channel-not-found",
-		IssueName:   "windows_eventlog_channel_not_found",
-		Title:       "Windows Event Log Channel Not Found",
-		Description: fmt.Sprintf("The Windows Event Log integration is configured with channel %q which does not exist on this host. Events from this channel will not be collected.", channelPath),
-		Category:    "configuration",
-		Location:    "win32-event-log",
-		Severity:    healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
-		Source:      "integrations",
-		Extra:       extra,
-		Remediation: &healthplatformpayload.Remediation{
-			Summary: "Verify that the channel_path in the Windows Event Log integration configuration exists on this host.",
-			Steps: []*healthplatformpayload.RemediationStep{
-				{Order: 1, Text: "List all available channels: wevtutil el"},
-				{Order: 2, Text: fmt.Sprintf("Confirm channel %q exists in the list above", channelPath)},
-				{Order: 3, Text: "Common built-in channels: System, Application, Security, Microsoft-Windows-PowerShell/Operational"},
-				{Order: 4, Text: fmt.Sprintf("Fix the channel_path in win32_event_log.d/conf.yaml for %q", channelPath)},
-			},
-		},
-		Tags: []string{"windows-event-log", "configuration", "win32_event_log"},
-	}
 }
