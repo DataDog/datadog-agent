@@ -698,6 +698,15 @@ DATADOG_AGENT_RTLOADER_API void set_emit_agent_telemetry_cb(rtloader_t *, cb_emi
 */
 DATADOG_AGENT_RTLOADER_API void set_report_issue_cb(rtloader_t *, cb_report_issue_t);
 
+/*! \fn void set_resolve_issue_cb(rtloader_t *, cb_resolve_issue_t)
+    \brief Sets a callback for resolving health platform issues from Python checks.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_resolve_issue_t prototype to the callback function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_resolve_issue_cb(rtloader_t *, cb_resolve_issue_t);
+
 #ifdef __cplusplus
 }
 #endif

@@ -28,6 +28,7 @@ static cb_get_process_start_time_t cb_get_process_start_time = NULL;
 static cb_obfuscate_mongodb_string_t cb_obfuscate_mongodb_string = NULL;
 static cb_emit_agent_telemetry_t cb_emit_agent_telemetry = NULL;
 static cb_report_issue_t cb_report_issue = NULL;
+static cb_resolve_issue_t cb_resolve_issue = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -49,6 +50,7 @@ static PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject
 static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *report_issue(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *resolve_issue(PyObject *self, PyObject *args, PyObject *kwargs);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
@@ -70,6 +72,7 @@ static PyMethodDef methods[] = {
     { "obfuscate_mongodb_string", (PyCFunction)obfuscate_mongodb_string, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a MongoDB command string." },
     { "emit_agent_telemetry", (PyCFunction)emit_agent_telemetry, METH_VARARGS|METH_KEYWORDS, "Emit agent telemetry." },
     { "report_issue", (PyCFunction)report_issue, METH_VARARGS|METH_KEYWORDS, "Report a health platform issue." },
+    { "resolve_issue", (PyCFunction)resolve_issue, METH_VARARGS|METH_KEYWORDS, "Resolve a health platform issue by issue id." },
     { NULL, NULL } // guards
 };
 
@@ -166,6 +169,11 @@ void _set_emit_agent_telemetry_cb(cb_emit_agent_telemetry_t cb) {
 void _set_report_issue_cb(cb_report_issue_t cb)
 {
     cb_report_issue = cb;
+}
+
+void _set_resolve_issue_cb(cb_resolve_issue_t cb)
+{
+    cb_resolve_issue = cb;
 }
 
 
@@ -986,17 +994,44 @@ static PyObject *report_issue(PyObject *self, PyObject *args, PyObject *kwargs)
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
-    char *check_id = NULL;
     char *check_name = NULL;
     char *report_json = NULL;
-    static char *kwlist[] = { "check_id", "check_name", "report_json", NULL };
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss|z", kwlist, &check_id, &check_name, &report_json)) {
+    static char *kwlist[] = { "check_name", "report_json", NULL };
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|z", kwlist, &check_name, &report_json)) {
         PyGILState_Release(gstate);
         return NULL;
     }
 
     char *err = NULL;
-    cb_report_issue(check_id, check_name, report_json, &err);
+    } else {
+        Py_INCREF(Py_None);
+        retval = Py_None;
+    }
+
+    PyGILState_Release(gstate);
+    return retval;
+}
+
+/*! \fn PyObject *resolve_issue(PyObject *self, PyObject *args, PyObject *kwargs)
+    \brief Implements `datadog_agent.resolve_issue`, forwarding to the CGO callback.
+*/
+static PyObject *resolve_issue(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    if (cb_resolve_issue == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    char *issue_id = NULL;
+    static char *kwlist[] = { "issue_id", NULL };
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s", kwlist, &issue_id)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    char *err = NULL;
+    cb_resolve_issue(issue_id, &err);
 
     PyObject *retval = NULL;
     if (err != NULL) {

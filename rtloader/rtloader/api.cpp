@@ -602,6 +602,11 @@ void set_report_issue_cb(rtloader_t *rtloader, cb_report_issue_t cb)
     AS_TYPE(RtLoader, rtloader)->setReportIssueCb(cb);
 }
 
+void set_resolve_issue_cb(rtloader_t *rtloader, cb_resolve_issue_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setResolveIssueCb(cb);
+}
+
 /*
  * _util API
  */

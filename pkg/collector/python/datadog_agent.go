@@ -674,12 +674,12 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 	}
 }
 
-func parseIssueReportJSON(payload string) (*healthplatformpayload.IssueReport, error) {
+func parseIssueReportJSON(payload string) (*healthplatformpayload.Issue, error) {
 	t := strings.TrimSpace(payload)
 	if t == "" || t == "null" {
 		return nil, nil
 	}
-	var msg healthplatformpayload.IssueReport
+	var msg healthplatformpayload.Issue
 	if err := protojson.Unmarshal([]byte(t), &msg); err != nil {
 		return nil, err
 	}
@@ -687,10 +687,10 @@ func parseIssueReportJSON(payload string) (*healthplatformpayload.IssueReport, e
 }
 
 // ReportIssue forwards Python health platform reports to the injected health platform component.
-// reportJSON is protobuf JSON for healthplatform.IssueReport; empty or "null" clears the issue for the check.
+// reportJSON is protobuf JSON for healthplatform.Issue
 //
 //export ReportIssue
-func ReportIssue(checkID, checkName, reportJSON *C.char, errOut **C.char) {
+func ReportIssue(checkName, reportJSON *C.char, errOut **C.char) {
 	*errOut = nil
 
 	hp := getHealthPlatform()
@@ -699,11 +699,12 @@ func ReportIssue(checkID, checkName, reportJSON *C.char, errOut **C.char) {
 		return
 	}
 
-	goCheckID := C.GoString(checkID)
 	goCheckName := C.GoString(checkName)
 	var goPayload string
 	if reportJSON != nil {
 		goPayload = C.GoString(reportJSON)
+	} else {
+		return
 	}
 
 	report, err := parseIssueReportJSON(goPayload)
@@ -712,10 +713,31 @@ func ReportIssue(checkID, checkName, reportJSON *C.char, errOut **C.char) {
 		return
 	}
 
-	err = hp.ReportIssue(goCheckID, goCheckName, report)
+	report.Source = goCheckName
+
+	err = hp.ReportIssue(report)
 	if err != nil {
 		*errOut = TrackedCString(err.Error())
 	}
+}
+
+// ResolveIssue marks a health platform issue resolved by IssueId (Python: datadog_agent.resolve_issue).
+//
+//export ResolveIssue
+func ResolveIssue(issueID *C.char, errOut **C.char) {
+	*errOut = nil
+
+	hp := getHealthPlatform()
+	if hp == nil {
+		*errOut = TrackedCString("health platform not initialized")
+		return
+	}
+
+	var id string
+	if issueID != nil {
+		id = C.GoString(issueID)
+	}
+	hp.ResolveIssue(id)
 }
 
 // httpHeaders returns a http headers including various basic information (User-Agent, Content-Type...).

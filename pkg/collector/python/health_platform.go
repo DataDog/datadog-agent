@@ -18,7 +18,7 @@ var (
 	healthPlatform   healthplatformdef.Component
 )
 
-// SetHealthPlatform wires the health platform component for CGO callbacks (e.g. datadog_agent.report_issue).
+// SetHealthPlatform wires the health platform component for CGO callbacks (e.g. datadog_agent.report_issue, resolve_issue).
 // Called in collector.go before InitPython / Initialize so Python checks can report issues once the interpreter starts.
 func SetHealthPlatform(h healthplatformdef.Component) {
 	healthPlatformMu.Lock()

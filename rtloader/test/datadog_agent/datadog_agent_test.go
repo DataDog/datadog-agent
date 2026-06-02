@@ -754,7 +754,7 @@ func TestReportIssue(t *testing.T) {
 	// Note the tab is needed on the second line because of the string interpolation in datadog_agent.go:run
 	code := `
 	payload = '{"issueId":"stub-issue","context":{}}'
-	datadog_agent.report_issue(check_id="stub-check", check_name="stub-name", report_json=payload)
+	datadog_agent.report_issue(check_name="stub-name", report_json=payload)
 `
 	out, err := run(code)
 	if err != nil {
@@ -765,7 +765,7 @@ func TestReportIssue(t *testing.T) {
 	}
 
 	codeErr := `
-	datadog_agent.report_issue(check_id="error-check", check_name="stub-name", report_json='{}')
+	datadog_agent.report_issue(check_name="error-check", report_json='{}')
 `
 	out, err = run(codeErr)
 	if err != nil {
@@ -776,7 +776,7 @@ func TestReportIssue(t *testing.T) {
 	}
 
 	codeClear := `
-	datadog_agent.report_issue(check_id="stub-check", check_name="stub-name", report_json=None)
+	datadog_agent.report_issue(check_name="stub-name", report_json=None)
 `
 	out, err = run(codeClear)
 	if err != nil {
@@ -784,6 +784,45 @@ func TestReportIssue(t *testing.T) {
 	}
 	if out != "" {
 		t.Fatalf("expected no output for clear path, got %q", out)
+	}
+
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestResolveIssue(t *testing.T) {
+	helpers.ResetMemoryStats()
+
+	code := `
+	datadog_agent.resolve_issue(issue_id="stub-issue")
+`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "" {
+		t.Fatalf("expected no stderr output, got %q", out)
+	}
+
+	codeErr := `
+	datadog_agent.resolve_issue(issue_id="error-resolve")
+`
+	out, err = run(codeErr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "RuntimeError") || !strings.Contains(out, "stub resolve failure") {
+		t.Fatalf("expected RuntimeError with stub resolve failure, got %q", out)
+	}
+
+	codeEmpty := `
+	datadog_agent.resolve_issue(issue_id="")
+`
+	out, err = run(codeEmpty)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "" {
+		t.Fatalf("expected no output for empty id path, got %q", out)
 	}
 
 	helpers.AssertMemoryUsage(t)

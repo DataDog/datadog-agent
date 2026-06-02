@@ -1086,6 +1086,11 @@ void Three::setReportIssueCb(cb_report_issue_t cb)
     _set_report_issue_cb(cb);
 }
 
+void Three::setResolveIssueCb(cb_resolve_issue_t cb)
+{
+    _set_resolve_issue_cb(cb);
+}
+
 // Python Helpers
 
 // get_integration_list return a list of every datadog's wheels installed.
