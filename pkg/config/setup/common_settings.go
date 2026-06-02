@@ -1001,6 +1001,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Datadog Agent Manager System Tray
 	config.BindEnvAndSetDefault("system_tray.log_file", "")
 
+	// Integration Detection
+	config.BindEnvAndSetDefault("discovery.integration_detection.enabled", false)
+
 	// Language Detection
 	config.BindEnvAndSetDefault("language_detection.enabled", false)
 	config.BindEnvAndSetDefault("language_detection.reporting.enabled", true)

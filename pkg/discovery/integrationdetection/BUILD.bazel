@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "integrationdetection",
+    srcs = [
+        "detector.go",
+        "integrations.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/discovery/integrationdetection",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/integration",
+        "//pkg/util/containers",
+    ],
+)
+
+go_test(
+    name = "integrationdetection_test",
+    srcs = ["detector_test.go"],
+    embed = [":integrationdetection"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/types",
+        "//comp/core/autodiscovery/scheduler",
+        "//comp/core/autodiscovery/telemetry",
+        "//pkg/collector/check/id",
+        "//pkg/config/setup",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
