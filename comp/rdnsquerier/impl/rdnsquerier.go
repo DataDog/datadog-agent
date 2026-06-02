@@ -185,16 +185,12 @@ func (q *rdnsQuerierImpl) GetHostnameAsyncWithOptions(ipAddr []byte, opts rdnsqu
 	return err
 }
 
-func (q *rdnsQuerierImpl) GetHostname(ctx context.Context, ipAddr string) (string, error) {
-	return q.GetHostnameWithOptions(ctx, ipAddr, rdnsquerier.LookupOptions{})
-}
-
-// GetHostnameWithOptions attempts to resolve the hostname for the given IP address synchronously.
+// GetHostname attempts to resolve the hostname for the given IP address synchronously.
 // If the IP address is invalid then an error is returned.
-// If the IP address is not eligible for lookup according to the supplied options then it is ignored - no lookup is performed and nil error is returned.
-// If the IP address is eligible for lookup then the IP address will be resolved to a hostname.
+// If the IP address is not in the private address space then it is ignored - no lookup is performed and nil error is returned.
+// If the IP address is in the private address space then the IP address will be resolved to a hostname.
 // The function accepts a timeout via context and will return an error if the timeout is reached.
-func (q *rdnsQuerierImpl) GetHostnameWithOptions(ctx context.Context, ipAddr string, opts rdnsquerier.LookupOptions) (string, error) {
+func (q *rdnsQuerierImpl) GetHostname(ctx context.Context, ipAddr string) (string, error) {
 	q.internalTelemetry.total.Inc()
 
 	netipAddr, err := netip.ParseAddr(ipAddr)
@@ -203,10 +199,11 @@ func (q *rdnsQuerierImpl) GetHostnameWithOptions(ctx context.Context, ipAddr str
 		return "", fmt.Errorf("invalid IP address %s: %v", ipAddr, err)
 	}
 
-	if !q.allowLookup(netipAddr, opts) {
-		q.logger.Tracef("Reverse DNS Enrichment IP address %s is not eligible for reverse DNS lookup", ipAddr)
+	if !netipAddr.IsPrivate() {
+		q.logger.Tracef("Reverse DNS Enrichment IP address %s is not in the private address space", ipAddr)
 		return "", nil
 	}
+	q.internalTelemetry.private.Inc()
 
 	resultsChan := make(chan rdnsquerier.ReverseDNSResult, 1)
 
@@ -233,16 +230,12 @@ func (q *rdnsQuerierImpl) GetHostnameWithOptions(ctx context.Context, ipAddr str
 	}
 }
 
-func (q *rdnsQuerierImpl) GetHostnames(ctx context.Context, ipAddrs []string) map[string]rdnsquerier.ReverseDNSResult {
-	return q.GetHostnamesWithOptions(ctx, ipAddrs, rdnsquerier.LookupOptions{})
-}
-
-// GetHostnamesWithOptions attempts to resolve the hostname for the given IP addresses.
+// GetHostnames attempts to resolve the hostname for the given IP addresses.
 // If the IP address is invalid then an error is returned.
-// If the IP address is not eligible for lookup according to the supplied options then it is ignored - no lookup is performed and nil error is returned.
-// If the IP address is eligible for lookup then the IP address will be resolved to a hostname.
+// If the IP address is not in the private address space then it is ignored - no lookup is performed and nil error is returned.
+// If the IP address is in the private address space then the IP address will be resolved to a hostname.
 // The function accepts a timeout via context and will return an error if the timeout is reached.
-func (q *rdnsQuerierImpl) GetHostnamesWithOptions(ctx context.Context, ipAddrs []string, opts rdnsquerier.LookupOptions) map[string]rdnsquerier.ReverseDNSResult {
+func (q *rdnsQuerierImpl) GetHostnames(ctx context.Context, ipAddrs []string) map[string]rdnsquerier.ReverseDNSResult {
 	var wg sync.WaitGroup
 	resultsChan := make(chan rdnsquerier.ReverseDNSResult, len(ipAddrs))
 
@@ -250,7 +243,7 @@ func (q *rdnsQuerierImpl) GetHostnamesWithOptions(ctx context.Context, ipAddrs [
 		wg.Add(1)
 		go func(ctx context.Context, ipAddr string) {
 			defer wg.Done()
-			hostname, err := q.GetHostnameWithOptions(ctx, ipAddr, opts)
+			hostname, err := q.GetHostname(ctx, ipAddr)
 			resultsChan <- rdnsquerier.ReverseDNSResult{IP: ipAddr, Hostname: hostname, Err: err}
 		}(ctx, ipAddr)
 	}

@@ -29,7 +29,5 @@ type Component interface {
 	GetHostnameAsync([]byte, func(string), func(string, error)) error
 	GetHostnameAsyncWithOptions([]byte, LookupOptions, func(string), func(string, error)) error
 	GetHostname(context.Context, string) (string, error)
-	GetHostnameWithOptions(context.Context, string, LookupOptions) (string, error)
 	GetHostnames(context.Context, []string) map[string]ReverseDNSResult
-	GetHostnamesWithOptions(context.Context, []string, LookupOptions) map[string]ReverseDNSResult
 }

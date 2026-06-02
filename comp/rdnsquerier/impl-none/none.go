@@ -44,20 +44,8 @@ func (q *rdnsQuerierImplNone) GetHostname(_ context.Context, _ string) (string, 
 	return "", nil
 }
 
-// GetHostnameWithOptions does nothing for the noop rdnsquerier implementation
-func (q *rdnsQuerierImplNone) GetHostnameWithOptions(_ context.Context, _ string, _ rdnsquerier.LookupOptions) (string, error) {
-	// noop
-	return "", nil
-}
-
 // GetHostnames does nothing for the noop rdnsquerier implementation
 func (q *rdnsQuerierImplNone) GetHostnames(_ context.Context, _ []string) map[string]rdnsquerier.ReverseDNSResult {
-	// noop
-	return nil
-}
-
-// GetHostnamesWithOptions does nothing for the noop rdnsquerier implementation
-func (q *rdnsQuerierImplNone) GetHostnamesWithOptions(_ context.Context, _ []string, _ rdnsquerier.LookupOptions) map[string]rdnsquerier.ReverseDNSResult {
 	// noop
 	return nil
 }

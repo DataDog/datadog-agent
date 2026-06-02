@@ -56,32 +56,22 @@ func (q *rdnsQuerierMock) GetHostnameAsyncWithOptions(ipAddr []byte, opts rdnsqu
 	return nil
 }
 
-// GetHostname simulates resolving the hostname for the given IP address synchronously using the default private-only lookup behavior.
-func (q *rdnsQuerierMock) GetHostname(ctx context.Context, ipAddr string) (string, error) {
-	return q.GetHostnameWithOptions(ctx, ipAddr, rdnsquerier.LookupOptions{})
-}
-
-// GetHostnameWithOptions simulates resolving the hostname for the given IP address synchronously.
-func (q *rdnsQuerierMock) GetHostnameWithOptions(_ context.Context, ipAddr string, opts rdnsquerier.LookupOptions) (string, error) {
+// GetHostname simulates resolving the hostname for the given IP address synchronously.
+func (q *rdnsQuerierMock) GetHostname(_ context.Context, ipAddr string) (string, error) {
 	netipAddr, err := netip.ParseAddr(ipAddr)
 	if err != nil {
 		return "", fmt.Errorf("invalid IP address %v", ipAddr)
 	}
 
-	if !allowLookup(netipAddr, opts) {
+	if !netipAddr.IsPrivate() {
 		return "", nil
 	}
 
 	return "hostname-" + netipAddr.String(), nil
 }
 
-// GetHostnames simulates resolving the hostnames for the given IP addresses synchronously using the default private-only lookup behavior.
-func (q *rdnsQuerierMock) GetHostnames(ctx context.Context, ipAddrs []string) map[string]rdnsquerier.ReverseDNSResult {
-	return q.GetHostnamesWithOptions(ctx, ipAddrs, rdnsquerier.LookupOptions{})
-}
-
-// GetHostnamesWithOptions simulates resolving the hostnames for the given IP addresses synchronously.
-func (q *rdnsQuerierMock) GetHostnamesWithOptions(_ context.Context, ipAddrs []string, opts rdnsquerier.LookupOptions) map[string]rdnsquerier.ReverseDNSResult {
+// GetHostnames simulates resolving the hostnames for the given IP addresses synchronously.
+func (q *rdnsQuerierMock) GetHostnames(_ context.Context, ipAddrs []string) map[string]rdnsquerier.ReverseDNSResult {
 	results := make(map[string]rdnsquerier.ReverseDNSResult, len(ipAddrs))
 	for _, ipAddr := range ipAddrs {
 		netipAddr, err := netip.ParseAddr(ipAddr)
@@ -90,7 +80,7 @@ func (q *rdnsQuerierMock) GetHostnamesWithOptions(_ context.Context, ipAddrs []s
 			continue
 		}
 
-		if !allowLookup(netipAddr, opts) {
+		if !netipAddr.IsPrivate() {
 			results[ipAddr] = rdnsquerier.ReverseDNSResult{IP: ipAddr}
 			continue
 		}
