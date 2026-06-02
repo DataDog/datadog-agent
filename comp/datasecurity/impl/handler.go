@@ -10,7 +10,6 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	yaml "gopkg.in/yaml.v3"
 )
@@ -203,6 +202,19 @@ func instanceHasDataSecurityEnabled(instance map[string]any) bool {
 	return enabled
 }
 
+// instanceHasDataSecurityRules reports whether a parsed instance already carries
+// rules in its data_security section. Such an instance is one we enriched
+// ourselves, so it must not be taken over again as a base config (otherwise we
+// would treat our own output as the original to restore on revert).
+func instanceHasDataSecurityRules(instance map[string]any) bool {
+	ds, ok := instance[dataSecuritySection].(map[string]any)
+	if !ok {
+		return false
+	}
+	_, has := ds["rules"]
+	return has
+}
+
 // instanceMatches reports whether a parsed instance targets host and has opted
 // into data security.
 func instanceMatches(instance map[string]any, host string) bool {
@@ -212,12 +224,14 @@ func instanceMatches(instance map[string]any, host string) bool {
 
 // findPostgresConfigs returns the supported DB configs currently known to
 // autodiscovery that have at least one instance targeting host with
-// data_security.enabled: true. Configs this component scheduled itself are
-// skipped so we never enrich our own output.
+// data_security.enabled: true. Configs we already enriched (their matching
+// instance carries rules) are skipped so we never take over our own output —
+// note this also correctly re-discovers a base config we previously restored,
+// even though autodiscovery has since re-stamped its provider as ours.
 func (c *component) findPostgresConfigs(host string) []integration.Config {
 	var out []integration.Config
 	for _, cfg := range c.ac.GetUnresolvedConfigs() {
-		if !isSupportedIntegration(cfg.Name) || cfg.Provider == names.DataSecurity {
+		if !isSupportedIntegration(cfg.Name) {
 			continue
 		}
 		for _, instanceData := range cfg.Instances {
@@ -225,7 +239,8 @@ func (c *component) findPostgresConfigs(host string) []integration.Config {
 			if err := yaml.Unmarshal(instanceData, &instance); err != nil {
 				continue
 			}
-			if instanceMatches(instance, host) {
+			// TODO(DSEC Aimene) store config id to revert
+			if instanceMatches(instance, host) && !instanceHasDataSecurityRules(instance) {
 				out = append(out, cfg)
 				break
 			}
