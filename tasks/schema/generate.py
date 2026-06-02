@@ -7,7 +7,7 @@ import os
 import tempfile
 
 import yaml
-from invoke import task
+from invoke import task, Failure
 from invoke.exceptions import Exit
 
 from tasks.libs.build.bazel import bazel
@@ -222,10 +222,15 @@ def extract_comments(ctx):
 
 
 @task
-def codegen(ctx, schema_file, keep_orig_order=False):
-    # `keep_orig_order` controls whether:
-    #   False: settings are output in order from core_schema.yaml
-    #   True:  settings are output in order from common_settings.go (easier to diff)
+def codegen(ctx, schema_file, keep_orig_order=False, check=False, fix=False, keeptmp=False):
+    """
+    Code generator for config schema
+
+    schema_file:     The schema to generate code from
+    keep_orig_order: If true, extract order from *_settings.go files, keep it the same
+    check:           If true, validate whether codegen matches SCHEMA_DIR
+    fix:             If true, copy the codegen files into SCHEMA_DIR
+    """
 
     with open(schema_file) as f:
         core_schema = yaml.safe_load(f)
@@ -233,4 +238,22 @@ def codegen(ctx, schema_file, keep_orig_order=False):
 
     tmpdir = tempfile.mkdtemp()
     run_codegen(core_schema, hints, keep_orig_order, tmpdir)
-    print("Codegen complete. Output dir: %s" % tmpdir)
+
+    display = not check and not fix
+
+    if display:
+        print("Codegen complete. Output dir: %s" % tmpdir)
+
+    if check:
+        # Compare tmpdir against SCHEMA_DIR, fail if different
+        try:
+            ctx.run(f"diff {tmpdir}/ {SCHEMA_DIR}/")
+        except Failure:
+            print("Error: Schema codegen differs, fix this by running `dda inv schema.codegen --fix`")
+
+    if fix:
+        # Copy the files into SCHEMA_DIR
+        ctx.run(f"cp {tmpdir}/*.go {SCHEMA_DIR}/")
+
+    if not keeptmp:
+        return
