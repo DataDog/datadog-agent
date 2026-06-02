@@ -32,12 +32,6 @@ type MetadataRule struct {
 // MetadataType represents enums for "types" of things than can be typically extracted for NCM
 type MetadataType string
 
-// Timestamp represents capturing a timestamp from the pattern specified
-
-// ConfigSize represents capturing a number that would correlate with the size of a configuration
-
-// Author represents the username/identifier of the person who made the latest change if available
-
 const (
 	// Timestamp represents capturing a timestamp from the pattern specified
 	Timestamp MetadataType = "timestamp"
