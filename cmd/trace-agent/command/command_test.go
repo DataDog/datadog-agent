@@ -28,12 +28,14 @@ func TestResolveConfPathExplicit(t *testing.T) {
 // config file" and tolerates ErrConfigFileNotFound, allowing the agent to
 // start with environment-variable configuration only.
 func TestResolveConfPathDefaultMissing(t *testing.T) {
-	// Sanity-check: the test environment is not expected to have the
-	// production default config installed. If it does, skip — this test is
-	// only meaningful when the default file is missing.
-	if _, err := os.Stat(defaultConfigPath); err == nil {
-		t.Skipf("default config %q exists in test environment; skipping", defaultConfigPath)
-	}
+	// Override defaultConfigPath to point at a path inside a temp dir that
+	// is never created. resolveConfPath observes the absent file via
+	// os.Stat and returns the empty string regardless of whether the host
+	// has /etc/datadog-agent/datadog.yaml installed.
+	origDefault := defaultConfigPath
+	defaultConfigPath = filepath.Join(t.TempDir(), "datadog.yaml")
+	t.Cleanup(func() { defaultConfigPath = origDefault })
+
 	assert.Equal(t, "", resolveConfPath(""))
 }
 
