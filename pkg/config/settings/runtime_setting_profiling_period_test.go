@@ -26,28 +26,36 @@ func TestProfilingPeriodGet(t *testing.T) {
 	assert.Equal(t, 5*time.Minute, v)
 }
 
+func TestProfilingPeriodGetWithConfigPrefix(t *testing.T) {
+	cfg := configcomp.NewMock(t)
+	cfg.SetWithoutSource("system_probe_config.internal_profiling.period", 3*time.Minute)
+
+	s := &ProfilingPeriod{ConfigKey: "internal_profiling_period", ConfigPrefix: "system_probe_config."}
+	v, err := s.Get(cfg)
+	require.NoError(t, err)
+	assert.Equal(t, 3*time.Minute, v)
+}
+
 func TestProfilingPeriodSetDurationString(t *testing.T) {
 	cfg := configcomp.NewMock(t)
 	cfg.SetWithoutSource("internal_profiling.period", 5*time.Minute)
-	cfg.SetWithoutSource("internal_profiling.cpu_duration", 1*time.Minute)
 
 	s := NewProfilingPeriod()
 	err := s.Set(cfg, "2m", model.SourceCLI)
 	require.NoError(t, err)
 
 	assert.Equal(t, 2*time.Minute, cfg.GetDuration("internal_profiling.period"))
-	// cpu_duration (1m) <= period (2m), so it should be unchanged
-	assert.Equal(t, 1*time.Minute, cfg.GetDuration("internal_profiling.cpu_duration"))
 }
 
-func TestProfilingPeriodSetLeavesCPUDuration(t *testing.T) {
+func TestProfilingPeriodSetDoesNotModifyCPUDuration(t *testing.T) {
 	cfg := configcomp.NewMock(t)
 	cfg.SetWithoutSource("internal_profiling.period", 5*time.Minute)
 	cfg.SetWithoutSource("internal_profiling.cpu_duration", 1*time.Minute)
 
 	s := NewProfilingPeriod()
-	// period=30s < cpu_duration=1m. We only write the period; dd-trace-go caps the CPU
-	// profile at the period internally, so cpu_duration in config is left untouched.
+	// Set must only ever write the period. dd-trace-go caps the CPU profile at the
+	// period internally, so cpu_duration in config must be left untouched even when
+	// the new period (30s) is shorter than cpu_duration (1m).
 	err := s.Set(cfg, "30s", model.SourceCLI)
 	require.NoError(t, err)
 
@@ -58,7 +66,6 @@ func TestProfilingPeriodSetLeavesCPUDuration(t *testing.T) {
 func TestProfilingPeriodSetBareSeconds(t *testing.T) {
 	cfg := configcomp.NewMock(t)
 	cfg.SetWithoutSource("internal_profiling.period", 5*time.Minute)
-	cfg.SetWithoutSource("internal_profiling.cpu_duration", 1*time.Minute)
 
 	s := NewProfilingPeriod()
 	err := s.Set(cfg, "120", model.SourceCLI)
@@ -93,6 +100,18 @@ func TestProfilingPeriodSetRejectsBelowOneSecond(t *testing.T) {
 	assert.Contains(t, err.Error(), "at least 1s")
 }
 
+func TestProfilingPeriodSetAcceptsOneSecond(t *testing.T) {
+	cfg := configcomp.NewMock(t)
+	cfg.SetWithoutSource("internal_profiling.period", 5*time.Minute)
+
+	s := NewProfilingPeriod()
+	// 1s is the inclusive lower bound (the clamp is strict: period < time.Second).
+	err := s.Set(cfg, "1s", model.SourceCLI)
+	require.NoError(t, err)
+
+	assert.Equal(t, time.Second, cfg.GetDuration("internal_profiling.period"))
+}
+
 func TestProfilingPeriodSetRejectsInvalidString(t *testing.T) {
 	cfg := configcomp.NewMock(t)
 
@@ -101,7 +120,7 @@ func TestProfilingPeriodSetRejectsInvalidString(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestProfilingPeriodWithConfigPrefix(t *testing.T) {
+func TestProfilingPeriodSetWithConfigPrefix(t *testing.T) {
 	cfg := configcomp.NewMock(t)
 	cfg.SetWithoutSource("system_probe_config.internal_profiling.period", 5*time.Minute)
 	cfg.SetWithoutSource("system_probe_config.internal_profiling.cpu_duration", 1*time.Minute)
@@ -111,5 +130,6 @@ func TestProfilingPeriodWithConfigPrefix(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 30*time.Second, cfg.GetDuration("system_probe_config.internal_profiling.period"))
+	// cpu_duration must stay untouched under the configured prefix.
 	assert.Equal(t, 1*time.Minute, cfg.GetDuration("system_probe_config.internal_profiling.cpu_duration"))
 }
