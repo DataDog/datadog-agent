@@ -17,6 +17,8 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/garbagecollect"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/apmlibrarydotnet"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -69,4 +71,18 @@ func (i *InstallerExec) getStates(ctx context.Context) (_ *repository.PackageSta
 		States:       packageStates,
 		ConfigStates: configStates,
 	}, nil
+}
+
+// GarbageCollect runs the garbage collector.
+// On Windows there is no privilege boundary between the daemon and the installer
+// binary, so we clean up unused packages and temporary files in-process instead
+// of spawning a subprocess.
+func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "installer.garbage-collect")
+	defer func() { span.Finish(err) }()
+
+	repos := repository.NewRepositories(paths.PackagesPath, map[string]repository.PreRemoveHook{
+		apmlibrarydotnet.PackageName: apmlibrarydotnet.AsyncPreRemoveHook,
+	})
+	return garbagecollect.Run(ctx, repos, paths.RootTmpDir)
 }

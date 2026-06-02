@@ -6,6 +6,7 @@
 package packages
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/apmlibrarydotnet"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
@@ -28,6 +29,6 @@ var (
 	// the rest of the uninstall or upgrade process.
 	// Today this is only useful for the dotnet tracer on windows and generally *SHOULD BE AVOIDED*.
 	AsyncPreRemoveHooks = map[string]repository.PreRemoveHook{
-		"datadog-apm-library-dotnet": asyncPreRemoveHookAPMLibraryDotnet,
+		apmlibrarydotnet.PackageName: apmlibrarydotnet.AsyncPreRemoveHook,
 	}
 )

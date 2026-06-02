@@ -230,13 +230,6 @@ func (i *InstallerExec) PromoteConfigExperiment(ctx context.Context, pkg string)
 	return cmd.Run()
 }
 
-// GarbageCollect runs the garbage collector.
-func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
-	cmd := i.newInstallerCmd(ctx, "garbage-collect")
-	defer func() { cmd.span.Finish(err) }()
-	return cmd.Run()
-}
-
 // InstrumentAPMInjector instruments the APM auto-injector.
 func (i *InstallerExec) InstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "apm instrument", method)

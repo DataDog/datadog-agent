@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/apmlibrarydotnet"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -27,11 +28,7 @@ var apmLibraryDotnetPackage = hooks{
 }
 
 const (
-	packageAPMLibraryDotnet = "datadog-apm-library-dotnet"
-)
-
-var (
-	installerRelativePath = []string{"installer", "Datadog.FleetInstaller.exe"}
+	packageAPMLibraryDotnet = apmlibrarydotnet.PackageName
 )
 
 func getTargetPath(target string) string {
@@ -39,11 +36,11 @@ func getTargetPath(target string) string {
 }
 
 func getExecutablePath(installDir string) string {
-	return filepath.Join(append([]string{installDir}, installerRelativePath...)...)
+	return apmlibrarydotnet.ExecutablePath(installDir)
 }
 
 func getLibraryPath(installDir string) string {
-	return filepath.Join(installDir, "library")
+	return apmlibrarydotnet.LibraryPath(installDir)
 }
 
 // postInstallAPMLibraryDotnet runs on the first install of the .NET APM library after the files are laid out on disk.
@@ -116,21 +113,6 @@ func preRemoveAPMLibraryDotnet(ctx HookContext) (err error) {
 		return err
 	}
 	return uninstrumentDotnetLibrary(ctx.Context, "stable")
-}
-
-// asyncPreRemoveHookAPMLibraryDotnet runs before the garbage collector deletes the package files for a version.
-// It checks that it's safe to delete it and cleans up the external dependencies of the package.
-func asyncPreRemoveHookAPMLibraryDotnet(ctx context.Context, pkgRepositoryPath string) (bool, error) {
-	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(pkgRepositoryPath))
-	exitCode, err := dotnetExec.UninstallVersion(ctx, getLibraryPath(pkgRepositoryPath))
-	if err != nil {
-		// We only block deletion if we could not delete the native loader files
-		// cf https://github.com/DataDog/dd-trace-dotnet/blob/master/tracer/src/Datadog.FleetInstaller/ReturnCode.cs#L14
-		const errorRemovingNativeLoaderFiles = 2
-		shouldDelete := exitCode != errorRemovingNativeLoaderFiles
-		return shouldDelete, err
-	}
-	return true, nil
 }
 
 func instrumentDotnetLibrary(ctx context.Context, target string) (err error) {

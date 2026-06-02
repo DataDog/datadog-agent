@@ -49,3 +49,11 @@ func (i *InstallerExec) getStates(ctx context.Context) (repo *repository.Package
 	}
 	return pkgStates, nil
 }
+
+// GarbageCollect runs the garbage collector.
+// On Linux/macOS this spawns a subprocess for privilege escalation.
+func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
+	cmd := i.newInstallerCmd(ctx, "garbage-collect")
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
