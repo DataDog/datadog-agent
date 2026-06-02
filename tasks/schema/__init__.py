@@ -1,6 +1,6 @@
 from invoke.collection import Collection
 
-from tasks.schema.generate import compress, generate, codegen
+from tasks.schema.generate import codegen, compress, generate
 from tasks.schema.lint import lint as lint_task
 from tasks.schema.template import template, template_all
 

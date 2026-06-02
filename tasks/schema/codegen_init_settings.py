@@ -1,7 +1,6 @@
 import os
 import re
 
-
 file_header = """// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -11,16 +10,15 @@ package setup
 """
 
 
-class BufferedSetting(object):
+class BufferedSetting:
     def __init__(self, path, sourcecode):
         self.path = path
         self.sourcecode = sourcecode
         self.done = False
 
 
-class CodeGeneratorTarget():
+class CodeGeneratorTarget:
     def __init__(self):
-        self.outcode = []
         self.buffer = None
         self.result = []
         self.header_text = None
@@ -57,10 +55,12 @@ class CodeGeneratorTarget():
                 print(f"[WARN] not found: {funcname}")
                 continue
 
-
             # Get filename to write to, add header if its empty
             need_import_statements = False
-            filename, settings, = h['filename'], h['settings']
+            (
+                filename,
+                settings,
+            ) = h['filename'], h['settings']
             if filename not in self.filesystem:
                 self.filesystem[filename] = self.header_text.split('\n')
                 need_import_statements = True
@@ -158,10 +158,7 @@ def retrieve_hint(hints_obj, keyname):
     for perFilenameFuncSettings in hints_obj:
         for row in perFilenameFuncSettings['settings']:
             if row[0] == keyname:
-                return {
-                    'kind': row[1],
-                    'internal_comment': row[2]
-                }
+                return {'kind': row[1], 'internal_comment': row[2]}
     return None
 
 
@@ -298,7 +295,9 @@ def retrieve_default_value(keypath, schema):
             if add.get('type') == 'array' and add.get('items').get('type') == 'string':
                 return f"map[string][]string{as_go_value(settingDefault)}"
         return f"map[string]interface{{}}{as_go_value(settingDefault)}"
-    raise RuntimeError(f"setting {keypath}: cant handle settingType: '{settingType}', settingDefault: '{settingDefault}' of {type(settingDefault)}")
+    raise RuntimeError(
+        f"setting {keypath}: cant handle settingType: '{settingType}', settingDefault: '{settingDefault}' of {type(settingDefault)}"
+    )
 
 
 def retrieve_envvars(keypath, schema):
@@ -406,27 +405,27 @@ def output_single_setting(name, kind, internal_comment, schema, target):
 
 config_setup_func_names = [
     'initCoreAgentFull',
-	'agent',
-	'fleet',
-	'autoscaling',
-	'fips',
-	'remoteconfig',
-	'autoconfig',
-	'containerSyspath',
-	'debugging',
-	'telemetry',
-	'serializer',
-	'aggregator',
-	'serverless',
-	'forwarder',
-	'dogstatsd',
-	'logsagent',
-	'vector',
-	'cloudfoundry',
-	'containerd',
-	'cri',
-	'kubernetes',
-	'podman',
+    'agent',
+    'fleet',
+    'autoscaling',
+    'fips',
+    'remoteconfig',
+    'autoconfig',
+    'containerSyspath',
+    'debugging',
+    'telemetry',
+    'serializer',
+    'aggregator',
+    'serverless',
+    'forwarder',
+    'dogstatsd',
+    'logsagent',
+    'vector',
+    'cloudfoundry',
+    'containerd',
+    'cri',
+    'kubernetes',
+    'podman',
     'setupAPM',
     'setupMultiRegionFailover',
     'OTLP',
