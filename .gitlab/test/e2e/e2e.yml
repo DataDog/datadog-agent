@@ -787,29 +787,46 @@ new-e2e-apm:
     MAX_RETRIES_FLAG: "--max-retries=3"
     TARGETS: ./tests/fleet
 
+# Fleet e2e jobs are split by platform group (linux/windows) via E2E_FLEET_PLATFORM_GROUP.
+# Linux platforms are fast, so all their tests run in a single job. Windows is the
+# wall-clock bottleneck (slow MSI install/uninstall on every test), so each Windows
+# suite's test methods are sharded across two jobs (two VMs per platform) to roughly
+# halve its duration. Shard 1 runs an explicit subset; shard 2 runs the complement
+# (whole suite minus shard 1), so any newly added test still runs on Windows via shard 2.
+# The test hierarchy is TestFleet<Suite>/<platform>/<TestMethod>, hence the
+# "<suite>$/.+/(<methods>)$" run filters (.+ matches the platform subtest level).
 new-e2e-fleet-config:
   extends: .new_e2e_fleet_template
-  variables:
-    EXTRA_PARAMS: --run TestFleetConfig
   parallel:
     matrix:
-      - E2E_FLEET_PLATFORM_GROUP: [linux, windows]
+      - E2E_FLEET_PLATFORM_GROUP: linux
+        EXTRA_PARAMS: --run "TestFleetConfig$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetConfig$/.+/(TestConfig|TestMultipleConfigs|TestConfigFailureCrash|TestConfigFailureTimeout|TestConfigFailureHealth)$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetConfig$" --skip "(TestConfig|TestMultipleConfigs|TestConfigFailureCrash|TestConfigFailureTimeout|TestConfigFailureHealth)$"
 
 new-e2e-fleet-upgrade:
   extends: .new_e2e_fleet_template
-  variables:
-    EXTRA_PARAMS: --run TestFleetUpgrade
   parallel:
     matrix:
-      - E2E_FLEET_PLATFORM_GROUP: [linux, windows]
+      - E2E_FLEET_PLATFORM_GROUP: linux
+        EXTRA_PARAMS: --run "TestFleetUpgrade$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetUpgrade$" --skip "(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$"
 
 new-e2e-fleet-extensions:
   extends: .new_e2e_fleet_template
-  variables:
-    EXTRA_PARAMS: --run TestFleetExtensions
   parallel:
     matrix:
-      - E2E_FLEET_PLATFORM_GROUP: [linux, windows]
+      - E2E_FLEET_PLATFORM_GROUP: linux
+        EXTRA_PARAMS: --run "TestFleetExtensions$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSaveAndRestore|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetExtensions$" --skip "(TestExtensionInstallAndRemove|TestExtensionSaveAndRestore|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$"
 
 new-e2e-installer-script:
   extends: .new_e2e_template
