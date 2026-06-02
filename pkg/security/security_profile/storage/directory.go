@@ -62,33 +62,43 @@ func createDir(dir string) error {
 	return nil
 }
 
-// fileHasKnownStorageExtension returns true when the file extension matches any of the
-// configured storage formats. The Directory needs to track every persisted format so that
-// LRU eviction (which deletes files from disk) and the per-selector disk metric remain
-// accurate regardless of which format is configured.
-func fileHasKnownStorageExtension(path string) bool {
+// fileHasProfileExtension returns true when the file extension is the .profile format.
+// Only .profile files create LRU entries and drive profile retention (capped at maxProfiles):
+// the SecurityProfile proto round-trips the selector directly, whereas the other formats
+// (json/protobuf/dot SecDumps) only carry it indirectly. Counting other formats here would
+// shrink effective retention and pull undecodable files into the load path, so they never
+// create entries on their own — they are only attached to an existing profile's entry.
+func fileHasProfileExtension(path string) bool {
+	format, err := config.ParseStorageFormat(filepath.Ext(path))
+	return err == nil && format == config.Profile
+}
+
+// fileHasStorageExtension returns true when the file extension matches any persisted storage
+// format. Used to gather every on-disk file belonging to a profile so the disk-size metric
+// (SizesBySelector) and the eviction callback account for all formats, not just .profile.
+func fileHasStorageExtension(path string) bool {
 	_, err := config.ParseStorageFormat(filepath.Ext(path))
 	return err == nil
 }
 
-// pickProfileFile returns the file path best suited to decode back into a Profile.
-// .profile is preferred because the SecurityProfile proto round-trips the selector
-// directly; the other formats (SecDump) only carry it indirectly through tags.
+// profileNameFromFile returns the profile name encoded in a storage filename. Persist writes
+// files as "<name>.<format>" (with an optional ".gz" suffix), so the name is the filename
+// with those extensions stripped. This lets us group sibling formats of the same profile.
+func profileNameFromFile(filename string) string {
+	filename = strings.TrimSuffix(filename, ".gz")
+	return strings.TrimSuffix(filename, filepath.Ext(filename))
+}
+
+// pickProfileFile returns the .profile file path among the given paths, or "" if none.
+// Only the .profile format round-trips the SecurityProfile proto (and thus the selector),
+// so it is the only format decoded back into a Profile during Load.
 func pickProfileFile(paths []string) string {
-	var fallback string
 	for _, path := range paths {
-		format, err := config.ParseStorageFormat(filepath.Ext(path))
-		if err != nil {
-			continue
-		}
-		if format == config.Profile {
+		if fileHasProfileExtension(path) {
 			return path
 		}
-		if fallback == "" {
-			fallback = path
-		}
 	}
-	return fallback
+	return ""
 }
 
 type profileFile struct {
@@ -125,9 +135,13 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 		}
 	}
 
-	var fileSlice []*profileFile
+	// Gather every persisted storage file grouped by profile name. All formats are tracked
+	// (not just .profile) so SizesBySelector() and the eviction callback account for the full
+	// on-disk footprint, but only .profile files create LRU entries below.
+	filePathsByName := make(map[string][]string)
+	var profileFiles []*profileFile
 	for _, file := range files {
-		if !fileHasKnownStorageExtension(file.Name()) {
+		if !fileHasStorageExtension(file.Name()) {
 			continue
 		}
 
@@ -141,14 +155,19 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 			continue
 		}
 
-		fileSlice = append(fileSlice, &profileFile{
-			path:  filepath.Join(directoryPath, file.Name()),
-			mTime: fileInfo.ModTime(),
-		})
+		fullPath := filepath.Join(directoryPath, file.Name())
+		filePathsByName[profileNameFromFile(file.Name())] = append(filePathsByName[profileNameFromFile(file.Name())], fullPath)
+
+		if fileHasProfileExtension(file.Name()) {
+			profileFiles = append(profileFiles, &profileFile{
+				path:  fullPath,
+				mTime: fileInfo.ModTime(),
+			})
+		}
 	}
 
-	// sort from oldest to newest
-	slices.SortFunc(fileSlice, func(a, b *profileFile) int {
+	// sort from oldest to newest so the most recent profiles survive the LRU cap
+	slices.SortFunc(profileFiles, func(a, b *profileFile) int {
 		if a.mTime.Equal(b.mTime) {
 			return 0
 		} else if a.mTime.Before(b.mTime) {
@@ -157,45 +176,32 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 		return 1
 	})
 
-	for _, file := range fileSlice {
-		p := profile.New()
-		if err := p.Decode(file.path); err != nil {
+	for _, file := range profileFiles {
+		pProto, err := profile.LoadProtoFromFile(file.path)
+		if err != nil {
 			seclog.Warnf("failed to load profile from file [%s]: %s", file.path, err)
 			continue
 		}
-		if p.Metadata.Name == "" {
+		if pProto.Metadata == nil {
 			seclog.Warnf("profile loaded from file [%s] has no metadata", file.path)
 			continue
 		}
-		// GetWorkloadSelector may return a non-nil pointer to a zero-value selector
-		// (SecDump-formatted files with no Tags and no ContainerID/CGroupID), so we
-		// can't trust non-nil alone — check IsReady before treating it as usable.
-		selector := p.GetWorkloadSelector()
-
-		// Multiple persisted formats for the same profile share an LRU entry so
-		// SizesBySelector() can sum them and the eviction callback can delete every
-		// sibling file. Peek (not Get) avoids reordering the LRU during init.
-		if existing, ok := profiles.Peek(p.Metadata.Name); ok {
-			existing.filePaths = append(existing.filePaths, file.path)
-			// Upgrade a not-ready selector if a later file (e.g. the .profile sibling)
-			// gives us a usable one, so Load() can match the entry.
-			if !existing.selector.IsReady() && selector != nil && selector.IsReady() {
-				existing.selector = *selector
-			}
+		if pProto.Selector == nil {
+			seclog.Warnf("profile loaded from file [%s] has no selector", file.path)
 			continue
 		}
-		// First time we see this profile name. Register the entry even when the
-		// selector isn't ready yet: a later sibling format can still upgrade it, and
-		// keeping the file in the LRU ensures eviction will clean every on-disk format
-		// (and SizesBySelector() can account for it). selector.IsReady() gates
-		// matching during Load() so a non-ready entry is invisible to lookups.
-		var sel cgroupModel.WorkloadSelector
-		if selector != nil {
-			sel = *selector
+
+		// Attach every persisted format of this profile (json/protobuf/dot siblings) so the
+		// disk-size metric counts them and eviction removes them all. Fall back to just the
+		// .profile file if the naming is unexpected and no siblings were grouped.
+		paths := filePathsByName[pProto.Metadata.Name]
+		if len(paths) == 0 {
+			paths = []string{file.path}
 		}
-		profiles.Add(p.Metadata.Name, &profileEntry{
-			selector:  sel,
-			filePaths: []string{file.path},
+
+		profiles.Add(pProto.Metadata.Name, &profileEntry{
+			selector:  cgroupModel.ProtoToWorkloadSelector(pProto.Selector),
+			filePaths: paths,
 		})
 	}
 
