@@ -54,8 +54,8 @@ go_test(
         "//pkg/networkpath/traceroute/config",
         "//pkg/trace/teststatsd",
         "//pkg/util/log",
-        "@com_github_golang_mock//gomock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@org_uber_go_mock//gomock",
     ],
 )

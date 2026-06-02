@@ -485,6 +485,7 @@ use_repo(
     "org_uber_go_dig",
     "org_uber_go_fx",
     "org_uber_go_goleak",
+    "org_uber_go_mock",
     "org_uber_go_multierr",
     "org_uber_go_zap",
     "org_uber_go_zap_exp",
