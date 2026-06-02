@@ -1179,6 +1179,75 @@ func Test_npCollectorImpl_ScheduleMethods_methodGates(t *testing.T) {
 	}
 }
 
+func Test_npCollectorImpl_ScheduleMethods_VPCSubnetsOnlyFilterNetworkTraffic(t *testing.T) {
+	originalGetVPCSubnetsForHost := getVPCSubnetsForHost
+	t.Cleanup(func() {
+		getVPCSubnetsForHost = originalGetVPCSubnetsForHost
+	})
+
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled":         true,
+		"network_path.netflow_monitoring.enabled":             true,
+		"network_path.collector.disable_intra_vpc_collection": true,
+		"network_path.collector.monitor_ip_without_domain":    true,
+		"network_path.collector.filters":                      []map[string]any{},
+	}
+	conn := npmodel.NetworkPathConnection{
+		Source:    netip.MustParseAddrPort("192.168.1.10:12345"),
+		Dest:      netip.MustParseAddrPort("10.1.2.3:53"),
+		Direction: model.ConnectionDirection_outgoing,
+		Family:    model.ConnectionFamily_v4,
+		Type:      model.ConnectionType_udp,
+	}
+
+	t.Run("network traffic keeps VPC subnet filtering", func(t *testing.T) {
+		vpcSubnetFetches := 0
+		getVPCSubnetsForHost = func(_ context.Context) ([]netip.Prefix, error) {
+			vpcSubnetFetches++
+			return []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}, nil
+		}
+
+		stats := &teststatsd.Client{}
+		_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
+
+		npCollector.ScheduleNetworkTrafficPathTests(slices.Values([]npmodel.NetworkPathConnection{conn}))
+
+		assert.Equal(t, 1, vpcSubnetFetches)
+		require.Contains(t, stats.CountCalls, subnetSkippedStat)
+		select {
+		case pathtest := <-npCollector.pathtestInputChan:
+			require.Failf(t, "unexpected pathtest", "%#v", pathtest)
+		default:
+		}
+	})
+
+	t.Run("netflow skips VPC subnet filtering", func(t *testing.T) {
+		vpcSubnetFetches := 0
+		getVPCSubnetsForHost = func(_ context.Context) ([]netip.Prefix, error) {
+			vpcSubnetFetches++
+			return []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}, nil
+		}
+
+		stats := &teststatsd.Client{}
+		_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
+
+		npCollector.ScheduleNetflowPathTests(slices.Values([]npmodel.NetworkPathConnection{conn}))
+
+		assert.Equal(t, 0, vpcSubnetFetches)
+		require.NotContains(t, stats.CountCalls, subnetSkippedStat)
+		select {
+		case pathtest := <-npCollector.pathtestInputChan:
+			assert.Equal(t, &common.Pathtest{
+				Hostname: "10.1.2.3",
+				Protocol: payload.ProtocolUDP,
+				Origin:   payload.PathOriginNetflow,
+			}, pathtest)
+		default:
+			require.Fail(t, "expected pathtest")
+		}
+	})
+}
+
 func Test_npCollectorImpl_stopWorker(t *testing.T) {
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,

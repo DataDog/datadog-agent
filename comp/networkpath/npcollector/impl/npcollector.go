@@ -43,6 +43,8 @@ const (
 	netpathConnsSkippedMetricName       = common.NetworkPathCollectorMetricPrefix + "schedule.conns_skipped"
 )
 
+var getVPCSubnetsForHost = network.GetVPCSubnetsForHost
+
 type npCollectorImpl struct {
 	// config related
 	collectorConfigs *collectorConfigs
@@ -247,7 +249,7 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	vpcSubnets, err := network.GetVPCSubnetsForHost(ctx)
+	vpcSubnets, err := getVPCSubnetsForHost(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("disable_intra_vpc_collection is enforced, but failed to get VPC subnets: %w", err)
 	}
@@ -270,10 +272,14 @@ func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.Networ
 }
 
 func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection]) {
-	vpcSubnets, err := s.getVPCSubnets()
-	if err != nil {
-		s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
-		return
+	var vpcSubnets []netip.Prefix
+	if origin == payload.PathOriginNetworkTraffic {
+		var err error
+		vpcSubnets, err = s.getVPCSubnets()
+		if err != nil {
+			s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
+			return
+		}
 	}
 
 	startTime := s.TimeNowFn()
