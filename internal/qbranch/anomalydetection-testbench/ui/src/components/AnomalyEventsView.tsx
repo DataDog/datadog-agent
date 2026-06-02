@@ -65,7 +65,7 @@ function SummaryCards({ events }: { events: AnomalyEvent[] }) {
   );
 }
 
-// ---- Timeline --------------------------------------------------------------
+// ---- Shared phase-marker helpers -------------------------------------------
 
 const PHASE_COLORS: Record<string, { line: string; label: string }> = {
   baseline:   { line: '#3b82f6', label: '#60a5fa' },
@@ -78,7 +78,20 @@ function phaseColor(key: string): { line: string; label: string } {
   return PHASE_COLORS[key.toLowerCase()] ?? { line: '#94a3b8', label: '#cbd5e1' };
 }
 
-function Timeline({ events, selected, onSelect, phaseMarkers, minTs: extMinTs, maxTs: extMaxTs }: {
+const mediumSeverityThreshold = 0.40;
+const highSeverityThreshold   = 0.75;
+
+// ---- Unified event chart (timeline + rolling score) ------------------------
+//
+// A single SVG chart that shows:
+//   • severity-threshold bands as background (high / medium)
+//   • rolling-max score line (5-min window)
+//   • one dot per event, coloured by severity, positioned by score on the Y axis
+//     – diamond shape for severity-change events
+//   • phase-marker vertical lines
+//   • clickable dots (select / deselect the event)
+
+function EventChart({ events, selected, onSelect, phaseMarkers, minTs: extMinTs, maxTs: extMaxTs }: {
   events: AnomalyEvent[];
   selected: string | null;
   onSelect: (id: string) => void;
@@ -90,89 +103,21 @@ function Timeline({ events, selected, onSelect, phaseMarkers, minTs: extMinTs, m
     return <div className="text-slate-500 text-sm py-4 text-center">No events in current filter</div>;
   }
 
-  const tsValues = events.map(e => e.trigger.timestamp);
-  if (phaseMarkers) phaseMarkers.forEach(m => tsValues.push(m.timestamp));
-  const minTs = extMinTs ?? (tsValues.length > 0 ? Math.min(...tsValues) : 0);
-  const maxTs = extMaxTs ?? (tsValues.length > 0 ? Math.max(...tsValues) : 1);
-  const span = Math.max(maxTs - minTs, 1);
-
-  const toLeft = (ts: number) => ((ts - minTs) / span) * 96 + 2;
-
-  return (
-    <div className="relative h-14 bg-slate-900 rounded-lg border border-slate-700 overflow-hidden mb-2">
-      {/* Severity lanes background */}
-      {(['high', 'medium', 'low'] as AnomalySeverity[]).map((sev, i) => (
-        <div
-          key={sev}
-          className="absolute left-0 right-0"
-          style={{ top: `${i * 33}%`, height: '33%' }}
-        >
-          <span className="absolute left-1 top-0.5 text-[10px] text-slate-600">{sev}</span>
-        </div>
-      ))}
-      {/* Phase marker lines */}
-      {(phaseMarkers ?? []).map(pm => {
-        const left = toLeft(pm.timestamp);
-        if (left < 0 || left > 100) return null;
-        const c = phaseColor(pm.key);
-        return (
-          <div key={pm.key} className="absolute top-0 bottom-0 flex flex-col items-center" style={{ left: `${left}%` }}>
-            <div className="absolute top-0 bottom-0 w-px" style={{ backgroundColor: c.line, opacity: 0.7 }} />
-            <span className="absolute top-0.5 text-[9px] font-semibold px-0.5 rounded whitespace-nowrap"
-              style={{ color: c.label, left: '3px', textShadow: '0 0 4px #0f172a' }}>
-              {pm.label}
-            </span>
-          </div>
-        );
-      })}
-      {/* Event dots */}
-      {events.map(evt => {
-        const lanes: Record<AnomalySeverity, number> = { high: 8, medium: 37, low: 62 };
-        const top = lanes[evt.severity] ?? 37;
-        const left = toLeft(evt.trigger.timestamp);
-        const isSelected = evt.id === selected;
-        const isChange = evt.severityChanged;
-        const c = SEVERITY_COLOR[evt.severity] ?? SEVERITY_COLOR.low;
-        return (
-          <button
-            key={evt.id}
-            title={`${formatTs(evt.trigger.timestamp)} ${evt.severity} – ${evt.trigger.title}`}
-            onClick={() => onSelect(evt.id)}
-            style={{ left: `${left}%`, top: `${top}%` }}
-            className={`absolute -translate-x-1/2 -translate-y-1/2 transition-all ${
-              isChange
-                ? `w-4 h-4 border-2 border-white rounded-sm ${c.dot}`
-                : `w-2.5 h-2.5 rounded-full ${c.dot}`
-            } ${isSelected ? 'ring-2 ring-white ring-offset-1 ring-offset-slate-900' : ''}`}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-// ---- Smoothed score chart --------------------------------------------------
-
-function SmoothedScoreChart({ events, phaseMarkers, minTs: extMinTs, maxTs: extMaxTs }: {
-  events: AnomalyEvent[];
-  phaseMarkers?: PhaseMarker[];
-  minTs?: number;
-  maxTs?: number;
-}) {
-  if (events.length === 0 && (!phaseMarkers || phaseMarkers.length === 0)) return null;
-
-  const WINDOW = 300; // 5 min
-  const WIDTH = 600;
-  const HEIGHT = 56;
+  const WINDOW = 300; // 5-min rolling window
+  const WIDTH  = 600;
+  const HEIGHT = 80;
 
   const tsValues = events.map(e => e.trigger.timestamp);
-  if (phaseMarkers) phaseMarkers.forEach(m => tsValues.push(m.timestamp));
+  (phaseMarkers ?? []).forEach(m => tsValues.push(m.timestamp));
   const minTs = extMinTs ?? (tsValues.length > 0 ? Math.min(...tsValues) : 0);
   const maxTs = extMaxTs ?? (tsValues.length > 0 ? Math.max(...tsValues) : 1);
-  const span = Math.max(maxTs - minTs, 1);
+  const span  = Math.max(maxTs - minTs, 1);
 
-  // Rolling max over WINDOW seconds
-  const points = events.map(evt => {
+  const toX = (t: number) => ((t - minTs) / span) * (WIDTH - 10) + 5;
+  const toY = (s: number) => HEIGHT - s * (HEIGHT - 12) - 6;
+
+  // Rolling-max score line
+  const rollingPoints = events.map(evt => {
     const t = evt.trigger.timestamp;
     let rolling = 0;
     for (const e of events) {
@@ -182,60 +127,71 @@ function SmoothedScoreChart({ events, phaseMarkers, minTs: extMinTs, maxTs: extM
     }
     return { t, score: rolling };
   });
-
-  const toX = (t: number) => ((t - minTs) / span) * (WIDTH - 10) + 5;
-  const toY = (s: number) => HEIGHT - s * (HEIGHT - 10) - 5;
-
-  const pathD = points.length > 0
-    ? points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(p.t).toFixed(1)} ${toY(p.score).toFixed(1)}`).join(' ')
+  const pathD = rollingPoints.length > 0
+    ? rollingPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(p.t).toFixed(1)} ${toY(p.score).toFixed(1)}`).join(' ')
     : '';
 
-  // Threshold lines
   const yMedium = toY(mediumSeverityThreshold);
-  const yHigh = toY(highSeverityThreshold);
+  const yHigh   = toY(highSeverityThreshold);
+
+  // Diamond path helper for severity-change events
+  const diamond = (cx: number, cy: number, r: number) =>
+    `M${cx},${cy - r} L${cx + r},${cy} L${cx},${cy + r} L${cx - r},${cy} Z`;
 
   return (
     <div className="mb-2">
-      <div className="text-xs text-slate-400 mb-0.5">Rolling max score (5 min window)</div>
-      {/* Fixed-height wrapper prevents the SVG from growing taller when the container widens */}
+      <div className="text-xs text-slate-400 mb-0.5">Rolling max score · dots = events · ◆ = severity change</div>
       <div style={{ height: HEIGHT, overflow: 'hidden' }}>
-      <svg width="100%" height="100%" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" className="bg-slate-900 rounded border border-slate-700">
-        {/* Threshold bands */}
-        <rect x="0" y={yHigh} width={WIDTH} height={yMedium - yHigh} fill="rgba(234,179,8,0.06)" />
-        <rect x="0" y="0" width={WIDTH} height={yHigh} fill="rgba(239,68,68,0.06)" />
-        <line x1="0" y1={yMedium} x2={WIDTH} y2={yMedium} stroke="#ca8a04" strokeWidth="0.5" strokeDasharray="3,3" />
-        <line x1="0" y1={yHigh} x2={WIDTH} y2={yHigh} stroke="#dc2626" strokeWidth="0.5" strokeDasharray="3,3" />
-        <text x="4" y={yMedium - 2} fill="#ca8a04" fontSize="8">medium</text>
-        <text x="4" y={yHigh - 2} fill="#dc2626" fontSize="8">high</text>
-        {/* Phase marker lines */}
-        {(phaseMarkers ?? []).map(pm => {
-          const x = toX(pm.timestamp);
-          if (x < 0 || x > WIDTH) return null;
-          const c = phaseColor(pm.key);
-          return (
-            <g key={pm.key}>
-              <line x1={x} y1={0} x2={x} y2={HEIGHT} stroke={c.line} strokeWidth="1" strokeDasharray="4,3" opacity="0.7" />
-              <text x={x + 2} y={HEIGHT - 3} fill={c.label} fontSize="7" fontWeight="600">{pm.label}</text>
-            </g>
-          );
-        })}
-        {/* Score line */}
-        {pathD && <path d={pathD} fill="none" stroke="#8b5cf6" strokeWidth="1.5" />}
-        {/* Event dots */}
-        {events.map(evt => {
-          const x = toX(evt.trigger.timestamp);
-          const y = toY(evt.score);
-          const c = evt.severity === 'high' ? '#ef4444' : evt.severity === 'medium' ? '#eab308' : '#64748b';
-          return <circle key={evt.id} cx={x} cy={y} r="2.5" fill={c} opacity="0.8" />;
-        })}
-      </svg>
+        <svg width="100%" height="100%" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none"
+          className="bg-slate-900 rounded border border-slate-700">
+
+          {/* Severity threshold bands */}
+          <rect x="0" y={yHigh}   width={WIDTH} height={yMedium - yHigh} fill="rgba(234,179,8,0.07)" />
+          <rect x="0" y="0"       width={WIDTH} height={yHigh}           fill="rgba(239,68,68,0.07)" />
+          <line x1="0" y1={yMedium} x2={WIDTH} y2={yMedium} stroke="#ca8a04" strokeWidth="0.5" strokeDasharray="3,3" />
+          <line x1="0" y1={yHigh}   x2={WIDTH} y2={yHigh}   stroke="#dc2626" strokeWidth="0.5" strokeDasharray="3,3" />
+          <text x="3" y={yMedium - 2} fill="#ca8a04" fontSize="7">medium</text>
+          <text x="3" y={yHigh   - 2} fill="#dc2626" fontSize="7">high</text>
+
+          {/* Phase markers */}
+          {(phaseMarkers ?? []).map(pm => {
+            const x = toX(pm.timestamp);
+            if (x < 0 || x > WIDTH) return null;
+            const c = phaseColor(pm.key);
+            return (
+              <g key={pm.key}>
+                <line x1={x} y1={0} x2={x} y2={HEIGHT} stroke={c.line} strokeWidth="1" strokeDasharray="4,3" opacity="0.7" />
+                <text x={x + 2} y={HEIGHT - 3} fill={c.label} fontSize="7" fontWeight="600">{pm.label}</text>
+              </g>
+            );
+          })}
+
+          {/* Rolling-max score line (drawn below dots) */}
+          {pathD && <path d={pathD} fill="none" stroke="#8b5cf6" strokeWidth="1.5" opacity="0.9" />}
+
+          {/* Event dots — circles for normal, diamonds for severity changes */}
+          {events.map(evt => {
+            const x  = toX(evt.trigger.timestamp);
+            const y  = toY(evt.score);
+            const fc = evt.severity === 'high' ? '#ef4444' : evt.severity === 'medium' ? '#eab308' : '#64748b';
+            const sel = evt.id === selected;
+            return evt.severityChanged
+              ? <path key={evt.id} d={diamond(x, y, sel ? 5 : 4)} fill={fc} opacity="0.95"
+                  style={{ cursor: 'pointer' }} onClick={() => onSelect(evt.id)}
+                  stroke={sel ? 'white' : 'none'} strokeWidth="1">
+                  <title>{formatTs(evt.trigger.timestamp)} {evt.severity} ↑ change</title>
+                </path>
+              : <circle key={evt.id} cx={x} cy={y} r={sel ? 4 : 2.5} fill={fc} opacity="0.85"
+                  style={{ cursor: 'pointer' }} onClick={() => onSelect(evt.id)}
+                  stroke={sel ? 'white' : 'none'} strokeWidth="1">
+                  <title>{formatTs(evt.trigger.timestamp)} {evt.severity} – {evt.trigger.title}</title>
+                </circle>;
+          })}
+        </svg>
       </div>
     </div>
   );
 }
-
-const mediumSeverityThreshold = 0.40;
-const highSeverityThreshold = 0.75;
 
 // ---- Event detail panel ----------------------------------------------------
 
@@ -531,16 +487,10 @@ export function AnomalyEventsView({ state, sidebarWidth, phaseMarkers }: Anomaly
             {/* ── Fixed top section: cards + timeline + score chart ── */}
             <div className="flex-none px-4 pt-3 pb-1 min-w-0">
               <SummaryCards events={events} />
-              <Timeline
+              <EventChart
                 events={filtered}
                 selected={selectedId}
                 onSelect={id => setSelectedId(prev => prev === id ? null : id)}
-                phaseMarkers={phaseMarkers}
-                minTs={timelineMinTs}
-                maxTs={timelineMaxTs}
-              />
-              <SmoothedScoreChart
-                events={filtered}
                 phaseMarkers={phaseMarkers}
                 minTs={timelineMinTs}
                 maxTs={timelineMaxTs}
