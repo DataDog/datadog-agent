@@ -105,7 +105,7 @@ func (suite *CollectorDemuxTestSuite) SetupTest() {
 
 func (suite *CollectorDemuxTestSuite) TearDownTest() {
 	suite.c.stop(context.TODO())
-	suite.demux.Stop(false)
+	suite.demux.Stop()
 	suite.c = nil
 }
 

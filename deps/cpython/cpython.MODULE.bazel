@@ -1,6 +1,21 @@
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+constants_repo = use_repo_rule("//bazel/repo:constants_repo.bzl", "constants_repo")
+
 PYTHON_VERSION = "3.13.13"
+
+PYTHON_MAJOR_MINOR = ".".join(PYTHON_VERSION.split(".")[:2])
+
+PYTHON_MAJOR_MINOR_FLAT = PYTHON_MAJOR_MINOR.replace(".", "")
+
+constants_repo(
+    name = "cpython_versions",
+    items = {
+        "PYTHON_MAJOR_MINOR": PYTHON_MAJOR_MINOR,
+        "PYTHON_MAJOR_MINOR_FLAT": PYTHON_MAJOR_MINOR_FLAT,
+        "PYTHON_VERSION": PYTHON_VERSION,
+    },
+)
 
 http_archive(
     name = "cpython",

@@ -12,7 +12,7 @@ def generate(ctx, pre_commit=False):
     """
     Generates protobuf definitions in pkg/proto
     """
-    proto_file = re.compile(r"pkg/proto/.*(\.pb|_gen(_test)?)\.go$")
+    proto_file = re.compile(r".*(\.pb|_gen(_test)?)\.go$")
     old_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file, include_deleted_files=True))
     old_untracked_proto_files = set(get_untracked_files(ctx, re_filter=proto_file))
 

@@ -24,9 +24,9 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
