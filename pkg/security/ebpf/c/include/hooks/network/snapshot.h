@@ -1,11 +1,9 @@
 #ifndef _HOOKS_NETWORK_SNAPSHOT_H_
 #define _HOOKS_NETWORK_SNAPSHOT_H_
 
-#include "constants/custom.h"
-#include "constants/offsets/netns.h"
 #include "constants/offsets/network.h"
 #include "constants/offsets/process.h"
-#include "maps.h"
+#include "helpers/network/flow.h"
 
 #ifndef DO_NOT_USE_TC
 
@@ -50,47 +48,13 @@ int bpf_iter__task_file_resolve_flow_pid(struct bpf_iter__task_file *ctx) {
         return 0;
     }
     struct sock *sk = get_sock_from_socket(sock);
-    if (sk == NULL) {
-        return 0;
-    }
 
     // resolve the thread group id (tgid) from the task.
     // (the iter runs in the context of system-probe, so we can't use
     // bpf_get_current_pid_tgid() to identify the socket owner)
-    u64 tgid = get_root_nr_from_task_struct(task);
-    if (tgid == 0) {
-        return 0;
-    }
+    u32 tgid = get_root_nr_from_task_struct(task);
 
-    struct pid_route_t route = {};
-    struct pid_route_entry_t value = {};
-    value.pid = tgid;
-    value.type = PROCFS_ENTRY;
-
-    route.netns = get_netns_from_sock(sk);
-    if (route.netns == 0) {
-        return 0;
-    }
-
-    route.port = get_skc_num_from_sock_common((void *)sk);
-    if (route.port == 0) {
-        // without a bound port there is nothing to match packets against
-        return 0;
-    }
-    route.l4_protocol = get_protocol_from_sock(sk);
-
-    u16 family = get_family_from_sock_common((void *)sk);
-    if (family == AF_INET6) {
-        bpf_probe_read(&route.addr, sizeof(u64) * 2, &sk->__sk_common.skc_v6_rcv_saddr);
-        bpf_map_update_elem(&flow_pid, &route, &value, BPF_ANY);
-
-        // an AF_INET6 socket may also handle AF_INET traffic, store an AF_INET mapping too
-        family = AF_INET;
-    }
-    if (family == AF_INET) {
-        bpf_probe_read(&route.addr, sizeof(sk->__sk_common.skc_rcv_saddr), &sk->__sk_common.skc_rcv_saddr);
-        bpf_map_update_elem(&flow_pid, &route, &value, BPF_ANY);
-    }
+    register_flow_pid_for_sock(sk, tgid);
 
     return 0;
 }
