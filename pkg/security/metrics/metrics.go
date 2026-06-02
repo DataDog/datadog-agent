@@ -115,6 +115,11 @@ var (
 	// complete an HTTP message (the event was ignored while waiting for more segments)
 	MetricIMDSReassemblerIncompleteSegment = newRuntimeMetric(".imds_reassembler.incomplete_segment")
 
+	// MetricNetworkProcessContextNetNSMismatch is the counter of network events whose kernel-resolved
+	// process context lived in a different network namespace than the captured packet, and which were
+	// therefore rejected (replaced by a placeholder process context) to avoid misattribution
+	MetricNetworkProcessContextNetNSMismatch = newRuntimeMetric(".network.process_context_netns_mismatch")
+
 	// filtering metrics
 
 	// MetricDiscarderAdded is the number of discarder added

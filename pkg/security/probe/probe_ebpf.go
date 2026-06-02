@@ -1264,8 +1264,57 @@ func (p *EBPFProbe) newRelatedCGroupWriteEvent(pce *model.ProcessCacheEntry) *mo
 }
 
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
+// isFlowClassifierNetworkEvent reports whether an event's process context is resolved in the kernel
+// from the flow_pid map (the TC classifier path), as opposed to syscall-based events which carry a
+// reliable current PID. Only these events are subject to the cross-netns guardrail.
+func isFlowClassifierNetworkEvent(eventType model.EventType) bool {
+	switch eventType {
+	case model.DNSEventType, model.IMDSEventType, model.RawPacketFilterEventType, model.RawPacketActionEventType, model.NetworkFlowMonitorEventType:
+		return true
+	default:
+		return false
+	}
+}
+
+// processRealNetNS returns the network namespace the process actually lives in, as recorded on its
+// cached entry (populated at exec from the task struct, inherited from ancestors, or from procfs).
+func processRealNetNS(entry *model.ProcessCacheEntry) uint32 {
+	if entry == nil {
+		return 0
+	}
+	return entry.PIDContext.NetNS
+}
+
+// netnsConsistent reports whether a captured packet's netns is consistent with the resolved
+// process's netns. When either side is unknown (0) we cannot decide, so we accept rather than risk
+// dropping a correct attribution.
+func netnsConsistent(packetNetNS, procNetNS uint32) bool {
+	if packetNetNS == 0 || procNetNS == 0 {
+		return true
+	}
+	return packetNetNS == procNetNS
+}
+
 func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, cgroupContext model.CGroupContext) bool {
 	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, p.onNewPCE)
+
+	// Observe (but do not correct) cross-netns misattribution of network events. The PID of a
+	// flow-classifier network event is resolved in the kernel from the flow_pid map, which can
+	// return a stale or wrong entry (e.g. ephemeral-port reuse, NAT, or a host packet matching a
+	// container flow). A socket is always demultiplexed in its own network namespace, so if the
+	// resolved process lives in a different netns than the captured packet, the attribution is
+	// necessarily wrong. This only emits a metric to measure how often it happens; the (possibly
+	// wrong) attribution is left untouched.
+	if isResolved && isFlowClassifierNetworkEvent(eventType) {
+		packetNetNS := event.PIDContext.NetNS
+		procNetNS := processRealNetNS(entry)
+		if !netnsConsistent(packetNetNS, procNetNS) {
+			seclog.Tracef("cross-netns network attribution for %s: packet netns %d != process netns %d (pid %d, comm %s)",
+				eventType, packetNetNS, procNetNS, entry.Pid, entry.Comm)
+			_ = p.statsdClient.Count(metrics.MetricNetworkProcessContextNetNSMismatch, 1, []string{fmt.Sprintf("event_type:%", eventType)}, 1.0)
+		}
+	}
+
 	event.ProcessCacheEntry = entry
 	if event.ProcessCacheEntry == nil {
 		panic("should always return a process cache entry")
