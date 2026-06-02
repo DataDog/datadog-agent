@@ -14,9 +14,12 @@ import (
 	"fmt"
 	"io/fs"
 	"os/exec"
+	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/garbagecollect"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/apmlibrarydotnet"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -80,6 +83,19 @@ func (i *InstallerExec) getStates(ctx context.Context) (_ *repository.PackageSta
 func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "installer.garbage-collect")
 	defer func() { span.Finish(err) }()
+
+	// Hold the same packages database lock as the installer command while
+	// deleting unused package directories.
+	packagesDB, err := db.New(ctx, filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
+	if err != nil {
+		return fmt.Errorf("could not create packages db: %w", err)
+	}
+	defer func() {
+		if dbErr := packagesDB.Close(); dbErr != nil {
+			dbErr = fmt.Errorf("failed to close packages database: %w", dbErr)
+			err = errors.Join(err, dbErr)
+		}
+	}()
 
 	repos := repository.NewRepositories(paths.PackagesPath, map[string]repository.PreRemoveHook{
 		apmlibrarydotnet.PackageName: apmlibrarydotnet.AsyncPreRemoveHook,
