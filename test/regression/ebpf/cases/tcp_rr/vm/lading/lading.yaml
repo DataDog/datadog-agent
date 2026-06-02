@@ -5,6 +5,7 @@ blackhole:
   - tcp_rr:
       addr: "0.0.0.0"
       threads: 16
+      flows: 64
       no_delay: true
 
 target_metrics:
