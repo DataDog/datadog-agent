@@ -1,3 +1,8 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/system-probe.yaml.schema.json
+title: System Probe configuration schema
+description: The schema to validate the system-probe.yaml configuration for the DataDog
+  Agent
 properties:
   system_probe_config:
     node_type: section
@@ -2971,8 +2976,3 @@ properties:
     node_type: setting
     type: string
     default: ''
-$schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/system-probe.yaml.schema.json
-title: System Probe configuration schema
-description: The schema to validate the system-probe.yaml configuration for the DataDog
-  Agent
