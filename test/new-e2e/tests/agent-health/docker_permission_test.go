@@ -17,8 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/agent-payload/v5/healthplatform"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
@@ -122,13 +120,10 @@ func TestDockerPermissionSuite(t *testing.T) {
 	)
 }
 
-// TestDockerPermissionIssueLifecycle tests the full lifecycle of a docker
-// socket permission issue:
+// TestDockerPermissionIssueLifecycle verifies that restricting the docker socket
+// permissions triggers the health issue, and that restoring them resolves it.
 //
-//  1. IssueDetection  – chmod 660 on the docker socket triggers the issue; it
-//     appears in `agent diagnose` and in fakeintake.
-//  2. RestartResilience – the issue persists as ONGOING after an agent restart.
-//  3. Resolution – chmod 666 + restart makes the issue disappear from diagnose.
+// Cross-restart persistence is tested separately in TestResilienceSuite.
 func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 	host := suite.Env().RemoteHost
 	agent := suite.Env().Agent
@@ -156,11 +151,6 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		assert.True(t, found, "busybox spam containers should be running")
 	})
 
-	var initialFirstSeen string
-
-	// =========================================================================
-	// Phase 1: Issue Detection
-	// =========================================================================
 	suite.T().Run("IssueDetection", func(t *testing.T) {
 		host.MustExecute("sudo chmod 660 /var/run/docker.sock")
 
@@ -179,38 +169,8 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		require.NotNil(t, issue.Remediation, "remediation should be provided")
 		assert.NotEmpty(t, issue.Remediation.Summary)
 		assert.NotEmpty(t, issue.Remediation.Steps)
-
-		for _, iss := range issues {
-			if iss.PersistedIssue != nil && initialFirstSeen == "" {
-				initialFirstSeen = iss.PersistedIssue.FirstSeen
-			}
-		}
 	})
 
-	// =========================================================================
-	// Phase 2: Restart Resilience
-	// =========================================================================
-	suite.T().Run("RestartResilience", func(t *testing.T) {
-		require.NoError(t, fi.FlushServerAndResetAggregators())
-		require.NoError(t, agent.Client.Restart())
-		require.EventuallyWithT(t, func(ct *assert.CollectT) {
-			assert.True(ct, agent.Client.IsReady())
-		}, 2*time.Minute, 10*time.Second, "agent not ready after restart")
-
-		AssertIssueDetectedViaDiagnose(t, agent, issueName)
-
-		if initialFirstSeen != "" {
-			issues := waitForIssuesInFakeintake(t, fi, issueID)
-			require.NotEmpty(t, issues)
-			require.NotNil(t, issues[0].PersistedIssue)
-			assert.Equal(t, healthplatform.IssueState_ISSUE_STATE_ONGOING, issues[0].PersistedIssue.State)
-			assert.Equal(t, initialFirstSeen, issues[0].PersistedIssue.FirstSeen, "first_seen should be preserved across restart")
-		}
-	})
-
-	// =========================================================================
-	// Phase 3: Resolution
-	// =========================================================================
 	suite.T().Run("Resolution", func(t *testing.T) {
 		// Restore broken state on cleanup so infra can be re-used for re-runs.
 		t.Cleanup(func() {
