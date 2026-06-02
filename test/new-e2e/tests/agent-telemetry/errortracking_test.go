@@ -9,6 +9,8 @@
 package agenttelemetry
 
 import (
+	_ "embed"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,42 +22,18 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
 
-const (
-	waitFor = 2 * time.Minute
-	tick    = 10 * time.Second
-)
+//go:embed testdata/errortracking-enabled.yaml
+var errorTrackingEnabledConfig string
 
-// errorTrackingEnabledConfig enables the error-tracking feature with a short
-// flush interval and zero jitter/bouncer window for deterministic test behaviour.
-const errorTrackingEnabledConfig = `
-agent_telemetry:
-  enabled: true
-  errortracking:
-    enabled: true
-    flush_interval_seconds: 10
-    bouncer_window_seconds: 0
-    startup_jitter_seconds: 0
-`
+//go:embed testdata/errortracking-disabled.yaml
+var errorTrackingDisabledConfig string
 
-// errorTrackingDisabledConfig omits the errortracking stanza entirely,
-// verifying that the feature is off by default.
-const errorTrackingDisabledConfig = `
-agent_telemetry:
-  enabled: true
-`
-
-// failingCheckConfig points http_check at a guaranteed-closed local port.
-// The Go check runner logs at Error via pkg/util/log when the TCP connection
-// is refused, which flows through the slog errortracking handler into errLogsCh.
-const failingCheckConfig = `
-init_config:
-instances:
-  - name: test-unreachable
-    url: http://127.0.0.1:19998/
-    timeout: 1
-`
+//go:embed testdata/http_check.yaml
+var failingCheckConfig string
 
 type errorTrackingSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -74,47 +52,34 @@ func TestAgentTelemetryErrorTrackingSuite(t *testing.T) {
 				),
 			),
 		),
-		e2e.WithStackName("agent-telemetry-errortracking"),
 	)
-}
-
-// BeforeTest flushes both the server and all client aggregators before each
-// test case so payload state from a previous test cannot bleed in.
-func (s *errorTrackingSuite) BeforeTest(suiteName, testName string) {
-	s.BaseSuite.BeforeTest(suiteName, testName)
-	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
-}
-
-// TearDownSuite flushes on teardown (best-effort) before calling the base
-// implementation.
-func (s *errorTrackingSuite) TearDownSuite() {
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators() //nolint:errcheck
-	s.BaseSuite.TearDownSuite()
 }
 
 // TestPayloadShape verifies the happy path: with errortracking enabled and a
 // failing check in place, FakeIntake must receive at least one agent-logs record
 // with the expected wire shape.
 func (s *errorTrackingSuite) TestPayloadShape() {
-	// Phase 1: poll until at least one record arrives.
+	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+
+	// Trigger the check immediately rather than waiting for the scheduler.
+	s.Env().Agent.Client.Check(agentclient.WithArgs([]string{"http_check"}))
+
+	var logs []*aggregator.AgentTelemetryLog
+	var err error
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
-		assert.NoError(c, err)
+		logs, err = s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
+		require.NoError(c, err)
 		assert.NotEmpty(c, logs, "no agent-logs telemetry received yet")
-	}, waitFor, tick, "timed out waiting for agent-logs telemetry to reach fakeintake")
+	}, 1*time.Minute, 5*time.Second, "timed out waiting for agent-logs telemetry to reach fakeintake")
 
-	// Phase 2: assert wire shape outside the polling loop.
-	logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
-	require.NoError(s.T(), err)
-	require.NotEmpty(s.T(), logs)
-
-	l := logs[0]
-	assert.Equal(s.T(), "ERROR", l.Level)
-	assert.NotEmpty(s.T(), l.StackTrace, "stack_trace must be non-empty")
-	assert.False(s.T(), l.IsCrash, "agent error logs are not crash reports")
-	assert.GreaterOrEqual(s.T(), l.Count, 1)
-	// Message is intentionally empty — user-controlled data is never shipped.
-	assert.Empty(s.T(), l.Message, "message must not be on the wire")
+	for _, l := range logs {
+		assert.Equal(s.T(), "ERROR", l.Level)
+		assert.NotEmpty(s.T(), l.StackTrace, "stack_trace must be non-empty")
+		assert.False(s.T(), l.IsCrash, "agent error logs are not crash reports")
+		assert.GreaterOrEqual(s.T(), l.Count, 1)
+		// Message is intentionally empty — user-controlled data is never shipped.
+		assert.Empty(s.T(), l.Message, "message must not be on the wire")
+	}
 }
 
 // TestDisabledByDefault verifies that when the errortracking stanza is absent,
@@ -129,14 +94,25 @@ func (s *errorTrackingSuite) TestDisabledByDefault() {
 				),
 			),
 		))
+		// flush fakeintake and clear log file
 		require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+		_, execErr := s.Env().RemoteHost.Execute("sudo truncate -s 0 /var/log/datadog/agent.log")
+		require.NoError(s.T(), execErr)
 
-		// Wait longer than two flush intervals to give a misconfigured agent
-		// time to send if the gate were broken.
-		time.Sleep(30 * time.Second)
+		// Trigger the check immediately rather than waiting for the scheduler.
+		s.Env().Agent.Client.Check(agentclient.WithArgs([]string{"http_check"}))
 
+		// Wait until the check error appears in the agent log — confirming errors are
+		// generated locally before asserting they are not forwarded to telemetry.
+		require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+			out, execErr := s.Env().RemoteHost.Execute("sudo grep -c 'ERROR.*Error running check' /var/log/datadog/agent.log 2>/dev/null || echo 0")
+			assert.NoError(c, execErr)
+			assert.NotEqual(c, "0", strings.TrimSpace(out))
+		}, 1*time.Minute, 5*time.Second, "timed out waiting for check error to appear in agent log")
+
+		// Confirm the error was not forwarded to telemetry.
 		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
 		require.NoError(s.T(), err)
-		assert.Empty(s.T(), logs, "no agent-logs must arrive when errortracking is disabled")
+		assert.Empty(s.T(), logs, "no agent telemetry logs must arrive when errortracking is disabled")
 	})
 }

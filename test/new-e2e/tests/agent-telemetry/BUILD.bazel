@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "agent-telemetry_test",
+    srcs = ["errortracking_test.go"],
+    embedsrcs = glob(["testdata/**"]),
+    gotags = ["test"],
+    deps = [
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/agentparams",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//scenarios/aws/ec2",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/e2e",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/environments",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/provisioners/aws/host",
+        "//test/fakeintake/aggregator",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
