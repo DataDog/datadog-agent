@@ -432,7 +432,7 @@ func getPinnedLibraries(libVersions map[string]string, registry string, checkDef
 
 	return pinnedLibraries{
 		libs:             libs,
-		areSetToDefaults: checkDefaults && allDefaults && len(libs) == len(defaultSupportedLanguagesMap()),
+		areSetToDefaults: checkDefaults && allDefaults && len(libs) == len(defaultInjectedLanguagesMap()),
 	}
 }
 
