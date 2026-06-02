@@ -1162,17 +1162,7 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 				}
 			}
 		}
-	case slices.Contains([]string{
-		http.MethodGet,
-		http.MethodHead,
-		http.MethodPost,
-		http.MethodPut,
-		http.MethodPatch,
-		http.MethodDelete,
-		http.MethodConnect,
-		http.MethodOptions,
-		http.MethodTrace,
-	}, firstWord[0]):
+	case slices.Contains(imdsHTTPMethods, firstWord[0]):
 		req, err := http.ReadRequest(bufio.NewReader(bytes.NewBuffer(data)))
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse IMDS request: %v", err)
@@ -1189,6 +1179,88 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	return len(data), nil
+}
+
+// imdsHTTPMethods is the set of HTTP methods an IMDS request can start with.
+var imdsHTTPMethods = []string{
+	http.MethodGet,
+	http.MethodHead,
+	http.MethodPost,
+	http.MethodPut,
+	http.MethodPatch,
+	http.MethodDelete,
+	http.MethodConnect,
+	http.MethodOptions,
+	http.MethodTrace,
+}
+
+// IMDSMessageComplete reports whether data contains a complete HTTP message (request or
+// response): the full header block plus, when the message is body-framed, the entire body.
+// It is used by the IMDS reassembler to decide whether to keep buffering TCP segments or to
+// hand the assembled buffer off for parsing. It never consumes or mutates data.
+func IMDSMessageComplete(data []byte) bool {
+	if len(data) < 10 {
+		return false
+	}
+
+	// the header block must be fully received
+	headerEnd := bytes.Index(data, []byte("\r\n\r\n"))
+	if headerEnd < 0 {
+		return false
+	}
+	headerEnd += 4
+
+	firstWord := strings.SplitN(string(data[0:10]), " ", 2)
+	switch {
+	case strings.HasPrefix(firstWord[0], "HTTP"):
+		resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(data)), nil)
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+		return imdsBodyComplete(resp.ContentLength, resp.TransferEncoding, data, headerEnd)
+	case slices.Contains(imdsHTTPMethods, firstWord[0]):
+		req, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(data)))
+		if err != nil {
+			return false
+		}
+		defer req.Body.Close()
+		return imdsBodyComplete(req.ContentLength, req.TransferEncoding, data, headerEnd)
+	default:
+		// not a recognizable HTTP message: it is not a complete message
+		return false
+	}
+}
+
+// IMDSLooksLikeMessageStart reports whether data begins with an HTTP request line or status
+// line, i.e. it is the first segment of an IMDS message rather than a body continuation. The
+// reassembler uses it to anchor a flow's base sequence number on the true start of a message,
+// so that out-of-order delivery of body segments doesn't mis-anchor reassembly.
+func IMDSLooksLikeMessageStart(data []byte) bool {
+	if len(data) < 5 {
+		return false
+	}
+	n := len(data)
+	if n > 10 {
+		n = 10
+	}
+	firstWord := strings.SplitN(string(data[0:n]), " ", 2)[0]
+	return strings.HasPrefix(firstWord, "HTTP") || slices.Contains(imdsHTTPMethods, firstWord)
+}
+
+// imdsBodyComplete reports whether the body that follows headerEnd is fully present given
+// the message's framing (Content-Length, chunked, or close-delimited/none).
+func imdsBodyComplete(contentLength int64, transferEncoding []string, data []byte, headerEnd int) bool {
+	if slices.Contains(transferEncoding, "chunked") {
+		// chunked bodies terminate with a zero-length chunk
+		return bytes.Contains(data[headerEnd:], []byte("0\r\n\r\n"))
+	}
+	if contentLength >= 0 {
+		return int64(len(data)-headerEnd) >= contentLength
+	}
+	// no body framing (e.g. a bodyless request, or a close-delimited response): the headers
+	// are all we can rely on, so consider the message complete
+	return true
 }
 
 func (e *IMDSEvent) fillFromIMDSHeader(header http.Header, url string) {

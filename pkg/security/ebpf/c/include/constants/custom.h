@@ -89,7 +89,7 @@ enum TC_RAWPACKET_KEYS {
 #define INGRESS 2
 #define PACKET_KEY 0
 #define IMDS_EVENT_KEY 0
-#define IMDS_MAX_LENGTH 2048
+#define IMDS_MAX_LENGTH 8192
 
 #define STATE_NULL 0
 #define STATE_NEWLINK 1

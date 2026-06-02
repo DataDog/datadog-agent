@@ -259,6 +259,11 @@ struct imds_event_t {
     struct cgroup_context_t cgroup;
     struct network_context_t network;
 
+    // tcp_seq is the TCP sequence number of this segment (network byte order). It is used
+    // by the userspace IMDS reassembler to order/dedupe segments of a response that span
+    // multiple TCP packets.
+    u32 tcp_seq;
+
     u8 body[IMDS_MAX_LENGTH];
 };
 

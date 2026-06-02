@@ -18,14 +18,23 @@ TAIL_CALL_CLASSIFIER_FNC(imds_request, struct __sk_buff *skb) {
         return TC_ACT_UNSPEC;
     }
 
-    pkt->payload_len = pkt->payload_len & (IMDS_MAX_LENGTH - 1);
-    if (pkt->payload_len > 1) {
+    // record the TCP sequence number so userspace can reassemble responses that span
+    // multiple TCP segments
+    evt->tcp_seq = pkt->l4.tcp.seq;
+
+    // clamp (do NOT wrap with a bitmask) the payload length to the body buffer size: a
+    // bitwise AND would truncate or zero out payloads larger than IMDS_MAX_LENGTH
+    u32 len = pkt->payload_len;
+    if (len > IMDS_MAX_LENGTH) {
+        len = IMDS_MAX_LENGTH;
+    }
+    if (len > 1) {
         // copy IMDS request
-        if (bpf_skb_load_bytes(skb, pkt->offset, evt->body, pkt->payload_len) < 0) {
+        if (bpf_skb_load_bytes(skb, pkt->offset, evt->body, len) < 0) {
             return TC_ACT_UNSPEC;
         }
 
-        send_event_with_size_ptr(skb, EVENT_IMDS, evt, offsetof(struct imds_event_t, body) + (pkt->payload_len & (IMDS_MAX_LENGTH - 1)));
+        send_event_with_size_ptr(skb, EVENT_IMDS, evt, offsetof(struct imds_event_t, body) + len);
     }
 
     // done

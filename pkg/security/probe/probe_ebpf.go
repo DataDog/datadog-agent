@@ -124,6 +124,7 @@ type EBPFProbe struct {
 	// internals
 	event           *model.Event
 	dnsLayer        *layers.DNS
+	imdsReassembler *imdsReassembler
 	monitors        *EBPFMonitors
 	profileManager  securityprofile.ProfileManager
 	fieldHandlers   *EBPFFieldHandlers
@@ -163,7 +164,7 @@ type EBPFProbe struct {
 	otelSpanAttrsMap *lib.Map
 
 	// kill action
-	killListMap *lib.Map
+	killListMap           *lib.Map
 	supportsBPFSendSignal bool
 	processKiller         *ProcessKiller
 
@@ -1037,6 +1038,10 @@ func (p *EBPFProbe) SendStats() error {
 		return err
 	}
 
+	if err := p.imdsReassembler.SendStats(p.statsdClient); err != nil {
+		return err
+	}
+
 	return p.monitors.SendStats()
 }
 
@@ -1792,7 +1797,24 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 		offset += read
 
-		if _, err = event.IMDS.UnmarshalBinary(data[offset:]); err != nil {
+		// the body is preceded by the 4-byte TCP sequence number (network byte order) of the
+		// captured segment, used to reassemble responses that span multiple TCP segments
+		if offset+4 > len(data) {
+			seclog.Debugf("failed to decode IMDS event: missing tcp sequence number (offset %d, len %d)", offset, len(data))
+			return false
+		}
+		seq := binary.BigEndian.Uint32(data[offset : offset+4])
+		offset += 4
+
+		// buffer the segment and only proceed once a full HTTP message has been reassembled
+		full, complete := p.imdsReassembler.process(flowKeyFromNetworkContext(&event.NetworkContext), seq, data[offset:])
+		if !complete {
+			// the segment was buffered but did not complete an HTTP message yet: ignore this event
+			// while we wait for the remaining segments
+			return false
+		}
+
+		if _, err = event.IMDS.UnmarshalBinary(full); err != nil {
 			if err != model.ErrNoUsefulData {
 				// it's very possible we can't parse the IMDS body, as such let's put it as debug for now
 				seclog.Debugf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
@@ -3250,6 +3272,10 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		MetricNameTruncated:  atomic.NewUint64(0),
 		activeRemediations:   make(map[string]*Remediation),
 		pid:                  utils.Getpid(),
+	}
+
+	if p.imdsReassembler, err = newIMDSReassembler(); err != nil {
+		return nil, err
 	}
 
 	p.onNewPCE = func(pce *model.ProcessCacheEntry, err error) {
