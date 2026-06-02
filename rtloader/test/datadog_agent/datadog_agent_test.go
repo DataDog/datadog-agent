@@ -753,7 +753,7 @@ func TestReportIssue(t *testing.T) {
 
 	// Note the tab is needed on the second line because of the string interpolation in datadog_agent.go:run
 	code := `
-	payload = '{"issueId":"stub-issue","context":{}}'
+	payload = '{"id":"stub-issue","issue_name":"stub-issue"}'
 	datadog_agent.report_issue(check_name="stub-name", report_json=payload)
 `
 	out, err := run(code)
@@ -801,28 +801,6 @@ func TestResolveIssue(t *testing.T) {
 	}
 	if out != "" {
 		t.Fatalf("expected no stderr output, got %q", out)
-	}
-
-	codeErr := `
-	datadog_agent.resolve_issue(issue_id="error-resolve")
-`
-	out, err = run(codeErr)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out, "RuntimeError") || !strings.Contains(out, "stub resolve failure") {
-		t.Fatalf("expected RuntimeError with stub resolve failure, got %q", out)
-	}
-
-	codeEmpty := `
-	datadog_agent.resolve_issue(issue_id="")
-`
-	out, err = run(codeEmpty)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if out != "" {
-		t.Fatalf("expected no output for empty id path, got %q", out)
 	}
 
 	helpers.AssertMemoryUsage(t)

@@ -675,7 +675,7 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 	}
 }
 
-func parseIssueReportJSON(payload string) (*healthplatformpayload.Issue, error) {
+func parseIssueJSON(payload string) (*healthplatformpayload.Issue, error) {
 	t := strings.TrimSpace(payload)
 	if t == "" || t == "null" {
 		return nil, errors.New("empty or null payload")
@@ -708,7 +708,7 @@ func ReportIssue(checkName, reportJSON *C.char, errOut **C.char) {
 		return
 	}
 
-	report, err := parseIssueReportJSON(goPayload)
+	report, err := parseIssueJSON(goPayload)
 	if err != nil {
 		*errOut = TrackedCString(err.Error())
 		return
