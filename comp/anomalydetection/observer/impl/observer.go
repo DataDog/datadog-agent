@@ -195,6 +195,13 @@ func NewComponent(deps Requires) Provides {
 		scheduler:   &currentBehaviorPolicy{},
 	})
 
+	// Wire StdoutAnomalyEventConsumer so every scored anomaly event is printed to
+	// stdout (→ journald) as a single "[anomaly-event]" line. This is a PoC debug
+	// consumer — it will be removed or gated behind a config flag before GA.
+	eng.SetAnomalyEventConsumers([]observerdef.AnomalyEventConsumer{
+		NewStdoutAnomalyEventConsumer(""),
+	})
+
 	// Wire each injected reporter into its own reporterEventSink subscription.
 	// StorageConsumer reporters receive engine storage for windowed log-rate annotations.
 	for _, r := range deps.Reporters {
