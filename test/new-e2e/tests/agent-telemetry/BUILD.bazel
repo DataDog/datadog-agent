@@ -4,7 +4,11 @@ go_test(
     name = "agent-telemetry_test",
     srcs = ["errortracking_test.go"],
     data = glob(["testdata/**"]),
-    embedsrcs = glob(["testdata/**"]),
+    embedsrcs = [
+        "testdata/errortracking-disabled.yaml",
+        "testdata/errortracking-enabled.yaml",
+        "testdata/http_check.yaml",
+    ],
     gotags = ["test"],
     deps = [
         "//test/e2e-framework/testing/utils/e2e/client/agentclient",
