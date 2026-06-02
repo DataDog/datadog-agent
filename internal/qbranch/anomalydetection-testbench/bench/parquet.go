@@ -27,6 +27,25 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// ParquetFormat selects which parquet layout to read.
+// Use FormatAuto (empty string) to detect automatically by presence of contexts.parquet.
+type ParquetFormat string
+
+const (
+	FormatAuto ParquetFormat = ""   // detect: v2 if contexts.parquet present, else v1
+	FormatV1   ParquetFormat = "v1" // observer-metrics-*.parquet / observer-logs-*.parquet (inline tags)
+	FormatV2   ParquetFormat = "v2" // contexts.parquet + metrics-*.parquet / logs-*.parquet
+)
+
+// detectParquetFormat returns FormatV2 if contexts.parquet exists in dir, else FormatV1.
+func detectParquetFormat(dir string) ParquetFormat {
+	if _, err := os.Stat(filepath.Join(dir, "contexts.parquet")); err == nil {
+		return FormatV2
+	}
+	return FormatV1
+}
+
+
 // ---- Metric reader ----
 
 type fgmMetric struct {

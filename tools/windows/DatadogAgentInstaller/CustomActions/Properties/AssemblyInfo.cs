@@ -1,5 +1,9 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+
+// Allow the test assembly to access internal members for unit testing.
+[assembly: InternalsVisibleTo("CustomActions.Tests")]
 
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
