@@ -1,6 +1,8 @@
 #ifndef _HELPERS_NETWORK_FLOW_H
 #define _HELPERS_NETWORK_FLOW_H
 
+#include "constants/offsets/netns.h"
+#include "constants/offsets/network.h"
 #include "maps.h"
 
 __attribute__((always_inline)) struct sock_meta_t *reset_sock_meta(struct sock *sk) {
@@ -110,5 +112,52 @@ __attribute__((always_inline)) u8 can_delete_route(struct pid_route_t *route, st
     }
     return 0;
 }
+
+#ifndef DO_NOT_USE_TC
+
+__attribute__((always_inline)) void register_flow_pid_for_sock(struct sock *sk, u32 tgid) {
+    if (sk == NULL || tgid == 0) {
+        return;
+    }
+
+    struct pid_route_t route = {};
+    struct pid_route_entry_t value = {};
+    value.pid = tgid;
+    value.type = PROCFS_ENTRY; // this function is currently only called during procfs snapshot
+
+    route.netns = get_netns_from_sock(sk);
+    if (route.netns == 0) {
+        return;
+    }
+
+    route.port = get_skc_num_from_sock_common((void *)sk);
+    if (route.port == 0) {
+        // without a bound port there is nothing to match packets against
+        return;
+    }
+    route.l4_protocol = get_protocol_from_sock(sk);
+
+    u16 family = get_family_from_sock_common((void *)sk);
+    if (family == AF_INET6) {
+        bpf_probe_read(&route.addr, sizeof(u64) * 2, &sk->__sk_common.skc_v6_rcv_saddr);
+        bpf_map_update_elem(&flow_pid, &route, &value, BPF_ANY);
+
+        // an AF_INET6 socket may also handle AF_INET traffic, store an AF_INET mapping too
+        family = AF_INET;
+    }
+    if (family == AF_INET) {
+        bpf_probe_read(&route.addr, sizeof(sk->__sk_common.skc_rcv_saddr), &sk->__sk_common.skc_rcv_saddr);
+        bpf_map_update_elem(&flow_pid, &route, &value, BPF_ANY);
+    }
+
+#if defined(DEBUG_NETNS)
+    bpf_printk("register_flow_pid_for_sock netns: %u", route.netns);
+    bpf_printk("         skc_num:%d", htons(route.port));
+    bpf_printk("         skc_rcv_saddr:%x", route.addr[0]);
+    bpf_printk("         tgid:%d", tgid);
+#endif
+}
+
+#endif // DO_NOT_USE_TC
 
 #endif
