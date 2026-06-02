@@ -15,6 +15,16 @@ py_library(
 
 exports_files(["core_checks.py"])
 
+# Used by //pkg/config/schema:merged_core_schema to inline the per-section
+# sub-files referenced by core_schema.yaml's $refs.
+py_binary(
+    name = "merge_schema",
+    srcs = ["schema/merge_schema.py"],
+    main = "schema/merge_schema.py",
+    visibility = ["//pkg/config/schema:__pkg__"],
+    deps = ["@py_dev_requirements//pyyaml"],
+)
+
 # No `data = [...]` for renovate.json / deps/ / .renovate-untracked.json on
 # purpose: the script resolves them via $BUILD_WORKSPACE_DIRECTORY (set by
 # `bazel run`) so it reads the live workspace, not the bazel sandbox. Adding
