@@ -1003,13 +1003,19 @@ static PyObject *report_issue(PyObject *self, PyObject *args, PyObject *kwargs)
     }
 
     char *err = NULL;
-    } else {
-        Py_INCREF(Py_None);
-        retval = Py_None;
-    }
+    cb_report_issue(check_name, report_json, &err);
 
+    if (err != NULL) {
+        PyErr_SetString(PyExc_RuntimeError, err);
+    }   
+    
+    cgo_free(err);
     PyGILState_Release(gstate);
-    return retval;
+    // we need to return NULL to raise the exception set by PyErr_SetString
+    if (error) {
+        return NULL;
+    }
+    Py_RETURN_NONE;
 }
 
 /*! \fn PyObject *resolve_issue(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -1033,15 +1039,15 @@ static PyObject *resolve_issue(PyObject *self, PyObject *args, PyObject *kwargs)
     char *err = NULL;
     cb_resolve_issue(issue_id, &err);
 
-    PyObject *retval = NULL;
     if (err != NULL) {
         PyErr_SetString(PyExc_RuntimeError, err);
-        cgo_free(err);
-    } else {
-        Py_INCREF(Py_None);
-        retval = Py_None;
     }
-
+    
+    cgo_free(err);
     PyGILState_Release(gstate);
-    return retval;
+    // we need to return NULL to raise the exception set by PyErr_SetString
+    if (error) {
+        return NULL;
+    }
+    Py_RETURN_NONE;
 }
