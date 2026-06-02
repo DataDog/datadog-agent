@@ -327,8 +327,8 @@ def dict_to_gotype(inp):
         return f"map[string]{dict_to_gotype(inp.get('additionalProperties'))}"
 
 
-def to_vartype(keypath, node):
-    return f"{dict_to_gotype(node)}{{}}"
+def to_vartype(node, setting_default):
+    return f"{dict_to_gotype(node)}{setting_default}"
 
 
 def retrieve_method_to_declare(keypath, schema):

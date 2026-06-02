@@ -14,6 +14,7 @@ from tasks.libs.build.bazel import bazel
 from tasks.schema.add_comments import add_comments
 from tasks.schema.codegen_init_settings import run_codegen
 from tasks.schema.fixes import fix_schema
+from tasks.schema.merge_schema import resolve_schema
 from tasks.schema.settings_source_analyzer import extract_imperative_code_hints
 from tasks.schema.template_parser import parse_template
 
@@ -232,12 +233,11 @@ def codegen(ctx, schema_file, keep_orig_order=False, check=False, fix=False, kee
     fix:             If true, copy the codegen files into SCHEMA_DIR
     """
 
-    with open(schema_file) as f:
-        core_schema = yaml.safe_load(f)
+    source_schema = resolve_schema(schema_file)
     hints = extract_imperative_code_hints()
 
     tmpdir = tempfile.mkdtemp()
-    run_codegen(core_schema, hints, keep_orig_order, tmpdir)
+    run_codegen(source_schema, hints, keep_orig_order, tmpdir)
 
     display = not check and not fix
 
