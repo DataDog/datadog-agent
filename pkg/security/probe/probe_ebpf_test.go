@@ -22,14 +22,12 @@ import (
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
-// selfExeStat returns the (inode, device) of the running test binary, with
-// device in the kernel-encoded form (major<<20)|minor that the eBPF probe
-// stores in pr.FileEvent.Device.
-func selfExeStat(t *testing.T) (ino uint64, dev uint32) {
+// selfExeInode returns the inode of the running test binary.
+func selfExeInode(t *testing.T) uint64 {
 	t.Helper()
 	var st unix.Stat_t
 	require.NoError(t, unix.Stat("/proc/self/exe", &st), "stat /proc/self/exe")
-	return st.Ino, (unix.Major(st.Dev) << 20) | (unix.Minor(st.Dev) & 0xFFFFF)
+	return st.Ino
 }
 
 func newTestEBPFProbe() *EBPFProbe {
@@ -125,46 +123,29 @@ func TestGetAndPutBackPoolEventRoundTrip(t *testing.T) {
 }
 
 func TestSameProcessAsCached(t *testing.T) {
-	selfInode, selfDevice := selfExeStat(t)
+	selfInode := selfExeInode(t)
 	selfPid := uint32(os.Getpid())
 
-	t.Run("self pid with matching cached inode and device returns true", func(t *testing.T) {
+	t.Run("self pid with matching cached inode returns true", func(t *testing.T) {
 		pr := &model.Process{PIDContext: model.PIDContext{Pid: selfPid}}
 		pr.FileEvent.Inode = selfInode
-		pr.FileEvent.Device = selfDevice
 		assert.True(t, sameProcessAsCached(pr))
 	})
 
 	t.Run("self pid with mismatching cached inode returns false", func(t *testing.T) {
 		pr := &model.Process{PIDContext: model.PIDContext{Pid: selfPid}}
 		pr.FileEvent.Inode = 0xdeadbeef
-		pr.FileEvent.Device = selfDevice
-		assert.False(t, sameProcessAsCached(pr))
-	})
-
-	t.Run("self pid with mismatching cached device returns false", func(t *testing.T) {
-		pr := &model.Process{PIDContext: model.PIDContext{Pid: selfPid}}
-		pr.FileEvent.Inode = selfInode
-		pr.FileEvent.Device = 0xdeadbeef
 		assert.False(t, sameProcessAsCached(pr))
 	})
 
 	t.Run("zero cached inode returns false", func(t *testing.T) {
 		pr := &model.Process{PIDContext: model.PIDContext{Pid: selfPid}}
-		pr.FileEvent.Device = selfDevice
-		assert.False(t, sameProcessAsCached(pr))
-	})
-
-	t.Run("zero cached device returns false", func(t *testing.T) {
-		pr := &model.Process{PIDContext: model.PIDContext{Pid: selfPid}}
-		pr.FileEvent.Inode = selfInode
 		assert.False(t, sameProcessAsCached(pr))
 	})
 
 	t.Run("nonexistent pid returns false", func(t *testing.T) {
 		pr := &model.Process{PIDContext: model.PIDContext{Pid: uint32(math.MaxInt32)}}
 		pr.FileEvent.Inode = selfInode
-		pr.FileEvent.Device = selfDevice
 		assert.False(t, sameProcessAsCached(pr))
 	})
 }
@@ -228,7 +209,7 @@ func TestEnrichRuleEventSelfPID(t *testing.T) {
 	p := newTestEBPFProbe()
 
 	require.NotEmpty(t, os.Args)
-	selfInode, selfDevice := selfExeStat(t)
+	selfInode := selfExeInode(t)
 
 	ev := &model.Event{}
 	ev.ProcessContext = &model.ProcessContext{
@@ -248,7 +229,6 @@ func TestEnrichRuleEventSelfPID(t *testing.T) {
 		},
 	}
 	ev.ProcessContext.Process.FileEvent.Inode = selfInode
-	ev.ProcessContext.Process.FileEvent.Device = selfDevice
 
 	p.EnrichRuleEvent(ev)
 
@@ -297,7 +277,6 @@ func TestEnrichRuleEventGonePID(t *testing.T) {
 		},
 	}
 	ev.ProcessContext.Process.FileEvent.Inode = 0xdeadbeef
-	ev.ProcessContext.Process.FileEvent.Device = 0xdead
 	origArgsEntry := ev.ProcessContext.Process.ArgsEntry
 	origEnvsEntry := ev.ProcessContext.Process.EnvsEntry
 
@@ -313,15 +292,13 @@ func TestEnrichRuleEventGonePID(t *testing.T) {
 }
 
 // TestEnrichRuleEventExeMismatch covers the PID-reuse path: /proc/<pid>/exe
-// is readable but its (inode, device) pair no longer matches the cached
-// one, so we refuse to enrich.
+// is readable but its inode no longer matches the cached one, so we refuse
+// to enrich.
 func TestEnrichRuleEventExeMismatch(t *testing.T) {
 	p := newTestEBPFProbe()
 
 	const fakeArg = "fake-truncated-arg..."
 	const fakeEnv = "FAKE_ENV=truncated..."
-
-	_, selfDevice := selfExeStat(t)
 
 	ev := &model.Event{}
 	ev.ProcessContext = &model.ProcessContext{
@@ -336,7 +313,6 @@ func TestEnrichRuleEventExeMismatch(t *testing.T) {
 		},
 	}
 	ev.ProcessContext.Process.FileEvent.Inode = 0xdeadbeef
-	ev.ProcessContext.Process.FileEvent.Device = selfDevice
 	origArgsEntry := ev.ProcessContext.Process.ArgsEntry
 	origEnvsEntry := ev.ProcessContext.Process.EnvsEntry
 
