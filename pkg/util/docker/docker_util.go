@@ -134,6 +134,16 @@ func (d *DockerUtil) RawClient() *client.Client {
 	return d.cli
 }
 
+// CopyFromContainer wraps the Docker archive API for a single path.
+// The caller is responsible for closing the returned archive stream.
+func (d *DockerUtil) CopyFromContainer(ctx context.Context, containerID string, path string) (io.ReadCloser, error) {
+	result, err := d.cli.CopyFromContainer(ctx, containerID, client.CopyFromContainerOptions{SourcePath: path})
+	if err != nil {
+		return nil, err
+	}
+	return result.Content, nil
+}
+
 // RawContainerList wraps around the docker client's ContainerList method.
 // Value validation and error handling are the caller's responsibility.
 func (d *DockerUtil) RawContainerList(ctx context.Context, options client.ContainerListOptions) ([]dcontainer.Summary, error) {
