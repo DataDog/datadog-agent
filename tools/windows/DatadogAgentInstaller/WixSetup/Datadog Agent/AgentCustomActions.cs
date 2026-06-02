@@ -801,8 +801,7 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
-                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], " +
-                               "DD_LOGON_DURATION_AUTOLOGGER=[DD_LOGON_DURATION_AUTOLOGGER]");
+                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]");
 
             ConfigureAutoLoggerRollback = new CustomAction<CustomActions>(
                     new Id(nameof(ConfigureAutoLoggerRollback)),
@@ -816,8 +815,7 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.rollback,
                 Impersonate = false
             }
-                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
-                               "DD_LOGON_DURATION_AUTOLOGGER=[DD_LOGON_DURATION_AUTOLOGGER]");
+                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
             RemoveAutoLogger = new CustomAction<CustomActions>(
                     new Id(nameof(RemoveAutoLogger)),

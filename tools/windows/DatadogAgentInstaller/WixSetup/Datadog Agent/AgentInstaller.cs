@@ -164,10 +164,6 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
-                new Property("DD_LOGON_DURATION_AUTOLOGGER")
-                {
-                    AttributesDefinition = "Secure=yes"
-                },
                 // When set to a truthy value (1/true/yes), the installer skips re-applying the
                 // ddagentuser SeDeny*LogonRight assignments so customers can preserve custom
                 // user-rights changes across upgrades. SeServiceLogonRight is always granted

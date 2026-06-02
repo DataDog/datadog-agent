@@ -67,13 +67,6 @@ namespace Datadog.CustomActions
 
         private static ActionResult ConfigureAutoLogger(ISession session)
         {
-            var autologgerEnabled = session.Property("DD_LOGON_DURATION_AUTOLOGGER");
-            if (!string.Equals(autologgerEnabled, "true", StringComparison.OrdinalIgnoreCase))
-            {
-                session.Log("DD_LOGON_DURATION_AUTOLOGGER is not set to true, skipping AutoLogger configuration");
-                return ActionResult.Success;
-            }
-
             var rollbackDataStore = new RollbackDataStore(session, RollbackDataName);
             try
             {
@@ -84,6 +77,18 @@ namespace Datadog.CustomActions
                 {
                     session.Log("APPLICATIONDATADIRECTORY is not set");
                     return ActionResult.Failure;
+                }
+
+                // Preserve the runtime state of an existing AutoLogger across upgrades/reinstalls.
+                // The agent toggles the Start value at runtime based on logon_duration.enabled, so
+                // re-creating the keys here would reset Start and regenerate the Guid on every upgrade.
+                using (var existingKey = Registry.LocalMachine.OpenSubKey(SessionKeyPath))
+                {
+                    if (existingKey != null)
+                    {
+                        session.Log("AutoLogger already exists, preserving current state");
+                        return ActionResult.Success;
+                    }
                 }
 
                 // Snapshot the current registry state before making any changes
@@ -235,14 +240,6 @@ namespace Datadog.CustomActions
         public static ActionResult ConfigureAutoLoggerRollback(Session session)
         {
             var wrappedSession = new SessionWrapper(session);
-            var autologgerEnabled = wrappedSession.Property("DD_LOGON_DURATION_AUTOLOGGER");
-            if (!string.Equals(autologgerEnabled, "true", StringComparison.OrdinalIgnoreCase))
-            {
-                wrappedSession.Log("DD_LOGON_DURATION_AUTOLOGGER was not set to true; " +
-                                   "skipping rollback to preserve pre-existing autologger state");
-                return ActionResult.Success;
-            }
-
             try
             {
                 var rollbackDataStore = new RollbackDataStore(wrappedSession, RollbackDataName);
