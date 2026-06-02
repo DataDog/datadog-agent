@@ -11,14 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
 const (
@@ -30,11 +28,7 @@ const (
 	defaultIssueAbsenceWindow = 45 * time.Second
 )
 
-// ============================================================================
-// fakeintake helpers
-// ============================================================================
-
-// findIssuesByID searches for all issues with the given exact ID in a fakeintake health report payload.
+// findIssuesByID returns all issues with the given exact ID from a fakeintake payload.
 func findIssuesByID(t testing.TB, report *aggregator.AgentHealthPayload, issueID string) []*healthplatform.Issue {
 	t.Helper()
 	if report == nil || report.HealthReport == nil {
@@ -57,7 +51,7 @@ func findIssuesByID(t testing.TB, report *aggregator.AgentHealthPayload, issueID
 	return results
 }
 
-// findIssuesByPrefix searches for all issues whose ID starts with prefix.
+// findIssuesByPrefix returns all issues whose ID starts with prefix from a fakeintake payload.
 // Useful for issue types where the ID includes a runtime-generated hash suffix.
 func findIssuesByPrefix(report *aggregator.AgentHealthPayload, prefix string) []*healthplatform.Issue {
 	if report == nil || report.HealthReport == nil {
@@ -71,70 +65,6 @@ func findIssuesByPrefix(report *aggregator.AgentHealthPayload, prefix string) []
 	}
 	return results
 }
-
-// waitForIssueInState polls fakeintake until at least one issue matching issueID
-// is found with the specified state, then returns all matching issues.
-// If issueID ends with "*" it is treated as a prefix match.
-func waitForIssueInState(t *testing.T, fi *fakeintakeclient.Client, issueID string, state healthplatform.IssueState) []*healthplatform.Issue {
-	t.Helper()
-	prefix, usePrefix := strings.CutSuffix(issueID, "*")
-	var found []*healthplatform.Issue
-	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		payloads, err := fi.GetAgentHealth()
-		assert.NoError(ct, err)
-		found = nil
-		for _, p := range payloads {
-			var candidates []*healthplatform.Issue
-			if usePrefix {
-				candidates = findIssuesByPrefix(p, prefix)
-			} else {
-				candidates = findIssuesByID(t, p, issueID)
-			}
-			for _, iss := range candidates {
-				if iss.PersistedIssue != nil && iss.PersistedIssue.State == state {
-					found = append(found, iss)
-				}
-			}
-		}
-		assert.NotEmptyf(ct, found, "issue %q with state %v not found in fakeintake", issueID, state)
-	}, defaultIssueTimeout, defaultIssuePollInterval,
-		"issue %q with state %v not found in fakeintake within timeout", issueID, state)
-	return found
-}
-
-// assertIssueResolvedOrAbsent verifies that after a fix and agent restart the
-// issue either stops being reported to fakeintake, or is only reported with
-// RESOLVED state. Fails if any non-resolved payload for the issue arrives
-// within defaultIssueAbsenceWindow.
-func assertIssueResolvedOrAbsent(t *testing.T, fi *fakeintakeclient.Client, issueID string) {
-	t.Helper()
-	prefix, usePrefix := strings.CutSuffix(issueID, "*")
-	require.Never(t, func() bool {
-		payloads, err := fi.GetAgentHealth()
-		if err != nil {
-			return false
-		}
-		for _, p := range payloads {
-			var candidates []*healthplatform.Issue
-			if usePrefix {
-				candidates = findIssuesByPrefix(p, prefix)
-			} else {
-				candidates = findIssuesByID(t, p, issueID)
-			}
-			for _, iss := range candidates {
-				if iss.PersistedIssue == nil || iss.PersistedIssue.State != healthplatform.IssueState_ISSUE_STATE_RESOLVED {
-					return true
-				}
-			}
-		}
-		return false
-	}, defaultIssueAbsenceWindow, defaultIssuePollInterval,
-		"issue %q still reported as non-resolved after fix", issueID)
-}
-
-// ============================================================================
-// Shared test utilities
-// ============================================================================
 
 // writeCheckFile writes a Python custom check to the agent's checks.d directory.
 // It writes to a world-writable temp path via SFTP, then uses sudo to move the

@@ -58,12 +58,25 @@ func (suite *resilienceSuite) TestHealthPlatformResilience() {
 	agent := suite.Env().Agent
 	fi := suite.Env().FakeIntake.Client()
 
-	const issueID = "check-execution-failure:broken_check*"
+	const issuePrefix = "check-execution-failure:broken_check"
 
 	// Wait for the initial NEW report so we have a first_seen to compare.
-	initialIssues := waitForIssueInState(suite.T(), fi, issueID, healthplatform.IssueState_ISSUE_STATE_NEW)
-	require.NotEmpty(suite.T(), initialIssues)
+	var initialIssues []*healthplatform.Issue
+	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
+		payloads, err := fi.GetAgentHealth()
+		assert.NoError(ct, err)
+		initialIssues = nil
+		for _, p := range payloads {
+			for _, iss := range findIssuesByPrefix(p, issuePrefix) {
+				if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW {
+					initialIssues = append(initialIssues, iss)
+				}
+			}
+		}
+		assert.NotEmpty(ct, initialIssues, "issue not found as NEW in fakeintake")
+	}, defaultIssueTimeout, defaultIssuePollInterval, "issue not detected as NEW in fakeintake")
 
+	require.NotEmpty(suite.T(), initialIssues)
 	var firstSeen string
 	for _, iss := range initialIssues {
 		if iss.PersistedIssue != nil && firstSeen == "" {
@@ -78,7 +91,21 @@ func (suite *resilienceSuite) TestHealthPlatformResilience() {
 	}, 2*time.Minute, 10*time.Second, "agent not ready after restart")
 
 	// After restart the issue must be re-reported as ONGOING (loaded from on-disk store).
-	reloadedIssues := waitForIssueInState(suite.T(), fi, issueID, healthplatform.IssueState_ISSUE_STATE_ONGOING)
+	var reloadedIssues []*healthplatform.Issue
+	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
+		payloads, err := fi.GetAgentHealth()
+		assert.NoError(ct, err)
+		reloadedIssues = nil
+		for _, p := range payloads {
+			for _, iss := range findIssuesByPrefix(p, issuePrefix) {
+				if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING {
+					reloadedIssues = append(reloadedIssues, iss)
+				}
+			}
+		}
+		assert.NotEmpty(ct, reloadedIssues, "issue not found as ONGOING in fakeintake after restart")
+	}, defaultIssueTimeout, defaultIssuePollInterval, "issue not re-reported as ONGOING after restart")
+
 	require.NotEmpty(suite.T(), reloadedIssues)
 	require.NotNil(suite.T(), reloadedIssues[0].PersistedIssue)
 	if firstSeen != "" {

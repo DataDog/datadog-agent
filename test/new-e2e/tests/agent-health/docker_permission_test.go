@@ -154,7 +154,21 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 	suite.T().Run("IssueDetection", func(t *testing.T) {
 		host.MustExecute("sudo chmod 660 /var/run/docker.sock")
 
-		issues := waitForIssueInState(t, fi, issueID, healthplatform.IssueState_ISSUE_STATE_NEW)
+		var issues []*healthplatform.Issue
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			payloads, err := fi.GetAgentHealth()
+			assert.NoError(ct, err)
+			issues = nil
+			for _, p := range payloads {
+				for _, iss := range findIssuesByID(t, p, issueID) {
+					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW {
+						issues = append(issues, iss)
+					}
+				}
+			}
+			assert.NotEmpty(ct, issues, "docker socket permission issue not found as NEW in fakeintake")
+		}, defaultIssueTimeout, defaultIssuePollInterval, "docker socket permission issue not detected as NEW in fakeintake")
+
 		require.NotEmpty(t, issues)
 		issue := issues[0]
 		assert.Equal(t, "docker-socket-permissions", issue.Id)
@@ -186,6 +200,16 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 			assert.True(ct, agent.Client.IsReady())
 		}, 2*time.Minute, 10*time.Second, "agent not ready after fix restart")
 
-		assertIssueResolvedOrAbsent(t, fi, issueID)
+		require.Never(t, func() bool {
+			payloads, _ := fi.GetAgentHealth()
+			for _, p := range payloads {
+				for _, iss := range findIssuesByID(t, p, issueID) {
+					if iss.PersistedIssue == nil || iss.PersistedIssue.State != healthplatform.IssueState_ISSUE_STATE_RESOLVED {
+						return true
+					}
+				}
+			}
+			return false
+		}, defaultIssueAbsenceWindow, defaultIssuePollInterval, "issue still reported as non-resolved after fix")
 	})
 }

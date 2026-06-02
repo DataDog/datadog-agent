@@ -77,11 +77,25 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 	agent := suite.Env().Agent
 	fi := suite.Env().FakeIntake.Client()
 
-	const issueID = "check-execution-failure:broken_check*"
+	const issuePrefix = "check-execution-failure:broken_check"
 
 	suite.T().Run("IssueDetection", func(t *testing.T) {
 		// broken_check.py is deployed by the provisioner; agent is ready at suite start.
-		issues := waitForIssueInState(t, fi, issueID, healthplatform.IssueState_ISSUE_STATE_NEW)
+		var issues []*healthplatform.Issue
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			payloads, err := fi.GetAgentHealth()
+			assert.NoError(ct, err)
+			issues = nil
+			for _, p := range payloads {
+				for _, iss := range findIssuesByPrefix(p, issuePrefix) {
+					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW {
+						issues = append(issues, iss)
+					}
+				}
+			}
+			assert.NotEmpty(ct, issues, "check execution failure not found as NEW in fakeintake")
+		}, defaultIssueTimeout, defaultIssuePollInterval, "check execution failure not detected as NEW in fakeintake")
+
 		require.NotEmpty(t, issues)
 		issue := issues[0]
 		assert.Equal(t, "check_execution_failure", issue.IssueName)
@@ -100,6 +114,16 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 			assert.True(ct, agent.Client.IsReady())
 		}, 2*time.Minute, 10*time.Second, "agent not ready after fix restart")
 
-		assertIssueResolvedOrAbsent(t, fi, issueID)
+		require.Never(t, func() bool {
+			payloads, _ := fi.GetAgentHealth()
+			for _, p := range payloads {
+				for _, iss := range findIssuesByPrefix(p, issuePrefix) {
+					if iss.PersistedIssue == nil || iss.PersistedIssue.State != healthplatform.IssueState_ISSUE_STATE_RESOLVED {
+						return true
+					}
+				}
+			}
+			return false
+		}, defaultIssueAbsenceWindow, defaultIssuePollInterval, "issue still reported as non-resolved after fix")
 	})
 }
