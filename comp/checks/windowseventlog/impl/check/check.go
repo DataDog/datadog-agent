@@ -75,12 +75,6 @@ type Check struct {
 	issueReporter          healthplatformstore.Component
 }
 
-// SetIssueReporter sets the health platform store used to report issues from this check.
-// This implements the check.IssueAwareCheck interface.
-func (c *Check) SetIssueReporter(reporter healthplatformstore.Component) {
-	c.issueReporter = reporter
-}
-
 // Run updates sender stats, restarts the subscription if it failed, and saves the bookmark.
 // The main event collection logic runs continuously in the background, not during Run().
 func (c *Check) Run() error {
@@ -312,7 +306,8 @@ func (c *Check) Cancel() {
 }
 
 // Factory creates a new check factory
-func Factory(logsAgent option.Option[logsAgent.Component], config configComponent.Component, publisherMetadataCache publishermetadatacache.Component) option.Option[func() check.Check] {
+func Factory(logsAgent option.Option[logsAgent.Component], config configComponent.Component, publisherMetadataCache publishermetadatacache.Component, healthPlatform option.Option[healthplatformstore.Component]) option.Option[func() check.Check] {
+	hp, _ := healthPlatform.Get()
 	return option.New(func() check.Check {
 		return &Check{
 			CheckBase:              core.NewCheckBase(CheckName),
@@ -320,6 +315,7 @@ func Factory(logsAgent option.Option[logsAgent.Component], config configComponen
 			agentConfig:            config,
 			evtapi:                 winevtapi.New(),
 			publisherMetadataCache: publisherMetadataCache,
+			issueReporter:          hp,
 		}
 	})
 }

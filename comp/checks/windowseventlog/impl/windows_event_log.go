@@ -16,6 +16,7 @@ import (
 	windowseventlog "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/def"
 	check "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/impl/check"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -30,6 +31,7 @@ type Requires struct {
 	LogsComponent          option.Option[logsAgent.Component]
 	Config                 configComponent.Component
 	PublisherMetadataCache publishermetadatacache.Component
+	HealthPlatform         option.Option[healthplatformstore.Component]
 }
 
 // Provides defines the output of the windowseventlog component.
@@ -41,7 +43,7 @@ type Provides struct {
 func NewComponent(reqs Requires) Provides {
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
-			core.RegisterCheck(check.CheckName, check.Factory(reqs.LogsComponent, reqs.Config, reqs.PublisherMetadataCache))
+			core.RegisterCheck(check.CheckName, check.Factory(reqs.LogsComponent, reqs.Config, reqs.PublisherMetadataCache, reqs.HealthPlatform))
 			return nil
 		},
 	})
