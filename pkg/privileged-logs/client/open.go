@@ -149,8 +149,8 @@ func Open(path string) (*os.File, error) {
 }
 
 // OpenNoFollow opens a file by traversing each path component with O_NOFOLLOW,
-// rejecting any symbolic link in the path.  If the file exists but is
-// permission-denied (EACCES) rather than a symlink (ELOOP), privileged-log
+// rejecting any symbolic link in the path.  If the file exists but opening it
+// fails with permission denied rather than a symlink (ELOOP), privileged-log
 // escalation via system-probe is attempted, and the NoFollow flag is forwarded
 // so that system-probe also skips symbolic-link resolution.
 //
@@ -165,7 +165,7 @@ func OpenNoFollow(path string) (*os.File, error) {
 
 	// A symlink in the path (ELOOP) or any other non-permission error must not
 	// be escalated: we only escalate real access-denied errors on the actual file.
-	if !errors.Is(err, syscall.EACCES) && !errors.Is(err, os.ErrPermission) {
+	if !errors.Is(err, os.ErrPermission) {
 		if errors.Is(err, syscall.ELOOP) {
 			log.Warnf("process_log path %q contains a symbolic link that was not present at discovery time — possible symlink-swap attack; refusing to open", path)
 		}
