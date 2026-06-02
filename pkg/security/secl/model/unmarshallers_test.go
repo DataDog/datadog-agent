@@ -10,8 +10,6 @@ package model
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 const syscallsEventByteCount = 64

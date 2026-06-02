@@ -10,7 +10,6 @@ package securityprofile
 
 import (
 	"errors"
-	"fmt"
 	"slices"
 	"time"
 
@@ -293,11 +292,6 @@ func (m *Manager) loadProfileMap(profile *profile.Profile) error {
 	profile.LoadedInKernel.Store(true)
 	profile.LoadedNano.Store(uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now())))
 
-	// push kernel space filters
-	if err := m.securityProfileSyscallsMap.Put(profile.GetProfileCookie(), profile.GenerateSyscallsFilters()); err != nil {
-		return fmt.Errorf("couldn't push syscalls filter (check map size limit ?): %w", err)
-	}
-
 	// TODO: load generated programs
 	seclog.Debugf("security profile %s loaded in kernel space", profile.Metadata.Name)
 	return nil
@@ -306,12 +300,6 @@ func (m *Manager) loadProfileMap(profile *profile.Profile) error {
 // unloadProfile (thread unsafe) unloads a Security Profile from kernel space
 func (m *Manager) unloadProfileMap(profile *profile.Profile) {
 	profile.LoadedInKernel.Store(false)
-
-	// remove kernel space filters
-	if err := m.securityProfileSyscallsMap.Delete(profile.GetProfileCookie()); err != nil {
-		seclog.Errorf("couldn't remove syscalls filter: %v", err)
-		return
-	}
 
 	// TODO: delete all kernel space programs
 	seclog.Debugf("security profile %s unloaded from kernel space", profile.Metadata.Name)
