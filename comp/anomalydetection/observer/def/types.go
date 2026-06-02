@@ -516,57 +516,67 @@ type SeriesRemover interface {
 	RemoveSeries(refs []SeriesRef)
 }
 
-// AnomalyEvent is a scored event candidate produced by the AnomalyEventScorer
-// for every new detector anomaly. It carries the trigger anomaly, a contextual
-// score computed from recent anomalies in a sliding window, and severity change
-// tracking by scope.
-type AnomalyEvent struct {
-	// ID is a stable identifier derived from trigger source, detector, timestamp, and title.
-	ID string
+// ---------------------------------------------------------------------------
+// Scored anomaly event types
+// ---------------------------------------------------------------------------
 
-	// Trigger is the anomaly that caused this event to be emitted.
-	Trigger Anomaly
+// AnomalyEventSeverity is the derived severity of a scored anomaly event.
+// It is computed from the EWMA score and is distinct from the raw detector
+// AnomalySeverity which comes directly from the detector.
+type AnomalyEventSeverity string
 
-	// WindowStart and WindowEnd are the Unix-second bounds of the scoring window.
-	WindowStart int64
-	WindowEnd   int64
+const (
+	AnomalyEventSeverityLow    AnomalyEventSeverity = "low"
+	AnomalyEventSeverityMedium AnomalyEventSeverity = "medium"
+	AnomalyEventSeverityHigh   AnomalyEventSeverity = "high"
+)
 
-	// RecentAnomalies is the set of anomalies in the window used for scoring
-	// (includes the trigger).
-	RecentAnomalies []Anomaly
+// AnomalyEventTrend describes the direction of the EWMA score between events.
+type AnomalyEventTrend string
 
-	// Signals groups evidence by signal key (typically Anomaly.Source.Key()).
-	Signals []SignalEvidence
+const (
+	AnomalyEventTrendIncreased AnomalyEventTrend = "increased"
+	AnomalyEventTrendDecreased AnomalyEventTrend = "decreased"
+	AnomalyEventTrendStable    AnomalyEventTrend = "stable"
+)
 
-	// Score is the combined contextual event score in [0, 1].
-	Score float64
+// AnomalyEventScore holds the instant and smoothed scoring for a ScoredAnomalyEvent.
+type AnomalyEventScore struct {
+	// Instant is the contextual score computed from the current sliding-window evidence.
+	Instant float64
 
-	// Severity is the event severity derived from Score.
-	Severity AnomalySeverity
+	// EWMA is the smoothed score for this event scope after incorporating the instant score.
+	EWMA float64
 
-	// PreviousSeverity is the last severity seen for the same scope.
-	PreviousSeverity AnomalySeverity
+	// PreviousEWMA is the scope's EWMA before this event.
+	PreviousEWMA float64
 
-	// SeverityChanged is true when Severity != PreviousSeverity.
+	// Severity is the event severity derived from the EWMA score (with hysteresis).
+	Severity AnomalyEventSeverity
+
+	// PreviousSeverity is the scope's severity before this event.
+	PreviousSeverity AnomalyEventSeverity
+
+	// SeverityChanged is true when Severity differs from PreviousSeverity.
 	SeverityChanged bool
 
-	// SeverityDirection is "up", "down", or "same".
-	SeverityDirection string
-
-	// Breakdown contains per-signal scoring details.
-	Breakdown CorrelationScoreBreakdown
+	// Trend is the EWMA direction computed from the delta between EWMA and PreviousEWMA.
+	Trend AnomalyEventTrend
 }
 
-// SignalEvidence groups anomalies by signal key and records their contribution to the event score.
-type SignalEvidence struct {
-	Key       string
-	Score     float64
-	Severity  AnomalySeverity
-	Anomalies []Anomaly
+// AnomalyEventWindow describes the sliding window used for scoring.
+type AnomalyEventWindow struct {
+	// StartSec and EndSec are the Unix-second bounds of the scoring window.
+	StartSec int64
+	EndSec   int64
+	// Size is the number of anomalies currently in the window.
+	Size int
+	// MaxSize is the configured maximum window size.
+	MaxSize int
 }
 
-// CorrelationScoreBreakdown carries the intermediate values from the noisy-OR scoring.
-type CorrelationScoreBreakdown struct {
+// AnomalyEventScoreBreakdown carries intermediate values from the noisy-OR scoring.
+type AnomalyEventScoreBreakdown struct {
 	// SignalCount is the total number of distinct signals in the scoring window.
 	SignalCount int
 	// EffectiveSignalCount is the number of signals used for cross-signal combination.
@@ -582,3 +592,56 @@ type CorrelationScoreBreakdown struct {
 	// WindowAnomalyCount is the total number of anomalies in the scoring window.
 	WindowAnomalyCount int
 }
+
+// ScoredAnomalyEvent is the canonical scored event produced by the AnomalyEventScorer
+// for every new detector anomaly. It is the single source of truth used by the
+// testbench UI, future publishers, and debug logging.
+type ScoredAnomalyEvent struct {
+	// ID is a stable identifier derived from trigger source, detector, timestamp, and title.
+	ID string
+
+	// Scope identifies the tag-based scope (service, env, etc.) used for EWMA state.
+	Scope string
+
+	// Anomaly is the detector anomaly that triggered this event.
+	Anomaly Anomaly
+
+	// Score holds instant, EWMA, severity, trend, and change fields.
+	Score AnomalyEventScore
+
+	// Window describes the sliding window used for instant scoring.
+	Window AnomalyEventWindow
+
+	// Signals groups evidence by signal key for display and debugging.
+	Signals []SignalEvidence
+
+	// Breakdown carries intermediate noisy-OR scoring values.
+	Breakdown AnomalyEventScoreBreakdown
+}
+
+// SignalEvidence groups anomalies by signal key and records their contribution to the event score.
+type SignalEvidence struct {
+	Key       string
+	Score     float64
+	Severity  AnomalySeverity
+	Anomalies []Anomaly
+}
+
+// AnomalyEventConsumer receives scored anomaly event candidates.
+// Implementations must be fast and non-blocking. Slow consumers should
+// enqueue internally and return immediately.
+type AnomalyEventConsumer interface {
+	Name() string
+	ProcessAnomalyEvent(event ScoredAnomalyEvent)
+}
+
+// AnomalyEventState provides read access to the scored event history.
+// stateView implements this so the testbench API can serve /api/anomaly-events.
+type AnomalyEventState interface {
+	AnomalyEvents() []ScoredAnomalyEvent
+}
+
+// CorrelationScoreBreakdown is kept as an alias for backward compatibility
+// with correlation code that has not yet been migrated.
+// New code should use AnomalyEventScoreBreakdown.
+type CorrelationScoreBreakdown = AnomalyEventScoreBreakdown

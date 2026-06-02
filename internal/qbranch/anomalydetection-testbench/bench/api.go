@@ -1141,30 +1141,33 @@ func (api *BenchAPI) handleAnomalyEvents(w http.ResponseWriter, r *http.Request)
 	}
 
 	type eventResponse struct {
-		ID                 string                   `json:"id"`
-		Trigger            triggerResponse          `json:"trigger"`
-		WindowStart        int64                    `json:"windowStart"`
-		WindowEnd          int64                    `json:"windowEnd"`
-		RecentAnomalyCount int                      `json:"recentAnomalyCount"`
-		Signals            []signalEvidenceResponse `json:"signals"`
-		Score              float64                  `json:"score"`
-		Severity           string                   `json:"severity"`
-		PreviousSeverity   string                   `json:"previousSeverity,omitempty"`
-		SeverityChanged    bool                     `json:"severityChanged"`
-		SeverityDirection  string                   `json:"severityDirection"`
-		Breakdown          breakdownResponse        `json:"breakdown"`
+		ID          string                   `json:"id"`
+		Scope       string                   `json:"scope"`
+		Trigger     triggerResponse          `json:"trigger"`
+		WindowStart int64                    `json:"windowStart"`
+		WindowEnd   int64                    `json:"windowEnd"`
+		WindowSize  int                      `json:"windowSize"`
+		Signals     []signalEvidenceResponse `json:"signals"`
+		// Instant score from the sliding-window noisy-OR evidence.
+		Score float64 `json:"score"`
+		// EWMA score (smoothed per scope).
+		EWMA             float64 `json:"ewma"`
+		PreviousEWMA     float64 `json:"previousEwma"`
+		Severity         string  `json:"severity"`
+		PreviousSeverity string  `json:"previousSeverity,omitempty"`
+		SeverityChanged  bool    `json:"severityChanged"`
+		// Trend is "increased", "decreased", or "stable" based on EWMA delta.
+		Trend     string            `json:"trend"`
+		Breakdown breakdownResponse `json:"breakdown"`
 	}
 
 	events := api.tb.GetAnomalyEvents()
 
 	var result []eventResponse
 	for _, evt := range events {
-		t := evt.Trigger
-		// Determine trigger type first so it can be used in the type filter below.
-		// Determine trigger type: explicit log anomalies OR log-extractor-derived metrics.
-		// Metrics produced by log_pattern_extractor / log_metrics_extractor originate from
-		// log data but travel through the metric detection path (Type == AnomalyTypeMetric).
-		// For filtering purposes, treat them as "log" triggers so the UI log/metric filter works.
+		t := evt.Anomaly
+		sc := evt.Score
+
 		trigType := "metric"
 		if t.Type == observerdef.AnomalyTypeLog {
 			trigType = "log"
@@ -1176,17 +1179,17 @@ func (api *BenchAPI) handleAnomalyEvents(w http.ResponseWriter, r *http.Request)
 			trigSeverity = string(t.Severity)
 		}
 
-		// Apply filters after computing trigType so the type filter is accurate.
-		if severityFilter != "" && string(evt.Severity) != severityFilter {
+		// Filters.
+		if severityFilter != "" && string(sc.Severity) != severityFilter {
 			continue
 		}
 		if typeFilter != "" && trigType != typeFilter {
 			continue
 		}
-		if changesOnly && !evt.SeverityChanged {
+		if changesOnly && !sc.SeverityChanged {
 			continue
 		}
-		if upgradesOnly && evt.SeverityDirection != "up" {
+		if upgradesOnly && sc.Trend != observerdef.AnomalyEventTrendIncreased {
 			continue
 		}
 		if detectorFilter != "" && t.DetectorName != detectorFilter {
@@ -1211,14 +1214,14 @@ func (api *BenchAPI) handleAnomalyEvents(w http.ResponseWriter, r *http.Request)
 		if t.Context != nil {
 			logPattern = strings.TrimSpace(t.Context.Pattern)
 			logExample = strings.TrimSpace(t.Context.Example)
-			// Don't repeat example when it equals the pattern
 			if logExample == logPattern {
 				logExample = ""
 			}
 		}
 
 		result = append(result, eventResponse{
-			ID: evt.ID,
+			ID:    evt.ID,
+			Scope: evt.Scope,
 			Trigger: triggerResponse{
 				Source:       t.Source.String(),
 				DetectorName: t.DetectorName,
@@ -1231,15 +1234,17 @@ func (api *BenchAPI) handleAnomalyEvents(w http.ResponseWriter, r *http.Request)
 				LogPattern:   logPattern,
 				LogExample:   logExample,
 			},
-			WindowStart:        evt.WindowStart,
-			WindowEnd:          evt.WindowEnd,
-			RecentAnomalyCount: len(evt.RecentAnomalies),
-			Signals:            sigs,
-			Score:              evt.Score,
-			Severity:           string(evt.Severity),
-			PreviousSeverity:   string(evt.PreviousSeverity),
-			SeverityChanged:    evt.SeverityChanged,
-			SeverityDirection:  evt.SeverityDirection,
+			WindowStart:      evt.Window.StartSec,
+			WindowEnd:        evt.Window.EndSec,
+			WindowSize:       evt.Window.Size,
+			Signals:          sigs,
+			Score:            sc.Instant,
+			EWMA:             sc.EWMA,
+			PreviousEWMA:     sc.PreviousEWMA,
+			Severity:         string(sc.Severity),
+			PreviousSeverity: string(sc.PreviousSeverity),
+			SeverityChanged:  sc.SeverityChanged,
+			Trend:            string(sc.Trend),
 			Breakdown: breakdownResponse{
 				SignalCount:           evt.Breakdown.SignalCount,
 				EffectiveSignalCount:  evt.Breakdown.EffectiveSignalCount,

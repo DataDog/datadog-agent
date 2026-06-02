@@ -67,9 +67,11 @@ type engine struct {
 	totalAnomalyCount    int             // total count ever (no cap)
 	uniqueAnomalySources map[string]bool // unique sources that had anomalies (keyed by SeriesDescriptor.Key())
 
-	// anomalyEventScorer scores every new detector anomaly and emits one AnomalyEvent candidate.
+	// anomalyEventScorer scores every new detector anomaly and emits one ScoredAnomalyEvent candidate.
 	anomalyEventScorer *anomalyEventScorer
 	anomalyEventMu     sync.RWMutex
+	// anomalyEventConsumers receives a copy of every ScoredAnomalyEvent after scoring.
+	anomalyEventConsumers []observerdef.AnomalyEventConsumer
 
 	// Accumulated correlations from all advance cycles.
 	// Correlators maintain sliding windows that evict old state, but for
@@ -828,15 +830,28 @@ func (e *engine) Reset() {
 
 }
 
-// scoreAnomalyEvent runs the anomaly event scorer for a new (de-duped) anomaly.
-func (e *engine) scoreAnomalyEvent(anomaly observerdef.Anomaly) {
+// SetAnomalyEventConsumers registers consumers that receive every ScoredAnomalyEvent.
+// Must be called before any scenario is loaded.
+func (e *engine) SetAnomalyEventConsumers(consumers []observerdef.AnomalyEventConsumer) {
 	e.anomalyEventMu.Lock()
 	defer e.anomalyEventMu.Unlock()
-	e.anomalyEventScorer.ProcessAnomaly(anomaly)
+	e.anomalyEventConsumers = consumers
+}
+
+// scoreAnomalyEvent runs the anomaly event scorer and broadcasts to consumers.
+func (e *engine) scoreAnomalyEvent(anomaly observerdef.Anomaly) {
+	e.anomalyEventMu.Lock()
+	evt := e.anomalyEventScorer.ProcessAnomaly(anomaly)
+	consumers := e.anomalyEventConsumers
+	e.anomalyEventMu.Unlock()
+
+	for _, c := range consumers {
+		c.ProcessAnomalyEvent(evt)
+	}
 }
 
 // AnomalyEvents returns a copy of all anomaly events scored so far.
-func (e *engine) AnomalyEvents() []observerdef.AnomalyEvent {
+func (e *engine) AnomalyEvents() []observerdef.ScoredAnomalyEvent {
 	e.anomalyEventMu.RLock()
 	defer e.anomalyEventMu.RUnlock()
 	return e.anomalyEventScorer.Events()

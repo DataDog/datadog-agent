@@ -207,6 +207,6 @@ func (sv *stateView) GetSeriesAll(ref observerdef.SeriesRef, agg observerdef.Agg
 // --- Anomaly events ---
 
 // AnomalyEvents returns all anomaly events scored by the event scorer.
-func (sv *stateView) AnomalyEvents() []observerdef.AnomalyEvent {
+func (sv *stateView) AnomalyEvents() []observerdef.ScoredAnomalyEvent {
 	return sv.engine.AnomalyEvents()
 }

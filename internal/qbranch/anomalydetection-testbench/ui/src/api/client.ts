@@ -281,16 +281,22 @@ export interface ScoreBreakdown {
 
 export interface AnomalyEvent {
   id: string;
+  scope: string;
   trigger: AnomalyEventTrigger;
   windowStart: number;
   windowEnd: number;
-  recentAnomalyCount: number;
+  windowSize: number;
   signals: SignalEvidence[];
+  /** Instant score from the sliding-window noisy-OR evidence. */
   score: number;
-  severity: AnomalySeverity;
-  previousSeverity?: AnomalySeverity;
+  /** EWMA score (smoothed per scope). */
+  ewma: number;
+  previousEwma: number;
+  severity: 'low' | 'medium' | 'high';
+  previousSeverity?: string;
   severityChanged: boolean;
-  severityDirection: 'up' | 'down' | 'same';
+  /** Trend based on EWMA delta: "increased" | "decreased" | "stable". */
+  trend: 'increased' | 'decreased' | 'stable';
   breakdown: ScoreBreakdown;
 }
 

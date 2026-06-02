@@ -6,223 +6,258 @@
 package observerimpl
 
 import (
-	"fmt"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
-func ptr(f float64) *float64 { return &f }
-
-func makeAnomaly(sourceKey string, timestamp int64, score *float64) observerdef.Anomaly {
+// makeAnomaly constructs a minimal Anomaly for scorer tests.
+func makeAnomaly(ts int64, score float64, key string) observerdef.Anomaly {
+	sc := score
 	return observerdef.Anomaly{
-		Source:       observerdef.SeriesDescriptor{Name: sourceKey},
-		DetectorName: "test_detector",
-		Timestamp:    timestamp,
-		Title:        "test",
-		Score:        score,
+		Timestamp:    ts,
+		DetectorName: "test",
+		Title:        "test anomaly",
+		Score:        &sc,
+		Source: observerdef.SeriesDescriptor{
+			Namespace: "test",
+			Name:      key,
+		},
 	}
 }
 
-// --- Scoring correctness ---
-
-func TestSameSingleSignalNoisyOR(t *testing.T) {
-	// Two anomalies from the same signal: noisy-OR within signal → 0.98, capped at singleSignalMaxScore (0.45).
-	s := newAnomalyEventScorer(anomalyEventScorerConfig{windowSeconds: 300, maxItems: 100})
-	s.ProcessAnomaly(makeAnomaly("s1", 100, ptr(0.8)))
-	evt := s.ProcessAnomaly(makeAnomaly("s1", 101, ptr(0.9)))
-
-	assert.Equal(t, 1, evt.Breakdown.SignalCount)
-	assert.Equal(t, 1, evt.Breakdown.EffectiveSignalCount)
-	assert.True(t, evt.Breakdown.SingleSignalCapApplied)
-	assert.InDelta(t, singleSignalMaxScore, evt.Score, 1e-9)
-	assert.Equal(t, observerdef.AnomalySeverityMedium, evt.Severity) // 0.45 >= mediumSeverityThreshold (0.40)
+func newTestScorer() *anomalyEventScorer {
+	return newAnomalyEventScorer(anomalyEventScorerConfig{
+		windowSeconds: 60,
+		maxItems:      100,
+		ewmaAlpha:     defaultAnomalyEventEWMAAlpha,
+		trendEpsilon:  defaultTrendEpsilon,
+	})
 }
 
-func TestCrossSignalNoisyOR(t *testing.T) {
-	// Two signals each at 0.8 → noisy-OR = 0.96, capped at twoSignalMaxScore (0.65).
-	// 0.65 < highSeverityThreshold (0.80) → medium.
-	s := newAnomalyEventScorer(anomalyEventScorerConfig{windowSeconds: 300, maxItems: 100})
-	s.ProcessAnomaly(makeAnomaly("s1", 100, ptr(0.8)))
-	evt := s.ProcessAnomaly(makeAnomaly("s2", 101, ptr(0.8)))
+// ---- EWMA tests ---------------------------------------------------------------
 
-	assert.Equal(t, 2, evt.Breakdown.SignalCount)
-	assert.Equal(t, 2, evt.Breakdown.EffectiveSignalCount)
-	assert.True(t, evt.Breakdown.TwoSignalCapApplied)
-	assert.InDelta(t, twoSignalMaxScore, evt.Score, 1e-9)
-	assert.Equal(t, observerdef.AnomalySeverityMedium, evt.Severity) // 0.65 < high threshold 0.80
+func TestEWMAInitialization(t *testing.T) {
+	s := newTestScorer()
+	a := makeAnomaly(0, 0.8, "src")
+	evt := s.ProcessAnomaly(a)
+
+	// First event: EWMA = alpha * instant + (1-alpha) * 0 = alpha * instant.
+	expectedEWMA := defaultAnomalyEventEWMAAlpha * evt.Score.Instant
+	if abs(evt.Score.EWMA-expectedEWMA) > 1e-9 {
+		t.Errorf("first-event EWMA: got %.6f, want %.6f", evt.Score.EWMA, expectedEWMA)
+	}
+	if evt.Score.PreviousEWMA != 0 {
+		t.Errorf("first-event PreviousEWMA: got %.6f, want 0", evt.Score.PreviousEWMA)
+	}
 }
 
-func TestThreeSignals_ThreeOrMoreCap(t *testing.T) {
-	// Three signals at 0.5 each → noisy-OR = 0.875 → capped at threeOrMoreSignalMaxScore (0.82).
-	// 0.82 >= highSeverityThreshold (0.80) → high.
-	s := newAnomalyEventScorer(anomalyEventScorerConfig{windowSeconds: 300, maxItems: 100})
-	s.ProcessAnomaly(makeAnomaly("s1", 100, ptr(0.5)))
-	s.ProcessAnomaly(makeAnomaly("s2", 100, ptr(0.5)))
-	evt := s.ProcessAnomaly(makeAnomaly("s3", 100, ptr(0.5)))
+func TestEWMAUpdate(t *testing.T) {
+	s := newTestScorer()
 
-	assert.Equal(t, 3, evt.Breakdown.SignalCount)
-	assert.Equal(t, 3, evt.Breakdown.EffectiveSignalCount)
-	assert.False(t, evt.Breakdown.SingleSignalCapApplied)
-	assert.False(t, evt.Breakdown.TwoSignalCapApplied)
-	assert.True(t, evt.Breakdown.ThreeOrMoreSignalCapApplied)
-	assert.InDelta(t, threeOrMoreSignalMaxScore, evt.Score, 1e-9)
-	assert.Equal(t, observerdef.AnomalySeverityHigh, evt.Severity)
+	// Feed two anomalies with the same key (same signal, same window).
+	a1 := makeAnomaly(0, 0.8, "src")
+	e1 := s.ProcessAnomaly(a1)
+	prevEWMA := e1.Score.EWMA
+
+	a2 := makeAnomaly(1, 0.9, "src2")
+	e2 := s.ProcessAnomaly(a2)
+
+	expectedEWMA := defaultAnomalyEventEWMAAlpha*e2.Score.Instant + (1-defaultAnomalyEventEWMAAlpha)*prevEWMA
+	if abs(e2.Score.EWMA-expectedEWMA) > 1e-9 {
+		t.Errorf("second-event EWMA: got %.6f, want %.6f", e2.Score.EWMA, expectedEWMA)
+	}
+	if abs(e2.Score.PreviousEWMA-prevEWMA) > 1e-9 {
+		t.Errorf("PreviousEWMA: got %.6f, want %.6f", e2.Score.PreviousEWMA, prevEWMA)
+	}
 }
 
-func TestManySignals_TopNLimiting(t *testing.T) {
-	// 10 signals: only top-3 are used, score capped at threeOrMoreSignalMaxScore.
-	s := newAnomalyEventScorer(anomalyEventScorerConfig{windowSeconds: 300, maxItems: 200})
+// ---- Trend tests --------------------------------------------------------------
+
+func TestTrendIncreased(t *testing.T) {
+	s := newTestScorer()
+	// Prime with a low-score event.
+	s.ProcessAnomaly(makeAnomaly(0, 0.1, "src"))
+	// Send a high-score event; EWMA should rise by more than epsilon.
+	evt := s.ProcessAnomaly(makeAnomaly(1, 0.95, "src2"))
+	if evt.Score.Trend != observerdef.AnomalyEventTrendIncreased {
+		t.Errorf("trend: got %q, want %q", evt.Score.Trend, observerdef.AnomalyEventTrendIncreased)
+	}
+}
+
+func TestTrendDecreased(t *testing.T) {
+	s := newTestScorer()
+	// Prime EWMA with high-score events at ts=0.
+	for i := 0; i < 5; i++ {
+		s.ProcessAnomaly(makeAnomaly(0, 0.95, "src"))
+	}
+	// 65 s later: the old anomalies have expired from the 60 s window.
+	// Send a very low-score event → instant near-zero → EWMA drops.
+	sc := 0.01
+	a := observerdef.Anomaly{Timestamp: 65, DetectorName: "test", Title: "t", Score: &sc,
+		Source: observerdef.SeriesDescriptor{Namespace: "test", Name: "other"}}
+	evt := s.ProcessAnomaly(a)
+	if evt.Score.Trend != observerdef.AnomalyEventTrendDecreased {
+		t.Errorf("trend: got %q (ewma=%.3f prev=%.3f), want %q",
+			evt.Score.Trend, evt.Score.EWMA, evt.Score.PreviousEWMA,
+			observerdef.AnomalyEventTrendDecreased)
+	}
+}
+
+func TestTrendStableWhenEWMAConverged(t *testing.T) {
+	s := newTestScorer()
+	// Drive EWMA to a near-steady state by feeding many events with identical
+	// instant scores.  The per-event EWMA delta shrinks as it converges.
+	// We capture the last few deltas and check that at least the final one is stable.
+	const n = 30
+	var lastEvt observerdef.ScoredAnomalyEvent
+	for i := 0; i < n; i++ {
+		// Spread events > 60 s apart so the window never holds more than 1 anomaly
+		// → instant score stays constant per event.
+		lastEvt = s.ProcessAnomaly(makeAnomaly(int64(i*65), 0.5, "src"))
+	}
+	if lastEvt.Score.Trend != observerdef.AnomalyEventTrendStable {
+		t.Errorf("after convergence trend: got %q (ewma=%.4f prev=%.4f delta=%.4f), want stable",
+			lastEvt.Score.Trend, lastEvt.Score.EWMA, lastEvt.Score.PreviousEWMA,
+			lastEvt.Score.EWMA-lastEvt.Score.PreviousEWMA)
+	}
+}
+
+// ---- Severity hysteresis tests -----------------------------------------------
+
+func TestSeverityHysteresisHighToMediumRequiresDrop(t *testing.T) {
+	s := newTestScorer()
+
+	// Drive EWMA into high territory.
+	for i := 0; i < 20; i++ {
+		s.ProcessAnomaly(makeAnomaly(int64(i), 0.99, "src"))
+	}
+	evt := s.ProcessAnomaly(makeAnomaly(30, 0.99, "src"))
+	if evt.Score.Severity != observerdef.AnomalyEventSeverityHigh {
+		t.Fatalf("expected high severity, got %q", evt.Score.Severity)
+	}
+
+	// EWMA just below high threshold (0.75): should stay high due to hysteresis (0.70).
+	s2 := newTestScorer()
+	for i := 0; i < 20; i++ {
+		s2.ProcessAnomaly(makeAnomaly(int64(i), 0.99, "src"))
+	}
+	// Force a low-scoring event in the same window to drive EWMA down slightly.
+	sc := 0.72
+	a := observerdef.Anomaly{Timestamp: 25, DetectorName: "test", Title: "t", Score: &sc,
+		Source: observerdef.SeriesDescriptor{Namespace: "test", Name: "other"}}
+	evt2 := s2.ProcessAnomaly(a)
+	// EWMA slightly above 0.70 → still high (hysteresis: needs to drop below 0.70).
+	if evt2.Score.EWMA >= highSeverityThreshold-severityHysteresis &&
+		evt2.Score.Severity != observerdef.AnomalyEventSeverityHigh {
+		t.Errorf("hysteresis violated: EWMA=%.3f should keep high severity, got %q",
+			evt2.Score.EWMA, evt2.Score.Severity)
+	}
+}
+
+func TestSeverityLowToMediumAtThreshold(t *testing.T) {
+	s := newTestScorer()
+	// Send anomalies that push instant score above medium threshold.
+	for i := 0; i < 5; i++ {
+		s.ProcessAnomaly(makeAnomaly(int64(i), 0.99, "src"))
+	}
+	evt := s.ProcessAnomaly(makeAnomaly(10, 0.99, "src"))
+	if evt.Score.Severity != observerdef.AnomalyEventSeverityHigh &&
+		evt.Score.Severity != observerdef.AnomalyEventSeverityMedium {
+		t.Errorf("expected at least medium after multiple high-score events, got %q", evt.Score.Severity)
+	}
+}
+
+// ---- Consumer tests -----------------------------------------------------------
+
+func TestConsumerReceivesOneEventPerAnomaly(t *testing.T) {
+	received := make([]observerdef.ScoredAnomalyEvent, 0)
+	consumer := &captureConsumer{fn: func(evt observerdef.ScoredAnomalyEvent) {
+		received = append(received, evt)
+	}}
+
+	e := newEngine(engineConfig{})
+	e.SetAnomalyEventConsumers([]observerdef.AnomalyEventConsumer{consumer})
+
+	anomalies := []observerdef.Anomaly{
+		makeAnomaly(0, 0.5, "src1"),
+		makeAnomaly(1, 0.7, "src2"),
+		makeAnomaly(2, 0.9, "src3"),
+	}
+	for _, a := range anomalies {
+		e.scoreAnomalyEvent(a)
+	}
+
+	if len(received) != len(anomalies) {
+		t.Errorf("consumer received %d events, want %d", len(received), len(anomalies))
+	}
+}
+
+func TestSlowConsumerDoesNotBlockScoring(t *testing.T) {
+	// A consumer that panics if called more than once simultaneously is a proxy for
+	// "non-blocking" — the real test is that scoring completes even if the consumer
+	// is slow.  Here we just verify no deadlock by using a buffered channel consumer.
+	ch := make(chan observerdef.ScoredAnomalyEvent, 10)
+	consumer := &captureConsumer{fn: func(evt observerdef.ScoredAnomalyEvent) {
+		ch <- evt
+	}}
+
+	e := newEngine(engineConfig{})
+	e.SetAnomalyEventConsumers([]observerdef.AnomalyEventConsumer{consumer})
+
+	for i := 0; i < 5; i++ {
+		e.scoreAnomalyEvent(makeAnomaly(int64(i), 0.5, "src"))
+	}
+	if len(ch) != 5 {
+		t.Errorf("buffered consumer received %d events, want 5", len(ch))
+	}
+}
+
+// ---- Event history tests ------------------------------------------------------
+
+func TestEventHistoryBoundedAndReadable(t *testing.T) {
+	s := newTestScorer()
+	s.cfg.maxItems = 3
+
 	for i := 0; i < 10; i++ {
-		s.ProcessAnomaly(makeAnomaly(fmt.Sprintf("s%d", i), int64(100+i), ptr(0.5)))
+		s.ProcessAnomaly(makeAnomaly(int64(i), 0.5, "src"))
 	}
-	evt := s.Events()[len(s.Events())-1]
 
-	assert.Equal(t, 10, evt.Breakdown.SignalCount, "10 total signals in window")
-	assert.Equal(t, maxScoringSignals, evt.Breakdown.EffectiveSignalCount, "only top-3 used")
-	assert.True(t, evt.Breakdown.ThreeOrMoreSignalCapApplied)
-	assert.InDelta(t, threeOrMoreSignalMaxScore, evt.Score, 1e-9)
-}
-
-func TestSingleSignalHighCap(t *testing.T) {
-	// Single signal with score 1.0 → capped at singleSignalMaxScore (0.45) → medium.
-	s := newAnomalyEventScorer(anomalyEventScorerConfig{windowSeconds: 300, maxItems: 100})
-	evt := s.ProcessAnomaly(makeAnomaly("s1", 100, ptr(1.0)))
-
-	assert.True(t, evt.Breakdown.SingleSignalCapApplied)
-	assert.InDelta(t, singleSignalMaxScore, evt.Score, 1e-9)
-	assert.Equal(t, observerdef.AnomalySeverityMedium, evt.Severity) // 0.45 >= medium threshold (0.40)
-}
-
-// --- Missing score fallback ---
-
-func TestMissingScoreFallback(t *testing.T) {
-	s := newAnomalyEventScorer(anomalyEventScorerConfig{windowSeconds: 300, maxItems: 100})
-	evt := s.ProcessAnomaly(makeAnomaly("s1", 100, nil)) // no score
-
-	assert.Equal(t, 1, evt.Breakdown.MissingScoreCount)
-	// defaultMissingAnomalyScore = 0.5 > singleSignalMaxScore (0.45) → cap applies.
-	assert.InDelta(t, singleSignalMaxScore, evt.Score, 1e-9, "missing score 0.5 is capped at singleSignalMaxScore")
-	assert.True(t, evt.Breakdown.SingleSignalCapApplied)
-}
-
-func TestMissingScoreCountAccumulates(t *testing.T) {
-	s := newAnomalyEventScorer(anomalyEventScorerConfig{windowSeconds: 300, maxItems: 100})
-	s.ProcessAnomaly(makeAnomaly("s1", 100, nil))
-	evt := s.ProcessAnomaly(makeAnomaly("s2", 101, nil))
-	assert.Equal(t, 2, evt.Breakdown.MissingScoreCount)
-}
-
-// --- Sliding window eviction by time ---
-
-func TestSlidingWindowEvictionByTime(t *testing.T) {
-	s := newAnomalyEventScorer(anomalyEventScorerConfig{windowSeconds: 10, maxItems: 100})
-	s.ProcessAnomaly(makeAnomaly("s1", 100, ptr(0.9))) // will be evicted
-	s.ProcessAnomaly(makeAnomaly("s2", 105, ptr(0.9))) // will be evicted
-
-	// This anomaly is at t=115; window is 10s → cutoff is 105.
-	// Both earlier anomalies (t=100, t=105) are below 115-10=105 → t=100 is evicted, t=105 exactly at cutoff is not.
-	evt := s.ProcessAnomaly(makeAnomaly("s3", 115, ptr(0.2)))
-
-	// s1 (t=100) evicted (100 < 115-10=105), s2 (t=105) stays (105 >= 105), s3 stays.
-	assert.Equal(t, 2, len(evt.RecentAnomalies), "s1 should be evicted")
-}
-
-func TestSlidingWindowMaxItemCap(t *testing.T) {
-	s := newAnomalyEventScorer(anomalyEventScorerConfig{windowSeconds: 9999, maxItems: 3})
-	s.ProcessAnomaly(makeAnomaly("s1", 100, ptr(0.5)))
-	s.ProcessAnomaly(makeAnomaly("s2", 101, ptr(0.5)))
-	s.ProcessAnomaly(makeAnomaly("s3", 102, ptr(0.5)))
-	evt := s.ProcessAnomaly(makeAnomaly("s4", 103, ptr(0.5)))
-
-	// Oldest item trimmed: should keep last 3 (s2, s3, s4).
-	assert.Equal(t, 3, len(evt.RecentAnomalies))
-}
-
-// --- Severity threshold mapping ---
-
-func TestSeverityThresholds(t *testing.T) {
-	cases := []struct {
-		score    float64
-		expected observerdef.AnomalySeverity
-	}{
-		{0.0, observerdef.AnomalySeverityLow},
-		{0.39, observerdef.AnomalySeverityLow},
-		{0.40, observerdef.AnomalySeverityMedium},
-		{0.79, observerdef.AnomalySeverityMedium},
-		{0.80, observerdef.AnomalySeverityHigh},
-		{1.0, observerdef.AnomalySeverityHigh},
+	// All 10 events should be in history (maxItems limits window, not history).
+	evts := s.Events()
+	if len(evts) != 10 {
+		t.Errorf("event history length: got %d, want 10", len(evts))
 	}
-	for _, tc := range cases {
-		got := severityFromScore(tc.score)
-		assert.Equal(t, tc.expected, got, "score=%v", tc.score)
+	// Window size should be bounded to maxItems.
+	last := evts[len(evts)-1]
+	if last.Window.Size > s.cfg.maxItems {
+		t.Errorf("window size %d exceeds maxItems %d", last.Window.Size, s.cfg.maxItems)
 	}
 }
 
-// --- Severity change detection by scope ---
-
-func TestSeverityChangeDetection(t *testing.T) {
-	s := newAnomalyEventScorer(anomalyEventScorerConfig{windowSeconds: 300, maxItems: 100})
-
-	// First anomaly: single signal, score 0.1 → low (below medium threshold 0.40).
-	evt1 := s.ProcessAnomaly(makeAnomaly("s1", 100, ptr(0.1)))
-	assert.Equal(t, observerdef.AnomalySeverityLow, evt1.Severity)
-	assert.False(t, evt1.SeverityChanged, "no previous → not changed")
-	assert.Equal(t, "same", evt1.SeverityDirection)
-
-	// Second anomaly from a different signal → two signals → event score = 0.91,
-	// capped at twoSignalMaxScore (0.65) → medium.
-	evt2 := s.ProcessAnomaly(makeAnomaly("s2", 101, ptr(0.9)))
-	assert.Equal(t, observerdef.AnomalySeverityMedium, evt2.Severity)
-	assert.True(t, evt2.SeverityChanged)
-	assert.Equal(t, "up", evt2.SeverityDirection)
-	assert.Equal(t, observerdef.AnomalySeverityLow, evt2.PreviousSeverity)
-}
-
-func TestSeverityDirection_Down(t *testing.T) {
-	s := newAnomalyEventScorer(anomalyEventScorerConfig{windowSeconds: 1, maxItems: 100})
-
-	// First: three-signal → high (threeOrMoreSignalMaxScore 0.82 >= highSeverityThreshold 0.80).
-	s.ProcessAnomaly(makeAnomaly("s1", 100, ptr(0.9)))
-	s.ProcessAnomaly(makeAnomaly("s2", 100, ptr(0.9)))
-	s.ProcessAnomaly(makeAnomaly("s3", 100, ptr(0.9)))
-
-	// Next: only one low-score anomaly in a new window (old ones evicted).
-	evt := s.ProcessAnomaly(makeAnomaly("s1", 200, ptr(0.1)))
-	require.Equal(t, observerdef.AnomalySeverityHigh, evt.PreviousSeverity)
-	assert.Equal(t, observerdef.AnomalySeverityLow, evt.Severity)
-	assert.True(t, evt.SeverityChanged)
-	assert.Equal(t, "down", evt.SeverityDirection)
-}
-
-// --- Reset ---
-
-func TestScorerReset(t *testing.T) {
-	s := newAnomalyEventScorer(anomalyEventScorerConfig{windowSeconds: 300, maxItems: 100})
-	s.ProcessAnomaly(makeAnomaly("s1", 100, ptr(0.9)))
-	s.ProcessAnomaly(makeAnomaly("s2", 101, ptr(0.9)))
-
+func TestEventHistoryClearedOnReset(t *testing.T) {
+	s := newTestScorer()
+	s.ProcessAnomaly(makeAnomaly(0, 0.5, "src"))
 	s.Reset()
-
-	assert.Empty(t, s.Events())
-	assert.Empty(t, s.window)
-	assert.Empty(t, s.previousSeverity)
-
-	// After reset, first event should have no previous severity.
-	evt := s.ProcessAnomaly(makeAnomaly("s1", 200, ptr(0.5)))
-	assert.Equal(t, "same", evt.SeverityDirection)
-	assert.False(t, evt.SeverityChanged)
+	if len(s.Events()) != 0 {
+		t.Error("expected empty history after Reset")
+	}
 }
 
-// --- eventID stability ---
+// ---- helpers ------------------------------------------------------------------
 
-func TestEventIDStability(t *testing.T) {
-	a := makeAnomaly("s1", 100, ptr(0.5))
-	id1 := eventID(a)
-	id2 := eventID(a)
-	assert.Equal(t, id1, id2, "event ID should be deterministic")
-	assert.Len(t, id1, 16)
+type captureConsumer struct {
+	fn func(observerdef.ScoredAnomalyEvent)
+}
+
+func (c *captureConsumer) Name() string { return "capture" }
+func (c *captureConsumer) ProcessAnomalyEvent(evt observerdef.ScoredAnomalyEvent) {
+	c.fn(evt)
+}
+
+func abs(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
 }

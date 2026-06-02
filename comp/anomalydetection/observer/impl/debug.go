@@ -75,7 +75,7 @@ type StateView interface {
 	AnomaliesForSource(sd observerdef.SeriesDescriptor) []observerdef.Anomaly
 
 	// Anomaly events (scored event candidates)
-	AnomalyEvents() []observerdef.AnomalyEvent
+	AnomalyEvents() []observerdef.ScoredAnomalyEvent
 
 	// Correlations
 	ActiveCorrelations() []observerdef.ActiveCorrelation

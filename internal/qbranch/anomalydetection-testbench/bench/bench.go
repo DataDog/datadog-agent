@@ -786,7 +786,7 @@ func (tb *Bench) GetLogAnomaliesByDetector() map[string][]observerdef.Anomaly {
 }
 
 // GetAnomalyEvents returns all scored anomaly event candidates.
-func (tb *Bench) GetAnomalyEvents() []observerdef.AnomalyEvent {
+func (tb *Bench) GetAnomalyEvents() []observerdef.ScoredAnomalyEvent {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 	return tb.debug.StateView().AnomalyEvents()

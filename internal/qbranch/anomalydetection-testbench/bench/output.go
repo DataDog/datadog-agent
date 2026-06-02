@@ -24,18 +24,23 @@ type ObserverOutput struct {
 
 // ObserverAnomalyEvent is one scored anomaly event candidate (verbose only).
 type ObserverAnomalyEvent struct {
-	ID                string  `json:"id"`
-	TriggerTimestamp  int64   `json:"trigger_timestamp"`
-	TriggerSource     string  `json:"trigger_source"`
-	TriggerDetector   string  `json:"trigger_detector"`
-	TriggerType       string  `json:"trigger_type"`
-	Score             float64 `json:"score"`
-	Severity          string  `json:"severity"`
-	PreviousSeverity  string  `json:"previous_severity,omitempty"`
-	SeverityChanged   bool    `json:"severity_changed"`
-	SeverityDirection string  `json:"severity_direction,omitempty"`
-	SignalCount       int     `json:"signal_count"`
-	EffectiveSignals  int     `json:"effective_signals"`
+	ID               string `json:"id"`
+	Scope            string `json:"scope"`
+	TriggerTimestamp int64  `json:"trigger_timestamp"`
+	TriggerSource    string `json:"trigger_source"`
+	TriggerDetector  string `json:"trigger_detector"`
+	TriggerType      string `json:"trigger_type"`
+	// Instant is the sliding-window noisy-OR score.
+	Instant float64 `json:"instant"`
+	// EWMA is the per-scope smoothed score.
+	EWMA             float64 `json:"ewma"`
+	PreviousEWMA     float64 `json:"previous_ewma"`
+	Severity         string  `json:"severity"`
+	PreviousSeverity string  `json:"previous_severity,omitempty"`
+	SeverityChanged  bool    `json:"severity_changed"`
+	Trend            string  `json:"trend"`
+	SignalCount      int     `json:"signal_count"`
+	EffectiveSignals int     `json:"effective_signals"`
 }
 
 // ObserverMetadata describes the scenario and pipeline configuration.
@@ -159,29 +164,30 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 	if verbose && len(anomalyEvents) > 0 {
 		outAnomalyEvents = make([]ObserverAnomalyEvent, 0, len(anomalyEvents))
 		for _, ae := range anomalyEvents {
+			t := ae.Anomaly
+			sc := ae.Score
 			trigType := "metric"
-			if ae.Trigger.Type == observerdef.AnomalyTypeLog {
+			if t.Type == observerdef.AnomalyTypeLog {
 				trigType = "log"
-			} else if ae.Trigger.Source.Namespace == "log_pattern_extractor" || ae.Trigger.Source.Namespace == "log_metrics_extractor" {
+			} else if t.Source.Namespace == "log_pattern_extractor" || t.Source.Namespace == "log_metrics_extractor" {
 				trigType = "log"
-			}
-			prevSev := ""
-			if ae.PreviousSeverity != "" {
-				prevSev = string(ae.PreviousSeverity)
 			}
 			outAnomalyEvents = append(outAnomalyEvents, ObserverAnomalyEvent{
-				ID:                ae.ID,
-				TriggerTimestamp:  ae.Trigger.Timestamp,
-				TriggerSource:     ae.Trigger.Source.String(),
-				TriggerDetector:   ae.Trigger.DetectorName,
-				TriggerType:       trigType,
-				Score:             ae.Score,
-				Severity:          string(ae.Severity),
-				PreviousSeverity:  prevSev,
-				SeverityChanged:   ae.SeverityChanged,
-				SeverityDirection: ae.SeverityDirection,
-				SignalCount:       ae.Breakdown.SignalCount,
-				EffectiveSignals:  ae.Breakdown.EffectiveSignalCount,
+				ID:               ae.ID,
+				Scope:            ae.Scope,
+				TriggerTimestamp: t.Timestamp,
+				TriggerSource:    t.Source.String(),
+				TriggerDetector:  t.DetectorName,
+				TriggerType:      trigType,
+				Instant:          sc.Instant,
+				EWMA:             sc.EWMA,
+				PreviousEWMA:     sc.PreviousEWMA,
+				Severity:         string(sc.Severity),
+				PreviousSeverity: string(sc.PreviousSeverity),
+				SeverityChanged:  sc.SeverityChanged,
+				Trend:            string(sc.Trend),
+				SignalCount:      ae.Breakdown.SignalCount,
+				EffectiveSignals: ae.Breakdown.EffectiveSignalCount,
 			})
 		}
 	}

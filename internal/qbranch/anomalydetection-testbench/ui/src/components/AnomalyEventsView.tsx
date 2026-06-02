@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react';
-import type { AnomalyEvent, AnomalySeverity } from '../api/client';
+import type { AnomalyEvent } from '../api/client';
+type AnomalyEventSeverity = AnomalyEvent['severity'];
+type AnomalyEventTrend = AnomalyEvent['trend'];
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import type { PhaseMarker } from './ChartWithAnomalyDetails';
 
 // ---- helpers ---------------------------------------------------------------
 
-const SEVERITY_COLOR: Record<AnomalySeverity, { dot: string; text: string; badge: string }> = {
+const SEVERITY_COLOR: Record<AnomalyEventSeverity, { dot: string; text: string; badge: string }> = {
   low:    { dot: 'bg-slate-400',   text: 'text-slate-300',   badge: 'bg-slate-700 text-slate-300' },
   medium: { dot: 'bg-yellow-400',  text: 'text-yellow-300',  badge: 'bg-yellow-900/60 text-yellow-300' },
   high:   { dot: 'bg-red-500',     text: 'text-red-400',     badge: 'bg-red-900/60 text-red-400' },
@@ -17,7 +19,7 @@ function formatTs(ts: number): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-function SeverityBadge({ severity }: { severity: AnomalySeverity }) {
+function SeverityBadge({ severity }: { severity: AnomalyEventSeverity }) {
   const c = SEVERITY_COLOR[severity] ?? SEVERITY_COLOR.low;
   return (
     <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold ${c.badge}`}>
@@ -42,7 +44,7 @@ function SummaryCards({ events }: { events: AnomalyEvent[] }) {
   const total = events.length;
   const high = events.filter(e => e.severity === 'high').length;
   const changed = events.filter(e => e.severityChanged).length;
-  const maxSev: AnomalySeverity = events.some(e => e.severity === 'high')
+  const maxSev: AnomalyEventSeverity = events.some(e => e.severity === 'high')
     ? 'high'
     : events.some(e => e.severity === 'medium')
     ? 'medium'
@@ -103,10 +105,6 @@ function EventChart({ events, selected, onSelect, phaseMarkers, minTs: extMinTs,
   const WIDTH  = 600;
   const HEIGHT = 160;
 
-  // Time constant for the EWMA in seconds.
-  // τ = 120 s → half-life ≈ 83 s, smooth over ~2 min of a 30-min scenario.
-  const EWMA_TAU = 120;
-
   const tsValues = events.map(e => e.trigger.timestamp);
   (phaseMarkers ?? []).forEach(m => tsValues.push(m.timestamp));
   const minTs = extMinTs ?? (tsValues.length > 0 ? Math.min(...tsValues) : 0);
@@ -120,45 +118,42 @@ function EventChart({ events, selected, onSelect, phaseMarkers, minTs: extMinTs,
   const toPctX = (t: number) => ((t - minTs) / span) * 100;
   const toPctY = (s: number) => (toY(s) / HEIGHT) * 100;
 
-  // Continuous-time EWMA score line.
-  // Between events the EWMA decays as v(t) = v_prev * exp(-dt/τ).
-  // At each new event it blends toward the event score:
-  //   v_new = exp(-dt/τ) * v_prev + (1 - exp(-dt/τ)) * score
-  // We sample intermediate decay points so the curve looks smooth.
+  // EWMA score line — use backend-computed evt.ewma values directly.
+  // Decay points are interpolated between consecutive events so the line
+  // visibly falls off between bursts.
+  const EWMA_ALPHA = 0.30; // must match scorer constant
   const ewmaPath = (() => {
     const sorted = [...events].sort((a, b) => a.trigger.timestamp - b.trigger.timestamp);
     if (sorted.length === 0) return '';
 
     const pts: Array<{ t: number; v: number }> = [];
-    let ewmaVal = sorted[0].score;
-    let prevT   = sorted[0].trigger.timestamp;
-    pts.push({ t: prevT, v: ewmaVal });
+    pts.push({ t: sorted[0].trigger.timestamp, v: sorted[0].ewma });
 
     for (let i = 1; i < sorted.length; i++) {
-      const t  = sorted[i].trigger.timestamp;
-      const dt = t - prevT;
-      // Interpolated decay points (one per ~15 s, max 20)
-      const steps = Math.max(1, Math.min(Math.round(dt / 15), 20));
+      const prev = sorted[i - 1];
+      const cur  = sorted[i];
+      const dt   = cur.trigger.timestamp - prev.trigger.timestamp;
+      // Interpolate exponential decay between prev.ewma and cur.previousEwma
+      // to visualise how the EWMA would have evolved without new events.
+      const steps = Math.max(1, Math.min(Math.round(dt / 20), 15));
       for (let s = 1; s < steps; s++) {
-        const partDt = dt * (s / steps);
-        pts.push({ t: prevT + partDt, v: ewmaVal * Math.exp(-partDt / EWMA_TAU) });
+        const frac   = s / steps;
+        const decayV = prev.ewma * Math.pow(1 - EWMA_ALPHA, frac * (dt / 5));
+        pts.push({ t: prev.trigger.timestamp + dt * frac, v: Math.max(decayV, cur.previousEwma * (1 - frac)) });
       }
-      // Update EWMA with the new event score
-      const decay = Math.exp(-dt / EWMA_TAU);
-      ewmaVal = decay * ewmaVal + (1 - decay) * sorted[i].score;
-      pts.push({ t, v: ewmaVal });
-      prevT = t;
+      pts.push({ t: cur.trigger.timestamp, v: cur.ewma });
     }
 
-    // Tail decay to end of timeline
-    const tailDt = maxTs - prevT;
-    if (tailDt > 0) {
-      const steps = Math.max(1, Math.min(Math.round(tailDt / 15), 40));
+    // Tail: show EWMA decaying after last event
+    const last = sorted[sorted.length - 1];
+    const tailDt = maxTs - last.trigger.timestamp;
+    if (tailDt > 0 && last.ewma > 0.005) {
+      const steps = Math.max(1, Math.min(Math.round(tailDt / 20), 30));
       for (let s = 1; s <= steps; s++) {
-        const partDt = tailDt * (s / steps);
-        const v = ewmaVal * Math.exp(-partDt / EWMA_TAU);
+        const frac = s / steps;
+        const v = last.ewma * Math.pow(1 - EWMA_ALPHA, frac * (tailDt / 5));
         if (v < 0.005) break;
-        pts.push({ t: prevT + partDt, v });
+        pts.push({ t: last.trigger.timestamp + tailDt * frac, v });
       }
     }
 
@@ -170,13 +165,15 @@ function EventChart({ events, selected, onSelect, phaseMarkers, minTs: extMinTs,
   const pctYMedium = toPctY(mediumSeverityThreshold);
   const pctYHigh   = toPctY(highSeverityThreshold);
 
-  // Diamond path helper for severity-change events
-  const diamond = (cx: number, cy: number, r: number) =>
-    `M${cx},${cy - r} L${cx + r},${cy} L${cx},${cy + r} L${cx - r},${cy} Z`;
+  // Shape path helpers: up-triangle (increased), down-triangle (decreased)
+  const triUp   = (cx: number, cy: number, r: number) =>
+    `M${cx},${cy - r} L${cx + r},${cy + r * 0.8} L${cx - r},${cy + r * 0.8} Z`;
+  const triDown = (cx: number, cy: number, r: number) =>
+    `M${cx},${cy + r} L${cx + r},${cy - r * 0.8} L${cx - r},${cy - r * 0.8} Z`;
 
   return (
     <div className="mb-2">
-      <div className="text-xs text-slate-400 mb-0.5">EWMA score (τ=2 min) · ● events · ◆ severity change</div>
+      <div className="text-xs text-slate-400 mb-0.5">EWMA score · ▲ increased · ▼ decreased · ● stable · outlined = severity change</div>
       {/* Wrapper: fixed height, relative so HTML labels can be absolutely positioned */}
       <div className="relative rounded border border-slate-700 bg-slate-900" style={{ height: HEIGHT, overflow: 'hidden' }}>
 
@@ -207,26 +204,41 @@ function EventChart({ events, selected, onSelect, phaseMarkers, minTs: extMinTs,
           {/* EWMA score line */}
           {ewmaPath && <path d={ewmaPath} fill="none" stroke="#8b5cf6" strokeWidth="1.5" opacity="0.9" />}
 
-          {/* Event dots */}
+          {/* Event dots – shape encodes trend, outline encodes severity change */}
           {events.map(evt => {
             const x   = toX(evt.trigger.timestamp);
-            const y   = toY(evt.score);
+            // Plot dots on the EWMA score (backend-computed).
+            const y   = toY(evt.ewma);
+            // Also show the instant score as a faint small dot.
+            const yi  = toY(evt.score);
             const fc  = evt.severity === 'high' ? '#ef4444' : evt.severity === 'medium' ? '#eab308' : '#64748b';
             const sel = evt.id === selected;
+            const outline = evt.severityChanged;
+            const r = sel ? 5 : 4;
             const tip = evt.trigger.logPattern
-              ? `${formatTs(evt.trigger.timestamp)} ${evt.severity} – ${evt.trigger.logPattern}`
-              : `${formatTs(evt.trigger.timestamp)} ${evt.severity} – ${evt.trigger.title}`;
-            return evt.severityChanged
-              ? <path key={evt.id} d={diamond(x, y, sel ? 5 : 4)} fill={fc} opacity="0.95"
-                  style={{ cursor: 'pointer' }} onClick={() => onSelect(evt.id)}
-                  stroke={sel ? 'white' : 'none'} strokeWidth="1">
-                  <title>{tip} ◆ change</title>
-                </path>
-              : <circle key={evt.id} cx={x} cy={y} r={sel ? 4 : 2.5} fill={fc} opacity="0.85"
-                  style={{ cursor: 'pointer' }} onClick={() => onSelect(evt.id)}
-                  stroke={sel ? 'white' : 'none'} strokeWidth="1">
-                  <title>{tip}</title>
-                </circle>;
+              ? `${formatTs(evt.trigger.timestamp)} ${evt.severity} ewma=${(evt.ewma*100).toFixed(0)}% – ${evt.trigger.logPattern}`
+              : `${formatTs(evt.trigger.timestamp)} ${evt.severity} ewma=${(evt.ewma*100).toFixed(0)}% – ${evt.trigger.title}`;
+            const trendLabel = evt.trend === 'increased' ? '▲' : evt.trend === 'decreased' ? '▼' : '';
+            const sharedProps = {
+              style: { cursor: 'pointer' } as React.CSSProperties,
+              onClick: () => onSelect(evt.id),
+              stroke: outline ? 'white' : sel ? 'white' : 'none',
+              strokeWidth: outline || sel ? '1.5' : '0',
+              opacity: '0.92',
+              fill: fc,
+            };
+            const shape = evt.trend === 'increased'
+              ? <path key={evt.id} d={triUp(x, y, r)} {...sharedProps}><title>{tip} {trendLabel} {outline ? '★change' : ''}</title></path>
+              : evt.trend === 'decreased'
+              ? <path key={evt.id} d={triDown(x, y, r)} {...sharedProps}><title>{tip} {trendLabel} {outline ? '★change' : ''}</title></path>
+              : <circle key={evt.id} cx={x} cy={y} r={sel ? 4 : 2.5} {...sharedProps}><title>{tip} {outline ? '★change' : ''}</title></circle>;
+            return (
+              <g key={evt.id}>
+                {/* Faint instant-score dot */}
+                <circle cx={x} cy={yi} r={1.5} fill={fc} opacity="0.35" />
+                {shape}
+              </g>
+            );
           })}
         </svg>
 
@@ -271,14 +283,14 @@ function EventDetailPanel({ event, onClose }: { event: AnomalyEvent; onClose: ()
         <div>
           <div className="flex items-center gap-2 mb-1">
             <SeverityBadge severity={event.severity} />
-            <ScorePill score={event.score} />
+            <ScorePill score={event.ewma} />
             {event.severityChanged && (
               <span className={`text-xs px-1.5 py-0.5 rounded ${
-                event.severityDirection === 'up'
+                event.trend === 'increased'
                   ? 'bg-red-900/60 text-red-400'
                   : 'bg-blue-900/60 text-blue-400'
               }`}>
-                {event.severityDirection === 'up' ? '↑' : '↓'} {event.previousSeverity} → {event.severity}
+                {event.trend === 'increased' ? '↑' : '↓'} {event.previousSeverity} → {event.severity}
               </span>
             )}
           </div>
@@ -335,7 +347,10 @@ function EventDetailPanel({ event, onClose }: { event: AnomalyEvent; onClose: ()
           <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide mb-2">Context</div>
           <div className="space-y-1 text-xs text-slate-300">
             <div><span className="text-slate-500">Window:</span> {formatTs(event.windowStart)} – {formatTs(event.windowEnd)}</div>
-            <div><span className="text-slate-500">Recent anomalies:</span> {event.recentAnomalyCount}</div>
+            <div><span className="text-slate-500">Window anomalies:</span> {event.windowSize} in 1 min</div>
+            <div><span className="text-slate-500">Instant score:</span> {(event.score * 100).toFixed(1)}%</div>
+            <div><span className="text-slate-500">EWMA:</span> {(event.ewma * 100).toFixed(1)}% (prev {(event.previousEwma * 100).toFixed(1)}%)</div>
+            <div><span className="text-slate-500">Trend:</span> {event.trend === 'increased' ? '↑ increased' : event.trend === 'decreased' ? '↓ decreased' : '→ stable'}</div>
             <div>
               <span className="text-slate-500">Distinct signals:</span> {bd.signalCount}
               {bd.effectiveSignalCount < bd.signalCount && (
@@ -375,7 +390,8 @@ function EventDetailPanel({ event, onClose }: { event: AnomalyEvent; onClose: ()
             <span className="text-slate-500">Log-count cap:</span> {(bd.logCountCap * 100).toFixed(1)}%
             {bd.logCountCapApplied && <span className="text-amber-400 ml-1">← clamped</span>}
           </div>
-          <div><span className="text-slate-500">Final score:</span> <span className="font-semibold">{(event.score * 100).toFixed(1)}%</span></div>
+          <div><span className="text-slate-500">Instant score:</span> {(event.score * 100).toFixed(1)}%</div>
+          <div><span className="text-slate-500">EWMA score:</span> <span className="font-semibold">{(event.ewma * 100).toFixed(1)}%</span></div>
           <div><span className="text-slate-500">Severity:</span> <span className="font-semibold capitalize">{event.severity}</span></div>
         </div>
       </div>
@@ -401,13 +417,14 @@ function EventRow({ event, selected, onSelect }: {
     >
       <div className="flex items-center gap-2 mb-0.5">
         <SeverityBadge severity={event.severity} />
-        <ScorePill score={event.score} />
+        <ScorePill score={event.ewma} />
+        <span className={`text-[10px] font-medium ${
+          event.trend === 'increased' ? 'text-red-400' : event.trend === 'decreased' ? 'text-blue-400' : 'text-slate-600'
+        }`}>
+          {event.trend === 'increased' ? '▲' : event.trend === 'decreased' ? '▼' : '→'}
+        </span>
         {event.severityChanged && (
-          <span className={`text-[10px] font-medium px-1 rounded ${
-            event.severityDirection === 'up' ? 'text-red-400 bg-red-900/40' : 'text-blue-400 bg-blue-900/40'
-          }`}>
-            {event.severityDirection === 'up' ? '↑' : '↓'}
-          </span>
+          <span className="text-[10px] font-medium px-1 rounded text-yellow-400 bg-yellow-900/40">★</span>
         )}
         <span className="text-xs text-slate-500 font-mono ml-auto">{formatTs(event.trigger.timestamp)}</span>
       </div>
@@ -449,8 +466,9 @@ export function AnomalyEventsView({ state, sidebarWidth, phaseMarkers }: Anomaly
   const events = state.anomalyEvents ?? [];
 
   // Filters
-  const [severityFilter, setSeverityFilter] = useState<'all' | AnomalySeverity>('all');
+  const [severityFilter, setSeverityFilter] = useState<'all' | AnomalyEventSeverity>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'metric' | 'log'>('all');
+  const [trendFilter, setTrendFilter] = useState<'all' | AnomalyEventTrend>('all');
   const [changeFilter, setChangeFilter] = useState<'all' | 'changes' | 'upgrades'>('all');
   const [detectorFilter, setDetectorFilter] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -468,11 +486,12 @@ export function AnomalyEventsView({ state, sidebarWidth, phaseMarkers }: Anomaly
       if (typeFilter === 'log' && !isLog) return false;
       if (typeFilter === 'metric' && isLog) return false;
     }
+    if (trendFilter !== 'all' && evt.trend !== trendFilter) return false;
     if (changeFilter === 'changes' && !evt.severityChanged) return false;
-    if (changeFilter === 'upgrades' && evt.severityDirection !== 'up') return false;
+    if (changeFilter === 'upgrades' && evt.trend !== 'increased') return false;
     if (detectorFilter && evt.trigger.detectorName !== detectorFilter) return false;
     return true;
-  }), [events, severityFilter, typeFilter, changeFilter, detectorFilter]);
+  }), [events, severityFilter, typeFilter, trendFilter, changeFilter, detectorFilter]);
 
   const selectedEvent = filtered.find(e => e.id === selectedId) ?? null;
 
@@ -526,6 +545,31 @@ export function AnomalyEventsView({ state, sidebarWidth, phaseMarkers }: Anomaly
                   }`}
                 >
                   {t === 'all' ? 'Metrics & Logs' : t.charAt(0).toUpperCase() + t.slice(1) + 's'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Trend */}
+          <div>
+            <div className="text-xs text-slate-500 mb-1">Trend</div>
+            <div className="flex flex-col gap-1">
+              {([
+                ['all',       'All trends'],
+                ['increased', '▲ Increased'],
+                ['decreased', '▼ Decreased'],
+                ['stable',    '→ Stable'],
+              ] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  onClick={() => setTrendFilter(val)}
+                  className={`text-left px-2 py-1 rounded text-xs transition-colors ${
+                    trendFilter === val
+                      ? 'bg-purple-700 text-white'
+                      : 'text-slate-400 hover:bg-slate-700'
+                  }`}
+                >
+                  {label}
                 </button>
               ))}
             </div>
