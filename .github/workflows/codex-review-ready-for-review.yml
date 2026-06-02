@@ -25,11 +25,11 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.event.repository.name }}
           REPOSITORY: ${{ github.repository }}
-          CHATGPT_CODEX_BOT: chatgpt-codex-connector[bot]
+          CHATGPT_CODEX_GRAPHQL_BOT: chatgpt-codex-connector
+          CHATGPT_CODEX_REST_BOT: chatgpt-codex-connector[bot]
           CODEX_REVIEW_BODY: "@codex review"
           GITHUB_ACTIONS_BOT: github-actions[bot]
           LEGACY_GITHUB_ACTIONS_BOT: github_actions[bot]
-          NO_MAJOR_ISSUES_BODY: "Didn't find any major issues"
         run: |
           set -euo pipefail
 
@@ -46,8 +46,10 @@ jobs:
                 and .body == env.CODEX_REVIEW_BODY
               )
               or (
-                .user.login == env.CHATGPT_CODEX_BOT
-                and (.body | contains(env.NO_MAJOR_ISSUES_BODY))
+                (
+                  (.user.login == env.CHATGPT_CODEX_GRAPHQL_BOT)
+                  or (.user.login == env.CHATGPT_CODEX_REST_BOT)
+                )
               )
             )
           | .id
@@ -127,7 +129,10 @@ jobs:
               jq -r '
                 .data.repository.pullRequest.reviews.nodes[]
                 | select(
-                    .author.login == env.CHATGPT_CODEX_BOT
+                    (
+                      (.author.login == env.CHATGPT_CODEX_GRAPHQL_BOT)
+                      or (.author.login == env.CHATGPT_CODEX_REST_BOT)
+                    )
                     and (.isMinimized | not)
                   )
                 | .id
