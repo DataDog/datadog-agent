@@ -262,6 +262,16 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 
 		cfg.IntegrationSourceIndex = index
 		cfg.IntegrationSource = config.Source
+		if config.Provider == names.ProcessLog {
+			// Paths from process_log come from readlink(/proc/<pid>/fd/<n>).
+			// The Linux kernel resolves all symlinks at file-open time, so the
+			// string in /proc/fd is already canonical — no directory component is
+			// a symlink.  Any symlink that appears later on the path was planted
+			// after discovery and indicates an attacker-controlled swap.  The
+			// file tailer opens the path with O_NOFOLLOW on each component to
+			// reject such swaps.
+			cfg.ProcessLog = true
+		}
 
 		if service != nil {
 			// a config defined in a container label or a pod annotation does not always contain a type,
