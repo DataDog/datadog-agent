@@ -29,10 +29,12 @@ type Permission struct {
 func NewPermission() (*Permission, error) {
 	perms := &Permission{}
 
-	if ddUserUID, err := getDatadogUserUID(); err == nil {
-		perms.ddUserUID = ddUserUID
+	ddUserUID, err := getDatadogUserUID()
+	if err != nil {
+		return perms, err
 	}
 
+	perms.ddUserUID = ddUserUID
 	return perms, nil
 }
 
@@ -107,13 +109,7 @@ func getDatadogUserUID() (uint32, error) {
 
 // isRootOrAgentUID reports whether uid is root (0) or the dd-agent service account.
 func (p *Permission) isRootOrAgentUID(uid uint32) bool {
-	if uid == 0 {
-		return true
-	}
-	if p.ddUserUID != 0 && uid == p.ddUserUID {
-		return true
-	}
-	return false
+	return uid == 0 || uid == p.ddUserUID
 }
 
 // checkOwner verifies that path is owned by root or dd-agent.
@@ -124,7 +120,7 @@ func (p *Permission) checkOwner(path string) error {
 	}
 
 	if !p.isRootOrAgentUID(stat.Uid) {
-		return errors.New("file owner is neither `root` nor `dd-agent`")
+		return errors.New("file owner is not a trusted user")
 	}
 
 	return nil
