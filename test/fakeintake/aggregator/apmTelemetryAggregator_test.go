@@ -37,13 +37,13 @@ func TestParseAgentTelemetryLogs(t *testing.T) {
 		assert.Empty(t, logs)
 	})
 
-	t.Run("invalid JSON returns error", func(t *testing.T) {
+	t.Run("non-JSON payload (e.g. protobuf) is silently skipped", func(t *testing.T) {
 		logs, err := ParseAgentTelemetryLogs(api.Payload{
 			Data:     []byte("not valid json"),
 			Encoding: encodingJSON,
 		})
-		assert.Error(t, err)
-		assert.Nil(t, logs)
+		require.NoError(t, err)
+		assert.Empty(t, logs)
 	})
 
 	t.Run("valid agent-logs payload parses all fields and stamps collected time", func(t *testing.T) {

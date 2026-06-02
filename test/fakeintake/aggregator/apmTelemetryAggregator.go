@@ -60,9 +60,12 @@ func ParseAgentTelemetryLogs(payload api.Payload) ([]*AgentTelemetryLog, error) 
 		return nil, err
 	}
 
+	// The /api/v2/apmtelemetry endpoint is shared: agent metrics, heartbeats,
+	// and other payload types arrive here too, some encoded as protobuf. If
+	// JSON unmarshal fails, skip silently — this payload is not agent-logs.
 	var env apmTelemetryEnvelope
 	if err := json.Unmarshal(inflated, &env); err != nil {
-		return nil, err
+		return []*AgentTelemetryLog{}, nil
 	}
 
 	if env.RequestType != "agent-logs" {
