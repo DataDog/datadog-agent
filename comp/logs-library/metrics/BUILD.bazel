@@ -6,6 +6,7 @@ go_library(
         "capacity_monitor.go",
         "metrics.go",
         "pipeline_monitor.go",
+        "rolling_history.go",
         "utilization_monitor.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/metrics",

@@ -85,10 +85,12 @@ var (
 	// TlmAutoMultilineJSONAggregatorFlush Count of each line flushed from the auto multiline JSON aggregator.
 	TlmAutoMultilineJSONAggregatorFlush = telemetryimpl.GetCompatComponent().NewCounter("logs", "auto_multi_line_json_aggregator_flush", []string{"is_valid"}, "Count of each line flushed from the auto multiline JSON aggregator")
 
-	// TlmUtilizationRatio is the utilization ratio of a component.
-	// Utilization ratio is calculated as the ratio of time spent in use to the total time.
-	// This metric is internally sampled and exposed as an ewma in order to produce a useable value.
-	TlmUtilizationRatio = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "ratio", []string{"name", "instance"}, "Gauge of the utilization ratio of a component")
+	// TlmUtilizationRatio is the utilization ratio with a 30-second EWMA window (N=30, α≈0.065).
+	// Suitable for long-term trend dashboards; responds to saturation within ~45 seconds.
+	TlmUtilizationRatio = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "ratio", []string{"name", "instance"}, "Gauge of the utilization ratio of a component (N=30 EWMA, ~30s window)")
+	// TlmUtilizationShortRatio is the utilization ratio with a 5-second EWMA window (N=5, α≈0.333).
+	// Responds to sustained saturation within ~7 seconds; use for near-real-time backpressure detection.
+	TlmUtilizationShortRatio = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "ratio_short", []string{"name", "instance"}, "Gauge of the utilization ratio using a short (N=5) EWMA window for faster backpressure detection")
 	// TlmUtilizationItems is the capacity of a component by number of elements
 	// Both the number of items and the number of bytes are aggregated and exposed as a ewma.
 	TlmUtilizationItems = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "items", []string{"name", "instance"}, "Gauge of the number of items currently held in a component and its buffers")
