@@ -69,7 +69,6 @@
       - E2E_MSI_TEST: TestInstallWithInstallOnlyFlag
       - E2E_MSI_TEST: TestInstallWithAutologger
       - E2E_MSI_TEST: TestAutologgerEnabledWhenLogonDurationEnabled
-      - E2E_MSI_TEST: TestUpgradePreservesAutologger
       - E2E_MSI_TEST: TestInstallRollbackRemovesAutologger
       - E2E_MSI_TEST: TestInstallRollbackPreservesAutologger
       # These tests are v7 only

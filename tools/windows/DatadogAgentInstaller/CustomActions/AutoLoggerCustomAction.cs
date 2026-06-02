@@ -79,18 +79,6 @@ namespace Datadog.CustomActions
                     return ActionResult.Failure;
                 }
 
-                // Preserve the runtime state of an existing AutoLogger across upgrades/reinstalls.
-                // The agent toggles the Start value at runtime based on logon_duration.enabled, so
-                // re-creating the keys here would reset Start and regenerate the Guid on every upgrade.
-                using (var existingKey = Registry.LocalMachine.OpenSubKey(SessionKeyPath))
-                {
-                    if (existingKey != null)
-                    {
-                        session.Log("AutoLogger already exists, preserving current state");
-                        return ActionResult.Success;
-                    }
-                }
-
                 // Snapshot the current registry state before making any changes
                 rollbackDataStore.Add(new RegistryKeyRollbackData(SessionKeyPath));
 

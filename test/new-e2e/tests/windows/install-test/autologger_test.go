@@ -143,44 +143,6 @@ func (s *testAutologgerEnabledWhenLogonDurationEnabledSuite) TestAutologgerEnabl
 	})
 }
 
-// TestUpgradePreservesAutologger verifies that when an autologger already exists,
-// a (re)install preserves its current state instead of overwriting it. This protects
-// the runtime Start value (toggled by the agent) and the Guid across upgrades.
-func TestUpgradePreservesAutologger(t *testing.T) {
-	s := &testUpgradePreservesAutologgerSuite{}
-	Run(t, s)
-}
-
-type testUpgradePreservesAutologgerSuite struct {
-	baseAgentMSISuite
-}
-
-func (s *testUpgradePreservesAutologgerSuite) TestUpgradePreservesAutologger() {
-	vm := s.Env().RemoteHost
-	autologgerPath := windowsAgent.AutologgerRegistryKeyPath
-
-	// Simulate a pre-existing autologger with a distinctive Guid and an enabled Start value.
-	createPreExistingAutologgerKeys(s.T(), vm, autologgerPath)
-
-	_ = s.installAgentPackage(vm, s.AgentPackage)
-
-	RequireAgentRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm))
-
-	s.Run("install preserves pre-existing autologger Guid", func() {
-		val, err := windows.GetRegistryValue(vm, autologgerPath, "Guid")
-		require.NoError(s.T(), err)
-		assert.Equal(s.T(), "{00000000-0000-0000-0000-000000000000}", val,
-			"autologger Guid should be preserved when the key already exists")
-	})
-
-	s.Run("install preserves pre-existing autologger Start", func() {
-		val, err := windows.GetRegistryValue(vm, autologgerPath, "Start")
-		require.NoError(s.T(), err)
-		assert.Equal(s.T(), "42", val,
-			"autologger Start should be preserved when the key already exists")
-	})
-}
-
 // TestInstallRollbackRemovesAutologger verifies that when a clean install fails
 // (triggering rollback), the autologger keys created during the install are removed.
 func TestInstallRollbackRemovesAutologger(t *testing.T) {
@@ -222,7 +184,8 @@ func (s *testInstallRollbackRemovesAutologgerSuite) TestInstallRollbackRemovesAu
 
 // TestInstallRollbackPreservesAutologger verifies that when an autologger already
 // exists and an install fails (triggering rollback), the pre-existing autologger is
-// preserved. With skip-if-exists, the install never touches the existing keys.
+// restored. The action snapshots the existing keys before overwriting them, so rollback
+// reinstates the original values.
 func TestInstallRollbackPreservesAutologger(t *testing.T) {
 	s := &testInstallRollbackPreservesAutologgerSuite{}
 	Run(t, s)
@@ -259,7 +222,7 @@ func (s *testInstallRollbackPreservesAutologgerSuite) TestInstallRollbackPreserv
 		exists, err := windows.RegistryKeyExists(vm, autologgerPath)
 		require.NoError(s.T(), err)
 		assert.True(s.T(), exists,
-			"pre-existing autologger should still exist after rollback (install skipped it)")
+			"pre-existing autologger should still exist after rollback (snapshot was restored)")
 	})
 
 	s.Run("rollback preserves pre-existing autologger values", func() {
