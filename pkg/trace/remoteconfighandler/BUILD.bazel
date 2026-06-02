@@ -17,7 +17,7 @@ go_library(
         "//pkg/trace/log",
         "//pkg/util/log",
         "@com_github_davecgh_go_spew//spew",
-        "@com_github_golang_mock//gomock",
+        "@org_uber_go_mock//gomock",
     ],
 )
 
@@ -32,7 +32,7 @@ go_test(
         "//pkg/trace/config",
         "//pkg/util/log",
         "//pkg/util/pointer",
-        "@com_github_golang_mock//gomock",
         "@com_github_stretchr_testify//assert",
+        "@org_uber_go_mock//gomock",
     ],
 )

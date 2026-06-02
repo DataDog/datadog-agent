@@ -51,6 +51,8 @@ linters:
               desc: "use the std maps package instead (Keys/Values need slices.Collect wrapping)"
             - pkg: "github.com/aws/aws-sdk-go/"
               desc: "use the v2 sdk instead"
+            - pkg: "github.com/golang/mock"
+              desc: "archived and unmaintained; use go.uber.org/mock instead (maintained fork, same API)"
             - pkg: "github.com/imdario/mergo"
               desc: "archived; use dario.cat/mergo instead (same author, same API)"
             - pkg: "golang.org/x/xerrors"
