@@ -42,6 +42,9 @@ agent_deb-x64-a7:
   variables:
     DD_PROJECT: "agent"
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_agent_deb_amd64"
+    # Also upload the inventory report at the commit-only path so
+    # files_inventory_check can fetch the parent-commit report by SHA alone.
+    UPLOAD_GLOBAL_INVENTORY: "true"
 
 agent_deb-arm64-a7:
   extends: [.package_deb_common, .package_deb_arm64]

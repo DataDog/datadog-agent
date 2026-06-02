@@ -116,25 +116,19 @@ Invoke-BuildScript `
             exit 1
         }
 
-        # The SQG runner reads reports exclusively from S3 (it no longer
-        # downloads build artifacts), so the report has to be uploaded.
-        # Skip uploads from cross-repo child pipelines so they don't overwrite
-        # the per-commit report from this repo's own pipeline.
-        if ($env:CI_PIPELINE_SOURCE -eq "pipeline" -or $env:CI_PIPELINE_SOURCE -eq "parent_pipeline") {
-            Write-Host "Pipeline source is '$env:CI_PIPELINE_SOURCE'; skipping report upload"
-        } else {
-            $bucketBasePath = "s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/$env:CI_COMMIT_SHA"
-            $reportFilename = Split-Path $reportPath -Leaf
-            Write-Host "Uploading report to $bucketBasePath/$reportFilename"
-            # Explicit `.exe` because Ruby's aws-sdk-core ships an `aws.rb`
-            # shim that shadows the real CLI on the Windows build container.
-            aws.exe s3 cp --only-show-errors --region us-east-1 --sse AES256 `
-                $reportPath `
-                "$bucketBasePath/$reportFilename"
-            if ($LASTEXITCODE -ne 0) {
-                Write-Error "Static quality gate report upload failed"
-                exit 1
-            }
+        # Upload under a pipeline-scoped prefix so concurrent pipelines for
+        # the same commit don't overwrite each other's reports.
+        $bucketBasePath = "s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS"
+        $reportFilename = Split-Path $reportPath -Leaf
+        Write-Host "Uploading report to $bucketBasePath/$env:CI_PIPELINE_ID/$reportFilename"
+        # Explicit `.exe` because Ruby's aws-sdk-core ships an `aws.rb`
+        # shim that shadows the real CLI on the Windows build container.
+        aws.exe s3 cp --only-show-errors --region us-east-1 --sse AES256 `
+            $reportPath `
+            "$bucketBasePath/$env:CI_PIPELINE_ID/$reportFilename"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Static quality gate report upload failed"
+            exit 1
         }
     }
 }

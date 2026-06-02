@@ -56,21 +56,32 @@
 
         echo "✅ Package measurement completed"
 
-        # Skip uploads from cross-repo child pipelines so they don't overwrite
-        # the per-commit report from this repo's own pipeline.
-        case "$CI_PIPELINE_SOURCE" in
-          pipeline|parent_pipeline)
-            echo "Pipeline source is '$CI_PIPELINE_SOURCE'; skipping report upload"
-            continue
-            ;;
-        esac
-
-        # Upload the report to S3
-        BUCKET_BASE_PATH="s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/${CI_COMMIT_SHA}"
-        echo "Uploading report to ${BUCKET_BASE_PATH}"
+        # Upload under a pipeline-scoped prefix so concurrent pipelines for
+        # the same commit (e.g. cross-repo downstream pipelines) don't
+        # overwrite each other's reports.
+        BUCKET_BASE_PATH="s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS"
+        echo "Uploading report to ${BUCKET_BASE_PATH}/${CI_PIPELINE_ID}/${REPORT_FILENAME}"
         aws s3 cp --only-show-errors --region us-east-1 --sse AES256 \
           "${REPORT_FILENAME}" \
-          "${BUCKET_BASE_PATH}/${REPORT_FILENAME}"
+          "${BUCKET_BASE_PATH}/${CI_PIPELINE_ID}/${REPORT_FILENAME}"
+
+        # Optional second upload at the commit-only path for downstream
+        # consumers that look up by commit alone (e.g. files_inventory_check
+        # parent-report fetch). Skipped on cross-repo sources so the shared
+        # path can't be polluted by foreign uploads.
+        if [[ "$UPLOAD_GLOBAL_INVENTORY" == "true" ]]; then
+          case "$CI_PIPELINE_SOURCE" in
+            pipeline|parent_pipeline)
+              echo "Pipeline source is '$CI_PIPELINE_SOURCE'; skipping global report upload"
+              ;;
+            *)
+              echo "Uploading global report to ${BUCKET_BASE_PATH}/${CI_COMMIT_SHA}/${REPORT_FILENAME}"
+              aws s3 cp --only-show-errors --region us-east-1 --sse AES256 \
+                "${REPORT_FILENAME}" \
+                "${BUCKET_BASE_PATH}/${CI_COMMIT_SHA}/${REPORT_FILENAME}"
+              ;;
+          esac
+        fi
       else
         echo "⚠️  No package found matching pattern: $PACKAGE_PATTERN"; exit 1;
       fi

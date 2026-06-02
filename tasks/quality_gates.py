@@ -96,7 +96,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # Pull every inventory report in one batched `aws s3 sync` so each gate
     # can read its report from local disk instead of paying per-gate CLI
     # startup + cold-connection overhead.
-    InventoryReportMeasurer.prefetch_reports(ctx, os.environ["CI_COMMIT_SHA"])
+    InventoryReportMeasurer.prefetch_reports(ctx, os.environ["CI_PIPELINE_ID"])
 
     # python 3.11< does not allow to use \n in f-strings
     delimiter = '\n'

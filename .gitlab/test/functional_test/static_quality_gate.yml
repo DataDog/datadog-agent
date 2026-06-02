@@ -3,10 +3,6 @@ static_quality_gates:
     default: false
   stage: functional_test
   rules:
-    # Cross-pipeline sources may run a different build config, so reports
-    # uploaded there don't necessarily match this repo's.
-    - if: '$CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "parent_pipeline"'
-      when: never
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
     - !reference [.on_main_or_release_branch]
     - !reference [.on_mergequeue]
@@ -138,10 +134,7 @@ manual_gate_threshold_update:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
   needs:
-    - job: static_quality_gates
-      # static_quality_gates skips on cross-pipeline sources; mark the need
-      # optional so the pipeline stays valid when it does.
-      optional: true
+    - static_quality_gates
   before_script:
     - !reference [.setup_github_token_write]
   script:

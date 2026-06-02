@@ -7,6 +7,7 @@ This module provides quality gates that eliminate inheritance-based design issue
 - All attributes guaranteed to be defined - validation at creation
 """
 
+import glob
 import json
 import math
 import os
@@ -294,8 +295,8 @@ class InventoryReportMeasurer:
     LOCAL_DIR_ENV = "SQG_REPORTS_LOCAL_DIR"
 
     @classmethod
-    def prefetch_reports(cls, ctx: Context, commit_sha: str) -> str:
-        """Sync the per-commit report prefix from S3 to a temp dir.
+    def prefetch_reports(cls, ctx: Context, pipeline_id: str) -> str:
+        """Sync the pipeline-scoped report prefix from S3 to a temp dir.
 
         Returns the temp dir path. Subsequent `_fetch_report` calls read
         from there (33 small subprocess invocations collapse into one
@@ -304,7 +305,7 @@ class InventoryReportMeasurer:
         import tempfile
 
         local_dir = tempfile.mkdtemp(prefix="sqg-reports-")
-        s3_prefix = f"{cls.GATE_REPORTS_PREFIX}/{commit_sha}/"
+        s3_prefix = f"{cls.GATE_REPORTS_PREFIX}/{pipeline_id}/"
         result = ctx.run(f"aws s3 sync --only-show-errors {s3_prefix} {local_dir}", warn=True)
         if result.exited != 0:
             print(
@@ -332,28 +333,18 @@ class InventoryReportMeasurer:
             raise StaticQualityGateError(f"Failed to read inventory report for {config.gate_name}: {e}") from e
 
     def _fetch_report(self, ctx: Context, gate_name: str) -> dict:
-        commit_sha = os.environ.get("CI_COMMIT_SHA")
-        pipeline_id = os.environ.get("CI_PIPELINE_ID")
         local_dir = os.environ.get(self.LOCAL_DIR_ENV)
-        if not commit_sha or not pipeline_id or not local_dir:
-            raise StaticQualityGateError(
-                f"CI_COMMIT_SHA, CI_PIPELINE_ID, and {self.LOCAL_DIR_ENV} must be set to read the report for {gate_name}"
-            )
+        if not local_dir:
+            raise StaticQualityGateError(f"{self.LOCAL_DIR_ENV} must be set to read the report for {gate_name}")
 
         prefix = gate_name.removeprefix("static_quality_gate_")
-        # Docker producers include CI_PIPELINE_ID in the filename; package producers don't.
-        if "docker" in gate_name:
-            filename = f"{prefix}_size_report_{pipeline_id}_{commit_sha[:8]}.yml"
-        else:
-            filename = f"{prefix}_size_report_{commit_sha[:8]}.yml"
-
-        try:
-            with open(os.path.join(local_dir, filename)) as f:
-                return _read_report_header(f)
-        except FileNotFoundError as e:
+        candidates = glob.glob(os.path.join(local_dir, f"{prefix}_size_report_*.yml"))
+        if len(candidates) != 1:
             raise StaticQualityGateError(
-                f"Report {filename} missing from prefetched dir {local_dir}; check that the producer uploaded it"
-            ) from e
+                f"Expected exactly 1 report matching '{prefix}_size_report_*.yml' in {local_dir}, found {len(candidates)}: {candidates}"
+            )
+        with open(candidates[0]) as f:
+            return _read_report_header(f)
 
 
 class StaticQualityGate:
