@@ -6,6 +6,8 @@
 package agent
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/ecsagentparams"
@@ -266,8 +268,14 @@ func ecsFakeintakeAdditionalEndpointsEnv(fakeintake *fakeintake.Fakeintake) []ec
 			Value: pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fakeintake.URL.ToStringOutput()),
 		},
 		ecs.TaskDefinitionKeyValuePairArgs{
-			Name:  pulumi.String("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS"),
-			Value: pulumi.Sprintf(`[{"host": "%s"}]`, fakeintake.Host),
+			Name: pulumi.String("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS"),
+			Value: pulumi.All(fakeintake.Host, fakeintake.Port, fakeintake.Scheme).ApplyT(func(args []interface{}) (string, error) {
+				host := args[0].(string)
+				port := args[1].(int)
+				scheme := args[2].(string)
+				useSSL := scheme != "http"
+				return fmt.Sprintf(`[{"host": %q, "port": %d, "use_ssl": %t}]`, host, port, useSSL), nil
+			}).(pulumi.StringOutput),
 		},
 		ecs.TaskDefinitionKeyValuePairArgs{
 			Name:  pulumi.StringPtr("DD_LOGS_CONFIG_USE_HTTP"),
