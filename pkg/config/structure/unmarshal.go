@@ -9,6 +9,7 @@ package structure
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 
 	mapstructure "github.com/go-viper/mapstructure/v2"
 
@@ -86,7 +87,10 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 			if str == "" {
 				return nil
 			}
-			return json.Unmarshal([]byte(str), &target)
+			// Only treat the value as serialized JSON when it actually is a JSON array or object
+			if trimmed := strings.TrimSpace(str); strings.HasPrefix(trimmed, "[") || strings.HasPrefix(trimmed, "{") {
+				return json.Unmarshal([]byte(str), &target)
+			}
 		}
 	}
 

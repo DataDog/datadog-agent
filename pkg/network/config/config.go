@@ -330,7 +330,7 @@ func New() *Config {
 		log.Info("network tracer DNS inspection disabled by configuration")
 	}
 
-	if err := structure.UnmarshalKey(cfg, sysconfig.FullKeyPath(netNS, "dns_monitoring_ports"), &c.DNSMonitoringPortList); err != nil {
+	if err := structure.UnmarshalKey(cfg, sysconfig.FullKeyPath(netNS, "dns_monitoring_ports"), &c.DNSMonitoringPortList, structure.EnableStringUnmarshal); err != nil {
 		log.Warnf("failed to parse dns_monitoring_ports: %v", err)
 	}
 
