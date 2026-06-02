@@ -1531,3 +1531,48 @@ some_config:
 	assert.NoError(t, err)
 	assert.Equal(t, map[ResourceType]string{"memory": "5g"}, res.Resources)
 }
+
+// TestUnmarshalKeyIntSliceFromEnv covers populating an []int setting from an env
+// var on both NTM and viper
+func TestUnmarshalKeyIntSliceFromEnv(t *testing.T) {
+	const key = "my_feature.ports"
+	const envVar = "DD_MY_FEATURE_PORTS"
+
+	build := func(t *testing.T, backend, env string) model.Config {
+		t.Setenv(envVar, env)
+		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+			cfg.BindEnvAndSetDefault(key, []int{53})
+		})
+		if backend == "viper" {
+			return viperConf
+		}
+		return ntmConf
+	}
+
+	for _, tc := range []struct {
+		name            string
+		backend         string
+		env             string
+		stringUnmarshal bool
+		want            []int
+	}{
+		{"ntm/space-separated", "ntm", "53 5353", false, []int{53, 5353}},
+		{"ntm/json+stringunmarshal", "ntm", "[53,5353]", true, []int{53, 5353}},
+		{"ntm/single+stringunmarshal", "ntm", "5353", true, []int{5353}},
+		{"viper/json+stringunmarshal", "viper", "[53,5353]", true, []int{53, 5353}},
+		{"viper/single+stringunmarshal", "viper", "5353", true, []int{5353}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := build(t, tc.backend, tc.env)
+			var got []int
+			var err error
+			if tc.stringUnmarshal {
+				err = UnmarshalKey(cfg, key, &got, EnableStringUnmarshal)
+			} else {
+				err = UnmarshalKey(cfg, key, &got)
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
