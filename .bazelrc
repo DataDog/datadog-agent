@@ -60,13 +60,13 @@ common:windows --strategy=standalone # Valid values are: [dynamic_worker, standa
 # rules_python 1.9.0 transitions enable_runfiles to `true` for every py_ target on Windows. Pre-setting it here makes
 # that transition a no-op, so Bazel deduplicates python_win and avoids 2 concurrent MSBuild racing on shared resources.
 common:windows --enable_runfiles
-common:windows --repo_env=BAZEL_SH=C:/tools/msys64/usr/bin/bash.exe # for https://github.com/bazelbuild/bazel/pull/26927
 common:windows --repo_env=PIP_CACHE_DIR # https://pip.pypa.io/en/stable/topics/caching/#default-paths
 common:windows --repo_env=SYSTEMDRIVE # needed by vswhere to locate the VS installer instance database
 common:windows --repo_env=SYSTEMROOT # used by COM to load system DLLs, needed by vswhere
 common:windows --repo_env=USERPROFILE # used by MSYS2 bash to emulate HOME, needed by git to fetch repositories
 common:windows --repo_env=VSTUDIO_ROOT # visual_studio(path_variable) in MODULE.bazel
-common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
+# Fallback only. tools/bazel.bat overrides this with the absolute hermetic MSYS2 bash.exe path.
+common:windows --shell_executable=USE_TOOLS_BAZEL_BAT_OR_BAZELISK_ON_WINDOWS
 
 # Force the x86_64-pc-windows-gnu Rust toolchain (compact name for rust_windows_gnu_x86_64)
 # to take priority over the default MSVC toolchain, since the CI cc_toolchain is MinGW/GCC.

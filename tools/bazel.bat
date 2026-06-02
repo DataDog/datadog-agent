@@ -65,9 +65,58 @@ if not exist "!more_than_260_chars!" (
 )
 
 set "args=%*"
+call :find_bazel_command
+set "needs_msys2_shell="
+if /i "!bazel_cmd!" == "build" set "needs_msys2_shell=1"
+if /i "!bazel_cmd!" == "test" set "needs_msys2_shell=1"
+if /i "!bazel_cmd!" == "run" set "needs_msys2_shell=1"
+if /i "!bazel_cmd!" == "coverage" set "needs_msys2_shell=1"
+if defined needs_msys2_shell call :configure_msys2_shell
+if !errorlevel! neq 0 exit /b !errorlevel!
+
 if defined args if defined extra_args call :insert_extra_args
 "%BAZEL_REAL%" !startup_options! !args!
 exit /b !errorlevel!
+
+:: Find the Bazel command after startup options.
+:find_bazel_command
+set "bazel_cmd="
+set "next_args=!args!"
+:find_next_arg
+for /f "tokens=1* delims= " %%i in ("!next_args!") do (
+  set "arg=%%~i"
+  if "!arg:~0,1!" equ "-" (
+    set "next_args=%%j"
+  ) else (
+    set "bazel_cmd=%%i"
+    exit /b 0
+  )
+)
+if not defined bazel_cmd if defined next_args goto :find_next_arg
+exit /b 0
+
+:: Materialize hermetic MSYS2 and point Bazel shell actions at its bash.exe.
+:configure_msys2_shell
+set "bazel_output_base="
+for /f "delims=" %%i in ('call "%BAZEL_REAL%" !startup_options! info output_base 2^>nul') do set "bazel_output_base=%%i"
+if not defined bazel_output_base (
+  >&2 echo 🔴 Could not determine Bazel output_base needed for hermetic MSYS2 bash.
+  exit /b 2
+)
+
+set "msys2_bash=!bazel_output_base!\external\+msys2_base_repository+msys2_base\usr\bin\bash.exe"
+if not exist "!msys2_bash!" (
+  "%BAZEL_REAL%" !startup_options! fetch @msys2_base//:bash_files
+  if !errorlevel! neq 0 exit /b !errorlevel!
+)
+
+if not exist "!msys2_bash!" (
+  >&2 echo 🔴 Hermetic MSYS2 bash was not materialized at !msys2_bash!
+  exit /b 2
+)
+
+set extra_args=!extra_args! "--shell_executable=!msys2_bash!"
+exit /b 0
 
 :: "--startup cmd ..." -> "--startup cmd --config=ci ..."
 :insert_extra_args

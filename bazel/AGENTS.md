@@ -692,8 +692,8 @@ In `genrule` or test `args`, use the `$(rlocationpath :target)` Make variable, n
 `genrule`, `sh_binary`, `sh_test`, and `ctx.actions.run_shell()` all require Bash. Since Bazel 1.0, every other rule
 type is Bash-free. Bash is the single biggest portability hazard in Bazel builds:
 
-- **Windows**: Bash is not installed by default. Building those rules requires MSYS2, configured via `BAZEL_SH` /
-  `--shell_executable` in `.bazelrc`. This dependency is increasingly absent on developer machines.
+- **Windows**: Bash is not installed by default. Building those rules requires MSYS2. `tools/bazel.bat` materializes
+  the hermetic `@msys2_base` repository and passes its `bash.exe` to Bazel via `--shell_executable`.
 - **macOS**: the system shell (`/bin/bash`) is version 3.2 (2007, last GPLv2 release — Apple does not ship later
   versions for licensing reasons). It lacks `declare -A` (associative arrays), `mapfile`/`readarray`, and many features
   added in Bash 4/5. Users may have Homebrew Bash 5.x, but that is not guaranteed and must not be assumed.
@@ -833,7 +833,7 @@ Minimize action environments — env vars are part of the cache key.
 not executable on Windows and cannot be used as `ctx.actions.run`'s `executable`. Empty `.bat` files cannot be executed
 — write at least one space if you need a no-op script.
 
-**Bash.** The `.bazelrc` configures MSYS2 bash (`BAZEL_SH`, `--shell_executable`) for the rules that require it. Avoid
+**Bash.** `tools/bazel.bat` configures hermetic MSYS2 bash via `--shell_executable` for the rules that require it. Avoid
 those rules — see the [Shell portability](#shell-portability--use-bash-as-a-last-resort) section above.
 
 **Run from `cmd.exe` or PowerShell**, not MSYS2/Git Bash. MSYS2 auto-converts path arguments like `//foo:bar` to Windows

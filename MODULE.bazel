@@ -297,11 +297,76 @@ winlibs_mingw_repository(
     url = "https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-mingw-w64msvcrt-12.0.0-r3.zip",
 )
 
+# Hermetic MSYS2 sh_toolchain sourced from a pinned MSYS2 base archive.
+# Overlay includes foreign_cc essentials for Windows configure/make workloads.
+msys2_base_repository = use_repo_rule(
+    "//bazel/toolchains/msys2:msys2.bzl",
+    "msys2_base_repository",
+)
+
+msys2_base_repository(
+    name = "msys2_base",
+    overlay_packages = {
+        "make": [
+            "https://repo.msys2.org/msys/x86_64/make-4.4.1-2-x86_64.pkg.tar.zst",
+            "2408af61717dae87b00c855b132769a125c708907fc94a46bb16dae076113e5c",
+        ],
+        "m4": [
+            "https://repo.msys2.org/msys/x86_64/m4-1.4.21-1-x86_64.pkg.tar.zst",
+            "b561e8871c7599502d9fae7196ee965b3fed3d7af09154eb8d2f5e4d9e5e5106",
+        ],
+        "libtool": [
+            "https://repo.msys2.org/msys/x86_64/libtool-2.5.4-4-x86_64.pkg.tar.zst",
+            "c8e812a9a32dd86c53d6e9bd5ec94977a5fc66d2ce3e691d92196aa06f616775",
+        ],
+        "pkgconf": [
+            "https://repo.msys2.org/msys/x86_64/pkgconf-2.5.1-1-x86_64.pkg.tar.zst",
+            "38efd4928ac0cb06e9bd558baa533fc923c0592115bf9bd44970250f3ae2cb7e",
+        ],
+        "autoconf-wrapper": [
+            "https://repo.msys2.org/msys/x86_64/autoconf-wrapper-20260320-1-any.pkg.tar.zst",
+            "84c1f93d4450b3bf1ef567110b51c15ffb3f13670d656cc48fea70a01371b20c",
+        ],
+        "autoconf2.72": [
+            "https://repo.msys2.org/msys/x86_64/autoconf2.72-2.72-4-any.pkg.tar.zst",
+            "65b3a37edf8bb4221d38db910ce1acc1ed879c7bcba33faa058066d06d35e7b0",
+        ],
+        "automake-wrapper": [
+            "https://repo.msys2.org/msys/x86_64/automake-wrapper-20260320-1-any.pkg.tar.zst",
+            "693817c288c81bb9f94ac92e5b6f914402735b80bb33e326ccddd7c89cc6a719",
+        ],
+        "automake1.18": [
+            "https://repo.msys2.org/msys/x86_64/automake1.18-1.18.1-1-any.pkg.tar.zst",
+            "c045d9eddf900dbacae06d9e0e19e250cc32d849def7d06b833253f85e3fc941",
+        ],
+        "libiconv-devel": [
+            "https://repo.msys2.org/msys/x86_64/libiconv-devel-1.19-1-x86_64.pkg.tar.zst",
+            "b4836f02199a2ae02d5a836d5a6dc4a174a055da79c30e256635e638b52e2c5d",
+        ],
+        "perl": [
+            "https://repo.msys2.org/msys/x86_64/perl-5.42.2-1-x86_64.pkg.tar.zst",
+            "7c96ef91b7395c12cfbd967ebf7daa8d3f950d1c0be23bb1dc2a635c95a07c01",
+        ],
+        "libcrypt": [
+            "https://repo.msys2.org/msys/x86_64/libcrypt-2.1-5-x86_64.pkg.tar.zst",
+            "3e7822d392eed281cd6019b80078ab201eefa7c83fff2d5bab0491b01088f674",
+        ],
+        "libxcrypt": [
+            "https://repo.msys2.org/msys/x86_64/libxcrypt-4.5.2-1-x86_64.pkg.tar.zst",
+            "e63db0aa2b708359e25f61f506e2d2c92c315febf5f88cc9f386e4ec0bdf4fa5",
+        ],
+    },
+    sha256 = "7a3e5c0a728ebefd24dca6da179fe569dc98d6c7d20ce80981d8dc33fb15f7fc",
+    url = "https://repo.msys2.org/distrib/x86_64/msys2-base-x86_64-20260322.tar.zst",
+    version = "20260322",
+)
+
 # TODO{agent-build}: Find a way to register platform-specific toolchains dynamically
 register_toolchains(
     "@gcc_toolchain_x86_64//:cc_toolchain",
     "@gcc_toolchain_aarch64//:cc_toolchain",
     "@winlibs_mingw64//:mingw_cc_toolchain",
+    "@msys2_base//:sh_toolchain",
     "@llvm_toolchain//:all",  # last to avoid taking precedence over GCC toolchains
 )
 
