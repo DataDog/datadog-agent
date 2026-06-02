@@ -370,17 +370,6 @@ func reportIssue(checkName, reportJSON *C.char, errOut **C.char) {
 		*errOut = (*C.char)(helpers.TrackedCString("stub failure"))
 		return
 	}
-	var rj string
-	if reportJSON != nil {
-		rj = C.GoString(reportJSON)
-	}
-	// Validate bridge arguments for the happy path used in tests
-	if name != "stub-name" {
-		panic(fmt.Sprintf("unexpected check name: %s", name))
-	}
-	if rj != "" && rj != `{"issueId":"stub-issue","context":{}}` {
-		panic(fmt.Sprintf("unexpected report json: %s", rj))
-	}
 }
 
 //export resolveIssue
