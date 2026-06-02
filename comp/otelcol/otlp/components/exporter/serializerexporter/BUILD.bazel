@@ -23,7 +23,7 @@ go_library(
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl/noops",
         "//comp/forwarder/defaultforwarder",
-        "//comp/forwarder/orchestrator/orchestratorinterface",
+        "//comp/forwarder/orchestrator/orchestratorinterface/def",
         "//comp/serializer/metricscompression/def",
         "//comp/serializer/metricscompression/fx-otel",
         "//pkg/config/create",
