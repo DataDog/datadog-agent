@@ -1721,6 +1721,19 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: false,
 		},
 		{
+			name: "should schedule netflow IP target with reverse DNS hostname by default",
+			conn: npmodel.NetworkPathConnection{
+				Source:             netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:               netip.MustParseAddrPort("10.0.0.2:53"),
+				Origin:             payload.PathOriginNetflow,
+				Direction:          model.ConnectionDirection_outgoing,
+				Family:             model.ConnectionFamily_v4,
+				Type:               model.ConnectionType_udp,
+				ReverseDNSHostname: "service.customer.example",
+			},
+			shouldSchedule: true,
+		},
+		{
 			name: "should not schedule incoming conn",
 			conn: npmodel.NetworkPathConnection{
 				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
@@ -1993,6 +2006,26 @@ network_path:
 				Dest:      netip.MustParseAddrPort("10.0.0.2:80"),
 				Direction: model.ConnectionDirection_outgoing,
 				Domain:    "google.com",
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "FILTERS: excluded netflow reverse DNS hostname",
+			filters: `
+network_path:
+  collector:
+    filters:
+      - match_domain: 'blocked.customer.example'
+        type: exclude
+`,
+			conn: npmodel.NetworkPathConnection{
+				Source:             netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:               netip.MustParseAddrPort("10.0.0.2:53"),
+				Origin:             payload.PathOriginNetflow,
+				Direction:          model.ConnectionDirection_outgoing,
+				Family:             model.ConnectionFamily_v4,
+				Type:               model.ConnectionType_udp,
+				ReverseDNSHostname: "blocked.customer.example",
 			},
 			shouldSchedule: false,
 		},

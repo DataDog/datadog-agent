@@ -234,12 +234,22 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn npmodel.NetworkP
 		return false
 	}
 
-	if !s.filter.IsIncluded(conn.Domain, conn.Dest.Addr()) {
+	if !s.filter.IsIncluded(filterDomainForConn(conn), conn.Dest.Addr()) {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_filters"}, 1)
 		return false
 	}
 
 	return true
+}
+
+func filterDomainForConn(conn npmodel.NetworkPathConnection) string {
+	if conn.Domain != "" {
+		return conn.Domain
+	}
+	if conn.Origin == payload.PathOriginNetflow {
+		return conn.ReverseDNSHostname
+	}
+	return ""
 }
 
 func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
