@@ -6,6 +6,7 @@ go_library(
         "deviceplugin.go",
         "diagnosis.go",
         "doc.go",
+        "errors.go",
         "json.go",
         "kubelet.go",
         "kubelet_client.go",

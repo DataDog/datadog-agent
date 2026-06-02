@@ -30,6 +30,7 @@ go_library(
     deps = [
         "//pkg/proto/pbgo/core",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_protobuf//types/known/anypb",
         "@org_golang_google_protobuf//types/known/emptypb",
         "@org_uber_go_mock//gomock",
     ],

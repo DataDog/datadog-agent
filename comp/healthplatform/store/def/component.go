@@ -23,6 +23,11 @@ type Component interface {
 	// and persistence. Call ResolveIssue to mark an issue as resolved.
 	ReportIssue(issue *healthplatformpayload.Issue) error
 
+	// AcceptIssue stores a fully-built issue directly, bypassing template lookup.
+	// Use this when the caller (e.g. a sub-agent over gRPC) provides all display
+	// fields and no issue registry entry is needed.
+	AcceptIssue(issue *healthplatformpayload.Issue) error
+
 	// =========================================================================
 	// Query Methods
 	// =========================================================================

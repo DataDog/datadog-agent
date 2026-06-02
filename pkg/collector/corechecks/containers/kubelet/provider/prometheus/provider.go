@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"net/http"
 	"regexp"
 	"slices"
 	"strconv"
@@ -168,6 +169,14 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	if err != nil {
 		log.Debugf("Unable to collect query probes endpoint: %s", err)
 		return err
+	}
+	if status == http.StatusForbidden {
+		connInfo := kc.GetRawConnectionInfo()
+		return &kubelet.ErrForbidden{
+			Endpoint: connInfo["url"] + p.ScraperConfig.Path,
+			Resource: kubelet.KubeletPathToResource(p.ScraperConfig.Path),
+			Verb:     "get",
+		}
 	}
 	if status == 404 && p.ScraperConfig.ShouldDisable {
 		p.ScraperConfig.IsDisabled = true

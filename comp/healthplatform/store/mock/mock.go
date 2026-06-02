@@ -7,6 +7,7 @@
 package mock
 
 import (
+	"errors"
 	"testing"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
@@ -57,6 +58,18 @@ func (m *mockHealthPlatform) GetIssue(checkID string) *healthplatformpayload.Iss
 		return nil
 	}
 	return proto.Clone(issue).(*healthplatformpayload.Issue)
+}
+
+// AcceptIssue stores a fully-built issue directly for testing.
+func (m *mockHealthPlatform) AcceptIssue(issue *healthplatformpayload.Issue) error {
+	if issue == nil {
+		return errors.New("issue cannot be nil")
+	}
+	if issue.Id == "" {
+		return errors.New("issue id cannot be empty")
+	}
+	m.issues[issue.Id] = proto.Clone(issue).(*healthplatformpayload.Issue)
+	return nil
 }
 
 // ResolveIssue clears issues for a specific check

@@ -18,6 +18,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -77,7 +78,7 @@ import (
 // RegisterChecks registers all core checks
 func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, cfg config.Component,
 	telemetry telemetry.Component, rcClient rcclient.Component, flare flare.Component, snmpScanManager snmpscanmanager.Component,
-	traceroute traceroute.Component, ncmComp option.Option[networkconfigmanagement.Component],
+	traceroute traceroute.Component, ncmComp option.Option[networkconfigmanagement.Component], healthPlatform option.Option[storedef.Component],
 ) {
 	// Required checks
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
@@ -129,7 +130,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterCheck(docker.CheckName, docker.Factory(store, filterStore, tagger))
 	corecheckLoader.RegisterCheck(sbom.CheckName, sbom.Factory(store, filterStore, cfg, tagger))
-	corecheckLoader.RegisterCheck(kubelet.CheckName, kubelet.Factory(store, filterStore, tagger))
+	corecheckLoader.RegisterCheck(kubelet.CheckName, kubelet.Factory(store, filterStore, tagger, healthPlatform))
 	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store, filterStore, tagger))
 	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store, filterStore, tagger))
 	corecheckLoader.RegisterCheck(kata.CheckName, kata.Factory(store, tagger))

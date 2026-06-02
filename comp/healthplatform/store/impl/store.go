@@ -339,6 +339,36 @@ func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 	return nil
 }
 
+// AcceptIssue stores a fully-built issue directly, bypassing template lookup.
+// Used by sub-agents that report issues over gRPC with all display fields already set.
+// issueType falls back to issue.Id when IssueName is absent so that telemetry
+// and persistence use a stable key even for issues that omit IssueName.
+func (h *healthPlatformImpl) AcceptIssue(issue *healthplatform.Issue) error {
+	if issue == nil {
+		return errors.New("issue cannot be nil")
+	}
+	if issue.Id == "" {
+		return errors.New("issue id cannot be empty")
+	}
+
+	issueType := issue.IssueName
+	if issueType == "" {
+		issueType = issue.Id
+	}
+
+	// RLock-then-unlock mirrors the pattern in ReportIssue. A concurrent write
+	// between the read and storeIssue can cause handleIssueStateChange to log
+	// "new issue" spuriously; this is an accepted eventual-consistency trade-off
+	// shared with ReportIssue.
+	h.issuesMux.RLock()
+	previousIssue := h.issues[issue.Id]
+	h.issuesMux.RUnlock()
+
+	h.handleIssueStateChange(issue.Source, previousIssue, issue)
+	h.storeIssue(issueType, issue)
+	return nil
+}
+
 // ============================================================================
 // Query Methods
 // ============================================================================
