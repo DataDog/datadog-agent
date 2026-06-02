@@ -951,6 +951,7 @@
 # AI-related files
 /.claude/rules/bazel.md               @DataDog/agent-build
 /.claude/skills/explain-lading-config @DataDog/single-machine-performance
+/.claude/skills/update-3rd-party-libs @DataDog/agent-build
 
 # Temporary during Bazel migration
 # This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
