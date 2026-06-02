@@ -908,6 +908,7 @@ func (tb *Bench) RunHeadless(scenario, outputPath string, verbose bool) error {
 	}
 
 	tb.printHeadlessRunStats()
+	fmt.Printf("Scored anomaly events: %d\n", len(tb.GetAnomalyEvents()))
 
 	if outputPath != "" {
 		if err := tb.WriteObserverOutput(outputPath, verbose); err != nil {
