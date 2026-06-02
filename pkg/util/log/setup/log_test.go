@@ -155,6 +155,7 @@ func TestBuildSlogLogger_ForwardsErrorRecord(t *testing.T) {
 		commonFormatter("TEST", ddCfg), nil,
 	)
 	require.NoError(t, err)
+	t.Cleanup(logger.Close)
 	levelVar.Set(slog.LevelDebug)
 
 	wrapper, ok := logger.(*pkgslog.Wrapper)
@@ -189,6 +190,7 @@ func TestBuildSlogLogger_NoForwardingWhenUnregistered(t *testing.T) {
 		commonFormatter("TEST", ddCfg), nil,
 	)
 	require.NoError(t, err)
+	t.Cleanup(logger.Close)
 	levelVar.Set(slog.LevelDebug)
 
 	wrapper := logger.(*pkgslog.Wrapper)
