@@ -17,6 +17,7 @@ go_library(
             "//comp/core/config",
             "//comp/healthplatform/issues",
             "//comp/healthplatform/runner/def",
+            "//pkg/util/winutil/servicemain",
         ],
         "//conditions:default": [],
     }),

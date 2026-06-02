@@ -207,6 +207,7 @@ func Run(service Service) {
 	err := svc.Run(s.service.Name(), &s)
 	if err != nil {
 		s.eventlog(messagestrings.MSG_SERVICE_FAILED, err.Error())
+		_ = WriteCrashEntry()
 		return
 	}
 
@@ -265,6 +266,7 @@ func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, chan
 			executeRun = false
 		} else {
 			s.eventlog(messagestrings.MSG_AGENT_START_FAILURE, err.Error())
+			_ = WriteCrashEntry()
 			return
 		}
 	}
@@ -313,6 +315,7 @@ func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, chan
 				s.eventlog(messagestrings.MSG_AGENT_CLEAN_STOP_AFTER_INIT, err.Error())
 			} else {
 				s.eventlog(messagestrings.MSG_SERVICE_FAILED, err.Error())
+				_ = WriteCrashEntry()
 				// since exitGate is meant to avoid an error, if we are returning
 				// with an error then we can skip the exitGate.
 				return
