@@ -40,18 +40,19 @@ func TestProfilingPeriodSetDurationString(t *testing.T) {
 	assert.Equal(t, 1*time.Minute, cfg.GetDuration("internal_profiling.cpu_duration"))
 }
 
-func TestProfilingPeriodSetClampsCPUDuration(t *testing.T) {
+func TestProfilingPeriodSetLeavesCPUDuration(t *testing.T) {
 	cfg := configcomp.NewMock(t)
 	cfg.SetWithoutSource("internal_profiling.period", 5*time.Minute)
 	cfg.SetWithoutSource("internal_profiling.cpu_duration", 1*time.Minute)
 
 	s := NewProfilingPeriod()
-	// period=30s < cpu_duration=1m → cpu_duration should be clamped to 30s
+	// period=30s < cpu_duration=1m. We only write the period; dd-trace-go caps the CPU
+	// profile at the period internally, so cpu_duration in config is left untouched.
 	err := s.Set(cfg, "30s", model.SourceCLI)
 	require.NoError(t, err)
 
 	assert.Equal(t, 30*time.Second, cfg.GetDuration("internal_profiling.period"))
-	assert.Equal(t, 30*time.Second, cfg.GetDuration("internal_profiling.cpu_duration"))
+	assert.Equal(t, 1*time.Minute, cfg.GetDuration("internal_profiling.cpu_duration"))
 }
 
 func TestProfilingPeriodSetBareSeconds(t *testing.T) {
@@ -110,5 +111,5 @@ func TestProfilingPeriodWithConfigPrefix(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 30*time.Second, cfg.GetDuration("system_probe_config.internal_profiling.period"))
-	assert.Equal(t, 30*time.Second, cfg.GetDuration("system_probe_config.internal_profiling.cpu_duration"))
+	assert.Equal(t, 1*time.Minute, cfg.GetDuration("system_probe_config.internal_profiling.cpu_duration"))
 }
