@@ -91,7 +91,13 @@ func validateAndOpenWithPrefix(path, allowedPrefix string, noFollow bool, toctou
 		// EvalSymlinks entirely: open every component with O_NOFOLLOW so that a
 		// symlink planted after the agent's discovery check causes an immediate
 		// error rather than being followed.
-		resolvedPath = path
+		//
+		// Normalize with filepath.Clean so that isAllowed and openPathWithoutSymlinks
+		// see the same path.  Without this, a path like /var/log/../../etc/secret.log
+		// would pass the isAllowed prefix check (string-prefix match on the raw path)
+		// but openPathWithoutSymlinks would clean it to /etc/secret.log, bypassing
+		// the allow-list.
+		resolvedPath = filepath.Clean(path)
 	} else {
 		// Resolve symbolic links for the path and file name checks.
 		var err error
