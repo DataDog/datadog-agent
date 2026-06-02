@@ -176,7 +176,10 @@ func (f *fingerprinterImpl) computeFingerprint(filePath string, fingerprintConfi
 		return newInvalidFingerprint(nil), nil
 	}
 
-	fpFile, err := f.fileOpener.OpenLogFile(filePath)
+	// The fingerprint hash is used only for rotation detection and is never shipped
+	// to the logs backend.  Symlink policy is not enforced here; the content sent
+	// over the network is always gated by the tailer's own symlinkPolicy.
+	fpFile, err := f.fileOpener.OpenLogFile(filePath, opener.FollowSymlinks)
 	if err != nil {
 		log.Warnf("could not open file for fingerprinting %s: %v", filePath, err)
 		return newInvalidFingerprint(fingerprintConfig), err

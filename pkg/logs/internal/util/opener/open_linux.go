@@ -17,6 +17,14 @@ func OpenLogFile(path string) (*os.File, error) {
 	return privilegedlogsclient.Open(path)
 }
 
+// OpenLogFileNoFollow opens a file with the privileged logs client, rejecting any
+// symlink in the path.  It is used for file sources discovered by the process_log
+// provider, where the path is canonical at discovery time and a symlink found later
+// indicates an attacker-controlled swap.
+func OpenLogFileNoFollow(path string) (*os.File, error) {
+	return privilegedlogsclient.OpenNoFollow(path)
+}
+
 // StatLogFile stats a log file with the privileged logs client
 func StatLogFile(path string) (os.FileInfo, error) {
 	return privilegedlogsclient.Stat(path)

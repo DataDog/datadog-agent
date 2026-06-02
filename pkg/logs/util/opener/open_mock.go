@@ -40,7 +40,9 @@ func (m *MockFileOpener) OpenShared(path string) (afero.File, error) {
 }
 
 // OpenLogFile returns the specified mock file or an error if the file was not added to the mock opener.
-func (m *MockFileOpener) OpenLogFile(path string) (afero.File, error) {
+// The policy parameter is accepted for interface compliance but ignored in tests; all mock files
+// are returned regardless of symlink policy.
+func (m *MockFileOpener) OpenLogFile(path string, _ SymlinkPolicy) (afero.File, error) {
 	file, ok := m.MockedFiles[path]
 	if !ok {
 		return nil, fmt.Errorf("file not found: [ %s ]", path)

@@ -133,6 +133,11 @@ type Tailer struct {
 	registry        auditor.Registry
 	CapacityMonitor *metrics.CapacityMonitor
 	fileOpener      opener.FileOpener
+
+	// symlinkPolicy controls whether openLogFile follows or rejects symbolic links.
+	// It is set once at construction from the source's LogsConfig and then used at
+	// every file open site (initial open, rotation re-open).
+	symlinkPolicy opener.SymlinkPolicy
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -182,6 +187,13 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	movingSum := util.NewMovingSum(timeWindow, bucketSize, clock.New())
 	opts.Info.Register(movingSum)
 
+	// Derive the symlink policy from the source config.  process_log-discovered paths
+	// come from /proc/<pid>/fd and must not traverse any symlink added after discovery.
+	symlinkPolicy := opener.FollowSymlinks
+	if cfg := opts.File.Source.Config(); cfg != nil && cfg.ProcessLog {
+		symlinkPolicy = opener.RejectSymlinks
+	}
+
 	t := &Tailer{
 		file:                         opts.File,
 		outputChan:                   opts.OutputChan,
@@ -209,6 +221,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		CapacityMonitor:              opts.CapacityMonitor,
 		registry:                     opts.Registry,
 		fileOpener:                   opts.FileOpener,
+		symlinkPolicy:                symlinkPolicy,
 	}
 
 	if fileRotated {
@@ -449,6 +462,13 @@ func getFormattedTime() string {
 // GetDetectedPattern returns the decoder's detected pattern.
 func (t *Tailer) GetDetectedPattern() *regexp.Regexp {
 	return t.decoder.GetDetectedPattern()
+}
+
+// openLogFile opens a log file using this tailer's symlink policy.  All open
+// sites (initial open, rotation re-open) must call this helper rather than
+// t.fileOpener.OpenLogFile directly, to ensure the policy is always applied.
+func (t *Tailer) openLogFile(path string) (afero.File, error) {
+	return t.fileOpener.OpenLogFile(path, t.symlinkPolicy)
 }
 
 // wait lets the tailer sleep for a bit

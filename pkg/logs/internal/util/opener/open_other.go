@@ -19,6 +19,14 @@ func OpenLogFile(path string) (*os.File, error) {
 	return filesystem.OpenShared(path)
 }
 
+// OpenLogFileNoFollow opens a file.  On non-Linux platforms this is identical to
+// OpenLogFile because the process_log provider (which is the only caller that requests
+// symlink rejection) relies on /proc/<pid>/fd and therefore only produces sources on
+// Linux; symlink rejection for those sources is enforced by the Linux implementation.
+func OpenLogFileNoFollow(path string) (*os.File, error) {
+	return filesystem.OpenShared(path)
+}
+
 // StatLogFile stats a log file
 func StatLogFile(path string) (os.FileInfo, error) {
 	return os.Stat(path)
