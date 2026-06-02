@@ -144,6 +144,9 @@ modules:
     used_by_otel: true
   comp/trace/compression/impl-zstd:
     used_by_otel: true
+  internal/qbranch/anomalydetection-scorer:
+    independent: false
+    should_test_condition: never
   internal/qbranch/anomalydetection-testbench:
     independent: false
     should_test_condition: never

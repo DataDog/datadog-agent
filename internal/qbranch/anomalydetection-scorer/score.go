@@ -1,0 +1,339 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package main
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"math"
+	"os"
+	"path/filepath"
+	"time"
+)
+
+// ScoreInput contains the inputs for Gaussian F1 scoring.
+type ScoreInput struct {
+	PredictionTimestamps  []int64 // period_start from each anomaly period
+	GroundTruthTimestamps []int64 // disruption onset timestamp(s)
+	Sigma                 float64 // Gaussian width in seconds
+}
+
+// ScoreResult contains the Gaussian F1 scoring output.
+type ScoreResult struct {
+	F1                      float64 `json:"f1"`
+	Precision               float64 `json:"precision"`
+	Recall                  float64 `json:"recall"`
+	TP                      float64 `json:"tp"`
+	FP                      float64 `json:"fp"`
+	FN                      float64 `json:"fn"`
+	NumPredictions          int     `json:"num_predictions"`
+	NumGroundTruths         int     `json:"num_ground_truths"`
+	NumFilteredWarmup       int     `json:"num_filtered_warmup"`
+	NumFilteredCascading    int     `json:"num_filtered_cascading"`
+	NumBaselineFPs          int     `json:"num_baseline_fps"`
+	Sigma                   float64 `json:"sigma"`
+	BaselineDurationSeconds int64   `json:"baseline_duration_seconds"`
+	// Alpha is the false positive rate during the baseline phase:
+	// num_baseline_fps / baseline_duration_seconds. -1 if baseline duration unavailable.
+	Alpha float64 `json:"alpha"`
+}
+
+// ComputeGaussianF1 scores predicted anomaly events against ground truth events
+// using Gaussian overlap with right-sided half-Gaussians.
+//
+// For each ground truth event, the first (earliest) post-onset prediction is
+// matched and scored via halfGaussianOverlap. Predictions before any GT onset
+// are counted as FP (baseline noise). Other post-onset predictions that aren't
+// the first match are ignored entirely (expected during an active incident).
+func ComputeGaussianF1(input ScoreInput) ScoreResult {
+	result := ScoreResult{
+		NumPredictions:  len(input.PredictionTimestamps),
+		NumGroundTruths: len(input.GroundTruthTimestamps),
+		Sigma:           input.Sigma,
+		Alpha:           -1, // not computable without baseline duration; set by ScoreOutputFile
+	}
+
+	if len(input.PredictionTimestamps) == 0 && len(input.GroundTruthTimestamps) == 0 {
+		result.F1 = 1.0
+		result.Precision = 1.0
+		result.Recall = 1.0
+		return result
+	}
+
+	if len(input.PredictionTimestamps) == 0 {
+		result.FN = float64(len(input.GroundTruthTimestamps))
+		return result
+	}
+
+	if len(input.GroundTruthTimestamps) == 0 {
+		result.FP = float64(len(input.PredictionTimestamps))
+		return result
+	}
+
+	// Find the minimum GT onset — predictions before this are baseline FP.
+	minGT := input.GroundTruthTimestamps[0]
+	for _, gt := range input.GroundTruthTimestamps[1:] {
+		if gt < minGT {
+			minGT = gt
+		}
+	}
+
+	// For each GT, find the first (earliest timestamp) post-onset prediction.
+	matchedPred := make(map[int]bool)
+	var tp, fn float64
+
+	for _, gt := range input.GroundTruthTimestamps {
+		firstIdx := -1
+		var firstTS int64
+
+		for i, p := range input.PredictionTimestamps {
+			if matchedPred[i] || p < gt {
+				continue
+			}
+			if firstIdx == -1 || p < firstTS {
+				firstIdx = i
+				firstTS = p
+			}
+		}
+
+		if firstIdx >= 0 {
+			matchedPred[firstIdx] = true
+			overlap := halfGaussianOverlap(firstTS, gt, input.Sigma)
+			tp += overlap
+			fn += 1.0 - overlap
+		} else {
+			fn += 1.0
+		}
+	}
+
+	// FP = predictions before any GT onset (baseline noise).
+	// Post-onset predictions that aren't the first match are ignored.
+	var fp float64
+	var numIgnored int
+	for i, p := range input.PredictionTimestamps {
+		if matchedPred[i] {
+			continue
+		}
+		if p < minGT {
+			fp += 1.0
+		} else {
+			numIgnored++
+		}
+	}
+
+	result.TP = tp
+	result.FP = fp
+	result.FN = fn
+	result.NumFilteredCascading = numIgnored
+
+	if tp+fp > 0 {
+		result.Precision = tp / (tp + fp)
+	}
+	if tp+fn > 0 {
+		result.Recall = tp / (tp + fn)
+	}
+	if result.Precision+result.Recall > 0 {
+		result.F1 = 2 * result.Precision * result.Recall / (result.Precision + result.Recall)
+	}
+
+	return result
+}
+
+// halfGaussianOverlap computes the overlap between two half-Gaussians:
+// one centered at predTS (the prediction) and one at gtTS (ground truth).
+func halfGaussianOverlap(predTS, gtTS int64, sigma float64) float64 {
+	d := float64(predTS - gtTS) // positive = prediction is after ground truth
+	return numericalOverlapHalfHalf(d, sigma)
+}
+
+// numericalOverlapHalfHalf computes the overlap integral between two right-sided
+// half-Gaussians numerically using the trapezoidal rule.
+func numericalOverlapHalfHalf(d, sigma float64) float64 {
+	// Integration range: cover from the leftmost center to 5σ past the rightmost
+	lower := math.Min(0, d)
+	upper := math.Max(0, d) + 5*sigma
+
+	nSteps := 1000
+	dt := (upper - lower) / float64(nSteps)
+
+	var overlap float64
+	for i := 0; i <= nSteps; i++ {
+		t := lower + float64(i)*dt
+
+		var predDensity float64
+		if t >= d {
+			predDensity = 2.0 * scoreGaussianPDF(t-d, sigma)
+		}
+
+		var gtDensity float64
+		if t >= 0 {
+			gtDensity = 2.0 * scoreGaussianPDF(t, sigma)
+		}
+
+		minDensity := math.Min(predDensity, gtDensity)
+
+		if i == 0 || i == nSteps {
+			overlap += minDensity * dt / 2
+		} else {
+			overlap += minDensity * dt
+		}
+	}
+
+	if overlap < 0 {
+		overlap = 0
+	}
+	if overlap > 1 {
+		overlap = 1
+	}
+
+	return overlap
+}
+
+// scoreGaussianPDF returns the value of a zero-mean Gaussian PDF with given sigma at point x.
+func scoreGaussianPDF(x, sigma float64) float64 {
+	return math.Exp(-x*x/(2*sigma*sigma)) / (sigma * math.Sqrt(2*math.Pi))
+}
+
+// scenarioMetadata is the subset of episode.json fields the scorer needs.
+type scenarioMetadata struct {
+	Baseline struct {
+		Start string `json:"start"`
+		End   string `json:"end"`
+	} `json:"baseline"`
+	Disruption struct {
+		Start string `json:"start"`
+	} `json:"disruption"`
+}
+
+// scoringMetadata holds timestamps extracted from a scenario's episode.json.
+type scoringMetadata struct {
+	groundTruthTimestamps []int64
+	baselineStart         int64 // 0 if not available
+	baselineEnd           int64 // 0 if not available
+}
+
+// loadScoringMetadata reads disruption.start and baseline.start from a scenario's episode.json.
+func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, error) {
+	path := filepath.Join(scenariosDir, scenarioName, "episode.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading episode %s: %w", path, err)
+	}
+
+	var meta scenarioMetadata
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return nil, fmt.Errorf("parsing episode JSON: %w", err)
+	}
+
+	if meta.Disruption.Start == "" {
+		return nil, errors.New("episode.json missing disruption.start")
+	}
+
+	dt, err := time.Parse(time.RFC3339, meta.Disruption.Start)
+	if err != nil {
+		return nil, fmt.Errorf("parsing disruption.start %q: %w", meta.Disruption.Start, err)
+	}
+
+	result := &scoringMetadata{
+		groundTruthTimestamps: []int64{dt.Unix()},
+	}
+
+	if meta.Baseline.Start != "" {
+		bt, err := time.Parse(time.RFC3339, meta.Baseline.Start)
+		if err != nil {
+			return nil, fmt.Errorf("parsing baseline.start %q: %w", meta.Baseline.Start, err)
+		}
+		result.baselineStart = bt.Unix()
+	}
+
+	if meta.Baseline.End != "" {
+		et, err := time.Parse(time.RFC3339, meta.Baseline.End)
+		if err != nil {
+			return nil, fmt.Errorf("parsing baseline.end %q: %w", meta.Baseline.End, err)
+		}
+		result.baselineEnd = et.Unix()
+	}
+
+	return result, nil
+}
+
+// ScoreOutputFile loads a headless output JSON file, extracts prediction timestamps,
+// and scores them against the given ground truth.
+func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenariosDir string, sigma float64) (*ScoreResult, error) {
+	if sigma <= 0 {
+		return nil, fmt.Errorf("sigma must be positive, got %f", sigma)
+	}
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading output file: %w", err)
+	}
+
+	var output ObserverOutput
+	if err := json.Unmarshal(data, &output); err != nil {
+		return nil, fmt.Errorf("parsing output JSON: %w", err)
+	}
+
+	var baselineStart, baselineEnd int64
+	if scenariosDir != "" && output.Metadata.Scenario != "" {
+		sm, err := loadScoringMetadata(scenariosDir, output.Metadata.Scenario)
+		if err != nil {
+			if len(groundTruthTimestamps) == 0 {
+				return nil, fmt.Errorf("inferring ground truth: %w", err)
+			}
+		} else {
+			if len(groundTruthTimestamps) == 0 {
+				groundTruthTimestamps = sm.groundTruthTimestamps
+			}
+			baselineStart = sm.baselineStart
+			baselineEnd = sm.baselineEnd
+		}
+	}
+
+	if len(groundTruthTimestamps) == 0 {
+		return nil, errors.New("no ground truth: provide --ground-truth-ts or --scenarios-dir with episode.json")
+	}
+
+	var predictions []int64
+	var numFilteredWarmup int
+	for _, period := range output.AnomalyPeriods {
+		if baselineStart > 0 && period.PeriodStart < baselineStart {
+			numFilteredWarmup++
+			continue
+		}
+		predictions = append(predictions, period.PeriodStart)
+	}
+
+	minGT := groundTruthTimestamps[0]
+	for _, gt := range groundTruthTimestamps[1:] {
+		if gt < minGT {
+			minGT = gt
+		}
+	}
+	var numBaselineFPs int
+	for _, p := range predictions {
+		if p < minGT {
+			numBaselineFPs++
+		}
+	}
+
+	result := ComputeGaussianF1(ScoreInput{
+		PredictionTimestamps:  predictions,
+		GroundTruthTimestamps: groundTruthTimestamps,
+		Sigma:                 sigma,
+	})
+	result.NumFilteredWarmup = numFilteredWarmup
+	result.NumBaselineFPs = numBaselineFPs
+
+	if baselineStart > 0 && baselineEnd > baselineStart {
+		result.BaselineDurationSeconds = baselineEnd - baselineStart
+		result.Alpha = float64(numBaselineFPs) / float64(result.BaselineDurationSeconds)
+	} else {
+		result.Alpha = -1
+	}
+
+	return &result, nil
+}
