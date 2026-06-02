@@ -178,14 +178,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				autoexitfx.Module(),
 				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 				fx.Provide(func(c config.Component) settings.Params {
-					runtimeSettings := map[string]settings.RuntimeSetting{
-						"log_level": commonsettings.NewLogLevelRuntimeSetting(),
-					}
-					for name, setting := range ProfilingRuntimeSettings() {
-						runtimeSettings[name] = setting
-					}
 					return settings.Params{
-						Settings: runtimeSettings,
+						Settings: RuntimeSettings(),
 						Config:   c,
 					}
 				}),
@@ -470,16 +464,18 @@ func (s profilingRuntimeSetting) Set(config config.Component, v interface{}, sou
 	return nil
 }
 
-// ProfilingRuntimeSettings returns the internal-profiling runtime settings exposed by the
-// security-agent, keyed by setting name. It is shared by the start subcommand and the Windows
-// service entrypoint so both expose the same `security-agent config set ...` controls.
-func ProfilingRuntimeSettings() map[string]settings.RuntimeSetting {
+// RuntimeSettings returns all runtime settings exposed by the security-agent, keyed by setting
+// name. It is the single source of truth shared by the start subcommand and the Windows service
+// entrypoint, so both expose the same `security-agent config set ...` controls and cannot drift
+// per-platform.
+func RuntimeSettings() map[string]settings.RuntimeSetting {
 	goroutines := commonsettings.NewProfilingGoroutines()
 	goroutines.ConfigPrefix = secAgentConfigPrefix
 	period := commonsettings.NewProfilingPeriod()
 	period.ConfigPrefix = secAgentConfigPrefix
 
 	return map[string]settings.RuntimeSetting{
+		"log_level":                     commonsettings.NewLogLevelRuntimeSetting(),
 		"internal_profiling":            profilingRuntimeSetting{},
 		"internal_profiling_goroutines": goroutines,
 		"internal_profiling_period":     period,

@@ -49,7 +49,6 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
@@ -162,14 +161,8 @@ func (s *service) Run(svcctx context.Context) error {
 		configsyncfx.Module(configsync.NewDefaultParams()),
 		autoexitfx.Module(),
 		fx.Provide(func(c config.Component) settings.Params {
-			runtimeSettings := map[string]settings.RuntimeSetting{
-				"log_level": commonsettings.NewLogLevelRuntimeSetting(),
-			}
-			for name, setting := range start.ProfilingRuntimeSettings() {
-				runtimeSettings[name] = setting
-			}
 			return settings.Params{
-				Settings: runtimeSettings,
+				Settings: start.RuntimeSettings(),
 				Config:   c,
 			}
 		}),
