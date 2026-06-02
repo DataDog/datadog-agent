@@ -187,7 +187,7 @@ func (agg *FlowAggregator) scheduleNetworkPathForFlow(flow *common.Flow) {
 		return
 	}
 
-	srcPort, ok := toUint16Port(flow.SrcPort)
+	srcPort, ok := sourcePortForNetworkPath(flow.SrcPort)
 	if !ok {
 		return
 	}

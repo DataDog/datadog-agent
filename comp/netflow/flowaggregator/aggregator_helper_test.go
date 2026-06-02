@@ -12,6 +12,8 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/netflow/portrollup"
 )
 
 func TestNetflowProtocolToConnectionType(t *testing.T) {
@@ -86,6 +88,48 @@ func TestToUint16Port(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			actual, ok := toUint16Port(tt.port)
+			assert.Equal(t, tt.expected, actual)
+			assert.Equal(t, tt.ok, ok)
+		})
+	}
+}
+
+func TestSourcePortForNetworkPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		port     int32
+		expected uint16
+		ok       bool
+	}{
+		{
+			name:     "valid source port",
+			port:     12345,
+			expected: 12345,
+			ok:       true,
+		},
+		{
+			name:     "rolled up source port",
+			port:     portrollup.EphemeralPort,
+			expected: 0,
+			ok:       true,
+		},
+		{
+			name:     "unsupported negative source port",
+			port:     -2,
+			expected: 0,
+			ok:       false,
+		},
+		{
+			name:     "overflow source port",
+			port:     65536,
+			expected: 0,
+			ok:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual, ok := sourcePortForNetworkPath(tt.port)
 			assert.Equal(t, tt.expected, actual)
 			assert.Equal(t, tt.ok, ok)
 		})

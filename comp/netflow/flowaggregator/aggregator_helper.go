@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/comp/netflow/portrollup"
 )
 
 func netflowProtocolToConnectionType(ipProtocol uint32) (model.ConnectionType, bool) {
@@ -27,6 +28,13 @@ func toUint16Port(port int32) (uint16, bool) {
 		return 0, false
 	}
 	return uint16(port), true
+}
+
+func sourcePortForNetworkPath(port int32) (uint16, bool) {
+	if port == portrollup.EphemeralPort {
+		return 0, true
+	}
+	return toUint16Port(port)
 }
 
 func normalizeReverseDNSHostname(hostname string) string {
