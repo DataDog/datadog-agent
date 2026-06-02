@@ -40,7 +40,7 @@ On a **packaged Windows** agent (MSI), Chrome is pointed directly at **`bin\agen
 EVP / Agent URL behaviour (defaults):
 
 - URL: `{trace_agent_url}/evp_proxy/v{evp_proxy_api_version}/api/v2/aiusage` (defaults match trace receiver / EVP v2).
-- Header: `X-Datadog-EVP-Subdomain: {ai_usage_evp_subdomain}` (default `event-platform-intake`).
+- Header: `X-Datadog-EVP-Subdomain: {ai_usage_evp_subdomain}` (default `softinv-intake`).
 - The Agent injects `DD-API-KEY` and forwards to the dedicated AI usage intake for your site.
 
 Ensure the Agent is listening on the trace port (default `127.0.0.1:8126`) with EVP proxy enabled.

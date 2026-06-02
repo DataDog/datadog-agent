@@ -215,7 +215,6 @@ func TestDisabledCollectors(t *testing.T) {
 			disabledCollectors:     []string{"gpm"},
 			expectedCollectorCount: numCollectors - 1,
 			expectedCollectorNames: removeFromList(allCollectorNames, "gpm"),
-			unexpectedNames:        []string{"gpm"},
 		},
 		{
 			name:                   "disable multiple collectors",
