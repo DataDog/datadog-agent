@@ -54,18 +54,30 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 	fi.par.queue = fi.par.queue[1:]
 
 	bundleID, actionName := parSplitFQN(task.ActionFQN)
+	attributes := map[string]interface{}{
+		"name":      actionName,
+		"bundle_id": bundleID,
+		"task_id":   task.TaskID,
+		"job_id":    task.TaskID,
+		"org_id":    0,
+		"inputs":    task.Inputs,
+	}
+	// rshell allowlists are delivered in the signed task fields in production
+	// (resolved from execution policies by the backend). The runner reads them
+	// from attributes, not inputs. Surface any allowlists supplied via the test
+	// inputs as those signed-task fields so skip-verification e2e flows behave
+	// like a real backend-signed task.
+	if v, ok := task.Inputs["allowedCommands"]; ok {
+		attributes["allowed_commands"] = v
+	}
+	if v, ok := task.Inputs["allowedPaths"]; ok {
+		attributes["allowed_paths"] = v
+	}
 	resp := map[string]interface{}{
 		"data": map[string]interface{}{
-			"id":   task.TaskID,
-			"type": "task",
-			"attributes": map[string]interface{}{
-				"name":      actionName,
-				"bundle_id": bundleID,
-				"task_id":   task.TaskID,
-				"job_id":    task.TaskID,
-				"org_id":    0,
-				"inputs":    task.Inputs,
-			},
+			"id":         task.TaskID,
+			"type":       "task",
+			"attributes": attributes,
 		},
 	}
 	w.Header().Set("Content-Type", "application/json")
