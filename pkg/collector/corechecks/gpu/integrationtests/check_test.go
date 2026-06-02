@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"

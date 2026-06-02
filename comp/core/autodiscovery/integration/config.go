@@ -10,6 +10,7 @@ package integration
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -399,6 +400,8 @@ func (c *Data) MergeAdditionalTags(tags []string) error {
 	for k := range tagSet {
 		rawConfig["tags"] = append(rawConfig["tags"].([]string), k)
 	}
+	// sort the list of tags so the digest stays stable for identical configs
+	slices.Sort(rawConfig["tags"].([]string))
 	// modify original config
 	out, err := yaml.Marshal(&rawConfig)
 	if err != nil {
