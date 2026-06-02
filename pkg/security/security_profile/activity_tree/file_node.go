@@ -23,12 +23,17 @@ import (
 // FileNode holds a tree representation of a list of files
 type FileNode struct {
 	NodeBase
-	MatchedRules   []*model.MatchedRule
-	Name           string
-	IsPattern      bool
-	File           *model.FileEvent
-	GenerationType NodeGenerationType
-	Open           *OpenNode
+	MatchedRules []*model.MatchedRule
+	Name         string
+	IsPattern    bool
+	// PatternSignature is the structureSignature of the members folded
+	// into this pattern node. In-memory only; empty when reloaded from
+	// a profile snapshot, in which case lookups fall back to
+	// template-only matching.
+	PatternSignature string
+	File             *model.FileEvent
+	GenerationType   NodeGenerationType
+	Open             *OpenNode
 
 	Children map[string]*FileNode
 }
@@ -146,15 +151,6 @@ func (fn *FileNode) debug(w io.Writer, prefix string) {
 
 // InsertFileEvent inserts an event in a FileNode. This function returns true if a new entry was added, false if
 // the event was dropped.
-//
-// Lookup is wildcard-aware: if there is no exact-name child, a sibling
-// pattern node whose template matches `parent` is used. This keeps anomaly
-// detection (dry-run inserts) quiet on pattern variants such as
-// `/tmp/sess-ddd/file` once `/tmp/sess-*/file` has been learned.
-//
-// After creating a new exact-name child, a path-pattern merge pass runs on
-// the current node's children if the fan-out exceeds MaxChildren; groups
-// of same-signature siblings are collapsed into a single pattern node.
 func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, imageTag string, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.EBPFResolvers) bool {
 	currentFn := fn
 	currentPath := remainingPath
@@ -194,16 +190,13 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		newChild := NewFileNode(nil, nil, parent, imageTag, generationType, "", resolvers)
 		currentFn.Children[parent] = newChild
 		maybeMergeChildren(currentFn.Children, stats)
-		// If the freshly inserted child got folded into a pattern node by
-		// the merge pass, continue the walk from that template node so the
-		// remainder of the path is attached below it.
+		// the merge pass may have folded newChild into a pattern node;
+		// keep walking from whatever now owns the parent slot
 		if entry, stillThere := currentFn.Children[parent]; stillThere {
 			currentFn = entry
 		} else if entry, ok := findChildWithPatternFallback(currentFn.Children, parent, stats); ok {
 			currentFn = entry
 		} else {
-			// Defensive: the merge pass removed the child without a matching
-			// template. Should not happen; restore the original child.
 			currentFn.Children[parent] = newChild
 			currentFn = newChild
 		}

@@ -253,11 +253,7 @@ var (
 	// MetricActivityDumpFileNodesMerged counts FileNode siblings absorbed by path-pattern merging.
 	// Tags: tree_type
 	MetricActivityDumpFileNodesMerged = newRuntimeMetric(".activity_dump.file_nodes_merged")
-	// MetricActivityDumpFilePatternsCreated counts signature buckets collapsed into a new template FileNode.
-	// Tags: tree_type
-	MetricActivityDumpFilePatternsCreated = newRuntimeMetric(".activity_dump.file_patterns_created")
-	// MetricActivityDumpFilePatternLookupHits counts insertions that matched an existing pattern node via the
-	// wildcard fallback — i.e. insertions that would have created a new FileNode without pattern merging.
+	// MetricActivityDumpFilePatternLookupHits counts insertions that matched an existing pattern node via wildcard fallback.
 	// Tags: tree_type
 	MetricActivityDumpFilePatternLookupHits = newRuntimeMetric(".activity_dump.file_pattern_lookup_hits")
 	// MetricActivityDumpSizeInBytes is the name of the metric used to report the size of the generated activity dumps in

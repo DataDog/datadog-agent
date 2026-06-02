@@ -32,7 +32,7 @@ func TestStructureSignature(t *testing.T) {
 		{"config.json", "A.A"},
 		{"job-001", "A-N"},
 		{"job-050", "A-N"},
-		{"file_v2.tar", "A_N.A"},
+		{"file_v2.tar", "A_M.A"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -125,7 +125,6 @@ func TestMergeChildren_CollapsesSessSiblings(t *testing.T) {
 	assert.Contains(t, children, "sess-*")
 	assert.NotContains(t, children, "sess-aaa")
 	assert.True(t, children["sess-*"].IsPattern)
-	assert.Equal(t, int64(1), stats.FilePatternsCreated)
 	// 3 members merged -> 2 siblings folded into 1
 	assert.Equal(t, int64(2), stats.FileNodesMerged)
 }
@@ -150,6 +149,8 @@ func TestMergeChildren_RespectsMinClusterSize(t *testing.T) {
 }
 
 func TestMergeChildren_DoesNotMixSignatures(t *testing.T) {
+	// Heterogeneous parent: numeric bucket refuses to merge to bare
+	// wildcard because alpha siblings would otherwise be absorbed.
 	children := map[string]*FileNode{
 		"1":      newTestFileLeaf("1"),
 		"42":     newTestFileLeaf("42"),
@@ -161,30 +162,19 @@ func TestMergeChildren_DoesNotMixSignatures(t *testing.T) {
 	}
 	stats := NewActivityTreeNodeStats()
 
-	mergeChildren(children, 3, stats)
+	collapsed := mergeChildren(children, 3, stats)
 
-	// The 4 numeric entries share signature "N" and collapse into a
-	// bare-wildcard "*" pattern: numeric content is variable (PIDs,
-	// timestamps, …) so the bare wildcard is semantically correct.
-	// The 3 alpha entries share signature "A" and would also build a
-	// bare "*" template, but merging distinct fixed alpha names would
-	// collapse unrelated literals (e.g. /tmp vs /var vs /etc) so the
-	// merge is rejected and the literals survive.
-	assert.Contains(t, children, "*")
-	assert.Contains(t, children, "self")
-	assert.Contains(t, children, "stat")
-	assert.Contains(t, children, "uptime")
-	assert.NotContains(t, children, "1")
-	assert.NotContains(t, children, "42")
+	assert.Equal(t, 0, collapsed, "no bucket should merge in a heterogeneous parent")
+	assert.NotContains(t, children, "*", "bare wildcard must not appear next to non-pattern siblings")
+	for _, n := range []string{"1", "42", "1337", "99999", "self", "stat", "uptime"} {
+		assert.Contains(t, children, n, "literal %q must survive", n)
+	}
+	assert.Equal(t, int64(0), stats.FileNodesMerged)
 }
 
 func TestMergeChildren_DoesNotMergeFixedAlphaTopLevelDirs(t *testing.T) {
-	// Short alphabetic top-level directories are distinct fixed names,
-	// not variants of the same kind of identifier. They all share
-	// signature "A" but must not collapse into a single "*" — doing so
-	// would merge unrelated subtrees (observed as "/*/*/subfolder/*"
-	// instead of "/tmp/*/subfolder/*" when /tmp coexisted with /etc,
-	// /var, /bin, … in the same process's Files map).
+	// Pure-alpha top-level dirs share signature "A" but must not
+	// collapse into "*".
 	children := map[string]*FileNode{}
 	names := []string{"tmp", "var", "etc", "bin", "usr", "home"}
 	for _, n := range names {
@@ -198,7 +188,7 @@ func TestMergeChildren_DoesNotMergeFixedAlphaTopLevelDirs(t *testing.T) {
 		assert.Contains(t, children, n)
 	}
 	assert.NotContains(t, children, "*")
-	assert.Equal(t, int64(0), stats.FilePatternsCreated)
+	assert.Equal(t, int64(0), stats.FileNodesMerged)
 }
 
 func TestIsBareWildcardTemplate(t *testing.T) {
@@ -279,8 +269,6 @@ func TestFindChildWithPatternFallback(t *testing.T) {
 }
 
 func TestInsertFileEvent_PatternAbsorbsVariants(t *testing.T) {
-	// Insert MaxChildren+1 `/tmp/sess-XXX` entries and verify the threshold
-	// merge collapses them into a single `/tmp/sess-*/file` branch.
 	pn := &ProcessNode{
 		Files:    make(map[string]*FileNode),
 		NodeBase: NewNodeBase(),
@@ -315,13 +303,10 @@ func TestInsertFileEvent_PatternAbsorbsVariants(t *testing.T) {
 		}
 	}
 	assert.True(t, foundPattern, "expected merged sess-* pattern under /tmp, got children: %v", childrenNames(tmp.Children))
-	assert.Greater(t, stats.FilePatternsCreated, int64(0))
+	assert.Greater(t, stats.FileNodesMerged, int64(0))
 }
 
 func TestInsertFileEvent_AnomalyDryRunQuietOnVariants(t *testing.T) {
-	// Seed the tree with a merged pattern for `/tmp/sess-*/file`, then
-	// run a dry-run insert for a new session: it must not be reported as a
-	// new entry (i.e. no anomaly).
 	pn := &ProcessNode{
 		Files:    make(map[string]*FileNode),
 		NodeBase: NewNodeBase(),
@@ -365,9 +350,6 @@ func TestInsertFileEvent_AnomalyDryRunQuietOnVariants(t *testing.T) {
 }
 
 func TestFinalizePatterns_MergesBelowMaxChildren(t *testing.T) {
-	// With only 3 siblings (below MaxChildren=15), threshold-merge doesn't
-	// fire. FinalizePatterns must still collapse them when
-	// MinClusterSizeOnFinalize ≤ 3.
 	at := &ActivityTree{
 		Stats: enablePatternsTestStats(),
 	}
@@ -394,13 +376,13 @@ func TestFinalizePatterns_MergesBelowMaxChildren(t *testing.T) {
 	tmp := pn.Files["tmp"]
 	assert.NotNil(t, tmp)
 	assert.Len(t, tmp.Children, 3)
-	assert.Equal(t, int64(0), stats.FilePatternsCreated)
+	assert.Equal(t, int64(0), stats.FileNodesMerged)
 
 	// Run finalize pass; MinClusterSizeOnFinalize defaults to 3 so the
 	// bucket qualifies.
 	at.FinalizePatterns()
 
-	assert.Greater(t, stats.FilePatternsCreated, int64(0))
+	assert.Greater(t, stats.FileNodesMerged, int64(0))
 	var hasPattern bool
 	for _, child := range tmp.Children {
 		if child.IsPattern {
@@ -411,11 +393,8 @@ func TestFinalizePatterns_MergesBelowMaxChildren(t *testing.T) {
 }
 
 func TestFinalizePatterns_PreservesFixedAlphaTopLevelDirs(t *testing.T) {
-	// Mixed workload: a real process touches a few unrelated top-level
-	// directories plus a busy /tmp/<pid>/subfolder/<pid> tree. The
-	// final pattern for the busy tree must be /tmp/*/subfolder/* — tmp
-	// must NOT collapse with the other top-level dirs into a single
-	// "*" (observed regression: "/*/*/subfolder/*").
+	// Regression: /tmp/*/subfolder/* must not collapse to /*/*/subfolder/*
+	// when /tmp coexists with other pure-alpha top-level dirs.
 	at := &ActivityTree{
 		Stats: enablePatternsTestStats(),
 	}
@@ -481,23 +460,222 @@ func TestFinalizePatterns_PreservesFixedAlphaTopLevelDirs(t *testing.T) {
 	}
 }
 
-// TestInsertFileEvent_DisabledByDefaultOnV1Trees asserts that the tree
-// behaves exactly like it did before the pattern-mining feature when a
-// caller does not opt in (i.e. v1 profiles and activity dumps): no
-// threshold-triggered merging, no wildcard lookup fallback, no pattern
-// counters incremented — only the exact-name prefix tree.
+// Heterogeneous parent with a literal-anchored bucket: the bare-wildcard
+// numeric merge is refused, but prefix-* still merges.
+func TestMergeChildren_HomogeneityRule_LiteralAnchorSurvivesHeterogeneity(t *testing.T) {
+	children := map[string]*FileNode{
+		"filename":      newTestFileLeaf("filename"),
+		"412422":        newTestFileLeaf("412422"),
+		"4353535":       newTestFileLeaf("4353535"),
+		"63634646":      newTestFileLeaf("63634646"),
+		"323526":        newTestFileLeaf("323526"),
+		"prefix-32424":  newTestFileLeaf("prefix-32424"),
+		"prefix-525252": newTestFileLeaf("prefix-525252"),
+		"prefix-335323": newTestFileLeaf("prefix-335323"),
+	}
+	stats := NewActivityTreeNodeStats()
+
+	collapsed := mergeChildren(children, 3, stats)
+	assert.Equal(t, 1, collapsed, "only prefix-* should merge")
+
+	assert.NotContains(t, children, "*", "bare wildcard must not appear, got: %v", childrenNames(children))
+	for _, n := range []string{"412422", "4353535", "63634646", "323526"} {
+		assert.Contains(t, children, n)
+	}
+	assert.Contains(t, children, "filename")
+
+	pat, ok := children["prefix-*"]
+	if assert.True(t, ok) {
+		assert.True(t, pat.IsPattern)
+		assert.Equal(t, "A-N", pat.PatternSignature)
+	}
+}
+
+// Two bare-wildcard candidate buckets with different signatures: both
+// must refuse (otherwise they would collide on the "*" key).
+func TestMergeChildren_HomogeneityRule_RefusesTwoBareWildcardBuckets(t *testing.T) {
+	children := map[string]*FileNode{
+		// signature N
+		"1":     newTestFileLeaf("1"),
+		"42":    newTestFileLeaf("42"),
+		"1337":  newTestFileLeaf("1337"),
+		"99999": newTestFileLeaf("99999"),
+		// signature M
+		"abc123": newTestFileLeaf("abc123"),
+		"def456": newTestFileLeaf("def456"),
+		"xyz789": newTestFileLeaf("xyz789"),
+	}
+	stats := NewActivityTreeNodeStats()
+
+	collapsed := mergeChildren(children, 3, stats)
+
+	assert.Equal(t, 0, collapsed)
+	assert.NotContains(t, children, "*")
+	for _, n := range []string{"1", "42", "1337", "99999", "abc123", "def456", "xyz789"} {
+		assert.Contains(t, children, n)
+	}
+}
+
+// Homogeneous numeric parent: bare-wildcard merge proceeds and the
+// pattern records its training signature.
+func TestMergeChildren_HomogeneityRule_AllowsHomogeneousNumericFanout(t *testing.T) {
+	children := map[string]*FileNode{
+		"1":     newTestFileLeaf("1"),
+		"42":    newTestFileLeaf("42"),
+		"1337":  newTestFileLeaf("1337"),
+		"99999": newTestFileLeaf("99999"),
+	}
+	stats := NewActivityTreeNodeStats()
+
+	collapsed := mergeChildren(children, 3, stats)
+	assert.Equal(t, 1, collapsed)
+
+	pat, ok := children["*"]
+	if assert.True(t, ok) {
+		assert.True(t, pat.IsPattern)
+		assert.Equal(t, "N", pat.PatternSignature)
+	}
+	for _, n := range []string{"1", "42", "1337", "99999"} {
+		assert.NotContains(t, children, n)
+	}
+}
+
+// A numeric-trained "*" must not absorb a cross-class candidate at
+// lookup time.
+func TestFindChildWithPatternFallback_R2_RejectsCrossClass(t *testing.T) {
+	children := map[string]*FileNode{
+		"*": {Name: "*", IsPattern: true, PatternSignature: "N"},
+	}
+	stats := enablePatternsTestStats()
+
+	c, ok := findChildWithPatternFallback(children, "424242", stats)
+	if assert.True(t, ok) {
+		assert.Equal(t, "*", c.Name)
+	}
+	_, ok = findChildWithPatternFallback(children, "malicious_binary", stats)
+	assert.False(t, ok)
+	_, ok = findChildWithPatternFallback(children, "abc123", stats)
+	assert.False(t, ok)
+}
+
+// Same-shape candidate hits a literal-anchored pattern; different-shape
+// candidate that still template-matches is refused.
+func TestFindChildWithPatternFallback_R2_AcceptsCorrectShape(t *testing.T) {
+	children := map[string]*FileNode{
+		"prefix-*": {Name: "prefix-*", IsPattern: true, PatternSignature: "A-N"},
+	}
+	stats := enablePatternsTestStats()
+
+	c, ok := findChildWithPatternFallback(children, "prefix-99", stats)
+	if assert.True(t, ok) {
+		assert.Equal(t, "prefix-*", c.Name)
+	}
+	_, ok = findChildWithPatternFallback(children, "prefix-rootkit", stats)
+	assert.False(t, ok, "A-A candidate must not match an A-N-trained pattern")
+}
+
+// Patterns reloaded from proto have an empty signature and degrade to
+// template-only matching.
+func TestFindChildWithPatternFallback_R2_UntaggedPatternIsPermissive(t *testing.T) {
+	children := map[string]*FileNode{
+		"*": {Name: "*", IsPattern: true /* PatternSignature: "" */},
+	}
+	stats := enablePatternsTestStats()
+
+	for _, candidate := range []string{"424242", "malicious_binary", "abc123"} {
+		_, ok := findChildWithPatternFallback(children, candidate, stats)
+		assert.True(t, ok, "untagged pattern must template-match %q", candidate)
+	}
+}
+
+// Build a numeric-trained pattern, then dry-run an alpha leaf: the
+// signature mismatch must surface the path as a new entry.
+func TestInsertFileEvent_R2_AnomalyRaisedOnCrossClassVariant(t *testing.T) {
+	pn := &ProcessNode{
+		Files:    make(map[string]*FileNode),
+		NodeBase: NewNodeBase(),
+	}
+	stats := enablePatternsTestStats()
+
+	for _, id := range []string{"1", "42", "1337", "99999"} {
+		path := "/var/log/job/" + id
+		ev := &model.Event{
+			BaseEvent: model.BaseEvent{FieldHandlers: &model.FakeFieldHandlers{}},
+			Open: model.OpenEvent{File: model.FileEvent{
+				IsPathnameStrResolved: true,
+				PathnameStr:           path,
+			}},
+		}
+		pn.InsertFileEvent(&ev.Open.File, ev, "tag", Unknown, stats, false, nil, nil)
+	}
+
+	job := pn.Files["var"].Children["log"].Children["job"]
+	if !assert.NotNil(t, job) {
+		return
+	}
+	mergeChildren(job.Children, 3, stats)
+	pat, ok := job.Children["*"]
+	if !assert.True(t, ok) {
+		return
+	}
+	assert.Equal(t, "N", pat.PatternSignature)
+
+	anomaly := &model.Event{
+		BaseEvent: model.BaseEvent{FieldHandlers: &model.FakeFieldHandlers{}},
+		Open: model.OpenEvent{File: model.FileEvent{
+			IsPathnameStrResolved: true,
+			PathnameStr:           "/var/log/job/malicious_binary",
+		}},
+	}
+	isNew := pn.InsertFileEvent(&anomaly.Open.File, anomaly, "tag", Unknown, stats, true, nil, nil)
+	assert.True(t, isNew, "cross-class candidate must surface as a new entry")
+}
+
+// Dual of the previous test: a same-shape candidate hits the pattern.
+func TestInsertFileEvent_R2_SameShapeStillQuiet(t *testing.T) {
+	pn := &ProcessNode{
+		Files:    make(map[string]*FileNode),
+		NodeBase: NewNodeBase(),
+	}
+	stats := enablePatternsTestStats()
+
+	for _, id := range []string{"1", "42", "1337", "99999"} {
+		path := "/var/log/job/" + id
+		ev := &model.Event{
+			BaseEvent: model.BaseEvent{FieldHandlers: &model.FakeFieldHandlers{}},
+			Open: model.OpenEvent{File: model.FileEvent{
+				IsPathnameStrResolved: true,
+				PathnameStr:           path,
+			}},
+		}
+		pn.InsertFileEvent(&ev.Open.File, ev, "tag", Unknown, stats, false, nil, nil)
+	}
+	job := pn.Files["var"].Children["log"].Children["job"]
+	mergeChildren(job.Children, 3, stats)
+
+	variant := &model.Event{
+		BaseEvent: model.BaseEvent{FieldHandlers: &model.FakeFieldHandlers{}},
+		Open: model.OpenEvent{File: model.FileEvent{
+			IsPathnameStrResolved: true,
+			PathnameStr:           "/var/log/job/8675309",
+		}},
+	}
+	before := stats.FilePatternLookupHits
+	isNew := pn.InsertFileEvent(&variant.Open.File, variant, "tag", Unknown, stats, true, nil, nil)
+	assert.False(t, isNew, "same-shape numeric variant must match the trained pattern")
+	assert.Greater(t, stats.FilePatternLookupHits, before)
+}
+
+// Pattern mining must be a no-op on trees that did not opt in (v1
+// profiles, activity dumps).
 func TestInsertFileEvent_DisabledByDefaultOnV1Trees(t *testing.T) {
 	pn := &ProcessNode{
 		Files:    make(map[string]*FileNode),
 		NodeBase: NewNodeBase(),
 	}
-	// Plain stats with zero-valued patternCfg → disabled.
 	stats := NewActivityTreeNodeStats()
 	assert.False(t, stats.PathPatternConfig().Enabled)
 
-	// Insert enough variants that, with patterns enabled, the fan-out
-	// threshold would have collapsed them into a single /tmp/sess-*
-	// node. With the gate off we expect every literal to survive.
 	cfg := DefaultPathPatternConfig()
 	count := cfg.MaxChildren + 5
 	for i := 0; i < count; i++ {
@@ -517,35 +695,28 @@ func TestInsertFileEvent_DisabledByDefaultOnV1Trees(t *testing.T) {
 	if !assert.True(t, ok) {
 		return
 	}
-	assert.Len(t, tmp.Children, count, "every literal must survive when patterns are disabled")
+	assert.Len(t, tmp.Children, count)
 	for _, child := range tmp.Children {
-		assert.False(t, child.IsPattern, "no pattern node must exist when patterns are disabled")
+		assert.False(t, child.IsPattern)
 	}
-	assert.Equal(t, int64(0), stats.FilePatternsCreated)
 	assert.Equal(t, int64(0), stats.FileNodesMerged)
 	assert.Equal(t, int64(0), stats.FilePatternLookupHits)
 
-	// FinalizePatterns must also be a no-op on disabled trees.
 	at := &ActivityTree{
 		Stats:        stats,
 		ProcessNodes: []*ProcessNode{pn},
 	}
 	at.FinalizePatterns()
 	assert.Len(t, tmp.Children, count)
-	assert.Equal(t, int64(0), stats.FilePatternsCreated)
+	assert.Equal(t, int64(0), stats.FileNodesMerged)
 }
 
-// enablePatternsTestStats returns a freshly built Stats with path-pattern
-// mining enabled at default thresholds — the "v2 preset". Use it in
-// tests that exercise the pattern-mining code paths; tests that want to
-// assert disabled behavior should keep NewActivityTreeNodeStats() as-is.
 func enablePatternsTestStats() *Stats {
 	stats := NewActivityTreeNodeStats()
 	stats.SetPathPatternConfig(DefaultPathPatternConfig())
 	return stats
 }
 
-// newTestFileLeaf returns a bare leaf FileNode suitable for merge unit tests.
 func newTestFileLeaf(name string) *FileNode {
 	fn := &FileNode{
 		Name:     name,
@@ -555,8 +726,6 @@ func newTestFileLeaf(name string) *FileNode {
 	return fn
 }
 
-// childrenNames returns the sorted list of child names, used for readable
-// assertion failure messages.
 func childrenNames(children map[string]*FileNode) []string {
 	out := make([]string, 0, len(children))
 	for name := range children {

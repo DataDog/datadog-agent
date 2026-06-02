@@ -287,9 +287,6 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 			stats.FileNodes++
 			pn.Files[parent] = newChild
 		}
-		// After the (possibly recursive) insertion, run a path-pattern
-		// merge pass on the top-level Files map so high-fanout process
-		// roots (e.g. many `/tmp/sess-*`) get collapsed into pattern nodes.
 		maybeMergeChildren(pn.Files, stats)
 	}
 	return true

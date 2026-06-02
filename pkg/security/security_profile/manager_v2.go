@@ -778,8 +778,6 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		profile.WithDNSMatchMaxDepth(m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth),
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
-		// Path-pattern mining is a v2-only feature: opt in here so v1
-		// profiles and activity dumps keep their historical behavior.
 		profile.WithPathPatterns(activity_tree.DefaultPathPatternConfig()),
 	)
 
@@ -827,7 +825,6 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		profile.WithDNSMatchMaxDepth(m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth),
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
-		// Path-pattern mining is v2-only. See loadProfileFromStorage.
 		profile.WithPathPatterns(activity_tree.DefaultPathPatternConfig()),
 	)
 	secprof.SetTreeType(secprof, "security_profile")

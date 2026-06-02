@@ -30,36 +30,19 @@ type Stats struct {
 	FlowNodes       int64
 	CapabilityNodes int64
 
-	// FileNodesMerged counts siblings absorbed by path-pattern merges.
-	// Incremented once per node folded into an existing template.
-	FileNodesMerged int64
-	// FilePatternsCreated counts merge operations that collapsed a
-	// signature bucket into a new template FileNode.
-	FilePatternsCreated int64
-	// FilePatternLookupHits counts insertions that matched an existing
-	// pattern node via the wildcard fallback — i.e. insertions that
-	// would have created a new FileNode without path-pattern merging.
+	// path-pattern mining counters
+	FileNodesMerged       int64
 	FilePatternLookupHits int64
 
-	// patternCfg carries the per-tree path-pattern mining configuration.
-	// It is the single source of truth for whether mining runs on this
-	// tree — v2 callers flip Enabled via SetPathPatternConfig; v1 and
-	// activity dumps leave it zero-valued (disabled).
-	//
-	// Lives on Stats rather than ActivityTree because Stats is already
-	// threaded through every insertion site (maybeMergeChildren,
-	// findChildWithPatternFallback) and we want the gate reachable
-	// without changing those signatures. The field is unexported and
-	// therefore not serialized by the protobuf / JSON encoders.
+	// patternCfg is per-tree, set via SetPathPatternConfig. Unexported
+	// so it is not serialized.
 	patternCfg PathPatternConfig
 
 	counts map[model.EventType]*statsPerEventType
 }
 
-// SetPathPatternConfig overrides the path-pattern mining configuration
-// for the tree owning these stats. Callers that want mining enabled
-// should pass DefaultPathPatternConfig(); the zero-value configuration
-// leaves mining disabled and every gate short-circuits.
+// SetPathPatternConfig enables (or disables) path-pattern mining on the
+// tree owning these stats.
 func (stats *Stats) SetPathPatternConfig(cfg PathPatternConfig) {
 	if stats == nil {
 		return
@@ -67,8 +50,7 @@ func (stats *Stats) SetPathPatternConfig(cfg PathPatternConfig) {
 	stats.patternCfg = cfg
 }
 
-// PathPatternConfig returns the currently configured mining parameters
-// (useful for tests and introspection).
+// PathPatternConfig returns the current mining configuration.
 func (stats *Stats) PathPatternConfig() PathPatternConfig {
 	if stats == nil {
 		return PathPatternConfig{}
@@ -158,21 +140,11 @@ func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) er
 		}
 	}
 
-	// Path-pattern mining counters. These are cumulative over the tree's
-	// lifetime and are reset after each send so they behave as rates.
-	// The same single-goroutine-insertion assumption as the rest of Stats
-	// applies — no atomics are used for consistency with FileNodes.
 	treeTag := []string{treeTypeTag}
 	if value := stats.FileNodesMerged; value > 0 {
 		stats.FileNodesMerged = 0
 		if err := client.Count(metrics.MetricActivityDumpFileNodesMerged, value, treeTag, 1.0); err != nil {
 			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpFileNodesMerged, err)
-		}
-	}
-	if value := stats.FilePatternsCreated; value > 0 {
-		stats.FilePatternsCreated = 0
-		if err := client.Count(metrics.MetricActivityDumpFilePatternsCreated, value, treeTag, 1.0); err != nil {
-			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpFilePatternsCreated, err)
 		}
 	}
 	if value := stats.FilePatternLookupHits; value > 0 {

@@ -848,19 +848,9 @@ func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 	}
 }
 
-// FinalizePatterns runs a path-pattern merge pass on every FileNode map
-// in the tree, using MinClusterSizeOnFinalize as the threshold. This is
-// the "learning → stable" consolidation hook: call it before persisting
-// or freezing a profile so short-lived profiles still benefit from path
-// pattern merging even when fan-out never crossed MaxChildren at
-// insertion time.
-//
-// No-op on trees that have not opted into pattern mining (i.e. trees
-// whose Stats.patternCfg.Enabled is false, which is the default: only
-// v2 security profiles enable it).
-//
-// Safe to call repeatedly — nodes already promoted to pattern templates
-// are skipped by the grouping step.
+// FinalizePatterns runs a merge pass on every FileNode map in the tree
+// using MinClusterSizeOnFinalize as the threshold. No-op when pattern
+// mining is disabled on the tree. Idempotent.
 func (at *ActivityTree) FinalizePatterns() {
 	if at == nil {
 		return

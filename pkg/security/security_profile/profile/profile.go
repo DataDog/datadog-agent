@@ -146,10 +146,7 @@ func WithDNSMatchMaxDepth(dnsMatchMaxDepth int) Opts {
 }
 
 // WithPathPatterns enables path-pattern mining on the profile's
-// ActivityTree with the provided configuration. Only callers that want
-// the feature (today: v2 security profiles) should use this option;
-// leaving it unset preserves the historical behavior where no merging
-// and no wildcard lookup fallback runs on the tree.
+// ActivityTree with the provided configuration.
 func WithPathPatterns(cfg activity_tree.PathPatternConfig) Opts {
 	return func(p *Profile) {
 		p.treeOpts.pathPatterns = cfg
@@ -645,11 +642,7 @@ func (p *Profile) LoadFromNewProfile(newProfile *Profile) {
 	p.selector = newProfile.selector
 	p.ActivityTree = newProfile.ActivityTree
 	p.ActivityTree.SetType("security_profile", p)
-	// Re-apply the mining configuration on the freshly-loaded tree: the
-	// incoming ActivityTree carries Stats built from disk with a
-	// zero-valued (disabled) patternCfg since the field isn't
-	// serialized, so v2 profiles would lose their mining setting across
-	// a reload without this.
+	// patternCfg is not serialized; re-apply on reload
 	if p.treeOpts.pathPatterns.Enabled {
 		p.ActivityTree.Stats.SetPathPatternConfig(p.treeOpts.pathPatterns)
 	}
