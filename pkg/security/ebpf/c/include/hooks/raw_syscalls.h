@@ -36,7 +36,7 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     u32 idx = ((unsigned long)args->id) / 64;
     u64 bit = 1ULL << (((unsigned long)args->id) % 64);
 
-    u64 cgroup_id = get_current_cgroup_id();
+    u64 cgroup_id = get_current_cgroup_id_from_tracepoint();
     if (!cgroup_id) {
         return 0;
     }

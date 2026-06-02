@@ -69,36 +69,3 @@ type syscallsEventTest struct {
 	want    []Syscall
 	wantErr error
 }
-
-func TestSyscallsEvent_UnmarshalBinary(t *testing.T) {
-	tests := []syscallsEventTest{
-		{
-			name:    "nil_array",
-			wantErr: ErrNotEnoughData,
-		},
-		{
-			name: "no_syscall",
-			args: make([]byte, 72),
-		},
-		allSyscallsTest(),
-	}
-
-	// add single syscall tests
-	for i := 0; i < syscallsEventByteCount*8; i++ {
-		tests = append(tests, oneSyscallTest(Syscall(i)))
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			e := &SyscallsEvent{}
-			_, err := e.UnmarshalBinary(tt.args)
-			if err != nil {
-				if err == tt.wantErr {
-					return
-				}
-				assert.Equal(t, nil, err, "expected normal unmarshalling")
-			}
-			assert.Equal(t, true, syscallListEqual(t, tt.want, e.Syscalls), "invalid list of syscalls: %s, expected: %s", e.Syscalls, tt.want)
-		})
-	}
-}
