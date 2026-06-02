@@ -28,7 +28,7 @@ _MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "q_br
 try:
     with open(_MANIFEST_PATH) as _f:
         _EVAL_MANIFEST = json.load(_f)
-    SCENARIO_EPISODE_NAMES = {entry["short"]: entry["episode"] for entry in _EVAL_MANIFEST}
+    SCENARIO_EPISODE_NAMES = {entry["scenario"]: entry["episode"] for entry in _EVAL_MANIFEST}
     SCENARIOS = list(SCENARIO_EPISODE_NAMES.keys())
 except (OSError, json.JSONDecodeError, KeyError):
     # Manifest not present in this environment; eval tasks will require --scenarios.
