@@ -102,19 +102,16 @@ int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
     // must not be promoted to INTERNAL events or they would feed the resolver in a loop.
     u8 is_cgroupfs = is_cgroup2fs(syscall->open.dentry) && !is_runtime_request();
 
-    if (syscall->state != ACCEPTED && is_cgroupfs) {
+    if (syscall->state != ACCEPTED && syscall->state != APPROVED && is_cgroupfs) {
         syscall->state = INTERNAL;
-    }
-
-    if (syscall->state == DISCARDED) {
-        return 0;
     }
 
     syscall->resolver.key = syscall->open.file.path_key;
     syscall->resolver.dentry = syscall->open.dentry;
+    syscall->resolver.event_type = syscall->type;
     // disable the dentry-resolver discarder for cgroupfs events: userspace needs them
     // to track cgroup lifecycle, and a discarder match here would drop them.
-    syscall->resolver.discarder_event_type = !is_cgroupfs ? dentry_resolver_discarder_event_type(syscall) : 0;
+    syscall->resolver.flags = get_resolver_flags(syscall, !is_cgroupfs);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
@@ -230,13 +227,8 @@ int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache
         return 0;
     }
 
-    // check if the syscall was discarded
+    apply_dentry_resolution_outcome(syscall, EVENT_OPEN);
     if (syscall->state == DISCARDED) {
-        return 0;
-    }
-
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_OPEN);
         return 0;
     }
 

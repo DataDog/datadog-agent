@@ -74,6 +74,7 @@ type testOpts struct {
 	dnsPort                                    uint16
 	traceSystemdCgroups                        bool
 	capabilitiesMonitoringEnabled              bool
+	captureAllSyscallErrorsEnabled             bool
 }
 
 type dynamicTestOpts struct {

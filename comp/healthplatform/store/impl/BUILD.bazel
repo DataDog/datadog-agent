@@ -17,9 +17,6 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/telemetry/def",
         "//comp/def",
-        "//comp/healthplatform/forwarder/def",
-        "//comp/healthplatform/issues",
-        "//comp/healthplatform/scheduler/def",
         "//comp/healthplatform/store/def",
         "//comp/healthplatform/store/noop-impl",
         "//pkg/config/env",
@@ -27,6 +24,7 @@ go_library(
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/structpb",
     ],
 )
 
@@ -35,4 +33,13 @@ go_test(
     srcs = ["store_test.go"],
     embed = [":impl"],
     gotags = ["test"],
+    deps = [
+        "//comp/core/flare/builder",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/mock",
+        "//comp/core/telemetry/mock",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

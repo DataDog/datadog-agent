@@ -75,10 +75,10 @@ func (distribution *checksDistribution) leastBusyRunner(preferredRunner string, 
 		runnerUtilization := runnerStatus.utilization()
 		runnerNumChecks := runnerStatus.NumChecks
 
-		selectRunner := leastBusyRunner == "" ||
-			runnerUtilization < minUtilization ||
-			runnerUtilization == minUtilization && runnerName == preferredRunner ||
-			runnerUtilization == minUtilization && runnerNumChecks < numChecksLeastBusyRunner
+		selectRunner := (leastBusyRunner == "") ||
+			(runnerUtilization < minUtilization) ||
+			(runnerUtilization == minUtilization && runnerName == preferredRunner) ||
+			(runnerUtilization == minUtilization && leastBusyRunner != preferredRunner && runnerNumChecks < numChecksLeastBusyRunner)
 
 		if selectRunner {
 			leastBusyRunner = runnerName

@@ -325,8 +325,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper())
 
-	// Start custom resource discovery if not
-	if k.instance.PodCollectionMode != nodeKubeletPodCollection {
+	if k.instance.usesCustomResourceMetrics() && k.instance.PodCollectionMode != nodeKubeletPodCollection {
 		k.customResourceDiscoverer = customresources.StartDiscovery()
 	}
 
@@ -543,6 +542,10 @@ func (c *KSMConfig) parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }
 
+func (c *KSMConfig) usesCustomResourceMetrics() bool {
+	return len(c.CustomResource.Spec.Resources) > 0
+}
+
 type customResources struct {
 	collectors []string
 	factories  []customresource.RegistryFactory
@@ -590,12 +593,14 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		clients[f.Name()] = client
 	}
 
-	customResourceFactories := customresources.GetCustomResourceFactories(k.customResourceDiscoverer, k.instance.CustomResource, c)
-	customResourceClients, customResourceCollectors := customresources.GetCustomResourceClientsAndCollectors(customResourceFactories, c)
+	if k.instance.usesCustomResourceMetrics() {
+		customResourceFactories := customresources.GetCustomResourceFactories(k.customResourceDiscoverer, k.instance.CustomResource, c)
+		customResourceClients, customResourceCollectors := customresources.GetCustomResourceClientsAndCollectors(customResourceFactories, c)
 
-	collectors = lo.Uniq(append(collectors, customResourceCollectors...))
-	maps.Copy(clients, customResourceClients)
-	factories = append(factories, customResourceFactories...)
+		collectors = lo.Uniq(append(collectors, customResourceCollectors...))
+		maps.Copy(clients, customResourceClients)
+		factories = append(factories, customResourceFactories...)
+	}
 
 	return customResources{
 		collectors: collectors,

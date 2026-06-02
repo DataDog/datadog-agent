@@ -263,3 +263,13 @@ func TestHookErrorPropagation(t *testing.T) {
 	require.Error(t, err, "hook failure should return error")
 	assert.Contains(t, err.Error(), "hook failed", "error should contain hook failure message")
 }
+
+// TestRemoveAllMissingDB verifies that RemoveAll is a no-op when the extensions
+// database file does not exist. This guards against the prerm hook failing on
+// hosts where extensions were never initialized.
+func TestRemoveAllMissingDB(t *testing.T) {
+	ExtensionsDBDir = filepath.Join(t.TempDir(), "does-not-exist")
+
+	err := RemoveAll(context.Background(), "datadog-agent", false, &mockHooks{})
+	require.NoError(t, err, "RemoveAll should return nil when the extensions DB does not exist")
+}

@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    The admission controller can now automatically pick the Datadog CSI
+    driver as the library injection mechanism for APM single step
+    instrumentation when the ``auto`` injection mode is selected, the
+    Datadog CSI driver is installed in the cluster and APM support is
+    advertised on its annotations. Otherwise, the admission controller
+    falls back to the init container injection mechanism. This
+    auto-detection is disabled by default.

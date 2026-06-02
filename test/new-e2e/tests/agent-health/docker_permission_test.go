@@ -92,7 +92,7 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		assert.Equal(t, "docker-socket-permissions", dockerIssue.Id)
 		assert.Equal(t, "docker_file_tailing_disabled", dockerIssue.IssueName)
 		assert.Equal(t, "permissions", dockerIssue.Category)
-		assert.Equal(t, "medium", dockerIssue.Severity)
+		assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, dockerIssue.Severity)
 		assert.Equal(t, "logs-agent", dockerIssue.Location)
 		assert.Equal(t, "logs", dockerIssue.Source)
 

@@ -135,10 +135,10 @@ func splitScalarColumns(columns []datadogV2.ScalarColumn) ([]scalarResult, error
 	return results, nil
 }
 
-func (c *metricsClient) queryDeviceCount(config gpuspec.GPUConfig, fromTS, toTS int64) (int, error) {
+func (c *metricsClient) queryDeviceCount(config gpuspec.GPUConfig, queryFilter string, fromTS, toTS int64) (int, error) {
 	columns, err := c.runScalarQueries(
 		[]datadogV2.ScalarQuery{
-			buildScalarQuery("q0", fmt.Sprintf("avg:gpu.device.total{%s} by {gpu_uuid}", config.TagFilter()), datadogV2.METRICSAGGREGATOR_AVG),
+			buildScalarQuery("q0", fmt.Sprintf("avg:gpu.device.total{%s} by {gpu_uuid}", queryFilter), datadogV2.METRICSAGGREGATOR_AVG),
 		},
 		fromTS,
 		toTS,
@@ -198,10 +198,10 @@ func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName strin
 	return observations, nil
 }
 
-func (c *metricsClient) listObservedGPUMetricsForGPUConfig(config gpuspec.GPUConfig, lookbackSeconds int64, metricPrefix string) (map[string]struct{}, error) {
+func (c *metricsClient) listObservedGPUMetricsForGPUConfig(config gpuspec.GPUConfig, queryFilter string, lookbackSeconds int64, metricPrefix string) (map[string]struct{}, error) {
 	metrics := map[string]struct{}{}
 	options := datadogV2.NewListTagConfigurationsOptionalParameters().
-		WithFilterTags(config.TagFilter()).
+		WithFilterTags(queryFilter).
 		WithFilterQueried(true).
 		WithWindowSeconds(max(lookbackSeconds, int64(3600))).
 		WithPageSize(1000) // we don't have that many metrics, no need to paginate

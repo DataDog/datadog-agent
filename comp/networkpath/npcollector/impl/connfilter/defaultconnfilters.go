@@ -21,6 +21,14 @@ func getDefaultConnFilters(site string, monitorIPWithoutDomain bool) []Config {
 			Type:        FilterTypeExclude,
 			MatchDomain: "*.datadoghq.eu",
 		},
+		{
+			Type:        FilterTypeExclude,
+			MatchDomain: "*.local",
+		},
+		{
+			Type:        FilterTypeExclude,
+			MatchDomain: "*.internal",
+		},
 	}
 	if site != "" {
 		defaultConfig = append(defaultConfig, Config{

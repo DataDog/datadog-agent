@@ -15,14 +15,32 @@ import (
 )
 
 func TestGetVersionDataFromContainerTags(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		cTags := []string{"some_tag:blah", "image_tag:x", "git.commit.sha:y"}
-		gitCommitSha, imageTag := GetVersionDataFromContainerTags(cTags)
+	t.Run("all fields present", func(t *testing.T) {
+		cTags := []string{"some_tag:blah", "image_tag:x", "git.commit.sha:y", "version:1.2.3"}
+		gitCommitSha, imageTag, appVersion := GetVersionDataFromContainerTags(cTags)
 		assert.Equal(t, "x", imageTag)
 		assert.Equal(t, "y", gitCommitSha)
-		gitCommitSha, imageTag = GetVersionDataFromContainerTags([]string{})
+		assert.Equal(t, "1.2.3", appVersion)
+	})
+	t.Run("empty tags", func(t *testing.T) {
+		gitCommitSha, imageTag, appVersion := GetVersionDataFromContainerTags([]string{})
 		assert.Equal(t, "", imageTag)
 		assert.Equal(t, "", gitCommitSha)
+		assert.Equal(t, "", appVersion)
+	})
+	t.Run("version tag only", func(t *testing.T) {
+		cTags := []string{"some_tag:blah", "version:2.0.0"}
+		gitCommitSha, imageTag, appVersion := GetVersionDataFromContainerTags(cTags)
+		assert.Equal(t, "", imageTag)
+		assert.Equal(t, "", gitCommitSha)
+		assert.Equal(t, "2.0.0", appVersion)
+	})
+	t.Run("no version tag", func(t *testing.T) {
+		cTags := []string{"image_tag:x", "git.commit.sha:y"}
+		gitCommitSha, imageTag, appVersion := GetVersionDataFromContainerTags(cTags)
+		assert.Equal(t, "x", imageTag)
+		assert.Equal(t, "y", gitCommitSha)
+		assert.Equal(t, "", appVersion)
 	})
 }
 

@@ -10,7 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/providers/names",
         "//comp/core/autodiscovery/providers/types",
@@ -33,7 +33,7 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/noopimpl",
         "//comp/core/log/mock",

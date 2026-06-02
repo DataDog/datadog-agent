@@ -501,6 +501,7 @@ func TestNoOutsideImport(t *testing.T) {
 		"pkg/util/winutil", // Needed for Windows
 		"pkg/config/setup", // Needed for extensions
 		"pkg/template",
+		"pkg/fips", // Needed to detect FIPS-compiled binaries at runtime
 	}
 
 	// Walk the directory tree

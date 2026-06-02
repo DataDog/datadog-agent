@@ -1,0 +1,9 @@
+---
+other:
+  - |
+    Internal refactoring of the health platform component: introduces an
+    ``egress`` component that owns the periodic ``store → intake`` flush loop,
+    and simplifies the ``forwarder`` component to a stateless HTTP client
+    (``Send(ctx, *HealthReport) error``). The ``SetProvider``/``IssueProvider``
+    callback workaround for the circular dependency between the store and the
+    forwarder has been removed.

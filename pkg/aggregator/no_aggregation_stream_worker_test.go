@@ -40,5 +40,5 @@ func TestNoAggStreamWorkerSeriesDisabled(t *testing.T) {
 	// the worker goroutine will panic with a nil pointer dereference, crashing
 	// the test process.
 	time.Sleep(200 * time.Millisecond)
-	demux.Stop(true)
+	demux.Stop()
 }

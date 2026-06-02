@@ -6,9 +6,9 @@
 package store
 
 const (
-	// ADMisconfigurationIssueType is the IssueType value for autodiscovery
-	// misconfiguration issues, used to look up the template in the issue registry.
-	ADMisconfigurationIssueType = "ad-misconfiguration"
+	// ADMisconfigurationIssueName is the snake_case issue name for autodiscovery
+	// misconfiguration issues, used as the template registry key and proto IssueName field.
+	ADMisconfigurationIssueName = "ad_misconfiguration"
 
 	// ADMisconfigurationSource is the Source value reported when the
 	// autodiscovery component detects a misconfiguration.

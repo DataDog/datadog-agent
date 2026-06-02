@@ -21,6 +21,7 @@ func InjectConnectionFailures(mockSysProbeConfig model.Config, _ model.Config) {
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", "/opt/datadog-agent/run/sysprobe-bad.sock")
 	mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
+	mockSysProbeConfig.SetWithoutSource("network_config.direct_send", false)
 }
 
 // CheckExpectedConnectionFailures checks the expected errors after simulated

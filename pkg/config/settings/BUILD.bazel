@@ -20,7 +20,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/settings",
+        "//comp/core/settings/def",
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/config/utils",
@@ -40,7 +40,7 @@ go_test(
     embed = [":settings"],
     gotags = ["test"],
     deps = [
-        "//comp/core/settings",
+        "//comp/core/settings/def",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

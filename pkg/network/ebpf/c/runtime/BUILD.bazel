@@ -52,8 +52,6 @@ ebpf_program_suite(
 )
 
 exports_files([
-    "conntrack-types.h",
-    "conntrack.h",
     "conntrack.c",
     "offsetguess-test.c",
     "shared-libraries.c",

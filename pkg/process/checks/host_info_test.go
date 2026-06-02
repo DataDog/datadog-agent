@@ -26,10 +26,10 @@ import (
 	pbmocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
 )
 

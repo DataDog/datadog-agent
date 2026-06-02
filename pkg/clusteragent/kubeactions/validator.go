@@ -9,6 +9,7 @@ package kubeactions
 
 import (
 	"fmt"
+	"strings"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
 )
@@ -139,6 +140,20 @@ func (v *ActionValidator) ValidateAction(action *kubeactions.KubeAction) error {
 				Message: "resource.kind must be 'Deployment' for rollback_deployment action",
 			}
 		}
+	case ActionTypeGetResource:
+		if action.Resource.ApiVersion == "" {
+			return &ValidationError{
+				Action:  action,
+				Message: "resource.api_version must be set for get_resource action",
+			}
+		}
+
+		if isProtectedKind(action.Resource.Kind) {
+			return &ValidationError{
+				Action:  action,
+				Message: "actions are not allowed to get protected kind " + action.Resource.Kind,
+			}
+		}
 	}
 
 	// Block actions on protected system namespaces
@@ -162,6 +177,18 @@ var protectedNamespaces = map[string]struct{}{
 // isProtectedNamespace returns true if the namespace is a protected system namespace
 func isProtectedNamespace(namespace string) bool {
 	_, ok := protectedNamespaces[namespace]
+	return ok
+}
+
+var protectedKind = map[string]struct{}{
+	"pods":            {},
+	"secrets":         {},
+	"serviceaccounts": {},
+}
+
+// isProtectedResource returns true if the requested kind is a protected resource kind
+func isProtectedKind(kind string) bool {
+	_, ok := protectedKind[strings.ToLower(kind)]
 	return ok
 }
 

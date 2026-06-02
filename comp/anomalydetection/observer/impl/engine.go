@@ -253,8 +253,6 @@ func (e *engine) registerHandle(h *handle) {
 //   - "logs"                 (comp/observer/logssource/impl/component.go)
 //   - "agent-internal-logs"  (comp/observer/impl/observer.go)
 //   - "profile-agent"        (comp/observer/impl/observer.go)
-//   - hfrunnerdef.HFSource          (comp/anomalydetection/hfrunner/def/component.go)
-//   - hfrunnerdef.HFContainerSource (comp/anomalydetection/hfrunner/def/component.go)
 //
 // If a future caller ever passes a user-controlled or per-container source
 // string, the COW map becomes unbounded and this memoisation strategy is
@@ -877,13 +875,15 @@ func (e *engine) resetAnalysisState() {
 }
 
 // ResetForReplay reconfigures with new components, clears all state, and replaces storage.
-func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []observerdef.Correlator, extractors []observerdef.LogMetricsExtractor) {
+// The caller supplies storageCfg so it owns any non-default retention policy
+// (e.g. the testbench passes PointRetentionSecs=0 for unbounded replay storage).
+func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []observerdef.Correlator, extractors []observerdef.LogMetricsExtractor, storageCfg StorageConfig) {
 	e.SetDetectors(detectors)
 	e.SetCorrelators(correlators)
 	e.SetExtractors(extractors)
 	e.resetFull()
 	e.mu.Lock()
-	e.storage = newTimeSeriesStorage()
+	e.storage = newTimeSeriesStorageWith(storageCfg)
 	e.mu.Unlock()
 }
 

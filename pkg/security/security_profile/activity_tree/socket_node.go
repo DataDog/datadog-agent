@@ -43,10 +43,10 @@ func (sn *SocketNode) Matches(toMatch *SocketNode) bool {
 	return sn.Family == toMatch.Family
 }
 
-func (sn *SocketNode) evictImageTag(imageTag string) bool {
+func (sn *SocketNode) evictImageTag(imageTagID uint64) bool {
 	newBind := []*BindNode{}
 	for _, bind := range sn.Bind {
-		if shouldRemoveNode := bind.EvictImageTag(imageTag); !shouldRemoveNode {
+		if shouldRemoveNode := bind.EvictImageTag(imageTagID); !shouldRemoveNode {
 			newBind = append(newBind, bind)
 		}
 	}
@@ -58,17 +58,17 @@ func (sn *SocketNode) evictImageTag(imageTag string) bool {
 }
 
 // InsertBindEvent inserts a bind even inside a socket node
-func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, imageTag string, generationType NodeGenerationType, rules []*model.MatchedRule, dryRun bool) bool {
+func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, imageTagID uint64, generationType NodeGenerationType, rules []*model.MatchedRule, dryRun bool) bool {
 	evtIP := utils.GetIPStringFromIPNet(evt.Addr.IPNet)
 	for _, n := range sn.Bind {
 		if evt.Addr.Port == n.Port && evtIP == n.IP && evt.Protocol == n.Protocol {
 			if !dryRun {
 				n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
 			}
-			if imageTag == "" || n.HasImageTag(imageTag) {
+			if imageTagID == 0 || n.HasImageTag(imageTagID) {
 				return false
 			}
-			n.AppendImageTag(imageTag, event.ResolveEventTime())
+			n.AppendImageTagID(imageTagID, event.ResolveEventTime())
 			return false
 		}
 	}
@@ -84,7 +84,7 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, 
 		}
 		node.NodeBase = NewNodeBase()
 
-		node.AppendImageTag(imageTag, event.ResolveEventTime())
+		node.AppendImageTagID(imageTagID, event.ResolveEventTime())
 		sn.Bind = append(sn.Bind, node)
 	}
 	return true

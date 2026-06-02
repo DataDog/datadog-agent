@@ -12,8 +12,8 @@ proto_library(
 go_proto_library(
     name = "pb_go_proto",
     compilers = [
-        "//bazel/rules/go_proto_compiler:go_vtproto_full",
         "@rules_go//proto:go_proto",
+        "//bazel/rules/go_proto_compiler:go_vtproto_full",
     ],
     importpath = "pkg/proto/pbgo/dogstatsdhttp",
     proto = ":pb_proto",

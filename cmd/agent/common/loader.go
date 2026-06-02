@@ -8,7 +8,7 @@ package common
 import (
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 

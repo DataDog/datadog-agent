@@ -8,7 +8,7 @@ import (
 	reflect "reflect"
 
 	util "github.com/DataDog/datadog-agent/pkg/process/util"
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockGatewayLookup is a mock of GatewayLookup interface.

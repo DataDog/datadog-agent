@@ -26,9 +26,11 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
+	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
+	orchestrator "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
+	orchestratorimpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
@@ -98,8 +100,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
 				snmpscanfx.Module(),
-				orchestratorimpl.Module(orchestratorimpl.NewDisabledParams()),
-				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+				orchestratorimpl.Module(orchestrator.NewDisabledParams()),
+				eventplatformfx.Module(eventplatform.NewDefaultParams()),
 				nooptagger.Module(),
 				eventplatformreceiverimpl.Module(),
 				haagentfx.Module(),
@@ -160,8 +162,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForOneShot(command.LoggerName, logLevelDefaultOff.Value(), true)}),
 				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
-				orchestratorimpl.Module(orchestratorimpl.NewDisabledParams()),
-				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+				orchestratorimpl.Module(orchestrator.NewDisabledParams()),
+				eventplatformfx.Module(eventplatform.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
 				nooptagger.Module(),
 				snmpscanfx.Module(),

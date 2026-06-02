@@ -837,6 +837,7 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			ExperimentConfigVersion: configAndPackageStates.ConfigStates[pkg].Experiment,
 			RunningVersion:          runningVersions[pkg],
 			RunningConfigVersion:    runningConfigVersions[pkg],
+			HeartbeatTimestamp:      uint64(time.Now().Unix()),
 		}
 
 		requestState, ok := tasksState[pkg]

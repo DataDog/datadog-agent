@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build test && ncm
+//go:build test
 
 package profile
 
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,6 +22,13 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 		expectedExtractedMetadata *ExtractedMetadata
 		expectedErrMsg            string
 	}{
+
+		{
+			name:                      "Cisco ASA",
+			profile:                   ASAProfile(),
+			fixture:                   loadFixture("cisco-asa", Running),
+			expectedExtractedMetadata: &ExtractedMetadata{},
+		},
 		{
 			name:    "Cisco IOS",
 			profile: IOSProfile(),
@@ -100,7 +108,9 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 			if tt.expectedErrMsg != "" {
 				assert.EqualError(t, err, tt.expectedErrMsg)
 			}
-			assert.Equal(t, tt.fixture.Expected, actualOutput)
+
+			// use cmp.Diff for a nicer output if the strings don't match, but still assert that they are equal
+			assert.Empty(t, cmp.Diff(string(tt.fixture.Expected), string(actualOutput)))
 			assert.Equal(t, tt.expectedExtractedMetadata, actualExtractedMetadata)
 		})
 	}
@@ -160,7 +170,9 @@ func Test_DefaultProfiles_Startup(t *testing.T) {
 			if tt.expectedErrMsg != "" {
 				assert.EqualError(t, err, tt.expectedErrMsg)
 			}
-			assert.Equal(t, tt.fixture.Expected, actualOutput)
+
+			// use cmp.Diff for a nicer output if the strings don't match, but still assert that they are equal
+			assert.Empty(t, cmp.Diff(string(tt.fixture.Expected), string(actualOutput)))
 			assert.Equal(t, tt.expectedExtractedMetadata, actualExtractedMetadata)
 		})
 	}

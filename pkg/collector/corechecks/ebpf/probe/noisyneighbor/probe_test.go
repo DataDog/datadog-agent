@@ -36,7 +36,7 @@ func TestNoisyNeighborProbe(t *testing.T) {
 		t.Logf("testing on %s", os.Getenv("CI_JOB_NAME"))
 
 		cfg := testConfig()
-		probe, err := NewProbe(cfg, Config{PMUMetrics: allPMUMetricsEnabled()})
+		probe, err := NewProbe(cfg)
 		require.NoError(t, err)
 		t.Cleanup(probe.Close)
 
@@ -54,18 +54,4 @@ func TestNoisyNeighborProbe(t *testing.T) {
 func testConfig() *ebpf.Config {
 	cfg := ebpf.NewConfig()
 	return cfg
-}
-
-// allPMUMetricsEnabled returns the PMU-metrics map that NewProbe expects,
-// with every counter enabled — the default tested configuration.
-func allPMUMetricsEnabled() map[string]bool {
-	return map[string]bool{
-		"cycles_pmu":           true,
-		"instructions_pmu":     true,
-		"cache_misses_pmu":     true,
-		"cache_references_pmu": true,
-		"itlb_misses_pmu":      true,
-		"branch_misses_pmu":    true,
-		"cpu_migrations_pmu":   true,
-	}
 }

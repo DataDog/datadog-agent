@@ -15,6 +15,7 @@ Usage:
 
 load("@bazel_tools//tools/build_defs/repo:cache.bzl", "DEFAULT_CANONICAL_ID_ENV", "get_default_canonical_id")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "get_auth")
+load("//bazel/repo:release_json.bzl", "read_effective_release_json")
 
 get_jmxfetch_using_release_constants_attrs = {
     "executable": attr.bool(
@@ -92,7 +93,7 @@ def parse_jmxfetch_version(version):
 
 def _get_jmxfetch_using_release_constants_impl(rctx):
     """Implementation of the get_jmxfetch_using_release_constants rule."""
-    release_info = json.decode(rctx.read(rctx.path(rctx.attr._release_info)))
+    release_info = read_effective_release_json(rctx, rctx.attr._release_info)
     vars = release_info["dependencies"]
 
     version = vars["JMXFETCH_VERSION"]

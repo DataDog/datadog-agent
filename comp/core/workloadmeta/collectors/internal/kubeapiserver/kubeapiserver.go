@@ -122,6 +122,13 @@ func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
 		}
 	}
 
+	for _, groupResource := range resourcesForCSIDetection(cfg) {
+		requestedResource := groupResourceToGVRString(groupResource)
+		if requestedResource != "" {
+			res = append(res, requestedResource)
+		}
+	}
+
 	return res
 }
 
@@ -167,6 +174,23 @@ func resourcesForAPMConfig(cfg config.Reader) []string {
 	}
 
 	return []string{"namespaces"}
+}
+
+// resourcesForCSIDetection returns the list of resources to collect metadata
+// from for the APM auto-instrumentation library injection AutoProvider.
+//
+// When CSI auto-detection is enabled, the AutoProvider needs to know whether
+// the Datadog CSI driver is registered in the cluster and has APM SSI
+// capabilities advertised on its annotations, in order to choose between
+// the CSI- and init-container-based library injection providers.
+func resourcesForCSIDetection(cfg config.Reader) []string {
+	if !cfg.GetBool("admission_controller.enabled") ||
+		!cfg.GetBool("admission_controller.auto_instrumentation.enabled") ||
+		!cfg.GetBool("apm_config.instrumentation.csi_driver_detection_enabled") {
+		return nil
+	}
+
+	return []string{"csidrivers.storage.k8s.io"}
 }
 
 type collector struct {

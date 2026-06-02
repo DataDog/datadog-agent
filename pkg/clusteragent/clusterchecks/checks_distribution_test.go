@@ -110,6 +110,22 @@ func TestAddToLeastBusy(t *testing.T) {
 			expectedPlacement: "runner2",
 		},
 		{
+			name: "2 least busy runners. Preferred wins over fewer checks",
+			existingRunners: map[string]int{
+				"runner1": 4,
+				"runner2": 4,
+				"runner3": 4,
+			},
+			existingChecks: map[string]CheckStatus{
+				"check1": {WorkersNeeded: 3, Runner: "runner1"}, // runner1: util 0.75, 1 check
+				"check2": {WorkersNeeded: 1, Runner: "runner2"}, // runner2: util 0.5,  2 checks
+				"check3": {WorkersNeeded: 1, Runner: "runner2"},
+				"check4": {WorkersNeeded: 2, Runner: "runner3"}, // runner3: util 0.5,  1 check
+			},
+			preferredRunner:   "runner2",
+			expectedPlacement: "runner2",
+		},
+		{
 			name: "only one runner",
 			existingRunners: map[string]int{
 				"runner1": 4,

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"go.yaml.in/yaml/v2"
 
@@ -271,6 +272,11 @@ func (s *testInstallExeProxySuite) TestInstallAgentPackageWithProxy() {
 	s.Require().NoError(err)
 
 	// Assert
+	s.Require().Eventually(func() bool {
+		status, _ := wincommon.GetServiceStatus(windowsHost, consts.ServiceName)
+		return status == "Running"
+	}, 15*time.Minute, 30*time.Second, "Datadog Installer service did not reach Running")
+
 	s.Require().Host(windowsHost).
 		HasARunningDatadogInstallerService().
 		HasARunningDatadogAgentService().RuntimeConfig().

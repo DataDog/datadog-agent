@@ -1,0 +1,13 @@
+---
+security:
+  - |
+    Fixed a confused-deputy vulnerability in the Cluster Agent's AppSec
+    ingress-nginx admission mutator where the pod's
+    ``--configmap=<namespace>/<name>`` argument was trusted verbatim,
+    allowing a user with pod-create permission in one namespace to make
+    the Cluster Agent service account create or update ConfigMaps and add
+    labels and annotations in arbitrary namespaces. The mutator now
+    requires the ``<namespace>`` portion to match the pod's own namespace
+    (or use the ``$(POD_NAMESPACE)`` downward-API substitution) and skips
+    mutation otherwise, emitting a warning event on the pod. The
+    vulnerability affected Cluster Agent releases starting from 7.78.0.

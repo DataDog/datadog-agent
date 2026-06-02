@@ -9,6 +9,9 @@ OUTPUT=$4
 
 # PREFIX is the full rpath (e.g. {install_dir}/embedded/lib); use as-is, do not append /lib
 cp "$INPUT" "$OUTPUT"
+# Restore owner-write so install_name_tool can modify dylibs installed as
+# read-only by their build system (e.g. Python lib-dynload modules).
+chmod u+w "$OUTPUT"
 install_name_tool -add_rpath "$PREFIX" "$OUTPUT" 2>/dev/null || true
 dylib_name=$(basename "$OUTPUT")
 new_id="$PREFIX/$dylib_name"

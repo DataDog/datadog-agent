@@ -9,13 +9,13 @@ service:
       receivers:
       - profiling
       exporters:
-      - otlphttp/with-ep
-      - otlphttp/no-ep
+      - otlp_http/with-ep
+      - otlp_http/no-ep
 exporters:
-  otlphttp/with-ep:
+  otlp_http/with-ep:
     headers:
       dd-api-key: test-api-key-1
     profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
-  otlphttp/no-ep:
+  otlp_http/no-ep:
     headers:
       dd-api-key: test-api-key-2

@@ -20,18 +20,18 @@ type FlowNode struct {
 }
 
 // NewFlowNode returns a new FlowNode instance
-func NewFlowNode(flow model.Flow, event *model.Event, generationType NodeGenerationType, imageTag string) *FlowNode {
+func NewFlowNode(flow model.Flow, event *model.Event, generationType NodeGenerationType, imageTagID uint64) *FlowNode {
 	node := &FlowNode{
 		GenerationType: generationType,
 		Flow:           flow,
 	}
 	node.NodeBase = NewNodeBase()
-	node.AppendImageTag(imageTag, event.ResolveEventTime())
+	node.AppendImageTagID(imageTagID, event.ResolveEventTime())
 	return node
 }
 
-func (node *FlowNode) addFlow(flow model.Flow, event *model.Event, imageTag string) {
-	node.AppendImageTag(imageTag, event.ResolveEventTime())
+func (node *FlowNode) addFlow(flow model.Flow, event *model.Event, imageTagID uint64) {
+	node.AppendImageTagID(imageTagID, event.ResolveEventTime())
 
 	// add metrics
 	node.Flow.Egress.Add(flow.Egress)

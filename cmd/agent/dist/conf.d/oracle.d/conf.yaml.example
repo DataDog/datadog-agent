@@ -229,6 +229,11 @@ instances:
       #
       # enabled: true
 
+      ## @param collection_interval - int - optional - default: 600
+      ## The interval in seconds between tablespace usage collections.
+      #
+      # collection_interval: 600
+
     ## Configure collection of process memory usage
     #
     # processes:

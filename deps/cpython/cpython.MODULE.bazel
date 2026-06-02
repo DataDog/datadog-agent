@@ -1,6 +1,21 @@
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+constants_repo = use_repo_rule("//bazel/repo:constants_repo.bzl", "constants_repo")
+
 PYTHON_VERSION = "3.13.13"
+
+PYTHON_MAJOR_MINOR = ".".join(PYTHON_VERSION.split(".")[:2])
+
+PYTHON_MAJOR_MINOR_FLAT = PYTHON_MAJOR_MINOR.replace(".", "")
+
+constants_repo(
+    name = "cpython_versions",
+    items = {
+        "PYTHON_MAJOR_MINOR": PYTHON_MAJOR_MINOR,
+        "PYTHON_MAJOR_MINOR_FLAT": PYTHON_MAJOR_MINOR_FLAT,
+        "PYTHON_VERSION": PYTHON_VERSION,
+    },
+)
 
 http_archive(
     name = "cpython",
@@ -14,6 +29,7 @@ http_archive(
         "//deps/cpython:0001-customize-windows-build-script.patch",
         "//deps/cpython:0002-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
         "//deps/cpython:0003-propagate-pgo-test-exit-code.patch",
+        "//deps/cpython:0004-Drop-hardcoded-d-LIBDEST-from-libinstall-compileall.patch",
     ],
     sha256 = "f9cde7b0e2ec8165d7326e2a0f59ea2686ce9d0c617dbbb3d66a7e54d31b74b9",
     strip_prefix = "Python-{}".format(PYTHON_VERSION),

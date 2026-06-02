@@ -1,0 +1,388 @@
+: Saved
+
+:
+: Serial Number: 0A1B2C3D4E5
+: Hardware:   ASAv, 16384 MB RAM, CPU Pentium II 2000 MHz, 1 CPU (8 cores)
+:
+ASA Version 9.24(1)
+!
+hostname EXAMPLE-ASA-01
+domain-name acme-corp.com
+enable password itsaverysecretpassword pbkdf2
+service-module 0 keepalive-timeout 4
+service-module 0 keepalive-counter 6
+xlate per-session deny tcp any4 any4
+xlate per-session deny tcp any4 any6
+xlate per-session deny tcp any6 any4
+xlate per-session deny tcp any6 any6
+xlate per-session deny udp any4 any4 eq domain
+xlate per-session deny udp any4 any6 eq domain
+xlate per-session deny udp any6 any4 eq domain
+xlate per-session deny udp any6 any6 eq domain
+passwd itsaverysecretpassword encrypted
+!
+license smart
+ feature tier standard
+ throughput level 10G
+names
+dns-guard
+no mac-address auto
+!
+interface GigabitEthernet0/0
+ nameif outside
+ security-level 0
+ ip address 199.47.37.9 255.255.255.224 standby 199.47.37.12
+ ospf authentication message-digest
+ ospf message-digest-key 1 md5 itsanospfmd5key
+ ospf authentication-key itsanospfauthkey
+!
+interface GigabitEthernet0/1
+ nameif inside
+ security-level 100
+ ip address 10.100.25.11 255.255.255.0 standby 10.100.25.12
+!
+interface GigabitEthernet0/2
+ shutdown
+ no nameif
+ no security-level
+ no ip address
+!
+interface GigabitEthernet0/3
+ shutdown
+ no nameif
+ no security-level
+ no ip address
+!
+interface GigabitEthernet0/4
+ shutdown
+ no nameif
+ no security-level
+ no ip address
+!
+interface GigabitEthernet0/5
+ shutdown
+ no nameif
+ no security-level
+ no ip address
+!
+interface GigabitEthernet0/6
+ shutdown
+ no nameif
+ no security-level
+ no ip address
+!
+interface GigabitEthernet0/7
+ description LAN Failover Interface
+!
+interface GigabitEthernet0/8
+ description STATE Failover Interface
+!
+interface Management0/0
+ management-only
+ nameif management
+ security-level 100
+ ip address 10.50.11.19 255.255.254.0 standby 10.50.11.20
+!
+interface Tunnel4
+ no nameif
+ no ip address
+!
+tcpproxy tx-q-limit 2000
+tcpproxy rtx-q-limit 2000
+banner login  ________  ________  _____ ______   _______           ________  ________  ________  ________                 ___  _________
+banner login |\   __  \|\   ____\|\   _ \  _   \|\  ___ \         |\   ____\|\   __  \|\   __  \|\   __  \               |\  \|\___   ___\
+banner login \ \  \|\  \ \  \___|\ \  \\\__\ \  \ \   __/|        \ \  \___|\ \  \|\  \ \  \|\  \ \  \|\  \              \ \  \|___ \  \_|
+banner login  \ \   __  \ \  \    \ \  \\|__| \  \ \  \_|/__       \ \  \    \ \  \\\  \ \   _  _\ \   ____\              \ \  \   \ \  \
+banner login   \ \  \ \  \ \  \____\ \  \    \ \  \ \  \_|\ \       \ \  \____\ \  \\\  \ \  \\  \\ \  \___|     ___       \ \  \   \ \  \
+banner login    \ \__\ \__\ \_______\ \__\    \ \__\ \_______\       \ \_______\ \_______\ \__\\ _\\ \__\       |\__\       \ \__\   \ \__\
+banner login     \|__|\|__|\|_______|\|__|     \|__|\|_______|        \|_______|\|_______|\|__|\|__|\|__|       \|__|        \|__|    \|__|
+ftp mode passive
+clock timezone EST -5
+clock summer-time EDT recurring
+dns domain-lookup outside
+dns domain-lookup management
+dns server-group DefaultDNS
+ name-server 8.8.8.8 outside
+ name-server 10.100.101.131 management
+ domain-name acme-corp.com
+same-security-traffic permit inter-interface
+same-security-traffic permit intra-interface
+no object-group-search access-control
+no pager
+flow-export destination management 127.0.0.1 2055
+mtu outside 1500
+mtu inside 1500
+mtu management 1500
+ip verify reverse-path interface outside
+ip verify reverse-path interface inside
+failover
+failover lan unit primary
+failover key itsaverysecretpassword
+failover replication http
+no failover wait-disable
+no monitor-interface service-module
+icmp unreachable rate-limit 10 burst-size 5
+icmp permit any outside
+icmp permit any inside
+no asdm history enable
+arp timeout 14400
+no arp permit-nonconnected
+arp rate-limit 32768
+logging enable
+no logging hide username
+logging list warnings_and_above message 611101-611103
+logging list warnings_and_above message 113012-113017
+logging list warnings_and_above message 199001-199009
+logging list warnings_and_above message 606001-606002
+logging list warnings_and_above message 109011-109012
+logging list warnings_and_above message 111001-111005
+logging buffered debugging
+logging trap debugging
+logging asdm notifications
+logging mail critical
+logging from-address asa-device@acme-corp.com
+logging recipient-address itsanemail@acme-corp.com level critical
+
+timeout xlate 3:00:00
+timeout pat-xlate 0:00:30
+timeout conn 2:00:00 half-closed 1:00:00 udp 0:02:00 sctp 0:02:00 icmp 0:00:02
+timeout sunrpc 1:00:00 h323 0:05:00 h225 1:00:00 mgcp 0:05:00 mgcp-pat 0:05:00
+timeout sip 0:30:00 sip_media 0:02:00 sip-invite 0:03:00 sip-disconnect 0:02:00
+timeout sip-provisional-media 0:02:00 uauth 0:05:00 absolute
+timeout tcp-proxy-reassembly 0:01:00
+timeout floating-conn 0:00:00
+timeout conn-holddown 0:00:15
+timeout igp stale-route 0:01:10
+user-identity default-domain LOCAL
+aaa authentication ssh console NORAMISE LOCAL
+aaa authentication http console NORAMISE LOCAL
+aaa authentication serial console NORAMISE LOCAL
+aaa authentication enable console NORAMISE LOCAL
+aaa authorization command NORAMISE LOCAL
+aaa accounting enable console NORAMISE
+aaa accounting command NORAMISE
+aaa accounting serial console NORAMISE
+aaa accounting ssh console NORAMISE
+aaa authorization exec authentication-server auto-enable
+aaa authentication login-history
+aaa-server RADIUS_GROUP protocol radius
+aaa-server RADIUS_GROUP (inside) host 10.100.50.10
+ timeout 5
+ key itsaverysecretradiuskey
+aaa-server LDAP_GROUP protocol ldap
+aaa-server LDAP_GROUP (inside) host 10.100.50.20
+ ldap-base-dn dc=acme,dc=corp
+ ldap-scope subtree
+ ldap-naming-attribute sAMAccountName
+ ldap-login-password itsasecretldappassword
+ ldap-login-dn cn=binduser,dc=acme,dc=corp
+ server-type microsoft
+http server enable
+snmp-server host inside 10.100.100.4 community itsaverysecretpassword version 2c
+snmp-server host inside 10.100.100.5 community itsaverysecretpassword version 2c
+snmp-server host inside 10.100.100.6 community itsaverysecretpassword version 2c
+snmp-server host management 10.100.160.76 community itsaverysecretpassword version 2c
+snmp-server host management 10.100.100.5 version 3 ivision
+snmp-server host management 10.100.100.6 version 3 ivision
+snmp-server host management 10.100.100.200 version 3 svc_dd_snmp
+snmp-server community itsaverysecretpassword
+sysopt connection tcpmss 1460
+sysopt noproxyarp outside
+sla monitor 20
+ type echo protocol ipIcmpEcho 199.47.37.1 interface outside
+ num-packets 3
+ frequency 10
+sla monitor schedule 20 life forever start-time now
+crypto ipsec ikev1 transform-set ESP-3DES-MD5 esp-aes esp-sha-hmac
+crypto ipsec ikev1 transform-set ESP-3DES-SHA esp-aes esp-sha-hmac
+crypto ipsec ikev2 ipsec-proposal MOBILE_VPN
+ protocol esp encryption aes-256
+ protocol esp integrity sha-256
+crypto ipsec security-association replay disable
+crypto ipsec security-association pmtu-aging infinite
+crypto dynamic-map outside_dyn_map 20 set ikev1 transform-set ESP-3DES-MD5
+crypto map outside_map 65535 ipsec-isakmp dynamic outside_dyn_map
+crypto map outside_map interface outside
+crypto ca trustpool policy
+ auto-import
+crypto ca certificate chain _SomeChainServerCA
+ certificate ca 01234ABC01234ABC01234ABC01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC 01234ABC
+    01234ABC
+  quit
+crypto isakmp identity address
+crypto isakmp nat-traversal 30
+crypto isakmp key itsanisakmpkey address 198.51.100.10 netmask 255.255.255.255
+crypto ikev2 policy 20
+ encryption aes-256
+ integrity sha256
+ group 21 20 19 16 15 14 5
+ prf sha256
+ lifetime seconds 86400
+crypto ikev2 enable outside client-services port 443
+crypto ikev2 limit queue sa_init 1000
+crypto ikev2 remote-access trustpoint ASDM_TrustPoint7
+crypto ikev1 enable outside
+crypto ikev1 ipsec-over-tcp port 80
+crypto ikev1 policy 10
+ authentication pre-share
+ encryption aes
+ hash sha
+ group 14
+ lifetime 86400
+!
+router bgp 65000
+ bgp log-neighbor-changes
+ address-family ipv4 unicast
+  neighbor 10.50.0.1 remote-as 65001
+  neighbor 10.50.0.1 password itsabgppassword
+ exit-address-family
+!
+track 2 rtr 20 reachability
+telnet timeout 5
+ssh stricthostkeycheck
+ssh timeout 30
+ssh cipher encryption high
+ssh key-exchange group dh-group14-sha256
+ssh key-exchange hostkey ecdsa
+console timeout 60
+vpn-addr-assign local reuse-delay 5
+dhcprelay timeout 30
+threat-detection basic-threat
+threat-detection statistics
+threat-detection statistics tcp-intercept rate-interval 30 burst-rate 400 average-rate 200
+ntp server 10.100.20.7 source inside prefer
+ntp server 10.100.20.8 source inside
+ssl cipher default custom "AES256-SHA:AES128-SHA:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA"
+ssl cipher tlsv1 custom "AES256-SHA:AES128-SHA:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA"
+ssl cipher tlsv1.1 custom "AES256-SHA:AES128-SHA:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA"
+ssl cipher tlsv1.2 custom "AES256-SHA:AES128-SHA:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA"
+ssl cipher dtlsv1.2 custom "DHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA:AES128-SHA:AES256-SHA"
+ssl trust-point ASDM_TrustPoint7 outside
+ssl trust-point ASDM_TrustPoint7 inside
+ssl trust-point ASDM_TrustPoint7 management
+webvpn
+ enable outside
+ http-headers
+  hsts-server
+   enable
+   max-age 31536000
+   include-sub-domains
+   no preload
+  hsts-client
+   enable
+  x-content-type-options
+  x-xss-protection
+  content-security-policy
+ anyconnect enable
+ tunnel-group-list enable
+ keepout "Clientless Connection Not Available"
+ cache
+  disable
+ certificate-group-map ACME-CORP-CertMap 40 ACME-CORP-ConnectionProfile
+ certificate-group-map ACME-CORP-CertMap 41 ACME-CORP-ConnectionProfile
+ error-recovery disable
+group-policy adalovelace_GP internal
+group-policy adalovelace_GP attributes
+ banner value WELCOME BACK GOAT!!!
+ address-pools none
+dynamic-access-policy-record DfltAccessPolicy
+username admin password itsaverysecretpassword pbkdf2 privilege 15
+username adalovelace password itsaverysecretpassword encrypted privilege 3
+username adalovelace attributes
+ vpn-group-policy adalovelace_GP
+tunnel-group SomeGroup ipsec-attributes
+ ikev1 pre-shared-key itsasecret
+ peer-id-validate nocheck
+ ikev2 remote-authentication pre-shared-key itsaverysecretpassword
+ ikev2 local-authentication pre-shared-key itsaverysecretpassword
+!
+policy-map type inspect dns preset_dns_map
+ parameters
+  message-length maximum client auto
+  message-length maximum 512
+  no tcp-inspection
+policy-map global_policy
+ class inspection_default
+  inspect ip-options
+  inspect netbios
+  inspect rtsp
+  inspect sunrpc
+  inspect tftp
+  inspect xdmcp
+  inspect ftp
+  inspect h323 h225
+  inspect h323 ras
+  inspect rsh
+  inspect esmtp
+  inspect sqlnet
+  inspect skinny
+  inspect dns
+  inspect snmp
+ class global-class
+  flow-export event-type all destination 10.100.105.1
+!
+service-policy global_policy global
+smtp-server 10.100.100.100
+prompt hostname priority state
+service call-home
+no call-home reporting anonymous
+call-home
+ contact-email-addr networkteam@acme.com
+ source-interface outside
+ profile License
+  destination address http https://tools.cisco.com/its/service/oddce/services/DDCEService
+  destination transport-method http
+ profile CiscoTAC-1
+  destination address http https://tools.cisco.com/its/service/oddce/services/DDCEService
+  destination address email callhome@cisco.com
+  destination transport-method http
+  subscribe-to-alert-group diagnostic
+  subscribe-to-alert-group environment
+  subscribe-to-alert-group inventory periodic monthly
+  subscribe-to-alert-group configuration periodic monthly
+  subscribe-to-alert-group telemetry periodic daily
+Cryptochecksum:13965fb4a48857233a95e6b795d234e7
+: end

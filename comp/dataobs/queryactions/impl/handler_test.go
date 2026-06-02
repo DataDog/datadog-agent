@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	noopautoconfig "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"

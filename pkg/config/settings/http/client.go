@@ -17,7 +17,7 @@ import (
 	"net/http"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	settingsComponent "github.com/DataDog/datadog-agent/comp/core/settings"
+	settingscomp "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
@@ -163,12 +163,12 @@ func (rc *runtimeSettingsClient) FullConfigBySource() (string, error) {
 	return string(r), nil
 }
 
-func (rc *runtimeSettingsClient) List() (map[string]settingsComponent.RuntimeSettingResponse, error) {
+func (rc *runtimeSettingsClient) List() (map[string]settingscomp.RuntimeSettingResponse, error) {
 	r, err := rc.doGet(rc.baseURL+"/list-runtime", false)
 	if err != nil {
 		return nil, err
 	}
-	settingsList := make(map[string]settingsComponent.RuntimeSettingResponse)
+	settingsList := make(map[string]settingscomp.RuntimeSettingResponse)
 	err = json.Unmarshal([]byte(r), &settingsList)
 	if err != nil {
 		return nil, err

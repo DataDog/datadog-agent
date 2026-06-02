@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
 
 	scendocker "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -136,6 +137,7 @@ func (s *dockerTestSuite) TestProcessChecksWithNPM() {
 	agentOpts := []dockeragentparams.Option{
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", pulumi.StringPtr("true")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", pulumi.StringPtr("true")),
+		dockeragentparams.WithAgentServiceEnvVariable("DD_NETWORK_CONFIG_DIRECT_SEND", pulumi.StringPtr("false")),
 
 		dockeragentparams.WithExtraComposeManifest("fakeProcess", pulumi.String(fakeProcessCompose)),
 	}

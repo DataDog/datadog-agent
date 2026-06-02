@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
@@ -74,7 +74,7 @@ func main() {
 		run,
 		delegatedauthfx.Module(),
 		workloadfilterfx.Module(),
-		autodiscoveryimpl.Module(),
+		adfx.Module(),
 		healthplatform.Bundle(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
 			return healthprobeDef.Options{

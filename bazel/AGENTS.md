@@ -282,7 +282,7 @@ BUILD files are configuration, not code — prioritize readability over deduplic
 Starlark is Python-like but with deliberate restrictions for hermeticity and parallelism. Key divergences:
 
 - No recursion, no `while`, no `yield`, no `class`, no `import` (use `load`), no `try`/`except`/`finally`.
-- No float or set types. No generator expressions. No implicit string concatenation.
+- `set` and `float` types exist (Bazel 8+), but there is no set literal syntax — `{...}` is always a dict, so build sets with `set([...])`. No generator expressions. No implicit string concatenation.
 - `for` and `if` statements are not allowed at the **top level** of a file — only inside functions. In BUILD files list
   comprehensions are allowed at top level.
 - Global variables become **immutable** once the file finishes loading. Values loaded from another `.bzl` file are
@@ -312,8 +312,7 @@ Starlark is Python-like but with deliberate restrictions for hermeticity and par
 ### .bzl file organisation
 
 - Limit exported symbols per `.bzl` file — broad "utility" files cause wide rebuilds when anything changes.
-- Each file should export multiple symbols only when they are always used together. Otherwise split into separate files,
-  each wrapped with `bzl_library` from `bazel-skylib`.
+- Each file should export multiple symbols only when they are always used together. Otherwise split into separate files.
 
 ## Labels and references
 

@@ -45,7 +45,13 @@ const collectionInterval = 10 * time.Minute
 const kubeletVirtualKind = "KubeletConfiguration"
 const kubeletVirtualAPIVersion = "virtual.datadoghq.com/v1"
 
-var getClusterAgentClient = clusteragent.GetClusterAgentClient
+type nodeUIDClient interface {
+	GetNodeUID(nodeName string) (string, error)
+}
+
+var getClusterAgentClient = func() (nodeUIDClient, error) {
+	return clusteragent.GetClusterAgentClient()
+}
 
 var groupID atomic.Int32
 

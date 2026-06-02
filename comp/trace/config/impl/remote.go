@@ -27,14 +27,14 @@ const (
 	rcClientPollInterval = time.Second * 5
 )
 
-func remote(c corecompcfg.Component, ipcAddress string, ipc ipc.Component) (config.RemoteClient, error) {
+func remote(c corecompcfg.Component, ipcAddress string, ipc ipc.Component, products []string) (config.RemoteClient, error) {
 	return rc.NewGRPCClient(
 		ipcAddress,
 		pkgconfigsetup.GetIPCPort(),
 		ipc.GetAuthToken(), // TODO IPC: GRPC client will be provided by the IPC component
 		ipc.GetTLSClientConfig(),
 		rc.WithAgent(rcClientName, version.AgentVersion),
-		rc.WithProducts(state.ProductAPMSampling, state.ProductAgentConfig),
+		rc.WithProducts(products...),
 		rc.WithPollInterval(rcClientPollInterval),
 		rc.WithDirectorRootOverride(c.GetString("site"), c.GetString("remote_configuration.director_root")),
 	)

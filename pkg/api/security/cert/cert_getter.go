@@ -40,6 +40,20 @@ func getCertFilepath(config configModel.Reader) string {
 	return filepath.Join(filepath.Dir(config.ConfigFileUsed()), defaultCertFileName)
 }
 
+// PersistCertFilepath stores the resolved ipc_cert_file_path back into the config when the
+// setting was left at its empty default, so the configstream snapshot carries a concrete
+// absolute path that remote agents can resolve regardless of their own cwd.
+func PersistCertFilepath(config configModel.ReaderWriter) {
+	if config.GetString("ipc_cert_file_path") != "" {
+		return
+	}
+	resolved := getCertFilepath(config)
+	if abs, err := filepath.Abs(resolved); err == nil {
+		resolved = abs
+	}
+	config.Set("ipc_cert_file_path", resolved, configModel.SourceConfigPostInit)
+}
+
 type certificateFactory struct {
 	caCert             *x509.Certificate
 	caPrivKey          any // x509.ParsePKCS8PrivateKey returns as the private key any, and x509.CreateCertificate takes any as the private key argument

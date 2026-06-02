@@ -1392,6 +1392,16 @@ func (rs *RuleSet) CleanupExpiredVariables() {
 	}
 }
 
+// CopyInheritedVariables snapshots the inherited variables visible to scope
+// across every scoped variable provider in the ruleset. Used when the scope's
+// parent chain is about to change (e.g. process reparenting) and the values
+// resolved through inheritance should be preserved at their pre-change state.
+func (rs *RuleSet) CopyInheritedVariables(scope eval.VariableScope) {
+	for _, variableProvider := range rs.scopedVariables {
+		variableProvider.CopyInheritedVariables(scope)
+	}
+}
+
 // NewRuleSet returns a new ruleset for the specified data model
 func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalOpts *eval.Opts) *RuleSet {
 	logger := log.OrNullLogger(opts.Logger)

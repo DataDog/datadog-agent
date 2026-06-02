@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build ncm
-
 // Package profile defines models, logic, functions to load/parse/manage network device profiles
 package profile
 

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build test && ncm
+//go:build test
 
 package profile
 
@@ -228,6 +228,16 @@ func DefaultProfile(profileName string) *NCMProfile {
 func IOSProfile() *NCMProfile {
 	b, _ := defaultProfilesFS.ReadFile(path.Join(defaultProfilesFolder, "cisco-ios.json"))
 	prof, _ := parseNCMProfileFromBytes(b, "cisco-ios")
+	return prof
+}
+
+// ASAProfile parses the test profile for Cisco ASA devices to test with
+func ASAProfile() *NCMProfile {
+	b, _ := defaultProfilesFS.ReadFile(path.Join(defaultProfilesFolder, "cisco-asa.json"))
+	prof, err := parseNCMProfileFromBytes(b, "cisco-asa")
+	if err != nil {
+		panic(fmt.Sprintf("could not parse profile for cisco-asa: %s", err))
+	}
 	return prof
 }
 

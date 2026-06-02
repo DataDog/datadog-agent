@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"container/list"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -82,9 +84,12 @@ type ManagerV2 struct {
 	// Pending profile removals (selector -> time when removal was queued)
 	pendingProfileRemovals     map[cgroupModel.WorkloadSelector]time.Time
 	pendingProfileRemovalsLock sync.Mutex
+
+	containerFilters workloadfilter.FilterBundle
+	imageExcluder    *imageExcluder
 }
 
-func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string) (*ManagerV2, error) {
+func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, filterStore workloadfilter.Component) (*ManagerV2, error) {
 
 	localStorage, err := storage.NewDirectory(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount)
 	if err != nil {
@@ -113,6 +118,19 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		"",
 	))
 
+	var containerFilter workloadfilter.FilterBundle
+	if filterStore != nil {
+		containerFilter = filterStore.GetContainerRuntimeSecurityFilters()
+		if errs := containerFilter.GetErrors(); len(errs) > 0 {
+			return nil, errors.Join(errs...)
+		}
+	}
+
+	imgExcluder, err := newImageExcluder(cfg.RuntimeSecurity.SecurityProfileV2ExcludedImages)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't build security profile v2 image excluder: %w", err)
+	}
+
 	m := &ManagerV2{
 		config:                    cfg,
 		statsdClient:              statsdClient,
@@ -132,6 +150,8 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
 		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
 		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
+		containerFilters:          containerFilter,
+		imageExcluder:             imgExcluder,
 	}
 
 	m.initMetricsMap()
@@ -235,7 +255,6 @@ func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	// Find and unlink this workload from its profile
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
-
 	for selector, prof := range m.profiles {
 		if removed, remainingInstances := m.unlinkWorkloadFromProfile(prof, cgce); removed {
 			if remainingInstances == 0 {
@@ -636,7 +655,9 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	imageTag := secprof.GetTagValue("image_tag")
 	inserted, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err != nil {
-		seclog.Errorf("couldn't insert event into profile: %v", err)
+		if !activity_tree.IsExpectedFilterError(err) {
+			seclog.Debugf("couldn't insert event into profile: %v", err)
+		}
 		return nil, false
 	}
 
@@ -735,6 +756,18 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 	secprof := m.profiles[selector]
 	if secprof != nil {
 		return secprof, nil
+	}
+
+	containerName, imageName, podNamespace := utils.GetContainerFilterTags(event.ProcessContext.Process.ContainerContext.Tags)
+	if m.containerFilters != nil && m.containerFilters.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil))) {
+		seclog.Debugf("workload %s excluded by container filter (container=%s image=%s namespace=%s)", selector.String(), containerName, imageName, podNamespace)
+		return nil, errors.New("workload excluded")
+	}
+
+	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+	if m.imageExcluder.IsExcluded(imageName, imageTag) {
+		seclog.Debugf("workload %s excluded by image filter (image=%s tag=%s)", selector.String(), imageName, imageTag)
+		return nil, errors.New("workload excluded")
 	}
 
 	// Try to load from local storage first

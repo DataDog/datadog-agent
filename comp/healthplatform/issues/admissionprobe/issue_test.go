@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	healthplatform "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +28,7 @@ func TestBuildIssue_BasicFields(t *testing.T) {
 	assert.Contains(t, issue.Description, "webhook not reachable")
 	assert.Equal(t, "availability", issue.Category)
 	assert.Equal(t, "admission-controller", issue.Location)
-	assert.Equal(t, "high", issue.Severity)
+	assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH, issue.Severity)
 	assert.Equal(t, "cluster-agent", issue.Source)
 	assert.Contains(t, issue.Tags, "admission-controller")
 	assert.Contains(t, issue.Tags, "connectivity")
@@ -74,7 +76,10 @@ func TestBuildIssue_Extra(t *testing.T) {
 
 func TestNewModule(t *testing.T) {
 	m := NewModule(nil)
-	assert.Equal(t, IssueID, m.IssueID())
-	assert.NotNil(t, m.IssueTemplate())
-	assert.Nil(t, m.BuiltInHealthCheck())
+	assert.Equal(t, IssueName, m.IssueName())
+	issue, err := m.BuildIssue(map[string]string{})
+	require.NoError(t, err)
+	assert.NotNil(t, issue)
+	assert.Nil(t, m.BuiltInPeriodicHealthCheck())
+	assert.Nil(t, m.BuiltInStartupHealthCheck())
 }

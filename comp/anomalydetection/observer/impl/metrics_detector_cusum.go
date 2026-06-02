@@ -80,7 +80,7 @@ func NewCUSUMDetector(config CUSUMConfig) *CUSUMDetector {
 
 // Name returns the detector name.
 func (c *CUSUMDetector) Name() string {
-	return "cusum_detector"
+	return "cusum"
 }
 
 // Analyze runs CUSUM on the series and returns an anomaly if a shift is detected.

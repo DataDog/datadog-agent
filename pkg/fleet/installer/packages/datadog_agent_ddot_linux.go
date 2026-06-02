@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
@@ -29,6 +30,8 @@ const (
 	datadogYamlPath       = "/etc/datadog-agent/datadog.yaml"
 	otelConfigPath        = "/etc/datadog-agent/otel-config.yaml"
 	otelConfigExamplePath = "/etc/datadog-agent/otel-config.yaml.example"
+
+	ddotProcmgrConfigName = "datadog-agent-ddot.yaml"
 )
 
 var (
@@ -270,6 +273,10 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
+	if err := writeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
+		return fmt.Errorf("failed to write DDOT process manager config: %w", err)
+	}
+
 	return nil
 }
 
@@ -284,6 +291,10 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 		log.Warnf("failed to disable otelcollector config: %s", err)
 	}
 
+	if err := removeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to remove DDOT process manager config: %v", err)
+	}
+
 	return nil
 }
 
@@ -294,6 +305,28 @@ func copyFile(src, dst string, perm os.FileMode) error {
 		return err
 	}
 	return os.WriteFile(dst, data, perm)
+}
+
+func writeDDOTProcmgrConfig(installRoot string) error {
+	otelAgentPath := filepath.Join(installRoot, "ext", "ddot", "embedded", "bin", "otel-agent")
+	if _, err := os.Stat(otelAgentPath); err != nil {
+		return nil
+	}
+	processesDir := filepath.Join(installRoot, "processes.d")
+	config := strings.ReplaceAll(embedded.DDOTProcessConfig, "/opt/datadog-agent", installRoot)
+	if err := os.MkdirAll(processesDir, 0755); err != nil {
+		return fmt.Errorf("failed to write DDOT procmgr config: %w", err)
+	}
+	path := filepath.Join(processesDir, ddotProcmgrConfigName)
+	return os.WriteFile(path, []byte(config), 0644)
+}
+
+func removeDDOTProcmgrConfig(installRoot string) error {
+	path := filepath.Join(installRoot, "processes.d", ddotProcmgrConfigName)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // modifyDDOTUnitFileForBackwardsCompatibility modifies the systemd unit file to remove "/ext/ddot" from paths

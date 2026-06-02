@@ -16,7 +16,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
 
 	traceroutelib "github.com/DataDog/datadog-traceroute/traceroute"
@@ -162,8 +161,7 @@ func logTracerouteRequests(url *url.URL, runCount uint64, start time.Time) {
 }
 
 func parseParams(req *http.Request) (tracerouteutil.Config, error) {
-	vars := mux.Vars(req)
-	host := vars["host"]
+	host := req.PathValue("host")
 
 	query := req.URL.Query()
 

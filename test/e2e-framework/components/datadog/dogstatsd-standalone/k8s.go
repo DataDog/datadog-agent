@@ -257,7 +257,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("dogstatsd-standalone"),
-							Image: pulumi.String(dockerDogstatsdFullImagePath(e, "gcr.io/datadoghq/dogstatsd")),
+							Image: pulumi.String(dockerDogstatsdFullImagePath(e, "registry.datadoghq.com/dogstatsd")),
 							Ports: corev1.ContainerPortArray{
 								&corev1.ContainerPortArgs{
 									ContainerPort: pulumi.Int(8125),

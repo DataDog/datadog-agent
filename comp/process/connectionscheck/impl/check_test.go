@@ -10,6 +10,9 @@ package connectionscheckimpl
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -23,8 +26,6 @@ import (
 	connectionscheck "github.com/DataDog/datadog-agent/comp/process/connectionscheck/def"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 func TestConnectionsCheckIsEnabled(t *testing.T) {
@@ -37,7 +38,8 @@ func TestConnectionsCheckIsEnabled(t *testing.T) {
 		{
 			name: "Network check enabled and running on the process-agent",
 			sysprobeConfigs: map[string]interface{}{
-				"network_config.enabled": true,
+				"network_config.enabled":     true,
+				"network_config.direct_send": false,
 			},
 			flavor:  flavor.ProcessAgent,
 			enabled: true,
@@ -46,6 +48,7 @@ func TestConnectionsCheckIsEnabled(t *testing.T) {
 			name: "SysProbe enabled and running on the process-agent",
 			sysprobeConfigs: map[string]interface{}{
 				"system_probe_config.enabled": true,
+				"network_config.direct_send":  false,
 			},
 			flavor:  flavor.ProcessAgent,
 			enabled: true,

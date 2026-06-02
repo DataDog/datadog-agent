@@ -76,7 +76,7 @@ func (p *ProcessKillerLinux) Kill(sig uint32, pc *killContext) error {
 		return errors.New("process not found in procfs")
 	}
 	createdAt, err := proc.CreateTime()
-	if err != err {
+	if err != nil {
 		return errors.New("process not found in procfs")
 	}
 	if math.Abs(float64(pc.createdAt-uint64(createdAt))) > killWithinMillis {

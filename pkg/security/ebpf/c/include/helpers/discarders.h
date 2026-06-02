@@ -298,14 +298,6 @@ static __attribute__((always_inline)) int is_discarded_by_pid() {
     return is_runtime_discarded() && is_runtime_request();
 }
 
-int __attribute__((always_inline)) dentry_resolver_discarder_event_type(struct syscall_cache_t *syscall) {
-    if (syscall->state == ACCEPTED) {
-        return 0;
-    }
-
-    return syscall->type;
-}
-
 void __attribute__((always_inline)) discard_pr_name(char* data) {
     int val = get_discarders_revision();
     bpf_map_update_elem(&prctl_discarders, data, &val, BPF_ANY);

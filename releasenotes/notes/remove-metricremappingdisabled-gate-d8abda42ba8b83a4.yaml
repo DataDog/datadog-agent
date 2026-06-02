@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    The DDOT feature gate ``exporter.datadogexporter.metricremappingdisabled``
+    has been removed and replaced with ``exporter.datadogexporter.DisableAllMetricRemapping``.

@@ -108,12 +108,10 @@ func (d *ServerlessDemultiplexer) Run() {
 	d.statsdWorker.run()
 }
 
-// Stop stops the wrapped aggregator and the forwarder.
-func (d *ServerlessDemultiplexer) Stop(flush bool) {
-	if flush {
-		forceFlushAll := pkgconfigsetup.Datadog().GetBool("dogstatsd_flush_incomplete_buckets")
-		d.forceFlushToSerializer(time.Now(), true, forceFlushAll)
-	}
+// Stop performs a final flush, then stops the wrapped aggregator and the forwarder.
+func (d *ServerlessDemultiplexer) Stop() {
+	forceFlushAll := pkgconfigsetup.Datadog().GetBool("dogstatsd_flush_incomplete_buckets")
+	d.forceFlushToSerializer(time.Now(), true, forceFlushAll)
 
 	d.statsdWorker.stop()
 

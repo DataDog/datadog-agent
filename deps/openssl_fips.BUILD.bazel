@@ -37,6 +37,20 @@ configure_make(
         "@platforms//os:windows": "perl",
         "//conditions:default": "",
     }),
+    build_data = select({
+        "@platforms//os:windows": [
+            "@winlibs_mingw64//:windres",
+        ],
+        "//conditions:default": [],
+    }),
+    env = select({
+        "@platforms//os:windows": {
+            # Configure resolves RC from RC or WINDRES, then emits it into Makefile.
+            "RC": "$(execpath @winlibs_mingw64//:windres)",
+            "WINDRES": "$(execpath @winlibs_mingw64//:windres)",
+        },
+        "//conditions:default": {},
+    }),
     copts = ["-O2"],
     lib_source = ":all",
     resource_size = "enormous",

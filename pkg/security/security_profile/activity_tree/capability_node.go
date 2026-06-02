@@ -20,9 +20,9 @@ type CapabilityNode struct {
 }
 
 // NewCapabilityNode creates a new CapabilityNode
-func NewCapabilityNode(capability uint64, capable bool, timestamp time.Time, imageTag string, generationType NodeGenerationType) *CapabilityNode {
+func NewCapabilityNode(capability uint64, capable bool, timestamp time.Time, imageTagID uint64, generationType NodeGenerationType) *CapabilityNode {
 	nodeBase := NewNodeBase()
-	nodeBase.AppendImageTag(imageTag, timestamp)
+	nodeBase.AppendImageTagID(imageTagID, timestamp)
 
 	return &CapabilityNode{
 		NodeBase:       nodeBase,

@@ -1,3 +1,5 @@
+import os
+import sys
 from typing import Any
 
 import boto3
@@ -5,7 +7,29 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+
 from . import tool
+
+
+def get_pipeline_commit_sha(pipeline_id: str) -> str | None:
+    """
+    Fetch the short (8-char) commit SHA associated with a GitLab pipeline.
+    Returns None on failure.
+    """
+    try:
+        token = os.environ.get('GITLAB_TOKEN')
+        repo = get_gitlab_repo(token=token)
+        pipeline = repo.pipelines.get(int(pipeline_id))
+        return pipeline.sha[:8]
+    except Exception as e:
+        print(f"Warning: Could not fetch commit SHA for pipeline {pipeline_id}: {e}", file=sys.stderr)
+        if 'GITLAB_TOKEN' not in os.environ:
+            print(
+                "No GITLAB_TOKEN environment variable found, set it with a GitLab Personal Access Token (read_api scope)",
+                file=sys.stderr,
+            )
+        return None
 
 
 def deploy(
@@ -64,6 +88,11 @@ def deploy(
     flags["ddagent:localPackage"] = local_package
 
     flags["ddagent:pipeline_id"] = "" if pipeline_id is None else pipeline_id
+
+    if pipeline_id:
+        commit_sha = get_pipeline_commit_sha(pipeline_id)
+        if commit_sha:
+            flags["ddagent:commit_sha"] = commit_sha
 
     if install_agent:
         flags["ddagent:apiKey"] = config.get_api_key(cfg)

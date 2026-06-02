@@ -6,6 +6,7 @@
 package defaultforwarder
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -28,6 +29,11 @@ func (f NoopForwarder) SubmitV1Series(_ transaction.BytesPayloads, _ http.Header
 
 // SubmitV1Intake does nothing.
 func (f NoopForwarder) SubmitV1Intake(_ transaction.BytesPayloads, _ transaction.Kind, _ http.Header) error {
+	return nil
+}
+
+// SubmitV1IntakeDirect does nothing.
+func (f NoopForwarder) SubmitV1IntakeDirect(_ context.Context, _ transaction.BytesPayloads, _ transaction.Kind, _ http.Header) error {
 	return nil
 }
 

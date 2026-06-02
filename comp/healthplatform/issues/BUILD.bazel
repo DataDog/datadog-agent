@@ -10,7 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/healthplatform/scheduler/def",
+        "//comp/healthplatform/runner/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
     ],
 )
@@ -21,6 +21,7 @@ go_test(
     embed = [":issues"],
     gotags = ["test"],
     deps = [
+        "//comp/healthplatform/runner/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

@@ -1,5 +1,20 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("//bazel/rules/go_msgp:defs.bzl", "go_msgp")
 load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
+
+filegroup(
+    name = "config_go_proto_srcs",
+    srcs = ["//pkg/proto/datadog/remoteconfig:config_go_proto"],
+    output_group = "go_generated_srcs",
+)
+
+go_msgp(
+    name = "remoteconfig_gen",
+    src = ":config_go_proto_srcs",
+    out = "remoteconfig_gen.go",
+    out_test = "remoteconfig_gen_test.go",
+    src_file = "remoteconfig.pb.go",
+)
 
 write_pb_go(
     name = "write_pb_go",

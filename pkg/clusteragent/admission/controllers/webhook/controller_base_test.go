@@ -69,6 +69,7 @@ func TestNewController(t *testing.T) {
 		newFilterStoreFromConfig(t, datadogConfig),
 		nil,
 		nil,
+		nil,
 	)
 
 	assert.IsType(t, &ControllerV1{}, controller)
@@ -88,6 +89,7 @@ func TestNewController(t *testing.T) {
 		datadogConfig,
 		nil,
 		newFilterStoreFromConfig(t, datadogConfig),
+		nil,
 		nil,
 		nil,
 	)
@@ -160,7 +162,7 @@ func TestAutoInstrumentation(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
-			apm, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, wmeta, nil)
+			apm, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, wmeta, nil, nil)
 			assert.NoError(t, err)
 
 			// Create request.

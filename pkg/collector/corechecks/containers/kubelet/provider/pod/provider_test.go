@@ -239,6 +239,12 @@ func (suite *ProviderTestSuite) TestTransformPodsRequestsLimits() {
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"cpu.limits", 0.5, "", append(config.Tags, "pod_name:cassandra-0"))
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.limits", 1073741824.0, "", append(config.Tags, "pod_name:cassandra-0"))
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"ephemeral-storage.limits", 2147483648.0, "", append(config.Tags, "pod_name:cassandra-0"))
+
+	// pod resource metrics
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.cpu.request", 0.75, "", append(config.Tags, "pod_name:cassandra-0", "kube_namespace:default"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.memory.request", 1610612736.0, "", append(config.Tags, "pod_name:cassandra-0", "kube_namespace:default"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.cpu.limit", 1.0, "", append(config.Tags, "pod_name:cassandra-0", "kube_namespace:default"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.memory.limit", 2147483648.0, "", append(config.Tags, "pod_name:cassandra-0", "kube_namespace:default"))
 }
 
 // TestTransformPodsInPlaceResize verifies that request/limit metrics

@@ -197,6 +197,12 @@ ExecStart=/usr/bin/touch ` + testFile2
 	})
 }
 
+// TestCGroupPropagation validates cgroup propagation when a process is born into
+// a different cgroup via CLONE_INTO_CGROUP. The "open-event" subtest checks that
+// the child's open is correctly attributed to the new cgroup; the
+// "cgroup-write-fallback" subtest checks that the synthesized cgroup_write
+// related event fires (the real cgroup_write tracepoint can't, since
+// CLONE_INTO_CGROUP bypasses cgroup.procs).
 func TestCGroupPropagation(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping cgroup propagation test in docker")
@@ -212,46 +218,76 @@ func TestCGroupPropagation(t *testing.T) {
 		t.Skip("cgroup v2 unified hierarchy not available")
 	}
 
-	ruleDefs := []*rules.RuleDefinition{
+	cases := []struct {
+		name       string
+		ruleID     string
+		expression string
+		cgroupName string
+		fileName   string
+		validate   func(t *testing.T, test *testModule, event *model.Event, rule *rules.Rule, testFile string)
+	}{
 		{
-			ID:         "test_cgroup_propagation",
-			Expression: `open.file.path == "{{.Root}}/test-cgroup-propagation" && process.cgroup.id =~ "*/cg-propagation"`,
+			name:       "open-event",
+			ruleID:     "test_cgroup_propagation",
+			expression: `open.file.path == "{{.Root}}/test-cgroup-propagation" && process.cgroup.id =~ "*/cg-propagation"`,
+			cgroupName: "cg-propagation",
+			fileName:   "test-cgroup-propagation",
+			validate: func(t *testing.T, test *testModule, event *model.Event, rule *rules.Rule, testFile string) {
+				assertTriggeredRule(t, rule, "test_cgroup_propagation")
+				assertFieldEqual(t, event, "open.file.path", testFile)
+				assertFieldIsOneOf(t, event, "process.cgroup.id", []string{"/cg-propagation", "/systemd/cg-propagation"})
+				test.validateOpenSchema(t, event)
+			},
+		},
+		{
+			name:       "cgroup-write-fallback",
+			ruleID:     "test_cgroup_write_on_clone",
+			expression: `cgroup_write.pid != 0 && process.cgroup.id =~ "*/cg-propagation-write"`,
+			cgroupName: "cg-propagation-write",
+			fileName:   "test-cgroup-write-on-clone",
+			validate: func(t *testing.T, _ *testModule, event *model.Event, rule *rules.Rule, _ string) {
+				assertTriggeredRule(t, rule, "test_cgroup_write_on_clone")
+				assertFieldIsOneOf(t, event, "process.cgroup.id", []string{"/cg-propagation-write", "/systemd/cg-propagation-write"})
+				validateProcessContext(t, event)
+			},
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs)
-	if err != nil {
-		t.Fatal(err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ruleDefs := []*rules.RuleDefinition{{ID: tc.ruleID, Expression: tc.expression}}
+
+			test, err := newTestModule(t, nil, ruleDefs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer test.Close()
+
+			targetCGroupPath := "/sys/fs/cgroup/" + tc.cgroupName
+			if err := os.MkdirAll(targetCGroupPath, 0700); err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(targetCGroupPath)
+
+			testFile, _, err := test.Path(tc.fileName)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			test.WaitSignalFromRule(t, func() error {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				return runSyscallTesterFunc(ctx, t, syscallTester, "process-clone-into-cgroup", targetCGroupPath, testFile)
+			}, func(event *model.Event, rule *rules.Rule) {
+				tc.validate(t, test, event, rule, testFile)
+			}, tc.ruleID)
+		})
 	}
-	defer test.Close()
-
-	targetCGroupPath := "/sys/fs/cgroup/cg-propagation"
-	if err := os.MkdirAll(targetCGroupPath, 0700); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(targetCGroupPath)
-
-	testFile, _, err := test.Path("test-cgroup-propagation")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	test.WaitSignalFromRule(t, func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		return runSyscallTesterFunc(ctx, t, syscallTester, "process-clone-into-cgroup", targetCGroupPath, testFile)
-	}, func(event *model.Event, rule *rules.Rule) {
-		assertTriggeredRule(t, rule, "test_cgroup_propagation")
-		assertFieldEqual(t, event, "open.file.path", testFile)
-		assertFieldIsOneOf(t, event, "process.cgroup.id", []string{"/cg-propagation", "/systemd/cg-propagation"})
-
-		test.validateOpenSchema(t, event)
-	}, "test_cgroup_propagation")
 }
 
 func TestCGroupSnapshot(t *testing.T) {

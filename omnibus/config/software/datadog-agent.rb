@@ -84,11 +84,6 @@ build do
     command "dda inv -- -e systray.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   else
     command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir='#{install_dir}'"
-    sh_ext = if linux_target? then "so" else "dylib" end
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //bazel/rules:replace_prefix" \
-      " --prefix '#{install_dir}/embedded'" \
-      " #{install_dir}/embedded/lib/libdatadog-agent-rtloader.#{sh_ext}" \
-      " #{install_dir}/embedded/lib/libdatadog-agent-three.#{sh_ext}"
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
@@ -127,6 +122,7 @@ build do
   else
     copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/agent.exe', "#{install_dir}/bin/agent"
+    copy 'bin/agent/agent.exe.pdb', "#{install_dir}/bin/agent"
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
     mkdir "#{install_dir}/bin/scripts/"
     copy "#{project_dir}/omnibus/windows-scripts/iis-instrumentation.bat", "#{install_dir}/bin/scripts/"
@@ -144,6 +140,7 @@ build do
   elsif windows_target?
     command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
+    move 'bin/installer/installer.exe.pdb', "#{install_dir}/datadog-installer.exe.pdb"
   end
 
   if linux_target?
@@ -160,6 +157,7 @@ build do
 
   if windows_target?
     copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
+    copy 'bin/trace-agent/trace-agent.exe.pdb', "#{install_dir}/bin/agent"
   else
     copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
   end
@@ -171,6 +169,7 @@ build do
 
   if windows_target?
     copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
+    copy 'bin/process-agent/process-agent.exe.pdb', "#{install_dir}/bin/agent"
   elsif not heroku_target?
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
   end
@@ -181,6 +180,7 @@ build do
 
     if windows_target?
       copy 'bin/privateactionrunner/privateactionrunner.exe', "#{install_dir}/bin/agent"
+      copy 'bin/privateactionrunner/privateactionrunner.exe.pdb', "#{install_dir}/bin/agent"
     elsif not heroku_target?
       copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
     end
@@ -197,6 +197,7 @@ build do
 
     if windows_target?
       copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
+      copy 'bin/system-probe/system-probe.exe.pdb', "#{install_dir}/bin/agent"
     else
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
     end
@@ -248,6 +249,7 @@ build do
     command "dda inv -- -e security-agent.build #{fips_args} --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
+      copy 'bin/security-agent/security-agent.exe.pdb', "#{install_dir}/bin/agent"
     else
       copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
     end
@@ -277,9 +279,6 @@ build do
     command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/macos/app:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
 
     command_on_repo_root "bazelisk run #{bazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-    copy "cmd/ai_prompt_logger/ai_usage_native_host.yaml.example", "#{install_dir}/etc/ai_usage_native_host.yaml.example"
-    copy "cmd/ai_prompt_logger/run_ai_usage_native_host.sh", "#{install_dir}/embedded/bin/run_ai_usage_native_host.sh"
-    command "chmod 0755 #{install_dir}/embedded/bin/run_ai_usage_native_host.sh"
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
@@ -290,6 +289,15 @@ build do
     command "swiftc -O -swift-version \"5\" -target \"#{target}\" -Xlinker '-rpath' -Xlinker '@executable_path/../Frameworks' Sources/*.swift -o gui", cwd: systray_build_dir
     copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"
+  end
+
+  if windows_target?
+    # AI usage Chrome native messaging host (Rust). Mirrors the macOS osx_target? branch above:
+    # the Bazel target installs the .exe into bin/agent (Windows convention; see
+    # //pkg/procmgr/rust:install for the same Linux-vs-Windows prefix split). The final Chrome
+    # Native Messaging Host manifest is staged under bin/agent/dist so the MSI owns the file
+    # during rollback/uninstall. The MSI custom action rewrites it with the final installation path.
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   # APM Hands Off config file

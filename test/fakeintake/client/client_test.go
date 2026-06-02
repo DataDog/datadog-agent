@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/fakeintake/fixtures"
@@ -726,7 +727,7 @@ func TestClient(t *testing.T) {
 		assert.Equal(t, "Docker Permissions Issue", issue.IssueName)
 		assert.Equal(t, "Docker socket permissions error", issue.Title)
 		assert.Equal(t, "permissions", issue.Category)
-		assert.Equal(t, "error", issue.Severity)
+		assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH, issue.Severity)
 		assert.Contains(t, issue.Tags, "os:linux")
 		assert.Contains(t, issue.Tags, "docker:installed")
 	})

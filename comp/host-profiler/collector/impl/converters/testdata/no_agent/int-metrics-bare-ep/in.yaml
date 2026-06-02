@@ -1,0 +1,17 @@
+receivers:
+  profiling:
+    symbol_uploader:
+      enabled: false
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers:
+      - profiling
+      exporters:
+      - otlphttp
+exporters:
+  otlphttp:
+    endpoint: https://otlp.us3.datadoghq.com
+    headers:
+      dd-api-key: test-api-key

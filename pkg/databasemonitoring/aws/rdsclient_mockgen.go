@@ -13,7 +13,7 @@ import (
 
 	rds "github.com/aws/aws-sdk-go-v2/service/rds"
 	types "github.com/aws/aws-sdk-go-v2/service/rds/types"
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockRdsClient is a mock of RdsClient interface.

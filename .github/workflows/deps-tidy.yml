@@ -93,6 +93,31 @@ jobs:
           token: ${{ steps.setup.outputs.token }}
           commit-message: "[renovate skip] Auto-repin Bazel Rust lockfile and regenerate Rust licenses"
 
+  bazel_native_tidy:
+    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel-native') }}
+    permissions:
+      id-token: write # Required for dd-octo-sts OIDC token
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: ./.github/actions/deps-tidy-setup
+        id: setup
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+      - name: Refresh http_archive sha256 for changed deps
+        env:
+          BRANCH: ${{ github.event.pull_request.base.ref }}
+        run: dda inv -- renovate.refresh-archive-hashes --base-ref=origin/${BRANCH}
+      - uses: ./.github/actions/deps-tidy-push
+        with:
+          token: ${{ steps.setup.outputs.token }}
+          commit-message: "[renovate skip] Auto-refresh http_archive sha256"
+
   bazel_tidy:
     if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel') }}
     concurrency:

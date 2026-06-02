@@ -69,12 +69,18 @@ def _dd_collect_dependencies_impl(ctx):
         for f in pkg_files_info.dest_src_map.values()
     ])
 
+    merged = PackageFilegroupInfo(
+        pkg_files = pkg_files,
+        pkg_dirs = pkg_dirs,
+        pkg_symlinks = pkg_symlinks,
+    )
+
     return [
-        PackageFilegroupInfo(
-            pkg_files = pkg_files,
-            pkg_dirs = pkg_dirs,
-            pkg_symlinks = pkg_symlinks,
-        ),
+        merged,
+        # Also expose as DdPackagingInfo so an outer dd_collect_dependencies
+        # picks this target up through the aspect and chains the collected
+        # files transparently.
+        DdPackagingInfo(installed_files = [merged]),
         DefaultInfo(files = all_files),
     ]
 
@@ -95,5 +101,5 @@ dd_collect_dependencies = rule(
             aspects = [_collect_dd_packaging_aspect],
         ),
     },
-    provides = [PackageFilegroupInfo],
+    provides = [PackageFilegroupInfo, DdPackagingInfo],
 )

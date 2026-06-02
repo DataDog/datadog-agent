@@ -158,7 +158,7 @@ func TestCPUCheckWindowsErrorStoppedSender(t *testing.T) {
 	m := mocksender.NewMockSender(cpuCheck.ID())
 
 	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
-	m.GetSenderManager().(*aggregator.AgentDemultiplexer).Stop(false)
+	m.GetSenderManager().(*aggregator.AgentDemultiplexer).Stop()
 	err := cpuCheck.Run()
 
 	assert.Equal(t, stoppedSenderError, err)

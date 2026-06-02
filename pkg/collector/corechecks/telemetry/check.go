@@ -35,6 +35,7 @@ type checkImpl struct {
 func (c *checkImpl) Run() error {
 	mfs, err := c.telemetry.Gather(true)
 	if err != nil {
+		log.Warnf("agent_telemetry check: failed to gather default telemetry metrics: %v", err)
 		return err
 	}
 

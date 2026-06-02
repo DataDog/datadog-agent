@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	apps "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	kindfilelogger "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/kindfilelogging"
 
 	"github.com/stretchr/testify/assert"
@@ -50,7 +51,7 @@ func (v *k8sSuite) TestSingleLogAndMetadata() {
 					Containers: []corev1.Container{
 						{
 							Name:  "query-job-1",
-							Image: "ubuntu",
+							Image: "ghcr.io/datadog/apps-alpine:" + apps.Version,
 							// Sleep is added here so k8s doesn't kill the container before
 							// the agent container can detect it.
 							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
@@ -73,8 +74,8 @@ func (v *k8sSuite) TestSingleLogAndMetadata() {
 			return
 		}
 
-		if assert.Contains(c, logsServiceNames, "ubuntu", "Ubuntu service not found") {
-			filteredLogs, err := v.Env().FakeIntake.Client().FilterLogs("ubuntu")
+		if assert.Contains(c, logsServiceNames, "apps-alpine", "Alpine service not found") {
+			filteredLogs, err := v.Env().FakeIntake.Client().FilterLogs("apps-alpine")
 			assert.NoError(c, err, "Error filtering logs")
 			if err != nil {
 				return
@@ -82,7 +83,7 @@ func (v *k8sSuite) TestSingleLogAndMetadata() {
 			if assert.NotEmpty(c, filteredLogs, "Fake Intake returned no logs even though log service name exists") {
 				assert.Equal(c, testLogMessage, filteredLogs[0].Message, "Test log doesn't match")
 				// Check container metatdata
-				assert.Equal(c, filteredLogs[0].Service, "ubuntu", "Could not find service")
+				assert.Equal(c, filteredLogs[0].Service, "apps-alpine", "Could not find service")
 				assert.NotNil(c, filteredLogs[0].HostName, "Hostname not found")
 				assert.NotNil(c, filteredLogs[0].Tags, "Log tags not found")
 			}
@@ -110,7 +111,7 @@ func (v *k8sSuite) TestLongLogLine() {
 					Containers: []corev1.Container{
 						{
 							Name:  "long-line-job",
-							Image: "ubuntu",
+							Image: "ghcr.io/datadog/apps-alpine:" + apps.Version,
 							// Sleep is added here so k8s doesn't kill the container before
 							// the agent container can detect it.
 							Command: []string{"sh", "-c", "echo '" + longLineLog + "' && sleep 10"},
@@ -133,8 +134,8 @@ func (v *k8sSuite) TestLongLogLine() {
 			return
 		}
 
-		if assert.Contains(c, logsServiceNames, "ubuntu", "Ubuntu service not found") {
-			filteredLogs, err := v.Env().FakeIntake.Client().FilterLogs("ubuntu")
+		if assert.Contains(c, logsServiceNames, "apps-alpine", "Alpine service not found") {
+			filteredLogs, err := v.Env().FakeIntake.Client().FilterLogs("apps-alpine")
 			assert.NoError(c, err, "Error filtering logs")
 			if err != nil {
 				return
@@ -175,7 +176,7 @@ func (v *k8sSuite) TestContainerExclude() {
 					Containers: []corev1.Container{
 						{
 							Name:  "exclude-job",
-							Image: "alpine",
+							Image: "ghcr.io/datadog/apps-alpine:" + apps.Version,
 							// Sleep is added here so k8s doesn't kill the container before
 							// the agent container can detect it.
 							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
@@ -197,6 +198,6 @@ func (v *k8sSuite) TestContainerExclude() {
 		if err != nil {
 			return
 		}
-		assert.NotContains(c, logsServiceNames, "alpine", "Alpine service found after excluded")
+		assert.NotContains(c, logsServiceNames, "apps-alpine", "Alpine service found after excluded")
 	}, 1*time.Minute, 10*time.Second)
 }

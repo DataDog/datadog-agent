@@ -7,15 +7,11 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface",
         "//comp/core/log/def",
-        "//comp/def",
         "//comp/healthplatform/forwarder/def",
         "//pkg/config/model",
         "//pkg/config/utils",
-        "//pkg/util/flavor",
         "//pkg/util/http",
-        "//pkg/util/pointer",
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//healthplatform",
     ],
@@ -29,7 +25,6 @@ go_test(
     deps = [
         "//comp/core/config",
         "//comp/core/log/mock",
-        "//pkg/util/flavor",
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",

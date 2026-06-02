@@ -8,11 +8,11 @@
 package modules
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"slices"
 	"testing"
 
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -26,7 +26,7 @@ func TestGPUModuleOrder(t *testing.T) {
 }
 
 func TestGPUModuleRegistersPRMEndpointWhenEnabled(t *testing.T) {
-	router := mux.NewRouter()
+	router := http.NewServeMux()
 	moduleRouter := module.NewRouter("gpu", router)
 	gpuModule := &GPUMonitoringModule{
 		cfg:        &gpuconfig.Config{PRMEndpointEnabled: true},
@@ -37,6 +37,7 @@ func TestGPUModuleRegistersPRMEndpointWhenEnabled(t *testing.T) {
 	assert.NoError(t, err)
 
 	req := httptest.NewRequest("POST", "/gpu/prm-metrics", nil)
-	match := &mux.RouteMatch{}
-	assert.True(t, router.Match(req, match))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	assert.NotEqual(t, http.StatusNotFound, w.Code)
 }

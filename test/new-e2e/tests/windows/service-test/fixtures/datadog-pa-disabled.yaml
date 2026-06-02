@@ -1,3 +1,5 @@
+log_level: debug
+
 # disable logs agent
 logs_enabled: false
 

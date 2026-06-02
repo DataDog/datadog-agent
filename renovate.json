@@ -1,11 +1,12 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "extends": ["config:recommended", ":enablePreCommit", "schedule:nonOfficeHours"],
+    "extends": ["config:recommended", "mergeConfidence:all-badges", ":enablePreCommit", "schedule:nonOfficeHours"],
     "constraints": {
       "go": "1.25.10"
     },
     "constraintsFiltering": "strict",
     "minimumReleaseAge": "7 days",
+    "prConcurrentLimit": 20,
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
     "gitIgnoredAuthors": ["200755185+dd-octo-sts[bot]@users.noreply.github.com"],
@@ -28,6 +29,12 @@
       },
       {
         "matchDepNames": ["linux-images"],
+        "maxMajorIncrement": 0,
+        "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
+        "schedule": ["* 2-6 * * 1-5"]
+      },
+      {
+        "matchDepNames": ["linux-images-devcontainer"],
         "maxMajorIncrement": 0,
         "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
         "schedule": ["* 2-6 * * 1-5"]
@@ -111,6 +118,12 @@
       },
       {
         "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/DataDog/rshell"],
+        "minimumReleaseAge": null,
+        "prPriority": 10
+      },
+      {
+        "matchManagers": ["gomod"],
         "matchDepNames": ["github.com/aws/aws-sdk-go-v2{,/**}"],
         "groupName": "aws-sdk-go-v2"
       },
@@ -189,7 +202,7 @@
         "matchStrings": [
           "\"image\":\\s*\"registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace:(?<currentValue>v[^\"]+)\""
         ],
-        "depNameTemplate": "linux-images",
+        "depNameTemplate": "linux-images-devcontainer",
         "versioningTemplate": "loose",
         "datasourceTemplate": "custom.linux-images"
       },
@@ -209,6 +222,17 @@
         "managerFilePatterns": [".dda/version"],
         "matchStrings": [
           "(?<currentValue>[0-9]+.[0-9]+.[0-9]+)"
+        ],
+        "depNameTemplate": "DataDog/datadog-agent-dev",
+        "datasourceTemplate": "github-releases"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": [
+          "Dockerfiles/agent-ddot/Dockerfile.agent-otel"
+        ],
+        "matchStrings": [
+          "DDA_VERSION=v(?<currentValue>[0-9]+.[0-9]+.[0-9]+)"
         ],
         "depNameTemplate": "DataDog/datadog-agent-dev",
         "datasourceTemplate": "github-releases"

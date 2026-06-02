@@ -162,7 +162,7 @@ func (pl *ProcessList) isEventValid(event *model.Event) (bool, error) {
 	case model.BindEventType:
 		// ignore non IPv4 / IPv6 bind events for now
 		if event.Bind.AddrFamily != unix.AF_INET && event.Bind.AddrFamily != unix.AF_INET6 {
-			return false, errors.New("invalid event: invalid bind family")
+			return false, fmt.Errorf("invalid event: unsupported bind address family %s", model.AddressFamily(event.Bind.AddrFamily))
 		}
 	case model.IMDSEventType:
 		// ignore IMDS answers without AccessKeyIDS

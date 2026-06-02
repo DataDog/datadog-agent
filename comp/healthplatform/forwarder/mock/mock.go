@@ -9,13 +9,19 @@
 package mock
 
 import (
+	"context"
+
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+
 	forwarder "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type mockForwarder struct{}
 
-func (m *mockForwarder) SetProvider(_ forwarder.IssueProvider) {}
+func (m *mockForwarder) Send(_ context.Context, _ *healthplatformpayload.HealthReport) error {
+	return nil
+}
 
 // New returns a no-op mock forwarder for testing.
 func New() forwarder.Component {

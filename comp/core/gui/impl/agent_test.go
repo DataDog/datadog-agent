@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -59,7 +58,7 @@ func Test_makeFlare(t *testing.T) {
 
 			rr := httptest.NewRecorder()
 
-			router := mux.NewRouter()
+			router := http.NewServeMux()
 			agentHandler(router, nil, nil, nil, nil, fakeGuiStartTimestamp)
 			router.ServeHTTP(rr, req)
 
@@ -108,7 +107,7 @@ func Test_getConfigSetting(t *testing.T) {
 
 			rr := httptest.NewRecorder()
 
-			router := mux.NewRouter()
+			router := http.NewServeMux()
 			agentHandler(router, nil, nil, c, nil, fakeGuiStartTimestamp)
 			router.ServeHTTP(rr, req)
 

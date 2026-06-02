@@ -1,0 +1,7 @@
+---
+other:
+  - |
+    Internal refactoring of the health platform component: introduces a
+    ``runner`` component that executes health check functions, decouples the
+    scheduler from the store, and replaces the ``SetReporter``/``SetProvider``
+    callback pattern with direct fx dependencies.

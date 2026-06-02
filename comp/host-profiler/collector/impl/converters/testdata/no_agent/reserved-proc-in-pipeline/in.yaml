@@ -3,12 +3,12 @@ service:
     profiles:
       receivers: [profiling]
       processors: [resource/dd-profiler-internal-metadata]
-      exporters: [otlphttp]
+      exporters: [otlp_http]
 receivers:
   profiling:
     symbol_uploader:
       enabled: false
 exporters:
-  otlphttp:
+  otlp_http:
     headers:
       dd-api-key: test-key

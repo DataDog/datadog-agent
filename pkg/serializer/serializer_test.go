@@ -8,6 +8,7 @@
 package serializer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -271,6 +272,28 @@ func TestSendV1EventsNew(t *testing.T) {
 			f.AssertExpectations(t)
 		})
 	}
+}
+
+func TestSendAgentShutdownEvent(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("serializer_compressor_kind", compression.ZlibKind)
+	f := &forwarder.MockedForwarder{}
+
+	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+	matcher := createJSONPayloadMatcher(`{"apiKey":"","events":{"System":[{"msg_title":"","msg_text":"Version 7.0.0","timestamp":0,"host":"testhost","source_type_name":"System","event_type":"Agent Shutdown"}]},"internalHostname"`, s)
+	f.On("SubmitV1IntakeDirect", mock.Anything, matcher, mock.MatchedBy(func(kind transaction.Kind) bool {
+		return kind == transaction.Events
+	}), s.jsonExtraHeadersWithCompression).Return(nil).Once()
+
+	err := s.SendAgentShutdownEvent(context.Background(), &event.Event{
+		Text:           "Version 7.0.0",
+		SourceTypeName: "System",
+		Host:           "testhost",
+		EventType:      "Agent Shutdown",
+	})
+	require.NoError(t, err)
+	f.AssertExpectations(t)
 }
 
 func TestSendV1EventsNewNoEmpty(t *testing.T) {
@@ -564,11 +587,13 @@ func TestSendWithDisabledKind(t *testing.T) {
 			payload := &testPayload{}
 
 			s.SendEvents(make(event.Events, 0))
+			s.SendAgentShutdownEvent(context.Background(), &event.Event{})
 			s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
 			s.SendSketch(metrics.NewSketchesSourceTest())
 			s.SendServiceChecks(make(servicecheck.ServiceChecks, 0))
 			s.SendProcessesMetadata("test")
 
+			f.AssertNotCalled(t, "SubmitV1IntakeDirect")
 			f.AssertNotCalled(t, "SubmitMetadata")
 			f.AssertNotCalled(t, "SubmitV1CheckRuns")
 			f.AssertNotCalled(t, "SubmitV1Series")

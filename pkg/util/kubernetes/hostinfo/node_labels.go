@@ -20,7 +20,7 @@ type NodeInfo struct {
 	// client use to get NodeName from the "/pods" kubelet api.
 	client kubelet.KubeUtilInterface
 	// getClusterAgentFunc get Cluster-Agent client to get Node Labels with the Cluster-Agent api.
-	getClusterAgentFunc func() (clusteragent.DCAClientInterface, error)
+	getClusterAgentFunc func() (*clusteragent.DCAClient, error)
 	// apiserverNodeLabelsFunc get Node Labels from the API server directly
 	apiserverNodeLabelsFunc func(ctx context.Context, nodeName string) (map[string]string, error)
 }
