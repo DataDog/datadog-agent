@@ -13,17 +13,17 @@ import (
 	"strings"
 )
 
-func detectLegacySupervisor(service MigratableService) ManagementMode {
+func detectLegacySupervisor(ctx context.Context, service MigratableService) ManagementMode {
 	for _, unit := range service.LegacySystemdUnits {
-		if isSystemdUnitActive(unit) {
+		if isSystemdUnitActive(ctx, unit) {
 			return ManagementModeSystemd
 		}
 	}
 	return ManagementModeNone
 }
 
-func isSystemdUnitActive(unit string) bool {
-	ctx, cancel := clientContext(context.Background())
+func isSystemdUnitActive(parent context.Context, unit string) bool {
+	ctx, cancel := clientContext(parent)
 	defer cancel()
 
 	out, err := exec.CommandContext(ctx, "systemctl", "is-active", unit).CombinedOutput()

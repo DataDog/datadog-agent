@@ -7,9 +7,13 @@
 
 package coat
 
-import "github.com/DataDog/datadog-agent/pkg/util/winutil"
+import (
+	"context"
 
-func detectLegacySupervisor(service MigratableService) ManagementMode {
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+)
+
+func detectLegacySupervisor(_ context.Context, service MigratableService) ManagementMode {
 	if service.LegacyWindowsService == "" {
 		return ManagementModeNone
 	}

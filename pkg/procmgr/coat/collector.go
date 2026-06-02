@@ -42,7 +42,7 @@ func (c *Collector) Collect(ctx context.Context) Snapshot {
 
 	processes, _ := c.client.ListProcesses(ctx)
 	for _, service := range migratableServices {
-		snapshot.Services = append(snapshot.Services, c.collectService(service, processes))
+		snapshot.Services = append(snapshot.Services, c.collectService(ctx, service, processes))
 	}
 	return snapshot
 }
@@ -55,7 +55,7 @@ func (c *Collector) collectDaemon(ctx context.Context) DaemonSnapshot {
 	return status
 }
 
-func (c *Collector) collectService(service MigratableService, processes map[string]ProcessSnapshot) ServiceSnapshot {
+func (c *Collector) collectService(ctx context.Context, service MigratableService, processes map[string]ProcessSnapshot) ServiceSnapshot {
 	status := ServiceSnapshot{
 		ID:             service.ID,
 		ManagementMode: ManagementModeNone,
@@ -75,7 +75,9 @@ func (c *Collector) collectService(service MigratableService, processes map[stri
 		return status
 	}
 
-	if legacyMode := detectLegacySupervisor(service); legacyMode != ManagementModeNone {
+	if legacyMode := detectLegacySupervisor(ctx, service); legacyMode != ManagementModeNone {
+		// Install marker may be missing for pre-extension installs that still run under
+		// systemd/SCM; treat legacy supervision as sufficient evidence the service is installed.
 		status.Installed = true
 		status.ManagementMode = legacyMode
 	}

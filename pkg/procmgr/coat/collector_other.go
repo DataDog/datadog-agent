@@ -7,6 +7,8 @@
 
 package coat
 
-func detectLegacySupervisor(_ MigratableService) ManagementMode {
+import "context"
+
+func detectLegacySupervisor(_ context.Context, _ MigratableService) ManagementMode {
 	return ManagementModeNone
 }

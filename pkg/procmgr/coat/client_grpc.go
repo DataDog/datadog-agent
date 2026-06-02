@@ -7,6 +7,7 @@ package coat
 
 import (
 	"context"
+	"fmt"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 )
@@ -20,7 +21,7 @@ func newGRPCClient(socketPath string) Client {
 }
 
 func (c *grpcClient) DaemonStatus(ctx context.Context) (DaemonSnapshot, error) {
-	client, closer, err := c.connect(ctx)
+	client, closer, err := c.connect()
 	if err != nil {
 		return DaemonSnapshot{}, err
 	}
@@ -39,7 +40,7 @@ func (c *grpcClient) DaemonStatus(ctx context.Context) (DaemonSnapshot, error) {
 }
 
 func (c *grpcClient) ListProcesses(ctx context.Context) (map[string]ProcessSnapshot, error) {
-	client, closer, err := c.connect(ctx)
+	client, closer, err := c.connect()
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +61,7 @@ func (c *grpcClient) ListProcesses(ctx context.Context) (map[string]ProcessSnaps
 	return processes, nil
 }
 
-func (c *grpcClient) connect(_ context.Context) (pb.ProcessManagerClient, func(), error) {
+func (c *grpcClient) connect() (pb.ProcessManagerClient, func(), error) {
 	conn, err := dialProcmgrGRPC(c.socketPath)
 	if err != nil {
 		return nil, nil, err
@@ -90,6 +91,6 @@ func processStateString(state pb.ProcessState) string {
 	case pb.ProcessState_FAILED:
 		return "Failed"
 	default:
-		return "Unknown"
+		return fmt.Sprintf("Unknown(%d)", int32(state))
 	}
 }

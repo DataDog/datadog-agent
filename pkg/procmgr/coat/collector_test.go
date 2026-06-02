@@ -9,6 +9,7 @@ package coat
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -19,14 +20,25 @@ import (
 
 type mockClient struct {
 	daemon    DaemonSnapshot
+	daemonErr error
 	processes map[string]ProcessSnapshot
+	listErr   error
 }
 
 func (m *mockClient) DaemonStatus(context.Context) (DaemonSnapshot, error) {
+	if m.daemonErr != nil {
+		return DaemonSnapshot{}, m.daemonErr
+	}
 	return m.daemon, nil
 }
 
 func (m *mockClient) ListProcesses(context.Context) (map[string]ProcessSnapshot, error) {
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
+	if m.processes == nil {
+		return map[string]ProcessSnapshot{}, nil
+	}
 	return m.processes, nil
 }
 
@@ -84,4 +96,74 @@ func TestCollectServiceProcmgrNotRunningStillManaged(t *testing.T) {
 	service := snapshot.Services[0]
 	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
 	assert.Equal(t, "Starting", service.ProcmgrState)
+}
+
+func TestCollectNoProcmgrNoLegacy(t *testing.T) {
+	root := t.TempDir()
+
+	collector := NewCollectorWithClient(root, &mockClient{})
+
+	snapshot := collector.Collect(context.Background())
+	require.Len(t, snapshot.Services, 1)
+
+	service := snapshot.Services[0]
+	assert.False(t, service.Installed)
+	assert.False(t, service.ProcmgrConfigured)
+	assert.Equal(t, ManagementModeNone, service.ManagementMode)
+	assert.Empty(t, service.ProcmgrState)
+}
+
+func TestCollectInstallMarkerAbsent(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, processesDirRel, migratableServices[0].ProcmgrConfigFile),
+		[]byte("cfg"),
+		0o644,
+	))
+
+	collector := NewCollectorWithClient(root, &mockClient{})
+
+	snapshot := collector.Collect(context.Background())
+	require.Len(t, snapshot.Services, 1)
+
+	service := snapshot.Services[0]
+	assert.False(t, service.Installed, "without install marker, Installed must stay false")
+	assert.True(t, service.ProcmgrConfigured)
+	assert.Equal(t, ManagementModeNone, service.ManagementMode)
+}
+
+func TestCollectProcmgrConfigAbsent(t *testing.T) {
+	root := t.TempDir()
+	marker := filepath.Join(root, migratableServices[0].InstallMarkerRel)
+	require.NoError(t, os.MkdirAll(filepath.Dir(marker), 0o755))
+	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
+
+	collector := NewCollectorWithClient(root, &mockClient{})
+
+	snapshot := collector.Collect(context.Background())
+	require.Len(t, snapshot.Services, 1)
+
+	service := snapshot.Services[0]
+	assert.True(t, service.Installed)
+	assert.False(t, service.ProcmgrConfigured)
+	assert.Equal(t, ManagementModeNone, service.ManagementMode)
+}
+
+func TestCollectDaemonUnreachable(t *testing.T) {
+	root := setupDDOTInstallFixture(t)
+
+	collector := NewCollectorWithClient(root, &mockClient{
+		daemonErr: errors.New("dial failed"),
+		processes: map[string]ProcessSnapshot{
+			"datadog-agent-ddot": {Name: "datadog-agent-ddot", State: "Running"},
+		},
+	})
+
+	snapshot := collector.Collect(context.Background())
+
+	assert.False(t, snapshot.Daemon.Reachable, "daemon status error should yield empty snapshot")
+	assert.False(t, snapshot.Daemon.Ready)
+	require.Len(t, snapshot.Services, 1)
+	assert.Equal(t, ManagementModeProcmgr, snapshot.Services[0].ManagementMode)
 }
