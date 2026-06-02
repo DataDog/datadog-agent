@@ -23,7 +23,7 @@ require (
 	go.opentelemetry.io/collector/processor/processortest v0.152.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/metric v1.43.0
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
 )
 
 require gopkg.in/yaml.v3 v3.0.1 // indirect

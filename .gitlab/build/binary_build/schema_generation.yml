@@ -36,8 +36,7 @@ generate_config_schema-linux:
     when: always
     expire_in: 2 weeks
     paths:
-      - $CI_PROJECT_DIR/pkg/config/schema/core_schema.yaml
-      - $CI_PROJECT_DIR/pkg/config/schema/system-probe_schema.yaml
+      - $CI_PROJECT_DIR/pkg/config/schema/yaml/*.yaml
 
 generate_config_schema-macos:
   extends:
@@ -59,8 +58,7 @@ generate_config_schema-macos:
     when: always
     expire_in: 2 weeks
     paths:
-      - $CI_PROJECT_DIR/pkg/config/schema/core_schema.yaml
-      - $CI_PROJECT_DIR/pkg/config/schema/system-probe_schema.yaml
+      - $CI_PROJECT_DIR/pkg/config/schema/yaml/*.yaml
 
 lint_config_schema:
   stage: binary_build
@@ -70,7 +68,7 @@ lint_config_schema:
   needs:
     - job: "generate_config_schema-linux"
   script:
-    - dda inv -- schema.lint --schema-dir $CI_PROJECT_DIR/pkg/config/schema/
+    - dda inv -- schema.lint --schema-dir $CI_PROJECT_DIR/pkg/config/schema/yaml/
   allow_failure: false
 
 generate_config_schema-windows:
@@ -105,5 +103,4 @@ generate_config_schema-windows:
     when: always
     expire_in: 2 weeks
     paths:
-      - $CI_PROJECT_DIR/pkg/config/schema/core_schema.yaml
-      - $CI_PROJECT_DIR/pkg/config/schema/system-probe_schema.yaml
+      - $CI_PROJECT_DIR/pkg/config/schema/yaml/*.yaml
