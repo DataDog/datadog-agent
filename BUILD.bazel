@@ -953,6 +953,7 @@ write_source_files(
     name = "write_all",
     additional_update_targets = [
         "//comp/forwarder/defaultforwarder/internal/retry:write_pb_go",
+        "//pkg/discovery/tracermetadata/model:tracer_metadata_gen",
         "//pkg/proto/msgpgo:key_gen",
         "//pkg/proto/pbgo/core:remoteconfig_gen",
         "//pkg/proto/pbgo/core:write_pb_go",
