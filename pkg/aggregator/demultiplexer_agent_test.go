@@ -30,8 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
-	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
-	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
+	orchestratormock "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
@@ -552,7 +552,7 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 		defaultforwarder.MockModule(),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
-		orchestratorimpl.MockModule(),
+		orchestratormock.MockModule(),
 		eventplatformmock.MockModule(),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
