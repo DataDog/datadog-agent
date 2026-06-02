@@ -9,6 +9,7 @@ package clusterchecks
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -1412,30 +1413,182 @@ func TestRebalance(t *testing.T) {
 			}
 			dispatcher.clcRunnersClient = mockClient
 
-			// prepare store
+			// Prepare store. Each cluster-check in the test data is
+			// registered as a real one-instance config via addConfig (so
+			// idToDigest / digestToConfig / digestToNode all get populated
+			// the way production runs would populate them). The mock
+			// runner client returns stats keyed by the real BuildID-derived
+			// checkIDs. Non-cluster checks bypass addConfig and stay keyed
+			// by their synthetic IDs in the mock — they contribute to node
+			// busyness but never become rebalance candidates.
 			dispatcher.store.active = true
 			for node, store := range tc.in {
-				// Give each node a unique IP so the mock can distinguish them
 				nodeIP := fmt.Sprintf("10.0.0.%d", len(mockClient.testStats)+1)
 				dispatcher.store.nodes[node] = newNodeStore(node, nodeIP)
-				// setup input
-				dispatcher.store.nodes[node].clcRunnerStats = store.clcRunnerStats
-				// Store the test data in the mock so it can return it
-				mockClient.testStats[nodeIP] = store.clcRunnerStats
+				wireStats := types.CLCRunnersStats{}
+				for syntheticID, stats := range store.clcRunnerStats {
+					if !stats.IsClusterCheck {
+						wireStats[syntheticID] = stats
+						continue
+					}
+					config := makeRebalanceTestConfig(syntheticID)
+					dispatcher.addConfig(config, node)
+					realID := checkid.BuildID(config.Name, config.FastDigest(), config.Instances[0], config.InitConfig)
+					wireStats[string(realID)] = stats
+				}
+				mockClient.testStats[nodeIP] = wireStats
+				// Seed the node's local cache too so the assertion below
+				// observes the pre-rebalance state if the algorithm doesn't
+				// move anything.
+				dispatcher.store.nodes[node].clcRunnerStats = wireStats
 			}
 
 			// Use busyness-based rebalancing directly for these legacy tests
 			// (preserves test coverage for busyness algorithm while allowing utilization as default)
 			dispatcher.rebalanceUsingBusyness()
 
-			// assert runner stats repartition is updated correctly
+			// Compare placement by check name — the test data uses synthetic
+			// names ("checkA0", "checkB1") which map 1:1 to config names,
+			// and IDToCheckName recovers them from the real BuildID-derived
+			// IDs in clcRunnerStats.
 			for node, store := range tc.out {
-				assert.EqualValues(t, store.clcRunnerStats, dispatcher.store.nodes[node].clcRunnerStats)
+				expected := checkNamesIn(store.clcRunnerStats)
+				actual := checkNamesIn(dispatcher.store.nodes[node].clcRunnerStats)
+				assert.Equal(t, expected, actual, "node %s placement", node)
 			}
 
 			requireNotLocked(t, dispatcher.store)
 		})
 	}
+}
+
+// makeRebalanceTestConfig returns a one-instance config whose Name is the
+// synthetic identifier used in TestRebalance tables. addConfig registers it
+// and stores a digest-keyed entry; IDToCheckName(realID) recovers the name
+// later for placement assertions.
+func makeRebalanceTestConfig(name string) integration.Config {
+	return integration.Config{
+		Name:       name,
+		InitConfig: integration.Data("{}"),
+		Instances:  []integration.Data{integration.Data("{}")},
+	}
+}
+
+// makeMultiInstanceTestConfig returns a config with `instances` distinct
+// instances, each with unique Data so BuildID produces distinct checkIDs.
+func makeMultiInstanceTestConfig(name string, instances int) integration.Config {
+	cfg := integration.Config{
+		Name:       name,
+		InitConfig: integration.Data("{}"),
+	}
+	for i := 0; i < instances; i++ {
+		cfg.Instances = append(cfg.Instances, integration.Data(fmt.Sprintf(`{"i":%d}`, i)))
+	}
+	return cfg
+}
+
+// instanceCheckIDs returns the per-instance checkIDs the dispatcher would
+// compute for a config — same path as addConfig uses.
+func instanceCheckIDs(cfg integration.Config) []checkid.ID {
+	ids := make([]checkid.ID, 0, len(cfg.Instances))
+	fastDigest := cfg.FastDigest()
+	for _, inst := range cfg.Instances {
+		ids = append(ids, checkid.BuildID(cfg.Name, fastDigest, inst, cfg.InitConfig))
+	}
+	return ids
+}
+
+// checkNamesIn returns the sorted set of check names present in a stats
+// map. Non-cluster checks (whose checkIDs aren't real BuildID outputs) are
+// excluded.
+func checkNamesIn(stats types.CLCRunnersStats) []string {
+	names := []string{}
+	for id, s := range stats {
+		if !s.IsClusterCheck {
+			continue
+		}
+		names = append(names, checkid.IDToCheckName(checkid.ID(id)))
+	}
+	sort.Strings(names)
+	return names
+}
+
+// TestRebalanceUsingBusyness_MultiInstanceConfigIsAtomicAndIdempotent
+// covers the two key properties of the per-config rebalance fix:
+//   - a config with multiple instances is treated as a single movable unit
+//     (one move reported, all instances migrated together);
+//   - once placement is balanced, a second rebalance is a no-op.
+func TestRebalanceUsingBusyness_MultiInstanceConfigIsAtomicAndIdempotent(t *testing.T) {
+	// Hardcoded weights to keep the math independent of defaults.
+	originalCheckExecutionTimeWeight := checkExecutionTimeWeight
+	originalMetricSamplesWeight := checkMetricSamplesWeight
+	checkExecutionTimeWeight = 0.8
+	checkMetricSamplesWeight = 0.2
+	defer func() {
+		checkExecutionTimeWeight = originalCheckExecutionTimeWeight
+		checkMetricSamplesWeight = originalMetricSamplesWeight
+	}()
+
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+	mockClient := &rebalanceTestClcRunnerClient{testStats: map[string]types.CLCRunnersStats{}}
+	dispatcher.clcRunnersClient = mockClient
+	dispatcher.store.active = true
+
+	nodeAIP := "10.0.0.1"
+	nodeBIP := "10.0.0.2"
+	dispatcher.store.nodes["A"] = newNodeStore("A", nodeAIP)
+	dispatcher.store.nodes["B"] = newNodeStore("B", nodeBIP)
+
+	// Node A starts with everything:
+	//   - a 3-instance "postgres" config; per-instance busyness = 80
+	//     → aggregate config busyness = 240
+	//   - a single-instance "heavy" config; busyness = 100
+	multiConfig := makeMultiInstanceTestConfig("postgres", 3)
+	heavyConfig := makeRebalanceTestConfig("heavy")
+	dispatcher.addConfig(multiConfig, "A")
+	dispatcher.addConfig(heavyConfig, "A")
+
+	multiIDs := instanceCheckIDs(multiConfig)
+	heavyID := instanceCheckIDs(heavyConfig)[0]
+
+	initial := types.CLCRunnersStats{}
+	for _, id := range multiIDs {
+		initial[string(id)] = types.CLCRunnerStats{AverageExecutionTime: 80, IsClusterCheck: true}
+	}
+	initial[string(heavyID)] = types.CLCRunnerStats{AverageExecutionTime: 100, IsClusterCheck: true}
+	mockClient.testStats[nodeAIP] = initial
+	mockClient.testStats[nodeBIP] = types.CLCRunnersStats{}
+
+	// First pass: the multi-instance config should move from A to B as a
+	// single atomic unit.
+	moves := dispatcher.rebalanceUsingBusyness()
+	require.Len(t, moves, 1, "expected exactly one move; multi-instance config should move as a unit")
+
+	bStats := dispatcher.store.nodes["B"].clcRunnerStats
+	for _, id := range multiIDs {
+		assert.Contains(t, bStats, string(id), "instance %s should have followed its config to B", id)
+	}
+	aStats := dispatcher.store.nodes["A"].clcRunnerStats
+	assert.Contains(t, aStats, string(heavyID), "heavy config should remain on A")
+	for _, id := range multiIDs {
+		assert.NotContains(t, aStats, string(id), "instance %s should no longer be on A", id)
+	}
+
+	// Sync the mock to the dispatcher's post-move state so the next
+	// updateRunnersStats reflects reality rather than reseting back to the
+	// initial layout (the mock is otherwise stateless).
+	for _, node := range dispatcher.store.nodes {
+		snapshot := types.CLCRunnersStats{}
+		for k, v := range node.clcRunnerStats {
+			snapshot[k] = v
+		}
+		mockClient.testStats[node.clientIP] = snapshot
+	}
+
+	// Second pass: already balanced, so nothing should move.
+	moves = dispatcher.rebalanceUsingBusyness()
+	assert.Empty(t, moves, "second rebalance should be a no-op once placement is balanced")
 }
 
 func TestMoveCheck(t *testing.T) {
@@ -1486,7 +1639,7 @@ func TestMoveCheck(t *testing.T) {
 			dispatcher.store.nodes[tc.check.node].clcRunnerStats = types.CLCRunnersStats{string(id): types.CLCRunnerStats{}}
 
 			// move check
-			err := dispatcher.moveCheck(tc.check.node, tc.dest, string(id))
+			err := dispatcher.moveConfig(tc.check.node, tc.dest, tc.check.config.Digest())
 
 			// assert no error
 			assert.Nil(t, err)
@@ -1658,25 +1811,25 @@ func TestRebalanceIsWorthIt(t *testing.T) {
 	// The proposed solution is worth it if it leaves less unused runners
 
 	currentDistribution := newChecksDistribution(workersPerRunner)
-	currentDistribution.addCheck("check1", 1, "runner1")
-	currentDistribution.addCheck("check2", 1, "runner1")
+	currentDistribution.addCheck("check1", "check1", 1, "runner1")
+	currentDistribution.addCheck("check2", "check2", 1, "runner1")
 
 	proposedDistribution := newChecksDistribution(workersPerRunner)
-	proposedDistribution.addCheck("check1", 1, "runner1")
-	proposedDistribution.addCheck("check2", 1, "runner2")
+	proposedDistribution.addCheck("check1", "check1", 1, "runner1")
+	proposedDistribution.addCheck("check2", "check2", 1, "runner2")
 
 	assert.True(t, rebalanceIsWorthIt(currentDistribution, proposedDistribution, 10))
 
 	// The proposed	solution is worth it if it has fewer runners with a high utilization
 	currentDistribution = newChecksDistribution(workersPerRunner)
-	currentDistribution.addCheck("check1", 1, "runner1")
-	currentDistribution.addCheck("check2", 1, "runner1")
-	currentDistribution.addCheck("check3", 1, "runner1")
+	currentDistribution.addCheck("check1", "check1", 1, "runner1")
+	currentDistribution.addCheck("check2", "check2", 1, "runner1")
+	currentDistribution.addCheck("check3", "check3", 1, "runner1")
 
 	proposedDistribution = newChecksDistribution(workersPerRunner)
-	proposedDistribution.addCheck("check1", 1, "runner1")
-	proposedDistribution.addCheck("check2", 1, "runner2")
-	proposedDistribution.addCheck("check3", 1, "runner3")
+	proposedDistribution.addCheck("check1", "check1", 1, "runner1")
+	proposedDistribution.addCheck("check2", "check2", 1, "runner2")
+	proposedDistribution.addCheck("check3", "check3", 1, "runner3")
 
 	assert.True(t, rebalanceIsWorthIt(currentDistribution, proposedDistribution, 10))
 }

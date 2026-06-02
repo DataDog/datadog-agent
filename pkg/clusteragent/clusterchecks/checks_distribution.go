@@ -16,6 +16,7 @@ import (
 type CheckStatus struct {
 	WorkersNeeded float64
 	Runner        string
+	CheckName     string
 }
 
 // RunnerStatus represents the status of a check runner
@@ -90,19 +91,32 @@ func (distribution *checksDistribution) leastBusyRunner(preferredRunner string, 
 	return leastBusyRunner
 }
 
-func (distribution *checksDistribution) addToLeastBusy(checkID string, workersNeeded float64, preferredRunner string, excludeRunner string) {
+func (distribution *checksDistribution) addToLeastBusy(checkID, checkName string, workersNeeded float64, preferredRunner string, excludeRunner string) {
 	leastBusy := distribution.leastBusyRunner(preferredRunner, excludeRunner)
 	if leastBusy == "" {
 		return
 	}
 
-	distribution.addCheck(checkID, workersNeeded, leastBusy)
+	distribution.addCheck(checkID, checkName, workersNeeded, leastBusy)
 }
 
-func (distribution *checksDistribution) addCheck(checkID string, workersNeeded float64, runner string) {
-	distribution.Checks[checkID] = &CheckStatus{
+// addCheck records a config in the distribution. Calling it again with the
+// same key (digest) — typically when currentDistribution sees multiple
+// instances of the same config on a node — accumulates WorkersNeeded into
+// the existing entry rather than overwriting it.
+func (distribution *checksDistribution) addCheck(digest, checkName string, workersNeeded float64, runner string) {
+	if existing, found := distribution.Checks[digest]; found {
+		existing.WorkersNeeded += workersNeeded
+		if runnerInfo, ok := distribution.Runners[runner]; ok {
+			runnerInfo.WorkersUsed += workersNeeded
+		}
+		return
+	}
+
+	distribution.Checks[digest] = &CheckStatus{
 		WorkersNeeded: workersNeeded,
 		Runner:        runner,
+		CheckName:     checkName,
 	}
 
 	runnerInfo, runnerExists := distribution.Runners[runner]

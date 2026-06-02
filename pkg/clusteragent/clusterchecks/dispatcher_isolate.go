@@ -7,7 +7,10 @@
 
 package clusterchecks
 
-import "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+import (
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+)
 
 func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
 	// Update stats prior to starting isolate to ensure all checks are accounted for
@@ -24,7 +27,12 @@ func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
 		}
 	}
 
-	isolateNode := currentDistribution.runnerForCheck(isolateCheckID)
+	// Distribution is keyed by digest; translate the caller's checkID.
+	d.store.RLock()
+	isolateDigest := d.store.idToDigest[checkid.ID(isolateCheckID)]
+	d.store.RUnlock()
+
+	isolateNode := currentDistribution.runnerForCheck(isolateDigest)
 	if isolateNode == "" {
 		return types.IsolateResponse{
 			CheckID:    isolateCheckID,
@@ -36,19 +44,18 @@ func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
 
 	proposedDistribution := newChecksDistribution(currentDistribution.runnerWorkers())
 
-	for _, checkID := range currentDistribution.checksSortedByWorkersNeeded() {
-		if checkID == isolateCheckID {
-			// Keep the check to be isolated on its current runner
+	for _, digest := range currentDistribution.checksSortedByWorkersNeeded() {
+		if digest == isolateDigest {
+			// Keep the config to be isolated on its current runner
 			continue
 		}
 
-		workersNeededForCheck := currentDistribution.workersNeededForCheck(checkID)
-		runnerForCheck := currentDistribution.runnerForCheck(checkID)
-
+		check := currentDistribution.Checks[digest]
 		proposedDistribution.addToLeastBusy(
-			checkID,
-			workersNeededForCheck,
-			runnerForCheck,
+			digest,
+			check.CheckName,
+			check.WorkersNeeded,
+			check.Runner,
 			isolateNode,
 		)
 	}

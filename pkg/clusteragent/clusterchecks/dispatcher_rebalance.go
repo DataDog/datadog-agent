@@ -100,21 +100,60 @@ func (d *dispatcher) updateDiff(avg int) map[string]int {
 	return diffMap
 }
 
-// pickCheckToMove select the most appropriate check to move from a node to another.
-// A check Xi running on a node N is chosen to move to another node if it satisfies the following
-// Weight(Xi) >  Weight(Xj) (for each j != i, 0 <= j < len(weights))
-// where Weight(X) is the busyness value caused by running the check X.
-func (d *dispatcher) pickCheckToMove(nodeName string) (string, int, error) {
+// pickConfigToMove selects the most appropriate check config to move off
+// the given node. Per-instance weights are aggregated by config digest so
+// that the algorithm operates on whole configs — the dispatcher schedules
+// and moves every instance of a config together, so the true cost of
+// moving is the sum of the instances' weights.
+//
+// Returns the picked config's digest (used to drive moveConfig), a
+// representative instance checkID (used for the public RebalanceResponse
+// where exposing the opaque digest would be unfriendly), and the aggregate
+// weight.
+func (d *dispatcher) pickConfigToMove(nodeName string) (digest, repCheckID string, weight int, err error) {
 	d.store.RLock()
 	node, found := d.store.getNodeStore(nodeName)
-	d.store.RUnlock()
-
 	if !found {
+		d.store.RUnlock()
 		log.Debugf("Node %s not found in store. Won't consider moving check", nodeName)
-		return "", -1, fmt.Errorf("node %s not found in store", nodeName)
+		return "", "", -1, fmt.Errorf("node %s not found in store", nodeName)
 	}
 
-	return node.GetMostWeightedClusterCheck(busynessFunc)
+	node.RLock()
+	weightsByDigest := make(map[string]int, len(node.clcRunnerStats))
+	representativeByDigest := make(map[string]string, len(node.clcRunnerStats))
+	for checkID, stats := range node.clcRunnerStats {
+		if !stats.IsClusterCheck {
+			continue
+		}
+		dig, ok := d.store.idToDigest[checkid.ID(checkID)]
+		if !ok {
+			continue
+		}
+		weightsByDigest[dig] += busynessFunc(stats)
+		if existing, seen := representativeByDigest[dig]; !seen || checkID < existing {
+			representativeByDigest[dig] = checkID
+		}
+	}
+	node.RUnlock()
+	d.store.RUnlock()
+
+	if len(weightsByDigest) == 0 {
+		log.Debugf("Node %s has no cluster check stats", nodeName)
+		return "", "", -1, fmt.Errorf("no cluster checks found on node %s", nodeName)
+	}
+
+	bestDigest := ""
+	bestWeight := 0
+	firstItr := true
+	for dig, w := range weightsByDigest {
+		if firstItr || w > bestWeight {
+			bestDigest = dig
+			bestWeight = w
+			firstItr = false
+		}
+	}
+	return bestDigest, representativeByDigest[bestDigest], bestWeight, nil
 }
 
 // pickNode select the most appropriate node to receive a specific check.
@@ -139,37 +178,60 @@ func pickNode(diffMap map[string]int, sourceNode string) string {
 	return pickedNode
 }
 
-// moveCheck moves a check by its ID from a node to another
-func (d *dispatcher) moveCheck(src, dest, checkID string) error {
-	log.Debugf("Moving %s from %s to %s", checkID, src, dest)
+// moveConfig moves a config by its digest from a node to another
+func (d *dispatcher) moveConfig(src, dest, digest string) error {
+	log.Debugf("Moving config %s from %s to %s", digest, src, dest)
 
 	d.store.RLock()
 	destNode, destFound := d.store.getNodeStore(dest)
 	sourceNode, srcFound := d.store.getNodeStore(src)
+	config, configFound := d.store.digestToConfig[digest]
+	// Collect every checkID sharing this digest so we can transfer all of
+	// their runner stats, not just one instance's.
+	var instanceIDs []string
+	for id, dig := range d.store.idToDigest {
+		if dig == digest {
+			instanceIDs = append(instanceIDs, string(id))
+		}
+	}
 	d.store.RUnlock()
 
+	if !configFound {
+		return fmt.Errorf("no config registered for digest %s", digest)
+	}
 	if !destFound || !srcFound {
-		log.Debugf("Nodes not found in store: %s, %s. Check %s will not move", src, dest, checkID)
+		log.Debugf("Nodes not found in store: %s, %s. Config %s will not move", src, dest, digest)
 		return fmt.Errorf("node %s not found", src)
 	}
 
-	runnerStats, err := sourceNode.GetRunnerStats(checkID)
-	if err != nil {
-		log.Debugf("Cannot get runner stats on node %s, check %s will not move", src, checkID)
-		return err
+	// Transfer per-instance runner stats. A missing instance on the source
+	// is non-fatal — its stats just haven't been reported yet — but we
+	// require at least one to succeed before mutating the config-level
+	// registration below.
+	var firstErr error
+	movedAny := false
+	for _, id := range instanceIDs {
+		stats, err := sourceNode.GetRunnerStats(id)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		destNode.AddRunnerStats(id, stats)
+		sourceNode.RemoveRunnerStats(id)
+		movedAny = true
+	}
+	if !movedAny {
+		log.Debugf("Cannot get runner stats on node %s for config %s; will not move", src, digest)
+		return firstErr
 	}
 
-	destNode.AddRunnerStats(checkID, runnerStats)
-	sourceNode.RemoveRunnerStats(checkID)
-
-	config, digest := d.getConfigAndDigest(checkID)
-	log.Tracef("Moving check %s with digest %s and config %s from %s to %s", checkID, digest, config.String(), src, dest)
-
+	log.Tracef("Moving config %s (%s) from %s to %s", digest, config.String(), src, dest)
 	d.removeConfig(digest)
 	d.addConfig(config, dest)
 
-	log.Debugf("Check %s moved from %s to %s", checkID, src, dest)
-
+	log.Debugf("Config %s moved from %s to %s", digest, src, dest)
 	return nil
 }
 
@@ -216,11 +278,11 @@ func (d *dispatcher) rebalanceUsingBusyness() []types.RebalanceResponse {
 
 	for _, nodeWeight := range weights {
 		for diffMap[nodeWeight.nodeName] > 0 {
-			// try to move checks from a node only of the node busyness is above the average
+			// try to move configs from a node only if the node busyness is above the average
 			sourceNodeName := nodeWeight.nodeName
-			checkID, checkWeight, err := d.pickCheckToMove(sourceNodeName)
+			digest, repCheckID, configWeight, err := d.pickConfigToMove(sourceNodeName)
 			if err != nil {
-				log.Debugf("Cannot pick a check to move from node %s: %v", sourceNodeName, err)
+				log.Debugf("Cannot pick a config to move from node %s: %v", sourceNodeName, err)
 				break
 			}
 
@@ -228,27 +290,27 @@ func (d *dispatcher) rebalanceUsingBusyness() []types.RebalanceResponse {
 			sourceDiff := diffMap[sourceNodeName]
 			destDiff := diffMap[destNodeName]
 
-			// move a check to a new node only if it keeps the
+			// move a config to a new node only if it keeps the
 			// busyness of the new node lower than the original
 			// node's busyness multiplied by the tolerationMargin
 			// value the toleration margin is used to lean towards
 			// stability over perfectly optimal balance
-			if destDiff+checkWeight < int(float64(sourceDiff)*tolerationMargin) {
+			if destDiff+configWeight < int(float64(sourceDiff)*tolerationMargin) {
 				rebalancingDecisions.Inc(le.JoinLeaderValue)
-				err = d.moveCheck(sourceNodeName, destNodeName, checkID)
+				err = d.moveConfig(sourceNodeName, destNodeName, digest)
 				if err != nil {
-					log.Debugf("Cannot move check %s: %v", checkID, err)
+					log.Debugf("Cannot move config %s: %v", digest, err)
 					continue
 				}
 
 				successfulRebalancing.Inc(le.JoinLeaderValue)
-				log.Tracef("Check %s with weight %d moved, total avg: %d, source diff: %d, dest diff: %d",
-					checkID, checkWeight, totalAvg, sourceDiff, destDiff)
-				// diffMap needs to be updated on every check moved
+				log.Tracef("Config %s with weight %d moved, total avg: %d, source diff: %d, dest diff: %d",
+					digest, configWeight, totalAvg, sourceDiff, destDiff)
+				// diffMap needs to be updated on every move
 				diffMap = d.updateDiff(totalAvg)
 				checksMoved = append(checksMoved, types.RebalanceResponse{
-					CheckID:        checkID,
-					CheckWeight:    checkWeight,
+					CheckID:        repCheckID,
+					CheckWeight:    configWeight,
 					SourceNodeName: sourceNodeName,
 					SourceDiff:     sourceDiff,
 					DestNodeName:   destNodeName,
@@ -326,24 +388,25 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 
 	// First all the checks that are excluded from rebalancing are added to the
 	// same runner where they are currently running.
-	for checkID, check := range currentChecksDistribution.Checks {
-		checkName := checkid.IDToCheckName(checkid.ID(checkID))
-		if _, excluded := d.excludedChecksFromDispatching[checkName]; excluded {
-			proposedDistribution.addCheck(checkID, check.WorkersNeeded, check.Runner)
+	for digest, check := range currentChecksDistribution.Checks {
+		if _, excluded := d.excludedChecksFromDispatching[check.CheckName]; excluded {
+			proposedDistribution.addCheck(digest, check.CheckName, check.WorkersNeeded, check.Runner)
 		}
 	}
 
 	// Place the checks that are not excluded from rebalancing
-	for _, checkID := range currentChecksDistribution.checksSortedByWorkersNeeded() {
-		checkName := checkid.IDToCheckName(checkid.ID(checkID))
-		if _, excluded := d.excludedChecksFromDispatching[checkName]; !excluded {
-			proposedDistribution.addToLeastBusy(
-				checkID,
-				currentChecksDistribution.workersNeededForCheck(checkID),
-				currentChecksDistribution.runnerForCheck(checkID),
-				"",
-			)
+	for _, digest := range currentChecksDistribution.checksSortedByWorkersNeeded() {
+		check := currentChecksDistribution.Checks[digest]
+		if _, excluded := d.excludedChecksFromDispatching[check.CheckName]; excluded {
+			continue
 		}
+		proposedDistribution.addToLeastBusy(
+			digest,
+			check.CheckName,
+			check.WorkersNeeded,
+			check.Runner,
+			"",
+		)
 	}
 
 	// We don't calculate the optimal distribution, so it might be worse than
@@ -389,14 +452,21 @@ func (d *dispatcher) currentDistribution() checksDistribution {
 
 	distribution := newChecksDistribution(currentWorkersPerRunner)
 
+	// Group runner-reported per-instance stats by config digest
 	for nodeName, nodeStoreInfo := range d.store.nodes {
 		for checkID, stats := range nodeStoreInfo.clcRunnerStats {
 			if !stats.IsClusterCheck {
 				continue
 			}
 
+			// Skip checks that the dispatcher doesn't own
+			digest, ok := d.store.idToDigest[checkid.ID(checkID)]
+			if !ok {
+				continue
+			}
+			conf := d.store.digestToConfig[digest]
+
 			minCollectionInterval := defaults.DefaultCheckInterval
-			conf := d.store.digestToConfig[d.store.idToDigest[checkid.ID(checkID)]]
 			if len(conf.Instances) > 0 {
 				commonOptions := integration.CommonInstanceConfig{}
 				err := yaml.Unmarshal(conf.Instances[0], &commonOptions)
@@ -413,18 +483,41 @@ func (d *dispatcher) currentDistribution() checksDistribution {
 				workersNeeded = 1
 			}
 
-			distribution.addCheck(checkID, workersNeeded, nodeName)
+			distribution.addCheck(digest, conf.Name, workersNeeded, nodeName)
 		}
 	}
 
 	return distribution
 }
 
+// representativeCheckID returns one instance checkID belonging to the given
+// config digest, chosen alphabetically for determinism. Used to translate a
+// digest-keyed distribution entry back into a checkID for the public
+// RebalanceResponse.
+func (d *dispatcher) representativeCheckID(digest string) string {
+	d.store.RLock()
+	defer d.store.RUnlock()
+	best := ""
+	for id, dig := range d.store.idToDigest {
+		if dig != digest {
+			continue
+		}
+		s := string(id)
+		if best == "" || s < best {
+			best = s
+		}
+	}
+	return best
+}
+
 func (d *dispatcher) applyDistribution(proposedDistribution checksDistribution, currentDistribution checksDistribution) []types.RebalanceResponse {
 	var checksMoved []types.RebalanceResponse
 
-	for checkID, checkStatus := range proposedDistribution.Checks {
-		currentNode := currentDistribution.runnerForCheck(checkID)
+	// proposedDistribution.Checks is keyed by config digest.
+	for digest, checkStatus := range proposedDistribution.Checks {
+		repCheckID := d.representativeCheckID(digest)
+
+		currentNode := currentDistribution.runnerForCheck(digest)
 		proposedNode := checkStatus.Runner
 
 		if proposedNode == currentNode {
@@ -433,9 +526,9 @@ func (d *dispatcher) applyDistribution(proposedDistribution checksDistribution, 
 
 		rebalancingDecisions.Inc(le.JoinLeaderValue)
 
-		err := d.moveCheck(currentNode, proposedNode, checkID)
+		err := d.moveConfig(currentNode, proposedNode, digest)
 		if err != nil {
-			log.Warnf("Cannot move check %s: %v", checkID, err)
+			log.Warnf("Cannot move config %s: %v", digest, err)
 			continue
 		}
 
@@ -444,7 +537,7 @@ func (d *dispatcher) applyDistribution(proposedDistribution checksDistribution, 
 		checksMoved = append(
 			checksMoved,
 			types.RebalanceResponse{
-				CheckID:        checkID,
+				CheckID:        repCheckID,
 				SourceNodeName: currentNode,
 				DestNodeName:   proposedNode,
 			},

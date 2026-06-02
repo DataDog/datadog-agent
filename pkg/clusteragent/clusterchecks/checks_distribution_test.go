@@ -150,10 +150,10 @@ func TestAddToLeastBusy(t *testing.T) {
 			distribution := newChecksDistribution(test.existingRunners)
 
 			for checkID, checkStatus := range test.existingChecks {
-				distribution.addCheck(checkID, checkStatus.WorkersNeeded, checkStatus.Runner)
+				distribution.addCheck(checkID, checkStatus.CheckName, checkStatus.WorkersNeeded, checkStatus.Runner)
 			}
 
-			distribution.addToLeastBusy("newCheck", 10, test.preferredRunner, "")
+			distribution.addToLeastBusy("newCheck", "newCheck", 10, test.preferredRunner, "")
 
 			assert.Equal(t, test.expectedPlacement, distribution.runnerForCheck("newCheck"))
 		})
@@ -165,7 +165,7 @@ func TestAddCheck(t *testing.T) {
 		"runner1": 4,
 	})
 
-	distribution.addCheck("check1", 3, "runner1")
+	distribution.addCheck("check1", "check1", 3, "runner1")
 	assert.Equal(t, "runner1", distribution.runnerForCheck("check1"))
 	assert.Equal(t, 3.0, distribution.workersNeededForCheck("check1"))
 }
@@ -178,10 +178,10 @@ func TestChecksSortedByWorkersNeeded(t *testing.T) {
 		"runner3": 4,
 	})
 
-	distribution.addCheck("check1", 3, "runner1")
-	distribution.addCheck("check2", 1, "runner1")
-	distribution.addCheck("check3", 4, "runner2")
-	distribution.addCheck("check4", 2, "runner3")
+	distribution.addCheck("check1", "check1", 3, "runner1")
+	distribution.addCheck("check2", "check2", 1, "runner1")
+	distribution.addCheck("check3", "check3", 4, "runner2")
+	distribution.addCheck("check4", "check4", 2, "runner3")
 
 	assert.Equal(t, []string{"check3", "check1", "check4", "check2"}, distribution.checksSortedByWorkersNeeded())
 
@@ -191,10 +191,10 @@ func TestChecksSortedByWorkersNeeded(t *testing.T) {
 		"runner2": 4,
 	})
 
-	distribution.addCheck("check_B", 1, "runner1")
-	distribution.addCheck("check_A", 1, "runner2")
-	distribution.addCheck("check_C", 1, "runner1")
-	distribution.addCheck("check_Z", 2, "runner2")
+	distribution.addCheck("check_B", "check_B", 1, "runner1")
+	distribution.addCheck("check_A", "check_A", 1, "runner2")
+	distribution.addCheck("check_C", "check_C", 1, "runner1")
+	distribution.addCheck("check_Z", "check_Z", 2, "runner2")
 
 	assert.Equal(t, []string{"check_Z", "check_A", "check_B", "check_C"}, distribution.checksSortedByWorkersNeeded())
 }
@@ -206,10 +206,10 @@ func TestNumEmptyRunners(t *testing.T) {
 	})
 	assert.Equal(t, 2, distribution.numEmptyRunners())
 
-	distribution.addCheck("check1", 1, "runner1")
+	distribution.addCheck("check1", "check1", 1, "runner1")
 	assert.Equal(t, 1, distribution.numEmptyRunners())
 
-	distribution.addCheck("check2", 1, "runner2")
+	distribution.addCheck("check2", "check2", 1, "runner2")
 	assert.Equal(t, 0, distribution.numEmptyRunners())
 }
 
@@ -220,13 +220,13 @@ func TestNumRunnersWithHighUtilization(t *testing.T) {
 	})
 	assert.Equal(t, 0, distribution.numRunnersWithHighUtilization())
 
-	distribution.addCheck("check1", 1, "runner1") // runner 1 at 25%
+	distribution.addCheck("check1", "check1", 1, "runner1") // runner 1 at 25%
 	assert.Equal(t, 0, distribution.numRunnersWithHighUtilization())
 
-	distribution.addCheck("check2", 2.5, "runner1") // runner 1 at 3.5/4=0.875, above threshold
+	distribution.addCheck("check2", "check2", 2.5, "runner1") // runner 1 at 3.5/4=0.875, above threshold
 	assert.Equal(t, 1, distribution.numRunnersWithHighUtilization())
 
-	distribution.addCheck("check3", 2, "runner2") // runner 2 at 100%
+	distribution.addCheck("check3", "check3", 2, "runner2") // runner 2 at 100%
 	assert.Equal(t, 2, distribution.numRunnersWithHighUtilization())
 }
 
@@ -237,10 +237,10 @@ func TestUtilizationStdDev(t *testing.T) {
 		"runner2": 4,
 		"runner3": 4,
 	})
-	distribution.addCheck("check1", 1, "runner1")
-	distribution.addCheck("check2", 2, "runner1")
-	distribution.addCheck("check3", 2, "runner2")
-	distribution.addCheck("check4", 4, "runner3")
+	distribution.addCheck("check1", "check1", 1, "runner1")
+	distribution.addCheck("check2", "check2", 2, "runner1")
+	distribution.addCheck("check3", "check3", 2, "runner2")
+	distribution.addCheck("check4", "check4", 4, "runner3")
 
 	// The avg utilization is (0.75 + 0.5 + 1)/3 = 0.75
 	// The variance is ((0.75-0.75)^2 + (0.5-0.75)^2 + (1-0.75)^2)/3 = 0.125/3
