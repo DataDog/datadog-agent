@@ -37,7 +37,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
-	vmsgp "github.com/vmihailenco/msgpack/v4"
+	vmsgp "github.com/vmihailenco/msgpack/v5"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
