@@ -5,7 +5,7 @@
       "go": "1.25.10"
     },
     "constraintsFiltering": "strict",
-    "minimumReleaseAge": "4 days",
+    "minimumReleaseAge": "7 days",
     "prConcurrentLimit": 20,
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
