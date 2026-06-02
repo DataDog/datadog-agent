@@ -47,9 +47,10 @@ func (r *ProfilingPeriod) Get(config config.Component) (interface{}, error) {
 
 // Set overrides the internal profiling upload period.
 // It accepts a Go duration string (e.g. "30s", "2m") or a bare integer interpreted as seconds.
-// The cpu_duration config key is also clamped to min(cpu_duration, period) so that the
-// effective CPU profile duration never exceeds the upload period (dd-trace-go enforces this
-// clamp internally too, but setting it explicitly keeps the config readable).
+// Only the period is written. dd-trace-go caps the CPU profile duration at the upload period
+// internally, so lowering the period below cpu_duration shortens the CPU profile automatically
+// and raising the period back restores the full duration. Writing cpu_duration here would make
+// that change one-way (it would stay shortened after the period is restored).
 // A profiling restart is required for the new period to take effect:
 //
 //	agent config set internal_profiling restart
@@ -66,14 +67,6 @@ func (r *ProfilingPeriod) Set(config config.Component, v interface{}, source mod
 	}
 
 	config.Set(r.ConfigPrefix+"internal_profiling.period", period, source)
-
-	// Clamp cpu_duration so it never exceeds the new period.
-	// At the default cpu_duration of 1m this has no effect for period >= 1m, and
-	// automatically lowers cpu_duration for period < 1m (e.g. period=30s → cpu_duration=30s).
-	cpuDuration := config.GetDuration(r.ConfigPrefix + "internal_profiling.cpu_duration")
-	if cpuDuration > period {
-		config.Set(r.ConfigPrefix+"internal_profiling.cpu_duration", period, source)
-	}
 
 	return nil
 }
