@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
 
@@ -61,18 +60,13 @@ func TestAgentTelemetryErrorTrackingSuite(t *testing.T) {
 func (s *errorTrackingSuite) TestPayloadShape() {
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
-	// Trigger the check immediately rather than waiting for the scheduler.
-	// The check is expected to fail (connection refused) so we ignore the
-	// non-zero exit code from the agent check command.
-	s.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"http_check"})) //nolint:errcheck
-
 	var logs []*aggregator.AgentTelemetryLog
 	var err error
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		logs, err = s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
 		require.NoError(c, err)
 		assert.NotEmpty(c, logs, "no agent-logs telemetry received yet")
-	}, 3*time.Minute, 10*time.Second, "timed out waiting for agent-logs telemetry to reach fakeintake")
+	}, 1*time.Minute, 5*time.Second, "timed out waiting for agent-logs telemetry to reach fakeintake")
 
 	for _, l := range logs {
 		assert.Equal(s.T(), "ERROR", l.Level)
@@ -101,18 +95,13 @@ func (s *errorTrackingSuite) TestDisabledByDefault() {
 		_, execErr := s.Env().RemoteHost.Execute("sudo truncate -s 0 /var/log/datadog/agent.log")
 		require.NoError(s.T(), execErr)
 
-		// Trigger the check immediately rather than waiting for the scheduler.
-		// The check is expected to fail (connection refused) so we ignore the
-		// non-zero exit code from the agent check command.
-		s.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"http_check"})) //nolint:errcheck
-
 		// Wait until the check error appears in the agent log — confirming errors are
 		// generated locally before asserting they are not forwarded to telemetry.
 		require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 			out, execErr := s.Env().RemoteHost.Execute("sudo grep -c 'ERROR.*Error running check' /var/log/datadog/agent.log 2>/dev/null || echo 0")
 			assert.NoError(c, execErr)
 			assert.NotEqual(c, "0", strings.TrimSpace(out))
-		}, 3*time.Minute, 10*time.Second, "timed out waiting for check error to appear in agent log")
+		}, 1*time.Minute, 5*time.Second, "timed out waiting for check error to appear in agent log")
 
 		// Confirm the error was not forwarded to telemetry.
 		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()

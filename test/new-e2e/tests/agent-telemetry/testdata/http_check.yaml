@@ -3,3 +3,4 @@ instances:
   - name: test-unreachable
     url: http://127.0.0.1:19998/
     timeout: 1
+    min_collection_interval: 1

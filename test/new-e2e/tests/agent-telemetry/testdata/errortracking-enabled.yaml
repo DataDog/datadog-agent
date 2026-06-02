@@ -2,6 +2,6 @@ agent_telemetry:
   enabled: true
   errortracking:
     enabled: true
-    flush_interval_seconds: 10
+    flush_interval_seconds: 1
     bouncer_window_seconds: 0
     startup_jitter_seconds: 0
