@@ -53,10 +53,8 @@
       -e DEPLOY_AGENT
       -e CI_JOB_TOKEN
       -e CI_IDENTITIES_GITLAB_ID_TOKEN
-      -e CI_COMMIT_SHA
       -e CI_COMMIT_SHORT_SHA
       -e CI_JOB_NAME
-      -e CI_PIPELINE_SOURCE
       -e STATIC_QUALITY_GATE_NAME
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1 -BuildUpgrade 1"

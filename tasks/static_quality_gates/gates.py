@@ -11,6 +11,7 @@ import glob
 import json
 import math
 import os
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from io import UnsupportedOperation
@@ -302,8 +303,6 @@ class InventoryReportMeasurer:
         from there (33 small subprocess invocations collapse into one
         `aws s3 sync` with persistent HTTPS connections).
         """
-        import tempfile
-
         local_dir = tempfile.mkdtemp(prefix="sqg-reports-")
         s3_prefix = f"{cls.GATE_REPORTS_PREFIX}/{pipeline_id}/"
         result = ctx.run(f"aws s3 sync --only-show-errors {s3_prefix} {local_dir}", warn=True)
@@ -321,7 +320,7 @@ class InventoryReportMeasurer:
 
     def measure(self, ctx: Context, config: QualityGateConfig) -> ArtifactMeasurement:
         try:
-            report = self._fetch_report(ctx, config.gate_name)
+            report = self._fetch_report(config.gate_name)
             return ArtifactMeasurement(
                 artifact_path=report.get("artifact_path") or "<from-s3>",
                 on_wire_size=int(report["on_wire_size"]),
@@ -332,7 +331,7 @@ class InventoryReportMeasurer:
         except Exception as e:
             raise StaticQualityGateError(f"Failed to read inventory report for {config.gate_name}: {e}") from e
 
-    def _fetch_report(self, ctx: Context, gate_name: str) -> dict:
+    def _fetch_report(self, gate_name: str) -> dict:
         local_dir = os.environ.get(self.LOCAL_DIR_ENV)
         if not local_dir:
             raise StaticQualityGateError(f"{self.LOCAL_DIR_ENV} must be set to read the report for {gate_name}")
