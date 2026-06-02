@@ -354,6 +354,14 @@ func (m *syslogFrameMatcher) emitNonTransparentContinuation(buf []byte) ([]byte,
 				return buf[:m.contentLenLimit], m.contentLenLimit, true
 			}
 			m.overflow = overflowNone
+			if len(content) == 0 {
+				// Prior continuation chunks already drained the whole body
+				// (body length was an exact multiple of contentLenLimit), so
+				// the delimiter now sits at the buffer head. Consume it without
+				// emitting an empty frame, matching the stray-delimiter path in
+				// FindFrame; otherwise a blank log would be forwarded.
+				return buf[:0], i + 1, false
+			}
 			return content, i + 1, true // include the delimiter
 		}
 	}
