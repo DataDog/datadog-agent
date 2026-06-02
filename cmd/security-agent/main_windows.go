@@ -162,11 +162,15 @@ func (s *service) Run(svcctx context.Context) error {
 		configsyncfx.Module(configsync.NewDefaultParams()),
 		autoexitfx.Module(),
 		fx.Provide(func(c config.Component) settings.Params {
+			runtimeSettings := map[string]settings.RuntimeSetting{
+				"log_level": commonsettings.NewLogLevelRuntimeSetting(),
+			}
+			for name, setting := range start.ProfilingRuntimeSettings() {
+				runtimeSettings[name] = setting
+			}
 			return settings.Params{
-				Settings: map[string]settings.RuntimeSetting{
-					"log_level": commonsettings.NewLogLevelRuntimeSetting(),
-				},
-				Config: c,
+				Settings: runtimeSettings,
+				Config:   c,
 			}
 		}),
 		settingsfx.Module(),
