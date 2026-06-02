@@ -273,6 +273,16 @@ func ecsFakeintakeAdditionalEndpointsEnv(fakeintake *fakeintake.Fakeintake) []ec
 			Name:  pulumi.StringPtr("DD_LOGS_CONFIG_USE_HTTP"),
 			Value: pulumi.StringPtr("true"),
 		},
+		ecs.TaskDefinitionKeyValuePairArgs{
+			Name: pulumi.StringPtr("DD_LOGS_CONFIG_LOGS_NO_SSL"),
+			Value: fakeintake.Scheme.ApplyT(func(scheme string) *string {
+				s := "false"
+				if scheme == "http" {
+					s = "true"
+				}
+				return &s
+			}).(pulumi.StringPtrOutput),
+		},
 	}
 }
 
