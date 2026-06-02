@@ -5,12 +5,12 @@
 
 //go:build test
 
-package autodiscoveryimpl
+package mock
 
 import (
-	"go.uber.org/fx"
+	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/autodiscovery/impl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -18,6 +18,7 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -28,8 +29,10 @@ type MockParams struct {
 	Scheduler *scheduler.Controller
 }
 
-type mockdependencies struct {
-	fx.In
+// MockRequires defines the dependencies of the mock autodiscovery component.
+type MockRequires struct {
+	compdef.In
+	T          testing.TB
 	WMeta      option.Option[workloadmeta.Component]
 	Params     MockParams
 	TaggerComp mockTagger.Mock
@@ -39,22 +42,26 @@ type mockdependencies struct {
 	Secrets    secrets.Component
 }
 
-type mockprovides struct {
-	fx.Out
+// MockProvides defines the outputs of the mock autodiscovery component.
+type MockProvides struct {
+	compdef.Out
 
-	Comp autodiscovery.Mock
+	Comp Mock
 }
 
-func newMockAutoConfig(deps mockdependencies) mockprovides {
-	ac := createNewAutoConfig(deps.Params.Scheduler, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp, option.None[healthplatformdef.Component]())
-	return mockprovides{
-		Comp: ac,
-	}
-}
-
-// MockModule provides the default autoconfig without other components configured, and not started
+// MockModule defines the fx options for the mock autodiscovery component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newMockAutoConfig),
+		fxutil.ProvideComponentConstructor(NewMockComponent),
 	)
+}
+
+// NewMockComponent creates a mock AutoConfig for use in tests.
+func NewMockComponent(deps MockRequires) MockProvides {
+	ac := autodiscoveryimpl.NewAutoConfigFromDeps(
+		deps.Params.Scheduler, deps.Secrets, deps.WMeta, deps.TaggerComp,
+		deps.LogsComp, deps.Telemetry, deps.FilterComp,
+		option.None[healthplatformdef.Component](),
+	)
+	return MockProvides{Comp: ac}
 }
