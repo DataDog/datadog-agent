@@ -4,6 +4,9 @@ name: "Cleanup Codex reviews when PR is ready"
 on:
   pull_request:
     types: [ready_for_review]
+    branches:
+      - main
+      - "[0-9]+.[0-9]+.x"
 
 permissions: {}
 
