@@ -98,7 +98,10 @@ func (s *dockerSyslogUDPSuite) TestSyslogStructuredOutput() {
 	assertSyslogStructuredOutput(s.T(), s.EventuallyWithT, s.Env(), syslogSendOpts{
 		cmd: []string{"sh", "-c",
 			// -u: send via UDP.  -w 1: exit after 1 s (no response expected).
-			`printf '<134>1 2025-06-15T10:30:00Z testhost testapp 1234 - - Syslog e2e test message\n' | nc -u -w 1 agent 10515`,
+			// No trailing newline: a UDP syslog datagram is delimited by the
+			// packet boundary (RFC 5426), not by a newline as in TCP framing.
+			// Sending one would leave a stray '\n' in the parsed message body.
+			`printf '<134>1 2025-06-15T10:30:00Z testhost testapp 1234 - - Syslog e2e test message' | nc -u -w 1 agent 10515`,
 		},
 		// UDP is connectionless — nc -u always exits 0 even if the listener
 		// isn't ready, so the separate send-retry loop is ineffective.
