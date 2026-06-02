@@ -64,13 +64,36 @@ if not exist "!more_than_260_chars!" (
   )
 )
 
-call :configure_msys2_shell
+set "args=%*"
+call :find_bazel_command
+set "needs_msys2_shell="
+if /i "!bazel_cmd!" == "build" set "needs_msys2_shell=1"
+if /i "!bazel_cmd!" == "test" set "needs_msys2_shell=1"
+if /i "!bazel_cmd!" == "run" set "needs_msys2_shell=1"
+if /i "!bazel_cmd!" == "coverage" set "needs_msys2_shell=1"
+if defined needs_msys2_shell call :configure_msys2_shell
 if !errorlevel! neq 0 exit /b !errorlevel!
 
-set "args=%*"
 if defined args if defined extra_args call :insert_extra_args
 "%BAZEL_REAL%" !startup_options! !args!
 exit /b !errorlevel!
+
+:: Find the Bazel command after startup options.
+:find_bazel_command
+set "bazel_cmd="
+set "next_args=!args!"
+:find_next_arg
+for /f "tokens=1* delims= " %%i in ("!next_args!") do (
+  set "arg=%%~i"
+  if "!arg:~0,1!" equ "-" (
+    set "next_args=%%j"
+  ) else (
+    set "bazel_cmd=%%i"
+    exit /b 0
+  )
+)
+if not defined bazel_cmd if defined next_args goto :find_next_arg
+exit /b 0
 
 :: Materialize hermetic MSYS2 and point Bazel shell actions at its bash.exe.
 :configure_msys2_shell

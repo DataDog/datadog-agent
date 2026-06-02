@@ -390,7 +390,7 @@
         "recordedInputs": [
           "FILE:@@//.bazelversion 077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36",
           "FILE:@@//tools/bazel 8cd8e05bc6563f0ec312c10447f63c0d984f3bee34418ee07490e007f3ebfc3f",
-          "FILE:@@//tools/bazel.bat f13ecb6de386829a4d6fea1e81c6f1cdac0d38e28b52c969eb7da833934a37da",
+          "FILE:@@//tools/bazel.bat 994b8b9cc6d5ab6d78ca41856e4e5c943882d3982e32e6537cf426f917c91bf8",
           "FILE:@@//tools/bazelisk.md 184864dc41f9cd398f786ba7c7cd858942d19daa792203e0b18a1a3bfaf372f0"
         ],
         "generatedRepoSpecs": {}
