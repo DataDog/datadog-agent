@@ -197,7 +197,7 @@ function SmoothedScoreChart({ events, phaseMarkers, minTs: extMinTs, maxTs: extM
   return (
     <div className="mb-4">
       <div className="text-xs text-slate-400 mb-1">Rolling max score (5 min window)</div>
-      <svg width="100%" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="bg-slate-900 rounded border border-slate-700">
+      <svg width="100%" height={HEIGHT} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" className="bg-slate-900 rounded border border-slate-700">
         {/* Threshold bands */}
         <rect x="0" y={yHigh} width={WIDTH} height={yMedium - yHigh} fill="rgba(234,179,8,0.06)" />
         <rect x="0" y="0" width={WIDTH} height={yHigh} fill="rgba(239,68,68,0.06)" />
@@ -239,7 +239,7 @@ const highSeverityThreshold = 0.75;
 function EventDetailPanel({ event, onClose }: { event: AnomalyEvent; onClose: () => void }) {
   const bd = event.breakdown;
   return (
-    <div className="bg-slate-800 border border-slate-600 rounded-lg p-4 text-sm">
+    <div className="bg-slate-800 border border-slate-600 rounded-lg p-4 text-sm min-w-0 overflow-hidden">
       <div className="flex items-start justify-between mb-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -260,13 +260,13 @@ function EventDetailPanel({ event, onClose }: { event: AnomalyEvent; onClose: ()
         <button onClick={onClose} className="text-slate-500 hover:text-white ml-4">✕</button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4 min-w-0">
         {/* Trigger */}
-        <div>
+        <div className="min-w-0">
           <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide mb-2">Trigger</div>
-          <div className="space-y-1 text-xs text-slate-300">
-            <div><span className="text-slate-500">Source:</span> {event.trigger.source}</div>
-            <div><span className="text-slate-500">Detector:</span> {event.trigger.detectorName}</div>
+          <div className="space-y-1 text-xs text-slate-300 min-w-0">
+            <div className="truncate" title={event.trigger.source}><span className="text-slate-500">Source:</span> {event.trigger.source}</div>
+            <div className="truncate" title={event.trigger.detectorName}><span className="text-slate-500">Detector:</span> {event.trigger.detectorName}</div>
             <div><span className="text-slate-500">Type:</span> {event.trigger.type}</div>
             <div><span className="text-slate-500">Time:</span> {formatTs(event.trigger.timestamp)}</div>
             {event.trigger.detectorScore !== undefined && (
@@ -283,7 +283,7 @@ function EventDetailPanel({ event, onClose }: { event: AnomalyEvent; onClose: ()
         </div>
 
         {/* Context */}
-        <div>
+        <div className="min-w-0">
           <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide mb-2">Context</div>
           <div className="space-y-1 text-xs text-slate-300">
             <div><span className="text-slate-500">Window:</span> {formatTs(event.windowStart)} – {formatTs(event.windowEnd)}</div>
