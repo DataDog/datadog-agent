@@ -1661,8 +1661,8 @@ properties:
         node_type: section
         type: object
         visibility: public
-        description: Configurations for Network Path Dynamic Test for monitoring NetFlow
-          destinations via Network Path.
+        description: '[experimental] Configurations for Network Path Dynamic Test for
+          monitoring NetFlow destinations via Network Path.'
         tags:
         - template_section:CoreAgent
         properties:
@@ -1671,8 +1671,8 @@ properties:
             type: boolean
             default: false
             visibility: public
-            description: Enables Network Path Dynamic Test for monitoring NetFlow
-              destinations via Network Path.
+            description: '[experimental] Enables Network Path Dynamic Test for monitoring
+              NetFlow destinations via Network Path.'
             example: 'true'
             tags:
             - template_section:CoreAgent
