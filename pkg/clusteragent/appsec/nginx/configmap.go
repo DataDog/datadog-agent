@@ -18,6 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/dynamic"
 )
 
@@ -83,9 +84,26 @@ func stripDDSnippet(snippet string) string {
 	return snippet[:startIdx] + snippet[endIdx:]
 }
 
+// validateConfigMapTarget enforces Kubernetes DNS-1123 naming on the namespace
+// and name reaching the API client. This is a defense-in-depth guard against
+// any future call path that bypasses findControllerConfigMapArg; it is a no-op
+// for the reconciler path where values come from valid Kubernetes objects.
+func validateConfigMapTarget(namespace, name string) error {
+	if errs := validation.IsDNS1123Label(namespace); len(errs) > 0 {
+		return fmt.Errorf("invalid ConfigMap namespace %q: %v", namespace, errs)
+	}
+	if errs := validation.IsDNS1123Subdomain(name); len(errs) > 0 {
+		return fmt.Errorf("invalid ConfigMap name %q: %v", name, errs)
+	}
+	return nil
+}
+
 // createOrUpdateDDConfigMap creates or updates the DD-owned ConfigMap by mirroring the original
 // and prepending Datadog AppSec directives to main-snippet and http-snippet.
 func createOrUpdateDDConfigMap(ctx context.Context, client dynamic.Interface, namespace, originalCMName, moduleMountPath string, labels, annotations map[string]string) error {
+	if err := validateConfigMapTarget(namespace, originalCMName); err != nil {
+		return err
+	}
 	ddName := ddConfigMapName(originalCMName)
 
 	// Fetch original ConfigMap (may not exist if user hasn't customized anything)
