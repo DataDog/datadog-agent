@@ -8,10 +8,12 @@
 package oracle
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,6 +50,15 @@ func TestMain(m *testing.M) {
 	// in your settings.json to skip integration test setup
 	if os.Getenv("SKIP_TEST_MAIN") == "1" {
 		return
+	}
+
+	// The Oracle XE service container exposes its TNS listener on port 1521
+	// before the XE database instance has finished registering with the
+	// listener, so the first connection attempts fail with ORA-12514. Poll
+	// until a ping succeeds so the suite doesn't race the service startup.
+	if err := waitForOracleReady(5 * time.Minute); err != nil {
+		fmt.Printf("oracle XE not ready: %s\n", err)
+		os.Exit(1)
 	}
 
 	print("Running initdb.d sql files...")
@@ -101,6 +112,33 @@ func TestMain(m *testing.M) {
 				}
 			}
 		}
+	}
+}
+
+func waitForOracleReady(timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	const attemptTimeout = 5 * time.Second
+	const retryInterval = 2 * time.Second
+
+	var lastErr error
+	for attempt := 1; ; attempt++ {
+		db, err := getSysConnection(nil)
+		if err == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), attemptTimeout)
+			err = db.PingContext(ctx)
+			cancel()
+			_ = db.Close()
+			if err == nil {
+				return nil
+			}
+		}
+		lastErr = err
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("XE not reachable after %s (last error: %w)", timeout, lastErr)
+		}
+		fmt.Printf("Waiting for oracle XE to be ready (attempt %d): %s\n", attempt, lastErr)
+		time.Sleep(retryInterval)
 	}
 }
 
