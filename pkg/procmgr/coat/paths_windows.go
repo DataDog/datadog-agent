@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 func agentInstallRoot() string {
@@ -36,17 +37,23 @@ func installMarkerPath(_ string, service MigratableService) string {
 	)
 }
 
-func windowsProgramData() string {
-	if base := os.Getenv("ProgramData"); base != "" {
-		return base
+// windowsDatadogDataDir returns the agent data directory (MSI ConfigRoot when set,
+// otherwise default ProgramData\Datadog), matching fleet installer layout for
+// Installer\packages and dd-procmgr\processes.d.
+func windowsDatadogDataDir() string {
+	if pd, err := winutil.GetProgramDataDir(); err == nil && pd != "" {
+		return pd
 	}
-	return `C:\ProgramData`
+	if base := os.Getenv("ProgramData"); base != "" {
+		return filepath.Join(base, "Datadog")
+	}
+	return filepath.Join(`C:\ProgramData`, "Datadog")
 }
 
 func windowsPackagesPath() string {
-	return filepath.Join(windowsProgramData(), "Datadog", "Installer", "packages")
+	return filepath.Join(windowsDatadogDataDir(), "Installer", "packages")
 }
 
 func windowsProcmgrConfigDir() string {
-	return filepath.Join(windowsProgramData(), "Datadog", "dd-procmgr", processesDirRel)
+	return filepath.Join(windowsDatadogDataDir(), "dd-procmgr", processesDirRel)
 }
