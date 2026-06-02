@@ -54,7 +54,7 @@ class CodeGeneratorTarget():
         for funcname in self.reorder_func_names:
             h = retrieve_func_order(self.reorder_hints, funcname)
             if not h:
-                print('[WARN] not found: %s' % funcname)
+                print(f"[WARN] not found: {funcname}")
                 continue
 
             # Get filename to write to, add header if its empty
@@ -122,7 +122,7 @@ class CodeGeneratorTarget():
 def join_key(path, field):
     if path == '':
         return field
-    return '%s.%s' % (path, field)
+    return f"{path}.{field}"
 
 
 def _is_node_leaf(node):
@@ -171,7 +171,7 @@ def retrieve_func_order(hints_obj, func):
 
 
 def output_func_header(name, sourcecode):
-    line = 'func %s(config pkgconfigmodel.Setup) {' % name
+    line = f"func {name}(config pkgconfigmodel.Setup) {{"
     sourcecode.append(line)
 
 
@@ -206,7 +206,7 @@ def try_parse_duration(text):
 
 def as_go_array(text):
     if not isinstance(text, str):
-        text = '%s' % text
+        text = str(text)
     text = text.replace('[', '{')
     text = text.replace(']', '}')
     text = text.replace('\'', '"')
@@ -215,7 +215,7 @@ def as_go_array(text):
 
 def as_go_value(text):
     if not isinstance(text, str):
-        text = '%s' % text
+        text = str(text)
     text = text.replace('\'', '"')
     return text
 
@@ -246,8 +246,8 @@ def retrieve_default_value(keypath, schema):
             return '[]interface{}{}'
         settingItemsType = curr.get('items').get('type')
         if settingItemsType == 'object':
-            return '[]map[string]interface{}%s' % (as_go_array(settingDefault),)
-        return '[]%s%s' % (settingItemsType, as_go_array(settingDefault))
+            return f"[]map[string]interface\{'{}' + as_go_array(settingDefault)}"
+        return f"[]{settingItemsType}{as_go_array(settingDefault)}"
 
     elif settingType == 'boolean':
         if settingDefault:
@@ -257,45 +257,45 @@ def retrieve_default_value(keypath, schema):
     elif settingType == 'integer':
         durationValue = try_parse_duration(settingDefault)
         if durationValue is not None:
-            return '%s' % durationValue
+            return str(durationValue)
         if settingDefault is None:
             return '0'
-        return '%s' % settingDefault
+        return str(settingDefault)
 
     elif settingType == 'number':
         if get_golang_type_tag(curr) == 'int64':
-            return 'int64(%s)' % settingDefault
+            return f"int64({settingDefault})"
         if get_golang_type_tag(curr) == 'float64':
-            return 'float64(%s)' % settingDefault
+            return f"float64({settingDefault})"
         durationValue = try_parse_duration(settingDefault)
         if durationValue is not None:
-            return '%s' % durationValue
+            return str(durationValue)
         if settingDefault is None:
             return '0'
         if isinstance(settingDefault, float):
-            textDefault = '%s' % settingDefault
+            textDefault = str(settingDefault)
             if '.' in textDefault:
-                return '%s' % settingDefault
-            return 'float64(%s.0)' % settingDefault
+                return str(settingDefault)
+            return f"float64({settingDefault}.0)"
         if isinstance(settingDefault, int):
-            return '%s' % settingDefault
+            return str(settingDefault)
 
     elif settingType == 'string':
         if settingDefault is None:
             return '""'
         if isinstance(settingDefault, str):
-            return '"%s"' % settingDefault
+            return f"\"{settingDefault}\""
 
     elif settingType == 'object':
-        textDefault = '%s' % settingDefault
+        textDefault = str(settingDefault)
         add = curr.get('additionalProperties')
         if add is not None:
             if add.get('type') == 'string':
-                return 'map[string]string%s' % as_go_value(settingDefault)
+                return f"map[string]string{as_go_value(settingDefault)}"
             if add.get('type') == 'array' and add.get('items').get('type') == 'string':
-                return 'map[string][]string%s' % as_go_value(settingDefault)
-        return 'map[string]interface{}%s' % as_go_value(settingDefault)
-    raise RuntimeError('setting %s: cant handle settingType: "%s", settingDefault: "%s" of %s' % (keypath, settingType, settingDefault, type(settingDefault)))
+                return f"map[string][]string{as_go_value(settingDefault)}"
+        return f"map[string]interface{{}}{as_go_value(settingDefault)}"
+    raise RuntimeError(f"setting {keypath}: cant handle settingType: '{settingType}', settingDefault: '{settingDefault}' of {type(settingDefault)}")
 
 
 def retrieve_envvars(keypath, schema):
@@ -358,10 +358,9 @@ def env_parser_to_func_call(name, env_parser):
         parser_func = 'ParseEnvJSONOrSpace'
         is_helper = True
 
-    template = '\tconfig.%s("%s")'
     if is_helper:
-        template = '\tpkgconfighelper.%s("%s", config)'
-    return template % (parser_func, name)
+        return f"\tpkgconfighelper.{parser_func}(\"{name}\", config)"
+    return f"\tconfig.{parser_func}(\"{name}\")"
 
 
 # Create source code for a single setting, add to the target
@@ -388,11 +387,11 @@ def output_single_setting(name, kind, internal_comment, schema, target):
 
     method_name = retrieve_method_to_declare(name.split('.'), schema)
     if method_name == 'BindEnvAndSetDefault':
-        line = '\tconfig.BindEnvAndSetDefault(' + settingname + ', ' + defaultval + envsuffix + ')'
+        line = f"\tconfig.BindEnvAndSetDefault({settingname}, {defaultval}{envsuffix})"
     elif method_name == 'BindEnv':
-        line = '\tconfig.BindEnv(' + settingname + envsuffix + ')'
+        line = f"\tconfig.BindEnv({settingname}{envsuffix})"
     elif method_name == 'SetDefault':
-        line = '\tconfig.SetDefault(' + settingname + ', ' + defaultval + ')'
+        line = f"\tconfig.SetDefault({settingname}, {defaultval})"
     else:
         raise RuntimeError('unknown kind: %s' % kind)
 
@@ -464,4 +463,4 @@ def run_codegen(schema, hints, keep_orig_order, outsource_dir):
     target.flush_buffer()
 
     target.write_to_directory(outsource_dir)
-    print('Wrote to %s' % outsource_dir)
+    print(f"Wrote to {outsource_dir}")
