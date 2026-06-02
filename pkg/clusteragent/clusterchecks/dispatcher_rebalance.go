@@ -353,8 +353,9 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	currentUtilizationStdDev := currentChecksDistribution.utilizationStdDev()
 	proposedUtilizationStdDev := proposedDistribution.utilizationStdDev()
 	minPercImprovement := pkgconfigsetup.Datadog().GetInt("cluster_checks.rebalance_min_percentage_improvement")
+	minAbsImprovement := pkgconfigsetup.Datadog().GetFloat64("cluster_checks.rebalance_min_absolute_improvement")
 
-	if force || rebalanceIsWorthIt(currentChecksDistribution, proposedDistribution, minPercImprovement) {
+	if force || rebalanceIsWorthIt(currentChecksDistribution, proposedDistribution, minPercImprovement, minAbsImprovement) {
 
 		jsonDistribution, _ := json.Marshal(proposedDistribution)
 
@@ -460,15 +461,27 @@ func setPredictedUtilization(distribution checksDistribution) {
 	}
 }
 
-func rebalanceIsWorthIt(currentDistribution checksDistribution, proposedDistribution checksDistribution, minPercImprovement int) bool {
-	// If the current utilization stddev is already good enough, consider that
-	// rescheduling checks is not worth it, unless the new distribution has
-	// fewer runners with a high utilization or leaves fewer runners empty.
-	if currentDistribution.utilizationStdDev() < 0.1 {
-		return proposedDistribution.numRunnersWithHighUtilization() < currentDistribution.numRunnersWithHighUtilization() ||
-			proposedDistribution.numEmptyRunners() < currentDistribution.numEmptyRunners()
+// rebalanceIsWorthIt returns true when the proposed distribution is good enough
+// to justify the cost of rescheduling checks.
+//
+// Fast path: always accept if the proposed distribution leaves fewer runners empty.
+//
+// Otherwise both gates must pass:
+//  1. Percentage gate: utilization stdDev must improve by at least minPercImprovement%.
+//  2. Absolute gate (when minAbsoluteUtilizationImprovement > 0): utilization stdDev must
+//     improve by at least that amount in absolute terms (0–1 scale), preventing rebalances
+//     that are only a tiny shuffle in an already nearly-balanced cluster.
+
+func rebalanceIsWorthIt(currentDistribution checksDistribution, proposedDistribution checksDistribution, minPercImprovement int, minAbsoluteUtilizationImprovement float64) bool {
+	// Always accept a rebalance if it leaves fewer runners empty.
+	if proposedDistribution.numEmptyRunners() < currentDistribution.numEmptyRunners() {
+		return true
 	}
 
-	maxStdDevAccepted := currentDistribution.utilizationStdDev() * ((100 - float64(minPercImprovement)) / 100)
-	return proposedDistribution.utilizationStdDev() < maxStdDevAccepted
+	current := currentDistribution.utilizationStdDev()
+	proposed := proposedDistribution.utilizationStdDev()
+	improvement := current - proposed
+	// both percentage + absolute gates must clear: we select the stricter of the two
+	minRequired := max(0, current*float64(minPercImprovement)/100, minAbsoluteUtilizationImprovement)
+	return improvement > minRequired
 }

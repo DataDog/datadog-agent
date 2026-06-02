@@ -1665,7 +1665,7 @@ func TestRebalanceIsWorthIt(t *testing.T) {
 	proposedDistribution.addCheck("check1", 1, "runner1")
 	proposedDistribution.addCheck("check2", 1, "runner2")
 
-	assert.True(t, rebalanceIsWorthIt(currentDistribution, proposedDistribution, 10))
+	assert.True(t, rebalanceIsWorthIt(currentDistribution, proposedDistribution, 10, 0))
 
 	// The proposed	solution is worth it if it has fewer runners with a high utilization
 	currentDistribution = newChecksDistribution(workersPerRunner)
@@ -1678,5 +1678,66 @@ func TestRebalanceIsWorthIt(t *testing.T) {
 	proposedDistribution.addCheck("check2", 1, "runner2")
 	proposedDistribution.addCheck("check3", 1, "runner3")
 
-	assert.True(t, rebalanceIsWorthIt(currentDistribution, proposedDistribution, 10))
+	assert.True(t, rebalanceIsWorthIt(currentDistribution, proposedDistribution, 10, 0))
+}
+
+func TestRebalanceIsWorthItAbsoluteUtilizationImprovement(t *testing.T) {
+	// Setup:
+	//   runner1: 3.0 of 4 workers used → utilization 0.75
+	//   runner2: 1.0 of 4 workers used → utilization 0.25
+	//   utilizationStdDev = sqrt(((0.75-0.5)^2 + (0.25-0.5)^2)/2) = 0.25
+	//
+	// Proposed (perfectly balanced):
+	//   runner1: 2.0 → utilization 0.50
+	//   runner2: 2.0 → utilization 0.50
+	//   utilizationStdDev = 0.0 → absolute improvement = 0.25
+	workersPerRunner := map[string]int{"runner1": 4, "runner2": 4}
+
+	currentDistribution := newChecksDistribution(workersPerRunner)
+	currentDistribution.addCheck("check1", 2.0, "runner1")
+	currentDistribution.addCheck("check2", 1.0, "runner1")
+	currentDistribution.addCheck("check3", 1.0, "runner2")
+
+	proposedDistribution := newChecksDistribution(workersPerRunner)
+	proposedDistribution.addCheck("check1", 2.0, "runner1")
+	proposedDistribution.addCheck("check2", 1.0, "runner2")
+	proposedDistribution.addCheck("check3", 1.0, "runner2")
+
+	tests := []struct {
+		name     string
+		minPerc  int
+		minAbs   float64
+		expected bool
+	}{
+		{
+			name:     "min=0 accepts: percentage gate requires 0.025, actual 0.25 clears it",
+			minPerc:  10,
+			minAbs:   0,
+			expected: true,
+		},
+		{
+			name:     "min=0.1 accepts: absolute gate requires 0.1, actual 0.25 clears it",
+			minPerc:  10,
+			minAbs:   0.1,
+			expected: true,
+		},
+		{
+			name:     "min=0.25 rejects: absolute gate requires 0.25, actual 0.25 does not strictly exceed it",
+			minPerc:  10,
+			minAbs:   0.25,
+			expected: false,
+		},
+		{
+			name:     "min=0.3 rejects: absolute gate requires 0.3, actual 0.25 falls short",
+			minPerc:  10,
+			minAbs:   0.3,
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, rebalanceIsWorthIt(currentDistribution, proposedDistribution, tc.minPerc, tc.minAbs))
+		})
+	}
 }
