@@ -59,6 +59,7 @@ func (m *mockHealthPlatform) GetIssue(checkID string) *healthplatformpayload.Iss
 	return proto.Clone(issue).(*healthplatformpayload.Issue)
 }
 
+
 // ResolveIssue clears issues for a specific check
 func (m *mockHealthPlatform) ResolveIssue(checkID string) {
 	delete(m.issues, checkID)

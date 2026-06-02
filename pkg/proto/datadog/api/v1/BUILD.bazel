@@ -14,6 +14,7 @@ proto_library(
         "//pkg/proto/datadog/remoteconfig:config_proto",
         "//pkg/proto/datadog/workloadfilter:workloadfilter_proto",
         "//pkg/proto/datadog/workloadmeta:workloadmeta_proto",
+        "@protobuf//:any_proto",
         "@protobuf//:empty_proto",
     ],
 )
