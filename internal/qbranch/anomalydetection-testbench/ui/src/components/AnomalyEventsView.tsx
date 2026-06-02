@@ -197,7 +197,7 @@ function SmoothedScoreChart({ events, phaseMarkers, minTs: extMinTs, maxTs: extM
   return (
     <div className="mb-4">
       <div className="text-xs text-slate-400 mb-1">Rolling max score (5 min window)</div>
-      <svg width="100%" height={HEIGHT} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" className="bg-slate-900 rounded border border-slate-700">
+      <svg width="100%" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="bg-slate-900 rounded border border-slate-700" style={{ display: 'block' }}>
         {/* Threshold bands */}
         <rect x="0" y={yHigh} width={WIDTH} height={yMedium - yHigh} fill="rgba(234,179,8,0.06)" />
         <rect x="0" y="0" width={WIDTH} height={yHigh} fill="rgba(239,68,68,0.06)" />
@@ -518,7 +518,7 @@ export function AnomalyEventsView({ state, sidebarWidth, phaseMarkers }: Anomaly
       </div>
 
       {/* Main panel */}
-      <div className="flex-1 flex flex-col min-h-0 p-4 overflow-y-auto">
+      <div className="flex-1 flex flex-col min-h-0 p-4 overflow-y-auto overflow-x-hidden min-w-0">
         {events.length === 0 ? (
           <div className="text-slate-500 text-sm mt-8 text-center">
             No anomaly events yet. Load a scenario to see scored events.
