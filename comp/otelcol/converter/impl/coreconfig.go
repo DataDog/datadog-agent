@@ -10,13 +10,13 @@ import (
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"go.opentelemetry.io/collector/confmap"
+	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 )
 
 // addCoreAgentConfig enhances the configuration with information about the core agent.
 // For example, if api key is not found in otel config, it can be retrieved from core
 // agent config instead.
-func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
+func addCoreAgentConfig(conf confmaputils.ConfMap, coreCfg config.Component) {
 	if coreCfg == nil {
 		return
 	}
@@ -26,35 +26,24 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 
 // addEnv adds the env from core agent config to the profiler_options env setting,
 // if it is unset.
-func addEnv(conf *confmap.Conf, coreCfg config.Component) {
-	stringMapConf := conf.ToStringMap()
-	extensions, ok := stringMapConf["extensions"]
-	if !ok {
-		return
-	}
-	extensionMap, ok := extensions.(map[string]any)
+func addEnv(conf confmaputils.ConfMap, coreCfg config.Component) {
+	extensionMap, ok := confmaputils.Get[confmaputils.ConfMap](conf, "extensions")
 	if !ok {
 		return
 	}
 	for extension := range extensionMap {
-		if componentName(extension) == "ddprofiling" {
-			ddprofiling, ok := extensionMap[extension]
-			if !ok {
+		if confmaputils.IsComponentType(extension, "ddprofiling") {
+			ddprofilingMap, err := confmaputils.Ensure[confmaputils.ConfMap](extensionMap, extension)
+			if err != nil {
 				return
 			}
-			ddprofilingMap, ok := ddprofiling.(map[string]any)
+			profilerOptionsMap, ok := confmaputils.Get[confmaputils.ConfMap](ddprofilingMap, "profiler_options")
 			if !ok {
-				ddprofilingMap = make(map[string]any)
-				extensionMap[extension] = ddprofilingMap
-			}
-			profilerOptions, ok := ddprofilingMap["profiler_options"]
-			if !ok || profilerOptions == nil {
-				profilerOptions = make(map[string]any)
-				ddprofilingMap["profiler_options"] = profilerOptions
-			}
-			profilerOptionsMap, ok := profilerOptions.(map[string]any)
-			if !ok {
-				return
+				if existing, exists := ddprofilingMap["profiler_options"]; exists && existing != nil {
+					return // present but not a map — don't overwrite
+				}
+				profilerOptionsMap = make(confmaputils.ConfMap)
+				ddprofilingMap["profiler_options"] = profilerOptionsMap
 			}
 			if profilerOptionsMap["env"] != nil && profilerOptionsMap["env"] != "" {
 				return
@@ -65,17 +54,11 @@ func addEnv(conf *confmap.Conf, coreCfg config.Component) {
 			profilerOptionsMap["env"] = coreCfg.Get("env")
 		}
 	}
-	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
 
 // addAPIKeySite adds the API key and site from core config to github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config.APIConfig.
-func addAPIKeySite(conf *confmap.Conf, coreCfg config.Component, compType string, compName string) {
-	stringMapConf := conf.ToStringMap()
-	components, ok := stringMapConf[compType]
-	if !ok {
-		return
-	}
-	componentMap, ok := components.(map[string]any)
+func addAPIKeySite(conf confmaputils.ConfMap, coreCfg config.Component, compType string, compName string) {
+	componentMap, ok := confmaputils.Get[confmaputils.ConfMap](conf, compType)
 	if !ok {
 		return
 	}
@@ -84,28 +67,18 @@ func addAPIKeySite(conf *confmap.Conf, coreCfg config.Component, compType string
 		return
 	}
 	for component := range componentMap {
-		if componentName(component) == compName {
-			datadog, ok := componentMap[component]
-			if !ok {
+		if confmaputils.IsComponentType(component, compName) {
+			datadogMap, err := confmaputils.Ensure[confmaputils.ConfMap](componentMap, component)
+			if err != nil {
 				return
 			}
-			datadogMap, ok := datadog.(map[string]any)
+			apiMap, ok := confmaputils.Get[confmaputils.ConfMap](datadogMap, "api")
 			if !ok {
-				// datadog section is there, but there is nothing in it. We
-				// need to add it so we can add to it.
-				componentMap[component] = make(map[string]any)
-				datadogMap = componentMap[component].(map[string]any)
-			}
-			api, ok := datadogMap["api"]
-			// ok can be true if api section is there but contains nothing (api == nil).
-			// In which case, we need to add it so we can add to it.
-			if !ok || api == nil {
-				datadogMap["api"] = make(map[string]any, 2)
-				api = datadogMap["api"]
-			}
-			apiMap, ok := api.(map[string]any)
-			if !ok {
-				return
+				if existing, exists := datadogMap["api"]; exists && existing != nil {
+					return // present but not a map — don't overwrite
+				}
+				apiMap = make(confmaputils.ConfMap)
+				datadogMap["api"] = apiMap
 			}
 
 			// api::site
@@ -142,5 +115,4 @@ func addAPIKeySite(conf *confmap.Conf, coreCfg config.Component, compType string
 			}
 		}
 	}
-	*conf = *confmap.NewFromStringMap(stringMapConf)
 }

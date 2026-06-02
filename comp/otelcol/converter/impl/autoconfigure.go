@@ -9,12 +9,11 @@ package converterimpl
 import (
 	"context"
 	"slices"
-	"strings"
 
-	"go.opentelemetry.io/collector/confmap"
+	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 )
 
-var ddAutoconfiguredSuffix = "dd-autoconfigured"
+var ddAutoconfiguredSuffix = confmaputils.AutoConfiguredSuffix
 
 const (
 	defaultSite = "datadoghq.com"
@@ -29,7 +28,7 @@ type component struct {
 }
 
 // Applies selected feature changes
-func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
+func (c *ddConverter) enhanceConfig(ctx context.Context, conf confmaputils.ConfMap) {
 	var enabledFeatures []string
 	// If not specified, assume all features are enabled (ocb tests will not have coreConfig)
 	if c.coreConfig != nil {
@@ -117,11 +116,11 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 // In connected mode the core Datadog Agent already collects host metrics, so the
 // hostmetrics receiver will produce duplicate or conflicting metric names once
 // the otel. prefix remapping is disabled.
-func (c *ddConverter) warnIfHostmetricsInConnectedMode(conf *confmap.Conf) {
+func (c *ddConverter) warnIfHostmetricsInConnectedMode(conf confmaputils.ConfMap) {
 	if c.coreConfig == nil || c.coreConfig.GetBool("otel_standalone") {
 		return
 	}
-	if receivers := findComps(conf.ToStringMap(), "hostmetrics", "receivers"); len(receivers) > 0 {
+	if receivers := findComps(conf, "hostmetrics", "receivers"); len(receivers) > 0 {
 		if c.logger != nil {
 			c.logger.Warn("The hostmetrics receiver is enabled but the OTel Agent is running " +
 				"in connected mode (DD_OTEL_STANDALONE=false). In connected mode, the core " +
@@ -131,57 +130,16 @@ func (c *ddConverter) warnIfHostmetricsInConnectedMode(conf *confmap.Conf) {
 	}
 }
 
-func componentName(fullName string) string {
-	parts := strings.SplitN(fullName, "/", 2)
-	return parts[0]
-}
-
 // addComponentToConfig adds comp to the collector config. It supports receivers,
 // processors, exporters and extensions.
-func addComponentToConfig(conf *confmap.Conf, comp component) {
-	stringMapConf := conf.ToStringMap()
-
-	components, present := stringMapConf[comp.Type]
-	if present {
-		componentsMap, ok := components.(map[string]any)
-		if !ok {
-			if components == nil {
-				// components map is nil. It is defined but section is empty.
-				// need to create map manually
-
-				componentsMap = make(map[string]any)
-				stringMapConf[comp.Type] = componentsMap
-			} else {
-				return
-			}
-		}
-		componentsMap[comp.EnhancedName] = comp.Config
-	} else {
-		stringMapConf[comp.Type] = map[string]any{
-			comp.EnhancedName: comp.Config,
-		}
-	}
-
-	*conf = *confmap.NewFromStringMap(stringMapConf)
+func addComponentToConfig(conf confmaputils.ConfMap, comp component) {
+	_ = confmaputils.Set(conf, comp.Type+"::"+comp.EnhancedName, comp.Config)
 }
 
 // addComponentToPipeline adds comp into pipelineName. If pipelineName does not exist,
 // it creates it. It only supports receivers, processors and exporters.
-func addComponentToPipeline(conf *confmap.Conf, comp component, pipelineName string) {
-	stringMapConf := conf.ToStringMap()
-	service, ok := stringMapConf["service"]
-	if !ok {
-		return
-	}
-	serviceMap, ok := service.(map[string]any)
-	if !ok {
-		return
-	}
-	pipelines, ok := serviceMap["pipelines"]
-	if !ok {
-		return
-	}
-	pipelinesMap, ok := pipelines.(map[string]any)
+func addComponentToPipeline(conf confmaputils.ConfMap, comp component, pipelineName string) {
+	pipelinesMap, ok := confmaputils.Get[confmaputils.ConfMap](conf, "service::pipelines")
 	if !ok {
 		return
 	}
@@ -202,27 +160,21 @@ func addComponentToPipeline(conf *confmap.Conf, comp component, pipelineName str
 		pipelineOfTypeSlice = append(pipelineOfTypeSlice, comp.EnhancedName)
 		pipelineMap[comp.Type] = pipelineOfTypeSlice
 	}
-
-	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
 
-// findComps finds and returns the matching components and their configs in a string conf map.
+// findComps finds and returns the matching components and their configs.
 // Component can be receivers, processors, connectors or exporters.
-func findComps(stringMapConf map[string]any, compName string, compType string) map[string]map[string]any {
-	comps, ok := stringMapConf[compType]
+func findComps(conf confmaputils.ConfMap, compName string, compType string) map[string]confmaputils.ConfMap {
+	compsMap, ok := confmaputils.Get[confmaputils.ConfMap](conf, compType)
 	if !ok {
 		return nil
 	}
-	compsMap, ok := comps.(map[string]any)
-	if !ok {
-		return nil
-	}
-	cfgsByRecv := make(map[string]map[string]any)
+	cfgsByRecv := make(map[string]confmaputils.ConfMap)
 	for name, cfg := range compsMap {
-		if componentName(name) != compName {
+		if !confmaputils.IsComponentType(name, compName) {
 			continue
 		}
-		cfgMap, ok := cfg.(map[string]any)
+		cfgMap, ok := cfg.(confmaputils.ConfMap)
 		if !ok {
 			cfgMap = nil // some components like debug exporter can leave configs empty and use defaults
 		}
