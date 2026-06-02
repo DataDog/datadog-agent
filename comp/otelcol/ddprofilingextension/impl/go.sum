@@ -3,6 +3,8 @@ github.com/DataDog/datadog-go/v5 v5.8.3 h1:s58CUJ9s8lezjhTNJO/SxkPBv2qZjS3ktpRSq
 github.com/DataDog/datadog-go/v5 v5.8.3/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/dd-trace-go/v2 v2.8.1 h1:O/lPXXcJof4hqfcBGsL6p/PiVa5xTfvYzv5iv/4S66U=
 github.com/DataDog/dd-trace-go/v2 v2.8.1/go.mod h1:IVkBpsq66Cw/YIRM/Te3pl2F0M9n4zguAB2ReGczWeo=
+github.com/DataDog/dd-trace-go/v2 v2.8.2 h1:ZqF2M7j5DPG7PxkJpLIjF4L62LU/QnI86oOSAZjQC/U=
+github.com/DataDog/dd-trace-go/v2 v2.8.2/go.mod h1:o+fhXzd1mPT4Ji5YYcqIjORnNKWcS6m2eW4xqdJplRA=
 github.com/DataDog/go-acl v1.0.1 h1:uRbp98YmlVZYqNNyTBFNI3Y6bnziBLyCIR4nRu0bIpU=
 github.com/DataDog/go-acl v1.0.1/go.mod h1:YJx333qSb3GUqCLIbqKeGaZS2pUYh2IYGI7+FsX18CU=
 github.com/DataDog/go-libddwaf/v4 v4.9.0 h1:a788e37iuH7sR9uIYHkulvTnp2FkXTiZ3yY/kuaHgZE=
