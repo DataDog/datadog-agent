@@ -1012,7 +1012,7 @@ static PyObject *report_issue(PyObject *self, PyObject *args, PyObject *kwargs)
     cgo_free(err);
     PyGILState_Release(gstate);
     // we need to return NULL to raise the exception set by PyErr_SetString
-    if (error) {
+    if (err != NULL) {
         return NULL;
     }
     Py_RETURN_NONE;
@@ -1046,7 +1046,7 @@ static PyObject *resolve_issue(PyObject *self, PyObject *args, PyObject *kwargs)
     cgo_free(err);
     PyGILState_Release(gstate);
     // we need to return NULL to raise the exception set by PyErr_SetString
-    if (error) {
+    if (err != NULL) {
         return NULL;
     }
     Py_RETURN_NONE;
