@@ -20,8 +20,8 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -95,7 +95,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		AgentDemultiplexer: agentDemultiplexer,
 	}
 	deps.Lc.Append(fx.Hook{OnStop: func(_ context.Context) error {
-		agentDemultiplexer.Stop(true)
+		agentDemultiplexer.Stop()
 		return nil
 	}})
 

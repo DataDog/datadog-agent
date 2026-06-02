@@ -18,7 +18,10 @@ import (
 
 // Restart restarts an upstart service using initctl
 func Restart(ctx context.Context, name string) error {
-	errStart := telemetry.CommandContext(ctx, "initctl", "start", name).Run()
+	errStart := telemetry.CommandContext(ctx, "initctl", "start", name).
+		WithExpectedExitCodes(
+			1, // job already running; restart is the fallback path — https://manpages.ubuntu.com/manpages/noble/man8/initctl.8.html
+		).Run()
 	if errStart == nil {
 		return nil
 	}

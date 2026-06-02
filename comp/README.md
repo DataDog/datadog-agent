@@ -320,7 +320,7 @@ Package eventplatformreceiver implements the receiver for the event platform pac
 
 *Datadog Team*: kubernetes-experiences
 
-Package orchestrator implements the orchestrator forwarder component.
+Package orchestrator defines the interface for the orchestrator forwarder component.
 
 ### [comp/forwarder/orchestrator/orchestratorinterface](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface)
 
@@ -345,14 +345,15 @@ Package forwarder defines the interface for the health platform forwarder.
 
 Package issueregistry defines the interface for the health platform issue registry component.
 The registry is the single source of truth for issue templates and built-in health checks.
-It is built once at startup from all registered issue modules and shared by the store
-(for template lookup on ReportIssue) and the bundle (for bootstrapping built-in checks).
+It is built once at startup from all registered issue modules and shared by the runner
+(for template lookup on IssueReport) and the bundle (for bootstrapping built-in checks).
 
 ### [comp/healthplatform/runner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/runner)
 
 Package runner defines the interface for the health platform runner component.
-The runner executes a single HealthCheckFunc once, forwards each emitted
-IssueReport to the store, and returns the set of IssueIds that were reported.
+The runner executes a single HealthCheckFunc once, translates each emitted
+IssueReport into a proto Issue (via the issue registry), forwards it to the
+store, and returns the set of IssueIds that were reported.
 
 ### [comp/healthplatform/scheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/scheduler)
 

@@ -875,13 +875,15 @@ func (e *engine) resetAnalysisState() {
 }
 
 // ResetForReplay reconfigures with new components, clears all state, and replaces storage.
-func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []observerdef.Correlator, extractors []observerdef.LogMetricsExtractor) {
+// The caller supplies storageCfg so it owns any non-default retention policy
+// (e.g. the testbench passes PointRetentionSecs=0 for unbounded replay storage).
+func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []observerdef.Correlator, extractors []observerdef.LogMetricsExtractor, storageCfg StorageConfig) {
 	e.SetDetectors(detectors)
 	e.SetCorrelators(correlators)
 	e.SetExtractors(extractors)
 	e.resetFull()
 	e.mu.Lock()
-	e.storage = newTimeSeriesStorage()
+	e.storage = newTimeSeriesStorageWith(storageCfg)
 	e.mu.Unlock()
 }
 

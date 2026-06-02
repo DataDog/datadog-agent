@@ -112,7 +112,6 @@ components_classic_style = [
     'comp/checks/agentcrashdetect/agentcrashdetectimpl',
     "comp/checks/winregistry/impl",
     'comp/collector/collector/collectorimpl',
-    'comp/core/autodiscovery/autodiscoveryimpl',
     'comp/core/configsync/configsyncimpl',
     'comp/core/hostname/hostnameimpl',
     'comp/core/pid/pidimpl',
@@ -123,7 +122,6 @@ components_classic_style = [
     'comp/etw/impl',
     'comp/forwarder/eventplatform/eventplatformimpl',
     'comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl',
-    'comp/forwarder/orchestrator/orchestratorimpl',
     'comp/logs/adscheduler/adschedulerimpl',
     'comp/logs/agent/agentimpl',
     'comp/metadata/host/hostimpl',
@@ -179,6 +177,10 @@ components_missing_implementation_folder = [
 
 ignore_fx_import = [
     "comp/aggregator/demultiplexer",
+    "comp/forwarder/eventplatform",
+    "comp/collector/collector",
+    "comp/forwarder/eventplatformreceiver",
+    "comp/forwarder/orchestrator",
     "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/rdnsquerier",
@@ -188,9 +190,14 @@ ignore_fx_import = [
 
 ignore_provide_component_constructor_missing = [
     "comp/aggregator/demultiplexer",
+    "comp/forwarder/eventplatform",
+    "comp/collector/collector",
+    "comp/forwarder/eventplatformreceiver",
+    "comp/forwarder/orchestrator",
     "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/trace/agent",
+    "comp/core/configsync",
 ]
 
 mock_definitions = [
@@ -311,7 +318,7 @@ def locate_implementation_folders(comp):
             continue
 
         if to_posix_path(entry) in components_missing_implementation_folder:
-            return 'skip'
+            continue
 
         if comp.version == 2:
             # Check for component implementation using the new-style folder structure: comp/<component>/impl[-suffix]
