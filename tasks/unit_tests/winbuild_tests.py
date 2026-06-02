@@ -1,4 +1,6 @@
 import base64
+import contextlib
+import io
 import os
 import tempfile
 import unittest
@@ -114,15 +116,19 @@ class TestGenerateSymbolStore(unittest.TestCase):
                 z.writestr("opt/datadog-agent/bin/agent/agent.exe.pdb", _real_agent_pdb())
                 z.writestr("opt/datadog-agent/bin/agent/agent.exe.debug", "stripped binary")
 
-            generate_symbol_store(Context(), output_dir=tmp)
+            with contextlib.redirect_stdout(io.StringIO()):
+                generate_symbol_store(Context(), output_dir=tmp)
 
             expected = os.path.join(tmp, SYMBOL_STORE_DIR_NAME, "agent.exe.pdb", SAMPLE_KEY, "agent.exe.pdb")
             self.assertTrue(os.path.isfile(expected), f"missing symbol-store entry: {expected}")
 
     def test_no_debug_zip_is_noop(self):
         with tempfile.TemporaryDirectory() as tmp:
-            generate_symbol_store(Context(), output_dir=tmp)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                generate_symbol_store(Context(), output_dir=tmp)
             self.assertFalse(os.path.exists(os.path.join(tmp, SYMBOL_STORE_DIR_NAME)))
+            self.assertIn("no .debug.zip found", out.getvalue())
 
 
 if __name__ == "__main__":

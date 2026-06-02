@@ -109,32 +109,40 @@ def _symbol_index_key(pdb_path):
     extraction path can't parse them, at any dbghelp version. cdb/WinDbg/xperf
     read the very same PDBs fine, so the PDBs are usable; only symstore's
     indexer is not.
+
+    Reads only the blocks it needs (superblock, stream directory, PDB Info
+    stream) by seeking, never loading the whole file -- PDBs can be hundreds of
+    MB and the data we need is a tiny, scattered subset.
     """
     with open(pdb_path, "rb") as f:
-        data = f.read()
-    block_size, _free, _nblocks, num_dir_bytes, _unk, block_map_addr = struct.unpack_from("<IIIIII", data, 32)
 
-    def block(i):
-        return data[i * block_size : (i + 1) * block_size]
+        def read_block(idx):
+            f.seek(idx * block_size)
+            return f.read(block_size)
 
-    # The stream directory itself is stored in blocks listed at block_map_addr.
-    num_dir_blocks = (num_dir_bytes + block_size - 1) // block_size
-    dir_blocks = struct.unpack_from(f"<{num_dir_blocks}I", block(block_map_addr), 0)
-    directory = b"".join(block(b) for b in dir_blocks)[:num_dir_bytes]
+        # MSF superblock: block size and where the stream directory lives.
+        f.seek(32)
+        block_size, _free, _nblocks, num_dir_bytes, _unk, block_map_addr = struct.unpack("<IIIIII", f.read(24))
 
-    # Directory: u32 numStreams, u32 sizes[numStreams], then each stream's block
-    # list. Walk to stream 1 (the PDB Info stream).
-    num_streams = struct.unpack_from("<I", directory, 0)[0]
-    sizes = struct.unpack_from(f"<{num_streams}I", directory, 4)
-    off = 4 + 4 * num_streams
-    info = b""
-    for i, size in enumerate(sizes):
-        nblocks = 0 if size in (0, 0xFFFFFFFF) else (size + block_size - 1) // block_size
-        blocks = struct.unpack_from(f"<{nblocks}I", directory, off)
-        off += 4 * nblocks
-        if i == 1:
-            info = b"".join(block(b) for b in blocks)[:size]
-            break
+        # The directory's own blocks are listed in a single block at
+        # block_map_addr; concatenating them yields the stream directory.
+        num_dir_blocks = (num_dir_bytes + block_size - 1) // block_size
+        dir_blocks = struct.unpack_from(f"<{num_dir_blocks}I", read_block(block_map_addr), 0)
+        directory = b"".join(read_block(b) for b in dir_blocks)[:num_dir_bytes]
+
+        # Directory: u32 numStreams, u32 sizes[numStreams], then each stream's
+        # block list. Walk to stream 1 (the PDB Info stream).
+        num_streams = struct.unpack_from("<I", directory, 0)[0]
+        sizes = struct.unpack_from(f"<{num_streams}I", directory, 4)
+        off = 4 + 4 * num_streams
+        info = b""
+        for i, size in enumerate(sizes):
+            nblocks = 0 if size in (0, 0xFFFFFFFF) else (size + block_size - 1) // block_size
+            blocks = struct.unpack_from(f"<{nblocks}I", directory, off)
+            off += 4 * nblocks
+            if i == 1:
+                info = b"".join(read_block(b) for b in blocks)[:size]
+                break
 
     age = struct.unpack_from("<I", info, 8)[0]
     guid = info[12:28]
