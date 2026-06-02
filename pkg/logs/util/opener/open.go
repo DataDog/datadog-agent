@@ -13,25 +13,19 @@ import (
 	"github.com/spf13/afero"
 
 	internalOpener "github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
+	plcommon "github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
-// SymlinkPolicy controls whether OpenLogFile follows or rejects symbolic links.
-type SymlinkPolicy int
+// SymlinkPolicy re-exports the type from pkg/privileged-logs/common so that
+// callers of this package need not import that package directly.
+type SymlinkPolicy = plcommon.SymlinkPolicy
 
+// FollowSymlinks and RejectSymlinks re-export the constants from
+// pkg/privileged-logs/common for use by callers of this package.
 const (
-	// symlinkPolicyInvalid is the zero value; callers must always choose an explicit policy.
-	symlinkPolicyInvalid SymlinkPolicy = iota
-	// FollowSymlinks resolves symbolic links when opening a log file.  Use for
-	// file sources whose paths are admin-specified or come from the container
-	// runtime (e.g. /var/log/pods/…).
-	FollowSymlinks
-	// RejectSymlinks opens every path component with O_NOFOLLOW so that any
-	// symlink encountered causes an immediate error.  Use for file sources whose
-	// paths are resolved from /proc/<pid>/fd by the process_log provider: those
-	// paths are canonical at discovery time, so a symlink found later indicates
-	// an attacker-controlled swap.
-	RejectSymlinks
+	FollowSymlinks = plcommon.FollowSymlinks
+	RejectSymlinks = plcommon.RejectSymlinks
 )
 
 // FileOpener is an interface that defines the method to open a log file.

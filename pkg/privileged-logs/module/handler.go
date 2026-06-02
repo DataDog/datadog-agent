@@ -85,7 +85,13 @@ func (f *privilegedLogsModule) openFileHandler(w http.ResponseWriter, r *http.Re
 
 	f.logFileAccess(req.Path)
 
-	file, err := validateAndOpen(req.Path, req.NoFollow)
+	// Convert the wire-protocol bool to the typed policy constant.
+	// OpenFileRequest.NoFollow stays as bool in JSON to avoid a wire-format change.
+	policy := common.FollowSymlinks
+	if req.NoFollow {
+		policy = common.RejectSymlinks
+	}
+	file, err := validateAndOpen(req.Path, policy)
 	if err != nil {
 		f.sendErrorResponse(unixConn, err.Error())
 		return

@@ -4,6 +4,7 @@ go_library(
     name = "common",
     srcs = [
         "open_linux.go",
+        "symlink_policy.go",
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privileged-logs/common",

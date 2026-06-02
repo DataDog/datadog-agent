@@ -15,6 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
 )
 
 // countOpenFDs returns the number of open file descriptors for the current process
@@ -326,7 +328,7 @@ func TestValidateAndOpenWithPrefix(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			file, err := validateAndOpenWithPrefix(tt.path, tt.allowedPrefix, false, nil)
+			file, err := validateAndOpenWithPrefix(tt.path, tt.allowedPrefix, common.FollowSymlinks, nil)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -389,7 +391,7 @@ func TestValidateAndOpen(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			file, err := validateAndOpen(tt.path, false)
+			file, err := validateAndOpen(tt.path, common.FollowSymlinks)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -663,7 +665,7 @@ func TestValidateAndOpenWithPrefixWithRealFiles(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			filePath := tt.setupFunc(t, testDir)
 
-			file, err := validateAndOpenWithPrefix(filePath, tt.allowedPrefix, false, nil)
+			file, err := validateAndOpenWithPrefix(filePath, tt.allowedPrefix, common.FollowSymlinks, nil)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -716,7 +718,7 @@ func TestValidateAndOpenWithPrefixPathTraversal(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			filePath := tt.setupFunc(t, testDir)
 
-			file, err := validateAndOpenWithPrefix(filePath, tt.allowedPrefix, false, nil)
+			file, err := validateAndOpenWithPrefix(filePath, tt.allowedPrefix, common.FollowSymlinks, nil)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -768,7 +770,7 @@ func TestValidateAndOpenWithPrefixTOCTOUPrefixSymlink(t *testing.T) {
 		require.NoError(t, os.Symlink(etcDir, logDir))
 	}
 
-	file, err := validateAndOpenWithPrefix(logFile, logDir, false, toctou)
+	file, err := validateAndOpenWithPrefix(logFile, logDir, common.FollowSymlinks, toctou)
 
 	// openPathWithoutSymlinks should prevent this attack
 	assert.Error(t, err)
@@ -802,7 +804,7 @@ func TestValidateAndOpenWithPrefixTOCTOUFileSymlink(t *testing.T) {
 		require.NoError(t, os.Symlink(sensitiveFile, logFile))
 	}
 
-	file, err := validateAndOpenWithPrefix(logFile, "/var/log/", false, toctou)
+	file, err := validateAndOpenWithPrefix(logFile, "/var/log/", common.FollowSymlinks, toctou)
 
 	assert.Error(t, err)
 	// This is the error when a symlink is attempted to be opened with O_NOFOLLOW
@@ -831,12 +833,12 @@ func TestValidateAndOpenWithPrefixNoFollowRejectsSymlink(t *testing.T) {
 	require.NoError(t, os.Symlink(targetLog, logFile))
 
 	// In noFollow mode the symlink must be rejected even though the target ends in .log
-	file, err := validateAndOpenWithPrefix(logFile, testDir+"/", true, nil)
+	file, err := validateAndOpenWithPrefix(logFile, testDir+"/", common.RejectSymlinks, nil)
 	assert.Error(t, err)
 	assert.Nil(t, file)
 
 	// In standard (follow) mode the symlink would succeed
-	file2, err2 := validateAndOpenWithPrefix(logFile, testDir+"/", false, nil)
+	file2, err2 := validateAndOpenWithPrefix(logFile, testDir+"/", common.FollowSymlinks, nil)
 	if err2 == nil {
 		// accepted as expected in follow mode
 		file2.Close()
