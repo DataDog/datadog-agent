@@ -42,7 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-//go:generate go run github.com/golang/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go
+//go:generate go run go.uber.org/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go
 
 // Requires defines the component's dependencies.
 type Requires struct {
@@ -276,6 +276,18 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			// container images in the workloadmeta store. This can be a lot of
 			// payloads at once, so we need a large input channel size to avoid dropping
 			defaultInputChanSize: 1000,
+		},
+		{
+			eventType:                     eventplatform.EventTypeGenResources,
+			category:                      "Generic Resources",
+			contentType:                   logshttp.ProtobufContentType,
+			endpointsConfigPrefix:         "genresources.",
+			hostnameEndpointPrefix:        "resources-intake.",
+			intakeTrackType:               "genresources",
+			defaultBatchMaxConcurrentSend: 10,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 		},
 		{
 			eventType:                     eventplatform.EventTypeSynthetics,
