@@ -76,7 +76,15 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		remotetraceroute.Module(),
 		logscompressionfx.Module(),
 		eventplatformreceiverimpl.Module(),
-		eventplatformfx.Module(eventplatform.NewDefaultParams()),
+		// Provide event platform params conditionally: use a real forwarder only when PAR is
+		// enabled, to avoid constructing all EVP pipelines (and their compressors) on startup
+		// when the runner is disabled (the default).
+		eventplatformfx.ModuleWithParamsProvider(func(cfg config.Component) eventplatform.Params {
+			if cfg.GetBool(privateactionrunner.PAREnabled) {
+				return eventplatform.NewDefaultParams()
+			}
+			return eventplatform.NewDisabledParams()
+		}),
 		privateactionrunnerfx.Module(),
 	}
 

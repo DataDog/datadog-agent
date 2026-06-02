@@ -25,3 +25,15 @@ func Module(params eventplatform.Params) fxutil.Module {
 		fx.Supply(params),
 	)
 }
+
+// ModuleWithParamsProvider is like Module but accepts an fx-compatible provider function
+// for the Params instead of a static value. This allows the params to depend on other
+// fx-provided values (e.g., config) so callers can conditionally enable the forwarder.
+func ModuleWithParamsProvider(paramsProvider any) fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(
+			eventplatformimpl.NewComponent,
+		),
+		fx.Provide(paramsProvider),
+	)
+}
