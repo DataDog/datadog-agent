@@ -16,6 +16,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	gomock "go.uber.org/mock/gomock"
 	grpc "google.golang.org/grpc"
+	anypb "google.golang.org/protobuf/types/known/anypb"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -394,6 +395,26 @@ func (mr *MockAgentSecureClientMockRecorder) RegisterRemoteAgent(ctx, in any, op
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterRemoteAgent", reflect.TypeOf((*MockAgentSecureClient)(nil).RegisterRemoteAgent), varargs...)
 }
 
+// ReportHealthIssue mocks base method.
+func (m *MockAgentSecureClient) ReportHealthIssue(ctx context.Context, in *anypb.Any, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ReportHealthIssue", varargs...)
+	ret0, _ := ret[0].(*emptypb.Empty)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReportHealthIssue indicates an expected call of ReportHealthIssue.
+func (mr *MockAgentSecureClientMockRecorder) ReportHealthIssue(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportHealthIssue", reflect.TypeOf((*MockAgentSecureClient)(nil).ReportHealthIssue), varargs...)
+}
+
 // ResetConfigState mocks base method.
 func (m *MockAgentSecureClient) ResetConfigState(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*core.ResetStateConfigResponse, error) {
 	m.ctrl.T.Helper()
@@ -412,6 +433,26 @@ func (mr *MockAgentSecureClientMockRecorder) ResetConfigState(ctx, in any, opts 
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, in}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetConfigState", reflect.TypeOf((*MockAgentSecureClient)(nil).ResetConfigState), varargs...)
+}
+
+// ResolveHealthIssue mocks base method.
+func (m *MockAgentSecureClient) ResolveHealthIssue(ctx context.Context, in *core.HealthIssueResolve, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ResolveHealthIssue", varargs...)
+	ret0, _ := ret[0].(*emptypb.Empty)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResolveHealthIssue indicates an expected call of ResolveHealthIssue.
+func (mr *MockAgentSecureClientMockRecorder) ResolveHealthIssue(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveHealthIssue", reflect.TypeOf((*MockAgentSecureClient)(nil).ResolveHealthIssue), varargs...)
 }
 
 // StreamConfigEvents mocks base method.
@@ -741,6 +782,21 @@ func (mr *MockAgentSecureServerMockRecorder) RegisterRemoteAgent(arg0, arg1 any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterRemoteAgent", reflect.TypeOf((*MockAgentSecureServer)(nil).RegisterRemoteAgent), arg0, arg1)
 }
 
+// ReportHealthIssue mocks base method.
+func (m *MockAgentSecureServer) ReportHealthIssue(arg0 context.Context, arg1 *anypb.Any) (*emptypb.Empty, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReportHealthIssue", arg0, arg1)
+	ret0, _ := ret[0].(*emptypb.Empty)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReportHealthIssue indicates an expected call of ReportHealthIssue.
+func (mr *MockAgentSecureServerMockRecorder) ReportHealthIssue(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportHealthIssue", reflect.TypeOf((*MockAgentSecureServer)(nil).ReportHealthIssue), arg0, arg1)
+}
+
 // ResetConfigState mocks base method.
 func (m *MockAgentSecureServer) ResetConfigState(arg0 context.Context, arg1 *emptypb.Empty) (*core.ResetStateConfigResponse, error) {
 	m.ctrl.T.Helper()
@@ -754,6 +810,21 @@ func (m *MockAgentSecureServer) ResetConfigState(arg0 context.Context, arg1 *emp
 func (mr *MockAgentSecureServerMockRecorder) ResetConfigState(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetConfigState", reflect.TypeOf((*MockAgentSecureServer)(nil).ResetConfigState), arg0, arg1)
+}
+
+// ResolveHealthIssue mocks base method.
+func (m *MockAgentSecureServer) ResolveHealthIssue(arg0 context.Context, arg1 *core.HealthIssueResolve) (*emptypb.Empty, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResolveHealthIssue", arg0, arg1)
+	ret0, _ := ret[0].(*emptypb.Empty)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResolveHealthIssue indicates an expected call of ResolveHealthIssue.
+func (mr *MockAgentSecureServerMockRecorder) ResolveHealthIssue(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveHealthIssue", reflect.TypeOf((*MockAgentSecureServer)(nil).ResolveHealthIssue), arg0, arg1)
 }
 
 // StreamConfigEvents mocks base method.

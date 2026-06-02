@@ -43,6 +43,7 @@ func (m *mockStore) GetAllIssues() (int, map[string]*healthplatformpayload.Issue
 	return len(cp), cp
 }
 
+func (m *mockStore) AcceptIssue(_ *healthplatformpayload.Issue) error { return nil }
 func (m *mockStore) ReportIssue(_ *healthplatformpayload.Issue) error { return nil }
 func (m *mockStore) ResolveIssue(_ string)                            {}
 func (m *mockStore) ResolveAllIssues()                                {}
