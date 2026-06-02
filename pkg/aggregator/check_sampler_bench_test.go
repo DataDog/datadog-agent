@@ -66,7 +66,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	haAgent := haagentmock.NewMockHaAgent()
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
 	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, haAgent, deps.Compressor, taggerComponent, filterList, "hostname")
-	defer demux.Stop(true)
+	defer demux.Stop()
 
 	checkSampler := newCheckSampler(1, true, true, 1000, true, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"), taggerComponent)
 	matcher := filterlistimpl.NewNoopTagMatcher()

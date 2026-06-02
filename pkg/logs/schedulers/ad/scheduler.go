@@ -12,7 +12,7 @@ import (
 
 	yaml "go.yaml.in/yaml/v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
