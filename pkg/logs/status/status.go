@@ -71,17 +71,55 @@ type Integration struct {
 	Sources []Source `json:"sources"`
 }
 
+// ComponentUtilization holds the utilization and capacity snapshot for a single
+// pipeline component instance.
+type ComponentUtilization struct {
+	Name     string `json:"name"`
+	Instance string `json:"instance"`
+	// Current 1-second window values
+	AvgRatio      float64 `json:"avg_ratio"`       // N=30 EWMA
+	RawRatio      float64 `json:"raw_ratio"`       // instantaneous 1-second sample
+	ShortAvgRatio float64 `json:"short_avg_ratio"` // N=5 EWMA (~5-second window)
+	AvgItems      float64 `json:"avg_items"`
+	RawItems      int64   `json:"raw_items"`
+	AvgBytes      float64 `json:"avg_bytes"`
+	RawBytes      int64   `json:"raw_bytes"`
+	// Rolling window statistics over the utilization ratio
+	Avg5m  float64 `json:"avg_5m"`
+	Max5m  float64 `json:"max_5m"`
+	Avg30m float64 `json:"avg_30m"`
+	Max30m float64 `json:"max_30m"`
+	Max2h  float64 `json:"max_2h"`
+	Max5h  float64 `json:"max_5h"`
+	Max10h float64 `json:"max_10h"`
+	// Saturation stats (threshold = 90% raw ratio)
+	Saturated30mSeconds int64  `json:"saturated_30m_s"`      // seconds spent saturated in last 30m
+	LastSaturatedAt     string `json:"last_saturated_at"`    // "15:04:05" or ""
+	HasLastSaturated    bool   `json:"has_last_saturated"`
+}
+
+// BackpressureStatus summarises the overall backpressure state of the logs pipeline.
+type BackpressureStatus struct {
+	State  string `json:"state"`  // "HEALTHY" or "SATURATED"
+	Reason string `json:"reason"` // human-readable explanation when saturated
+}
+
 // Status provides some information about logs-agent.
 type Status struct {
-	IsRunning        bool              `json:"is_running"`
-	Endpoints        []string          `json:"endpoints"`
-	StatusMetrics    map[string]string `json:"metrics"`
-	ProcessFileStats map[string]uint64 `json:"process_file_stats"`
-	Integrations     []Integration     `json:"integrations"`
-	Tailers          []Tailer          `json:"tailers"`
-	Errors           []string          `json:"errors"`
-	Warnings         []string          `json:"warnings"`
-	UseHTTP          bool              `json:"use_http"`
+	IsRunning            bool                   `json:"is_running"`
+	Endpoints            []string               `json:"endpoints"`
+	StatusMetrics        map[string]string      `json:"metrics"`
+	ProcessFileStats     map[string]uint64      `json:"process_file_stats"`
+	Integrations         []Integration          `json:"integrations"`
+	Tailers              []Tailer               `json:"tailers"`
+	Errors               []string               `json:"errors"`
+	Warnings             []string               `json:"warnings"`
+	UseHTTP              bool                   `json:"use_http"`
+	ComponentUtilization []ComponentUtilization `json:"component_utilization"`
+	Backpressure         BackpressureStatus     `json:"backpressure"`
+	// BackpressureTable is a pre-formatted human-readable backpressure table for
+	// text output. It is omitted from JSON; use ComponentUtilization for structured access.
+	BackpressureTable string `json:"-"`
 }
 
 // SetCurrentTransport sets the current transport used by the log agent.
@@ -118,6 +156,7 @@ func Clear() {
 	builder = nil
 	warnings = nil
 	errors = nil
+	metrics.ClearComponentSnapshots()
 }
 
 // Get returns the status of the logs-agent computed on the fly.

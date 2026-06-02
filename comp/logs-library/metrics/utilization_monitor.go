@@ -34,7 +34,9 @@ type TelemetryUtilizationMonitor struct {
 	startInUse time.Time
 	lastSample time.Time
 	sampleRate time.Duration
-	avg        float64
+	avg        float64 // N=30 EWMA
+	shortAvg   float64 // N=5 EWMA
+	history    *rollingHistory
 	name       string
 	instance   string
 	started    bool
@@ -55,6 +57,8 @@ func newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance string,
 		lastSample: clock.Now(),
 		sampleRate: sampleRate,
 		avg:        0,
+		shortAvg:   0,
+		history:    newRollingHistory(),
 		started:    false,
 		clock:      clock,
 	}
@@ -84,10 +88,26 @@ func (u *TelemetryUtilizationMonitor) Stop() {
 
 func (u *TelemetryUtilizationMonitor) reportIfNeeded() {
 	if u.clock.Since(u.lastSample) >= u.sampleRate {
-		u.avg = ewma(float64(u.inUse)/float64(u.idle+u.inUse), u.avg)
+		rawRatio := 0.0
+		if total := u.idle + u.inUse; total > 0 {
+			rawRatio = float64(u.inUse) / float64(total)
+		}
+		u.avg = ewma(rawRatio, u.avg)
+		u.shortAvg = shortEwma(rawRatio, u.shortAvg)
+
+		now := u.clock.Now()
+		u.history.add(now, rawRatio)
+		ws := u.history.allStats(now)
+
 		TlmUtilizationRatio.Set(u.avg, u.name, u.instance)
+		TlmUtilizationShortRatio.Set(u.shortAvg, u.name, u.instance)
+		setComponentUtilization(u.name, u.instance, u.avg, rawRatio, u.shortAvg, ws)
 		u.idle = 0
 		u.inUse = 0
-		u.lastSample = u.clock.Now()
+		u.lastSample = now
 	}
+}
+
+func shortEwma(newValue, oldValue float64) float64 {
+	return newValue*shortEwmaAlpha + oldValue*(1-shortEwmaAlpha)
 }
