@@ -136,7 +136,6 @@ use_repo(
     "com_github_data_dog_go_sqlmock",
     "com_github_datadog_agent_payload_v5",
     "com_github_datadog_datadog_agent_comp_otelcol_collector_contrib_impl",
-    "com_github_datadog_datadog_api_client_go",
     "com_github_datadog_datadog_api_client_go_v2",
     "com_github_datadog_datadog_go_v5",
     "com_github_datadog_datadog_operator_api",
