@@ -14,8 +14,10 @@ from tasks.static_quality_gates.gates import (
     QualityGateFactory,
     SizeViolation,
     StaticQualityGate,
+    StaticQualityGateError,
     _extract_arch_from_gate_name,
     _extract_os_from_gate_name,
+    _read_report_header,
     byte_to_string,
     create_quality_gate_config,
     read_byte_input,
@@ -179,6 +181,108 @@ class TestArchitectureAndOSExtraction(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             _extract_os_from_gate_name("static_quality_gate_unknown")
+
+
+class TestReadReportHeader(unittest.TestCase):
+    def test_returns_scalar_top_level_fields(self):
+        yaml_content = (
+            "artifact_path: /path/to/pkg.deb\n"
+            "gate_name: static_quality_gate_agent_deb_amd64\n"
+            "on_wire_size: 1024\n"
+            "on_disk_size: 4096\n"
+        )
+        header = _read_report_header(yaml_content)
+        self.assertEqual(
+            header,
+            {
+                "artifact_path": "/path/to/pkg.deb",
+                "gate_name": "static_quality_gate_agent_deb_amd64",
+                "on_wire_size": "1024",
+                "on_disk_size": "4096",
+            },
+        )
+
+    def test_stops_at_file_inventory_and_skips_trailing_blocks(self):
+        # docker_info sits after file_inventory in real reports; the reader
+        # must break at file_inventory so it isn't returned either.
+        yaml_content = (
+            "on_wire_size: 100\n"
+            "on_disk_size: 200\n"
+            "file_inventory:\n"
+            "  - path: /a\n"
+            "    size: 50\n"
+            "  - path: /b\n"
+            "    size: 50\n"
+            "docker_info:\n"
+            "  image_ref: foo\n"
+        )
+        header = _read_report_header(yaml_content)
+        self.assertEqual(header, {"on_wire_size": "100", "on_disk_size": "200"})
+
+
+class TestInventoryReportMeasurer(unittest.TestCase):
+    def setUp(self):
+        self.measurer = InventoryReportMeasurer()
+        self.config = QualityGateConfig("static_quality_gate_agent_deb_amd64", 100, 200, "amd64", "debian")
+
+    def _write_report(self, dirpath, sha, body):
+        path = os.path.join(dirpath, f"agent_deb_amd64_size_report_{sha}.yml")
+        with open(path, "w") as f:
+            f.write(body)
+        return path
+
+    def test_fetch_report_missing_env_var(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(StaticQualityGateError) as cm:
+                self.measurer._fetch_report(self.config.gate_name)
+            self.assertIn(InventoryReportMeasurer.LOCAL_DIR_ENV, str(cm.exception))
+
+    def test_fetch_report_no_matching_files(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch.dict(os.environ, {InventoryReportMeasurer.LOCAL_DIR_ENV: tmpdir}):
+                with self.assertRaises(StaticQualityGateError) as cm:
+                    self.measurer._fetch_report(self.config.gate_name)
+                self.assertIn("found 0", str(cm.exception))
+
+    def test_fetch_report_multiple_matches(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._write_report(tmpdir, "abc1234", "on_wire_size: 1\non_disk_size: 2\n")
+            self._write_report(tmpdir, "def5678", "on_wire_size: 1\non_disk_size: 2\n")
+            with patch.dict(os.environ, {InventoryReportMeasurer.LOCAL_DIR_ENV: tmpdir}):
+                with self.assertRaises(StaticQualityGateError) as cm:
+                    self.measurer._fetch_report(self.config.gate_name)
+                self.assertIn("found 2", str(cm.exception))
+
+    def test_fetch_report_single_match_returns_header(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._write_report(
+                tmpdir,
+                "abc1234",
+                "artifact_path: /pkg.deb\non_wire_size: 1024\non_disk_size: 4096\nfile_inventory:\n  - path: /a\n    size: 1024\n",
+            )
+            with patch.dict(os.environ, {InventoryReportMeasurer.LOCAL_DIR_ENV: tmpdir}):
+                header = self.measurer._fetch_report(self.config.gate_name)
+            self.assertEqual(header, {"artifact_path": "/pkg.deb", "on_wire_size": "1024", "on_disk_size": "4096"})
+
+    def test_measure_converts_header_to_artifact_measurement(self):
+        with patch.object(
+            InventoryReportMeasurer,
+            "_fetch_report",
+            return_value={"artifact_path": "/pkg.deb", "on_wire_size": "1024", "on_disk_size": "4096"},
+        ):
+            result = self.measurer.measure(MagicMock(), self.config)
+        self.assertEqual(result.artifact_path, "/pkg.deb")
+        self.assertEqual(result.on_wire_size, 1024)
+        self.assertEqual(result.on_disk_size, 4096)
+
+    def test_measure_falls_back_when_artifact_path_missing(self):
+        with patch.object(
+            InventoryReportMeasurer,
+            "_fetch_report",
+            return_value={"on_wire_size": "1024", "on_disk_size": "4096"},
+        ):
+            result = self.measurer.measure(MagicMock(), self.config)
+        self.assertEqual(result.artifact_path, "<from-s3>")
 
 
 class TestStaticQualityGate(unittest.TestCase):
