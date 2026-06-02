@@ -14,12 +14,12 @@ go_library(
         "//pkg/fleet/installer/config",
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/errors",
-        "//pkg/fleet/installer/garbagecollect",
         "//pkg/fleet/installer/paths",
         "//pkg/fleet/installer/repository",
         "//pkg/fleet/installer/telemetry",
     ] + select({
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/garbagecollect",
             "//pkg/fleet/installer/packages/apmlibrarydotnet",
         ],
         "//conditions:default": [],
