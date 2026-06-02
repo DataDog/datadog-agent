@@ -684,6 +684,9 @@ func parseIssueJSON(payload string) (*healthplatformpayload.Issue, error) {
 	if err := protojson.Unmarshal([]byte(t), &msg); err != nil {
 		return nil, err
 	}
+	if msg.Id == "" {
+		return nil, errors.New("empty or null id")
+	}
 	return &msg, nil
 }
 

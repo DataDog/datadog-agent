@@ -753,7 +753,7 @@ func TestReportIssue(t *testing.T) {
 
 	// Note the tab is needed on the second line because of the string interpolation in datadog_agent.go:run
 	code := `
-	payload = '{"id":"stub-issue","issue_name":"stub-issue"}'
+	payload = '{"id":"stub-issue","issueName":"stub-issue"}'
 	datadog_agent.report_issue(check_name="stub-name", report_json=payload)
 `
 	out, err := run(code)
