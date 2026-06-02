@@ -67,20 +67,18 @@
 
         # Optional second upload at the commit-only path for downstream
         # consumers that look up by commit alone (e.g. files_inventory_check
-        # parent-report fetch). Skipped on cross-repo sources so the shared
-        # path can't be polluted by foreign uploads.
+        # parent-report fetch). Restricted to push pipelines so the canonical
+        # post-merge report isn't replaced by manual/scheduled/web runs (which
+        # may have overridden dependency inputs).
         if [[ "$UPLOAD_GLOBAL_INVENTORY" == "true" ]]; then
-          case "$CI_PIPELINE_SOURCE" in
-            pipeline|parent_pipeline)
-              echo "Pipeline source is '$CI_PIPELINE_SOURCE'; skipping global report upload"
-              ;;
-            *)
-              echo "Uploading global report to ${BUCKET_BASE_PATH}/${CI_COMMIT_SHA}/${REPORT_FILENAME}"
-              aws s3 cp --only-show-errors --region us-east-1 --sse AES256 \
-                "${REPORT_FILENAME}" \
-                "${BUCKET_BASE_PATH}/${CI_COMMIT_SHA}/${REPORT_FILENAME}"
-              ;;
-          esac
+          if [[ "$CI_PIPELINE_SOURCE" == "push" ]]; then
+            echo "Uploading global report to ${BUCKET_BASE_PATH}/${CI_COMMIT_SHA}/${REPORT_FILENAME}"
+            aws s3 cp --only-show-errors --region us-east-1 --sse AES256 \
+              "${REPORT_FILENAME}" \
+              "${BUCKET_BASE_PATH}/${CI_COMMIT_SHA}/${REPORT_FILENAME}"
+          else
+            echo "Pipeline source is '$CI_PIPELINE_SOURCE'; skipping global report upload"
+          fi
         fi
       else
         echo "⚠️  No package found matching pattern: $PACKAGE_PATTERN"; exit 1;
