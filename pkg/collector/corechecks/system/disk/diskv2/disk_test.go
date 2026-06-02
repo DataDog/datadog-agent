@@ -222,7 +222,7 @@ func TestGivenADiskCheckAndStoppedSender(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
 	diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
-	senderManager.Stop(false)
+	senderManager.Stop()
 	err := diskCheck.Run()
 
 	assert.Equal(t, stoppedSenderError, err)

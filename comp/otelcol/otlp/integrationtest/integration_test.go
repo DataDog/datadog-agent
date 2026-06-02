@@ -57,7 +57,7 @@ import (
 	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	orchestratormock "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
@@ -151,7 +151,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
 			return defaultforwarder.Forwarder(c), nil
 		}),
-		orchestratorimpl.MockModule(),
+		orchestratormock.MockModule(),
 		pidfx.Module(),
 		fx.Supply(pidimpl.NewParams(pidfilePath)),
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component], _ pid.Component) {
