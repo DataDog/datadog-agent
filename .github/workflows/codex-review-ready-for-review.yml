@@ -1,0 +1,160 @@
+---
+name: "Cleanup Codex reviews when PR is ready"
+
+on:
+  pull_request:
+    types: [ready_for_review]
+
+permissions: {}
+
+jobs:
+  cleanup-codex-review:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Cleanup Codex draft review artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.event.repository.name }}
+          REPOSITORY: ${{ github.repository }}
+          CHATGPT_CODEX_BOT: chatgpt-codex-connector[bot]
+          CODEX_REVIEW_BODY: "@codex review"
+          GITHUB_ACTIONS_BOT: github-actions[bot]
+          LEGACY_GITHUB_ACTIONS_BOT: github_actions[bot]
+          NO_MAJOR_ISSUES_BODY: "Didn't find any major issues"
+        run: |
+          set -euo pipefail
+
+          comments_endpoint="repos/${REPOSITORY}/issues/${PR_NUMBER}/comments"
+
+          comment_filter="$(cat <<'JQ'
+          .[]
+          | select(
+              (
+                (
+                  (.user.login == env.GITHUB_ACTIONS_BOT)
+                  or (.user.login == env.LEGACY_GITHUB_ACTIONS_BOT)
+                )
+                and .body == env.CODEX_REVIEW_BODY
+              )
+              or (
+                .user.login == env.CHATGPT_CODEX_BOT
+                and (.body | contains(env.NO_MAJOR_ISSUES_BODY))
+              )
+            )
+          | .id
+          JQ
+          )"
+
+          echo "Deleting matching Codex issue comments from PR ${PR_NUMBER}"
+          comment_ids_output="$(
+            gh api --paginate "${comments_endpoint}" \
+              --jq "${comment_filter}"
+          )"
+          comment_ids=()
+          if [ -n "${comment_ids_output}" ]; then
+            mapfile -t comment_ids <<< "${comment_ids_output}"
+          fi
+
+          for comment_id in "${comment_ids[@]}"; do
+            echo "Deleting issue comment ${comment_id}"
+            gh api --method DELETE \
+              "repos/${REPOSITORY}/issues/comments/${comment_id}"
+          done
+
+          reviews_query="$(cat <<'GRAPHQL'
+          query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
+            repository(owner: $owner, name: $repo) {
+              pullRequest(number: $pr) {
+                reviews(first: 100, after: $cursor) {
+                  nodes {
+                    id
+                    isMinimized
+                    author {
+                      login
+                    }
+                  }
+                  pageInfo {
+                    hasNextPage
+                    endCursor
+                  }
+                }
+              }
+            }
+          }
+          GRAPHQL
+          )"
+
+          minimize_mutation="$(cat <<'GRAPHQL'
+          mutation($subjectId: ID!) {
+            minimizeComment(
+              input: {subjectId: $subjectId, classifier: OUTDATED}
+            ) {
+              minimizedComment {
+                isMinimized
+              }
+            }
+          }
+          GRAPHQL
+          )"
+
+          echo "Minimizing matching Codex reviews from PR ${PR_NUMBER}"
+          cursor=""
+          while true; do
+            cursor_arg=(-F "cursor=null")
+            if [ -n "${cursor}" ]; then
+              cursor_arg=(-f "cursor=${cursor}")
+            fi
+
+            response="$(
+              gh api graphql \
+                -f "owner=${OWNER}" \
+                -f "repo=${REPO}" \
+                -F "pr=${PR_NUMBER}" \
+                "${cursor_arg[@]}" \
+                -f "query=${reviews_query}"
+            )"
+
+            review_ids_output="$(
+              jq -r '
+                .data.repository.pullRequest.reviews.nodes[]
+                | select(
+                    .author.login == env.CHATGPT_CODEX_BOT
+                    and (.isMinimized | not)
+                  )
+                | .id
+              ' <<< "${response}"
+            )"
+            review_ids=()
+            if [ -n "${review_ids_output}" ]; then
+              mapfile -t review_ids <<< "${review_ids_output}"
+            fi
+
+            for review_id in "${review_ids[@]}"; do
+              echo "Minimizing pull request review ${review_id}"
+              gh api graphql \
+                -f "query=${minimize_mutation}" \
+                -f "subjectId=${review_id}" \
+                > /dev/null
+            done
+
+            has_next_page="$(
+              jq -r '
+                .data.repository.pullRequest.reviews.pageInfo.hasNextPage
+              ' <<< "${response}"
+            )"
+            if [ "${has_next_page}" != "true" ]; then
+              break
+            fi
+
+            cursor="$(
+              jq -r '
+                .data.repository.pullRequest.reviews.pageInfo.endCursor
+              ' <<< "${response}"
+            )"
+          done
