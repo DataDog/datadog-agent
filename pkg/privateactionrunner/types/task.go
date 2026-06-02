@@ -36,6 +36,12 @@ type Attributes struct {
 	ConnectionInfo        *privateactionspb.ConnectionInfo                `json:"connection_info"`
 	TraceId               uint64                                          `json:"trace_id,omitempty"`
 	SpanId                uint64                                          `json:"span_id,omitempty"`
+	// AllowedCommands and AllowedPaths are the rshell allowlists resolved from
+	// execution policies (intersected with Balto) on the backend and carried in
+	// the signed task. AllowedPaths is keyed by environment ("default" /
+	// "containerized"). Both are empty for non-remote-action tasks.
+	AllowedCommands []string            `json:"allowed_commands,omitempty"`
+	AllowedPaths    map[string][]string `json:"allowed_paths,omitempty"`
 }
 
 // TimeoutSeconds returns the timeout from the task inputs if present, positive, and within int32

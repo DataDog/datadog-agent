@@ -50,6 +50,28 @@ message PrivateActionTask {
   ConnectionInfo connection_info = 10;
   google.protobuf.Timestamp expiration_time = 11;
   actionsclient.Client client = 12;
+  // allowed_commands and allowed_paths carry the rshell allowlists resolved
+  // from execution policies (intersected with Balto) for remote-action tasks.
+  // They are empty for non-remote-action tasks. allowed_commands is the flat,
+  // namespaced ("rshell:<command>") command allowlist; allowed_paths is keyed by
+  // runtime environment so the runner can select the rules matching its own.
+  repeated string allowed_commands = 13;
+  repeated RemoteActionPathRule allowed_paths = 14;
+}
+
+// RemoteActionEnvironment identifies the runtime environment a set of allowed
+// paths applies to. The runner selects the rules matching its own environment.
+enum RemoteActionEnvironment {
+  REMOTE_ACTION_ENVIRONMENT_UNSPECIFIED = 0;
+  REMOTE_ACTION_ENVIRONMENT_BARE_METAL = 1;
+  REMOTE_ACTION_ENVIRONMENT_CONTAINERIZED = 2;
+}
+
+// RemoteActionPathRule is the set of filesystem paths an rshell action may
+// access within a given environment.
+message RemoteActionPathRule {
+  RemoteActionEnvironment environment = 1;
+  repeated string paths = 2;
 }
 
 message ConnectionInfo {

@@ -129,17 +129,14 @@ func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
 	return intersectPathLists(h.operatorAllowedPaths, backend)
 }
 
-// RunCommandInputs defines the inputs for the runCommand action.
+// RunCommandInputs defines the user-supplied inputs for the runCommand action.
 //
-// The backend is the authoritative source for both allowlists. A nil Go
-// slice (field absent or explicit JSON null) blocks everything on its
-// respective axis — rshell refuses to run any command or open any file.
-// A non-nil list is intersected with the operator config before being
-// handed to rshell.
+// The command allowlists are no longer carried in inputs: they are resolved
+// from execution policies on the backend and delivered in the signed task
+// (Attributes.AllowedCommands / Attributes.AllowedPaths). Inputs only carry the
+// command to run.
 type RunCommandInputs struct {
-	Command         string              `json:"command"`
-	AllowedCommands []string            `json:"allowedCommands"`
-	AllowedPaths    map[string][]string `json:"allowedPaths"`
+	Command string `json:"command"`
 }
 
 // RunCommandOutputs defines the outputs for the runCommand action.
@@ -171,8 +168,11 @@ func (h *RunCommandHandler) Run(
 		return nil, errors.New("command is required")
 	}
 
-	backendPaths := selectBackendPathsFromEnv(inputs.AllowedPaths)
-	effectiveAllowedCommands := h.filterAllowedCommands(inputs.AllowedCommands)
+	// The backend allowlists come from the signed task (resolved from execution
+	// policies ∩ Balto), not from user inputs.
+	backendCommands := task.Data.Attributes.AllowedCommands
+	backendPaths := selectBackendPathsFromEnv(task.Data.Attributes.AllowedPaths)
+	effectiveAllowedCommands := h.filterAllowedCommands(backendCommands)
 	effectiveAllowedPaths := h.filterAllowedPaths(backendPaths)
 	log.Debugf("rshell runCommand (mode=%s): command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v",
 		h.mode, inputs.Command, inputs.AllowedCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths)
