@@ -569,15 +569,16 @@ type SignalEvidence struct {
 type CorrelationScoreBreakdown struct {
 	// SignalCount is the total number of distinct signals in the scoring window.
 	SignalCount int
-	// EffectiveSignalCount is the number of signals actually used for cross-signal
-	// combination (at most maxScoringSignals — the top-N by score).
-	EffectiveSignalCount   int
-	DetectorAnomalyCount   int
-	MissingScoreCount      int
-	PerSignalScores        map[string]float64
-	CombinedEvidenceScore  float64
-	SingleSignalCapApplied bool
-	TwoSignalCapApplied    bool
-	// ThreeOrMoreSignalCapApplied is true when the three-or-more-signal cap was applied.
-	ThreeOrMoreSignalCapApplied bool
+	// EffectiveSignalCount is the number of signals used for cross-signal combination.
+	EffectiveSignalCount  int
+	DetectorAnomalyCount  int
+	MissingScoreCount     int
+	PerSignalScores       map[string]float64
+	CombinedEvidenceScore float64
+	// LogCountCapApplied is true when the log-count cap clamped the raw noisy-OR score.
+	LogCountCapApplied bool
+	// LogCountCap is the computed log-count cap value (informational).
+	LogCountCap float64
+	// WindowAnomalyCount is the total number of anomalies in the scoring window.
+	WindowAnomalyCount int
 }

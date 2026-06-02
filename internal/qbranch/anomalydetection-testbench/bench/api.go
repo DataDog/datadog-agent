@@ -1116,15 +1116,15 @@ func (api *BenchAPI) handleAnomalyEvents(w http.ResponseWriter, r *http.Request)
 	}
 
 	type breakdownResponse struct {
-		SignalCount                 int                `json:"signalCount"`
-		EffectiveSignalCount        int                `json:"effectiveSignalCount"`
-		DetectorAnomalyCount        int                `json:"detectorAnomalyCount"`
-		MissingScoreCount           int                `json:"missingScoreCount"`
-		PerSignalScores             map[string]float64 `json:"perSignalScores"`
-		CombinedEvidenceScore       float64            `json:"combinedEvidenceScore"`
-		SingleSignalCapApplied      bool               `json:"singleSignalCapApplied"`
-		TwoSignalCapApplied         bool               `json:"twoSignalCapApplied"`
-		ThreeOrMoreSignalCapApplied bool               `json:"threeOrMoreSignalCapApplied"`
+		SignalCount           int                `json:"signalCount"`
+		EffectiveSignalCount  int                `json:"effectiveSignalCount"`
+		DetectorAnomalyCount  int                `json:"detectorAnomalyCount"`
+		MissingScoreCount     int                `json:"missingScoreCount"`
+		PerSignalScores       map[string]float64 `json:"perSignalScores"`
+		CombinedEvidenceScore float64            `json:"combinedEvidenceScore"`
+		LogCountCapApplied    bool               `json:"logCountCapApplied"`
+		LogCountCap           float64            `json:"logCountCap"`
+		WindowAnomalyCount    int                `json:"windowAnomalyCount"`
 	}
 
 	type triggerResponse struct {
@@ -1136,6 +1136,8 @@ func (api *BenchAPI) handleAnomalyEvents(w http.ResponseWriter, r *http.Request)
 		Tags         []string `json:"tags"`
 		Score        *float64 `json:"detectorScore,omitempty"`
 		Severity     string   `json:"detectorSeverity,omitempty"`
+		LogPattern   string   `json:"logPattern,omitempty"`
+		LogExample   string   `json:"logExample,omitempty"`
 	}
 
 	type eventResponse struct {
@@ -1205,6 +1207,16 @@ func (api *BenchAPI) handleAnomalyEvents(w http.ResponseWriter, r *http.Request)
 			}
 		}
 
+		var logPattern, logExample string
+		if t.Context != nil {
+			logPattern = strings.TrimSpace(t.Context.Pattern)
+			logExample = strings.TrimSpace(t.Context.Example)
+			// Don't repeat example when it equals the pattern
+			if logExample == logPattern {
+				logExample = ""
+			}
+		}
+
 		result = append(result, eventResponse{
 			ID: evt.ID,
 			Trigger: triggerResponse{
@@ -1216,6 +1228,8 @@ func (api *BenchAPI) handleAnomalyEvents(w http.ResponseWriter, r *http.Request)
 				Tags:         t.Source.Tags,
 				Score:        t.Score,
 				Severity:     trigSeverity,
+				LogPattern:   logPattern,
+				LogExample:   logExample,
 			},
 			WindowStart:        evt.WindowStart,
 			WindowEnd:          evt.WindowEnd,
@@ -1227,15 +1241,15 @@ func (api *BenchAPI) handleAnomalyEvents(w http.ResponseWriter, r *http.Request)
 			SeverityChanged:    evt.SeverityChanged,
 			SeverityDirection:  evt.SeverityDirection,
 			Breakdown: breakdownResponse{
-				SignalCount:                 evt.Breakdown.SignalCount,
-				EffectiveSignalCount:        evt.Breakdown.EffectiveSignalCount,
-				DetectorAnomalyCount:        evt.Breakdown.DetectorAnomalyCount,
-				MissingScoreCount:           evt.Breakdown.MissingScoreCount,
-				PerSignalScores:             evt.Breakdown.PerSignalScores,
-				CombinedEvidenceScore:       evt.Breakdown.CombinedEvidenceScore,
-				SingleSignalCapApplied:      evt.Breakdown.SingleSignalCapApplied,
-				TwoSignalCapApplied:         evt.Breakdown.TwoSignalCapApplied,
-				ThreeOrMoreSignalCapApplied: evt.Breakdown.ThreeOrMoreSignalCapApplied,
+				SignalCount:           evt.Breakdown.SignalCount,
+				EffectiveSignalCount:  evt.Breakdown.EffectiveSignalCount,
+				DetectorAnomalyCount:  evt.Breakdown.DetectorAnomalyCount,
+				MissingScoreCount:     evt.Breakdown.MissingScoreCount,
+				PerSignalScores:       evt.Breakdown.PerSignalScores,
+				CombinedEvidenceScore: evt.Breakdown.CombinedEvidenceScore,
+				LogCountCapApplied:    evt.Breakdown.LogCountCapApplied,
+				LogCountCap:           evt.Breakdown.LogCountCap,
+				WindowAnomalyCount:    evt.Breakdown.WindowAnomalyCount,
 			},
 		})
 	}

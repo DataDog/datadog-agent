@@ -20,29 +20,27 @@ const (
 	// defaultMissingAnomalyScore is used when a detector did not attach a score.
 	defaultMissingAnomalyScore = 0.5
 
-	// Signal caps — applied after cross-signal noisy-OR combination.
-	// The intent: high severity requires genuinely rare, multi-signal evidence.
-	//   1 signal  → max medium  (a single series going anomalous is not an incident)
-	//   2 signals → max medium  (two corroborating signals, still not enough for high)
-	//   3+ signals → can reach high, but capped to avoid immediate saturation
-	singleSignalMaxScore      = 0.45 // stays in low/medium range
-	twoSignalMaxScore         = 0.65 // solidly medium, below highSeverityThreshold
-	threeOrMoreSignalMaxScore = 0.82 // can exceed highSeverityThreshold (0.80)
-
-	// maxScoringSignals is the maximum number of distinct signals used for the
-	// cross-signal noisy-OR combination. Only the top-N by score are taken.
-	// This prevents a large number of weakly-anomalous series from artificially
-	// pushing the event score to 1.0.
-	maxScoringSignals = 3
+	// Log-count cap parameters.
+	// The cap grows logarithmically with the total number of anomalies in the window:
+	//   cap(N) = logCapBase + (logCapMax - logCapBase) * log(1+N) / log(1+logCapRef)
+	//
+	// Calibration (1-minute window):
+	//   N=1  → ~0.57   (low-ish)
+	//   N=3  → ~0.72   (medium)
+	//   N=5  → ~0.81   (enters high)
+	//   N=10 → 0.95    (ref point — strong high)
+	//   N>10 → clamped to 0.95
+	logCapBase = 0.45 // floor cap (single weak signal)
+	logCapMax  = 0.95 // ceiling
+	logCapRef  = 10.0 // anomaly count at which cap reaches logCapMax
 
 	// mediumSeverityThreshold is the minimum score for medium severity.
 	mediumSeverityThreshold = 0.40
 	// highSeverityThreshold is the minimum score for high severity.
-	// Raised from 0.75 to 0.80 to widen the medium band and make high genuinely rare.
 	highSeverityThreshold = 0.80
 
 	// defaultEventWindowSeconds is the sliding window width in seconds.
-	defaultEventWindowSeconds = 5 * 60
+	defaultEventWindowSeconds = 1 * 60
 	// defaultEventWindowMaxItems is the maximum number of anomalies in the window.
 	defaultEventWindowMaxItems = 100
 )
@@ -158,46 +156,31 @@ func (s *anomalyEventScorer) ProcessAnomaly(a observerdef.Anomaly) observerdef.A
 		})
 	}
 
-	// 6. Select top-N signals by score for cross-signal combination.
-	// Sorting descending by score means we always use the strongest evidence,
-	// and cap the number so that a large fan-out of weakly-anomalous series
-	// cannot push the event score to near-1 on their own.
+	// 6. Combine all signals using noisy-OR: event_score = 1 - prod(1 - signal_score_j).
+	// All distinct signals contribute; the log-count cap (step 7) prevents saturation.
 	sort.Slice(signals, func(i, j int) bool { return signals[i].Score > signals[j].Score })
-	scoringSignals := signals
-	if len(scoringSignals) > maxScoringSignals {
-		scoringSignals = scoringSignals[:maxScoringSignals]
-	}
-	effectiveSignalCount := len(scoringSignals)
+	effectiveSignalCount := len(signals)
 
-	// Combine using noisy-OR over the effective signals: event_score = 1 - prod(1 - signal_score_j).
 	eventComplement := 1.0
-	for _, sig := range scoringSignals {
+	for _, sig := range signals {
 		eventComplement *= (1.0 - sig.Score)
 	}
 	rawEventScore := 1.0 - eventComplement
 
-	// 7. Apply per-signal-count caps.
-	// Thresholds encode the design principle: high severity requires rare, multi-signal evidence.
-	singleCap := false
-	twoCap := false
-	threeOrMoreCap := false
+	// 7. Apply a logarithmic count cap so that more anomalies yield a higher score,
+	// but with diminishing returns.  The cap grows with total window anomaly count N:
+	//   cap(N) = logCapBase + (logCapMax - logCapBase) * log(1+N) / log(1+logCapRef)
+	// This means 10 anomalies in the window always scores higher than 5 anomalies.
+	windowCount := float64(len(s.window))
+	logCountCap := logCapBase + (logCapMax-logCapBase)*math.Log1p(windowCount)/math.Log1p(logCapRef)
+	if logCountCap > logCapMax {
+		logCountCap = logCapMax
+	}
+	logCapped := false
 	eventScore := rawEventScore
-	switch {
-	case effectiveSignalCount == 1:
-		if eventScore > singleSignalMaxScore {
-			eventScore = singleSignalMaxScore
-			singleCap = true
-		}
-	case effectiveSignalCount == 2:
-		if eventScore > twoSignalMaxScore {
-			eventScore = twoSignalMaxScore
-			twoCap = true
-		}
-	default: // 3+
-		if eventScore > threeOrMoreSignalMaxScore {
-			eventScore = threeOrMoreSignalMaxScore
-			threeOrMoreCap = true
-		}
+	if eventScore > logCountCap {
+		eventScore = logCountCap
+		logCapped = true
 	}
 	// Clamp to [0,1] for safety (noisy-OR is always in range, but float math can drift).
 	eventScore = math.Max(0, math.Min(1, eventScore))
@@ -241,15 +224,15 @@ func (s *anomalyEventScorer) ProcessAnomaly(a observerdef.Anomaly) observerdef.A
 		SeverityChanged:   severityChanged,
 		SeverityDirection: severityDirection,
 		Breakdown: observerdef.CorrelationScoreBreakdown{
-			SignalCount:                 len(signals),
-			EffectiveSignalCount:        effectiveSignalCount,
-			DetectorAnomalyCount:        detectorAnomalyCount,
-			MissingScoreCount:           missingScoreCount,
-			PerSignalScores:             perSignalScores,
-			CombinedEvidenceScore:       rawEventScore,
-			SingleSignalCapApplied:      singleCap,
-			TwoSignalCapApplied:         twoCap,
-			ThreeOrMoreSignalCapApplied: threeOrMoreCap,
+			SignalCount:           len(signals),
+			EffectiveSignalCount:  effectiveSignalCount,
+			DetectorAnomalyCount:  detectorAnomalyCount,
+			MissingScoreCount:     missingScoreCount,
+			PerSignalScores:       perSignalScores,
+			CombinedEvidenceScore: rawEventScore,
+			LogCountCapApplied:    logCapped,
+			LogCountCap:           logCountCap,
+			WindowAnomalyCount:    len(s.window),
 		},
 	}
 	s.events = append(s.events, evt)

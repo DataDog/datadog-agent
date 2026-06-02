@@ -100,9 +100,12 @@ function EventChart({ events, selected, onSelect, phaseMarkers, minTs: extMinTs,
     return <div className="text-slate-500 text-sm py-4 text-center">No events in current filter</div>;
   }
 
-  const WINDOW = 300; // 5-min rolling window
   const WIDTH  = 600;
   const HEIGHT = 160;
+
+  // Time constant for the EWMA in seconds.
+  // τ = 120 s → half-life ≈ 83 s, smooth over ~2 min of a 30-min scenario.
+  const EWMA_TAU = 120;
 
   const tsValues = events.map(e => e.trigger.timestamp);
   (phaseMarkers ?? []).forEach(m => tsValues.push(m.timestamp));
@@ -117,20 +120,50 @@ function EventChart({ events, selected, onSelect, phaseMarkers, minTs: extMinTs,
   const toPctX = (t: number) => ((t - minTs) / span) * 100;
   const toPctY = (s: number) => (toY(s) / HEIGHT) * 100;
 
-  // Rolling-max score line
-  const rollingPoints = events.map(evt => {
-    const t = evt.trigger.timestamp;
-    let rolling = 0;
-    for (const e of events) {
-      if (e.trigger.timestamp >= t - WINDOW && e.trigger.timestamp <= t) {
-        rolling = Math.max(rolling, e.score);
+  // Continuous-time EWMA score line.
+  // Between events the EWMA decays as v(t) = v_prev * exp(-dt/τ).
+  // At each new event it blends toward the event score:
+  //   v_new = exp(-dt/τ) * v_prev + (1 - exp(-dt/τ)) * score
+  // We sample intermediate decay points so the curve looks smooth.
+  const ewmaPath = (() => {
+    const sorted = [...events].sort((a, b) => a.trigger.timestamp - b.trigger.timestamp);
+    if (sorted.length === 0) return '';
+
+    const pts: Array<{ t: number; v: number }> = [];
+    let ewmaVal = sorted[0].score;
+    let prevT   = sorted[0].trigger.timestamp;
+    pts.push({ t: prevT, v: ewmaVal });
+
+    for (let i = 1; i < sorted.length; i++) {
+      const t  = sorted[i].trigger.timestamp;
+      const dt = t - prevT;
+      // Interpolated decay points (one per ~15 s, max 20)
+      const steps = Math.max(1, Math.min(Math.round(dt / 15), 20));
+      for (let s = 1; s < steps; s++) {
+        const partDt = dt * (s / steps);
+        pts.push({ t: prevT + partDt, v: ewmaVal * Math.exp(-partDt / EWMA_TAU) });
+      }
+      // Update EWMA with the new event score
+      const decay = Math.exp(-dt / EWMA_TAU);
+      ewmaVal = decay * ewmaVal + (1 - decay) * sorted[i].score;
+      pts.push({ t, v: ewmaVal });
+      prevT = t;
+    }
+
+    // Tail decay to end of timeline
+    const tailDt = maxTs - prevT;
+    if (tailDt > 0) {
+      const steps = Math.max(1, Math.min(Math.round(tailDt / 15), 40));
+      for (let s = 1; s <= steps; s++) {
+        const partDt = tailDt * (s / steps);
+        const v = ewmaVal * Math.exp(-partDt / EWMA_TAU);
+        if (v < 0.005) break;
+        pts.push({ t: prevT + partDt, v });
       }
     }
-    return { t, score: rolling };
-  });
-  const pathD = rollingPoints.length > 0
-    ? rollingPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(p.t).toFixed(1)} ${toY(p.score).toFixed(1)}`).join(' ')
-    : '';
+
+    return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(p.t).toFixed(1)} ${toY(p.v).toFixed(1)}`).join(' ');
+  })();
 
   const yMedium = toY(mediumSeverityThreshold);
   const yHigh   = toY(highSeverityThreshold);
@@ -143,7 +176,7 @@ function EventChart({ events, selected, onSelect, phaseMarkers, minTs: extMinTs,
 
   return (
     <div className="mb-2">
-      <div className="text-xs text-slate-400 mb-0.5">Rolling max score · ● events · ◆ severity change</div>
+      <div className="text-xs text-slate-400 mb-0.5">EWMA score (τ=2 min) · ● events · ◆ severity change</div>
       {/* Wrapper: fixed height, relative so HTML labels can be absolutely positioned */}
       <div className="relative rounded border border-slate-700 bg-slate-900" style={{ height: HEIGHT, overflow: 'hidden' }}>
 
@@ -171,8 +204,8 @@ function EventChart({ events, selected, onSelect, phaseMarkers, minTs: extMinTs,
             );
           })}
 
-          {/* Rolling-max score line */}
-          {pathD && <path d={pathD} fill="none" stroke="#8b5cf6" strokeWidth="1.5" opacity="0.9" />}
+          {/* EWMA score line */}
+          {ewmaPath && <path d={ewmaPath} fill="none" stroke="#8b5cf6" strokeWidth="1.5" opacity="0.9" />}
 
           {/* Event dots */}
           {events.map(evt => {
@@ -180,16 +213,19 @@ function EventChart({ events, selected, onSelect, phaseMarkers, minTs: extMinTs,
             const y   = toY(evt.score);
             const fc  = evt.severity === 'high' ? '#ef4444' : evt.severity === 'medium' ? '#eab308' : '#64748b';
             const sel = evt.id === selected;
+            const tip = evt.trigger.logPattern
+              ? `${formatTs(evt.trigger.timestamp)} ${evt.severity} – ${evt.trigger.logPattern}`
+              : `${formatTs(evt.trigger.timestamp)} ${evt.severity} – ${evt.trigger.title}`;
             return evt.severityChanged
               ? <path key={evt.id} d={diamond(x, y, sel ? 5 : 4)} fill={fc} opacity="0.95"
                   style={{ cursor: 'pointer' }} onClick={() => onSelect(evt.id)}
                   stroke={sel ? 'white' : 'none'} strokeWidth="1">
-                  <title>{formatTs(evt.trigger.timestamp)} {evt.severity} ◆ change</title>
+                  <title>{tip} ◆ change</title>
                 </path>
               : <circle key={evt.id} cx={x} cy={y} r={sel ? 4 : 2.5} fill={fc} opacity="0.85"
                   style={{ cursor: 'pointer' }} onClick={() => onSelect(evt.id)}
                   stroke={sel ? 'white' : 'none'} strokeWidth="1">
-                  <title>{formatTs(evt.trigger.timestamp)} {evt.severity} – {evt.trigger.title}</title>
+                  <title>{tip}</title>
                 </circle>;
           })}
         </svg>
@@ -246,7 +282,16 @@ function EventDetailPanel({ event, onClose }: { event: AnomalyEvent; onClose: ()
               </span>
             )}
           </div>
-          <div className="text-slate-200 font-medium">{event.trigger.title}</div>
+          <div className="text-slate-200 font-medium">
+            {event.trigger.logPattern
+              ? <span title={event.trigger.title}>{event.trigger.logPattern}</span>
+              : event.trigger.title}
+          </div>
+          {event.trigger.logExample && (
+            <div className="text-xs text-slate-400 mt-1 italic truncate" title={event.trigger.logExample}>
+              e.g. {event.trigger.logExample}
+            </div>
+          )}
         </div>
         <button onClick={onClose} className="text-slate-500 hover:text-white ml-4">✕</button>
       </div>
@@ -256,6 +301,18 @@ function EventDetailPanel({ event, onClose }: { event: AnomalyEvent; onClose: ()
         <div className="min-w-0">
           <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide mb-2">Trigger</div>
           <div className="space-y-1 text-xs text-slate-300 min-w-0">
+            {event.trigger.logPattern && (
+              <div className="mb-1">
+                <div className="text-slate-500 mb-0.5">Pattern:</div>
+                <div className="font-mono text-slate-200 break-all leading-relaxed">{event.trigger.logPattern}</div>
+              </div>
+            )}
+            {event.trigger.logExample && (
+              <div className="mb-1">
+                <div className="text-slate-500 mb-0.5">Example log line:</div>
+                <div className="font-mono text-slate-300 break-all italic leading-relaxed">{event.trigger.logExample}</div>
+              </div>
+            )}
             <div className="truncate" title={event.trigger.source}><span className="text-slate-500">Source:</span> {event.trigger.source}</div>
             <div className="truncate" title={event.trigger.detectorName}><span className="text-slate-500">Detector:</span> {event.trigger.detectorName}</div>
             <div><span className="text-slate-500">Type:</span> {event.trigger.type}</div>
@@ -312,10 +369,12 @@ function EventDetailPanel({ event, onClose }: { event: AnomalyEvent; onClose: ()
       <div className="mt-3 border-t border-slate-700 pt-3">
         <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide mb-2">Score Breakdown</div>
         <div className="text-xs text-slate-300 space-y-1">
-          <div><span className="text-slate-500">Combined evidence:</span> {(bd.combinedEvidenceScore * 100).toFixed(1)}%</div>
-          {bd.singleSignalCapApplied && <div className="text-amber-400">↳ Single-signal cap applied (max 45%)</div>}
-          {bd.twoSignalCapApplied && <div className="text-amber-400">↳ Two-signal cap applied (max 65%)</div>}
-          {bd.threeOrMoreSignalCapApplied && <div className="text-amber-400">↳ Three-or-more-signal cap applied (max 82%)</div>}
+          <div><span className="text-slate-500">Window anomalies:</span> {bd.windowAnomalyCount} in 1 min</div>
+          <div><span className="text-slate-500">Combined evidence (noisy-OR):</span> {(bd.combinedEvidenceScore * 100).toFixed(1)}%</div>
+          <div>
+            <span className="text-slate-500">Log-count cap:</span> {(bd.logCountCap * 100).toFixed(1)}%
+            {bd.logCountCapApplied && <span className="text-amber-400 ml-1">← clamped</span>}
+          </div>
           <div><span className="text-slate-500">Final score:</span> <span className="font-semibold">{(event.score * 100).toFixed(1)}%</span></div>
           <div><span className="text-slate-500">Severity:</span> <span className="font-semibold capitalize">{event.severity}</span></div>
         </div>
@@ -352,7 +411,14 @@ function EventRow({ event, selected, onSelect }: {
         )}
         <span className="text-xs text-slate-500 font-mono ml-auto">{formatTs(event.trigger.timestamp)}</span>
       </div>
-      <div className="text-xs text-slate-300 truncate">{event.trigger.title}</div>
+      <div className="text-xs text-slate-300 truncate" title={event.trigger.title}>
+        {event.trigger.logPattern || event.trigger.title}
+      </div>
+      {event.trigger.logExample && (
+        <div className="text-[10px] text-slate-500 truncate italic" title={event.trigger.logExample}>
+          e.g. {event.trigger.logExample}
+        </div>
+      )}
       <div className="text-[10px] text-slate-500 truncate">{event.trigger.detectorName} · {event.breakdown.signalCount} signal{event.breakdown.signalCount !== 1 ? 's' : ''}</div>
     </button>
   );

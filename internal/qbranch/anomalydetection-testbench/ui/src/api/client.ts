@@ -251,6 +251,10 @@ export interface AnomalyEventTrigger {
   tags: string[];
   detectorScore?: number;
   detectorSeverity?: string;
+  /** Human-readable log pattern text (log-derived anomalies only). */
+  logPattern?: string;
+  /** A recent raw log line that matched the pattern (when different from logPattern). */
+  logExample?: string;
 }
 
 export interface SignalEvidence {
@@ -267,9 +271,12 @@ export interface ScoreBreakdown {
   missingScoreCount: number;
   perSignalScores: Record<string, number>;
   combinedEvidenceScore: number;
-  singleSignalCapApplied: boolean;
-  twoSignalCapApplied: boolean;
-  threeOrMoreSignalCapApplied: boolean;
+  /** True when the log-count cap was applied (raw score exceeded the cap). */
+  logCountCapApplied: boolean;
+  /** The computed log-count cap value for this event. */
+  logCountCap: number;
+  /** Total anomalies in the 1-minute scoring window. */
+  windowAnomalyCount: number;
 }
 
 export interface AnomalyEvent {
