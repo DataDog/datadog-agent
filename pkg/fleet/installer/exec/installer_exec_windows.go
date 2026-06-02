@@ -84,6 +84,10 @@ func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "installer.garbage-collect")
 	defer func() { span.Finish(err) }()
 
+	if err := paths.EnsureInstallerDirectories(); err != nil {
+		return fmt.Errorf("could not ensure packages and config directory exists: %w", err)
+	}
+
 	// Hold the same packages database lock as the installer command while
 	// deleting unused package directories.
 	packagesDB, err := db.New(ctx, filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))

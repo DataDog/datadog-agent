@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "paths",
     srcs = [
+        "installer_dirs.go",
         "installer_paths.go",
         "installer_paths_utils.go",
         "installer_paths_windows.go",

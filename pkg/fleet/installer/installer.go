@@ -93,7 +93,7 @@ type installerImpl struct {
 
 // NewInstaller returns a new Package Manager.
 func NewInstaller(ctx context.Context, env *env.Env) (Installer, error) {
-	err := ensureRepositoriesExist()
+	err := paths.EnsureInstallerDirectories()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
@@ -929,43 +929,6 @@ func checkAvailableDiskSpace(repositories *repository.Repositories, pkg *oci.Dow
 	if availableDiskSpace < uint64(requiredDiskSpace) {
 		return fmt.Errorf("not enough disk space at %s: %d bytes available, %d bytes required", repositories.RootPath(), availableDiskSpace, requiredDiskSpace)
 	}
-	return nil
-}
-
-// ensureRepositoriesExist creates the temp, packages and configs directories if they don't exist
-func ensureRepositoriesExist() error {
-	// Enforce permissions on the installer data directory
-	//
-	// TODO: Avoid setup-like work in the installer constructor.
-	// These directories should be created properly at install/setup time, however
-	// the installer constructor is called before install/setup runs, and will fail if
-	// these directories do not exist, so we must do some minimal creation/validation here.
-	// We must avoid doing too much work here (e.g. iterating the filesystem tree)
-	// because the constructor is called for every subprocess, even "read only"
-	// subcommands like `get-states`.
-	err := paths.EnsureInstallerDataDir()
-	if err != nil {
-		return fmt.Errorf("could not ensure installer data directory permissions: %w", err)
-	}
-
-	// create subdirectories
-	err = os.MkdirAll(paths.PackagesPath, 0755)
-	if err != nil {
-		return fmt.Errorf("error creating packages directory: %w", err)
-	}
-	err = os.MkdirAll(paths.ConfigsPath, 0755)
-	if err != nil {
-		return fmt.Errorf("error creating configs directory: %w", err)
-	}
-	err = os.MkdirAll(paths.RootTmpDir, 0755)
-	if err != nil {
-		return fmt.Errorf("error creating tmp directory: %w", err)
-	}
-	err = os.MkdirAll(paths.RunPath, 0755)
-	if err != nil {
-		return fmt.Errorf("error creating tmp directory: %w", err)
-	}
-
 	return nil
 }
 
