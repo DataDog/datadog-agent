@@ -330,7 +330,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	if k.instance.usesCustomResourceMetrics() && k.instance.PodCollectionMode != nodeKubeletPodCollection {
 		k.crMu.Lock()
-		if k.customResourceDiscoverer == nil {
+		if k.cancelCR == nil {
 			ctx, cancel := context.WithCancel(context.Background())
 			k.customResourceDiscoverer = customresources.StartDiscovery(ctx)
 			k.cancelCR = cancel
@@ -785,7 +785,6 @@ func (k *KSMCheck) Cancel() {
 		log.Infof("Shutting down custom resource informers")
 		k.cancelCR()
 		k.cancelCR = nil
-		k.customResourceDiscoverer = nil
 	}
 	k.crMu.Unlock()
 }
