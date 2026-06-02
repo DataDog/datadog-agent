@@ -228,6 +228,10 @@ func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLa
 	panic("implement me")
 }
 
+func (f *FakeDCAClient) PostKSMAggregates(_ context.Context, _ clusteragent.KSMNodePartialRequest) (clusteragent.KSMNodePartialReply, error) {
+	return clusteragent.KSMNodePartialReply{}, nil
+}
+
 func (f *FakeDCAClient) SupportsNamespaceMetadataCollection() bool {
 	panic("implement me")
 }

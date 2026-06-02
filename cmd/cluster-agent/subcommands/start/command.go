@@ -336,10 +336,14 @@ func start(log log.Component,
 		return err
 	}
 
-	// Setup the leader forwarder for autoscaling failover store, language detection and cluster checks
+	// Setup the leader forwarder for autoscaling failover store, language detection,
+	// cluster checks, and KSM cluster-aggregate partials. The KSM aggregation endpoint
+	// forwards follower-received partials to the leader, so it needs the forwarder even
+	// when none of the other features are enabled.
 	if config.GetBool("cluster_checks.enabled") ||
 		(config.GetBool("language_detection.enabled") && config.GetBool("language_detection.reporting.enabled")) ||
-		config.GetBool("autoscaling.failover.enabled") {
+		config.GetBool("autoscaling.failover.enabled") ||
+		config.GetBool("kubernetes_state_core.cluster_aggregates.enabled") {
 		apidca.NewGlobalLeaderForwarder(
 			config.GetInt("cluster_agent.cmd_port"),
 			config.GetInt("cluster_agent.max_leader_connections"),

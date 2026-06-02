@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/ksmaggregation"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
@@ -45,6 +46,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -125,6 +127,17 @@ const (
 	// enabled on the node agents, because unassigned pods cannot be collected
 	// from node agents.
 	clusterUnassignedPodCollection podCollectionMode = "cluster_unassigned"
+
+	// clusterAggregatesOnlyPodCollection is the authoritative source for the
+	// cluster-aggregate `.total` metric family. It does NOT collect pods from the
+	// API server or the kubelet: it reads the per-node partials that node agents
+	// (in node_kubelet / cluster_unassigned mode) push to the cluster-agent via
+	// POST /api/v1/ksmaggregation, combines them (see runClusterAgentAggregatesOnly
+	// reading ksmaggregation.GetStore().GetCombined), and emits only the `.total`
+	// aggregators (no per-pod metrics). Meant to run on the cluster-agent leader;
+	// node agents suppress these aggregators so the cluster sees exactly one
+	// authoritative source.
+	clusterAggregatesOnlyPodCollection podCollectionMode = "cluster_aggregates_only"
 )
 
 // KSMConfig contains the check config parameters
@@ -230,7 +243,10 @@ type KSMConfig struct {
 	UseAPIServerCache bool `yaml:"use_apiserver_cache"`
 
 	// PodCollectionMode defines how pods are collected.
-	// Accepted values are: "default", "node_kubelet", and "cluster_unassigned".
+	// Accepted values are: "default", "node_kubelet", "cluster_unassigned", and
+	// "cluster_aggregates_only" (cluster-agent: emit the combined .total family from
+	// node-pushed partials — requires node agents in node_kubelet to push, see
+	// kubernetes_state_core.cluster_aggregates.enabled).
 	PodCollectionMode podCollectionMode `yaml:"pod_collection_mode"`
 }
 
@@ -257,6 +273,10 @@ type KSMCheck struct {
 	rolloutTracker             *customresources.RolloutTracker
 	customResourceDiscoverer   *ksmDiscovery.CRDiscoverer
 	namespaceTagsErrorLogLimit *log.Limit
+
+	// ksmAggSuppressLocal caches the last suppress_local verdict from the cluster-agent
+	// (updated each interval by the node-side partial push in node_kubelet mode).
+	ksmAggSuppressLocal bool
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -325,7 +345,11 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper())
 
-	if k.instance.usesCustomResourceMetrics() && k.instance.PodCollectionMode != nodeKubeletPodCollection {
+	// Start custom resource discovery if not running in a mode that only
+	// consumes pods from workloadmeta (no API discovery needed in those modes).
+	if k.instance.usesCustomResourceMetrics() &&
+		k.instance.PodCollectionMode != nodeKubeletPodCollection &&
+		k.instance.PodCollectionMode != clusterAggregatesOnlyPodCollection {
 		k.customResourceDiscoverer = customresources.StartDiscovery()
 	}
 
@@ -365,14 +389,26 @@ func (k *KSMCheck) buildStores() error {
 
 	k.configurePodCollection(builder, k.instance.Collectors)
 
+	// cluster_aggregates_only emits .total from the pushed node-partial store
+	// (see runClusterAgentAggregatesOnly), not from any KSM metric store. Skip all
+	// store / API-server / custom-resource discovery: it is unnecessary and would
+	// nil-deref the (intentionally nil) API client in discoverCustomResources.
+	// Note: configurePodCollection above may have reset the mode to default on a
+	// node-agent/CLC runner, so this check runs after it.
+	if k.instance.PodCollectionMode == clusterAggregatesOnlyPodCollection {
+		k.setupLabelsAndAnnotationsAsTagsFunc()
+		k.allStores = nil
+		return nil
+	}
+
 	var collectors []string
 	var apiServerClient *apiserver.APIClient
 	var resources []*v1.APIResourceList
 
 	switch k.instance.PodCollectionMode {
 	case nodeKubeletPodCollection:
-		// In this case we don't need to set up anything related to the API
-		// server.
+		// In this workloadmeta-backed mode we don't need to set up anything
+		// related to the API server.
 		collectors = []string{"pods"}
 		k.setupLabelsAndAnnotationsAsTagsFunc()
 	case defaultPodCollection, clusterUnassignedPodCollection:
@@ -726,6 +762,14 @@ func (k *KSMCheck) Run() error {
 
 	defer sender.Commit()
 
+	// cluster_aggregates_only: no pod store; reads combined node partials from the
+	// global PartialStore populated by the /api/v1/ksmaggregation endpoint.
+	if k.instance.PodCollectionMode == clusterAggregatesOnlyPodCollection {
+		k.runClusterAgentAggregatesOnly(sender)
+		k.sendTelemetry(sender)
+		return nil
+	}
+
 	labelJoiner := newLabelJoiner(k.instance.labelJoins)
 	for _, stores := range k.allStores {
 		for _, store := range stores {
@@ -739,6 +783,32 @@ func (k *KSMCheck) Run() error {
 				labelJoiner.insertFamilies(metrics)
 			}
 		}
+	}
+
+	// node_kubelet / cluster_unassigned: gather the cluster-aggregate source families
+	// from ALL stores into a single per-node partial and push it once per run. The 4
+	// source families live in the extended-pods store, so gathering across stores
+	// avoids a later non-source store overwriting a valid partial with an empty one.
+	// The returned suppress_local verdict (cached in k.ksmAggSuppressLocal) is read by
+	// processMetrics below to decide whether to drop the local .total emission.
+	isNodeSide := k.instance.PodCollectionMode == nodeKubeletPodCollection ||
+		k.instance.PodCollectionMode == clusterUnassignedPodCollection
+	if isNodeSide && k.agentConfig.GetBool("kubernetes_state_core.cluster_aggregates.enabled") {
+		combined := make(map[string][]ksmstore.DDMetricsFam)
+		for _, stores := range k.allStores {
+			for _, store := range stores {
+				ms, ok := store.(*ksmstore.MetricsStore)
+				if !ok {
+					continue
+				}
+				for name, fams := range ms.Push(ksmstore.GetAllFamilies, ksmstore.GetAllMetrics) {
+					if isClusterAggregateSourceMetric(name) {
+						combined[name] = append(combined[name], fams...)
+					}
+				}
+			}
+		}
+		k.buildAndPushPartial(combined)
 	}
 
 	currentTime := time.Now()
@@ -772,8 +842,31 @@ func (k *KSMCheck) Cancel() {
 
 // processMetrics attaches tags and forwards metrics to the aggregator
 func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksmstore.DDMetricsFam, labelJoiner *labelJoiner, now time.Time) {
+	// In node_kubelet / cluster_unassigned mode the per-node partial is built and pushed
+	// once per check run (across all stores) in Run(); here we only apply the resulting
+	// suppress_local verdict so the node drops its local .total when the cluster-agent is
+	// the authoritative emitter. While the feature is off or the push failed, the verdict
+	// is false and the node keeps emitting .total locally (pre-fix under-report, never silent).
+	isNodeSide := k.instance.PodCollectionMode == nodeKubeletPodCollection ||
+		k.instance.PodCollectionMode == clusterUnassignedPodCollection
+	featureEnabled := k.agentConfig.GetBool("kubernetes_state_core.cluster_aggregates.enabled")
+	suppressClusterAggregates := isNodeSide && featureEnabled && k.ksmAggSuppressLocal
+
+	// In cluster_aggregates_only mode, the check emits only the .total family
+	// (via aggregator flush). Skip per-pod transformer/mapper dispatch to avoid
+	// double-emission of per-pod metrics already produced by node-agents.
+	aggregatesOnly := k.instance.PodCollectionMode == clusterAggregatesOnlyPodCollection
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
+			if suppressClusterAggregates && isClusterAggregateSourceMetric(metricFamily.Name) {
+				continue
+			}
+			// In cluster_aggregates_only mode accumulate only the four .total source
+			// metrics. Accumulating other aggregators (e.g. pod.count) would double-count
+			// with node-agents which already emit those metrics individually.
+			if aggregatesOnly && !isClusterAggregateSourceMetric(metricFamily.Name) {
+				continue
+			}
 			// First check for aggregator, because the check use _labels metrics to aggregate values.
 			if aggregator, found := k.metricAggregators[metricFamily.Name]; found {
 				for _, m := range metricFamily.ListMetrics {
@@ -781,6 +874,9 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 				}
 				// Some metrics can be aggregated and consumed as-is or by a transformer.
 				// So, let’s continue the processing.
+			}
+			if aggregatesOnly {
+				continue
 			}
 			if transform, found := k.metricTransformers[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
@@ -1102,10 +1198,140 @@ func (k *KSMCheck) configurePodCollection(builder *kubestatemetrics.Builder, col
 		} else {
 			builder.WithUnassignedPodsCollection()
 		}
+	case clusterAggregatesOnlyPodCollection:
+		// Only the cluster-agent maintains the workloadmeta kubeapiserver pod store this
+		// mode reads from. CLC runners are node-agent processes (catalog-core, no
+		// kubeapiserver collector), so reject them too — otherwise the check would read
+		// an empty store and emit empty .total. Fall back to default (full apiserver
+		// watch), which still produces a correct single-source .total wherever it lands.
+		// cluster_aggregates_only reads from the in-memory node partial store (populated
+		// by POST /api/v1/ksmaggregation) — no pod informer or WLM pod store needed.
+		// Reject node-agents and CLC runners: they lack the partial store and should
+		// fall back to default (single full-pod check → correct single-source .total).
+		if k.isRunningOnNodeAgent || k.isCLCRunner {
+			log.Warnf("cluster_aggregates_only is only supported on the cluster agent, falling back to the default mode")
+			k.instance.PodCollectionMode = defaultPodCollection
+		}
+		// No builder wiring needed: Run() handles this mode directly via runClusterAgentAggregatesOnly.
 	default:
 		log.Warnf("invalid pod collection mode %q, falling back to the default mode", k.instance.PodCollectionMode)
 		k.instance.PodCollectionMode = defaultPodCollection
 	}
+}
+
+// aggLabelKeys are the labels the cluster-agent groups .total by; the node pre-aggregates
+// to exactly these so the pushed partial is owner-shaped, not per-pod. Other source labels
+// (pod, uid, node, unit) are dropped — the cluster-agent re-keys on these and ignores them.
+var aggLabelKeys = []string{"namespace", "container", "owner_kind", "owner_name", "resource"}
+
+// buildAndPushPartial folds the cluster-aggregate source families (already gathered
+// across all stores by Run()) into a single per-node partial and synchronously pushes
+// it to the cluster-agent once per check run. Per source family, per-pod/per-container
+// metrics are summed by {namespace, container, owner_kind, owner_name, resource} so the
+// payload is proportional to distinct owners on the node, not to pod count, and carries
+// no per-pod identity. The reply's suppress_local verdict is cached in k.ksmAggSuppressLocal
+// for the current interval. If the push fails (DCA unreachable, feature disabled),
+// suppress_local stays false so the node continues emitting .total locally (pre-fix
+// under-report, never silent). The metrics argument is expected to contain only source
+// families; the guard below is defensive.
+func (k *KSMCheck) buildAndPushPartial(metrics map[string][]ksmstore.DDMetricsFam) {
+	type aggKey [5]string // namespace, container, owner_kind, owner_name, resource
+	partial := make(map[string][]clusteragent.KSMAggValue)
+	for metricName, famList := range metrics {
+		if !isClusterAggregateSourceMetric(metricName) {
+			continue
+		}
+		sums := make(map[aggKey]float64)
+		for _, fam := range famList {
+			for _, m := range fam.ListMetrics {
+				k := aggKey{m.Labels["namespace"], m.Labels["container"],
+					m.Labels["owner_kind"], m.Labels["owner_name"], m.Labels["resource"]}
+				sums[k] += m.Val
+			}
+		}
+		vals := make([]clusteragent.KSMAggValue, 0, len(sums))
+		for kk, v := range sums {
+			labels := make(map[string]string, len(aggLabelKeys))
+			for i, key := range aggLabelKeys {
+				labels[key] = kk[i]
+			}
+			vals = append(vals, clusteragent.KSMAggValue{Labels: labels, Value: v})
+		}
+		if len(vals) > 0 {
+			partial[metricName] = vals
+		}
+	}
+
+	nodeName, err := hostnameUtil.Get(context.Background())
+	if err != nil {
+		// Clear the cached verdict so a prior suppress=true doesn't keep dropping local
+		// .total while we're no longer pushing (same as the DCA-client error paths below).
+		k.ksmAggSuppressLocal = false
+		log.Debugf("KSM aggregation: could not get hostname: %v — skipping partial push", err)
+		return
+	}
+
+	dcaClient, err := clusteragent.GetClusterAgentClient()
+	if err != nil {
+		log.Debugf("KSM aggregation: could not get DCA client: %v — falling back to local .total", err)
+		k.ksmAggSuppressLocal = false
+		return
+	}
+
+	// The cluster_unassigned instance (CLC runner) may run on a host that also runs a
+	// node_kubelet agent; if both pushed under the same node name, the store's per-node
+	// Upsert would let one overwrite the other (dropping that node's resources from the
+	// combined .total). Give the unassigned contribution a reserved key — node names are
+	// DNS-1123 and cannot contain ':' — so the two never collide.
+	sourceKey := nodeName
+	if k.instance.PodCollectionMode == clusterUnassignedPodCollection {
+		sourceKey = "cluster-unassigned:" + nodeName
+	}
+
+	req := clusteragent.KSMNodePartialRequest{
+		NodeName: sourceKey,
+		Metrics:  partial,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	reply, err := dcaClient.PostKSMAggregates(ctx, req)
+	if err != nil {
+		log.Debugf("KSM aggregation: partial push failed: %v — falling back to local .total", err)
+		k.ksmAggSuppressLocal = false
+		return
+	}
+	k.ksmAggSuppressLocal = reply.SuppressLocal
+}
+
+// runClusterAgentAggregatesOnly feeds combined node partials from the global
+// PartialStore into the KSM aggregators and flushes the .total family. It is
+// called from Run() instead of the normal allStores loop when the mode is
+// cluster_aggregates_only, so that no WLM pod watch is needed.
+func (k *KSMCheck) runClusterAgentAggregatesOnly(sender sender.Sender) {
+	partialTTL := time.Duration(k.agentConfig.GetInt("kubernetes_state_core.cluster_aggregates.partial_ttl_seconds")) * time.Second
+	combined := ksmaggregation.GetStore().GetCombined(partialTTL)
+	if len(combined) == 0 {
+		log.Debugf("KSM cluster_aggregates_only: no node partials yet — skipping .total flush")
+		return
+	}
+	lj := newLabelJoiner(k.instance.labelJoins)
+	k.processMetrics(sender, combined, lj, time.Now())
+	// flush only the 4 cluster-aggregate aggregators; the map key is the KSM source metric name
+	for ksmName, agg := range k.metricAggregators {
+		if isClusterAggregateSourceMetric(ksmName) {
+			agg.flush(sender, k, lj)
+		}
+	}
+	// Heartbeat: now that we've actually emitted the combined .total, the endpoint may
+	// tell node agents to suppress their local emission. The active window is derived from
+	// this check's own interval (3×, floored), so if the emitter stalls nodes resume local
+	// emission within ~one interval — no separate TTL config needed.
+	activeWindow := 3 * k.Interval()
+	if activeWindow <= 0 {
+		activeWindow = 90 * time.Second
+	}
+	ksmaggregation.MarkEmitterRun(activeWindow)
 }
 
 // processTelemetry accumulates the telemetry metric values, it can be called multiple times
@@ -1190,6 +1416,7 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Component, wmeta workloadmeta.Component) *KSMCheck {
 	k := &KSMCheck{
 		CheckBase:                  base,
+		agentConfig:                pkgconfigsetup.Datadog(),
 		instance:                   instance,
 		telemetry:                  newTelemetryCache(),
 		tagger:                     tagger,
