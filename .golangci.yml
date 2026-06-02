@@ -55,6 +55,8 @@ linters:
               desc: "archived and unmaintained; use go.uber.org/mock instead (maintained fork, same API)"
             - pkg: "github.com/imdario/mergo"
               desc: "archived; use dario.cat/mergo instead (same author, same API)"
+            - pkg: "golang.org/x/xerrors"
+              desc: "superseded by stdlib since Go 1.13; use errors.New, fmt.Errorf with %w, or errors.Is/As instead"
         multierror:
           files:
             - $all

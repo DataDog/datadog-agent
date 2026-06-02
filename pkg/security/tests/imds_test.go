@@ -253,6 +253,83 @@ func TestAWSIMDSv2Request(t *testing.T) {
 	})
 }
 
+func TestAWSIMDSv2Response(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkNetworkCompatibility(t)
+
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
+		if out, err := loadModule("veth"); err != nil {
+			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
+		}
+	}
+
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_aws_imds_v2_response",
+			Expression: fmt.Sprintf(`imds.aws.is_imds_v2 == true && imds.type == "response" && imds.aws.security_credentials.type == "%s" && process.file.name == "%s"`, testutils.AWSSecurityCredentialsTypeTestValue, path.Base(executable)),
+		},
+	}
+
+	// create dummy interface
+	dummy, err := testutils.CreateDummyInterface(testutils.CSMDummyInterface, testutils.IMDSTestServerCIDR)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err = testutils.RemoveDummyInterface(dummy); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// create fake IMDS server
+	imdsServerAddr := testutils.IMDSTestServerIP + ":" + strconv.Itoa(testutils.IMDSTestServerPort)
+	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
+	defer func() {
+		if err = testutils.StopIMDSserver(imdsServer); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("aws_imds_v2_response", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
+			if err != nil {
+				return fmt.Errorf("failed to instantiate request: %v", err)
+			}
+			req.Header.Set("X-aws-ec2-metadata-token", "my_secret_token")
+			response, err := http.DefaultClient.Do(req)
+			if err != nil {
+				return fmt.Errorf("failed to query IMDS server: %v", err)
+			}
+			return response.Body.Close()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_aws_imds_v2_response")
+			assert.Equal(t, "response", event.IMDS.Type, "wrong IMDS request Type")
+			assert.True(t, event.IMDS.AWS.IsIMDSv2, "wrong IMDS version")
+			assert.Equal(t, testutils.AWSIMDSServerTestValue, event.IMDS.Server, "wrong IMDS request Server")
+			assert.Equal(t, testutils.AWSSecurityCredentialsTypeTestValue, event.IMDS.AWS.SecurityCredentials.Type, "wrong IMDS request AWS Security Credentials Type")
+			assert.Equal(t, testutils.AWSSecurityCredentialsExpirationTestValue, event.IMDS.AWS.SecurityCredentials.ExpirationRaw, "wrong IMDS request AWS Security Credentials ExpirationRaw")
+			assert.Equal(t, testutils.AWSSecurityCredentialsAccessKeyIDTestValue, event.IMDS.AWS.SecurityCredentials.AccessKeyID, "wrong IMDS request AWS Security Credentials AccessKeyID")
+			assert.Equal(t, testutils.AWSSecurityCredentialsCodeTestValue, event.IMDS.AWS.SecurityCredentials.Code, "wrong IMDS request AWS Security Credentials Code")
+			assert.Equal(t, testutils.AWSSecurityCredentialsLastUpdatedTestValue, event.IMDS.AWS.SecurityCredentials.LastUpdated, "wrong IMDS request AWS Security Credentials LastUpdated")
+
+			test.validateIMDSSchema(t, event)
+		}, "test_rule_aws_imds_v2_response")
+	})
+}
+
 func TestGCPIMDS(t *testing.T) {
 	SkipIfNotAvailable(t)
 

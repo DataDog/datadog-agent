@@ -12,8 +12,6 @@ package proto
 
 // NOTE: This package might become obsolete once we can unpin some of the dependencies here listed.
 //       At that point it could be wise to merge these back to internal/tools.
-//       Though a protobuf dependency, protodep is tracked in internal/tools due to versioning
-//       conflicts with the pins set here.
 
 import (
 	_ "github.com/favadi/protoc-go-inject-tag"

@@ -40,7 +40,7 @@ def _impl(name, importpath, out, prefix, src, visibility):
         raw = ":{}".format(raw),
     )
     native.exports_files([out], visibility)
-    write_source_file(name = name, in_file = ":{}".format(stripped), out_file = out, check_that_out_file_exists = False)
+    write_source_file(name = name, in_file = ":{}".format(stripped), out_file = out, check_that_out_file_exists = False, visibility = ["//visibility:public"])
 
 go_mockgen = macro(
     implementation = _impl,
