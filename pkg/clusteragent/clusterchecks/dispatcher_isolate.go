@@ -50,6 +50,7 @@ func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
 			workersNeededForCheck,
 			runnerForCheck,
 			isolateNode,
+			0, // no stickiness during forced isolation
 		)
 	}
 

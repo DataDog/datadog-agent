@@ -342,6 +342,7 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 				currentChecksDistribution.workersNeededForCheck(checkID),
 				currentChecksDistribution.runnerForCheck(checkID),
 				"",
+				d.stickinessFactor,
 			)
 		}
 	}

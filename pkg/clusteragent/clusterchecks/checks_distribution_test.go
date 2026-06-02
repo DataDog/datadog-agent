@@ -153,7 +153,86 @@ func TestAddToLeastBusy(t *testing.T) {
 				distribution.addCheck(checkID, checkStatus.WorkersNeeded, checkStatus.Runner)
 			}
 
-			distribution.addToLeastBusy("newCheck", 10, test.preferredRunner, "")
+			distribution.addToLeastBusy("newCheck", 10, test.preferredRunner, "", 0)
+
+			assert.Equal(t, test.expectedPlacement, distribution.runnerForCheck("newCheck"))
+		})
+	}
+}
+
+func TestAddToLeastBusyWithStickiness(t *testing.T) {
+	tests := []struct {
+		name              string
+		existingRunners   map[string]int
+		existingChecks    map[string]CheckStatus
+		checkWorkersNeeded float64
+		preferredRunner   string
+		stickinessFactor  float64
+		expectedPlacement string
+	}{
+		{
+			name: "stickiness keeps check on current runner when gap is small",
+			existingRunners: map[string]int{
+				"runner1": 10,
+				"runner2": 10,
+			},
+			existingChecks: map[string]CheckStatus{
+				// runner1: 5/10 = 0.5 util, runner2: 4/10 = 0.4 util
+				"check1": {WorkersNeeded: 5, Runner: "runner1"},
+				"check2": {WorkersNeeded: 4, Runner: "runner2"},
+			},
+			checkWorkersNeeded: 1,
+			preferredRunner:    "runner1",
+			// discount = (1 + 1.5) / 10 = 0.25, effective runner1 util = 0.5 - 0.25 = 0.25
+			// runner2 util = 0.4, so runner1 effective (0.25) < runner2 (0.4) → stays on runner1
+			stickinessFactor:  1.5,
+			expectedPlacement: "runner1",
+		},
+		{
+			name: "stickiness overridden when gap exceeds discount",
+			existingRunners: map[string]int{
+				"runner1": 10,
+				"runner2": 10,
+			},
+			existingChecks: map[string]CheckStatus{
+				// runner1: 8/10 = 0.8 util, runner2: 1/10 = 0.1 util
+				"check1": {WorkersNeeded: 8, Runner: "runner1"},
+				"check2": {WorkersNeeded: 1, Runner: "runner2"},
+			},
+			checkWorkersNeeded: 1,
+			preferredRunner:    "runner1",
+			// discount = (1 + 1.5) / 10 = 0.25, effective runner1 util = 0.8 - 0.25 = 0.55
+			// runner2 util = 0.1, so runner2 (0.1) < runner1 effective (0.55) → moves to runner2
+			stickinessFactor:  1.5,
+			expectedPlacement: "runner2",
+		},
+		{
+			name: "zero stickiness factor behaves like no stickiness",
+			existingRunners: map[string]int{
+				"runner1": 10,
+				"runner2": 10,
+			},
+			existingChecks: map[string]CheckStatus{
+				// runner1: 5/10 = 0.5 util, runner2: 4/10 = 0.4 util
+				"check1": {WorkersNeeded: 5, Runner: "runner1"},
+				"check2": {WorkersNeeded: 4, Runner: "runner2"},
+			},
+			checkWorkersNeeded: 1,
+			preferredRunner:    "runner1",
+			stickinessFactor:   0,
+			expectedPlacement:  "runner2", // runner2 is strictly less busy, no discount applied
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			distribution := newChecksDistribution(test.existingRunners)
+
+			for checkID, checkStatus := range test.existingChecks {
+				distribution.addCheck(checkID, checkStatus.WorkersNeeded, checkStatus.Runner)
+			}
+
+			distribution.addToLeastBusy("newCheck", test.checkWorkersNeeded, test.preferredRunner, "", test.stickinessFactor)
 
 			assert.Equal(t, test.expectedPlacement, distribution.runnerForCheck("newCheck"))
 		})

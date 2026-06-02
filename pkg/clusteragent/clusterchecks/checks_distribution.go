@@ -61,7 +61,11 @@ func newChecksDistribution(workersPerRunner map[string]int) checksDistribution {
 // is not among the runners with the lowest utilization, it gives precedence to
 // the runner with the lowest number of checks deployed. excludeRunner can be set
 // to avoid assigning a check to a specific runner.
-func (distribution *checksDistribution) leastBusyRunner(preferredRunner string, excludeRunner string) string {
+//
+// stickinessFactor adds a discount to preferredRunner's effective utilization
+// before comparison: discount = (workersNeeded + stickinessFactor) / runner.Workers.
+// This raises the bar a check must clear before being moved off its current runner.
+func (distribution *checksDistribution) leastBusyRunner(preferredRunner string, excludeRunner string, workersNeeded float64, stickinessFactor float64) string {
 	leastBusyRunner := ""
 	minUtilization := 0.0
 	numChecksLeastBusyRunner := 0
@@ -73,6 +77,17 @@ func (distribution *checksDistribution) leastBusyRunner(preferredRunner string, 
 		}
 
 		runnerUtilization := runnerStatus.utilization()
+
+		// Apply stickiness discount to the check's current runner
+		if runnerName == preferredRunner && stickinessFactor > 0 && runnerStatus.Workers > 0 {
+			// Use a constant discount + scale on the check's own size (to help larger checks stick)
+			discount := workersNeeded + stickinessFactor
+			runnerUtilization -= discount
+		}
+
+		// Note: in theory the discount becomes the runner utilization difference
+		// we accept as tolerable between busiest and least busy runner.
+
 		runnerNumChecks := runnerStatus.NumChecks
 
 		selectRunner := (leastBusyRunner == "") ||
@@ -90,8 +105,8 @@ func (distribution *checksDistribution) leastBusyRunner(preferredRunner string, 
 	return leastBusyRunner
 }
 
-func (distribution *checksDistribution) addToLeastBusy(checkID string, workersNeeded float64, preferredRunner string, excludeRunner string) {
-	leastBusy := distribution.leastBusyRunner(preferredRunner, excludeRunner)
+func (distribution *checksDistribution) addToLeastBusy(checkID string, workersNeeded float64, preferredRunner string, excludeRunner string, stickinessFactor float64) {
+	leastBusy := distribution.leastBusyRunner(preferredRunner, excludeRunner, workersNeeded, stickinessFactor)
 	if leastBusy == "" {
 		return
 	}

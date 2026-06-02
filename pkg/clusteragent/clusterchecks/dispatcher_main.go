@@ -41,6 +41,7 @@ type dispatcher struct {
 	advancedDispatching              atomic.Bool
 	excludedChecks                   map[string]struct{}
 	excludedChecksFromDispatching    map[string]struct{}
+	stickinessFactor                 float64
 	rebalancingPeriod                time.Duration
 	ksmSharding                      *ksmShardingManager
 	ksmShardingMutex                 sync.Mutex          // Protects ksmShardedConfigs
@@ -54,6 +55,7 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	}
 	d.nodeExpirationSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.node_expiration_timeout")
 	d.unscheduledCheckThresholdSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.unscheduled_check_threshold")
+	d.stickinessFactor = pkgconfigsetup.Datadog().GetFloat64("cluster_checks.rebalance_stickiness_factor")
 
 	if d.unscheduledCheckThresholdSeconds < d.nodeExpirationSeconds {
 		log.Warnf("The unscheduled_check_threshold value should be larger than node_expiration_timeout, setting it to the same value")

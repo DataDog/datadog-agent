@@ -1648,6 +1648,102 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 	assert.Empty(t, checksMoved)
 }
 
+func TestRebalanceUsingUtilizationStickinessFactor(t *testing.T) {
+	// Scenario:
+	//   node1: checkA1 (9000ms → 0.6 workers) + checkA2 (6000ms → 0.4 workers) — heavy runner
+	//   node2: checkB1 (1500ms → 0.1 workers) — light runner
+	//
+	// The default check interval is 15s, so workersNeeded = execTime / 15000.
+	//
+	// With stickinessFactor=0 the utilization gap is large enough that rebalancing is
+	// worth it and checkA2 moves from node1 to node2.
+	//
+	// With stickinessFactor=5 the discount applied to node1's effective utilization
+	// is large enough to keep checkA2 on node1 so the proposed distribution equals
+	// the current one, so no moves happen.
+	tests := []struct {
+		name             string
+		stickinessFactor float64
+		checkA2OnNode1   bool
+	}{
+		{
+			name:             "no stickiness: checkA2 moves to balance utilization",
+			stickinessFactor: 0,
+			checkA2OnNode1:   false,
+		},
+		{
+			name:             "stickiness factor 5: checkA2 stays on current runner",
+			stickinessFactor: 5,
+			checkA2OnNode1:   true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			testDispatcher := newDispatcher(fakeTagger)
+			testDispatcher.advancedDispatching.Store(true)
+			testDispatcher.stickinessFactor = tc.stickinessFactor
+
+			mockClient := &rebalanceTestClcRunnerClient{
+				testStats: make(map[string]types.CLCRunnersStats),
+			}
+			testDispatcher.clcRunnersClient = mockClient
+
+			testDispatcher.store.active = true
+			testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
+			testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
+			testDispatcher.store.nodes["node2"] = newNodeStore("node2", "10.0.0.2")
+			testDispatcher.store.nodes["node2"].workers = pkgconfigsetup.DefaultNumWorkers
+
+			node1Stats := types.CLCRunnersStats{
+				"checkA1": {AverageExecutionTime: 9000, IsClusterCheck: true}, // 0.6 workers
+				"checkA2": {AverageExecutionTime: 6000, IsClusterCheck: true}, // 0.4 workers
+			}
+			node2Stats := types.CLCRunnersStats{
+				"checkB1": {AverageExecutionTime: 1500, IsClusterCheck: true}, // 0.1 workers
+			}
+			testDispatcher.store.nodes["node1"].clcRunnerStats = node1Stats
+			testDispatcher.store.nodes["node2"].clcRunnerStats = node2Stats
+			mockClient.testStats["10.0.0.1"] = node1Stats
+			mockClient.testStats["10.0.0.2"] = node2Stats
+
+			testDispatcher.store.idToDigest = map[checkid.ID]string{
+				"checkA1": "digestA1",
+				"checkA2": "digestA2",
+				"checkB1": "digestB1",
+			}
+			testDispatcher.store.digestToConfig = map[string]integration.Config{
+				"digestA1": {},
+				"digestA2": {},
+				"digestB1": {},
+			}
+			testDispatcher.store.digestToNode = map[string]string{
+				"digestA1": "node1",
+				"digestA2": "node1",
+				"digestB1": "node2",
+			}
+
+			testDispatcher.rebalanceUsingUtilization(false)
+
+			requireNotLocked(t, testDispatcher.store)
+
+			if tc.checkA2OnNode1 {
+				assert.Contains(t, testDispatcher.store.nodes["node1"].clcRunnerStats, "checkA2", "checkA2 should stay on node1 with stickiness")
+				assert.NotContains(t, testDispatcher.store.nodes["node2"].clcRunnerStats, "checkA2", "checkA2 should not move to node2 with stickiness")
+			} else {
+				assert.NotContains(t, testDispatcher.store.nodes["node1"].clcRunnerStats, "checkA2", "checkA2 should have moved off node1")
+				assert.Contains(t, testDispatcher.store.nodes["node2"].clcRunnerStats, "checkA2", "checkA2 should have moved to node2")
+			}
+
+			// checkA1 always stays on node1 (placed first into empty runners, preferred wins the tie)
+			assert.Contains(t, testDispatcher.store.nodes["node1"].clcRunnerStats, "checkA1")
+			// checkB1 always stays on node2
+			assert.Contains(t, testDispatcher.store.nodes["node2"].clcRunnerStats, "checkB1")
+		})
+	}
+}
+
 func TestRebalanceIsWorthIt(t *testing.T) {
 	workersPerRunner := map[string]int{
 		"runner1": 3,
