@@ -1,0 +1,22 @@
+# gazelle:ignore
+# This BUILD.bazel is maintained manually because forwarder_orchestrator.go
+# requires //go:build orchestrator and depends on pkg/orchestrator/config which
+# has no Bazel support. Only the !orchestrator variant is Bazel-buildable.
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "forwarder_no_orchestrator.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/def",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/orchestrator/def",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@org_uber_go_fx//:fx",
+    ],
+)

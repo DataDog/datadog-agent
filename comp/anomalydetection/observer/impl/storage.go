@@ -19,8 +19,8 @@ import (
 )
 
 // timeSeriesStorage is an internal storage for time series data.
-// storageConfig holds tunable parameters for timeSeriesStorage.
-type storageConfig struct {
+// StorageConfig holds tunable parameters for timeSeriesStorage.
+type StorageConfig struct {
 	// MaxSeries caps live series; when exceeded on Advance, series are evicted
 	// until count drops to MaxSeries*(1-EvictionFloorRatio). 0 disables eviction.
 	MaxSeries int
@@ -35,9 +35,9 @@ type storageConfig struct {
 	PointRetentionSecs int64
 }
 
-// defaultStorageConfig returns the hard-coded production defaults.
-func defaultStorageConfig() storageConfig {
-	return storageConfig{
+// DefaultStorageConfig returns the hard-coded production defaults.
+func DefaultStorageConfig() StorageConfig {
+	return StorageConfig{
 		MaxSeries:          storageMaxSeries,
 		EvictionFloorRatio: storageEvictionBandRatio,
 		PointRetentionSecs: storagePointRetentionSecs,
@@ -58,7 +58,7 @@ const (
 )
 
 type timeSeriesStorage struct {
-	cfg    storageConfig
+	cfg    StorageConfig
 	mu     sync.RWMutex
 	series map[uint64]*seriesStats // keyed by seriesKeyHash; no string retained per entry
 
@@ -225,11 +225,11 @@ func searchAfter(timestamps []int64, value int64) int {
 
 // newTimeSeriesStorage creates a new time series storage with default config.
 func newTimeSeriesStorage() *timeSeriesStorage {
-	return newTimeSeriesStorageWith(defaultStorageConfig())
+	return newTimeSeriesStorageWith(DefaultStorageConfig())
 }
 
 // newTimeSeriesStorageWith creates a new time series storage with explicit config.
-func newTimeSeriesStorageWith(cfg storageConfig) *timeSeriesStorage {
+func newTimeSeriesStorageWith(cfg StorageConfig) *timeSeriesStorage {
 	return &timeSeriesStorage{
 		cfg:                   cfg,
 		series:                make(map[uint64]*seriesStats),
@@ -1206,27 +1206,12 @@ func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.
 	// most series. Detectors and the adapter call this on every advance, so
 	// even after the cache-by-gen optimisations the worst-case cost matters
 	// when seriesGen does churn (e.g. cardinality blow-ups in extractors).
-	result := make([]observer.SeriesMeta, 0, len(s.seriesIDStats))
-listSeriesLoop:
+	result := make([]observer.SeriesMeta, 0, len(s.series))
 	for _, stats := range s.seriesIDStats {
 		if stats == nil {
 			continue
 		}
-		if filter.Namespace != "" {
-			if stats.Namespace != filter.Namespace {
-				continue
-			}
-		} else {
-			for _, ex := range filter.ExcludeNamespaces {
-				if stats.Namespace == ex {
-					continue listSeriesLoop
-				}
-			}
-		}
-		if filter.NamePattern != "" && !strings.HasPrefix(stats.Name, filter.NamePattern) {
-			continue
-		}
-		if !matchTags(stats.Tags, filter.TagMatchers) {
+		if !matchesSeriesFilter(stats, filter) {
 			continue
 		}
 		result = append(result, observer.SeriesMeta{
@@ -1237,6 +1222,31 @@ listSeriesLoop:
 		})
 	}
 	return result
+}
+
+// ListSeriesRefsInto uses dst as scratch and returns refs for all series
+// matching the filter. Previous dst contents are discarded. It is the
+// allocation-light detector hot path for callers that only need the stable
+// numeric SeriesRef handles.
+func (s *timeSeriesStorage) ListSeriesRefsInto(filter observer.SeriesFilter, dst []observer.SeriesRef) []observer.SeriesRef {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if cap(dst) < len(s.series) {
+		dst = make([]observer.SeriesRef, 0, len(s.series))
+	} else {
+		dst = dst[:0]
+	}
+	for _, stats := range s.seriesIDStats {
+		if stats == nil {
+			continue
+		}
+		if !matchesSeriesFilter(stats, filter) {
+			continue
+		}
+		dst = append(dst, stats.ref)
+	}
+	return dst
 }
 
 // PointCount returns the number of raw data points for a series.
@@ -1362,6 +1372,24 @@ func matchTags(tags []string, matchers map[string]string) bool {
 		}
 	}
 	return true
+}
+
+func matchesSeriesFilter(stats *seriesStats, filter observer.SeriesFilter) bool {
+	if filter.Namespace != "" {
+		if stats.Namespace != filter.Namespace {
+			return false
+		}
+	} else {
+		for _, ex := range filter.ExcludeNamespaces {
+			if stats.Namespace == ex {
+				return false
+			}
+		}
+	}
+	if filter.NamePattern != "" && !strings.HasPrefix(stats.Name, filter.NamePattern) {
+		return false
+	}
+	return matchTags(stats.Tags, filter.TagMatchers)
 }
 
 // GetSeriesRange returns points within a time range (start, end].

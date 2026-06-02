@@ -10,7 +10,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -18,8 +18,8 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
+	orchestratormock "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
@@ -31,8 +31,8 @@ func TestBundleDependencies(t *testing.T) {
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		defaultforwarder.MockModule(),
-		orchestratorForwarderImpl.MockModule(),
-		eventplatformimpl.MockModule(),
+		orchestratormock.MockModule(),
+		eventplatformmock.MockModule(),
 		nooptagger.Module(),
 		haagentmock.Module(),
 		logscompression.MockModule(),

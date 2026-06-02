@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/util/prometheus
 go 1.25.0
 
 require (
-	github.com/prometheus/common v0.67.5
+	github.com/prometheus/common v0.68.0
 	github.com/prometheus/prometheus v0.311.4-0.20260507094802-91c184a899b8
 	github.com/stretchr/testify v1.11.1
 )
@@ -12,6 +12,7 @@ require gopkg.in/yaml.v3 v3.0.1 // indirect
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.0 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.41.7 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.32.17 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.16 // indirect
@@ -29,15 +30,14 @@ require (
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	golang.org/x/net v0.53.0 // indirect
-	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/crypto v0.52.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	google.golang.org/api v0.274.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260406210006-6f92a3bedf2d // indirect
-	google.golang.org/grpc v1.81.0 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
-	k8s.io/apimachinery v0.35.5 // indirect
-	k8s.io/client-go v0.35.4 // indirect
+	google.golang.org/grpc v1.81.1 // indirect
+	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca // indirect
+	k8s.io/client-go v0.35.5 // indirect
 	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5 // indirect
 )
 

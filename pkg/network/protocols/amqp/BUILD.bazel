@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "amqp",
+    srcs = [
+        "client.go",
+        "server.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/amqp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/network/protocols/http/testutil",
+        "//pkg/network/protocols/testutil",
+        "//pkg/util/testutil",
+        "//pkg/util/testutil/docker",
+        "@com_github_rabbitmq_amqp091_go//:amqp091-go",
+        "@com_github_stretchr_testify//require",
+    ],
+)
