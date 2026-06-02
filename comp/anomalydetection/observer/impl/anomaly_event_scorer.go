@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"sort"
@@ -365,5 +366,5 @@ func scopeKey(a observerdef.Anomaly) string {
 func eventID(a observerdef.Anomaly) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "%s|%s|%d|%s", a.Source.Key(), a.DetectorName, a.Timestamp, a.Title)
-	return fmt.Sprintf("%x", h.Sum(nil))[:16]
+	return hex.EncodeToString(h.Sum(nil))[:16]
 }
