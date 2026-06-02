@@ -39,6 +39,8 @@ const (
 	deviceEvents CollectorName = "device_events"
 	nvlinkPLR    CollectorName = "nvlink_plr"
 	nvlinkFEC    CollectorName = "nvlink_fec"
+	nvlinkFields CollectorName = "nvlink_fields"
+	nvlinkGPM    CollectorName = "nvlink_gpm"
 )
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
@@ -55,6 +57,8 @@ var factory = map[CollectorName]subsystemBuilder{
 	field:        newFieldsCollector,
 	nvlinkPLR:    newNVLinkPLRCollector,
 	nvlinkFEC:    newNVLinkFECCollector,
+	nvlinkFields: newNVLinkFieldsCollector,
+	nvlinkGPM:    newNVLinkGPMCollector,
 	gpm:          newGPMCollector,
 	deviceEvents: newDeviceEventsCollector,
 }

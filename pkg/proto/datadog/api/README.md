@@ -13,7 +13,7 @@ installed separately. To build the tools directly with Bazel:
 bazel build \
   //bazel/toolchains/protoc \
   @com_github_favadi_protoc_go_inject_tag//:protoc-go-inject-tag \
-  @com_github_golang_mock//mockgen \
+  @org_uber_go_mock//mockgen \
   @com_github_planetscale_vtprotobuf//cmd/protoc-gen-go-vtproto \
   @com_github_tinylib_msgp//:msgp \
   @org_golang_google_grpc_cmd_protoc_gen_go_grpc//:protoc-gen-go-grpc \

@@ -28,10 +28,10 @@ import (
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
-	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
+	orchestratormock "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
@@ -111,7 +111,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 
 	demux.SendSamplesWithoutAggregation(batch)
 	time.Sleep(200 * time.Millisecond) // give some time for the automatic flush to trigger
-	demux.Stop(true)
+	demux.Stop()
 
 	// nothing should be in the time sampler
 	require.Len(demux.statsd.workers[0].samplesChan, 0)
@@ -140,7 +140,7 @@ func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 	require.False(t, demux.Options().EnableNoAggregationPipeline, "the no aggregation pipeline should be disabled by default")
-	demux.Stop(false)
+	demux.Stop()
 }
 
 func TestAddAgentStartupTelemetrySendsShutdownEventOnFinalStop(t *testing.T) {
@@ -153,7 +153,7 @@ func TestAddAgentStartupTelemetrySendsShutdownEventOnFinalStop(t *testing.T) {
 	}).Return(nil).Once()
 
 	demux.AddAgentStartupTelemetry("7.0.0")
-	demux.Stop(true)
+	demux.Stop()
 
 	var shutdownEvent *event.Event
 	select {
@@ -161,23 +161,13 @@ func TestAddAgentStartupTelemetrySendsShutdownEventOnFinalStop(t *testing.T) {
 	case <-time.After(time.Second):
 		require.FailNow(t, "timed out waiting for Agent Shutdown event")
 	}
+	require.Equal(t, "Agent Shutdown", shutdownEvent.Title)
 	require.Equal(t, "Version 7.0.0", shutdownEvent.Text)
 	require.Equal(t, "System", shutdownEvent.SourceTypeName)
 	require.Equal(t, "hostname", shutdownEvent.Host)
 	require.Equal(t, "Agent Shutdown", shutdownEvent.EventType)
 
 	s.AssertExpectations(t)
-}
-
-func TestAgentShutdownTelemetryRequiresFinalFlush(t *testing.T) {
-	demux, s := newShutdownTelemetryTestDemux(t, "hostname")
-	s.On("SendEvents", mock.Anything).Return(nil).Maybe()
-
-	demux.AddAgentStartupTelemetry("7.0.0")
-	demux.ForceFlushToSerializer(time.Now(), true)
-	demux.Stop(false)
-
-	s.AssertNotCalled(t, "SendAgentShutdownEvent", mock.Anything, mock.Anything)
 }
 
 func newShutdownTelemetryTestDemux(t *testing.T, hostname string) (*AgentDemultiplexer, *MockSerializerIterableSerie) {
@@ -324,7 +314,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 
 	testCountBlocked([]string{"tag1:one", "tag2:two", "tag3:three"}, 62.0)
 
-	demux.Stop(false)
+	demux.Stop()
 
 	// We no longer need to ensure the correct metrics are being blocked after stopping. Just make sure it doesn't deadlock.
 	filterList.SetTagFilterList(map[string]filterlistimpl.MetricTagList{
@@ -452,7 +442,7 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 	require.NotEqualf(-1, idx, "dist.metric not found in %+v", s.sketches)
 	require.ElementsMatch([]string{"tag1:one", "tag2:two"}, strings.Split(s.sketches[idx].Tags.Join(","), ","))
 
-	demux.Stop(false)
+	demux.Stop()
 }
 
 func TestUpdateMetricFilterList(t *testing.T) {
@@ -530,7 +520,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 
 	testCountBlocked(false, 62.0)
 
-	demux.Stop(false)
+	demux.Stop()
 
 	// We no longer need to ensure the correct metrics are being blocked after stopping. Just make sure it doesn't deadlock.
 	filterList.SetMetricFilterList([]string{"another.metric"}, false)
@@ -562,8 +552,8 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 		defaultforwarder.MockModule(),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
-		orchestratorimpl.MockModule(),
-		eventplatformimpl.MockModule(),
+		orchestratormock.MockModule(),
+		eventplatformmock.MockModule(),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		haagentmock.Module(),

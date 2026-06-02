@@ -256,4 +256,9 @@ static struct syscall_cache_t *__attribute__((always_inline)) pop_current_or_imp
     return syscall;
 }
 
+static __attribute__((always_inline)) int capture_all_errors_enabled(void) {
+    u64 captured;
+    LOAD_CONSTANT("capture_all_errors_enabled", captured);
+    return captured != 0;
+}
 #endif

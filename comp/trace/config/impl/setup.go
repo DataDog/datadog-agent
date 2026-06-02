@@ -613,6 +613,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.profiling_additional_endpoints"; core.IsConfigured(k) {
 		c.ProfilingProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
+	if !core.GetBool("apm_config.profiling_send_to_main_endpoint") {
+		c.ProfilingProxy.MainEndpointMode = config.ProfilingMainEndpointSkip
+	}
 	if k := "apm_config.profiling_receiver_timeout"; core.IsConfigured(k) {
 		c.ProfilingProxy.ReceiverTimeout = core.GetInt(k)
 	}
@@ -652,12 +655,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if k := "evp_proxy_config.api_key"; core.IsConfigured(k) {
 		c.EVPProxy.APIKey = core.GetString(k)
-	}
-	if k := "evp_proxy_config.app_key"; core.IsSet(k) {
-		c.EVPProxy.ApplicationKey = core.GetString(k)
-	} else {
-		// Default to the agent-wide app_key if set
-		c.EVPProxy.ApplicationKey = core.GetString("app_key")
 	}
 	if k := "evp_proxy_config.additional_endpoints"; core.IsConfigured(k) {
 		c.EVPProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
