@@ -1,26 +1,26 @@
 # Config-header refresh
 
-This doc expands Step 7 of the main flow. It assumes Step 5 ran and you already have:
+Expands Step 7. Assumes Step 5 ran and you have:
 
 - The resolved config-header **template** path.
-- The resolved **output header** path(s) we have checked in.
-- The **feature decisions table** with probe results — function/header/library `HAVE_*` decisions are already resolved at high confidence; opt-in feature toggles either have an explicit user choice or are marked manual-decision-required.
+- The resolved **output header** path(s) checked in.
+- The **feature decisions table** with probe results.
 
-This step does three things, in order: build the upstream-changes / impact summary, get user approval, apply the edits.
+In order: build the upstream-changes / impact summary, get user approval, apply the edits.
 
 ---
 
 ## What this step does NOT do
 
-- **Re-probe features.** Probes ran in Step 5. If a HAVE_* is in the decisions table, use the value there.
-- **Run upstream configure / cmake.** Out of scope for this skill version. See the "real-configure fallback" note at the bottom if the user explicitly asks for higher confidence.
-- **Silently flip feature defines.** Every change is in the summary, and the user approves before edits land.
+- Re-probe features. Use the decisions-table value for any `HAVE_*`.
+- Run upstream configure / cmake. See "real-configure fallback" below.
+- Silently flip feature defines. User approves before edits land.
 
 ---
 
 ## Build the summary
 
-The summary has two sections. **Print it before any edit.** Even a "trivial" version-only bump prints both sections so it's obvious nothing was skipped.
+Two sections. **Print it before any edit.** Even a version-only bump prints both sections.
 
 ```
 ## Upstream build-system changes (<old-version> → <new-version>)
@@ -57,13 +57,13 @@ The summary has two sections. **Print it before any edit.** Even a "trivial" ver
     <N> other HAVE_*/USE_* defines kept as-is
 ```
 
-For **multi-platform configs** (curl `linux/`+`darwin/`, unixodbc `x86_64/`+`aarch64/`, etc.), repeat the "Impact on …" section once per platform variant. Header availability and `HAVE_*` defaults can differ across libcs/CRTs/arch baselines; don't merge the variants into one section.
+For **multi-platform configs**, repeat the "Impact on …" section once per platform variant — `HAVE_*` defaults differ across libcs/CRTs/arch baselines. Don't merge variants.
 
 ---
 
 ## Classifier: template line → upstream macro → classification
 
-Use template entries as the primary input; the corresponding configure macro is looked up only to label the entry.
+Template entries are the primary input; the configure macro is looked up only to label the entry.
 
 | Template line | Look up in upstream | Classification |
 |---|---|---|
@@ -77,23 +77,23 @@ Use template entries as the primary input; the corresponding configure macro is 
 | `#define FOO <literal>` (verbatim line in template, no `#undef`) | `AC_DEFINE([FOO], [<literal>], …)` | literal define (carry over) |
 | `#cmakedefine FOO` | `option(FOO …)` or `set(FOO …)` in CMakeLists | cmake feature toggle |
 
-If the grep finds no matching macro for a new template line, log the orphan template entry to the user — usually means an `m4` macro was renamed and you need to look further.
+If the grep finds no matching macro for a new template line, log the orphan entry to the user — usually an `m4` macro was renamed.
 
 ---
 
 ## Apply
 
 1. **Version-like and build-identifier defines:** auto-apply, propagating verbatim to **each** platform variant.
-   - Version-like (`PACKAGE_VERSION`, `PACKAGE_STRING`, `VERSION`, and `<NAME>_VERSION_NUM` / `_MAJOR` / `_MINOR` / `_PATCH` / `_STRING`): take from `AC_INIT` or `m4_define([VERSION], …)`. Compute numeric versions from the upstream's own conversion (often `(major << 16) | (minor << 8) | patch`, but check the prior value — every project picks its own encoding).
-   - Build identifiers (`BUILD_COMMITID`, `BUILD_REVISION`, etc.): trace each `AC_DEFINE_UNQUOTED` chain in `configure.ac` to its source value. Common sources are tarball-bundled metadata files (often a `VERSION` file at tarball root carrying the commit id), `m4_esyscmd` outputs evaluable at unpack time, or string literals in configure.ac. Read the value from the tarball and apply it — **except**:
-     - **Preserve existing empty or placeholder values.** If our config header has the define set to `""` (empty) or a fixed placeholder like `"<none>"`, leave it alone. An empty value is a deliberate opt-out (we don't want that identifier baked into the shipped binary); auto-applying the tarball's value would silently reverse that policy.
-     - **New build-identifier defines** introduced in this bump (not in our previous config header) default to `""`. Surface them in the summary so the user can opt into populating them — but the safe default is opt-out, since populating commits a value into binary diagnostics that downstream may then depend on.
-     - **Configure-time-only values** (timestamp, hostname, configure command line) keep the existing placeholder — Bazel doesn't reproduce them, and a placeholder is more honest than a stale or fake value.
-2. **Probe-backed defines (Step 5 results):** apply per platform variant where probes ran. For unprobed variants the row is marked "manual decision required" and is **not** auto-applied.
+   - Version-like (`PACKAGE_VERSION`, `PACKAGE_STRING`, `VERSION`, `<NAME>_VERSION_NUM` / `_MAJOR` / `_MINOR` / `_PATCH` / `_STRING`): take from `AC_INIT` or `m4_define([VERSION], …)`. Compute numeric versions from the prior value's encoding (often `(major << 16) | (minor << 8) | patch`, but every project differs).
+   - Build identifiers (`BUILD_COMMITID`, `BUILD_REVISION`, etc.): trace each `AC_DEFINE_UNQUOTED` chain in `configure.ac` to its source value (tarball-bundled metadata, `m4_esyscmd` output, or string literals), read it from the tarball, apply it — **except**:
+     - **Preserve existing empty or placeholder values** (`""`, `"<none>"`). An empty value is a deliberate opt-out.
+     - **New build-identifier defines** default to `""`; surface in the summary for the user to opt into populating.
+     - **Configure-time-only values** (timestamp, hostname, configure command line) keep the existing placeholder — Bazel doesn't reproduce them.
+2. **Probe-backed defines (Step 5 results):** apply per platform variant where probes ran. Unprobed variants are marked "manual decision required", **not** auto-applied.
 3. **Removed defines:** delete from each platform variant.
-4. **Opt-in features:** apply only the choice the user already made in Step 5. If the user hasn't picked, stop and ask before proceeding to the next variant.
+4. **Opt-in features:** apply only the choice the user made in Step 5. If unpicked, stop and ask before the next variant.
 
-Preserve the file's existing header comment (`/* config.h. Generated from config.h.in by configure. */`) — it's accurate as a description of how the file was first created. The skill is patching it, not regenerating from scratch.
+Preserve the file's existing header comment (`/* config.h. Generated from config.h.in by configure. */`). The skill patches it, not regenerates it.
 
 ---
 
@@ -101,8 +101,8 @@ Preserve the file's existing header comment (`/* config.h. Generated from config
 
 After editing each variant:
 
-- Spot-check that the file is still C-valid: `bazel build @<dep-name>//...` can be deferred to Step 9, but a quick `cpp -fsyntax-only` against the file is a cheap sanity check if the upstream tree is in `/tmp/` and headers are reachable. Skip if it's awkward — Step 9 will catch it.
-- Confirm that the count of `#define HAVE_*` in the new file matches the expectation derived from the decisions table. A large unexpected delta usually means a `#undef`/`#define` was missed.
+- Spot-check C-validity with `cpp -fsyntax-only` if the upstream tree is in `/tmp/` and headers reachable; otherwise defer to Step 9.
+- Confirm the `#define HAVE_*` count matches the decisions table. A large delta means a `#undef`/`#define` was missed.
 
 If anything looks wrong, stop and re-show the summary with the discrepancy highlighted; do not silently re-edit.
 
@@ -110,4 +110,4 @@ If anything looks wrong, stop and re-show the summary with the discrepancy highl
 
 ## Real-configure fallback (out of scope by default)
 
-If the user explicitly asks for higher confidence than build-system-diff + probes can give, the fallback is to run the upstream `./configure` (or `cmake`) inside the project's toolchain and copy the resulting header. That requires the dep's build-time deps to be available and the same compiler / sysroot the rest of the build uses. It is **not** automated by this skill — point the user at the relevant per-dep notes in the upstream's INSTALL/README and let them do the manual rebuild.
+If the user explicitly asks for higher confidence than build-system-diff + probes give, run the upstream `./configure` (or `cmake`) inside the project's toolchain and copy the resulting header. Requires the dep's build-time deps and the same compiler / sysroot. **Not** automated by this skill — point the user at the upstream's INSTALL/README for the manual rebuild.
