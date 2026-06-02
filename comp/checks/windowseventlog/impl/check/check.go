@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/impl/check/eventdatafilter"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -71,6 +72,7 @@ type Check struct {
 	userRenderContext      evtapi.EventRenderContextHandle
 	bookmarkManager        evtbookmark.Manager
 	publisherMetadataCache publishermetadatacache.Component
+	issueReporter          healthplatformstore.Component
 }
 
 // Run updates sender stats, restarts the subscription if it failed, and saves the bookmark.
@@ -304,7 +306,8 @@ func (c *Check) Cancel() {
 }
 
 // Factory creates a new check factory
-func Factory(logsAgent option.Option[logsAgent.Component], config configComponent.Component, publisherMetadataCache publishermetadatacache.Component) option.Option[func() check.Check] {
+func Factory(logsAgent option.Option[logsAgent.Component], config configComponent.Component, publisherMetadataCache publishermetadatacache.Component, healthPlatform option.Option[healthplatformstore.Component]) option.Option[func() check.Check] {
+	hp, _ := healthPlatform.Get()
 	return option.New(func() check.Check {
 		return &Check{
 			CheckBase:              core.NewCheckBase(CheckName),
@@ -312,6 +315,7 @@ func Factory(logsAgent option.Option[logsAgent.Component], config configComponen
 			agentConfig:            config,
 			evtapi:                 winevtapi.New(),
 			publisherMetadataCache: publisherMetadataCache,
+			issueReporter:          hp,
 		}
 	})
 }

@@ -16,7 +16,9 @@ import (
 	"strings"
 	"sync"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/impl/check/eventdatafilter"
+	windowseventlogchannels "github.com/DataDog/datadog-agent/comp/healthplatform/issues/windowseventlogchannels"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -26,6 +28,7 @@ import (
 	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
 	evtsession "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
 	evtsubscribe "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
+	"golang.org/x/sys/windows"
 )
 
 func (c *Check) getChannelPath() (string, error) {
@@ -131,6 +134,19 @@ func (c *Check) startSubscription() error {
 	// The subscription will handle bookmark loading and initialization internally
 	err = c.sub.Start()
 	if err != nil {
+		if errors.Is(err, windows.ERROR_EVT_CHANNEL_NOT_FOUND) && c.issueReporter != nil {
+			channelPath, _ := c.getChannelPath()
+			issueID := fmt.Sprintf("%s:%s", windowseventlogchannels.IssueIDPrefix, string(c.ID()))
+			issue, buildErr := windowseventlogchannels.NewWindowsEventLogChannelsIssue().BuildIssue(map[string]string{"channelPath": channelPath})
+			if buildErr != nil {
+				issue = &healthplatformpayload.Issue{Id: issueID, IssueName: windowseventlogchannels.IssueName, Source: CheckName}
+			} else {
+				issue.Id = issueID
+			}
+			if reportErr := c.issueReporter.ReportIssue(issue); reportErr != nil {
+				log.Warnf("win32_event_log: failed to report channel-not-found issue for %s: %v", channelPath, reportErr)
+			}
+		}
 		return err
 	}
 
