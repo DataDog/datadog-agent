@@ -218,10 +218,25 @@ func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integrati
 	queries := make([]map[string]any, 0, len(payload.Queries))
 	for _, q := range payload.Queries {
 		qm := map[string]any{
-			"dbname":           q.DBName,
-			"monitor_id":       q.MonitorID,
-			"type":             q.Type,
-			"query":            q.Query,
+			"dbname":     q.DBName,
+			"monitor_id": q.MonitorID,
+			"type":       q.Type,
+			// Force double-quoted scalar style for the query.
+			//
+			// DO queries are multi-line SQL that frequently mixes indented lines with a
+			// trailing column-0 "-- Datadog {...}" annotation. With default style, yaml.v3
+			// emits such a string as a literal block scalar ("|") whose indentation baseline
+			// is derived from the first content line. A later line with *fewer* leading spaces
+			// than that baseline is written at a column that the parser reads as escaping the
+			// block, turning it into a sibling mapping key. yaml.Marshal does NOT error — it
+			// returns YAML that fails to parse on the way back in (yaml.v3 #962 / "did not find
+			// expected key"). That broken instance is then silently dropped when autodiscovery
+			// recomputes the config digest, so the DO-enhanced check never schedules.
+			//
+			// Double-quoted style encodes newlines as \n and has no indentation-based framing,
+			// so the round-trip is exact regardless of the SQL's whitespace. See
+			// dev/yaml-block-scalar-query-bug.md for the full write-up.
+			"query":            &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Style: yaml.DoubleQuotedStyle, Value: q.Query},
 			"interval_seconds": q.IntervalSeconds,
 			"timeout_seconds":  q.TimeoutSeconds,
 			"entity": map[string]any{

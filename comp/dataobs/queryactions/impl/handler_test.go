@@ -640,6 +640,115 @@ func TestBuildCheckConfig_PerQueryDBName(t *testing.T) {
 	assert.Equal(t, 200, q2["monitor_id"])
 }
 
+// TestBuildCheckConfig_QueryYAMLRoundTrips is a regression test for the yaml.v3 block-scalar
+// bug (see dev/yaml-block-scalar-query-bug.md). Multi-line SQL whose indentation drops below
+// the literal-block baseline on a later line — classically a trailing column-0 "-- Datadog {...}"
+// annotation after indented SELECT lines — caused yaml.Marshal to emit YAML that yaml.Unmarshal
+// could not parse, silently dropping the DO check. With the double-quoted-style fix the generated
+// instance YAML must round-trip and the query value must come back byte-for-byte unchanged.
+func TestBuildCheckConfig_QueryYAMLRoundTrips(t *testing.T) {
+	c := &component{log: logmock.New(t)}
+
+	// Queries that exercise the failure modes the bug report describes.
+	cases := map[string]string{
+		// The canonical failing case: indented SQL + column-0 "-- Datadog" comment.
+		"indented_then_col0_comment": "  SELECT count(*) AS dd_value\n  FROM events.clicks c\n  LEFT JOIN events.page_views pv\n    ON c.user_id = pv.user_id AND c.page_url = pv.url\n  WHERE pv.id IS NULL\n-- Datadog {\"monitor_ids\":[26724188]}\n",
+		// Multi-line ending in a column-0 comment containing a colon (YAML key/value ambiguity).
+		"trailing_datadog_comment": "SELECT 23 as dd_value;\n-- Datadog {\"monitor_ids\":[26386160]}\n",
+		// Embedded double quotes plus a comment with a colon.
+		"embedded_quotes": "SELECT COUNT(1) AS dd_d2c4a5713cad154e_4017410, COUNT(DISTINCT \"customer_id\") AS dd_7f4569188387648f_4046989 FROM \"testdb\".\"shop\".\"orders\"\n-- Datadog {\"monitor_ids\":[26358412,26386112]}\n",
+		// Single line, no leading whitespace — must keep working too.
+		"simple_single_line": "SELECT 1",
+	}
+
+	for name, query := range cases {
+		t.Run(name, func(t *testing.T) {
+			payload := &DOQueryPayload{
+				ConfigID: "cfg-roundtrip",
+				Queries: []QuerySpec{{
+					Type:            "run_query",
+					Query:           query,
+					IntervalSeconds: 3600,
+					TimeoutSeconds:  300,
+					Entity:          EntityMetadata{Platform: "postgres", Database: "analyticsdb", Schema: "events", Table: "clicks"},
+				}},
+			}
+			baseCfg := &integration.Config{Name: "postgres"}
+			pgInstance := map[string]any{"host": "localhost", "data_observability": map[string]any{"enabled": true}}
+
+			checkCfg, err := c.buildCheckConfig(payload, baseCfg, pgInstance, "rc-roundtrip")
+			require.NoError(t, err)
+			require.Len(t, checkCfg.Instances, 1)
+
+			// The core assertion: the emitted instance YAML must parse. Before the fix this
+			// failed with "yaml: line N: did not find expected key".
+			var instance map[string]any
+			require.NoError(t, yaml.Unmarshal(checkCfg.Instances[0], &instance),
+				"generated instance YAML must be parseable:\n%s", checkCfg.Instances[0])
+
+			doConfig, ok := instance["data_observability"].(map[string]any)
+			require.True(t, ok)
+			queries, ok := doConfig["queries"].([]any)
+			require.True(t, ok)
+			require.Len(t, queries, 1)
+
+			// The query must survive the marshal/unmarshal round-trip byte-for-byte.
+			got := queries[0].(map[string]any)["query"]
+			assert.Equal(t, query, got, "query value must round-trip unchanged")
+		})
+	}
+}
+
+// TestBuildCheckConfig_IntDigestIsStable exercises the *actual* production failure path. The bug
+// did not surface as a buildCheckConfig error — yaml.Marshal returns malformed bytes without
+// complaint. It surfaced later in autodiscovery's Config.IntDigest, which re-parses each instance
+// to fingerprint it; on the unparseable YAML it logged at DEBUG, skipped the instance, and
+// returned a digest computed *without* it. That made every broken DO config collapse onto the
+// instance-less digest, so autodiscovery treated them as duplicates and silently dropped them.
+//
+// This asserts the real downstream behavior on the offending input: the generated config's digest
+// must (a) differ from an instance-less config (the instance actually contributed) and (b) vary
+// with the query. Before the handler.go fix both assertions fail because the instance is skipped.
+func TestBuildCheckConfig_IntDigestIsStable(t *testing.T) {
+	c := &component{log: logmock.New(t)}
+	baseCfg := &integration.Config{Name: "postgres"}
+	pgInstance := map[string]any{"host": "localhost", "data_observability": map[string]any{"enabled": true}}
+
+	digestFor := func(query string) uint64 {
+		payload := &DOQueryPayload{
+			ConfigID: "cfg-digest",
+			Queries: []QuerySpec{{
+				Type:            "run_query",
+				Query:           query,
+				IntervalSeconds: 3600,
+				TimeoutSeconds:  300,
+				Entity:          EntityMetadata{Platform: "postgres", Database: "analyticsdb", Schema: "events", Table: "clicks"},
+			}},
+		}
+		cfg, err := c.buildCheckConfig(payload, baseCfg, pgInstance, "rc-digest")
+		require.NoError(t, err)
+		return cfg.IntDigest()
+	}
+
+	// A config whose instance fails to parse hashes identically to one with no instances at all,
+	// because IntDigest skips unparseable instances. Use that as the degenerate baseline.
+	emptyCfg := integration.Config{Name: "postgres"}
+	degenerateDigest := emptyCfg.IntDigest()
+
+	// The canonical offending query (indented SQL + column-0 "-- Datadog" comment) and a variant
+	// that differs only in the query body.
+	offending := "  SELECT count(*) AS dd_value\n  FROM events.clicks c\n  WHERE c.id IS NULL\n-- Datadog {\"monitor_ids\":[26724188]}\n"
+	variant := "  SELECT count(*) AS dd_value\n  FROM events.page_views pv\n  WHERE pv.id IS NULL\n-- Datadog {\"monitor_ids\":[99999999]}\n"
+
+	d1 := digestFor(offending)
+	d2 := digestFor(variant)
+
+	assert.NotEqual(t, degenerateDigest, d1,
+		"IntDigest must include the instance; equal to the instance-less digest means the YAML failed to parse and was silently skipped")
+	assert.NotEqual(t, d1, d2,
+		"different queries must yield different digests, otherwise autodiscovery dedups and drops one of the configs")
+}
+
 // TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError verifies that when a postgres
 // instance's YAML is malformed, the error message from findPostgresConfig mentions the
 // parse failure, not just "identifier not found".
