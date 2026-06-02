@@ -2186,6 +2186,8 @@ api_key:
 #     # @param enabled - boolean - optional - default: false
 #     # @env DD_NETWORK_PATH_NETFLOW_MONITORING_ENABLED - boolean - optional - default: false
 #     # [experimental] Enables Network Path Dynamic Test for monitoring NetFlow destinations via Network Path.
+#     # Requires NetFlow reverse DNS enrichment (`network_devices.netflow.reverse_dns_enrichment_enabled`) so destination hostnames are available.
+#     # To monitor public destination IPs, also enable `network_devices.netflow.reverse_dns_enrichment_public_ips_enabled`.
 #
 #     enabled: true
 

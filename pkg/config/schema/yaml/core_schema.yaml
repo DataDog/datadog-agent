@@ -1671,8 +1671,10 @@ properties:
             type: boolean
             default: false
             visibility: public
-            description: '[experimental] Enables Network Path Dynamic Test for monitoring
-              NetFlow destinations via Network Path.'
+            description: |-
+              [experimental] Enables Network Path Dynamic Test for monitoring NetFlow destinations via Network Path.
+              Requires NetFlow reverse DNS enrichment (`network_devices.netflow.reverse_dns_enrichment_enabled`) so destination hostnames are available.
+              To monitor public destination IPs, also enable `network_devices.netflow.reverse_dns_enrichment_public_ips_enabled`.
             example: 'true'
             tags:
             - template_section:CoreAgent

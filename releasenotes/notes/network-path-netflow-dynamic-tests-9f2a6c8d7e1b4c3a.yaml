@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    [network path] [experimental] Adds optional dynamic Network Path tests for NetFlow destinations.
+    [network path] [experimental] Adds optional dynamic Network Path tests for NetFlow destinations with reverse DNS hostnames.
