@@ -3,48 +3,41 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package k8srbac provides an issue module for Kubernetes RBAC / kubelet 403 errors.
-// This module only provides remediation (no built-in check) as 403 errors are
-// reported by the kubelet or API server check on receiving a Forbidden response.
+// Package k8srbac provides the issue template for Kubernetes RBAC forbidden errors.
+// Detection happens inline in the kubelet check when a 403 response is received;
+// this module only registers the template for issue building.
 package k8srbac
 
 import (
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 func init() {
 	issues.RegisterModuleFactory(NewModule)
 }
 
-const (
-	// IssueID is the unique identifier for Kubernetes RBAC forbidden issues
-	IssueID = "k8s-rbac-forbidden"
-)
+type k8sRBACModule struct{}
 
-// k8sRBACModule implements issues.Module
-type k8sRBACModule struct {
-	template *K8sRBACIssue
+// NewModule creates a new Kubernetes RBAC issue module.
+func NewModule(_ config.Component) issues.Module {
+	return &k8sRBACModule{}
 }
 
-// NewModule creates a new Kubernetes RBAC issue module
-func NewModule(config.Component) issues.Module {
-	return &k8sRBACModule{
-		template: NewK8sRBACIssue(),
-	}
+func (m *k8sRBACModule) IssueName() string { return IssueName }
+
+func (m *k8sRBACModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+	return NewK8sRBACIssue().BuildIssue(context)
 }
 
-// IssueID returns the unique identifier for this issue type
-func (m *k8sRBACModule) IssueID() string {
-	return IssueID
+// BuiltInPeriodicHealthCheck returns nil — detection happens inline in the kubelet check.
+func (m *k8sRBACModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
+	return nil
 }
 
-// IssueTemplate returns the template for building complete issues
-func (m *k8sRBACModule) IssueTemplate() issues.IssueTemplate {
-	return m.template
-}
-
-// BuiltInHealthCheck returns nil — 403 errors are reported by the kubelet/API server check
-func (m *k8sRBACModule) BuiltInHealthCheck() *issues.BuiltInHealthCheck {
+// BuiltInStartupHealthCheck returns nil — detection happens inline in the kubelet check.
+func (m *k8sRBACModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
 	return nil
 }

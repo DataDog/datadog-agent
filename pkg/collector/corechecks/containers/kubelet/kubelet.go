@@ -16,7 +16,9 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/k8srbac"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -195,23 +197,24 @@ func (k *KubeletCheck) reportForbiddenIssue(forbidden *kubelet.ErrForbidden) {
 	}
 	if forbidden != nil {
 		k.hadForbidden = true
-		report := storedef.IssueReport{
-			IssueID:   "k8s-rbac-forbidden",
-			IssueType: "k8s-rbac-forbidden",
-			Source:    "kubelet",
-			Context: map[string]string{
-				"endpoint": forbidden.Endpoint,
-				"resource": forbidden.Resource,
-				"verb":     forbidden.Verb,
-			},
+		issueID := fmt.Sprintf("%s:%s", k8srbac.IssueIDPrefix, string(k.ID()))
+		issue, buildErr := k8srbac.NewK8sRBACIssue().BuildIssue(map[string]string{
+			"endpoint": forbidden.Endpoint,
+			"resource": forbidden.Resource,
+			"verb":     forbidden.Verb,
+		})
+		if buildErr != nil {
+			issue = &healthplatformpayload.Issue{Id: issueID, IssueName: k8srbac.IssueName, Source: CheckName}
+		} else {
+			issue.Id = issueID
 		}
-		if err := hp.ReportIssue(report); err != nil {
+		if err := hp.ReportIssue(issue); err != nil {
 			log.Warnf("Failed to report kubelet RBAC forbidden issue: %v", err)
 		}
 		return
 	}
 	if k.hadForbidden {
 		k.hadForbidden = false
-		hp.ResolveIssue("k8s-rbac-forbidden")
+		hp.ResolveIssue(fmt.Sprintf("%s:%s", k8srbac.IssueIDPrefix, string(k.ID())))
 	}
 }

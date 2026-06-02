@@ -12,15 +12,23 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-// K8sRBACIssue provides the issue template for Kubernetes RBAC 403 forbidden errors
+const (
+	// IssueName is the registry key and proto IssueName field for Kubernetes RBAC forbidden issues.
+	IssueName = "k8s_rbac_forbidden"
+
+	// IssueIDPrefix is the prefix used when building per-instance issue IDs.
+	IssueIDPrefix = "k8s-rbac-forbidden"
+)
+
+// K8sRBACIssue provides the issue template for Kubernetes RBAC 403 forbidden errors.
 type K8sRBACIssue struct{}
 
-// NewK8sRBACIssue creates a new Kubernetes RBAC issue template
+// NewK8sRBACIssue creates a new Kubernetes RBAC issue template.
 func NewK8sRBACIssue() *K8sRBACIssue {
 	return &K8sRBACIssue{}
 }
 
-// BuildIssue creates a complete issue with metadata and remediation steps
+// BuildIssue creates a complete issue with metadata and remediation steps.
 func (t *K8sRBACIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	endpoint := context["endpoint"]
 	if endpoint == "" {
@@ -43,18 +51,17 @@ func (t *K8sRBACIssue) BuildIssue(context map[string]string) (*healthplatform.Is
 		"verb":     verb,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create issue extra: %v", err)
+		return nil, fmt.Errorf("failed to create issue extra: %w", err)
 	}
 
 	return &healthplatform.Issue{
-		Id:          IssueID,
-		IssueName:   "k8s_rbac_forbidden",
+		Id:          IssueIDPrefix,
+		IssueName:   IssueName,
 		Title:       "Agent Lacks Kubernetes RBAC Permissions",
 		Description: fmt.Sprintf("The Datadog agent received a 403 Forbidden response when accessing the Kubernetes API or kubelet endpoint %s. The agent's ServiceAccount is missing RBAC permissions for %s on %s.", endpoint, verb, resource),
 		Category:    "permissions",
 		Location:    "kubelet",
-		Severity:    "high",
-		DetectedAt:  "", // Will be filled by health platform
+		Severity:    healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH,
 		Source:      "kubernetes",
 		Extra:       extra,
 		Remediation: &healthplatform.Remediation{
