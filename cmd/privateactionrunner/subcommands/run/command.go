@@ -150,5 +150,5 @@ func privateActionRunnerEnabled(confPath string, extraConfFiles []string) (bool,
 		pkgconfigsetup.ApplyUseDogstatsdSuppression(cfg)
 	}
 
-	return cfg.GetBool(privateactionrunner.PAREnabled), nil
+	return privateactionrunner.IsEnabled(cfg), nil
 }

@@ -47,11 +47,6 @@ const (
 	maxStartupWaitTimeout = 15 * time.Second
 )
 
-// isEnabled checks if the private action runner is enabled in the configuration
-func isEnabled(cfg config.Component) bool {
-	return cfg.GetBool(privateactionrunner.PAREnabled)
-}
-
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
 	Config        config.Component
@@ -94,7 +89,7 @@ type PrivateActionRunner struct {
 // NewComponent creates a new privateactionrunner component
 func NewComponent(reqs Requires) (Provides, error) {
 	ctx := context.Background()
-	if !isEnabled(reqs.Config) {
+	if !privateactionrunner.IsEnabled(reqs.Config) {
 		reqs.Log.Info("private-action-runner is not enabled. Set private_action_runner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATE_ACTION_RUNNER_ENABLED=true.")
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
