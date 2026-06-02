@@ -130,8 +130,6 @@ type Manager struct {
 	isSyscallAnomalyEnabled bool
 
 	// ebpf maps
-	securityProfileMap *ebpf.Map
-
 	profilesLock        sync.Mutex
 	profiles            map[cgroupModel.WorkloadSelector]*profile.Profile
 	evictedVersionsLock sync.Mutex

@@ -9,11 +9,8 @@
 package securityprofile
 
 import (
-	"errors"
 	"slices"
 	"time"
-
-	"golang.org/x/sys/unix"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -305,19 +302,6 @@ func (m *Manager) unloadProfileMap(profile *profile.Profile) {
 	seclog.Debugf("security profile %s unloaded from kernel space", profile.Metadata.Name)
 }
 
-// linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
-func (m *Manager) linkProfileMap(profile *profile.Profile, workload *tags.Workload) {
-	if err := m.securityProfileMap.Put(workload.GCroupCacheEntry.GetCGroupInode(), profile.GetProfileCookie()); err != nil {
-		if errors.Is(err, unix.E2BIG) {
-			seclog.Debugf("couldn't link workload %s (selector: %s, inode: %d) with profile %s (check map size limit ?): %v", workload.GCroupCacheEntry.GetContainerID(), workload.Selector.String(), workload.GCroupCacheEntry.GetCGroupInode(), profile.Metadata.Name, err)
-		} else {
-			seclog.Errorf("couldn't link workload %s (selector: %s, inode: %d) with profile %s (check map size limit ?): %v", workload.GCroupCacheEntry.GetContainerID(), workload.Selector.String(), workload.GCroupCacheEntry.GetCGroupInode(), profile.Metadata.Name, err)
-		}
-		return
-	}
-	seclog.Infof("%s %s (selector: %s) successfully linked to profile %s", workload.Type(), workload.GetWorkloadID(), workload.Selector.String(), profile.Metadata.Name)
-}
-
 // linkProfile applies a profile to the provided workload
 func (m *Manager) linkProfile(profile *profile.Profile, workload *tags.Workload) {
 	profile.InstancesLock.Lock()
@@ -333,23 +317,6 @@ func (m *Manager) linkProfile(profile *profile.Profile, workload *tags.Workload)
 
 	// update the list of tracked instances
 	profile.Instances = append(profile.Instances, workload)
-
-	// can we apply the profile or is it not ready yet ?
-	if profile.LoadedInKernel.Load() && m.isSyscallAnomalyEnabled {
-		m.linkProfileMap(profile, workload)
-	}
-}
-
-// unlinkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
-func (m *Manager) unlinkProfileMap(profile *profile.Profile, workload *tags.Workload) {
-	if !profile.LoadedInKernel.Load() {
-		return
-	}
-
-	if err := m.securityProfileMap.Delete(workload.GCroupCacheEntry.GetCGroupInode()); err != nil {
-		seclog.Errorf("couldn't unlink %s %s (selector: %s) with profile %s: %v", workload.Type(), workload.GetWorkloadID(), workload.Selector.String(), profile.Metadata.Name, err)
-	}
-	seclog.Infof("%s %s (selector: %s) successfully unlinked from profile %s", workload.Type(), workload.GetWorkloadID(), workload.Selector.String(), profile.Metadata.Name)
 }
 
 // unlinkProfile removes the link between a workload and a profile
@@ -363,11 +330,6 @@ func (m *Manager) unlinkProfile(profile *profile.Profile, workload *tags.Workloa
 			profile.Instances = append(profile.Instances[0:key], profile.Instances[key+1:]...)
 			break
 		}
-	}
-
-	// remove link between the profile and the workload
-	if m.isSyscallAnomalyEnabled {
-		m.unlinkProfileMap(profile, workload)
 	}
 }
 
@@ -577,10 +539,6 @@ func (m *Manager) onNewProfile(newProfile *profile.Profile) {
 		if err := m.loadProfileMap(p); err != nil {
 			seclog.Errorf("couldn't load security profile %s in kernel space: %v", p.GetWorkloadSelector(), err)
 			return
-		}
-		// link all workloads
-		for _, workload := range p.Instances {
-			m.linkProfileMap(p, workload)
 		}
 	}
 
