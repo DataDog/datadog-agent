@@ -58,8 +58,10 @@ corresponding update to `MODULE.bazel.lock`.
 
 ## No WORKSPACE patterns
 
-This repo uses Bzlmod exclusively. Flag any new `WORKSPACE` or `WORKSPACE.bazel` file, any `workspace()` call, or
-any `load("@<repo>//:def.bzl")` pattern that bypasses `MODULE.bazel`.
+This repo uses Bzlmod exclusively. Flag any new `WORKSPACE` or `WORKSPACE.bazel` file, or any `workspace()` call.
+Do **not** flag `load("@repo//...")` labels — these are normal Bzlmod usage and the repo relies on them extensively
+(e.g. `@gazelle//:def.bzl`, `@linux_headers//:defs.bzl`). Only flag a `load` if the repo it references is declared
+solely in a `WORKSPACE` file and is absent from `MODULE.bazel`.
 
 ## `use_repo(...)` accuracy
 
