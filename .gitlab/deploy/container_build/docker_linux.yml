@@ -534,16 +534,12 @@ docker_build_secret_generic_connector_amd64:
   needs:
     - job: secret_generic_connector-build_amd64
       artifacts: true
-  variables:
-    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_secret_generic_connector_amd64"
 
 docker_build_secret_generic_connector_arm64:
   extends: [.docker_build_secret_generic_connector, .docker_build_arm64]
   needs:
     - job: secret_generic_connector-build_arm64
       artifacts: true
-  variables:
-    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_secret_generic_connector_arm64"
 
 # build the dogstatsd image
 .docker_build_dogstatsd:

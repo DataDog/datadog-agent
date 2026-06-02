@@ -1,22 +1,19 @@
 ---
 .static_quality_gate_package: |
-  # Measure package size and generate in-place report
-  # This runs after the main script and won't fail the job if there are issues.
-  # Only run if the job status is success.
-  # This is common for both rpm and deb packages
-  if [[ "$CI_JOB_STATUS" != "success" ]]; then
-    echo "ℹ️  Skipping package measurement (job status is not success)"
-    exit 0
-  fi
-
+  # Measure package size and generate in-place report. Runs as the last step of
+  # the producer's main script so a failure here fails the producer job: the
+  # SQG consumer reads these reports from S3 and has no fallback path.
   if [[ -n "$STATIC_QUALITY_GATE_NAME" ]]; then
     echo "📊 Starting package measurement..."
 
-    # If the gate name contains "suse", use the SUSE package directory,
-    # otherwise use the default package directory
-    [[ "$STATIC_QUALITY_GATE_NAME" == *"suse"* ]] && \
-    BASE_PACKAGE_DIR="$OMNIBUS_PACKAGE_DIR_SUSE" || \
-    BASE_PACKAGE_DIR="$OMNIBUS_PACKAGE_DIR"
+    # SUSE jobs relocate packages from OMNIBUS_PACKAGE_DIR to
+    # OMNIBUS_PACKAGE_DIR_SUSE in their script; pick whichever directory
+    # actually holds the file so this step works regardless of order.
+    if [[ "$STATIC_QUALITY_GATE_NAME" == *"suse"* && -d "$OMNIBUS_PACKAGE_DIR_SUSE" && -n "$(ls -A "$OMNIBUS_PACKAGE_DIR_SUSE" 2>/dev/null)" ]]; then
+      BASE_PACKAGE_DIR="$OMNIBUS_PACKAGE_DIR_SUSE"
+    else
+      BASE_PACKAGE_DIR="$OMNIBUS_PACKAGE_DIR"
+    fi
 
     # Determine package type and set appropriate variables
     # Handle FIPS packages by adjusting project name
@@ -32,7 +29,7 @@
 
     # Determine format based on package type
     case "$STATIC_QUALITY_GATE_NAME" in
-      *deb*) SEP="_7*"; EXT="deb"; ARCH="${PACKAGE_ARCH}" ;;
+      *deb*|*heroku*) SEP="_7*"; EXT="deb"; ARCH="${PACKAGE_ARCH}" ;;
       *rpm*|*suse*) SEP="-7*"; EXT="rpm" ;;
       *) echo "⚠️  Unknown package type for gate: $STATIC_QUALITY_GATE_NAME"; exit 1 ;;
     esac
@@ -59,19 +56,30 @@
 
         echo "✅ Package measurement completed"
 
-        # Ensure we don't corrupt our `main` measurements with a child pipeline.
-        # The report would override the one generated post-merge
-        if [[ "$CI_PIPELINE_SOURCE" != "push" ]]; then
-          echo "This pipeline wasn't created by a push event, skipping report upload"
-          continue
-        fi
-
-        # Upload the report to S3
-        BUCKET_BASE_PATH="s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/${CI_COMMIT_SHA}"
-        echo "Uploading report to ${BUCKET_BASE_PATH}"
+        # Upload under a pipeline-scoped prefix so concurrent pipelines for
+        # the same commit (e.g. cross-repo downstream pipelines) don't
+        # overwrite each other's reports.
+        BUCKET_BASE_PATH="s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS"
+        echo "Uploading report to ${BUCKET_BASE_PATH}/${CI_PIPELINE_ID}/${REPORT_FILENAME}"
         aws s3 cp --only-show-errors --region us-east-1 --sse AES256 \
           "${REPORT_FILENAME}" \
-          "${BUCKET_BASE_PATH}/${REPORT_FILENAME}"
+          "${BUCKET_BASE_PATH}/${CI_PIPELINE_ID}/${REPORT_FILENAME}"
+
+        # Optional second upload at the commit-only path for downstream
+        # consumers that look up by commit alone (e.g. files_inventory_check
+        # parent-report fetch). Restricted to push pipelines so the canonical
+        # post-merge report isn't replaced by manual/scheduled/web runs (which
+        # may have overridden dependency inputs).
+        if [[ "$UPLOAD_GLOBAL_INVENTORY" == "true" ]]; then
+          if [[ "$CI_PIPELINE_SOURCE" == "push" ]]; then
+            echo "Uploading global report to ${BUCKET_BASE_PATH}/${CI_COMMIT_SHA}/${REPORT_FILENAME}"
+            aws s3 cp --only-show-errors --region us-east-1 --sse AES256 \
+              "${REPORT_FILENAME}" \
+              "${BUCKET_BASE_PATH}/${CI_COMMIT_SHA}/${REPORT_FILENAME}"
+          else
+            echo "Pipeline source is '$CI_PIPELINE_SOURCE'; skipping global report upload"
+          fi
+        fi
       else
         echo "⚠️  No package found matching pattern: $PACKAGE_PATTERN"; exit 1;
       fi

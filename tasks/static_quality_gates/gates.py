@@ -15,24 +15,18 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from io import UnsupportedOperation
-from typing import Any, Protocol
+from typing import Protocol
 
 import yaml
 from invoke import Context
+from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
 from tasks.libs.common.datadog_api import create_gauge, send_metrics
 from tasks.libs.common.git import is_a_release_branch
 from tasks.libs.common.utils import get_metric_origin
-from tasks.libs.package.size import InfraError, directory_size, extract_package, file_size
-
-# Architecture definitions are different depending on OS
-ARCH_MAPPING = {
-    "amd64": "x86_64",
-    "arm64": "aarch64",
-    "armhf": "armv7hl",
-}
+from tasks.libs.package.size import InfraError
 
 PACKAGE_OS_MAPPING = {
     "deb": "debian",
@@ -41,6 +35,8 @@ PACKAGE_OS_MAPPING = {
     "heroku": "debian",
     "msi": "windows",
 }
+
+S3_REPORT_PATH = "s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates"
 
 
 def byte_to_string(size: int, unit_power: int = None, with_unit: bool = True) -> str:
@@ -105,19 +101,34 @@ def read_byte_input(byte_input: str | int) -> int:
         return byte_input
 
 
-def _sum_manifest_sizes(node: Any) -> int:
-    """Recursively sum every `size` field found in a manifest tree."""
-    if isinstance(node, list):
-        return sum(_sum_manifest_sizes(item) for item in node)
-    if isinstance(node, dict):
-        total = 0
-        for key, value in node.items():
-            if key == "size":
-                total += value
-            else:
-                total += _sum_manifest_sizes(value)
-        return total
-    return 0
+def _read_report_header(stream) -> dict:
+    """
+    Read only the scalar top-level fields of an inventory report YAML.
+
+    `ReportBuilder.save_report_to_yaml` places the fields we need at the
+    beginning of the document and the `file_inventory` list at the end, so
+    this skips the bulk of the file by stopping at that key.
+    """
+    header: dict = {}
+    current_key: str | None = None
+    depth = 0
+    for event in yaml.parse(stream):
+        if isinstance(event, yaml.MappingStartEvent):
+            depth += 1
+            continue
+        if isinstance(event, yaml.MappingEndEvent):
+            depth -= 1
+            continue
+        if depth != 1 or not isinstance(event, yaml.ScalarEvent):
+            continue
+        if current_key is None:
+            if event.value == "file_inventory":
+                break
+            current_key = event.value
+        else:
+            header[current_key] = event.value
+            current_key = None
+    return header
 
 
 class StaticQualityGateError(Exception):
@@ -271,225 +282,68 @@ class ArtifactMeasurer(Protocol):
         ...
 
 
-class PackageArtifactMeasurer:
+class InventoryReportMeasurer:
     """
-    Measures package artifacts (DEB, RPM, MSI, etc.).
+    Reads pre-computed size + inventory reports written by build jobs
+    (`*_size_report_*.yml`) from S3, instead of downloading and re-extracting
+    the artifact in the SQG runner.
     """
 
-    def measure(self, ctx: Context, config: QualityGateConfig) -> ArtifactMeasurement:
-        """Measure package artifact sizes"""
-        try:
-            artifact_paths = self._find_package_paths(config)
-            wire_size, disk_size = self._calculate_package_sizes(ctx, config, artifact_paths)
+    GATE_REPORTS_PREFIX = f"{S3_REPORT_PATH}/GATE_REPORTS"
+    # Set by `prefetch_reports` to point at a temp dir holding every report
+    # for `$CI_COMMIT_SHA`. When defined, `_fetch_report` reads from disk
+    # instead of issuing a per-gate `aws s3 cp`.
+    LOCAL_DIR_ENV = "SQG_REPORTS_LOCAL_DIR"
 
-            # For packages, the primary artifact path is the main package file
-            primary_path = artifact_paths.get('primary', artifact_paths.get('msi', ''))
+    @classmethod
+    def prefetch_reports(cls, ctx: Context, pipeline_id: str) -> str:
+        """Sync the pipeline-scoped report prefix from S3 to a temp dir.
 
-            return ArtifactMeasurement(artifact_path=primary_path, on_wire_size=wire_size, on_disk_size=disk_size)
-        except (StaticQualityGateError, InfraError):
-            raise
-        except Exception as e:
-            raise StaticQualityGateError(f"Failed to measure in {config.gate_name}: {str(e)}") from e
-
-    def _find_package_paths(self, config: QualityGateConfig) -> dict:
+        Returns the temp dir path. Subsequent `_fetch_report` calls read
+        from there (33 small subprocess invocations collapse into one
+        `aws s3 sync` with persistent HTTPS connections).
         """
-        Find package file paths based on gate configuration.
-
-        Returns:
-            Dictionary with package paths. For MSI, includes both 'zip' and 'msi' keys.
-            For other packages, includes 'primary' key.
-        """
-        # MSI special case: requires both ZIP and MSI files
-        if "msi" in config.gate_name:
-            return {
-                'zip': self._find_package_by_pattern("datadog-agent", "zip", config),
-                'msi': self._find_package_by_pattern("datadog-agent", "msi", config),
-            }
-
-        # Determine flavor based on gate name
-        flavor = self._extract_package_flavor(config.gate_name)
-
-        # Determine separator and extension based on OS
-        separator = '_' if config.os == 'debian' else '-'
-        extension = 'deb' if config.os == 'debian' else 'rpm'
-
-        return {'primary': self._find_package_by_pattern(flavor, extension, config, separator)}
-
-    def _extract_package_flavor(self, gate_name: str) -> str:
-        """Extract package flavor from gate name"""
-        if "fips" in gate_name:
-            return "datadog-fips-agent"
-        elif "iot" in gate_name:
-            return "datadog-iot-agent"
-        elif "dogstatsd" in gate_name:
-            return "datadog-dogstatsd"
-        elif "heroku" in gate_name:
-            return "datadog-heroku-agent"
-        else:
-            return "datadog-agent"
-
-    def _find_package_by_pattern(
-        self, flavor: str, extension: str, config: QualityGateConfig, separator: str = '-'
-    ) -> str:
-        """
-        Find package file by pattern with proper error handling.
-        """
-        package_dir = os.environ['OMNIBUS_PACKAGE_DIR']
-        if config.os == "windows":
-            package_dir = f"{package_dir}/pipeline-{os.environ['CI_PIPELINE_ID']}"
-        elif config.os == "suse":
-            # SUSE producer jobs relocate their RPM to OMNIBUS_PACKAGE_DIR_SUSE.
-            package_dir = os.environ['OMNIBUS_PACKAGE_DIR_SUSE']
-
-        # Map architecture for certain OSes
-        arch = config.arch
-        if config.os in ['centos', 'suse', 'windows']:
-            arch = ARCH_MAPPING.get(arch, arch)
-
-        glob_pattern = f'{package_dir}/{flavor}{separator}7*{arch}.{extension}'
-        package_paths = glob.glob(glob_pattern)
-
-        if len(package_paths) > 1:
-            raise ValueError(f"Too many {extension.upper()} files matching {glob_pattern}: {package_paths}")
-        elif len(package_paths) == 0:
-            raise ValueError(f"Couldn't find any {extension.upper()} file matching {glob_pattern}")
-
-        return package_paths[0]
-
-    def _calculate_package_sizes(
-        self, ctx: Context, config: QualityGateConfig, artifact_paths: dict
-    ) -> tuple[int, int]:
-        """
-        Calculate package sizes for wire and disk.
-
-        Returns:
-            Tuple of (wire_size, disk_size) in bytes
-        """
-        if "msi" in config.gate_name:
-            # MSI special case: extract ZIP file for disk size, measure MSI file for wire size
-            with tempfile.TemporaryDirectory() as extract_dir:
-                extract_package(
-                    ctx=ctx, package_os=config.os, package_path=artifact_paths['zip'], extract_dir=extract_dir
+        local_dir = tempfile.mkdtemp(prefix="sqg-reports-")
+        s3_prefix = f"{cls.GATE_REPORTS_PREFIX}/{pipeline_id}/"
+        result = ctx.run(f"aws s3 sync --only-show-errors {s3_prefix} {local_dir}", warn=True)
+        if result.exited != 0:
+            print(
+                color_message(
+                    f"aws s3 sync failed for {s3_prefix}: {result.stderr.strip()}\nRestarting the job...",
+                    "red",
                 )
-                wire_size = file_size(path=artifact_paths['msi'])
-                disk_size = directory_size(path=extract_dir)
-        else:
-            # Standard package handling
-            primary_path = artifact_paths['primary']
-            with tempfile.TemporaryDirectory() as extract_dir:
-                extract_package(ctx=ctx, package_os=config.os, package_path=primary_path, extract_dir=extract_dir)
-                wire_size = file_size(path=primary_path)
-                disk_size = directory_size(path=extract_dir)
-
-        return wire_size, disk_size
-
-
-class DockerArtifactMeasurer:
-    """
-    Measures Docker image artifacts.
-    """
+            )
+            ctx.run('datadog-ci tag --level job --tags static_quality_gates:"restart"')
+            raise Exit(code=42)
+        os.environ[cls.LOCAL_DIR_ENV] = local_dir
+        return local_dir
 
     def measure(self, ctx: Context, config: QualityGateConfig) -> ArtifactMeasurement:
-        """Measure Docker image sizes"""
         try:
-            image_url = self._get_image_url(config)
-            wire_size = self._calculate_image_wire_size(ctx, image_url)
-            disk_size = self._calculate_image_disk_size(ctx, image_url)
-
-            return ArtifactMeasurement(artifact_path=image_url, on_wire_size=wire_size, on_disk_size=disk_size)
+            report = self._fetch_report(config.gate_name)
+            return ArtifactMeasurement(
+                artifact_path=report.get("artifact_path") or "<from-s3>",
+                on_wire_size=int(report["on_wire_size"]),
+                on_disk_size=int(report["on_disk_size"]),
+            )
         except (StaticQualityGateError, InfraError):
             raise
         except Exception as e:
-            raise StaticQualityGateError(f"Failed to measure in {config.gate_name}: {str(e)}") from e
+            raise StaticQualityGateError(f"Failed to read inventory report for {config.gate_name}: {e}") from e
 
-    def _get_image_url(self, config: QualityGateConfig) -> str:
-        """
-        Generate Docker image URL based on gate configuration.
-        """
-        # Extract flavor from gate name
-        if "host_profiler" in config.gate_name:
-            flavor = "ddot-ebpf"
-        elif "cluster" in config.gate_name:
-            flavor = "cluster-agent"
-        elif "dogstatsd" in config.gate_name:
-            flavor = "dogstatsd"
-        elif "cws_instrumentation" in config.gate_name:
-            flavor = "cws-instrumentation"
-        elif "agent" in config.gate_name:
-            flavor = "agent"
-        else:
-            raise ValueError(f"Unknown docker image flavor for gate: {config.gate_name}")
+    def _fetch_report(self, gate_name: str) -> dict:
+        local_dir = os.environ.get(self.LOCAL_DIR_ENV)
+        if not local_dir:
+            raise StaticQualityGateError(f"{self.LOCAL_DIR_ENV} must be set to read the report for {gate_name}")
 
-        # Handle JMX suffix
-        jmx = "-jmx" if "jmx" in config.gate_name else ""
-
-        # Handle image suffix
-        # ddot-ebpf uses TAG_SUFFIX: -7 in its CI build job, same as agent
-        image_suffix = ("-7" if flavor in ("agent", "ddot-ebpf") else "") + jmx
-
-        # Handle nightly builds
-        if os.environ.get("BUCKET_BRANCH") == "nightly" and flavor != "dogstatsd":
-            flavor += "-nightly"
-
-        # Validate CI environment
-        pipeline_id = os.environ.get("CI_PIPELINE_ID")
-        commit_sha = os.environ.get("CI_COMMIT_SHORT_SHA")
-
-        if not pipeline_id or not commit_sha:
+        prefix = gate_name.removeprefix("static_quality_gate_")
+        candidates = glob.glob(os.path.join(local_dir, f"{prefix}_size_report_*.yml"))
+        if len(candidates) != 1:
             raise StaticQualityGateError(
-                "This gate needs to be run from the CI environment. (Missing CI_PIPELINE_ID, CI_COMMIT_SHORT_SHA)"
+                f"Expected exactly 1 report matching '{prefix}_size_report_*.yml' in {local_dir}, found {len(candidates)}: {candidates}"
             )
-
-        return f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{image_suffix}-{config.arch}"
-
-    def _calculate_image_wire_size(self, ctx: Context, image_url: str) -> int:
-        """Calculate Docker image compressed size using manifest inspection"""
-        manifest_output = ctx.run(
-            f"DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect -v {image_url}",
-            hide="out",
-            warn=True,
-        )
-        if manifest_output.exited != 0:
-            raise InfraError(f"Docker manifest inspect failed to retrieve {image_url}. Retrying... (infra flake)")
-        wire_size = _sum_manifest_sizes(json.loads(manifest_output.stdout))
-        if wire_size <= 0:
-            raise StaticQualityGateError(f"Docker manifest for {image_url} reported a wire size of {wire_size} bytes")
-        return wire_size
-
-    def _calculate_image_disk_size(self, ctx: Context, image_url: str) -> int:
-        """Calculate Docker image uncompressed size by pulling and extracting"""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_tar = os.path.join(tmpdir, "output.tar")
-            # Pull image locally to get on disk size
-            crane_output = ctx.run(f"crane pull {image_url} {output_tar}", warn=True)
-            if crane_output.exited != 0:
-                raise InfraError(f"Crane pull failed to retrieve {image_url}. Retrying... (infra flake)")
-
-            # Extract and calculate uncompressed size
-            ctx.run(f"tar -xf {output_tar} -C {tmpdir}")
-            image_content = ctx.run(
-                f"tar -tvf {output_tar} | awk -F' ' '{{print $3; print $6}}'", hide=True
-            ).stdout.splitlines()
-
-            on_disk_size = 0
-            image_tar_gz = []
-
-            for k, line in enumerate(image_content):
-                if k % 2 == 0:
-                    if "tar.gz" in image_content[k + 1]:
-                        image_tar_gz.append(image_content[k + 1])
-                    else:
-                        on_disk_size += int(line)
-
-            if image_tar_gz:
-                for image in image_tar_gz:
-                    on_disk_size += int(
-                        ctx.run(f"tar -xf {os.path.join(tmpdir, image)} --to-stdout | wc -c", hide=True).stdout
-                    )
-            else:
-                print(color_message("[WARN] No tar.gz file found inside of the image", "orange"))
-
-            return on_disk_size
+        with open(candidates[0]) as f:
+            return _read_report_header(f)
 
 
 class StaticQualityGate:
@@ -642,12 +496,9 @@ class QualityGateFactory:
         Raises:
             UnsupportedOperation: If gate type is not supported
         """
-        if "docker" in gate_name:
-            return DockerArtifactMeasurer()
-        elif any(package_type in gate_name for package_type in ["deb", "rpm", "heroku", "suse", "msi"]):
-            return PackageArtifactMeasurer()
-        else:
+        if not any(t in gate_name for t in ["deb", "rpm", "heroku", "suse", "msi", "docker"]):
             raise UnsupportedOperation(f"Unknown gate type: {gate_name}")
+        return InventoryReportMeasurer()
 
     @staticmethod
     def create_gates_from_config(config_path: str) -> list[StaticQualityGate]:
@@ -735,7 +586,6 @@ class GateMetricHandler:
         "datadog.agent.static_quality_gate.relative_on_wire_size": "relative_on_wire_size",
         "datadog.agent.static_quality_gate.relative_on_disk_size": "relative_on_disk_size",
     }
-    S3_REPORT_PATH = "s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates"
 
     def __init__(self, git_ref, bucket_branch, filename=None):
         self.metrics = {}
@@ -921,6 +771,6 @@ class GateMetricHandler:
         # Store reports for main and release branches to enable delta calculation for backport PRs
         if not is_nightly and (branch == "main" or is_a_release_branch(ctx, branch)) and CI_COMMIT_SHA:
             ctx.run(
-                f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {filename} {self.S3_REPORT_PATH}/{CI_COMMIT_SHA}/{filename}",
+                f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {filename} {S3_REPORT_PATH}/{CI_COMMIT_SHA}/{filename}",
                 hide="stdout",
             )

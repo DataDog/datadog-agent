@@ -19,7 +19,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.package.size import InfraError
 from tasks.quality_gates import parse_and_trigger_gates
-from tasks.static_quality_gates.gates import ArtifactMeasurement, PackageArtifactMeasurer
+from tasks.static_quality_gates.gates import ArtifactMeasurement, InventoryReportMeasurer
 
 
 def gitlab_ref_slug(git_ref):
@@ -87,7 +87,7 @@ def _gate_scenarios_fixture(*scenarios: GateScenario, ancestor_sha: str):
     """
     Context manager that wires up gate scenarios for integration tests.
 
-    Patches PackageArtifactMeasurer.measure, DockerArtifactMeasurer.measure, and
+    Patches InventoryReportMeasurer.measure / .prefetch_reports and
     query_gate_metrics_for_commit for the duration of the test.
 
     Yields the path to a temp YAML file with the gate limits.
@@ -105,15 +105,9 @@ def _gate_scenarios_fixture(*scenarios: GateScenario, ancestor_sha: str):
     def _query_metrics(sha):
         return by_ancestor_sha[sha]
 
-    def _package_measure(ctx, config):
+    def _measure(ctx, config):
         s = by_name[config.gate_name]
         return ArtifactMeasurement(artifact_path='/fake/path', on_wire_size=s.current_wire, on_disk_size=s.current_disk)
-
-    def _docker_measure(ctx, config):
-        s = by_name[config.gate_name]
-        return ArtifactMeasurement(
-            artifact_path='fake-docker-image', on_wire_size=s.current_wire, on_disk_size=s.current_disk
-        )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         config_path = os.path.join(tmpdir, 'gates.yml')
@@ -125,12 +119,12 @@ def _gate_scenarios_fixture(*scenarios: GateScenario, ancestor_sha: str):
                 side_effect=_query_metrics,
             ),
             patch(
-                "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
-                side_effect=_package_measure,
+                "tasks.static_quality_gates.gates.InventoryReportMeasurer.measure",
+                side_effect=_measure,
             ),
             patch(
-                "tasks.static_quality_gates.gates.DockerArtifactMeasurer.measure",
-                side_effect=_docker_measure,
+                "tasks.static_quality_gates.gates.InventoryReportMeasurer.prefetch_reports",
+                return_value="/tmp/fake-reports",
             ),
         ):
             yield config_path
@@ -553,10 +547,6 @@ class TestQualityGatesIntegration(unittest.TestCase):
             'CI_PIPELINE_ID': '71580015',
         },
     )
-    @patch("tasks.static_quality_gates.gates.PackageArtifactMeasurer._find_package_paths", new=MagicMock())
-    @patch("tasks.static_quality_gates.gates.PackageArtifactMeasurer._calculate_package_sizes", new=MagicMock())
-    @patch("tasks.static_quality_gates.gates.DockerArtifactMeasurer._calculate_image_wire_size", new=MagicMock())
-    @patch("tasks.static_quality_gates.gates.DockerArtifactMeasurer._calculate_image_disk_size", new=MagicMock())
     @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog", new=MagicMock())
     @patch(
         "tasks.static_quality_gates.gates_reporter.QualityGateOutputFormatter.print_summary_table",
@@ -574,7 +564,10 @@ class TestQualityGatesIntegration(unittest.TestCase):
         )
 
         # Mock one gate to raise an infrastructure error
-        with patch.object(PackageArtifactMeasurer, 'measure', side_effect=InfraError("Test infra error message")):
+        with (
+            patch.object(InventoryReportMeasurer, 'measure', side_effect=InfraError("Test infra error message")),
+            patch.object(InventoryReportMeasurer, 'prefetch_reports', return_value="/tmp/fake-reports"),
+        ):
             with self.assertRaises(Exit) as cm:
                 parse_and_trigger_gates(ctx, "tasks/unit_tests/testdata/quality_gate_config_test.yml")
                 self.assertIn("Test infra error message", str(cm.exception))

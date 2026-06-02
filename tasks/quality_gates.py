@@ -29,6 +29,7 @@ from tasks.static_quality_gates.gates import (
     GateExecutionError,
     GateMetricHandler,
     GateResult,
+    InventoryReportMeasurer,
     QualityGateFactory,
     StaticQualityGate,
     byte_to_string,
@@ -91,6 +92,11 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     if os.environ.get("SKIP_WINDOWS") == "true":
         gate_list = [gate for gate in gate_list if gate.config.os != "windows"]
         print(color_message("SKIP_WINDOWS is set: skipping Windows MSI quality gates", "orange"))
+
+    # Pull every inventory report in one batched `aws s3 sync` so each gate
+    # can read its report from local disk instead of paying per-gate CLI
+    # startup + cold-connection overhead.
+    InventoryReportMeasurer.prefetch_reports(ctx, os.environ["CI_PIPELINE_ID"])
 
     # python 3.11< does not allow to use \n in f-strings
     delimiter = '\n'
@@ -342,6 +348,7 @@ def measure_package_local(
     config_path="test/static/static_quality_gates.yml",
     output_path=None,
     build_job_name="local_test",
+    wire_size_source=None,
     debug=False,
     filter: Callable[[str], bool] = lambda _: True,
 ):
@@ -357,6 +364,8 @@ def measure_package_local(
         config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
         output_path: Path to save the measurement report (default: {gate_name}_report.yml)
         build_job_name: Simulated build job name (default: local_test)
+        wire_size_source: Optional path to stat for the on-wire size, when
+            distinct from package_path.
         debug: Enable debug logging for troubleshooting (default: false)
 
     Example:
@@ -369,6 +378,7 @@ def measure_package_local(
         config_path=config_path,
         output_path=output_path,
         build_job_name=build_job_name,
+        wire_size_source=wire_size_source,
         debug=debug,
         filter=filter,
     )

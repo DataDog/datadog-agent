@@ -1,4 +1,7 @@
 ---
+include:
+  - .gitlab/build/packaging/common.yml
+
 .heroku_build_base:
   extends: .bazel:defs:cache:omnibus-transition
   stage: package_build
@@ -16,6 +19,7 @@
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.create_signature_and_lint_linux_packages]
     - !reference [.upload_sbom_artifacts]
+    - !reference [.static_quality_gate_package]
   variables:
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
@@ -27,8 +31,11 @@
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
+      - !reference [.static_quality_gate_report_path]
 
 agent_heroku_deb-x64-a7:
   extends: .heroku_build_base
   variables:
     DESTINATION_DBG_DEB: "datadog-heroku-agent-dbg_7_amd64.deb"
+    DD_PROJECT: "heroku-agent"
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_agent_heroku_amd64"

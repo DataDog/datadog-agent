@@ -86,4 +86,49 @@ Invoke-BuildScript `
         mkdir C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID -Force -ErrorAction Stop | Out-Null
         Copy-Item -Path ".\omnibus\pkg\*" -Destination "C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID" -Force -ErrorAction Stop
     }
+
+    # Generate the static quality gate inventory report for the MSI: wire size
+    # is the .msi file size, on-disk size + inventory come from the companion .zip.
+    if ($env:STATIC_QUALITY_GATE_NAME) {
+        $pkgDir = "C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID"
+        $msis = @(Get-ChildItem -Path "$pkgDir\datadog-agent-7*x86_64.msi")
+        $zips = @(Get-ChildItem -Path "$pkgDir\datadog-agent-7*x86_64.zip")
+        if ($msis.Count -ne 1) {
+            Write-Error "Expected exactly 1 MSI file matching 'datadog-agent-7*x86_64.msi', got $($msis.Count)"
+            exit 1
+        }
+        if ($zips.Count -ne 1) {
+            Write-Error "Expected exactly 1 ZIP file matching 'datadog-agent-7*x86_64.zip', got $($zips.Count)"
+            exit 1
+        }
+        $reportPrefix = $env:STATIC_QUALITY_GATE_NAME -replace '^static_quality_gate_', ''
+        $reportPath = Join-Path $pkgDir "${reportPrefix}_size_report_${env:CI_COMMIT_SHORT_SHA}.yml"
+        Write-Host "Measuring MSI '$($msis[0].Name)' with inventory from '$($zips[0].Name)'"
+        dda inv -- -e quality-gates.measure-package-local `
+            --package-path $zips[0].FullName `
+            --wire-size-source $msis[0].FullName `
+            --gate-name $env:STATIC_QUALITY_GATE_NAME `
+            --build-job-name $env:CI_JOB_NAME `
+            --output-path $reportPath `
+            --debug
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Static quality gate measurement failed"
+            exit 1
+        }
+
+        # Upload under a pipeline-scoped prefix so concurrent pipelines for
+        # the same commit don't overwrite each other's reports.
+        $bucketBasePath = "s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS"
+        $reportFilename = Split-Path $reportPath -Leaf
+        Write-Host "Uploading report to $bucketBasePath/$env:CI_PIPELINE_ID/$reportFilename"
+        # Explicit `.exe` because Ruby's aws-sdk-core ships an `aws.rb`
+        # shim that shadows the real CLI on the Windows build container.
+        aws.exe s3 cp --only-show-errors --region us-east-1 --sse AES256 `
+            $reportPath `
+            "$bucketBasePath/$env:CI_PIPELINE_ID/$reportFilename"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Static quality gate report upload failed"
+            exit 1
+        }
+    }
 }
