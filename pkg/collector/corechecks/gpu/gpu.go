@@ -453,6 +453,8 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 		err = snd.CountWithTimestamp(metricName, metric.Value, "", allTags, metricTimestamp)
 	case ddmetrics.GaugeType:
 		err = snd.GaugeWithTimestamp(metricName, metric.Value, "", allTags, metricTimestamp)
+	case ddmetrics.DistributionType:
+		snd.Distribution(metricName, metric.Value, "", allTags)
 	default:
 		err = fmt.Errorf("unsupported metric type %s", metric.Type)
 	}

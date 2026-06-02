@@ -576,6 +576,21 @@ metrics:
         mig: true
         physical: true
         vgpu: true
+  gr_engine_active.dist:
+    metadata:
+      metric_type: distribution
+      unit: percent
+      description: Percent of time that the graphics engine was active, as a distribution
+      aggregation: relative_activity
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
   integer_active:
     metadata:
       metric_type: gauge
@@ -1937,6 +1952,20 @@ metrics:
       range:
         min: 0
         max: 100
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
+  sm_active.dist:
+    metadata:
+      metric_type: distribution
+      unit: percent
+      description: Percentage of time the streaming multiprocessor was active, as a distribution
+      aggregation: relative_activity
+    tagsets:
+      - device
     support:
       unsupported_architectures: []
       device_modes:
