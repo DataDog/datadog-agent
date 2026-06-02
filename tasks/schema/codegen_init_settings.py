@@ -57,10 +57,13 @@ class CodeGeneratorTarget():
                 print(f"[WARN] not found: {funcname}")
                 continue
 
+
             # Get filename to write to, add header if its empty
+            need_import_statements = False
             filename, settings, = h['filename'], h['settings']
             if filename not in self.filesystem:
                 self.filesystem[filename] = self.header_text.split('\n')
+                need_import_statements = True
 
             # Determine if the target file needs to import pkgconfighelper
             need_pkgconfighelper = False
@@ -72,7 +75,8 @@ class CodeGeneratorTarget():
                         need_pkgconfighelper = True
 
             # Imports section
-            self.filesystem[filename] += self._add_imports(need_pkgconfighelper)
+            if need_import_statements:
+                self.filesystem[filename] += self._add_imports(need_pkgconfighelper)
 
             # Create the function, declare all settings in it
             sourcecode = self.filesystem[filename]
