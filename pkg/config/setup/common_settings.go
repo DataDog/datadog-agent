@@ -609,7 +609,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", true)
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_with_utilization", true)
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_min_percentage_improvement", 10) // Experimental. Subject to change. Rebalance only if the distribution found improves the current one by this.
-	config.BindEnvAndSetDefault("cluster_checks.rebalance_min_absolute_improvement", 1)    // Experimental. Subject to change. Minimum improvement in utilization stdDev required before a rebalance is applied.
+	config.BindEnvAndSetDefault("cluster_checks.rebalance_min_absolute_improvement", 0.1)  // Experimental. Subject to change. Minimum improvement in utilization stdDev (0–1 scale) required before a rebalance is applied. 0 disables the floor.
 	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks_from_dispatching", []string{})
