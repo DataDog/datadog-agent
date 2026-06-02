@@ -14,6 +14,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -136,7 +137,33 @@ func mapPbTaskToStruct(task *privateactionspb.PrivateActionTask) *types.Task {
 				Inputs:                task.Inputs.AsMap(),
 				OrgId:                 task.OrgId,
 				ConnectionInfo:        task.ConnectionInfo,
+				AllowedCommands:       task.GetAllowedCommands(),
+				AllowedPaths:          remoteActionAllowedPathsByEnv(task.GetAllowedPaths()),
 			},
 		},
 	}
+}
+
+// remoteActionAllowedPathsByEnv converts the signed task's per-environment path
+// rules into the map keyed by the rshell environment keys ("default" /
+// "containerized") that the runner selects from at execution time. Unknown
+// environments are dropped. Returns nil when there are no rules.
+func remoteActionAllowedPathsByEnv(rules []*privateactionspb.RemoteActionPathRule) map[string][]string {
+	if len(rules) == 0 {
+		return nil
+	}
+	byEnv := make(map[string][]string, len(rules))
+	for _, rule := range rules {
+		var key string
+		switch rule.GetEnvironment() {
+		case privateactionspb.RemoteActionEnvironment_REMOTE_ACTION_ENVIRONMENT_BARE_METAL:
+			key = setup.RShellPathAllowMapDefaultKey
+		case privateactionspb.RemoteActionEnvironment_REMOTE_ACTION_ENVIRONMENT_CONTAINERIZED:
+			key = setup.RShellPathAllowMapContainerizedKey
+		default:
+			continue
+		}
+		byEnv[key] = rule.GetPaths()
+	}
+	return byEnv
 }

@@ -26,23 +26,20 @@ import (
 func makeTask(command string, allowedCommands []string) *types.Task {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
-		Inputs: map[string]any{
-			"command":         command,
-			"allowedCommands": allowedCommands,
-		},
+		Inputs:          map[string]any{"command": command},
+		AllowedCommands: allowedCommands,
 	}
 	return task
 }
 
-// makeTaskWithPaths constructs a task whose inputs include the allowedPaths
-// field. The backend ships allowedPaths as a per-environment map keyed by
-// "default" / "containerized"; the runner picks the relevant slice based
-// on env.IsContainerized at task time. Use makeTask (without this helper)
-// to exercise the "backend did not send the field" branch — absent JSON
-// fields and explicit null both round-trip to a nil Go map.
+// makeTaskWithPaths constructs a task carrying the backend allowlists in the
+// signed-task fields. The backend ships allowedPaths as a per-environment map
+// keyed by "default" / "containerized"; the runner picks the relevant slice
+// based on env.IsContainerized at task time. Use makeTask (without this helper)
+// to exercise the "backend did not send the field" branch — a nil map.
 func makeTaskWithPaths(command string, allowedCommands []string, allowedPaths map[string][]string) *types.Task {
 	task := makeTask(command, allowedCommands)
-	task.Data.Attributes.Inputs["allowedPaths"] = allowedPaths
+	task.Data.Attributes.AllowedPaths = allowedPaths
 	return task
 }
 
