@@ -677,7 +677,7 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 func parseIssueReportJSON(payload string) (*healthplatformpayload.Issue, error) {
 	t := strings.TrimSpace(payload)
 	if t == "" || t == "null" {
-		return nil, nil
+		return nil, fmt.Errorf("empty or null payload")
 	}
 	var msg healthplatformpayload.Issue
 	if err := protojson.Unmarshal([]byte(t), &msg); err != nil {
