@@ -199,6 +199,10 @@ func TestAWSIMDSv2Request(t *testing.T) {
 			ID:         "test_rule_aws_imds_v2_request",
 			Expression: fmt.Sprintf(`imds.cloud_provider == "aws" && imds.aws.is_imds_v2 == true && imds.type == "request" && process.file.name == "%s"`, path.Base(executable)),
 		},
+		{
+			ID:         "test_rule_aws_imds_v2_response",
+			Expression: fmt.Sprintf(`imds.cloud_provider == "aws" && imds.aws.is_imds_v2 == true && imds.type == "response" && imds.aws.security_credentials.type == "AWS-HMAC" && process.file.name == "%s"`, path.Base(executable)),
+		},
 	}
 
 	// create dummy interface
@@ -227,21 +231,23 @@ func TestAWSIMDSv2Request(t *testing.T) {
 	}
 	defer test.Close()
 
-	t.Run("aws_imds_v2_request", func(t *testing.T) {
-		test.WaitSignalFromRule(t, func() error {
-			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
-			if err != nil {
-				return fmt.Errorf("failed to instantiate request: %v", err)
-			}
-			req.Header.Set("X-aws-ec2-metadata-token", "my_secret_token")
-			response, err := http.DefaultClient.Do(req)
-			if err != nil {
-				return fmt.Errorf("failed to query IMDS server: %v", err)
-			}
-			defer response.Body.Close()
+	imdsV2Request := func() error {
+		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
+		if err != nil {
+			return fmt.Errorf("failed to instantiate request: %v", err)
+		}
+		req.Header.Set("X-aws-ec2-metadata-token", "my_secret_token")
+		response, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to query IMDS server: %v", err)
+		}
+		defer response.Body.Close()
 
-			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		return nil
+	}
+
+	t.Run("aws_imds_v2_request", func(t *testing.T) {
+		test.WaitSignalFromRule(t, imdsV2Request, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_aws_imds_v2_request")
 			assert.Equal(t, "request", event.IMDS.Type, "wrong IMDS request type")
 			assert.Equal(t, imdsServerAddr, event.IMDS.Host, "wrong IMDS request Host")
@@ -250,6 +256,18 @@ func TestAWSIMDSv2Request(t *testing.T) {
 
 			test.validateIMDSSchema(t, event)
 		}, "test_rule_aws_imds_v2_request")
+	})
+
+	t.Run("aws_imds_v2_response", func(t *testing.T) {
+		test.WaitSignalFromRule(t, imdsV2Request, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_aws_imds_v2_response")
+			assert.Equal(t, "response", event.IMDS.Type, "wrong IMDS response type")
+			assert.True(t, event.IMDS.AWS.IsIMDSv2, "expected an IMDSv2 response")
+			assert.Equal(t, testutils.AWSSecurityCredentialsTypeTestValue, event.IMDS.AWS.SecurityCredentials.Type, "wrong IMDS response AWS Security Credentials Type")
+			assert.Equal(t, testutils.AWSSecurityCredentialsAccessKeyIDTestValue, event.IMDS.AWS.SecurityCredentials.AccessKeyID, "wrong IMDS response AWS Security Credentials AccessKeyID")
+
+			test.validateIMDSSchema(t, event)
+		}, "test_rule_aws_imds_v2_response")
 	})
 }
 

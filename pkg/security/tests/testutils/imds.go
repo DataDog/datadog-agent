@@ -28,6 +28,8 @@ const (
 	AWSSecurityCredentialsLastUpdatedTestValue = "2012-04-26T16:39:16Z"
 	// AWSSecurityCredentialsExpirationTestValue is the AWS Credentials Expiration value used by the IMDS tests
 	AWSSecurityCredentialsExpirationTestValue = "2324-05-01T12:00:00Z"
+	// AWSSecurityCredentialsTokenTTLTestValue is the IMDSv2 token TTL echoed on a v2 response
+	AWSSecurityCredentialsTokenTTLTestValue = "21600"
 	// AWSIMDSServerTestValue is the IMDS Server used by the IMDS tests
 	AWSIMDSServerTestValue = "EC2ws"
 	// IMDSTestServerIP is the IMDS server IP used by the IMDS tests
@@ -41,7 +43,7 @@ const (
 // CreateIMDSServer creates a fake IMDS server
 func CreateIMDSServer(addr string) *http.Server {
 	mux := http.NewServeMux()
-	mux.HandleFunc(IMDSSecurityCredentialsURL, func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc(IMDSSecurityCredentialsURL, func(w http.ResponseWriter, r *http.Request) {
 		// Define your custom JSON data
 		data := map[string]interface{}{
 			"AccessKeyId":     AWSSecurityCredentialsAccessKeyIDTestValue,
@@ -63,6 +65,12 @@ func CreateIMDSServer(addr string) *http.Server {
 		// Set Content-Type header to application/json
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Server", AWSIMDSServerTestValue)
+
+		// When the request carried an IMDSv2 token, the real EC2 metadata server echoes the
+		// token TTL header on the response. This is how a *response* is identified as IMDSv2.
+		if len(r.Header.Get("x-aws-ec2-metadata-token")) > 0 {
+			w.Header().Set("X-Aws-Ec2-Metadata-Token-Ttl-Seconds", AWSSecurityCredentialsTokenTTLTestValue)
+		}
 
 		// Write JSON response
 		w.Write(response)

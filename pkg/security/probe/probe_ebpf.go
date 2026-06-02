@@ -124,6 +124,7 @@ type EBPFProbe struct {
 	// internals
 	event           *model.Event
 	dnsLayer        *layers.DNS
+	imdsReassembler *imdsReassembler
 	monitors        *EBPFMonitors
 	profileManager  securityprofile.ProfileManager
 	fieldHandlers   *EBPFFieldHandlers
@@ -163,7 +164,7 @@ type EBPFProbe struct {
 	otelSpanAttrsMap *lib.Map
 
 	// kill action
-	killListMap *lib.Map
+	killListMap           *lib.Map
 	supportsBPFSendSignal bool
 	processKiller         *ProcessKiller
 
@@ -1037,6 +1038,10 @@ func (p *EBPFProbe) SendStats() error {
 		return err
 	}
 
+	if err := p.imdsReassembler.SendStats(p.statsdClient); err != nil {
+		return err
+	}
+
 	return p.monitors.SendStats()
 }
 
@@ -1259,8 +1264,57 @@ func (p *EBPFProbe) newRelatedCGroupWriteEvent(pce *model.ProcessCacheEntry) *mo
 }
 
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
+// isFlowClassifierNetworkEvent reports whether an event's process context is resolved in the kernel
+// from the flow_pid map (the TC classifier path), as opposed to syscall-based events which carry a
+// reliable current PID. Only these events are subject to the cross-netns guardrail.
+func isFlowClassifierNetworkEvent(eventType model.EventType) bool {
+	switch eventType {
+	case model.DNSEventType, model.IMDSEventType, model.RawPacketFilterEventType, model.RawPacketActionEventType, model.NetworkFlowMonitorEventType:
+		return true
+	default:
+		return false
+	}
+}
+
+// processRealNetNS returns the network namespace the process actually lives in, as recorded on its
+// cached entry (populated at exec from the task struct, inherited from ancestors, or from procfs).
+func processRealNetNS(entry *model.ProcessCacheEntry) uint32 {
+	if entry == nil {
+		return 0
+	}
+	return entry.PIDContext.NetNS
+}
+
+// netnsConsistent reports whether a captured packet's netns is consistent with the resolved
+// process's netns. When either side is unknown (0) we cannot decide, so we accept rather than risk
+// dropping a correct attribution.
+func netnsConsistent(packetNetNS, procNetNS uint32) bool {
+	if packetNetNS == 0 || procNetNS == 0 {
+		return true
+	}
+	return packetNetNS == procNetNS
+}
+
 func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, cgroupContext model.CGroupContext) bool {
 	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, p.onNewPCE)
+
+	// Observe (but do not correct) cross-netns misattribution of network events. The PID of a
+	// flow-classifier network event is resolved in the kernel from the flow_pid map, which can
+	// return a stale or wrong entry (e.g. ephemeral-port reuse, NAT, or a host packet matching a
+	// container flow). A socket is always demultiplexed in its own network namespace, so if the
+	// resolved process lives in a different netns than the captured packet, the attribution is
+	// necessarily wrong. This only emits a metric to measure how often it happens; the (possibly
+	// wrong) attribution is left untouched.
+	if isResolved && isFlowClassifierNetworkEvent(eventType) {
+		packetNetNS := event.PIDContext.NetNS
+		procNetNS := processRealNetNS(entry)
+		if !netnsConsistent(packetNetNS, procNetNS) {
+			seclog.Tracef("cross-netns network attribution for %s: packet netns %d != process netns %d (pid %d, comm %s)",
+				eventType, packetNetNS, procNetNS, entry.Pid, entry.Comm)
+			_ = p.statsdClient.Count(metrics.MetricNetworkProcessContextNetNSMismatch, 1, []string{fmt.Sprintf("event_type:%", eventType)}, 1.0)
+		}
+	}
+
 	event.ProcessCacheEntry = entry
 	if event.ProcessCacheEntry == nil {
 		panic("should always return a process cache entry")
@@ -1792,7 +1846,24 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 		offset += read
 
-		if _, err = event.IMDS.UnmarshalBinary(data[offset:]); err != nil {
+		// the body is preceded by the 4-byte TCP sequence number (network byte order) of the
+		// captured segment, used to reassemble responses that span multiple TCP segments
+		if offset+4 > len(data) {
+			seclog.Debugf("failed to decode IMDS event: missing tcp sequence number (offset %d, len %d)", offset, len(data))
+			return false
+		}
+		seq := binary.BigEndian.Uint32(data[offset : offset+4])
+		offset += 4
+
+		// buffer the segment and only proceed once a full HTTP message has been reassembled
+		full, complete := p.imdsReassembler.process(flowKeyFromNetworkContext(&event.NetworkContext), seq, data[offset:])
+		if !complete {
+			// the segment was buffered but did not complete an HTTP message yet: ignore this event
+			// while we wait for the remaining segments
+			return false
+		}
+
+		if _, err = event.IMDS.UnmarshalBinary(full); err != nil {
 			if err != model.ErrNoUsefulData {
 				// it's very possible we can't parse the IMDS body, as such let's put it as debug for now
 				seclog.Debugf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
@@ -3250,6 +3321,10 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		MetricNameTruncated:  atomic.NewUint64(0),
 		activeRemediations:   make(map[string]*Remediation),
 		pid:                  utils.Getpid(),
+	}
+
+	if p.imdsReassembler, err = newIMDSReassembler(); err != nil {
+		return nil, err
 	}
 
 	p.onNewPCE = func(pce *model.ProcessCacheEntry, err error) {

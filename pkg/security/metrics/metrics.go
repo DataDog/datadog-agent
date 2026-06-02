@@ -103,6 +103,23 @@ var (
 	// MetricDiscardedDNSPackets DNS responses that were discarded because of not matching a rule
 	MetricDiscardedDNSPackets = newRuntimeMetric(".dns_response_collector.dns_discarded_packets")
 
+	// IMDS reassembler metrics
+
+	// MetricIMDSReassemblerCacheSize is the gauge for the number of TCP flows currently buffered
+	// by the IMDS reassembler
+	MetricIMDSReassemblerCacheSize = newRuntimeMetric(".imds_reassembler.cache_size")
+	// MetricIMDSReassemblerSequencesPerEntry is the histogram of the number of buffered TCP
+	// segments (sequences) per flow tracked by the IMDS reassembler
+	MetricIMDSReassemblerSequencesPerEntry = newRuntimeMetric(".imds_reassembler.sequences_per_entry")
+	// MetricIMDSReassemblerIncompleteSegment is the counter of IMDS segments received that did not
+	// complete an HTTP message (the event was ignored while waiting for more segments)
+	MetricIMDSReassemblerIncompleteSegment = newRuntimeMetric(".imds_reassembler.incomplete_segment")
+
+	// MetricNetworkProcessContextNetNSMismatch is the counter of network events whose kernel-resolved
+	// process context lived in a different network namespace than the captured packet, and which were
+	// therefore rejected (replaced by a placeholder process context) to avoid misattribution
+	MetricNetworkProcessContextNetNSMismatch = newRuntimeMetric(".network.process_context_netns_mismatch")
+
 	// filtering metrics
 
 	// MetricDiscarderAdded is the number of discarder added
