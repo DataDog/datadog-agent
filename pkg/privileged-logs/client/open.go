@@ -26,9 +26,9 @@ import (
 
 // OpenPrivileged opens a file in system-probe and returns the file descriptor.
 // This function uses a custom HTTP client that can handle file descriptor transfer.
-// When noFollow is true, the request asks system-probe to reject any symbolic link
-// in the path rather than resolving it.
-func OpenPrivileged(socketPath string, filePath string, noFollow bool) (*os.File, error) {
+// When policy is common.RejectSymlinks, the request asks system-probe to reject any
+// symbolic link in the path rather than resolving it.
+func OpenPrivileged(socketPath string, filePath string, policy common.SymlinkPolicy) (*os.File, error) {
 	// Create a new connection instead of reusing the shared connection from
 	// pkg/system-probe/api/client/client.go, since the connection is hijacked
 	// from the control of the HTTP server library on the server side.  It also
@@ -42,7 +42,7 @@ func OpenPrivileged(socketPath string, filePath string, noFollow bool) (*os.File
 
 	req := common.OpenFileRequest{
 		Path:     filePath,
-		NoFollow: noFollow,
+		NoFollow: policy == common.RejectSymlinks,
 	}
 
 	reqBody, err := json.Marshal(req)
@@ -114,7 +114,7 @@ func OpenPrivileged(socketPath string, filePath string, noFollow bool) (*os.File
 	return nil, errors.New("no file descriptor received")
 }
 
-func maybeOpenPrivileged(path string, originalError error, noFollow bool) (*os.File, error) {
+func maybeOpenPrivileged(path string, originalError error, policy common.SymlinkPolicy) (*os.File, error) {
 	enabled := pkgconfigsetup.SystemProbe().GetBool("privileged_logs.enabled")
 	if !enabled {
 		return nil, originalError
@@ -123,7 +123,7 @@ func maybeOpenPrivileged(path string, originalError error, noFollow bool) (*os.F
 	log.Debugf("Permission denied, opening file with system-probe: %v", path)
 
 	socketPath := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
-	file, spErr := OpenPrivileged(socketPath, path, noFollow)
+	file, spErr := OpenPrivileged(socketPath, path, policy)
 	log.Tracef("Opened file with system-probe: %v, err: %v", path, spErr)
 	if spErr != nil {
 		return nil, fmt.Errorf("failed to open file with system-probe: %w, original error: %w", spErr, originalError)
@@ -140,7 +140,7 @@ func Open(path string) (*os.File, error) {
 		return file, err
 	}
 
-	file, err = maybeOpenPrivileged(path, err, false)
+	file, err = maybeOpenPrivileged(path, err, common.FollowSymlinks)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +172,7 @@ func OpenNoFollow(path string) (*os.File, error) {
 		return nil, err
 	}
 
-	file, err = maybeOpenPrivileged(path, err, true)
+	file, err = maybeOpenPrivileged(path, err, common.RejectSymlinks)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +189,7 @@ func Stat(path string) (os.FileInfo, error) {
 		return info, err
 	}
 
-	file, err := maybeOpenPrivileged(path, err, false)
+	file, err := maybeOpenPrivileged(path, err, common.FollowSymlinks)
 	if err != nil {
 		return nil, err
 	}

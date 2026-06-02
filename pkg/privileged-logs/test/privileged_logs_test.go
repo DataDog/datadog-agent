@@ -20,6 +20,7 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/privileged-logs/client"
+	"github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
 	"github.com/DataDog/datadog-agent/pkg/privileged-logs/module"
 )
 
@@ -53,7 +54,7 @@ func setupSystemProbeConfig(t *testing.T, socketPath string, enabled bool) {
 }
 
 func assertOpenPrivilegedContent(t *testing.T, socketPath, filePath, expectedContent string) {
-	file, err := client.OpenPrivileged(socketPath, filePath, false)
+	file, err := client.OpenPrivileged(socketPath, filePath, common.FollowSymlinks)
 	require.NoError(t, err)
 	defer file.Close()
 
@@ -94,7 +95,7 @@ func assertClientStatError(t *testing.T, filePath, expectedErrorMsg string) {
 }
 
 func assertOpenPrivilegedError(t *testing.T, socketPath, filePath, expectedErrorMsg string) error {
-	file, err := client.OpenPrivileged(socketPath, filePath, false)
+	file, err := client.OpenPrivileged(socketPath, filePath, common.FollowSymlinks)
 	require.Error(t, err)
 	assert.Nil(t, file)
 	assert.Contains(t, err.Error(), expectedErrorMsg)
