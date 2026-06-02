@@ -107,9 +107,7 @@ BPF_LRU_MAP(memfd_tracking, struct memfd_key_t, u32, 1024)
 BPF_LRU_MAP(otel_process_ctx_naming, u64, u8, 512) // in-flight prctl(PR_SET_VMA_ANON_NAME) calls naming a mapping OTEL_CTX, keyed by pid_tgid
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
-BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
-// if USE_SYSCALL_TASK_STORAGE == 1 and LOAD_CONSTANT("use_syscall_task_storage",) == 1 then the syscalls map is the following:
-// BPF_TASK_STORAGE_MAP(syscalls, struct syscall_cache_t)
+BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime. Will be changed to BPF_TASK_STORAGE_MAP if USE_SYSCALL_TASK_STORAGE is set to 1 at runtime
 BPF_LRU_MAP_FLAGS(pathnames, struct path_key_t, struct path_leaf_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(capabilities_contexts, u32, struct capabilities_context_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(open_samples, struct process_path_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
