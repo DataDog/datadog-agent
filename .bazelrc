@@ -60,9 +60,8 @@ common:windows --repo_env=SYSTEMDRIVE # needed by vswhere to locate the VS insta
 common:windows --repo_env=SYSTEMROOT # used by COM to load system DLLs, needed by vswhere
 common:windows --repo_env=USERPROFILE # used by MSYS2 bash to emulate HOME, needed by git to fetch repositories
 common:windows --repo_env=VSTUDIO_ROOT # visual_studio(path_variable) in MODULE.bazel
-# Hermetic bash discovery for ctx.actions.run_shell / genrule / rules_foreign_cc.
-# Routes through a tiny .exe because cmd.exe truncates multi-line `-c "..."` payloads.
-common:windows --shell_executable=bazel/toolchains/msys2/bash_shim.exe
+# Fallback only. tools/bazel.bat overrides this with the absolute hermetic MSYS2 bash.exe path.
+common:windows --shell_executable=USE_TOOLS_BAZEL_BAT_OR_BAZELISK_ON_WINDOWS
 
 # Force the x86_64-pc-windows-gnu Rust toolchain (compact name for rust_windows_gnu_x86_64)
 # to take priority over the default MSVC toolchain, since the CI cc_toolchain is MinGW/GCC.

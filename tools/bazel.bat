@@ -64,10 +64,36 @@ if not exist "!more_than_260_chars!" (
   )
 )
 
+call :configure_msys2_shell
+if !errorlevel! neq 0 exit /b !errorlevel!
+
 set "args=%*"
 if defined args if defined extra_args call :insert_extra_args
 "%BAZEL_REAL%" !startup_options! !args!
 exit /b !errorlevel!
+
+:: Materialize hermetic MSYS2 and point Bazel shell actions at its bash.exe.
+:configure_msys2_shell
+set "bazel_output_base="
+for /f "delims=" %%i in ('call "%BAZEL_REAL%" !startup_options! info output_base 2^>nul') do set "bazel_output_base=%%i"
+if not defined bazel_output_base (
+  >&2 echo 🔴 Could not determine Bazel output_base needed for hermetic MSYS2 bash.
+  exit /b 2
+)
+
+set "msys2_bash=!bazel_output_base!\external\+msys2_base_repository+msys2_base\usr\bin\bash.exe"
+if not exist "!msys2_bash!" (
+  "%BAZEL_REAL%" !startup_options! fetch @msys2_base//:bash_files
+  if !errorlevel! neq 0 exit /b !errorlevel!
+)
+
+if not exist "!msys2_bash!" (
+  >&2 echo 🔴 Hermetic MSYS2 bash was not materialized at !msys2_bash!
+  exit /b 2
+)
+
+set extra_args=!extra_args! "--shell_executable=!msys2_bash!"
+exit /b 0
 
 :: "--startup cmd ..." -> "--startup cmd --config=ci ..."
 :insert_extra_args

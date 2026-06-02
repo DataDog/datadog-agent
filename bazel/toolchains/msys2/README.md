@@ -1,39 +1,21 @@
-# bash_shim
+# Hermetic MSYS2
 
-`bash_shim.exe` is Bazel's `--shell_executable` on Windows. It exists because
-`cmd.exe` re-tokenizes arguments when running `.bat` files and truncates
-`bash -c "..."` payloads at the first newline, which silently breaks
-multi-line `ctx.actions.run_shell` actions.
+`@msys2_base` is Bazel's hermetic MSYS2 distribution on Windows. It provides
+the `bash.exe` used by `ctx.actions.run_shell`, `genrule`, and shell-backed
+rules.
 
-The shim:
-1. Reads its raw command line via `GetCommandLineW`, so embedded newlines
-   survive intact.
-2. Prepends hermetic `@msys2_base` (and optionally `@winlibs_mingw64`) bins
-   to `PATH`.
-3. Spawns `bash.exe` from `@msys2_base` with the original arguments via
-   `CreateProcessW` and forwards its exit code.
+On Windows, `tools/bazel.bat` materializes `@msys2_base//:bash_files`, computes
+the absolute path to the extracted `usr/bin/bash.exe` in the active Bazel
+`output_base`, and passes it to Bazel via `--shell_executable`.
 
-## Rebuilding
+This keeps the shell path local to each environment (host, container, CI
+worker) while letting Bazel's repository cache reuse the pinned MSYS2 archive
+across worktrees and workspaces.
 
-Build via Bazel:
+## Manual Fetch
 
-```powershell
-bazel build //bazel/toolchains/msys2:bash_shim
-```
-
-On Windows, the built artifact is:
-
-`bazel-bin/bazel/toolchains/msys2/bash_shim.exe`
-
-If you need to refresh the committed launcher used by `.bazelrc`, copy that
-artifact to:
-
-`bazel/toolchains/msys2/bash_shim.exe`
-
-Equivalent direct compile command (fallback):
+The wrapper fetches MSYS2 automatically. To materialize it explicitly:
 
 ```powershell
-$gcc = "external/+winlibs_mingw_repository+winlibs_mingw64/bin/gcc.exe"
-& $gcc -O2 -s -static -municode -o bazel/toolchains/msys2/bash_shim.exe `
-    bazel/toolchains/msys2/bash_shim.c
+bazel fetch @msys2_base//:bash_files
 ```

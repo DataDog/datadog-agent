@@ -213,12 +213,20 @@ foreign_cc_shared_wrapper(
     name = "libssl_shared",
     input = ":openssl",
     lib_filter = "libssl",
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
 )
 
 foreign_cc_shared_wrapper(
     name = "libcrypto_shared",
     input = ":openssl",
     lib_filter = "libcrypto",
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
 )
 
 # On Windows, lib_filter fails because DLLs live in out_binaries and
