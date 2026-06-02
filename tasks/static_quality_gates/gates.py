@@ -17,6 +17,7 @@ from typing import Protocol
 
 import yaml
 from invoke import Context
+from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
@@ -306,7 +307,14 @@ class InventoryReportMeasurer:
         s3_prefix = f"{cls.GATE_REPORTS_PREFIX}/{commit_sha}/"
         result = ctx.run(f"aws s3 sync --only-show-errors {s3_prefix} {local_dir}", warn=True)
         if result.exited != 0:
-            raise InfraError(f"aws s3 sync failed for {s3_prefix}: {result.stderr.strip()}")
+            print(
+                color_message(
+                    f"aws s3 sync failed for {s3_prefix}: {result.stderr.strip()}\nRestarting the job...",
+                    "red",
+                )
+            )
+            ctx.run('datadog-ci tag --level job --tags static_quality_gates:"restart"')
+            raise Exit(code=42)
         os.environ[cls.LOCAL_DIR_ENV] = local_dir
         return local_dir
 
