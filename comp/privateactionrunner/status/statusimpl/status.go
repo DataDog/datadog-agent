@@ -89,7 +89,7 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 func (s statusProvider) populateStatus(stats map[string]interface{}) {
 	parStatus := make(map[string]interface{})
 
-	enabled := s.config.GetBool(par.PAREnabled)
+	enabled := par.IsEnabled(s.config)
 	parStatus["Enabled"] = enabled
 
 	if enabled {

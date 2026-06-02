@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    When the Private Action Runner is disabled, the ``privateactionrunner``
+    binary now short-circuits before constructing its component graph instead
+    of initializing dependencies that are only needed when it runs. This
+    silences spurious startup errors, including the ``invalid compression set``
+    line previously written to ``private-action-runner.log``.

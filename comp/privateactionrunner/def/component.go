@@ -17,6 +17,15 @@ type Component interface {
 // ErrNotEnabled is returned when the private action runner is not enabled
 var ErrNotEnabled = errors.New("private action runner is not enabled")
 
+type configReader interface {
+	GetBool(string) bool
+}
+
+// IsEnabled reports whether the private action runner is enabled in an already-loaded config.
+func IsEnabled(cfg configReader) bool {
+	return cfg.GetBool(PAREnabled)
+}
+
 // Configuration keys for the private action runner.
 // Duplicated from pkg/config/setup/privateactionrunner.go because comp/
 // packages cannot import pkg/config/setup (depguard rule).
