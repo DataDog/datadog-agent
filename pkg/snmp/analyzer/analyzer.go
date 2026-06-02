@@ -346,11 +346,19 @@ func writeExtendedProfilesWrapped(b *strings.Builder, joined string, width int) 
 	}
 }
 
+func reportNormalizeForDisplay(s string) string {
+	s = strings.ReplaceAll(s, "\r", " ")
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\t", " ")
+	return strings.Join(strings.Fields(s), " ")
+}
+
 func formatReportValue(v interface{}, max int) string {
 	s, err := gosnmplib.StandardTypeToString(v)
 	if err != nil {
 		s = fmt.Sprintf("%v", v)
 	}
+	s = reportNormalizeForDisplay(s)
 	if len(s) > max {
 		if max <= 3 {
 			return s[:max]
@@ -369,6 +377,7 @@ func center(s string, w int) string {
 }
 
 func reportTruncate(s string, max int) string {
+	s = reportNormalizeForDisplay(s)
 	if max <= 0 {
 		return ""
 	}

@@ -262,6 +262,30 @@ func TestFormatReport_matchedUnmatchedTableLineWidth(t *testing.T) {
 	}
 }
 
+func TestFormatReport_newlinesInValueSingleRow(t *testing.T) {
+	notFound := []MetricProfile{
+		{OID: ".1.3.6.1.2.1.1.9.1.3.1", Value: "Agent capabilities\nLAST-UPDATED"},
+	}
+	rep := FormatReport(nil, notFound, "p", nil)
+	lines := strings.Split(rep, "\n")
+	var uData string
+	for i, line := range lines {
+		if line == "Unmatched OIDs" && i+3 < len(lines) {
+			uData = lines[i+3]
+			break
+		}
+	}
+	if len(uData) != reportWidth {
+		t.Fatalf("unmatched data row: len %d, want %d: %q", len(uData), reportWidth, uData)
+	}
+	if strings.Count(uData, "\n") != 0 {
+		t.Fatalf("expected single-line row, got: %q", uData)
+	}
+	if !strings.Contains(uData, "LAST-UPDATED") {
+		t.Fatalf("value should stay on one line after normalizing newlines: %q", uData)
+	}
+}
+
 func TestInterfaceID(t *testing.T) {
 	pdus := []gosnmp.SnmpPDU{
 		{Name: SysObjectOID(), Value: "1.3.6.1.4.1.3375.2.1.3.4.1"},
