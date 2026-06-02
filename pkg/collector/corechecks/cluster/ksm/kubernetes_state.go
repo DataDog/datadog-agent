@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/samber/lo"
@@ -243,6 +244,8 @@ type KSMCheck struct {
 	telemetry                  *telemetryCache
 	tagger                     tagger.Component
 	cancel                     context.CancelFunc
+	cancelCR                   context.CancelFunc
+	crMu                       sync.Mutex
 	isCLCRunner                bool
 	isRunningOnNodeAgent       bool
 	clusterIDTagValue          string
@@ -326,7 +329,13 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.mergeLabelsMapper(defaultLabelsMapper())
 
 	if k.instance.usesCustomResourceMetrics() && k.instance.PodCollectionMode != nodeKubeletPodCollection {
-		k.customResourceDiscoverer = customresources.StartDiscovery()
+		k.crMu.Lock()
+		if k.customResourceDiscoverer == nil {
+			ctx, cancel := context.WithCancel(context.Background())
+			k.customResourceDiscoverer = customresources.StartDiscovery(ctx)
+			k.cancelCR = cancel
+		}
+		k.crMu.Unlock()
 	}
 
 	// Retry configuration steps related to API Server in check executions if necessary
@@ -663,18 +672,21 @@ func (k *KSMCheck) Run() error {
 
 	// Check if the custom resource discoverer was updated and rebuild KSM if needed
 	// Only check if discoverer was initialized (not in node_kubelet mode)
-	if k.customResourceDiscoverer != nil {
+	k.crMu.Lock()
+	discoverer := k.customResourceDiscoverer
+	k.crMu.Unlock()
+	if discoverer != nil {
 		wasUpdated := false
-		k.customResourceDiscoverer.SafeRead(func() {
-			wasUpdated = k.customResourceDiscoverer.WasUpdated
+		discoverer.SafeRead(func() {
+			wasUpdated = discoverer.WasUpdated
 		})
 
 		if wasUpdated {
 			if err := k.buildStores(); err != nil {
 				log.Errorf("Failed to rebuild KSM: %v", err)
 			}
-			k.customResourceDiscoverer.SafeWrite(func() {
-				k.customResourceDiscoverer.WasUpdated = false
+			discoverer.SafeWrite(func() {
+				discoverer.WasUpdated = false
 			})
 		}
 	}
@@ -768,6 +780,14 @@ func (k *KSMCheck) Cancel() {
 	if k.cancel != nil {
 		k.cancel()
 	}
+	k.crMu.Lock()
+	if k.cancelCR != nil {
+		log.Infof("Shutting down custom resource informers")
+		k.cancelCR()
+		k.cancelCR = nil
+		k.customResourceDiscoverer = nil
+	}
+	k.crMu.Unlock()
 }
 
 // processMetrics attaches tags and forwards metrics to the aggregator
