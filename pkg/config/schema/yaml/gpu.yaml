@@ -1,0 +1,89 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/gpu.yaml.schema.json
+node_type: section
+type: object
+visibility: public
+description: GPU monitoring configuration.
+tags:
+- template_section:Common
+- full-agent-only:true
+properties:
+  nccl:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      NCCL collective communication metrics. When enabled, the Agent listens on a
+      Unix domain socket for events emitted by the NCCL profiler plugin in
+      training pods and emits per-collective performance metrics.
+      Pair with admission_controller.nccl_profiler to inject the plugin into
+      training pods, or mount the plugin into containers manually.
+    tags:
+    - template_section:Common
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: Enable the NCCL collective performance check.
+        tags:
+        - template_section:Common
+        comment: NCCL
+      host_socket_path:
+        node_type: setting
+        type: string
+        default: /var/run/datadog
+        visibility: public
+        description: |-
+          Host directory containing the Agent's NCCL socket. Must match the
+          hostPath volume mounted into training pods.
+        tags:
+        - template_section:Common
+        comment: |-
+          host_socket_path is read by the helm chart and operator to decide whether
+          to mount /var/run/datadog into the agent pod. For DSD/APM-enabled deployments
+          the directory is already mounted; this setting matters for NCCL-only setups.
+      socket_path:
+        node_type: setting
+        type: string
+        default: /var/run/datadog/nccl.socket
+        visibility: public
+        description: |-
+          Full path to the Unix domain socket the Agent listens on for NCCL events.
+          Must be under host_socket_path.
+        tags:
+        - template_section:Common
+  disabled_collectors:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+  enabled:
+    node_type: setting
+    type: boolean
+    default: false
+  integrate_with_workloadmeta_processes:
+    node_type: setting
+    type: boolean
+    default: true
+  nvml_lib_path:
+    node_type: setting
+    type: string
+    default: ''
+  sp_process_metrics_request_timeout:
+    node_type: setting
+    type: number
+    default: 3s
+    format: duration
+    tags:
+    - golang_type:duration
+  use_sp_process_metrics:
+    node_type: setting
+    type: boolean
+    default: false
+  workload_tag_cache_size:
+    node_type: setting
+    type: integer
+    default: 1024
