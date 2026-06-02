@@ -178,6 +178,40 @@ func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
 	require.NotContains(t, requestedFieldsByScope[1], uint32(nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS))
 }
 
+func TestNVLinkFieldsCollectorCollectDoesNotPanicWhenMetricsBecomeEmpty(t *testing.T) {
+	device := setupMockDevice(t, func(d *mock.Device) *mock.Device {
+		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
+			if len(fv) == 0 {
+				panic("GetFieldValues called with empty fields")
+			}
+			for i := range fv {
+				fv[i].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
+			}
+			return nvml.SUCCESS
+		}
+		return d
+	})
+
+	collector := &nvlinkFieldsCollector{
+		device: device,
+		ports:  []int{1, 2},
+		metrics: []nvlinkFieldValueMetric{
+			{
+				name:         "nvlink.tx.discards",
+				fieldValueID: nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS,
+				metricType:   metrics.GaugeType,
+			},
+		},
+	}
+
+	var err error
+	require.NotPanics(t, func() {
+		_, err = collector.Collect()
+	})
+	require.ErrorIs(t, err, errUnsupportedDevice)
+	require.ErrorContains(t, err, "no metrics to collect")
+}
+
 func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
 	tests := []struct {
 		name             string
