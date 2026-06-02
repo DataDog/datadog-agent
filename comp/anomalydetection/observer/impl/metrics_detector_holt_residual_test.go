@@ -24,7 +24,7 @@ func testHoltResidualDetector() *HoltResidualDetector {
 }
 
 func newDetectorTestStorage() *timeSeriesStorage {
-	cfg := defaultStorageConfig()
+	cfg := DefaultStorageConfig()
 	cfg.PointRetentionSecs = 0
 	return newTimeSeriesStorageWith(cfg)
 }
