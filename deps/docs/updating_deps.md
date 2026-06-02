@@ -250,5 +250,3 @@ The workflow should bias toward forward motion, but stop and surface in these ca
 - A build gate fails in a way the error-class table doesn't route cleanly.
 
 In each case: tell the user what happened, what you tried, and what input would unblock you. Do not proceed past the failure with a guess.
-</content>
-</invoke>

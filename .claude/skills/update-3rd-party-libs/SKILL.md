@@ -10,4 +10,3 @@ To update a C/C++ third-party library under `deps/`, read **`deps/docs/updating_
 **Arguments:** `$ARGUMENTS` — `<dep-name>` (required), `<target-version>` (optional; ask the user if not supplied). Pass these through to the procedure as its inputs.
 
 The workflow lives under `deps/docs/` (not inline here) so it stays discoverable by humans and non-Claude agents, and is owned alongside the code it touches (`@DataDog/agent-build`).
-</content>
