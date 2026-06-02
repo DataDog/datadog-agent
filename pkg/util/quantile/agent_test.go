@@ -190,3 +190,33 @@ func TestAgentInterpolation(t *testing.T) {
 		check(t, tt)
 	}
 }
+
+// TestAgentInterpolationBoundedKeys exercises the bounds enforced by
+// InsertInterpolate. Before bounds were enforced, an upper bound large enough
+// to saturate key() at uvinf made the loop counter (int16 Key) overflow when
+// incremented past 32767, producing an unbounded slice and an effectively
+// infinite loop. Each subtest must complete in well under the test timeout.
+func TestAgentInterpolationBoundedKeys(t *testing.T) {
+	t.Run("saturating upper bound terminates", func(t *testing.T) {
+		a := &Agent{}
+		// 1e300 is finite but large enough that key(1e300) saturates at uvinf.
+		// The pre-fix code would loop forever here.
+		err := a.InsertInterpolate(1, 1e300, 10)
+		require.NoError(t, err)
+		require.Equal(t, int64(10), a.Sketch.Basic.Cnt)
+	})
+
+	t.Run("non-monotonic bounds return error", func(t *testing.T) {
+		a := &Agent{}
+		err := a.InsertInterpolate(100, 1, 5)
+		require.Error(t, err)
+		require.Equal(t, ErrNonMonotonicBoundaries, err.Error())
+	})
+
+	t.Run("equal bounds yield single key", func(t *testing.T) {
+		a := &Agent{}
+		err := a.InsertInterpolate(42, 42, 7)
+		require.NoError(t, err)
+		require.Equal(t, int64(7), a.Sketch.Basic.Cnt)
+	})
+}
