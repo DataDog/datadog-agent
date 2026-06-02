@@ -23,9 +23,6 @@ package_metadata(
     purl = purl_for_generic(
         package = "libsepol",
         version = VERSION,
-        # It is OK to point to the download URL where you retrieved the file, rather than the
-        # canonical upstream version. It might even be preferable. PURLs are pretty much an
-        # instance of https://xkcd.com/927.
         download_url = "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-{version}/pcre2-{version}.tar.bz2",
     ),
 )
