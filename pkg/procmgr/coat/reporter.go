@@ -7,6 +7,7 @@ package coat
 
 import (
 	"context"
+	"runtime"
 	"time"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -101,8 +102,14 @@ func report(ctx context.Context, g gauges, collector *Collector) {
 		setBoolGauge(g.serviceProcmgrConfigured, service.ProcmgrConfigured, service.ID)
 		setBoolGauge(g.processRunning, service.ProcmgrState == "Running", spec.ProcmgrProcessName)
 
-		for _, mode := range managementModes {
-			setBoolGauge(g.serviceManagementMode, service.ManagementMode == mode, service.ID, string(mode))
+		// Do not emit management_mode=none on platforms where we never classify
+		// systemd/SCM/procmgr (e.g. macOS); avoids polluting COAT adoption metrics.
+		emitMgmtMode := service.ManagementMode != ManagementModeNone ||
+			runtime.GOOS == "linux" || runtime.GOOS == "windows"
+		if emitMgmtMode {
+			for _, mode := range managementModes {
+				setBoolGauge(g.serviceManagementMode, service.ManagementMode == mode, service.ID, string(mode))
+			}
 		}
 	}
 }
