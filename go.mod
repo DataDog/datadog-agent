@@ -1241,7 +1241,7 @@ replace github.com/hashicorp/vault/sdk => github.com/hashicorp/vault/sdk v0.19.1
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 // Maps to Trivy fork https://github.com/DataDog/trivy/pull/32
-replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20260513170708-3c7f1f6b38e8
+replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20260601163858-2f12eac6ff81
 
 // github.com/docker/docker v28 has known security vulnerabilities (CVE-2026-34040, CVE-2026-33997).
 // Pin to the 28.x branch head which includes the backported security fixes (not yet tagged).
