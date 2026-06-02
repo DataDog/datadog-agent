@@ -31,7 +31,7 @@ var (
 func SplitRepoTag(repoTag string) (string, string) {
 	lastColon := strings.LastIndex(repoTag, ":")
 	lastSlash := strings.LastIndex(repoTag, "/")
-	if lastColon > lastSlash {
+	if lastSlash < lastColon {
 		return repoTag[:lastColon], repoTag[lastColon+1:]
 	}
 	return repoTag, ""
