@@ -259,6 +259,13 @@ def _get_node_types_and_default(full_name, node, os_target):
         env_type = _env_type_for_json(node)
     elif env_parser in _ENV_PARSER_ENV_TYPES:
         env_type = _ENV_PARSER_ENV_TYPES[env_parser]
+        # The _ENV_PARSER_ENV_TYPES phrasing assumes string elements. When the
+        # underlying array holds integers, keep the integer phrasing so the
+        # @env doc matches the value users must supply.
+        # Check the raw schema "type"/"items" rather than node_type, which may
+        # have been overridden above by a golang_type tag (e.g. []int).
+        if node.get("type") == "array" and node.get("items", {}).get("type") == "number":
+            env_type = env_type.replace("list of strings", "list of integers")
     return yaml_type, env_type, default
 
 
