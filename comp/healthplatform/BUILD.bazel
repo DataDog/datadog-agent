@@ -23,6 +23,7 @@ go_library(
         "//comp/healthplatform/issues/dockerpermissions",
         "//comp/healthplatform/issues/invalidconfig",
         "//comp/healthplatform/issues/rofspermissions",
+        "//comp/healthplatform/issues/windowsagentinstability",
         "//comp/healthplatform/runner/def",
         "//comp/healthplatform/runner/fx",
         "//comp/healthplatform/scheduler/def",

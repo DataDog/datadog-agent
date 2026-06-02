@@ -53,6 +53,7 @@ func (m *mockStore) ResolveIssue(id string) {
 	defer m.mu.Unlock()
 	m.resolvedIDs = append(m.resolvedIDs, id)
 }
+func (m *mockStore) AcceptIssue(_ *healthplatformpayload.Issue) error             { return nil }
 func (m *mockStore) ReportIssue(_ *healthplatformpayload.Issue) error             { return nil }
 func (m *mockStore) ResolveAllIssues()                                            {}
 func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue               { return nil }

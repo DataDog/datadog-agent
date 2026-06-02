@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -47,6 +48,50 @@ func (m *mockTelemetry) SendEvent(_ string, _ []byte) error {
 	return nil
 }
 
+type mockIssueReporter struct {
+	healthplatformstore.Component
+}
+
+type issueAwareCheck struct {
+	mockCheck
+	reporter healthplatformstore.Component
+}
+
+func (c *issueAwareCheck) SetIssueReporter(r healthplatformstore.Component) {
+	c.reporter = r
+}
+
+func TestCheckWrapperInjectsIssueReporter(t *testing.T) {
+	reporter := &mockIssueReporter{}
+	inner := &issueAwareCheck{}
+
+	wrapper := NewCheckWrapper(
+		inner,
+		nil,
+		option.None[agenttelemetry.Component](),
+		option.New[healthplatformstore.Component](reporter),
+	)
+
+	require.NotNil(t, wrapper)
+	assert.Equal(t, reporter, inner.reporter, "reporter should be injected at construction")
+}
+
+func TestCheckWrapperSkipsNonIssueAwareCheck(t *testing.T) {
+	reporter := &mockIssueReporter{}
+	inner := &mockCheck{}
+
+	wrapper := NewCheckWrapper(
+		inner,
+		nil,
+		option.None[agenttelemetry.Component](),
+		option.New[healthplatformstore.Component](reporter),
+	)
+
+	require.NotNil(t, wrapper)
+	err := wrapper.Run()
+	require.NoError(t, err)
+}
+
 func TestCheckWrapperCreatesSpan(t *testing.T) {
 	// Create a mock check
 	mockCheck := &mockCheck{}
@@ -59,6 +104,7 @@ func TestCheckWrapperCreatesSpan(t *testing.T) {
 		mockCheck,
 		nil, // senderManager is not needed for this test
 		option.New[agenttelemetry.Component](mockTelemetry),
+		option.None[healthplatformstore.Component](),
 	)
 
 	// Run the check
