@@ -983,31 +983,7 @@ func (at *ActivityTree) recomputeSizeBytes() {
 	for len(openList) > 0 {
 		pn := openList[len(openList)-1]
 		openList = openList[:len(openList)-1]
-		total += pn.size()
-		for _, fn := range pn.Files {
-			total += fileSubtreeSizeBytes(fn)
-		}
-		for _, dns := range pn.DNSNames {
-			total += dns.size()
-		}
-		for _, imds := range pn.IMDSEvents {
-			total += imds.size()
-		}
-		for _, sock := range pn.Sockets {
-			total += sock.size()
-		}
-		for _, sc := range pn.Syscalls {
-			total += sc.size()
-		}
-		for _, cap := range pn.Capabilities {
-			total += cap.size()
-		}
-		for _, device := range pn.NetworkDevices {
-			total += device.size()
-			for _, flow := range device.FlowNodes {
-				total += flow.size()
-			}
-		}
+		total += pn.size() + processNodeOwnActivitySize(pn)
 		openList = append(openList, pn.Children...)
 	}
 	at.Stats.SizeBytes = total
