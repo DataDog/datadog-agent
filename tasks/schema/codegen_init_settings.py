@@ -227,27 +227,27 @@ def get_golang_type_tag(curr):
     return None
 
 
-def retrieve_default_value(keypath, schema):
+def get_node(keypath, schema):
     curr = schema
     for k in keypath:
         curr = curr['properties']
         curr = curr[k]
-    settingDefault = curr.get('default')
-    settingType = curr.get('type')
+    return curr
+
+
+def retrieve_default_value(keypath, schema):
+    node = get_node(keypath, schema)
+    settingDefault = node.get('default')
+    settingType = node.get('type')
     if settingType is None:
         return 'nil'
 
-    if curr.get('platform_default'):
-        platform_default = as_go_value(curr['platform_default'])
+    if node.get('platform_default'):
+        platform_default = as_go_value(node['platform_default'])
         return f"GetPlatformDefault(map[string]interface{{}}{platform_default})"
 
-    if settingType == 'array':
-        if curr is None or curr.get('items') is None:
-            return '[]interface{}{}'
-        settingItemsType = curr.get('items').get('type')
-        if settingItemsType == 'object':
-            return f"[]map[string]interface\{'{}' + as_go_value(settingDefault)}"
-        return f"[]{settingItemsType}{as_go_value(settingDefault)}"
+    if settingType == 'array' or settingType == 'object':
+        return to_vartype(node, as_go_value(settingDefault))
 
     elif settingType == 'boolean':
         if settingDefault:
@@ -263,9 +263,9 @@ def retrieve_default_value(keypath, schema):
         return str(settingDefault)
 
     elif settingType == 'number':
-        if get_golang_type_tag(curr) == 'int64':
+        if get_golang_type_tag(node) == 'int64':
             return f"int64({settingDefault})"
-        if get_golang_type_tag(curr) == 'float64':
+        if get_golang_type_tag(node) == 'float64':
             return f"float64({settingDefault})"
         durationValue = try_parse_duration(settingDefault)
         if durationValue is not None:
@@ -301,28 +301,39 @@ def retrieve_default_value(keypath, schema):
 
 
 def retrieve_envvars(keypath, schema):
-    curr = schema
-    for k in keypath:
-        curr = curr['properties']
-        curr = curr[k]
-    envvars = curr.get('env_vars')
+    node = get_node(keypath, schema)
+    envvars = node.get('env_vars')
     return envvars
 
 
 def retrieve_env_parser(keypath, schema):
-    curr = schema
-    for k in keypath:
-        curr = curr['properties']
-        curr = curr[k]
-    return curr.get('env_parser')
+    node = get_node(keypath, schema)
+    return node.get('env_parser')
+
+
+def dict_to_gotype(inp):
+    """Convert a node of json schema into a golang type expression string"""
+    if inp is None:
+        return 'interface{}'
+    elif inp.get('type') == 'integer':
+        return 'int'
+    elif inp.get('type') == 'number':
+        return 'float64'
+    elif inp.get('type') == 'string':
+        return 'string'
+    elif inp.get('type') == 'array':
+        return f"[]{dict_to_gotype(inp.get('items'))}"
+    elif inp.get('type') == 'object':
+        return f"map[string]{dict_to_gotype(inp.get('additionalProperties'))}"
+
+
+def to_vartype(keypath, node):
+    return f"{dict_to_gotype(node)}{{}}"
 
 
 def retrieve_method_to_declare(keypath, schema):
-    curr = schema
-    for k in keypath:
-        curr = curr['properties']
-        curr = curr[k]
-    tags = curr.get('tags')
+    node = get_node(keypath, schema)
+    tags = node.get('tags')
     if tags:
         if 'no-env' in tags:
             return 'SetDefault'
@@ -331,9 +342,10 @@ def retrieve_method_to_declare(keypath, schema):
     return 'BindEnvAndSetDefault'
 
 
-def env_parser_to_func_call(name, env_parser):
+def env_parser_to_func_call(name, env_parser, get_vartype):
     parser_func = None
-    is_helper = False
+    is_method_key_vartype = False
+    is_helper_key_config = False
 
     if env_parser == 'comma_separated':
         parser_func = 'ParseEnvSplitComma'
@@ -341,27 +353,31 @@ def env_parser_to_func_call(name, env_parser):
         parser_func = 'ParseEnvSplitSpace'
     elif env_parser == 'json':
         parser_func = 'ParseEnvJSON'
+        is_method_key_vartype = True
     elif env_parser == 'comma_and_space_separated':
         parser_func = 'ParseEnvSplitCommaAndSpace'
-        is_helper = True
+        is_helper_key_config = True
     elif env_parser == 'traces_span':
         parser_func = 'ParseEnvTraceSpan'
-        is_helper = True
+        is_helper_key_config = True
     elif env_parser == 'csv_comma_separated':
         parser_func = 'ParseEnvCSVSplit'
-        is_helper = True
+        is_helper_key_config = True
     elif env_parser == 'comma_then_space_separated':
         parser_func = 'ParseEnvSplitCommaThenSpace'
-        is_helper = True
+        is_helper_key_config = True
     elif env_parser == 'json_list_or_comma_separated':
         parser_func = 'ParseEnvJSONOrComma'
-        is_helper = True
+        is_helper_key_config = True
     elif env_parser == 'json_list_or_space_separated':
         parser_func = 'ParseEnvJSONOrSpace'
-        is_helper = True
+        is_helper_key_config = True
 
-    if is_helper:
+    if is_helper_key_config:
         return f"\tpkgconfighelper.{parser_func}(\"{name}\", config)"
+    if is_method_key_vartype:
+        var_type = get_vartype()
+        return f"\tconfig.{parser_func}(\"{name}\", {var_type})"
     return f"\tconfig.{parser_func}(\"{name}\")"
 
 
@@ -379,7 +395,10 @@ def output_single_setting(name, kind, internal_comment, schema, target):
 
     env_parser = retrieve_env_parser(name.split('.'), schema)
     if env_parser:
-        line = env_parser_to_func_call(name, env_parser)
+        def get_vartype():
+            node = get_node(name.split('.'), schema)
+            return to_vartype(node, '{}')
+        line = env_parser_to_func_call(name, env_parser, get_vartype)
         sourcecode.append(line)
 
     # internal-only comments for the setting
