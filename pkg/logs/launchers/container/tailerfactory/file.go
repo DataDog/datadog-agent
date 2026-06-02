@@ -155,6 +155,7 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 		AutoMultiLineOptions:         source.Config.AutoMultiLineOptions,
 		AutoMultiLineSamples:         source.Config.AutoMultiLineSamples,
 		ExperimentalAdaptiveSampling: source.Config.ExperimentalAdaptiveSampling,
+		ProcessLog:                   source.Config.ProcessLog,
 	})
 
 	// inform the file launcher that it should expect docker-formatted content
@@ -274,6 +275,7 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 			AutoMultiLineOptions:         source.Config.AutoMultiLineOptions,
 			AutoMultiLineSamples:         source.Config.AutoMultiLineSamples,
 			ExperimentalAdaptiveSampling: source.Config.ExperimentalAdaptiveSampling,
+			ProcessLog:                   source.Config.ProcessLog,
 		})
 
 	switch source.Config.Type {
