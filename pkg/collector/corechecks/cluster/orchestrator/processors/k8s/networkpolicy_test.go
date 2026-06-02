@@ -118,16 +118,16 @@ func TestNetworkPolicyHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*networkingv1.NetworkPolicy)
 	assert.True(t, ok)
 	assert.Equal(t, "networkpolicy-1", resource1.Name)
-	assert.NotSame(t, networkPolicy1, resource1) // Should be a copy
+	assert.Same(t, networkPolicy1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*networkingv1.NetworkPolicy)
 	assert.True(t, ok)
 	assert.Equal(t, "networkpolicy-2", resource2.Name)
-	assert.NotSame(t, networkPolicy2, resource2) // Should be a copy
+	assert.Same(t, networkPolicy2, resource2) // ResourceList returns raw informer references
 }
 
 func TestNetworkPolicyHandlers_ResourceUID(t *testing.T) {
@@ -426,4 +426,14 @@ func createTestNetworkPolicy(name, namespace string) *networkingv1.NetworkPolicy
 			},
 		},
 	}
+}
+
+func TestNetworkPolicyHandlers_CloneResource(t *testing.T) {
+	handlers := &NetworkPolicyHandlers{}
+	original := createTestNetworkPolicy("test", "ns")
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*networkingv1.NetworkPolicy)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

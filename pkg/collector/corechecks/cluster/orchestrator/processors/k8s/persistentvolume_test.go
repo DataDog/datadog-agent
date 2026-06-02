@@ -117,16 +117,16 @@ func TestPersistentVolumeHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*corev1.PersistentVolume)
 	assert.True(t, ok)
 	assert.Equal(t, "test-pv", resource1.Name)
-	assert.NotSame(t, pv1, resource1) // Should be a copy
+	assert.Same(t, pv1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*corev1.PersistentVolume)
 	assert.True(t, ok)
 	assert.Equal(t, "pv2", resource2.Name)
-	assert.NotSame(t, pv2, resource2) // Should be a copy
+	assert.Same(t, pv2, resource2) // ResourceList returns raw informer references
 }
 
 func TestPersistentVolumeHandlers_ResourceUID(t *testing.T) {
@@ -446,4 +446,14 @@ func createTestPersistentVolume() *corev1.PersistentVolume {
 			Reason:  "test",
 		},
 	}
+}
+
+func TestPersistentVolumeHandlers_CloneResource(t *testing.T) {
+	handlers := &PersistentVolumeHandlers{}
+	original := createTestPersistentVolume()
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*corev1.PersistentVolume)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

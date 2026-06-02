@@ -118,16 +118,16 @@ func TestLimitRangeHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*corev1.LimitRange)
 	assert.True(t, ok)
 	assert.Equal(t, "limitrange-1", resource1.Name)
-	assert.NotSame(t, limitRange1, resource1) // Should be a copy
+	assert.Same(t, limitRange1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*corev1.LimitRange)
 	assert.True(t, ok)
 	assert.Equal(t, "limitrange-2", resource2.Name)
-	assert.NotSame(t, limitRange2, resource2) // Should be a copy
+	assert.Same(t, limitRange2, resource2) // ResourceList returns raw informer references
 }
 
 func TestLimitRangeHandlers_ResourceUID(t *testing.T) {
@@ -440,4 +440,14 @@ func createTestLimitRange(name, namespace string) *corev1.LimitRange {
 			},
 		},
 	}
+}
+
+func TestLimitRangeHandlers_CloneResource(t *testing.T) {
+	handlers := &LimitRangeHandlers{}
+	original := createTestLimitRange("test", "ns")
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*corev1.LimitRange)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }
