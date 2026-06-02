@@ -287,6 +287,7 @@ docker_build_base_image_arm64:
   before_script:
     - cp bin/host-profiler/host-profiler $BUILD_CONTEXT/
     - cp cmd/host-profiler/dist/host-profiler-config.yaml $BUILD_CONTEXT/
+    - cp cmd/host-profiler/deploy/seccomp-profile.json $BUILD_CONTEXT/
     - ls -l $BUILD_CONTEXT/
   rules:
     - when: on_success

@@ -15,7 +15,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	orchestratormock "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -24,7 +24,7 @@ func TestBundleDependencies(t *testing.T) {
 		Bundle(jmxlogger.NewDefaultParams()),
 		core.MockBundle(),
 		defaultforwarder.MockModule(),
-		orchestratorimpl.MockModule(),
+		orchestratormock.MockModule(),
 		eventplatformmock.MockModule(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),

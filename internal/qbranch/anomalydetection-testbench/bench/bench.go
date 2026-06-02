@@ -87,6 +87,9 @@ type Config struct {
 
 	// LogsOnly skips metric samples and trace stats; only log rows are loaded.
 	LogsOnly bool
+
+	// ParquetFormat selects the parquet layout. Empty string = auto-detect.
+	ParquetFormat ParquetFormat
 }
 
 // ScenarioInfo describes an available scenario.
@@ -386,10 +389,22 @@ func (tb *Bench) LoadScenario(name string) error {
 
 // loadParquetDir loads all parquet files from a directory.
 func (tb *Bench) loadParquetDir(dir string) error {
+	format := tb.config.ParquetFormat
+	if format == FormatAuto {
+		format = detectParquetFormat(dir)
+	}
+	fmt.Printf("  Parquet format: %s\n", format)
+
 	if tb.config.LogsOnly {
 		fmt.Printf("  Logs-only mode: skipping parquet metrics and trace stats\n")
 	} else {
-		metrics, err := readAllMetrics(dir)
+		var metrics []recorderdef.MetricData
+		var err error
+		if format == FormatV2 {
+			metrics, err = readAllMetricsV2(dir)
+		} else {
+			metrics, err = readAllMetrics(dir)
+		}
 		if err != nil {
 			return fmt.Errorf("reading parquet metrics: %w", err)
 		}
@@ -419,9 +434,15 @@ func (tb *Bench) loadParquetDir(dir string) error {
 		tb.feedRawMetrics()
 	}
 
-	parquetLogs, err := readAllLogs(dir)
-	if err != nil {
-		return fmt.Errorf("failed to read parquet logs: %w", err)
+	var parquetLogs []recorderdef.LogData
+	var logsErr error
+	if format == FormatV2 {
+		parquetLogs, logsErr = readAllLogsV2(dir)
+	} else {
+		parquetLogs, logsErr = readAllLogs(dir)
+	}
+	if logsErr != nil {
+		return fmt.Errorf("failed to read parquet logs: %w", logsErr)
 	}
 
 	for _, logEntry := range parquetLogs {

@@ -8,11 +8,9 @@
 package nvidia
 
 import (
-	"encoding/binary"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
@@ -20,47 +18,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
-	type fieldRequest struct {
-		fieldID uint32
-		scopeID uint32
+func fecHistoryFieldValues() map[uint32]testutil.MockFieldValue {
+	fieldValues := make(map[uint32]testutil.MockFieldValue, len(nvlinkFECHistoryFieldIDs))
+	for i, fieldID := range nvlinkFECHistoryFieldIDs {
+		fieldValues[fieldID] = testutil.NewFieldValue(uint64(100 + i))
 	}
+	return fieldValues
+}
 
-	var requests []fieldRequest
-	mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
-		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-			if len(values) == 1 && values[0].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
-				values[0].NvmlReturn = uint32(nvml.SUCCESS)
-				values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-				binary.LittleEndian.PutUint32(values[0].Value[:], 1)
-				return nvml.SUCCESS
-			}
-
-			require.Len(t, values, len(nvlinkFECHistoryFieldIDs))
-			for i := range values {
-				requests = append(requests, fieldRequest{fieldID: values[i].FieldId, scopeID: values[i].ScopeId})
-				require.Equal(t, nvlinkFECHistoryFieldIDs[i], values[i].FieldId)
-				require.Equal(t, uint32(0), values[i].ScopeId)
-				values[i].NvmlReturn = uint32(nvml.SUCCESS)
-				values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_LONG_LONG)
-				binary.LittleEndian.PutUint64(values[i].Value[:], uint64(100+i))
-			}
-			return nvml.SUCCESS
-		}
-		return device
-	})
-
+func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
+	mockDevice := setupMockDevice(t,
+		testutil.WithNVLinkLinkCount(1),
+		testutil.WithFieldValuesFullOverride(fecHistoryFieldValues()),
+	)
 	collector, err := newNVLinkFECCollector(mockDevice, nil)
 	require.NoError(t, err)
 	require.Equal(t, nvlinkFEC, collector.Name())
 	require.Equal(t, mockDevice.GetDeviceInfo().UUID, collector.DeviceUUID())
 
-	requests = nil
 	collectedMetrics, err := collector.Collect()
 	require.NoError(t, err)
 	require.Len(t, collectedMetrics, len(nvlinkFECHistoryFieldIDs))
-	require.Len(t, requests, len(nvlinkFECHistoryFieldIDs))
 
 	for bucket := range nvlinkFECHistoryFieldIDs {
 		metric := collectedMetrics[bucket]
@@ -78,35 +56,17 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 }
 
 func TestNVLinkFECCollectorPartialFieldFailure(t *testing.T) {
-	fieldValueCalls := 0
-	mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
-		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-			if len(values) == 1 && values[0].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
-				values[0].NvmlReturn = uint32(nvml.SUCCESS)
-				values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-				binary.LittleEndian.PutUint32(values[0].Value[:], 1)
-				return nvml.SUCCESS
-			}
+	fieldValues := fecHistoryFieldValues()
 
-			fieldValueCalls++
-			require.Len(t, values, len(nvlinkFECHistoryFieldIDs))
-			for i := range values {
-				values[i].NvmlReturn = uint32(nvml.SUCCESS)
-				values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_LONG_LONG)
-				binary.LittleEndian.PutUint64(values[i].Value[:], uint64(i+1))
-			}
-			if fieldValueCalls > 1 {
-				values[3].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
-				values[7].ValueType = uint32(9999)
-			}
-			return nvml.SUCCESS
-		}
-		return device
-	})
+	mockDevice := setupMockDevice(t, testutil.WithNVLinkLinkCount(1), testutil.WithFieldValuesFullOverride(fieldValues))
 
 	collector, err := newNVLinkFECCollector(mockDevice, nil)
 	require.NoError(t, err)
+
+	// Modify the field values to test partial failure after initial support test
+	// one field not supported, another with invalid value type
+	fieldValues[nvlinkFECHistoryFieldIDs[3]] = testutil.FieldError(nvml.ERROR_NOT_SUPPORTED)
+	fieldValues[nvlinkFECHistoryFieldIDs[7]] = testutil.MockFieldValue{Value: 9999, ValueType: nvml.ValueType(9999), Return: nvml.SUCCESS}
 
 	collectedMetrics, err := collector.Collect()
 	require.Error(t, err)
@@ -116,33 +76,15 @@ func TestNVLinkFECCollectorPartialFieldFailure(t *testing.T) {
 }
 
 func TestNVLinkFECCollectorAllFieldsFail(t *testing.T) {
-	fieldValueCalls := 0
-	mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
-		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-			if len(values) == 1 && values[0].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
-				values[0].NvmlReturn = uint32(nvml.SUCCESS)
-				values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-				binary.LittleEndian.PutUint32(values[0].Value[:], 1)
-				return nvml.SUCCESS
-			}
-
-			fieldValueCalls++
-			require.Len(t, values, len(nvlinkFECHistoryFieldIDs))
-			for i := range values {
-				values[i].NvmlReturn = uint32(nvml.SUCCESS)
-				values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_LONG_LONG)
-				if fieldValueCalls > 1 {
-					values[i].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
-				}
-			}
-			return nvml.SUCCESS
-		}
-		return device
-	})
+	fieldValues := fecHistoryFieldValues()
+	mockDevice := setupMockDevice(t, testutil.WithNVLinkLinkCount(1), testutil.WithFieldValuesFullOverride(fieldValues))
 
 	collector, err := newNVLinkFECCollector(mockDevice, nil)
 	require.NoError(t, err)
+
+	for fieldID := range fieldValues {
+		fieldValues[fieldID] = testutil.FieldError(nvml.ERROR_NOT_SUPPORTED)
+	}
 
 	collectedMetrics, err := collector.Collect()
 	require.Error(t, err)

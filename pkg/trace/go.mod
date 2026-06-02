@@ -55,6 +55,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.26.4
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	go.opentelemetry.io/collector/component/componenttest v0.152.0
+	go.uber.org/mock v0.6.0
 )
 
 require go.opentelemetry.io/collector/processor v1.58.0 // indirect

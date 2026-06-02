@@ -47,7 +47,6 @@ properties:
             visibility: public
             description: '[Beta] Enables language detection via binary analysis in
               the system probe.'
-            example: 'false'
             tags: []
       health_port:
         node_type: setting
@@ -60,7 +59,6 @@ properties:
           The Agent can expose its health check on a dedicated HTTP port.
           This is useful for orchestrators that support HTTP probes.
           Default is 0 (disabled). Set a valid port number (example: 5558) to enable.
-        example: '0'
         tags:
         - golang_type:int64
       adjusted:
@@ -598,9 +596,6 @@ properties:
           type: number
         visibility: public
         description: A list of ports that should be monitored for DNS traffic.
-        example: |2-
-
-            - 53
         tags:
         - golang_type:[]int
       allow_netlink_conntracker_fallback:
@@ -817,7 +812,6 @@ properties:
           Please note that, on Windows, enabling the Universal Service Monitoring
           Module of the System Probe will result in a kernel driver
           being loaded.
-        example: 'false'
         tags: []
       data_channel_size:
         node_type: setting
@@ -1103,7 +1097,6 @@ properties:
         default: false
         visibility: public
         description: Set to true to enable the Ping Module of the System Probe
-        example: 'false'
         tags: []
   traceroute:
     node_type: section
@@ -1120,7 +1113,6 @@ properties:
         default: false
         visibility: public
         description: Set to true to enable the Traceroute Module of the System Probe
-        example: 'false'
         tags: []
   runtime_security_config:
     node_type: section
@@ -1136,7 +1128,6 @@ properties:
         default: false
         visibility: public
         description: Set to true to enable Cloud Workload Security (CWS).
-        example: 'false'
         tags: []
       fim_enabled:
         node_type: setting
@@ -1145,7 +1136,6 @@ properties:
         visibility: public
         description: Set to true to enable the File Integrity Monitoring (FIM) feature
           of Cloud Workload Security (CWS).
-        example: 'false'
         tags: []
       socket:
         node_type: setting
@@ -1208,7 +1198,6 @@ properties:
             default: true
             visibility: public
             description: Set to true to activate the security profiles feature.
-            example: 'true'
             tags: []
           traced_cgroups_count:
             node_type: setting
@@ -1216,7 +1205,6 @@ properties:
             default: 5
             visibility: public
             description: Defines the number of concurrent cgroups to be traced.
-            example: '5'
             tags: []
           dump_duration:
             node_type: setting
@@ -2053,7 +2041,6 @@ properties:
             - DD_RUNTIME_SECURITY_CONFIG_NETWORK_ENABLED
             visibility: public
             description: Set to true to activate the CWS network detections.
-            example: 'true'
             tags: []
           classifier_handle:
             node_type: setting
@@ -2510,7 +2497,6 @@ properties:
         visibility: public
         description: Enables the system probe module which supports the Windows crash
           detection check.
-        example: 'false'
         tags: []
   auto_exit:
     node_type: section

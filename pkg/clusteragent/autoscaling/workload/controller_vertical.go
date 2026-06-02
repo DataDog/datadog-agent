@@ -127,12 +127,23 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 		podsPerDirectOwner[pod.Owners[0].ID] = podsPerDirectOwner[pod.Owners[0].ID] + 1
 	}
 
+	// Get the live pod UIDs, prune pod operations for pods that are no longer in the live set.
+	livePodUIDs := make(map[string]struct{}, len(pods))
+	for _, pod := range pods {
+		livePodUIDs[pod.EntityID.ID] = struct{}{}
+	}
+	autoscalerInternal.PrunePodOperations(recommendationID, livePodUIDs)
+
 	// Classify each non-terminating pod by resize status so we can set scaled replicas
 	// (completed pods count) accurately. Pass this slice to syncInternal to avoid
 	// a duplicate call to getPodResizeStatus.
 	podsByResizeStatus := make(map[PodResizeStatus][]classifiedPod)
 	for _, pod := range pods {
 		if pod.DeletionTimestamp != nil {
+			continue
+		}
+		if autoscalerInternal.HasPendingOperation(pod.EntityID.ID, recommendationID) {
+			podsByResizeStatus[PodResizeStatusEvicting] = append(podsByResizeStatus[PodResizeStatusEvicting], classifiedPod{pod: pod})
 			continue
 		}
 		status, ltt := getPodResizeStatus(pod, recommendationID)
@@ -276,6 +287,7 @@ func (u *verticalController) syncInternal(
 		if result == evictor.Evicted {
 			evictedThisSync++
 			autoscalerInternal.InPlaceEvictionSuccessInc()
+			autoscalerInternal.TrackPodOperation(cp.pod.EntityID.ID, recommendationID)
 		}
 		if result == evictor.PDBLockedOrThrottle || result == evictor.Skipped {
 			pdbBlocked = true
@@ -303,8 +315,14 @@ func (u *verticalController) syncInternal(
 			eventType = corev1.EventTypeWarning
 			reason = model.FailedToEvictEventReason
 		}
+		inFlight := len(podsByResizeStatus[PodResizeStatusEvicting])
+		remaining := int(int32(len(toEvict)) - evictedThisSync - failedEvictions)
+		suffix := fmt.Sprintf("%d remaining", remaining)
+		if inFlight > 0 {
+			suffix += fmt.Sprintf(", %d in-flight", inFlight)
+		}
 		u.eventRecorder.Eventf(podAutoscaler, eventType, reason,
-			"In-place resize eviction: %s (%d pods pending)", strings.Join(parts, ", "), len(toEvict))
+			"In-place resize eviction: %s (%s)", strings.Join(parts, ", "), suffix)
 	}
 
 	// Terminating pods are excluded from podsByResizeStatus, so summing all bucket lengths
@@ -314,6 +332,7 @@ func (u *verticalController) syncInternal(
 		totalActive += len(bucket)
 	}
 	if len(podsByResizeStatus[PodResizeStatusCompleted]) == totalActive {
+		autoscalerInternal.ClearPodOperations()
 		if lastAction := autoscalerInternal.VerticalLastAction(); lastAction != nil &&
 			lastAction.Type == datadoghqcommon.DatadogPodAutoscalerResizeTriggeredVerticalActionType {
 			u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.ResizeSuccessfulEventReason,

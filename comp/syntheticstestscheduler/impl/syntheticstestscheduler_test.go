@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"

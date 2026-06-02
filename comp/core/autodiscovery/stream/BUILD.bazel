@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/stream",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/proto",
         "//pkg/proto/pbgo/core",
@@ -22,7 +22,7 @@ go_test(
     embed = [":stream"],
     gotags = ["test"],
     deps = [
-        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/noopimpl",
         "//comp/core/autodiscovery/scheduler",

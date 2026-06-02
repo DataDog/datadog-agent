@@ -7,7 +7,7 @@ import (
 	reflect "reflect"
 
 	state "github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockRemoteClient is a mock of RemoteClient interface.

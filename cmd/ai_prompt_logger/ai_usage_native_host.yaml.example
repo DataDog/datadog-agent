@@ -18,5 +18,5 @@ trace_agent_url: "http://127.0.0.1:8126"
 evp_proxy_api_version: 2
 
 # AI usage EVP intake subdomain header.
-ai_usage_evp_subdomain: "event-platform-intake"
+ai_usage_evp_subdomain: "softinv-intake"
 

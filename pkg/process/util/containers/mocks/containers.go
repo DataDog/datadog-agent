@@ -10,7 +10,7 @@ import (
 
 	process "github.com/DataDog/agent-payload/v5/process"
 	containers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockContainerProvider is a mock of ContainerProvider interface.

@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -20,44 +19,35 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-func setupMockDeviceWithLibOpts(t *testing.T, customize func(device *mock.Device) *mock.Device, extraLibOpts ...testutil.NvmlMockOption) ddnvml.Device {
-	libOpts := []testutil.NvmlMockOption{
+// setupMockDevice creates a single mock physical device for testing with optional
+// customization. The mock exposes exactly one MIG-disabled physical device.
+func setupMockDevice(t *testing.T, extraMockOpts ...testutil.NvmlMockOption) ddnvml.Device {
+	t.Helper()
+
+	opts := append([]testutil.NvmlMockOption{
 		testutil.WithMIGDisabled(),
 		testutil.WithDeviceCount(1),
-	}
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(append(libOpts, extraLibOpts...)...)
-	device := testutil.GetDeviceMock(0, testutil.WithMockAllDeviceFunctions())
-
-	// Apply customization if provided
-	if customize != nil {
-		device = customize(device)
-	}
-
-	// Set up the device handle function
-	nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-		if index == 0 {
-			return device, nvml.SUCCESS
-		}
-		return nil, nvml.ERROR_INVALID_ARGUMENT
-	}
-
-	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache := ddnvml.NewDeviceCache()
-	devices, err := deviceCache.AllPhysicalDevices()
-	require.NoError(t, err)
+	}, extraMockOpts...)
+	devices := setupMockDevices(t, opts...)
 	require.NotEmpty(t, devices)
 	return devices[0]
 }
 
-// setupMockDevice creates a mock device for testing with optional customization.
-// If customize is nil, returns a basic mock device with all functions enabled.
-// If customize is provided, allows overriding specific device functions.
-func setupMockDevice(t *testing.T, customize func(device *mock.Device) *mock.Device) ddnvml.Device {
-	return setupMockDeviceWithLibOpts(t, customize)
+// setupMockDevices installs a mock NVML interface (configured via the given options)
+// and returns all physical devices exposed by the resulting device cache.
+func setupMockDevices(t *testing.T, mockOpts ...testutil.NvmlMockOption) []ddnvml.Device {
+	t.Helper()
+
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(mockOpts...)
+	ddnvml.WithMockNVML(t, nvmlMock)
+	deviceCache := ddnvml.NewDeviceCache()
+	devices, err := deviceCache.AllPhysicalDevices()
+	require.NoError(t, err)
+	return devices
 }
 
 func TestNewBaseCollector(t *testing.T) {
-	mockDevice := setupMockDevice(t, nil)
+	mockDevice := setupMockDevice(t)
 
 	tests := []struct {
 		name        string
@@ -132,7 +122,7 @@ func TestNewBaseCollector(t *testing.T) {
 }
 
 func TestBaseCollector_Collect(t *testing.T) {
-	mockDevice := setupMockDevice(t, nil)
+	mockDevice := setupMockDevice(t)
 
 	tests := []struct {
 		name            string
@@ -218,7 +208,7 @@ func TestNewSamplingCollector(t *testing.T) {
 	var timestamps [2]uint64 // Track first and second call timestamps
 	var callCount int
 
-	mockDevice := setupMockDevice(t, nil)
+	mockDevice := setupMockDevice(t)
 
 	apiCalls := []apiCallInfo{
 		{

@@ -142,6 +142,27 @@ def _format_engine_findings(file_report: dict) -> tuple[list[str], list[str]]:
     return malicious, suspicious
 
 
+def _tag_ci_job(ctx, malicious: int, suspicious: int, file_sha: str, signature_verified: str) -> None:
+    """Add VirusTotal scan results as datadog-ci job-level tags."""
+    try:
+        ddci = get_datadog_ci_command()
+    except FileNotFoundError:
+        print("datadog-ci not found, skipping job tagging")
+        return
+    result = "clean" if malicious == 0 and suspicious == 0 else "detected"
+    tags = {
+        "result": result,
+        "malicious": str(malicious),
+        "suspicious": str(suspicious),
+        "file_sha256": file_sha,
+        "signature_verified": signature_verified,
+        "url": f"https://www.virustotal.com/gui/file/{file_sha}",
+    }
+    tag_prefix = "vt."
+    tags_str = " ".join(f"--tags '{tag_prefix}{k}:{v}'" for k, v in tags.items())
+    ctx.run(f"{ddci} tag --level job {tags_str}", warn=True)
+
+
 def _write_junit_xml(
     output_path: Path,
     file_name: str,
@@ -318,6 +339,8 @@ def submit(
             file_report,
         )
         print(f"JUnit XML written to {output}")
+        sig_verified = str(attributes.get("signature_info", {}).get("verified", ""))
+        _tag_ci_job(ctx, malicious, suspicious, file_sha, sig_verified)
 
         if upload:
             # Upload directly through datadog-ci

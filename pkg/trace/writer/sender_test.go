@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -368,12 +369,18 @@ func TestSender(t *testing.T) {
 	})
 
 	t.Run("403_throttles_refresh", func(t *testing.T) {
-		assert := assert.New(t)
-		server := newTestServer()
+		server := newTestServer() // outside the synctest bubble: its Accept loop never durably blocks
 		defer server.Close()
+		synctest.Test(t, syncTest403ThrottlesRefresh(server))
+	})
+}
+
+func syncTest403ThrottlesRefresh(server *testServer) func(*testing.T) {
+	return func(t *testing.T) {
+		assert := assert.New(t)
 		defer useBackoffDuration(time.Nanosecond)()
 
-		s, err := newTestSender(server.URL)
+		s, err := newInProcessTestSender(server)
 		assert.NoError(err)
 
 		callCount := 0
@@ -400,7 +407,7 @@ func TestSender(t *testing.T) {
 		assert.Equal(2, callCount, "third 403 after throttle should trigger refresh")
 
 		s.Stop()
-	})
+	}
 }
 
 func TestPayload(t *testing.T) {
@@ -494,14 +501,18 @@ func (r *mockRecorder) recordEvent(t eventType, data *eventData) {
 }
 
 func newTestSender(serverURL string) (*sender, error) {
+	cfg := config.New()
+	cfg.ConnectionResetInterval = 0
+	return newTestSenderWithClient(serverURL, cfg.NewHTTPClient())
+}
+
+func newTestSenderWithClient(serverURL string, client *config.ResetClient) (*sender, error) {
 	url, err := url.Parse(serverURL + "/")
 	if err != nil {
 		return nil, err
 	}
-	cfg := config.New()
-	cfg.ConnectionResetInterval = 0
 	scfg := &senderConfig{
-		client:     cfg.NewHTTPClient(),
+		client:     client,
 		url:        url,
 		maxConns:   100,
 		maxQueued:  40,
@@ -513,4 +524,18 @@ func newTestSender(serverURL string) (*sender, error) {
 	}
 	statsd := &statsd.NoOpClient{}
 	return newSender(scfg, apiKeyManager, statsd), nil
+}
+
+func newInProcessTestSender(server *testServer) (*sender, error) {
+	return newTestSenderWithClient(server.URL, config.NewResetClient(0, func() *http.Client {
+		return &http.Client{Transport: handlerTransport(server.ServeHTTP)}
+	}))
+}
+
+type handlerTransport http.HandlerFunc
+
+func (tr handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	rec := httptest.NewRecorder()
+	tr(rec, req)
+	return rec.Result(), nil
 }

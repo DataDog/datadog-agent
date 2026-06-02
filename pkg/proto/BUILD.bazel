@@ -1,4 +1,3 @@
-load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
@@ -6,28 +5,4 @@ go_library(
     srcs = ["empty.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/proto",
     visibility = ["//visibility:public"],
-)
-
-write_source_files(
-    name = "write_all",
-    additional_update_targets = [
-        "//pkg/proto/msgpgo:key_gen",
-        "//pkg/proto/pbgo/core:remoteconfig_gen",
-        "//pkg/proto/pbgo/core:write_pb_go",
-        "//pkg/proto/pbgo/dogstatsdhttp:write_pb_go",
-        "//pkg/proto/pbgo/languagedetection:write_pb_go",
-        "//pkg/proto/pbgo/mocks/core:api_mockgen",
-        "//pkg/proto/pbgo/privateactionrunner/actionsclient:write_pb_go",
-        "//pkg/proto/pbgo/privateactionrunner/errorcode:write_pb_go",
-        "//pkg/proto/pbgo/privateactionrunner/privateactions:write_pb_go",
-        "//pkg/proto/pbgo/process:write_pb_go",
-        "//pkg/proto/pbgo/sbom:write_pb_go",
-        "//pkg/proto/pbgo/trace:agent_payload_gen",
-        "//pkg/proto/pbgo/trace:span_gen",
-        "//pkg/proto/pbgo/trace:stats_gen",
-        "//pkg/proto/pbgo/trace:trace_gen",
-        "//pkg/proto/pbgo/trace:tracer_payload_gen",
-        "//pkg/proto/pbgo/trace:write_pb_go",
-        "//pkg/proto/pbgo/trace/idx:write_pb_go",
-    ],
 )

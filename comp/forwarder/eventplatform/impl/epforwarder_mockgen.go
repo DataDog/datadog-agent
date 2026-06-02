@@ -8,7 +8,7 @@ import (
 	reflect "reflect"
 
 	message "github.com/DataDog/datadog-agent/pkg/logs/message"
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockEventPlatformForwarder is a mock of EventPlatformForwarder interface.

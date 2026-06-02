@@ -5,5 +5,7 @@ go_library(
     srcs = ["id.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/check/id",
     visibility = ["//visibility:public"],
-    deps = ["//comp/core/autodiscovery/integration"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+    ],
 )

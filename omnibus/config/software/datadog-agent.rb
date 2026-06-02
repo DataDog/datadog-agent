@@ -122,6 +122,7 @@ build do
   else
     copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/agent.exe', "#{install_dir}/bin/agent"
+    copy 'bin/agent/agent.exe.pdb', "#{install_dir}/bin/agent"
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
     mkdir "#{install_dir}/bin/scripts/"
     copy "#{project_dir}/omnibus/windows-scripts/iis-instrumentation.bat", "#{install_dir}/bin/scripts/"
@@ -139,6 +140,7 @@ build do
   elsif windows_target?
     command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
+    move 'bin/installer/installer.exe.pdb', "#{install_dir}/datadog-installer.exe.pdb"
   end
 
   if linux_target?
@@ -155,6 +157,7 @@ build do
 
   if windows_target?
     copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
+    copy 'bin/trace-agent/trace-agent.exe.pdb', "#{install_dir}/bin/agent"
   else
     copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
   end
@@ -166,6 +169,7 @@ build do
 
   if windows_target?
     copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
+    copy 'bin/process-agent/process-agent.exe.pdb', "#{install_dir}/bin/agent"
   elsif not heroku_target?
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
   end
@@ -176,6 +180,7 @@ build do
 
     if windows_target?
       copy 'bin/privateactionrunner/privateactionrunner.exe', "#{install_dir}/bin/agent"
+      copy 'bin/privateactionrunner/privateactionrunner.exe.pdb', "#{install_dir}/bin/agent"
     elsif not heroku_target?
       copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
     end
@@ -192,6 +197,7 @@ build do
 
     if windows_target?
       copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
+      copy 'bin/system-probe/system-probe.exe.pdb', "#{install_dir}/bin/agent"
     else
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
     end
@@ -243,6 +249,7 @@ build do
     command "dda inv -- -e security-agent.build #{fips_args} --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
+      copy 'bin/security-agent/security-agent.exe.pdb', "#{install_dir}/bin/agent"
     else
       copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
     end
