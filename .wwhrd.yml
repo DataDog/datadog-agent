@@ -36,7 +36,6 @@ overrides:
   "github.com/bhmj/xpression": MIT
 
 exceptions:
-  - "golang.org/x/mobile/..."
   - "golang.org/x/tools/..."
   - "golang.org/x/mod/..."
   - "github.com/stretchr/testify"

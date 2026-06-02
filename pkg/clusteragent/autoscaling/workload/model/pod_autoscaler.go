@@ -202,6 +202,10 @@ type PodAutoscalerInternal struct {
 	// customRecommenderConfiguration holds the configuration for custom recommenders,
 	// Parsed from annotations on the autoscaler
 	customRecommenderConfiguration *RecommenderConfiguration
+
+	// submittedPodOps maps pod UID to the recommendationID of the last accepted patch or eviction,
+	// used to suppress redundant API calls during the informer-cache lag window.
+	submittedPodOps map[string]string
 }
 
 // NewPodAutoscalerInternal creates a new PodAutoscalerInternal from a Kubernetes CR
@@ -899,6 +903,40 @@ func (p *PodAutoscalerInternal) InPlaceResizeCompletedCount() uint {
 // InPlaceResizeCompletedInc increments the resize completed counter
 func (p *PodAutoscalerInternal) InPlaceResizeCompletedInc() {
 	p.inPlaceResizeCompletedCount++
+}
+
+// TrackPodOperation records that a patch or eviction for podUID was accepted by the API server.
+func (p *PodAutoscalerInternal) TrackPodOperation(podUID, recommendationID string) {
+	if p.submittedPodOps == nil {
+		p.submittedPodOps = make(map[string]string)
+	}
+	p.submittedPodOps[podUID] = recommendationID
+}
+
+// HasPendingOperation reports whether podUID has a tracked operation for the current recommendationID.
+func (p *PodAutoscalerInternal) HasPendingOperation(podUID, recommendationID string) bool {
+	if p.submittedPodOps == nil {
+		return false
+	}
+	return p.submittedPodOps[podUID] == recommendationID
+}
+
+// ClearPodOperations drops all tracked pod operations; called on resize completion.
+func (p *PodAutoscalerInternal) ClearPodOperations() {
+	p.submittedPodOps = nil
+}
+
+// PrunePodOperations removes entries whose stored recommendationID no longer matches
+// the current one, and entries whose pod UID have been removed from the livePodUIDs map.
+func (p *PodAutoscalerInternal) PrunePodOperations(recommendationID string, livePodUIDs map[string]struct{}) {
+	for uid, rid := range p.submittedPodOps {
+		if rid != recommendationID {
+			delete(p.submittedPodOps, uid)
+		}
+		if _, ok := livePodUIDs[uid]; !ok {
+			delete(p.submittedPodOps, uid)
+		}
+	}
 }
 
 // CurrentReplicas returns the current number of PODs for the targetRef
