@@ -316,6 +316,9 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 		return fmt.Errorf("could not get package: %w", err)
 	}
 	if !shouldInstallPredicate(dbPkg, pkg) {
+		// Package is already at the target version: report 100% so the rollout
+		// backend counts this host as complete rather than stuck at 0%.
+		setInstallProgress(ctx, 1.0)
 		return nil
 	}
 	upgrade := !errors.Is(err, db.ErrPackageNotFound) && dbPkg.Version != pkg.Version

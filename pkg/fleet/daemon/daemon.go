@@ -421,6 +421,11 @@ func (d *daemonImpl) install(ctx context.Context, env *env.Env, url string, args
 			if dbErr := d.taskDB.SetTaskState(*req); dbErr != nil {
 				log.Warnf("installer: could not persist install progress: %v", dbErr)
 			}
+			// ConfigAndPackageStates only reads filesystem symlinks — it does not
+			// acquire the installer mutex — so calling refreshState here is safe
+			// even while doInstall holds its write lock. d.m is already held by
+			// handleRemoteAPIRequest so no re-lock is needed.
+			d.refreshState(ctx)
 		})
 	}
 
