@@ -56,7 +56,7 @@ func TestDemuxIsSetAsGlobalInstance(t *testing.T) {
 
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)
-	demux.Stop(false)
+	demux.Stop()
 }
 
 func TestDemuxForwardersCreated(t *testing.T) {
@@ -78,7 +78,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
 	require.NotNil(deps.SharedForwarder)
-	demux.Stop(false)
+	demux.Stop()
 
 	// options no event platform forwarder
 
@@ -91,7 +91,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
 	require.NotNil(deps.SharedForwarder)
-	demux.Stop(false)
+	demux.Stop()
 
 	// options noop event platform forwarder
 
@@ -104,7 +104,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
 	require.NotNil(deps.SharedForwarder)
-	demux.Stop(false)
+	demux.Stop()
 
 	// now, simulate a cluster-agent environment and enabled the orchestrator feature
 
@@ -124,7 +124,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.OrchestratorFwd.Get()
 	require.Equal(orchestratorForwarderSupport, found)
 	require.NotNil(deps.SharedForwarder)
-	demux.Stop(false)
+	demux.Stop()
 
 	// options no orchestrator forwarder
 
@@ -138,7 +138,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
 	require.NotNil(deps.SharedForwarder)
-	demux.Stop(false)
+	demux.Stop()
 
 	// options noop orchestrator forwarder
 
@@ -152,7 +152,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.OrchestratorFwd.Get()
 	require.True(found)
 	require.NotNil(deps.SharedForwarder)
-	demux.Stop(false)
+	demux.Stop()
 }
 
 func TestDemuxSerializerCreated(t *testing.T) {
@@ -166,7 +166,7 @@ func TestDemuxSerializerCreated(t *testing.T) {
 
 	require.NotNil(demux)
 	require.NotNil(demux.sharedSerializer)
-	demux.Stop(false)
+	demux.Stop()
 }
 
 func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
