@@ -28,8 +28,10 @@ const healthPlatformAgentConfig = `health_platform:
     interval: 30s
 `
 
-//go:embed fixtures/broken_check.yaml
-var brokenCheckConf string
+const brokenCheckConf = `init_config:
+instances:
+  - {}
+`
 
 //go:embed fixtures/broken_check.py
 var brokenCheckPy string
