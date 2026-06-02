@@ -195,6 +195,45 @@ module Omnibus
     expose :chmod_before_packaging
   end
 
+  # On Windows, the Go linker emits a companion .pdb next to each .exe so
+  # that Windows-native tools (cdb, WPA, xperf) can resolve Go symbols. The
+  # .pdb belongs in the same .debug.zip artifact as the existing .debug
+  # (full-symbols copy of each stripped binary), not in the main MSI/ZIP —
+  # PDBs are large and only useful for crash analysis.
+  #
+  # Hook into the strip lifecycle: before omnibus' Windows stripper zips up
+  # the .debug/ tree, walk every binary registered via
+  # `windows_symbol_stripping_file` and move its `.exe.pdb` companion into
+  # the same `.debug/` location the strip output goes (mirroring the
+  # absolute install_dir path, with the drive letter stripped — same layout
+  # the upstream stripper computes for the .debug files).
+  module StripperPDBRelocator
+    def strip_windows
+      relocate_pdb_companions
+      super
+    end
+
+    private
+
+    def relocate_pdb_companions
+      symboldir = File.join(project.install_dir, ".debug")
+      Array(project.windows_symbol_stripping_files).each do |executable|
+        source_exe = executable.strip
+        pdb = "#{source_exe}.pdb"
+        next unless File.exist?(pdb)
+
+        rel = pdb.dup
+        rel = rel[2..rel.length - 1] if rel[1] == ":"
+        target = File.join(symboldir, rel)
+
+        FileUtils.mkdir_p(File.dirname(target))
+        FileUtils.mv(pdb, target)
+      end
+    end
+  end
+
+  Stripper.prepend(StripperPDBRelocator)
+
   # Notarize and staple the .pkg after it is signed. Without this, Gatekeeper
   # rejects the .pkg when extracted from the .dmg (e.g. by Homebrew), because
   # the notarization ticket only covers the outer .dmg, not the .pkg inside it.
@@ -298,5 +337,6 @@ module Omnibus
       command *args, **kwargs, cwd: File.join(Omnibus::Config.project_root, "..")
     end
     expose :command_on_repo_root
+
   end
 end
