@@ -92,9 +92,24 @@ func TestPathtest_GetHash_Netflow(t *testing.T) {
 		Port:     53,
 		Protocol: payload.ProtocolUDP,
 	}
+	namespaceHostnameBoundary := Pathtest{
+		Hostname:  "10.0.0.1",
+		Port:      53,
+		Protocol:  payload.ProtocolUDP,
+		Namespace: "a",
+		Origin:    payload.PathOriginNetflow,
+	}
+	shiftedNamespaceHostnameBoundary := Pathtest{
+		Hostname:  "0.0.0.1",
+		Port:      53,
+		Protocol:  payload.ProtocolUDP,
+		Namespace: "a1",
+		Origin:    payload.PathOriginNetflow,
+	}
 
 	assert.NotEqual(t, udp53.GetHash(), udp1234.GetHash())
 	assert.NotEqual(t, tcp53.GetHash(), tcp1234.GetHash())
 	assert.NotEqual(t, udp53.GetHash(), otherNamespace.GetHash())
 	assert.NotEqual(t, udp53.GetHash(), networkTraffic.GetHash())
+	assert.NotEqual(t, namespaceHostnameBoundary.GetHash(), shiftedNamespaceHostnameBoundary.GetHash())
 }
