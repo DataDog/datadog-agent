@@ -139,17 +139,17 @@ func WithFleetPoliciesDirPath(fleetPoliciesDirPath string) func(*Params) {
 	}
 }
 
-// WithDefaultConfPath returns an option which overrides defaultConfPath.
-// The default for agent-style callers is the platform DefaultConfPath
-// (e.g. /etc/datadog-agent on Linux), which is added to the config
-// component's search path. Passing an empty string disables the fallback
-// search entirely, so the configuration is loaded only from the explicit
-// ConfFilePath (when set) and environment variables. This is useful for
-// binaries that have their own platform-default location and should not
-// silently fall back to the core agent's config directory.
-func WithDefaultConfPath(defaultConfPath string) func(*Params) {
+// WithoutDefaultConfPath returns an option which disables the fallback
+// search for a default configuration file. By default, agent-style callers
+// add the platform DefaultConfPath (e.g. /etc/datadog-agent on Linux) to
+// the config component's search path. With this option, the configuration
+// is loaded only from the explicit ConfFilePath (when set) and environment
+// variables. Use this for binaries that have their own platform-default
+// location and should not silently fall back to the core agent's config
+// directory.
+func WithoutDefaultConfPath() func(*Params) {
 	return func(b *Params) {
-		b.defaultConfPath = defaultConfPath
+		b.defaultConfPath = ""
 	}
 }
 
