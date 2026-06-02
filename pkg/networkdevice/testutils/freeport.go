@@ -44,8 +44,6 @@ func UniqueTestPort(keys ...string) uint16 {
 	// ranges on every supported platform (Linux: 32768-60999, macOS/Windows:
 	// 49152-65535) and above the privileged range (<1024), so the OS will not
 	// hand out one of these ports as an ephemeral source port for another
-	// socket and steal it from the listener under test. A previous range of
-	// 62000-63999 was outside the Linux ephemeral range but inside the macOS one,
-	// which caused "bind: address already in use" flakes on macOS runners only.
+	// socket and steal it from the listener under test.
 	return uint16(20000 + (h.Sum32() % 10000))
 }
