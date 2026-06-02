@@ -17,12 +17,12 @@ import (
 // telemetry pipeline. It mirrors comp/core/agenttelemetry/impl/logs_payload.go::Log
 // and is populated only for payloads whose request_type is "agent-logs".
 type AgentTelemetryLog struct {
-	Level      string `json:"level"`
-	StackTrace string `json:"stack_trace"`
-	TracerTime int64  `json:"tracer_time"`
-	Count      int    `json:"count"`
-	IsCrash    bool   `json:"is_crash"`
-	Message    string `json:"message"`
+	Level         string `json:"level"`
+	StackTrace    string `json:"stack_trace"`
+	TracerTime    int64  `json:"tracer_time"`
+	Count         int    `json:"count"`
+	IsCrash       bool   `json:"is_crash"`
+	Message       string `json:"message"`
 	collectedTime time.Time
 }
 
