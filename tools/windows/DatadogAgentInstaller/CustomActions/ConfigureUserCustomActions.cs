@@ -15,6 +15,12 @@ namespace Datadog.CustomActions
 {
     public class ConfigureUserCustomActions
     {
+        // Name must match the property declared in WixSetup/Datadog Agent/AgentInstaller.cs
+        // and plumbed through CustomActionData in AgentCustomActions.cs SetProperties().
+        // Public because the AgentCustomActions assembly references it when persisting
+        // the value to the registry, and the test assembly when verifying the skip path.
+        public const string KeepRightsPropertyName = "DDAGENTUSER_KEEP_RIGHTS";
+
         private readonly ISession _session;
         private readonly INativeMethods _nativeMethods;
         private readonly IRegistryServices _registryServices;
@@ -121,15 +127,44 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
+        /// Returns true when the DDAGENTUSER_KEEP_RIGHTS MSI property is set to a truthy
+        /// value (1/true/yes, case-insensitive). When set, ConfigureUserAccountRights skips
+        /// re-applying the ddagentuser SeDeny*LogonRight assignments so customers can
+        /// preserve custom changes (e.g. removing SeDenyNetworkLogonRight to allow access
+        /// to network resources) across upgrades. SeServiceLogonRight is always granted
+        /// because the Agent service cannot start without it.
+        /// </summary>
+        internal bool ShouldKeepUserAccountRights()
+        {
+            var keep = _session.Property(KeepRightsPropertyName);
+            if (string.IsNullOrEmpty(keep))
+            {
+                return false;
+            }
+            return keep.Equals("1", StringComparison.OrdinalIgnoreCase)
+                   || keep.Equals("true", StringComparison.OrdinalIgnoreCase)
+                   || keep.Equals("yes", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// User Rights Assignment for ddagentuser
         /// https://learn.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/user-rights-assignment
         /// </summary>
-        private void ConfigureUserAccountRights()
+        internal void ConfigureUserAccountRights()
         {
+            // SeServiceLogonRight is always granted: the Agent service cannot start
+            // without it, so opting out via DDAGENTUSER_KEEP_RIGHTS must not strip it.
+            _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeServiceLogonRight);
+
+            if (ShouldKeepUserAccountRights())
+            {
+                _session.Log($"{KeepRightsPropertyName} is set, skipping ddagentuser SeDeny*LogonRight " +
+                             "configuration to preserve any custom rights set by the operator.");
+                return;
+            }
             _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeDenyInteractiveLogonRight);
             _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeDenyNetworkLogonRight);
             _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeDenyRemoteInteractiveLogonRight);
-            _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeServiceLogonRight);
         }
 
         private void ConfigureRegistryPermissions()

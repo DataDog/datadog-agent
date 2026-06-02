@@ -10,6 +10,10 @@
 
 <!-- Add entries here for changes not yet in a release. -->
 
+---
+
+## 7.81.0-devel.git.349.9b5ddbe-1 (2026-06-01)
+
 - Remove static libraries (`libz.a`, `libbz2.a`) from the installed package to avoid conflicts when installing Python C extensions with pip
 - Agent and trace-agent wrappers now append the caller's `LIBPATH` to the agent's own library search path, so operator-set paths (e.g. custom driver directories) are visible to the agent at runtime
 - `pip install` for C extensions (e.g. `ibm_db` for the DB2 check) no longer requires GCC 8 specifically; the embedded Python now records the compiler as `gcc` so any GCC version in the customer's PATH is used
