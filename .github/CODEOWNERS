@@ -379,16 +379,6 @@
 /comp/core/workloadmeta @DataDog/container-platform
 /comp/forwarder/connectionsforwarder @DataDog/container-experiences
 /comp/forwarder/eventplatform @DataDog/agent-log-pipelines
-/comp/forwarder/eventplatform/impl/pipelines_dbm.go                    @DataDog/database-monitoring
-/comp/forwarder/eventplatform/impl/pipelines_ndm_core.go               @DataDog/network-device-monitoring-core
-/comp/forwarder/eventplatform/impl/pipelines_ndm_integrations.go       @DataDog/ndm-integrations
-/comp/forwarder/eventplatform/impl/pipelines_networkpath.go            @DataDog/network-path
-/comp/forwarder/eventplatform/impl/pipelines_container.go              @DataDog/container-integrations @DataDog/agent-security
-/comp/forwarder/eventplatform/impl/pipelines_synthetics.go             @DataDog/synthetics-executing
-/comp/forwarder/eventplatform/impl/pipelines_eventmanagement.go        @DataDog/q-branch @DataDog/windows-products
-/comp/forwarder/eventplatform/impl/pipelines_datastreams.go            @DataDog/data-streams-monitoring
-/comp/forwarder/eventplatform/impl/pipelines_dataobservability.go      @DataDog/data-observability
-/comp/forwarder/eventplatform/impl/pipelines_softwareinventory.go      @DataDog/windows-products
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
 /comp/forwarder/orchestrator @DataDog/kubernetes-experiences
 /comp/metadata/clusteragent @DataDog/container-platform
@@ -429,6 +419,20 @@
 /comp/syntheticstestscheduler @DataDog/synthetics-executing
 /comp/workloadselection @DataDog/injection-platform
 # END COMPONENTS
+
+# Per-team ownership of individual event platform pipeline descriptor files.
+# Each file holds the passthroughPipelineDesc entries for one owning team so
+# that teams can merge pipeline config changes without Logs team review.
+/comp/forwarder/eventplatform/impl/pipelines_dbm.go                    @DataDog/database-monitoring
+/comp/forwarder/eventplatform/impl/pipelines_ndm_core.go               @DataDog/network-device-monitoring-core
+/comp/forwarder/eventplatform/impl/pipelines_ndm_integrations.go       @DataDog/ndm-integrations
+/comp/forwarder/eventplatform/impl/pipelines_networkpath.go            @DataDog/network-path
+/comp/forwarder/eventplatform/impl/pipelines_container.go              @DataDog/container-integrations @DataDog/agent-security
+/comp/forwarder/eventplatform/impl/pipelines_synthetics.go             @DataDog/synthetics-executing
+/comp/forwarder/eventplatform/impl/pipelines_eventmanagement.go        @DataDog/q-branch @DataDog/windows-products
+/comp/forwarder/eventplatform/impl/pipelines_datastreams.go            @DataDog/data-streams-monitoring
+/comp/forwarder/eventplatform/impl/pipelines_dataobservability.go      @DataDog/data-observability
+/comp/forwarder/eventplatform/impl/pipelines_softwareinventory.go      @DataDog/windows-products
 
 /comp/core/agenttelemetry               @DataDog/agent-health
 
