@@ -132,52 +132,35 @@ func maybeOpenPrivileged(path string, originalError error, policy common.Symlink
 	return file, nil
 }
 
-// Open attempts to open a file, and if it fails due to permissions, it opens
-// the file using system-probe if the privileged logs module is available.
-func Open(path string) (*os.File, error) {
-	file, err := os.Open(path)
+// Open attempts to open a file. The symlink policy must be [common.FollowSymlinks]
+// or [common.RejectSymlinks]; the zero value returns an error.
+//
+// With [common.FollowSymlinks], opening uses normal path resolution; if open fails
+// with permission denied, the file may be opened via system-probe when privileged
+// logs is enabled.
+//
+// With [common.RejectSymlinks], each path component is traversed with O_NOFOLLOW,
+// rejecting any symbolic link in the path.  If the file exists but opening it fails
+// with permission denied rather than a symlink (ELOOP), privileged-log escalation
+// via system-probe is attempted, and the NoFollow flag is forwarded so that
+// system-probe also skips symbolic-link resolution.  Use this for file sources
+// discovered by the process_log provider, where the path comes from /proc/<pid>/fd
+// and is canonical at discovery time; any symlink found later is an
+// attacker-controlled swap and must be rejected.
+func Open(path string, policy common.SymlinkPolicy) (*os.File, error) {
+	var file *os.File
+	var err error
+
+	if policy == common.FollowSymlinks {
+		file, err = os.Open(path)
+	} else {
+		file, err = common.OpenPathWithoutSymlinks(path)
+	}
 	if err == nil || !errors.Is(err, os.ErrPermission) {
 		return file, err
 	}
 
-	file, err = maybeOpenPrivileged(path, err, common.FollowSymlinks)
-	if err != nil {
-		return nil, err
-	}
-
-	return file, nil
-}
-
-// OpenNoFollow opens a file by traversing each path component with O_NOFOLLOW,
-// rejecting any symbolic link in the path.  If the file exists but opening it
-// fails with permission denied rather than a symlink (ELOOP), privileged-log
-// escalation via system-probe is attempted, and the NoFollow flag is forwarded
-// so that system-probe also skips symbolic-link resolution.
-//
-// This function is used for file sources discovered by the process_log provider,
-// where the path comes from /proc/<pid>/fd and is canonical at discovery time.
-// Any symlink found later is an attacker-controlled swap and must be rejected.
-func OpenNoFollow(path string) (*os.File, error) {
-	file, err := common.OpenPathWithoutSymlinks(path)
-	if err == nil {
-		return file, nil
-	}
-
-	// A symlink in the path (ELOOP) or any other non-permission error must not
-	// be escalated: we only escalate real access-denied errors on the actual file.
-	if !errors.Is(err, os.ErrPermission) {
-		if errors.Is(err, syscall.ELOOP) {
-			log.Warnf("process_log path %q contains a symbolic link that was not present at discovery time — possible symlink-swap attack; refusing to open", path)
-		}
-		return nil, err
-	}
-
-	file, err = maybeOpenPrivileged(path, err, common.RejectSymlinks)
-	if err != nil {
-		return nil, err
-	}
-
-	return file, nil
+	return maybeOpenPrivileged(path, err, policy)
 }
 
 // Stat attempts to stat a file, and if it fails due to permissions, it opens

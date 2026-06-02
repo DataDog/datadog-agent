@@ -7,7 +7,6 @@
 package opener
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/spf13/afero"
@@ -52,17 +51,8 @@ type fileOpenerImpl struct {
 // On some operating systems, this will involve making an attempt to open the file via a privileged logs client.
 // If the file is not intended to attempt privilege escalation for access (e.g. it is not a log file), then the OpenShared
 // function should be used instead. This will minimize avoidable error logs for failed privilege escalation attempts.
-//
-// The caller must provide an explicit SymlinkPolicy; passing the zero value returns an error.
 func (f *fileOpenerImpl) OpenLogFile(path string, policy SymlinkPolicy) (afero.File, error) {
-	switch policy {
-	case FollowSymlinks:
-		return internalOpener.OpenLogFile(path)
-	case RejectSymlinks:
-		return internalOpener.OpenLogFileNoFollow(path)
-	default:
-		return nil, fmt.Errorf("opener: invalid SymlinkPolicy %d; must be FollowSymlinks or RejectSymlinks", policy)
-	}
+	return internalOpener.OpenLogFile(path, policy)
 }
 
 // OpenShared utilizes an os-specific implementation to open a generic file in a shared mode.

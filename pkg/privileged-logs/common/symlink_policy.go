@@ -11,13 +11,10 @@ package common
 type SymlinkPolicy int
 
 const (
-	// symlinkPolicyInvalid is the zero value.  Passing it to any open function
-	// causes an error so that new call sites cannot silently get the wrong behaviour.
-	symlinkPolicyInvalid SymlinkPolicy = iota
 	// FollowSymlinks resolves symbolic links when opening a file.  Use for
 	// file sources whose paths are admin-specified or come from the container
 	// runtime (e.g. /var/log/pods/…).
-	FollowSymlinks
+	FollowSymlinks SymlinkPolicy = iota
 	// RejectSymlinks opens every path component with O_NOFOLLOW so that any
 	// symlink encountered causes an immediate error.  Use for file sources
 	// whose paths are resolved from /proc/<pid>/fd by the process_log provider:

@@ -64,14 +64,14 @@ func assertOpenPrivilegedContent(t *testing.T, socketPath, filePath, expectedCon
 }
 
 func assertClientOpenError(t *testing.T, filePath, expectedErrorMsg string) {
-	file, err := client.Open(filePath)
+	file, err := client.Open(filePath, common.FollowSymlinks)
 	require.Error(t, err)
 	assert.Nil(t, file)
 	assert.Contains(t, err.Error(), expectedErrorMsg)
 }
 
 func assertClientOpenContent(t *testing.T, filePath, expectedContent string) {
-	file, err := client.Open(filePath)
+	file, err := client.Open(filePath, common.FollowSymlinks)
 	require.NoError(t, err)
 	defer file.Close()
 
@@ -239,7 +239,7 @@ func (s *PrivilegedLogsSuite) TestOpen_PermissionErrorWithModuleFailure() {
 
 	setupSystemProbeConfig(s.T(), "/nonexistent/socket", true)
 
-	file, err := client.Open(testFile)
+	file, err := client.Open(testFile, common.FollowSymlinks)
 	require.Error(t, err)
 	assert.Nil(t, file)
 	assert.Contains(t, err.Error(), "failed to open file with system-probe")
@@ -253,7 +253,7 @@ func (s *PrivilegedLogsSuite) TestOpen_PermissionErrorWithModuleFailure() {
 }
 
 func (s *PrivilegedLogsSuite) TestOpen_NonPermissionError() {
-	file, err := client.Open("/nonexistent/file.log")
+	file, err := client.Open("/nonexistent/file.log", common.FollowSymlinks)
 	t := s.T()
 	require.Error(t, err)
 	assert.Nil(t, file)

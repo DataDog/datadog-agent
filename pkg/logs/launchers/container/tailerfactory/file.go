@@ -125,7 +125,7 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 	// try to fall back to reading from a socket.  Container log paths (e.g.
 	// /var/log/pods/…) are symlinks created by the container runtime intentionally,
 	// so symlink-following is correct here.
-	f, err := opener.OpenLogFile(path)
+	f, err := opener.OpenLogFile(path, opener.FollowSymlinks)
 	if err != nil {
 		// (this error already has the form 'open <path>: ..' so needs no further embellishment)
 		return nil, err

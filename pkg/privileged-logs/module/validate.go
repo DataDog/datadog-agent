@@ -123,7 +123,7 @@ func validateAndOpenWithPrefix(path, allowedPrefix string, policy common.Symlink
 	// component with O_NOFOLLOW to ensure that none of the path components
 	// were replaced with symlinks after we called EvalSymlinks (follow mode),
 	// or to enforce that the path has no symlinks at all (no-follow mode).
-	file, err := openPathWithoutSymlinks(resolvedPath)
+	file, err := common.OpenPathWithoutSymlinks(resolvedPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open path %s: %w", resolvedPath, err)
 	}

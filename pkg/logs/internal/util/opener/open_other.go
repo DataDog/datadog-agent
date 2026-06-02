@@ -9,22 +9,24 @@
 package opener
 
 import (
+	"fmt"
 	"os"
 
+	"github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
-// OpenLogFile opens a file with filesystem.OpenShared
-func OpenLogFile(path string) (*os.File, error) {
-	return filesystem.OpenShared(path)
-}
-
-// OpenLogFileNoFollow opens a file.  On non-Linux platforms this is identical to
-// OpenLogFile because the process_log provider (which is the only caller that requests
-// symlink rejection) relies on /proc/<pid>/fd and therefore only produces sources on
-// Linux; symlink rejection for those sources is enforced by the Linux implementation.
-func OpenLogFileNoFollow(path string) (*os.File, error) {
-	return filesystem.OpenShared(path)
+// OpenLogFile opens a file with filesystem.OpenShared.
+// On non-Linux platforms symlink rejection requested via [common.RejectSymlinks]
+// cannot be enforced the same way as on Linux; behaviour matches [common.FollowSymlinks]
+// because the process_log provider only produces these paths on Linux.
+func OpenLogFile(path string, policy common.SymlinkPolicy) (*os.File, error) {
+	switch policy {
+	case common.FollowSymlinks, common.RejectSymlinks:
+		return filesystem.OpenShared(path)
+	default:
+		return nil, fmt.Errorf("opener: invalid SymlinkPolicy %d; must be FollowSymlinks or RejectSymlinks", policy)
+	}
 }
 
 // StatLogFile stats a log file

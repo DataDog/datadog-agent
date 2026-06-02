@@ -10,19 +10,17 @@ import (
 	"os"
 
 	privilegedlogsclient "github.com/DataDog/datadog-agent/pkg/privileged-logs/client"
+	"github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
+)
+
+const (
+	FollowSymlinks = common.FollowSymlinks
+	RejectSymlinks = common.RejectSymlinks
 )
 
 // OpenLogFile opens a file with the privileged logs client.
-func OpenLogFile(path string) (*os.File, error) {
-	return privilegedlogsclient.Open(path)
-}
-
-// OpenLogFileNoFollow opens a file with the privileged logs client, rejecting any
-// symlink in the path.  It is used for file sources discovered by the process_log
-// provider, where the path is canonical at discovery time and a symlink found later
-// indicates an attacker-controlled swap.
-func OpenLogFileNoFollow(path string) (*os.File, error) {
-	return privilegedlogsclient.OpenNoFollow(path)
+func OpenLogFile(path string, policy common.SymlinkPolicy) (*os.File, error) {
+	return privilegedlogsclient.Open(path, policy)
 }
 
 // StatLogFile stats a log file with the privileged logs client

@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	privilegedlogsclient "github.com/DataDog/datadog-agent/pkg/privileged-logs/client"
+	plcommon "github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -218,7 +219,7 @@ func checkFileReadable(logPath string) error {
 	// Check readability with the privileged logs client to match what the
 	// log tailer uses.  That client can use the privileged logs module in
 	// system-probe if it is available.
-	file, err := privilegedlogsclient.Open(logPath)
+	file, err := privilegedlogsclient.Open(logPath, plcommon.RejectSymlinks)
 	if err != nil {
 		log.Infof("Discovered log file %s could not be opened: %v", logPath, err)
 		return err
