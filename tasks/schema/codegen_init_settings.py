@@ -204,19 +204,14 @@ def try_parse_duration(text):
     return ' + '.join(parts)
 
 
-def as_go_array(text):
+def as_go_value(text):
     if not isinstance(text, str):
         text = str(text)
     text = text.replace('[', '{')
     text = text.replace(']', '}')
     text = text.replace('\'', '"')
-    return text
-
-
-def as_go_value(text):
-    if not isinstance(text, str):
-        text = str(text)
-    text = text.replace('\'', '"')
+    text = text.replace('True', 'true')
+    text = text.replace('False', 'false')
     return text
 
 
@@ -241,13 +236,17 @@ def retrieve_default_value(keypath, schema):
     if settingType is None:
         return 'nil'
 
+    if curr.get('platform_default'):
+        platform_default = as_go_value(curr['platform_default'])
+        return f"GetPlatformDefault(map[string]interface{{}}{platform_default})"
+
     if settingType == 'array':
         if curr is None or curr.get('items') is None:
             return '[]interface{}{}'
         settingItemsType = curr.get('items').get('type')
         if settingItemsType == 'object':
-            return f"[]map[string]interface\{'{}' + as_go_array(settingDefault)}"
-        return f"[]{settingItemsType}{as_go_array(settingDefault)}"
+            return f"[]map[string]interface\{'{}' + as_go_value(settingDefault)}"
+        return f"[]{settingItemsType}{as_go_value(settingDefault)}"
 
     elif settingType == 'boolean':
         if settingDefault:

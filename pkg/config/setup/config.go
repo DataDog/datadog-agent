@@ -1597,3 +1597,13 @@ func IsCLCRunner(config pkgconfigmodel.Reader) bool {
 
 	return true
 }
+
+func GetPlatformDefault(platformValues map[string]interface{}) interface{} {
+	if val, found := platformValues[runtime.GOOS]; found {
+		return val
+	}
+	if val, found := platformValues["other"]; found {
+		return val
+	}
+	return nil
+}
