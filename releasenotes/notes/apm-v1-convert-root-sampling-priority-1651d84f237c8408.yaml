@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    APM : Fix an issue where converting traces to the v1 format did not prefer the root span's sampling priority when multiple ``_sampling_priority_v1`` values were present on spans in the same trace.

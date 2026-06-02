@@ -10,26 +10,35 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	_ "net/http/pprof" // activate pprof profiling
 	"os"
 	"os/signal"
 	"os/user"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
+	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
+	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
+	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
@@ -38,30 +47,35 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	systemprobeloggerfx "github.com/DataDog/datadog-agent/comp/core/log/fx-systemprobe"
-	"github.com/DataDog/datadog-agent/comp/core/pid"
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
+	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
+	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
+	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-systemprobe"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
+	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigfx "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/fx"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
 	remoteWorkloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-remote"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
+	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
+	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
+	npcollectorfx "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/fx"
 	localtraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-local"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	rcclientfx "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -71,7 +85,6 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	systemprobeconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -83,7 +96,18 @@ import (
 // ErrNotEnabled represents the case in which system-probe is not enabled
 var ErrNotEnabled = errors.New("system-probe not enabled")
 
-const configPrefix = systemprobeconfig.Namespace + "."
+// spLiteExecCmd holds the resolved path and arguments for execing into system-probe-lite.
+type spLiteExecCmd struct {
+	Path string
+	Args []string
+	Env  []string
+}
+
+// configPrefix is the system-probe config namespace (avoids importing pkg/system-probe/config and its setup dependency cycle).
+const configPrefix = "system_probe_config."
+
+// configstreamConsumerEnabledEnvVar is the environment variable that controls whether the configstream consumer is enabled.
+const configstreamConsumerEnabledEnvVar = "DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED"
 
 type cliParams struct {
 	*command.GlobalParams
@@ -104,7 +128,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Run the System Probe",
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(run,
+			opts := []fx.Option{
 				fx.Invoke(func(_ log.Component) {
 					ddruntime.SetMaxProcs()
 				}),
@@ -112,7 +136,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 				getSharedFxOption(),
-			)
+			}
+			if isConfigstreamEnabled(globalParams.DatadogConfFilePath()) {
+				opts = append(opts, configstreamFxOptions())
+			}
+			return fxutil.OneShot(run, opts...)
 		},
 	}
 	runCmd.Flags().StringVarP(&cliParams.pidfilePath, "pid", "p", "", "path to the pidfile")
@@ -124,14 +152,15 @@ func getSharedFxOption() fx.Option {
 	return fx.Options(
 		fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile)),
 		config.Module(),
-		sysprobeconfigimpl.Module(),
+		delegatedauthnoopfx.Module(),
+		sysprobeconfigfx.Module(),
 		systemprobeloggerfx.Module(),
-		telemetryimpl.Module(),
-		pidimpl.Module(),
+		telemetryfx.Module(),
+		pidfx.Module(),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
 		secretsnoopfx.Module(),
-		statsd.Module(),
-		rcclientimpl.Module(),
+		statsdFx.Module(),
+		rcclientfx.Module(),
 		fx.Provide(func(config config.Component, sysprobeconfig sysprobeconfig.Component) healthprobe.Options {
 			return healthprobe.Options{
 				Port:           sysprobeconfig.SysProbeObject().HealthPort,
@@ -146,7 +175,7 @@ func getSharedFxOption() fx.Option {
 		remoteWorkloadfilterfx.Module(),
 		ipcfx.ModuleReadWrite(),
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
-		autoexitimpl.Module(),
+		autoexitfx.Module(),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
 			profilingGoRoutines := commonsettings.NewProfilingGoroutines()
 			profilingGoRoutines.ConfigPrefix = configPrefix
@@ -163,22 +192,96 @@ func getSharedFxOption() fx.Option {
 				Config: sysprobeconfig,
 			}
 		}),
-		settingsimpl.Module(),
+		settingsfx.Module(),
 		logscompressionfx.Module(),
 		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
 			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
-		remotehostnameimpl.Module(),
-		configsyncimpl.Module(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
+		remotehostnameimpl.Module(
+			remotehostnameimpl.WithMaxAttempts(10),
+			remotehostnameimpl.WithMaxRetryDelay(15*time.Second),
+		),
+		configsyncfx.Module(configsync.NewParams(configSyncTimeout, true, configSyncTimeout)),
 		remoteagentfx.Module(),
 		fxinstrumentation.Module(),
 		localtraceroute.Module(),
 		connectionsforwarderfx.Module(),
 		eventplatformreceiverimpl.Module(),
-		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 		rdnsquerierfx.Module(),
-		npcollectorimpl.Module(),
+		npcollectorfx.Module(),
 	)
+}
+
+// configstreamFxOptions returns FX options for the config stream consumer.
+// Only include this when remote_agent.configstream.consumer.enabled is true.
+func configstreamFxOptions() fx.Option {
+	return fx.Options(
+		// Expose config.Component as model.Writer for the config stream consumer to write remote config into.
+		fx.Provide(func(c config.Component) model.Writer {
+			return c
+		}),
+		// SessionIDProvider from RAR: only system-probe's remote agent implements this.
+		fx.Provide(func(ra remoteagent.Component) configstreamconsumer.SessionIDProvider {
+			if ra == nil {
+				return nil
+			}
+			if p, ok := ra.(configstreamconsumer.SessionIDProvider); ok {
+				return p
+			}
+			return nil
+		}),
+		fx.Provide(func(c config.Component, sessionProvider configstreamconsumer.SessionIDProvider) configstreamconsumer.Params {
+			host := c.GetString("cmd_host")
+			port := c.GetInt("cmd_port")
+			if port <= 0 {
+				port = 5001
+			}
+			return configstreamconsumer.Params{
+				ClientName:        "system-probe",
+				CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
+				SessionIDProvider: sessionProvider,
+			}
+		}),
+		configstreamconsumerfx.Module(),
+		// Trigger instantiation; OnStart handles the blocking wait internally.
+		fx.Invoke(func(_ configstreamconsumer.Component) {}),
+	)
+}
+
+// isConfigstreamEnabled is a pre-FX feature flag check; the env var takes precedence over YAML.
+func isConfigstreamEnabled(cliConfigPath string) bool {
+	if v, ok := os.LookupEnv(configstreamConsumerEnabledEnvVar); ok {
+		if enabled, err := strconv.ParseBool(v); err == nil {
+			return enabled
+		}
+	}
+	for _, path := range []string{cliConfigPath, config.DefaultConfPath} {
+		if path == "" {
+			continue
+		}
+		if !strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml") {
+			path = filepath.Join(path, "datadog.yaml")
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var cfg struct {
+			RemoteAgent struct {
+				ConfigStream struct {
+					Consumer struct {
+						Enabled bool `yaml:"enabled"`
+					} `yaml:"consumer"`
+				} `yaml:"configstream"`
+			} `yaml:"remote_agent"`
+		}
+		if err := yaml.Unmarshal(data, &cfg); err != nil {
+			return false
+		}
+		return cfg.RemoteAgent.ConfigStream.Consumer.Enabled
+	}
+	return false
 }
 
 // run starts the main loop.
@@ -190,8 +293,17 @@ func run(
 	_ autoexit.Component,
 	settings settings.Component,
 	_ ipc.Component,
+	pidParams pidimpl.Params,
 	deps module.FactoryDependencies,
 ) error {
+	if cmd := maybeSPLite(deps.SysprobeConfig, pidParams.PIDfilePath, deps.Log); cmd != nil {
+		deps.Log.Infof("execing into system-probe-lite: %s %v", cmd.Path, cmd.Args)
+		deps.Log.Flush()
+		if err := syscall.Exec(cmd.Path, cmd.Args, cmd.Env); err != nil {
+			deps.Log.Warnf("failed to exec into system-probe-lite: %s, falling back to running discovery in system-probe", err)
+		}
+	}
+
 	defer stopSystemProbe()
 
 	if deps.SysprobeConfig.GetBool("system_probe_config.disable_thp") {

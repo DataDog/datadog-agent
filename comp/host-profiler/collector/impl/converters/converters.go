@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 // Package converters implements OTEL collector configuration converters for the host profiler.
 //
 // Converters normalize user-provided OTEL collector configs by adding required Datadog-specific
@@ -17,8 +15,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 )
@@ -28,32 +26,43 @@ func NewFactoryWithoutAgent() confmap.ConverterFactory {
 	return confmap.NewConverterFactory(newConverterWithoutAgent)
 }
 
-// NewFactoryWithAgent returns a new converterWithAgent factory.
-func NewFactoryWithAgent(c config.Component) confmap.ConverterFactory {
-	newConverterWithAgentWrapper := func(settings confmap.ConverterSettings) confmap.Converter {
-		return newConverterWithAgent(settings, c)
-	}
-
-	return confmap.NewConverterFactory(newConverterWithAgentWrapper)
-}
-
 type confMap = map[string]any
+
+// AutoConfiguredID is the OTEL component name suffix used for all components
+// that are automatically injected by the host profiler (as opposed to components
+// explicitly declared by the user).
+const AutoConfiguredID = "dd-autoconfigured"
 
 // Component type names for OTEL configuration
 const (
-	componentTypeInfraAttributes   = "infraattributes"
-	componentTypeResourceDetection = "resourcedetection"
-	componentTypeHostProfiler      = "hostprofiler"
-	componentTypeOtlpHTTP          = "otlphttp"
-	componentTypeDDProfiling       = "ddprofiling"
-	componentTypeHPFlare           = "hpflare"
+	componentTypeInfraAttributes     = "infraattributes"
+	componentTypeResourceDetection   = "resourcedetection"
+	componentTypeDDHostNameProcessor = "ddhostname"
+	componentTypeProfiling           = "profiling"
+	componentTypeDDProfiling         = "ddprofiling"
+	componentTypeHPFlare             = "hpflare"
+)
+
+// Component type names for otlp_http
+const (
+	componentTypeOtlpHTTP           = "otlp_http"
+	componentTypeOtlpHTTPDeprecated = "otlphttp"
 )
 
 // Default component names
 const (
-	defaultInfraAttributesName   = "infraattributes/default"
-	defaultResourceDetectionName = "resourcedetection/default"
-	defaultHostProfilerName      = "hostprofiler"
+	defaultInfraAttributesName     = componentTypeInfraAttributes + "/" + AutoConfiguredID
+	defaultResourceDetectionName   = componentTypeResourceDetection + "/" + AutoConfiguredID
+	defaultDDHostNameProcessorName = componentTypeDDHostNameProcessor + "/" + AutoConfiguredID
+	defaultProfilingName           = "profiling"
+)
+
+// Reserved component names for internal metrics pipeline
+const (
+	reservedPrometheusReceiver         = "prometheus/dd-hp-internal"
+	reservedFilterProcessor            = "filter/dd-hp-drop-internal"
+	reservedCumulativeToDeltaProcessor = "cumulativetodelta/dd-hp-internal"
+	internalHealthMetricsPipelineName  = "metrics/profiler-internal-health"
 )
 
 // Configuration paths used multiple times across converters
@@ -64,10 +73,11 @@ const (
 
 // Configuration field names used multiple times
 const (
-	fieldAllowHostnameOverride = "allow_hostname_override"
-	fieldDDAPIKey              = "dd-api-key"
-	fieldAPIKey                = "api_key"
-	fieldAppKey                = "app_key"
+	fieldDDAPIKey           = "dd-api-key"
+	fieldDDEVPOrigin        = "dd-evp-origin"
+	fieldDDEVPOriginVersion = "dd-evp-origin-version"
+	fieldAPIKey             = "api_key"
+	fieldAppKey             = "app_key"
 )
 
 // OTEL config path prefixes
@@ -79,9 +89,14 @@ const (
 
 // isComponentType checks if a component name matches a specific type.
 // OTEL components follow the naming convention: "type" or "type/id"
-// Examples: "otlphttp", "otlphttp/prod", "hostprofiler/custom"
+// Examples: "otlp_http", "otlp_http/prod", "profiling/custom"
 func isComponentType(name, componentType string) bool {
 	return name == componentType || strings.HasPrefix(name, componentType+"/")
+}
+
+// isComponentTypeOtlpHTTP checks for both the current ("otlp_http") and deprecated ("otlphttp") component names.
+func isComponentTypeOtlpHTTP(name string) bool {
+	return isComponentType(name, componentTypeOtlpHTTP) || isComponentType(name, componentTypeOtlpHTTPDeprecated)
 }
 
 // Get retrieves a value of type T from the confMap at the given path.
@@ -234,6 +249,7 @@ func ensureKeyStringValue(config confMap, key string) bool {
 
 // addProfilerMetadataTags always creates a dedicated resource/profiler-metadata processor
 // without searching for existing resource processors.
+// This function emits OTel semantic convention tags and must only be called from the standalone (no-agent) path.
 func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, error) {
 	const resourceProcessorName = "resource/dd-profiler-internal-metadata"
 
@@ -260,12 +276,12 @@ func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, err
 	}
 
 	profilerNameElement := confMap{
-		"key":    "profiler_name",
-		"value":  version.ProfilerName,
+		"key":    version.OTelProfilerNameKey,
+		"value":  version.StandaloneProfilerName,
 		"action": "upsert",
 	}
 	profilerVersionElement := confMap{
-		"key":    "profiler_version",
+		"key":    version.OTelProfilerVersionKey,
 		"value":  version.ProfilerVersion,
 		"action": "upsert",
 	}
@@ -277,4 +293,67 @@ func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, err
 	}
 
 	return append(profilesProcessors, resourceProcessorName), nil
+}
+
+// inferMetricsEndpoint derives OTLP metrics endpoint from profiles endpoint.
+// Transforms profile intake URLs to OTLP metrics endpoints by extracting the site.
+//
+// Examples:
+//   - "https://intake.profile.us3.datadoghq.com/v1development/profiles" -> "https://otlp.us3.datadoghq.com/v1/metrics"
+//   - "https://intake.profile.datadoghq.com/v1development/profiles" -> "https://otlp.datadoghq.com/v1/metrics"
+//
+// Returns an error if the URL cannot be parsed or if the site cannot be extracted.
+func inferMetricsEndpoint(profilesEndpoint string) (string, error) {
+	site := configutils.ExtractSiteFromURL(profilesEndpoint)
+	if site == "" {
+		return "", fmt.Errorf("cannot extract site from URL: %s", profilesEndpoint)
+	}
+
+	return fmt.Sprintf("https://otlp.%s/v1/metrics", site), nil
+}
+
+// PrometheusReceiverConfig returns the default configuration for the internal prometheus receiver
+// that scrapes OTel collector's internal telemetry metrics from 127.0.0.1:8889.
+func PrometheusReceiverConfig() map[string]any {
+	return PrometheusReceiverConfigWithTarget("127.0.0.1:8889")
+}
+
+// PrometheusReceiverConfigWithTarget returns a prometheus receiver config that scrapes the given target.
+func PrometheusReceiverConfigWithTarget(target string) map[string]any {
+	return confMap{
+		"config": confMap{
+			"scrape_configs": []any{
+				confMap{
+					"job_name":                      "host-profiler-internal",
+					"metric_name_validation_scheme": "legacy",
+					"metric_name_escaping_scheme":   "underscores",
+					"scrape_interval":               "60s",
+					"scrape_protocols":              []any{"PrometheusText0.0.4"},
+					"fallback_scrape_protocol":      "PrometheusText0.0.4",
+					"static_configs": []any{
+						confMap{
+							"targets": []any{target},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// FilterProcessorConfig returns the default configuration for the filter processor
+// that drops internal prometheus scrape metrics from being exported.
+func FilterProcessorConfig() map[string]any {
+	return confMap{
+		"metrics": confMap{
+			"exclude": confMap{
+				"match_type": "regexp",
+				"metric_names": []any{
+					"^scrape_.*$",                            // Prometheus scraper timing metrics
+					"^up$",                                   // Scraper up/down status
+					"^promhttp_metric_handler_errors_total$", // Prometheus HTTP handler errors
+				},
+			},
+		},
+	}
 }

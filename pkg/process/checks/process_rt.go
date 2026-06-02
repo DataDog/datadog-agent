@@ -124,6 +124,11 @@ func fmtProcessStats(
 			ioStat = formatIO(fp, lastProcs[pid].IOStat, now, lastRun)
 		}
 
+		var voluntaryCtxSwitches, involuntaryCtxSwitches uint64
+		if fp.CtxSwitches != nil {
+			voluntaryCtxSwitches = uint64(fp.CtxSwitches.Voluntary)
+			involuntaryCtxSwitches = uint64(fp.CtxSwitches.Involuntary)
+		}
 		stat := &model.ProcessStat{
 			Pid:                    pid,
 			CreateTime:             fp.CreateTime,
@@ -134,8 +139,8 @@ func fmtProcessStats(
 			OpenFdCount:            fp.OpenFdCount,
 			ProcessState:           model.ProcessState(model.ProcessState_value[fp.Status]),
 			IoStat:                 ioStat,
-			VoluntaryCtxSwitches:   uint64(fp.CtxSwitches.Voluntary),
-			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
+			VoluntaryCtxSwitches:   voluntaryCtxSwitches,
+			InvoluntaryCtxSwitches: involuntaryCtxSwitches,
 			ContainerId:            pidToCid[int(pid)],
 		}
 

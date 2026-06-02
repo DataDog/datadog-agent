@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed a command injection vulnerability in the Private Action Runner's inline
+    PowerShell script execution. Parameter values are now assigned as PowerShell
+    single-quoted string literals in a preamble instead of being substituted
+    directly into the script body, preventing arbitrary code execution via
+    crafted parameter inputs.

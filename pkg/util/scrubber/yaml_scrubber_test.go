@@ -167,6 +167,93 @@ func TestConfigScrubbedYaml(t *testing.T) {
 	assert.Equal(t, trimmedOutput, trimmedCleaned)
 }
 
+func TestAdditionalEndpointsScrub(t *testing.T) {
+	t.Run("URL-keyed map: opaque API keys are scrubbed", func(t *testing.T) {
+		input := `additional_endpoints:
+  "https://mydomain.datadoghq.com":
+    - apikey2
+    - apikey3
+  "https://mydomain.datadoghq.eu":
+    - apikey4
+`
+		expected := `additional_endpoints:
+  "https://mydomain.datadoghq.com":
+    - "********"
+    - "********"
+  "https://mydomain.datadoghq.eu":
+    - "********"
+`
+		scrubbed, err := ScrubYamlString(input)
+		require.NoError(t, err)
+		require.YAMLEq(t, expected, scrubbed)
+	})
+
+	t.Run("URL-keyed map: URL keys themselves are preserved", func(t *testing.T) {
+		input := `additional_endpoints:
+  "https://mydomain.datadoghq.com":
+    - secret
+`
+		scrubbed, err := ScrubYamlString(input)
+		require.NoError(t, err)
+		assert.Contains(t, scrubbed, "https://mydomain.datadoghq.com")
+	})
+
+	t.Run("URL-keyed map: siblings are untouched", func(t *testing.T) {
+		input := `site: datadoghq.com
+additional_endpoints:
+  "https://mydomain.datadoghq.com":
+    - apikey2
+`
+		scrubbed, err := ScrubYamlString(input)
+		require.NoError(t, err)
+		assert.Contains(t, scrubbed, "site: datadoghq.com")
+	})
+
+	t.Run("URL-keyed map: ENC placeholders are preserved", func(t *testing.T) {
+		input := `additional_endpoints:
+  "https://mydomain.datadoghq.com":
+    - ENC[my_secret_key]
+    - apikey3
+`
+		expected := `additional_endpoints:
+  "https://mydomain.datadoghq.com":
+    - ENC[my_secret_key]
+    - "********"
+`
+		scrubbed, err := ScrubYamlString(input)
+		require.NoError(t, err)
+		require.YAMLEq(t, expected, scrubbed)
+	})
+
+	t.Run("list-of-endpoint-structs: only api_key is scrubbed", func(t *testing.T) {
+		// This is the format used by logs_config.additional_endpoints and other
+		// bindEnvAndSetLogsConfigKeys-prefixed bindings.
+		input := `logs_config:
+  additional_endpoints:
+    - api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+      host: agent-http-intake.logs.datadoghq.com
+      port: 443
+      use_ssl: true
+      path_prefix: /v1
+    - api_key: cccccccccccccccccccccccccccccccc
+      host: backup-intake.logs.datadoghq.eu
+      port: 10516
+      use_ssl: false
+`
+		scrubbed, err := ScrubYamlString(input)
+		require.NoError(t, err)
+		// API keys should be scrubbed
+		assert.NotContains(t, scrubbed, "aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb")
+		assert.NotContains(t, scrubbed, "cccccccccccccccccccccccccccccccc")
+		// Non-sensitive fields must be preserved
+		assert.Contains(t, scrubbed, "agent-http-intake.logs.datadoghq.com")
+		assert.Contains(t, scrubbed, "backup-intake.logs.datadoghq.eu")
+		assert.Contains(t, scrubbed, "443")
+		assert.Contains(t, scrubbed, "10516")
+		assert.Contains(t, scrubbed, "/v1")
+	})
+}
+
 func TestEmptyYaml(t *testing.T) {
 	cleaned, err := ScrubYaml(nil)
 	require.NoError(t, err)
@@ -191,7 +278,7 @@ func TestAddStrippedKeysExceptions(t *testing.T) {
 
 		scrubbed, err := ScrubYamlString(contents)
 		require.Nil(t, err)
-		require.YAMLEq(t, `api_key: '***************************aaaaa'`, scrubbed)
+		require.YAMLEq(t, `api_key: '****************************aaaa'`, scrubbed)
 	})
 
 	t.Run("multiple keys", func(t *testing.T) {
@@ -208,9 +295,9 @@ yet_another_key: 'dddd'`
 
 		scrubbed, err := ScrubYamlString(contents)
 		require.Nil(t, err)
-		expected := `api_key: '***************************aaaaa'
+		expected := `api_key: '****************************aaaa'
 some_other_key: '********'
-app_key: '***********************************acccc'
+app_key: '************************************cccc'
 yet_another_key: 'dddd'`
 		require.YAMLEq(t, expected, scrubbed)
 	})
@@ -233,12 +320,12 @@ func TestNewAPIKeyAndAuthPatterns(t *testing.T) {
 				"apikey":  "secret678",
 			},
 			expected: map[string]interface{}{
-				"APIKEY":  "********",
-				"API_KEY": "********",
-				"ApiKey":  "********",
-				"Api_key": "********",
-				"api-key": "********",
-				"apikey":  "********",
+				"APIKEY":  "*******23",
+				"API_KEY": "*******56",
+				"ApiKey":  "*******89",
+				"Api_key": "*******12",
+				"api-key": "*******45",
+				"apikey":  "*******78",
 			},
 		},
 		{
@@ -394,7 +481,8 @@ func TestScrubbingENC(t *testing.T) {
 password: ENC
 token: [not_enc]`)
 		require.NoError(t, err)
-		require.YAMLEq(t, `api_key: "********"
+		// api_key: "ENC[incomplete" is 14 chars → 2 chars visible ("te")
+		require.YAMLEq(t, `api_key: "************te"
 password: "********"
 token: "********"`, result)
 	})
@@ -440,6 +528,14 @@ token: "********"`, result)
 		ScrubDataObj(&input)
 		assert.Equal(t, expected, input)
 	})
+}
+
+func TestAPIKeyScrubNonStandardLength(t *testing.T) {
+	// Non-standard-length api_key values (e.g. from a secret manager) use the
+	// dynamic formula: "secretmanagerresolvedkeyabcd" is 28 chars → 3 chars visible.
+	result, err := ScrubYamlString(`api_key: secretmanagerresolvedkeyabcd`)
+	require.NoError(t, err)
+	require.YAMLEq(t, `api_key: "*************************bcd"`, result)
 }
 
 func TestComplexYAMLWithNewKeys(t *testing.T) {

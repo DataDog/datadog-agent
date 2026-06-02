@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux && test
+//go:build test
 
 package converters
 
@@ -24,7 +24,7 @@ import (
 
 func loadTestData(t *testing.T, filename string) confMap {
 	t.Helper()
-	path := filepath.Join("td", filename)
+	path := filepath.Join("testdata", filename)
 	data, err := os.ReadFile(path)
 	require.NoError(t, err, "failed to read test data file: %s", filename)
 
@@ -133,7 +133,7 @@ func TestGetIntermediateNodeNotMap(t *testing.T) {
 	require.False(t, ok)
 
 	// Intermediate node is array
-	_, ok = Get[string](cm, "exporters::otlphttp::headers")
+	_, ok = Get[string](cm, "exporters::otlp_http::headers")
 	require.False(t, ok)
 }
 
@@ -340,68 +340,27 @@ func TestConverterWithoutAgentLogsHostArchWarning(t *testing.T) {
 	assert.True(t, found, "expected warning about host.arch being disabled, got logs: %v", logs.All())
 }
 
-func TestConverterWithAgentPreservesExpandedValues(t *testing.T) {
-	// Verify that ToStringMapRaw preserves ExpandedValue types (from env vars like ${DD_API_KEY})
-	// instead of flattening them to their underlying string values
-	configData := confMap{
-		"service": confMap{
-			"pipelines": confMap{
-				"profiles": confMap{
-					"receivers":  []any{"hostprofiler"},
-					"processors": []any{},
-					"exporters":  []any{"otlphttp"},
-				},
-			},
-		},
-		"exporters": confMap{
-			"otlphttp": confMap{
-				"headers": confMap{
-					"dd-api-key": xconfmap.ExpandedValue{Value: 1234, Original: "1234"},
-				},
-			},
-		},
-		"receivers": confMap{
-			"hostprofiler": confMap{
-				"symbol_uploader": confMap{
-					"enabled": false,
-				},
-			},
-		},
-	}
-
-	conf := confmap.NewFromStringMap(configData)
-	err := newConverterWithAgent(confmap.ConverterSettings{}, newMockConfig()).Convert(t.Context(), conf)
-	require.NoError(t, err)
-
-	convertedMap := xconfmap.ToStringMapRaw(conf)
-	headers, _ := Get[confMap](convertedMap, "exporters::otlphttp::headers")
-	expandedVal, ok := headers["dd-api-key"].(xconfmap.ExpandedValue)
-	require.True(t, ok, "dd-api-key should still be an ExpandedValue, got type: %T", headers["dd-api-key"])
-	require.Equal(t, 1234, expandedVal.Value)
-	require.Equal(t, "1234", expandedVal.Original)
-}
-
 func TestConverterWithoutAgentPreservesExpandedValues(t *testing.T) {
 	// Verify that ToStringMapRaw preserves ExpandedValue types in standalone mode
 	configData := confMap{
 		"service": confMap{
 			"pipelines": confMap{
 				"profiles": confMap{
-					"receivers":  []any{"hostprofiler"},
+					"receivers":  []any{"profiling"},
 					"processors": []any{},
-					"exporters":  []any{"otlphttp"},
+					"exporters":  []any{"otlp_http"},
 				},
 			},
 		},
 		"exporters": confMap{
-			"otlphttp": confMap{
+			"otlp_http": confMap{
 				"headers": confMap{
 					"dd-api-key": xconfmap.ExpandedValue{Value: 6.7, Original: "6.7"},
 				},
 			},
 		},
 		"receivers": confMap{
-			"hostprofiler": confMap{
+			"profiling": confMap{
 				"symbol_uploader": confMap{
 					"enabled": false,
 				},
@@ -414,7 +373,7 @@ func TestConverterWithoutAgentPreservesExpandedValues(t *testing.T) {
 	require.NoError(t, err)
 
 	convertedMap := xconfmap.ToStringMapRaw(conf)
-	headers, _ := Get[confMap](convertedMap, "exporters::otlphttp::headers")
+	headers, _ := Get[confMap](convertedMap, "exporters::otlp_http::headers")
 	expandedVal, ok := headers["dd-api-key"].(xconfmap.ExpandedValue)
 	require.True(t, ok, "dd-api-key should still be an ExpandedValue, got type: %T", headers["dd-api-key"])
 	require.Equal(t, 6.7, expandedVal.Value)

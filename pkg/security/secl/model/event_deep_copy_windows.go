@@ -9,6 +9,7 @@
 package model
 
 import (
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -96,7 +97,7 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
 	copied.PPid = fieldToCopy.PPid
 	copied.ScrubbedCmdLineResolved = fieldToCopy.ScrubbedCmdLineResolved
-	copied.TracerTags = deepCopystringArr(fieldToCopy.TracerTags)
+	copied.TracerMetadata = deepCopyTracerMetadata(fieldToCopy.TracerMetadata)
 	copied.User = fieldToCopy.User
 	return copied
 }
@@ -123,6 +124,7 @@ func deepCopystringArr(fieldToCopy []string) []string {
 func deepCopyContainerContext(fieldToCopy ContainerContext) ContainerContext {
 	copied := ContainerContext{}
 	copied.ContainerID = fieldToCopy.ContainerID
+	copied.ContainerSource = fieldToCopy.ContainerSource
 	copied.CreatedAt = fieldToCopy.CreatedAt
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
@@ -152,6 +154,21 @@ func deepCopyFileEvent(fieldToCopy FileEvent) FileEvent {
 	copied.PathnameStr = fieldToCopy.PathnameStr
 	return copied
 }
+func deepCopyTracerMetadata(fieldToCopy tracermetadata.TracerMetadata) tracermetadata.TracerMetadata {
+	copied := tracermetadata.TracerMetadata{}
+	copied.ContainerID = fieldToCopy.ContainerID
+	copied.Hostname = fieldToCopy.Hostname
+	copied.LogsCollected = fieldToCopy.LogsCollected
+	copied.ProcessTags = fieldToCopy.ProcessTags
+	copied.RuntimeID = fieldToCopy.RuntimeID
+	copied.SchemaVersion = fieldToCopy.SchemaVersion
+	copied.ServiceEnv = fieldToCopy.ServiceEnv
+	copied.ServiceName = fieldToCopy.ServiceName
+	copied.ServiceVersion = fieldToCopy.ServiceVersion
+	copied.TracerLanguage = fieldToCopy.TracerLanguage
+	copied.TracerVersion = fieldToCopy.TracerVersion
+	return copied
+}
 func deepCopyProcess(fieldToCopy Process) Process {
 	copied := Process{}
 	copied.ArgsEntry = deepCopyArgsEntryPtr(fieldToCopy.ArgsEntry)
@@ -169,7 +186,7 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
 	copied.PPid = fieldToCopy.PPid
 	copied.ScrubbedCmdLineResolved = fieldToCopy.ScrubbedCmdLineResolved
-	copied.TracerTags = deepCopystringArr(fieldToCopy.TracerTags)
+	copied.TracerMetadata = deepCopyTracerMetadata(fieldToCopy.TracerMetadata)
 	copied.User = fieldToCopy.User
 	return copied
 }

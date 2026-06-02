@@ -14,22 +14,36 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// dacDataset is the DAC dataset name for teeconfig diff logs, used to restrict log visibility to the agent-configuration team
+const dacDataset = "teeconfig_config_diffs"
+
 // teeConfig is a combination of two configs, both get written to but only baseline is read
 type teeConfig struct {
-	baseline model.BuildableConfig
-	compare  model.BuildableConfig
+	baseline   model.BuildableConfig
+	compare    model.BuildableConfig
+	loggedOnce sync.Map
 }
 
 func getLocation(nbStack int) string {
 	_, file, line, _ := runtime.Caller(nbStack + 1)
 	fileParts := strings.Split(file, "DataDog/datadog-agent/")
 	return fmt.Sprintf("%s:%d", fileParts[len(fileParts)-1], line)
+}
+
+// warnOnce logs a warning only the first time a given dedup key is seen
+func (t *teeConfig) warnOnce(method, key, detailFormat string, detailArgs ...interface{}) {
+	dedupKey := method + "(" + key + ")"
+	if _, loaded := t.loggedOnce.LoadOrStore(dedupKey, struct{}{}); !loaded {
+		detail := fmt.Sprintf(detailFormat, detailArgs...)
+		log.Warnc(fmt.Sprintf("difference in config: %s(%s) -> %s", method, key, detail), "dac.dataset", dacDataset)
+	}
 }
 
 // NewTeeConfig constructs a new teeConfig
@@ -97,9 +111,14 @@ func (t *teeConfig) IsKnown(key string) bool {
 	base := t.baseline.IsKnown(key)
 	compare := t.compare.IsKnown(key)
 	if base != compare {
-		log.Warnf("difference in config: IsKnown(%s) -> base: %v | compare %v", key, base, compare)
+		t.warnOnce("IsKnown", key, "base: %v | compare %v", base, compare)
 	}
 	return base
+}
+
+func (t *teeConfig) IsSetting(key string) bool {
+	// viper and nodetreemodel don't agree on this functionality, no point in logging differences
+	return t.baseline.IsSetting(key)
 }
 
 // GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
@@ -131,17 +150,22 @@ func (t *teeConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map
 	t.compare.ParseEnvAsMapStringInterface(key, fn)
 }
 
-// ParseEnvAsSliceMapString registers a transformer function to parse an an environment variables as a []map[string]string.
-func (t *teeConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
-	t.baseline.ParseEnvAsSliceMapString(key, fn)
-	t.compare.ParseEnvAsSliceMapString(key, fn)
+// ParseEnvSplitComma registers a transformer function to parse an environment variable as a comma-separated list of strings.
+func (t *teeConfig) ParseEnvSplitComma(key string) {
+	t.baseline.ParseEnvSplitComma(key)
+	t.compare.ParseEnvSplitComma(key)
 }
 
-// ParseEnvAsSlice registers a transformer function to parse an an environment variables as a
-// []interface{}.
-func (t *teeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
-	t.baseline.ParseEnvAsSlice(key, fn)
-	t.compare.ParseEnvAsSlice(key, fn)
+// ParseEnvSplitSpace registers a transformer function to parse an environment variable as a space-separated list of strings.
+func (t *teeConfig) ParseEnvSplitSpace(key string) {
+	t.baseline.ParseEnvSplitSpace(key)
+	t.compare.ParseEnvSplitSpace(key)
+}
+
+// ParseEnvJSON registers a transformer function to parse an environment variable as a JSON payload into varType.
+func (t *teeConfig) ParseEnvJSON(key string, varType any) {
+	t.baseline.ParseEnvJSON(key, varType)
+	t.compare.ParseEnvJSON(key, varType)
 }
 
 // IsSet wraps Viper for concurrent access
@@ -149,7 +173,7 @@ func (t *teeConfig) IsSet(key string) bool {
 	base := t.baseline.IsSet(key)
 	compare := t.compare.IsSet(key)
 	if base != compare {
-		log.Warnf("difference in config: IsSet(%s) -> base[%s]: %v | compare[%s]: %v | from %s", key, t.baseline.GetSource(key), base, t.compare.GetSource(key), compare, getLocation(1))
+		t.warnOnce("IsSet", key, "base[%s]: %v | compare[%s]: %v | from %s", t.baseline.GetSource(key), base, t.compare.GetSource(key), compare, getLocation(1))
 	}
 	return base
 }
@@ -174,23 +198,25 @@ func (t *teeConfig) AllKeysLowercased() []string {
 	base := t.baseline.AllKeysLowercased()
 	compare := t.compare.AllKeysLowercased()
 	if !reflect.DeepEqual(base, compare) {
-		log.Warnf("difference in config: AllKeysLowercased() -> base len: %d | compare len: %d", len(base), len(compare))
+		if _, loaded := t.loggedOnce.LoadOrStore("AllKeysLowercased()", struct{}{}); !loaded {
+			log.Warnc(fmt.Sprintf("difference in config: AllKeysLowercased() -> base len: %d | compare len: %d", len(base), len(compare)), "dac.dataset", dacDataset)
 
-		i := 0
-		j := 0
-		for i < len(base) && j < len(compare) {
-			if base[i] == compare[j] {
-				i++
-				j++
-				continue
-			}
+			i := 0
+			j := 0
+			for i < len(base) && j < len(compare) {
+				if base[i] == compare[j] {
+					i++
+					j++
+					continue
+				}
 
-			if strings.Compare(base[i], compare[j]) == -1 {
-				log.Warnf("difference in config: allkeyslowercased() missing key in compare -> base[%d]: %#v", i, base[i])
-				i++
-			} else {
-				log.Warnf("difference in config: allkeyslowercased() extra key in compare -> --- | compare[%d]: %#v", j, compare[j])
-				j++
+				if strings.Compare(base[i], compare[j]) == -1 {
+					log.Warnc(fmt.Sprintf("difference in config: allkeyslowercased() missing key in compare -> base[%d]: %#v", i, base[i]), "dac.dataset", dacDataset)
+					i++
+				} else {
+					log.Warnc(fmt.Sprintf("difference in config: allkeyslowercased() extra key in compare -> --- | compare[%d]: %#v", j, compare[j]), "dac.dataset", dacDataset)
+					j++
+				}
 			}
 		}
 	}
@@ -217,8 +243,34 @@ func (t *teeConfig) compareResult(key, method string, base, compare interface{})
 				}
 			}
 		}
-		log.Warnf("difference in config: %s(%s) -> base[%s]: %#v | compare[%s] %#v | from %s", method, key, t.baseline.GetSource(key), base, t.compare.GetSource(key), compare, getLocation(2))
+		// Skip logging when NTMs result is a superset of vipers
+		if baseMap, ok := base.(map[string]interface{}); ok {
+			if compareMap, ok := compare.(map[string]interface{}); ok {
+				viperMap, ntmMap := baseMap, compareMap
+				if t.baseline.GetLibType() != "viper" {
+					viperMap, ntmMap = compareMap, baseMap
+				}
+				if mapIsSubset(viperMap, ntmMap) {
+					return
+				}
+			}
+		}
+		t.warnOnce(method, key, "base[%s]: %#v | compare[%s] %#v | from %s", t.baseline.GetSource(key), base, t.compare.GetSource(key), compare, getLocation(2))
 	}
+}
+
+// mapIsSubset returns true if every key in base exists in superset with an identical value
+func mapIsSubset(base, superset map[string]interface{}) bool {
+	for k, v := range base {
+		sv, ok := superset[k]
+		if !ok {
+			return false
+		}
+		if !reflect.DeepEqual(v, sv) {
+			return false
+		}
+	}
+	return true
 }
 
 // Get wraps Viper for concurrent access
@@ -387,7 +439,7 @@ func (t *teeConfig) ReadInConfig() error {
 	err1 := t.baseline.ReadInConfig()
 	err2 := t.compare.ReadInConfig()
 	if (err1 == nil) != (err2 == nil) {
-		log.Warnf("difference in config: ReadInConfig() -> base error: %v | compare error: %v", err1, err2)
+		t.warnOnce("ReadInConfig", "", "base error: %v | compare error: %v", err1, err2)
 	}
 	return err1
 }
@@ -398,7 +450,7 @@ func (t *teeConfig) ReadConfig(in io.Reader) error {
 	err1 := t.baseline.ReadConfig(bytes.NewBuffer(data))
 	err2 := t.compare.ReadConfig(bytes.NewBuffer(data))
 	if (err1 != nil && err2 == nil) || (err1 == nil && err2 != nil) {
-		log.Warnf("difference in config: ReadConfig() -> base error: %v | compare error: %v", err1, err2)
+		t.warnOnce("ReadConfig", "", "base error: %v | compare error: %v", err1, err2)
 	}
 	return err1
 }
@@ -409,7 +461,7 @@ func (t *teeConfig) MergeConfig(in io.Reader) error {
 	err1 := t.baseline.MergeConfig(bytes.NewBuffer(data))
 	err2 := t.compare.MergeConfig(bytes.NewBuffer(data))
 	if (err1 != nil && err2 == nil) || (err1 == nil && err2 != nil) {
-		log.Warnf("difference in config: MergeConfig() -> base error: %v | compare error: %v", err1, err2)
+		t.warnOnce("MergeConfig", "", "base error: %v | compare error: %v", err1, err2)
 	}
 	return err1
 }
@@ -423,7 +475,7 @@ func (t *teeConfig) MergeFleetPolicy(configPath string) error {
 	err1 := t.baseline.MergeFleetPolicy(configPath)
 	err2 := t.compare.MergeFleetPolicy(configPath)
 	if (err1 != nil && err2 == nil) || (err1 == nil && err2 != nil) {
-		log.Warnf("difference in config: MergeFleetPolicy(%s) -> base error: %v | compare error: %v", configPath, err1, err2)
+		t.warnOnce("MergeFleetPolicy", configPath, "base error: %v | compare error: %v", err1, err2)
 	}
 	return err1
 }
@@ -433,16 +485,18 @@ func (t *teeConfig) AllSettings() map[string]interface{} {
 	base := t.baseline.AllSettings()
 	compare := t.compare.AllSettings()
 	if !reflect.DeepEqual(base, compare) {
-		log.Warnf("difference in config: AllSettings() -> base len: %v | compare len: %v", len(base), len(compare))
-		for key := range base {
-			if _, ok := compare[key]; !ok {
-				log.Warnf("\titem %s missing from compare", key)
-				continue
+		if _, loaded := t.loggedOnce.LoadOrStore("AllSettings()", struct{}{}); !loaded {
+			log.Warnc(fmt.Sprintf("difference in config: AllSettings() -> base len: %v | compare len: %v", len(base), len(compare)), "dac.dataset", dacDataset)
+			for key := range base {
+				if _, ok := compare[key]; !ok {
+					log.Warnc(fmt.Sprintf("\titem %s missing from compare", key), "dac.dataset", dacDataset)
+					continue
+				}
+				if !reflect.DeepEqual(base[key], compare[key]) {
+					log.Warnc(fmt.Sprintf("\titem %s: %#v | %#v", key, base[key], compare[key]), "dac.dataset", dacDataset)
+				}
+				log.Flush()
 			}
-			if !reflect.DeepEqual(base[key], compare[key]) {
-				log.Warnf("\titem %s: %#v | %#v", key, base[key], compare[key])
-			}
-			log.Flush()
 		}
 	}
 	return base
@@ -458,6 +512,22 @@ func (t *teeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 
 }
 
+// AllSettingsWithoutSecrets returns all settings excluding the secrets layer.
+func (t *teeConfig) AllSettingsWithoutSecrets() map[string]interface{} {
+	base := t.baseline.AllSettingsWithoutSecrets()
+	compare := t.compare.AllSettingsWithoutSecrets()
+	t.compareResult("", "AllSettingsWithoutSecrets", base, compare)
+	return base
+}
+
+// AllSettingsWithoutDefaultOrSecrets returns settings excluding both defaults and the secrets layer.
+func (t *teeConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
+	base := t.baseline.AllSettingsWithoutDefaultOrSecrets()
+	compare := t.compare.AllSettingsWithoutDefaultOrSecrets()
+	t.compareResult("", "AllSettingsWithoutDefaultOrSecrets", base, compare)
+	return base
+}
+
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (t *teeConfig) AllSettingsBySource() map[model.Source]interface{} {
 	base := t.baseline.AllSettingsBySource()
@@ -467,7 +537,8 @@ func (t *teeConfig) AllSettingsBySource() map[model.Source]interface{} {
 
 }
 
-// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map along with the sequence ID.
+// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map of schema leaf keys
+// along with the sequence ID.
 func (t *teeConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64) {
 	base, baseSequenceID := t.baseline.AllFlattenedSettingsWithSequenceID()
 	compare, compareSequenceID := t.compare.AllFlattenedSettingsWithSequenceID()
@@ -490,7 +561,7 @@ func (t *teeConfig) AddExtraConfigPaths(ins []string) error {
 	err1 := t.baseline.AddExtraConfigPaths(ins)
 	err2 := t.compare.AddExtraConfigPaths(ins)
 	if (err1 != nil && err2 == nil) || (err1 == nil && err2 != nil) {
-		log.Warnf("difference in config: AddExtraConfigPaths(%s) -> base error: %v | compare error: %v", ins, err1, err2)
+		t.warnOnce("AddExtraConfigPaths", fmt.Sprint(ins), "base error: %v | compare error: %v", err1, err2)
 	}
 	return err1
 }
@@ -549,6 +620,10 @@ func (t *teeConfig) BindEnvAndSetDefault(key string, val interface{}, env ...str
 
 func (t *teeConfig) Warnings() *model.Warnings {
 	return t.baseline.Warnings()
+}
+
+func (t *teeConfig) StartTime() time.Time {
+	return t.baseline.StartTime()
 }
 
 func (t *teeConfig) Object() model.Reader {

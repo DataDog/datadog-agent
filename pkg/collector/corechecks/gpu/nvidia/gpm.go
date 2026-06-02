@@ -14,10 +14,9 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
-	"github.com/hashicorp/go-multierror"
-
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const sampleBufferSize = 2
@@ -75,25 +74,19 @@ var allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
 }
 
 func newGPMCollector(device ddnvml.Device, _ *CollectorDependencies) (c Collector, err error) {
+	return newGPMCollectorWithMetrics(device, maps.Clone(allGpmMetrics), nil)
+}
+
+func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.GpmMetricId]gpmMetric, _ *CollectorDependencies) (c Collector, err error) {
 	migDevice, isMig := device.(*ddnvml.MIGDevice)
 	if isMig && migDevice.Parent == nil {
 		return nil, errors.New("MIG device has no parent physical device")
 	}
 
-	var support nvml.GpmSupport
-	// The query for device support needs to be made on the physical device always
-	if isMig {
-		support, err = migDevice.Parent.GpmQueryDeviceSupport()
-	} else {
-		support, err = device.GpmQueryDeviceSupport()
-	}
+	// We don't query for device support because the API is broken in go-nvml 0.13.0
 
-	if support.IsSupportedDevice == 0 {
-		return nil, errUnsupportedDevice
-	}
-
-	// Clone the global allGpmMetrics map to avoid mutating global state
-	clonedMetrics := maps.Clone(allGpmMetrics)
+	// Clone the metrics map to avoid mutating the state
+	clonedMetrics := maps.Clone(metricsToCollect)
 
 	collector := &gpmCollector{
 		device:           device,
@@ -125,7 +118,13 @@ func newGPMCollector(device ddnvml.Device, _ *CollectorDependencies) (c Collecto
 		collector.samples[i] = sample
 	}
 
-	collector.removeUnsupportedMetrics()
+	err = collector.removeUnsupportedMetrics()
+	if err != nil {
+		if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+			return nil, errUnsupportedDevice
+		}
+		return nil, fmt.Errorf("failed to remove unsupported metrics: %w", err)
+	}
 
 	if len(collector.metricsToCollect) == 0 {
 		return nil, errUnsupportedDevice
@@ -134,27 +133,29 @@ func newGPMCollector(device ddnvml.Device, _ *CollectorDependencies) (c Collecto
 	return collector, nil
 }
 
-func (c *gpmCollector) removeUnsupportedMetrics() {
-	// Now collect two samples and try to get the metrics, to discard any unsupported ones
-	// It's a best-effort approach, so any errors in the process are ignored. If they are not temporary,
-	// the collector will fail to collect metrics later and that will show in the logs.
+func (c *gpmCollector) removeUnsupportedMetrics() error {
+	// Now collect two samples and try to get the metrics, to discard any unsupported ones.
 	for i := 0; i < 2; i++ {
 		err := c.collectSample()
 		if err != nil {
-			return
+			fmt.Printf("failed to collect GPM sample: %s\n", err)
+			return err
 		}
 	}
 
 	metrics, err := c.calculateGpmMetrics()
 	if err != nil {
-		return
+		return err
 	}
 
 	for i := uint32(0); i < metrics.NumMetrics; i++ {
 		if metrics.Metrics[i].NvmlReturn != uint32(nvml.SUCCESS) {
+			log.Warnf("failed to get GPM metric %d on device %s: %s\n", metrics.Metrics[i].MetricId, c.device.GetDeviceInfo().UUID, nvml.ErrorString(nvml.Return(metrics.Metrics[i].NvmlReturn)))
 			delete(c.metricsToCollect, nvml.GpmMetricId(metrics.Metrics[i].MetricId))
 		}
 	}
+
+	return nil
 }
 
 func (c *gpmCollector) collectSample() error {
@@ -228,7 +229,7 @@ func (c *gpmCollector) Name() CollectorName {
 	return gpm
 }
 
-func (c *gpmCollector) Collect() ([]Metric, error) {
+func (c *gpmCollector) Collect() ([]*Metric, error) {
 	err := c.collectSample()
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect GPM sample: %w", err)
@@ -240,16 +241,17 @@ func (c *gpmCollector) Collect() ([]Metric, error) {
 	}
 
 	metrics := make([]Metric, 0, len(c.metricsToCollect))
+	var errs []error
 	for i := uint32(0); i < gpmMetrics.NumMetrics; i++ {
 		metric := gpmMetrics.Metrics[i]
 		if metric.NvmlReturn != uint32(nvml.SUCCESS) {
-			err = multierror.Append(err, fmt.Errorf("failed to get GPM metric %d: %s", metric.MetricId, nvml.ErrorString(nvml.Return(metric.NvmlReturn))))
+			errs = append(errs, fmt.Errorf("failed to get GPM metric %d: %s", metric.MetricId, nvml.ErrorString(nvml.Return(metric.NvmlReturn))))
 			continue
 		}
 
 		metricData, ok := c.metricsToCollect[nvml.GpmMetricId(metric.MetricId)]
 		if !ok {
-			err = multierror.Append(err, fmt.Errorf("unknown metric ID %d: %s", metric.MetricId, nvml.ErrorString(nvml.Return(metric.NvmlReturn))))
+			errs = append(errs, fmt.Errorf("unknown metric ID %d: %s", metric.MetricId, nvml.ErrorString(nvml.Return(metric.NvmlReturn))))
 			continue
 		}
 
@@ -261,5 +263,5 @@ func (c *gpmCollector) Collect() ([]Metric, error) {
 		})
 	}
 
-	return metrics, err
+	return metricValuesToPointers(metrics), errors.Join(errs...)
 }

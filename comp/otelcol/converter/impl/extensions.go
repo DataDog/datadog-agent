@@ -67,6 +67,17 @@ var (
 		Type:         "extensions",
 		Config:       datadogConfig,
 	}
+
+	// dogtel (standalone mode only)
+	dogtelName         = "dogtel"
+	dogtelEnhancedName = dogtelName + "/" + ddAutoconfiguredSuffix
+	dogtelConfig       any
+	dogtelComponent    = component{
+		Name:         dogtelName,
+		EnhancedName: dogtelEnhancedName,
+		Type:         "extensions",
+		Config:       dogtelConfig,
+	}
 )
 
 func createExtensions(enabledFeatures []string) []component {
@@ -108,6 +119,37 @@ func extensionIsInServicePipeline(conf *confmap.Conf, comp component) bool {
 	}
 
 	return false
+}
+
+// findExistingExtensionID returns the ID of the first extension defined in conf
+// (under the "extensions" key) whose base component name equals compName.
+// Returns "" when no such definition exists.
+func findExistingExtensionID(conf *confmap.Conf, compName string) string {
+	for id := range findComps(conf.ToStringMap(), compName, "extensions") {
+		return id
+	}
+	return ""
+}
+
+// wireExtensionIDToPipeline appends extensionID verbatim to service::extensions.
+func wireExtensionIDToPipeline(conf *confmap.Conf, extensionID string) {
+	stringMapConf := conf.ToStringMap()
+	service, ok := stringMapConf["service"]
+	if !ok {
+		return
+	}
+	serviceMap, ok := service.(map[string]any)
+	if !ok {
+		return
+	}
+	if _, ok = serviceMap["extensions"]; !ok {
+		serviceMap["extensions"] = []any{}
+	}
+	if extensionsSlice, ok := serviceMap["extensions"].([]any); ok {
+		extensionsSlice = append(extensionsSlice, extensionID)
+		serviceMap["extensions"] = extensionsSlice
+	}
+	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
 
 func addExtensionToPipeline(conf *confmap.Conf, comp component) {

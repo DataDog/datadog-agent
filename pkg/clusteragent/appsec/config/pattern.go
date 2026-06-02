@@ -55,6 +55,12 @@ type InjectionPattern interface {
 	Deleted(ctx context.Context, obj *unstructured.Unstructured) error
 }
 
+// Starter optional reconciler (e.g. nginx ConfigMap sync).
+// Patterns that need background reconciliation implement this interface.
+type Starter interface {
+	Start(ctx context.Context) error
+}
+
 // SidecarInjectionPattern extends InjectionPattern for SIDECAR mode
 // Implementations provide both proxy configuration AND sidecar injection logic
 type SidecarInjectionPattern interface {

@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fetcher",
+    srcs = ["from_processes.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/fetcher",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//pkg/config/settings/http",
+        "//pkg/config/setup",
+    ],
+)

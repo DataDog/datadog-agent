@@ -11,6 +11,8 @@ package stop
 import (
 	"bytes"
 	"fmt"
+	"net"
+	"strconv"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -57,7 +59,8 @@ func stop(config config.Component, _ *cliParams, _ log.Component, client ipc.HTT
 	if err != nil {
 		return err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/stop", ipcAddress, config.GetInt("cmd_port"))
+	addr := net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cmd_port")))
+	urlstr := fmt.Sprintf("https://%s/agent/stop", addr)
 
 	_, e := client.Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	if e != nil {

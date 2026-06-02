@@ -9,18 +9,27 @@
 package admission
 
 import (
+	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
+	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
+	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -32,14 +41,18 @@ type ControllerContext struct {
 	SecretInformers              informers.SharedInformerFactory
 	ValidatingInformers          informers.SharedInformerFactory
 	MutatingInformers            informers.SharedInformerFactory
+	DynamicInformer              dynamicinformer.DynamicSharedInformerFactory
 	Client                       kubernetes.Interface
 	StopCh                       chan struct{}
 	ValidatingStopCh             chan struct{}
 	Demultiplexer                demultiplexer.Component
+	FilterStore                  workloadfilter.Component
+	InstrumentationHandlers      []instrumentation.Handler
+	CSIDriverWatcher             libraryinjection.CSIDriverWatcher
 }
 
 // StartControllers starts the secret and webhook controllers
-func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component) ([]webhook.Webhook, error) {
+func StartControllers(ctx ControllerContext, datadogConfig config.Component, wmeta workloadmeta.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, healthPlatform option.Option[healthplatformdef.Component]) ([]webhook.Webhook, error) {
 	var webhooks []webhook.Webhook
 
 	if !datadogConfig.GetBool("admission_controller.enabled") {
@@ -93,9 +106,14 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		notifChanWebhook,
 		webhookConfig,
 		wmeta,
-		pa,
+		pp,
+		sh,
 		datadogConfig,
 		ctx.Demultiplexer,
+		ctx.FilterStore,
+		ctx.InstrumentationHandlers,
+		ctx.DynamicInformer,
+		ctx.CSIDriverWatcher,
 	)
 
 	go secretController.Run(ctx.StopCh)
@@ -122,6 +140,17 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 	}
 
 	webhooks = append(webhooks, webhookController.EnabledWebhooks()...)
+
+	if datadogConfig.GetBool("admission_controller.probe.enabled") {
+		admissionProbe := admprobe.New(ctx.Client, isLeaderFunc, namespace.GetResourcesNamespace(), datadogConfig, healthPlatform)
+		setProbe(admissionProbe)
+		probeCtx, probeCancel := context.WithCancel(context.Background())
+		go func() {
+			<-ctx.StopCh
+			probeCancel()
+		}()
+		go admissionProbe.Run(probeCtx)
+	}
 
 	return webhooks, apiserver.SyncInformers(informers, 0)
 }

@@ -38,7 +38,6 @@ def setup(ctx, vscode=False):
         check_go_version,
         update_ddtool,
         install_go_tools,
-        install_protoc,
         enable_pre_commit,
     ]
 
@@ -270,20 +269,3 @@ def install_go_tools(ctx) -> SetupResult:
         status = Status.FAIL
 
     return SetupResult("Install Go tools", status, message)
-
-
-def install_protoc(ctx) -> SetupResult:
-    """Install protoc."""
-    print(color_message("Installing protoc...", Color.BLUE))
-    status = Status.OK
-    message = ""
-
-    try:
-        from tasks import install_protoc
-
-        install_protoc(ctx)
-    except Exception as e:
-        message = f'Protoc setup failed: {e}'
-        status = Status.FAIL
-
-    return SetupResult("Install protoc", status, message)

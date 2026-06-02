@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
+	dockerclient "github.com/moby/moby/client"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -113,6 +113,43 @@ func TestGetLastSince(t *testing.T) {
 	_time := time.Date(2008, 1, 12, 1, 1, 1, 1, time.UTC)
 	tailer := &Tailer{lastSince: _time.Format(config.DateFormat)}
 	assert.Equal(t, _time.Add(time.Nanosecond), tailer.getLastSince())
+}
+
+// TestBuildMessageAdvancesLastSince covers the auditor-side half of
+// multi-line offset tracking: the docker tailer commits whatever
+// ParsingExtra.Timestamp sits on the emitted message. Combined with the
+// aggregator carrying the LAST aggregated line's timestamp on combined
+// messages, this guarantees the lastSince offset advances past every line
+// of a multi-line group, so a reader restart resumes after the group
+// instead of replaying lines 2..N as duplicates.
+func TestBuildMessageAdvancesLastSince(t *testing.T) {
+	const aggregatedTimestamp = "2026-05-11T10:00:00.000000003Z"
+
+	source := sources.NewLogSource("foo", nil)
+	tailer := &Tailer{
+		ContainerID: "test",
+		Source:      source,
+		tagProvider: tag.NewLocalProvider(nil),
+	}
+
+	output := message.NewMessageWithParsingExtra(
+		[]byte("line1\\nline2\\nline3"),
+		message.NewOrigin(source),
+		message.StatusInfo,
+		0,
+		message.ParsingExtra{Timestamp: aggregatedTimestamp},
+	)
+
+	built := buildMessage(tailer, output)
+
+	assert.Equal(t, aggregatedTimestamp, tailer.lastSince,
+		"buildMessage must commit the emitted message's ParsingExtra.Timestamp to lastSince so the next reader restart resumes past the multi-line group")
+	assert.Equal(t, aggregatedTimestamp, built.Origin.Offset)
+
+	// Verify the +1ns resume offset is anchored on the LAST line's timestamp.
+	expected, err := time.Parse(config.DateFormat, aggregatedTimestamp)
+	assert.NoError(t, err)
+	assert.Equal(t, expected.Add(time.Nanosecond), tailer.getLastSince())
 }
 
 func TestRead(t *testing.T) {
@@ -309,7 +346,7 @@ func (c *fakeDockerClient) AddEntry(testIOReader io.ReadCloser, err error) {
 	})
 }
 
-func (c *fakeDockerClient) ContainerLogs(context.Context, string, container.LogsOptions) (io.ReadCloser, error) {
+func (c *fakeDockerClient) ContainerLogs(context.Context, string, dockerclient.ContainerLogsOptions) (io.ReadCloser, error) {
 	if c.counter >= len(c.entries) {
 		c.counter = 0
 	}

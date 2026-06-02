@@ -40,8 +40,13 @@ type SafeDevice interface {
 	GetEncoderUtilization() (uint32, uint32, error)
 	// GetFanSpeed returns the fan speed percentage
 	GetFanSpeed() (uint32, error)
+	// GetFanSpeed_v2 returns the fan speed percentage for the given fan index
+	GetFanSpeed_v2(fanIndex int) (uint32, error)
 	// GetFieldValues returns the values for the specified fields
 	GetFieldValues(values []nvml.FieldValue) error
+	// ReadWritePRM_v1 performs a raw PRM read or write with TLV data.
+	//nolint:revive // Maintaining consistency with go-nvml API naming
+	ReadWritePRM_v1(buffer *nvml.PRMTLV_v1) error
 	// GetGpuInstanceId returns the GPU instance ID for MIG devices
 	//nolint:revive // Maintaining consistency with go-nvml API naming
 	GetGpuInstanceId() (int, error)
@@ -69,8 +74,18 @@ type SafeDevice interface {
 	GetNvLinkState(link int) (nvml.EnableState, error)
 	// GetNumGpuCores returns the number of GPU cores in the device
 	GetNumGpuCores() (int, error)
+	// GetNumFans returns the number of fans in the device
+	GetNumFans() (int, error)
 	// GetPcieThroughput returns the PCIe throughput in bytes/sec
 	GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32, error)
+	// GetCurrPcieLinkGeneration returns the current PCIe generation
+	GetCurrPcieLinkGeneration() (int, error)
+	// GetMaxPcieLinkGeneration returns the max PCIe generation
+	GetMaxPcieLinkGeneration() (int, error)
+	// GetCurrPcieLinkWidth returns the current PCIe link width
+	GetCurrPcieLinkWidth() (int, error)
+	// GetMaxPcieLinkWidth returns the max PCIe link width
+	GetMaxPcieLinkWidth() (int, error)
 	// GetPerformanceState returns the current performance state
 	GetPerformanceState() (nvml.Pstates, error)
 	// GetPowerManagementLimit returns the power management limit in milliwatts
@@ -81,6 +96,8 @@ type SafeDevice interface {
 	GetProcessUtilization(lastSeenTimestamp uint64) ([]nvml.ProcessUtilizationSample, error)
 	// GetRemappedRows returns the remapped rows information
 	GetRemappedRows() (int, int, bool, bool, error)
+	// GetRepairStatus returns the ECC repair status flags for the device.
+	GetRepairStatus() (nvml.RepairStatus, error)
 	// GetSamples returns samples for the specified counter type
 	GetSamples(samplingType nvml.SamplingType, lastSeenTimestamp uint64) (nvml.ValueType, []nvml.Sample, error)
 	// GetTemperature returns the current temperature
@@ -107,6 +124,8 @@ type SafeDevice interface {
 	RegisterEvents(evtTypes uint64, evtSet nvml.EventSet) error
 	// GetMemoryErrorCounter retrieves the requested memory error counter for the device.
 	GetMemoryErrorCounter(errorType nvml.MemoryErrorType, eccCounterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, error)
+	// GetSramEccErrorStatus retrieves the detailed SRAM ECC error status for the device.
+	GetSramEccErrorStatus() (nvml.EccSramErrorStatus, error)
 }
 
 // DeviceEventData holds basic information about a device event

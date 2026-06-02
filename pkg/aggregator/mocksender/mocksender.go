@@ -16,8 +16,8 @@ import (
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
@@ -78,7 +78,7 @@ func (m *MockSender) GetSenderManager() sender.SenderManager {
 
 // SetupAcceptAll sets mock expectations to accept any call in the Sender interface
 func (m *MockSender) SetupAcceptAll() {
-	metricCalls := []string{"Rate", "Count", "MonotonicCount", "Counter", "Histogram", "Historate", "Gauge", "Distribution"}
+	metricCalls := []string{"Rate", "Count", "MonotonicCount", "Counter", "Histogram", "Historate", "Gauge", "GaugeNoIndex", "Distribution"}
 	for _, call := range metricCalls {
 		m.On(call,
 			mock.AnythingOfType("string"),   // Metric
@@ -115,16 +115,19 @@ func (m *MockSender) SetupAcceptAll() {
 	// The second argument should have been `mock.AnythingOfType("[]byte")` instead of `mock.AnythingOfType("[]uint8")`
 	// See https://github.com/stretchr/testify/issues/387
 	m.On("EventPlatformEvent", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("string")).Return()
-	m.On("HistogramBucket",
-		mock.AnythingOfType("string"),   // metric name
-		mock.AnythingOfType("int64"),    // value
-		mock.AnythingOfType("float64"),  // lower bound
-		mock.AnythingOfType("float64"),  // upper bound
-		mock.AnythingOfType("bool"),     // monotonic
-		mock.AnythingOfType("string"),   // hostname
-		mock.AnythingOfType("[]string"), // tags
-		mock.AnythingOfType("bool"),     // FlushFirstValue
-	).Return()
+	bucketCalls := []string{"OpenmetricsBucket", "HistogramBucket"}
+	for _, call := range bucketCalls {
+		m.On(call,
+			mock.AnythingOfType("string"),   // metric name
+			mock.AnythingOfType("int64"),    // value
+			mock.AnythingOfType("float64"),  // lower bound
+			mock.AnythingOfType("float64"),  // upper bound
+			mock.AnythingOfType("bool"),     // monotonic
+			mock.AnythingOfType("string"),   // hostname
+			mock.AnythingOfType("[]string"), // tags
+			mock.AnythingOfType("bool"),     // FlushFirstValue
+		).Return()
+	}
 	m.On("GetSenderStats", mock.AnythingOfType("stats.SenderStats")).Return()
 	m.On("DisableDefaultHostname", mock.AnythingOfType("bool")).Return()
 	m.On("SetCheckCustomTags", mock.AnythingOfType("[]string")).Return()

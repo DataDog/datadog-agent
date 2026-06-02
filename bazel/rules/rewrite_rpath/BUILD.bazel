@@ -1,3 +1,4 @@
-package(default_visibility = ["//visibility:public"])
-
-exports_files(["macos.sh"])
+exports_files([
+    "macos.sh",
+    "macos_dir.sh",
+])

@@ -8,23 +8,23 @@ default_stages:
 
 repos:
 - repo: https://github.com/jumanjihouse/pre-commit-hooks
-  rev: 7cc5848088fd8412905ab79feea6c8edc3ac76c6 # 2.1.5
+  rev: 38980559e3a605691d6579f96222c30778e5a69e # frozen: 3.0.0
   hooks:
     - id: shellcheck
       args: ["--severity=info", "-e", "SC2059", "-e", "SC2028"]
 - repo: https://github.com/tekwizely/pre-commit-golang
-  rev: bd69b816c43306f28bad4d7b303d981b0ecd2fd5 # v1.0.0-beta.5
+  rev: bd69b816c43306f28bad4d7b303d981b0ecd2fd5 # frozen: v1.0.0-beta.5
   hooks:
     - id: go-fmt
       args: [ "-w", "-s" ]
       exclude: ^.*.(pb.go|_gen.go)$
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # frozen: v6.0.0
     hooks:
       - id: end-of-file-fixer
         files: release.json
 - repo: https://github.com/rhysd/actionlint
-  rev: v1.7.11
+  rev: 914e7df21a07ef503a81201c76d2b11c789d3fca # frozen: v1.7.12
   hooks:
     - id: actionlint
       args: [ "-ignore", "shellcheck" ]
@@ -140,7 +140,7 @@ repos:
       entry: 'dda inv protobuf.generate --pre-commit'
       language: system
       pass_filenames: false
-      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*.proto|.protoc-version|.*protobuf\.py)$
+      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*\.proto|.*protobuf\.py)$
     - id: experiment-systemd-units
       name: validate-experiment-systemd-units
       description: Validate that the generated systemd experimrent units are up to date

@@ -4,7 +4,7 @@
 name: kafka
 services:
   zookeeper:
-    image: bitnamilegacy/zookeeper:3.9
+    image: bitnamilegacy/zookeeper:3.9.2-debian-12-r11
     ports:
       - "2181:2181"
     environment:

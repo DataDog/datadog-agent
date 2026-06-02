@@ -56,6 +56,12 @@ const (
 	// AnnotationSize is the annotiation used to identify the package size.
 	AnnotationSize = "com.datadoghq.package.size"
 
+	// VariantFIPS is the value used in oci.Platform.Variant to mark a FIPS-compliant
+	// build. The OCI spec defines variant for CPU variants; Datadog overloads it as a
+	// build flavor to distinguish sibling manifests for the same os/arch within a single
+	// OCI index.
+	VariantFIPS = "fips"
+
 	// DatadogPackageLayerMediaType is the media type for the main Datadog Package layer.
 	DatadogPackageLayerMediaType types.MediaType = "application/vnd.datadog.package.layer.v1.tar+zstd"
 	// DatadogPackageConfigLayerMediaType is the media type for the optional Datadog Package config layer.
@@ -109,6 +115,31 @@ func NewDownloader(env *env.Env, client *http.Client) *Downloader {
 	return &Downloader{
 		env:    env,
 		client: client,
+	}
+}
+
+// WithRegistryOverride returns a new Downloader with the given registry overrides applied.
+// The returned Downloader shares the same HTTP client as the original.
+// Image-scoped override maps (from DD_INSTALLER_REGISTRY_URL_<IMAGE> env vars) are
+// preserved and take precedence over the per-extension override, matching the
+// existing priority order.
+func (d *Downloader) WithRegistryOverride(url, auth, username, password string) *Downloader {
+	envCopy := *d.env
+	if url != "" {
+		envCopy.RegistryOverride = url
+	}
+	if auth != "" {
+		envCopy.RegistryAuthOverride = auth
+	}
+	if username != "" {
+		envCopy.RegistryUsername = username
+	}
+	if password != "" {
+		envCopy.RegistryPassword = password
+	}
+	return &Downloader{
+		env:    &envCopy,
+		client: d.client,
 	}
 }
 
@@ -305,12 +336,23 @@ func (d *Downloader) downloadIndex(index oci.ImageIndex) (oci.Image, error) {
 		OS:           runtime.GOOS,
 		Architecture: runtime.GOARCH,
 	}
+	desiredVariant := ""
+	if d.env.FIPSMode {
+		desiredVariant = VariantFIPS
+		platform.Variant = VariantFIPS
+	}
 	indexManifest, err := index.IndexManifest()
 	if err != nil {
 		return nil, fmt.Errorf("could not get index manifest: %w", err)
 	}
 	for _, manifest := range indexManifest.Manifests {
 		if manifest.Platform != nil && !manifest.Platform.Satisfies(platform) {
+			continue
+		}
+		// Platform.Satisfies treats an empty required Variant as a wildcard, so
+		// the non-FIPS path could otherwise accept a FIPS-tagged manifest
+		// depending on index order. Filter to an exact variant match.
+		if manifest.Platform != nil && manifest.Platform.Variant != desiredVariant {
 			continue
 		}
 		image, err := index.Image(manifest.Digest)
@@ -414,6 +456,8 @@ func (d *DownloadedPackage) WriteOCILayout(dir string) (err error) {
 }
 
 // PackageURL returns the package URL for the given site, package and version.
+// Both base and FIPS flavors live under the same URL — flavor selection
+// happens at download time via Platform.Variant in downloadIndex.
 func PackageURL(env *env.Env, pkg string, version string) string {
 	switch env.Site {
 	case "datad0g.com":

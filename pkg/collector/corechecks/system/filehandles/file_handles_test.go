@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-//go:build !windows && !freebsd && !darwin
+//go:build !windows && !freebsd && !darwin && !aix
 
 package filehandles
 
@@ -52,7 +52,7 @@ func TestFhCheckLinux(t *testing.T) {
 	mock.On("FinalizeCheckServiceTag").Return()
 
 	fileHandleCheck := new(fhCheck)
-	fileHandleCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	fileHandleCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	// reset the check ID for the sake of correctness
 	mocksender.SetSender(mock, fileHandleCheck.ID())

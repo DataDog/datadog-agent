@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -78,6 +79,9 @@ func TestFromEnv(t *testing.T) {
 				envDDHTTPSProxy:                               "http://proxy.example.com:8080",
 				envDDNoProxy:                                  "localhost",
 				envInfrastructureMode:                         "basic",
+				envAppKey:                                     "app_key_123",
+				envPAREnabled:                                 "true",
+				envPARActionsAllowlist:                        "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
 			},
 			expected: &Env{
 				APIKey:               "123456",
@@ -123,12 +127,15 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
 				},
-				Tags:               []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
-				Hostname:           "hostname",
-				HTTPProxy:          "http://proxy.example.com:8080",
-				HTTPSProxy:         "http://proxy.example.com:8080",
-				NoProxy:            "localhost",
-				InfrastructureMode: "basic",
+				Tags:                []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
+				Hostname:            "hostname",
+				HTTPProxy:           "http://proxy.example.com:8080",
+				HTTPSProxy:          "http://proxy.example.com:8080",
+				NoProxy:             "localhost",
+				InfrastructureMode:  "basic",
+				AppKey:              "app_key_123",
+				PAREnabled:          true,
+				PARActionsAllowlist: "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
 			},
 		},
 		{
@@ -254,12 +261,15 @@ func TestToEnv(t *testing.T) {
 					"dotnet": "latest",
 					"ruby":   "1.2",
 				},
-				Tags:               []string{"k1:v1", "k2:v2"},
-				Hostname:           "hostname",
-				HTTPProxy:          "http://proxy.example.com:8080",
-				HTTPSProxy:         "http://proxy.example.com:8080",
-				NoProxy:            "localhost",
-				InfrastructureMode: "end_user_device",
+				Tags:                []string{"k1:v1", "k2:v2"},
+				Hostname:            "hostname",
+				HTTPProxy:           "http://proxy.example.com:8080",
+				HTTPSProxy:          "http://proxy.example.com:8080",
+				NoProxy:             "localhost",
+				InfrastructureMode:  "end_user_device",
+				PAREnabled:          true,
+				AppKey:              "app_key_123",
+				PARActionsAllowlist: "action1,action2",
 			},
 			expected: []string{
 				"DD_API_KEY=123456",
@@ -289,6 +299,34 @@ func TestToEnv(t *testing.T) {
 				"HTTPS_PROXY=http://proxy.example.com:8080",
 				"NO_PROXY=localhost",
 				"DD_INFRASTRUCTURE_MODE=end_user_device",
+				"DD_APP_KEY=app_key_123",
+				"DD_PRIVATE_ACTION_RUNNER_ENABLED=true",
+				"DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST=action1,action2",
+			},
+		},
+		{
+			name: "PAR enabled without app key",
+			env: &Env{
+				APIKey:              "123456",
+				PAREnabled:          true,
+				PARActionsAllowlist: "action1,action2",
+			},
+			expected: []string{
+				"DD_API_KEY=123456",
+				"DD_PRIVATE_ACTION_RUNNER_ENABLED=true",
+				"DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST=action1,action2",
+			},
+		},
+		{
+			name: "PAR disabled does not emit PAR env vars",
+			env: &Env{
+				APIKey:              "123456",
+				PAREnabled:          false,
+				AppKey:              "app_key_123",
+				PARActionsAllowlist: "action1",
+			},
+			expected: []string{
+				"DD_API_KEY=123456",
 			},
 		},
 	}
@@ -299,6 +337,35 @@ func TestToEnv(t *testing.T) {
 			assert.ElementsMatch(t, tt.expected, result)
 		})
 	}
+}
+
+func TestFromEnvFIPSMode(t *testing.T) {
+	thisBinaryIsFips, _ := pkgfips.Enabled()
+	if thisBinaryIsFips {
+		t.Skip("DD_FIPS_MODE env var is irrelevant when the binary itself is FIPS-compiled")
+	}
+	tests := []struct {
+		value    string
+		expected bool
+	}{
+		{"true", true},
+		{"True", true},
+		{"TRUE", true},
+		{"false", false},
+		{"", false},
+		{"1", false}, // we explicitly require "true" (case-insensitive)
+	}
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			t.Setenv("DD_FIPS_MODE", tt.value)
+			assert.Equal(t, tt.expected, FromEnv().FIPSMode)
+		})
+	}
+}
+
+func TestToEnvFIPSMode(t *testing.T) {
+	assert.NotContains(t, (&Env{FIPSMode: false}).ToEnv(), "DD_FIPS_MODE=true")
+	assert.Contains(t, (&Env{FIPSMode: true}).ToEnv(), "DD_FIPS_MODE=true")
 }
 
 func TestAgentUserVars(t *testing.T) {
@@ -350,6 +417,17 @@ func TestAgentUserVars(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "keep rights set",
+			envVars: map[string]string{
+				envAgentUserKeepRights: "1",
+			},
+			expected: &Env{
+				MsiParams: MsiParamsEnv{
+					AgentUserKeepRights: "1",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -360,6 +438,7 @@ func TestAgentUserVars(t *testing.T) {
 			}
 			result := FromEnv()
 			assert.Equal(t, tt.expected.MsiParams.AgentUserName, result.MsiParams.AgentUserName)
+			assert.Equal(t, tt.expected.MsiParams.AgentUserKeepRights, result.MsiParams.AgentUserKeepRights)
 		})
 	}
 }

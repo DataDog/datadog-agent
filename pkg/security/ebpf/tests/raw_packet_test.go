@@ -22,7 +22,11 @@ import (
 )
 
 const (
-	instLen = 60
+	// Len tailCallInsts: 4
+	// Len headerInsts: 14
+	// Len filterInsts: 36
+	// Len footerInsts: 8
+	instLen = 62
 )
 
 func testRawPacketFilter(t *testing.T, filters []rawpacket.Filter, progName string, expRetCode int64, expProgNum int, opts rawpacket.ProgOpts, catchCompilerError bool) {
@@ -33,8 +37,13 @@ func testRawPacketFilter(t *testing.T, filters []rawpacket.Filter, progName stri
 	rawPacketEventMap, err := vm.LoadMap("raw_packet_event")
 	assert.Nil(t, err, "map not found")
 
-	routerMap, err := vm.LoadMap("raw_packet_classifier_router")
+	selMap, err := vm.LoadMap("raw_packet_router_sel")
 	assert.Nil(t, err, "map not found")
+	_, err = selMap.Update(uint32(0), uint32(0), baloum.BPF_ANY)
+	assert.Nil(t, err, "selector map update")
+
+	inactiveName := "raw_packet_classifier_router_0"
+	routerMap, err := vm.LoadMap(inactiveName)
 
 	progSpecs, err := rawpacket.FiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), filters, opts)
 	if err != nil {
@@ -83,7 +92,13 @@ func testRawPacketDropAction(t *testing.T, filters []rawpacket.Filter, progName 
 	rawPacketEventMap, err := vm.LoadMap("raw_packet_event")
 	assert.Nil(t, err, "map not found")
 
-	routerMap, err := vm.LoadMap("raw_packet_classifier_router")
+	selMap, err := vm.LoadMap("raw_packet_router_sel")
+	assert.Nil(t, err, "map not found")
+	_, err = selMap.Update(uint32(0), uint32(0), baloum.BPF_ANY)
+	assert.Nil(t, err, "selector map update")
+
+	inactiveName := "raw_packet_classifier_router_0"
+	routerMap, err := vm.LoadMap(inactiveName)
 	assert.Nil(t, err, "map not found")
 
 	progSpecs, err := rawpacket.DropActionsToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), filters, opts)

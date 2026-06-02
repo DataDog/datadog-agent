@@ -211,10 +211,9 @@ func (a *Agent) obfuscateSpanInternal(span obfuscateSpan) {
 	case "elasticsearch", "opensearch":
 		if a.conf.Obfuscation.ES.Enabled {
 			v, ok := span.GetAttributeAsString(tagElasticBody)
-			if !ok || v == "" {
-				return
+			if ok && v != "" {
+				span.SetStringAttribute(tagElasticBody, o.ObfuscateElasticSearchString(v))
 			}
-			span.SetStringAttribute(tagElasticBody, o.ObfuscateElasticSearchString(v))
 		}
 		if a.conf.Obfuscation.OpenSearch.Enabled {
 			v, ok := span.GetAttributeAsString(tagOpenSearchBody)
@@ -226,7 +225,7 @@ func (a *Agent) obfuscateSpanInternal(span obfuscateSpan) {
 	}
 }
 
-func (a *Agent) obfuscateSpan(span *pb.Span) {
+func (a *Agent) ObfuscateSpan(span *pb.Span) {
 	a.lazyInitObfuscator()
 	for _, spanEvent := range span.SpanEvents {
 		a.obfuscateSpanEvent(spanEvent)

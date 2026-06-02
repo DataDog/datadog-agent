@@ -10,6 +10,7 @@ import (
 	"context"
 	json "encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"runtime"
 	"slices"
@@ -23,8 +24,12 @@ import (
 	empty "google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	sbomapi "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -41,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -50,10 +54,10 @@ import (
 
 const (
 	// defaultMaxRetry is the default maximum number of retries for a pending message
-	defaultMaxRetry = 5
+	defaultMaxRetry = 25
 
 	// retryDelay is the delay between retries, changing this value may impact the retry logic.
-	retryDelay = time.Second
+	retryDelay = 200 * time.Millisecond
 )
 
 type pendingMsg struct {
@@ -80,6 +84,54 @@ func (p *pendingMsg) getMaxRetry() int {
 		maxRetry = max(maxRetry, p.sshSessionPatcher.MaxRetry())
 	}
 	return maxRetry
+}
+
+// tryResolve collects external tags and checks whether the message is ready to be
+// sent. Returns false when the message should be retried later. Increments server
+// counters for skipped retries and missing tags.
+func (a *APIServer) tryResolve(msg *pendingMsg, isRetryAllowed bool) bool {
+	var (
+		skippedRetry bool
+		missingTags  bool
+	)
+
+	if msg.extTagsCb != nil {
+		tags, retryable := msg.extTagsCb()
+		if len(tags) == 0 {
+			if isRetryAllowed && retryable && msg.retry < msg.getMaxRetry() {
+				return false
+			}
+			missingTags = true
+			// skippedRetry only when queue pressure forced us past a retryable miss
+			if !isRetryAllowed && retryable && msg.retry < msg.getMaxRetry() {
+				skippedRetry = true
+			}
+		} else {
+			for _, tag := range tags {
+				if !slices.Contains(msg.tags, tag) {
+					msg.tags = append(msg.tags, tag)
+				}
+			}
+		}
+	}
+
+	if !msg.isResolved() {
+		if isRetryAllowed && msg.retry < msg.getMaxRetry() {
+			return false
+		}
+		if !isRetryAllowed && msg.retry < msg.getMaxRetry() {
+			skippedRetry = true
+		}
+	}
+
+	if skippedRetry {
+		a.skippedRetryCount.Inc()
+	}
+	if missingTags {
+		a.missingTagsCount.Inc()
+	}
+
+	return true
 }
 
 func (p *pendingMsg) isResolved() bool {
@@ -144,11 +196,21 @@ func mergeJSON(j1, j2 []byte) ([]byte, error) {
 	return append(data, j2[1:]...), nil
 }
 
+// SBOMAPISServer represents a gRPC server in charge of receiving SBOM requests sent by
+type SBOMAPIServer struct {
+	sbomapi.UnimplementedSBOMCollectorServer
+
+	sboms    chan *sbom.ScanResult
+	probe    *sprobe.Probe
+	stopChan chan struct{}
+}
+
 // APIServer represents a gRPC server in charge of receiving events sent by
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
 	api.UnimplementedSecurityModuleEventServer
 	api.UnimplementedSecurityModuleCmdServer
+
 	events             chan *api.SecurityEventMessage
 	activityDumps      chan *api.ActivityDumpStreamMessage
 	expiredEventsLock  sync.RWMutex
@@ -168,7 +230,12 @@ type APIServer struct {
 	activityDumpSender ActivityDumpMsgSender
 	connEstablished    *atomic.Bool
 	envAsTags          []string
-	containerFilter    *containers.Filter
+	containerFilter    workloadfilter.FilterBundle
+
+	// retry queue metrics counters
+	retryCount        atomic.Int64
+	skippedRetryCount atomic.Int64
+	missingTagsCount  atomic.Int64
 
 	// os release data
 	kernelVersion string
@@ -176,7 +243,9 @@ type APIServer struct {
 
 	stopChan chan struct{}
 	stopper  startstop.Stopper
+	wg       sync.WaitGroup
 
+	hostname               string
 	securityAgentAPIClient *SecurityAgentAPIClient
 }
 
@@ -239,7 +308,7 @@ func (a *APIServer) enqueue(msg *pendingMsg) {
 	a.queueLock.Unlock()
 }
 
-func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) bool) {
+func (a *APIServer) dequeue(now time.Time, sendCallback func(msg *pendingMsg, retry bool) bool) {
 	a.queueLock.Lock()
 	defer a.queueLock.Unlock()
 
@@ -253,7 +322,7 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) 
 			return false
 		}
 
-		if cb(msg, queueSize < a.cfg.EventRetryQueueThreshold) {
+		if sendCallback(msg, queueSize < a.cfg.EventRetryQueueThreshold) {
 			queueSize--
 			return true
 		}
@@ -265,9 +334,10 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) 
 			queueSize--
 			return true
 		}
-		seclog.Warnf("failed to send event for rule `%s`, retry %d/%d, queue size: %d", msg.ruleID, msg.retry, msgMaxRetry, len(a.queue))
+		seclog.Debugf("failed to send event for rule `%s`, retry %d/%d, queue size: %d", msg.ruleID, msg.retry, msgMaxRetry, len(a.queue))
 
 		msg.sendAfter = now.Add(retryDelay)
+		a.retryCount.Inc()
 		msg.retry++
 
 		return false
@@ -327,8 +397,17 @@ func (a *APIServer) updateCustomEventTags(msg *api.SecurityEventMessage) {
 	}
 }
 
+// SendCustomEventKillAction sends a custom remediation event for each resolved kill action report
+func SendCustomEventKillAction(probe *sprobe.Probe, tags []string, actionReports []model.ActionReport) {
+	for _, report := range actionReports {
+		if _, ok := report.(*sprobe.KillActionReport); ok {
+			probe.SendCustomEventKillAction(report, tags)
+		}
+	}
+}
+
 func (a *APIServer) start(ctx context.Context) {
-	ticker := time.NewTicker(200 * time.Millisecond)
+	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -339,28 +418,16 @@ func (a *APIServer) start(ctx context.Context) {
 					seclog.Debugf("queue limit reached: %d, sending event anyway", len(a.queue))
 				}
 
-				if msg.extTagsCb != nil && isRetryAllowed {
-					tags, retryable := msg.extTagsCb()
-					if len(tags) == 0 && retryable && msg.retry < msg.getMaxRetry() {
-						return false
-					}
-
-					// dedup
-					for _, tag := range tags {
-						if !slices.Contains(msg.tags, tag) {
-							msg.tags = append(msg.tags, tag)
-						}
-					}
-				}
-
-				// not fully resolved, retry
-				if !msg.isResolved() && isRetryAllowed && msg.retry < msg.getMaxRetry() {
+				if !a.tryResolve(msg, isRetryAllowed) {
 					return false
 				}
 
+				// For kill actions, send a custom remediation event per resolved kill report
+				// If a rule contains multiple kill, a custom event will be sent for each action
+				SendCustomEventKillAction(a.probe, msg.tags, msg.actionReports)
 				if a.containerFilter != nil {
 					containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
-					if a.containerFilter.IsExcluded(nil, containerName, imageName, podNamespace) {
+					if a.containerFilter.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil))) {
 						// similar return value as if we had sent the message
 						return true
 					}
@@ -380,8 +447,13 @@ func (a *APIServer) start(ctx context.Context) {
 					Service:   msg.service,
 					Tags:      msg.tags,
 					Timestamp: timestamppb.New(msg.timestamp),
+					Hostname:  a.hostname,
 				}
 				a.updateMsgService(m)
+
+				if err := a.statsdClient.Distribution(metrics.MetricEventServerRetriesBeforeSend, float64(msg.retry), []string{}, 1.0); err != nil {
+					seclog.Tracef("failed to send retries_before_send metric: %v", err)
+				}
 
 				a.msgSender.Send(m, a.expireEvent)
 
@@ -409,7 +481,11 @@ func (a *APIServer) Start(ctx context.Context) {
 		})
 		go a.securityAgentAPIClient.SendActivityDumps(ctx, a.activityDumps)
 	}
-	go a.start(ctx)
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+		a.start(ctx)
+	}()
 }
 
 // GetConfig returns config of the runtime security module required by the security agent
@@ -597,6 +673,31 @@ func (a *APIServer) SendStats() error {
 		}
 	}
 
+	// retry queue counters (delta since last call)
+	if val := a.retryCount.Swap(0); val > 0 {
+		if err := a.statsdClient.Count(metrics.MetricEventServerRetry, val, []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if val := a.skippedRetryCount.Swap(0); val > 0 {
+		if err := a.statsdClient.Count(metrics.MetricEventServerSkippedRetry, val, []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if val := a.missingTagsCount.Swap(0); val > 0 {
+		if err := a.statsdClient.Count(metrics.MetricEventServerMissingTags, val, []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+
+	// current queue depth
+	a.queueLock.Lock()
+	queueSize := int64(len(a.queue))
+	a.queueLock.Unlock()
+	if err := a.statsdClient.Gauge(metrics.MetricEventServerQueueSize, float64(queueSize), []string{}, 1.0); err != nil {
+		return err
+	}
+
 	// telemetry for msg senders
 	a.msgSender.SendTelemetry(a.statsdClient)
 	a.activityDumpSender.SendTelemetry(a.statsdClient)
@@ -610,7 +711,7 @@ func (a *APIServer) ReloadPolicies(_ context.Context, _ *api.ReloadPoliciesParam
 		return nil, errors.New("no rule engine")
 	}
 
-	if err := a.cwsConsumer.ruleEngine.ReloadPolicies(); err != nil {
+	if err := a.cwsConsumer.ruleEngine.ReloadPolicies(true); err != nil {
 		return nil, err
 	}
 
@@ -642,6 +743,57 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportP
 
 	return &api.GetRuleSetReportMessage{
 		RuleSetReportMessage: transform.FromFilterReportToProtoRuleSetReportMessage(report),
+	}, nil
+}
+
+type policyDump struct {
+	Name         string                   `json:"name"`
+	Source       string                   `json:"source"`
+	Version      string                   `json:"version,omitempty"`
+	InternalType string                   `json:"internal_type,omitempty"`
+	Macros       []*rules.MacroDefinition `json:"macros,omitempty"`
+	Rules        []*rules.RuleDefinition  `json:"rules,omitempty"`
+}
+
+// GetLoadedPolicies returns the currently loaded policies as JSON
+func (a *APIServer) GetLoadedPolicies(_ context.Context, params *api.GetLoadedPoliciesParams) (*api.GetLoadedPoliciesMessage, error) {
+	if a.cwsConsumer == nil || a.cwsConsumer.ruleEngine == nil {
+		return nil, errors.New("no rule engine")
+	}
+
+	ruleSet := a.cwsConsumer.ruleEngine.GetRuleSet()
+	if ruleSet == nil {
+		return nil, errors.New("failed to get loaded rule set")
+	}
+
+	var dumps []policyDump
+	for _, policy := range ruleSet.GetPolicies() {
+		if policy.Info.IsInternal && !params.IncludeBundled {
+			continue
+		}
+
+		dump := policyDump{
+			Name:         policy.Info.Name,
+			Source:       policy.Info.Source,
+			Version:      policy.Info.Version,
+			InternalType: string(policy.Info.InternalType),
+		}
+
+		if policy.Def != nil {
+			dump.Macros = append(dump.Macros, policy.Def.Macros...)
+			dump.Rules = append(dump.Rules, policy.Def.Rules...)
+		}
+
+		dumps = append(dumps, dump)
+	}
+
+	content, err := json.MarshalIndent(dumps, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal policies: %w", err)
+	}
+
+	return &api.GetLoadedPoliciesMessage{
+		Policies: string(content),
 	}, nil
 }
 
@@ -685,8 +837,12 @@ func (a *APIServer) GetSECLVariables() map[string]*api.SECLVariableState {
 	return a.cwsConsumer.ruleEngine.GetSECLVariables()
 }
 
-// Stop stops the API server
+// Stop stops the API server. The start goroutine must finish before the
+// stopper closes pipeline channels, otherwise sends to logChan will panic.
 func (a *APIServer) Stop() {
+	// Wait for the start goroutine to exit (triggered by context cancellation)
+	// before stopping pipeline providers which close the underlying channels.
+	a.wg.Wait()
 	a.stopper.Stop()
 }
 
@@ -752,11 +908,15 @@ func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, hostname string) (*APIServer, error) {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, hostname string, stopChan chan struct{}, secretsComp secrets.Component, filterStore workloadfilter.Component) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
-	containerFilter, err := utils.NewContainerFilter()
-	if err != nil {
-		return nil, err
+
+	var containerFilter workloadfilter.FilterBundle
+	if filterStore != nil {
+		containerFilter = filterStore.GetContainerRuntimeSecurityFilters()
+		if errs := containerFilter.GetErrors(); len(errs) > 0 {
+			return nil, errors.Join(errs...)
+		}
 	}
 
 	as := &APIServer{
@@ -770,15 +930,16 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		cfg:             cfg,
 		stopper:         stopper,
 		selfTester:      selfTester,
-		stopChan:        make(chan struct{}),
+		stopChan:        stopChan,
 		msgSender:       msgSender,
 		connEstablished: atomic.NewBool(false),
 		envAsTags:       getEnvAsTags(cfg),
 		containerFilter: containerFilter,
+		hostname:        hostname,
 	}
 
-	if !cfg.SendPayloadsFromSystemProbe && cfg.EventGRPCServer == "security-agent" {
-		seclog.Infof("setting up security agent api client")
+	if !cfg.SendPayloadsFromSystemProbe && (cfg.EventGRPCServer == "security-agent" || cfg.EventGRPCServer == "system-probe") {
+		seclog.Infof("setting up runtime security agent api client")
 
 		securityAgentAPIClient, err := NewSecurityAgentAPIClient(cfg)
 		if err != nil {
@@ -791,7 +952,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 
 	if as.msgSender == nil {
 		if cfg.SendPayloadsFromSystemProbe {
-			msgSender, err := NewDirectEventMsgSender(stopper, compression, hostname)
+			msgSender, err := NewDirectEventMsgSender(stopper, compression, hostname, secretsComp)
 			if err != nil {
 				log.Errorf("failed to setup direct event sender: %v", err)
 			} else {
@@ -820,4 +981,16 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	}
 
 	return as, nil
+}
+
+// NewSBOMAPIServer returns a new gRPC SBOM server
+func NewSBOMAPIServer(probe *sprobe.Probe, stopChan chan struct{}) *SBOMAPIServer {
+	as := &SBOMAPIServer{
+		probe:    probe,
+		sboms:    make(chan *sbom.ScanResult, 100),
+		stopChan: stopChan,
+	}
+
+	as.collectSBOMS()
+	return as
 }

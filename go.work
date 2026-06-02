@@ -1,4 +1,4 @@
-go 1.25.7
+go 1.25.10
 
 // Disable new post-quantum key exchange mechanism X25519MLKEM768
 // See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
@@ -7,6 +7,8 @@ godebug tlsmlkem=0
 
 use (
 	.
+	comp/anomalydetection/observer/def
+	comp/anomalydetection/recorder/def
 	comp/api/api/def
 	comp/core/agenttelemetry/def
 	comp/core/agenttelemetry/fx
@@ -77,6 +79,8 @@ use (
 	comp/trace/compression/def
 	comp/trace/compression/impl-gzip
 	comp/trace/compression/impl-zstd
+	internal/qbranch/anomalydetection-scorer
+	internal/qbranch/anomalydetection-testbench
 	internal/tools
 	internal/tools/gotest-custom
 	internal/tools/independent-lint
@@ -88,6 +92,7 @@ use (
 	pkg/api
 	pkg/collector/check/defaults
 	pkg/config/basic
+	pkg/config/buildschema
 	pkg/config/create
 	pkg/config/env
 	pkg/config/helper
@@ -95,22 +100,20 @@ use (
 	pkg/config/model
 	pkg/config/nodetreemodel
 	pkg/config/remote
+	pkg/config/render_config
+	pkg/config/schema
 	pkg/config/setup
 	pkg/config/structure
 	pkg/config/teeconfig
 	pkg/config/utils
 	pkg/config/viperconfig
+	pkg/discovery/tracermetadata/model
 	pkg/errors
 	pkg/fips
 	pkg/fleet/installer
 	pkg/gohai
-	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message
-	pkg/logs/metrics
-	pkg/logs/pipeline
-	pkg/logs/processor
-	pkg/logs/sender
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
 	pkg/logs/status/utils
@@ -140,7 +143,6 @@ use (
 	pkg/status/health
 	pkg/tagger/types
 	pkg/tagset
-	pkg/telemetry
 	pkg/template
 	pkg/trace
 	pkg/trace/log
@@ -163,6 +165,7 @@ use (
 	pkg/util/grpc
 	pkg/util/hostinfo
 	pkg/util/hostname/validate
+	pkg/util/hostport
 	pkg/util/http
 	pkg/util/json
 	pkg/util/jsonquery
@@ -189,5 +192,6 @@ use (
 	test/fakeintake
 	test/new-e2e
 	test/otel
+	tools/build-ddot-byoc
 	tools/retry_file_dump
 )

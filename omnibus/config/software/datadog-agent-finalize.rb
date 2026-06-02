@@ -29,12 +29,10 @@ build do
         # TODO: flavor can be defaulted and set from the bazel wrapper based on the environment.
         command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/install_dir:install"
 
-	if linux_target?
-	    if heroku_target?
-               command_on_repo_root "bazelisk run -- //packages/agent/heroku:license_files_install --destdir=#{install_dir}"
-            else
-               command_on_repo_root "bazelisk run -- //packages/agent/linux:license_files_install --destdir=#{install_dir}"
-            end
+        if linux_target?
+            command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/agent/linux:license_files_install --destdir=#{install_dir}"
+        elsif osx_target?
+            command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/agent/dependencies:license_files_install --destdir=#{install_dir}"
         end
 
         # Conf files
@@ -60,6 +58,7 @@ build do
             # Delete the leftovers of static linking.
             delete "#{install_dir}/embedded/lib/libdbus-1.a"
             delete "#{install_dir}/embedded/include/dbus-1.0"
+            delete "#{install_dir}/embedded/lib/dbus-1.0/include"
         end
 
         # TODO: Rather than move these, let's install them to the right place to start
@@ -76,13 +75,13 @@ build do
                 # SElinux policies aren't generated when system-probe isn't built
                 # Move SELinux policy
                 if debian_target? || redhat_target?
-                  move "#{install_dir}/etc/datadog-agent/selinux", "#{output_config_dir}/etc/datadog-agent/selinux"
+                  move "#{install_dir}/etc/datadog-agent/selinux", "#{output_config_dir}/etc/datadog-agent/selinux", :force=>true
                 end
               end
               move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "#{output_config_dir}/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/runtime-security.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
-              move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent"
-              move "#{install_dir}/etc/datadog-agent/private-action-runner", "#{output_config_dir}/etc/datadog-agent"
+              move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
+              move "#{install_dir}/etc/datadog-agent/private-action-runner", "#{output_config_dir}/etc/datadog-agent", :force=>true
             end
 
             # Create the installer symlink if the file doesn't already exist
@@ -94,6 +93,9 @@ build do
             # (also requires `extra_package_file` directive in project def)
             mkdir "#{output_config_dir}/etc/datadog-agent/checks.d"
             mkdir "/var/log/datadog"
+
+            # Process manager config directory (read-only, under install dir)
+            mkdir "#{install_dir}/processes.d"
 
             # remove unused configs
             delete "#{output_config_dir}/etc/datadog-agent/conf.d/apm.yaml.default"
@@ -140,27 +142,19 @@ build do
             # removing the local folder to reduce package size by ~0.5MB
             delete "#{install_dir}/embedded/share/locale"
 
-            # remove some debug ebpf object files to reduce the size of the package
-            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/oom-kill-debug.o"
-            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/tcp-queue-length-debug.o"
+            # Drop bundled unit-test directories from embedded Python wheels/deps (not used at agent runtime).
+            # Deepest paths first so nested tests/ trees are removed safely.
+            command "find #{install_dir}/embedded/lib -path '*/site-packages/*' -depth -type d -name tests -exec rm -rf {} +"
+
+            # Remove debug eBPF object files — they enable bpf_trace_printk logging
+            # and are only useful for local development, not deployed environments.
+            command "rm -f #{install_dir}/embedded/share/system-probe/ebpf/*-debug.o"
+            command "rm -f #{install_dir}/embedded/share/system-probe/ebpf/co-re/*-debug.o"
+
+            # Remove test-only eBPF object files
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/error_telemetry.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/logdebug-test.o"
-            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/shared-libraries-debug.o"
-            delete "#{install_dir}/embedded/share/system-probe/ebpf/shared-libraries-debug.o"
-
-            # linux build will be stripped - but psycopg2 affected by bug in the way binutils
-            # and patchelf work together:
-            #    https://github.com/pypa/manylinux/issues/119
-            #    https://github.com/NixOS/patchelf
-            #
-            # Only affects psycopg2 - any binary whose path matches the pattern will be
-            # skipped.
-            strip_exclude("*psycopg2*")
-            strip_exclude("*cffi_backend*")
-
-            # We get the following error when the aerospike lib is stripped:
-            # The `aerospike` client is not installed: /opt/datadog-agent/embedded/lib/python2.7/site-packages/aerospike.so: ELF load command address/offset not properly aligned
-            strip_exclude("*aerospike*")
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/sleepable.o"
 
             # Do not strip eBPF programs
             strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/*.o")
@@ -193,13 +187,37 @@ build do
             # Edit rpath from a true path to relative path for each binary
             command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
 
-            if ENV['HARDENED_RUNTIME_MAC'] == 'true'
-                hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
-            else
-                hardened_runtime = ""
-            end
-
             if code_signing_identity
+                # Re-unlock the keychain right before signing.  The keychain
+                # may have been auto-locked if the build took longer than the
+                # previous timeout, or securityd may have dropped state.  This
+                # is a no-op when the keychain is already unlocked.
+                keychain_name = ENV['KEYCHAIN_NAME']
+                keychain_pwd  = ENV['KEYCHAIN_PWD']
+                if keychain_name && keychain_pwd && !keychain_pwd.empty?
+                    command "security unlock-keychain -p \"$KEYCHAIN_PWD\" \"$KEYCHAIN_NAME\"", cwd: Dir.pwd
+                end
+
+                # Signing healthcheck: attempt a single codesign operation
+                # before the parallel batch.  If securityd or the keychain is
+                # in a bad state this will fail fast (seconds) instead of
+                # burning ~90 minutes retrying hundreds of files.
+                #
+                # Uses `find ... -print -quit` (not `| head -1`): under
+                # `pipefail`, piping to `head` makes `find` exit 141 on SIGPIPE
+                # once `head` closes its stdin, which reliably fails the
+                # healthcheck even when codesign itself succeeds.
+                hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
+                command <<-SH.gsub(/^ {20}/, ""), cwd: Dir.pwd
+                    set -euo pipefail
+                    test_file=$(find #{install_dir} -type f -perm +111 ! -path '*/Datadog Agent.app/*' -print -quit)
+                    if [ -n "$test_file" ]; then
+                        echo "Signing healthcheck: codesigning $test_file"
+                        codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' "$test_file"
+                        echo "Signing healthcheck passed"
+                    fi
+                SH
+
                 # Sometimes the timestamp service is not available, so we retry
                 codesign = "../tools/ci/retry.sh codesign"
                 app = "'#{install_dir}/Datadog Agent.app'"
@@ -230,7 +248,7 @@ build do
                                  live_stream: Omnibus.logger.live_stream(:info),
                                  env: {
                                    ARCH: arm_target? ? "arm64" : "x86_64",
-                                   MIN_ACCEPTABLE_VERSION: "11.0",
+                                   MIN_ACCEPTABLE_VERSION: "12.0",
                                    INSTALL_DIR: install_dir,
                                    ALLOW_PATTERN: "(#{allow_list.join('|')})",
                                  }

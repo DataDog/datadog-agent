@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/docker/docker/api/types/swarm"
+	"github.com/moby/moby/api/types/swarm"
 )
 
 // GetMetadata returns metadata about the docker runtime such as docker_version and if docker_swarm is enabled or not.
@@ -31,18 +31,18 @@ func GetMetadata() (map[string]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	i, err := du.cli.Info(ctx)
+	info, err := safeInfo(ctx, du.cli)
 	if err != nil {
 		return nil, err
 	}
 
 	dockerSwarm := "inactive"
-	if i.Swarm.LocalNodeState == swarm.LocalNodeStateActive {
+	if info.Swarm.LocalNodeState == swarm.LocalNodeStateActive {
 		dockerSwarm = "active"
 	}
 
 	return map[string]string{
-		"docker_version": i.ServerVersion,
+		"docker_version": info.ServerVersion,
 		"docker_swarm":   dockerSwarm,
 	}, nil
 }

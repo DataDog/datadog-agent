@@ -112,6 +112,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 			NetDevice:        device,
 			NetworkDirection: tcProbe.NetworkDirection,
 		}
+		// skip if probe already attached
 		_, ok := tcr.programs[progKey]
 		if ok {
 			continue

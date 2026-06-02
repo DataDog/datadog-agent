@@ -22,6 +22,7 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/modifiers"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	ebpfTelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
@@ -259,7 +260,7 @@ func (e *EventHandler) removeRingBufferHelperCalls(mgr *manager.Manager, moduleN
 		return
 	}
 	// add helper call remover because ring buffers are not available
-	_ = ddebpf.NewHelperCallRemover(asm.FnRingbufOutput, asm.FnRingbufQuery, asm.FnRingbufReserve, asm.FnRingbufSubmit, asm.FnRingbufDiscard).BeforeInit(mgr, moduleName, mgrOpts)
+	_ = modifiers.NewHelperCallRemover(asm.FnRingbufOutput, asm.FnRingbufQuery, asm.FnRingbufReserve, asm.FnRingbufSubmit, asm.FnRingbufDiscard).BeforeInit(mgr, moduleName, mgrOpts)
 }
 
 func (e *EventHandler) setupEnabledConstant(mgrOpts *manager.Options) {

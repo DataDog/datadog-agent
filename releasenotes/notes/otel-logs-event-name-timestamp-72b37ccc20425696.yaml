@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    OTel logs exported via the Datadog Exporter (``otel_source:datadog_exporter``) now
+    correctly populate ``otel.event_name`` from the OTLP ``event_name`` field, and fall
+    back to ``observed_time_unix_nano`` for the timestamp when ``time_unix_nano`` is
+    unset (per the OTLP spec). Previously, both fields were missing for this ingestion
+    path, causing OTel RUM events to be dropped or timestamped at the Unix epoch.

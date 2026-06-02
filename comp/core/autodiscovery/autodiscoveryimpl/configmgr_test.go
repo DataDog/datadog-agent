@@ -16,9 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
@@ -542,7 +545,193 @@ func TestReconcilingConfigManagement(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	suite.Run(t, &ReconcilingConfigManagerSuite{
 		ConfigManagerSuite{factory: func() configManager {
-			return newReconcilingConfigManager(&mockResolver)
+			return newReconcilingConfigManager(&mockResolver, nil, nil)
 		}},
 	})
+}
+
+// dummyServiceWithExtraConfigError is a dummyService that returns an error for GetExtraConfig
+type dummyServiceWithExtraConfigError struct {
+	dummyService
+}
+
+func (s *dummyServiceWithExtraConfigError) GetExtraConfig(key string) (string, error) {
+	return "", fmt.Errorf("extra config %q is not supported", key)
+}
+
+// A service whose FilterTemplates consults the shared StaticConfigIndex
+// (as ProcessService does) has its templates correctly deduped when its
+// reconciliation runs after a static config has already been published to
+// the index. This covers the common startup ordering: static configs from
+// conf.d are loaded before the process listener starts discovering
+// services.
+//
+// TODO: runtime ordering (static arrives after dynamic, or static leaves
+// while dynamic is scheduled) is not covered yet — see configmgr.go.
+func TestStaticConfigIndexDedupOnReconcile(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	idx := listeners.NewStaticConfigIndex()
+
+	cm := newReconcilingConfigManager(&mockResolver, nil, idx)
+
+	// A service whose FilterTemplates drops any template whose Name has a
+	// static config in the shared index — this is the contract ProcessService
+	// implements.
+	procSvc := &dummyService{
+		ID:            "process://1234",
+		ADIdentifiers: []string{"proc-redis"},
+		Hosts:         map[string]string{"main": "127.0.0.1"},
+	}
+	procSvc.filterTemplates = func(configs map[string]integration.Config) {
+		for digest, cfg := range configs {
+			if idx.Has(cfg.Name) {
+				delete(configs, digest)
+			}
+		}
+	}
+
+	redisTemplate := integration.Config{
+		Name:          "redis",
+		LogsConfig:    []byte("source: %%host%%"),
+		ADIdentifiers: []string{"proc-redis"},
+	}
+	staticRedis := integration.Config{
+		Name:      "redis",
+		Instances: []integration.Data{integration.Data("port: 6379")},
+	}
+
+	// Startup ordering: static config arrives first, then the template,
+	// then the matching service.
+	changes, _ := cm.processNewConfig(staticRedis)
+	assertConfigsMatch(t, changes.Schedule, matchName("redis"))
+	assertConfigsMatch(t, changes.Unschedule)
+	assert.True(t, idx.Has("redis"))
+
+	changes, _ = cm.processNewConfig(redisTemplate)
+	assertConfigsMatch(t, changes.Schedule)
+	assertConfigsMatch(t, changes.Unschedule)
+
+	// When the service arrives, reconciliation runs FilterTemplates and
+	// drops the redis template because the index reports a static config.
+	changes = cm.processNewService(procSvc)
+	assertConfigsMatch(t, changes.Schedule)
+	assertConfigsMatch(t, changes.Unschedule)
+	assertLoadedConfigsMatch(t, cm, matchAll(matchName("redis"), matchSvc("")))
+}
+
+// Static configs that share an integration name are refcounted in the
+// index, so Has stays true through partial removals and only flips false
+// when the last one goes away.
+func TestStaticConfigIndexRefcountThroughConfigMgr(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	idx := listeners.NewStaticConfigIndex()
+
+	cm := newReconcilingConfigManager(&mockResolver, nil, idx)
+
+	staticRedis1 := integration.Config{Name: "redis", Instances: []integration.Data{integration.Data("port: 6379")}}
+	staticRedis2 := integration.Config{Name: "redis", Instances: []integration.Data{integration.Data("port: 6380")}}
+
+	cm.processNewConfig(staticRedis1)
+	assert.True(t, idx.Has("redis"))
+
+	cm.processNewConfig(staticRedis2)
+	assert.True(t, idx.Has("redis"))
+
+	cm.processDelConfigs([]integration.Config{staticRedis1})
+	assert.True(t, idx.Has("redis"))
+
+	cm.processDelConfigs([]integration.Config{staticRedis2})
+	assert.False(t, idx.Has("redis"))
+}
+
+// Logs-only static configs (no Instances) are not added to the
+// StaticConfigIndex. The index tracks integrations covered by a scheduled
+// non-template *check* config so that dynamic templates of the same name can
+// be deduplicated. A logs-only conf.d entry forwards logs but doesn't
+// configure a check, so it must not suppress dynamic check templates.
+func TestStaticConfigIndex_SkipsLogsOnlyConfigs(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	idx := listeners.NewStaticConfigIndex()
+
+	cm := newReconcilingConfigManager(&mockResolver, nil, idx)
+
+	logsOnly := integration.Config{
+		Name:       "redis",
+		LogsConfig: []byte(`{"source":"redis"}`),
+	}
+	cm.processNewConfig(logsOnly)
+	assert.False(t, idx.Has("redis"),
+		"logs-only static configs must not populate the static config index")
+
+	// Removing the same config should be a no-op for the index.
+	cm.processDelConfigs([]integration.Config{logsOnly})
+	assert.False(t, idx.Has("redis"))
+}
+
+func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	hp := healthplatformmock.Mock(t)
+
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil).(*reconcilingConfigManager)
+
+	tpl := integration.Config{
+		Name:          "postgres",
+		ADIdentifiers: []string{"postgres"},
+		Instances:     []integration.Data{integration.Data("host: %%host%%\ntags:\n  - dbid:%%extra_dbinstanceidentifier%%")},
+		Provider:      "file",
+		Source:        "file:/etc/datadog-agent/conf.d/postgres.d/conf.yaml",
+	}
+
+	svc := &dummyServiceWithExtraConfigError{
+		dummyService: dummyService{
+			ID:            "docker://abc123",
+			ADIdentifiers: []string{"postgres"},
+			Hosts:         map[string]string{"main": "myhost"},
+		},
+	}
+
+	_, ok := cm.resolveTemplateForService(tpl, svc)
+	assert.False(t, ok, "resolveTemplateForService should return false on resolution failure")
+
+	count, issues := hp.GetAllIssues()
+	assert.Equal(t, 1, count, "expected 1 health issue to be reported")
+	expectedIssueID := "ad-template:postgres:docker://abc123:" + tpl.Digest()
+	issue := issues[expectedIssueID]
+	require.NotNil(t, issue, "expected health issue at issue id %s", expectedIssueID)
+	assert.Equal(t, expectedIssueID, issue.Id)
+	assert.Equal(t, storedef.ADMisconfigurationSource, issue.Source)
+}
+
+func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	hp := healthplatformmock.Mock(t)
+
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil).(*reconcilingConfigManager)
+
+	tpl := integration.Config{
+		Name:          "redis",
+		ADIdentifiers: []string{"redis"},
+		LogsConfig:    []byte("source: %%host%%"),
+	}
+
+	svc := &dummyService{
+		ID:            "docker://def456",
+		ADIdentifiers: []string{"redis"},
+		Hosts:         map[string]string{"main": "myhost"},
+	}
+
+	// Pre-populate a health issue using the same IssueId format the code uses.
+	hp.ReportIssue(&healthplatformpayload.Issue{
+		Id:        "ad-template:redis:docker://def456:" + tpl.Digest(),
+		IssueName: storedef.ADMisconfigurationIssueName,
+		Source:    storedef.ADMisconfigurationSource,
+	})
+	count, _ := hp.GetAllIssues()
+	require.Equal(t, 1, count)
+
+	_, ok := cm.resolveTemplateForService(tpl, svc)
+	assert.True(t, ok)
+
+	count, _ = hp.GetAllIssues()
+	assert.Equal(t, 0, count, "health issue should be cleared after successful resolution")
 }

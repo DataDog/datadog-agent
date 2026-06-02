@@ -24,12 +24,12 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -37,8 +37,10 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -109,7 +111,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 
 	demux.SendSamplesWithoutAggregation(batch)
 	time.Sleep(200 * time.Millisecond) // give some time for the automatic flush to trigger
-	demux.Stop(true)
+	demux.Stop()
 
 	// nothing should be in the time sampler
 	require.Len(demux.statsd.workers[0].samplesChan, 0)
@@ -138,7 +140,62 @@ func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 	require.False(t, demux.Options().EnableNoAggregationPipeline, "the no aggregation pipeline should be disabled by default")
-	demux.Stop(false)
+	demux.Stop()
+}
+
+func TestAddAgentStartupTelemetrySendsShutdownEventOnFinalStop(t *testing.T) {
+	demux, s := newShutdownTelemetryTestDemux(t, "hostname")
+	shutdownEventCh := make(chan *event.Event, 1)
+
+	s.On("SendEvents", mock.Anything).Return(nil).Maybe()
+	s.On("SendAgentShutdownEvent", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		shutdownEventCh <- args.Get(1).(*event.Event)
+	}).Return(nil).Once()
+
+	demux.AddAgentStartupTelemetry("7.0.0")
+	demux.Stop()
+
+	var shutdownEvent *event.Event
+	select {
+	case shutdownEvent = <-shutdownEventCh:
+	case <-time.After(time.Second):
+		require.FailNow(t, "timed out waiting for Agent Shutdown event")
+	}
+	require.Equal(t, "Agent Shutdown", shutdownEvent.Title)
+	require.Equal(t, "Version 7.0.0", shutdownEvent.Text)
+	require.Equal(t, "System", shutdownEvent.SourceTypeName)
+	require.Equal(t, "hostname", shutdownEvent.Host)
+	require.Equal(t, "Agent Shutdown", shutdownEvent.EventType)
+
+	s.AssertExpectations(t)
+}
+
+func newShutdownTelemetryTestDemux(t *testing.T, hostname string) (*AgentDemultiplexer, *MockSerializerIterableSerie) {
+	t.Helper()
+
+	deps := createDemultiplexerAgentTestDeps(t)
+	demux := InitAndStartAgentDemultiplexer(
+		deps.Log,
+		NewForwarderTest(deps.Log),
+		deps.OrchestratorFwd,
+		demuxTestOptions(),
+		deps.EventPlatform,
+		deps.HaAgent,
+		deps.Compressor,
+		deps.Tagger,
+		deps.FilterList,
+		hostname,
+	)
+
+	s := &MockSerializerIterableSerie{}
+	s.On("AreSeriesEnabled").Return(true).Maybe()
+	s.On("AreSketchesEnabled").Return(true).Maybe()
+	s.On("SendServiceChecks", mock.Anything).Return(nil).Maybe()
+
+	demux.aggregator.serializer = s
+	demux.sharedSerializer = s
+
+	return demux, s
 }
 
 func TestMetricSampleTypeConversion(t *testing.T) {
@@ -177,6 +234,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 	require := require.New(t)
 
 	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("metric_tag_filterlist_adp_only", false)
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
@@ -234,7 +292,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 	// After initial setup, we have filterlist from the configuration file.
 	// It may take a little time as it has to be sent to a separate routine.
 	require.Eventually(func() bool {
-		return len(demux.aggregator.tagfilterListChan) == 0
+		return len(demux.aggregator.tagFilterListChan) == 0
 	}, time.Second, time.Millisecond, "aggregator should consume the tagfilterList update")
 
 	// Tag 1 and 2 are excluded
@@ -251,12 +309,12 @@ func TestUpdateTagFilterList(t *testing.T) {
 
 	// Ensure the new filter list has been sent.
 	require.Eventually(func() bool {
-		return len(demux.aggregator.tagfilterListChan) == 0
+		return len(demux.aggregator.tagFilterListChan) == 0
 	}, time.Second, time.Millisecond, "aggregator should consume the tagfilterList update")
 
 	testCountBlocked([]string{"tag1:one", "tag2:two", "tag3:three"}, 62.0)
 
-	demux.Stop(false)
+	demux.Stop()
 
 	// We no longer need to ensure the correct metrics are being blocked after stopping. Just make sure it doesn't deadlock.
 	filterList.SetTagFilterList(map[string]filterlistimpl.MetricTagList{
@@ -276,6 +334,115 @@ func TestUpdateTagFilterList(t *testing.T) {
 			Tags:   []string{"thang"},
 		}})
 
+}
+
+// TestUpdateTagFilterListCheckSamplerCacheInvalidation verifies that when the
+// tag filter list is updated, the strip cache on check samplers is cleared so
+// that the new include/exclude rules are applied immediately rather than
+// returning stale cached contexts until natural expiry.
+func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
+	require := require.New(t)
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("metric_tag_filterlist_adp_only", false)
+	opts := demuxTestOptions()
+	deps := createDemultiplexerAgentTestDeps(t)
+	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
+	filterList.SetTagFilterList(map[string]filterlistimpl.MetricTagList{
+		"dist.metric": {
+			Action: "exclude",
+			Tags:   []string{"tag1", "tag2"},
+		}})
+
+	demux := InitAndStartAgentDemultiplexer(
+		deps.Log,
+		NewForwarderTest(deps.Log),
+		deps.OrchestratorFwd,
+		opts,
+		deps.EventPlatform,
+		deps.HaAgent,
+		deps.Compressor,
+		deps.Tagger,
+		filterList,
+		"",
+	)
+
+	s := &MockSerializerSketch{}
+	s.On("AreSeriesEnabled").Return(true)
+	s.On("AreSketchesEnabled").Return(true)
+	s.On("SendServiceChecks", mock.Anything).Return(nil)
+
+	demux.aggregator.serializer = s
+	demux.sharedSerializer = s
+
+	// Register a check sampler and wait for it to be processed.
+	checkID := checkid.ID("test:check:0")
+	demux.aggregator.registerSender(checkID)
+	require.Eventually(func() bool {
+		return len(demux.aggregator.checkItems) == 0
+	}, time.Second, time.Millisecond)
+
+	// sendAndFlush submits a distribution sample with the given timestamp via
+	// the check sampler path (not DogStatsD), commits it, then flushes.
+	// Using an explicit past timestamp ensures the sketch bucket is always
+	// older than the commit time and will be flushed.
+	sendAndFlush := func(ts float64) {
+		demux.aggregator.checkItems <- &senderMetricSample{
+			id: checkID,
+			metricSample: &metrics.MetricSample{
+				Name:       "dist.metric",
+				Value:      42,
+				Mtype:      metrics.DistributionType,
+				Tags:       []string{"tag1:one", "tag2:two", "tag3:three"},
+				SampleRate: 1,
+				Timestamp:  ts,
+			},
+		}
+		demux.aggregator.checkItems <- &senderMetricSample{
+			id:           checkID,
+			metricSample: &metrics.MetricSample{},
+			commit:       true,
+		}
+		require.Eventually(func() bool {
+			return len(demux.aggregator.checkItems) == 0
+		}, time.Second, time.Millisecond)
+		demux.ForceFlushToSerializer(time.Now(), true)
+	}
+
+	// First send: tag1 and tag2 are excluded. This is a cache miss so the
+	// result (only tag3:three) is stored in the strip cache.
+	sendAndFlush(1.0)
+
+	idx := slices.IndexFunc(s.sketches, func(ss *metrics.SketchSeries) bool {
+		return ss.Name == "dist.metric"
+	})
+	require.NotEqualf(-1, idx, "dist.metric not found in %+v", s.sketches)
+	require.ElementsMatch([]string{"tag3:three"}, strings.Split(s.sketches[idx].Tags.Join(","), ","))
+
+	s.sketches = []*metrics.SketchSeries{}
+
+	// Update the filter list to exclude tag3 instead. SetTagFilterList calls
+	// SetAggregatorTagFilterList synchronously, which blocks until the
+	// aggregator goroutine has received the new matcher and cleared the caches.
+	filterList.SetTagFilterList(map[string]filterlistimpl.MetricTagList{
+		"dist.metric": {
+			Action: "exclude",
+			Tags:   []string{"tag3"},
+		}})
+
+	// Second send: the pre-strip key is identical to the first send, so
+	// without the fix the stale cache entry would be reused and the sketch
+	// would still carry only tag3:three. With the fix the cache was cleared
+	// and the new rule is applied, keeping tag1 and tag2.
+	sendAndFlush(2.0)
+
+	idx = slices.IndexFunc(s.sketches, func(ss *metrics.SketchSeries) bool {
+		return ss.Name == "dist.metric"
+	})
+	require.NotEqualf(-1, idx, "dist.metric not found in %+v", s.sketches)
+	require.ElementsMatch([]string{"tag1:one", "tag2:two"}, strings.Split(s.sketches[idx].Tags.Join(","), ","))
+
+	demux.Stop()
 }
 
 func TestUpdateMetricFilterList(t *testing.T) {
@@ -353,7 +520,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 
 	testCountBlocked(false, 62.0)
 
-	demux.Stop(false)
+	demux.Stop()
 
 	// We no longer need to ensure the correct metrics are being blocked after stopping. Just make sure it doesn't deadlock.
 	filterList.SetMetricFilterList([]string{"another.metric"}, false)
@@ -386,7 +553,7 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		orchestratorimpl.MockModule(),
-		eventplatformimpl.MockModule(),
+		eventplatformmock.MockModule(),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		haagentmock.Module(),

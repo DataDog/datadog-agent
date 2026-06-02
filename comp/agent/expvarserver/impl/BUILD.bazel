@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["expvarserver.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/agent/expvarserver/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/agent/expvarserver/def",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/def",
+    ],
+)

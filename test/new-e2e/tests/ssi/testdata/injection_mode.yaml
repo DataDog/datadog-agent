@@ -6,8 +6,8 @@ clusterAgent:
 # Temporary until the Datadog CSI driver is released
 datadog-csi-driver:
   image:
-    repository: "gcr.io/datadoghq/csi-driver"
-    tag: "main"
+    repository: "registry.datadoghq.com/csi-driver"
+    tag: "1.2.0"
 
 datadog:
   csi:

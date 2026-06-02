@@ -27,17 +27,6 @@ const (
 	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 
 	discoveryMinInterval = 10 * time.Minute
-
-	configIntervals = configPrefix + "intervals."
-
-	// The interval, in seconds, at which we will run each check. If you want consistent
-	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
-	// Defaults to 10s for normal checks and 2s for others.
-	configProcessInterval     = configIntervals + "process"
-	configRTProcessInterval   = configIntervals + "process_realtime"
-	configContainerInterval   = configIntervals + "container"
-	configRTContainerInterval = configIntervals + "container_realtime"
-	configConnectionsInterval = configIntervals + "connections"
 )
 
 var (
@@ -51,11 +40,11 @@ var (
 	}
 
 	configKeys = map[string]string{
-		ProcessCheckName:     configProcessInterval,
-		RTProcessCheckName:   configRTProcessInterval,
-		ContainerCheckName:   configContainerInterval,
-		RTContainerCheckName: configRTContainerInterval,
-		ConnectionsCheckName: configConnectionsInterval,
+		ProcessCheckName:     "process_config.intervals.process",
+		RTProcessCheckName:   "process_config.intervals.process_realtime",
+		ContainerCheckName:   "process_config.intervals.container",
+		RTContainerCheckName: "process_config.intervals.container_realtime",
+		ConnectionsCheckName: "process_config.intervals.connections",
 	}
 )
 
@@ -80,7 +69,7 @@ func GetInterval(cfg pkgconfigmodel.Reader, checkName string) time.Duration {
 	default:
 		defaultInterval := defaultIntervals[checkName]
 		configKey, ok := configKeys[checkName]
-		if !ok || !cfg.IsSet(configKey) {
+		if !ok {
 			return defaultInterval
 		}
 

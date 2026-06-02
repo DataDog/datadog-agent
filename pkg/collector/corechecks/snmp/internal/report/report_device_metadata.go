@@ -6,15 +6,14 @@
 package report
 
 import (
-	json "encoding/json"
+	"encoding/json"
 	"fmt"
-	"net"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	sortutil "github.com/DataDog/datadog-agent/pkg/util/sort"
@@ -148,6 +147,15 @@ func computeInterfaceStatus(adminStatus devicemetadata.IfAdminStatus, operStatus
 	return devicemetadata.InterfaceStatusDown
 }
 
+// isEmptyMetadataScalarValue: polled scalar has no usable string (trim empty, ToString err); try next symbol.
+func isEmptyMetadataScalarValue(value valuestore.ResultValue) bool {
+	s, err := value.ToString()
+	if err != nil {
+		return true
+	}
+	return strings.TrimSpace(s) == ""
+}
+
 func buildMetadataStore(metadataConfigs profiledefinition.MetadataConfig, values *valuestore.ResultValueStore) *metadata.Store {
 	metadataStore := metadata.NewMetadataStore()
 	if values == nil {
@@ -172,6 +180,9 @@ func buildMetadataStore(metadataConfigs profiledefinition.MetadataConfig, values
 					value, err := getScalarValueFromSymbol(values, symbol)
 					if err != nil {
 						log.Debugf("error getting scalar value: %v", err)
+						continue
+					}
+					if isEmptyMetadataScalarValue(value) {
 						continue
 					}
 					metadataStore.AddScalarValue(fieldFullName, value)
@@ -520,7 +531,7 @@ func getRemDeviceAddressByCDPRemIndex(store *metadata.Store, strIndex string) st
 func getRemDeviceAddressIfIPType(store *metadata.Store, strIndex string, addressTypeField string, addressField string) string {
 	remoteDeviceAddressType := store.GetColumnAsString("cdp_remote."+addressTypeField, strIndex)
 	if remoteDeviceAddressType == ciscoNetworkProtocolIPv4 || remoteDeviceAddressType == ciscoNetworkProtocolIPv6 {
-		return net.IP(store.GetColumnAsByteArray("cdp_remote."+addressField, strIndex)).String()
+		return store.GetColumnAsIPString("cdp_remote."+addressField, strIndex)
 	}
 	return ""
 }
@@ -656,8 +667,8 @@ func buildCiscoIPsecVPNTunnelsMetadata(vpnTunnelIndexes []string, deviceID strin
 			continue
 		}
 
-		localOutsideIP := net.IP(store.GetColumnAsByteArray("cisco_ipsec_tunnel.local_outside_ip", strIndex)).String()
-		remoteOutsideIP := net.IP(store.GetColumnAsByteArray("cisco_ipsec_tunnel.remote_outside_ip", strIndex)).String()
+		localOutsideIP := store.GetColumnAsIPString("cisco_ipsec_tunnel.local_outside_ip", strIndex)
+		remoteOutsideIP := store.GetColumnAsIPString("cisco_ipsec_tunnel.remote_outside_ip", strIndex)
 
 		statusValue := store.GetColumnAsString("cisco_ipsec_tunnel.status", strIndex)
 		status, exists := ciscoIPsecStatusByValue[statusValue]

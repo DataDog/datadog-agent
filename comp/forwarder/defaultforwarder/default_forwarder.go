@@ -6,6 +6,7 @@
 package defaultforwarder
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -23,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	pkgresolver "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -31,7 +34,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -46,7 +48,6 @@ const (
 )
 
 const (
-	apiHTTPHeaderKey          = "DD-Api-Key"
 	versionHTTPHeaderKey      = "DD-Agent-Version"
 	useragentHTTPHeaderKey    = "User-Agent"
 	arbitraryTagHTTPHeaderKey = "Allow-Arbitrary-Tag-Value"
@@ -68,6 +69,7 @@ type Response struct {
 type Forwarder interface {
 	SubmitV1Series(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitV1Intake(payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error
+	SubmitV1IntakeDirect(ctx context.Context, payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error
 	SubmitV1CheckRuns(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitHostMetadata(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitAgentChecksMetadata(payload transaction.BytesPayloads, extra http.Header) error
@@ -117,6 +119,7 @@ type Options struct {
 	DomainResolvers                map[string]pkgresolver.DomainResolver
 	ConnectionResetInterval        time.Duration
 	Secrets                        secrets.Component
+	transport                      http.RoundTripper // for testing
 }
 
 // SetFeature sets forwarder features in a feature set
@@ -225,6 +228,7 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 		APIKeyValidationInterval:       time.Duration(validationInterval) * time.Minute,
 		DomainResolvers:                domainResolvers,
 		ConnectionResetInterval:        time.Duration(config.GetInt("forwarder_connection_reset_interval")) * time.Second,
+		Secrets:                        &secretnooptypes.SecretNoop{}, // will get overwritten with actual secrets if needed
 	}
 
 	if config.IsConfigured(forwarderRetryQueueMaxSizeKey) {
@@ -393,7 +397,8 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				numberOfWorkers,
 				options.ConnectionResetInterval,
 				domainForwarderSort,
-				pointCountTelemetry)
+				pointCountTelemetry,
+				options.transport)
 			f.domainForwarders[domain] = fwd
 			// Register all alternate domains for each forwarder
 			for _, v := range resolver.GetAlternateDomains() {
@@ -539,7 +544,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 				continue
 			}
 
-			for _, auth := range dr.GetAuthorizers() {
+			for idx := range dr.GetAuthorizers() {
 				t := transaction.NewHTTPTransaction()
 				t.Domain = drDomain
 				t.Endpoint = endpoint
@@ -548,7 +553,8 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 				t.Kind = kind
 				t.StorableOnDisk = storableOnDisk
 				t.Destination = payload.Destination
-				auth.Authorize(t)
+				t.APIKeyIndex = uint(idx)
+				t.Resolver = dr
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 				t.Headers.Set(useragentHTTPHeaderKey, "datadog-agent/"+version.AgentVersion)
 				if allowArbitraryTags {
@@ -595,21 +601,43 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 		if capacities, err := f.queueDurationCapacity.ComputeCapacity(now); err != nil {
 			f.log.Errorf("Cannot compute the capacity of the retry queues: %v", err)
 		} else {
-			telemetry := telemetry.GetStatsTelemetryProvider()
+			tlmStats := telemetry.GetStatsTelemetryProvider()
 			metricPrefix := "datadog.agent.retry_queue_duration."
 			for domain, t := range capacities {
 				tags := []string{
 					"agent:" + f.agentName,
 					"domain:" + domain,
 				}
-				telemetry.Gauge(metricPrefix+"capacity_secs", t.Capacity.Seconds(), tags)
-				telemetry.Gauge(metricPrefix+"bytes_per_sec", t.BytesPerSec, tags)
-				telemetry.Gauge(metricPrefix+"capacity_bytes", float64(t.AvailableSpace), tags)
+				tlmStats.Gauge(metricPrefix+"capacity_secs", t.Capacity.Seconds(), tags)
+				tlmStats.Gauge(metricPrefix+"bytes_per_sec", t.BytesPerSec, tags)
+				tlmStats.Gauge(metricPrefix+"capacity_bytes", float64(t.AvailableSpace), tags)
 			}
 		}
 	}
 
 	return nil
+}
+
+func (f *DefaultForwarder) sendHTTPTransactionsDirect(ctx context.Context, transactions []*transaction.HTTPTransaction) error {
+	f.m.Lock()
+	defer f.m.Unlock()
+
+	if f.internalState.Load() == Stopped {
+		return errors.New("the forwarder is not started")
+	}
+
+	var errs []error
+	for _, t := range transactions {
+		forwarder := f.domainForwarders[t.Domain]
+		if forwarder == nil {
+			errs = append(errs, fmt.Errorf("no forwarder found for domain %q", t.Domain))
+			continue
+		}
+		if err := forwarder.sendHTTPTransactionDirect(ctx, t); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
@@ -667,6 +695,25 @@ func (f *DefaultForwarder) SubmitV1CheckRuns(payload transaction.BytesPayloads, 
 // SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
 func (f *DefaultForwarder) SubmitV1Intake(payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error {
 	return f.submitV1IntakeWithTransactionsFactory(payload, kind, extra, f.createHTTPTransactions)
+}
+
+// SubmitV1IntakeDirect sends payloads to the universal `/intake/` endpoint
+// synchronously, bypassing the forwarder worker queue.
+//
+// This is intended for bounded one-shot lifecycle telemetry during shutdown. It reuses the
+// normal HTTPTransaction construction path, but avoids the worker queue so the caller can know
+// whether the request completed before returning.
+func (f *DefaultForwarder) SubmitV1IntakeDirect(ctx context.Context, payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error {
+	transactions := f.createAdvancedHTTPTransactions(endpoints.V1IntakeEndpoint, payload, extra, transaction.TransactionPriorityHigh, kind, false)
+
+	for _, t := range transactions {
+		// The intake endpoint requires the Content-Type header. The normal
+		// SubmitV1Intake path sets this after transaction construction too.
+		t.Headers.Set("Content-Type", "application/json")
+		t.Retryable = false
+	}
+
+	return f.sendHTTPTransactionsDirect(ctx, transactions)
 }
 
 func (f *DefaultForwarder) submitV1IntakeWithTransactionsFactory(

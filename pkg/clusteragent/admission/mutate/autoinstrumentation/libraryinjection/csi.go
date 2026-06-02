@@ -121,11 +121,11 @@ func (p *CSIProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) Mutation
 			},
 		},
 	})
-	patcher.AddVolumeMount(corev1.VolumeMount{
+	patcher.AddVolumeMountWithTarget(corev1.VolumeMount{
 		Name:      volumeName,
 		MountPath: asAbsPath(libraryPackagesDir) + "/" + cfg.Language,
 		ReadOnly:  true,
-	})
+	}, cfg.ContainerName)
 
 	return MutationResult{
 		Status: MutationStatusInjected,

@@ -11,9 +11,11 @@ from tasks import (
     agent,
     agent_ci_api,
     ami,
+    anomalydetection,
     auth,
     bench,
     buildimages,
+    claude,
     cluster_agent,
     cluster_agent_cloudfoundry,
     collector,
@@ -33,12 +35,13 @@ from tasks import (
     fakeintake,
     files_inventory,
     fips,
-    full_host_profiler,
     git,
     github_tasks,
     gitlab_helpers,
     go,
     go_deps,
+    gpu,
+    host_profiler,
     installer,
     invoke_unit_tests,
     issue,
@@ -67,8 +70,10 @@ from tasks import (
     python_version,
     quality_gates,
     release,
+    renovate,
     rtloader,
     sbomgen,
+    schema,
     secret_generic_connector,
     security_agent,
     selinux,
@@ -95,6 +100,7 @@ from tasks.e2e_framework import azure as e2e_azure
 from tasks.e2e_framework import gcp as e2e_gcp
 from tasks.e2e_framework import localpodman as e2e_localpodman
 from tasks.e2e_framework import test as e2e_test
+from tasks.e2e_framework.deploy import check_s3_image_exists
 from tasks.e2e_framework.setup import setup as e2e_setup
 from tasks.fuzz import fuzz
 from tasks.fuzz_infra import build_and_upload_fuzz
@@ -128,7 +134,6 @@ from tasks.gotest import (
 from tasks.install_tasks import (
     download_tools,
     install_devcontainer_cli,
-    install_protoc,
     install_rust_license_tool,
     install_shellcheck,
     install_tools,
@@ -166,7 +171,6 @@ ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
 ns.add_task(install_shellcheck)
-ns.add_task(install_protoc)
 ns.add_task(install_rust_license_tool)
 ns.add_task(install_devcontainer_cli)
 ns.add_task(download_tools)
@@ -192,11 +196,13 @@ ns.add_task(build_and_upload_fuzz)
 # To deprecate
 ns.add_task(lint_go)
 # add namespaced tasks to the root
+ns.add_collection(anomalydetection)
 ns.add_collection(auth)
 ns.add_collection(agent)
 ns.add_collection(ami)
 ns.add_collection(agent_ci_api)
 ns.add_collection(buildimages)
+ns.add_collection(claude)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
@@ -222,6 +228,7 @@ ns.add_collection(github_tasks, "github")
 ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
 ns.add_collection(loader)
+ns.add_collection(gpu)
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(quality_gates)
@@ -231,11 +238,12 @@ ns.add_collection(notes)
 ns.add_collection(notify)
 ns.add_collection(oracle)
 ns.add_collection(otel_agent)
-ns.add_collection(full_host_profiler)
+ns.add_collection(host_profiler)
 ns.add_collection(selinux)
 ns.add_collection(setup)
 ns.add_collection(systray)
 ns.add_collection(release)
+ns.add_collection(renovate)
 ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
@@ -264,6 +272,7 @@ ns.add_collection(debug)
 ns.add_collection(winbuild)
 ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
+ns.add_collection(schema)
 ns.add_collection(sbomgen)
 ns.add_collection(pkg_template)
 ns.add_collection(virustotal)
@@ -279,8 +288,9 @@ ns.add_collection(e2e_localpodman.collection, "localpodman")
 e2e_ns = Collection("e2e")
 e2e_ns.add_collection(e2e_setup)
 e2e_ns.add_collection(e2e_test)
-ns.add_collection(e2e_ns)
+e2e_ns.add_task(check_s3_image_exists)
 
+ns.add_collection(e2e_ns)
 ns.configure(
     {
         "run": {

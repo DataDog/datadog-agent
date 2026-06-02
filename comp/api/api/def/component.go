@@ -22,8 +22,8 @@ import (
 
 // Component is the component type.
 type Component interface {
-	CMDServerAddress() *net.TCPAddr
-	IPCServerAddress() *net.TCPAddr
+	CMDServerAddress() net.Addr
+	IPCServerAddress() net.Addr
 }
 
 // EndpointProvider is an interface to register api endpoints

@@ -7,8 +7,10 @@ package k8sfiletailing
 
 import (
 	"context"
-	kindfilelogger "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/kindfilelogging"
 	"testing"
+
+	apps "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	kindfilelogger "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/kindfilelogging"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -54,7 +56,7 @@ func (v *k8sCCAOffSuite) TestADAnnotations() {
 					Containers: []corev1.Container{
 						{
 							Name:  "annotations-job",
-							Image: "ubuntu",
+							Image: "ghcr.io/datadog/apps-alpine:" + apps.Version,
 							// Sleep is added here so k8s doesn't kill the container before
 							// the agent container can detect it.
 							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
@@ -74,10 +76,10 @@ func (v *k8sCCAOffSuite) TestADAnnotations() {
 		logsServiceNames, err := v.Env().FakeIntake.Client().GetLogServiceNames()
 		assert.NoError(c, err, "Error starting job")
 
-		if assert.Contains(c, logsServiceNames, "ubuntu", "Ubuntu service not found") {
-			filteredLogs, err := v.Env().FakeIntake.Client().FilterLogs("ubuntu")
+		if assert.Contains(c, logsServiceNames, "apps-alpine", "Alpine service not found") {
+			filteredLogs, err := v.Env().FakeIntake.Client().FilterLogs("apps-alpine")
 			assert.NoError(c, err, "Error filtering logs")
-			if assert.NotEmpty(v.T(), filteredLogs, "Fake Intake returned no logs even though log service name exists") {
+			if assert.NotEmpty(c, filteredLogs, "Fake Intake returned no logs even though log service name exists") {
 				assert.Equal(c, testLogMessage, filteredLogs[0].Message, "Test log doesn't match")
 			}
 		}
@@ -101,7 +103,7 @@ func (v *k8sCCAOffSuite) TestCCAOff() {
 					Containers: []corev1.Container{
 						{
 							Name:  "cca-off-job",
-							Image: "ubuntu",
+							Image: "ghcr.io/datadog/apps-alpine:" + apps.Version,
 							// Sleep is added here so k8s doesn't kill the container before
 							// the agent container can detect it.
 							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
@@ -120,6 +122,6 @@ func (v *k8sCCAOffSuite) TestCCAOff() {
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		logsServiceNames, err := v.Env().FakeIntake.Client().GetLogServiceNames()
 		assert.NoError(c, err, "Error starting job")
-		assert.NotContains(c, logsServiceNames, "ubuntu", "Ubuntu service found with container collect all off")
+		assert.NotContains(c, logsServiceNames, "apps-alpine", "Alpine service found with container collect all off")
 	}, 1*time.Minute, 10*time.Second)
 }

@@ -25,8 +25,7 @@ func init() { registerModule(TCPQueueLength) }
 
 // TCPQueueLength Factory
 var TCPQueueLength = &module.Factory{
-	Name:             config.TCPQueueLengthTracerModule,
-	ConfigNamespaces: []string{},
+	Name: config.TCPQueueLengthTracerModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		t, err := tcpqueuelength.NewTracer(ebpf.NewConfig())
 		if err != nil {
@@ -50,10 +49,10 @@ type tcpQueueLengthModule struct {
 }
 
 func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/check", func(w http.ResponseWriter, _ *http.Request) {
+	httpMux.HandleFunc("/check", func(w http.ResponseWriter, req *http.Request) {
 		t.lastCheck.Store(time.Now().Unix())
 		stats := t.Tracer.GetAndFlush()
-		utils.WriteAsJSON(w, stats, utils.CompactOutput)
+		utils.WriteAsJSON(req, w, stats, utils.CompactOutput)
 	})
 
 	return nil

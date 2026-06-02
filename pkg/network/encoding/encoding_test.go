@@ -11,13 +11,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"runtime"
 	"slices"
 	"sort"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/proto" //nolint:staticcheck // SA1019: agent-payload/v5/process types are gogo-generated and do not implement protoreflect.ProtoMessage
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -93,7 +94,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				LastRetransmits:    201,
 				LastTcpEstablished: 1,
 				LastTcpClosed:      1,
-				Pid:                int32(6000),
+				Pid:                math.MaxInt32,
 				NetNS:              7,
 				IpTranslation: &model.IPTranslation{
 					ReplSrcIP:   "20.1.1.1",
@@ -112,6 +113,14 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				Protocol: &model.ProtocolStack{
 					Stack: []model.ProtocolType{model.ProtocolType_protocolHTTP},
 				},
+
+				LastTcpRtoCount:      301,
+				LastTcpRecoveryCount: 302,
+				LastTcpReordSeen:     303,
+				LastTcpRcvOooPack:    304,
+				LastTcpDeliveredCe:   305,
+				LastTcpProbe0Count:   306,
+				TcpEcnNegotiated:     true,
 			},
 			{
 				Laddr: &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
@@ -198,7 +207,7 @@ func TestSerialization(t *testing.T) {
 				{ConnectionTuple: network.ConnectionTuple{
 					Source:    util.AddressFromString("10.1.1.1"),
 					Dest:      util.AddressFromString("10.2.2.2"),
-					Pid:       6000,
+					Pid:       math.MaxInt32,
 					NetNS:     7,
 					SPort:     1000,
 					DPort:     9000,
@@ -207,16 +216,28 @@ func TestSerialization(t *testing.T) {
 					Direction: network.LOCAL,
 				},
 					Monotonic: network.StatCounters{
-						SentBytes:   1,
-						RecvBytes:   100,
-						Retransmits: 201,
+						SentBytes:        1,
+						RecvBytes:        100,
+						Retransmits:      201,
+						TCPRTOCount:      301,
+						TCPRecoveryCount: 302,
+						TCPReordSeen:     303,
+						TCPRcvOOOPack:    304,
+						TCPDeliveredCE:   305,
+						TCPProbe0Count:   306,
 					},
 					Last: network.StatCounters{
-						SentBytes:      2,
-						RecvBytes:      101,
-						TCPEstablished: 1,
-						TCPClosed:      1,
-						Retransmits:    201,
+						SentBytes:        2,
+						RecvBytes:        101,
+						TCPEstablished:   1,
+						TCPClosed:        1,
+						Retransmits:      201,
+						TCPRTOCount:      301,
+						TCPRecoveryCount: 302,
+						TCPReordSeen:     303,
+						TCPRcvOOOPack:    304,
+						TCPDeliveredCE:   305,
+						TCPProbe0Count:   306,
 					},
 					LastUpdateEpoch: 50,
 
@@ -232,8 +253,9 @@ func TestSerialization(t *testing.T) {
 							Alias: "subnet-foo",
 						},
 					},
-					ProtocolStack: protocols.Stack{Application: protocols.HTTP},
-					TLSTags:       tls.Tags{ChosenVersion: 0, CipherSuite: 0, OfferedVersions: 0},
+					ProtocolStack:    protocols.Stack{Application: protocols.HTTP},
+					TLSTags:          tls.Tags{ChosenVersion: 0, CipherSuite: 0, OfferedVersions: 0},
+					TCPECNNegotiated: true,
 				},
 				{ConnectionTuple: network.ConnectionTuple{
 					Source:    util.AddressFromString("10.1.1.1"),

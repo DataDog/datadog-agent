@@ -1,0 +1,3 @@
+features:
+  - |
+    ``dd-procmgrd`` can now manage the DDOT (Datadog Distribution of OpenTelemetry) collector process via a dual-mode mechanism. When a ``processes.d/datadog-agent-ddot.yaml`` config is present, ``dd-procmgrd`` takes over DDOT lifecycle management; otherwise the existing systemd unit manages it directly.

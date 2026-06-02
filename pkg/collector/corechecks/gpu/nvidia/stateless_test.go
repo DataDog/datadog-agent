@@ -17,10 +17,102 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
+
+func TestSramEccErrorStatusSample(t *testing.T) {
+	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+		testutil.WithMockAllDeviceFunctions()(device)
+		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+			return nvml.DEVICE_ARCH_AMPERE, nvml.SUCCESS
+		}
+		device.GetSramEccErrorStatusFunc = func() (nvml.EccSramErrorStatus, nvml.Return) {
+			return nvml.EccSramErrorStatus{
+				AggregateCor:            11,
+				AggregateUncParity:      13,
+				AggregateUncSecDed:      17,
+				AggregateUncBucketL2:    19,
+				AggregateUncBucketSm:    23,
+				AggregateUncBucketPcie:  29,
+				AggregateUncBucketMcu:   31,
+				AggregateUncBucketOther: 37,
+				BThresholdExceeded:      1,
+			}, nvml.SUCCESS
+		}
+		return device
+	})
+
+	metricsOut, _, err := sramEccErrorStatusSample(mockDevice)
+	require.NoError(t, err)
+	require.Len(t, metricsOut, 9)
+
+	assertMetric := func(name string, value float64, tags ...string) {
+		t.Helper()
+		for _, metric := range metricsOut {
+			if metric.Name == name && slices.Equal(metric.Tags, tags) {
+				require.Equal(t, value, metric.Value)
+				require.Equal(t, metrics.GaugeType, metric.Type)
+				return
+			}
+		}
+		require.Failf(t, "metric not found", "expected metric %s with tags %v", name, tags)
+	}
+
+	assertMetric("errors.ecc.corrected.total", 11, "memory_location:sram")
+	assertMetric("errors.ecc.sram.uncorrected_by_subtype.total", 13, "memory_location:sram", "error_subtype:parity")
+	assertMetric("errors.ecc.sram.uncorrected_by_subtype.total", 17, "memory_location:sram", "error_subtype:secded")
+	assertMetric("errors.ecc.uncorrected.total", 19, "memory_location:l2_cache")
+	assertMetric("errors.ecc.uncorrected.total", 23, "memory_location:sm")
+	assertMetric("errors.ecc.uncorrected.total", 29, "memory_location:pcie")
+	assertMetric("errors.ecc.uncorrected.total", 31, "memory_location:microcontroller")
+	assertMetric("errors.ecc.uncorrected.total", 37, "memory_location:other")
+	assertMetric("errors.ecc.sram.threshold_exceeded", 1)
+}
+
+func TestSramEccErrorStatusSampleArchitectureSupport(t *testing.T) {
+	device := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+		testutil.WithMockAllDeviceFunctions()(device)
+		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+			return nvml.DEVICE_ARCH_TURING, nvml.SUCCESS
+		}
+		return device
+	})
+
+	metricsOut, _, err := sramEccErrorStatusSample(device)
+	require.Error(t, err)
+	require.Empty(t, metricsOut)
+	require.True(t, safenvml.IsUnsupported(err))
+}
+
+func TestLegacyEccMetricOverlapRules(t *testing.T) {
+	ampereDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+		testutil.WithMockAllDeviceFunctions()(device)
+		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+			return nvml.DEVICE_ARCH_AMPERE, nvml.SUCCESS
+		}
+		return device
+	})
+
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM))
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_SRAM))
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_DEVICE_MEMORY))
+
+	preAmpereDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+		testutil.WithMockAllDeviceFunctions()(device)
+		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+			return nvml.DEVICE_ARCH_TURING, nvml.SUCCESS
+		}
+		return device
+	})
+
+	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM))
+	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
+}
 
 // TestNewStatelessCollector tests stateless collector-specific initialization with dynamic API creation
 func TestNewStatelessCollector(t *testing.T) {
@@ -460,6 +552,14 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 			expectMemory:     float64(legacyMemory),
 			expectCollectErr: true,
 		},
+		{
+			name:             "Hopper fallback on detail list insufficient size",
+			architecture:     nvml.DEVICE_ARCH_HOPPER,
+			detailListErr:    nvml.ERROR_INSUFFICIENT_SIZE,
+			expectPid:        legacyPid,
+			expectMemory:     float64(legacyMemory),
+			expectCollectErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -518,7 +618,7 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 			}
 
 			// Deduplicate across the two API handlers, just like the real collector pipeline does
-			deduped := RemoveDuplicateMetrics(map[CollectorName][]Metric{
+			deduped := RemoveDuplicateMetrics(map[CollectorName][]*Metric{
 				collector.Name(): allMetrics,
 			})
 
@@ -601,4 +701,134 @@ func TestProcessDetailListArchitectureSupport(t *testing.T) {
 			require.Equal(t, tt.supported, hasProcessDetailAPICall)
 		})
 	}
+}
+
+func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
+	tests := []struct {
+		name          string
+		features      []env.Feature
+		expectMetrics bool
+		expectError   bool
+	}{
+		{
+			name:          "not emitted when kubernetes device plugins feature is absent",
+			features:      nil,
+			expectMetrics: false,
+			expectError:   true,
+		},
+		{
+			name:          "emitted when kubernetes device plugins feature is present",
+			features:      []env.Feature{env.KubernetesDevicePlugins},
+			expectMetrics: true,
+			expectError:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env.SetFeatures(t, tt.features...)
+
+			device := setupMockDevice(t, nil)
+			wmeta := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
+			apis := createStatelessAPIs(&CollectorDependencies{Workloadmeta: wmeta})
+			deviceUnhealthyAPI := findAPICallByName(t, apis, "device_unhealthy_count")
+
+			gotMetrics, _, err := deviceUnhealthyAPI.Handler(device, 0)
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if tt.expectMetrics {
+				require.Len(t, gotMetrics, 1)
+				require.Equal(t, "device.unhealthy", gotMetrics[0].Name)
+			} else {
+				require.Empty(t, gotMetrics)
+			}
+		})
+	}
+}
+
+func TestPCIELinkBytesPerSecond(t *testing.T) {
+	// This table was generated from https://en.wikipedia.org/wiki/PCI_Express#Hardware_protocol_summary:~:text=and%20other%20features.-,Comparison%20table,-%5Bedit%5D
+	tests := map[string]struct {
+		gen      int
+		width    int
+		wantErr  bool
+		expected float64
+	}{
+		// PCIe 1.0 — 2.5 GT/s, 8b/10b
+		"gen1 x1":  {gen: 1, width: 1, expected: 0.25e9},
+		"gen1 x2":  {gen: 1, width: 2, expected: 0.5e9},
+		"gen1 x4":  {gen: 1, width: 4, expected: 1e9},
+		"gen1 x8":  {gen: 1, width: 8, expected: 2e9},
+		"gen1 x16": {gen: 1, width: 16, expected: 4e9},
+
+		// PCIe 2.0 — 5.0 GT/s, 8b/10b
+		"gen2 x1":  {gen: 2, width: 1, expected: 0.5e9},
+		"gen2 x2":  {gen: 2, width: 2, expected: 1e9},
+		"gen2 x4":  {gen: 2, width: 4, expected: 2e9},
+		"gen2 x8":  {gen: 2, width: 8, expected: 4e9},
+		"gen2 x16": {gen: 2, width: 16, expected: 8e9},
+
+		// PCIe 3.0 — 8.0 GT/s, 128b/130b
+		"gen3 x1":  {gen: 3, width: 1, expected: 0.985e9},
+		"gen3 x2":  {gen: 3, width: 2, expected: 1.969e9},
+		"gen3 x4":  {gen: 3, width: 4, expected: 3.938e9},
+		"gen3 x8":  {gen: 3, width: 8, expected: 7.877e9},
+		"gen3 x16": {gen: 3, width: 16, expected: 15.754e9},
+
+		// PCIe 4.0 — 16.0 GT/s, 128b/130b
+		"gen4 x1":  {gen: 4, width: 1, expected: 1.969e9},
+		"gen4 x2":  {gen: 4, width: 2, expected: 3.938e9},
+		"gen4 x4":  {gen: 4, width: 4, expected: 7.877e9},
+		"gen4 x8":  {gen: 4, width: 8, expected: 15.754e9},
+		"gen4 x16": {gen: 4, width: 16, expected: 31.508e9},
+
+		// PCIe 5.0 — 32.0 GT/s, 128b/130b
+		"gen5 x1":  {gen: 5, width: 1, expected: 3.938e9},
+		"gen5 x2":  {gen: 5, width: 2, expected: 7.877e9},
+		"gen5 x4":  {gen: 5, width: 4, expected: 15.754e9},
+		"gen5 x8":  {gen: 5, width: 8, expected: 31.508e9},
+		"gen5 x16": {gen: 5, width: 16, expected: 63.015e9},
+
+		// PCIe 6.0 — 64.0 GT/s, PAM4 + 242B/256B FLIT
+		"gen6 x1":  {gen: 6, width: 1, expected: 7.563e9},
+		"gen6 x2":  {gen: 6, width: 2, expected: 15.125e9},
+		"gen6 x4":  {gen: 6, width: 4, expected: 30.25e9},
+		"gen6 x8":  {gen: 6, width: 8, expected: 60.5e9},
+		"gen6 x16": {gen: 6, width: 16, expected: 121e9},
+
+		// Error cases
+		"unknown gen 0":  {gen: 0, width: 16, wantErr: true},
+		"unknown gen 7":  {gen: 7, width: 16, wantErr: true},
+		"negative gen":   {gen: -1, width: 16, wantErr: true},
+		"zero width":     {gen: 4, width: 0, wantErr: true},
+		"negative width": {gen: 4, width: -1, wantErr: true},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			actual, err := pcieLinkBytesPerSecond(test.gen, test.width)
+			if test.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.InDelta(t, test.expected, actual, 1e6) // tolerate 1 MB/s drift
+		})
+	}
+}
+
+func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInfo {
+	t.Helper()
+	for _, api := range apis {
+		if api.Name == name {
+			return api
+		}
+	}
+
+	require.FailNowf(t, "api call not found", "expected API call %q to exist", name)
+	return apiCallInfo{}
 }

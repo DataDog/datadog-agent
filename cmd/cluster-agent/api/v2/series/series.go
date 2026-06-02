@@ -12,6 +12,8 @@ import (
 	"compress/gzip"
 	"compress/zlib"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"sync"
@@ -21,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/zstd"
-	"github.com/gorilla/mux"
 )
 
 const (
@@ -38,16 +39,18 @@ var bufferPool = sync.Pool{
 }
 
 // InstallNodeMetricsEndpoints register handler for node metrics collection
-func InstallNodeMetricsEndpoints(ctx context.Context, r *mux.Router, cfg config.Component) {
+func InstallNodeMetricsEndpoints(ctx context.Context, r *http.ServeMux, cfg config.Component) {
 	leaderHander := newSeriesHandler(ctx)
 	handler := api.WithLeaderProxyHandler(
 		loadMetricsHandlerName,
 		func(w http.ResponseWriter, r *http.Request) bool { // preHandler
 			if !cfg.GetBool("autoscaling.failover.enabled") {
+				api.SetSpanError(w, errors.New("autoscaling workload failover store is disabled"))
 				http.Error(w, "Autoscaling workload failover store is disabled on the cluster agent", http.StatusServiceUnavailable)
 				return false
 			}
 			if r.Body == nil {
+				api.SetSpanError(w, errors.New("request body is empty"))
 				http.Error(w, "Request body is empty", http.StatusBadRequest)
 				return false
 			}
@@ -55,7 +58,7 @@ func InstallNodeMetricsEndpoints(ctx context.Context, r *mux.Router, cfg config.
 		},
 		leaderHander.handle,
 	)
-	r.HandleFunc("/series", api.WithTelemetryWrapper(loadMetricsHandlerName, handler)).Methods("POST")
+	r.HandleFunc("POST /series", api.WithTelemetryWrapper(loadMetricsHandlerName, handler))
 }
 
 // Handler handles the series request and store the metrics to loadstore
@@ -86,6 +89,7 @@ func (h *seriesHandler) handle(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rc.Close()
 	if err != nil {
+		api.SetSpanError(w, fmt.Errorf("failed to create decompression reader: %w", err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -94,12 +98,14 @@ func (h *seriesHandler) handle(w http.ResponseWriter, r *http.Request) {
 	buf.Reset() // Reset the buffer before using it
 	_, err = io.Copy(buf, rc)
 	if err != nil {
+		api.SetSpanError(w, fmt.Errorf("failed to read request body: %w", err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	metricPayload := &gogen.MetricPayload{}
 	if err := metricPayload.Unmarshal(buf.Bytes()); err != nil {
+		api.SetSpanError(w, fmt.Errorf("failed to unmarshal metric payload: %w", err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}

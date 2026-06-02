@@ -7,16 +7,60 @@
 package common
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/cenkalti/backoff/v5"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
+// Windows Installer exit codes. See:
+// https://learn.microsoft.com/en-us/windows/win32/msi/error-codes
+const (
+	msiExitSuccessRebootRequired    = 3010 // ERROR_SUCCESS_REBOOT_REQUIRED
+	msiExitSuccessRebootInitiated   = 1641 // ERROR_SUCCESS_REBOOT_INITIATED
+	msiExitInstallPackageOpenFailed = 1619 // ERROR_INSTALL_PACKAGE_OPEN_FAILED
+)
+
+func isMsiSuccessExitCode(err error) bool {
+	if err == nil {
+		return false
+	}
+	var exitErr *ssh.ExitError
+	if !errors.As(err, &exitErr) {
+		return false
+	}
+	code := exitErr.ExitStatus()
+	return code == msiExitSuccessRebootRequired || code == msiExitSuccessRebootInitiated
+}
+
+// isMsiPackageOpenFailedExitCode reports whether err is an msiexec failure with exit code
+// 1619 (ERROR_INSTALL_PACKAGE_OPEN_FAILED) — typically transient when the package is
+// fetched over the network.
+func isMsiPackageOpenFailedExitCode(err error) bool {
+	if err == nil {
+		return false
+	}
+	var exitErr *ssh.ExitError
+	if !errors.As(err, &exitErr) {
+		return false
+	}
+	return exitErr.ExitStatus() == msiExitInstallPackageOpenFailed
+}
+
+func isRemoteMSIPath(p string) bool {
+	return strings.HasPrefix(p, "http://") || strings.HasPrefix(p, "https://")
+}
+
 // MsiExec runs msiexec on the VM with the provided operation and args and collects the log
 //
 // args may need to be escaped/quoted. The Start-Process ArgumentList parameter value is wrapped in single quotes. For example:
-//   - Start-Process -Wait msiexec -PassThru -ArgumentList '/qn /l "logfile" /i "msipath" APIKEY="00000000000000000000000000000000"'
+//   - Start-Process -Wait msiexec -PassThru -ArgumentList '/qn /norestart /l "logfile" /i "msipath" APIKEY="00000000000000000000000000000000"'
 //   - https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/start-process?view=powershell-7.4#example-7-specifying-arguments-to-the-process
 //   - https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-7.4
 func MsiExec(host *components.RemoteHost, operation string, product string, args string, logPath string) error {
@@ -29,9 +73,25 @@ func MsiExec(host *components.RemoteHost, operation string, product string, args
 	if err != nil {
 		return err
 	}
-	args = fmt.Sprintf(`/qn /l "%s" %s "%s" %s`, remoteLogPath, operation, product, args)
+	args = fmt.Sprintf(`/qn /norestart /l "%s" %s "%s" %s`, remoteLogPath, operation, product, args)
 	cmd := fmt.Sprintf(`Exit (Start-Process -Wait msiexec -PassThru -ArgumentList '%s').ExitCode`, args)
-	_, msiExecErr := host.Execute(cmd)
+
+	_, msiExecErr := backoff.Retry(context.Background(), func() (any, error) {
+		_, err := host.Execute(cmd)
+		if err == nil || isMsiSuccessExitCode(err) {
+			return nil, nil // Treat reboot-required exit codes as success
+		}
+		// Retry transient package-open failures (exit 1619) when installing from a remote URL.
+		// We've seen S3-hosted MSIs fail to open momentarily mid-test even when the same URL
+		// succeeded earlier in the same run (e.g. WINA-2296). 1619 fires before msiexec writes
+		// any action to the log, so it's a clean signal that nothing actually started.
+		if isMsiPackageOpenFailedExitCode(err) && operation == "/i" && isRemoteMSIPath(product) {
+			fmt.Printf("msiexec /i %s failed with ERROR_INSTALL_PACKAGE_OPEN_FAILED (1619), retrying\n", product)
+			return nil, err
+		}
+		// Fail on any other error
+		return nil, backoff.Permanent(err)
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(5*time.Second)), backoff.WithMaxTries(3))
 	if logPath != "" {
 		err = host.GetFile(remoteLogPath, logPath)
 		if err != nil {

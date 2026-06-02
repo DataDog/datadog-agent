@@ -10,8 +10,6 @@ import (
 	"net/http"
 	"time"
 
-	gorilla "github.com/gorilla/mux"
-
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
@@ -26,31 +24,29 @@ func (server *apiServer) startCMDServer(
 	tmf observability.TelemetryMiddlewareFactory,
 ) (err error) {
 	// get the transport we're going to use under HTTP
-	server.cmdListener, err = listener.GetListener(cmdAddr)
+	cmdListener, err := listener.GetListener(cmdAddr)
 	if err != nil {
 		// we use the listener to handle commands for the Agent, there's
 		// no way we can recover from this error
 		return fmt.Errorf("unable to listen to address %s: %v", cmdAddr, err)
 	}
+	server.cmdAddr = cmdListener.Addr()
 
 	// gRPC server
 	grpcServer := server.grpcComponent.BuildServer()
 
 	// Setup multiplexer
 	// create the REST HTTP router
-	agentMux := gorilla.NewRouter()
-
-	// Validate token for every request
-	agentMux.Use(server.ipc.HTTPMiddleware)
+	agentMux := http.NewServeMux()
 
 	cmdMux := http.NewServeMux()
 	cmdMux.Handle(
 		"/agent/",
-		http.StripPrefix("/agent",
+		server.ipc.HTTPMiddleware(observability.MountWithPrefix("/agent",
 			agent.SetupHandlers(
 				agentMux,
 				server.endpointProviders,
-			)))
+			))))
 
 	// Add some observability in the API server
 	cmdMuxHandler := tmf.Middleware(cmdServerShortName)(cmdMux)
@@ -68,7 +64,8 @@ func (server *apiServer) startCMDServer(
 		srv = helpers.NewMuxedGRPCServer(cmdAddr, tlsConfig, grpcServer, cmdMuxHandler, time.Duration(server.cfg.GetInt64("server_timeout"))*time.Second)
 	}
 
-	startServer(server.cmdListener, srv, cmdServerName)
+	server.cmdServer = srv
+	startServer(cmdListener, srv, cmdServerName)
 
 	return nil
 }

@@ -37,8 +37,10 @@ def _compare_inventories(
         size_change = previous.size_bytes - current.size_bytes
         changed_flags = FileChange.Flags(0)
         size_percent = None
+        size_bytes = None
         if size_change:
             size_percent = (current.size_bytes - previous.size_bytes) / previous.size_bytes * 100
+            size_bytes = current.size_bytes - previous.size_bytes
             if size_percent > 10:
                 changed_flags |= FileChange.Flags.Size
         if current.chmod != previous.chmod:
@@ -50,7 +52,11 @@ def _compare_inventories(
 
         if changed_flags:
             changed_files[path] = FileChange(
-                flags=changed_flags, previous=previous, current=current, size_percent=size_percent
+                flags=changed_flags,
+                previous=previous,
+                current=current,
+                size_percent=size_percent,
+                size_bytes=size_bytes,
             )
         # Remove entries that were present in both parent & current so that when we're done
         # the current list only contains new files
@@ -85,7 +91,7 @@ def _display_change_summary(change: FileChange):
         color = "red" if change.size_percent > 0 else "green"
         change_str = color_message(f'{change.size_percent:.2f}%', color)
         print(
-            f'    Size changed by {change_str} ({byte_to_string(change.previous.size_bytes)} -> {byte_to_string(change.current.size_bytes)})'
+            f'    Size changed by {change_str} ({byte_to_string(change.size_bytes)}) ({byte_to_string(change.previous.size_bytes)} -> {byte_to_string(change.current.size_bytes)})'
         )
     if change.flags & (FileChange.Flags.Owner | FileChange.Flags.Group):
         print(
@@ -127,7 +133,7 @@ def _inventory_changes_to_comment(added, removed, changed):
             if change.flags & FileChange.Flags.Permissions:
                 change_str += f"  * Permission changed: {oct(change.previous.chmod)} -> {oct(change.current.chmod)}\n"
             if change.flags & FileChange.Flags.Size:
-                change_str += f'  * Size changed: {change.size_percent:+.2f}% ({byte_to_string(change.previous.size_bytes)} -> {byte_to_string(change.current.size_bytes)})\n'
+                change_str += f'  * Size changed: {change.size_percent:+.2f}% ({byte_to_string(change.size_bytes)}) ({byte_to_string(change.previous.size_bytes)} -> {byte_to_string(change.current.size_bytes)})\n'
             if change.flags & (FileChange.Flags.Owner | FileChange.Flags.Group):
                 change_str += f'  * File owner/group changed: {change.previous.owner}:{change.previous.group} -> {change.current.owner}:{change.current.group}\n'
             body += change_str

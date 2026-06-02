@@ -14,6 +14,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/gosnmp/gosnmp"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -25,8 +26,9 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
+	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -98,7 +100,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				hostnameimpl.Module(),
 				snmpscanfx.Module(),
 				orchestratorimpl.Module(orchestratorimpl.NewDisabledParams()),
-				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+				eventplatformfx.Module(eventplatform.NewDefaultParams()),
 				nooptagger.Module(),
 				eventplatformreceiverimpl.Module(),
 				haagentfx.Module(),
@@ -160,7 +162,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
 				orchestratorimpl.Module(orchestratorimpl.NewDisabledParams()),
-				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+				eventplatformfx.Module(eventplatform.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
 				nooptagger.Module(),
 				snmpscanfx.Module(),
@@ -327,6 +329,20 @@ func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmps
 		// newSNMP only returns config errors, so any problem is a usage error
 		return configErr{err}
 	}
+
+	// Print progress to stderr so it doesn't pollute walk output when piped
+	_, _ = fmt.Fprintf(os.Stderr, "Connecting to %s:%d (timeout: %ds, retries: %d)\n", snmp.Target, snmp.Port, connParams.Timeout, snmp.Retries)
+	// Notify the user on each retry so they know the tool is still running.
+	// gosnmp calls OnRetry once more on the iteration that exits the retry
+	// loop, so cap output at snmp.Retries to avoid a spurious message.
+	retryNum := 0
+	snmp.OnRetry = func(_ *gosnmp.GoSNMP) {
+		retryNum++
+		if retryNum <= snmp.Retries {
+			_, _ = fmt.Fprintf(os.Stderr, "  Connection failed, retrying (%d/%d)...\n", retryNum, snmp.Retries)
+		}
+	}
+
 	if err := snmp.Connect(); err != nil {
 		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
 	}

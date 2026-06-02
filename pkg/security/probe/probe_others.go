@@ -43,7 +43,7 @@ func (p *Probe) AddEventHandler(_ EventHandler) error {
 }
 
 // AddCustomEventHandler set the probe event handler
-func (p *Probe) AddCustomEventHandler(_ model.EventType, _ CustomEventHandler) error {
+func (p *Probe) AddCustomEventHandler(_ CustomEventHandler) error {
 	return nil
 }
 
@@ -59,6 +59,11 @@ func (p *Probe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, bool, er
 
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
 func (p *Probe) OnNewRuleSetLoaded(_ *rules.RuleSet) {
+}
+
+// ShouldEvaluateDiscarders returns whether discarder evaluation should proceed for the given event
+func (p *Probe) ShouldEvaluateDiscarders(_ *model.Event) bool {
+	return false
 }
 
 // OnNewDiscarder is called when a new discarder is found. We currently don't generate discarders on Windows.
@@ -133,3 +138,6 @@ func (p *Probe) GetAgentContainerContext() *events.AgentContainerContext {
 // Walk iterates through the entire tree and call the provided callback on each entry
 func (p *Probe) Walk(_ func(*model.ProcessCacheEntry)) {
 }
+
+// SendCustomEventKillAction is a no-op on unsupported platforms (remediation custom events are Linux-only).
+func (p *Probe) SendCustomEventKillAction(_ model.ActionReport, _ []string) {}

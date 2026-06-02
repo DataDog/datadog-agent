@@ -26,12 +26,13 @@ func TestUpdateArchInfo(t *testing.T) {
 	copy(uname.Machine[:], []byte(machine))
 
 	expected := Info{
-		KernelName:    utils.NewValue(sysname),
-		Hostname:      utils.NewValue(nodename),
-		KernelRelease: utils.NewValue(release),
-		Machine:       utils.NewValue(machine),
-		OS:            utils.NewValue(sysname),
-		KernelVersion: utils.NewValue(version),
+		KernelName:       utils.NewValue(sysname),
+		Hostname:         utils.NewValue(nodename),
+		KernelRelease:    utils.NewValue(release),
+		Machine:          utils.NewValue(machine),
+		HardwarePlatform: utils.NewValue(machine),
+		OS:               utils.NewValue(sysname),
+		KernelVersion:    utils.NewValue(version),
 	}
 
 	archInfo := Info{}

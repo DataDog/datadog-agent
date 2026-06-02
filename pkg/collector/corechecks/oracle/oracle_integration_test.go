@@ -282,7 +282,8 @@ func TestBindingSimple(t *testing.T) {
 	result := 3
 
 	driver := "oracle"
-	db, _ := connectToDB(driver)
+	db, err := connectToDB(driver)
+	require.NoError(t, err)
 	stmt, err := db.Prepare(fmt.Sprintf("SELECT %d FROM dual WHERE rownum = :1", result))
 	if err != nil {
 		fmt.Printf("preparing statement %s", err)
@@ -304,10 +305,10 @@ func TestSQLXIn(t *testing.T) {
 	slice := []any{1}
 	result := 7
 	driver := common.GoOra
-	db, _ := connectToDB(driver)
+	db, err := connectToDB(driver)
+	require.NoError(t, err, "failed to connect to DB")
 
 	var rows *sql.Rows
-	var err error
 
 	rows, err = db.Query(fmt.Sprintf("SELECT %d FROM dual WHERE rownum IN (:1)", result), slice...)
 	if err != nil {

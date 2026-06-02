@@ -71,9 +71,6 @@ func setUp() error {
 
 	C.init_utilTests(rtloader)
 
-	// Updates sys.path so testing Check can be found
-	C.add_python_path(rtloader, C.CString("../python"))
-
 	if ok := C.init(rtloader); ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(rtloader)))
 	}

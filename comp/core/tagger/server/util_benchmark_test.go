@@ -8,6 +8,8 @@ package server
 import (
 	"fmt"
 	"testing"
+
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 var benchmarkSizes = []int{100, 1000, 10000, 100000, 1000000}
@@ -33,7 +35,7 @@ func BenchmarkProcessChunks(b *testing.B) {
 		b.Run(fmt.Sprintf("%d-items", size), func(b *testing.B) {
 
 			// Point this to the implementation you want to benchmark
-			var processChunksFunc = processChunksInPlace[int]
+			var processChunksFunc = grpcutil.ProcessChunksInPlace[int]
 
 			items := createBaseBenchmarkSlice(size)
 			var local []int

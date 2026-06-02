@@ -2,11 +2,12 @@ name: "host-profiler-with-agent"
 
 services:
   datadog-agent:
-    image: gcr.io/datadoghq/agent:7
+    image: registry.datadoghq.com/agent:7
     privileged: true
     environment:
       DD_SITE: ${DD_SITE:-datadoghq.com}
       DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
+      DD_TAGS: ${DD_TAGS:-${WORKSPACE_NAME:+workspace:${WORKSPACE_NAME}}}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /proc/:/host/proc/:ro
@@ -29,8 +30,11 @@ services:
     # host-profiler needs to share agent's loopback
     network_mode: "service:datadog-agent"
     environment:
+      DOCKER_DD_AGENT: "true"
       DD_SITE: ${DD_SITE:-datadoghq.com}
       DO_NOT_START_PROFILER:
+      DD_HOSTPROFILER_DEBUG:
+      DD_HOSTPROFILER_ADDITIONAL_HTTP_HEADERS: ${DD_HOSTPROFILER_ADDITIONAL_HTTP_HEADERS:-${WORKSPACE_NAME:+{"x-datadog-profiling-metadata":"workspace:${WORKSPACE_NAME}"}}}
     volumes:
       - ../..:/app
       - /var/run/docker.sock:/var/run/docker.sock:ro

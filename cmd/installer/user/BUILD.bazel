@@ -1,0 +1,57 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "user",
+    srcs = [
+        "user_darwin.go",
+        "user_nix.go",
+        "user_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/installer/user",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/fleet/installer/packages/user",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/fleet/installer/packages/user",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/fleet/installer/packages/user",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/fleet/installer/packages/user",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/fleet/installer/packages/user",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/fleet/installer/packages/user",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/fleet/installer/packages/user",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/fleet/installer/packages/user",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/fleet/installer/packages/user",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/fleet/installer/packages/user",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/fleet/installer/packages/user",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/fleet/installer/packages/user",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/fleet/installer/packages/user",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
+)

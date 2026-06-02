@@ -592,10 +592,10 @@ func TestE2E(t *testing.T) {
 		conf := newTestReceiverConfig()
 		conf.Site = "us3.datadoghq.com"
 		conf.Endpoints[0].APIKey = "test_api_key"
-		conf.EVPProxy.ReceiverTimeout = 1 // in seconds
+		conf.EVPProxy.ReceiverTimeoutDuration = 50 * time.Millisecond
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			time.Sleep(2 * time.Second)
+			time.Sleep(100 * time.Millisecond)
 			w.Write([]byte(`OK`))
 		}))
 
@@ -612,13 +612,13 @@ func TestE2E(t *testing.T) {
 		conf := newTestReceiverConfig()
 		conf.Site = "us3.datadoghq.com"
 		conf.Endpoints[0].APIKey = "test_api_key"
-		conf.EVPProxy.ReceiverTimeout = 1 // in seconds
+		conf.EVPProxy.ReceiverTimeoutDuration = 500 * time.Millisecond
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Transfer-Encoding", "chunked")
 			w.Write([]byte(`Hello`))
 			w.(http.Flusher).Flush()
-			time.Sleep(200 * time.Millisecond)
+			time.Sleep(20 * time.Millisecond)
 			w.Write([]byte(`World`)) // this will be discarded if the context was cancelled
 		}))
 

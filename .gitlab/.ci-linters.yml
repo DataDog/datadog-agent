@@ -13,6 +13,8 @@ needs-rules:
     - deploy_mutable_image_tags
     - deploy_cws_instrumentation
     - deploy_cws_instrumentation_mutable_tags
+    - deploy_secret_generic_connector
+    - deploy_secret_generic_connector_mutable_tags
 
   allowed-jobs:
     - build_clang_arm64
@@ -50,6 +52,10 @@ needs-rules:
     - installer_trigger_auto_staging_release
     - installer_trigger_manual_prod_release
     - index-consolidation
+    - single-machine-performance-regression_detector
+    - single-machine-performance-metal-runners-regression_detector
+    - single-machine-performance-metal-runners-regression_detector_cfg
+    - single-machine-performance-regression_detector-pr-comment
 
 # Lists jobs that are allowed to not be within JOBOWNERS
 job-owners:
@@ -72,7 +78,6 @@ job-owners:
     - export_testing_public_key
     - generate-flakes-finder-pipeline
     - generate-fips-e2e-pipeline
-    - github_rate_limit_info
     - go_deps
     - go_e2e_deps
     - go_mod_tidy_check
@@ -97,8 +102,9 @@ job-owners:
     - send_pkg_size
     - setup_agent_version
     - single-machine-performance-regression_detector
-    - single-machine-performance-metal-runners-regression_detector
     - single-machine-performance-regression_detector-pr-comment
+    - trigger-single-machine-performance-regression_detector
+    - trigger-single-machine-performance-regression_detector-main
     - test_install_script
     - trace-agent-v04-2cpus-normal_load-fixed_sps
     - trace-agent-v04-2cpus-stress_load-fixed_sps
@@ -107,5 +113,4 @@ job-owners:
     - trigger-flakes-finder
     - trigger-fips-e2e
     - unit_tests_notify
-    - update_rc_build_links
     - validate_modules

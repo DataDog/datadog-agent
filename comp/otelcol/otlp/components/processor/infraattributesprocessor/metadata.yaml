@@ -1,0 +1,9 @@
+type: infraattributes
+display_name: Infrastructure Attributes Processor
+
+status:
+  class: processor
+  stability:
+    alpha: [traces, metrics, logs, profiles]
+  codeowners:
+    active: [DataDog/opentelemetry]

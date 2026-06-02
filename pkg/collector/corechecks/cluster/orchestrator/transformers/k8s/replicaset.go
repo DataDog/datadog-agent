@@ -17,6 +17,8 @@ import (
 
 // ExtractReplicaSet returns the protobuf model corresponding to a Kubernetes
 // ReplicaSet resource.
+//
+//nolint:revive
 func ExtractReplicaSet(ctx processors.ProcessorContext, rs *appsv1.ReplicaSet) *model.ReplicaSet {
 	replicaSet := model.ReplicaSet{
 		Metadata: extractMetadata(&rs.ObjectMeta),
@@ -44,9 +46,8 @@ func ExtractReplicaSet(ctx processors.ProcessorContext, rs *appsv1.ReplicaSet) *
 
 	replicaSet.ResourceRequirements = ExtractPodTemplateResourceRequirements(rs.Spec.Template)
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	replicaSet.Tags = append(replicaSet.Tags, transformers.RetrieveUnifiedServiceTags(rs.ObjectMeta.Labels)...)
-	replicaSet.Tags = append(replicaSet.Tags, transformers.RetrieveMetadataTags(rs.ObjectMeta.Labels, rs.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	replicaSet.Tags = append(replicaSet.Tags, transformers.RetrieveTeamTag(rs.ObjectMeta.Labels, rs.ObjectMeta.Annotations)...)
 
 	return &replicaSet
 }

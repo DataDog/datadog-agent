@@ -1,0 +1,62 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "nvml",
+    srcs = [
+        "nvml_nop.go",
+        "stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/nvml",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:android": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:js": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Logs collected with automatic multiline detection now fall back to individual
+    events when combining lines would exceed ``logs_config.max_message_size_bytes``.
+    Oversized single log lines continue to use the normal truncation path, and
+    multiline logs that fit within the limit are still aggregated.

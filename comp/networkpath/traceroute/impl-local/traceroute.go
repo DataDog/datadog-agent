@@ -11,7 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -63,7 +63,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 func (t *localTraceroute) Run(ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
 	path, err := t.runner.Run(ctx, cfg)
 	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("error getting traceroute: %s", err)
+		return payload.NetworkPath{}, fmt.Errorf("error getting traceroute: %w", err)
 	}
 
 	agentHostname, err := t.hostname.Get(ctx)

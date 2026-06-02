@@ -306,6 +306,7 @@ func TestGetInterfacesMetrics(t *testing.T) {
 	require.Equal(t, float64(506), devices[0].TxErrors)
 	require.Equal(t, float64(6), devices[0].RxDrops)
 	require.Equal(t, float64(3), devices[0].TxDrops)
+	require.Equal(t, FlexFloat64(0), devices[0].VpnID)
 
 	// Ensure endpoint has been called 1 times
 	require.Equal(t, 1, handler.numberOfCalls())
@@ -580,7 +581,7 @@ func TestGetCloudExpressMetrics(t *testing.T) {
 	require.Equal(t, "FALSE", devices[0].BestPath)
 	require.Equal(t, "amazon_aws", devices[0].Application)
 	require.Equal(t, "amazon-group", devices[0].NbarAppGroupName)
-	require.Equal(t, float64(1), devices[0].VpnID)
+	require.Equal(t, FlexFloat64(1), devices[0].VpnID)
 	require.Equal(t, float64(1721819993833), devices[0].EntryTime)
 	require.Equal(t, float64(404), devices[0].Latency)
 	require.Equal(t, float64(0), devices[0].Loss)
@@ -623,4 +624,34 @@ func TestGetBGPNeighbors(t *testing.T) {
 
 	// Ensure endpoint has been called 1 times
 	require.Equal(t, 1, handler.numberOfCalls())
+}
+
+func TestFlexFloat64UnmarshalJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected FlexFloat64
+		wantErr  bool
+	}{
+		{name: "number", input: `512`, expected: 512},
+		{name: "number zero", input: `0`, expected: 0},
+		{name: "number float", input: `1.5`, expected: 1.5},
+		{name: "string integer", input: `"512"`, expected: 512},
+		{name: "string zero", input: `"0"`, expected: 0},
+		{name: "string float", input: `"1.5"`, expected: 1.5},
+		{name: "invalid string", input: `"notanumber"`, wantErr: true},
+		{name: "invalid type", input: `true`, wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var f FlexFloat64
+			err := f.UnmarshalJSON([]byte(tc.input))
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expected, f)
+			}
+		})
+	}
 }

@@ -460,6 +460,9 @@ func cachedFileFromMetadata(path string, m Metadata) CachedFile {
 // hashesEqual checks if the hash values in the TUF metadata file match the stored
 // hash values for a given config
 func hashesEqual(tufHashes data.Hashes, storedHashes map[string][]byte) bool {
+	if len(tufHashes) == 0 {
+		return false
+	}
 	for algorithm, value := range tufHashes {
 		v, ok := storedHashes[algorithm]
 		if !ok {

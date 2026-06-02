@@ -243,6 +243,7 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 	const seriesTags = 3
 	const seriesPoints = 4
 	const seriesType = 5
+	const seriesUnit = 6
 	const seriesSourceTypeName = 7
 	const seriesInterval = 8
 	const serieMetadata = 9
@@ -360,7 +361,12 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 			return err
 		}
 
-		// (Unit is omitted)
+		if serie.Unit != "" {
+			err = ps.String(seriesUnit, serie.Unit)
+			if err != nil {
+				return err
+			}
+		}
 
 		for _, p := range serie.Points {
 			err = ps.Embedded(seriesPoints, func(ps *molecule.ProtoStream) error {
@@ -525,6 +531,12 @@ func encodeSerie(serie *metrics.Serie, stream *jsoniter.Stream) {
 		stream.WriteMore()
 		stream.WriteObjectField("source_type_name")
 		stream.WriteString(serie.SourceTypeName)
+	}
+
+	if serie.Unit != "" {
+		stream.WriteMore()
+		stream.WriteObjectField("unit")
+		stream.WriteString(serie.Unit)
 	}
 
 	stream.WriteObjectEnd()

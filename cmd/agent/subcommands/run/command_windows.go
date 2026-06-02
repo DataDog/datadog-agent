@@ -13,18 +13,19 @@ import (
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
-	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
-	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
+	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
+	cloudfoundrycontainer "github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/def"
+	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
+	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
+	etwfx "github.com/DataDog/datadog-agent/comp/etw/fx"
+	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
-	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
-	"github.com/DataDog/datadog-agent/comp/trace/etwtracer/etwtracerimpl"
+	etwtracer "github.com/DataDog/datadog-agent/comp/trace/etwtracer/def"
+	etwtracerimpl "github.com/DataDog/datadog-agent/comp/trace/etwtracer/fx"
 
-	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
-	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
+	winregistry "github.com/DataDog/datadog-agent/comp/checks/winregistry/def"
+	winregistryfx "github.com/DataDog/datadog-agent/comp/checks/winregistry/fx"
 
 	"go.uber.org/fx"
 
@@ -32,14 +33,15 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 
 	// checks implemented as components
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
-	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/agentcrashdetectimpl"
-	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
-	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	agentcrashdetect "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/def"
+	agentcrashdetectfx "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/fx"
+	windowseventlog "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/def"
+	windowseventlogfx "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/fx"
 	notableeventsfx "github.com/DataDog/datadog-agent/comp/notableevents/fx"
-	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server"
-	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
+	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server/def"
+	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
+	traceconfigfx "github.com/DataDog/datadog-agent/comp/trace/config/fx"
 
 	// core components
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -48,37 +50,37 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
+	guidef "github.com/DataDog/datadog-agent/comp/core/gui/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner"
-	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	host "github.com/DataDog/datadog-agent/comp/metadata/host/def"
+	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
+	inventoryhost "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/def"
+	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
+	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
-	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
+	processAgent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	softwareinventoryfx "github.com/DataDog/datadog-agent/comp/softwareinventory/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -140,13 +142,15 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ expvarserver.Component,
 			jmxlogger jmxlogger.Component,
 			settings settings.Component,
-			_ option.Option[gui.Component],
+			_ option.Option[guidef.Component],
 			agenttelemetryComponent agenttelemetry.Component,
 			hostname hostnameinterface.Component,
 			ipc ipc.Component,
 			snmpScanManager snmpscanmanager.Component,
 			traceroute traceroute.Component,
-			healthplatformComp healthplatform.Component,
+			healthplatformComp healthplatformdef.Component,
+			ncmComp option.Option[networkconfigmanagement.Component],
+
 		) error {
 			defer StopAgentWithDefaults(config, sysprobeConf)
 
@@ -174,6 +178,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				snmpScanManager,
 				traceroute,
 				healthplatformComp,
+				ncmComp,
 			)
 			if err != nil {
 				return err
@@ -244,16 +249,16 @@ func reRegisterCtrlHandler(log log.Component, _ collector.Component) {
 
 func getPlatformModules() fx.Option {
 	return fx.Options(
-		agentcrashdetectimpl.Module(),
-		etwtracerimpl.Module,
-		windowseventlogimpl.Module(),
-		winregistryimpl.Module(),
-		etwimpl.Module,
-		comptraceconfig.Module(),
+		agentcrashdetectfx.Module(),
+		etwtracerimpl.Module(),
+		windowseventlogfx.Module(),
+		winregistryfx.Module(),
+		etwfx.Module(),
+		traceconfigfx.Module(),
 		softwareinventoryfx.Module(),
 		publishermetadatacachefx.Module(),
 		notableeventsfx.Module(),
-		fx.Replace(comptraceconfig.Params{
+		fx.Replace(traceconfigdef.Params{
 			FailIfAPIKeyMissing: false,
 		}),
 		// Force the instantiation of the components

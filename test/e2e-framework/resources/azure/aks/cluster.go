@@ -7,6 +7,7 @@ package aks
 
 import (
 	"encoding/base64"
+	"fmt"
 	"math"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -63,13 +64,23 @@ func NewCluster(e azure.Environment, name string, kataNodePoolEnabled bool, opts
 		return nil, pulumi.StringOutput{}, err
 	}
 
-	// assign ACR Pull role to the identity
-	acrPullRoleAssignment, err := authorization.NewRoleAssignment(e.Ctx(), "role-assignment-acr", &authorization.RoleAssignmentArgs{
+	managedKubeletIdentityAssignment, err := authorization.NewRoleAssignment(e.Ctx(), "role-assignment-kubelet", &authorization.RoleAssignmentArgs{
 		PrincipalId:      identity.PrincipalId,
-		Scope:            pulumi.String(e.DefaultContainerRegistry()),
 		PrincipalType:    pulumi.String("ServicePrincipal"),
-		RoleDefinitionId: pulumi.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/7f951dda-4ed3-4680-a7ca-43fe172d538d", e.DefaultSubscriptionID()), // AcrPull built-in role
+		Scope:            pulumi.Sprintf("/subscriptions/%s", e.DefaultSubscriptionID()),
+		RoleDefinitionId: pulumi.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/f1a07417-d97a-45cb-824c-7a7467783830", e.DefaultSubscriptionID()), // Managed Identity Operator built-in role
 	}, opts...)
+	if err != nil {
+		return nil, pulumi.StringOutput{}, err
+	}
+
+	// get kubelet pre-created identity
+	resourceName := "aks-kubelet-identity-acr-pull"
+	resourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s", e.DefaultSubscriptionID(), e.DefaultResourceGroup(), resourceName)
+	kubeletIdentity, err := managedidentity.LookupUserAssignedIdentity(e.Ctx(), &managedidentity.LookupUserAssignedIdentityArgs{
+		ResourceGroupName: e.DefaultResourceGroup(),
+		ResourceName:      resourceName,
+	}, e.WithProvider(config.ProviderAzure))
 	if err != nil {
 		return nil, pulumi.StringOutput{}, err
 	}
@@ -106,8 +117,15 @@ func NewCluster(e azure.Environment, name string, kataNodePoolEnabled bool, opts
 				identity.ID(),
 			},
 		},
+		IdentityProfile: &containerservice.UserAssignedIdentityMap{
+			"kubeletidentity": containerservice.UserAssignedIdentityArgs{
+				ResourceId: pulumi.String(resourceID),
+				ClientId:   pulumi.String(kubeletIdentity.ClientId),
+				ObjectId:   pulumi.String(kubeletIdentity.PrincipalId),
+			},
+		},
 		Tags: e.ResourcesTags(),
-	}, append(opts, pulumi.DependsOn([]pulumi.Resource{nwcontributorRoleAssignment, acrPullRoleAssignment}))...)
+	}, append(opts, pulumi.DependsOn([]pulumi.Resource{nwcontributorRoleAssignment, managedKubeletIdentityAssignment}))...)
 	if err != nil {
 		return nil, pulumi.StringOutput{}, err
 	}

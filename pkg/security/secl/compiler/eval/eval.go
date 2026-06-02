@@ -964,13 +964,18 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 					if err != nil {
 						return nil, pos, err
 					}
-					if *obj.ArrayComparison.Op == "notin" {
-						return Not(boolEvaluator, state), obj.Pos, nil
+				case *StringArrayEvaluator:
+					boolEvaluator, err = StringArrayMatchesStringArray(unary, nextStringArray, state)
+					if err != nil {
+						return nil, pos, err
 					}
-					return boolEvaluator, obj.Pos, nil
 				default:
 					return nil, pos, NewArrayTypeError(pos, reflect.Array, reflect.String)
 				}
+				if *obj.ArrayComparison.Op == "notin" {
+					return Not(boolEvaluator, state), obj.Pos, nil
+				}
+				return boolEvaluator, obj.Pos, nil
 			case *IntEvaluator:
 				switch nextInt := next.(type) {
 				case *IntArrayEvaluator:

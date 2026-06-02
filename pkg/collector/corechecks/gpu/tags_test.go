@@ -15,14 +15,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
@@ -865,9 +865,9 @@ func TestGetContainerIDPIDNotFound(t *testing.T) {
 
 // TestGetNsPID_NotFoundError tests that getNsPID returns NotFound when there's no nspid field
 func TestGetNsPIDNotFoundError(t *testing.T) {
-	pid := int32(1234)
+	pid := uint32(1234)
 	fakeprocfs := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
-		{Pid: uint32(pid), NsPid: 0}, // With 0 will not have the nspid field
+		{Pid: pid, NsPid: 0}, // With 0 will not have the nspid field
 	})
 	kernel.WithFakeProcFS(t, fakeprocfs)
 
@@ -1245,4 +1245,50 @@ func validateTelemetryMetrics(t *testing.T, telemetryMock telemetry.Mock, cache 
 	actualTotalQueries := hits + misses + staleEntriesUsed + buildErrors
 	expectedTotalQueries := expectedTelemetryMetrics.queriesNewWorkloads + expectedTelemetryMetrics.queriesExistingWorkloads + expectedTelemetryMetrics.queriesRemovedWorkloads
 	require.Equal(t, expectedTotalQueries, actualTotalQueries, "total queries should match the expected number of queries")
+}
+
+// TestNewWorkloadTagCache_DistinctSubsystemsCoexist verifies that two caches
+// constructed with different subsystem prefixes register their telemetry
+// counters under different Prometheus subsystems and can therefore coexist
+// in the same process. This is the load-bearing property that lets multiple
+// checks share the WorkloadTagCache code without colliding on counter
+// registration.
+func TestNewWorkloadTagCache_DistinctSubsystemsCoexist(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	tg := taggerfxmock.SetupFakeTagger(t)
+	wmeta := testutil.GetWorkloadMetaMock(t)
+	cp := mock_containers.NewMockContainerProvider(ctrl)
+	tm := testutil.GetTelemetryMock(t)
+
+	gpuCache, err := NewWorkloadTagCacheWithSubsystem("gpu_iso", tg, wmeta, cp, tm, defaultCacheSize)
+	require.NoError(t, err, "first cache should construct cleanly")
+	require.NotNil(t, gpuCache)
+
+	// Second cache with a different subsystem must not panic on duplicate
+	// counter registration.
+	require.NotPanics(t, func() {
+		ncclCache, err := NewWorkloadTagCacheWithSubsystem("nccl_iso", tg, wmeta, cp, tm, defaultCacheSize)
+		require.NoError(t, err, "second cache with distinct subsystem should construct cleanly")
+		require.NotNil(t, ncclCache)
+	}, "two caches with different subsystems must coexist")
+}
+
+// TestNewWorkloadTagCache_DuplicateSubsystemPanics pins the contract that
+// reusing the same subsystem prefix with the same telemetry component is a
+// programming error: it surfaces immediately as a panic at construction
+// time rather than corrupting metrics silently. Each caller must pick a
+// unique subsystem prefix.
+func TestNewWorkloadTagCache_DuplicateSubsystemPanics(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	tg := taggerfxmock.SetupFakeTagger(t)
+	wmeta := testutil.GetWorkloadMetaMock(t)
+	cp := mock_containers.NewMockContainerProvider(ctrl)
+	tm := testutil.GetTelemetryMock(t)
+
+	_, err := NewWorkloadTagCacheWithSubsystem("dup", tg, wmeta, cp, tm, defaultCacheSize)
+	require.NoError(t, err)
+
+	require.Panics(t, func() {
+		_, _ = NewWorkloadTagCacheWithSubsystem("dup", tg, wmeta, cp, tm, defaultCacheSize)
+	}, "constructing a second cache with the same subsystem must panic on Prometheus duplicate registration")
 }

@@ -188,7 +188,7 @@ func (h *testHooks) PreRemoveExtension(ctx context.Context, pkg string, extensio
 	return nil
 }
 
-func (h *testHooks) PostInstallExtension(ctx context.Context, pkg string, extension string) error {
+func (h *testHooks) PostInstallExtension(ctx context.Context, pkg string, extension string, _ bool) error {
 	if h.noop {
 		return nil
 	}
@@ -501,6 +501,7 @@ func TestNoOutsideImport(t *testing.T) {
 		"pkg/util/winutil", // Needed for Windows
 		"pkg/config/setup", // Needed for extensions
 		"pkg/template",
+		"pkg/fips", // Needed to detect FIPS-compiled binaries at runtime
 	}
 
 	// Walk the directory tree

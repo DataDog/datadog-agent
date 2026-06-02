@@ -6,10 +6,9 @@
 package retry
 
 import (
+	"errors"
 	"fmt"
 	"sync"
-
-	"github.com/hashicorp/go-multierror"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -112,9 +111,10 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 	payloadSize := t.GetPayloadSize()
 	if tc.optionalStorage != nil {
 		payloadsGroupToFlush := tc.extractTransactionsForDisk(payloadSize)
+		var diskErrs []error
 		for _, payloads := range payloadsGroupToFlush {
 			if err := tc.optionalStorage.Store(payloads); err != nil {
-				diskErr = multierror.Append(diskErr, err)
+				diskErrs = append(diskErrs, err)
 				// Assuming all payloads failed during serialization
 				pointCountDroppped := 0
 				for _, payload := range payloads {
@@ -123,6 +123,7 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 				tc.onDropPoints(pointCountDroppped)
 			}
 		}
+		diskErr = errors.Join(diskErrs...)
 		if diskErr != nil {
 			diskErr = fmt.Errorf("Cannot store transactions on disk: %v", diskErr)
 			tc.telemetry.incErrorsCount()
@@ -215,10 +216,10 @@ func (tc *TransactionRetryQueue) FlushToDisk() error {
 	if tc.optionalStorage == nil {
 		return nil
 	}
-	tc.mutex.RLock()
-	defer tc.mutex.RUnlock()
+	tc.mutex.Lock()
+	defer tc.mutex.Unlock()
 
-	transactions := tc.extractTransactionsFromMemory(tc.GetMaxMemSizeInBytes())
+	transactions := tc.extractTransactionsFromMemory(tc.maxMemSizeInBytes)
 	return tc.optionalStorage.Store(transactions)
 }
 

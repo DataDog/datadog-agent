@@ -108,12 +108,10 @@ func (d *ServerlessDemultiplexer) Run() {
 	d.statsdWorker.run()
 }
 
-// Stop stops the wrapped aggregator and the forwarder.
-func (d *ServerlessDemultiplexer) Stop(flush bool) {
-	if flush {
-		forceFlushAll := pkgconfigsetup.Datadog().GetBool("dogstatsd_flush_incomplete_buckets")
-		d.forceFlushToSerializer(time.Now(), true, forceFlushAll)
-	}
+// Stop performs a final flush, then stops the wrapped aggregator and the forwarder.
+func (d *ServerlessDemultiplexer) Stop() {
+	forceFlushAll := pkgconfigsetup.Datadog().GetBool("dogstatsd_flush_incomplete_buckets")
+	d.forceFlushToSerializer(time.Now(), true, forceFlushAll)
 
 	d.statsdWorker.stop()
 
@@ -198,6 +196,12 @@ func (d *ServerlessDemultiplexer) SetSamplersFilterList(_filterList utilstrings.
 // Serializer returns the shared serializer
 func (d *ServerlessDemultiplexer) Serializer() serializer.MetricSerializer {
 	return d.serializer
+}
+
+// PendingSamples returns the number of metric sample batches buffered
+// in the worker's input channel that have not yet been processed.
+func (d *ServerlessDemultiplexer) PendingSamples() int {
+	return len(d.statsdWorker.samplesChan)
 }
 
 // GetMetricSamplePool returns a shared resource used in the whole DogStatsD

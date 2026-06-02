@@ -57,17 +57,21 @@ func (v *ContainerValidator) RequireInjection(t *testing.T) {
 	}
 }
 
-// RequireNoInjection ensures a container was not injected for SSI.
+// RequireNoInjection ensures a container was not injected for SSI, including KPI env vars.
 func (v *ContainerValidator) RequireNoInjection(t *testing.T) {
-	// Validate common env vars are not set
-	unsetEnvs := []string{
+	v.RequireNoInjectionArtifacts(t)
+	v.RequireMissingEnvs(t, []string{"DD_INSTRUMENTATION_INSTALL_TYPE"})
+}
+
+// RequireNoInjectionArtifacts ensures a container has no SSI injection artifacts.
+func (v *ContainerValidator) RequireNoInjectionArtifacts(t *testing.T) {
+	// Validate common env vars are not set.
+	v.RequireMissingEnvs(t, []string{
 		"LD_PRELOAD",
 		"DD_INJECT_SENDER_TYPE",
-		"DD_INSTRUMENTATION_INSTALL_TYPE",
-	}
-	v.RequireMissingEnvs(t, unsetEnvs)
+	})
 
-	// Validate mode-specific volume mounts are not present
+	// Validate mode-specific volume mounts are not present.
 	if v.injection != nil {
 		v.injection.RequireNoContainerInjection(t, v)
 	}

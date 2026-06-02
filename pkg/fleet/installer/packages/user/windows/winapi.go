@@ -31,6 +31,7 @@ var (
 //revive:disable:var-naming match Windows status code names
 const (
 	STATUS_OBJECT_NAME_NOT_FOUND = windows.NTStatus(0xC0000034)
+	STATUS_NAME_TOO_LONG         = windows.NTStatus(0xC0000106)
 )
 
 // MSA_INFO_STATE

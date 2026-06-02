@@ -91,3 +91,8 @@ func gpuNS(k ...string) string {
 func privilegedLogsNS(k ...string) string {
 	return NSkey("privileged_logs", k...)
 }
+
+// logonDurationNS adds `logon_duration` namespace to config key
+func logonDurationNS(k ...string) string {
+	return NSkey("logon_duration", k...)
+}

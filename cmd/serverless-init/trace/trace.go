@@ -12,6 +12,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -51,7 +52,7 @@ func SubmitSpan(span *pb.Span, origin string, traceAgent Processor) {
 
 	traceChunk := &pb.TraceChunk{
 		Origin:   origin,
-		Priority: int32(1),
+		Priority: int32(sampler.PriorityUserKeep),
 		Spans:    []*pb.Span{span},
 	}
 

@@ -20,22 +20,25 @@ ARG CI
 RUN if [ "$CI" = "true" ]; then \
   echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
   echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
-  sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-         -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-         -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' /etc/apt/sources.list; \
+  for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do \
+    if [ -f "$f" ]; then \
+      sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+             -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+             -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; \
+    fi; \
+  done; \
   fi
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update
 
 FROM baseimage AS nosys-seccomp
-RUN apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
+RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
 COPY nosys-seccomp/nosys.c   /tmp/nosys.c
 COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c  -lseccomp
 
 FROM baseimage AS extract-base
-RUN apt install --no-install-recommends -y curl ca-certificates maven xz-utils
+RUN apt update && apt install --no-install-recommends -y curl ca-certificates maven xz-utils
 
 ############################################################
 #  Preparation stage: retrieval of 3rd party dependencies  #
@@ -81,7 +84,8 @@ ENV DOCKER_DD_AGENT=true \
     S6_READ_ONLY_ROOT=1
 
 # make sure we have recent dependencies -- CVE-fixing time!
-RUN apt full-upgrade -y \
+RUN apt update \
+  && apt full-upgrade -y \
   # Install iproute2 package for the ss utility that is used by the network check.
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
@@ -191,21 +195,20 @@ COPY --from=extract /output/ /
 
 # Prepare for running without root
 # - Create a dd-agent:root user and give it permissions on relevant folders
-# - Create a dd-scriptuser for the script action of the private action runner and give access from dd-agent
 # - Remove the /var/run -> /run symlink and create a legit /var/run folder
 # as some docker versions re-create /run from zero at container start
 RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
   && addgroup --system secret-manager \
   && usermod -a -G secret-manager dd-agent \
-  && adduser --system --no-create-home --disabled-password dd-scriptuser --shell /bin/sh \
-  && sed -i '/@include common-auth/i auth sufficient pam_succeed_if.so user = dd-scriptuser ruser = dd-agent' /etc/pam.d/su \
   && rm /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog && mkdir -p /opt/datadog-agent/run \
   && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
   && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
   && chmod 755 /probe.sh /initlog.sh \
-  && chown root:secret-manager /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
-  && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
-  && chmod u=r,g=,o= /etc/datadog-agent/private-action-runner/*
+  && chown root:secret-manager /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh /opt/datadog-agent/embedded/bin/secret-generic-connector \
+  && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh /opt/datadog-agent/embedded/bin/secret-generic-connector \
+  # Keep the PAR config read-only, but group-readable so init containers can
+  # copy it on OpenShift where containers run with a random UID in the root group.
+  && chmod u=r,g=r,o= /etc/datadog-agent/private-action-runner/*
 
 # Check that the UID of dd-agent is still 100.
 #
@@ -234,6 +237,11 @@ RUN if [ ! -f /opt/datadog-agent/embedded/bin/otel-agent ]; then \
   rm -rf /etc/services.d/otel ; \
   else \
   mv /etc/datadog-agent/otel-config.yaml.example /etc/datadog-agent/otel-config.yaml; fi
+
+# Update if optional Agent Data Plane process should not run
+RUN if [ ! -f /opt/datadog-agent/embedded/bin/agent-data-plane ]; then \
+  rm -rf /etc/services.d/data-plane ; \
+fi
 
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 

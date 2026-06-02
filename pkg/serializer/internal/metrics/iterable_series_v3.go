@@ -15,25 +15,25 @@ import (
 	"github.com/twmb/murmur3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 )
 
 var (
-	tlmColumnSize = telemetry.NewCounter("serializer", "v3_column_size",
+	tlmColumnSize = telemetryimpl.GetCompatComponent().NewCounter("serializer", "v3_column_size",
 		[]string{"column", "compressed"},
 		"Number of bytes occupied by each column",
 	)
-	tlmValuesCount = telemetry.NewCounter("serializer", "v3_values_count",
+	tlmValuesCount = telemetryimpl.GetCompatComponent().NewCounter("serializer", "v3_values_count",
 		[]string{"type"},
 		"Number of values encoded using a specific encoding type",
 	)
-	tlmSplitReason = telemetry.NewCounter("serializer", "v3_payload_split_reason",
+	tlmSplitReason = telemetryimpl.GetCompatComponent().NewCounter("serializer", "v3_payload_split_reason",
 		[]string{"reason"},
 		"Why payload was split",
 	)
@@ -69,6 +69,8 @@ const (
 	columnSketchBinCnts
 	columnSourceTypeNameRef
 	columnOriginRef
+	columnDictUnitStr
+	columnUnitRef
 	numberOfColumns
 )
 
@@ -98,6 +100,8 @@ var columnNames = []string{
 	"SketchBinCounts",
 	"SourceTypeName",
 	"OriginInfo",
+	"DictUnitStr",
+	"UnitRef",
 }
 
 // Constants for type column
@@ -113,6 +117,7 @@ const (
 	valueFloat64 int64 = 0x30
 
 	flagNoIndex = 0x100
+	flagHasUnit = 0x200
 )
 
 const (
@@ -131,6 +136,7 @@ type payloadsBuilderV3 struct {
 	deltaTimestamp         deltaEncoder
 	deltaSourceTypeNameRef deltaEncoder
 	deltaOriginRef         deltaEncoder
+	deltaUnitRef           deltaEncoder
 
 	pointsThisPayload   int
 	maxPointsPerPayload int
@@ -306,6 +312,7 @@ func (pb *payloadsBuilderV3) reset() {
 	pb.deltaTimestamp.reset()
 	pb.deltaSourceTypeNameRef.reset()
 	pb.deltaOriginRef.reset()
+	pb.deltaUnitRef.reset()
 	pb.compressor.Reset()
 	pb.stats = v3stats{}
 }
@@ -456,8 +463,16 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 	if serie.NoIndex {
 		typeValue |= flagNoIndex
 	}
+	if serie.Unit != "" {
+		typeValue |= flagHasUnit
+	}
 
 	pb.txn.Int64(columnType, typeValue)
+
+	if serie.Unit != "" {
+		pb.txn.Sint64(columnUnitRef,
+			pb.deltaUnitRef.encode(pb.dict.internUnit(serie.Unit)))
+	}
 
 	for _, pnt := range serie.Points {
 		pb.writePointCommon(int64(pnt.Ts))
@@ -520,9 +535,10 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 	// without loss of precision
 	pointKind := pointKindZero
 	for _, pnt := range sketch.Points {
-		pointKind = pointKind.unionOf(pnt.Sketch.Basic.Sum)
-		pointKind = pointKind.unionOf(pnt.Sketch.Basic.Min)
-		pointKind = pointKind.unionOf(pnt.Sketch.Basic.Max)
+		_, bMin, bMax, bSum, _ := pnt.Sketch.BasicStats()
+		pointKind = pointKind.unionOf(bSum)
+		pointKind = pointKind.unionOf(bMin)
+		pointKind = pointKind.unionOf(bMax)
 	}
 	valueType := pointKind.toValueType()
 
@@ -535,35 +551,36 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 
 	for _, pnt := range sketch.Points {
 		pb.writePointCommon(pnt.Ts)
+		bCnt, bMin, bMax, bSum, _ := pnt.Sketch.BasicStats()
 
 		switch valueType {
 		case valueZero:
 			pb.stats.valuesZero += 3
 		case valueSint64:
-			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Sum))
-			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Min))
-			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Max))
+			pb.txn.Sint64(columnValueSint64, int64(bSum))
+			pb.txn.Sint64(columnValueSint64, int64(bMin))
+			pb.txn.Sint64(columnValueSint64, int64(bMax))
 			pb.stats.valuesSint64 += 3
 		case valueFloat32:
-			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Sum))
-			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Min))
-			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Max))
+			pb.txn.Float32(columnValueFloat32, float32(bSum))
+			pb.txn.Float32(columnValueFloat32, float32(bMin))
+			pb.txn.Float32(columnValueFloat32, float32(bMax))
 			pb.stats.valuesFloat32 += 3
 		case valueFloat64:
-			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Sum)
-			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Min)
-			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Max)
+			pb.txn.Float64(columnValueFloat64, bSum)
+			pb.txn.Float64(columnValueFloat64, bMin)
+			pb.txn.Float64(columnValueFloat64, bMax)
 			pb.stats.valuesFloat64 += 3
 		}
 
 		// can share column with sum, min max, if so, cnt must be last.
-		pb.txn.Sint64(columnValueSint64, pnt.Sketch.Basic.Cnt)
+		pb.txn.Sint64(columnValueSint64, bCnt)
 		pb.stats.valuesSint64++
 
 		k, n := pnt.Sketch.Cols()
-		deltaEncode(k)
+		kDelta := deltaEncoder{}
 		for i := range k {
-			pb.txn.Sint64(columnSketchBinKeys, int64(k[i]))
+			pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(k[i])))
 			pb.txn.Uint64(columnSketchBinCnts, uint64(n[i]))
 		}
 		pb.txn.Uint64(columnSketchNumBins, uint64(len(k)))
@@ -662,6 +679,7 @@ type dictionaryBuilder struct {
 	tagsInterner           interner[istr]
 	resourceInterner       interner[istr]
 	sourceTypeNameInterner interner[istr]
+	unitInterner           interner[istr]
 
 	originInfoInterner interner[originInfo]
 
@@ -691,6 +709,7 @@ func newDictionaryBuilder(txn *stream.ColumnTransaction) *dictionaryBuilder {
 		resourceInterner: newInterner[istr](txn, columnDictResourceStr),
 
 		sourceTypeNameInterner: newInterner[istr](txn, columnDictSourceTypeName),
+		unitInterner:           newInterner[istr](txn, columnDictUnitStr),
 
 		originInfoInterner: newInterner[originInfo](txn, columnDictOrigin),
 
@@ -704,6 +723,7 @@ func (db *dictionaryBuilder) reset() {
 	db.tagsInterner.reset()
 	db.resourceInterner.reset()
 	db.sourceTypeNameInterner.reset()
+	db.unitInterner.reset()
 	db.originInfoInterner.reset()
 	db.tagsLastID = 0
 	db.tagsIndex = map[tagsKey]int64{}
@@ -817,6 +837,13 @@ func (db *dictionaryBuilder) internSourceTypeName(stn string) int64 {
 		return 0
 	}
 	return db.sourceTypeNameInterner.intern(istr(stn))
+}
+
+func (db *dictionaryBuilder) internUnit(unit string) int64 {
+	if unit == "" {
+		return 0
+	}
+	return db.unitInterner.intern(istr(unit))
 }
 
 // pointType represents the kind (integer or floating point, range) of a time series point value.

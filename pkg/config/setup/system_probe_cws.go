@@ -34,7 +34,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.retention", "6s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
-	cfg.BindEnvAndSetDefault("runtime_security_config.event_retry_queue_threshold", 30)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_retry_queue_threshold", 512)
 	cfg.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
 	cfg.BindEnvAndSetDefault("runtime_security_config.internal_monitoring.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
@@ -94,7 +94,22 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// CWS - SBOM
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enrichment_interval", "1m")
+	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enrichment_ticker", "1m")
+	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.refresh_interval", "3s")
+	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.forward_interval", "20s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.host.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.generate_policies", false)
+
+	// CWS - Event sampling (per-type)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.open.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.open.rate", 500)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.connect.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.connect.rate", 500)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.bind.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.bind.rate", 500)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.dns.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.dns.rate", 500)
 
 	// CWS - Security Profiles
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)
@@ -109,7 +124,8 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.profile_cleanup_delay", "60m")
 
 	// CWS - Security Profile V2
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.event_types", []string{"exec"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.event_types", []string{"exec", "dns", "bind", "connect"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.excluded_images", []string{})
 
 	// CWS - Auto suppression
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.auto_suppression.enabled", true)
@@ -150,6 +166,11 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// CWS - UserSessions
 	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.ssh.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.cache_size", 1024)
+
+	// CWS - Capture all syscall errors
+	// When enabled, the eBPF IS_UNHANDLED_ERROR filter treats every negative syscall
+	// return as handled (constant patched at probe load). Defaults to false.
+	cfg.BindEnvAndSetDefault("runtime_security_config.syscalls.capture_all_errors.enabled", false)
 
 	// CWS -eBPF Less
 	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.enabled", false)

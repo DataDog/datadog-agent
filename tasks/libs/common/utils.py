@@ -284,7 +284,22 @@ def get_build_flags(
             )
         env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # OSX
         env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # linux
+        if sys.platform == "aix":
+            env['LIBPATH'] = os.environ.get('LIBPATH', '') + f":{':'.join(rtloader_lib)}"  # AIX
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{' -L '.join(rtloader_lib)}"
+
+    # On AIX, libpython must be linked explicitly so that Python API symbols enter
+    # the XCOFF process-global symbol table at startup (required by C extension modules).
+    # Fall back to embedded_path when python_home_3 is not explicitly set, since on AIX
+    # Python is installed alongside rtloader under the same embedded prefix.
+    # Must follow the rtloader block: that block also writes env['CGO_LDFLAGS'] from
+    # os.environ, so placing this before it would cause the python flag to be dropped.
+    if sys.platform == 'aix':
+        aix_python_lib_path = python_home_3 or embedded_path
+        if aix_python_lib_path:
+            env['CGO_LDFLAGS'] = (
+                env.get('CGO_LDFLAGS', os.environ.get('CGO_LDFLAGS', '')) + f" -L{aix_python_lib_path}/lib -lpython3"
+            )
 
     if sys.platform == 'win32':
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + ' -Wl,--allow-multiple-definition'
@@ -305,7 +320,8 @@ def get_build_flags(
         ldflags += "-s -w -linkmode=external "
         extldflags += "-static "
     elif rtloader_lib:
-        ldflags += f"-r {':'.join(rtloader_lib)} "
+        if sys.platform != "aix":  # -r sets ELF RPATH; not valid for AIX XCOFF
+            ldflags += f"-r {':'.join(rtloader_lib)} "
 
     if os.environ.get("DELVE"):
         gcflags = "all=-N -l"

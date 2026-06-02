@@ -6,9 +6,10 @@
 #include "helpers/discarders.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
+#include "helpers/discarders.h"
 
-long __attribute__((always_inline)) trace__sys_mkdir(u8 async, const char *filename, umode_t mode) {
-    if (is_discarded_by_pid()) {
+long __attribute__((always_inline)) trace__sys_mkdir(void *ctx, u8 async, const char *filename, umode_t mode) {
+    if (is_discarded_by_pid() || is_auid_discarder(EVENT_MKDIR)) {
         return 0;
     }
 
@@ -24,17 +25,16 @@ long __attribute__((always_inline)) trace__sys_mkdir(u8 async, const char *filen
     if (!async) {
         collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_INT(1), (void *)filename, (void *)&mode, NULL);
     }
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY2(mkdir, const char *, filename, umode_t, mode) {
-    return trace__sys_mkdir(SYNC_SYSCALL, filename, mode);
+    return trace__sys_mkdir(ctx, SYNC_SYSCALL, filename, mode);
 }
 
 HOOK_SYSCALL_ENTRY3(mkdirat, int, dirfd, const char *, filename, umode_t, mode) {
-    return trace__sys_mkdir(SYNC_SYSCALL, filename, mode);
+    return trace__sys_mkdir(ctx, SYNC_SYSCALL, filename, mode);
 }
 
 int __attribute__((always_inline)) filename_create_common(struct path *p) {
@@ -81,9 +81,7 @@ int hook_vfs_mkdir(ctx_t *ctx) {
 
     syscall->mkdir.file.path_key.mount_id = get_path_mount_id(syscall->mkdir.path);
 
-    if (approve_syscall(syscall, mkdir_approvers) == DISCARDED) {
-        pop_syscall(EVENT_MKDIR);
-    }
+    approve_syscall(syscall, mkdir_approvers);
 
     return 0;
 }
@@ -109,7 +107,8 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, enum TAI
 
     syscall->resolver.key = syscall->mkdir.file.path_key;
     syscall->resolver.dentry = syscall->mkdir.dentry;
-    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
+    syscall->resolver.event_type = syscall->type;
+    syscall->resolver.flags = get_resolver_flags(syscall, 1);
     syscall->resolver.callback = select_dr_key(prog_type, DR_MKDIR_CALLBACK_KPROBE_KEY, DR_MKDIR_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -126,7 +125,7 @@ int hook_do_mkdirat(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
     if (!syscall) {
         umode_t mode = (umode_t)CTX_PARM3(ctx);
-        return trace__sys_mkdir(ASYNC_SYSCALL, NULL, mode);
+        return trace__sys_mkdir(ctx, ASYNC_SYSCALL, NULL, mode);
     }
     return 0;
 }
@@ -164,8 +163,8 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_MKDIR);
+    apply_dentry_resolution_outcome(syscall, EVENT_MKDIR);
+    if (syscall->state == DISCARDED) {
         return 0;
     }
 

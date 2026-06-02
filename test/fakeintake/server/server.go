@@ -81,6 +81,9 @@ type Server struct {
 
 	responseOverridesMutex    sync.RWMutex
 	responseOverridesByMethod map[string]map[string]httpResponse
+
+	par *parServerState
+	rc  *rcServerState
 }
 
 // NewServer creates a new fakeintake server and starts it on localhost:port
@@ -107,6 +110,7 @@ func NewServer(options ...Option) *Server {
 	}
 
 	fi.store = serverstore.NewStore()
+	fi.par = &parServerState{results: make(map[string]*api.PARTaskResult)}
 	registry := prometheus.NewRegistry()
 
 	storeMetrics := fi.store.GetInternalMetrics()
@@ -129,6 +133,33 @@ func NewServer(options ...Option) *Server {
 	mux.HandleFunc("/fakeintake/flushPayloads", fi.handleFlushPayloads)
 
 	mux.HandleFunc("/fakeintake/configure/override", fi.handleConfigureOverride)
+
+	// PAR (Private Action Runner) OPMS simulation — polled by the agent's PAR sidecar.
+	mux.HandleFunc("/api/v2/on-prem-management-service/workflow-tasks/dequeue", fi.handlePARDequeue)
+	mux.HandleFunc("/api/v2/on-prem-management-service/workflow-tasks/publish-task-update", fi.handlePARPublish)
+	mux.HandleFunc("/api/v2/on-prem-management-service/runner/health-check", fi.handlePARHealthCheck)
+	mux.HandleFunc("/api/v2/on-prem-management-service/workflow-tasks/heartbeat", fi.handlePARHeartbeat)
+	// PAR test control endpoints — used by the test process to drive tasks and read results.
+	mux.HandleFunc("/fakeintake/par/enqueue", fi.handlePAREnqueue)
+	mux.HandleFunc("/fakeintake/par/result", fi.handlePARResult)
+	mux.HandleFunc("/fakeintake/par/flush", fi.handlePARFlush)
+	mux.HandleFunc("/fakeintake/par/stats", fi.handlePARStats)
+
+	// Remote Config — only meaningful when WithRemoteConfig is set; handlers
+	// no-op with 404 otherwise.
+	if fi.rc != nil {
+		if err := fi.initRC(); err != nil {
+			log.Printf("Remote Config: init failed, disabling: %v", err)
+			fi.rc = nil
+		}
+	}
+	mux.HandleFunc("/api/v0.1/configurations", fi.handleRCConfigurations)
+	mux.HandleFunc("/api/v0.1/org", fi.handleRCOrg)
+	mux.HandleFunc("/api/v0.1/status", fi.handleRCStatus)
+	mux.HandleFunc("/fakeintake/rc/config", fi.handleRCAddConfig)
+	mux.HandleFunc("/fakeintake/rc/configs", fi.handleRCListConfigs)
+	mux.HandleFunc("/fakeintake/rc/config/", fi.handleRCDeleteConfig)
+	mux.HandleFunc("/fakeintake/rc/stats", fi.handleRCStats)
 
 	mux.HandleFunc("/debug/lastAPIKey/", fi.handleGetLastAPIKey)
 	mux.HandleFunc("/debug/pprof/", pprof.Index)

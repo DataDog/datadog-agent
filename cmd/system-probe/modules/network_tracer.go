@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build (linux && linux_bpf) || (windows && npm)
+//go:build (linux && linux_bpf) || (windows && npm) || darwin
 
 package modules
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -33,9 +32,6 @@ var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 
 const inactivityLogDuration = 10 * time.Minute
 const inactivityRestartDuration = 20 * time.Minute
-
-var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
-
 const maxConntrackDumpSize = 3000
 
 func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
@@ -98,7 +94,7 @@ type networkTracer struct {
 	cancelFunc   context.CancelFunc
 }
 
-func (nt *networkTracer) GetStats() map[string]interface{} {
+func (nt *networkTracer) GetStats() map[string]any {
 	stats, _ := nt.tracer.GetStats()
 	return stats
 }
@@ -171,7 +167,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, stats, utils.CompactOutput)
+		utils.WriteAsJSON(req, w, stats, utils.CompactOutput)
 	})
 
 	// /debug/ebpf_maps as default will dump all registered maps/perfmaps
@@ -226,7 +222,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, cache, utils.CompactOutput)
+		utils.WriteAsJSON(r, w, cache, utils.CompactOutput)
 	})
 
 	registerUSMEndpoints(nt, httpMux)
@@ -275,16 +271,6 @@ func writeConnections(w http.ResponseWriter, marshaler marshal.Marshaler, cs *ne
 	}
 
 	log.Tracef("/connections: %d connections", len(cs.Conns))
-}
-
-func writeDisabledProtocolMessage(protocolName string, w http.ResponseWriter) {
-	log.Warnf("%s monitoring is disabled", protocolName)
-	w.WriteHeader(404)
-	// Writing JSON to ensure compatibility when using the jq bash utility for output
-	outputString := map[string]string{"error": fmt.Sprintf("%s monitoring is disabled", protocolName)}
-	// We are marshaling a static string, so we can ignore the error
-	buf, _ := json.Marshal(outputString)
-	w.Write(buf)
 }
 
 func writeConntrackTable(table *tracer.DebugConntrackTable, w http.ResponseWriter) {

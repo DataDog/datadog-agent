@@ -1,0 +1,9 @@
+"""Installer package shared files."""
+
+package(default_visibility = ["//packages/installer:__subpackages__"])
+
+exports_files([
+    "README.md.in",
+    "version-manifest.json.in",
+    "version-manifest.txt.in",
+])

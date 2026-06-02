@@ -23,6 +23,8 @@ const (
 	InjectionModeInitContainer InjectionMode = "init_container"
 	// InjectionModeCSI uses the Datadog CSI driver to mount library files.
 	InjectionModeCSI InjectionMode = "csi"
+	// InjectionModeImageVolume uses image volumes to mount library files.
+	InjectionModeImageVolume InjectionMode = "image_volume"
 )
 
 // InjectionValidator validates injection-specific aspects of a pod.
@@ -64,6 +66,8 @@ func NewPodValidator(pod *corev1.Pod, mode InjectionMode) *PodValidator {
 	switch mode {
 	case InjectionModeCSI:
 		v.injection = newCSIInjectionValidator(v, pod)
+	case InjectionModeImageVolume:
+		v.injection = newImageVolumeInjectionValidator(v, pod)
 	// Auto mode currently uses init containers as the default injection method
 	case InjectionModeAuto, InjectionModeInitContainer:
 		fallthrough
@@ -116,14 +120,26 @@ func (v *PodValidator) RequireInjection(t *testing.T, expectedContainers []strin
 	v.injection.RequireInjection(t)
 }
 
-// RequireNoInjection is a high level function that ensures a pod was not injected for SSI.
+// RequireNoInjection is a high level function that ensures a pod was not injected for SSI,
+// including KPI env vars.
 func (v *PodValidator) RequireNoInjection(t *testing.T) {
-	// Validate no container was injected.
+	// Validate no container was injected, including KPI env vars.
 	for _, containerValidator := range v.containers {
 		containerValidator.RequireNoInjection(t)
 	}
 
-	// Delegate mode-specific validation
+	// Delegate mode-specific validation.
+	v.injection.RequireNoInjection(t)
+}
+
+// RequireNoInjectionArtifacts ensures a pod has no SSI injection artifacts.
+func (v *PodValidator) RequireNoInjectionArtifacts(t *testing.T) {
+	// Validate no container has SSI injection artifacts.
+	for _, containerValidator := range v.containers {
+		containerValidator.RequireNoInjectionArtifacts(t)
+	}
+
+	// Delegate mode-specific validation.
 	v.injection.RequireNoInjection(t)
 }
 

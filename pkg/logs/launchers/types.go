@@ -6,8 +6,8 @@
 package launchers
 
 import (
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
@@ -37,11 +37,11 @@ type SourceProvider interface {
 	//
 	// Sources are not automatically removed when the agent shuts down.  Consumers should handle any
 	// required shutdwon of running sources in their own Stop methods.
-	SubscribeForType(sourceType string) (added chan *sources.LogSource, removed chan *sources.LogSource)
+	SubscribeForType(sourceType string, addedDone, removedDone chan struct{}) (added chan *sources.LogSource, removed chan *sources.LogSource)
 
 	// SubscribeAll returns channels containing all added and removed sources.
-	SubscribeAll() (added chan *sources.LogSource, removed chan *sources.LogSource)
+	SubscribeAll(addedDone, removedDone chan struct{}) (added chan *sources.LogSource, removed chan *sources.LogSource)
 
 	// GetAddedForType returns channels containing the new added sources matching the provided type.
-	GetAddedForType(sourceType string) chan *sources.LogSource
+	GetAddedForType(sourceType string, addedDone chan struct{}) chan *sources.LogSource
 }

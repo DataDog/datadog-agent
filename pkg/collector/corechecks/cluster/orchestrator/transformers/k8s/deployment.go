@@ -19,6 +19,8 @@ import (
 
 // ExtractDeployment returns the protobuf model corresponding to a Kubernetes
 // Deployment resource.
+//
+//nolint:revive
 func ExtractDeployment(ctx processors.ProcessorContext, d *appsv1.Deployment) *model.Deployment {
 	deploy := model.Deployment{
 		Metadata: extractMetadata(&d.ObjectMeta),
@@ -58,9 +60,8 @@ func ExtractDeployment(ctx processors.ProcessorContext, d *appsv1.Deployment) *m
 
 	deploy.ResourceRequirements = ExtractPodTemplateResourceRequirements(d.Spec.Template)
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	deploy.Tags = append(deploy.Tags, transformers.RetrieveUnifiedServiceTags(d.ObjectMeta.Labels)...)
-	deploy.Tags = append(deploy.Tags, transformers.RetrieveMetadataTags(d.ObjectMeta.Labels, d.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	deploy.Tags = append(deploy.Tags, transformers.RetrieveTeamTag(d.ObjectMeta.Labels, d.ObjectMeta.Annotations)...)
 
 	return &deploy
 }

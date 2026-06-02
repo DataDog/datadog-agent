@@ -9,7 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	opametrics "github.com/open-policy-agent/opa/v1/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cast"
@@ -49,7 +50,7 @@ func registerHistogram(name string) telemetry.Histogram {
 		buckets[i] = v * float64(time.Millisecond)
 	}
 
-	histogram := telemetry.NewHistogram("opa", name, nil, "", buckets)
+	histogram := telemetryimpl.GetCompatComponent().NewHistogram("opa", name, nil, "", buckets)
 	registeredHistograms[name] = histogram
 	return histogram
 }
@@ -66,7 +67,7 @@ func registerCounter(name string) telemetry.Counter {
 		return counter
 	}
 
-	counter := telemetry.NewCounter("opa", name, nil, "")
+	counter := telemetryimpl.GetCompatComponent().NewCounter("opa", name, nil, "")
 	registeredCounters[name] = counter
 	return counter
 }

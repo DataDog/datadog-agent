@@ -97,7 +97,11 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map, statsd statsd
 
 	processMonitor := monitor.GetProcessMonitor()
 
-	usmstate.Set(usmstate.Running)
+	if c.DiscoveryServiceMapEnabled {
+		usmstate.Set(usmstate.Restricted)
+	} else {
+		usmstate.Set(usmstate.Running)
+	}
 
 	usmMonitor := &Monitor{
 		cfg:                  c,
@@ -173,8 +177,8 @@ func (m *Monitor) Resume() error {
 }
 
 // GetUSMStats returns the current state of the USM monitor
-func (m *Monitor) GetUSMStats() map[string]interface{} {
-	response := map[string]interface{}{
+func (m *Monitor) GetUSMStats() map[string]any {
+	response := map[string]any{
 		"state": usmstate.Get(),
 	}
 
@@ -187,8 +191,10 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 	tracedPrograms := utils.GetTracedProgramList(consts.USMModuleName)
 	response["traced_programs"] = tracedPrograms
 
+	response["discovery_service_map_enabled"] = false
 	if m != nil {
 		response["last_check"] = m.lastUpdateTime
+		response["discovery_service_map_enabled"] = m.cfg.DiscoveryServiceMapEnabled
 	}
 	return response
 }

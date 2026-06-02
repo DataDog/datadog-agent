@@ -22,7 +22,9 @@ import (
 )
 
 const (
-	expectedIssueID = "docker-file-tailing-disabled"
+	// expectedIssueID is the unique instance key for the docker socket permission check.
+	// issue.Id now carries the instance key (check ID), not the template type.
+	expectedIssueID = "docker-socket-permissions"
 )
 
 type dockerPermissionSuite struct {
@@ -87,10 +89,10 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		require.NotNil(t, dockerIssue, "Docker permission issue should be detected")
 
 		// Verify issue metadata
-		assert.Equal(t, "docker-file-tailing-disabled", dockerIssue.Id)
+		assert.Equal(t, "docker-socket-permissions", dockerIssue.Id)
 		assert.Equal(t, "docker_file_tailing_disabled", dockerIssue.IssueName)
 		assert.Equal(t, "permissions", dockerIssue.Category)
-		assert.Equal(t, "medium", dockerIssue.Severity)
+		assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, dockerIssue.Severity)
 		assert.Equal(t, "logs-agent", dockerIssue.Location)
 		assert.Equal(t, "logs", dockerIssue.Source)
 
@@ -136,9 +138,8 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		var postRestartIssue *healthplatform.Issue
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			payloads, err := fakeIntake.GetAgentHealth()
-			if !assert.NoError(ct, err) || !assert.NotEmpty(ct, payloads, "Should receive health report after restart") {
-				return
-			}
+			require.NoError(ct, err)
+			require.NotEmpty(ct, payloads, "Should receive health report after restart")
 			latest := payloads[len(payloads)-1]
 			postRestartIssue = findIssue(t, latest, expectedIssueID)
 			assert.NotNil(ct, postRestartIssue, "Docker permission issue should still be present after restart")

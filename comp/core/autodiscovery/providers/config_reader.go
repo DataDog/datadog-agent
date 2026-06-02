@@ -43,6 +43,7 @@ type configFormat struct {
 	DockerImages            []string                           `yaml:"docker_images,omitempty"`             // Only imported for deprecation warning
 	IgnoreAutodiscoveryTags bool                               `yaml:"ignore_autodiscovery_tags,omitempty"` // Use to ignore tags coming from autodiscovery
 	CheckTagCardinality     string                             `yaml:"check_tag_cardinality,omitempty"`     // Use to set the tag cardinality override for the check
+	Discovery               *integration.DiscoveryConfig       `yaml:"discovery,omitempty"`                 // Marks this config as a discovery template (instances are populated at runtime)
 }
 
 // ConfigFormatWrapper is a wrapper for the config format
@@ -327,7 +328,7 @@ func collectEntry(file os.DirEntry, path string, integrationName string, integra
 	entry.name = integrationName
 
 	if ext != ".yaml" && ext != ".yml" {
-		log.Tracef("Skipping file: %s", absPath)
+		log.Tracef("Skipping non-YAML file: %s", absPath)
 		entry.err = errors.New("Invalid config file extension")
 		return entry, integrationErrors
 	}
@@ -336,7 +337,7 @@ func collectEntry(file os.DirEntry, path string, integrationName string, integra
 	entry.conf, entry.cfgFormat, err = GetIntegrationConfigFromFile(integrationName, absPath)
 	if err != nil {
 		if err.Error() == emptyFileError {
-			log.Infof("skipping empty file: %s", absPath)
+			log.Debugf("skipping empty file: %s", absPath)
 			entry.err = errors.New("empty file")
 			return entry, integrationErrors
 		}
@@ -501,6 +502,9 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 
 	// Copy check_tag_cardinality parameter
 	conf.CheckTagCardinality = cf.CheckTagCardinality
+
+	// Copy discovery marker
+	conf.Discovery = cf.Discovery
 
 	// DockerImages entry was found: we ignore it if no ADIdentifiers has been found
 	if len(cf.DockerImages) > 0 && len(cf.ADIdentifiers) == 0 {

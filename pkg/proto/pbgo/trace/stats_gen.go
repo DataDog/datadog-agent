@@ -6,6 +6,12 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
+// Size limits for msgp deserialization
+const (
+	z586aeb0climitArrays = 500000
+	z586aeb0climitMaps   = 500000
+)
+
 // DecodeMsg implements msgp.Decodable
 func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 	var field []byte
@@ -14,6 +20,10 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 	zb0001, err = dc.ReadMapHeader()
 	if err != nil {
 		err = msgp.WrapError(err)
+		return
+	}
+	if zb0001 > z586aeb0climitMaps {
+		err = msgp.ErrLimitExceeded
 		return
 	}
 	for zb0001 > 0 {
@@ -79,13 +89,19 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 				return
 			}
 		case "OkSummary":
-			z.OkSummary, err = dc.ReadBytes(z.OkSummary)
+			z.OkSummary, err = dc.ReadBytesLimit(z.OkSummary, z586aeb0climitArrays)
+			if err == nil && z.OkSummary == nil {
+				z.OkSummary = []byte{}
+			}
 			if err != nil {
 				err = msgp.WrapError(err, "OkSummary")
 				return
 			}
 		case "ErrorSummary":
-			z.ErrorSummary, err = dc.ReadBytes(z.ErrorSummary)
+			z.ErrorSummary, err = dc.ReadBytesLimit(z.ErrorSummary, z586aeb0climitArrays)
+			if err == nil && z.ErrorSummary == nil {
+				z.ErrorSummary = []byte{}
+			}
 			if err != nil {
 				err = msgp.WrapError(err, "ErrorSummary")
 				return
@@ -113,6 +129,10 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 			zb0002, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "PeerTags")
+				return
+			}
+			if zb0002 > z586aeb0climitArrays {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if cap(z.PeerTags) >= int(zb0002) {
@@ -168,6 +188,10 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "SpanDerivedPrimaryTags")
 				return
 			}
+			if zb0004 > z586aeb0climitArrays {
+				err = msgp.ErrLimitExceeded
+				return
+			}
 			if cap(z.SpanDerivedPrimaryTags) >= int(zb0004) {
 				z.SpanDerivedPrimaryTags = (z.SpanDerivedPrimaryTags)[:zb0004]
 			} else {
@@ -177,6 +201,29 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 				z.SpanDerivedPrimaryTags[za0002], err = dc.ReadString()
 				if err != nil {
 					err = msgp.WrapError(err, "SpanDerivedPrimaryTags", za0002)
+					return
+				}
+			}
+		case "AdditionalMetricTags":
+			var zb0005 uint32
+			zb0005, err = dc.ReadArrayHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "AdditionalMetricTags")
+				return
+			}
+			if zb0005 > z586aeb0climitArrays {
+				err = msgp.ErrLimitExceeded
+				return
+			}
+			if cap(z.AdditionalMetricTags) >= int(zb0005) {
+				z.AdditionalMetricTags = (z.AdditionalMetricTags)[:zb0005]
+			} else {
+				z.AdditionalMetricTags = make([]string, zb0005)
+			}
+			for za0003 := range z.AdditionalMetricTags {
+				z.AdditionalMetricTags[za0003], err = dc.ReadString()
+				if err != nil {
+					err = msgp.WrapError(err, "AdditionalMetricTags", za0003)
 					return
 				}
 			}
@@ -193,9 +240,9 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 21
+	// map header, size 22
 	// write "Service"
-	err = en.Append(0xde, 0x0, 0x15, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
+	err = en.Append(0xde, 0x0, 0x16, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
 	if err != nil {
 		return
 	}
@@ -418,15 +465,32 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 	}
+	// write "AdditionalMetricTags"
+	err = en.Append(0xb4, 0x41, 0x64, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x54, 0x61, 0x67, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteArrayHeader(uint32(len(z.AdditionalMetricTags)))
+	if err != nil {
+		err = msgp.WrapError(err, "AdditionalMetricTags")
+		return
+	}
+	for za0003 := range z.AdditionalMetricTags {
+		err = en.WriteString(z.AdditionalMetricTags[za0003])
+		if err != nil {
+			err = msgp.WrapError(err, "AdditionalMetricTags", za0003)
+			return
+		}
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *ClientGroupedStats) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 21
+	// map header, size 22
 	// string "Service"
-	o = append(o, 0xde, 0x0, 0x15, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
+	o = append(o, 0xde, 0x0, 0x16, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
 	o = msgp.AppendString(o, z.Service)
 	// string "Name"
 	o = append(o, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
@@ -494,6 +558,12 @@ func (z *ClientGroupedStats) MarshalMsg(b []byte) (o []byte, err error) {
 	for za0002 := range z.SpanDerivedPrimaryTags {
 		o = msgp.AppendString(o, z.SpanDerivedPrimaryTags[za0002])
 	}
+	// string "AdditionalMetricTags"
+	o = append(o, 0xb4, 0x41, 0x64, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x54, 0x61, 0x67, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.AdditionalMetricTags)))
+	for za0003 := range z.AdditionalMetricTags {
+		o = msgp.AppendString(o, z.AdditionalMetricTags[za0003])
+	}
 	return
 }
 
@@ -505,6 +575,10 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
 	if err != nil {
 		err = msgp.WrapError(err)
+		return
+	}
+	if zb0001 > z586aeb0climitMaps {
+		err = msgp.ErrLimitExceeded
 		return
 	}
 	for zb0001 > 0 {
@@ -570,17 +644,49 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case "OkSummary":
-			z.OkSummary, bts, err = msgp.ReadBytesBytes(bts, z.OkSummary)
+			var zb0002 uint32
+			zb0002, bts, err = msgp.ReadBytesHeader(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "OkSummary")
 				return
 			}
+			if zb0002 > z586aeb0climitArrays {
+				err = msgp.ErrLimitExceeded
+				return
+			}
+			if z.OkSummary == nil || uint32(cap(z.OkSummary)) < zb0002 {
+				z.OkSummary = make([]byte, zb0002)
+			} else {
+				z.OkSummary = z.OkSummary[:zb0002]
+			}
+			if uint32(len(bts)) < zb0002 {
+				err = msgp.ErrShortBytes
+				return
+			}
+			copy(z.OkSummary, bts[:zb0002])
+			bts = bts[zb0002:]
 		case "ErrorSummary":
-			z.ErrorSummary, bts, err = msgp.ReadBytesBytes(bts, z.ErrorSummary)
+			var zb0003 uint32
+			zb0003, bts, err = msgp.ReadBytesHeader(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "ErrorSummary")
 				return
 			}
+			if zb0003 > z586aeb0climitArrays {
+				err = msgp.ErrLimitExceeded
+				return
+			}
+			if z.ErrorSummary == nil || uint32(cap(z.ErrorSummary)) < zb0003 {
+				z.ErrorSummary = make([]byte, zb0003)
+			} else {
+				z.ErrorSummary = z.ErrorSummary[:zb0003]
+			}
+			if uint32(len(bts)) < zb0003 {
+				err = msgp.ErrShortBytes
+				return
+			}
+			copy(z.ErrorSummary, bts[:zb0003])
+			bts = bts[zb0003:]
 		case "Synthetics":
 			z.Synthetics, bts, err = msgp.ReadBoolBytes(bts)
 			if err != nil {
@@ -600,16 +706,20 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case "PeerTags":
-			var zb0002 uint32
-			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			var zb0004 uint32
+			zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "PeerTags")
 				return
 			}
-			if cap(z.PeerTags) >= int(zb0002) {
-				z.PeerTags = (z.PeerTags)[:zb0002]
+			if zb0004 > z586aeb0climitArrays {
+				err = msgp.ErrLimitExceeded
+				return
+			}
+			if cap(z.PeerTags) >= int(zb0004) {
+				z.PeerTags = (z.PeerTags)[:zb0004]
 			} else {
-				z.PeerTags = make([]string, zb0002)
+				z.PeerTags = make([]string, zb0004)
 			}
 			for za0001 := range z.PeerTags {
 				z.PeerTags[za0001], bts, err = msgp.ReadStringBytes(bts)
@@ -620,13 +730,13 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			}
 		case "IsTraceRoot":
 			{
-				var zb0003 int32
-				zb0003, bts, err = msgp.ReadInt32Bytes(bts)
+				var zb0005 int32
+				zb0005, bts, err = msgp.ReadInt32Bytes(bts)
 				if err != nil {
 					err = msgp.WrapError(err, "IsTraceRoot")
 					return
 				}
-				z.IsTraceRoot = Trilean(zb0003)
+				z.IsTraceRoot = Trilean(zb0005)
 			}
 		case "GRPCStatusCode":
 			z.GRPCStatusCode, bts, err = msgp.ReadStringBytes(bts)
@@ -653,21 +763,48 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case "SpanDerivedPrimaryTags":
-			var zb0004 uint32
-			zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			var zb0006 uint32
+			zb0006, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "SpanDerivedPrimaryTags")
 				return
 			}
-			if cap(z.SpanDerivedPrimaryTags) >= int(zb0004) {
-				z.SpanDerivedPrimaryTags = (z.SpanDerivedPrimaryTags)[:zb0004]
+			if zb0006 > z586aeb0climitArrays {
+				err = msgp.ErrLimitExceeded
+				return
+			}
+			if cap(z.SpanDerivedPrimaryTags) >= int(zb0006) {
+				z.SpanDerivedPrimaryTags = (z.SpanDerivedPrimaryTags)[:zb0006]
 			} else {
-				z.SpanDerivedPrimaryTags = make([]string, zb0004)
+				z.SpanDerivedPrimaryTags = make([]string, zb0006)
 			}
 			for za0002 := range z.SpanDerivedPrimaryTags {
 				z.SpanDerivedPrimaryTags[za0002], bts, err = msgp.ReadStringBytes(bts)
 				if err != nil {
 					err = msgp.WrapError(err, "SpanDerivedPrimaryTags", za0002)
+					return
+				}
+			}
+		case "AdditionalMetricTags":
+			var zb0007 uint32
+			zb0007, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "AdditionalMetricTags")
+				return
+			}
+			if zb0007 > z586aeb0climitArrays {
+				err = msgp.ErrLimitExceeded
+				return
+			}
+			if cap(z.AdditionalMetricTags) >= int(zb0007) {
+				z.AdditionalMetricTags = (z.AdditionalMetricTags)[:zb0007]
+			} else {
+				z.AdditionalMetricTags = make([]string, zb0007)
+			}
+			for za0003 := range z.AdditionalMetricTags {
+				z.AdditionalMetricTags[za0003], bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "AdditionalMetricTags", za0003)
 					return
 				}
 			}
@@ -693,6 +830,10 @@ func (z *ClientGroupedStats) Msgsize() (s int) {
 	for za0002 := range z.SpanDerivedPrimaryTags {
 		s += msgp.StringPrefixSize + len(z.SpanDerivedPrimaryTags[za0002])
 	}
+	s += 21 + msgp.ArrayHeaderSize
+	for za0003 := range z.AdditionalMetricTags {
+		s += msgp.StringPrefixSize + len(z.AdditionalMetricTags[za0003])
+	}
 	return
 }
 
@@ -704,6 +845,10 @@ func (z *ClientStatsBucket) DecodeMsg(dc *msgp.Reader) (err error) {
 	zb0001, err = dc.ReadMapHeader()
 	if err != nil {
 		err = msgp.WrapError(err)
+		return
+	}
+	if zb0001 > z586aeb0climitMaps {
+		err = msgp.ErrLimitExceeded
 		return
 	}
 	for zb0001 > 0 {
@@ -731,6 +876,10 @@ func (z *ClientStatsBucket) DecodeMsg(dc *msgp.Reader) (err error) {
 			zb0002, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Stats")
+				return
+			}
+			if zb0002 > z586aeb0climitArrays {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if cap(z.Stats) >= int(zb0002) {
@@ -907,6 +1056,10 @@ func (z *ClientStatsBucket) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		err = msgp.WrapError(err)
 		return
 	}
+	if zb0001 > z586aeb0climitMaps {
+		err = msgp.ErrLimitExceeded
+		return
+	}
 	for zb0001 > 0 {
 		zb0001--
 		field, bts, err = msgp.ReadMapKeyZC(bts)
@@ -932,6 +1085,10 @@ func (z *ClientStatsBucket) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Stats")
+				return
+			}
+			if zb0002 > z586aeb0climitArrays {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if cap(z.Stats) >= int(zb0002) {
@@ -999,6 +1156,10 @@ func (z *ClientStatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 		err = msgp.WrapError(err)
 		return
 	}
+	if zb0001 > z586aeb0climitMaps {
+		err = msgp.ErrLimitExceeded
+		return
+	}
 	for zb0001 > 0 {
 		zb0001--
 		field, err = dc.ReadMapKeyPtr()
@@ -1030,6 +1191,10 @@ func (z *ClientStatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 			zb0002, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Stats")
+				return
+			}
+			if zb0002 > z586aeb0climitArrays {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if cap(z.Stats) >= int(zb0002) {
@@ -1103,6 +1268,10 @@ func (z *ClientStatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 			zb0003, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Tags")
+				return
+			}
+			if zb0003 > z586aeb0climitArrays {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if cap(z.Tags) >= int(zb0003) {
@@ -1451,6 +1620,10 @@ func (z *ClientStatsPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		err = msgp.WrapError(err)
 		return
 	}
+	if zb0001 > z586aeb0climitMaps {
+		err = msgp.ErrLimitExceeded
+		return
+	}
 	for zb0001 > 0 {
 		zb0001--
 		field, bts, err = msgp.ReadMapKeyZC(bts)
@@ -1482,6 +1655,10 @@ func (z *ClientStatsPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Stats")
+				return
+			}
+			if zb0002 > z586aeb0climitArrays {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if cap(z.Stats) >= int(zb0002) {
@@ -1554,6 +1731,10 @@ func (z *ClientStatsPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			zb0003, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Tags")
+				return
+			}
+			if zb0003 > z586aeb0climitArrays {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if cap(z.Tags) >= int(zb0003) {
@@ -1632,6 +1813,10 @@ func (z *StatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 		err = msgp.WrapError(err)
 		return
 	}
+	if zb0001 > z586aeb0climitMaps {
+		err = msgp.ErrLimitExceeded
+		return
+	}
 	for zb0001 > 0 {
 		zb0001--
 		field, err = dc.ReadMapKeyPtr()
@@ -1657,6 +1842,10 @@ func (z *StatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 			zb0002, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Stats")
+				return
+			}
+			if zb0002 > z586aeb0climitArrays {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if cap(z.Stats) >= int(zb0002) {
@@ -1871,6 +2060,10 @@ func (z *StatsPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		err = msgp.WrapError(err)
 		return
 	}
+	if zb0001 > z586aeb0climitMaps {
+		err = msgp.ErrLimitExceeded
+		return
+	}
 	for zb0001 > 0 {
 		zb0001--
 		field, bts, err = msgp.ReadMapKeyZC(bts)
@@ -1896,6 +2089,10 @@ func (z *StatsPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Stats")
+				return
+			}
+			if zb0002 > z586aeb0climitArrays {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if cap(z.Stats) >= int(zb0002) {

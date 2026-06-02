@@ -60,8 +60,8 @@ func TestGetSecurityCreds(t *testing.T) {
 			io.WriteString(w, "test-role")
 		} else if r.URL.Path == "/iam/security-credentials/test-role" {
 			w.Header().Set("Content-Type", "text/plain")
-			content, err := os.ReadFile("payloads/security_cred.json")
-			require.NoError(t, err, fmt.Sprintf("failed to load json in payloads/security_cred.json: %v", err))
+			content, err := os.ReadFile("testdata/payloads/security_cred.json")
+			require.NoError(t, err, fmt.Sprintf("failed to load json in testdata/payloads/security_cred.json: %v", err))
 			w.Write(content)
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -248,6 +248,10 @@ func TestCollectEC2InstanceInfo(t *testing.T) {
 	}
 	t.Cleanup(func() { fetchContainerInstanceARN = oldFetchARN })
 
+	oldIsSpot := isSpotInstance
+	isSpotInstance = func(_ context.Context) (bool, error) { return true, nil }
+	t.Cleanup(func() { isSpotInstance = oldIsSpot })
+
 	tags, err := GetInstanceInfo(context.Background())
 	require.NoError(t, err)
 
@@ -258,6 +262,7 @@ func TestCollectEC2InstanceInfo(t *testing.T) {
 		"image:ami-aaaaaaaaaaaaaaaaa",
 		"availability-zone:eu-west-3a",
 		"container_instance_arn:arn:aws:ecs:region:account:container-instance/ci-123",
+		"capacity-type:spot",
 	}
 	assert.Equal(t, expected, tags)
 
@@ -327,7 +332,7 @@ func setupTestIMDS(t *testing.T) {
 		case "/iam/security-credentials/":
 			io.WriteString(w, "test-role")
 		case "/iam/security-credentials/test-role":
-			content, _ := os.ReadFile("payloads/security_cred.json")
+			content, _ := os.ReadFile("testdata/payloads/security_cred.json")
 			w.Write(content)
 		}
 	}))

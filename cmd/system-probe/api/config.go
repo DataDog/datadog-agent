@@ -6,29 +6,17 @@
 package api
 
 import (
-	"github.com/gorilla/mux"
+	"net/http"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 )
 
 // setupConfigHandlers adds the specific handlers for /config endpoints
-func setupConfigHandlers(r *mux.Router, settings settings.Component) {
-	r.HandleFunc("/config", settings.GetFullConfig(getAggregatedNamespaces()...)).Methods("GET")
-	r.HandleFunc("/config/without-defaults", settings.GetFullConfigWithoutDefaults(getAggregatedNamespaces()...)).Methods("GET")
-	r.HandleFunc("/config/by-source", settings.GetFullConfigBySource()).Methods("GET")
-	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", settings.GetValue).Methods("GET")
-	r.HandleFunc("/config/{setting}", settings.SetValue).Methods("POST")
-}
-
-func getAggregatedNamespaces() []string {
-	namespaces := []string{
-		config.Namespace,
-	}
-	for _, m := range modules.All() {
-		namespaces = append(namespaces, m.ConfigNamespaces...)
-	}
-	return namespaces
+func setupConfigHandlers(r *http.ServeMux, settings settings.Component) {
+	r.HandleFunc("GET /config", settings.GetFullConfig(""))
+	r.HandleFunc("GET /config/without-defaults", settings.GetFullConfigWithoutDefaults(""))
+	r.HandleFunc("GET /config/by-source", settings.GetFullConfigBySource())
+	r.HandleFunc("GET /config/list-runtime", settings.ListConfigurable)
+	r.HandleFunc("GET /config/{setting}", settings.GetValue)
+	r.HandleFunc("POST /config/{setting}", settings.SetValue)
 }

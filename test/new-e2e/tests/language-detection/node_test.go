@@ -22,12 +22,8 @@ var nodeProg string
 func (s *languageDetectionSuite) installNode() {
 	// Installation instructions taken from https://github.com/nodesource/distributions
 	s.Env().RemoteHost.MustExecute("sudo apt-get update")
-	s.Env().RemoteHost.MustExecute("sudo apt-get install -y ca-certificates curl gnupg")
-	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/apt/keyrings")
-	s.Env().RemoteHost.MustExecute("curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg")
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("echo \"deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_%d.x nodistro main\" | sudo tee /etc/apt/sources.list.d/nodesource.list", nodeMajor))
-	s.Env().RemoteHost.MustExecute("sudo apt-get update")
-	s.Env().RemoteHost.MustExecute("sudo apt-get install nodejs -y")
+	s.Env().RemoteHost.MustExecute("sudo apt-get install -y curl")
+	s.Env().RemoteHost.MustExecute("curl -fsSL https://nodejs.org/dist/v20.20.1/node-v20.20.1-linux-x64.tar.gz | sudo tar -xz -C /usr/local --strip-components=1")
 
 	// Verify that node was installed correctly
 	nodeVersion := s.Env().RemoteHost.MustExecute("node --version")

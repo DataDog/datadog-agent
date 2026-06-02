@@ -19,9 +19,11 @@ import (
 )
 
 const (
-	envTraceID         = "DATADOG_TRACE_ID"
-	envParentID        = "DATADOG_PARENT_ID"
-	telemetrySubdomain = "instrumentation-telemetry-intake"
+	envTraceID          = "DATADOG_TRACE_ID"
+	envParentID         = "DATADOG_PARENT_ID"
+	envService          = "DATADOG_SERVICE"
+	envSamplingPriority = "DATADOG_SAMPLING_PRIORITY"
+	telemetrySubdomain  = "instrumentation-telemetry-intake"
 )
 
 // Telemetry handles the telemetry for fleet components.
@@ -93,10 +95,14 @@ func (t *Telemetry) extractCompletedSpans() traces {
 	}
 	ts := make(map[uint64][]*span)
 	for _, span := range spans {
-		span.span.Service = t.service
+		if span.span.Service == "" {
+			span.span.Service = t.service
+		}
 		span.span.Meta["env"] = t.env
 		span.span.Meta["version"] = version.AgentVersion
-		span.span.Metrics["_sampling_priority_v1"] = 2
+		if _, ok := span.span.Metrics["_sampling_priority_v1"]; !ok {
+			span.span.Metrics["_sampling_priority_v1"] = 2
+		}
 		ts[span.span.TraceID] = append(ts[span.span.TraceID], &span.span)
 	}
 	tracesArray := make([]trace, 0, len(ts))
@@ -123,8 +129,44 @@ func SpanFromContext(ctx context.Context) (*Span, bool) {
 	return globalTracer.getSpan(spanIDs.spanID)
 }
 
+// WithService sets the service name on the context. Spans created from this context
+// (and child contexts) inherit the service unless overridden by another WithService call.
+func WithService(ctx context.Context, service string) context.Context {
+	return context.WithValue(ctx, serviceKey, service)
+}
+
+// WithSamplingPriority sets the sampling priority on the context. Spans created from
+// this context (and child contexts) inherit the priority unless overridden by another
+// WithSamplingPriority call. When unset, a default of 2 (FORCE_KEEP) is stamped at flush.
+func WithSamplingPriority(ctx context.Context, priority int) context.Context {
+	return context.WithValue(ctx, samplingPriorityKey, priority)
+}
+
+func getServiceFromContext(ctx context.Context) (string, bool) {
+	service, ok := ctx.Value(serviceKey).(string)
+	return service, ok
+}
+
+func getSamplingPriorityFromContext(ctx context.Context) (*int, bool) {
+	priority, ok := ctx.Value(samplingPriorityKey).(int)
+	if !ok {
+		return nil, false
+	}
+	return &priority, true
+}
+
 // StartSpanFromEnv starts a span using the environment variables to find the parent span.
+// It also reads DATADOG_SERVICE and DATADOG_SAMPLING_PRIORITY from the environment and
+// applies them to the context so the created span (and its children) inherit them.
 func StartSpanFromEnv(ctx context.Context, operationName string) (*Span, context.Context) {
+	if service, ok := os.LookupEnv(envService); ok {
+		ctx = WithService(ctx, service)
+	}
+	if priorityStr, ok := os.LookupEnv(envSamplingPriority); ok {
+		if priority, err := strconv.Atoi(priorityStr); err == nil {
+			ctx = WithSamplingPriority(ctx, priority)
+		}
+	}
 	traceID, parentID := extractIDsFromEnv()
 	return StartSpanFromIDs(ctx, operationName, traceID, parentID)
 }
@@ -153,17 +195,26 @@ func converIDsToUint64(traceID, parentID string) (uint64, uint64) {
 	return traceIDInt, parentIDInt
 }
 
-// StartSpanFromIDs starts a span using the trace and parent
-// IDs provided.
+// StartSpanFromIDs starts a span using the trace and parent IDs provided as
+// decimal strings. Malformed inputs yield a fresh top-level trace.
 func StartSpanFromIDs(ctx context.Context, operationName, traceID, parentID string) (*Span, context.Context) {
 	traceIDInt, parentIDInt := converIDsToUint64(traceID, parentID)
-	span, ctx := startSpanFromIDs(ctx, operationName, traceIDInt, parentIDInt)
+	return StartSpanFromUint64IDs(ctx, operationName, traceIDInt, parentIDInt)
+}
+
+// StartSpanFromUint64IDs starts a span using the trace and parent IDs provided
+// as uint64. The created span is marked top-level: it is the entry point of
+// this process's participation in the trace.
+func StartSpanFromUint64IDs(ctx context.Context, operationName string, traceID, parentID uint64) (*Span, context.Context) {
+	span, ctx := startSpanFromIDs(ctx, operationName, traceID, parentID)
 	span.SetTopLevel()
 	return span, ctx
 }
 
 func startSpanFromIDs(ctx context.Context, operationName string, traceID, parentID uint64) (*Span, context.Context) {
-	s := newSpan(operationName, parentID, traceID)
+	service, _ := getServiceFromContext(ctx)
+	samplingPriority, _ := getSamplingPriorityFromContext(ctx)
+	s := newSpan(operationName, parentID, traceID, service, samplingPriority)
 	ctx = setSpanIDsInContext(ctx, s)
 	return s, ctx
 }
@@ -175,13 +226,22 @@ func StartSpanFromContext(ctx context.Context, operationName string) (*Span, con
 }
 
 // EnvFromContext returns the environment variables for the context.
+// Service and sampling priority are included when set on the context so child
+// processes can inherit them via StartSpanFromEnv.
 func EnvFromContext(ctx context.Context) []string {
 	sIDs, ok := getSpanIDsFromContext(ctx)
 	if !ok {
 		return []string{}
 	}
-	return []string{
+	env := []string{
 		fmt.Sprintf("%s=%s", envTraceID, strconv.FormatUint(sIDs.traceID, 10)),
 		fmt.Sprintf("%s=%s", envParentID, strconv.FormatUint(sIDs.spanID, 10)),
 	}
+	if service, ok := getServiceFromContext(ctx); ok && service != "" {
+		env = append(env, fmt.Sprintf("%s=%s", envService, service))
+	}
+	if priority, ok := getSamplingPriorityFromContext(ctx); ok {
+		env = append(env, fmt.Sprintf("%s=%d", envSamplingPriority, *priority))
+	}
+	return env
 }

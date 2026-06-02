@@ -10,11 +10,11 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 // Currently only reported when telemetryEnabled is true. telemetryEnabled is only true when
@@ -65,6 +65,14 @@ func NewMultiLineHandler(outputFn func(*message.Message), newContentRe *regexp.R
 		multiLineTagValue: multiLineTagValue,
 	}
 	return h
+}
+
+// Satisfy the multiLineCountable interface to use syncSourceInfo function
+func (h *MultiLineHandler) CountInfo() *status.CountInfo         { return h.countInfo }
+func (h *MultiLineHandler) SetCountInfo(info *status.CountInfo)  { h.countInfo = info }
+func (h *MultiLineHandler) LinesCombinedInfo() *status.CountInfo { return h.linesCombinedInfo }
+func (h *MultiLineHandler) SetLinesCombinedInfo(info *status.CountInfo) {
+	h.linesCombinedInfo = info
 }
 
 func (h *MultiLineHandler) flushChan() <-chan time.Time {

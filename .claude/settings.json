@@ -1,0 +1,25 @@
+{
+  "enabledPlugins": {
+    "datadog-agent-gopls@datadog-agent-local": true,
+    "marketplace-auto-update@datadog-claude-plugins": true,
+    "dd@datadog-claude-plugins": true
+  },
+  "extraKnownMarketplaces": {
+    "datadog-agent-local": {
+      "source": {
+        "source": "directory",
+        "path": ".claude-plugins"
+      }
+    },
+    "datadog-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "DataDog/claude-marketplace"
+      },
+      "autoUpdate": true
+    }
+  },
+  "env": {
+    "OTEL_RESOURCE_ATTRIBUTES": "repo.owner=DataDog,repo.name=datadog-agent"
+  }
+}

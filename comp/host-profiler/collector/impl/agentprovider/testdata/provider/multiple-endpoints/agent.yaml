@@ -1,0 +1,9 @@
+site: datadoghq.com
+api_key: main_api_key
+apm_config:
+  profiling_additional_endpoints:
+    https://intake.profile.datadoghq.eu/api/v2/profile:
+      - eu_key_1
+      - eu_key_2
+    https://intake.profile.us3.datadoghq.com/api/v2/profile:
+      - us3_key_1

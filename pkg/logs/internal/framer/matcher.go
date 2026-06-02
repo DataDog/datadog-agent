@@ -15,4 +15,9 @@ type FrameMatcher interface {
 	// The `seen` argument is the length of `buf` last time this function was called,
 	// and can be used to avoid repeating work when looking for a frame terminator.
 	FindFrame(buf []byte, seen int) (content []byte, rawDataLen int, wasTruncated bool)
+
+	// FlushFrame is called at end-of-stream with any unframed remainder in buf.
+	// If the remainder represents a valid frame that should be emitted, return
+	// the content and raw byte length. Return nil, 0 to discard the remainder.
+	FlushFrame(buf []byte) (content []byte, rawDataLen int)
 }

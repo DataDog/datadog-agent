@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/hashicorp/go-multierror"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -22,7 +21,7 @@ import (
 )
 
 // processSample handles the complex time-weighted averaging logic for NVML sample types
-func processSample(device ddnvml.Device, metricName string, samplingType nvml.SamplingType, lastTimestamp uint64) ([]Metric, uint64, error) {
+func processSample(device ddnvml.Device, metricName string, samplingType nvml.SamplingType, lastTimestamp uint64, priority MetricPriority) ([]Metric, uint64, error) {
 	// GetSamples returns a list of samples (timestamp + value) for the
 	// given counter type (GPU utilization, memory activity, etc).
 	// Note that timestamps are in microseconds always.
@@ -48,7 +47,7 @@ func processSample(device ddnvml.Device, metricName string, samplingType nvml.Sa
 	// We have to do a time-based average, as not all the samples are collected in the same period
 	total := 0.0
 	currentTimestamp := lastTimestamp
-	var multiErr error
+	var multiErr []error
 
 	// We're assuming "samples" is a sorted array by time. Here we traverse the list of samples
 	// and compute the average over time, which means weighing each sample by the time
@@ -69,7 +68,7 @@ func processSample(device ddnvml.Device, metricName string, samplingType nvml.Sa
 		var value float64
 		value, err = fieldValueToNumber[float64](valueType, s.SampleValue)
 		if err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to convert sample value %s from %v with type %v: %w", metricName, s.SampleValue, valueType, err))
+			multiErr = append(multiErr, fmt.Errorf("failed to convert sample value %s from %v with type %v: %w", metricName, s.SampleValue, valueType, err))
 			continue
 		}
 
@@ -87,12 +86,13 @@ func processSample(device ddnvml.Device, metricName string, samplingType nvml.Sa
 	total /= float64(currentTimestamp - lastTimestamp)
 
 	metric := Metric{
-		Name:  metricName,
-		Value: total,
-		Type:  ddmetrics.GaugeType,
+		Name:     metricName,
+		Value:    total,
+		Type:     ddmetrics.GaugeType,
+		Priority: priority,
 	}
 
-	return []Metric{metric}, currentTimestamp, multiErr
+	return []Metric{metric}, currentTimestamp, errors.Join(multiErr...)
 }
 
 // processUtilizationSample handles process utilization sampling logic
@@ -160,25 +160,25 @@ func createSampleAPIs() []apiCallInfo {
 		{
 			Name: "gr_engine_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "gr_engine_active", nvml.GPU_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "gr_engine_active", nvml.GPU_UTILIZATION_SAMPLES, lastTimestamp, Medium)
 			},
 		},
 		{
 			Name: "dram_active_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "dram_active", nvml.MEMORY_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "dram_active", nvml.MEMORY_UTILIZATION_SAMPLES, lastTimestamp, Low)
 			},
 		},
 		{
 			Name: "encoder_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "encoder_active", nvml.ENC_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "encoder_active", nvml.ENC_UTILIZATION_SAMPLES, lastTimestamp, Low)
 			},
 		},
 		{
 			Name: "decoder_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "decoder_active", nvml.DEC_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "decoder_active", nvml.DEC_UTILIZATION_SAMPLES, lastTimestamp, Low)
 			},
 		}}
 }

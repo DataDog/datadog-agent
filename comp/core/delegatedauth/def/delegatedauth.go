@@ -10,6 +10,8 @@
 package delegatedauth
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -51,6 +53,8 @@ type Component interface {
 	// On the first call, it detects the cloud provider and initializes the component.
 	// Fetches the initial API key, writes it to config, and starts a background refresh goroutine.
 	// Can be called multiple times with different APIKeyConfigKey values.
+	// The context is used for the initial API key fetch and cloud provider detection;
+	// background refresh goroutines use their own cancellable context.
 	// Returns an error if Config or OrgUUID is empty.
-	AddInstance(params InstanceParams) error
+	AddInstance(ctx context.Context, params InstanceParams) error
 }

@@ -16,7 +16,7 @@ import (
 	"go.uber.org/atomic"
 
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -278,8 +278,10 @@ func (r *Runner) ShouldAddCheckStats(id checkid.ID) bool {
 	r.schedulerLock.RLock()
 	defer r.schedulerLock.RUnlock()
 
-	sc := r.getScheduler()
-	if sc == nil || sc.IsCheckScheduled(id) {
+	// Access r.scheduler directly; calling getScheduler() here would try to
+	// acquire schedulerLock.RLock() a second time on the same goroutine, which
+	// deadlocks when a writer is waiting for the lock.
+	if r.scheduler == nil || r.scheduler.IsCheckScheduled(id) {
 		return true
 	}
 

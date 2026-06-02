@@ -1,0 +1,3 @@
+load(":package_naming_test.bzl", "package_naming_test_suite")
+
+package_naming_test_suite(name = "_package_naming_tests")

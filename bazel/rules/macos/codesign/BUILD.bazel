@@ -1,0 +1,12 @@
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+
+package(default_visibility = ["//visibility:private"])
+
+sh_binary(
+    name = "sign_jar_macos",
+    srcs = ["sign_jar_macos.sh"],
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)
+
+exports_files(["Entitlements.plist"])

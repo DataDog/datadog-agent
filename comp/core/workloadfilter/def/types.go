@@ -284,6 +284,7 @@ const (
 	ContainerLegacySBOM            ContainerFilter = "container-legacy-sbom"
 	ContainerLegacyRuntimeSecurity ContainerFilter = "container-legacy-runtime-security"
 	ContainerLegacyCompliance      ContainerFilter = "container-legacy-compliance"
+	ContainerLegacyCWSAdmission    ContainerFilter = "container-legacy-cws-admission"
 	ContainerADAnnotationsMetrics  ContainerFilter = "container-ad-annotations-metrics"
 	ContainerADAnnotationsLogs     ContainerFilter = "container-ad-annotations-logs"
 	ContainerADAnnotations         ContainerFilter = "container-ad-annotations"
@@ -322,13 +323,14 @@ func (p *Pod) ToBytes() ([]byte, error) {
 }
 
 // CreatePod creates a Filterable Pod object.
-func CreatePod(id, name, namespace string, annotations map[string]string) *Pod {
+func CreatePod(id, name, namespace string, annotations map[string]string, rootOwner *core.FilterRootOwner) *Pod {
 	return &Pod{
 		FilterPod: &core.FilterPod{
 			Id:          id,
 			Name:        name,
 			Namespace:   namespace,
 			Annotations: annotations,
+			Rootowner:   rootOwner,
 		},
 	}
 }

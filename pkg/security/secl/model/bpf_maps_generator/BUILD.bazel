@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "bpf_maps_generator_lib",
+    srcs = ["bpf_maps_generator.go"],
+    embedsrcs = ["gen.go.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/model/bpf_maps_generator",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "bpf_maps_generator",
+    embed = [":bpf_maps_generator_lib"],
+    visibility = ["//visibility:public"],
+)

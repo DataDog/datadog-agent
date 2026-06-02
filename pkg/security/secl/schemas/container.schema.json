@@ -5,9 +5,17 @@
     "properties": {
         "id": {
             "type": "string"
+        },
+        "created_at": {
+            "$ref": "datetime.schema.json"
+        },
+        "source": {
+            "type": "string"
         }
     },
     "required": [
-        "id"
+        "id",
+        "created_at",
+        "source"
     ]
 }

@@ -22,7 +22,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	clusteragent "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -41,7 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 )
 
-// Payload handles the JSON unmarshalling of the metadata payload
+// Payload handles the JSON unmarshalling of the metadata payloa d
 type Payload struct {
 	Clustername string                 `json:"clustername"`
 	ClusterID   string                 `json:"cluster_id"`
@@ -77,7 +77,7 @@ type datadogclusteragent struct {
 // Provides defines the output of the clusteragent metadata component
 type Provides struct {
 	Comp             clusteragent.Component
-	MetadataProvider runnerimpl.Provider
+	MetadataProvider runnerdef.Provider
 }
 
 // NewComponent creates a new securityagent metadata Component
@@ -152,6 +152,8 @@ func (dca *datadogclusteragent) getFeatureConfigs() {
 	dca.metadata["feature_admission_controller_auto_instrumentation_enabled"] = dca.conf.GetBool("admission_controller.auto_instrumentation.enabled")
 	dca.metadata["feature_admission_controller_cws_instrumentation_enabled"] = dca.conf.GetBool("admission_controller.cws_instrumentation.enabled")
 	dca.metadata["feature_autoscaling_workload_enabled"] = dca.conf.GetBool("autoscaling.workload.enabled")
+	dca.metadata["feature_autoscaling_cluster_enabled"] = dca.conf.GetBool("autoscaling.cluster.enabled")
+	dca.metadata["feature_remote_configuration_enabled"] = dca.conf.GetBool("remote_configuration.enabled")
 	dca.metadata["feature_external_metrics_provider_enabled"] = dca.conf.GetBool("external_metrics_provider.enabled")
 	dca.metadata["feature_external_metrics_provider_use_datadogmetric_crd"] = dca.conf.GetBool("external_metrics_provider.use_datadogmetric_crd")
 	dca.metadata["feature_compliance_config_enabled"] = dca.conf.GetBool("compliance_config.enabled")
@@ -180,7 +182,7 @@ func (dca *datadogclusteragent) getConfigs(data map[string]interface{}) {
 			}
 		}
 	}
-	if yaml, err := dca.marshalAndScrub(dca.conf.AllSettings()); err == nil {
+	if yaml, err := dca.marshalAndScrub(dca.conf.AllSettingsWithoutSecrets()); err == nil {
 		data["full_configuration"] = yaml
 	}
 }

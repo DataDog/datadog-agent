@@ -57,7 +57,11 @@ const (
 	deviceHostnamePrefix    = "device:"
 	checkDurationThreshold  = 30  // Thirty seconds
 	profileRefreshDelay     = 600 // Number of seconds after which a profile needs to be refreshed
+	bandwidthStateTTLChecks = 4   // Number of failed checks before bandwidth state entries are cleaned up
 )
+
+// SNMPTroubleshootingDocURL is the troubleshooting doc for unreachable devices (exported for tests).
+const SNMPTroubleshootingDocURL = "https://docs.datadoghq.com/network_monitoring/devices/troubleshooting/?tab=linux#unreachable-or-misconfigured-device"
 
 type profileCache struct {
 	sysObjectID string
@@ -285,7 +289,16 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, tags, "")
 	}
 
-	metricTags := append(tags, "dd.internal.resource:ndm_device:"+d.GetDeviceID())
+	// When device metadata is collected, the backend enriches metrics with device tags
+	// from the metadata payload, so only the resource tag is needed on metrics.
+	// Otherwise, there is no enrichment payload and legacy device tags must be kept
+	// so existing queries/monitors keep matching.
+	var metricTags []string
+	if d.config.CollectDeviceMetadata {
+		metricTags = []string{"dd.internal.resource:ndm_device:" + d.GetDeviceID()}
+	} else {
+		metricTags = append(tags, "dd.internal.resource:ndm_device:"+d.GetDeviceID())
+	}
 	d.sender.Gauge(deviceReachableMetric, utils.BoolToFloat64(deviceReachable), metricTags)
 	d.sender.Gauge(deviceUnreachableMetric, utils.BoolToFloat64(!deviceReachable), metricTags)
 	if values != nil {
@@ -346,7 +359,14 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 
 	d.submitTelemetryMetrics(sess, startTime, metricTags)
 	d.setDeviceHostExternalTags()
-	d.interfaceBandwidthState.RemoveExpiredBandwidthUsageRates(startTime.UnixNano())
+
+	// Use a TTL so bandwidth state entries survive transient check failures. Without this,
+	// a single failed check would clean up the last successful sample and require two more
+	// consecutive successes before emitting bandwidth metrics again. Entries that are not
+	// updated for more than bandwidthStateTTLChecks intervals are cleaned up to avoid
+	// producing misleading rates after prolonged outages.
+	bandwidthStateTTL := bandwidthStateTTLChecks * d.config.MinCollectionInterval
+	d.interfaceBandwidthState.RemoveExpiredBandwidthUsageRates(startTime.Add(-bandwidthStateTTL).UnixNano())
 
 	return checkErr
 }
@@ -375,7 +395,7 @@ func (d *DeviceCheck) getValuesAndTags(sess session.Session, deviceReachable boo
 
 	// Log device reachability status
 	if !deviceReachable {
-		checkErrors = append(checkErrors, "check device reachable: failed: no value for GetNext")
+		checkErrors = append(checkErrors, "check device reachable: failed: no value for GetNext, see troubleshooting documentation: "+SNMPTroubleshootingDocURL)
 	} else {
 		if log.ShouldLog(log.DebugLvl) {
 			log.Debugf("check device reachable: success (verified during connection)")
@@ -392,8 +412,8 @@ func (d *DeviceCheck) getValuesAndTags(sess session.Session, deviceReachable boo
 
 	valuesStore, err := fetch.Fetch(sess, d.profileCache.scalarOIDs, d.profileCache.columnOIDs,
 		d.oidBatchSizeOptimizers, d.config.BulkMaxRepetitions)
-	if log.ShouldLog(log.DebugLvl) {
-		log.Debugf("fetched values: %v", valuestore.ResultValueStoreAsString(valuesStore))
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("fetched values: %v", valuestore.ResultValueStoreAsString(valuesStore))
 	}
 
 	if err != nil {
