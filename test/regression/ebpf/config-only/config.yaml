@@ -1,5 +1,5 @@
 lading:
-  version: sha-ef796868d0ddc9d8f4df2c9eb04c4a7316f3cb07-amd64
+  version: sha-21fc4270047828788fc1948d03428c942ab494ff-amd64
 
 target:
   ddprof_replicas: 0
