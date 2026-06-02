@@ -14,10 +14,10 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

@@ -13,38 +13,32 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
 // TestNewSampleCollector tests sampling collector initialization
 func TestNewSampleCollector(t *testing.T) {
 	tests := []struct {
 		name                  string
-		customSetup           func(*mock.Device) *mock.Device
+		customSetup           testutil.NvmlMockOption
 		expectError           bool
 		expectedSupportedAPIs int
 	}{
 		{
 			name:                  "Supported",
-			customSetup:           nil, // Use default setup with all functions enabled
+			customSetup:           testutil.WithCombinedOptions(), // Use default setup with all functions enabled
 			expectError:           false,
 			expectedSupportedAPIs: 5,
 		},
 		{
 			name: "Unsupported",
-			customSetup: func(device *mock.Device) *mock.Device {
-				// Make all sampling APIs return ERROR_NOT_SUPPORTED
-				device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
-					return nil, nvml.ERROR_NOT_SUPPORTED
-				}
-				device.GetSamplesFunc = func(_ nvml.SamplingType, _ uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
-					return nvml.ValueType(0), nil, nvml.ERROR_NOT_SUPPORTED
-				}
-				return device
-			},
+			customSetup: testutil.WithCombinedOptions(
+				testutil.WithProcessData([]testutil.MockProcessData{}, nvml.ERROR_NOT_SUPPORTED),
+				testutil.WithSamplesUnsupported(),
+			),
 			expectError:           true,
 			expectedSupportedAPIs: 0, // Not relevant when error expected
 		},
@@ -74,24 +68,24 @@ func TestNewSampleCollector(t *testing.T) {
 func TestCollectProcessUtilization(t *testing.T) {
 	tests := []struct {
 		name          string
-		samples       []nvml.ProcessUtilizationSample
+		samples       []testutil.MockProcessData
 		expectedCount int
 	}{
 		{
 			name:          "NoUtilizationProcesses",
-			samples:       []nvml.ProcessUtilizationSample{},
+			samples:       []testutil.MockProcessData{},
 			expectedCount: 2, // sm_active + core.limit
 		},
 		{
 			name: "SingleUtilizationProcess",
-			samples: []nvml.ProcessUtilizationSample{
+			samples: []testutil.MockProcessData{
 				{Pid: 1234, TimeStamp: 1000, SmUtil: 75, MemUtil: 60, EncUtil: 30, DecUtil: 15},
 			},
 			expectedCount: 6, // 4 per-process + sm_active + core.limit
 		},
 		{
 			name: "MultipleUtilizationProcesses",
-			samples: []nvml.ProcessUtilizationSample{
+			samples: []testutil.MockProcessData{
 				{Pid: 1001, TimeStamp: 1100, SmUtil: 50, MemUtil: 40, EncUtil: 20, DecUtil: 10},
 				{Pid: 1003, TimeStamp: 1200, SmUtil: 80, MemUtil: 70, EncUtil: 35, DecUtil: 25},
 			},
@@ -99,7 +93,7 @@ func TestCollectProcessUtilization(t *testing.T) {
 		},
 		{
 			name: "ZeroUtilizationValues",
-			samples: []nvml.ProcessUtilizationSample{
+			samples: []testutil.MockProcessData{
 				{Pid: 13001, TimeStamp: 4000, SmUtil: 0, MemUtil: 0, EncUtil: 0, DecUtil: 0},
 			},
 			expectedCount: 6, // 4 per-process + sm_active + core.limit
@@ -123,12 +117,7 @@ func TestCollectProcessUtilization(t *testing.T) {
 				}
 			}
 
-			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-				device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
-					return tt.samples, nvml.SUCCESS
-				}
-				return device
-			})
+			mockDevice := setupMockDevice(t, testutil.WithProcessData(tt.samples, nvml.SUCCESS))
 
 			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
@@ -179,16 +168,12 @@ func TestCollectProcessUtilization_Error(t *testing.T) {
 				}
 			}
 
-			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-				device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
-					var nvmlErr *safenvml.NvmlAPIError
-					if errors.As(tt.apiError, &nvmlErr) {
-						return nil, nvmlErr.NvmlErrorCode
-					}
-					return nil, nvml.ERROR_UNKNOWN
-				}
-				return device
-			})
+			errCode := nvml.ERROR_UNKNOWN
+			var nvmlErr *safenvml.NvmlAPIError
+			if errors.As(tt.apiError, &nvmlErr) {
+				errCode = nvmlErr.NvmlErrorCode
+			}
+			mockDevice := setupMockDevice(t, testutil.WithProcessData(nil, errCode))
 
 			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
@@ -211,13 +196,13 @@ func TestProcessUtilizationTimestampUpdate(t *testing.T) {
 	tests := []struct {
 		name             string
 		initialTimestamp uint64
-		samples          []nvml.ProcessUtilizationSample
+		samples          []testutil.MockProcessData
 		apiError         error
 	}{
 		{
 			name:             "TimestampUpdatedOnSuccess",
 			initialTimestamp: 1000,
-			samples: []nvml.ProcessUtilizationSample{
+			samples: []testutil.MockProcessData{
 				{Pid: 7001, TimeStamp: 1100, SmUtil: 50, MemUtil: 40, EncUtil: 20, DecUtil: 10},
 			},
 			apiError: nil,
@@ -253,19 +238,13 @@ func TestProcessUtilizationTimestampUpdate(t *testing.T) {
 				}
 			}
 
-			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-				device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
-					if tt.apiError != nil {
-						var nvmlErr *safenvml.NvmlAPIError
-						if errors.As(tt.apiError, &nvmlErr) {
-							return nil, nvmlErr.NvmlErrorCode
-						}
-						return nil, nvml.ERROR_UNKNOWN
-					}
-					return tt.samples, nvml.SUCCESS
-				}
-				return device
-			})
+			errCode := nvml.SUCCESS
+			if tt.apiError != nil {
+				var nvmlErr *safenvml.NvmlAPIError
+				require.True(t, errors.As(tt.apiError, &nvmlErr))
+				errCode = nvmlErr.NvmlErrorCode
+			}
+			mockDevice := setupMockDevice(t, testutil.WithProcessData(tt.samples, errCode))
 
 			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
@@ -302,19 +281,19 @@ func TestProcessUtilizationTimestampUpdate(t *testing.T) {
 func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 	tests := []struct {
 		name             string
-		samples          []nvml.ProcessUtilizationSample
+		samples          []testutil.MockProcessData
 		expectedSmActive float64
 		description      string
 	}{
 		{
 			name:             "NoProcesses",
-			samples:          []nvml.ProcessUtilizationSample{},
+			samples:          []testutil.MockProcessData{},
 			expectedSmActive: 0.0,
 			description:      "average of (max=0 + sum=0) / 2 = 0",
 		},
 		{
 			name: "SingleProcess",
-			samples: []nvml.ProcessUtilizationSample{
+			samples: []testutil.MockProcessData{
 				{Pid: 1001, SmUtil: 60},
 			},
 			expectedSmActive: 60.0,
@@ -322,7 +301,7 @@ func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 		},
 		{
 			name: "MultipleProcesses_SumUnderCap",
-			samples: []nvml.ProcessUtilizationSample{
+			samples: []testutil.MockProcessData{
 				{Pid: 1001, SmUtil: 30},
 				{Pid: 1002, SmUtil: 40},
 			},
@@ -331,7 +310,7 @@ func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 		},
 		{
 			name: "MultipleProcesses_SumOverCap",
-			samples: []nvml.ProcessUtilizationSample{
+			samples: []testutil.MockProcessData{
 				{Pid: 1001, SmUtil: 80},
 				{Pid: 1002, SmUtil: 60},
 				{Pid: 1003, SmUtil: 40},
@@ -341,7 +320,7 @@ func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 		},
 		{
 			name: "ZeroUtilization",
-			samples: []nvml.ProcessUtilizationSample{
+			samples: []testutil.MockProcessData{
 				{Pid: 1001, SmUtil: 0},
 				{Pid: 1002, SmUtil: 0},
 			},
@@ -367,12 +346,7 @@ func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 				}
 			}
 
-			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-				device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
-					return tt.samples, nvml.SUCCESS
-				}
-				return device
-			})
+			mockDevice := setupMockDevice(t, testutil.WithProcessData(tt.samples, nvml.SUCCESS))
 
 			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)

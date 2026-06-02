@@ -481,6 +481,9 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 	if env.MsiParams.AgentUserPassword != "" {
 		opts = append(opts, msi.WithDdAgentUserPassword(env.MsiParams.AgentUserPassword))
 	}
+	if env.MsiParams.AgentUserKeepRights != "" {
+		opts = append(opts, msi.WithDdAgentUserKeepRights(env.MsiParams.AgentUserKeepRights))
+	}
 	opts = append(opts, msi.WithProperties(props))
 	// append input args last so they can take precedence
 	opts = append(opts, msi.WithAdditionalArgs(args))

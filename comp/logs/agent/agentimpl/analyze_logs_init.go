@@ -37,7 +37,7 @@ func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.Conf
 		return nil, nil, nil, err
 	}
 
-	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, nil)
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, nil, conf)
 	pipelineProvider := pipeline.NewProcessorOnlyProvider(diagnosticMessageReceiver, processingRules, nil, conf)
 
 	// setup the launchers
