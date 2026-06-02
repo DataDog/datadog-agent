@@ -67,6 +67,10 @@ type engine struct {
 	totalAnomalyCount    int             // total count ever (no cap)
 	uniqueAnomalySources map[string]bool // unique sources that had anomalies (keyed by SeriesDescriptor.Key())
 
+	// anomalyEventScorer scores every new detector anomaly and emits one AnomalyEvent candidate.
+	anomalyEventScorer *anomalyEventScorer
+	anomalyEventMu     sync.RWMutex
+
 	// Accumulated correlations from all advance cycles.
 	// Correlators maintain sliding windows that evict old state, but for
 	// testbench/replay we want the full history. This map accumulates
@@ -146,6 +150,8 @@ func newEngine(cfg engineConfig) *engine {
 		rawAnomalyWindow: cfg.rawAnomalyWindow,
 		maxRawAnomalies:  cfg.maxRawAnomalies,
 		rawAnomalyIndex:  make(map[anomalyDedupKey]int),
+
+		anomalyEventScorer: newAnomalyEventScorer(anomalyEventScorerConfig{}),
 	}
 
 	// Cache log observers from detectors.
@@ -551,6 +557,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			if !e.captureRawAnomaly(anomaly) {
 				continue // duplicate
 			}
+			e.scoreAnomalyEvent(anomaly)
 			e.processAnomaly(anomaly)
 			allAnomalies = append(allAnomalies, anomaly)
 			e.emit(engineEvent{
@@ -821,6 +828,27 @@ func (e *engine) Reset() {
 
 }
 
+// scoreAnomalyEvent runs the anomaly event scorer for a new (de-duped) anomaly.
+func (e *engine) scoreAnomalyEvent(anomaly observerdef.Anomaly) {
+	e.anomalyEventMu.Lock()
+	defer e.anomalyEventMu.Unlock()
+	e.anomalyEventScorer.ProcessAnomaly(anomaly)
+}
+
+// AnomalyEvents returns a copy of all anomaly events scored so far.
+func (e *engine) AnomalyEvents() []observerdef.AnomalyEvent {
+	e.anomalyEventMu.RLock()
+	defer e.anomalyEventMu.RUnlock()
+	return e.anomalyEventScorer.Events()
+}
+
+// resetAnomalyEvents clears the anomaly event scorer state.
+func (e *engine) resetAnomalyEvents() {
+	e.anomalyEventMu.Lock()
+	defer e.anomalyEventMu.Unlock()
+	e.anomalyEventScorer.Reset()
+}
+
 // resetRawAnomalies clears the raw anomaly tracking state.
 func (e *engine) resetRawAnomalies() {
 	e.rawAnomalyMu.Lock()
@@ -840,12 +868,13 @@ func (e *engine) resetCorrelations() {
 	e.accumulatedCorrelations = nil
 }
 
-// resetFull resets all engine state: analysis progress, raw anomalies, and correlations.
+// resetFull resets all engine state: analysis progress, raw anomalies, correlations, and events.
 // Storage is NOT cleared — the caller manages storage lifecycle.
 func (e *engine) resetFull() {
 	e.Reset()
 	e.resetRawAnomalies()
 	e.resetCorrelations()
+	e.resetAnomalyEvents()
 }
 
 // resetAnalysisState resets detector and correlator state, anomaly tracking,
@@ -872,6 +901,7 @@ func (e *engine) resetAnalysisState() {
 
 	e.resetRawAnomalies()
 	e.resetCorrelations()
+	e.resetAnomalyEvents()
 }
 
 // ResetForReplay reconfigures with new components, clears all state, and replaces storage.

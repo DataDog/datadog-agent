@@ -785,6 +785,13 @@ func (tb *Bench) GetLogAnomaliesByDetector() map[string][]observerdef.Anomaly {
 	return result
 }
 
+// GetAnomalyEvents returns all scored anomaly event candidates.
+func (tb *Bench) GetAnomalyEvents() []observerdef.AnomalyEvent {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+	return tb.debug.StateView().AnomalyEvents()
+}
+
 // GetDetectorComponentMap returns a mapping from detector implementation name
 // to component registry name.
 func (tb *Bench) GetDetectorComponentMap() map[string]string {

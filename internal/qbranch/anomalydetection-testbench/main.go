@@ -276,6 +276,7 @@ func run(
 	fmt.Println("  GET  /api/reports                         - Get Datadog-style report events")
 	fmt.Println("  GET  /api/components/{name}/data           - Get component data")
 	fmt.Println("  GET  /api/stats                           - Correlator stats")
+	fmt.Println("  GET  /api/anomaly-events                  - Scored anomaly event candidates")
 	fmt.Println()
 
 	sigCh := make(chan os.Signal, 1)

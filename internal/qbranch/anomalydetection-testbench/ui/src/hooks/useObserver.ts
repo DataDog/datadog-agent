@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../api/client';
 import type {
   StatusResponse, ScenarioInfo, ComponentInfo, SeriesInfo, Anomaly, LogAnomaly, LogEntry, LogsSummary, Correlation,
-  CompressedGroup, ComponentDataResponse, CorrelatorStats, ReplayProgress, ReportEvent
+  CompressedGroup, ComponentDataResponse, CorrelatorStats, ReplayProgress, ReportEvent, AnomalyEvent
 } from '../api/client';
 
 export type ConnectionState = 'disconnected' | 'connected' | 'loading' | 'ready';
@@ -19,6 +19,7 @@ export interface ObserverState {
   logAnomalies: LogAnomaly[];
   correlations: Correlation[];
   reports: ReportEvent[];
+  anomalyEvents: AnomalyEvent[];
   componentData: Map<string, ComponentDataResponse>;
   compressedGroups: CompressedGroup[];
   correlatorStats: CorrelatorStats | null;
@@ -46,6 +47,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
   const [logAnomalies, setLogAnomalies] = useState<LogAnomaly[]>([]);
   const [correlations, setCorrelations] = useState<Correlation[]>([]);
   const [reports, setReports] = useState<ReportEvent[]>([]);
+  const [anomalyEvents, setAnomalyEvents] = useState<AnomalyEvent[]>([]);
   const [componentData, setComponentData] = useState<Map<string, ComponentDataResponse>>(new Map());
   const [compressedGroups, setCompressedGroups] = useState<CompressedGroup[]>([]);
   const [correlatorStats, setCorrelatorStats] = useState<CorrelatorStats | null>(null);
@@ -78,7 +80,8 @@ export function useObserver(): [ObserverState, ObserverActions] {
     try {
       const [
         componentsData, anomaliesData, logsSummaryData, logAnomaliesData,
-        correlationsData, reportsData, compressedGroupsData, statsData, seriesData
+        correlationsData, reportsData, compressedGroupsData, statsData, seriesData,
+        anomalyEventsData,
       ] = await Promise.all([
         api.getComponents(),
         api.getAnomalies(),
@@ -89,6 +92,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
         api.getCompressedCorrelations(),
         api.getStats(),
         api.getSeries(),
+        api.getAnomalyEvents(),
       ]);
 
       const componentNames = componentsData.map((c: ComponentInfo) => c.name);
@@ -111,6 +115,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       setLogAnomalies(logAnomaliesData);
       setCorrelations(correlationsData);
       setReports(reportsData);
+      setAnomalyEvents(anomalyEventsData);
       setCompressedGroups(compressedGroupsData);
       setComponentData(new Map(componentDataResults));
       setCorrelatorStats(statsData);
@@ -253,6 +258,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       logAnomalies,
       correlations,
       reports,
+      anomalyEvents,
       componentData,
       compressedGroups,
       correlatorStats,

@@ -60,6 +60,7 @@ func (api *BenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/benchmark", api.cors(api.handleBenchmark))
 	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
 	mux.HandleFunc("/api/correlations/compressed", api.cors(api.handleCompressedCorrelations))
+	mux.HandleFunc("/api/anomaly-events", api.cors(api.handleAnomalyEvents))
 
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -1097,6 +1098,149 @@ func (api *BenchAPI) handleReports(w http.ResponseWriter, _ *http.Request) {
 		events = []ReportedEvent{}
 	}
 	api.writeJSON(w, events)
+}
+
+// handleAnomalyEvents returns the anomaly event candidates scored by the event scorer.
+func (api *BenchAPI) handleAnomalyEvents(w http.ResponseWriter, r *http.Request) {
+	severityFilter := r.URL.Query().Get("severity")
+	typeFilter := r.URL.Query().Get("type") // "metric", "log", or ""
+	changesOnly := r.URL.Query().Get("changes") == "1"
+	upgradesOnly := r.URL.Query().Get("upgrades") == "1"
+	detectorFilter := r.URL.Query().Get("detector")
+
+	type signalEvidenceResponse struct {
+		Key       string   `json:"key"`
+		Score     float64  `json:"score"`
+		Severity  string   `json:"severity"`
+		Anomalies []string `json:"anomalyTitles,omitempty"`
+	}
+
+	type breakdownResponse struct {
+		SignalCount                 int                `json:"signalCount"`
+		EffectiveSignalCount        int                `json:"effectiveSignalCount"`
+		DetectorAnomalyCount        int                `json:"detectorAnomalyCount"`
+		MissingScoreCount           int                `json:"missingScoreCount"`
+		PerSignalScores             map[string]float64 `json:"perSignalScores"`
+		CombinedEvidenceScore       float64            `json:"combinedEvidenceScore"`
+		SingleSignalCapApplied      bool               `json:"singleSignalCapApplied"`
+		TwoSignalCapApplied         bool               `json:"twoSignalCapApplied"`
+		ThreeOrMoreSignalCapApplied bool               `json:"threeOrMoreSignalCapApplied"`
+	}
+
+	type triggerResponse struct {
+		Source       string   `json:"source"`
+		DetectorName string   `json:"detectorName"`
+		Title        string   `json:"title"`
+		Timestamp    int64    `json:"timestamp"`
+		Type         string   `json:"type"`
+		Tags         []string `json:"tags"`
+		Score        *float64 `json:"detectorScore,omitempty"`
+		Severity     string   `json:"detectorSeverity,omitempty"`
+	}
+
+	type eventResponse struct {
+		ID                 string                   `json:"id"`
+		Trigger            triggerResponse          `json:"trigger"`
+		WindowStart        int64                    `json:"windowStart"`
+		WindowEnd          int64                    `json:"windowEnd"`
+		RecentAnomalyCount int                      `json:"recentAnomalyCount"`
+		Signals            []signalEvidenceResponse `json:"signals"`
+		Score              float64                  `json:"score"`
+		Severity           string                   `json:"severity"`
+		PreviousSeverity   string                   `json:"previousSeverity,omitempty"`
+		SeverityChanged    bool                     `json:"severityChanged"`
+		SeverityDirection  string                   `json:"severityDirection"`
+		Breakdown          breakdownResponse        `json:"breakdown"`
+	}
+
+	events := api.tb.GetAnomalyEvents()
+
+	var result []eventResponse
+	for _, evt := range events {
+		t := evt.Trigger
+		// severity filter
+		if severityFilter != "" && string(evt.Severity) != severityFilter {
+			continue
+		}
+		// type filter
+		if typeFilter != "" && string(t.Type) != typeFilter {
+			continue
+		}
+		// changes-only filter
+		if changesOnly && !evt.SeverityChanged {
+			continue
+		}
+		// upgrades-only filter
+		if upgradesOnly && evt.SeverityDirection != "up" {
+			continue
+		}
+		// detector filter
+		if detectorFilter != "" && t.DetectorName != detectorFilter {
+			continue
+		}
+
+		trigType := string(t.Type)
+		if trigType == "" {
+			trigType = "metric"
+		}
+		trigSeverity := ""
+		if t.Severity != "" {
+			trigSeverity = string(t.Severity)
+		}
+
+		sigs := make([]signalEvidenceResponse, len(evt.Signals))
+		for i, sig := range evt.Signals {
+			titles := make([]string, len(sig.Anomalies))
+			for j, sa := range sig.Anomalies {
+				titles[j] = sa.Title
+			}
+			sigs[i] = signalEvidenceResponse{
+				Key:       sig.Key,
+				Score:     sig.Score,
+				Severity:  string(sig.Severity),
+				Anomalies: titles,
+			}
+		}
+
+		result = append(result, eventResponse{
+			ID: evt.ID,
+			Trigger: triggerResponse{
+				Source:       t.Source.String(),
+				DetectorName: t.DetectorName,
+				Title:        t.Title,
+				Timestamp:    t.Timestamp,
+				Type:         trigType,
+				Tags:         t.Source.Tags,
+				Score:        t.Score,
+				Severity:     trigSeverity,
+			},
+			WindowStart:        evt.WindowStart,
+			WindowEnd:          evt.WindowEnd,
+			RecentAnomalyCount: len(evt.RecentAnomalies),
+			Signals:            sigs,
+			Score:              evt.Score,
+			Severity:           string(evt.Severity),
+			PreviousSeverity:   string(evt.PreviousSeverity),
+			SeverityChanged:    evt.SeverityChanged,
+			SeverityDirection:  evt.SeverityDirection,
+			Breakdown: breakdownResponse{
+				SignalCount:                 evt.Breakdown.SignalCount,
+				EffectiveSignalCount:        evt.Breakdown.EffectiveSignalCount,
+				DetectorAnomalyCount:        evt.Breakdown.DetectorAnomalyCount,
+				MissingScoreCount:           evt.Breakdown.MissingScoreCount,
+				PerSignalScores:             evt.Breakdown.PerSignalScores,
+				CombinedEvidenceScore:       evt.Breakdown.CombinedEvidenceScore,
+				SingleSignalCapApplied:      evt.Breakdown.SingleSignalCapApplied,
+				TwoSignalCapApplied:         evt.Breakdown.TwoSignalCapApplied,
+				ThreeOrMoreSignalCapApplied: evt.Breakdown.ThreeOrMoreSignalCapApplied,
+			},
+		})
+	}
+
+	if result == nil {
+		result = []eventResponse{}
+	}
+	api.writeJSON(w, result)
 }
 
 // handleSendReport posts a specific ReportedEvent.

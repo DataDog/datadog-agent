@@ -240,6 +240,53 @@ export interface ReplayProgress {
   anomalies: number;
 }
 
+export type AnomalySeverity = 'low' | 'medium' | 'high';
+
+export interface AnomalyEventTrigger {
+  source: string;
+  detectorName: string;
+  title: string;
+  timestamp: number;
+  type: 'metric' | 'log';
+  tags: string[];
+  detectorScore?: number;
+  detectorSeverity?: string;
+}
+
+export interface SignalEvidence {
+  key: string;
+  score: number;
+  severity: AnomalySeverity;
+  anomalyTitles?: string[];
+}
+
+export interface ScoreBreakdown {
+  signalCount: number;
+  effectiveSignalCount: number;
+  detectorAnomalyCount: number;
+  missingScoreCount: number;
+  perSignalScores: Record<string, number>;
+  combinedEvidenceScore: number;
+  singleSignalCapApplied: boolean;
+  twoSignalCapApplied: boolean;
+  threeOrMoreSignalCapApplied: boolean;
+}
+
+export interface AnomalyEvent {
+  id: string;
+  trigger: AnomalyEventTrigger;
+  windowStart: number;
+  windowEnd: number;
+  recentAnomalyCount: number;
+  signals: SignalEvidence[];
+  score: number;
+  severity: AnomalySeverity;
+  previousSeverity?: AnomalySeverity;
+  severityChanged: boolean;
+  severityDirection: 'up' | 'down' | 'same';
+  breakdown: ScoreBreakdown;
+}
+
 // Stats response from correlators
 export interface CorrelatorStats {
   [key: string]: Record<string, unknown>;
@@ -384,6 +431,23 @@ class ApiClient {
 
   async getBenchmarkStats(): Promise<ReplayStats> {
     return this.fetch('/benchmark');
+  }
+
+  async getAnomalyEvents(params?: {
+    severity?: AnomalySeverity;
+    type?: 'metric' | 'log';
+    changes?: boolean;
+    upgrades?: boolean;
+    detector?: string;
+  }): Promise<AnomalyEvent[]> {
+    const searchParams = new URLSearchParams();
+    if (params?.severity) searchParams.set('severity', params.severity);
+    if (params?.type) searchParams.set('type', params.type);
+    if (params?.changes) searchParams.set('changes', '1');
+    if (params?.upgrades) searchParams.set('upgrades', '1');
+    if (params?.detector) searchParams.set('detector', params.detector);
+    const qs = searchParams.toString();
+    return this.fetch(`/anomaly-events${qs ? '?' + qs : ''}`);
   }
 
 }

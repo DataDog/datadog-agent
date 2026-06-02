@@ -174,6 +174,15 @@ const (
 	AnomalyTypeLog AnomalyType = "log"
 )
 
+// AnomalySeverity represents the assessed severity of an anomaly or anomaly event.
+type AnomalySeverity string
+
+const (
+	AnomalySeverityLow    AnomalySeverity = "low"
+	AnomalySeverityMedium AnomalySeverity = "medium"
+	AnomalySeverityHigh   AnomalySeverity = "high"
+)
+
 // Anomaly is a detected anomaly event.
 // Anomalies represent a point in time where something anomalous was detected.
 type Anomaly struct {
@@ -194,7 +203,9 @@ type Anomaly struct {
 	// a synthesized pattern and example source data.
 	Context   *MetricContext
 	Timestamp int64    // when the anomaly was detected (unix seconds)
-	Score     *float64 // confidence/severity score (nil if not available)
+	Score     *float64 // detector-native score (nil if not available); interpretation varies by detector
+	// Severity is the detector-level severity derived from Score. Set by the engine after detection.
+	Severity AnomalySeverity
 	// SamplingIntervalSec is the median interval between consecutive data points
 	// for the source series, in seconds. Set by scan detectors (ScanMW, ScanWelch)
 	// at detection time from the actual point buffer. Zero if unknown.
@@ -503,4 +514,70 @@ type Detector interface {
 // log-only detector).
 type SeriesRemover interface {
 	RemoveSeries(refs []SeriesRef)
+}
+
+// AnomalyEvent is a scored event candidate produced by the AnomalyEventScorer
+// for every new detector anomaly. It carries the trigger anomaly, a contextual
+// score computed from recent anomalies in a sliding window, and severity change
+// tracking by scope.
+type AnomalyEvent struct {
+	// ID is a stable identifier derived from trigger source, detector, timestamp, and title.
+	ID string
+
+	// Trigger is the anomaly that caused this event to be emitted.
+	Trigger Anomaly
+
+	// WindowStart and WindowEnd are the Unix-second bounds of the scoring window.
+	WindowStart int64
+	WindowEnd   int64
+
+	// RecentAnomalies is the set of anomalies in the window used for scoring
+	// (includes the trigger).
+	RecentAnomalies []Anomaly
+
+	// Signals groups evidence by signal key (typically Anomaly.Source.Key()).
+	Signals []SignalEvidence
+
+	// Score is the combined contextual event score in [0, 1].
+	Score float64
+
+	// Severity is the event severity derived from Score.
+	Severity AnomalySeverity
+
+	// PreviousSeverity is the last severity seen for the same scope.
+	PreviousSeverity AnomalySeverity
+
+	// SeverityChanged is true when Severity != PreviousSeverity.
+	SeverityChanged bool
+
+	// SeverityDirection is "up", "down", or "same".
+	SeverityDirection string
+
+	// Breakdown contains per-signal scoring details.
+	Breakdown CorrelationScoreBreakdown
+}
+
+// SignalEvidence groups anomalies by signal key and records their contribution to the event score.
+type SignalEvidence struct {
+	Key       string
+	Score     float64
+	Severity  AnomalySeverity
+	Anomalies []Anomaly
+}
+
+// CorrelationScoreBreakdown carries the intermediate values from the noisy-OR scoring.
+type CorrelationScoreBreakdown struct {
+	// SignalCount is the total number of distinct signals in the scoring window.
+	SignalCount int
+	// EffectiveSignalCount is the number of signals actually used for cross-signal
+	// combination (at most maxScoringSignals — the top-N by score).
+	EffectiveSignalCount   int
+	DetectorAnomalyCount   int
+	MissingScoreCount      int
+	PerSignalScores        map[string]float64
+	CombinedEvidenceScore  float64
+	SingleSignalCapApplied bool
+	TwoSignalCapApplied    bool
+	// ThreeOrMoreSignalCapApplied is true when the three-or-more-signal cap was applied.
+	ThreeOrMoreSignalCapApplied bool
 }

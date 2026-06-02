@@ -5,10 +5,11 @@ import { CorrelatorView } from './components/CorrelatorView';
 import { LogView } from './components/LogView';
 import { ReportsView } from './components/ReportsView';
 import { BenchmarkView } from './components/BenchmarkView';
+import { AnomalyEventsView } from './components/AnomalyEventsView';
 import type { EpisodeInfo } from './api/client';
 import type { PhaseMarker } from './components/ChartWithAnomalyDetails';
 
-type TabID = 'timeseries' | 'correlators' | 'logs' | 'reports' | 'benchmark';
+type TabID = 'timeseries' | 'correlators' | 'logs' | 'reports' | 'benchmark' | 'anomaly-events';
 
 function LogsOnlyChip() {
   return (
@@ -497,6 +498,16 @@ function App() {
               >
                 Benchmark
               </button>
+              <button
+                onClick={() => setActiveTab('anomaly-events')}
+                className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                  activeTab === 'anomaly-events'
+                    ? 'bg-purple-600 text-white'
+                    : 'text-slate-400 hover:bg-slate-700'
+                }`}
+              >
+                Anomaly Events
+              </button>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -698,6 +709,13 @@ function App() {
         </div>
         <div className={`flex-1 flex ${activeTab !== 'benchmark' ? 'hidden' : ''}`}>
           <BenchmarkView
+            state={state}
+            actions={actions}
+            sidebarWidth={sidebarWidth}
+          />
+        </div>
+        <div className={`flex-1 flex ${activeTab !== 'anomaly-events' ? 'hidden' : ''}`}>
+          <AnomalyEventsView
             state={state}
             actions={actions}
             sidebarWidth={sidebarWidth}

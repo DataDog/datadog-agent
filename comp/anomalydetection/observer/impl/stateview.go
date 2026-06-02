@@ -203,3 +203,10 @@ func (sv *stateView) MaxTimestamp() int64 {
 func (sv *stateView) GetSeriesAll(ref observerdef.SeriesRef, agg observerdef.Aggregate) *observerdef.Series {
 	return sv.engine.storage.GetSeriesRange(ref, 0, sv.engine.storage.MaxTimestamp(), agg)
 }
+
+// --- Anomaly events ---
+
+// AnomalyEvents returns all anomaly events scored by the event scorer.
+func (sv *stateView) AnomalyEvents() []observerdef.AnomalyEvent {
+	return sv.engine.AnomalyEvents()
+}
