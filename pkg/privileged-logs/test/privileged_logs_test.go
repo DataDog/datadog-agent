@@ -53,7 +53,7 @@ func setupSystemProbeConfig(t *testing.T, socketPath string, enabled bool) {
 }
 
 func assertOpenPrivilegedContent(t *testing.T, socketPath, filePath, expectedContent string) {
-	file, err := client.OpenPrivileged(socketPath, filePath)
+	file, err := client.OpenPrivileged(socketPath, filePath, false)
 	require.NoError(t, err)
 	defer file.Close()
 
@@ -94,7 +94,7 @@ func assertClientStatError(t *testing.T, filePath, expectedErrorMsg string) {
 }
 
 func assertOpenPrivilegedError(t *testing.T, socketPath, filePath, expectedErrorMsg string) error {
-	file, err := client.OpenPrivileged(socketPath, filePath)
+	file, err := client.OpenPrivileged(socketPath, filePath, false)
 	require.Error(t, err)
 	assert.Nil(t, file)
 	assert.Contains(t, err.Error(), expectedErrorMsg)

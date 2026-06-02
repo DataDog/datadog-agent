@@ -85,7 +85,7 @@ func (f *privilegedLogsModule) openFileHandler(w http.ResponseWriter, r *http.Re
 
 	f.logFileAccess(req.Path)
 
-	file, err := validateAndOpen(req.Path)
+	file, err := validateAndOpen(req.Path, req.NoFollow)
 	if err != nil {
 		f.sendErrorResponse(unixConn, err.Error())
 		return

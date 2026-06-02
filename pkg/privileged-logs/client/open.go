@@ -11,22 +11,24 @@ package client
 import (
 	"errors"
 	"os"
+	"syscall"
 
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
-	"syscall"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// OpenPrivileged opens a file in system-probe and returns the file descriptor
-// This function uses a custom HTTP client that can handle file descriptor transfer
-func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
+// OpenPrivileged opens a file in system-probe and returns the file descriptor.
+// This function uses a custom HTTP client that can handle file descriptor transfer.
+// When noFollow is true, the request asks system-probe to reject any symbolic link
+// in the path rather than resolving it.
+func OpenPrivileged(socketPath string, filePath string, noFollow bool) (*os.File, error) {
 	// Create a new connection instead of reusing the shared connection from
 	// pkg/system-probe/api/client/client.go, since the connection is hijacked
 	// from the control of the HTTP server library on the server side.  It also
@@ -39,7 +41,8 @@ func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
 	defer conn.Close()
 
 	req := common.OpenFileRequest{
-		Path: filePath,
+		Path:     filePath,
+		NoFollow: noFollow,
 	}
 
 	reqBody, err := json.Marshal(req)
@@ -111,7 +114,7 @@ func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
 	return nil, errors.New("no file descriptor received")
 }
 
-func maybeOpenPrivileged(path string, originalError error) (*os.File, error) {
+func maybeOpenPrivileged(path string, originalError error, noFollow bool) (*os.File, error) {
 	enabled := pkgconfigsetup.SystemProbe().GetBool("privileged_logs.enabled")
 	if !enabled {
 		return nil, originalError
@@ -120,7 +123,7 @@ func maybeOpenPrivileged(path string, originalError error) (*os.File, error) {
 	log.Debugf("Permission denied, opening file with system-probe: %v", path)
 
 	socketPath := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
-	file, spErr := OpenPrivileged(socketPath, path)
+	file, spErr := OpenPrivileged(socketPath, path, noFollow)
 	log.Tracef("Opened file with system-probe: %v, err: %v", path, spErr)
 	if spErr != nil {
 		return nil, fmt.Errorf("failed to open file with system-probe: %w, original error: %w", spErr, originalError)
@@ -137,7 +140,39 @@ func Open(path string) (*os.File, error) {
 		return file, err
 	}
 
-	file, err = maybeOpenPrivileged(path, err)
+	file, err = maybeOpenPrivileged(path, err, false)
+	if err != nil {
+		return nil, err
+	}
+
+	return file, nil
+}
+
+// OpenNoFollow opens a file by traversing each path component with O_NOFOLLOW,
+// rejecting any symbolic link in the path.  If the file exists but is
+// permission-denied (EACCES) rather than a symlink (ELOOP), privileged-log
+// escalation via system-probe is attempted, and the NoFollow flag is forwarded
+// so that system-probe also skips symbolic-link resolution.
+//
+// This function is used for file sources discovered by the process_log provider,
+// where the path comes from /proc/<pid>/fd and is canonical at discovery time.
+// Any symlink found later is an attacker-controlled swap and must be rejected.
+func OpenNoFollow(path string) (*os.File, error) {
+	file, err := common.OpenPathWithoutSymlinks(path)
+	if err == nil {
+		return file, nil
+	}
+
+	// A symlink in the path (ELOOP) or any other non-permission error must not
+	// be escalated: we only escalate real access-denied errors on the actual file.
+	if !errors.Is(err, syscall.EACCES) && !errors.Is(err, os.ErrPermission) {
+		if errors.Is(err, syscall.ELOOP) {
+			log.Warnf("process_log path %q contains a symbolic link that was not present at discovery time — possible symlink-swap attack; refusing to open", path)
+		}
+		return nil, err
+	}
+
+	file, err = maybeOpenPrivileged(path, err, true)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +189,7 @@ func Stat(path string) (os.FileInfo, error) {
 		return info, err
 	}
 
-	file, err := maybeOpenPrivileged(path, err)
+	file, err := maybeOpenPrivileged(path, err, false)
 	if err != nil {
 		return nil, err
 	}
