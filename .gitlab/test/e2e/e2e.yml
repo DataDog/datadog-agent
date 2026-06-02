@@ -791,16 +791,25 @@ new-e2e-fleet-config:
   extends: .new_e2e_fleet_template
   variables:
     EXTRA_PARAMS: --run TestFleetConfig
+  parallel:
+    matrix:
+      - E2E_FLEET_PLATFORM_GROUP: [linux, windows]
 
 new-e2e-fleet-upgrade:
   extends: .new_e2e_fleet_template
   variables:
     EXTRA_PARAMS: --run TestFleetUpgrade
+  parallel:
+    matrix:
+      - E2E_FLEET_PLATFORM_GROUP: [linux, windows]
 
 new-e2e-fleet-extensions:
   extends: .new_e2e_fleet_template
   variables:
     EXTRA_PARAMS: --run TestFleetExtensions
+  parallel:
+    matrix:
+      - E2E_FLEET_PLATFORM_GROUP: [linux, windows]
 
 new-e2e-installer-script:
   extends: .new_e2e_template
