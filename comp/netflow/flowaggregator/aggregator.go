@@ -203,13 +203,13 @@ func (agg *FlowAggregator) scheduleNetworkPathForFlow(flow *common.Flow) {
 
 	agg.npCollector.ScheduleNetflowPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
 		yield(npmodel.NetworkPathConnection{
-			Source:             netip.AddrPortFrom(srcIP, srcPort),
-			Dest:               netip.AddrPortFrom(dstIP, dstPort),
-			Namespace:          flow.Namespace,
-			ReverseDNSHostname: normalizeReverseDNSHostname(flow.DstReverseDNSHostname),
-			Type:               connType,
-			Direction:          model.ConnectionDirection_outgoing,
-			Family:             family,
+			Source:    netip.AddrPortFrom(srcIP, srcPort),
+			Dest:      netip.AddrPortFrom(dstIP, dstPort),
+			Namespace: flow.Namespace,
+			Domain:    normalizeReverseDNSHostname(flow.DstReverseDNSHostname),
+			Type:      connType,
+			Direction: model.ConnectionDirection_outgoing,
+			Family:    family,
 		})
 	})
 }

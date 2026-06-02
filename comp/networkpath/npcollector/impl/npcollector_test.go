@@ -664,22 +664,22 @@ func Test_npCollectorImpl_ScheduleNetworkTrafficPathTests(t *testing.T) {
 			},
 		},
 		{
-			name:            "one outgoing NetFlow UDP conn with reverse DNS metadata",
+			name:            "one outgoing NetFlow UDP conn with reverse DNS domain",
 			agentConfigs:    netflowMonitorIPWithoutDomainConfigs,
 			scheduleNetflow: true,
 			conns: []npmodel.NetworkPathConnection{
 				{
-					Source:             netip.MustParseAddrPort("10.0.0.5:30000"),
-					Dest:               netip.MustParseAddrPort("10.0.0.6:161"),
-					Namespace:          "netflow-ns",
-					Direction:          model.ConnectionDirection_outgoing,
-					Type:               model.ConnectionType_udp,
-					ReverseDNSHostname: "ptr.customer.example",
+					Source:    netip.MustParseAddrPort("10.0.0.5:30000"),
+					Dest:      netip.MustParseAddrPort("10.0.0.6:161"),
+					Namespace: "netflow-ns",
+					Direction: model.ConnectionDirection_outgoing,
+					Type:      model.ConnectionType_udp,
+					Domain:    "ptr.customer.example",
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
 				{
-					Hostname:  "10.0.0.6",
+					Hostname:  "ptr.customer.example",
 					Protocol:  payload.ProtocolUDP,
 					Namespace: "netflow-ns",
 					Origin:    payload.PathOriginNetflow,
@@ -1721,15 +1721,15 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: false,
 		},
 		{
-			name: "should schedule netflow IP target with reverse DNS hostname by default",
+			name: "should schedule netflow domain by default",
 			conn: npmodel.NetworkPathConnection{
-				Source:             netip.MustParseAddrPort("10.0.0.1:30000"),
-				Dest:               netip.MustParseAddrPort("10.0.0.2:53"),
-				Origin:             payload.PathOriginNetflow,
-				Direction:          model.ConnectionDirection_outgoing,
-				Family:             model.ConnectionFamily_v4,
-				Type:               model.ConnectionType_udp,
-				ReverseDNSHostname: "service.customer.example",
+				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:      netip.MustParseAddrPort("10.0.0.2:53"),
+				Origin:    payload.PathOriginNetflow,
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v4,
+				Type:      model.ConnectionType_udp,
+				Domain:    "service.customer.example",
 			},
 			shouldSchedule: true,
 		},
@@ -2010,7 +2010,7 @@ network_path:
 			shouldSchedule: false,
 		},
 		{
-			name: "FILTERS: excluded netflow reverse DNS hostname",
+			name: "FILTERS: excluded netflow domain",
 			filters: `
 network_path:
   collector:
@@ -2019,13 +2019,13 @@ network_path:
         type: exclude
 `,
 			conn: npmodel.NetworkPathConnection{
-				Source:             netip.MustParseAddrPort("10.0.0.1:30000"),
-				Dest:               netip.MustParseAddrPort("10.0.0.2:53"),
-				Origin:             payload.PathOriginNetflow,
-				Direction:          model.ConnectionDirection_outgoing,
-				Family:             model.ConnectionFamily_v4,
-				Type:               model.ConnectionType_udp,
-				ReverseDNSHostname: "blocked.customer.example",
+				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:      netip.MustParseAddrPort("10.0.0.2:53"),
+				Origin:    payload.PathOriginNetflow,
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v4,
+				Type:      model.ConnectionType_udp,
+				Domain:    "blocked.customer.example",
 			},
 			shouldSchedule: false,
 		},

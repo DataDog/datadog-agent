@@ -26,9 +26,7 @@ type NetworkPathConnection struct {
 	Direction         model.ConnectionDirection
 	Family            model.ConnectionFamily
 	// Domain is a destination hostname that may be used as the traceroute target.
-	Domain string
-	// ReverseDNSHostname annotates the destination address without changing the traceroute target.
-	ReverseDNSHostname string
-	IntraHost          bool
-	SystemProbeConn    bool
+	Domain          string
+	IntraHost       bool
+	SystemProbeConn bool
 }
