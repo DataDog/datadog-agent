@@ -30,7 +30,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	t.tags = t.buildTailerTags()
 
 	log.Info("Opening ", t.fullpath)
-	f, err := t.fileOpener.OpenLogFile(t.fullpath)
+	f, err := t.openLogFile(t.fullpath)
 	if err != nil {
 		return err
 	}
@@ -66,7 +66,7 @@ func (t *Tailer) readAvailable() (int, error) {
 	for {
 		if f == nil {
 			var err error
-			f, err = t.fileOpener.OpenLogFile(t.fullpath)
+			f, err = t.openLogFile(t.fullpath)
 			if err != nil {
 				return bytes, err
 			}

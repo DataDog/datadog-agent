@@ -103,7 +103,7 @@ func (f *fingerprinterImpl) ComputeFingerprintFromConfig(filepath string, finger
 	if fingerprintConfig != nil && fingerprintConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
 		return newInvalidFingerprint(fingerprintConfig), nil
 	}
-	return f.computeFingerprint(filepath, fingerprintConfig)
+	return f.computeFingerprint(filepath, fingerprintConfig, false)
 }
 
 // ComputeFingerprint computes the fingerprint for the given file path
@@ -114,6 +114,11 @@ func (f *fingerprinterImpl) ComputeFingerprint(file *File) (*types.Fingerprint, 
 	if file == nil {
 		log.Warnf("file is nil, skipping fingerprinting")
 		return newInvalidFingerprint(nil), nil
+	}
+
+	noFollow := false
+	if file.Source.Config().NoFollow {
+		noFollow = true
 	}
 
 	fileFingerprintConfig := file.Source.Config().FingerprintConfig
@@ -134,12 +139,12 @@ func (f *fingerprinterImpl) ComputeFingerprint(file *File) (*types.Fingerprint, 
 			return newInvalidFingerprint(fingerprintConfig), nil
 		}
 
-		return f.computeFingerprint(file.Path, fingerprintConfig)
+		return f.computeFingerprint(file.Path, fingerprintConfig, noFollow)
 	}
 
 	// If per-source config exists but no strategy is set, or no per-source config exists,
 	// fall back to global config
-	return f.computeFingerprint(file.Path, &f.globalConfig)
+	return f.computeFingerprint(file.Path, &f.globalConfig, noFollow)
 }
 
 // ComputeFingerprintFromHandle computes the fingerprint for the given os.File using the provided config.
@@ -171,12 +176,17 @@ func (f *fingerprinterImpl) ComputeFingerprintFromHandle(osFile afero.File, fing
 }
 
 // computeFingerprint computes the fingerprint for the given file path
-func (f *fingerprinterImpl) computeFingerprint(filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
+func (f *fingerprinterImpl) computeFingerprint(filePath string, fingerprintConfig *types.FingerprintConfig, noFollow bool) (*types.Fingerprint, error) {
 	if fingerprintConfig == nil {
 		return newInvalidFingerprint(nil), nil
 	}
 
-	fpFile, err := f.fileOpener.OpenLogFile(filePath)
+	openLogFile := f.fileOpener.OpenLogFile
+	if noFollow {
+		openLogFile = f.fileOpener.OpenLogFileNoFollow
+	}
+
+	fpFile, err := openLogFile(filePath)
 	if err != nil {
 		log.Warnf("could not open file for fingerprinting %s: %v", filePath, err)
 		return newInvalidFingerprint(fingerprintConfig), err

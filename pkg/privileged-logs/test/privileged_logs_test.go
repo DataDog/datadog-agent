@@ -159,6 +159,35 @@ func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_Symlink() {
 	assertOpenPrivilegedContent(s.T(), s.handler.SocketPath, symlinkPath, testContent)
 }
 
+func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_OpenPrivilegedNoFollowRealFile() {
+	testContent := "real log content"
+	realLogFile := createTestFile(s.T(), s.tempDir, "real-nosymlink.log", testContent)
+
+	file, err := client.OpenPrivilegedNoFollow(s.handler.SocketPath, realLogFile)
+	require.NoError(s.T(), err)
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), testContent, string(data))
+}
+
+func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_OpenPrivilegedNoFollowRejectsSymlink() {
+	testContent := "real log content"
+	realLogFile := createTestFile(s.T(), s.tempDir, "real-reject.log", testContent)
+
+	symlinkPath := filepath.Join(s.tempDir, "fake-reject.log")
+	err := WithParentPermFixup(s.T(), symlinkPath, func() error {
+		return os.Symlink(realLogFile, symlinkPath)
+	})
+	require.NoError(s.T(), err)
+
+	file, err := client.OpenPrivilegedNoFollow(s.handler.SocketPath, symlinkPath)
+	require.Error(s.T(), err)
+	assert.Nil(s.T(), file)
+	assert.Contains(s.T(), err.Error(), "too many levels of symbolic links")
+}
+
 func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_SymlinkToNonLogFile() {
 	nonLogFile := createTestFile(s.T(), s.tempDir, "secret_nonlog.txt", "secret content")
 
@@ -189,6 +218,40 @@ func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_OpenFallback() {
 
 	assertClientOpenContent(s.T(), upperLogFile, testContent)
 	assertClientStatInfo(s.T(), upperLogFile, int64(len(testContent)))
+}
+
+func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_OpenFallbackNoFollow() {
+	testContent := "test content"
+	testFile := createTestFile(s.T(), s.tempDir, "restricted-nosymlink.log", testContent)
+
+	setupSystemProbeConfig(s.T(), s.handler.SocketPath, true)
+
+	file, err := client.OpenNoFollow(testFile)
+	require.NoError(s.T(), err)
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), testContent, string(data))
+}
+
+func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_OpenFallbackNoFollowRejectsSymlink() {
+	testContent := "test content"
+	realLogFile := createTestFile(s.T(), s.tempDir, "restricted-real.log", testContent)
+
+	symlinkPath := filepath.Join(s.tempDir, "restricted-link.log")
+	err := WithParentPermFixup(s.T(), symlinkPath, func() error {
+		return os.Symlink(realLogFile, symlinkPath)
+	})
+	require.NoError(s.T(), err)
+
+	setupSystemProbeConfig(s.T(), s.handler.SocketPath, true)
+
+	file, err := client.OpenNoFollow(symlinkPath)
+	require.Error(s.T(), err)
+	assert.Nil(s.T(), file)
+	assert.Contains(s.T(), err.Error(), "failed to open file with system-probe")
+	assert.Contains(s.T(), err.Error(), "too many levels of symbolic links")
 }
 
 func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_OpenFallbackError() {
