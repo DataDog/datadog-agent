@@ -16,7 +16,6 @@ import (
 	"net"
 	nethttp "net/http"
 	"net/url"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -324,14 +323,19 @@ func runHTTPMonitorIntegrationWithResponseBodyTest(t *testing.T, params commonTe
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if runtime.GOOS == "windows" && tt.requestBodySize == 10*mb {
-				t.Skip("flaky on Windows")
-			}
 			serverAddr := fmt.Sprintf("127.0.0.1:%d", params.serverPort)
 
 			monitor := params.setupMonitor(t)
+			// HTTPServer defaults to 1s read/write timeouts. The handler echoes the
+			// request body back, so for the 10mb case the server must read and write
+			// 10mb per request; on slower hosts (notably Windows CI) that can exceed
+			// 1s, making the server reset the connection. The client's response read
+			// (see requestGenerator) then fails with a net.OpError instead of a clean
+			// io.EOF. Use generous timeouts so large transfers complete reliably.
 			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 				EnableKeepAlive: true,
+				ReadTimeout:     30 * time.Second,
+				WriteTimeout:    30 * time.Second,
 			})
 			t.Cleanup(srvDoneFn)
 
