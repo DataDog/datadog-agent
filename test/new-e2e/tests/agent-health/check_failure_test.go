@@ -22,8 +22,11 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
-//go:embed fixtures/health_platform_agent_config.yaml
-var healthPlatformAgentConfig string
+const healthPlatformAgentConfig = `health_platform:
+  enabled: true
+  forwarder:
+    interval: 30s
+`
 
 //go:embed fixtures/broken_check.yaml
 var brokenCheckConf string
