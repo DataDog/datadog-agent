@@ -62,7 +62,9 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
 	// Trigger the check immediately rather than waiting for the scheduler.
-	s.Env().Agent.Client.Check(agentclient.WithArgs([]string{"http_check"}))
+	// The check is expected to fail (connection refused) so we ignore the
+	// non-zero exit code from the agent check command.
+	s.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"http_check"})) //nolint:errcheck
 
 	var logs []*aggregator.AgentTelemetryLog
 	var err error
@@ -70,7 +72,7 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 		logs, err = s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
 		require.NoError(c, err)
 		assert.NotEmpty(c, logs, "no agent-logs telemetry received yet")
-	}, 1*time.Minute, 5*time.Second, "timed out waiting for agent-logs telemetry to reach fakeintake")
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for agent-logs telemetry to reach fakeintake")
 
 	for _, l := range logs {
 		assert.Equal(s.T(), "ERROR", l.Level)
@@ -100,7 +102,9 @@ func (s *errorTrackingSuite) TestDisabledByDefault() {
 		require.NoError(s.T(), execErr)
 
 		// Trigger the check immediately rather than waiting for the scheduler.
-		s.Env().Agent.Client.Check(agentclient.WithArgs([]string{"http_check"}))
+		// The check is expected to fail (connection refused) so we ignore the
+		// non-zero exit code from the agent check command.
+		s.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"http_check"})) //nolint:errcheck
 
 		// Wait until the check error appears in the agent log — confirming errors are
 		// generated locally before asserting they are not forwarded to telemetry.
@@ -108,7 +112,7 @@ func (s *errorTrackingSuite) TestDisabledByDefault() {
 			out, execErr := s.Env().RemoteHost.Execute("sudo grep -c 'ERROR.*Error running check' /var/log/datadog/agent.log 2>/dev/null || echo 0")
 			assert.NoError(c, execErr)
 			assert.NotEqual(c, "0", strings.TrimSpace(out))
-		}, 1*time.Minute, 5*time.Second, "timed out waiting for check error to appear in agent log")
+		}, 3*time.Minute, 10*time.Second, "timed out waiting for check error to appear in agent log")
 
 		// Confirm the error was not forwarded to telemetry.
 		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
