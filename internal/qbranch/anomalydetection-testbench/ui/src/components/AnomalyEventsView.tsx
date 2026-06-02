@@ -102,7 +102,7 @@ function EventChart({ events, selected, onSelect, phaseMarkers, minTs: extMinTs,
 
   const WINDOW = 300; // 5-min rolling window
   const WIDTH  = 600;
-  const HEIGHT = 80;
+  const HEIGHT = 160;
 
   const tsValues = events.map(e => e.trigger.timestamp);
   (phaseMarkers ?? []).forEach(m => tsValues.push(m.timestamp));
