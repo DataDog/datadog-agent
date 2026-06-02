@@ -5,7 +5,6 @@ go_library(
     srcs = [
         "issue.go",
         "module.go",
-        "module_noop.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/windowseventlogchannels",
     visibility = ["//visibility:public"],
