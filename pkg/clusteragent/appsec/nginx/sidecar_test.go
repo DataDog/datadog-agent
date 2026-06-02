@@ -517,14 +517,118 @@ func TestDeletedSkipsWhenOtherIngressClassesExist(t *testing.T) {
 	assert.NoError(t, err, "DD ConfigMap should NOT be deleted when other ingress-nginx IngressClasses still exist")
 }
 
-func TestMutatePodVersionParseFailed(t *testing.T) {
-	pattern, _ := newTestNginxSidecarPattern(t)
-	pod := newControllerPod("test", "ingress-nginx", "registry.k8s.io/ingress-nginx/controller:latest")
+func TestMutatePodInitImageResolution(t *testing.T) {
+	tests := []struct {
+		name            string
+		initImage       string
+		controllerImage string
+		wantErr         string
+		wantInitImage   string
+	}{
+		{
+			name:            "no tag derives version from controller",
+			initImage:       "datadog/ingress-nginx-injection",
+			controllerImage: "registry.k8s.io/ingress-nginx/controller:v1.15.1",
+			wantInitImage:   "datadog/ingress-nginx-injection:v1.15.1",
+		},
+		{
+			name:            "no tag with unparseable controller version",
+			initImage:       "datadog/ingress-nginx-injection",
+			controllerImage: "registry.k8s.io/ingress-nginx/controller:latest",
+			wantErr:         "manual extraModules",
+		},
+		{
+			name:            "tagged init image used as-is",
+			initImage:       "myregistry.com/datadog/ingress-nginx-injection:custom-v1.2.3",
+			controllerImage: "registry.k8s.io/ingress-nginx/controller:v1.15.1",
+			wantInitImage:   "myregistry.com/datadog/ingress-nginx-injection:custom-v1.2.3",
+		},
+		{
+			name:            "tagged init image with unparseable controller version",
+			initImage:       "myregistry.com/datadog/ingress-nginx-injection:custom-v1.2.3",
+			controllerImage: "registry.k8s.io/ingress-nginx/controller:latest",
+			wantInitImage:   "myregistry.com/datadog/ingress-nginx-injection:custom-v1.2.3",
+		},
+		{
+			name:            "digest-pinned init image used as-is",
+			initImage:       "myregistry.com/datadog/ingress-nginx-injection@sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4",
+			controllerImage: "registry.k8s.io/ingress-nginx/controller:v1.15.1",
+			wantInitImage:   "myregistry.com/datadog/ingress-nginx-injection@sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4",
+		},
+		{
+			name:            "invalid init image falls through to version derivation",
+			initImage:       "!!!invalid",
+			controllerImage: "registry.k8s.io/ingress-nginx/controller:v1.15.1",
+			wantInitImage:   "!!!invalid:v1.15.1",
+		},
+	}
 
-	mutated, err := pattern.MutatePod(pod, "ingress-nginx", pattern.client)
-	assert.Error(t, err)
-	assert.False(t, mutated)
-	assert.ErrorContains(t, err, "manual extraModules")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+			pattern, client := newTestNginxSidecarPatternWithConfig(t, appsecconfig.Nginx{
+				InitImage:       tt.initImage,
+				ModuleMountPath: "/modules_mount",
+			})
+
+			originalCM := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "ConfigMap",
+					"metadata": map[string]interface{}{
+						"name":      "ingress-nginx-controller",
+						"namespace": "ingress-nginx",
+					},
+				},
+			}
+			_, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Create(ctx, originalCM, metav1.CreateOptions{})
+			require.NoError(t, err)
+
+			pod := newControllerPod("test-pod", "ingress-nginx", tt.controllerImage)
+			mutated, err := pattern.MutatePod(pod, "ingress-nginx", client)
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.wantErr)
+				assert.False(t, mutated)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.True(t, mutated)
+			require.Len(t, pod.Spec.InitContainers, 1)
+			assert.Equal(t, tt.wantInitImage, pod.Spec.InitContainers[0].Image)
+		})
+	}
+}
+
+func newTestNginxSidecarPatternWithConfig(t *testing.T, nginx appsecconfig.Nginx) (*nginxSidecarPattern, *dynamicfake.FakeDynamicClient) {
+	t.Helper()
+	logger := logmock.New(t)
+	scheme := runtime.NewScheme()
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme,
+		map[schema.GroupVersionResource]string{
+			configMapGVR:    "ConfigMapList",
+			ingressClassGVR: "IngressClassList",
+		},
+	)
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Nginx: nginx,
+		},
+		Injection: appsecconfig.Injection{
+			CommonAnnotations: map[string]string{},
+		},
+	}
+	base := &nginxInjectionPattern{
+		client: client,
+		logger: logger,
+		config: config,
+		eventRecorder: eventRecorder{
+			recorder: record.NewFakeRecorder(100),
+		},
+	}
+	return &nginxSidecarPattern{nginxInjectionPattern: base}, client
 }
 
 // TestMutatePod_CrossNamespaceConfigMapRefused is the bisect anchor for the
