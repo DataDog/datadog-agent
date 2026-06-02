@@ -103,7 +103,6 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynam
 		// pod is admitted unmodified (fail-open) without polluting the error
 		// path used by genuine mutation failures. The warning event lands on
 		// the pod itself so the owning namespace operator can see the diagnostic.
-		recordMutationSkipped(err)
 		n.eventRecorder.recordCrossNamespaceConfigMapRefused(pod, err)
 		n.logger.Warnf("nginx AppSec mutation skipped for pod %s: %v", mutatecommon.PodString(pod), err)
 		return false, nil
