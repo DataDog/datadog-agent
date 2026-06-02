@@ -123,15 +123,21 @@ func TestDockerPermissionSuite(t *testing.T) {
 }
 
 // TestDockerPermissionIssueLifecycle tests the full lifecycle of a docker
-// socket permission issue using the standard health issue lifecycle helper:
+// socket permission issue:
 //
-//  1. IssueDetection  – agent detects the issue via `agent diagnose` and fakeintake
-//  2. RestartResilience – issue persists as ONGOING after agent restart
-//  3. Resolution – chmod 666 + restart makes the issue disappear from diagnose
+//  1. IssueDetection  – chmod 660 on the docker socket triggers the issue; it
+//     appears in `agent diagnose` and in fakeintake.
+//  2. RestartResilience – the issue persists as ONGOING after an agent restart.
+//  3. Resolution – chmod 666 + restart makes the issue disappear from diagnose.
 func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 	host := suite.Env().RemoteHost
 	agent := suite.Env().Agent
 	fi := suite.Env().Fakeintake.Client()
+
+	const (
+		issueName = "Docker"
+		issueID   = "docker-socket-permissions"
+	)
 
 	suite.T().Run("PreCondition", func(t *testing.T) {
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
@@ -150,31 +156,78 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		assert.True(t, found, "busybox spam containers should be running")
 	})
 
-	RunHealthIssueLifecycle(suite.T(),
-		HealthIssueTestCase{
-			IssueName: "Docker",
-			IssueID:   "docker-socket-permissions",
-			TriggerIssue: func(_ *testing.T, h *components.RemoteHost) {
-				h.MustExecute("sudo chmod 660 /var/run/docker.sock")
-			},
-			FixIssue: func(t *testing.T, h *components.RemoteHost) {
-				h.MustExecute("sudo chmod 666 /var/run/docker.sock")
-				perm := h.MustExecute("stat -c '%a' /var/run/docker.sock")
-				assert.Contains(t, strings.TrimSpace(perm), "666", "docker socket should be world-accessible")
-			},
-			AssertMetadata: func(t *testing.T, issue *healthplatform.Issue) {
-				assert.Equal(t, "docker-socket-permissions", issue.Id)
-				assert.Equal(t, "docker_file_tailing_disabled", issue.IssueName)
-				assert.Equal(t, "permissions", issue.Category)
-				assert.Equal(t, "logs-agent", issue.Location)
-				assert.Equal(t, "logs", issue.Source)
-				assert.Contains(t, issue.Tags, "docker")
-				assert.Contains(t, issue.Tags, "permissions")
-				require.NotNil(t, issue.Remediation, "remediation should be provided")
-				assert.NotEmpty(t, issue.Remediation.Summary)
-				assert.NotEmpty(t, issue.Remediation.Steps)
-			},
-		},
-		agent, host, fi,
-	)
+	var initialFirstSeen string
+
+	// =========================================================================
+	// Phase 1: Issue Detection
+	// =========================================================================
+	suite.T().Run("IssueDetection", func(t *testing.T) {
+		host.MustExecute("sudo chmod 660 /var/run/docker.sock")
+
+		AssertIssueDetectedViaDiagnose(t, agent, issueName)
+
+		issues := waitForIssuesInFakeintake(t, fi, issueID)
+		require.NotEmpty(t, issues)
+		issue := issues[0]
+		assert.Equal(t, "docker-socket-permissions", issue.Id)
+		assert.Equal(t, "docker_file_tailing_disabled", issue.IssueName)
+		assert.Equal(t, "permissions", issue.Category)
+		assert.Equal(t, "logs-agent", issue.Location)
+		assert.Equal(t, "logs", issue.Source)
+		assert.Contains(t, issue.Tags, "docker")
+		assert.Contains(t, issue.Tags, "permissions")
+		require.NotNil(t, issue.Remediation, "remediation should be provided")
+		assert.NotEmpty(t, issue.Remediation.Summary)
+		assert.NotEmpty(t, issue.Remediation.Steps)
+
+		for _, iss := range issues {
+			if iss.PersistedIssue != nil && initialFirstSeen == "" {
+				initialFirstSeen = iss.PersistedIssue.FirstSeen
+			}
+		}
+	})
+
+	// =========================================================================
+	// Phase 2: Restart Resilience
+	// =========================================================================
+	suite.T().Run("RestartResilience", func(t *testing.T) {
+		require.NoError(t, fi.FlushServerAndResetAggregators())
+		require.NoError(t, agent.Client.Restart())
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			assert.True(ct, agent.Client.IsReady())
+		}, 2*time.Minute, 10*time.Second, "agent not ready after restart")
+
+		AssertIssueDetectedViaDiagnose(t, agent, issueName)
+
+		if initialFirstSeen != "" {
+			issues := waitForIssuesInFakeintake(t, fi, issueID)
+			require.NotEmpty(t, issues)
+			require.NotNil(t, issues[0].PersistedIssue)
+			assert.Equal(t, healthplatform.IssueState_ISSUE_STATE_ONGOING, issues[0].PersistedIssue.State)
+			assert.Equal(t, initialFirstSeen, issues[0].PersistedIssue.FirstSeen, "first_seen should be preserved across restart")
+		}
+	})
+
+	// =========================================================================
+	// Phase 3: Resolution
+	// =========================================================================
+	suite.T().Run("Resolution", func(t *testing.T) {
+		// Restore broken state on cleanup so infra can be re-used for re-runs.
+		t.Cleanup(func() {
+			host.MustExecute("sudo chmod 660 /var/run/docker.sock")
+			_ = agent.Client.Restart()
+		})
+
+		host.MustExecute("sudo chmod 666 /var/run/docker.sock")
+		perm := host.MustExecute("stat -c '%a' /var/run/docker.sock")
+		assert.Contains(t, strings.TrimSpace(perm), "666", "docker socket should be world-accessible")
+
+		require.NoError(t, fi.FlushServerAndResetAggregators())
+		require.NoError(t, agent.Client.Restart())
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			assert.True(ct, agent.Client.IsReady())
+		}, 2*time.Minute, 10*time.Second, "agent not ready after fix restart")
+
+		AssertIssueAbsentViaDiagnose(t, agent, issueName)
+	})
 }
