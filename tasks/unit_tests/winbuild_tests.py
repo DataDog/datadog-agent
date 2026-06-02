@@ -1,9 +1,67 @@
+import base64
 import os
 import tempfile
 import unittest
 import zipfile
 
-from tasks.winbuild import _extract_pdbs, _strip_symstore_metadata
+from invoke import Context
+
+from tasks.winbuild import (
+    SYMBOL_STORE_DIR_NAME,
+    _extract_pdbs,
+    _format_index_key,
+    _symbol_index_key,
+    generate_symbol_store,
+)
+
+# The symbol-server key agent.exe.pdb must map to, cross-checked against
+# agent.exe's PE RSDS debug-directory record.
+SAMPLE_KEY = "28431E7AF1452C82FFD31B5B0E3722C91"
+# GUID bytes (first three fields little-endian, as stored in the PDB) for the
+# _format_index_key transform test.
+SAMPLE_GUID = bytes.fromhex("7A1E432845F1822CFFD31B5B0E3722C9")
+
+# Real byte ranges from a production agent.exe.pdb (mingw `ld --pdb` output),
+# covering exactly the regions _symbol_index_key reads -- the MSF superblock,
+# the stream-directory block map, the directory prefix (stream count, sizes[0:2]
+# and stream 1's block list), and the PDB Info stream head (version, signature,
+# age, GUID). Everything else is zero-filled. Using real bytes rather than a
+# hand-built MSF keeps the test from baking in the same format assumptions as
+# the parser, so a shared mistake can't pass silently.
+_REAL_PDB_SIZE = 9216
+_REAL_PDB_RANGES = [
+    (32, "AAQAAAEAAADXUwAAsFUBAAAAAAADAAAA"),
+    (3072, "BAAAAAUAAAAGAAAA"),
+    (4096, "FgIAAAQAAABLAAAA"),
+    (6236, "BwAAAAgAAAA="),
+    (8192, "lC4xAbe9GWoBAAAAeh5DKEXxgiz/0xtbDjciyQ=="),
+]
+
+
+def _real_agent_pdb() -> bytes:
+    """Reconstruct the sparse agent.exe.pdb fixture from its real byte ranges."""
+    buf = bytearray(_REAL_PDB_SIZE)
+    for off, b64 in _REAL_PDB_RANGES:
+        raw = base64.b64decode(b64)
+        buf[off : off + len(raw)] = raw
+    return bytes(buf)
+
+
+class TestFormatIndexKey(unittest.TestCase):
+    def test_known_guid(self):
+        self.assertEqual(_format_index_key(SAMPLE_GUID, 1), SAMPLE_KEY)
+
+    def test_age_is_hex_uppercase_no_padding(self):
+        self.assertTrue(_format_index_key(SAMPLE_GUID, 26).endswith("1A"))
+
+
+class TestSymbolIndexKey(unittest.TestCase):
+    def test_parses_real_pdb(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pdb = os.path.join(tmp, "agent.exe.pdb")
+            with open(pdb, "wb") as f:
+                f.write(_real_agent_pdb())
+            self.assertEqual(_symbol_index_key(pdb), SAMPLE_KEY)
 
 
 class TestExtractPdbs(unittest.TestCase):
@@ -15,8 +73,8 @@ class TestExtractPdbs(unittest.TestCase):
     def test_extracts_only_pdbs(self):
         with tempfile.TemporaryDirectory() as tmp:
             zip_path = os.path.join(tmp, "datadog-agent-7.x.x-x86_64.debug.zip")
-            # .debug.zip mirrors install_dir and carries both stripped-binary
-            # .debug copies and the .pdb companions; only the latter are wanted.
+            # .debug.zip carries both stripped-binary .debug copies and the .pdb
+            # companions; only the latter are wanted.
             self._make_debug_zip(
                 zip_path,
                 {
@@ -48,32 +106,23 @@ class TestExtractPdbs(unittest.TestCase):
             self.assertEqual(os.path.basename(p), "agent.exe.pdb")
 
 
-class TestStripSymstoreMetadata(unittest.TestCase):
-    def test_removes_metadata_keeps_pdbs(self):
-        with tempfile.TemporaryDirectory() as store:
-            # A symstore tree: one indexed PDB plus transaction bookkeeping.
-            pdb_dir = os.path.join(store, "agent.exe.pdb", "ABCDEF1234567890ABCDEF12345678901")
-            os.makedirs(pdb_dir)
-            pdb_file = os.path.join(pdb_dir, "agent.exe.pdb")
-            with open(pdb_file, "w") as f:
-                f.write("symbols")
-            with open(os.path.join(pdb_dir, "refs.ptr"), "w") as f:
-                f.write("ref")
+class TestGenerateSymbolStore(unittest.TestCase):
+    def test_lays_out_two_tier_store(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            zip_path = os.path.join(tmp, "datadog-agent-7.x.x-x86_64.debug.zip")
+            with zipfile.ZipFile(zip_path, "w") as z:
+                z.writestr("opt/datadog-agent/bin/agent/agent.exe.pdb", _real_agent_pdb())
+                z.writestr("opt/datadog-agent/bin/agent/agent.exe.debug", "stripped binary")
 
-            os.makedirs(os.path.join(store, "000Admin"))
-            with open(os.path.join(store, "000Admin", "history.txt"), "w") as f:
-                f.write("history")
-            for name in ("pingme.txt", "server.txt", "lastid.txt"):
-                with open(os.path.join(store, name), "w") as f:
-                    f.write("x")
+            generate_symbol_store(Context(), output_dir=tmp)
 
-            _strip_symstore_metadata(store)
+            expected = os.path.join(tmp, SYMBOL_STORE_DIR_NAME, "agent.exe.pdb", SAMPLE_KEY, "agent.exe.pdb")
+            self.assertTrue(os.path.isfile(expected), f"missing symbol-store entry: {expected}")
 
-            self.assertTrue(os.path.exists(pdb_file))
-            self.assertFalse(os.path.exists(os.path.join(store, "000Admin")))
-            self.assertFalse(os.path.exists(os.path.join(pdb_dir, "refs.ptr")))
-            for name in ("pingme.txt", "server.txt", "lastid.txt"):
-                self.assertFalse(os.path.exists(os.path.join(store, name)))
+    def test_no_debug_zip_is_noop(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            generate_symbol_store(Context(), output_dir=tmp)
+            self.assertFalse(os.path.exists(os.path.join(tmp, SYMBOL_STORE_DIR_NAME)))
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 import glob
 import os
 import shutil
+import struct
 import tempfile
 import zipfile
 
@@ -56,30 +57,11 @@ def agent_package(
         os.path.join(OUTPUT_PATH, f"datadog-installer-{agent_version}-1-x86_64.exe"),
     )
 
-    # Build the symbol-server layout from the PDBs. This must run here, in the
-    # Windows build container: symstore.exe is only available during the build,
-    # not in the (Linux) deploy jobs that publish to S3.
+    # Build the symbol-server layout from the PDBs. Runs here, in the Windows
+    # build job, because the PDBs survive only inside the .debug.zip the build
+    # produces (omnibus deletes the on-disk .debug tree); the (Linux) deploy
+    # jobs then publish the prebuilt layout to S3.
     generate_symbol_store(ctx)
-
-
-def _find_symstore():
-    """
-    Locate symstore.exe: PATH first, then the Windows Kits Debuggers install
-    locations. Returns None if not found.
-    """
-    found = shutil.which("symstore")
-    if found:
-        return found
-
-    candidates = []
-    for base in (r"C:\Program Files (x86)\Windows Kits", r"C:\Program Files\Windows Kits"):
-        candidates.append(os.path.join(base, "10", "Debuggers", "x64", "symstore.exe"))
-        candidates.extend(glob.glob(os.path.join(base, "*", "Debuggers", "x64", "symstore.exe")))
-    for candidate in candidates:
-        if os.path.exists(candidate):
-            return candidate
-
-    return None
 
 
 def _extract_pdbs(debug_zips, dest_dir):
@@ -95,55 +77,88 @@ def _extract_pdbs(debug_zips, dest_dir):
         with zipfile.ZipFile(zip_path, "r") as archive:
             for info in archive.infolist():
                 if info.filename.lower().endswith(".pdb"):
-                    # symstore indexes by the PDB's own GUID, not its path, so
-                    # the source directory layout is irrelevant: flatten it.
+                    # The store path is derived from the PDB's own GUID, not its
+                    # source location, so the directory layout is irrelevant:
+                    # flatten to the basename.
                     info.filename = os.path.basename(info.filename)
                     pdbs.append(archive.extract(info, sub))
     return pdbs
 
 
-def _strip_symstore_metadata(store_dir):
+def _format_index_key(guid, age):
     """
-    Remove symstore transaction bookkeeping, leaving only the indexed PDBs. A
-    static S3 symbol server needs only the <pdb>/<GUID+age>/<pdb> tree; the
-    000Admin folder, root marker files, and per-transaction refs.ptr files are
-    symstore-internal and unused by debugger symbol lookups.
+    Format a 16-byte PDB GUID + age into the symbol-server directory key:
+    {Data1:08X}{Data2:04X}{Data3:04X}{Data4 bytes} (the first three GUID fields
+    are little-endian) followed by the age in uppercase hex.
     """
-    admin = os.path.join(store_dir, "000Admin")
-    if os.path.isdir(admin):
-        shutil.rmtree(admin)
-    for name in ("pingme.txt", "server.txt", "lastid.txt"):
-        path = os.path.join(store_dir, name)
-        if os.path.exists(path):
-            os.remove(path)
-    for refs in glob.glob(os.path.join(store_dir, "**", "refs.ptr"), recursive=True):
-        os.remove(refs)
+    d1, d2, d3 = struct.unpack_from("<IHH", guid, 0)
+    tail = "".join(f"{b:02X}" for b in guid[8:16])
+    return f"{d1:08X}{d2:04X}{d3:04X}{tail}{age:X}"
+
+
+def _symbol_index_key(pdb_path):
+    """
+    Compute the symbol-server index key (`<GUID><age>`) for a PDB by reading its
+    MSF "PDB Info" stream (stream 1: version, signature, age, 16-byte GUID).
+    This is the same key debuggers derive from the binary's RSDS debug-directory
+    record, so symsrv finds the PDB at `<pdb>\\<key>\\<pdb>`.
+
+    We compute the key ourselves instead of shelling out to symstore.exe:
+    symstore (and symchk) reject the mingw `ld --pdb` PDBs the Go toolchain
+    emits with "unsupported format. ErrorLevel is 11" -- dbghelp's index-
+    extraction path can't parse them, at any dbghelp version. cdb/WinDbg/xperf
+    read the very same PDBs fine, so the PDBs are usable; only symstore's
+    indexer is not.
+    """
+    with open(pdb_path, "rb") as f:
+        data = f.read()
+    block_size, _free, _nblocks, num_dir_bytes, _unk, block_map_addr = struct.unpack_from("<IIIIII", data, 32)
+
+    def block(i):
+        return data[i * block_size : (i + 1) * block_size]
+
+    # The stream directory itself is stored in blocks listed at block_map_addr.
+    num_dir_blocks = (num_dir_bytes + block_size - 1) // block_size
+    dir_blocks = struct.unpack_from(f"<{num_dir_blocks}I", block(block_map_addr), 0)
+    directory = b"".join(block(b) for b in dir_blocks)[:num_dir_bytes]
+
+    # Directory: u32 numStreams, u32 sizes[numStreams], then each stream's block
+    # list. Walk to stream 1 (the PDB Info stream).
+    num_streams = struct.unpack_from("<I", directory, 0)[0]
+    sizes = struct.unpack_from(f"<{num_streams}I", directory, 4)
+    off = 4 + 4 * num_streams
+    info = b""
+    for i, size in enumerate(sizes):
+        nblocks = 0 if size in (0, 0xFFFFFFFF) else (size + block_size - 1) // block_size
+        blocks = struct.unpack_from(f"<{nblocks}I", directory, off)
+        off += 4 * nblocks
+        if i == 1:
+            info = b"".join(block(b) for b in blocks)[:size]
+            break
+
+    age = struct.unpack_from("<I", info, 8)[0]
+    guid = info[12:28]
+    return _format_index_key(guid, age)
 
 
 @task
 def generate_symbol_store(ctx, output_dir=None, store_dir=None):
     """
-    Build a Windows symbol-server layout (<pdb>/<GUID+age>/<pdb>) from the agent
-    PDBs, using symstore.exe.
+    Build a Windows symbol-server layout (`<pdb>\\<GUID><age>\\<pdb>`) from the
+    agent PDBs, indexing them in pure Python (see _symbol_index_key for why we
+    don't use symstore.exe).
 
     PDBs are read from the *.debug.zip archives the build leaves in output_dir
     (omnibus deletes the on-disk .debug tree, so the archives are the only place
     the PDBs survive). The resulting tree is portable: any runner -- including
     the Linux agent-release-management release pipeline, which has no Windows
-    runners -- can publish it to S3 with `aws s3 cp --recursive`. Only PDBs are
-    indexed and symstore transaction metadata is removed, so the output holds
-    symbol files only.
+    runners -- can publish it to S3 with `aws s3 cp --recursive`.
 
-    No-ops with a warning when symstore.exe or the debug archives are absent
-    (e.g. local dev builds), so it never breaks a build.
+    No-ops with a warning when the debug archives are absent (e.g. local dev
+    builds), so it never breaks a build.
     """
     output_dir = output_dir or OUTPUT_PATH
     store_dir = store_dir or os.path.join(output_dir, SYMBOL_STORE_DIR_NAME)
-
-    symstore = _find_symstore()
-    if not symstore:
-        print(f'{color_message("Warning", Color.ORANGE)}: symstore.exe not found; skipping symbol store generation')
-        return
 
     debug_zips = glob.glob(os.path.join(output_dir, "*.debug.zip"))
     if not debug_zips:
@@ -160,16 +175,10 @@ def generate_symbol_store(ctx, output_dir=None, store_dir=None):
             )
             return
 
-        os.makedirs(store_dir, exist_ok=True)
-        # Pass the PDBs to symstore via a response file (one path per line) to
-        # stay clear of command-line length limits.
-        responsefile = os.path.join(tmp, "pdbs.txt")
-        with open(responsefile, "w") as f:
-            f.write("\n".join(pdbs))
+        for pdb in pdbs:
+            name = os.path.basename(pdb)
+            dest = os.path.join(store_dir, name, _symbol_index_key(pdb))
+            os.makedirs(dest, exist_ok=True)
+            shutil.copy2(pdb, os.path.join(dest, name))
 
-        # /t (product) is required by symstore but, like /v, only feeds the
-        # 000Admin index we discard -- so it's a throwaway literal here.
-        ctx.run(f'"{symstore}" add /f "@{responsefile}" /s "{store_dir}" /t datadog-agent /o')
-
-    _strip_symstore_metadata(store_dir)
     print(f"Symbol store generated at {store_dir}")
