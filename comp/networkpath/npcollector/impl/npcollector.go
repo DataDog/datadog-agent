@@ -151,6 +151,11 @@ func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) commo
 		hostname = conn.Domain
 	}
 
+	reverseDNSHostname := conn.ReverseDNSHostname
+	if reverseDNSHostname == "" {
+		reverseDNSHostname = conn.Domain
+	}
+
 	pathtest := common.Pathtest{
 		Hostname:          hostname,
 		Port:              remotePort,
@@ -159,7 +164,7 @@ func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) commo
 		Namespace:         conn.Namespace,
 		Origin:            origin,
 		Metadata: common.PathtestMetadata{
-			ReverseDNSHostname: conn.Domain,
+			ReverseDNSHostname: reverseDNSHostname,
 		},
 	}
 	return pathtest

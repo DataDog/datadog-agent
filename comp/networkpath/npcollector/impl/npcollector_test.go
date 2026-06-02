@@ -604,6 +604,11 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 		"network_path.collector.monitor_ip_without_domain": true,
 		"network_path.collector.filters":                   []map[string]any{},
 	}
+	netflowMonitorIPWithoutDomainConfigs := map[string]any{
+		"network_path.netflow_monitoring.enabled":          true,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.filters":                   []map[string]any{},
+	}
 	icmpModeConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled":      true,
 		"network_path.collector.monitor_ip_without_domain": true,
@@ -671,6 +676,32 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 				},
 			},
 			expectedPathtests: []*common.Pathtest{},
+		},
+		{
+			name:         "one outgoing NetFlow UDP conn with reverse DNS metadata",
+			agentConfigs: netflowMonitorIPWithoutDomainConfigs,
+			conns: []npmodel.NetworkPathConnection{
+				{
+					Source:             netip.MustParseAddrPort("10.0.0.5:30000"),
+					Dest:               netip.MustParseAddrPort("10.0.0.6:161"),
+					Namespace:          "netflow-ns",
+					Origin:             payload.PathOriginNetflow,
+					Direction:          model.ConnectionDirection_outgoing,
+					Type:               model.ConnectionType_udp,
+					ReverseDNSHostname: "ptr.customer.example",
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{
+					Hostname:  "10.0.0.6",
+					Protocol:  payload.ProtocolUDP,
+					Namespace: "netflow-ns",
+					Origin:    payload.PathOriginNetflow,
+					Metadata: common.PathtestMetadata{
+						ReverseDNSHostname: "ptr.customer.example",
+					},
+				},
+			},
 		},
 		{
 			name:         "only non-outgoing conns",
