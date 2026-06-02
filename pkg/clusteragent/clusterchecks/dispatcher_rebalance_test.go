@@ -1422,6 +1422,18 @@ func TestRebalance(t *testing.T) {
 				dispatcher.store.nodes[node].clcRunnerStats = store.clcRunnerStats
 				// Store the test data in the mock so it can return it
 				mockClient.testStats[nodeIP] = store.clcRunnerStats
+				// Each cluster-check ID is its own single-instance config
+				// (digest == checkID). Skip non-cluster checks so
+				// updateRunnersStats doesn't flip their IsClusterCheck flag.
+				for checkID, stats := range store.clcRunnerStats {
+					if !stats.IsClusterCheck {
+						continue
+					}
+					digest := checkID
+					dispatcher.store.idToDigest[checkid.ID(checkID)] = digest
+					dispatcher.store.digestToConfig[digest] = integration.Config{Name: checkID}
+					dispatcher.store.digestToNode[digest] = node
+				}
 			}
 
 			// Use busyness-based rebalancing directly for these legacy tests
@@ -1485,8 +1497,8 @@ func TestMoveCheck(t *testing.T) {
 			dispatcher.addConfig(tc.check.config, tc.check.node)
 			dispatcher.store.nodes[tc.check.node].clcRunnerStats = types.CLCRunnersStats{string(id): types.CLCRunnerStats{}}
 
-			// move check
-			err := dispatcher.moveCheck(tc.check.node, tc.dest, string(id))
+			// move config
+			err := dispatcher.moveConfig(tc.check.node, tc.dest, tc.check.config.Digest())
 
 			// assert no error
 			assert.Nil(t, err)
@@ -1554,7 +1566,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 	//   - Fill the store manually to avoid having to fetch the information from
 	//   the API exposed by the check runners.
 	//   - Use basic example with only 3 checks and 2 runners because there are
-	//   other tests specific for the checksDistribution struct that test more
+	//   other tests specific for the configsDistribution struct that test more
 	//   complex scenarios.
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -1636,9 +1648,9 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 	assert.Equal(t, expectedStatsNode1, testDispatcher.store.nodes["node1"].clcRunnerStats)
 	assert.Equal(t, expectedStatsNode2, testDispatcher.store.nodes["node2"].clcRunnerStats)
 
-	// Check response
+	// Moves are reported by the moved config's digest.
 	require.Len(t, checksMoved, 1)
-	assert.Equal(t, "check2", checksMoved[0].CheckID)
+	assert.Equal(t, "digest2", checksMoved[0].Digest)
 	assert.Equal(t, "node1", checksMoved[0].SourceNodeName)
 	assert.Equal(t, "node2", checksMoved[0].DestNodeName)
 
@@ -1646,6 +1658,169 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 	// changes in the checks stats.
 	checksMoved = testDispatcher.rebalanceUsingUtilization(false)
 	assert.Empty(t, checksMoved)
+}
+
+// Verifies the utilization algorithm treats a config's instances as a single
+// unit: one entry in the distribution, and never split across runners.
+func TestRebalanceUsingUtilization_GroupsInstancesByConfig(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	testDispatcher := newDispatcher(fakeTagger)
+
+	mockClient := &rebalanceTestClcRunnerClient{
+		testStats: make(map[string]types.CLCRunnersStats),
+	}
+	testDispatcher.clcRunnersClient = mockClient
+	testDispatcher.advancedDispatching.Store(true)
+
+	testDispatcher.store.active = true
+	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
+	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "10.0.0.2")
+	testDispatcher.store.nodes["node2"].workers = pkgconfigsetup.DefaultNumWorkers
+
+	node1Stats := map[string]types.CLCRunnerStats{
+		"checkM0": {AverageExecutionTime: 2000, IsClusterCheck: true},
+		"checkM1": {AverageExecutionTime: 2000, IsClusterCheck: true},
+	}
+	node2Stats := map[string]types.CLCRunnerStats{
+		"checkL0": {AverageExecutionTime: 200, IsClusterCheck: true},
+	}
+	testDispatcher.store.nodes["node1"].clcRunnerStats = node1Stats
+	testDispatcher.store.nodes["node2"].clcRunnerStats = node2Stats
+	mockClient.testStats["10.0.0.1"] = node1Stats
+	mockClient.testStats["10.0.0.2"] = node2Stats
+
+	// checkM0 and checkM1 are two instances of one config.
+	testDispatcher.store.idToDigest = map[checkid.ID]string{
+		"checkM0": "digestMulti",
+		"checkM1": "digestMulti",
+		"checkL0": "digestLight",
+	}
+	testDispatcher.store.digestToConfig = map[string]integration.Config{
+		"digestMulti": {Name: "multi"},
+		"digestLight": {Name: "light"},
+	}
+	testDispatcher.store.digestToNode = map[string]string{
+		"digestMulti": "node1",
+		"digestLight": "node2",
+	}
+
+	// One entry per config in the distribution; multi's workers are summed.
+	dist := testDispatcher.currentDistribution()
+	require.Len(t, dist.Configs, 2)
+	require.Contains(t, dist.Configs, "digestMulti")
+	require.Contains(t, dist.Configs, "digestLight")
+	assert.Equal(t, "node1", dist.Configs["digestMulti"].Runner)
+	assert.InDelta(t, dist.Configs["digestMulti"].WorkersNeeded, dist.Configs["digestLight"].WorkersNeeded*20, 0.0001)
+
+	// Force the rebalance so the worth-it check doesn't short-circuit it.
+	checksMoved := testDispatcher.rebalanceUsingUtilization(true)
+	requireNotLocked(t, testDispatcher.store)
+
+	// At most one move; if there is one, both instances follow it.
+	assert.LessOrEqual(t, len(checksMoved), 1)
+	for _, mv := range checksMoved {
+		assert.Equal(t, "digestMulti", mv.Digest)
+		destStats := testDispatcher.store.nodes[mv.DestNodeName].clcRunnerStats
+		assert.Contains(t, destStats, "checkM0")
+		assert.Contains(t, destStats, "checkM1")
+		srcStats := testDispatcher.store.nodes[mv.SourceNodeName].clcRunnerStats
+		assert.NotContains(t, srcStats, "checkM0")
+		assert.NotContains(t, srcStats, "checkM1")
+	}
+}
+
+// Verifies that two configs sharing a check name but with different digests
+// (e.g., two postgres configs monitoring different databases) get separate
+// distribution entries and are moved independently.
+func TestCurrentDistribution_SeparatesConfigsByDigest(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	testDispatcher := newDispatcher(fakeTagger)
+	testDispatcher.store.active = true
+	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
+	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
+
+	testDispatcher.store.nodes["node1"].clcRunnerStats = map[string]types.CLCRunnerStats{
+		"checkPgA": {AverageExecutionTime: 1000, IsClusterCheck: true},
+		"checkPgB": {AverageExecutionTime: 1000, IsClusterCheck: true},
+	}
+	// Same check name, two different digests — two distinct configs.
+	testDispatcher.store.idToDigest = map[checkid.ID]string{
+		"checkPgA": "digestPgA",
+		"checkPgB": "digestPgB",
+	}
+	testDispatcher.store.digestToConfig = map[string]integration.Config{
+		"digestPgA": {Name: "postgres"},
+		"digestPgB": {Name: "postgres"},
+	}
+	testDispatcher.store.digestToNode = map[string]string{
+		"digestPgA": "node1",
+		"digestPgB": "node1",
+	}
+
+	dist := testDispatcher.currentDistribution()
+	require.Len(t, dist.Configs, 2)
+	require.Contains(t, dist.Configs, "digestPgA")
+	require.Contains(t, dist.Configs, "digestPgB")
+	assert.Equal(t, "postgres", dist.Configs["digestPgA"].CheckName)
+	assert.Equal(t, "postgres", dist.Configs["digestPgB"].CheckName)
+}
+
+// Verifies pickConfigToMove aggregates weight by digest so a multi-instance
+// config can outrank a single-instance one with higher per-check weight.
+func TestRebalanceUsingBusyness_GroupsInstancesByConfig(t *testing.T) {
+	originalCheckExecutionTimeWeight := checkExecutionTimeWeight
+	originalMetricSamplesWeight := checkMetricSamplesWeight
+	checkExecutionTimeWeight = 0.8
+	checkMetricSamplesWeight = 0.2
+	defer func() {
+		checkExecutionTimeWeight = originalCheckExecutionTimeWeight
+		checkMetricSamplesWeight = originalMetricSamplesWeight
+	}()
+
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	testDispatcher := newDispatcher(fakeTagger)
+
+	mockClient := &rebalanceTestClcRunnerClient{
+		testStats: make(map[string]types.CLCRunnersStats),
+	}
+	testDispatcher.clcRunnersClient = mockClient
+
+	testDispatcher.store.active = true
+	testDispatcher.store.nodes["A"] = newNodeStore("A", "10.0.0.1")
+	testDispatcher.store.nodes["B"] = newNodeStore("B", "10.0.0.2")
+
+	// Per-checkID, checkH0 (250) looks heaviest; aggregated per-config,
+	// digestMulti (3 × 125) outweighs digestHeavy.
+	nodeAStats := map[string]types.CLCRunnerStats{
+		"checkH0": {AverageExecutionTime: 250, MetricSamples: 0, IsClusterCheck: true},
+		"checkM0": {AverageExecutionTime: 125, MetricSamples: 0, IsClusterCheck: true},
+		"checkM1": {AverageExecutionTime: 125, MetricSamples: 0, IsClusterCheck: true},
+		"checkM2": {AverageExecutionTime: 125, MetricSamples: 0, IsClusterCheck: true},
+	}
+	testDispatcher.store.nodes["A"].clcRunnerStats = nodeAStats
+	mockClient.testStats["10.0.0.1"] = nodeAStats
+	mockClient.testStats["10.0.0.2"] = types.CLCRunnersStats{}
+
+	testDispatcher.store.idToDigest = map[checkid.ID]string{
+		"checkH0": "digestHeavy",
+		"checkM0": "digestMulti",
+		"checkM1": "digestMulti",
+		"checkM2": "digestMulti",
+	}
+	testDispatcher.store.digestToConfig = map[string]integration.Config{
+		"digestHeavy": {Name: "heavy", Instances: []integration.Data{integration.Data("")}},
+		"digestMulti": {Name: "multi", Instances: []integration.Data{integration.Data("a"), integration.Data("b"), integration.Data("c")}},
+	}
+	testDispatcher.store.digestToNode = map[string]string{
+		"digestHeavy": "A",
+		"digestMulti": "A",
+	}
+
+	digest, weight, err := testDispatcher.pickConfigToMove("A")
+	require.NoError(t, err)
+	assert.Equal(t, "digestMulti", digest)
+	assert.Greater(t, weight, 200)
 }
 
 func TestRebalanceIsWorthIt(t *testing.T) {
@@ -1657,26 +1832,26 @@ func TestRebalanceIsWorthIt(t *testing.T) {
 
 	// The proposed solution is worth it if it leaves less unused runners
 
-	currentDistribution := newChecksDistribution(workersPerRunner)
-	currentDistribution.addCheck("check1", 1, "runner1")
-	currentDistribution.addCheck("check2", 1, "runner1")
+	currentDistribution := newConfigsDistribution(workersPerRunner)
+	currentDistribution.addConfig("check1", "check1", 1, "runner1")
+	currentDistribution.addConfig("check2", "check2", 1, "runner1")
 
-	proposedDistribution := newChecksDistribution(workersPerRunner)
-	proposedDistribution.addCheck("check1", 1, "runner1")
-	proposedDistribution.addCheck("check2", 1, "runner2")
+	proposedDistribution := newConfigsDistribution(workersPerRunner)
+	proposedDistribution.addConfig("check1", "check1", 1, "runner1")
+	proposedDistribution.addConfig("check2", "check2", 1, "runner2")
 
 	assert.True(t, rebalanceIsWorthIt(currentDistribution, proposedDistribution, 10))
 
 	// The proposed	solution is worth it if it has fewer runners with a high utilization
-	currentDistribution = newChecksDistribution(workersPerRunner)
-	currentDistribution.addCheck("check1", 1, "runner1")
-	currentDistribution.addCheck("check2", 1, "runner1")
-	currentDistribution.addCheck("check3", 1, "runner1")
+	currentDistribution = newConfigsDistribution(workersPerRunner)
+	currentDistribution.addConfig("check1", "check1", 1, "runner1")
+	currentDistribution.addConfig("check2", "check2", 1, "runner1")
+	currentDistribution.addConfig("check3", "check3", 1, "runner1")
 
-	proposedDistribution = newChecksDistribution(workersPerRunner)
-	proposedDistribution.addCheck("check1", 1, "runner1")
-	proposedDistribution.addCheck("check2", 1, "runner2")
-	proposedDistribution.addCheck("check3", 1, "runner3")
+	proposedDistribution = newConfigsDistribution(workersPerRunner)
+	proposedDistribution.addConfig("check1", "check1", 1, "runner1")
+	proposedDistribution.addConfig("check2", "check2", 1, "runner2")
+	proposedDistribution.addConfig("check3", "check3", 1, "runner3")
 
 	assert.True(t, rebalanceIsWorthIt(currentDistribution, proposedDistribution, 10))
 }
