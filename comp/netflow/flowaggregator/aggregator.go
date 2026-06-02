@@ -201,12 +201,20 @@ func (agg *FlowAggregator) scheduleNetworkPathForFlow(flow *common.Flow) {
 		family = model.ConnectionFamily_v6
 	}
 
+	destDomain := normalizeReverseDNSHostname(flow.DstReverseDNSHostname)
+	// NetFlow dynamic paths intentionally require destination reverse DNS.
+	// The resolved hostname is used as the NPCollector domain signal while
+	// the traceroute target remains the destination IP.
+	if destDomain == "" {
+		return
+	}
+
 	agg.npCollector.ScheduleNetflowPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
 		yield(npmodel.NetworkPathConnection{
 			Source:    netip.AddrPortFrom(srcIP, srcPort),
 			Dest:      netip.AddrPortFrom(dstIP, dstPort),
 			Namespace: flow.Namespace,
-			Domain:    normalizeReverseDNSHostname(flow.DstReverseDNSHostname),
+			Domain:    destDomain,
 			Type:      connType,
 			Direction: model.ConnectionDirection_outgoing,
 			Family:    family,

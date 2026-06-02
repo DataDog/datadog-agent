@@ -113,19 +113,40 @@ func TestFlowAggregator_scheduleNetworkPathForFlow_RolledUpSourcePort(t *testing
 	aggregator := NewFlowAggregator(sender, nil, conf, "test-host", logger, nil, true, collector)
 
 	aggregator.scheduleNetworkPathForFlow(&common.Flow{
-		Namespace:  "netflow-ns",
-		SrcAddr:    []byte{10, 0, 0, 1},
-		DstAddr:    []byte{10, 0, 0, 2},
-		SrcPort:    portrollup.EphemeralPort,
-		DstPort:    443,
-		IPProtocol: 6,
+		Namespace:             "netflow-ns",
+		SrcAddr:               []byte{10, 0, 0, 1},
+		DstAddr:               []byte{10, 0, 0, 2},
+		SrcPort:               portrollup.EphemeralPort,
+		DstPort:               443,
+		IPProtocol:            6,
+		DstReverseDNSHostname: "dst-hostname.customer.com.",
 	})
 
 	require.Len(t, collector.conns, 1)
 	assert.Equal(t, netip.MustParseAddrPort("10.0.0.1:0"), collector.conns[0].Source)
 	assert.Equal(t, netip.MustParseAddrPort("10.0.0.2:443"), collector.conns[0].Dest)
+	assert.Equal(t, "dst-hostname.customer.com", collector.conns[0].Domain)
 	assert.Equal(t, payload.PathOriginNetflow, collector.conns[0].Origin)
 	assert.Equal(t, model.ConnectionType_tcp, collector.conns[0].Type)
+}
+
+func TestFlowAggregator_scheduleNetworkPathForFlow_RequiresDestinationReverseDNS(t *testing.T) {
+	sender := mocksender.NewMockSender("")
+	logger := logmock.New(t)
+	conf := &config.NetflowConfig{}
+	collector := &capturingNPCollector{}
+	aggregator := NewFlowAggregator(sender, nil, conf, "test-host", logger, nil, true, collector)
+
+	aggregator.scheduleNetworkPathForFlow(&common.Flow{
+		Namespace:  "netflow-ns",
+		SrcAddr:    []byte{10, 0, 0, 1},
+		DstAddr:    []byte{10, 0, 0, 2},
+		SrcPort:    12345,
+		DstPort:    443,
+		IPProtocol: 6,
+	})
+
+	assert.Empty(t, collector.conns)
 }
 
 func TestFlowAggregator_scheduleNetworkPathForFlow_RolledUpDestinationPort(t *testing.T) {
