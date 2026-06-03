@@ -23,7 +23,8 @@ pkg/gpu/
 ├── safenvml/          # Safe wrapper around NVML library
 ├── ebpf/              # eBPF program and types
 ├── containers/        # Container detection for GPU workloads
-└── config/            # Configuration
+├── config/            # Configuration
+└── jobmetadata/       # Demo-only parser/validator for DogStatsD GPU job metadata control events
 ```
 
 ## Data Flow
@@ -216,6 +217,17 @@ require.Equal(t, stats.get, stats.put)  // Balanced get/put
 - Safe wrapper around NVIDIA NVML library
 - Handles library loading, error recovery
 - Caches device info to reduce NVML calls
+
+### fake-nvml (`fake-nvml/`)
+- Demo-only Rust `cdylib` that implements enough NVML for the real `gpu` check to run on Linux without NVIDIA hardware
+- Build with `bazelisk build //pkg/gpu/fake-nvml:fake_nvml` and opt in via `gpu.nvml_lib_path`; it is not packaged or auto-loaded
+- Set `FAKE_NVML_PROCESS_PID` to a real workload/container PID when demonstrating workload/job tag enrichment
+
+### jobmetadata (`jobmetadata/`)
+- Demo-only parser/validator for reserved DogStatsD GPU job metadata control events
+- DogStatsD publishes parsed start/update tags into the tagger under `container_id://<id>` at orchestrator cardinality
+- Tags remain until an `end` control event clears the tagger source; optional TTL is only a fallback expiry
+- The GPU check should not need job-metadata-specific lookup logic; it picks these tags up through its existing workload tag cache when it can associate a GPU/process metric with a container
 
 ---
 

@@ -1,0 +1,10 @@
+## This file is overwritten upon Agent upgrade.
+## To make modifications to the check configuration, copy this file
+## to `conf.yaml` and make your changes on that file.
+
+init_config:
+
+instances:
+  - container_id: demo-container
+    min_collection_interval: 5
+    log_results: true

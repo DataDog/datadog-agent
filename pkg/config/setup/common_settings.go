@@ -467,6 +467,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.integrate_with_workloadmeta_processes", true)
 	config.BindEnvAndSetDefault("gpu.workload_tag_cache_size", 1024)
 	config.BindEnvAndSetDefault("gpu.disabled_collectors", []string{})
+	config.BindEnvAndSetDefault("gpu.job_metadata.enabled", false)
+	config.BindEnvAndSetDefault("gpu.job_metadata.ttl", 0*time.Second)
 
 	// NCCL
 	config.BindEnvAndSetDefault("gpu.nccl.enabled", false)

@@ -8,6 +8,37 @@ tags:
 - template_section:Common
 - full-agent-only:true
 properties:
+  job_metadata:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Demo-only GPU job metadata enrichment. When enabled, the Agent consumes
+      reserved DogStatsD events with source_type `datadog_gpu_job` and title
+      `datadog.gpu.job`, then publishes the supplied job tags to the tagger for
+      the event's container at orchestrator cardinality. Tags remain until an
+      `end` control event is received unless ttl is set.
+    tags:
+    - template_section:Common
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: Enable DogStatsD GPU job metadata control events.
+        tags:
+        - template_section:Common
+      ttl:
+        node_type: setting
+        type: number
+        default: 0s
+        format: duration
+        visibility: public
+        description: Optional fallback expiry for published container job tags. When 0s, tags do not expire and are cleared only by an `end` control event.
+        tags:
+        - template_section:Common
+        - golang_type:duration
   nccl:
     node_type: section
     type: object

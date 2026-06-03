@@ -1,0 +1,22 @@
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https://www.datadoghq.com/).
+# Copyright 2026-present Datadog, Inc.
+
+load("@rules_rust//rust:defs.bzl", "rust_shared_library")
+
+# Minimal fake libnvidia-ml shared library for the GPU job metadata demo.
+#
+# It is never auto-loaded by the Agent. Point `gpu.nvml_lib_path` at the built
+# .so to run the real GPU check without NVIDIA hardware.
+rust_shared_library(
+    name = "fake_nvml",
+    srcs = [
+        "src/arch.rs",
+        "src/lib.rs",
+    ],
+    crate_name = "fake_nvml",
+    edition = "2024",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)

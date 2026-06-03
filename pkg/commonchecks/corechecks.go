@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/jobmetadatademo"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nccl"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/networkv2"
@@ -104,6 +105,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterCheck(kubeletconfig.CheckName, kubeletconfig.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterCheck(gpu.CheckName, gpu.Factory(tagger, telemetry, store))
+	corecheckLoader.RegisterCheck(jobmetadatademo.CheckName, jobmetadatademo.Factory(tagger))
 	corecheckLoader.RegisterCheck(nccl.CheckName, nccl.Factory(tagger, telemetry, store))
 	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(apm.CheckName, apm.Factory())
