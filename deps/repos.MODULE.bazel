@@ -311,10 +311,10 @@ http_archive(
         "config-linux-arm64.h": "//deps:libxml2/config-linux-arm64.h",
         "BUILD.bazel": "//deps:libxml2/overlay.BUILD.bazel",
     },
-    sha256 = "03d006f3537616833c16c53addcdc32a0eb20e55443cba4038307e3fa7d8d44b",
-    strip_prefix = "libxml2-2.14.5",
+    sha256 = "78262a6e7ac170d6528ebfe2efccdf220191a5af6a6cd61ea4a9a9a5042c7a07",
+    strip_prefix = "libxml2-2.15.3",
     urls = [
-        "https://download.gnome.org/sources/libxml2/2.14/libxml2-2.14.5.tar.xz",
+        "https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.3.tar.xz",
     ],
 )
 
