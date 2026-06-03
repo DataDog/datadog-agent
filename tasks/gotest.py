@@ -20,14 +20,14 @@ from pathlib import Path
 import requests
 from invoke import task
 from invoke.context import Context
-from invoke.exceptions import Exit
+from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.collector import OTEL_CONTRIB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import run_bazel
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
@@ -208,16 +208,18 @@ def get_bazel_test_targets(ctx, flavor: str, modules: list[GoModule], bazel_flag
         return {}
 
     scope = ' + '.join(bazel_patterns)
-    if not bazel_flags:
-        bazel_flags = []
-    output = bazel(
-        ctx,
-        "cquery",
-        *bazel_flags,
-        f"kind(go_test, {scope}) except attr(tags, manual, {scope})",
-        capture_output=True,
-        capture_stderr=True,
-    )
+    all_flags = ["-k", "--color=no"] + (bazel_flags or [])
+    try:
+        result = run_bazel(
+            ctx,
+            "cquery",
+            *all_flags,
+            f"kind(go_test, {scope}) except attr(tags, manual, {scope})",
+        )
+        output = result.stdout
+    except UnexpectedExit as e:
+        output = e.result.stdout
+
     if not output:
         return {}
 
@@ -271,7 +273,6 @@ def _run_bazel_tests(
     Prints one ✓/∅/FAIL line per target then a DONE summary.
     Returns a TestStats with counts from this run.
     """
-    from invoke.exceptions import UnexpectedExit
 
     if not targets:
         return TestStats()
@@ -309,7 +310,8 @@ def _run_bazel_tests(
 
     for batch in batches:
         try:
-            output = bazel(ctx, *base_args, *batch, capture_output=True, capture_stderr=True)
+            result = run_bazel(ctx, *base_args, *batch)
+            output = result.stderr
         except UnexpectedExit as e:
             output = (e.result.stdout or "") + (e.result.stderr or "")
             run_failed = True
