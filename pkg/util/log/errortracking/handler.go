@@ -95,6 +95,11 @@ func (h *Handler) Enabled(_ context.Context, level slog.Level) bool {
 	if level < slog.LevelError {
 		return false
 	}
+	// h.load() is called again inside Handle. The slog.Handler interface
+	// provides no mechanism to pass state between Enabled and Handle — the
+	// framework calls them independently — so the second atomic load in
+	// Handle is unavoidable. Both loads are cheap (atomic.Pointer.Load,
+	// ~1–2 ns) and the nil-guard in Handle is the authoritative gate.
 	return h.load() != nil
 }
 

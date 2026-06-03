@@ -605,7 +605,7 @@ func getSharedFxOption() fx.Option {
 // (deliberately not as a separate OnStop hook here) so it precedes the
 // final flush-goroutine drain.
 func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agenttelemetry.Component) {
-	if !configUtils.IsAgentTelemetryEnabled(cfg) || !cfg.GetBool("agent_telemetry.errortracking.enabled") {
+	if !configUtils.IsErrorTrackingEnabled(cfg) {
 		return
 	}
 

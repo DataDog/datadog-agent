@@ -184,8 +184,7 @@ func createAtel(
 	// Gate composes with IsAgentTelemetryEnabled so gov/FIPS sites
 	// (parent agent_telemetry is excluded for them) automatically opt
 	// out without needing a separate exclusion list.
-	errortrackingEnabled := utils.IsAgentTelemetryEnabled(cfgComp) &&
-		cfgComp.GetBool("agent_telemetry.errortracking.enabled")
+	errortrackingEnabled := utils.IsErrorTrackingEnabled(cfgComp)
 
 	bufferSize := cfgComp.GetInt("agent_telemetry.errortracking.buffer_size")
 	flushInterval := time.Duration(cfgComp.GetInt("agent_telemetry.errortracking.flush_interval_seconds")) * time.Second
@@ -820,6 +819,12 @@ func (a *atel) start() error {
 	// discriminator the job's Run dispatches on.
 	if a.errortrackingEnabled {
 		flushPeriodSec := uint(a.errLogsFlushInterval / time.Second)
+		if flushPeriodSec == 0 {
+			// Guard against a zero flush interval from misconfiguration; Period:0
+			// would schedule a degenerate job. Default is 60 s; floor at 5 s.
+			a.logComp.Warnf("agent_telemetry.errortracking.flush_interval_seconds resolved to 0; clamping to 5 s")
+			flushPeriodSec = 5
+		}
 		var startAfterSec uint
 		if a.errLogsStartupJitter > 0 {
 			// rand.Int63n panics on n<=0; the > 0 guard above protects.
