@@ -1,6 +1,6 @@
 ---
-# e2e stage - agent-metric-pipelines and agent-log-pipelines owned jobs
-# Owned by: agent-metric-pipelines, agent-log-pipelines, agent-devx
+# e2e stage - agent-metric-pipelines, agent-log-pipelines and q-branch owned jobs
+# Owned by: agent-metric-pipelines, agent-log-pipelines, q-branch, agent-devx
 
 .on_amp_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -96,3 +96,22 @@ new-e2e-alp:
   # Temporary for #incident-44744
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
+
+.on_anomalydetection_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/anomalydetection/**/*
+        - test/new-e2e/tests/anomalydetection/**/*
+        - test/new-e2e/go.mod
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+new-e2e-anomalydetection:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_anomalydetection_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/anomalydetection
+    TEAM: q-branch
