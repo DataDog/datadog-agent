@@ -1,10 +1,9 @@
 ---
 name: create-pr
 description: "Creates a pull request for the current branch with proper labels, conventional commit title, and Datadog PR template. Use when the user asks to open a PR, submit code for review, create a pull request, or push changes for merging."
-metadata:
-  disable-model-invocation: true
-  allowed-tools: "Bash, Read, Glob"
-  argument-hint: "[--real] [additional labels...]"
+disable-model-invocation: true
+allowed-tools: Bash, Read, Glob
+argument-hint: "[--real] [additional labels...]"
 ---
 
 Create a pull request for the current branch following the Datadog Agent contributing guidelines.

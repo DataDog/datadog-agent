@@ -1,9 +1,8 @@
 ---
 name: create-core-check
 description: "Scaffolds a new Go core check for the Datadog Agent that collects metrics, service checks, or events. Use when the user asks to create a new agent check, add a custom core check, scaffold a Go metric collector, or build a new Datadog Agent integration."
-metadata:
-  allowed-tools: "Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion"
-  argument-hint: "[check-name]"
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
+argument-hint: "[check-name]"
 ---
 
 ## Instructions

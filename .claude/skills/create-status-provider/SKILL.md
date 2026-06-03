@@ -1,9 +1,8 @@
 ---
 name: create-status-provider
 description: "Adds a new status provider section to the Datadog Agent status command output in JSON, text, and HTML formats. Use when the user asks to extend the agent status output, add a status section, create a status provider, or customize what the agent status command displays."
-metadata:
-  allowed-tools: "Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion"
-  argument-hint: "[provider-name]"
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
+argument-hint: "[provider-name]"
 ---
 
 Add a new status provider to the Datadog Agent. Status providers contribute sections to the `agent status` output in JSON, plain text, and HTML formats.
