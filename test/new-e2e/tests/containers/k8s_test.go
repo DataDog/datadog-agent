@@ -760,6 +760,7 @@ func (suite *k8sSuite) TestNginx() {
 		Expect: testMetricExpectArgs{
 			Tags: suite.testClusterTags([]string{
 				`^cluster_name:`,
+				`^http_status_code:200$`,
 				`^instance:My_Nginx$`,
 				`^kube_cluster_name:`,
 				`^orch_cluster_id:`,
