@@ -37,7 +37,8 @@ func OpenPathWithoutSymlinks(path string) (*os.File, error) {
 	// Split path into components
 	parts := strings.Split(filepath.Clean(path), string(filepath.Separator))
 
-	dirFd, err := unix.Open("/", unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_DIRECTORY, 0)
+	// O_CLOEXEC on every descriptor prevents FD inheritance across exec(2).
+	dirFd, err := unix.Open("/", unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open root directory: %w", err)
 	}
@@ -54,7 +55,7 @@ func OpenPathWithoutSymlinks(path string) (*os.File, error) {
 			continue
 		}
 
-		newFd, err := unix.Openat(dirFd, parts[i], unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_DIRECTORY, 0)
+		newFd, err := unix.Openat(dirFd, parts[i], unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open directory component %s: %w", parts[i], err)
 		}
@@ -64,9 +65,9 @@ func OpenPathWithoutSymlinks(path string) (*os.File, error) {
 		dirFd = newFd
 	}
 
-	// Open the final file component with O_NOFOLLOW
+	// Open the final file component with O_NOFOLLOW|O_CLOEXEC
 	fileName := parts[len(parts)-1]
-	fileFd, err := unix.Openat(dirFd, fileName, unix.O_RDONLY|unix.O_NOFOLLOW, 0)
+	fileFd, err := unix.Openat(dirFd, fileName, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %s: %w", fileName, err)
 	}
