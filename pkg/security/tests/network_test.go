@@ -1063,11 +1063,17 @@ func TestNetworkProcessCorrelation(t *testing.T) {
 // loaded (via withForceReload), so neither sock_cookie_pid nor flow_pid gets an entry
 // for the socket through the regular runtime hooks.
 // Process correlation then relies entirely on the snapshot performed at probe
-// startup (the iter/task_file program, or the procfs fallback on older kernels).
+// startup by the iter/task_file program.
 func TestNetworkProcessCorrelationPreExistingConn(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	checkNetworkCompatibility(t)
+
+	// the startup flow_pid snapshot relies on the iter/task_file program type (5.8+)
+	// and the bpf_sock_from_file helper (5.11+); there is no fallback on older kernels
+	checkKernelCompatibility(t, "iter/task_file flow_pid snapshot", func(kv *kernel.Version) bool {
+		return !kv.HasTaskFileIterator() || !kv.HasBpfSockFromFileHelper()
+	})
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
