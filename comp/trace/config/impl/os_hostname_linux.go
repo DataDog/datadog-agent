@@ -8,7 +8,6 @@
 package configimpl
 
 import (
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -17,11 +16,10 @@ import (
 // We do not import that package directly because pkg/util/hostname/common.go pulls in
 // cloud-provider clients (Azure, GCE, EC2, Docker, Kubernetes) as transitive dependencies,
 // which would add ~2 MiB to the trace-agent binary for a one-line call.
+// The hostname_trust_uts_namespace config shortcut from the original is intentionally
+// omitted here: pkg/config/setup is depguard-banned inside comp/, and users who need
+// to override hostname resolution can set DD_HOSTNAME explicitly.
 func isOsHostnameUsable() bool {
-	if pkgconfigsetup.Datadog().GetBool("hostname_trust_uts_namespace") {
-		return true
-	}
-
 	selfUTSInode, err := system.GetProcessNamespaceInode("/proc", "self", "uts")
 	if err != nil {
 		log.Debug("Unable to get self UTS inode")
