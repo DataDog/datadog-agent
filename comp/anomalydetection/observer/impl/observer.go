@@ -195,12 +195,14 @@ func NewComponent(deps Requires) Provides {
 		scheduler:   &currentBehaviorPolicy{},
 	})
 
-	// Wire StdoutAnomalyEventConsumer so every scored anomaly event is printed to
-	// stdout (→ journald) as a single "[anomaly-event]" line. This is a PoC debug
-	// consumer — it will be removed or gated behind a config flag before GA.
-	eng.SetAnomalyEventConsumers([]observerdef.AnomalyEventConsumer{
-		NewStdoutAnomalyEventConsumer(""),
-	})
+	// Wire StdoutAnomalyEventConsumer only when the debug flag is set.
+	// Unconditional stdout logging floods customer agent logs / journald in
+	// high-cardinality environments and can back-pressure the engine goroutine.
+	if cfg.GetBool("anomaly_detection.anomaly_event.stdout_debug") {
+		eng.SetAnomalyEventConsumers([]observerdef.AnomalyEventConsumer{
+			NewStdoutAnomalyEventConsumer(""),
+		})
+	}
 
 	// Wire each injected reporter into its own reporterEventSink subscription.
 	// StorageConsumer reporters receive engine storage for windowed log-rate annotations.
@@ -241,6 +243,12 @@ func NewComponent(deps Requires) Provides {
 		anomalyEventCounter.Add(1, "scope:"+scope, "detector:"+detector, "severity:"+sev)
 		anomalyEventEWMAGauge.Set(evt.Score.EWMA, "scope:"+scope)
 		anomalyEventSeverityGauge.Set(severityToFloat(evt.Score.Severity), "scope:"+scope, "severity:"+sev)
+		// When severity changes, zero out the previous band so monitors that
+		// alert on severity_state{severity="high"} > 0 don't keep firing after
+		// recovery. Prometheus gauges retain their last value until overwritten.
+		if evt.Score.SeverityChanged && evt.Score.PreviousSeverity != "" {
+			anomalyEventSeverityGauge.Set(0, "scope:"+scope, "severity:"+string(evt.Score.PreviousSeverity))
+		}
 	}
 
 	obs := &observerImpl{

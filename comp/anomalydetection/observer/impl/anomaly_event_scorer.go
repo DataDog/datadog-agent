@@ -111,16 +111,19 @@ func (s *anomalyEventScorer) ProcessAnomaly(a observerdef.Anomaly) observerdef.S
 	s.window = append(s.window, a)
 
 	// 2. Evict anomalies older than the configured window.
-	if len(s.window) > 0 {
-		cutoff := a.Timestamp - s.cfg.windowSeconds
-		start := 0
-		for start < len(s.window) && s.window[start].Timestamp < cutoff {
-			start++
-		}
-		if start > 0 {
-			s.window = s.window[start:]
+	// We filter the whole slice rather than scanning from the front only:
+	// historical detectors (e.g. scan-based) can emit anomalies with
+	// timestamps hundreds of seconds behind the current wall-clock, so the
+	// window may not be strictly sorted and a prefix-only scan would leave
+	// stale entries that inflate signal counts and EWMA severity.
+	cutoff := a.Timestamp - s.cfg.windowSeconds
+	kept := s.window[:0]
+	for _, wa := range s.window {
+		if wa.Timestamp >= cutoff {
+			kept = append(kept, wa)
 		}
 	}
+	s.window = kept
 
 	// 3. Trim to maxItems (keep newest).
 	if len(s.window) > s.cfg.maxItems {
@@ -164,6 +167,12 @@ func (s *anomalyEventScorer) ProcessAnomaly(a observerdef.Anomaly) observerdef.S
 				sc = defaultMissingAnomalyScore
 				missingScoreCount++
 			}
+			// Clamp to [0,1]: detectors may emit native scores outside the
+			// probability range (e.g. HoltResidual uses |z|, ScanWelch uses
+			// -log10(p) which can reach 300). Without clamping, (1-sc) goes
+			// negative and the noisy-OR product can flip sign, causing strong
+			// multi-signal events to be scored near 0.
+			sc = math.Max(0, math.Min(1, sc))
 			complement *= (1.0 - sc)
 		}
 		signalScore := 1.0 - complement
