@@ -263,36 +263,36 @@ func TestAuthCredentials_DefaultValues(t *testing.T) {
 	assert.True(t, config.Auth.SSH.InsecureSkipVerify)
 }
 
-func TestInitConfig_InventoryReportMinInterval_ApplyDefaults(t *testing.T) {
+func TestInitConfig_InventoryReportMaxInterval_ApplyDefaults(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    time.Duration
 		expected time.Duration
 	}{
-		{name: "unset (zero) defaults to 1h", input: 0, expected: defaultInventoryReportMinInterval},
-		{name: "negative defaults to 1h", input: -5 * time.Minute, expected: defaultInventoryReportMinInterval},
+		{name: "unset (zero) defaults to 1h", input: 0, expected: defaultInventoryReportMaxInterval},
+		{name: "negative defaults to 1h", input: -5 * time.Minute, expected: defaultInventoryReportMaxInterval},
 		{name: "user-set value preserved", input: 7 * time.Hour, expected: 7 * time.Hour},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ic := InitConfig{
 				MinCollectionInterval:      60,
-				InventoryReportMinInterval: tt.input,
+				InventoryReportMaxInterval: tt.input,
 			}
 			ic.applyDefaults()
-			assert.Equal(t, tt.expected, ic.InventoryReportMinInterval)
+			assert.Equal(t, tt.expected, ic.InventoryReportMaxInterval)
 		})
 	}
 }
 
-func TestInitConfig_InventoryReportMinInterval_Validate(t *testing.T) {
+func TestInitConfig_InventoryReportMaxInterval_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
 		value   time.Duration
 		wantErr string
 	}{
-		{name: "zero rejected", value: 0, wantErr: "inventory_report_min_interval must be greater than 0"},
-		{name: "negative rejected", value: -1 * time.Second, wantErr: "inventory_report_min_interval must be greater than 0"},
+		{name: "zero rejected", value: 0, wantErr: "inventory_report_max_interval must be greater than 0"},
+		{name: "negative rejected", value: -1 * time.Second, wantErr: "inventory_report_max_interval must be greater than 0"},
 		{name: "positive accepted", value: 1 * time.Hour},
 	}
 	for _, tt := range tests {
@@ -300,7 +300,7 @@ func TestInitConfig_InventoryReportMinInterval_Validate(t *testing.T) {
 			ic := InitConfig{
 				Namespace:                  "default",
 				MinCollectionInterval:      60,
-				InventoryReportMinInterval: tt.value,
+				InventoryReportMaxInterval: tt.value,
 			}
 			err := ic.Validate()
 			if tt.wantErr != "" {

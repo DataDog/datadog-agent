@@ -29,7 +29,7 @@ import (
 var checkName = "network_config_management"
 var defaultCheckInterval = 15 * time.Minute
 var defaultSSHTimeout = 30 * time.Second
-var defaultInventoryReportMinInterval = 1 * time.Hour
+var defaultInventoryReportMaxInterval = 1 * time.Hour
 
 // AuthCredentials holds the authentication credentials to connect to a network device.
 type AuthCredentials struct { // auth_credentials
@@ -64,7 +64,7 @@ func (di *DeviceInstance) DeviceID() string {
 type InitConfig struct {
 	Namespace                  string        `yaml:"namespace"`                     // Namespace for the NCM devices where configs are retrieved from, to help match a device on DD
 	MinCollectionInterval      time.Duration `yaml:"min_collection_interval"`       // Interval in seconds to check for config changes
-	InventoryReportMinInterval time.Duration `yaml:"inventory_report_min_interval"` // Slowest cadence (in seconds) for sending an inventory report; a report is also sent any time a new config is captured
+	InventoryReportMaxInterval time.Duration `yaml:"inventory_report_max_interval"` // Slowest cadence (in seconds) for sending an inventory report; a report is also sent any time a new config is captured
 	SSH                        *SSHConfig    `yaml:"ssh"`                           // SSH holds global connection configurations that can apply to all devices if pertinent
 }
 
@@ -89,7 +89,7 @@ type SSHConfig struct {
 type NcmCheckContext struct {
 	Device                     *DeviceInstance
 	MinCollectionInterval      time.Duration
-	InventoryReportMinInterval time.Duration
+	InventoryReportMaxInterval time.Duration
 	ProfileMap                 profile.Map
 	ProfileCache               *profile.Cache
 }
@@ -138,7 +138,7 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	// Build the final context to send out
 	ncc := &NcmCheckContext{
 		MinCollectionInterval:      time.Duration(initConfig.MinCollectionInterval) * time.Second,
-		InventoryReportMinInterval: time.Duration(initConfig.InventoryReportMinInterval) * time.Second,
+		InventoryReportMaxInterval: time.Duration(initConfig.InventoryReportMaxInterval) * time.Second,
 		Device:                     &deviceInstance,
 		ProfileMap:                 profMap,
 		ProfileCache:               profileCache,
@@ -194,9 +194,9 @@ func (ic *InitConfig) applyDefaults() {
 		log.Debugf("No or invalid min_collection_interval specified in init config, applying default: %d", defaultCheckInterval)
 		ic.MinCollectionInterval = defaultCheckInterval // Default to 15 minutes
 	}
-	if ic.InventoryReportMinInterval <= 0 {
-		log.Debugf("No or invalid inventory_report_min_interval specified in init config, applying default: %s", defaultInventoryReportMinInterval)
-		ic.InventoryReportMinInterval = defaultInventoryReportMinInterval
+	if ic.InventoryReportMaxInterval <= 0 {
+		log.Debugf("No or invalid inventory_report_max_interval specified in init config, applying default: %s", defaultInventoryReportMaxInterval)
+		ic.InventoryReportMaxInterval = defaultInventoryReportMaxInterval
 	}
 }
 
@@ -212,8 +212,8 @@ func (ic *InitConfig) Validate() error {
 		return errors.New("min_collection_interval must be greater than zero")
 	}
 
-	if ic.InventoryReportMinInterval <= 0 {
-		return errors.New("inventory_report_min_interval must be greater than 0")
+	if ic.InventoryReportMaxInterval <= 0 {
+		return errors.New("inventory_report_max_interval must be greater than 0")
 	}
 
 	// if SSH configs exist, ensure they're valid
