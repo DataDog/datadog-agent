@@ -14,8 +14,9 @@ type MigratableService struct {
 	ProcmgrProcessName string
 	// ProcmgrConfigFile is the basename under processes.d/.
 	ProcmgrConfigFile string
-	// InstallMarkerRel is a path relative to the agent install root used to detect installation.
-	InstallMarkerRel string
+	// InstallMarkerRels are paths relative to the agent install root; if any exist, the
+	// service payload is considered installed (e.g. DDOT extension and standalone DEB paths).
+	InstallMarkerRels []string
 	// WindowsPackageName is the fleet installer package name used to locate the install marker on Windows.
 	WindowsPackageName string
 	// LegacySystemdUnits are systemd units checked when procmgr is not supervising the service.
@@ -30,7 +31,10 @@ var migratableServices = []MigratableService{
 		ID:                 "ddot",
 		ProcmgrProcessName: "datadog-agent-ddot",
 		ProcmgrConfigFile:  "datadog-agent-ddot.yaml",
-		InstallMarkerRel:   "ext/ddot/embedded/bin/otel-agent",
+		InstallMarkerRels: []string{
+			"ext/ddot/embedded/bin/otel-agent",
+			"embedded/bin/otel-agent",
+		},
 		WindowsPackageName: "datadog-agent-ddot",
 		LegacySystemdUnits: []string{
 			"datadog-agent-ddot.service",

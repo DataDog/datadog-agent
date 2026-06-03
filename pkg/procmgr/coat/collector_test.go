@@ -65,7 +65,7 @@ func setupDDOTInstallFixture(t *testing.T) string {
 	t.Helper()
 
 	root := t.TempDir()
-	marker := filepath.Join(root, migratableServices[0].InstallMarkerRel)
+	marker := filepath.Join(root, migratableServices[0].InstallMarkerRels[0])
 	require.NoError(t, os.MkdirAll(filepath.Dir(marker), 0o755))
 	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
@@ -75,6 +75,26 @@ func setupDDOTInstallFixture(t *testing.T) string {
 		0o644,
 	))
 	return root
+}
+
+func TestCollectInstalledViaStandaloneMarkerOnly(t *testing.T) {
+	root := t.TempDir()
+	standalone := filepath.Join(root, migratableServices[0].InstallMarkerRels[1])
+	require.NoError(t, os.MkdirAll(filepath.Dir(standalone), 0o755))
+	require.NoError(t, os.WriteFile(standalone, []byte("bin"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, processesDirRel, migratableServices[0].ProcmgrConfigFile),
+		[]byte("cfg"),
+		0o644,
+	))
+
+	collector := NewCollectorWithClient(root, &mockClient{})
+
+	snapshot := collector.Collect(context.Background())
+	require.Len(t, snapshot.Services, 1)
+	assert.True(t, snapshot.Services[0].Installed,
+		"standalone datadog-agent-ddot layout uses embedded/bin/otel-agent without ext/ddot")
 }
 
 func TestCollectServiceProcmgrRunning(t *testing.T) {
@@ -154,7 +174,7 @@ func TestCollectInstallMarkerAbsent(t *testing.T) {
 
 func TestCollectProcmgrConfigAbsent(t *testing.T) {
 	root := t.TempDir()
-	marker := filepath.Join(root, migratableServices[0].InstallMarkerRel)
+	marker := filepath.Join(root, migratableServices[0].InstallMarkerRels[0])
 	require.NoError(t, os.MkdirAll(filepath.Dir(marker), 0o755))
 	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
 

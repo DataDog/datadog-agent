@@ -24,12 +24,16 @@ func procmgrConfigPath(_ string, configFile string) string {
 }
 
 // installMarkerPaths returns paths to check for an installed DDOT payload on Windows.
-// DDOT may be a standalone fleet package (under Installer\packages\...) or an extension
-// under <agent install>\ext\ddot\... (see postInstallDDOTExtension in fleet installer).
+// Relative markers get .exe under the install root; the fleet packages path is appended
+// when WindowsPackageName is set (see postInstallDDOTExtension / fleet layouts).
 func installMarkerPaths(installRoot string, service MigratableService) []string {
-	rel := filepath.FromSlash(service.InstallMarkerRel)
-	extMarker := filepath.Join(installRoot, rel+".exe")
-	out := []string{extMarker}
+	out := make([]string, 0, len(service.InstallMarkerRels)+1)
+	for _, rel := range service.InstallMarkerRels {
+		if rel == "" {
+			continue
+		}
+		out = append(out, filepath.Join(installRoot, filepath.FromSlash(rel)+".exe"))
+	}
 	if service.WindowsPackageName == "" {
 		return out
 	}

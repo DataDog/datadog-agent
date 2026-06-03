@@ -21,6 +21,14 @@ func procmgrConfigPath(installRoot, configFile string) string {
 	return filepath.Join(installRoot, processesDirRel, configFile)
 }
 
+// installMarkerPaths returns paths to check for an installed payload on !windows.
 func installMarkerPaths(installRoot string, service MigratableService) []string {
-	return []string{filepath.Join(installRoot, filepath.FromSlash(service.InstallMarkerRel))}
+	out := make([]string, 0, len(service.InstallMarkerRels))
+	for _, rel := range service.InstallMarkerRels {
+		if rel == "" {
+			continue
+		}
+		out = append(out, filepath.Join(installRoot, filepath.FromSlash(rel)))
+	}
+	return out
 }
