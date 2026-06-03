@@ -672,6 +672,7 @@ exports_files(glob(
 # gazelle:exclude tools/gdb
 # gazelle:exclude tools/go-update
 # gazelle:exclude tools/retry_file_dump
+# gazelle:exclude vendor
 
 # ======= TESTDATA EXCLUDES =======
 # gazelle:exclude **/testdata/**/*.go
