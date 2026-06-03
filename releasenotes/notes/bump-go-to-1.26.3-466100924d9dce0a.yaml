@@ -1,4 +1,4 @@
 ---
 enhancements:
 - |
-    Agents are now built with Go ``1.26.3``.
+    Agents are now built with Go ``1.26.4``.
