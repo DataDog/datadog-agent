@@ -24,9 +24,8 @@ var (
 	iisCfgPath = filepath.Join(os.Getenv("windir"), "System32", "inetsrv", "config", "applicationHost.config")
 )
 
-// DynamicIISConfig is an object that will watch the IIS configuration for
-// changes, and reload the configuration when it changes.  It provides additional
-// methods for getting specific configuration items
+// DynamicIISConfig watches the IIS configuration, reloading it on change, and
+// exposes lookups for specific configuration items.
 type DynamicIISConfig struct {
 	watcher      *fsnotify.Watcher
 	path         string
@@ -120,9 +119,8 @@ const (
 	iisEnvVarOpClear
 )
 
-// iisEnvVarOp is one parsed <add>/<remove>/<clear> directive. Ops are
-// stored in document order so that order-dependent inheritance behavior
-// (e.g. <add name=X/><clear/>) is preserved.
+// iisEnvVarOp is one parsed <add>/<remove>/<clear>, kept in document order so
+// order-dependent inheritance (e.g. <add X/><clear/>) is preserved.
 type iisEnvVarOp struct {
 	kind  iisEnvVarOpKind
 	name  string
@@ -134,16 +132,8 @@ type iisEnvironmentVariables struct {
 	Ops     []iisEnvVarOp `xml:"-"`
 }
 
-// UnmarshalXML walks the <environmentVariables> children in document order
-// and records each addition/<remove>/<clear> directive. encoding/xml's
-// default decoder collapses children into per-tag slices, which loses the
-// ordering IIS uses to evaluate these collections.
-//
-// IIS uses two different addElement names in this schema: applicationPools
-// env vars use <add>, while <location><system.webServer><aspNetCore> env
-// vars use <environmentVariable> (singular). Both are recognized here so the
-// same parser serves both call sites; the surrounding XML context makes only
-// the schema-valid form appear in real configs.
+// UnmarshalXML records each add/remove/clear in document order (the default
+// decoder loses it). Accepts both <add> (pools) and <environmentVariable> (aspNetCore).
 func (e *iisEnvironmentVariables) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	e.XMLName = start.Name
 	for {
@@ -195,10 +185,8 @@ type iisApplication struct {
 	VirtualDirs []iisVirtualDirectory `xml:"virtualDirectory"`
 }
 
-// iisApplicationDefaults captures <applicationDefaults> elements that supply
-// the inherited applicationPool for <application> entries that omit the
-// applicationPool attribute. Appears under both <sites> (global) and each
-// <site> (per-site); per-site wins over global.
+// iisApplicationDefaults supplies the applicationPool for <application> entries
+// that omit it; the per-site <site> default wins over the global <sites> one.
 type iisApplicationDefaults struct {
 	XMLName xml.Name `xml:"applicationDefaults"`
 	AppPool string   `xml:"applicationPool,attr"`
@@ -232,28 +220,21 @@ type iisSystemApplicationHost struct {
 	ApplicationPools iisApplicationPools    `xml:"applicationPools"`
 }
 
-// iisAspNetCore mirrors the <aspNetCore> element inside
-// <system.webServer>. Only its <environmentVariables> child is used here;
-// processPath, arguments, and the rest do not feed UST tags.
+// iisAspNetCore mirrors <aspNetCore>; only its <environmentVariables> feeds UST.
 type iisAspNetCore struct {
 	XMLName xml.Name                `xml:"aspNetCore"`
 	EnvVars iisEnvironmentVariables `xml:"environmentVariables"`
 }
 
-// iisLocationSystemWebServer captures the subset of <system.webServer> we
-// read out of a <location> block. Real IIS configs put many siblings here
-// (handlers, modules, security, ...) but only aspNetCore env vars contribute
-// to UST tagging.
+// iisLocationSystemWebServer is the subset of <system.webServer> we read; only
+// its aspNetCore env vars contribute to UST tagging.
 type iisLocationSystemWebServer struct {
 	XMLName    xml.Name      `xml:"system.webServer"`
 	AspNetCore iisAspNetCore `xml:"aspNetCore"`
 }
 
-// iisLocation captures a single <location path="Site/App"> block at the
-// configuration root. The path attribute is the IIS configuration path:
-// "SiteName" for the site root, "SiteName/sub/app" for a nested application.
-// An empty/missing path attribute makes the block apply globally and IIS
-// inherits its <aspNetCore><environmentVariables> into every site/app.
+// iisLocation is a root <location> block; path is the IIS config path
+// ("SiteName", "SiteName/sub/app"), and an empty path applies globally.
 type iisLocation struct {
 	XMLName         xml.Name                   `xml:"location"`
 	Path            string                     `xml:"path,attr"`
@@ -264,9 +245,8 @@ type iisConfiguration struct {
 	XMLName         xml.Name `xml:"configuration"`
 	ApplicationHost iisSystemApplicationHost
 	AppSettings     iisAppSettings
-	// SystemWebServer is the root-level <system.webServer> sibling of
-	// <system.applicationHost>. IIS treats env vars written here the same as
-	// those in a pathless <location> -- inherited into every site/app.
+	// Root <system.webServer>: IIS treats its env vars like a pathless
+	// <location>'s -- inherited into every site/app.
 	SystemWebServer iisLocationSystemWebServer `xml:"system.webServer"`
 	Locations       []iisLocation              `xml:"location"`
 }

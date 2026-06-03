@@ -15,36 +15,12 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-// iisDefaultAppPoolName is the hard-coded pool name IIS assigns to an
-// <application> that omits applicationPool when no <applicationDefaults>
-// supplies one.
+// iisDefaultAppPoolName is the pool IIS uses for an <application> with no
+// applicationPool and no <applicationDefaults>.
 const iisDefaultAppPoolName = "DefaultAppPool"
 
-/*
-	 IIS can have multiple sites.  Each site can have multiple applications.
-	   each application can have its own config.
-
-	   Such as
-	   <site name="app1" id="2">
-	    <application path="/" applicationPool="app1">
-	        <virtualDirectory path="/" physicalPath="C:\Temp" />
-	    </application>
-	    <application path="/app2" applicationPool="app1">
-	        <virtualDirectory path="/" physicalPath="D:\temp" />
-	    </application>
-	    <application path="/app2/app3" applicationPool="app1">
-	        <virtualDirectory path="/" physicalPath="D:\source" />
-	    </application>
-
-
-		in the above, there each application should be treated separately.
-
-		so if theURL is /app2/app3/appx, then we look in d:\source
-		                /app2/app4/appx, then we look in d:\tmp
-						/app3            then we look in app1
-
-	  pathTreeEntry implements a search tree to simplify the search for matching paths.
-*/
+// pathTreeEntry is a per-site tree of application paths; each declared
+// <application> is a node holding that app's resolved UST tags.
 type pathTreeEntry struct {
 	nodes     map[string]*pathTreeEntry
 	ddjson    APMTags
@@ -144,13 +120,8 @@ func (t APMTags) isEmpty() bool {
 	return t.DDService == "" && t.DDEnv == "" && t.DDVersion == ""
 }
 
-// applyEnvVarsOver returns base with each <environmentVariables> directive
-// applied in document order: <clear/> resets to empty, <remove name="X"/>
-// wipes the named field, and <add name="X" value="V"/> sets it. Name
-// matching is case-insensitive because Windows treats env var names that
-// way: <add name="Dd_Service"> in applicationHost.config yields an env var
-// that Environment.GetEnvironmentVariable("DD_SERVICE") resolves in
-// w3wp.exe. Names other than DD_SERVICE/DD_ENV/DD_VERSION are ignored.
+// applyEnvVarsOver applies the ops over base in document order (<clear/> resets,
+// <remove> wipes, <add> sets); env var names match case-insensitively.
 func applyEnvVarsOver(base APMTags, vars iisEnvironmentVariables) APMTags {
 	state := base
 	for _, op := range vars.Ops {
@@ -195,9 +166,8 @@ func buildPoolEnvTags(pools iisApplicationPools) (perPool map[string]APMTags, de
 	return perPool, defaults
 }
 
-// poolEnvFor returns the pool-level env tags for app.AppPool, falling back to
-// applicationPoolDefaults when the pool name is not explicitly declared (IIS
-// still applies defaults to implicit / inherited pools).
+// poolEnvFor returns the pool's env tags, falling back to applicationPoolDefaults
+// for undeclared/implicit pools.
 func poolEnvFor(perPool map[string]APMTags, defaults APMTags, poolName string) APMTags {
 	if env, ok := perPool[strings.ToLower(poolName)]; ok {
 		return env
@@ -205,20 +175,11 @@ func poolEnvFor(perPool map[string]APMTags, defaults APMTags, poolName string) A
 	return defaults
 }
 
-// buildLocationEnvOps returns a map keyed by lowercased <location> path to
-// the ordered <environmentVariables> ops parsed from that location's
-// <system.webServer><aspNetCore>. IIS matches location paths
-// case-insensitively, so the lookup side must lowercase too.
-//
-// The empty key "" holds the "global" overlay: ops from any pathless
-// <location> block and from the root <system.webServer><aspNetCore>. IIS
-// inherits both into every site/application, so they form the base of the
-// effective aspNetCore collection before site/app overlays apply.
+// buildLocationEnvOps maps lowercased <location> path -> ordered aspNetCore env
+// ops. Key "" is the global overlay (pathless <location> + root <system.webServer>).
 func buildLocationEnvOps(xmlcfg *iisConfiguration) map[string][]iisEnvVarOp {
 	out := make(map[string][]iisEnvVarOp, len(xmlcfg.Locations)+1)
-	// Root <system.webServer><aspNetCore> ops come first in document order
-	// among the global sources; pathless <location> ops layer on top via
-	// append, and stay subject to the same last-wins rule as any other path.
+	// Root <system.webServer> ops first, then pathless <location> ops append.
 	var global []iisEnvVarOp
 	global = append(global, xmlcfg.SystemWebServer.AspNetCore.EnvVars.Ops...)
 	for _, loc := range xmlcfg.Locations {
@@ -231,9 +192,7 @@ func buildLocationEnvOps(xmlcfg *iisConfiguration) map[string][]iisEnvVarOp {
 			continue
 		}
 		key := strings.ToLower(strings.Trim(loc.Path, "/"))
-		// Later definitions for the same path replace earlier ones, matching
-		// the last-wins semantics IIS applies when applicationHost.config
-		// declares the same <location path> twice.
+		// Last definition for a path wins (IIS last-wins on duplicate <location>).
 		out[key] = ops
 	}
 	if len(global) > 0 {
@@ -242,25 +201,8 @@ func buildLocationEnvOps(xmlcfg *iisConfiguration) map[string][]iisEnvVarOp {
 	return out
 }
 
-// applyLocationEnvOverlay returns base with any <location><aspNetCore>
-// <environmentVariables> values overlaid for (siteName, appPath).
-//
-// IIS evaluates these two scopes independently. applicationPools env vars are
-// pushed into the w3wp.exe process environment when the worker starts.
-// <aspNetCore> env vars are a separate IIS collection that the ASP.NET Core
-// Module then adds on top of that process environment when launching the
-// managed app -- they overwrite per key but cannot unset values the worker
-// process already inherited. <clear/> and <remove> inside an aspNetCore block
-// therefore operate on the aspNetCore collection itself (across <location>
-// inheritance), not on the pool-resolved state.
-//
-// We mirror that by building the effective aspNetCore collection from empty,
-// applying the global overlay (pathless <location> and root <system.webServer>
-// at key ""), then each ancestor <location>'s ops in increasing specificity
-// (site, then each app-path segment), and finally overlaying only the
-// non-empty fields onto base. The .NET tracer reads from the merged process
-// env, so agreeing on this order is what keeps USM tags aligned with tracer
-// UST.
+// applyLocationEnvOverlay builds the effective aspNetCore env from empty (global,
+// then site, then app-path segments) and overlays its non-empty fields onto base.
 func applyLocationEnvOverlay(base APMTags, locOps map[string][]iisEnvVarOp, siteName, appPath string) APMTags {
 	if len(locOps) == 0 {
 		return base
@@ -314,18 +256,8 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 			siteDefaultPool = sitesDefaultPool
 		}
 		for _, app := range site.Applications {
-			// applicationHost.config exposes environmentVariables at two
-			// scopes: the application pool (under <applicationPools><add>
-			// and <applicationPoolDefaults>) and the application itself
-			// (under <location path="Site/App"><system.webServer>
-			// <aspNetCore><environmentVariables>). Pool env vars resolve
-			// first, then location overlays apply in increasing specificity
-			// so an app-level <location> can override the pool value or
-			// drop it via <clear/>/<remove name="..."/>.
-			//
-			// When the application omits applicationPool, IIS inherits it
-			// from <site><applicationDefaults>, then <sites><applicationDefaults>,
-			// and finally hard-codes "DefaultAppPool" if neither is set.
+			// Pool env resolves first; app <location> aspNetCore overlays it. An
+			// omitted applicationPool inherits site, then sites, defaults, then DefaultAppPool.
 			appPool := app.AppPool
 			if appPool == "" {
 				appPool = siteDefaultPool
@@ -344,9 +276,7 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 
 			for _, vdir := range app.VirtualDirs {
 				if vdir.Path != "/" {
-					// assume that non `/` virtual paths mean that
-					// it's a virtual directory and not an application
-					// the application root will always be at /
+					// Non-"/" virtual paths are virtual directories, not the app root.
 					continue
 				}
 
@@ -367,9 +297,7 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 					haswebcfg = true
 				}
 
-				// Read into temporaries so a parse failure does not
-				// overwrite values from an earlier vdir with partial /
-				// zero data.
+				// Use temporaries so a parse failure doesn't overwrite an earlier vdir's data.
 				if hasddjson {
 					parsed, perr := ReadDatadogJSON(ddjsonpath)
 					if perr != nil {
@@ -404,12 +332,8 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 				appconfig = APMTags{}
 			}
 
-			// Every declared <application> is a worker-process boundary, so
-			// we add a tree node even when all three sources resolve empty.
-			// findInPathTree returns the nearest ancestor's tags when a
-			// segment is missing, so skipping an empty child would leak the
-			// parent's pool tags onto requests served by a worker process
-			// that has no DD_* env at all.
+			// Add a node for every <application> (a worker boundary) even if empty,
+			// so a child worker with no DD_* env doesn't inherit the parent's tags.
 			addToPathTree(pathTrees, site.SiteID, app.Path, ddjson, appconfig, envvars)
 		}
 	}
