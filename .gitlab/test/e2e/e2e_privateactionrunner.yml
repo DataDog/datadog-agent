@@ -1,0 +1,30 @@
+---
+# e2e stage - action-platform owned jobs
+# Owned by: action-platform, agent-devx
+
+.on_privateactionrunner_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - cmd/privateactionrunner/**/*
+        - comp/privateactionrunner/**/*
+        - pkg/privateactionrunner/**/*
+        - pkg/config/setup/privateactionrunner.go
+        - pkg/proto/datadog/privateactionrunner/**/*
+        - pkg/proto/pbgo/privateactionrunner/**/*
+        - test/new-e2e/tests/privateactionrunner/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+new-e2e-privateactionrunner:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - qa_agent_linux
+  rules:
+    - !reference [.on_privateactionrunner_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/privateactionrunner
+    TEAM: action-platform

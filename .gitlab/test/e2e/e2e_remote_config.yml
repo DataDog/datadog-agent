@@ -1,0 +1,22 @@
+---
+# e2e stage - remote-config owned jobs
+# Owned by: remote-config, agent-devx
+
+.on_rc_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/config/remote/**/*
+        - comp/remote-config/**/*
+        - test/new-e2e/tests/remote-config/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
+new-e2e-remote-config:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_rc_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/remote-config
+    TEAM: remote-config
+    # TODO: Re-enable on fips pipeline when fips is available with remote config using: ON_NIGHTLY_FIPS: "true"

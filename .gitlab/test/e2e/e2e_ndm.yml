@@ -1,0 +1,89 @@
+---
+# e2e stage - network-device-monitoring-core owned jobs
+# Owned by: network-device-monitoring-core, agent-devx
+
+.on_ndm_netflow_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/netflow/**/*
+        - test/new-e2e/tests/ndm/netflow/**/*
+        - test/new-e2e/go.mod
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+.on_ndm_snmp_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/collector/corechecks/snmp/**/*
+        - test/new-e2e/tests/ndm/snmp/**/*
+        - test/new-e2e/go.mod
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+  - when: manual
+    allow_failure: true
+
+.on_ha_agent_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/haagent/**/*
+        - pkg/aggregator/**/*
+        - test/new-e2e/tests/ha-agent/**/*
+        - test/new-e2e/go.mod
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+new-e2e-ndm-netflow:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_ndm_netflow_or_e2e_changes]
+    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_linux
+  variables:
+    TARGETS: ./tests/ndm/netflow
+    TEAM: ndm-integrations
+    ON_NIGHTLY_FIPS: "true"
+
+new-e2e-ndm-snmp:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_ndm_snmp_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - qa_agent_linux
+  variables:
+    TARGETS: ./tests/ndm/snmp
+    TEAM: network-device-monitoring-core
+    ON_NIGHTLY_FIPS: "true"
+
+new-e2e-ha-agent:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_ha_agent_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/ha-agent
+    TEAM: network-device-monitoring-core
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
+    EXTRA_PARAMS: --skip TestHAAgentFailoverSuite
+
+new-e2e-ha-agent-failover:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_ha_agent_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/ha-agent
+    TEAM: network-device-monitoring-core
+    ON_NIGHTLY_FIPS: "true"
+    EXTRA_PARAMS: --run TestHAAgentFailoverSuite
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
