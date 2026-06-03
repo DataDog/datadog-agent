@@ -86,13 +86,16 @@ namespace Datadog.CustomActions
                 // logon_duration.enabled is true). On upgrades with DD_INSTALL_ONLY=1 the
                 // agent service is not restarted, so the agent never gets to re-apply the
                 // toggle — we must not reset Start=0 in that case.
-                int startValue = 0;
+                var startValue = 0;
                 using (var existingKey = Registry.LocalMachine.OpenSubKey(SessionKeyPath))
                 {
                     if (existingKey != null)
                     {
                         var raw = existingKey.GetValue("Start");
-                        if (raw is int i) startValue = i;
+                        if (raw is int i)
+                        {
+                            startValue = i;
+                        }
                         session.Log($"Existing AutoLogger Start={startValue}, preserving through upgrade");
                     }
                 }
