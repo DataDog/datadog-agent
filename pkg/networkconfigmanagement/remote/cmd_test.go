@@ -29,18 +29,18 @@ func TestCommand(t *testing.T) {
 
 	for _, tc := range []struct {
 		name      string
-		cmd       *profile.Command
+		cmd       *profile.PlainCommand
 		expected  string
 		expectErr bool
 	}{{
 		name: "unchecked_command",
-		cmd: &profile.Command{
+		cmd: &profile.PlainCommand{
 			Command: "show version",
 		},
 		expected: "Fakesco fOS\n",
 	}, {
 		name: "valid_command",
-		cmd: &profile.Command{
+		cmd: &profile.PlainCommand{
 			Command: "show version",
 			Validator: profile.Validator{
 				Require: []*regexp.Regexp{regexp.MustCompile("Fakesco")},
@@ -50,7 +50,7 @@ func TestCommand(t *testing.T) {
 		expected: "Fakesco fOS\n",
 	}, {
 		name: "missing_req",
-		cmd: &profile.Command{
+		cmd: &profile.PlainCommand{
 			Command: "show version",
 			Validator: profile.Validator{
 				Require: []*regexp.Regexp{regexp.MustCompile("Realco")},
@@ -59,7 +59,7 @@ func TestCommand(t *testing.T) {
 		expectErr: true,
 	}, {
 		name: "has_rejection",
-		cmd: &profile.Command{
+		cmd: &profile.PlainCommand{
 			Command: "show version",
 			Validator: profile.Validator{
 				Reject: []*regexp.Regexp{regexp.MustCompile("Fakesco")},
@@ -68,7 +68,7 @@ func TestCommand(t *testing.T) {
 		expectErr: true,
 	}, {
 		name: "command_fails",
-		cmd: &profile.Command{
+		cmd: &profile.PlainCommand{
 			Command: "show venison",
 			Validator: profile.Validator{
 				Require: []*regexp.Regexp{regexp.MustCompile("Fakesco")},

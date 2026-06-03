@@ -110,7 +110,7 @@ func newTestProfile() *NCMProfile {
 	return &NCMProfile{
 		Name: "test",
 		Commands: CommandSet{
-			GetRunning: &Command{
+			GetRunning: &PlainCommand{
 				Command: "show running-config",
 				Validator: Validator{
 					Require: []*regexp.Regexp{
