@@ -145,7 +145,7 @@ def run_bazel(
     """
     if not (resolved_bazel := shutil.which("bazel")):
         raise Exit(bazel_not_found_message("red"))
-    cmd = ("bazel",) + args
+    cmd = (resolved_bazel,) + args
     if sys.platform == "win32":
         use_pty = False
     return ctx.run(
