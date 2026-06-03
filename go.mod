@@ -1259,8 +1259,11 @@ exclude github.com/tencentcloud/tencentcloud-sdk-go v1.0.162
 
 replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0-20260429164037-ee5a3263d056
 
-// Remove once https://github.com/kubernetes/kube-state-metrics/pull/2928 is merged
-replace k8s.io/kube-state-metrics/v2 v2.18.0 => github.com/L3n41c/kube-state-metrics/v2 v2.18.1-0.20260415185427-29e500020566
+// Remove once
+// https://github.com/kubernetes/kube-state-metrics/pull/2928 and
+// https://github.com/kubernetes/kube-state-metrics/pull/2977
+// are merged
+replace k8s.io/kube-state-metrics/v2 v2.18.0 => github.com/DataDog/kube-state-metrics/v2 v2.18.1-dd.1
 
 // kube-state-metrics v2.18 transitively pulls ugorji/go/codec v1.3.0 via its
 // gomplate doc-generation tool. The new version ships ~4x more generated code
