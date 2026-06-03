@@ -185,7 +185,7 @@ new-e2e-netpath-windows:
 new-e2e-windows-systemprobe:
   extends: .new_e2e_template
   rules:
-    - !reference [.on_windows_systemprobe_or_e2e_changes]
+    - !reference [.on_systemprobe_or_e2e_changes]
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
@@ -199,6 +199,22 @@ new-e2e-windows-systemprobe:
     matrix:
       - EXTRA_PARAMS: --run TestUSMAutoTaggingSuite
       - EXTRA_PARAMS: --run TestVMSuite
+
+new-e2e-windows-usm:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_systemprobe_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - windows_msi_and_bosh_zip_x64-a7
+  variables:
+    TARGETS: ./tests/usm
+    TEAM: universal-service-monitoring
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestWindowsUSMSuite
 
 new-e2e-windows-security-agent:
   extends: .new_e2e_template

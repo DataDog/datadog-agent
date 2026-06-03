@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
