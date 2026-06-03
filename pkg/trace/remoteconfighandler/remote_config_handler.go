@@ -6,6 +6,8 @@
 // Package remoteconfighandler holds the logic responsible for updating the samplers when the remote configuration changes.
 package remoteconfighandler
 
+//go:generate go run go.uber.org/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=mock_samplers.go -build_constraint test
+
 import (
 	"encoding/json"
 	"fmt"

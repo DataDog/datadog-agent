@@ -8,8 +8,11 @@ package http
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
 	"errors"
+	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -901,4 +904,145 @@ func TestHTTPTimeoutOverride(t *testing.T) {
 	cfg.SetWithoutSource("logs_config.http_timeout", 1)
 	client := httpClientFactory(cfg, 15*time.Second)()
 	assert.Equal(t, 15*time.Second, client.Timeout)
+}
+
+// TestClassifyConnectivityError verifies that classifyConnectivityError maps
+// concrete network error types to the expected stable failure_cause tag values.
+func TestClassifyConnectivityError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected string
+	}{
+		{
+			name:     "nil error returns empty string",
+			err:      nil,
+			expected: "",
+		},
+		{
+			name:     "dns error",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: &net.DNSError{Err: "no such host", Name: "example.com"}},
+			expected: metrics.FailureCauseDNS,
+		},
+		{
+			name: "dns error wrapped in RetryableError",
+			err: client.NewRetryableError(&url.Error{
+				Op:  "Post",
+				URL: "https://example.com",
+				Err: &net.DNSError{Err: "no such host", Name: "example.com"},
+			}),
+			expected: metrics.FailureCauseDNS,
+		},
+		{
+			name:     "timeout error",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: &net.DNSError{Err: "i/o timeout", Name: "example.com", IsTimeout: true}},
+			expected: metrics.FailureCauseTimeout,
+		},
+		{
+			name:     "tcp connection refused",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}},
+			expected: metrics.FailureCauseConnection,
+		},
+		{
+			name:     "tls alert error",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: tls.AlertError(42)},
+			expected: metrics.FailureCauseTLS,
+		},
+		{
+			name:     "tls string in error message",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: errors.New("tls: bad certificate")},
+			expected: metrics.FailureCauseTLS,
+		},
+		{
+			name:     "x509 certificate error",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: errors.New("x509: certificate signed by unknown authority")},
+			expected: metrics.FailureCauseTLS,
+		},
+		{
+			name:     "http_status for errClient sentinel",
+			err:      errClient,
+			expected: metrics.FailureCauseHTTPStatus,
+		},
+		{
+			name:     "http_status for errServer sentinel",
+			err:      errServer,
+			expected: metrics.FailureCauseHTTPStatus,
+		},
+		{
+			// This is the boot-time 5xx / 403-refresh path: unconditionalSend wraps
+			// errServer in a RetryableError. Before adding Unwrap() to RetryableError
+			// the classifier missed this and returned "other".
+			name:     "http_status for errServer wrapped in RetryableError",
+			err:      client.NewRetryableError(errServer),
+			expected: metrics.FailureCauseHTTPStatus,
+		},
+		{
+			name:     "http_status for errClient wrapped in RetryableError",
+			err:      client.NewRetryableError(errClient),
+			expected: metrics.FailureCauseHTTPStatus,
+		},
+		{
+			// url.Error wrapped in RetryableError — relies on errors.As traversal,
+			// which now works because RetryableError implements Unwrap.
+			name: "dns for url.Error wrapped in RetryableError",
+			err: client.NewRetryableError(&url.Error{
+				Op:  "Post",
+				URL: "https://example.com",
+				Err: &net.DNSError{Err: "no such host", Name: "example.com", IsNotFound: true},
+			}),
+			expected: metrics.FailureCauseDNS,
+		},
+		{
+			name:     "other for unknown error",
+			err:      errors.New("something went wrong"),
+			expected: metrics.FailureCauseOther,
+		},
+		{
+			name:     "mixed-case TLS message classified correctly",
+			err:      errors.New("TLS handshake failure"),
+			expected: metrics.FailureCauseTLS,
+		},
+		{
+			name:     "mixed-case DNS message classified correctly",
+			err:      errors.New("No Such Host"),
+			expected: metrics.FailureCauseDNS,
+		},
+		{
+			// Malformed *url.Error{Err: nil} from a third-party transport must not panic.
+			name:     "other for url.Error with nil inner",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: nil},
+			expected: metrics.FailureCauseOther,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := classifyConnectivityError(tc.err)
+			assert.Equal(t, tc.expected, got)
+		})
+	}
+}
+
+// TestCheckConnectivityIncrementsFailureMetric verifies that CheckConnectivity wires
+// the classifier's result into TlmHTTPConnectivityFailure.Inc.  A destination whose
+// host cannot be resolved is guaranteed to produce a DNS error, so we can assert that the
+// counter was incremented with failure_cause="dns".
+func TestCheckConnectivityIncrementsFailureMetric(t *testing.T) {
+	cfg := configmock.New(t)
+
+	// Swap in a mock telemetry component so we can inspect counter increments.
+	telemetryMock := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+	metrics.TlmHTTPConnectivityFailure = telemetryMock.NewCounter(
+		"logs", "http_connectivity_failure", []string{"failure_cause"}, "")
+
+	// Point at an unresolvable host — guaranteed to fail with a DNS error.
+	endpoint := config.NewEndpoint("test-api-key", "", "this-host-does-not-exist.invalid", 443, config.EmptyPathPrefix, true)
+
+	result := CheckConnectivity(endpoint, cfg)
+	assert.Equal(t, config.HTTPConnectivity(false), result, "expected connectivity check to fail")
+
+	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "http_connectivity_failure")
+	assert.NoError(t, err)
+	assert.GreaterOrEqual(t, len(metric), 1, "expected at least one failure_cause metric increment")
+	assert.Equal(t, metrics.FailureCauseDNS, metric[0].Tags()["failure_cause"])
 }

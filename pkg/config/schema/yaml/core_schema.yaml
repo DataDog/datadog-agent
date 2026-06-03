@@ -9456,10 +9456,8 @@ properties:
     node_type: setting
     type: integer
     default: 512000
-  serializer_max_series_points_per_payload:
-    node_type: setting
-    type: integer
-    default: 10000
+    tags:
+    - golang_type:int
   serializer_max_series_uncompressed_payload_size:
     node_type: setting
     type: integer
