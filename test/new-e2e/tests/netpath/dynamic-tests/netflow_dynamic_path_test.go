@@ -111,6 +111,8 @@ func netflowDynamicPathProvisioner() provisioners.Provisioner {
 		composeDependencies := []pulumi.Resource{configCommand}
 		dockerAgent, err := agent.NewDockerAgent(&awsEnv, host, dockerManager,
 			dockeragentparams.WithFakeintake(fakeIntake),
+			dockeragentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_ENABLED", pulumi.String("true")),
+			dockeragentparams.WithAgentServiceEnvVariable("DD_TRACEROUTE_ENABLED", pulumi.String("true")),
 			dockeragentparams.WithExtraComposeManifest("netflow-dynamic-path", pulumi.String(netflowDynamicPathCompose)),
 			dockeragentparams.WithEnvironmentVariables(envVars),
 			dockeragentparams.WithPulumiDependsOn(pulumi.DependsOn(composeDependencies)),

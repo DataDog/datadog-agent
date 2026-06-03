@@ -11,6 +11,9 @@ network_path:
   netflow_monitoring:
     enabled: true
   collector:
+    flush_interval: 2s
     monitor_ip_without_domain: true
+    pathtest_interval: 10s
+    pathtest_ttl: 1m
   forwarder:
     logs_dd_url: FAKEINTAKE_URL
