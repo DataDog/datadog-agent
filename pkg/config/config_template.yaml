@@ -239,10 +239,10 @@ api_key:
 ## Possible values are: min, max, median, avg, sum and count.
 #
 # histogram_aggregates:
-#   - max
-#   - median
-#   - avg
-#   - count
+#   - "max"
+#   - "median"
+#   - "avg"
+#   - "count"
 
 ## @param histogram_percentiles - list of strings - optional - default: ["0.95"]
 ## @env DD_HISTOGRAM_PERCENTILES - space-separated list of strings - optional - default: "0.95"
@@ -1408,7 +1408,7 @@ api_key:
 #   # disables sampling, but instead sends no traces to the intake. To avoid rate limiting, set this
 #   # value sufficiently high for your traffic pattern.
 #
-#   max_traces_per_second: 10.0
+#   max_traces_per_second: 10
 
 #   # @param target_traces_per_second - float - optional - default: 10
 #   # @env DD_APM_TARGET_TPS - float - optional - default: 10
@@ -1418,7 +1418,7 @@ api_key:
 #   # disables sampling, but instead sends no traces to the intake. To avoid rate limiting, set this
 #   # value sufficiently high for your traffic pattern.
 #
-#   target_traces_per_second: 10.0
+#   target_traces_per_second: 10
 
 #   # @param errors_per_second - float - optional - default: 10
 #   # @env DD_APM_ERROR_TPS - float - optional - default: 10
@@ -1426,7 +1426,7 @@ api_key:
 #   # to catch all combinations of service, name, resource, http.status, and error.type.
 #   # Set to 0 to disable the errors sampler.
 #
-#   errors_per_second: 10.0
+#   errors_per_second: 10
 
 #   # @param max_events_per_second - float - optional - default: 200
 #   # @env DD_APM_MAX_EPS - float - optional - default: 200
@@ -1436,7 +1436,7 @@ api_key:
 #   # ingestion; for trace sampling, see `max_traces_per_second` and `target_traces_per_second` above.
 #   # Maximum number of APM events per second to sample.
 #
-#   max_events_per_second: 200.0
+#   max_events_per_second: 200
 
 #   # @param max_memory - float - optional - default: "5e+08"
 #   # @env DD_APM_MAX_MEMORY - float - optional - default: "5e+08"
@@ -1453,7 +1453,7 @@ api_key:
 #   # incoming requests to aim and stay below this value. Examples: 50 = half a core, 200 = two cores.
 #   # Set `max_cpu_percent` to `0` to disable rate limiting based on CPU usage.
 #
-#   max_cpu_percent: 50.0
+#   max_cpu_percent: 50
 
 #   # @param obfuscation - custom object - optional
 #   # Defines obfuscation rules for sensitive data.
@@ -1937,7 +1937,7 @@ api_key:
 #     # @env DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE - float - optional - default: 0
 #     # Samples this percentage (0-100) of traffic
 #
-#     sampling_percentage: 0.0
+#     sampling_percentage: 0
 
 #     # @param hash_seed - integer - optional - default: 0
 #     # @env DD_APM_PROBABILISTIC_SAMPLER_HASH_SEED - integer - optional - default: 0
@@ -2659,7 +2659,7 @@ api_key:
 ## to containers with a total memory limit greater than ~250mb. If
 ## jmx_use_container_support is disabled this option has no effect.
 #
-# jmx_max_ram_percentage: 25.0
+# jmx_max_ram_percentage: 25
 
 ## @param jmx_log_file - string - optional - default: ""
 ## @env DD_JMX_LOG_FILE - string - optional - default: ""
@@ -2747,7 +2747,7 @@ api_key:
 ## Valid log levels are: trace, debug, info, warn, error, critical, and off.
 ## Note: When using the 'off' log level, quotes are mandatory.
 #
-# log_level: 'info'
+# log_level: "info"
 
 ## @param log_file - string - optional - default: ""
 ## @env DD_LOG_FILE - string - optional - default: ""
@@ -3729,7 +3729,7 @@ api_key:
 ## containerd containers.
 #
 # containerd_exclude_namespaces:
-#   - moby
+#   - "moby"
 
 {{- end -}}
 {{- if .Kubelet }}
@@ -3944,7 +3944,7 @@ api_key:
 ## Env var example: DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES='["cluster.k8s.io/machine"]'
 #
 # kubernetes_node_annotations_as_host_aliases:
-#   - cluster.k8s.io/machine
+#   - "cluster.k8s.io/machine"
 
 ## @param cluster_name - string - optional - default: ""
 ## @env DD_CLUSTER_NAME - string - optional - default: ""
@@ -4572,7 +4572,7 @@ api_key:
 #     # stop_timeout - float - optional - default: 5.0
 #     # The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
 #
-#     stop_timeout: 5.0
+#     stop_timeout: 5
 
 #   # @param netflow - custom object - optional
 #   # This section configures NDM NetFlow (and sFlow, IPFIX) collection.

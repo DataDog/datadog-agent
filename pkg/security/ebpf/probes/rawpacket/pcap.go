@@ -179,6 +179,10 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 	return insts, nil
 }
 
+// we want to creates progs like that
+// prog1 -> tc1 -> footer -> prog2 -> tc2 -> footer -> progN -> footer
+// where each prog is like this
+// header -> filter 1 -> filter 2 -> ... -> filter n -> footer
 func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, footerInsts asm.Instructions) ([]asm.Instructions, *multierror.Error) {
 	var (
 		progInsts []asm.Instructions
@@ -186,10 +190,6 @@ func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, footerInsts as
 		tailCalls int
 		header    bool
 	)
-
-	isMaxSizeExceeded := func(filterInsts, tailCallInsts asm.Instructions) bool {
-		return len(filterInsts)+len(tailCallInsts)+len(footerInsts) > opts.MaxProgSize
-	}
 
 	for i, filter := range filters {
 		filterInsts, err := FilterToInsts(i, filter, opts)
@@ -200,35 +200,29 @@ func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, footerInsts as
 
 		var tailCallInsts asm.Instructions
 
-		// insert tail call to the current filter if not the last prog
-		if i+1 < len(filters) {
-			tailCallInsts = asm.Instructions{
-				asm.Mov.Reg(asm.R1, opts.ctxSaveReg),
-				asm.LoadMapPtr(asm.R2, opts.tailCallMapFd),
-				asm.Mov.Imm(asm.R3, int32(probes.TCRawPacketFilterKey+uint32(tailCalls)+1)),
-				asm.FnTailCall.Call(),
-			}
+		tailCallInsts = asm.Instructions{
+			asm.Mov.Reg(asm.R1, opts.ctxSaveReg),
+			asm.LoadMapPtr(asm.R2, opts.tailCallMapFd),
+			asm.Mov.Imm(asm.R3, int32(probes.TCRawPacketFilterKey+uint32(tailCalls)+1)),
+			asm.FnTailCall.Call(),
 		}
 
 		// single program exceeded the limit
-		if isMaxSizeExceeded(filterInsts, tailCallInsts) {
+		if len(headerInsts)+len(filterInsts)+len(tailCallInsts)+len(footerInsts) > opts.MaxProgSize {
 			mErr = multierror.Append(mErr, fmt.Errorf("max number of intructions exceeded for rule `%s`", filter.RuleID))
 			continue
 		}
-
 		if !header {
 			progInsts = append(progInsts, headerInsts)
 			header = true
 		}
-		progInsts[tailCalls] = append(progInsts[tailCalls], filterInsts...)
-
 		// max size exceeded, generate a new tail call
-		if isMaxSizeExceeded(progInsts[tailCalls], tailCallInsts) {
+		if len(progInsts[tailCalls])+len(filterInsts)+len(tailCallInsts)+len(footerInsts) > opts.MaxProgSize {
+			// check if the max number of tail calls has been reached
 			if opts.MaxTailCalls != 0 && tailCalls >= opts.MaxTailCalls {
 				mErr = multierror.Append(mErr, fmt.Errorf("maximum allowed tail calls reach: %d vs %d", tailCalls, opts.MaxTailCalls))
 				break
 			}
-
 			// insert tail call to the current filter if not the last prog
 			progInsts[tailCalls] = append(progInsts[tailCalls], tailCallInsts...)
 
@@ -239,8 +233,15 @@ func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, footerInsts as
 			header = false
 			tailCalls++
 		}
-	}
+		// check again if it's a header in case of a split
+		if !header {
+			progInsts = append(progInsts, headerInsts)
+			header = true
+		}
+		progInsts[tailCalls] = append(progInsts[tailCalls], filterInsts...)
 
+	}
+	// insert the event sender instructions for the last prog that was created
 	if tailCalls < len(progInsts) && header {
 		progInsts[tailCalls] = append(progInsts[tailCalls], footerInsts...)
 	}

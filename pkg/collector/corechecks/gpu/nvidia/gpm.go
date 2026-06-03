@@ -74,6 +74,10 @@ var allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
 }
 
 func newGPMCollector(device ddnvml.Device, _ *CollectorDependencies) (c Collector, err error) {
+	return newGPMCollectorWithMetrics(device, maps.Clone(allGpmMetrics), nil)
+}
+
+func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.GpmMetricId]gpmMetric, _ *CollectorDependencies) (c Collector, err error) {
 	migDevice, isMig := device.(*ddnvml.MIGDevice)
 	if isMig && migDevice.Parent == nil {
 		return nil, errors.New("MIG device has no parent physical device")
@@ -81,8 +85,8 @@ func newGPMCollector(device ddnvml.Device, _ *CollectorDependencies) (c Collecto
 
 	// We don't query for device support because the API is broken in go-nvml 0.13.0
 
-	// Clone the global allGpmMetrics map to avoid mutating global state
-	clonedMetrics := maps.Clone(allGpmMetrics)
+	// Clone the metrics map to avoid mutating the state
+	clonedMetrics := maps.Clone(metricsToCollect)
 
 	collector := &gpmCollector{
 		device:           device,

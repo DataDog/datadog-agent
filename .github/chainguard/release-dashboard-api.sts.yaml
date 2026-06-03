@@ -1,0 +1,7 @@
+# Issued to: rapid-agent-delivery/release-dashboard-api on us1 prod
+issuer: https://vault.us1.prod.dog/v1/identity/oidc
+subject: rapid-agent-delivery.release-dashboard-api@kubernetes.us1.prod.dog
+
+permissions:
+  contents: read
+  pull_requests: read

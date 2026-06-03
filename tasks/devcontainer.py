@@ -66,6 +66,8 @@ def setup(
         with open(fullpath) as sf:
             devcontainer = json.load(sf, object_pairs_hook=OrderedDict)
 
+    # sort the list of tags, to quickly identify changes in generated build tags
+    use_tags.sort()
     local_build_tags = ",".join(use_tags)
 
     devcontainer["name"] = "Datadog Agent Development Container"
@@ -122,12 +124,15 @@ def setup(
     }
 
     # onCreateCommand runs the install-tools and deps tasks only when the devcontainer is created and not each time
-    # the container is started
+    # the container is started. Set the github token to prevent rate limiting on creation.
     devcontainer["onCreateCommand"] = (
-        "git config --global --add safe.directory /workspaces/${localWorkspaceFolderBasename} && dda inv -- -e install-tools && dda inv -- -e deps"
+        "git config --global --add safe.directory /workspaces/${localWorkspaceFolderBasename}"
+        " && dda config set github.auth.token \"$GITHUB_TOKEN\""
+        " && dda inv -- -e install-tools && dda inv -- -e deps"
     )
 
     devcontainer["containerEnv"] = {
+        "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
         "GITLAB_TOKEN": "${localEnv:GITLAB_TOKEN}",
     }
 
@@ -147,7 +152,7 @@ def setup(
                 devcontainer["onCreateCommand"] = devcontainer["onCreateCommand"] + " && " + " && ".join(more_create)
 
     with open(fullpath, "w") as sf:
-        json.dump(devcontainer, sf, indent=4, sort_keys=False, separators=(',', ': '))
+        json.dump(devcontainer, sf, indent=4, sort_keys=True, separators=(',', ': '))
 
 
 def configure_claude_code(devcontainer: dict, claude_code: bool):

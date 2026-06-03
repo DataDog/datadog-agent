@@ -274,6 +274,8 @@ Code reviewer plugins for Go and Python are available from the
 
 See the marketplace README for installation instructions.
 
+Area-specific review rules live in `codereview_guideline.md` files co-located with the code they cover (e.g. `bazel/codereview_guideline.md` for Bazel changes). When reviewing a PR, search the repo for `codereview_guideline.md` files and load every one that is relevant to the changed files. Always load the one at the root of the repository in addition.
+
 ## Security Considerations
 
 ### Sensitive Data
@@ -311,49 +313,7 @@ tasks.
 
 ## Review guidelines
 
-The following are areas of particular concern for this codebase. They highlight
-project-specific risks that have led to production bugs in the Datadog Agent.
-
-### E2E coverage with fakeintake
-The E2E framework (`test/new-e2e/`) uses **fakeintake**, a mock Datadog intake
-that captures metrics, logs, traces, and check runs. When a change affects
-user-visible behavior (new metrics, changed log output, modified payloads),
-check whether an E2E test asserts the expected data arrives in fakeintake. Unit
-tests alone are not sufficient for validating the agent's end-to-end data
-pipeline.
-
-### Branch-conditional CI creates blind spots
-Most E2E tests only run on `main`, release branches (`N.N.x`), and RC tags —
-**not on PR branches**. This means some classes of bugs cannot be caught before
-merge. Be extra careful reviewing:
-- Packaging or installation changes (MSI, deb, rpm, BUILD.bazel)
-- Agent startup/shutdown sequences
-- Cross-component communication (e.g. system-probe ↔ agent)
-
-These changes are likely to need `qa/rc-required`.
-
-### Multi-platform divergence
-The agent ships on Linux, Windows, and macOS. Platform-specific code paths (via
-`runtime.GOOS`, build tags, OS-specific file paths) are a frequent source of
-bugs — typically the "other" platform is untested. The same applies to
-packaging: Windows MSI and Linux deb/rpm have independent logic that can
-silently diverge.
-
-### Concurrency and component lifecycle
-The agent runs many concurrent goroutines with explicit `Start()`/`Stop()`
-lifecycles. The most common bugs are send-on-closed-channel during shutdown and
-goroutine leaks. Changes that introduce goroutines or modify component lifecycle
-should have tests exercising startup and graceful shutdown.
-
-### Graceful degradation during startup
-Components initialize in stages — some dependencies may not be ready when others
-start. Functions exposed to UIs or APIs should return safe defaults when a
-dependency is unavailable, not propagate errors or panic.
-
-### Stale documentation
-If a PR changes behavior but doesn't update the corresponding docs, comments,
-or doc strings, flag it. Stale docs lead to bugs: contributors build on
-incorrect assumptions.
+See `codereview_guideline.md` in this directory for the full project-specific review checklist (E2E coverage, CI blind spots, multi-platform divergence, concurrency, graceful degradation, stale docs, Go-specific rules). Load it when reviewing any PR against this repo.
 
 ## Keeping AI context accurate
 
