@@ -2,7 +2,7 @@ name "sds"
 
 # Keep in sync with the github.com/DataDog/dd-sensitive-data-scanner/sds-go/go
 # module required in pkg/util/sds/go.mod.
-default_version "4d0ef6614dd4"
+default_version "3c48e9fa5604"
 source git: 'https://github.com/DataDog/dd-sensitive-data-scanner'
 
 build do

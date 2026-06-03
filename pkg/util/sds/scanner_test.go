@@ -18,44 +18,24 @@ import (
 func TestCreateScanner(t *testing.T) {
 	require := require.New(t)
 
-	standardRules := []byte(`
-        {"priority":1,"is_enabled":true,"rules":[
-            {
-                "id":"zero-0",
-                "description":"zero desc",
-                "name":"zero",
-                "pattern":"zero"
-            },{
-                "id":"one-1",
-                "description":"one desc",
-                "name":"one",
-                "pattern":"one"
-            },{
-                "id":"two-2",
-                "description":"two desc",
-                "name":"two",
-                "pattern":"two"
-            }
-        ]}
-    `)
-	agentConfig := []byte(`
+	config := []byte(`
         {"is_enabled":true,"rules":[
             {
                 "id": "random000",
                 "name":"zero",
-                "definition":{"standard_rule_id":"zero-0"},
+                "definition":{"pattern":"zero"},
                 "match_action":{"type":"Redact","placeholder":"[redacted]"},
                 "is_enabled":false
             },{
                 "id": "random111",
                 "name":"one",
-                "definition":{"standard_rule_id":"one-1"},
+                "definition":{"pattern":"one"},
                 "match_action":{"type":"Hash"},
                 "is_enabled":false
             },{
                 "id": "random222",
                 "name":"two",
-                "definition":{"standard_rule_id":"two-2"},
+                "definition":{"pattern":"two"},
                 "match_action":{"type":"Redact","placeholder":"[redacted]"},
                 "is_enabled":false
             }
@@ -70,16 +50,8 @@ func TestCreateScanner(t *testing.T) {
 	require.NotNil(s, "the scanner should not be nil after a creation")
 
 	err := s.Reconfigure(ReconfigureOrder{
-		Type:   StandardRules,
-		Config: standardRules,
-	})
-
-	require.NoError(err, "configuring the standard rules should not fail")
-
-	// now that we have some definitions, we can configure the scanner
-	err = s.Reconfigure(ReconfigureOrder{
-		Type:   AgentConfig,
-		Config: agentConfig,
+		Type:   DatadogRules,
+		Config: config,
 	})
 
 	require.NoError(err, "this one shouldn't fail, all rules are disabled but it's OK as long as there are no rules in the scanner")
@@ -93,11 +65,11 @@ func TestCreateScanner(t *testing.T) {
 	// enable 2 of the 3 rules
 	// ------
 
-	agentConfig = bytes.Replace(agentConfig, []byte("\"is_enabled\":false"), []byte("\"is_enabled\":true"), 2)
+	config = bytes.Replace(config, []byte("\"is_enabled\":false"), []byte("\"is_enabled\":true"), 2)
 
 	err = s.Reconfigure(ReconfigureOrder{
-		Type:   AgentConfig,
-		Config: agentConfig,
+		Type:   DatadogRules,
+		Config: config,
 	})
 
 	require.NoError(err, "this one should not fail since two rules are enabled: %v", err)
@@ -125,24 +97,24 @@ func TestCreateScanner(t *testing.T) {
 	// only "one" is left enabled
 	// -----
 
-	agentConfig = []byte(`
+	config = []byte(`
         {"is_enabled":true,"rules":[
             {
                 "id": "random000",
                 "name":"zero",
-                "definition":{"standard_rule_id":"zero-0"},
+                "definition":{"pattern":"zero"},
                 "match_action":{"type":"Redact","placeholder":"[redacted]"},
                 "is_enabled":false
             },{
                 "id": "random111",
                 "name":"one",
-                "definition":{"standard_rule_id":"one-1"},
+                "definition":{"pattern":"one"},
                 "match_action":{"type":"Hash"},
                 "is_enabled":true
             },{
                 "id": "random222",
                 "name":"two",
-                "definition":{"standard_rule_id":"two-2"},
+                "definition":{"pattern":"two"},
                 "match_action":{"type":"Redact","placeholder":"[redacted]"},
                 "is_enabled":false
             }
@@ -150,8 +122,8 @@ func TestCreateScanner(t *testing.T) {
     `)
 
 	err = s.Reconfigure(ReconfigureOrder{
-		Type:   AgentConfig,
-		Config: agentConfig,
+		Type:   DatadogRules,
+		Config: config,
 	})
 
 	require.NoError(err, "this one should not fail since one rule is enabled")
@@ -167,24 +139,24 @@ func TestCreateScanner(t *testing.T) {
 
 	// disable the whole group
 
-	agentConfig = []byte(`
+	config = []byte(`
         {"is_enabled":false,"rules":[
             {
                 "id": "random000",
                 "name":"zero",
-                "definition":{"standard_rule_id":"zero-0"},
+                "definition":{"pattern":"zero"},
                 "match_action":{"type":"Redact","placeholder":"[redacted]"},
                 "is_enabled":true
             },{
                 "id": "random111",
                 "name":"one",
-                "definition":{"standard_rule_id":"one-1"},
+                "definition":{"pattern":"one"},
                 "match_action":{"type":"Hash"},
                 "is_enabled":true
             },{
                 "id": "random222",
                 "name":"two",
-                "definition":{"standard_rule_id":"two-2"},
+                "definition":{"pattern":"two"},
                 "match_action":{"type":"Redact","placeholder":"[redacted]"},
                 "is_enabled":false
             }
@@ -192,8 +164,8 @@ func TestCreateScanner(t *testing.T) {
     `)
 
 	err = s.Reconfigure(ReconfigureOrder{
-		Type:   AgentConfig,
-		Config: agentConfig,
+		Type:   DatadogRules,
+		Config: config,
 	})
 
 	require.NoError(err, "no error should happen")
@@ -203,37 +175,17 @@ func TestCreateScanner(t *testing.T) {
 func TestIsReady(t *testing.T) {
 	require := require.New(t)
 
-	standardRules := []byte(`
-        {"priority":1,"rules":[
-            {
-                "id":"zero-0",
-                "description":"zero desc",
-                "name":"zero",
-                "pattern":"zero"
-            },{
-                "id":"one-1",
-                "description":"one desc",
-                "name":"one",
-                "pattern":"one"
-            },{
-                "id":"two-2",
-                "description":"two desc",
-                "name":"two",
-                "pattern":"two"
-            }
-        ]}
-    `)
-	agentConfig := []byte(`
+	config := []byte(`
         {"is_enabled":true,"rules":[
             {
                 "id":"random-0000000",
-                "definition":{"standard_rule_id":"zero-0"},
+                "definition":{"pattern":"zero"},
                 "name":"zero",
                 "match_action":{"type":"Redact","placeholder":"[redacted]"},
                 "is_enabled":true
             },{
                 "id":"random-111",
-                "definition":{"standard_rule_id":"one-1"},
+                "definition":{"pattern":"one"},
                 "name":"one",
                 "match_action":{"type":"Hash"},
                 "is_enabled":true
@@ -247,20 +199,12 @@ func TestIsReady(t *testing.T) {
 	s := CreateScanner()
 
 	require.NotNil(s, "the scanner should not be nil after a creation")
-	require.False(s.IsReady(), "at this stage, the scanner should not be considered ready, no definitions received")
+	require.False(s.IsReady(), "at this stage, the scanner should not be considered ready, no config received")
 
+	// now that the scanner is created, we can configure it
 	err := s.Reconfigure(ReconfigureOrder{
-		Type:   StandardRules,
-		Config: standardRules,
-	})
-
-	require.NoError(err, "configuring the definitions should not fail")
-	require.False(s.IsReady(), "at this stage, the scanner should not be considered ready, no user config received")
-
-	// now that we have some definitions, we can configure the scanner
-	err = s.Reconfigure(ReconfigureOrder{
-		Type:   AgentConfig,
-		Config: agentConfig,
+		Type:   DatadogRules,
+		Config: config,
 	})
 
 	require.NoError(err, "configuring the scanner should not fail")
@@ -272,37 +216,17 @@ func TestIsReady(t *testing.T) {
 func TestScan(t *testing.T) {
 	require := require.New(t)
 
-	standardRules := []byte(`
-        {"priority":1,"rules":[
-            {
-                "id":"zero-0",
-                "description":"zero desc",
-                "name":"zero",
-                "pattern":"zero"
-            },{
-                "id":"one-1",
-                "description":"one desc",
-                "name":"one",
-                "pattern":"one"
-            },{
-                "id":"two-2",
-                "description":"two desc",
-                "name":"two",
-                "pattern":"two"
-            }
-        ]}
-    `)
-	agentConfig := []byte(`
+	config := []byte(`
         {"is_enabled":true,"rules":[
             {
                 "id":"random-00000",
-                "definition":{"standard_rule_id":"zero-0"},
+                "definition":{"pattern":"zero"},
                 "name":"zero",
                 "match_action":{"type":"Redact","placeholder":"[redacted]"},
                 "is_enabled":true
             },{
                 "id":"random-11111",
-                "definition":{"standard_rule_id":"one-1"},
+                "definition":{"pattern":"one"},
                 "name":"one",
                 "match_action":{"type":"Redact","placeholder":"[REDACTED]"},
                 "is_enabled":true
@@ -317,12 +241,8 @@ func TestScan(t *testing.T) {
 	require.NotNil(s, "the returned scanner should not be nil")
 
 	_ = s.Reconfigure(ReconfigureOrder{
-		Type:   StandardRules,
-		Config: standardRules,
-	})
-	_ = s.Reconfigure(ReconfigureOrder{
-		Type:   AgentConfig,
-		Config: agentConfig,
+		Type:   DatadogRules,
+		Config: config,
 	})
 
 	require.True(s.IsReady(), "at this stage, the scanner should be considered ready")

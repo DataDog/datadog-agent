@@ -19,7 +19,7 @@ is_darwin = sys.platform == "darwin"
 
 # Pinned to the same commit as the github.com/DataDog/dd-sensitive-data-scanner/sds-go/go
 # module required in pkg/util/sds/go.mod. Keep both in sync.
-SDS_VERSION = "4d0ef6614dd4"
+SDS_VERSION = "3c48e9fa5604"
 
 # Name of the shared library produced by `cargo build` (matches the `-ldd_sds_go`
 # cgo directive in the sds-go Go bindings).

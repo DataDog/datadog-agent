@@ -30,7 +30,6 @@ type Scanner struct {
 	*sds.Scanner
 	sync.Mutex
 
-	standardRules map[string]StandardRuleConfig
 	// rawConfig is the raw user configuration previously received.
 	rawConfig []byte
 	// configuredRules are stored on configuration to retrieve rules
@@ -46,12 +45,9 @@ func CreateScanner() *Scanner {
 	return scanner
 }
 
-// Reconfigure uses the given `ReconfigureOrder` to reconfigure in-memory
-// standard rules or user configuration.
+// Reconfigure uses the given `ReconfigureOrder` to reconfigure the SDS scanner.
 // The order contains both the kind of reconfiguration to do and the raw bytes
 // to apply the reconfiguration.
-// When receiving standard rules, user configuration are reloaded and scanners are
-// recreated to use the newly received standard rules.
 // This method is thread safe, a scan can't happen at the same time.
 func (s *Scanner) Reconfigure(order ReconfigureOrder) error {
 	if s == nil {
@@ -65,66 +61,20 @@ func (s *Scanner) Reconfigure(order ReconfigureOrder) error {
 	log.Debugf("Reconfiguring SDS scanner (internal id: %p)", s)
 
 	switch order.Type {
-	case StandardRules:
-		err := s.reconfigureStandardRules(order.Config)
-		// if we already received a configuration,
-		// reapply it now that the standard rules have changed.
-		if s.rawConfig != nil {
-			if rerr := s.reconfigureRules(s.rawConfig); rerr != nil {
-				log.Error("Can't reconfigure SDS after having received standard rules:", rerr)
-				s.rawConfig = nil // we drop this configuration because it is unusable
-				if err == nil {
-					err = rerr
-				}
-			}
-		}
-		return err
-	case AgentConfig:
+	case DatadogRules:
 		return s.reconfigureRules(order.Config)
 	}
 
 	return fmt.Errorf("Scanner.Reconfigure: Unknown order type: %v", order.Type)
 }
 
-// reconfigureStandardRules stores in-memory standard rules.
-// This is NOT reconfiguring the internal SDS scanner, call `reconfigureRules`
-// if you have to.
-// This method is NOT thread safe, the caller has to ensure the thread safety.
-func (s *Scanner) reconfigureStandardRules(rawConfig []byte) error {
-	if rawConfig == nil {
-		return fmt.Errorf("Invalid nil raw configuration for standard rules")
-	}
-
-	var unmarshaled StandardRulesConfig
-	if err := json.Unmarshal(rawConfig, &unmarshaled); err != nil {
-		return fmt.Errorf("Can't unmarshal raw configuration: %v", err)
-	}
-
-	// build a map for O(1) access when we'll receive configuration
-	standardRules := make(map[string]StandardRuleConfig)
-	for _, rule := range unmarshaled.Rules {
-		standardRules[rule.ID] = rule
-	}
-	s.standardRules = standardRules
-
-	log.Info("Reconfigured SDS standard rules.")
-	return nil
-}
-
-// reconfigureRules reconfigures the internal SDS scanner using the in-memory
-// standard rules. Could possibly delete and recreate the internal SDS scanner if
-// necessary.
+// reconfigureRules reconfigures the internal SDS scanner using the given set of
+// self-contained rules (each rule carries its own pattern). Could possibly
+// delete and recreate the internal SDS scanner if necessary.
 // This method is NOT thread safe, caller has to ensure the thread safety.
 func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	if rawConfig == nil {
 		return fmt.Errorf("Invalid nil raw configuration received for user configuration")
-	}
-
-	if len(s.standardRules) == 0 {
-		// store it for the next try
-		s.rawConfig = rawConfig
-		log.Info("Received an user configuration but no SDS standard rules available.")
-		return nil
 	}
 
 	var config RulesConfig
@@ -155,15 +105,11 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	// prepare the scanner rules
 	var sdsRules []sds.RuleConfig
 	for _, userRule := range config.Rules {
-		// read the rule in the standard rules
-		standardRule, found := s.standardRules[userRule.Definition.StandardRuleID]
-		if !found {
-			log.Warnf("Referencing an unknown standard rule, id: %v", userRule.Definition.StandardRuleID)
+		// each rule is self-contained: it carries its own pattern and name.
+		if userRule.Definition.Pattern == "" {
+			log.Warnf("Rule '%s' (id: %v) has an empty pattern, skipping it", userRule.Name, userRule.ID)
 			continue
 		}
-
-		// from here: `standardRule` contains the definition, with the name, pattern, etc.
-		//            `userRule`     contains the configuration done by the user: match action, etc.
 
 		var extraConfig sds.ExtraConfig
 		if len(userRule.IncludedKeywords.Keywords) > 0 {
@@ -174,9 +120,9 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 		matchAction := strings.ToLower(userRule.MatchAction.Type)
 		switch matchAction {
 		case strings.ToLower(string(sds.MatchActionNone)):
-			sdsRules = append(sdsRules, sds.NewMatchingRule(standardRule.Name, standardRule.Pattern, extraConfig))
+			sdsRules = append(sdsRules, sds.NewMatchingRule(userRule.Name, userRule.Definition.Pattern, extraConfig))
 		case strings.ToLower(string(sds.MatchActionRedact)):
-			sdsRules = append(sdsRules, sds.NewRedactingRule(standardRule.Name, standardRule.Pattern, userRule.MatchAction.Placeholder, extraConfig))
+			sdsRules = append(sdsRules, sds.NewRedactingRule(userRule.Name, userRule.Definition.Pattern, userRule.MatchAction.Placeholder, extraConfig))
 		case strings.ToLower(string(sds.MatchActionPartialRedact)):
 			direction := sds.LastCharacters
 			switch userRule.MatchAction.Direction {
@@ -187,11 +133,11 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 			default:
 				log.Warnf("Unknown PartialRedact direction (%v), falling back on LastCharacters", userRule.MatchAction.Direction)
 			}
-			sdsRules = append(sdsRules, sds.NewPartialRedactRule(standardRule.Name, standardRule.Pattern, userRule.MatchAction.CharacterCount, direction, extraConfig))
+			sdsRules = append(sdsRules, sds.NewPartialRedactRule(userRule.Name, userRule.Definition.Pattern, userRule.MatchAction.CharacterCount, direction, extraConfig))
 		case strings.ToLower(string(sds.MatchActionHash)):
-			sdsRules = append(sdsRules, sds.NewHashRule(standardRule.Name, standardRule.Pattern, extraConfig))
+			sdsRules = append(sdsRules, sds.NewHashRule(userRule.Name, userRule.Definition.Pattern, extraConfig))
 		default:
-			log.Warnf("Unknown MatchAction type (%v) for rule '%s':", matchAction, standardRule.Name)
+			log.Warnf("Unknown MatchAction type (%v) for rule '%s':", matchAction, userRule.Name)
 		}
 	}
 

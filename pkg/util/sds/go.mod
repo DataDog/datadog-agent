@@ -12,7 +12,7 @@ replace github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-00010101000000-000000000000
-	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20250908201838-4d0ef6614dd4
+	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20260601185219-3c48e9fa5604
 	github.com/stretchr/testify v1.11.1
 )
 

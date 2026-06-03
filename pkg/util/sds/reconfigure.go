@@ -10,12 +10,10 @@ package sds
 type ReconfigureOrderType string
 
 const (
-	// StandardRules triggers the storage of a new set of standard rules
-	// and reconfigure the internal SDS scanner with an existing user
-	// configuration if any.
-	StandardRules ReconfigureOrderType = "standard_rules"
-	// AgentConfig triggers a reconfiguration of the SDS scanner.
-	AgentConfig ReconfigureOrderType = "agent_config"
+	// DatadogRules triggers a (re)configuration of the SDS scanner with a set
+	// of self-contained rules (each rule carries its own pattern and match
+	// action).
+	DatadogRules ReconfigureOrderType = "datadog_rules"
 )
 
 // ReconfigureOrder is used to trigger a reconfiguration of the SDS scanner.

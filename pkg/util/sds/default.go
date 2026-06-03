@@ -9,19 +9,56 @@
 // the shared library is available, otherwise a no-op mock is used.
 package sds
 
-import "sync"
+import (
+	"encoding/json"
+	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// DefaultEmailRuleID is the id of the built-in email address rule the default
+// scanner is configured with.
+const DefaultEmailRuleID = "PuXiVTCkTHOtj0Yad1ppsw"
 
 var (
 	defaultScanner     *Scanner
 	defaultScannerOnce sync.Once
 )
 
+// defaultRulesConfig returns the raw rules configuration the default scanner is
+// bootstrapped with: a single basic email address scanner that redacts matches.
+func defaultRulesConfig() []byte {
+	config := RulesConfig{
+		IsEnabled: true,
+		Rules: []RuleConfig{
+			{
+				ID:   DefaultEmailRuleID,
+				Name: "Standard Email Address Scanner",
+				Definition: RuleDefinition{
+					// basic alphanumeric@alphanumeric.alphanumeric pattern.
+					Pattern: `[a-zA-Z0-9]+@[a-zA-Z0-9]+\.[a-zA-Z0-9]+`,
+				},
+				MatchAction: MatchAction{
+					Type:        "Redact",
+					Placeholder: "[redacted]",
+				},
+				IsEnabled: true,
+			},
+		},
+	}
+	raw, _ := json.Marshal(config)
+	return raw
+}
+
 // DefaultScanner returns the process-wide default SDS scanner, lazily creating
-// it on first use. It has to be configured through Reconfigure before it can
-// scan events.
+// it on first use and configuring it with the built-in rules (see
+// defaultRulesConfig).
 func DefaultScanner() *Scanner {
 	defaultScannerOnce.Do(func() {
 		defaultScanner = CreateScanner()
+		if err := defaultScanner.Reconfigure(ReconfigureOrder{Type: DatadogRules, Config: defaultRulesConfig()}); err != nil {
+			log.Errorf("Can't configure the default SDS scanner: %v", err)
+		}
 	})
 	return defaultScanner
 }
