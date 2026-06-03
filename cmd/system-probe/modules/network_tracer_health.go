@@ -13,9 +13,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/anypb"
 
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
@@ -34,67 +32,39 @@ const (
 	healthReportMaxWait = 3 * time.Minute
 )
 
-// reportNetworkProbeInitFailure sends a health issue to the core agent asynchronously,
-// retrying until the core agent's AgentSecure gRPC endpoint is reachable.
+// reportNetworkProbeInitFailure sends a thin IssueReport to the core agent asynchronously.
+// The core agent resolves it via the template registry (BuildIssue), keeping issue-shape
+// logic in one place.
 func reportNetworkProbeInitFailure(deps module.FactoryDependencies, initErr error, npmEnabled, usmEnabled bool) {
-	issue := buildNetworkProbeIssue(initErr, npmEnabled, usmEnabled)
+	errStr := "unknown error"
+	if initErr != nil {
+		errStr = initErr.Error()
+	}
+	report := &pb.RemoteIssueReport{
+		IssueId:   networkProbeIssueID,
+		IssueName: networkProbeIssueName,
+		Source:    "system-probe",
+		Context: map[string]string{
+			"error":       errStr,
+			"npm_enabled": fmt.Sprintf("%v", npmEnabled),
+			"usm_enabled": fmt.Sprintf("%v", usmEnabled),
+		},
+	}
 	go func() {
 		retryWithBackoff("report", func() error {
-			return sendHealthIssue(deps, issue)
+			return sendHealthReport(deps, report)
 		})
 	}()
 }
 
 // resolveNetworkProbeInitFailure clears a previously reported network probe failure.
-// Called on successful initialization so stale issues from prior failed runs are cleaned up.
+// Called on successful initialization to clean up stale issues from prior failed runs.
 func resolveNetworkProbeInitFailure(deps module.FactoryDependencies) {
 	go func() {
 		retryWithBackoff("resolve", func() error {
 			return sendHealthResolve(deps, networkProbeIssueID)
 		})
 	}()
-}
-
-func buildNetworkProbeIssue(initErr error, npmEnabled, usmEnabled bool) *healthplatformpayload.Issue {
-	errStr := "unknown error"
-	if initErr != nil {
-		errStr = initErr.Error()
-	}
-
-	var which string
-	switch {
-	case npmEnabled && usmEnabled:
-		which = "NPM and USM"
-	case npmEnabled:
-		which = "NPM"
-	case usmEnabled:
-		which = "USM"
-	default:
-		which = "network monitoring"
-	}
-
-	return &healthplatformpayload.Issue{
-		Id:          networkProbeIssueID,
-		IssueName:   networkProbeIssueName,
-		Title:       fmt.Sprintf("%s eBPF Probe Failed to Initialize", which),
-		Description: fmt.Sprintf("%s is enabled but the eBPF network probe failed to load: %s", which, errStr),
-		Category:    "runtime",
-		Location:    "system-probe",
-		Severity:    healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_HIGH,
-		Source:      "system-probe",
-		Tags:        []string{"system-probe", "npm", "usm", "ebpf", "network-monitoring"},
-		Remediation: &healthplatformpayload.Remediation{
-			Summary: "Check kernel compatibility and system-probe capabilities, then restart system-probe.",
-			Steps: []*healthplatformpayload.RemediationStep{
-				{Order: 1, Text: "Check system-probe logs: journalctl -u datadog-agent-sysprobe or /var/log/datadog/system-probe.log"},
-				{Order: 2, Text: "Verify kernel version (>= 4.4 for NPM, >= 4.14 for USM): uname -r"},
-				{Order: 3, Text: "Check BTF availability for CO-RE probes: ls /sys/kernel/btf/vmlinux"},
-				{Order: 4, Text: "Verify capabilities: CAP_NET_ADMIN, CAP_SYS_ADMIN (CAP_BPF on kernel >= 5.8)"},
-				{Order: 5, Text: "If in a container, ensure privileged mode or a permissive seccomp profile"},
-				{Order: 6, Text: "Restart after fixing: systemctl restart datadog-agent-sysprobe"},
-			},
-		},
-	}
 }
 
 func newAgentSecureClient(deps module.FactoryDependencies) (pb.AgentSecureClient, error) {
@@ -111,18 +81,16 @@ func newAgentSecureClient(deps module.FactoryDependencies) (pb.AgentSecureClient
 	)
 }
 
-func sendHealthIssue(deps module.FactoryDependencies, issue *healthplatformpayload.Issue) error {
+func sendHealthReport(deps module.FactoryDependencies, report *pb.RemoteIssueReport) error {
 	client, err := newAgentSecureClient(deps)
 	if err != nil {
 		return err
 	}
-	packed, err := anypb.New(issue)
-	if err != nil {
-		return fmt.Errorf("pack health issue: %w", err)
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), healthReportTimeout)
 	defer cancel()
-	_, err = client.ReportHealthIssue(ctx, &pb.ReportHealthIssueRequest{Issue: packed})
+	_, err = client.ReportHealthIssue(ctx, &pb.ReportHealthIssueRequest{
+		Payload: &pb.ReportHealthIssueRequest_Report{Report: report},
+	})
 	return err
 }
 
