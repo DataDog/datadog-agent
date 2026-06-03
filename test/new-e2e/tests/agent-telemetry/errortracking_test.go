@@ -107,8 +107,11 @@ func (s *errorTrackingSuite) TestDisabledByDefault() {
 		assert.NotEqual(c, "0", strings.TrimSpace(out))
 	}, 1*time.Minute, 5*time.Second, "timed out waiting for check error to appear in agent log")
 
-	// Confirm the error was not forwarded to telemetry.
-	logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
-	require.NoError(s.T(), err)
-	assert.Empty(s.T(), logs, "no agent telemetry logs must arrive when errortracking is disabled")
+	// Wait for the error tracking flush interval and confirm nothing arrives.
+	// assert.Never polls for 5 s (5× the 1 s flush_interval_seconds) to give the
+	// pipeline a full cycle to (incorrectly) forward a payload before declaring success.
+	assert.Never(s.T(), func() bool {
+		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
+		return err == nil && len(logs) > 0
+	}, 5*time.Second, 500*time.Millisecond, "agent telemetry logs must not arrive when errortracking is disabled")
 }
