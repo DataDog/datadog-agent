@@ -175,6 +175,8 @@ func (s *Scanner) Scan(event []byte) (bool, []byte, error) {
 	s.Lock()
 	defer s.Unlock()
 
+	log.Infof("Scanning event: %s", string(event))
+
 	if s.Scanner == nil {
 		return false, nil, fmt.Errorf("can't Scan with an uninitialized scanner")
 	}
