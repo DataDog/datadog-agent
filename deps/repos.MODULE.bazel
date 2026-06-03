@@ -325,10 +325,10 @@ http_archive(
         "config-linux-arm64.h": "//deps:libxslt/config-linux-arm64.h",
         "BUILD.bazel": "//deps:libxslt/overlay.BUILD.bazel",
     },
-    sha256 = "5a3d6b383ca5afc235b171118e90f5ff6aa27e9fea3303065231a6d403f0183a",
-    strip_prefix = "libxslt-1.1.43",
+    sha256 = "9acfe68419c4d06a45c550321b3212762d92f41465062ca4ea19e632ee5d216e",
+    strip_prefix = "libxslt-1.1.45",
     urls = [
-        "https://download.gnome.org/sources/libxslt/1.1/libxslt-1.1.43.tar.xz",
+        "https://download.gnome.org/sources/libxslt/1.1/libxslt-1.1.45.tar.xz",
     ],
 )
 
