@@ -140,6 +140,13 @@ func (dca *datadogclusteragent) initMetadata() {
 	dca.metadata["agent_version"] = version.AgentVersion
 	dca.metadata["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
 	dca.metadata["flavor"] = flavor.GetFlavor()
+
+	podName, err := common.GetSelfPodName()
+	if err != nil {
+		dca.log.Debugf("Could not determine cluster-agent pod name: %s", err)
+		podName = ""
+	}
+	dca.metadata["pod_name"] = podName
 }
 
 func (dca *datadogclusteragent) getFeatureConfigs() {
