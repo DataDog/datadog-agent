@@ -22,7 +22,9 @@ exports_files(glob(
 # gazelle:exclude cmd/cluster-agent
 # gazelle:exclude cmd/cluster-agent-cloudfoundry
 # gazelle:exclude cmd/dogstatsd
-# gazelle:exclude cmd/host-profiler
+# gazelle:exclude cmd/host-profiler/*.go
+# gazelle:exclude cmd/host-profiler/command
+# gazelle:exclude cmd/host-profiler/subcommands
 # gazelle:exclude cmd/installer/subcommands
 # gazelle:exclude cmd/iot-agent
 # gazelle:exclude cmd/otel-agent/command
@@ -35,7 +37,10 @@ exports_files(glob(
 # gazelle:exclude cmd/process-agent/subcommands
 # gazelle:exclude cmd/sbomgen
 # gazelle:exclude cmd/secret-generic-connector/main.go
-# gazelle:exclude cmd/security-agent
+# gazelle:exclude cmd/security-agent/*.go
+# gazelle:exclude cmd/security-agent/api
+# gazelle:exclude cmd/security-agent/command
+# gazelle:exclude cmd/security-agent/subcommands
 # gazelle:exclude cmd/serverless-init/*.go
 # gazelle:exclude cmd/serverless-init/cloudservice
 # gazelle:exclude cmd/serverless-init/enhanced-metrics
@@ -81,7 +86,7 @@ exports_files(glob(
 # gazelle:exclude comp/checks/winregistry/impl
 # gazelle:exclude comp/collector/bundle.go
 # gazelle:exclude comp/collector/collector/fx
-# gazelle:exclude comp/collector/collector/impl
+# gazelle:exclude comp/collector/collector/impl/*.go
 # gazelle:exclude comp/connectivitychecker/checker
 # gazelle:exclude comp/connectivitychecker/fx
 # gazelle:exclude comp/connectivitychecker/impl
@@ -302,7 +307,10 @@ exports_files(glob(
 # gazelle:exclude pkg/collector/corechecks/network-devices/cisco-sdwan/sdwan_test.go
 # gazelle:exclude pkg/collector/corechecks/network-devices/cisco-sdwan/sdwan.go
 # gazelle:exclude pkg/collector/corechecks/network-devices/cisco-sdwan/report
-# gazelle:exclude pkg/collector/corechecks/network-devices/versa
+# gazelle:exclude pkg/collector/corechecks/network-devices/versa/*.go
+# gazelle:exclude pkg/collector/corechecks/network-devices/versa/client/*.go
+# gazelle:exclude pkg/collector/corechecks/network-devices/versa/payload
+# gazelle:exclude pkg/collector/corechecks/network-devices/versa/report
 # gazelle:exclude pkg/collector/corechecks/networkconfigmanagement
 # gazelle:exclude pkg/collector/corechecks/networkpath
 # gazelle:exclude pkg/collector/corechecks/nvidia
