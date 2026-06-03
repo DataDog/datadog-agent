@@ -27,7 +27,7 @@ static cb_obfuscate_sql_exec_plan_t cb_obfuscate_sql_exec_plan = NULL;
 static cb_get_process_start_time_t cb_get_process_start_time = NULL;
 static cb_obfuscate_mongodb_string_t cb_obfuscate_mongodb_string = NULL;
 static cb_emit_agent_telemetry_t cb_emit_agent_telemetry = NULL;
-static cb_hello_world_t cb_hello_world = NULL;
+static cb_scan_t cb_scan = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -48,7 +48,7 @@ static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObjec
 static PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs);
-static PyObject *hello_world(PyObject *self, PyObject *args);
+static PyObject *scan(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
@@ -69,7 +69,7 @@ static PyMethodDef methods[] = {
     { "get_process_start_time", (PyCFunction)get_process_start_time, METH_NOARGS, "Get agent process startup time, in seconds since the epoch." },
     { "obfuscate_mongodb_string", (PyCFunction)obfuscate_mongodb_string, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a MongoDB command string." },
     { "emit_agent_telemetry", (PyCFunction)emit_agent_telemetry, METH_VARARGS|METH_KEYWORDS, "Emit agent telemetry." },
-    { "hello_world", hello_world, METH_NOARGS, "Log a hello world message." },
+    { "scan", scan, METH_VARARGS, "Scan an event with the Sensitive Data Scanner, returning the processed event." },
     { NULL, NULL } // guards
 };
 
@@ -163,8 +163,8 @@ void _set_emit_agent_telemetry_cb(cb_emit_agent_telemetry_t cb) {
     cb_emit_agent_telemetry = cb;
 }
 
-void _set_hello_world_cb(cb_hello_world_t cb) {
-    cb_hello_world = cb;
+void _set_scan_cb(cb_scan_t cb) {
+    cb_scan = cb;
 }
 
 
@@ -974,27 +974,49 @@ static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *
     Py_RETURN_NONE;
 }
 
-/*! \fn PyObject *hello_world(PyObject *self, PyObject *args)
-    \brief This function implements the `datadog_agent.hello_world` method, logging
-    a "hello world" message through the agent logger.
+/*! \fn PyObject *scan(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog_agent.scan` method, scanning the
+    provided event with the Sensitive Data Scanner (SDS).
     \param self A PyObject* pointer to the `datadog_agent` module.
-    \param args A PyObject* pointer to any empty tuple, as no input args are taken.
-    \return A PyObject* pointer to `None`.
+    \param args A PyObject* pointer to a tuple containing the event to scan.
+    \return A PyObject* pointer to the processed event.
 
-    This function is callable as the `datadog_agent.hello_world` Python method and
-    uses the `cb_hello_world()` callback to reach the agent with CGO. If the callback
-    has not been set `None` will be returned.
+    This function is callable as the `datadog_agent.scan` Python method and uses
+    the `cb_scan()` callback to reach the agent with CGO. If the callback has not
+    been set `None` will be returned. The returned event is the event after
+    processing (e.g. redaction); if no rule matched, the original event is returned.
 */
-static PyObject *hello_world(PyObject *self, PyObject *args)
+static PyObject *scan(PyObject *self, PyObject *args)
 {
     // callback must be set
-    if (cb_hello_world == NULL) {
+    if (cb_scan == NULL) {
         Py_RETURN_NONE;
     }
 
-    Py_BEGIN_ALLOW_THREADS
-    cb_hello_world();
-    Py_END_ALLOW_THREADS
+    PyGILState_STATE gstate = PyGILState_Ensure();
 
-    Py_RETURN_NONE;
+    char *event = NULL;
+    if (!PyArg_ParseTuple(args, "s", &event)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    char *processed = NULL;
+    char *error_message = NULL;
+    processed = cb_scan(event, &error_message);
+
+    PyObject *retval = NULL;
+    if (error_message != NULL) {
+        PyErr_SetString(PyExc_RuntimeError, error_message);
+    } else if (processed == NULL) {
+        // no error message and a null response. this should never happen so the go code is misbehaving
+        PyErr_SetString(PyExc_RuntimeError, "internal error: empty cb_scan response");
+    } else {
+        retval = PyUnicode_FromString(processed);
+    }
+
+    cgo_free(error_message);
+    cgo_free(processed);
+    PyGILState_Release(gstate);
+    return retval;
 }

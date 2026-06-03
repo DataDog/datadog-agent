@@ -64,6 +64,7 @@ ALL_TAGS = {
     "podman",
     "python",
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
+    "sds",  # used for the Sensitive Data Scanner
     "seclmax",  # used for security agent/system-probe to compile the full feature set of secl
     "serverless",
     "sharedlibrarycheck",

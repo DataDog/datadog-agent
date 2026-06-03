@@ -111,7 +111,7 @@ public:
     void setGetProcessStartTimeCb(cb_get_process_start_time_t);
     void setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t);
     void setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t);
-    void setHelloWorldCb(cb_hello_world_t);
+    void setScanCb(cb_scan_t);
 
     void initPymemStats();
     void getPymemStats(pymem_stats_t &);

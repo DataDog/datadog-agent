@@ -481,14 +481,14 @@ public:
     */
     virtual void setGetProcessStartTimeCb(cb_get_process_start_time_t) = 0;
 
-    //! setHelloWorldCb member.
+    //! setScanCb member.
     /*!
-      \param A cb_hello_world_t function pointer to the CGO callback.
+      \param A cb_scan_t function pointer to the CGO callback.
 
       This allows us to set the relevant CGO callback that backs the
-      `datadog_agent.hello_world` python method.
+      `datadog_agent.scan` python method.
     */
-    virtual void setHelloWorldCb(cb_hello_world_t) = 0;
+    virtual void setScanCb(cb_scan_t) = 0;
 
     //! initPymemStats member.
     /*!

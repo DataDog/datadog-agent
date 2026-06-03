@@ -96,7 +96,7 @@ char* ObfuscateSQLExecPlan(char *, bool, char **);
 double getProcessStartTime();
 char* ObfuscateMongoDBString(char *, char **);
 void EmitAgentTelemetry(char *, char *, double, char *);
-void HelloWorld();
+char* Scan(char *, char **);
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
@@ -116,7 +116,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_process_start_time_cb(rtloader, getProcessStartTime);
 	set_obfuscate_mongodb_string_cb(rtloader, ObfuscateMongoDBString);
 	set_emit_agent_telemetry_cb(rtloader, EmitAgentTelemetry);
-	set_hello_world_cb(rtloader, HelloWorld);
+	set_scan_cb(rtloader, Scan);
 }
 
 //

@@ -1,3 +1,5 @@
+github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20250908201838-4d0ef6614dd4 h1:19Emah0jhmTuj0vTge0JrNEPo0V/CFdogUCqQ/rJvig=
+github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20250908201838-4d0ef6614dd4/go.mod h1:TX7CTOQ3LbQjfAi4SwqUoR5gY1zfUk7VRBDTuArjaDc=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=

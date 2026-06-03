@@ -654,15 +654,15 @@ DATADOG_AGENT_RTLOADER_API void set_obfuscate_sql_exec_plan_cb(rtloader_t *, cb_
 */
 DATADOG_AGENT_RTLOADER_API void set_get_process_start_time_cb(rtloader_t *, cb_get_process_start_time_t);
 
-/*! \fn void set_hello_world_cb(rtloader_t *, cb_hello_world_t)
-    \brief Sets a callback to be used by rtloader to back the `datadog_agent.hello_world` method.
+/*! \fn void set_scan_cb(rtloader_t *, cb_scan_t)
+    \brief Sets a callback to be used by rtloader to back the `datadog_agent.scan` method.
     \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
-    \param object A function pointer with cb_hello_world_t prototype to the callback
+    \param object A function pointer with cb_scan_t prototype to the callback
     function.
 
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
-DATADOG_AGENT_RTLOADER_API void set_hello_world_cb(rtloader_t *, cb_hello_world_t);
+DATADOG_AGENT_RTLOADER_API void set_scan_cb(rtloader_t *, cb_scan_t);
 
 /*! \fn void init_pymem_stats(rtloader_t *)
     \brief Install python allocator hooks.

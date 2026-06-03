@@ -144,6 +144,7 @@ core,github.com/DataDog/datadog-operator/api/datadoghq/common,Apache-2.0,"Copyri
 core,github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/datadoghq/v2alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/dd-sensitive-data-scanner/sds-go/go,Apache-2.0,"Copyright 2024-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/cache,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/common,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/icmp,Apache-2.0,"Copyright 2016-present Datadog, Inc"

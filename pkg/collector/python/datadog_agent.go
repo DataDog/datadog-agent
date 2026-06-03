@@ -534,12 +534,27 @@ func getProcessStartTime() float64 {
 	return float64(pkgconfigsetup.StartTime.Unix())
 }
 
-// HelloWorld logs a "hello world" message from the sds util package.
-// Indirectly used by the C function `hello_world` that's mapped to `datadog_agent.hello_world`.
+// Scan scans the given event with the Sensitive Data Scanner and returns the
+// processed event (e.g. redacted). If no rule matches, the original event is
+// returned unchanged. Indirectly used by the C function `scan` that's mapped to
+// `datadog_agent.scan`.
 //
-//export HelloWorld
-func HelloWorld() {
-	sds.HelloWorld()
+//export Scan
+func Scan(event *C.char, errResult **C.char) *C.char {
+	goEvent := C.GoString(event)
+	_, processed, err := sds.Scan([]byte(goEvent))
+	if err != nil {
+		// memory will be freed by caller
+		*errResult = TrackedCString(err.Error())
+		return nil
+	}
+	if processed == nil {
+		// no rule matched: return the original event unchanged.
+		// memory will be freed by caller
+		return TrackedCString(goEvent)
+	}
+	// memory will be freed by caller
+	return TrackedCString(string(processed))
 }
 
 // ObfuscateMongoDBString obfuscates the MongoDB query
