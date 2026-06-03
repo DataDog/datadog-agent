@@ -92,6 +92,36 @@ env: "old_env"
 	}, datadog)
 }
 
+// Tests that writing a process_config toggle merges into an existing
+// process_config block rather than clobbering its other keys.
+func TestMergeProcessConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	oldConfig := `---
+api_key: "0987654321"
+process_config:
+  expvar_port: 6063
+  container_collection:
+    enabled: false
+`
+	writeInitialDatadogConfig(t, tempDir, oldConfig)
+	config := Config{}
+	config.DatadogYAML.APIKey = "0987654321" // Required field
+	config.DatadogYAML.ProcessConfig.ProcessCollection.Enabled = BoolToPtr(true)
+
+	err := WriteConfigs(config, tempDir)
+	assert.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key": "0987654321",
+		"process_config": map[string]interface{}{
+			"expvar_port":          6063,                                      // pre-existing key preserved
+			"container_collection": map[string]interface{}{"enabled": false}, // pre-existing subkey preserved
+			"process_collection":   map[string]interface{}{"enabled": true},  // newly added
+		},
+	}, datadog)
+}
+
 // Tests that existing API key is not overwritten if not provided again to setup command
 func TestKeepExistingAPIKey(t *testing.T) {
 	tempDir := t.TempDir()
