@@ -31,6 +31,7 @@ import (
 	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
+	issueregistrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
@@ -63,6 +64,7 @@ type serverSecure struct {
 	configComp           config.Component
 	configStreamServer   *configstreamServer.Server
 	healthPlatformStore  option.Option[healthplatformstore.Component]
+	issueRegistry        option.Option[issueregistrydef.Component]
 }
 
 // remoteAgentServer implements the dedicated RemoteAgent gRPC service, which owns the remote agent lifecycle
@@ -324,22 +326,56 @@ func (s *serverSecure) ReportHealthIssue(_ context.Context, in *pb.ReportHealthI
 	if !ok {
 		return nil, status.Error(codes.Unavailable, "health platform store not available")
 	}
-
 	if err := s.validateSessionID(in.GetRemoteAgentSessionId()); err != nil {
 		return nil, err
 	}
 
-	issue := &healthplatformpayload.Issue{}
-	if err := in.GetIssue().UnmarshalTo(issue); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "issue must be a healthplatform.Issue: %v", err)
+	var issue *healthplatformpayload.Issue
+	switch p := in.GetPayload().(type) {
+	case *pb.ReportHealthIssueRequest_FullIssue:
+		var i healthplatformpayload.Issue
+		if err := p.FullIssue.UnmarshalTo(&i); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "full_issue must be a healthplatform.Issue: %v", err)
+		}
+		issue = &i
+
+	case *pb.ReportHealthIssueRequest_Report:
+		r := p.Report
+		if r.GetIssueId() == "" {
+			return nil, status.Error(codes.InvalidArgument, "report.issue_id cannot be empty")
+		}
+		if r.GetIssueName() == "" {
+			return nil, status.Error(codes.InvalidArgument, "report.issue_name cannot be empty")
+		}
+		registry, ok := s.issueRegistry.Get()
+		if !ok {
+			return nil, status.Error(codes.Unavailable, "issue registry not available")
+		}
+		tmpl, ok := registry.GetTemplate(r.GetIssueName())
+		if !ok {
+			return nil, status.Errorf(codes.NotFound, "no template registered for issue_name %q", r.GetIssueName())
+		}
+		built, err := tmpl.BuildIssue(r.GetContext())
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "BuildIssue(%q) failed: %v", r.GetIssueName(), err)
+		}
+		built.Id = r.GetIssueId()
+		if r.GetSource() != "" {
+			built.Source = r.GetSource()
+		}
+		built.Tags = append(built.Tags, r.GetTags()...)
+		issue = built
+
+	default:
+		return nil, status.Error(codes.InvalidArgument, "one of full_issue or report must be set")
 	}
+
 	if issue.GetId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "issue id cannot be empty")
 	}
 	if issue.GetIssueName() == "" {
 		return nil, status.Error(codes.InvalidArgument, "issue_name cannot be empty")
 	}
-
 	if err := store.ReportIssue(issue); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to store issue: %v", err)
 	}
