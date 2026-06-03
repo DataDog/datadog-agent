@@ -128,8 +128,8 @@ func newIntegrationPreservationSuite() e2e.Suite[environments.Host] {
 }
 
 // TestFleetIntegrationPreservation runs Linux-only. No Windows VMs are provisioned.
-// The -run regex used by new-e2e-fleet-upgrade is unanchored so it matches this
-// entry point alongside TestFleetUpgrade in the same CI job.
+// The new-e2e-fleet-upgrade linux job lists this entry point alongside TestFleetUpgrade
+// in its -run regex so both run in the same CI job.
 func TestFleetIntegrationPreservation(t *testing.T) {
 	suite.Run(t, newIntegrationPreservationSuite, suite.LinuxPlatforms)
 }

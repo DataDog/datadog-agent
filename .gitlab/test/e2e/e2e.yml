@@ -829,14 +829,14 @@ new-e2e-fleet-upgrade:
   extends: .new_e2e_fleet_template
   parallel:
     matrix:
+      # TestFleetIntegrationPreservation is a separate Linux-only suite (provisions no
+      # Windows VMs), so it runs alongside TestFleetUpgrade only in the linux entry.
       - E2E_FLEET_PLATFORM_GROUP: linux
-        EXTRA_PARAMS: --run "TestFleetUpgrade$"
+        EXTRA_PARAMS: --run "TestFleetUpgrade$|TestFleetIntegrationPreservation$"
       - E2E_FLEET_PLATFORM_GROUP: windows
         EXTRA_PARAMS: --run "TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$"
       - E2E_FLEET_PLATFORM_GROUP: windows
         EXTRA_PARAMS: --run "TestFleetUpgrade$" --skip "TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$"
-  variables:
-    EXTRA_PARAMS: --run TestFleetUpgrade|TestFleetIntegrationPreservation
 
 new-e2e-fleet-extensions:
   extends: .new_e2e_fleet_template
