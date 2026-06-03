@@ -9,7 +9,6 @@
 package opener
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
@@ -21,12 +20,7 @@ import (
 // cannot be enforced the same way as on Linux; behaviour matches [common.FollowSymlinks]
 // because the process_log provider only produces these paths on Linux.
 func OpenLogFile(path string, policy common.SymlinkPolicy) (*os.File, error) {
-	switch policy {
-	case common.FollowSymlinks, common.RejectSymlinks:
-		return filesystem.OpenShared(path)
-	default:
-		return nil, fmt.Errorf("opener: invalid SymlinkPolicy %d; must be FollowSymlinks or RejectSymlinks", policy)
-	}
+	return filesystem.OpenShared(path)
 }
 
 // StatLogFile stats a log file

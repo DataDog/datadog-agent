@@ -9,7 +9,6 @@
 package client
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
@@ -17,12 +16,7 @@ import (
 
 // Open provides a fallback for non-Linux platforms where the privileged logs module is not available.
 func Open(path string, policy common.SymlinkPolicy) (*os.File, error) {
-	switch policy {
-	case common.FollowSymlinks, common.RejectSymlinks:
-		return os.Open(path)
-	default:
-		return nil, fmt.Errorf("privileged-logs client: invalid SymlinkPolicy %d; must be FollowSymlinks or RejectSymlinks", policy)
-	}
+	return os.Open(path)
 }
 
 // OpenPrivileged is not supported on non-Linux platforms.
