@@ -368,7 +368,6 @@ go_test(
         "process_cache_entry_unix_test.go",
         "strings_test.go",
         "unmarshallers_fuzz_linux_test.go",
-        "unmarshallers_test.go",
         "utils_test.go",
     ],
     embed = [":model"],
