@@ -36,19 +36,25 @@ jobs:
           comments_endpoint="repos/${REPOSITORY}/issues/${PR_NUMBER}/comments"
 
           comment_filter="$(cat <<'JQ'
+          def thumbs_up_count:
+            (.reactions["+1"] // 0);
+
           .[]
           | select(
-              (
+              thumbs_up_count == 0
+              and (
                 (
-                  (.user.login == env.GITHUB_ACTIONS_BOT)
-                  or (.user.login == env.LEGACY_GITHUB_ACTIONS_BOT)
+                  (
+                    (.user.login == env.GITHUB_ACTIONS_BOT)
+                    or (.user.login == env.LEGACY_GITHUB_ACTIONS_BOT)
+                  )
+                  and .body == env.CODEX_REVIEW_BODY
                 )
-                and .body == env.CODEX_REVIEW_BODY
-              )
-              or (
-                (
-                  (.user.login == env.CHATGPT_CODEX_GRAPHQL_BOT)
-                  or (.user.login == env.CHATGPT_CODEX_REST_BOT)
+                or (
+                  (
+                    (.user.login == env.CHATGPT_CODEX_GRAPHQL_BOT)
+                    or (.user.login == env.CHATGPT_CODEX_REST_BOT)
+                  )
                 )
               )
             )
@@ -80,6 +86,12 @@ jobs:
                   nodes {
                     id
                     isMinimized
+                    reactionGroups {
+                      content
+                      users {
+                        totalCount
+                      }
+                    }
                     author {
                       login
                     }
@@ -127,6 +139,13 @@ jobs:
 
             review_ids_output="$(
               jq -r '
+                def thumbs_up_count:
+                  ([
+                    .reactionGroups[]?
+                    | select(.content == "THUMBS_UP")
+                    | .users.totalCount
+                  ] | add // 0);
+
                 .data.repository.pullRequest.reviews.nodes[]
                 | select(
                     (
@@ -134,6 +153,7 @@ jobs:
                       or (.author.login == env.CHATGPT_CODEX_REST_BOT)
                     )
                     and (.isMinimized | not)
+                    and (thumbs_up_count == 0)
                   )
                 | .id
               ' <<< "${response}"
