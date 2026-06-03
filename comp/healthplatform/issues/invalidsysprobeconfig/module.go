@@ -45,6 +45,9 @@ func (m *invalidSysprobeConfigModule) BuiltInPeriodicHealthCheck() *runnerdef.Bu
 
 // BuiltInStartupHealthCheck runs the system-probe schema validation once at agent startup.
 func (m *invalidSysprobeConfigModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
+	if m.checker.cfg == nil {
+		return nil
+	}
 	return &runnerdef.BuiltInHealthCheck{
 		Source: "system-probe",
 		Fn:     m.checker.Run,

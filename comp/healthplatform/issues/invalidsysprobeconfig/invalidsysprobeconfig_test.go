@@ -77,3 +77,17 @@ func TestCheck_NilSysprobeConfigNoOps(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, reports)
 }
+
+// Without sysprobeconfig the module must not register a startup check
+func TestBuiltInStartupHealthCheck_SkippedWhenSysprobeAbsent(t *testing.T) {
+	m := &invalidSysprobeConfigModule{checker: newChecker(nil)}
+	assert.Nil(t, m.BuiltInStartupHealthCheck())
+}
+
+// With sysprobeconfig present the startup check is registered
+func TestBuiltInStartupHealthCheck_RegisteredWhenSysprobePresent(t *testing.T) {
+	m := &invalidSysprobeConfigModule{checker: newChecker(&stubSysprobeConfig{})}
+	check := m.BuiltInStartupHealthCheck()
+	require.NotNil(t, check)
+	assert.Equal(t, "system-probe", check.Source)
+}
