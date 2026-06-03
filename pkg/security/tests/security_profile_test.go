@@ -28,7 +28,6 @@ import (
 	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 func TestSecurityProfile(t *testing.T) {
@@ -2129,101 +2128,6 @@ func TestSecurityProfilePersistence(t *testing.T) {
 			}
 		}
 	})
-}
-
-func generateSyscallTestProfile(timeResolver *ktime.Resolver, add ...model.Syscall) *profile.Profile {
-	syscallProfile := profile.New(
-		profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "fake_ubuntu", Tag: "latest"}),
-	)
-
-	baseSyscalls := []uint32{
-		5,   // SysFstat
-		10,  // SysMprotect
-		11,  // SysMunmap
-		12,  // SysBrk
-		13,  // SysRtSigaction
-		14,  // SysRtSigprocmask
-		15,  // SysRtSigreturn
-		17,  // SysPread64
-		24,  // SysSchedYield
-		28,  // SysMadvise
-		35,  // SysNanosleep
-		39,  // SysGetpid
-		56,  // SysClone
-		63,  // SysUname
-		72,  // SysFcntl
-		79,  // SysGetcwd
-		80,  // SysChdir
-		97,  // SysGetrlimit
-		102, // SysGetuid
-		105, // SysSetuid
-		106, // SysSetgid
-		116, // SysSetgroups
-		125, // SysCapget
-		126, // SysCapset
-		131, // SysSigaltstack
-		137, // SysStatfs
-		138, // SysFstatfs
-		157, // SysPrctl
-		158, // SysArchPrctl
-		186, // SysGettid
-		202, // SysFutex
-		204, // SysSchedGetaffinity
-		217, // SysGetdents64
-		218, // SysSetTidAddress
-		233, // SysEpollCtl
-		234, // SysTgkill
-		250, // SysKeyctl
-		257, // SysOpenat
-		262, // SysNewfstatat
-		267, // SysReadlinkat
-		273, // SysSetRobustList
-		281, // SysEpollPwait
-		290, // SysEventfd2
-		291, // SysEpollCreate1
-		293, // SysPipe2
-		302, // SysPrlimit64
-		317, // SysSeccomp
-		321, // SysBpf
-		334, // SysRseq
-		435, // SysClone3
-		439, // SysFaccessat2
-	}
-
-	syscalls := slices.Clone(baseSyscalls)
-	for _, toAdd := range add {
-		if !slices.Contains(syscalls, uint32(toAdd)) {
-			syscalls = append(syscalls, uint32(toAdd))
-		}
-	}
-
-	nowNano := uint64(timeResolver.ComputeMonotonicTimestamp(time.Now()))
-	syscallProfile.AddVersionContext("latest", &profile.VersionContext{
-		EventTypeState: make(map[model.EventType]*profile.EventTypeState),
-		FirstSeenNano:  nowNano,
-		LastSeenNano:   nowNano,
-		Syscalls:       syscalls,
-		Tags:           []string{"image_name:fake_ubuntu", "image_tag:latest"},
-	})
-
-	return syscallProfile
-}
-
-func checkExpectedSyscalls(t *testing.T, got []model.Syscall, expectedSyscalls []model.Syscall, eventReason model.SyscallDriftEventReason, testOutput map[model.SyscallDriftEventReason]bool) bool {
-	for _, s := range expectedSyscalls {
-		if !slices.Contains(got, s) {
-			t.Logf("A %s syscall drift event was received with the wrong list of syscalls. Expected %v, got %v", eventReason, expectedSyscalls, got)
-			return false
-		}
-	}
-	if len(got) != len(expectedSyscalls) {
-		t.Logf("A %s syscall drift event was received with additional syscalls. Expected %v, got %v", eventReason, expectedSyscalls, got)
-		return false
-	}
-	testOutput[eventReason] = true
-
-	// If all 3 reasons are OK, exit early
-	return testOutput[model.ExecveReason] && testOutput[model.ExitReason] && testOutput[model.SyscallMonitorPeriodReason]
 }
 
 // TestSecurityProfileSystemd tests the security profile functionality for systemd services.
