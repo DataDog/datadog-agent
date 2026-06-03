@@ -550,7 +550,8 @@ func runLauncherScanStartNewTailerTest(t *testing.T, testDirs []string) {
 }
 
 // runLauncherProcessLogSymlinkTest verifies the symlink policy that the launcher
-// applies to file sources discovered by the process_log provider.
+// applies to file sources discovered by the process_log provider, at both file
+// open sites: the initial open and the rotation re-open.
 //
 // process_log paths come from /proc/<pid>/fd and are canonical at discovery time,
 // so any symlink that appears later on the path indicates an attacker-controlled
@@ -558,7 +559,7 @@ func runLauncherScanStartNewTailerTest(t *testing.T, testDirs []string) {
 // path, while an ordinary source (ProcessLog=false) must keep following symlinks,
 // since admin-configured log paths may legitimately be symlinks.
 //
-// The test drives a full launcher scan, so under the privileged-logs suite (run as
+// The test drives full launcher scans, so under the privileged-logs suite (run as
 // root with unsearchable directories) it also exercises the system-probe
 // fd-transfer path: the open happens in system-probe, which must honour O_NOFOLLOW.
 //
@@ -567,14 +568,54 @@ func runLauncherScanStartNewTailerTest(t *testing.T, testDirs []string) {
 // is whether the symlink is followed or rejected.
 func runLauncherProcessLogSymlinkTest(t *testing.T, ops TestOps, testDir string) {
 	cfg := configmock.New(t)
+	t.Cleanup(status.Clear)
 
-	// startTailers builds a fresh launcher for a single exact-path source, runs one
-	// scan, and returns the number of tailers that were started.  A real file should
-	// yield one tailer; a path the launcher refuses to open should yield zero.
-	startTailers := func(path string, processLog bool) int {
+	// targetPath is a real .log file an attacker would point a swapped symlink at.
+	// It is a .log file so the privileged-logs allow-list accepts it; the only
+	// behaviour under test is whether the symlink is followed or rejected.
+	targetPath := testDir + "/target.log"
+	targetFile, err := ops.create(targetPath)
+	require.NoError(t, err)
+	_, err = targetFile.WriteString("secret\n")
+	require.NoError(t, err)
+	require.NoError(t, targetFile.Close())
+
+	makeReal := func(path string) {
+		f, err := ops.create(path)
+		require.NoError(t, err)
+		_, err = f.WriteString("hello\n")
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+	}
+	// swapToSymlink replaces the file at path with a symlink to targetPath, simulating
+	// an attacker swapping the discovered path after the agent first opened it.
+	swapToSymlink := func(path string) {
+		require.NoError(t, ops.remove(path))
+		require.NoError(t, ops.symlink(targetPath, path))
+	}
+
+	// newLauncher builds a fresh launcher for a single exact-path source and returns a
+	// scan function that runs one launcher scan and reports the tailer count.  The
+	// pipeline channel is drained so started tailers never block on send; this also
+	// lets the launcher stop a tailer (e.g. on rotation) without cleanup() hanging.
+	newLauncher := func(path string, processLog bool) func() int {
 		launcher := createLauncher(t, launcherTestOptions{openFilesLimit: 2})
 		launcher.pipelineProvider = mock.NewMockProvider()
 		launcher.registry = auditorMock.NewMockRegistry()
+
+		outputChan := launcher.pipelineProvider.NextPipelineChan()
+		stopDrain := make(chan struct{})
+		go func() {
+			for {
+				select {
+				case <-outputChan:
+				case <-stopDrain:
+					return
+				}
+			}
+		}()
+		t.Cleanup(func() { close(stopDrain) })
+
 		source := sources.NewLogSource("", &config.LogsConfig{
 			Type:       config.FileType,
 			Path:       path,
@@ -583,44 +624,47 @@ func runLauncherProcessLogSymlinkTest(t *testing.T, ops TestOps, testDir string)
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
 		status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
-		launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
-		// resolveActiveTailers starts tailers synchronously, so the count is final
-		// here.  Like the other standalone launcher helpers we deliberately do not
-		// stop the launcher: a started tailer would block sending to the undrained
-		// pipeline channel, so cleanup() would hang.  The test process tears the
-		// goroutines down on exit.
-		return launcher.tailers.Count()
+
+		return func() int {
+			launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+			return launcher.tailers.Count()
+		}
 	}
-	t.Cleanup(status.Clear)
 
-	// A real, canonical file as process_log would discover it.
-	realPath := testDir + "/real.log"
-	realFile, err := ops.create(realPath)
-	require.NoError(t, err)
-	_, err = realFile.WriteString("hello\n")
-	require.NoError(t, err)
-	require.NoError(t, realFile.Close())
+	t.Run("initial open", func(t *testing.T) {
+		realPath := testDir + "/init_real.log"
+		makeReal(realPath)
+		assert.Equal(t, 1, newLauncher(realPath, true)(),
+			"process_log source should tail a real file")
 
-	// The file an attacker would point a swapped symlink at.  It is also a .log file
-	// so that following the symlink fails only when the policy rejects symlinks, not
-	// because of the allow-list.
-	targetPath := testDir + "/target.log"
-	targetFile, err := ops.create(targetPath)
-	require.NoError(t, err)
-	_, err = targetFile.WriteString("secret\n")
-	require.NoError(t, err)
-	require.NoError(t, targetFile.Close())
+		symlinkPath := testDir + "/init_symlink.log"
+		require.NoError(t, ops.symlink(targetPath, symlinkPath))
+		assert.Equal(t, 0, newLauncher(symlinkPath, true)(),
+			"process_log source must reject a path that is a symlink")
+		assert.Equal(t, 1, newLauncher(symlinkPath, false)(),
+			"non-process_log source should follow a symlink")
+	})
 
-	// The discovered path, now swapped for a symlink after discovery.
-	symlinkPath := testDir + "/swapped.log"
-	require.NoError(t, ops.symlink(targetPath, symlinkPath))
+	t.Run("rotation", func(t *testing.T) {
+		// process_log: a path swapped to a symlink after the tailer started must be
+		// rejected on the rotation re-open, dropping the tailer.
+		plPath := testDir + "/rot_pl.log"
+		makeReal(plPath)
+		scanPL := newLauncher(plPath, true)
+		require.Equal(t, 1, scanPL(), "process_log tailer should start on the real file")
+		swapToSymlink(plPath)
+		assert.Equal(t, 0, scanPL(),
+			"process_log tailer must drop when the path becomes a symlink on rotation")
 
-	assert.Equal(t, 1, startTailers(realPath, true),
-		"process_log source should tail a real file")
-	assert.Equal(t, 0, startTailers(symlinkPath, true),
-		"process_log source must reject a path that has become a symlink")
-	assert.Equal(t, 1, startTailers(symlinkPath, false),
-		"non-process_log source should follow a symlink as before")
+		// non-process_log: the rotation re-open still follows the symlink.
+		nplPath := testDir + "/rot_npl.log"
+		makeReal(nplPath)
+		scanNPL := newLauncher(nplPath, false)
+		require.Equal(t, 1, scanNPL(), "non-process_log tailer should start on the real file")
+		swapToSymlink(nplPath)
+		assert.Equal(t, 1, scanNPL(),
+			"non-process_log tailer should follow the symlink across rotation")
+	})
 }
 
 // TestLauncherProcessLogSymlink runs the process_log symlink policy test with the
