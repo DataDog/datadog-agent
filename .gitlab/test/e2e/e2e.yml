@@ -671,6 +671,20 @@ new-e2e-sbom:
     matrix:
       - EXTRA_PARAMS: --run "TestSBOMKindSuite"
 
+new-e2e-usm:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - qa_agent_linux
+  rules:
+    - !reference [.on_systemprobe_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/usm
+    EXTRA_PARAMS: --run "TestPythonRemoteTagsLinuxSuite|TestPythonRemoteTagsDirectLinuxSuite"
+    TEAM: universal-service-monitoring
+
 new-e2e-discovery:
   extends: .new_e2e_template
   needs:
@@ -821,6 +835,8 @@ new-e2e-fleet-upgrade:
         EXTRA_PARAMS: --run "TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$"
       - E2E_FLEET_PLATFORM_GROUP: windows
         EXTRA_PARAMS: --run "TestFleetUpgrade$" --skip "TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$"
+  variables:
+    EXTRA_PARAMS: --run TestFleetUpgrade|TestFleetIntegrationPreservation
 
 new-e2e-fleet-extensions:
   extends: .new_e2e_fleet_template
