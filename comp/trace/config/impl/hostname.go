@@ -22,7 +22,6 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
-	hostnamepkg "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,8 +31,8 @@ var fallbackHostnameFunc = os.Hostname
 
 // osHostnameUsableFunc reports whether os.Hostname() is trustworthy in the
 // current environment. It is replaced in tests.
-var osHostnameUsableFunc = func(ctx context.Context) bool {
-	return hostnamepkg.OsHostnameUsable(ctx)
+var osHostnameUsableFunc = func(_ context.Context) bool {
+	return isOsHostnameUsable()
 }
 
 func hostname(c *config.AgentConfig) error {

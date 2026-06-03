@@ -37,14 +37,6 @@ var (
 	osHostnameUsable                 = isOSHostnameUsable
 )
 
-// OsHostnameUsable reports whether os.Hostname() can be trusted to return the
-// actual host's hostname. On Linux it returns false when the process is running
-// in a non-root UTS namespace (i.e., inside a container), where os.Hostname()
-// would return the container name instead of the node name.
-func OsHostnameUsable(ctx context.Context) bool {
-	return isOSHostnameUsable(ctx)
-}
-
 // Data contains hostname and the hostname provider
 type Data = hostnameinterface.Data
 
