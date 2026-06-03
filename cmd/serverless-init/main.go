@@ -24,7 +24,7 @@ import (
 	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	healthprobeDef "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobeFx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
@@ -92,7 +92,7 @@ func main() {
 		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "error", true)),
 		logfx.Module(),
 		nooptelemetry.Module(),
-		hostnameimpl.Module(),
+		hostnamefx.Module(),
 	)
 
 	if err != nil {

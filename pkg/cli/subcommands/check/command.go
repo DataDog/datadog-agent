@@ -41,7 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -177,7 +177,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true),
 				}),
 				core.Bundle(core.WithSecrets()),
-				hostnameimpl.Module(),
+				hostnamefx.Module(),
 
 				// workloadmeta setup
 				wmCatalog,

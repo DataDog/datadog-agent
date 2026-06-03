@@ -16,8 +16,8 @@ import (
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -86,7 +86,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, overrides) }),
 		mocktelemetry.Module(),
-		hostnameimpl.MockModule(),
+		hostnamemock.MockModule(),
 		serverdebugmock.MockModule(),
 		replaymock.MockModule(),
 		pidmapfx.Module(),
@@ -107,7 +107,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) configComponent.Component { return configComponent.NewMockFromYAML(t, yaml) }),
 		mocktelemetry.Module(),
-		hostnameimpl.MockModule(),
+		hostnamemock.MockModule(),
 		serverdebugmock.MockModule(),
 		replaymock.MockModule(),
 		metricscompression.MockModule(),
@@ -130,7 +130,7 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, cfg) }),
 		mocktelemetry.Module(),
-		hostnameimpl.MockModule(),
+		hostnamemock.MockModule(),
 		serverdebugmock.MockModule(),
 		fx.Supply(server.Params{Serverless: false}),
 		replaymock.MockModule(),

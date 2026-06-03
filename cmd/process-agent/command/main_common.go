@@ -22,7 +22,7 @@ import (
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -134,7 +134,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide core components
 		core.Bundle(core.WithSecrets()),
-		hostnameimpl.Module(),
+		hostnamefx.Module(),
 
 		// Provide process agent bundle so fx knows where to find components
 		process.Bundle(),

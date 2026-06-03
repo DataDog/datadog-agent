@@ -10,7 +10,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	trapsconf "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
 )

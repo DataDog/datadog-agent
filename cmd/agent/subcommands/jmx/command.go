@@ -30,7 +30,7 @@ import (
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -123,7 +123,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			apiimpl.Module(),
 			grpcNonefx.Module(),
 			workloadfilterfx.Module(),
-			hostnameimpl.Module(),
+			hostnamefx.Module(),
 			dualTaggerfx.Module(common.DualTaggerParams()),
 			adfx.Module(),
 			healthplatform.Bundle(),

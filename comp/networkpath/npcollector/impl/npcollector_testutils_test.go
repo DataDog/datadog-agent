@@ -24,7 +24,7 @@ import (
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
@@ -60,7 +60,7 @@ var testOptions = fx.Options(
 	rdnsqueriermock.MockModule(),
 	logscompression.MockModule(),
 	mocktelemetry.Module(),
-	hostnameimpl.MockModule(),
+	hostnamemock.MockModule(),
 	fx.Provide(delegatedauthmock.New),
 )
 

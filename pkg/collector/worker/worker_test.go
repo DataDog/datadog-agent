@@ -21,7 +21,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/impl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
@@ -757,7 +757,7 @@ func TestWorker_HaIntegration(t *testing.T) {
 			requires := haagentimpl.Requires{
 				Logger:      logComponent,
 				AgentConfig: agentConfigComponent,
-				Hostname:    hostnameimpl.NewHostnameService(),
+				Hostname:    hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp,
 			}
 			haagentcomp, _ := haagentimpl.NewComponent(requires)
 			haagentcomp.Comp.SetLeader(tt.setLeaderValue)

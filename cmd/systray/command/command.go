@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
@@ -98,7 +98,7 @@ func MakeCommand() *cobra.Command {
 					LogParams:    logParams,
 				}),
 				core.Bundle(),
-				hostnameimpl.Module(),
+				hostnamefx.Module(),
 				// flare
 				flare.Module(flare.NewParams(
 					defaultpaths.GetDistPath(),

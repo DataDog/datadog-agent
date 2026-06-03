@@ -23,7 +23,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -813,7 +813,7 @@ func createAggrDeps(t *testing.T) aggregatorDeps {
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		defaultforwardermock.MockModule(),
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
+		hostnamemock.MockModule(),
 		logscompressionmock.MockModule(),
 		metricscompressionmock.MockModule(),
 		haagentmock.Module(),

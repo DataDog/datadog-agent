@@ -20,7 +20,7 @@ import (
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"

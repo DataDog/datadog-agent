@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/impl"
 )
 
 //go:embed fixtures
@@ -50,7 +50,7 @@ func TestStatus(t *testing.T) {
 	headerProvider := statusProvider{
 		testServerURL: server.URL,
 		config:        configComponent,
-		hostname:      hostnameimpl.NewHostnameService(),
+		hostname:      hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp,
 	}
 
 	tests := []struct {

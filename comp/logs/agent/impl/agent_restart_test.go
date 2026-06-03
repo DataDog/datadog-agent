@@ -25,7 +25,7 @@ import (
 	"go.uber.org/fx"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
@@ -126,7 +126,7 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 		fx.Provide(func() configComponent.Component {
 			return configComponent.NewMockWithOverrides(suite.T(), suite.configOverrides)
 		}),
-		hostnameimpl.MockModule(),
+		hostnamemock.MockModule(),
 		inventoryagentmock.MockModule(),
 		auditorfx.Module(),
 		fxutil.ProvideComponentConstructor(kubehealthmock.NewProvides),

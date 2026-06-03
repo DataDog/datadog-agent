@@ -5,13 +5,17 @@
 
 //go:build test
 
-package hostnameimpl
+// Package mock provides a mock for the hostname component.
+package mock
 
 import (
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// Mock implements mock-specific methods.
+type Mock = hostnamemock.Mock
 
 // MockModule defines the fx options for the mock component.
 // Injecting MockModule will provide the hostname 'my-hostname';

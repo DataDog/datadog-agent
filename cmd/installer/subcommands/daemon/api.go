@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	localapiclient "github.com/DataDog/datadog-agent/comp/updater/localapiclient/def"
@@ -198,7 +198,7 @@ func experimentFxWrapper(f interface{}, params *cliParams) error {
 			LogParams:            log.ForOneShot("INSTALLER", "off", true),
 		}),
 		core.Bundle(core.WithSecrets()),
-		hostnameimpl.Module(),
+		hostnamefx.Module(),
 		fx.Supply(params),
 		localapiclientfx.Module(),
 	)

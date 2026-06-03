@@ -3,11 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//go:build test
-
+// Package hostname exposes hostname.Get() as a component.
+// Deprecated: use comp/core/hostname/def instead.
 package hostname
-
-import hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
-
-// Mock implements mock-specific methods.
-type Mock = hostnamemock.Mock

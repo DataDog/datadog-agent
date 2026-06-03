@@ -15,8 +15,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
@@ -114,7 +114,7 @@ func getTestPackageSigning(t *testing.T) *pkgSigning {
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			hostnameimpl.MockModule(),
+			hostnamemock.MockModule(),
 		)),
 	)
 	return p.Comp.(*pkgSigning)

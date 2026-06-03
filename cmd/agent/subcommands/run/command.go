@@ -87,7 +87,7 @@ import (
 	guifx "github.com/DataDog/datadog-agent/comp/core/gui/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -422,7 +422,7 @@ func getSharedFxOption() fx.Option {
 			defaultpaths.StreamlogsLogFile,
 		)),
 		core.Bundle(core.WithSecrets()),
-		hostnameimpl.Module(),
+		hostnamefx.Module(),
 		flareprofiler.Module(),
 		fx.Provide(func(cfg config.Component) flaretypes.Provider {
 			provider := &hostSbom.FlareProvider{

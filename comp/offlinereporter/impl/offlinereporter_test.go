@@ -21,7 +21,7 @@ import (
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
@@ -54,7 +54,7 @@ func newTestOptions(t *testing.T, enabled bool) (afero.Fs, *clock.Mock, fx.Optio
 		}),
 		fx.Supply(Params{Fs: fs, Clk: clk}),
 		fxutil.ProvideComponentConstructor(NewComponent),
-		hostnameimpl.MockModule(),
+		hostnamemock.MockModule(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		logscompressionmock.MockModule(),
 		metricscompressionmock.MockModule(),
@@ -168,7 +168,7 @@ func TestNegativeInterval(t *testing.T) {
 		}),
 		fx.Supply(Params{Fs: fs, Clk: clock.NewMock()}),
 		fxutil.ProvideComponentConstructor(NewComponent),
-		hostnameimpl.MockModule(),
+		hostnamemock.MockModule(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		logscompressionmock.MockModule(),
 		metricscompressionmock.MockModule(),

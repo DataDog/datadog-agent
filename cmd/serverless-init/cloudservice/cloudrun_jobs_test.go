@@ -18,7 +18,7 @@ import (
 
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
@@ -371,6 +371,6 @@ func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		hostnameimpl.MockModule(),
+		hostnamemock.MockModule(),
 	)
 }

@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/impl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -93,7 +93,7 @@ func getTestInventoryHost(t *testing.T) *gpuHost {
 		Log:        logmock.New(t),
 		Config:     configmock.New(t),
 		Serializer: serializermock.NewMetricSerializer(t),
-		Hostname:   hostnameimpl.NewHostnameService(),
+		Hostname:   hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp,
 	})
 	return p.Comp.(*gpuHost)
 }

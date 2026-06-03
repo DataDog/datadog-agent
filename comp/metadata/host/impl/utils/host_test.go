@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/impl"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -35,11 +35,11 @@ func TestOTLPEnabled(t *testing.T) {
 	defer func(orig func(cfg model.Reader) bool) { otlpIsEnabled = orig }(otlpIsEnabled)
 
 	otlpIsEnabled = func(model.Reader) bool { return false }
-	p := GetPayload(ctx, conf, hostnameimpl.NewHostnameService())
+	p := GetPayload(ctx, conf, hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp)
 	assert.False(t, p.OtlpMeta.Enabled)
 
 	otlpIsEnabled = func(model.Reader) bool { return true }
-	p = GetPayload(ctx, conf, hostnameimpl.NewHostnameService())
+	p = GetPayload(ctx, conf, hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp)
 	assert.True(t, p.OtlpMeta.Enabled)
 }
 
@@ -127,7 +127,7 @@ func TestGetPayload(t *testing.T) {
 	_, found := cache.Cache.Get(hostCacheKey)
 	assert.False(t, found)
 
-	p := GetPayload(ctx, conf, hostnameimpl.NewHostnameService())
+	p := GetPayload(ctx, conf, hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp)
 	if runtime.GOOS == "windows" {
 		assert.Equal(t, "win32", p.Os)
 	} else {
@@ -157,7 +157,7 @@ func TestGetFromCache(t *testing.T) {
 	conf := configmock.New(t)
 
 	cache.Cache.Set(hostCacheKey, &Payload{Os: "testOS"}, cache.NoExpiration)
-	p := GetFromCache(ctx, conf, hostnameimpl.NewHostnameService())
+	p := GetFromCache(ctx, conf, hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp)
 	require.NotNil(t, p)
 	assert.Equal(t, "testOS", p.Os)
 }

@@ -24,7 +24,7 @@ import (
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -291,7 +291,7 @@ func standaloneAgentFxOptions(params *cliParams) fx.Option {
 		// Real secrets backend so ENC[] handles in OTel/DD config are resolved locally
 		secretsfx.Module(),
 		// Resolve hostname locally; no core agent to ask
-		hostnameimpl.Module(),
+		hostnamefx.Module(),
 		// No on-init config sync (no core agent to sync from); periodic sync is also
 		// effectively disabled by the default agent_ipc.config_refresh_interval=0
 		configsyncfx.Module(configsync.NewParams(params.SyncTimeout, false, params.SyncOnInitTimeout)),

@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	snmpscanmanagermock "github.com/DataDog/datadog-agent/comp/snmpscanmanager/mock"
@@ -53,7 +53,7 @@ type deps struct {
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, demultiplexerimpl.MockModule(), defaultforwardermock.MockModule(), core.MockBundle(), hostnameimpl.MockModule())
+	return fxutil.Test[deps](t, demultiplexerimpl.MockModule(), defaultforwardermock.MockModule(), core.MockBundle(), hostnamemock.MockModule())
 }
 
 func Test_Run_simpleCase(t *testing.T) {

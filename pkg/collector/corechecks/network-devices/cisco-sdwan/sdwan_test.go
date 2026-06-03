@@ -23,7 +23,7 @@ import (
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -39,7 +39,7 @@ type deps struct {
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, demultiplexerimpl.MockModule(), defaultforwardermock.MockModule(), core.MockBundle(), hostnameimpl.MockModule())
+	return fxutil.Test[deps](t, demultiplexerimpl.MockModule(), defaultforwardermock.MockModule(), core.MockBundle(), hostnamemock.MockModule())
 }
 
 // mockTimeNow mocks time.Now

@@ -14,7 +14,7 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"

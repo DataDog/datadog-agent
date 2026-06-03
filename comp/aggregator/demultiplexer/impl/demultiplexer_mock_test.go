@@ -12,7 +12,7 @@ import (
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -22,7 +22,7 @@ import (
 func TestSetDefaultSender(t *testing.T) {
 	mock := fxutil.Test[demultiplexerComp.Mock](t, MockModule(),
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
+		hostnamemock.MockModule(),
 		defaultforwardermock.MockModule())
 
 	sender := &mocksender.MockSender{}
