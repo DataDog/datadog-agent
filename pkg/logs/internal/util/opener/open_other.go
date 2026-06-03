@@ -9,6 +9,7 @@
 package opener
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
@@ -16,10 +17,14 @@ import (
 )
 
 // OpenLogFile opens a file with filesystem.OpenShared.
-// On non-Linux platforms symlink rejection requested via [common.RejectSymlinks]
-// cannot be enforced the same way as on Linux; behaviour matches [common.FollowSymlinks]
-// because the process_log provider only produces these paths on Linux.
+// On non-Linux platforms we don't need to support symlink rejection since it's
+// only needed for process_log-discovered paths which are currently only
+// supported on Linux.
 func OpenLogFile(path string, policy common.SymlinkPolicy) (*os.File, error) {
+	if policy != common.FollowSymlinks {
+		return nil, fmt.Errorf("opener: invalid SymlinkPolicy %d; must be FollowSymlinks on non-Linux platforms", policy)
+	}
+
 	return filesystem.OpenShared(path)
 }
 
