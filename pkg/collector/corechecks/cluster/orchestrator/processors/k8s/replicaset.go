@@ -36,10 +36,10 @@ func NewReplicaSetHandlers(tagger tagger.Component) *ReplicaSetHandlers {
 	return &ReplicaSetHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *ReplicaSetHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *ReplicaSetHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*appsv1.ReplicaSet)
 	m := resourceModel.(*model.ReplicaSet)
 

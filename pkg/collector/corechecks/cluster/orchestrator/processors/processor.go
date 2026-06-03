@@ -157,10 +157,10 @@ type Handlers interface {
 	// moves on to the next resource.
 	AfterMarshalling(ctx ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool)
 
-	// BeforeCacheCheck runs before the Processor does a cache lookup for the
+	// EnrichModel runs before the Processor does a cache lookup for the
 	// resource. If skip is true then the resource processing loop moves on to
 	// the next resource.
-	BeforeCacheCheck(ctx ProcessorContext, resource, resourceModel interface{}) (skip bool)
+	EnrichModel(ctx ProcessorContext, resource, resourceModel interface{}) (skip bool)
 
 	// BeforeMarshalling runs before the Processor marshals the resource to
 	// generate a manifest. If skip is true then the resource processing loop
@@ -294,7 +294,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 		resourceMetadataModel := p.h.ExtractResource(ctx, resource)
 
 		// Execute code before cache check.
-		if skip := p.h.BeforeCacheCheck(ctx, resource, resourceMetadataModel); skip {
+		if skip := p.h.EnrichModel(ctx, resource, resourceMetadataModel); skip {
 			continue
 		}
 

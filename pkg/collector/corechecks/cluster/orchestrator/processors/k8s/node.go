@@ -36,10 +36,10 @@ func NewNodeHandlers(tagger tagger.Component) *NodeHandlers {
 	return &NodeHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *NodeHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *NodeHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*corev1.Node)
 	m := resourceModel.(*model.Node)
 

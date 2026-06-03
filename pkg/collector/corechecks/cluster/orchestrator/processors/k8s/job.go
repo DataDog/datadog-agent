@@ -36,10 +36,10 @@ func NewJobHandlers(tagger tagger.Component) *JobHandlers {
 	return &JobHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *JobHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *JobHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*batchv1.Job)
 	m := resourceModel.(*model.Job)
 

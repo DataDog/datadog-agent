@@ -35,10 +35,10 @@ func NewPodDisruptionBudgetHandlers(tagger tagger.Component) *PodDisruptionBudge
 	return &PodDisruptionBudgetHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *PodDisruptionBudgetHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *PodDisruptionBudgetHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*policyv1.PodDisruptionBudget)
 	m := resourceModel.(*model.PodDisruptionBudget)
 

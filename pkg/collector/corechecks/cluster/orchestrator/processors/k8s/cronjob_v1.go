@@ -35,10 +35,10 @@ func NewCronJobV1Handlers(tagger tagger.Component) *CronJobV1Handlers {
 	return &CronJobV1Handlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *CronJobV1Handlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *CronJobV1Handlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*batchv1.CronJob)
 	m := resourceModel.(*model.CronJob)
 

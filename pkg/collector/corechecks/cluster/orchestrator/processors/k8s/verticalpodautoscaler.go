@@ -35,10 +35,10 @@ func NewVerticalPodAutoscalerHandlers(tagger tagger.Component) *VerticalPodAutos
 	return &VerticalPodAutoscalerHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *VerticalPodAutoscalerHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *VerticalPodAutoscalerHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*v1.VerticalPodAutoscaler)
 	m := resourceModel.(*model.VerticalPodAutoscaler)
 

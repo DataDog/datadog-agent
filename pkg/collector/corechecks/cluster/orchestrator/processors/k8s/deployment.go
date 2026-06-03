@@ -35,10 +35,10 @@ func NewDeploymentHandlers(tagger tagger.Component) *DeploymentHandlers {
 	return &DeploymentHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *DeploymentHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *DeploymentHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*appsv1.Deployment)
 	m := resourceModel.(*model.Deployment)
 

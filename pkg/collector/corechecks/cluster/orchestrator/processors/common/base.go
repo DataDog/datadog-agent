@@ -17,7 +17,7 @@ import (
 type BaseHandlers struct{}
 
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (BaseHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (BaseHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 

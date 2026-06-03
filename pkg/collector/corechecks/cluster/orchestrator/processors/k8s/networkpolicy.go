@@ -35,10 +35,10 @@ func NewNetworkPolicyHandlers(tagger tagger.Component) *NetworkPolicyHandlers {
 	return &NetworkPolicyHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *NetworkPolicyHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *NetworkPolicyHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*netv1.NetworkPolicy)
 	m := resourceModel.(*model.NetworkPolicy)
 

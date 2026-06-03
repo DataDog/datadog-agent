@@ -32,7 +32,7 @@ func (rh *TestResourceHandlers) AfterMarshalling(ctx ProcessorContext, resource,
 }
 
 //nolint:revive
-func (rh *TestResourceHandlers) BeforeCacheCheck(ctx ProcessorContext, resource, resourceModel any) (skip bool) {
+func (rh *TestResourceHandlers) EnrichModel(ctx ProcessorContext, resource, resourceModel any) (skip bool) {
 	if rh.SkipBeforeCacheCheck {
 		return true
 	}

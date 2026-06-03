@@ -37,10 +37,10 @@ func NewStorageClassHandlers(tagger tagger.Component) *StorageClassHandlers {
 	return &StorageClassHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *StorageClassHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *StorageClassHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*storagev1.StorageClass)
 	m := resourceModel.(*model.StorageClass)
 

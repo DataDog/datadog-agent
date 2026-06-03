@@ -36,10 +36,10 @@ func NewStatefulSetHandlers(tagger tagger.Component) *StatefulSetHandlers {
 	return &StatefulSetHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *StatefulSetHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *StatefulSetHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*appsv1.StatefulSet)
 	m := resourceModel.(*model.StatefulSet)
 

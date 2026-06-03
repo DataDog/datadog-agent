@@ -37,10 +37,10 @@ func NewLimitRangeHandlers(tagger tagger.Component) *LimitRangeHandlers {
 	return &LimitRangeHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *LimitRangeHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *LimitRangeHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*corev1.LimitRange)
 	m := resourceModel.(*model.LimitRange)
 

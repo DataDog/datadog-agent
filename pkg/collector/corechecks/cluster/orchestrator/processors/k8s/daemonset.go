@@ -36,10 +36,10 @@ func NewDaemonSetHandlers(tagger tagger.Component) *DaemonSetHandlers {
 	return &DaemonSetHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *DaemonSetHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *DaemonSetHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*appsv1.DaemonSet)
 	m := resourceModel.(*model.DaemonSet)
 

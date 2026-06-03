@@ -36,10 +36,10 @@ func NewIngressHandlers(tagger tagger.Component) *IngressHandlers {
 	return &IngressHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *IngressHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *IngressHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*netv1.Ingress)
 	m := resourceModel.(*model.Ingress)
 

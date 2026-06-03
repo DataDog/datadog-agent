@@ -68,8 +68,8 @@ func (h *PodHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resourc
 	return
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
-func (h *PodHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+// EnrichModel is a handler called before cache lookup.
+func (h *PodHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	pctx := ctx.(*processors.K8sProcessorContext)
 	r := resource.(*corev1.Pod)
 	m := resourceModel.(*model.Pod)

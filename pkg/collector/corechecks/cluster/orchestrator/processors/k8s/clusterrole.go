@@ -35,10 +35,10 @@ func NewClusterRoleHandlers(tagger tagger.Component) *ClusterRoleHandlers {
 	return &ClusterRoleHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *ClusterRoleHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *ClusterRoleHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*rbacv1.ClusterRole)
 	m := resourceModel.(*model.ClusterRole)
 

@@ -36,10 +36,10 @@ func NewServiceAccountHandlers(tagger tagger.Component) *ServiceAccountHandlers 
 	return &ServiceAccountHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *ServiceAccountHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *ServiceAccountHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*corev1.ServiceAccount)
 	m := resourceModel.(*model.ServiceAccount)
 

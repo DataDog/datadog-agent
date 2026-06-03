@@ -36,10 +36,10 @@ func NewPersistentVolumeClaimHandlers(tagger tagger.Component) *PersistentVolume
 	return &PersistentVolumeClaimHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *PersistentVolumeClaimHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *PersistentVolumeClaimHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*corev1.PersistentVolumeClaim)
 	m := resourceModel.(*model.PersistentVolumeClaim)
 

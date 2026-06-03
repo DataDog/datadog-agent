@@ -36,10 +36,10 @@ func NewRoleHandlers(tagger tagger.Component) *RoleHandlers {
 	return &RoleHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *RoleHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *RoleHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*rbacv1.Role)
 	m := resourceModel.(*model.Role)
 

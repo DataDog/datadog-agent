@@ -50,7 +50,7 @@ func TestJobHandlers_BeforeCacheCheck(t *testing.T) {
 	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
 	handlers := NewJobHandlers(tagger)
 
-	skip := handlers.BeforeCacheCheck(ctx, resource, resourceModel)
+	skip := handlers.EnrichModel(ctx, resource, resourceModel)
 	assert.False(t, skip)
 	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
 }
