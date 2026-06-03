@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Adds experimental noisy log detection to tag would-be-sampled logs with
+    ``noisy_log:true`` without dropping them when adaptive sampling is disabled.
+    Also adds an optional ``log_hash:<hash>`` tag for the structural sampler
+    pattern.

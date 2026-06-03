@@ -6,7 +6,8 @@
 -- Includes: Tokenization (byte-to-token classification, run-length
 --   encoding, special token promotion), pattern matching contract,
 --   credit-based rate limiting, pattern table management (creation,
---   eviction, ordering), sampled-count metadata tagging.
+--   eviction, ordering), sampled-count metadata tagging, detection-only
+--   noisy-log tagging, optional pattern hash tagging.
 -- Excludes:
 --   - Preprocessor pipeline orchestration (JSON aggregation, multiline
 --     labeling and combining, aggregation strategies upstream of sampling)
@@ -217,6 +218,15 @@ config {
     -- Maximum bytes of the log message's first line to tokenize.
     -- Bytes beyond this offset are ignored by the tokenizer.
     tokenizer_max_input_bytes: Integer = 2048
+
+    -- When true, logs that would be dropped are emitted with
+    -- noisy_log:true instead of being dropped.
+    detection_only: Boolean = false
+
+    -- When true, emitted logs are tagged with log_hash:<hash>, where
+    -- the hash is computed from the canonical structural token sequence
+    -- for the matched sampler pattern.
+    tag_pattern_hash: Boolean = false
 }
 
 ------------------------------------------------------------
@@ -251,7 +261,7 @@ rule EmitMatchingLog {
     ensures: entry.last_seen = now
     ensures: entry.match_count = entry.match_count + 1
     ensures: entry.sampled_count = 0
-    ensures: LogEmitted(message, sampled_count: prior_sampled_count)
+    ensures: LogEmitted(message, sampled_count: prior_sampled_count, pattern_hash: entry.signature if config.tag_pattern_hash)
 
     @guidance
         -- If prior_sampled_count > 0 the emitted message is tagged
@@ -265,7 +275,8 @@ rule EmitMatchingLog {
 }
 
 -- A log matches an existing pattern but credits are insufficient.
--- The message is dropped and the suppressed count increments.
+-- The suppressed count increments. In normal mode the message is
+-- dropped; in detection-only mode it is emitted with noisy_log:true.
 
 rule DropMatchingLog {
     when: ProcessLog(message, incoming)
@@ -287,7 +298,10 @@ rule DropMatchingLog {
     ensures: entry.last_seen = now
     ensures: entry.match_count = entry.match_count + 1
     ensures: entry.sampled_count = entry.sampled_count + 1
-    ensures: LogDropped(message)
+    ensures: if config.detection_only:
+        LogEmitted(message, noisy_log: true, pattern_hash: entry.signature if config.tag_pattern_hash)
+    ensures: if not config.detection_only:
+        LogDropped(message)
 
     @guidance
         -- After updating, the entry is bubbled toward the front of
@@ -310,7 +324,7 @@ rule RegisterNewPattern {
         match_count: 1,
         sampled_count: 0
     )
-    ensures: LogEmitted(message, sampled_count: 0)
+    ensures: LogEmitted(message, sampled_count: 0, pattern_hash: incoming if config.tag_pattern_hash)
 
     @guidance
         -- New entries start with burst_size - 1 credits because the
@@ -338,7 +352,7 @@ rule EvictAndRegisterPattern {
         match_count: 1,
         sampled_count: 0
     )
-    ensures: LogEmitted(message, sampled_count: 0)
+    ensures: LogEmitted(message, sampled_count: 0, pattern_hash: incoming if config.tag_pattern_hash)
 
     @guidance
         -- When multiple entries share the minimum match_count, the
@@ -399,7 +413,8 @@ invariant SampledCountNonNegative {
 --
 -- MessageContentIntegrity: the sampler never modifies log content
 --   bytes. Emitted messages are byte-identical to their input.
---   Only metadata (adaptive_sampler_sampled_count tag) may be added.
+--   Only metadata tags (adaptive_sampler_sampled_count, noisy_log,
+--   log_hash) may be added.
 --
 -- SteadyStateRateBound: after burst exhaustion, a pattern emits
 --   at most rate_limit logs per second. Over interval T seconds,

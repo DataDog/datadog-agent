@@ -7,6 +7,7 @@ package preprocessor
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -54,6 +55,24 @@ func requireNoSampledCountTag(t *testing.T, msg *message.Message) {
 	t.Helper()
 	for _, tag := range msg.ParsingExtra.Tags {
 		assert.NotContains(t, tag, "adaptive_sampler_sampled_count:")
+	}
+}
+
+func requireTagWithPrefix(t *testing.T, msg *message.Message, prefix string) string {
+	t.Helper()
+	for _, tag := range msg.ParsingExtra.Tags {
+		if strings.HasPrefix(tag, prefix) {
+			return tag
+		}
+	}
+	require.Failf(t, "missing tag", "expected tag with prefix %q in %v", prefix, msg.ParsingExtra.Tags)
+	return ""
+}
+
+func requireNoTagWithPrefix(t *testing.T, msg *message.Message, prefix string) {
+	t.Helper()
+	for _, tag := range msg.ParsingExtra.Tags {
+		assert.Falsef(t, strings.HasPrefix(tag, prefix), "unexpected tag %q with prefix %q", tag, prefix)
 	}
 }
 
@@ -166,6 +185,51 @@ func TestAdaptiveSampler_TagsSuppressedMatchesAfterLongDelay(t *testing.T) {
 	out2 := s.Process(msg, patternA)
 	require.NotNil(t, out2)
 	requireSampledCountTag(t, out2, 1)
+	assert.Equal(t, int64(0), s.entries[0].sampled, "emitting should reset the suppressed count")
+}
+
+func TestAdaptiveSampler_DetectionOnlyTagsWouldDrop(t *testing.T) {
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      0,
+		BurstSize:      1,
+		MatchThreshold: 0.9,
+		DetectionOnly:  true,
+	}, "test")
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	out1 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out1, "first message should still be allowed")
+	requireNoTagWithPrefix(t, out1, "noisy_log:")
+
+	out2 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out2, "detection-only should keep messages that would be dropped")
+	assert.Contains(t, out2.ParsingExtra.Tags, adaptiveSamplerNoisyLogTag)
+	assert.Equal(t, int64(1), s.entries[0].sampled, "would-dropped messages should preserve suppressed accounting")
+}
+
+func TestAdaptiveSampler_DetectionOnlyPreservesSamplerAccounting(t *testing.T) {
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      1,
+		BurstSize:      1,
+		MatchThreshold: 0.9,
+		DetectionOnly:  true,
+	}, "test")
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	require.NotNil(t, s.Process(testMsg(), patternA))
+	out2 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out2)
+	assert.Contains(t, out2.ParsingExtra.Tags, adaptiveSamplerNoisyLogTag)
+
+	s.now = func() time.Time { return t0.Add(time.Second) }
+	out3 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out3, "the next credited message should still pass through normally")
+	requireNoTagWithPrefix(t, out3, "noisy_log:")
+	requireSampledCountTag(t, out3, 1)
 	assert.Equal(t, int64(0), s.entries[0].sampled, "emitting should reset the suppressed count")
 }
 
@@ -318,6 +382,36 @@ func TestAdaptiveSampler_EmptyTokensNewPattern(t *testing.T) {
 	out := s.Process(msg, nil)
 	assert.NotNil(t, out, "empty-token message should be allowed as new pattern")
 	require.Len(t, s.entries, 1)
+}
+
+func TestAdaptiveSampler_DoesNotTagPatternHashByDefault(t *testing.T) {
+	s := newSampler(10, 5.0, 0)
+	out := s.Process(testMsg(), patternA)
+	require.NotNil(t, out)
+	requireNoTagWithPrefix(t, out, "log_hash:")
+}
+
+func TestAdaptiveSampler_TagPatternHashUsesCanonicalPattern(t *testing.T) {
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      0,
+		BurstSize:      10,
+		MatchThreshold: 0.9,
+		TagPatternHash: true,
+	}, "test")
+
+	canonical := []Token{C1, D1, Fslash, C2, D2, Period, C3, D3, Dash, C4}
+	similar := []Token{C1, D1, Fslash, C2, D2, Period, C3, D3, Dash, D4}
+
+	out1 := s.Process(testMsg(), canonical)
+	require.NotNil(t, out1)
+	hashTag := requireTagWithPrefix(t, out1, "log_hash:")
+	assert.Equal(t, adaptiveSamplerLogHashTag(canonical), hashTag)
+
+	out2 := s.Process(testMsg(), similar)
+	require.NotNil(t, out2)
+	assert.Contains(t, out2.ParsingExtra.Tags, hashTag)
+	assert.NotEqual(t, adaptiveSamplerLogHashTag(similar), hashTag, "the test should prove matched logs use the canonical pattern hash")
 }
 
 // --- AdaptiveSampler: important log protection ---

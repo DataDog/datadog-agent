@@ -596,12 +596,26 @@ properties:
         tags:
         - golang_type:float64
         comment: Steady-state logs per second allowed for each matched pattern.
+      tag_pattern_hash:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: When adaptive sampling or noisy log detection is enabled, tag
+          logs with log_hash:<hash> using the hash of their structural sampler
+          pattern.
       tokenizer_max_input_bytes:
         node_type: setting
         type: integer
         default: 2048
         comment: The sampler needs a larger tokenizer window than the auto-multiline
           labeler.
+  experimental_noisy_log_detection:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: Tag repetitive logs that would be dropped by the adaptive sampler
+      with noisy_log:true without dropping them. Real adaptive sampling takes
+      precedence when enabled.
   experimental_auto_multi_line_detection:
     node_type: setting
     type: boolean

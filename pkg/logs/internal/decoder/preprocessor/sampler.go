@@ -7,6 +7,7 @@
 package preprocessor
 
 import (
+	"hash/fnv"
 	"regexp"
 	"strconv"
 	"time"
@@ -67,6 +68,18 @@ func adaptiveSamplerSampledCountTag(count int64) string {
 	return "adaptive_sampler_sampled_count:" + strconv.FormatInt(count, 10)
 }
 
+const adaptiveSamplerNoisyLogTag = "noisy_log:true"
+
+func adaptiveSamplerLogHashTag(tokens []Token) string {
+	var b [1]byte
+	h := fnv.New64a()
+	for _, t := range tokens {
+		b[0] = byte(t)
+		_, _ = h.Write(b[:])
+	}
+	return "log_hash:" + strconv.FormatUint(h.Sum64(), 16)
+}
+
 // AdaptiveSamplerConfig holds the configuration for the AdaptiveSampler.
 type AdaptiveSamplerConfig struct {
 	// MaxPatterns is the maximum number of distinct patterns tracked simultaneously.
@@ -83,6 +96,10 @@ type AdaptiveSamplerConfig struct {
 	// ProtectImportantLogs bypasses rate limiting for logs containing critical severity
 	// keywords (FATAL, ERROR, PANIC, etc.). Protected logs are never dropped.
 	ProtectImportantLogs bool
+	// DetectionOnly tags messages that would be dropped, without dropping them.
+	DetectionOnly bool
+	// TagPatternHash tags messages with the hash of their structural pattern.
+	TagPatternHash bool
 	// Include limits adaptive sampling to messages matching at least one filter.
 	// When empty, all messages are eligible unless excluded.
 	Include []AdaptiveSamplerFilter
@@ -184,14 +201,22 @@ func (s *AdaptiveSampler) shouldSample(msg *message.Message, tokens []Token) boo
 	return matchesAnyFilter(s.config.Include, msg, tokens, s.config.MatchThreshold)
 }
 
+func (s *AdaptiveSampler) tagPatternHash(msg *message.Message, tokens []Token) {
+	if s.config.TagPatternHash {
+		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerLogHashTag(tokens))
+	}
+}
+
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
 	if !s.shouldSample(msg, tokens) {
+		s.tagPatternHash(msg, tokens)
 		tlmAdaptiveSamplerKept.Inc(s.source)
 		return msg
 	}
 	if s.config.ProtectImportantLogs && isImportant(tokens) {
+		s.tagPatternHash(msg, tokens)
 		tlmAdaptiveSamplerKept.Inc(s.source)
 		tlmAdaptiveSamplerProtected.Inc(s.source)
 		return msg
@@ -217,6 +242,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		// entry after the first swap.
 		allow := e.credits >= 1.0
 		if allow {
+			s.tagPatternHash(msg, e.tokens)
 			e.credits--
 			if e.sampled > 0 {
 				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerSampledCountTag(e.sampled))
@@ -233,6 +259,12 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		}
 
 		if allow {
+			tlmAdaptiveSamplerKept.Inc(s.source)
+			return msg
+		}
+		if s.config.DetectionOnly {
+			s.tagPatternHash(msg, e.tokens)
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerNoisyLogTag)
 			tlmAdaptiveSamplerKept.Inc(s.source)
 			return msg
 		}
@@ -255,6 +287,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		matchCount: 1,
 		sampled:    0,
 	})
+	s.tagPatternHash(msg, tokens)
 	tlmAdaptiveSamplerKept.Inc(s.source)
 	return msg
 }
