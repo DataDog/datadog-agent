@@ -5,18 +5,45 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 argument-hint: "<issue-module-name>  e.g. rofspermissions, invalidconfig, dockerpermissions"
 ---
 
-Create an E2E lifecycle test for a health platform issue module.
-Parse `$ARGUMENTS` for the module name (matches a directory under `comp/healthplatform/issues/`).
+## Parse the argument
+
+`$ARGUMENTS` must be the name of an existing issue module directory under `comp/healthplatform/issues/`.
+
+**If `$ARGUMENTS` is empty or not provided, stop immediately and ask:**
+> Which health platform issue module should I write the E2E test for?
+> Available modules: run `ls comp/healthplatform/issues/` to list them.
+
+Once you have the module name, set:
+- `MODULE` = `$ARGUMENTS` (e.g. `rofspermissions`)
+- `MODULE_PATH` = `comp/healthplatform/issues/$MODULE/`
+- `TEST_FILE` = `test/new-e2e/tests/agent-health/{module}_test.go`
+
+Verify `$MODULE_PATH` exists before proceeding:
+```bash
+ls comp/healthplatform/issues/$MODULE/
+```
+If the directory does not exist, stop and tell the user which modules are available.
+
+---
 
 ## Step 1 — Read the issue module
 
-Read these two files before writing anything:
+Read both files before writing anything:
 
-- `comp/healthplatform/issues/{name}/module.go` — find `IssueID`, `IssueName`, and whether the module has:
-  - `BuiltInPeriodicHealthCheck()` returning non-nil → the agent runs the check itself on a schedule
-  - `BuiltInStartupHealthCheck()` returning non-nil → the check runs once at startup
-  - Both returning `nil` → issues are pushed externally by the collector (like `checkfailure`)
-- `comp/healthplatform/issues/{name}/issue.go` — extract `Category`, `Source`, `Tags`, and `Remediation` fields to assert in the test
+**`$MODULE_PATH/module.go`** — extract:
+- `IssueID` constant → used as `const issueID` in the test
+- `IssueName` constant → asserted as `issue.IssueName` in the test
+- Whether `BuiltInPeriodicHealthCheck()` returns non-nil → agent runs the check on a schedule
+- Whether `BuiltInStartupHealthCheck()` returns non-nil → check runs once at startup
+- Both returning `nil` → issues are pushed externally by the collector (like `checkfailure`)
+
+**`$MODULE_PATH/issue.go`** — extract the exact values returned by `BuildIssue()`:
+- `Category`, `Source`, `Location`, `Severity`, `Tags` → assert these in `IssueDetection`
+- Whether `Remediation` is non-nil and has `Summary`/`Steps` → assert those too
+
+If a `check.go` file exists in the module, read it to understand how the issue is triggered (what system condition causes it).
+
+---
 
 ## Step 2 — Choose the environment
 
@@ -25,56 +52,70 @@ Read these two files before writing anything:
 | Standard host issue (most cases) | `environments.Host` + `awshost.Provisioner` |
 | Issue requires Docker daemon | Custom env struct with `Docker *components.RemoteHostDocker` + Pulumi provisioner |
 
-Do NOT implement `Diagnose()` on the env struct — all assertions go through fakeintake.
+Do **not** implement `Diagnose()` on the env — all assertions go through fakeintake only.
 
-For the standard case the provisioner looks like:
-```go
-e2e.WithProvisioner(awshost.Provisioner(
-    awshost.WithRunOptions(
-        ec2.WithAgentOptions(
-            agentparams.WithAgentConfig(healthPlatformAgentConfig),
-            // add agentparams to trigger the issue if needed
-        ),
-    ),
-))
-```
+The `healthPlatformAgentConfig` const is already defined in `check_failure_test.go` (same package) — do not redefine it.
 
-`healthPlatformAgentConfig` is defined in `check_failure_test.go` (same package):
-```go
-const healthPlatformAgentConfig = `health_platform:
-  enabled: true
-  forwarder:
-    interval: 30s
-`
-```
+---
 
-## Step 3 — Write the test file
-
-File: `test/new-e2e/tests/agent-health/{name}_test.go`
-
-### Exact structure to follow
+## Step 3 — Write `$TEST_FILE`
 
 ```go
-type {name}Suite struct {
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+package agenthealth
+
+import (
+    "testing"
+    "time"
+
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/require"
+
+    "github.com/DataDog/agent-payload/v5/healthplatform"
+
+    "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+    "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+    "github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+    "github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+    awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+)
+
+type {module}Suite struct {
     e2e.BaseSuite[environments.Host]
 }
 
-func Test{Name}Suite(t *testing.T) {
-    e2e.Run(t, &{name}Suite{},
-        e2e.WithProvisioner(awshost.Provisioner(...)),
+func Test{Module}Suite(t *testing.T) {
+    e2e.Run(t, &{module}Suite{},
+        e2e.WithProvisioner(awshost.Provisioner(
+            awshost.WithRunOptions(
+                ec2.WithAgentOptions(
+                    agentparams.WithAgentConfig(healthPlatformAgentConfig),
+                    // add agentparams here to pre-configure the issue trigger if needed
+                ),
+            ),
+        )),
     )
 }
 
-// Test{Name}IssueLifecycle verifies ...
+// Test{Module}IssueLifecycle verifies that <describe trigger condition> is detected
+// in fakeintake as NEW, and that <describe fix> causes the issue to stop being
+// reported (or be reported as RESOLVED).
+//
 // Cross-restart persistence is tested separately in TestResilienceSuite.
-func (suite *{name}Suite) Test{Name}IssueLifecycle() {
+func (suite *{module}Suite) Test{Module}IssueLifecycle() {
+    // only declare host/agent if needed for runtime trigger/fix steps
     fakeIntake := suite.Env().FakeIntake.Client()
-    // only declare host/agent if needed for trigger/fix actions
 
-    const issueID = "..." // exact IssueID from module.go
+    const issueID = "<IssueID from module.go>"
 
     suite.T().Run("IssueDetection", func(t *testing.T) {
-        // trigger the issue if not pre-configured by the provisioner
+        // if the issue is not pre-configured by the provisioner, trigger it here:
+        // suite.Env().RemoteHost.MustExecute("sudo ...")
+
         var issues []*healthplatform.Issue
         require.EventuallyWithT(t, func(ct *assert.CollectT) {
             payloads, err := fakeIntake.GetAgentHealth()
@@ -88,26 +129,38 @@ func (suite *{name}Suite) Test{Name}IssueLifecycle() {
                 }
             }
             assert.NotEmpty(ct, issues, "issue not found as NEW in fakeintake")
-        }, defaultIssueTimeout, defaultIssuePollInterval, "issue not detected as NEW")
+        }, defaultIssueTimeout, defaultIssuePollInterval, "issue not detected as NEW in fakeintake")
 
         require.NotEmpty(t, issues)
         issue := issues[0]
-        // assert fields from issue.go: IssueName, Category, Source, Tags, Remediation
+        // assert values read from issue.go:
+        assert.Equal(t, "<IssueName>", issue.IssueName)
+        assert.Equal(t, "<Category>", issue.Category)
+        assert.Equal(t, "<Source>", issue.Source)
+        // assert.Equal(t, "<Location>", issue.Location)  // if Location is set
+        assert.Contains(t, issue.Tags, "<tag>")
+        require.NotNil(t, issue.Remediation)
+        assert.NotEmpty(t, issue.Remediation.Summary)
     })
 
     suite.T().Run("Resolution", func(t *testing.T) {
-        // apply the fix: either suite.UpdateEnv(...) or host.MustExecute(...)
-
-        // FLUSH ORDER: restart/UpdateEnv FIRST, wait for ready, THEN flush
-        // With UpdateEnv (handles restart + wait internally):
-        suite.UpdateEnv(awshost.Provisioner(...)) // deploy fix
+        // Option A — fix via config change (preferred): UpdateEnv handles restart + wait
+        suite.UpdateEnv(awshost.Provisioner(
+            awshost.WithRunOptions(
+                ec2.WithAgentOptions(
+                    agentparams.WithAgentConfig(healthPlatformAgentConfig),
+                    // agentparams that represent the fixed state
+                ),
+            ),
+        ))
         require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
 
-        // With manual restart:
-        // require.NoError(t, agent.Client.Restart())
+        // Option B — fix via runtime action (e.g. chmod), then manual restart:
+        // suite.Env().RemoteHost.MustExecute("sudo ...")
+        // require.NoError(t, suite.Env().Agent.Client.Restart())
         // require.EventuallyWithT(t, func(ct *assert.CollectT) {
-        //     assert.True(ct, agent.Client.IsReady())
-        // }, 2*time.Minute, 10*time.Second, "agent not ready")
+        //     assert.True(ct, suite.Env().Agent.Client.IsReady())
+        // }, 2*time.Minute, 10*time.Second, "agent not ready after fix")
         // require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
 
         require.Never(t, func() bool {
@@ -126,34 +179,41 @@ func (suite *{name}Suite) Test{Name}IssueLifecycle() {
 }
 ```
 
-Use `findIssuesByPrefix(p, prefix)` instead of `findIssuesByID` when the issue ID includes a runtime-generated suffix (e.g. `check-execution-failure:broken_check:<hash>`). Append `*` to `issueID` as a reminder that prefix matching is needed.
+**If the issue ID includes a runtime-generated suffix** (e.g. `check-execution-failure:broken_check:<hash>`):
+replace `findIssuesByID(t, p, issueID)` with `findIssuesByPrefix(p, issueID)` and drop the `t` parameter.
+
+---
 
 ## Step 4 — Fixture rules
 
 | Content | How to include |
 |---|---|
 | Short YAML (≤ 10 lines) | `const` string literal inline in the test file |
-| Python check file | `//go:embed fixtures/name.py` + `var nameContent string` |
-| Long YAML or binary | `//go:embed fixtures/name.yaml` + `var nameContent string` |
+| Python file | `//go:embed fixtures/{module}.py` → `var {module}Py string` |
+| Long YAML | `//go:embed fixtures/{module}_config.yaml` → `var {module}Config string` |
 
-Never embed YAML that is already defined as a `const` in another file in the same package.
+Never re-declare `healthPlatformAgentConfig` — it is already a `const` in `check_failure_test.go`.
 
-## Step 5 — What NOT to add
+---
 
-- No `Diagnose()` method on the env struct
-- No `RunHealthIssueLifecycle` or other shared lifecycle driver
-- No `AssertIssueDetectedViaDiagnose` or any diagnose-based assertion
-- No `RestartResilience` phase — covered once by `TestResilienceSuite`
-- No `agent.Client.IsReady()` wait at suite start — the framework guarantees this
-- No flush before restart — always restart (or UpdateEnv) first, wait for ready, then flush
+## Step 5 — Rules (never break these)
 
-## Step 6 — Verify
+- **Flush order**: restart or `UpdateEnv` first → wait for agent ready → `FlushServerAndResetAggregators()`. Never flush before restarting.
+- **No resilience phase**: `RestartResilience` is covered once in `TestResilienceSuite`. Do not add it here.
+- **No diagnose assertions**: assert only through fakeintake state (`ISSUE_STATE_NEW`, `ISSUE_STATE_RESOLVED`).
+- **No shared lifecycle driver**: phases (`IssueDetection`, `Resolution`) are always inline in the test method.
+- **No agent-ready wait at suite start**: the framework guarantees the agent is ready before the first test method runs.
+- **No `Diagnose()` on the env struct**.
+
+---
+
+## Step 6 — Verify and report
 
 ```bash
 cd test/new-e2e && go vet ./tests/agent-health/...
 ```
 
-Remind the user to run the test locally before pushing:
-```bash
-dda inv new-e2e-tests.run --targets=./tests/agent-health/...
-```
+Tell the user:
+- The file that was created
+- How to run the test locally: `dda inv new-e2e-tests.run --targets=./tests/agent-health/...`
+- Any fixtures that need to be created in `fixtures/`
