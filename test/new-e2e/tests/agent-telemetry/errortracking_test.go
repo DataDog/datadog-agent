@@ -31,8 +31,11 @@ var errorTrackingEnabledConfig string
 //go:embed testdata/errortracking-disabled.yaml
 var errorTrackingDisabledConfig string
 
-//go:embed testdata/http_check.yaml
-var failingCheckConfig string
+//go:embed testdata/error_check.yaml
+var errorCheckConfig string
+
+//go:embed testdata/error_check.py
+var errorCheckPy string
 
 type errorTrackingSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -46,7 +49,8 @@ func TestAgentTelemetryErrorTrackingSuite(t *testing.T) {
 				awshost.WithRunOptions(
 					ec2.WithAgentOptions(
 						agentparams.WithAgentConfig(errorTrackingEnabledConfig),
-						agentparams.WithIntegration("http_check.d", failingCheckConfig),
+						agentparams.WithIntegration("error_check.d", errorCheckConfig),
+						agentparams.WithFile("/etc/datadog-agent/checks.d/error_check.py", errorCheckPy, true),
 					),
 				),
 			),
@@ -81,31 +85,31 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 // TestDisabledByDefault verifies that when the errortracking stanza is absent,
 // no agent-logs records reach FakeIntake even when errors occur.
 func (s *errorTrackingSuite) TestDisabledByDefault() {
-	s.Run("reconfigure without errortracking", func() {
-		s.UpdateEnv(awshost.Provisioner(
-			awshost.WithRunOptions(
-				ec2.WithAgentOptions(
-					agentparams.WithAgentConfig(errorTrackingDisabledConfig),
-					agentparams.WithIntegration("http_check.d", failingCheckConfig),
-				),
+	s.UpdateEnv(awshost.Provisioner(
+		awshost.WithRunOptions(
+			ec2.WithAgentOptions(
+				agentparams.WithAgentConfig(errorTrackingDisabledConfig),
+				agentparams.WithIntegration("error_check.d", errorCheckConfig),
+				agentparams.WithFile("/etc/datadog-agent/checks.d/error_check.py", errorCheckPy, true),
 			),
-		))
-		// flush fakeintake and clear log file
-		require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
-		_, execErr := s.Env().RemoteHost.Execute("sudo truncate -s 0 /var/log/datadog/agent.log")
-		require.NoError(s.T(), execErr)
+		),
+	))
+	// flush fakeintake and clear log file
+	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	_, execErr := s.Env().RemoteHost.Execute("sudo truncate -s 0 /var/log/datadog/agent.log")
+	require.NoError(s.T(), execErr)
 
-		// Wait until the check error appears in the agent log — confirming errors are
-		// generated locally before asserting they are not forwarded to telemetry.
-		require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-			out, execErr := s.Env().RemoteHost.Execute("sudo grep -c 'ERROR.*Error running check' /var/log/datadog/agent.log 2>/dev/null || echo 0")
-			assert.NoError(c, execErr)
-			assert.NotEqual(c, "0", strings.TrimSpace(out))
-		}, 1*time.Minute, 5*time.Second, "timed out waiting for check error to appear in agent log")
+	// Wait until the check error appears in the agent log — confirming errors are
+	// generated locally before asserting they are not forwarded to telemetry.
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		out, execErr := s.Env().RemoteHost.Execute("sudo grep -c 'ERROR.*Error running check' /var/log/datadog/agent.log 2>/dev/null || echo 0")
+		assert.NoError(c, execErr)
+		assert.NotEqual(c, "0", strings.TrimSpace(out))
+	}, 1*time.Minute, 5*time.Second, "timed out waiting for check error to appear in agent log")
 
-		// Confirm the error was not forwarded to telemetry.
-		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
-		require.NoError(s.T(), err)
-		assert.Empty(s.T(), logs, "no agent telemetry logs must arrive when errortracking is disabled")
-	})
+	assert.Neverf(s.T(), func(c *assert.CollectT) {})
+	// Confirm the error was not forwarded to telemetry.
+	logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
+	require.NoError(s.T(), err)
+	assert.Empty(s.T(), logs, "no agent telemetry logs must arrive when errortracking is disabled")
 }
