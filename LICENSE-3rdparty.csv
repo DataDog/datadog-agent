@@ -2492,10 +2492,7 @@ core,github.com/tidwall/pretty,MIT,Copyright (c) 2017 Josh Baker
 core,github.com/tidwall/sjson,MIT,Copyright (c) 2016 Josh Baker
 core,github.com/tilinna/clock,MIT,Copyright (c) 2018 Timo Linna
 core,github.com/tinylib/msgp,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
-core,github.com/tinylib/msgp/gen,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
 core,github.com/tinylib/msgp/msgp,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
-core,github.com/tinylib/msgp/parse,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
-core,github.com/tinylib/msgp/printer,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
 core,github.com/tklauser/go-sysconf,BSD-3-Clause,"Copyright (c) 2018-2022, Tobias Klauser"
 core,github.com/tklauser/numcpus,Apache-2.0,Copyright 2018 Tobias Klauser
 core,github.com/tmthrgd/go-hex,BSD-3-Clause,"Copyright (c) 2005-2016, Wojciech Muła | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2016, Tom Thorogood"
