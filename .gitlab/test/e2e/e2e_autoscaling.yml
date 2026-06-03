@@ -1,0 +1,24 @@
+---
+# e2e stage - container-autoscaling owned jobs
+# Owned by: container-autoscaling, agent-devx
+
+.on_autoscaling_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/autoscaling/**/*
+        - pkg/clusteragent/autoscaling/cluster/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
+new-e2e-autoscaling:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+  rules:
+    - !reference [.on_autoscaling_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/autoscaling
+    TEAM: container-autoscaling
+  retry: !reference [.retry_only_infra_failure, retry]
