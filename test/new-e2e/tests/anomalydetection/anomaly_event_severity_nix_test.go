@@ -79,6 +79,8 @@ anomaly_detection:
     enabled: false
   agent_logs:
     enabled: false
+  anomaly_event:
+    stdout_debug: true
   detectors:
     cusum:
       enabled: true

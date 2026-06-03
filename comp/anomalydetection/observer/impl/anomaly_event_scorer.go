@@ -48,6 +48,11 @@ const (
 	// Sliding window.
 	defaultEventWindowSeconds  = 1 * 60
 	defaultEventWindowMaxItems = 100
+
+	// Event history cap: maximum number of ScoredAnomalyEvents retained for
+	// the debug StateView / testbench. Older events are dropped once this limit
+	// is exceeded so memory stays bounded on long-running agents.
+	defaultEventHistoryMax = 500
 )
 
 // scopeScoreState holds per-scope EWMA and severity state between events.
@@ -270,6 +275,11 @@ func (s *anomalyEventScorer) ProcessAnomaly(a observerdef.Anomaly) observerdef.S
 		},
 	}
 	s.events = append(s.events, evt)
+	// Keep only the most recent events so the history doesn't grow without
+	// bound on long-running agents (the slice is only read by the debug StateView).
+	if len(s.events) > defaultEventHistoryMax {
+		s.events = s.events[len(s.events)-defaultEventHistoryMax:]
+	}
 	return evt
 }
 
