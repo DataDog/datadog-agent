@@ -141,6 +141,24 @@ func (s *testAutologgerEnabledWhenLogonDurationEnabledSuite) TestAutologgerEnabl
 				"autologger should be enabled (Start=1) after logon_duration.enabled is set")
 		}, 60*time.Second, 2*time.Second)
 	})
+
+	s.Run("reinstall with DD_INSTALL_ONLY=1 preserves Start=1", func() {
+		// Simulate an install-only upgrade (e.g. via SCCM) where the agent service
+		// is not restarted. The MSI custom action must not reset Start back to 0
+		// because the agent never gets a chance to re-apply the runtime toggle.
+		_, err := s.InstallAgent(vm,
+			windowsAgent.WithPackage(s.AgentPackage),
+			windowsAgent.WithValidAPIKey(),
+			windowsAgent.WithInstallOnly("1"),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "reinstall.log")),
+		)
+		require.NoError(s.T(), err)
+
+		val, err := windows.GetRegistryValue(vm, autologgerPath, "Start")
+		require.NoError(s.T(), err)
+		assert.Equal(s.T(), "1", val,
+			"autologger Start should remain 1 after DD_INSTALL_ONLY=1 reinstall (agent not restarted)")
+	})
 }
 
 // TestInstallRollbackRemovesAutologger verifies that when a clean install fails
