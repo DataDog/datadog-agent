@@ -7,6 +7,7 @@ else:
 import importlib.metadata
 import packaging
 import subprocess
+import time
 
 import packaging.requirements
 import packaging.version
@@ -234,6 +235,7 @@ def install_datadog_package(package, install_directory):
             return
         print(f"Failed to install '{package}' on attempt {attempt}/2 (exit {rc})")
         if attempt < 2:
+            time.sleep(1)
             print(f"Retrying '{package}'...")
     raise IntegrationInstallError(package, rc, stderr)
 
@@ -255,6 +257,7 @@ def install_dependency_package(pip, package):
             return
         print(f"Failed to install '{package}' on attempt {attempt}/2 (exit {rc})")
         if attempt < 2:
+            time.sleep(1)
             print(f"Retrying '{package}'...")
     raise IntegrationInstallError(package, rc, stderr)
 
