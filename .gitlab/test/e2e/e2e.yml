@@ -671,6 +671,20 @@ new-e2e-sbom:
     matrix:
       - EXTRA_PARAMS: --run "TestSBOMKindSuite"
 
+new-e2e-usm:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - qa_agent_linux
+  rules:
+    - !reference [.on_systemprobe_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/usm
+    EXTRA_PARAMS: --run "TestPythonRemoteTagsLinuxSuite|TestPythonRemoteTagsDirectLinuxSuite"
+    TEAM: universal-service-monitoring
+
 new-e2e-discovery:
   extends: .new_e2e_template
   needs:
@@ -795,7 +809,7 @@ new-e2e-fleet-config:
 new-e2e-fleet-upgrade:
   extends: .new_e2e_fleet_template
   variables:
-    EXTRA_PARAMS: --run TestFleetUpgrade
+    EXTRA_PARAMS: --run TestFleetUpgrade|TestFleetIntegrationPreservation
 
 new-e2e-fleet-extensions:
   extends: .new_e2e_fleet_template
@@ -932,6 +946,15 @@ new-e2e-ha-agent-failover:
     EXTRA_PARAMS: --run TestHAAgentFailoverSuite
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-anomalydetection:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_anomalydetection_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/anomalydetection
+    TEAM: q-branch
 
 new-e2e-netpath:
   extends: .new_e2e_template_needs_deb_x64
@@ -1185,6 +1208,7 @@ new-e2e-cspm:
     - !reference [.needs_new_e2e_template]
     - qa_agent_linux
     - qa_dca
+    - agent_deb-x64-a7
   variables:
     TARGETS: ./tests/cspm
     TEAM: cspm

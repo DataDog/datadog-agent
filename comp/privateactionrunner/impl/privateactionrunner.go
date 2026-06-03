@@ -16,11 +16,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
@@ -61,6 +62,7 @@ type Requires struct {
 	Tagger        tagger.Component
 	Traceroute    traceroute.Component
 	EventPlatform eventplatform.Component
+	IPC           ipc.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -76,6 +78,7 @@ type PrivateActionRunner struct {
 	tagger         tagger.Component
 	traceroute     traceroute.Component
 	eventPlatform  eventplatform.Component
+	ipc            ipc.Component
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
@@ -97,7 +100,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -117,6 +120,7 @@ func NewPrivateActionRunner(
 	taggerComp tagger.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
+	ipcComp ipc.Component,
 ) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
 		coreConfig:     coreConfig,
@@ -126,6 +130,7 @@ func NewPrivateActionRunner(
 		tagger:         taggerComp,
 		traceroute:     tracerouteComp,
 		eventPlatform:  eventPlatform,
+		ipc:            ipcComp,
 		startChan:      make(chan struct{}),
 	}, nil
 }
@@ -224,7 +229,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform)
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
 	if err != nil {
 		return err
 	}
@@ -319,7 +324,15 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		}
 	}
 
-	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, apiKey, appKey, agentIdentifier, cfg.OpmsExtraHeaders)
+	var (
+		enrollmentResult *enrollment.Result
+		err              error
+	)
+	if apiKeyOnlyEnrollment {
+		enrollmentResult, err = enrollment.SelfEnrollApiKeyOnly(ctx, ddSite, runnerNamePrefix, apiKey, agentIdentifier, cfg.OpmsExtraHeaders)
+	} else {
+		enrollmentResult, err = enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, apiKey, appKey, agentIdentifier, cfg.OpmsExtraHeaders)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
 	}

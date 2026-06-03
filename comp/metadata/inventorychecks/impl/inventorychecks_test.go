@@ -14,12 +14,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
+	collectormock "github.com/DataDog/datadog-agent/comp/collector/collector/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
@@ -159,10 +159,10 @@ func TestGetPayload(t *testing.T) {
 		}
 
 		mockColl := fxutil.Test[collector.Component](t,
-			fx.Replace(collectorimpl.MockParams{
+			fx.Replace(collectormock.MockParams{
 				ChecksInfo: cInfo,
 			}),
-			collectorimpl.MockModule(),
+			collectormock.MockModule(),
 			core.MockBundle(),
 			hostnameimpl.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),

@@ -26,15 +26,16 @@ import (
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
+	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
@@ -158,7 +159,7 @@ func (s *service) Run(svcctx context.Context) error {
 
 		statusimpl.Module(),
 
-		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
+		configsyncfx.Module(configsync.NewDefaultParams()),
 		autoexitfx.Module(),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{
@@ -168,7 +169,7 @@ func (s *service) Run(svcctx context.Context) error {
 				Config: c,
 			}
 		}),
-		settingsimpl.Module(),
+		settingsfx.Module(),
 		logscompressionfx.Module(),
 		ipcfx.ModuleReadWrite(),
 	)

@@ -9,6 +9,7 @@
 package networkconfigmanagement
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -30,6 +31,7 @@ import (
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	ncmsender "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/sender"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -44,41 +46,37 @@ type Check struct {
 	sender        *ncmsender.NCMSender
 	agentConfig   config.Component
 	ncmComp       networkconfigmanagement.Component
-	remoteClient  ncmremote.Client
+	remoteClient  ncmremote.Connector
 	clock         clock.Clock
 	lastCheckTime time.Time
+	agentHostname string
 }
 
-// saveConfig saves the config if store is non-nil, and returns an error about manual check mode otherwise.
-func saveConfig(store store.ConfigStore, deviceID string, cType types.ConfigType, rawConfig []byte) (string, error) {
+// saveConfig saves the config if store is non-nil. Returns the resulting UUID, config hash, a bool
+// that is true when a new entry was written (false when deduplicated), and any error.
+func saveConfig(store store.ConfigStore, deviceID string, cType types.ConfigType, rawConfig []byte) (string, string, bool, error) {
 	if store == nil {
-		return "", errors.New("local config store unavailable - will not save configs for rollback")
+		return "", "", false, errors.New("local config store unavailable - will not save configs for rollback")
 	}
 	return store.StoreConfig(deviceID, cType, string(rawConfig))
 }
 
 // Run executes the check to retrieve network device configurations from a device
 func (c *Check) Run() error {
-	var checkErr error
 	var configs []ncmreport.NetworkDeviceConfig
+	ctx := context.Background()
 	checkStartTime := c.clock.Now()
 
-	checkErr = c.remoteClient.Connect()
-	if checkErr != nil {
-		log.Errorf("unable to connect to remote device %s: %s", c.checkContext.Device.IPAddress, checkErr)
-		return checkErr
+	conn, err := c.remoteClient.Connect()
+	if err != nil {
+		log.Errorf("unable to connect to remote device %s: %s", c.checkContext.Device.IPAddress, err)
+		return err
 	}
-
-	// Must defer this way because sometimes we will have to redial the remote client
-	defer func() {
-		if c.remoteClient != nil {
-			_ = c.remoteClient.Close()
-		}
-	}()
+	defer conn.Close()
 
 	// If the check did not have inline profile explicitly defined/from cache, find the profile that works
 	if !c.checkContext.ProfileCache.HasSetProfile() {
-		prof, err := c.FindMatchingProfile()
+		prof, err := c.FindMatchingProfile(conn)
 		if err != nil {
 			return err
 		}
@@ -86,7 +84,7 @@ func (c *Check) Run() error {
 		c.checkContext.ProfileCache.ProfileName = prof.Name
 	}
 	// Update the remote client's device profile to access the correct commands
-	c.remoteClient.SetProfile(c.checkContext.ProfileCache.Profile)
+	conn.SetProfile(c.checkContext.ProfileCache.Profile)
 
 	deviceID := fmt.Sprintf("%s:%s", c.checkContext.Namespace, c.checkContext.Device.IPAddress)
 	deviceTags := c.getDeviceTags()
@@ -101,46 +99,62 @@ func (c *Check) Run() error {
 		configStore = c.ncmComp.GetConfigStore()
 	}
 
-	rawRunningConfig, checkErr := c.remoteClient.RetrieveRunningConfig()
+	var hasNewConfigs bool
+
+	rawRunningConfig, checkErr := conn.RetrieveRunningConfig(ctx)
 	if checkErr != nil {
 		return checkErr
 	}
-	runningConfig, metadata, checkErr := c.checkContext.ProfileCache.Profile.ProcessCommandOutput(profile.Running, rawRunningConfig)
+	runningConfig, metadata, checkErr := c.checkContext.ProfileCache.Profile.ProcessConfig(rawRunningConfig)
 	if checkErr != nil {
 		log.Warnf("unable to process rules for running config for device %s, using agent collection ts: %s", deviceID, checkErr)
 	} else {
 		// TODO: helper fn to take metadata that needs to be emitted as metrics + emit them
-		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.RUNNING, metadata, deviceTags, runningConfig))
-		if _, err := saveConfig(configStore, deviceID, types.RUNNING, runningConfig); err != nil {
+		runningUUID, runningHash, stored, err := saveConfig(configStore, deviceID, types.RUNNING, runningConfig)
+		if err != nil {
 			log.Warnf("unable to store running config: %v", err)
+		} else if stored {
+			hasNewConfigs = true
 		}
+		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.RUNNING, metadata, deviceTags, runningConfig, runningUUID, runningHash))
 	}
 
-	rawStartupConfig, checkErr := c.remoteClient.RetrieveStartupConfig()
+	rawStartupConfig, checkErr := conn.RetrieveStartupConfig(ctx)
 	if checkErr != nil {
 		// If the startup config cannot be retrieved, log a warning but continue
 		log.Warnf("unable to retrieve startup config for %s, will not send: %s", deviceID, checkErr)
 	} else {
-		startupConfig, metadata, checkErr := c.checkContext.ProfileCache.Profile.ProcessCommandOutput(profile.Startup, rawStartupConfig)
+		startupConfig, metadata, checkErr := c.checkContext.ProfileCache.Profile.ProcessConfig(rawStartupConfig)
 		if checkErr != nil {
 			log.Warnf("unable to process rules for startup config for device %s, using agent collection ts: %s", deviceID, checkErr)
 		} else {
 			// add the startup config to the payload if it was retrieved successfully
-			configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.STARTUP, metadata, deviceTags, startupConfig))
-			if _, err := saveConfig(configStore, deviceID, types.STARTUP, startupConfig); err != nil {
+			startupUUID, startupHash, stored, err := saveConfig(configStore, deviceID, types.STARTUP, startupConfig)
+			if err != nil {
 				log.Warnf("unable to store startup config: %v", err)
+			} else if stored {
+				hasNewConfigs = true
 			}
+			configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.STARTUP, metadata, deviceTags, startupConfig, startupUUID, startupHash))
 		}
 	}
 
-	checkErr = c.sender.SendNCMConfig(ncmreport.ToNCMPayload(c.checkContext.Namespace, configs, c.clock.Now().Unix()))
-	if checkErr != nil {
-		return checkErr
-	}
+	// Decide whether to emit a global inventory report. The component coordinates
+	// across all NCM checks so only one wins per window, and the report covers
+	// every device's configs (not just this device's) so the backend learns about
+	// any evictions and recently-stored configs from sibling checks.
+	inventoryEntries := c.buildInventoryReport(configStore, hasNewConfigs)
 
 	c.sender.SendNCMCheckMetrics(checkStartTime, c.lastCheckTime)
 	c.lastCheckTime = checkStartTime
-
+	checkErr = c.sender.SendNCMPayload(ncmreport.ToNCMPayload(c.checkContext.Namespace, c.agentHostname, configs, inventoryEntries, c.clock.Now().Unix()))
+	if checkErr != nil {
+		return checkErr
+	}
+	if len(inventoryEntries) > 0 && c.ncmComp != nil {
+		// if sending payload was successful, update the last successful inventory report
+		c.ncmComp.MarkInventoryReportSent(c.clock.Now())
+	}
 	c.sender.Commit()
 	return nil
 }
@@ -165,16 +179,23 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	// Initialize the clock
 	c.clock = clock.New()
 
+	// Get agent hostname (for enabling rollbacks, etc.)
+	agentHostname, err := hostname.Get(context.TODO())
+	if err != nil {
+		log.Warnf("Error getting the agent hostname: %v", err)
+	}
+	c.agentHostname = agentHostname
+
 	// Initialize the Sender
 	s, err := c.GetSender()
 	if err != nil {
 		return err
 	}
-	ncmSender := ncmsender.NewNCMSender(s, c.checkContext.Namespace, c.clock)
+	ncmSender := ncmsender.NewNCMSender(s, c.checkContext.Namespace, c.clock, agentHostname)
 	c.sender = ncmSender
 
 	// TODO: add check to see the device's credentials type (SSH/Telnet) and create appropriate client factory
-	c.remoteClient, err = ncmremote.NewSSHClient(c.checkContext.Device)
+	c.remoteClient, err = ncmremote.NewSSHConnector(c.checkContext.Device)
 	if err != nil {
 		return fmt.Errorf("create remote SSH client failed: %w", err)
 	}
@@ -207,13 +228,13 @@ func newCheck(agentConfig config.Component, ncmComp networkconfigmanagement.Comp
 }
 
 // FindMatchingProfile supports testing profiles until one is found with a successful command for the device
-func (c *Check) FindMatchingProfile() (*profile.NCMProfile, error) {
+func (c *Check) FindMatchingProfile(conn ncmremote.Connection) (*profile.NCMProfile, error) {
 	for profName, prof := range c.checkContext.ProfileMap {
 		if c.checkContext.ProfileCache.HasTried(profName) {
 			continue
 		}
-		c.remoteClient.SetProfile(prof)
-		_, err := c.remoteClient.RetrieveRunningConfig()
+		conn.SetProfile(prof)
+		_, err := conn.RetrieveRunningConfig(context.Background())
 		if err != nil {
 			log.Warnf("error with running config retrieval on profile %s on remote device %s: %s", profName, c.checkContext.Device.IPAddress, err)
 			c.checkContext.ProfileCache.AppendToTriedProfiles(profName)
@@ -223,6 +244,34 @@ func (c *Check) FindMatchingProfile() (*profile.NCMProfile, error) {
 		return prof, nil
 	}
 	return nil, fmt.Errorf("unable to find matching profile for device %s", c.checkContext.Device.IPAddress)
+}
+
+// buildInventoryReport returns the entries that should accompany this check's NCMPayload
+// when an inventory report has reached the configured interval. Returns nil if another check
+// has already claimed the current report window (or when no store/component is wired).
+func (c *Check) buildInventoryReport(configStore store.ConfigStore, hasNewConfigs bool) []ncmreport.InventoryEntry {
+	if c.ncmComp == nil || configStore == nil {
+		return nil
+	}
+	if !c.ncmComp.MeetsInventoryReportRequirements(hasNewConfigs, c.checkContext.InventoryReportMinInterval, c.clock.Now()) {
+		log.Debugf("did not meet requirements to send inventory report, skipping")
+		return nil
+	}
+	configMeta, err := configStore.GetAllConfigMetadata()
+	if err != nil {
+		log.Errorf("error retrieving config metadata for inventory report: %v, skipping", err)
+		return nil
+	}
+	entries := make([]ncmreport.InventoryEntry, 0, len(configMeta))
+	for _, m := range configMeta {
+		entries = append(entries, ncmreport.InventoryEntry{
+			Namespace:  c.checkContext.Namespace,
+			ConfigID:   m.ConfigUUID,
+			DeviceID:   m.DeviceID,
+			ReportedAt: m.CapturedAt,
+		})
+	}
+	return entries
 }
 
 func (c *Check) getDeviceTags() []string {

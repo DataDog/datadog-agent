@@ -10,12 +10,12 @@ package snmptraps
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -26,6 +26,6 @@ func TestBundleDependencies(t *testing.T) {
 		hostnameimpl.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		demultiplexerimpl.MockModule(),
-		defaultforwarder.MockModule(),
+		defaultforwardermock.MockModule(),
 	)
 }

@@ -3,12 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build ncm
-
 // Package config provides configuration structures and functions for the Network Config Management (NCM) core check and component
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,6 +29,7 @@ import (
 var checkName = "network_config_management"
 var defaultCheckInterval = 15 * time.Minute
 var defaultSSHTimeout = 30 * time.Second
+var defaultInventoryReportMinInterval = 1 * time.Hour
 
 // AuthCredentials holds the authentication credentials to connect to a network device.
 type AuthCredentials struct { // auth_credentials
@@ -56,9 +56,10 @@ type DeviceInstance struct {
 
 // InitConfig holds the initial configuration for the NCM component, including the namespace and check interval.
 type InitConfig struct {
-	Namespace             string     `yaml:"namespace"`               // Namespace for the NCM devices where configs are retrieved from, to help match a device on DD
-	MinCollectionInterval int        `yaml:"min_collection_interval"` // Interval in seconds to check for config changes
-	SSH                   *SSHConfig `yaml:"ssh"`                     // SSH holds global connection configurations that can apply to all devices if pertinent
+	Namespace                  string        `yaml:"namespace"`                     // Namespace for the NCM devices where configs are retrieved from, to help match a device on DD
+	MinCollectionInterval      time.Duration `yaml:"min_collection_interval"`       // Interval in seconds to check for config changes
+	InventoryReportMinInterval time.Duration `yaml:"inventory_report_min_interval"` // Slowest cadence (in seconds) for sending an inventory report; a report is also sent any time a new config is captured
+	SSH                        *SSHConfig    `yaml:"ssh"`                           // SSH holds global connection configurations that can apply to all devices if pertinent
 }
 
 // SSHConfig holds the configuration (either globally if in init config or for the specific device instance) to use when connecting to the configured device via SSH
@@ -80,11 +81,12 @@ type SSHConfig struct {
 
 // NcmCheckContext holds the processed config needed for an integration instance to run
 type NcmCheckContext struct {
-	Namespace             string
-	Device                *DeviceInstance
-	MinCollectionInterval time.Duration
-	ProfileMap            profile.Map
-	ProfileCache          *profile.Cache
+	Namespace                  string
+	Device                     *DeviceInstance
+	MinCollectionInterval      time.Duration
+	InventoryReportMinInterval time.Duration
+	ProfileMap                 profile.Map
+	ProfileCache               *profile.Cache
 }
 
 // NcmComponentContext is the processed config structure for Network Config Management (NCM) to be used by the component
@@ -132,7 +134,7 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	}
 
 	// Populate the profiles map (from defaults/OOTB)
-	profMap, err := profile.GetProfileMap("default_profiles")
+	profMap, err := profile.GetProfileMap()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get profile map: %w", err)
 	}
@@ -148,18 +150,19 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	}
 	// Build the final context to send out
 	ncc := &NcmCheckContext{
-		Namespace:             initConfig.Namespace,
-		MinCollectionInterval: time.Duration(initConfig.MinCollectionInterval) * time.Second,
-		Device:                &deviceInstance,
-		ProfileMap:            profMap,
-		ProfileCache:          profileCache,
+		Namespace:                  initConfig.Namespace,
+		MinCollectionInterval:      time.Duration(initConfig.MinCollectionInterval) * time.Second,
+		InventoryReportMinInterval: time.Duration(initConfig.InventoryReportMinInterval) * time.Second,
+		Device:                     &deviceInstance,
+		ProfileMap:                 profMap,
+		ProfileCache:               profileCache,
 	}
 	return ncc, nil
 }
 
 // GetNCMContextFromCoreCheck retrieves the NCM configurations from the agent's config for the integration
 // TODO: tests for this to come when the component is refactored / we're working on the trigger-based approach for config changes
-func GetNCMContextFromCoreCheck(client ipc.HTTPClient) (*NcmComponentContext, error) {
+func GetNCMContextFromCoreCheck(ctx context.Context, client ipc.HTTPClient) (*NcmComponentContext, error) {
 	// Call the agent's config check endpoint to retrieve the NCM configs (from core check)
 	endpoint, err := client.NewIPCEndpoint("/agent/config-check")
 	if err != nil {
@@ -167,7 +170,7 @@ func GetNCMContextFromCoreCheck(client ipc.HTTPClient) (*NcmComponentContext, er
 	}
 	urlValues := url.Values{}
 	urlValues.Set("raw", "true")
-	res, err := endpoint.DoGet(ipchttp.WithValues(urlValues))
+	res, err := endpoint.DoGet(ipchttp.WithContext(ctx), ipchttp.WithValues(urlValues))
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +239,11 @@ func (ic *InitConfig) applyDefaults() {
 	}
 	if ic.MinCollectionInterval <= 0 {
 		log.Debugf("No or invalid min_collection_interval specified in init config, applying default: %d", defaultCheckInterval)
-		ic.MinCollectionInterval = int(defaultCheckInterval.Seconds()) // Default to 15 minutes
+		ic.MinCollectionInterval = defaultCheckInterval // Default to 15 minutes
+	}
+	if ic.InventoryReportMinInterval <= 0 {
+		log.Debugf("No or invalid inventory_report_min_interval specified in init config, applying default: %s", defaultInventoryReportMinInterval)
+		ic.InventoryReportMinInterval = defaultInventoryReportMinInterval
 	}
 }
 
@@ -250,6 +257,10 @@ func (ic *InitConfig) Validate() error {
 
 	if ic.MinCollectionInterval <= 0 {
 		return errors.New("min_collection_interval must be greater than zero")
+	}
+
+	if ic.InventoryReportMinInterval <= 0 {
+		return errors.New("inventory_report_min_interval must be greater than 0")
 	}
 
 	// if SSH configs exist, ensure they're valid

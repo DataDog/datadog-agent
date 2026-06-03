@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
-	hfrunnerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/fx"
 	logssourcefx "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/fx"
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
 	recordernoopfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop"
@@ -62,21 +61,20 @@ import (
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	cloudfoundrycontainer "github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/def"
 	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
 	grpcAgentfx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-agent"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
+	collectorimpl "github.com/DataDog/datadog-agent/comp/collector/collector/impl"
 	connectivitycheckerfx "github.com/DataDog/datadog-agent/comp/connectivitychecker/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamfx "github.com/DataDog/datadog-agent/comp/core/configstream/fx"
@@ -89,7 +87,7 @@ import (
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -99,8 +97,8 @@ import (
 	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	remoteagentregistryfx "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
+	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
@@ -125,10 +123,13 @@ import (
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
+	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
+	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
+	orchestratordef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 
@@ -487,7 +488,7 @@ func getSharedFxOption() fx.Option {
 		daemoncheckerfx.Module(),
 		fleetfx.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
-		autodiscoveryimpl.Module(),
+		adfx.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 		// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
@@ -514,13 +515,12 @@ func getSharedFxOption() fx.Option {
 		logs.Bundle(),
 		observerfx.Module(),
 		logssourcefx.Module(),
-		hfrunnerfx.Module(),
 		recordernoopfx.Module(),
 		reporterfx.Module(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
-		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
-		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+		orchestratorForwarderImpl.Module(orchestratordef.NewDefaultParams()),
+		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
 
 		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
@@ -544,7 +544,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		process.Bundle(),
 		guifx.Module(),
-		agent.Bundle(jmxloggerimpl.NewDefaultParams()),
+		agent.Bundle(jmxlogger.NewDefaultParams()),
 		fx.Provide(func(config config.Component) healthprobe.Options {
 			return healthprobe.Options{
 				Port:           config.GetInt("health_port"),
@@ -573,7 +573,7 @@ func getSharedFxOption() fx.Option {
 				Config: config,
 			}
 		}),
-		settingsimpl.Module(),
+		settingsfx.Module(),
 		agenttelemetryfx.Module(),
 		remotetraceroute.Module(),
 		networkpath.Bundle(),
@@ -664,8 +664,6 @@ func startAgent(
 	if configUtils.IsRemoteConfigEnabled(cfg) {
 		// Subscribe to `AGENT_TASK` product
 		rcclient.SubscribeAgentTask()
-		liveMessagesController := datastreams.NewController(ac, rcclient)
-		ac.AddConfigProvider(liveMessagesController, false, 0)
 		actionsController := datastreams.NewActionsController(ac, rcclient)
 		ac.AddConfigProvider(actionsController, false, 0)
 

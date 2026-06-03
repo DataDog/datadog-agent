@@ -24,14 +24,14 @@ type DNSNode struct {
 }
 
 // NewDNSNode returns a new DNSNode instance
-func NewDNSNode(event *model.DNSEvent, evt *model.Event, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string) *DNSNode {
+func NewDNSNode(event *model.DNSEvent, evt *model.Event, rules []*model.MatchedRule, generationType NodeGenerationType, imageTagID uint64) *DNSNode {
 	node := &DNSNode{
 		MatchedRules:   rules,
 		GenerationType: generationType,
 		Requests:       []model.DNSEvent{*event},
 	}
 	node.NodeBase = NewNodeBase()
-	node.AppendImageTag(imageTag, evt.ResolveEventTime())
+	node.AppendImageTagID(imageTagID, evt.ResolveEventTime())
 	return node
 }
 
@@ -50,8 +50,8 @@ func dnsFilterSubdomains(name string, maxDepth int) string {
 	return result
 }
 
-func (dn *DNSNode) evictImageTag(imageTag string, DNSNames *utils.StringKeys) bool {
-	IsNodeEmpty := dn.EvictImageTag(imageTag)
+func (dn *DNSNode) evictImageTag(imageTagID uint64, DNSNames *utils.StringKeys) bool {
+	IsNodeEmpty := dn.EvictImageTag(imageTagID)
 	if IsNodeEmpty {
 		return true
 	}

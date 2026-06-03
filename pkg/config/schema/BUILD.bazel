@@ -1,5 +1,6 @@
-load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("//bazel/rules:zstd.bzl", "zstd_compress")
 
 ZSTD_ARGS = [
@@ -7,32 +8,51 @@ ZSTD_ARGS = [
     "-5",  # match DataDog/zstd: DefaultCompression = 5
 ]
 
+# yaml/core_schema.yaml references per-section sub-files (yaml/logs_config.yaml,
+# yaml/apm_config.yaml, ...) via $ref. Merge them into a single file before
+# compression so the embedded Go artifact stays a single self-contained
+# schema and the Go loader doesn't need to handle $ref resolution.
+genrule(
+    name = "merged_core_schema",
+    srcs = glob(["yaml/*.yaml"]),
+    outs = ["core_schema.merged.yaml"],
+    cmd = "$(execpath //tasks:merge_schema) $(execpath yaml/core_schema.yaml) $@",
+    tools = ["//tasks:merge_schema"],
+)
+
 zstd_compress(
     name = "compress_core",
-    src = "core_schema.yaml",
-    out = "core_schema.yaml.zstd",
+    src = ":merged_core_schema",
+    out = "compressed/core_schema.yaml.zstd",
     args = ZSTD_ARGS,
 )
 
 zstd_compress(
     name = "compress_system_probe",
-    src = "system-probe_schema.yaml",
-    out = "system-probe_schema.yaml.zstd",
+    src = "yaml/system-probe_schema.yaml",
+    out = "compressed/system-probe_schema.yaml.zstd",
     args = ZSTD_ARGS,
 )
 
-write_source_files(
-    name = "write_compressed",
-    files = {
-        "compressed/core_schema.yaml.zstd": ":compress_core",
-        "compressed/system-probe_schema.yaml.zstd": ":compress_system_probe",
-    },
+pkg_files(
+    name = "compressed",
+    srcs = [
+        ":compress_core",
+        ":compress_system_probe",
+    ],
+    prefix = "compressed",
+)
+
+pkg_install(
+    name = "install_compressed",
+    srcs = [":compressed"],
 )
 
 go_library(
     name = "schema",
     srcs = ["schema.go"],
     embedsrcs = [
+        "compressed/.embed",
         "compressed/core_schema.yaml.zstd",
         "compressed/system-probe_schema.yaml.zstd",
     ],

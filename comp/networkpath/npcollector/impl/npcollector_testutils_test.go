@@ -21,16 +21,16 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
+	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
+	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	forwardermock "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/mock"
 	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
@@ -54,8 +54,8 @@ var testOptions = fx.Options(
 	Module(),
 	forwardermock.MockModule(),
 	demultiplexerimpl.MockModule(),
-	defaultforwarder.MockModule(),
-	eventplatformimpl.MockModule(),
+	defaultforwardermock.MockModule(),
+	eventplatformmock.MockModule(),
 	eventplatformreceiverimpl.Module(),
 	rdnsqueriermock.MockModule(),
 	logscompression.MockModule(),
