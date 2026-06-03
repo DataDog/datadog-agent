@@ -137,12 +137,11 @@ type LogsConfig struct {
 	// IntegrationFileIndex is the index of the integration file that contains this source.
 	IntegrationSourceIndex int `mapstructure:"integration_source_index" json:"integration_source_index" yaml:"integration_source_index"`
 
-	// ProcessLog is true when this file source was autodiscovered by the process_log
-	// provider.  Its path comes from /proc/<pid>/fd and must never traverse a symlink:
-	// the path is canonical at discovery time, so any symlink found later indicates an
-	// attacker-controlled swap.  Set programmatically in the AD scheduler, never parsed
-	// from config.
-	ProcessLog bool `json:"-" yaml:"-" mapstructure:"-"`
+	// NoFollow is true when this file source must not follow symlinks.  Set by the AD
+	// scheduler for sources discovered by the process_log provider, whose paths come from
+	// /proc/<pid>/fd and are canonical at discovery time — any symlink found later
+	// indicates an attacker-controlled swap.  Never parsed from config.
+	NoFollow bool `json:"-" yaml:"-" mapstructure:"-"`
 }
 
 // SourceAutoMultiLineOptions defines per-source auto multi-line detection overrides.

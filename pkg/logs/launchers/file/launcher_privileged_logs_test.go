@@ -103,15 +103,15 @@ func TestPrivilegedLogsLauncherTestSuiteWithConfigID(t *testing.T) {
 	suite.Run(t, s)
 }
 
-// TestPrivilegedLogsLauncherProcessLogSymlink runs the process_log symlink policy
+// TestPrivilegedLogsLauncherNoFollowSymlink runs the NoFollow symlink policy
 // test (defined in launcher_test.go) against the privileged-logs path.  The files
 // live in unsearchable directories, so the unprivileged open fails and the launcher
 // falls back to system-probe; the swapped symlink must be rejected there with
 // O_NOFOLLOW rather than followed.
-func TestPrivilegedLogsLauncherProcessLogSymlink(t *testing.T) {
+func TestPrivilegedLogsLauncherNoFollowSymlink(t *testing.T) {
 	strategy := &PrivilegedLogsTestSetupStrategy{}
 	res := strategy.Setup(t)
-	runLauncherProcessLogSymlinkTest(t, res.TestOps, res.TestDirs[0])
+	runLauncherNoFollowSymlinkTest(t, res.TestOps, res.TestDirs[0])
 }
 
 func TestPrivilegedLogsLauncherScanStartNewTailer(t *testing.T) {

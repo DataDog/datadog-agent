@@ -116,11 +116,8 @@ func (f *fingerprinterImpl) ComputeFingerprint(file *File) (*types.Fingerprint, 
 		return newInvalidFingerprint(nil), nil
 	}
 
-	// Honour the same symlink policy as the tailer: process_log paths must not
-	// traverse a symlink even during fingerprint computation.  A swapped symlink
-	// could otherwise influence rotation detection.
 	policy := opener.FollowSymlinks
-	if file.Source.Config().ProcessLog {
+	if file.Source.Config().NoFollow {
 		policy = opener.RejectSymlinks
 	}
 

@@ -187,10 +187,8 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	movingSum := util.NewMovingSum(timeWindow, bucketSize, clock.New())
 	opts.Info.Register(movingSum)
 
-	// Derive the symlink policy from the source config.  process_log-discovered paths
-	// come from /proc/<pid>/fd and must not traverse any symlink added after discovery.
 	symlinkPolicy := opener.FollowSymlinks
-	if cfg := opts.File.Source.Config(); cfg != nil && cfg.ProcessLog {
+	if cfg := opts.File.Source.Config(); cfg != nil && cfg.NoFollow {
 		symlinkPolicy = opener.RejectSymlinks
 	}
 

@@ -450,28 +450,28 @@ func TestCreateSourcesWithNilConfigurations(t *testing.T) {
 	}
 }
 
-// TestProcessLogFlagSetOnConfig verifies that sources created from a process_log
-// provider have ProcessLog=true, and that sources from other providers do not.
+// TestNoFollowFlagSetOnConfig verifies that sources created from a process_log
+// provider have NoFollow=true, and that sources from other providers do not.
 // This flag is used by the file tailer to enforce O_NOFOLLOW opens, preventing
 // symlink-swap attacks on process_log-discovered paths.
-func TestProcessLogFlagSetOnConfig(t *testing.T) {
+func TestNoFollowFlagSetOnConfig(t *testing.T) {
 	tests := []struct {
 		name         string
 		provider     string
 		expectedFlag bool
 	}{
 		{
-			name:         "process_log provider sets ProcessLog=true",
+			name:         "process_log provider sets NoFollow=true",
 			provider:     names.ProcessLog,
 			expectedFlag: true,
 		},
 		{
-			name:         "file provider does not set ProcessLog",
+			name:         "file provider does not set NoFollow",
 			provider:     names.File,
 			expectedFlag: false,
 		},
 		{
-			name:         "kubernetes provider does not set ProcessLog",
+			name:         "kubernetes provider does not set NoFollow",
 			provider:     names.Kubernetes,
 			expectedFlag: false,
 		},
@@ -500,8 +500,8 @@ func TestProcessLogFlagSetOnConfig(t *testing.T) {
 			sources, err := CreateSources(cfg)
 			require.NoError(t, err)
 			require.Len(t, sources, 1)
-			assert.Equal(t, tt.expectedFlag, sources[0].Config.ProcessLog,
-				"Config.ProcessLog should be %v for provider %q", tt.expectedFlag, tt.provider)
+			assert.Equal(t, tt.expectedFlag, sources[0].Config.NoFollow,
+				"Config.NoFollow should be %v for provider %q", tt.expectedFlag, tt.provider)
 		})
 	}
 }
