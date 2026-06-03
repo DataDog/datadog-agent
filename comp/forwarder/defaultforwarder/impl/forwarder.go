@@ -3,38 +3,35 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package defaultforwarder
+package defaultforwarderimpl
 
 import (
 	"context"
 	"fmt"
 	"strings"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	defaultforwarderdef "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 type dependencies struct {
-	fx.In
 	Config  config.Component
 	Log     log.Component
 	Lc      compdef.Lifecycle
-	Params  Params
+	Params  defaultforwarderdef.Params
 	Secrets secrets.Component
 }
 
 type provides struct {
-	fx.Out
-
-	Comp           Component
+	Comp           defaultforwarderdef.Component
 	StatusProvider status.InformationProvider
 }
 
@@ -47,7 +44,7 @@ func newForwarder(dep dependencies) (provides, error) {
 	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options), nil
 }
 
-func createOptions(params Params, config config.Component, log log.Component, secrets secrets.Component) (*Options, error) {
+func createOptions(params defaultforwarderdef.Params, config config.Component, log log.Component, secrets secrets.Component) (*Options, error) {
 	var options *Options
 	endpoints, err := utils.GetMultipleEndpoints(config)
 	if err != nil {
@@ -55,7 +52,7 @@ func createOptions(params Params, config config.Component, log log.Component, se
 		return nil, fmt.Errorf("Misconfiguration of agent endpoints: %s", err)
 	}
 
-	if !params.withResolver {
+	if !params.Resolver() {
 		options, err = NewOptionsWithOPW(config, log, endpoints)
 		if err != nil {
 			log.Error("Error creating forwarder options: ", err)
@@ -70,12 +67,13 @@ func createOptions(params Params, config config.Component, log log.Component, se
 		options = NewOptionsWithResolvers(config, log, r)
 	}
 	// Override the DisableAPIKeyChecking only if WithFeatures was called
-	if disableAPIKeyChecking, ok := params.disableAPIKeyCheckingOverride.Get(); ok {
+	disableOverride := params.APIKeyCheckingDisabledOverride()
+	if disableAPIKeyChecking, ok := disableOverride.Get(); ok {
 		options.DisableAPIKeyChecking = disableAPIKeyChecking
 	}
 	// set the secrets component from the dependencies
 	options.Secrets = secrets
-	options.SetEnabledFeatures(params.features)
+	options.SetEnabledFeatures(params.EnabledFeatures())
 
 	log.Infof("starting forwarder with %d endpoints", len(options.DomainResolvers))
 	for _, resolver := range options.DomainResolvers {
@@ -116,4 +114,18 @@ func newMockForwarder(config config.Component, log log.Component, secrets secret
 	return provides{
 		Comp: NewDefaultForwarder(config, log, options),
 	}
+}
+
+// NewForwarderFromDeps is an exported wrapper around newForwarder for use with fx.
+//
+//nolint:revive
+func NewForwarderFromDeps(dep dependencies) (provides, error) {
+	return newForwarder(dep)
+}
+
+// NewMockForwarder provides a mock forwarder component for use with fx.
+//
+//nolint:revive
+func NewMockForwarder(config config.Component, log log.Component, secrets secrets.Component) provides {
+	return newMockForwarder(config, log, secrets)
 }

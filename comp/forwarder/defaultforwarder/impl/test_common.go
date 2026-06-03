@@ -5,7 +5,7 @@
 
 //go:build test
 
-package defaultforwarder
+package defaultforwarderimpl
 
 import (
 	"context"
@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	defaultforwarderdef "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 )
@@ -239,7 +240,7 @@ func (tr handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 // NewTestForwarder creates an instance of the component based on config, but without using fx or starting it.
-func NewTestForwarder(params Params, config config.Component, log log.Component, secrets secrets.Component) (Forwarder, error) {
+func NewTestForwarder(params defaultforwarderdef.Params, config config.Component, log log.Component, secrets secrets.Component) (Forwarder, error) {
 	opts, err := createOptions(params, config, log, secrets)
 	if err != nil {
 		return nil, err

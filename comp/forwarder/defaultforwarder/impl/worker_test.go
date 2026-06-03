@@ -5,7 +5,7 @@
 
 //go:build test
 
-package defaultforwarder
+package defaultforwarderimpl
 
 import (
 	"errors"
