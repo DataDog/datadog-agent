@@ -177,6 +177,7 @@ use (
 	pkg/util/quantile
 	pkg/util/quantile/sketchtest
 	pkg/util/scrubber
+	pkg/util/sds
 	pkg/util/sort
 	pkg/util/startstop
 	pkg/util/statstracker

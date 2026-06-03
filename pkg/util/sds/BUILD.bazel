@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sds",
+    srcs = ["sds.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/sds",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log"],
+)

@@ -27,6 +27,7 @@ import (
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/sds"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -531,6 +532,14 @@ var defaultMongoObfuscateSettings = obfuscate.JSONConfig{
 //export getProcessStartTime
 func getProcessStartTime() float64 {
 	return float64(pkgconfigsetup.StartTime.Unix())
+}
+
+// HelloWorld logs a "hello world" message from the sds util package.
+// Indirectly used by the C function `hello_world` that's mapped to `datadog_agent.hello_world`.
+//
+//export HelloWorld
+func HelloWorld() {
+	sds.HelloWorld()
 }
 
 // ObfuscateMongoDBString obfuscates the MongoDB query

@@ -27,6 +27,7 @@ static cb_obfuscate_sql_exec_plan_t cb_obfuscate_sql_exec_plan = NULL;
 static cb_get_process_start_time_t cb_get_process_start_time = NULL;
 static cb_obfuscate_mongodb_string_t cb_obfuscate_mongodb_string = NULL;
 static cb_emit_agent_telemetry_t cb_emit_agent_telemetry = NULL;
+static cb_hello_world_t cb_hello_world = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -47,6 +48,7 @@ static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObjec
 static PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *hello_world(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
@@ -67,6 +69,7 @@ static PyMethodDef methods[] = {
     { "get_process_start_time", (PyCFunction)get_process_start_time, METH_NOARGS, "Get agent process startup time, in seconds since the epoch." },
     { "obfuscate_mongodb_string", (PyCFunction)obfuscate_mongodb_string, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a MongoDB command string." },
     { "emit_agent_telemetry", (PyCFunction)emit_agent_telemetry, METH_VARARGS|METH_KEYWORDS, "Emit agent telemetry." },
+    { "hello_world", hello_world, METH_NOARGS, "Log a hello world message." },
     { NULL, NULL } // guards
 };
 
@@ -158,6 +161,10 @@ void _set_obfuscate_mongodb_string_cb(cb_obfuscate_mongodb_string_t cb) {
 
 void _set_emit_agent_telemetry_cb(cb_emit_agent_telemetry_t cb) {
     cb_emit_agent_telemetry = cb;
+}
+
+void _set_hello_world_cb(cb_hello_world_t cb) {
+    cb_hello_world = cb;
 }
 
 
@@ -963,6 +970,31 @@ static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *
     cb_emit_agent_telemetry(check_name, metric_name, metric_value, metric_type);
 
     PyGILState_Release(gstate);
+
+    Py_RETURN_NONE;
+}
+
+/*! \fn PyObject *hello_world(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog_agent.hello_world` method, logging
+    a "hello world" message through the agent logger.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to any empty tuple, as no input args are taken.
+    \return A PyObject* pointer to `None`.
+
+    This function is callable as the `datadog_agent.hello_world` Python method and
+    uses the `cb_hello_world()` callback to reach the agent with CGO. If the callback
+    has not been set `None` will be returned.
+*/
+static PyObject *hello_world(PyObject *self, PyObject *args)
+{
+    // callback must be set
+    if (cb_hello_world == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    Py_BEGIN_ALLOW_THREADS
+    cb_hello_world();
+    Py_END_ALLOW_THREADS
 
     Py_RETURN_NONE;
 }

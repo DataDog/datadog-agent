@@ -156,6 +156,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/prometheus v0.64.0
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.79.0-devel.0.20260402163801-bfa4eff6c991
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.78.1
+	github.com/DataDog/datadog-agent/pkg/util/sds v0.0.0
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/system v0.78.1
@@ -1444,6 +1445,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/quantile => ./pkg/util/quantile
 	github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest => ./pkg/util/quantile/sketchtest
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
+	github.com/DataDog/datadog-agent/pkg/util/sds => ./pkg/util/sds
 	github.com/DataDog/datadog-agent/pkg/util/sort => ./pkg/util/sort
 	github.com/DataDog/datadog-agent/pkg/util/startstop => ./pkg/util/startstop
 	github.com/DataDog/datadog-agent/pkg/util/statstracker => ./pkg/util/statstracker

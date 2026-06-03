@@ -351,6 +351,7 @@ modules:
     used_by_otel: true
   pkg/util/scrubber:
     used_by_otel: true
+  pkg/util/sds: default
   pkg/util/sort:
     used_by_otel: true
   pkg/util/startstop:
