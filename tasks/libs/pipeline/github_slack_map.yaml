@@ -37,6 +37,8 @@
     name: '#agent-configuration-ops'
     id: 'C08A85VGC8P'
   review:
+    # DO NOT FILL IN - team opted out of PR review notifications, see:
+    # https://github.com/DataDog/datadog-agent/pull/51716#issuecomment-4610991841
     name: ''
     id: ''
 '@datadog/agent-cspm':
