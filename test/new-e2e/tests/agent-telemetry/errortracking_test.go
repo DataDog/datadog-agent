@@ -107,7 +107,6 @@ func (s *errorTrackingSuite) TestDisabledByDefault() {
 		assert.NotEqual(c, "0", strings.TrimSpace(out))
 	}, 1*time.Minute, 5*time.Second, "timed out waiting for check error to appear in agent log")
 
-	assert.Neverf(s.T(), func(c *assert.CollectT) {})
 	// Confirm the error was not forwarded to telemetry.
 	logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
 	require.NoError(s.T(), err)
