@@ -15,7 +15,7 @@ go_library(
         "//comp/forwarder/defaultforwarder/endpoints",
         "//comp/forwarder/defaultforwarder/resolver",
         "//comp/forwarder/defaultforwarder/transaction",
-        "//comp/forwarder/orchestrator/orchestratorinterface/def",
+        "//comp/forwarder/orchestrator/orchestratorinterface",
         "//pkg/config/utils",
         "//pkg/metrics",
         "//pkg/metrics/event",
