@@ -2,17 +2,6 @@
 # e2e stage - agent-devx owned jobs
 # Owned by: agent-devx
 
-.on_package_signing_tests:
-  - !reference [.except_mergequeue]
-  - <<: *if_disable_e2e_tests
-    when: never
-  - <<: *if_installer_tests
-  - <<: *on_build_changes
-  - changes:
-      paths:
-        - test/new-e2e/tests/agent-platform/tests/package_signing*
-        - test/e2e-framework/**/*
-
 # Build test binaries job that creates pre-compiled test binaries
 # This job runs early in the pipeline and uploads per-package tarballs to S3
 # so that each test job can download only the binaries it needs.
