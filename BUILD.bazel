@@ -577,7 +577,6 @@ exports_files(glob(
 # gazelle:exclude test/e2e-framework/testing/provisioners
 # gazelle:exclude test/e2e-framework/testing/runner
 # gazelle:exclude test/e2e-framework/testing/utils/infra
-# gazelle:exclude test/fakeintake/cmd/client/main.go
 # gazelle:exclude test/files
 # gazelle:exclude test/integration
 # gazelle:exclude test/new-e2e/examples
