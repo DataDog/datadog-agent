@@ -3,6 +3,9 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "impl",
     srcs = [
+        "backend.go",
+        "backend_tsdb.go",
+        "backend_wal.go",
         "check_runner.go",
         "context_file.go",
         "context_set.go",
@@ -45,6 +48,10 @@ go_library(
         "//pkg/util/http",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_datadog_datadog_agent_pkg_hook//:hook",
+        "@com_github_prometheus_prometheus//model/labels",
+        "@com_github_prometheus_prometheus//storage",
+        "@com_github_prometheus_prometheus//tsdb",
+        "@com_github_prometheus_prometheus//tsdb/chunkenc",
         "@com_github_twmb_murmur3//:murmur3",
         "@io_etcd_go_bbolt//:bbolt",
         "@org_uber_go_fx//:fx",
@@ -56,7 +63,7 @@ go_test(
     srcs = [
         "context_file_test.go",
         "flush_test.go",
-        "loopback_test.go",
+        "lookback_test.go",
         "record_test.go",
         "shard_test.go",
     ],

@@ -30,7 +30,7 @@ func TestShardWriteRotateRead(t *testing.T) {
 	const n = 100
 	s.mu.Lock()
 	for i := range n {
-		err := s.writeRecord(record{contextKey: 1, tsNs: int64(i) * 1_000_000_000, value: float64(i)})
+		err := s.writeRecord(record{contextKey: 1, tsUs: int64(i) * 1_000_000, value: float64(i)})
 		require.NoError(t, err)
 	}
 	s.mu.Unlock()
@@ -46,7 +46,7 @@ func TestShardWriteRotateRead(t *testing.T) {
 	require.Len(t, recs, n)
 	for i, r := range recs {
 		assert.Equal(t, uint64(1), r.contextKey)
-		assert.Equal(t, int64(i)*1_000_000_000, r.tsNs)
+		assert.Equal(t, int64(i)*1_000_000, r.tsUs)
 	}
 }
 
@@ -58,7 +58,7 @@ func TestShardBufferFlushOnFull(t *testing.T) {
 
 	s.mu.Lock()
 	for range 4 {
-		require.NoError(t, s.writeRecord(record{contextKey: 1, tsNs: 100, value: 1.0}))
+		require.NoError(t, s.writeRecord(record{contextKey: 1, tsUs: 100, value: 1.0}))
 	}
 	s.mu.Unlock()
 
@@ -83,7 +83,7 @@ func TestShardConcurrentWriteRotate(t *testing.T) {
 			defer wg.Done()
 			for j := range recordsEach {
 				s.mu.Lock()
-				_ = s.writeRecord(record{contextKey: 1, tsNs: int64(base*1000 + j), value: 1.0})
+				_ = s.writeRecord(record{contextKey: 1, tsUs: int64(base*1000 + j), value: 1.0})
 				s.mu.Unlock()
 			}
 		}(i)

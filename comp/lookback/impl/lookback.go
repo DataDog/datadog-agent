@@ -86,23 +86,16 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, fmt.Errorf("lookback: mkdir %s: %w", cfg.baseDir, err)
 	}
 
-	ctxFile, err := newContextFile(cfg.baseDir)
+	backend, err := newBackend(cfg, reqs.Log)
 	if err != nil {
-		return Provides{}, fmt.Errorf("lookback: init context file: %w", err)
-	}
-
-	store, err := newShardedStore(cfg, reqs.Log)
-	if err != nil {
-		_ = ctxFile.close()
-		return Provides{}, fmt.Errorf("lookback: init store: %w", err)
+		return Provides{}, fmt.Errorf("lookback: init backend: %w", err)
 	}
 
 	checkNames := reqs.Config.GetStringSlice("lookback.checks")
 	checkInterval := reqs.Config.GetDuration("lookback.check_interval")
 
 	comp := &component{
-		store:         store,
-		ctxFile:       ctxFile,
+		backend:       backend,
 		log:           reqs.Log,
 		serializer:    reqs.Demultiplexer.Serializer(),
 		hostname:      reqs.Hostname.GetSafe(context.Background()),
@@ -117,12 +110,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	reqs.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
-			// Start the independent check runner (if configured).
 			reqs.Log.Infof("lookback: check runner config: checks=%v interval=%s",
 				comp.checkNames, comp.checkInterval)
 			comp.checkRunner = newLookbackCheckRunner(
 				comp.checkNames, comp.checkInterval,
-				comp.store, comp.ctxFile, comp.log,
+				comp.backend, comp.log,
 			)
 
 			reqs.Log.Infof("lookback: subscribing to %d metric hook(s)", len(reqs.MetricHooks))
@@ -145,7 +137,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 				unsubs = append(unsubs, unsub)
 				mu.Unlock()
 			}
-			store.startRotationTimer()
+			comp.backend.startRotationTimer()
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
@@ -156,10 +148,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 				u()
 			}
 			comp.checkRunner.stop()
-			if err := store.stop(ctx); err != nil {
-				return err
-			}
-			return ctxFile.close()
+			return comp.backend.stop(ctx)
 		},
 	})
 
@@ -178,8 +167,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 // component is the enabled implementation of lookback.Component.
 type component struct {
-	store         *shardedStore
-	ctxFile       *contextFile
+	backend       timeSeriesBackend
 	log           log.Component
 	serializer    pkgserializer.MetricSerializer
 	hostname      string
@@ -191,50 +179,30 @@ type component struct {
 func (c *component) onSamples(samples []hook.MetricSampleSnapshot) {
 	for i := range samples {
 		s := &samples[i]
-		ck := s.ContextKey
-		if ck == 0 {
-			ck = syntheticKey(s.Name, sortedTagsCopy(s.RawTags))
+		tags := s.RawTags
+		if s.ContextKey != 0 {
+			// Fast path: the pipeline already computed a context key, but we
+			// still need name+tags for the context store. Use synthetic key so
+			// write is idempotent across the two paths.
+			tags = sortedTagsCopy(s.RawTags)
+		} else {
+			tags = sortedTagsCopy(s.RawTags)
 		}
-		_ = c.ctxFile.write(ck, s.Name, s.RawTags)
-		c.store.write(ck, int64(s.Timestamp*1e9), s.Value)
+		c.backend.writeSample(s.Name, tags, int64(s.Timestamp*1e6), s.Value)
 	}
 }
 
 func (c *component) Flush(ctx context.Context, name string, tags []string, start, stop int64, interval time.Duration) ([]lookback.Bucket, error) {
-	entries, err := c.ctxFile.scan(name, tags)
-	if err != nil {
-		return nil, fmt.Errorf("lookback: context scan: %w", err)
-	}
-	if len(entries) == 0 {
-		return nil, lookback.ErrNoData
-	}
-
-	keys := make([]uint64, 0, len(entries))
-	for k := range entries {
-		keys = append(keys, k)
-	}
-	resolve := func(k uint64) (string, []string, bool) {
-		e, ok := entries[k]
-		return e.name, e.tags, ok
-	}
-
-	intervalNs := int64(interval)
-	buckets, err := c.store.flush(ctx, keys, start, stop, intervalNs, resolve)
-	if err != nil {
-		return nil, err
-	}
-	if len(buckets) == 0 {
-		return nil, lookback.ErrNoData
-	}
-	return buckets, nil
+	intervalUs := int64(interval) / 1000
+	return c.backend.flush(ctx, name, tags, start, stop, intervalUs)
 }
 
 // flushParams holds parsed query parameters shared by /lookback-flush and /lookback-forward.
 type flushParams struct {
 	name     string
 	tags     []string
-	startNs  int64
-	stopNs   int64
+	startUs  int64
+	stopUs   int64
 	interval time.Duration
 }
 
@@ -255,13 +223,13 @@ func parseFlushParams(r *http.Request) (flushParams, error) {
 		}
 	}
 
-	startNs, err := strconv.ParseInt(q.Get("start"), 10, 64)
+	startUs, err := strconv.ParseInt(q.Get("start"), 10, 64)
 	if err != nil {
-		return flushParams{}, fmt.Errorf("invalid start (want Unix nanoseconds): %w", err)
+		return flushParams{}, fmt.Errorf("invalid start (want Unix microseconds): %w", err)
 	}
-	stopNs, err := strconv.ParseInt(q.Get("stop"), 10, 64)
+	stopUs, err := strconv.ParseInt(q.Get("stop"), 10, 64)
 	if err != nil {
-		return flushParams{}, fmt.Errorf("invalid stop (want Unix nanoseconds): %w", err)
+		return flushParams{}, fmt.Errorf("invalid stop (want Unix microseconds): %w", err)
 	}
 
 	var interval time.Duration
@@ -272,7 +240,7 @@ func parseFlushParams(r *http.Request) (flushParams, error) {
 		}
 	}
 
-	return flushParams{name: name, tags: tags, startNs: startNs, stopNs: stopNs, interval: interval}, nil
+	return flushParams{name: name, tags: tags, startUs: startUs, stopUs: stopUs, interval: interval}, nil
 }
 
 // handleFlush serves GET /lookback-flush — returns aggregated buckets as JSON.
@@ -282,7 +250,7 @@ func (c *component) handleFlush(w http.ResponseWriter, r *http.Request) {
 		httputils.SetJSONError(w, c.log.Errorf("lookback flush: %v", err), http.StatusBadRequest)
 		return
 	}
-	buckets, err := c.Flush(r.Context(), p.name, p.tags, p.startNs, p.stopNs, p.interval)
+	buckets, err := c.Flush(r.Context(), p.name, p.tags, p.startUs, p.stopUs, p.interval)
 	if err != nil {
 		httputils.SetJSONError(w, c.log.Errorf("lookback flush: %v", err), http.StatusNotFound)
 		return
@@ -316,32 +284,10 @@ func (c *component) handleForward(w http.ResponseWriter, r *http.Request) {
 		mtype = metrics.APIRateType
 	}
 
-	entries, err := c.ctxFile.scan(p.name, p.tags)
+	intervalUs := int64(p.interval) / 1000
+	buckets, err := c.backend.flush(r.Context(), p.name, p.tags, p.startUs, p.stopUs, intervalUs)
 	if err != nil {
-		httputils.SetJSONError(w, c.log.Errorf("lookback forward scan: %v", err), http.StatusInternalServerError)
-		return
-	}
-	if len(entries) == 0 {
-		httputils.SetJSONError(w, c.log.Errorf("lookback forward: %v", lookback.ErrNoData), http.StatusNotFound)
-		return
-	}
-
-	keys := make([]uint64, 0, len(entries))
-	for k := range entries {
-		keys = append(keys, k)
-	}
-	resolve := func(k uint64) (string, []string, bool) {
-		e, ok := entries[k]
-		return e.name, e.tags, ok
-	}
-
-	buckets, err := c.store.flush(r.Context(), keys, p.startNs, p.stopNs, int64(p.interval), resolve)
-	if err != nil {
-		httputils.SetJSONError(w, c.log.Errorf("lookback forward flush: %v", err), http.StatusInternalServerError)
-		return
-	}
-	if len(buckets) == 0 {
-		httputils.SetJSONError(w, c.log.Errorf("lookback forward: %v", lookback.ErrNoData), http.StatusNotFound)
+		httputils.SetJSONError(w, c.log.Errorf("lookback forward: %v", err), http.StatusNotFound)
 		return
 	}
 
@@ -355,7 +301,7 @@ func (c *component) handleForward(w http.ResponseWriter, r *http.Request) {
 				b := &buckets[i]
 				serieSink.Append(&metrics.Serie{
 					Name:   b.Name,
-					Points: []metrics.Point{{Ts: float64(b.Ts) / 1e9, Value: b.Sum}},
+					Points: []metrics.Point{{Ts: float64(b.Ts) / 1e6, Value: b.Sum}},
 					Tags:   tagset.CompositeTagsFromSlice(b.Tags),
 					Host:   host,
 					MType:  mtype,
@@ -382,8 +328,8 @@ func (c *component) handleForward(w http.ResponseWriter, r *http.Request) {
 type rcFlushPayload struct {
 	Name       string `json:"name"`
 	Tags       string `json:"tags"`        // comma-separated, optional
-	Start      int64  `json:"start"`       // Unix nanoseconds
-	Stop       int64  `json:"stop"`        // Unix nanoseconds
+	Start      int64  `json:"start"`       // Unix microseconds
+	Stop       int64  `json:"stop"`        // Unix microseconds
 	IntervalMs int64  `json:"interval_ms"` // milliseconds, optional (default: 1000 = 1s)
 }
 
@@ -410,34 +356,16 @@ func (c *component) onRCFlush(updates map[string]state.RawConfig, applyStateCall
 			}
 		}
 
-		var interval time.Duration
+		var intervalUs int64
 		if p.IntervalMs > 0 {
-			interval = time.Duration(p.IntervalMs) * time.Millisecond
-		} // 0 → aggregateRecords defaults to 1s
+			intervalUs = p.IntervalMs * 1000 // ms → µs
+		}
 
-		entries, err := c.ctxFile.scan(p.Name, tags)
-		if err != nil || len(entries) == 0 {
+		buckets, err := c.backend.flush(context.Background(), p.Name, tags, p.Start, p.Stop, intervalUs)
+		if err != nil {
 			applyStateCallback(configPath, state.ApplyStatus{
 				State: state.ApplyStateError,
-				Error: fmt.Sprintf("no contexts for %q: %v", p.Name, err),
-			})
-			continue
-		}
-
-		keys := make([]uint64, 0, len(entries))
-		for k := range entries {
-			keys = append(keys, k)
-		}
-		resolve := func(k uint64) (string, []string, bool) {
-			e, ok := entries[k]
-			return e.name, e.tags, ok
-		}
-
-		buckets, err := c.store.flush(context.Background(), keys, p.Start, p.Stop, int64(interval), resolve)
-		if err != nil || len(buckets) == 0 {
-			applyStateCallback(configPath, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: fmt.Sprintf("flush error: %v", err),
+				Error: fmt.Sprintf("flush error for %q: %v", p.Name, err),
 			})
 			continue
 		}
@@ -452,7 +380,7 @@ func (c *component) onRCFlush(updates map[string]state.RawConfig, applyStateCall
 					b := &buckets[i]
 					serieSink.Append(&metrics.Serie{
 						Name:   b.Name,
-						Points: []metrics.Point{{Ts: float64(b.Ts) / 1e9, Value: b.Sum}},
+						Points: []metrics.Point{{Ts: float64(b.Ts) / 1e6, Value: b.Sum}},
 						Tags:   tagset.CompositeTagsFromSlice(b.Tags),
 						Host:   host,
 						MType:  metrics.APIGaugeType,

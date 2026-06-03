@@ -47,15 +47,14 @@ type lookbackCheckRunner struct {
 func newLookbackCheckRunner(
 	checkNames []string,
 	interval time.Duration,
-	store *shardedStore,
-	ctxFile *contextFile,
+	backend timeSeriesBackend,
 	l log.Component,
 ) *lookbackCheckRunner {
 	if len(checkNames) == 0 {
 		return nil
 	}
 
-	senderMgr := newWALSenderManager(store, ctxFile, l)
+	senderMgr := newWALSenderManager(backend, l)
 
 	// Built-in check factories (bypasses the global catalog).
 	cpuOpt    := cpu.Factory()

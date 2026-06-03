@@ -15,7 +15,7 @@ import (
 )
 
 func TestRecordRoundTrip(t *testing.T) {
-	r := record{contextKey: 0xdeadbeefcafe, tsNs: 1_715_000_000_123_456_789, value: 3.14}
+	r := record{contextKey: 0xdeadbeefcafe, tsUs: 1_715_000_000_123_456, value: 3.14}
 	buf := appendRecord(nil, r)
 	require.Len(t, buf, recordSize)
 	got, err := decodeRecord(buf)
@@ -46,8 +46,8 @@ func TestDecodeRecordShortBuffer(t *testing.T) {
 
 func TestReadAllRecordsPartialTrailing(t *testing.T) {
 	var buf bytes.Buffer
-	buf.Write(appendRecord(nil, record{contextKey: 1, tsNs: 100, value: 1.0}))
-	buf.Write(appendRecord(nil, record{contextKey: 2, tsNs: 200, value: 2.0}))
+	buf.Write(appendRecord(nil, record{contextKey: 1, tsUs: 100, value: 1.0}))
+	buf.Write(appendRecord(nil, record{contextKey: 2, tsUs: 200, value: 2.0}))
 	// Write half a record to simulate a crash-truncated file.
 	buf.Write(make([]byte, recordSize/2))
 

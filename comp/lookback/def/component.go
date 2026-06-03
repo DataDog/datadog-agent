@@ -27,7 +27,7 @@ var ErrNoData = errors.New("lookback: no data in range")
 type Bucket struct {
 	Name string
 	Tags []string
-	// Ts is the Unix nanosecond timestamp floored to the aggregation interval boundary.
+	// Ts is the Unix microsecond timestamp floored to the aggregation interval boundary.
 	Ts    int64
 	Count int64
 	Sum   float64
@@ -73,7 +73,7 @@ type Component interface {
 	//
 	// # time range
 	//
-	// start and stop are Unix nanoseconds, half-open: [start, stop).
+	// start and stop are Unix microseconds, half-open: [start, stop).
 	// Only sealed WAL windows overlapping the range are queried; the active
 	// (current) window is not included.
 	//

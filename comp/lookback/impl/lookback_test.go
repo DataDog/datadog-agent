@@ -19,29 +19,26 @@ import (
 
 func defaultTestCfg(t *testing.T) storeConfig {
 	return storeConfig{
-		baseDir:        t.TempDir(),
-		numShards:      4,
+		baseDir:          t.TempDir(),
+		numShards:        4,
 		rotationInterval: 10 * time.Second,
-		maxAge:         24 * time.Hour,
-		maxDiskBytes:   100 * 1024 * 1024,
-		maxBufSize:     64 * 1024,
+		maxAge:           24 * time.Hour,
+		maxDiskBytes:     100 * 1024 * 1024,
+		maxBufSize:       64 * 1024,
 	}
 }
 
 // buildTestComponent creates a component backed by a temp directory.
-func buildTestComponent(t *testing.T, cfg storeConfig) *component {
+func buildTestComponent(t *testing.T, cfg storeConfig) (*component, *walBackend) {
 	t.Helper()
-	ctxFile, err := newContextFile(cfg.baseDir)
+	backend, err := newWALBackend(cfg, nil)
 	require.NoError(t, err)
-	store, err := newShardedStore(cfg, nil)
-	require.NoError(t, err)
-	store.startRotationTimer()
-	comp := &component{store: store, ctxFile: ctxFile}
+	backend.startRotationTimer()
+	comp := &component{backend: backend}
 	t.Cleanup(func() {
-		_ = store.stop(context.Background())
-		_ = ctxFile.close()
+		_ = backend.stop(context.Background())
 	})
-	return comp
+	return comp, backend
 }
 
 func TestNoopComponentReturnsErrDisabled(t *testing.T) {
@@ -52,25 +49,25 @@ func TestNoopComponentReturnsErrDisabled(t *testing.T) {
 
 func TestEndToEndWriteRotateFlush(t *testing.T) {
 	cfg := defaultTestCfg(t)
-	comp := buildTestComponent(t, cfg)
+	comp, wb := buildTestComponent(t, cfg)
 
 	const metricName = "latency.p99"
 	tags := []string{"env:prod"}
 	ck := syntheticKey(metricName, sortedTagsCopy(tags))
 
-	require.NoError(t, comp.ctxFile.write(ck, metricName, tags))
+	require.NoError(t, wb.ctxFile.write(ck, metricName, tags))
 
 	// Timestamps must fall within the current WAL window.
-	baseNs := time.Now().Add(1 * time.Second).UnixNano()
+	baseUs := time.Now().Add(1 * time.Second).UnixMicro()
 	for i := range 5 {
-		comp.store.write(ck, baseNs+int64(i)*int64(time.Second), float64(i+1))
+		wb.store.write(ck, baseUs+int64(i)*1_000_000, float64(i+1))
 	}
 
 	newWindow := time.Now().Unix() + int64(cfg.rotationInterval.Seconds()) + 1
-	require.NoError(t, comp.store.rotateAll(newWindow))
+	require.NoError(t, wb.store.rotateAll(newWindow))
 
-	start := time.Now().UnixNano()
-	stop := baseNs + 5*int64(time.Second) + int64(time.Second)
+	start := time.Now().UnixMicro()
+	stop := baseUs + 5*1_000_000 + 1_000_000
 	buckets, err := comp.Flush(context.Background(), metricName, tags, start, stop, time.Second)
 	require.NoError(t, err)
 	require.Len(t, buckets, 5)
@@ -84,22 +81,22 @@ func TestEndToEndWriteRotateFlush(t *testing.T) {
 
 func TestFlushNilTagsMatchesAll(t *testing.T) {
 	cfg := defaultTestCfg(t)
-	comp := buildTestComponent(t, cfg)
+	comp, wb := buildTestComponent(t, cfg)
 
-	baseNs := time.Now().Add(1 * time.Second).UnixNano()
+	baseUs := time.Now().Add(1 * time.Second).UnixMicro()
 	ck1 := syntheticKey("counter", sortedTagsCopy([]string{"env:prod"}))
 	ck2 := syntheticKey("counter", sortedTagsCopy([]string{"env:staging"}))
 
-	require.NoError(t, comp.ctxFile.write(ck1, "counter", []string{"env:prod"}))
-	require.NoError(t, comp.ctxFile.write(ck2, "counter", []string{"env:staging"}))
+	require.NoError(t, wb.ctxFile.write(ck1, "counter", []string{"env:prod"}))
+	require.NoError(t, wb.ctxFile.write(ck2, "counter", []string{"env:staging"}))
 
-	comp.store.write(ck1, baseNs, 1.0)
-	comp.store.write(ck2, baseNs, 2.0)
+	wb.store.write(ck1, baseUs, 1.0)
+	wb.store.write(ck2, baseUs, 2.0)
 
-	require.NoError(t, comp.store.rotateAll(time.Now().Unix()+int64(cfg.rotationInterval.Seconds())+1))
+	require.NoError(t, wb.store.rotateAll(time.Now().Unix()+int64(cfg.rotationInterval.Seconds())+1))
 
-	start := time.Now().UnixNano()
-	stop := baseNs + int64(time.Second)*2
+	start := time.Now().UnixMicro()
+	stop := baseUs + 2*1_000_000
 	buckets, err := comp.Flush(context.Background(), "counter", nil, start, stop, time.Second)
 	require.NoError(t, err)
 	require.Len(t, buckets, 2)
@@ -107,11 +104,11 @@ func TestFlushNilTagsMatchesAll(t *testing.T) {
 
 func TestFlushErrNoDataWhenNoFiles(t *testing.T) {
 	cfg := defaultTestCfg(t)
-	comp := buildTestComponent(t, cfg)
+	comp, wb := buildTestComponent(t, cfg)
 
-	require.NoError(t, comp.ctxFile.write(99, "ghost", nil))
+	require.NoError(t, wb.ctxFile.write(99, "ghost", nil))
 
-	_, err := comp.Flush(context.Background(), "ghost", nil, 0, int64(time.Second), time.Second)
+	_, err := comp.Flush(context.Background(), "ghost", nil, 0, 1_000_000, time.Second)
 	assert.True(t, errors.Is(err, lookback.ErrNoData))
 }
 
@@ -131,7 +128,7 @@ func TestRetentionAgeEnforcement(t *testing.T) {
 
 		s.windowStart = pastWindow
 		require.NoError(t, s.openActiveFile())
-		require.NoError(t, s.writeRecord(record{contextKey: 1, tsNs: 1_000_000_000, value: 1.0}))
+		require.NoError(t, s.writeRecord(record{contextKey: 1, tsUs: 1_000_000, value: 1.0}))
 		require.NoError(t, s.flushLocked())
 		require.NoError(t, s.activeF.Sync())
 		require.NoError(t, s.activeF.Close())

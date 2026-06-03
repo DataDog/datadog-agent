@@ -18,53 +18,48 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 )
 
-// walSample is a buffered metric sample waiting to be committed to the WAL.
+// walSample is a buffered metric sample waiting to be committed to the backend.
 type walSample struct {
 	name  string
 	value float64
 	tags  []string
-	tsNs  int64 // Unix nanoseconds
+	tsUs  int64 // Unix microseconds
 }
 
 // walSender implements sender.Sender and routes all metric samples to the
-// lookback WAL instead of the agent's aggregator pipeline. It buffers samples
-// until Commit() is called, matching the normal check sender contract.
+// lookback backend instead of the agent's aggregator pipeline. It buffers
+// samples until Commit() is called, matching the normal check sender contract.
 type walSender struct {
 	mu      sync.Mutex
 	samples []walSample
-	store   *shardedStore
-	ctxFile *contextFile
+	backend timeSeriesBackend
 	log     log.Component
 }
 
-func newWALSender(store *shardedStore, ctxFile *contextFile, l log.Component) *walSender {
-	return &walSender{store: store, ctxFile: ctxFile, log: l}
+func newWALSender(backend timeSeriesBackend, l log.Component) *walSender {
+	return &walSender{backend: backend, log: l}
 }
 
-func (s *walSender) buffer(name string, value float64, tags []string, tsNs int64) {
+func (s *walSender) buffer(name string, value float64, tags []string, tsUs int64) {
 	s.mu.Lock()
-	s.samples = append(s.samples, walSample{name: name, value: value, tags: sortedTagsCopy(tags), tsNs: tsNs})
+	s.samples = append(s.samples, walSample{name: name, value: value, tags: sortedTagsCopy(tags), tsUs: tsUs})
 	s.mu.Unlock()
 }
 
-// Commit flushes all buffered samples to the WAL.
+// Commit flushes all buffered samples to the backend.
 func (s *walSender) Commit() {
 	s.mu.Lock()
 	samples := s.samples
 	s.samples = nil
 	s.mu.Unlock()
 
-	now := time.Now().UnixNano()
+	now := time.Now().UnixMicro()
 	for _, m := range samples {
-		tsNs := m.tsNs
-		if tsNs == 0 {
-			tsNs = now
+		tsUs := m.tsUs
+		if tsUs == 0 {
+			tsUs = now
 		}
-		ck := syntheticKey(m.name, m.tags)
-		if err := s.ctxFile.write(ck, m.name, m.tags); err != nil {
-			s.log.Warnf("lookback check runner: context write error: %v", err)
-		}
-		s.store.write(ck, tsNs, m.value)
+		s.backend.writeSample(m.name, m.tags, tsUs, m.value)
 	}
 }
 
@@ -99,11 +94,11 @@ func (s *walSender) Distribution(metric string, value float64, _ string, tags []
 	s.buffer(metric, value, tags, 0)
 }
 func (s *walSender) GaugeWithTimestamp(metric string, value float64, _ string, tags []string, timestamp float64) error {
-	s.buffer(metric, value, tags, int64(timestamp*1e9))
+	s.buffer(metric, value, tags, int64(timestamp*1e6))
 	return nil
 }
 func (s *walSender) CountWithTimestamp(metric string, value float64, _ string, tags []string, timestamp float64) error {
-	s.buffer(metric, value, tags, int64(timestamp*1e9))
+	s.buffer(metric, value, tags, int64(timestamp*1e6))
 	return nil
 }
 
@@ -131,16 +126,14 @@ func (s *walSender) FinalizeCheckServiceTag()                                   
 type walSenderManager struct {
 	mu      sync.Mutex
 	senders map[checkid.ID]*walSender
-	store   *shardedStore
-	ctxFile *contextFile
+	backend timeSeriesBackend
 	log     log.Component
 }
 
-func newWALSenderManager(store *shardedStore, ctxFile *contextFile, l log.Component) *walSenderManager {
+func newWALSenderManager(backend timeSeriesBackend, l log.Component) *walSenderManager {
 	return &walSenderManager{
 		senders: make(map[checkid.ID]*walSender),
-		store:   store,
-		ctxFile: ctxFile,
+		backend: backend,
 		log:     l,
 	}
 }
@@ -151,7 +144,7 @@ func (m *walSenderManager) GetSender(id checkid.ID) (sender.Sender, error) {
 	if s, ok := m.senders[id]; ok {
 		return s, nil
 	}
-	s := newWALSender(m.store, m.ctxFile, m.log)
+	s := newWALSender(m.backend, m.log)
 	m.senders[id] = s
 	return s, nil
 }

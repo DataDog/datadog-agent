@@ -12,12 +12,12 @@ import (
 	"math"
 )
 
-const recordSize = 24 // context_key(8) + ts_ns(8) + value(8)
+const recordSize = 24 // context_key(8) + ts_us(8) + value(8)
 
 // record is the in-memory representation of one 24-byte WAL entry.
 type record struct {
 	contextKey uint64
-	tsNs       int64   // Unix nanoseconds
+	tsUs       int64   // Unix microseconds
 	value      float64
 }
 
@@ -25,7 +25,7 @@ type record struct {
 func appendRecord(buf []byte, r record) []byte {
 	var tmp [recordSize]byte
 	binary.BigEndian.PutUint64(tmp[0:8], r.contextKey)
-	binary.BigEndian.PutUint64(tmp[8:16], uint64(r.tsNs))
+	binary.BigEndian.PutUint64(tmp[8:16], uint64(r.tsUs))
 	binary.BigEndian.PutUint64(tmp[16:24], math.Float64bits(r.value))
 	return append(buf, tmp[:]...)
 }
@@ -37,7 +37,7 @@ func decodeRecord(b []byte) (record, error) {
 	}
 	return record{
 		contextKey: binary.BigEndian.Uint64(b[0:8]),
-		tsNs:       int64(binary.BigEndian.Uint64(b[8:16])),
+		tsUs:       int64(binary.BigEndian.Uint64(b[8:16])),
 		value:      math.Float64frombits(binary.BigEndian.Uint64(b[16:24])),
 	}, nil
 }

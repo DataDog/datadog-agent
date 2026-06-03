@@ -67,11 +67,11 @@ func newShardedStore(cfg storeConfig, l log.Component) (*shardedStore, error) {
 }
 
 // write fans out a single WAL record to the appropriate shard.
-func (ss *shardedStore) write(contextKey uint64, tsNs int64, value float64) {
+func (ss *shardedStore) write(contextKey uint64, tsUs int64, value float64) {
 	idx := int(contextKey % uint64(ss.cfg.numShards))
 	s := ss.shards[idx]
 	s.mu.Lock()
-	_ = s.writeRecord(record{contextKey: contextKey, tsNs: tsNs, value: value})
+	_ = s.writeRecord(record{contextKey: contextKey, tsUs: tsUs, value: value})
 	s.mu.Unlock()
 }
 
@@ -158,7 +158,7 @@ func (ss *shardedStore) flush(
 	ctx context.Context,
 	keys []uint64,
 	start, stop int64,
-	intervalNs int64,
+	intervalUs int64,
 	resolve func(uint64) (string, []string, bool),
 ) ([]lookback.Bucket, error) {
 	keySet := make(map[uint64]struct{}, len(keys))
@@ -190,7 +190,7 @@ func (ss *shardedStore) flush(
 		}
 	}
 
-	return aggregateRecords(allRecs, keySet, start, stop, intervalNs, resolve), nil
+	return aggregateRecords(allRecs, keySet, start, stop, intervalUs, resolve), nil
 }
 
 // stop cancels the rotation goroutine, waits for it, then flushes all shards.

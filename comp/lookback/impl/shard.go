@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 const (
@@ -193,12 +192,12 @@ func parseWALFilename(name string) (int64, error) {
 }
 
 // filesInRange returns sealed WAL files whose window overlaps [startNs, stopNs).
-func filesInRange(files []walFile, startNs, stopNs int64, rotationIntervalSec int64) []walFile {
+func filesInRange(files []walFile, startUs, stopUs int64, rotationIntervalSec int64) []walFile {
 	var out []walFile
 	for _, f := range files {
-		windowEndNs := (f.windowStart + rotationIntervalSec) * int64(time.Second)
-		windowStartNs := f.windowStart * int64(time.Second)
-		if windowStartNs < stopNs && windowEndNs > startNs {
+		windowEndUs := (f.windowStart + rotationIntervalSec) * 1_000_000
+		windowStartUs := f.windowStart * 1_000_000
+		if windowStartUs < stopUs && windowEndUs > startUs {
 			out = append(out, f)
 		}
 	}

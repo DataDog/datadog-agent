@@ -8,28 +8,27 @@ package lookbackimpl
 import (
 	"cmp"
 	"slices"
-	"time"
 
 	lookback "github.com/DataDog/datadog-agent/comp/lookback/def"
 )
 
-const defaultIntervalNs = int64(time.Second)
+const defaultIntervalUs = int64(1_000_000) // 1 second in microseconds
 
 // aggregateRecords filters recs to keySet ∩ [start, stop), then groups by
 // contextKey (hash-group sort) and streams them through interval-width bucket
 // aggregation. It is the core of the Flush read path.
 //
-// intervalNs is the bucket width in nanoseconds; ≤0 defaults to 1 second.
+// intervalUs is the bucket width in microseconds; ≤0 defaults to 1 second.
 // resolve maps a context key to (name, tags, ok).
 func aggregateRecords(
 	recs []record,
 	keySet map[uint64]struct{},
 	start, stop int64,
-	intervalNs int64,
+	intervalUs int64,
 	resolve func(uint64) (string, []string, bool),
 ) []lookback.Bucket {
-	if intervalNs <= 0 {
-		intervalNs = defaultIntervalNs
+	if intervalUs <= 0 {
+		intervalUs = defaultIntervalUs
 	}
 
 	// Step 1: filter to keySet and time range.
@@ -38,7 +37,7 @@ func aggregateRecords(
 		if _, ok := keySet[r.contextKey]; !ok {
 			continue
 		}
-		if r.tsNs < start || r.tsNs >= stop {
+		if r.tsUs < start || r.tsUs >= stop {
 			continue
 		}
 		filtered = append(filtered, r)
@@ -60,7 +59,7 @@ func aggregateRecords(
 	}
 	slices.Sort(keys)
 
-	// Step 4: per key, sort indices by tsNs, then stream-aggregate.
+	// Step 4: per key, sort indices by tsUs, then stream-aggregate.
 	var buckets []lookback.Bucket
 	for _, ck := range keys {
 		name, tags, ok := resolve(ck)
@@ -69,14 +68,14 @@ func aggregateRecords(
 		}
 		idxs := groups[ck]
 		slices.SortFunc(idxs, func(a, b int) int {
-			return cmp.Compare(filtered[a].tsNs, filtered[b].tsNs)
+			return cmp.Compare(filtered[a].tsUs, filtered[b].tsUs)
 		})
 
 		var curTs int64 = -1
 		var cur *lookback.Bucket
 		for _, i := range idxs {
 			r := filtered[i]
-			tsBucket := (r.tsNs / intervalNs) * intervalNs
+			tsBucket := (r.tsUs / intervalUs) * intervalUs
 			if tsBucket != curTs {
 				buckets = append(buckets, lookback.Bucket{
 					Name:  name,
