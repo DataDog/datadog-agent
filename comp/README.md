@@ -827,6 +827,15 @@ Package fleetstatus implements the core status component information provider in
 
 Package haagent handles states for HA Agent feature.
 
+### [comp/hookbenchsubscriber](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/hookbenchsubscriber)
+
+*Datadog Team*: agent-shared-components
+
+Package hookbenchsubscriber is a benchmark-only hook subscriber component.
+It subscribes N times to the metrics pipeline hook, discarding every payload,
+so that regression experiments can measure the CPU/memory overhead of hook
+delivery as a function of subscriber count.
+
 ### [comp/languagedetection/client](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection/client)
 
 *Datadog Team*: container-platform
@@ -838,6 +847,15 @@ Package client implements a component to send process metadata to the Cluster-Ag
 *Datadog Team*: windows-products
 
 Package logonduration provides a component that monitors the duration of a user logon after boot and forwards them to the Datadog Event Management v2 API.
+
+### [comp/lookback](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/lookback)
+
+*Datadog Team*: agent-metric-pipelines
+
+Package lookback provides the disk-based lookback ring buffer component.
+It subscribes to the metrics pipeline hook and stores pre-aggregation
+metric samples on disk as append-only WAL files, enabling callers to
+replay any past time window via Flush.
 
 ### [comp/networkconfigmanagement](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkconfigmanagement)
 

@@ -47,6 +47,7 @@ var validProducts = map[string]struct{}{
 	ProductAgentFlags:                   {},
 	ProductDOQueryActions:               {},
 	ProductK8SActions:                   {},
+	ProductDebug:                        {},
 }
 
 const (
@@ -133,4 +134,7 @@ const (
 	ProductDOQueryActions = "DO_QUERY_ACTIONS"
 	// ProductK8SActions receives Kubernetes actions to execute on cluster resources
 	ProductK8SActions = "K8S_ACTIONS"
+	// ProductDebug is a staging-only product for POCs. Accepts any JSON object,
+	// no schema approval required. Do not use in production.
+	ProductDebug = "DEBUG"
 )

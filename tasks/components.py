@@ -186,6 +186,11 @@ ignore_fx_import = [
     "comp/rdnsquerier",
     "comp/trace/agent",
     "comp/snmptraps/server",
+    # These components subscribe to hook.Hook[[]hook.MetricSampleSnapshot] via the
+    # group:"hook" Fx tag. fxutil.ProvideComponentConstructor strips struct tags at
+    # runtime, so they must use fx.In/fx.Out directly instead of compdef types.
+    "comp/hookbenchsubscriber",
+    "comp/lookback",
 ]
 
 ignore_provide_component_constructor_missing = [
