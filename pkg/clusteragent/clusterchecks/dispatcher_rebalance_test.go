@@ -1660,9 +1660,11 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 	assert.Empty(t, checksMoved)
 }
 
-// Verifies the utilization algorithm treats a config's instances as a single
-// unit: one entry in the distribution, and never split across runners.
-func TestRebalanceUsingUtilization_GroupsInstancesByConfig(t *testing.T) {
+// Verifies two things: currentDistribution groups each config's instances under
+// one entry (summing their workersNeeded), and when two heavy multi-instance
+// configs are stacked on node1 alongside a lightweight config on node2, the
+// utilization rebalancer moves one heavy config to node2, spreading the load.
+func TestRebalanceUsingUtilization_GroupsAndSpreadsMultiInstanceConfigs(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
@@ -1678,56 +1680,107 @@ func TestRebalanceUsingUtilization_GroupsInstancesByConfig(t *testing.T) {
 	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "10.0.0.2")
 	testDispatcher.store.nodes["node2"].workers = pkgconfigsetup.DefaultNumWorkers
 
+	// node1: two heavy multi-instance configs. node2: one lightweight config.
 	node1Stats := map[string]types.CLCRunnerStats{
-		"checkM0": {AverageExecutionTime: 2000, IsClusterCheck: true},
-		"checkM1": {AverageExecutionTime: 2000, IsClusterCheck: true},
+		"checkA0": {AverageExecutionTime: 3750, IsClusterCheck: true},
+		"checkA1": {AverageExecutionTime: 250, IsClusterCheck: true},
+		"checkB0": {AverageExecutionTime: 3750, IsClusterCheck: true},
+		"checkB1": {AverageExecutionTime: 250, IsClusterCheck: true},
 	}
 	node2Stats := map[string]types.CLCRunnerStats{
-		"checkL0": {AverageExecutionTime: 200, IsClusterCheck: true},
+		"checkL0": {AverageExecutionTime: 500, IsClusterCheck: true},
 	}
 	testDispatcher.store.nodes["node1"].clcRunnerStats = node1Stats
 	testDispatcher.store.nodes["node2"].clcRunnerStats = node2Stats
 	mockClient.testStats["10.0.0.1"] = node1Stats
 	mockClient.testStats["10.0.0.2"] = node2Stats
 
-	// checkM0 and checkM1 are two instances of one config.
+	// checkA0/checkA1 → digestMultiA; checkB0/checkB1 → digestMultiB; checkL0 → digestLight.
 	testDispatcher.store.idToDigest = map[checkid.ID]string{
-		"checkM0": "digestMulti",
-		"checkM1": "digestMulti",
+		"checkA0": "digestMultiA",
+		"checkA1": "digestMultiA",
+		"checkB0": "digestMultiB",
+		"checkB1": "digestMultiB",
 		"checkL0": "digestLight",
 	}
 	testDispatcher.store.digestToConfig = map[string]integration.Config{
-		"digestMulti": {Name: "multi"},
-		"digestLight": {Name: "light"},
+		"digestMultiA": {Name: "multiA"},
+		"digestMultiB": {Name: "multiB"},
+		"digestLight":  {Name: "light"},
 	}
 	testDispatcher.store.digestToNode = map[string]string{
-		"digestMulti": "node1",
-		"digestLight": "node2",
+		"digestMultiA": "node1",
+		"digestMultiB": "node1",
+		"digestLight":  "node2",
 	}
 
-	// One entry per config in the distribution; multi's workers are summed.
+	// Verify currentDistribution groups each config's instances into one entry.
 	dist := testDispatcher.currentDistribution()
-	require.Len(t, dist.Configs, 2)
-	require.Contains(t, dist.Configs, "digestMulti")
+	require.Len(t, dist.Configs, 3)
+	require.Contains(t, dist.Configs, "digestMultiA")
+	require.Contains(t, dist.Configs, "digestMultiB")
 	require.Contains(t, dist.Configs, "digestLight")
-	assert.Equal(t, "node1", dist.Configs["digestMulti"].Runner)
-	assert.InDelta(t, dist.Configs["digestMulti"].WorkersNeeded, dist.Configs["digestLight"].WorkersNeeded*20, 0.0001)
+	assert.Equal(t, "node1", dist.Configs["digestMultiA"].Runner)
+	assert.Equal(t, "node1", dist.Configs["digestMultiB"].Runner)
+	assert.Equal(t, "node2", dist.Configs["digestLight"].Runner)
+	// This ensures that the tracking of workersNeeded is accurate relative to 1 instance configs.
+	assert.InDelta(t, dist.Configs["digestMultiA"].WorkersNeeded, dist.Configs["digestLight"].WorkersNeeded*8, 0.001)
+	assert.InDelta(t, dist.Configs["digestMultiB"].WorkersNeeded, dist.Configs["digestLight"].WorkersNeeded*8, 0.001)
 
-	// Force the rebalance so the worth-it check doesn't short-circuit it.
 	checksMoved := testDispatcher.rebalanceUsingUtilization(true)
 	requireNotLocked(t, testDispatcher.store)
+	require.NotEmpty(t, checksMoved)
 
-	// At most one move; if there is one, both instances follow it.
-	assert.LessOrEqual(t, len(checksMoved), 1)
-	for _, mv := range checksMoved {
-		assert.Equal(t, "digestMulti", mv.Digest)
-		destStats := testDispatcher.store.nodes[mv.DestNodeName].clcRunnerStats
-		assert.Contains(t, destStats, "checkM0")
-		assert.Contains(t, destStats, "checkM1")
-		srcStats := testDispatcher.store.nodes[mv.SourceNodeName].clcRunnerStats
-		assert.NotContains(t, srcStats, "checkM0")
-		assert.NotContains(t, srcStats, "checkM1")
+	node1After := testDispatcher.store.nodes["node1"].clcRunnerStats
+	node2After := testDispatcher.store.nodes["node2"].clcRunnerStats
+
+	// Each multi config's instances must remain together — no splitting.
+	_, a0OnNode1 := node1After["checkA0"]
+	_, a1OnNode1 := node1After["checkA1"]
+	assert.Equal(t, a0OnNode1, a1OnNode1, "digestMultiA instances must stay together")
+	_, b0OnNode1 := node1After["checkB0"]
+	_, b1OnNode1 := node1After["checkB1"]
+	assert.Equal(t, b0OnNode1, b1OnNode1, "digestMultiB instances must stay together")
+
+	// The two heavy configs must end up on different nodes.
+	assert.NotEqual(t, a0OnNode1, b0OnNode1, "digestMultiA and digestMultiB should be on different nodes after rebalance")
+
+	// Every heavy instance is on exactly one node.
+	for _, checkID := range []string{"checkA0", "checkA1", "checkB0", "checkB1"} {
+		_, onNode1 := node1After[checkID]
+		_, onNode2 := node2After[checkID]
+		assert.True(t, onNode1 || onNode2, "check %s should be on one of the nodes", checkID)
+		assert.False(t, onNode1 && onNode2, "check %s should not be on both nodes", checkID)
 	}
+
+	// Phase 2: reduce the exec time of the heavy instance that is NOT co-located with
+	// checkL0. This lightens one multi config, creating an imbalance that should
+	// cause digestLight to move to the lighter side.
+	_, checkL0OnNode1 := node1After["checkL0"]
+	var heavyNodeName string
+	if checkL0OnNode1 {
+		heavyNodeName = "node2"
+	} else {
+		heavyNodeName = "node1"
+	}
+
+	heavyNodeStats := testDispatcher.store.nodes[heavyNodeName].clcRunnerStats
+	var reducedCheckID string
+	if _, ok := heavyNodeStats["checkA0"]; ok {
+		reducedCheckID = "checkA0"
+	} else {
+		reducedCheckID = "checkB0"
+	}
+	s := heavyNodeStats[reducedCheckID]
+	s.AverageExecutionTime = 250
+	heavyNodeStats[reducedCheckID] = s
+
+	checksMoved2 := testDispatcher.rebalanceUsingUtilization(true)
+	requireNotLocked(t, testDispatcher.store)
+
+	// The lighter multi config now has far less work than the other; digestLight should migrate to balance the load.
+	require.Len(t, checksMoved2, 1)
+	assert.Equal(t, "digestLight", checksMoved2[0].Digest)
 }
 
 // Verifies that two configs sharing a check name but with different digests
