@@ -6,10 +6,6 @@
 package agenthealth
 
 import (
-	"errors"
-	"fmt"
-	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -21,8 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 // ============================================================================
@@ -34,77 +28,6 @@ type dockerPermissionEnv struct {
 	Agent      *components.RemoteHostAgent
 	Fakeintake *components.FakeIntake
 	Docker     *components.RemoteHostDocker
-}
-
-var _ common.Diagnosable = (*dockerPermissionEnv)(nil)
-
-func (e *dockerPermissionEnv) Diagnose(outputDir string) (string, error) {
-	var parts []string
-	if e.Agent != nil {
-		parts = append(parts, "==== Agent ====")
-		dst, err := e.generateAndDownloadAgentFlare(outputDir)
-		if err != nil {
-			parts = append(parts, fmt.Sprintf("flare error: %v", err))
-		} else {
-			parts = append(parts, "flare: "+dst)
-		}
-	}
-	if e.Docker != nil {
-		parts = append(parts, "==== Docker ====")
-		diag, err := e.diagnoseDocker()
-		if err != nil {
-			parts = append(parts, fmt.Sprintf("docker diag error: %v", err))
-		} else {
-			parts = append(parts, diag)
-		}
-	}
-	return strings.Join(parts, "\n"), nil
-}
-
-func (e *dockerPermissionEnv) generateAndDownloadAgentFlare(outputDir string) (string, error) {
-	if e.Agent == nil || e.RemoteHost == nil {
-		return "", errors.New("agent or host not initialized")
-	}
-	out, err := e.Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send"}))
-	allOut := out
-	if err != nil {
-		allOut = out + "\n" + err.Error()
-	}
-	re := regexp.MustCompile(`(?m)^(.+\.zip) is going to be uploaded to Datadog$`)
-	m := re.FindStringSubmatch(allOut)
-	if len(m) < 2 {
-		return "", fmt.Errorf("no flare archive path in output: %s", allOut)
-	}
-	flarePath := m[1]
-	info, err := e.RemoteHost.Lstat(flarePath)
-	if err != nil {
-		return "", fmt.Errorf("stat flare: %w", err)
-	}
-	dst := filepath.Join(outputDir, info.Name())
-	if err = e.RemoteHost.EnsureFileIsReadable(flarePath); err != nil {
-		return "", fmt.Errorf("chmod flare: %w", err)
-	}
-	if err = e.RemoteHost.GetFile(flarePath, dst); err != nil {
-		return "", fmt.Errorf("download flare: %w", err)
-	}
-	return dst, nil
-}
-
-func (e *dockerPermissionEnv) diagnoseDocker() (string, error) {
-	var sb strings.Builder
-	for _, c := range []struct{ label, cmd string }{
-		{"containers", "docker ps -a"},
-		{"socket perms", "ls -l /var/run/docker.sock"},
-		{"dd-agent groups", "groups dd-agent"},
-	} {
-		out, err := e.RemoteHost.Execute(c.cmd)
-		if err != nil {
-			sb.WriteString(fmt.Sprintf("[%s] error: %v\n", c.label, err))
-		} else {
-			sb.WriteString(fmt.Sprintf("[%s]\n%s\n", c.label, out))
-		}
-	}
-	return sb.String(), nil
 }
 
 // ============================================================================
