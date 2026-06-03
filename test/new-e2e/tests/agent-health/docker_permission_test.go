@@ -45,6 +45,71 @@ func TestDockerPermissionSuite(t *testing.T) {
 	)
 }
 
+// TestDockerHealthCheckTransientFailure verifies that a transient probe error in
+// the periodic docker-socket health check does not resolve an active issue.
+//
+// The docker-permissions module uses a BuiltInPeriodicHealthCheck (scheduler.go).
+// When that check function errors, scheduler.tick leaves lastIssueIDs unchanged
+// so that in-flight issues are not spuriously resolved. This test exercises that
+// path by killing the agent ungracefully (SIGKILL) and verifying that the issue
+// is still reported as ONGOING after systemd restarts the process — even though
+// the scheduler may fire before the docker probe has had a chance to warm up.
+func (suite *dockerPermissionSuite) TestDockerHealthCheckTransientFailure() {
+	host := suite.Env().RemoteHost
+	agent := suite.Env().Agent
+	fakeIntake := suite.Env().Fakeintake.Client()
+
+	const issueID = "docker-socket-permissions"
+
+	// Pre-condition: docker socket must be restricted so the issue is active.
+	host.MustExecute("sudo chmod 660 /var/run/docker.sock")
+
+	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
+		payloads, err := fakeIntake.GetAgentHealth()
+		assert.NoError(ct, err)
+		var found bool
+		for _, p := range payloads {
+			for _, iss := range findIssuesByID(suite.T(), p, issueID) {
+				if iss.PersistedIssue != nil {
+					found = true
+				}
+			}
+		}
+		assert.True(ct, found, "docker permission issue not found in fakeintake before crash test")
+	}, defaultIssueTimeout, defaultIssuePollInterval, "docker permission issue not found before crash test")
+
+	// Kill the agent ungracefully — systemd will restart it.
+	// On restart the scheduler fires immediately; the docker probe may error or
+	// return stale data in the first tick (socket not yet warmed up). Either way
+	// the scheduler must preserve the active issue.
+	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
+	host.MustExecute("sudo pkill -KILL datadog-agent || true")
+
+	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
+		assert.True(ct, agent.Client.IsReady())
+	}, 2*time.Minute, 10*time.Second, "agent did not restart after SIGKILL")
+
+	// After the crash restart the issue must still be ONGOING — it must never
+	// have been resolved during the brief window between restart and the first
+	// successful probe tick.
+	var reloadedIssues []*healthplatform.Issue
+	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
+		payloads, err := fakeIntake.GetAgentHealth()
+		assert.NoError(ct, err)
+		reloadedIssues = nil
+		for _, p := range payloads {
+			for _, iss := range findIssuesByID(suite.T(), p, issueID) {
+				if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING {
+					reloadedIssues = append(reloadedIssues, iss)
+				}
+			}
+		}
+		assert.NotEmpty(ct, reloadedIssues, "docker permission issue not found as ONGOING after crash restart")
+	}, defaultIssueTimeout, defaultIssuePollInterval, "docker permission issue not re-reported as ONGOING after crash restart")
+
+	require.NotEmpty(suite.T(), reloadedIssues)
+}
+
 // TestDockerPermissionIssueLifecycle verifies that restricting the docker socket
 // permissions triggers the health issue as NEW in fakeintake, and that restoring
 // them causes the issue to stop being reported (or be reported as RESOLVED).

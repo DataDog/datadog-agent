@@ -21,17 +21,14 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
-// resilienceSuite tests the health platform's cross-restart persistence behaviour:
-// an active issue must be reloaded from the on-disk store on agent restart, reported
-// back to fakeintake as ONGOING, and retain its original first_seen timestamp.
-//
-// This concern is framework-level (not issue-specific), so it is tested once here
-// rather than duplicated in every issue lifecycle test.
+// resilienceSuite tests the health platform's cross-restart persistence and
+// recurrence behaviours. These are framework-level concerns (not issue-specific),
+// so they are covered once here rather than duplicated in every lifecycle test.
 type resilienceSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-// TestResilienceSuite runs the health platform resilience test.
+// TestResilienceSuite runs the health platform resilience tests.
 // It reuses the broken_check fixtures from check_failure_test.go (same package).
 func TestResilienceSuite(t *testing.T) {
 	e2e.Run(t, &resilienceSuite{},
@@ -51,9 +48,9 @@ func TestResilienceSuite(t *testing.T) {
 	)
 }
 
-// TestHealthPlatformResilience verifies that a health issue persists across an
-// agent restart: after restart the issue must be re-reported to fakeintake as
-// ONGOING with the same first_seen timestamp as before the restart.
+// TestHealthPlatformResilience verifies that a health issue persists across a
+// graceful agent restart: after restart the issue must be re-reported to
+// fakeintake as ONGOING with the same first_seen timestamp as before.
 func (suite *resilienceSuite) TestHealthPlatformResilience() {
 	agent := suite.Env().Agent
 	fakeIntake := suite.Env().FakeIntake.Client()
@@ -111,5 +108,93 @@ func (suite *resilienceSuite) TestHealthPlatformResilience() {
 	if firstSeen != "" {
 		assert.Equal(suite.T(), firstSeen, reloadedIssues[0].PersistedIssue.FirstSeen,
 			"first_seen must be preserved across restart")
+	}
+}
+
+// TestHealthPlatformIssueRecurrence verifies that a previously resolved issue
+// re-appears as NEW (not ONGOING) when the underlying problem recurs, and that
+// first_seen is reset to the new detection time.
+//
+// This tests store.go's state-transition logic: a resolved issue ID that is
+// re-reported reverts to NEW and clears its original first_seen/last_seen.
+func (suite *resilienceSuite) TestHealthPlatformIssueRecurrence() {
+	fakeIntake := suite.Env().FakeIntake.Client()
+
+	const issuePrefix = "check-execution-failure:broken_check"
+
+	// Capture first_seen from the initial detection (issue may be NEW or ONGOING
+	// depending on test execution order within the suite).
+	var originalFirstSeen string
+	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
+		payloads, err := fakeIntake.GetAgentHealth()
+		assert.NoError(ct, err)
+		for _, p := range payloads {
+			for _, iss := range findIssuesByPrefix(p, issuePrefix) {
+				if iss.PersistedIssue != nil && iss.PersistedIssue.FirstSeen != "" && originalFirstSeen == "" {
+					originalFirstSeen = iss.PersistedIssue.FirstSeen
+				}
+			}
+		}
+		assert.NotEmpty(ct, originalFirstSeen, "issue not found in fakeintake")
+	}, defaultIssueTimeout, defaultIssuePollInterval, "issue not detected in fakeintake before recurrence test")
+
+	// Fix the issue.
+	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
+	suite.UpdateEnv(awshost.Provisioner(
+		awshost.WithRunOptions(
+			ec2.WithAgentOptions(
+				agentparams.WithAgentConfig(healthPlatformAgentConfig),
+				agentparams.WithIntegration("broken_check.d", brokenCheckConf),
+				agentparams.WithFile("/etc/datadog-agent/checks.d/broken_check.py", fixedCheckPy, true),
+			),
+		),
+	))
+
+	// Verify the issue is resolved or no longer reported.
+	require.Never(suite.T(), func() bool {
+		payloads, _ := fakeIntake.GetAgentHealth()
+		for _, p := range payloads {
+			for _, iss := range findIssuesByPrefix(p, issuePrefix) {
+				if iss.PersistedIssue == nil || iss.PersistedIssue.State != healthplatform.IssueState_ISSUE_STATE_RESOLVED {
+					return true
+				}
+			}
+		}
+		return false
+	}, defaultIssueAbsenceWindow, defaultIssuePollInterval, "issue not resolved after fix")
+
+	// Re-break: deploy the broken check again.
+	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
+	suite.UpdateEnv(awshost.Provisioner(
+		awshost.WithRunOptions(
+			ec2.WithAgentOptions(
+				agentparams.WithAgentConfig(healthPlatformAgentConfig),
+				agentparams.WithIntegration("broken_check.d", brokenCheckConf),
+				agentparams.WithFile("/etc/datadog-agent/checks.d/broken_check.py", brokenCheckPy, true),
+			),
+		),
+	))
+
+	// Issue must reappear as NEW (not ONGOING) with a reset first_seen.
+	var recurrentIssues []*healthplatform.Issue
+	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
+		payloads, err := fakeIntake.GetAgentHealth()
+		assert.NoError(ct, err)
+		recurrentIssues = nil
+		for _, p := range payloads {
+			for _, iss := range findIssuesByPrefix(p, issuePrefix) {
+				if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW {
+					recurrentIssues = append(recurrentIssues, iss)
+				}
+			}
+		}
+		assert.NotEmpty(ct, recurrentIssues, "re-broken issue not found as NEW in fakeintake")
+	}, defaultIssueTimeout, defaultIssuePollInterval, "issue not re-detected as NEW after recurrence")
+
+	require.NotEmpty(suite.T(), recurrentIssues)
+	require.NotNil(suite.T(), recurrentIssues[0].PersistedIssue)
+	if originalFirstSeen != "" {
+		assert.NotEqual(suite.T(), originalFirstSeen, recurrentIssues[0].PersistedIssue.FirstSeen,
+			"first_seen must be reset for a recurrent issue, not carried over from the previous occurrence")
 	}
 }
