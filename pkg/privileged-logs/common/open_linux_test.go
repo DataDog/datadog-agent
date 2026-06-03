@@ -47,6 +47,24 @@ func TestOpenPathWithoutSymlinksSymlinkInFile(t *testing.T) {
 	assert.ErrorIs(t, err, syscall.ELOOP)
 }
 
+func TestOpenPathWithoutSymlinksSymlinkInParentDirectory(t *testing.T) {
+	dir := t.TempDir()
+	realDir := filepath.Join(dir, "real")
+	require.NoError(t, os.Mkdir(realDir, 0755))
+
+	logFile := filepath.Join(realDir, "test.log")
+	require.NoError(t, os.WriteFile(logFile, []byte("hello"), 0644))
+
+	linkDir := filepath.Join(dir, "link")
+	require.NoError(t, os.Symlink(realDir, linkDir))
+
+	f, err := OpenPathWithoutSymlinks(filepath.Join(linkDir, "test.log"))
+	assert.Error(t, err)
+	assert.Nil(t, f)
+	// O_DIRECTORY|O_NOFOLLOW on a symlinked directory component is rejected.
+	assert.ErrorIs(t, err, syscall.ENOTDIR)
+}
+
 func TestOpenPathWithoutSymlinksSymlinkSwap(t *testing.T) {
 	// Simulate the attacker scenario: open a real file, swap it to a symlink,
 	// confirm the second open is rejected.
