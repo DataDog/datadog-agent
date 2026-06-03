@@ -970,7 +970,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.1
-	github.com/modelcontextprotocol/go-sdk v1.6.0
+	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/rabbitmq/amqp091-go v1.9.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
