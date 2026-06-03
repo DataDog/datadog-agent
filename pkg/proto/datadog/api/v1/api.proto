@@ -91,11 +91,6 @@ service AgentSecure {
 
 // ReportHealthIssueRequest carries a health issue from a sub-agent or registered
 // remote agent to the core agent's health platform store.
-// Callers must set exactly one of the payload fields:
-//   - full_issue: a fully-built datadog.healthplatform.Issue packed as Any.
-//   - report: a thin IssueReport whose Issue proto is built by the core agent
-//     via the template registry (preferred for callers that should not duplicate
-//     issue-template logic, e.g. system-probe).
 message ReportHealthIssueRequest {
     // session_id issued by RegisterRemoteAgent. Required for registered remote
     // agents (ADP, OTel collector, etc.); the server validates the session is still
@@ -103,32 +98,12 @@ message ReportHealthIssueRequest {
     // Leave empty for sub-agents (system-probe, process-agent, security-agent)
     // that are not registered with the Remote Agent Registry.
     string remote_agent_session_id = 1;
-    oneof payload {
-        // A fully-built datadog.healthplatform.Issue proto packed as google.protobuf.Any.
-        // Use this when the caller owns the full issue shape (e.g. registered remote agents
-        // that have no template in the core agent's registry).
-        google.protobuf.Any full_issue = 2;
-        // A thin issue report. The core agent looks up the template by issue_name in its
-        // registry, calls BuildIssue(context), and stores the resulting proto.
-        // Preferred for sub-agents whose issue templates already live in the core agent.
-        RemoteIssueReport report = 3;
-    }
-}
-
-// RemoteIssueReport is the lightweight payload for ReportHealthIssueRequest.report.
-// The core agent resolves it to a full Issue via the template registry.
-message RemoteIssueReport {
-    // Unique instance id — used as the store's map key (e.g. "network-probe-init-failure").
-    string issue_id = 1;
-    // Registry key matching the issue module's IssueName() return value
-    // (e.g. "network_probe_init_failure").
-    string issue_name = 2;
-    // Template variables passed verbatim to BuildIssue(context).
-    map<string, string> context = 3;
-    // Source label (e.g. "system-probe"). Overrides the template default if non-empty.
-    string source = 4;
-    // Additional tags appended to the template's default tag list.
-    repeated string tags = 5;
+    // A datadog.healthplatform.Issue proto packed as google.protobuf.Any
+    // (type URL: type.googleapis.com/datadog.healthplatform.Issue).
+    // google.protobuf.Any is used because agent-payload's healthplatform.proto
+    // cannot be imported into this file directly (different module boundary);
+    // type safety is enforced in the handler via anypb.UnmarshalTo.
+    google.protobuf.Any issue = 2;
 }
 
 // ResolveHealthIssueRequest clears a previously reported health issue.

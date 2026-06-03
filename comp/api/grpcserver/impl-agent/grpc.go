@@ -30,7 +30,6 @@ import (
 	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
-	issueregistrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
@@ -65,7 +64,6 @@ type Requires struct {
 	Hostname            hostnameinterface.Component
 	ConfigStream        configstream.Component
 	HealthPlatformStore option.Option[healthplatformstore.Component]
-	IssueRegistry       option.Option[issueregistrydef.Component]
 }
 
 type server struct {
@@ -86,7 +84,6 @@ type server struct {
 	hostname            hostnameinterface.Component
 	configStream        configstream.Component
 	healthPlatformStore option.Option[healthplatformstore.Component]
-	issueRegistry       option.Option[issueregistrydef.Component]
 }
 
 func (s *server) BuildServer() http.Handler {
@@ -144,7 +141,6 @@ func (s *server) BuildServer() http.Handler {
 		configComp:           s.configComp,
 		configStreamServer:   configstreamServer.NewServer(s.configComp, s.configStream, s.remoteAgentRegistry),
 		healthPlatformStore:  s.healthPlatformStore,
-		issueRegistry:        s.issueRegistry,
 	})
 	pb.RegisterRemoteAgentServer(grpcServer, &remoteAgentServer{
 		remoteAgentRegistry: s.remoteAgentRegistry,
@@ -179,7 +175,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 			hostname:            reqs.Hostname,
 			configStream:        reqs.ConfigStream,
 			healthPlatformStore: reqs.HealthPlatformStore,
-			issueRegistry:       reqs.IssueRegistry,
 		},
 	}
 	return provides, nil
