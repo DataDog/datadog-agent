@@ -193,7 +193,7 @@
 /.gitlab/test/e2e/e2e_npm.yml                             @DataDog/cloud-network-monitoring @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_ssi.yml                             @DataDog/injection-platform @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_otel.yml                            @DataDog/opentelemetry-agent @DataDog/agent-devx
-/.gitlab/test/e2e/e2e_security.yml                        @DataDog/csm-threats-agent @DataDog/agent-cspm @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_security.yml                        @DataDog/agent-security @DataDog/agent-cspm @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_agent_configuration.yml             @DataDog/agent-configuration @DataDog/remote-config @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_agent_runtimes.yml                  @DataDog/agent-runtimes @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_agent_health.yml                    @DataDog/agent-health @DataDog/agent-devx
