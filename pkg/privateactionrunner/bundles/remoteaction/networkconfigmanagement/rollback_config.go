@@ -65,8 +65,8 @@ func (h *RollbackConfigHandler) Run(
 	}
 
 	return RollbackConfigOutputs{
-		Success: true,
-		Error:   "",
+		Success: false,
+		Error:   "not implemented",
 	}, nil
 }
 
