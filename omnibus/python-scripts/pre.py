@@ -11,19 +11,23 @@ import sys
 import packages
 
 def pre(install_directory, storage_location):
+    print(f"pre: install_directory='{install_directory}', storage_location='{storage_location}'")
     try:
         if os.path.exists(install_directory) and os.path.exists(storage_location):
             post_python_installed_packages_file = packages.post_python_installed_packages_file(storage_location)
             if not os.path.exists(post_python_installed_packages_file):
                 # Fallback: use the install directory if the file doesn't exist in the storage location, we might be migrating from deb/rpm to OCI
+                print(f"Baseline not found at '{post_python_installed_packages_file}', falling back to install directory")
                 post_python_installed_packages_file = packages.post_python_installed_packages_file(install_directory)
+            else:
+                print(f"Using baseline from storage location: '{post_python_installed_packages_file}'")
             if os.path.exists(post_python_installed_packages_file):
                 pre_python_installed_packages_file = packages.pre_python_installed_packages_file(storage_location)
                 packages.create_python_installed_packages_file(pre_python_installed_packages_file)
                 packages.create_diff_installed_packages_file(storage_location, post_python_installed_packages_file, pre_python_installed_packages_file)
                 packages.cleanup_files(post_python_installed_packages_file, pre_python_installed_packages_file)
             else:
-                print(f"File {post_python_installed_packages_file} does not exist.")
+                print(f"ERROR: baseline file '{post_python_installed_packages_file}' does not exist — cannot compute diff; custom integrations will not be restored")
                 return 1
         else:
             print(f"Directory {install_directory} and {storage_location} do not exist.")
@@ -31,6 +35,7 @@ def pre(install_directory, storage_location):
     except Exception as e:
         print(f"Error: {e}")
         return 1
+    print("pre: completed successfully")
     return 0
 
 if os.name == 'nt':

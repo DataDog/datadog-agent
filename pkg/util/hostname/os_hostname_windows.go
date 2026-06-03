@@ -14,6 +14,10 @@ import (
 // isOSHostnameUsable returns `false` if it has the certainty that the agent is running
 // in a non-root UTS namespace because in that case, the OS hostname characterizes the
 // identity of the agent container and not the one of the nodes it is running on.
+//
+// NOTE: the trace-agent carries a copy of this logic in
+// comp/trace/config/impl/os_hostname_windows.go (it cannot import this package directly
+// without pulling in heavy transitive dependencies). Keep the two in sync.
 func isOSHostnameUsable(_ context.Context) bool {
 	return !isContainerized()
 }

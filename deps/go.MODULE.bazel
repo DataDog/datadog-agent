@@ -118,7 +118,7 @@ use_repo(
     "com_github_cespare_xxhash_v2",
     "com_github_charlievieth_strcase",
     "com_github_cilium_ebpf",
-    "com_github_clbanning_mxj",
+    "com_github_clbanning_mxj_v2",
     "com_github_cloudflare_cbpfc",
     "com_github_cloudfoundry_community_go_cfclient_v2",
     "com_github_containerd_cgroups_v3",
