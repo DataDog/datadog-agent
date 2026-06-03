@@ -13,6 +13,7 @@ procmgr_rust_tests:
         paths:
           - pkg/procmgr/rust/**/*
           - Cargo.lock
+          - Cargo.toml
         compare_to: $COMPARE_TO_BRANCH
   script:
     - cd pkg/procmgr/rust
