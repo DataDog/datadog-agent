@@ -108,18 +108,6 @@ func getFlowProbes() []*manager.Probe {
 				EBPFFuncName: "hook_nf_ct_delete",
 			},
 		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFFuncName: "hook_path_get",
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFFuncName: "hook_proc_fd_link",
-			},
-		},
 	}
 }
 

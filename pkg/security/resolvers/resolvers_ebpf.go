@@ -12,12 +12,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
-	stdpath "path"
 	"sort"
-	"strconv"
-
-	gopsutilprocess "github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 
@@ -49,7 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
@@ -330,7 +324,7 @@ func (r *EBPFResolvers) snapshot() error {
 	}
 
 	// Populate the flow_pid map for sockets that pre-existed the probe load.
-	r.snapshotFlowPid(processes)
+	r.snapshotFlowPid()
 
 	return nil
 }
@@ -338,33 +332,21 @@ func (r *EBPFResolvers) snapshot() error {
 // snapshotFlowPid populates the flow_pid eBPF map so that packets of sockets that
 // existed before the probe was started can still be attributed to their owning
 // process. Without it, such packets have no PID attribution.
-//
-// Two mechanisms populate the map, based on kernel support:
-//   - On 5.11+ the bpf_iter__task_file_resolve_flow_pid iterator does it entirely
-//     in the kernel, in a single pass over all open files.
-//   - On older kernels (no iter/task_file support) we fall back to driving the
-//     legacy path_get hook: for each process we walk /proc/<pid>/fd,
-//     which makes hook_path_get record the socket entries.
-func (r *EBPFResolvers) snapshotFlowPid(processes []*gopsutilprocess.Process) {
+// (only works on kernel versions >= 5.11)
+func (r *EBPFResolvers) snapshotFlowPid() {
 	if !r.networkEnabled {
 		return
 	}
 
-	// Prefer the iterator when it was loaded (network on and kernel 5.11+).
-	if p, ok := r.manager.GetProbe(manager.ProbeIdentificationPair{
+	p, ok := r.manager.GetProbe(manager.ProbeIdentificationPair{
 		UID:          probes.SecurityAgentUID,
 		EBPFFuncName: probes.TaskFileIterResolveFlowPidFunc,
-	}); ok {
-		r.snapshotFlowPidWithIterator(p)
+	})
+	if !ok {
+		// the file iterator eBPF program is expected to be unavailable on kernel versions earlier than 5.11
 		return
 	}
 
-	r.snapshotFlowPidFromProcfs(processes)
-}
-
-// snapshotFlowPidWithIterator runs the iter/task_file program once over every
-// (task, fd, file) tuple to populate flow_pid.
-func (r *EBPFResolvers) snapshotFlowPidWithIterator(p *manager.Probe) {
 	it, err := p.Iterator()
 	if err != nil {
 		seclog.Errorf("couldn't create flow_pid snapshot iterator: %v", err)
@@ -376,23 +358,6 @@ func (r *EBPFResolvers) snapshotFlowPidWithIterator(p *manager.Probe) {
 	// (task, fd, file) tuple; the return payload itself is empty.
 	if _, err := io.ReadAll(it); err != nil {
 		seclog.Errorf("couldn't run flow_pid snapshot iterator: %v", err)
-	}
-}
-
-// snapshotFlowPidFromProcfs is the pre-5.11 flow_pid snapshot fallback.
-func (r *EBPFResolvers) snapshotFlowPidFromProcfs(processes []*gopsutilprocess.Process) {
-	for _, proc := range processes {
-		fdsPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "fd")
-		entries, err := os.ReadDir(fdsPath)
-		if err != nil {
-			// the process may have exited, or we may lack permission on its fds
-			continue
-		}
-		for _, entry := range entries {
-			// readlink triggers the kernel hooks on proc_fd_link and path_get
-			// to populate the flow_pid map
-			_, _ = os.Readlink(stdpath.Join(fdsPath, entry.Name()))
-		}
 	}
 }
 
