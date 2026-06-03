@@ -21,9 +21,7 @@ type FlowNode struct {
 	Flow           model.Flow
 }
 
-// size approximates this node's heap footprint. Flow itself is a value type composed of
-// numeric fields and netip.AddrPort (which carries no heap allocation), so the only
-// extra contribution beyond the struct is the NodeBase.seen backing slice.
+// size approximates this node's heap footprint
 func (fn *FlowNode) size() int64 {
 	return int64(unsafe.Sizeof(*fn)) + seenBytes(fn.NodeBase)
 }

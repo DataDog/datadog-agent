@@ -62,43 +62,17 @@ func createDir(dir string) error {
 	return nil
 }
 
-// fileHasProfileExtension returns true when the file extension is the .profile format.
-// Only .profile files create LRU entries and drive profile retention (capped at maxProfiles):
-// the SecurityProfile proto round-trips the selector directly, whereas the other formats
-// (json/protobuf/dot SecDumps) only carry it indirectly. Counting other formats here would
-// shrink effective retention and pull undecodable files into the load path, so they never
-// create entries on their own — they are only attached to an existing profile's entry.
 func fileHasProfileExtension(path string) bool {
 	format, err := config.ParseStorageFormat(filepath.Ext(path))
 	return err == nil && format == config.Profile
 }
 
-// fileHasStorageExtension returns true when the file extension matches any persisted storage
-// format. Used to gather every on-disk file belonging to a profile so the disk-size metric
-// (SizesBySelector) and the eviction callback account for all formats, not just .profile.
-func fileHasStorageExtension(path string) bool {
-	_, err := config.ParseStorageFormat(filepath.Ext(path))
-	return err == nil
-}
-
 // profileNameFromFile returns the profile name encoded in a storage filename. Persist writes
-// files as "<name>.<format>" (with an optional ".gz" suffix), so the name is the filename
-// with those extensions stripped. This lets us group sibling formats of the same profile.
+// files as "<name>.<format>" (with an optional ".gz" suffix), so the name is the filename with
+// those extensions stripped. Used to attribute an on-disk file back to its profile selector.
 func profileNameFromFile(filename string) string {
 	filename = strings.TrimSuffix(filename, ".gz")
 	return strings.TrimSuffix(filename, filepath.Ext(filename))
-}
-
-// pickProfileFile returns the .profile file path among the given paths, or "" if none.
-// Only the .profile format round-trips the SecurityProfile proto (and thus the selector),
-// so it is the only format decoded back into a Profile during Load.
-func pickProfileFile(paths []string) string {
-	for _, path := range paths {
-		if fileHasProfileExtension(path) {
-			return path
-		}
-	}
-	return ""
 }
 
 type profileFile struct {
@@ -135,13 +109,9 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 		}
 	}
 
-	// Gather every persisted storage file grouped by profile name. All formats are tracked
-	// (not just .profile) so SizesBySelector() and the eviction callback account for the full
-	// on-disk footprint, but only .profile files create LRU entries below.
-	filePathsByName := make(map[string][]string)
-	var profileFiles []*profileFile
+	var fileSlice []*profileFile
 	for _, file := range files {
-		if !fileHasStorageExtension(file.Name()) {
+		if !fileHasProfileExtension(file.Name()) {
 			continue
 		}
 
@@ -155,19 +125,14 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 			continue
 		}
 
-		fullPath := filepath.Join(directoryPath, file.Name())
-		filePathsByName[profileNameFromFile(file.Name())] = append(filePathsByName[profileNameFromFile(file.Name())], fullPath)
-
-		if fileHasProfileExtension(file.Name()) {
-			profileFiles = append(profileFiles, &profileFile{
-				path:  fullPath,
-				mTime: fileInfo.ModTime(),
-			})
-		}
+		fileSlice = append(fileSlice, &profileFile{
+			path:  filepath.Join(directoryPath, file.Name()),
+			mTime: fileInfo.ModTime(),
+		})
 	}
 
-	// sort from oldest to newest so the most recent profiles survive the LRU cap
-	slices.SortFunc(profileFiles, func(a, b *profileFile) int {
+	// sort from oldest to newest
+	slices.SortFunc(fileSlice, func(a, b *profileFile) int {
 		if a.mTime.Equal(b.mTime) {
 			return 0
 		} else if a.mTime.Before(b.mTime) {
@@ -176,7 +141,7 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 		return 1
 	})
 
-	for _, file := range profileFiles {
+	for _, file := range fileSlice {
 		pProto, err := profile.LoadProtoFromFile(file.path)
 		if err != nil {
 			seclog.Warnf("failed to load profile from file [%s]: %s", file.path, err)
@@ -191,17 +156,9 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 			continue
 		}
 
-		// Attach every persisted format of this profile (json/protobuf/dot siblings) so the
-		// disk-size metric counts them and eviction removes them all. Fall back to just the
-		// .profile file if the naming is unexpected and no siblings were grouped.
-		paths := filePathsByName[pProto.Metadata.Name]
-		if len(paths) == 0 {
-			paths = []string{file.path}
-		}
-
 		profiles.Add(pProto.Metadata.Name, &profileEntry{
 			selector:  cgroupModel.ProtoToWorkloadSelector(pProto.Selector),
-			filePaths: paths,
+			filePaths: []string{file.path},
 		})
 	}
 
@@ -289,24 +246,60 @@ func (d *Directory) Load(wls *cgroupModel.WorkloadSelector, p *profile.Profile) 
 	defer d.profilesLock.RUnlock()
 
 	for _, entry := range d.profiles.Values() {
-		if !entry.selector.Match(*wls) {
-			continue
-		}
+		if entry.selector.Match(*wls) {
+			for _, file := range entry.filePaths {
+				if !fileHasProfileExtension(file) {
+					continue
+				}
 
-		// Prefer the .profile format because it round-trips the selector explicitly via the
-		// SecurityProfile proto. Other formats (json/protobuf/dot) encode SecDump, which only
-		// preserves the selector indirectly through tags.
-		chosen := pickProfileFile(entry.filePaths)
-		if chosen == "" {
-			continue
+				if err := p.Decode(file); err != nil {
+					return false, fmt.Errorf("failed to decode profile [%s]: %s", file, err)
+				}
+				return true, nil
+			}
 		}
-		if err := p.Decode(chosen); err != nil {
-			return false, fmt.Errorf("failed to decode profile [%s]: %s", chosen, err)
-		}
-		return true, nil
 	}
 
 	return false, nil
+}
+
+// SizesBySelector returns the on-disk size in bytes used by each stored profile, keyed by
+// workload selector. It walks the directory and attributes every storage-format file to the
+// selector of the profile it belongs to (matched by file name), so all persisted formats of a
+// profile (e.g. .profile + .json) are summed together.
+func (d *Directory) SizesBySelector() map[cgroupModel.WorkloadSelector]int64 {
+	d.profilesLock.RLock()
+	selectorByName := make(map[string]cgroupModel.WorkloadSelector, d.profiles.Len())
+	for _, name := range d.profiles.Keys() {
+		if entry, ok := d.profiles.Peek(name); ok {
+			selectorByName[name] = entry.selector
+		}
+	}
+	d.profilesLock.RUnlock()
+
+	result := make(map[cgroupModel.WorkloadSelector]int64, len(selectorByName))
+	files, err := os.ReadDir(d.directoryPath)
+	if err != nil {
+		seclog.Warnf("couldn't list files in %s, %s metric may be inaccurate: %v", d.directoryPath, metrics.MetricSecurityProfileV2ProfileSize, err)
+		return result
+	}
+
+	for _, file := range files {
+		if _, err := config.ParseStorageFormat(filepath.Ext(file.Name())); err != nil {
+			continue
+		}
+		selector, ok := selectorByName[profileNameFromFile(file.Name())]
+		if !ok {
+			continue
+		}
+		info, err := os.Stat(filepath.Join(d.directoryPath, file.Name()))
+		if err != nil {
+			continue
+		}
+		result[selector] += info.Size()
+	}
+
+	return result
 }
 
 // GetStorageType returns the storage type
@@ -314,63 +307,19 @@ func (d *Directory) GetStorageType() config.StorageType {
 	return config.LocalStorage
 }
 
-// SizesBySelector returns the on-disk size in bytes of each stored profile, keyed by workload selector.
-// Multiple file formats for the same selector are summed together.
-func (d *Directory) SizesBySelector() map[cgroupModel.WorkloadSelector]int64 {
-	d.profilesLock.RLock()
-	defer d.profilesLock.RUnlock()
-
-	result := make(map[cgroupModel.WorkloadSelector]int64, d.profiles.Len())
-	for _, entry := range d.profiles.Values() {
-		var size int64
-		for _, filePath := range entry.filePaths {
-			if info, err := os.Stat(filePath); err == nil {
-				size += info.Size()
-			}
-		}
-		result[entry.selector] += size
-	}
-	return result
-}
-
-// totalSizeOnDisk scans the directory and sums the size of every file with a known storage format
-// extension. Used for the aggregate disk-usage metric because the LRU only tracks the primary
-// .profile files even when other formats (e.g. .json) are configured and persisted alongside.
-func (d *Directory) totalSizeOnDisk() int64 {
-	files, err := os.ReadDir(d.directoryPath)
-	if err != nil {
-		seclog.Warnf("couldn't list files in %s, %s metric may be inaccurate: %v", d.directoryPath, metrics.MetricActivityDumpLocalStorageSizeOnDisk, err)
-		return 0
-	}
-
-	var total int64
-	for _, file := range files {
-		fullpath := filepath.Join(d.directoryPath, file.Name())
-		if _, err := config.ParseStorageFormat(filepath.Ext(fullpath)); err != nil {
-			continue
-		}
-		info, err := os.Stat(fullpath)
-		if err != nil {
-			continue
-		}
-		total += info.Size()
-	}
-	return total
-}
-
 // SendTelemetry sends telemetry for the current storage
 func (d *Directory) SendTelemetry(sender statsd.ClientInterface) {
 	d.profilesLock.RLock()
+	// send the count of dumps stored locally
 	if count := d.profiles.Len(); count > 0 {
 		_ = sender.Gauge(metrics.MetricActivityDumpLocalStorageCount, float64(count), nil, 1.0)
 	}
 	d.profilesLock.RUnlock()
 
+	// send the count of recently deleted dumps
 	if count := d.deletedCount.Swap(0); count > 0 {
 		_ = sender.Count(metrics.MetricActivityDumpLocalStorageDeleted, int64(count), nil, 1.0)
 	}
-
-	_ = sender.Gauge(metrics.MetricActivityDumpLocalStorageSizeOnDisk, float64(d.totalSizeOnDisk()), nil, 1.0)
 }
 
 func compressWithGZip(filename string, rawBuf []byte) (*bytes.Buffer, error) {

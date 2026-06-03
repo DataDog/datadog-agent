@@ -41,11 +41,7 @@ type OpenNode struct {
 	Mode  uint32
 }
 
-// size approximates this node's own heap footprint: struct overhead, the strings it
-// carries (Name, the full FileEvent path/basename/filesystem/package metadata, hashes),
-// the OpenNode pointer payload, the MatchedRules backing slice, the NodeBase.seen slice,
-// and the bucket overhead of the Children map. Children FileNodes themselves are
-// counted separately by fileSubtreeSizeBytes.
+// size approximates this node's own heap footprint
 func (fn *FileNode) size() int64 {
 	s := int64(unsafe.Sizeof(*fn))
 	s += seenBytes(fn.NodeBase)

@@ -22,9 +22,7 @@ type IMDSNode struct {
 	Event          model.IMDSEvent
 }
 
-// size approximates this node's heap footprint: struct overhead plus every IMDSEvent
-// string (cloud provider, URL, host, user agent, server header, AWS credential fields)
-// and the MatchedRules + NodeBase backing slices.
+// size approximates this node's heap footprint
 func (in *IMDSNode) size() int64 {
 	s := int64(unsafe.Sizeof(*in))
 	s += seenBytes(in.NodeBase)

@@ -29,11 +29,7 @@ type Stats struct {
 	SyscallNodes    int64
 	FlowNodes       int64
 	CapabilityNodes int64
-
-	// SizeBytes is an incremental estimate of the tree's heap size in bytes.
-	// Updated at every insertion and decremented incrementally during eviction.
-	// Periodically corrected by recomputeSizeBytes via ComputeActivityTreeStats.
-	SizeBytes int64
+	SizeBytes       int64
 
 	counts map[model.EventType]*statsPerEventType
 }
@@ -72,21 +68,13 @@ func NewActivityTreeNodeStats() *Stats {
 	return ats
 }
 
-// ApproximateSize returns the legacy shallow size estimate of the tree in bytes:
-// node counts × struct header sizes. This is what V1 (legacy Manager / ActivityDump
-// path) has always used to drive `activity_dump.max_dump_size` and
-// `anomaly_detection.unstable_profile_size_threshold`, and the behavior is preserved
-// verbatim so V1 deployments don't shift.
-//
-// V2 must call HeapSize() instead — it returns the incrementally-tracked real heap
-// footprint (strings, slice backings, map buckets) populated by Insert/Evict paths
-// and corrected by recomputeSizeBytes.
+// ApproximateSize returns an approximation of the size of the tree
 func (stats *Stats) ApproximateSize() int64 {
 	var total int64
-	total += stats.ProcessNodes * int64(unsafe.Sizeof(ProcessNode{}))
-	total += stats.FileNodes * int64(unsafe.Sizeof(FileNode{}))
-	total += stats.DNSNodes * int64(unsafe.Sizeof(DNSNode{}))
-	total += stats.SocketNodes * int64(unsafe.Sizeof(SocketNode{}))
+	total += stats.ProcessNodes * int64(unsafe.Sizeof(ProcessNode{})) // 1024
+	total += stats.FileNodes * int64(unsafe.Sizeof(FileNode{}))       // 80
+	total += stats.DNSNodes * int64(unsafe.Sizeof(DNSNode{}))         // 24
+	total += stats.SocketNodes * int64(unsafe.Sizeof(SocketNode{}))   // 40
 	total += stats.IMDSNodes * int64(unsafe.Sizeof(IMDSNode{}))
 	total += stats.SyscallNodes * int64(unsafe.Sizeof(SyscallNode{}))
 	total += stats.FlowNodes * int64(unsafe.Sizeof(FlowNode{}))
@@ -94,20 +82,11 @@ func (stats *Stats) ApproximateSize() int64 {
 	return total
 }
 
-// HeapSize returns the tree's tracked real heap footprint in bytes (strings, slice
+// HeapSize returns the tree's tracked estimated heap footprint in bytes (strings, slice
 // backings, map buckets, struct headers). Used by V2 callers for max-size checks and
 // the profile_size RAM metric.
-//
-// SizeBytes is maintained incrementally by Insert and Evict paths and periodically
-// corrected by recomputeSizeBytes (called from ComputeActivityTreeStats). When SizeBytes
-// hasn't been populated yet — proto rehydration before recompute fires, FakeOverweight,
-// hand-built test fixtures — we fall back to ApproximateSize so overweight checks and
-// the load controller still produce a usable number.
 func (stats *Stats) HeapSize() int64 {
-	if stats.SizeBytes > 0 {
-		return stats.SizeBytes
-	}
-	return stats.ApproximateSize()
+	return stats.SizeBytes
 }
 
 // SendStats sends metrics to Datadog

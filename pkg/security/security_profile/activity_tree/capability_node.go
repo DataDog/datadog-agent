@@ -22,8 +22,7 @@ type CapabilityNode struct {
 	Capable    bool   // Whether the process was capable of using the capability
 }
 
-// size approximates this node's heap footprint: struct overhead plus the NodeBase.seen
-// backing slice. No other heap-allocated fields.
+// size approximates this node's heap footprint
 func (cn *CapabilityNode) size() int64 {
 	return int64(unsafe.Sizeof(*cn)) + seenBytes(cn.NodeBase)
 }

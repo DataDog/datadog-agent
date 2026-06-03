@@ -56,17 +56,7 @@ type ProcessNode struct {
 }
 
 // size approximates the in-memory heap footprint of this process node, excluding the
-// child nodes it owns (those are counted separately by processNodeOwnActivitySize and
-// processSubtreeSizeBytes). It charges for:
-//   - struct overhead (covered by unsafe.Sizeof)
-//   - all major string content reachable from model.Process (argv, envs, exe path, comm,
-//     container tags, credentials, ...) which the previous shallow estimate ignored
-//   - backing arrays of the Sockets/Syscalls/Capabilities/Children/MatchedRules slices
-//   - the bucket overhead of the Files / DNSNames / IMDSEvents / NetworkDevices maps
-//   - the NodeBase.seen slice
-//
-// Map/slice values themselves (the *FileNode, *DNSNode, etc.) are NOT counted here —
-// each child node's own size() is summed by the activity-tree size accounting paths.
+// child nodes it owns
 func (pn *ProcessNode) size() int64 {
 	s := int64(unsafe.Sizeof(*pn))
 	s += seenBytes(pn.NodeBase)
@@ -368,9 +358,6 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, gener
 			}
 		}
 
-		// Snapshot size around the append: DNSNode.size() includes every Question.Name
-		// and the Requests slice's backing capacity, both of which can grow here. Using a
-		// before/after delta keeps SizeBytes honest even when append doubles the cap.
 		sizeBefore := dnsNode.size()
 		dnsNode.Requests = append(dnsNode.Requests, evt.DNS)
 		stats.SizeBytes += dnsNode.size() - sizeBefore
@@ -446,7 +433,7 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTagID uint64, gene
 		newNode = true
 	}
 
-	// Insert bind event (charges Stats.SizeBytes for any new BindNode it appends).
+	// Insert bind event
 	if sock.InsertBindEvent(&evt.Bind, evt, imageTagID, generationType, evt.Rules, stats, dryRun) {
 		newNode = true
 	}
@@ -532,7 +519,7 @@ func (pn *ProcessNode) TagAllNodes(imageTagID uint64, timestamp time.Time) {
 }
 
 // EvictImageTag will remove every trace of this image tag, and returns true if the process node should be removed
-// (along with the number of bytes freed) also, recompute the list of dnsnames and syscalls
+// also, recompute the list of dnsnames and syscalls
 func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKeys, SyscallsMask map[int]int) (bool, int64) {
 	if !pn.HasImageTag(imageTagID) {
 		return false, 0 // this node doesn't have the tag, and all its children/files/dns/etc shouldn't have it either
@@ -574,8 +561,6 @@ func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKe
 		shouldRemove, deviceRemoved := device.evictImageTag(imageTagID)
 		removed += deviceRemoved
 		if shouldRemove {
-			// Account for the device wrapper itself, which mirrors the size charged
-			// when the device was first inserted in InsertNetworkFlowMonitorEvent.
 			removed += device.size()
 			delete(pn.NetworkDevices, key)
 		}
@@ -583,9 +568,6 @@ func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKe
 
 	newSockets := []*SocketNode{}
 	for _, sock := range pn.Sockets {
-		// evictImageTag mutates sn.Bind in place and reports the bytes dropped from
-		// individual BindNodes. If the socket itself is now empty we additionally
-		// charge for the socket wrapper struct.
 		shouldRemoveNode, bindBytes := sock.evictImageTag(imageTagID)
 		removed += bindBytes
 		if shouldRemoveNode {
@@ -650,9 +632,6 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 		removedBytes += childRemoved
 
 		// If the child process node itself has no image tags left after eviction, remove it entirely.
-		// We must subtract the full remaining subtree size here: the child can still hold its own
-		// activity nodes (early-return path skipped them) and live descendants (process-cache fallback
-		// kept them around), all of which get dropped when we splice it out of pn.Children.
 		if child.SeenIsEmpty() {
 			removedBytes += processSubtreeSizeBytes(child)
 			pn.Children = append(pn.Children[:i], pn.Children[i+1:]...)

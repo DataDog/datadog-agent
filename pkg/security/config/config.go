@@ -318,9 +318,7 @@ type RuntimeSecurityConfig struct {
 	// SecurityProfileV2ExcludedImages defines the list of "image_name:image_tag" entries excluded from V2 profiling.
 	// The tag may be "*" to match any tag for the given image name.
 	SecurityProfileV2ExcludedImages []string
-	// SecurityProfileV2MaxDumpSize returns the V2-only max profile size in bytes. Evaluated against
-	// HeapSize() (accurate heap footprint) rather than the legacy shallow ApproximateSize() that
-	// V1's ActivityDumpMaxDumpSize uses.
+	// SecurityProfileV2MaxDumpSize returns the V2-only max profile size in bytes.
 	SecurityProfileV2MaxDumpSize func() int
 
 	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections

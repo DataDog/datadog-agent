@@ -24,9 +24,7 @@ type NetworkDeviceNode struct {
 	FlowNodes map[model.FiveTuple]*FlowNode
 }
 
-// size approximates this node's own heap footprint: struct overhead, the FlowNodes map
-// bucket overhead, and the MatchedRules backing slice. FlowNodes themselves are walked
-// separately by the activity-tree size accounting.
+// size approximates this node's own heap footprint
 func (netdevice *NetworkDeviceNode) size() int64 {
 	s := int64(unsafe.Sizeof(*netdevice))
 	s += fixedKeyMapBytes(netdevice.FlowNodes)

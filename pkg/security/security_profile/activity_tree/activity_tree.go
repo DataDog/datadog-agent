@@ -992,6 +992,7 @@ func (at *ActivityTree) recomputeSizeBytes() {
 // fileSubtreeSizeBytes recursively sums the size of a FileNode and all its descendants.
 func fileSubtreeSizeBytes(fn *FileNode) int64 {
 	total := fn.size()
+	a
 	for _, child := range fn.Children {
 		total += fileSubtreeSizeBytes(child)
 	}
@@ -1187,9 +1188,6 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 		at.Stats.SizeBytes -= removedBytes
 
 		// If the process node itself has no image tags left after eviction, remove it entirely.
-		// Subtract the full remaining subtree size: the node may still hold its own activity nodes
-		// (early-return path skipped them) and live descendants (process-cache fallback kept them
-		// around), all of which get dropped when we splice it out of at.ProcessNodes.
 		if node.SeenIsEmpty() {
 			at.Stats.SizeBytes -= processSubtreeSizeBytes(node)
 			at.ProcessNodes = append(at.ProcessNodes[:i], at.ProcessNodes[i+1:]...)
