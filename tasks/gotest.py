@@ -279,7 +279,7 @@ def _run_bazel_tests(
     # Windows-safe command-length limit.
     # TODO: on Linux runners, the limit is much higher; consider platform-specific batching.
     MAX_CMD_LENGTH = 32000
-    base_args = ["test", "--keep_going", "--build_tests_only"]
+    base_args = ["test", "--keep_going", "--build_tests_only", "--color=no"]
     if bazel_flags:
         base_args.extend(bazel_flags)
     fixed_len = sum([len(a) for a in base_args]) + len(base_args) + 1  # args + spaces
