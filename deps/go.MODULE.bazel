@@ -46,6 +46,7 @@ go_deps.gazelle_default_attributes(
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/setup @@//pkg/config/setup:setup",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/utils @@//pkg/config/utils:utils",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/viperconfig @@//pkg/config/viperconfig:viperconfig",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry @@//pkg/fleet/installer/telemetry:telemetry",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/metrics @@//pkg/metrics:metrics",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/obfuscate @@//pkg/obfuscate:obfuscate",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata @@//pkg/opentelemetry-mapping-go/inframetadata:inframetadata",
