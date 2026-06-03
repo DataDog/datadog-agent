@@ -352,14 +352,14 @@ func New() *Config {
 	// Sort + dedup before applying the slot cap.
 	slices.Sort(c.DNSMonitoringPortList)
 	c.DNSMonitoringPortList = slices.Compact(c.DNSMonitoringPortList)
-	if len(c.DNSMonitoringPortList) > DNSPortsMax {
-		dropped := slices.Clone(c.DNSMonitoringPortList[DNSPortsMax:])
+	numPorts := len(c.DNSMonitoringPortList)
+	if numPorts > DNSPortsMax {
+		dropped := c.DNSMonitoringPortList[DNSPortsMax:]
 		c.DNSMonitoringPortList = c.DNSMonitoringPortList[:DNSPortsMax]
 		log.Warnf(
 			"%s has %d distinct entries, exceeding the maximum of %d. "+
 				"Monitoring only %v (sorted ascending). Ports %v will NOT be monitored.",
-			dnsPortsKey, len(c.DNSMonitoringPortList)+len(dropped), DNSPortsMax,
-			c.DNSMonitoringPortList, dropped,
+			dnsPortsKey, numPorts, DNSPortsMax, c.DNSMonitoringPortList, dropped,
 		)
 	}
 
