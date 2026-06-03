@@ -134,7 +134,7 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	}
 
 	// Populate the profiles map (from defaults/OOTB)
-	profMap, err := profile.GetProfileMap("default_profiles")
+	profMap, err := profile.GetProfileMap()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get profile map: %w", err)
 	}
