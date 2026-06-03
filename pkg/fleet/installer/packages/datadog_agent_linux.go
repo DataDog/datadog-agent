@@ -325,7 +325,7 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 		return err
 	}
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
-		log.Warnf("failed to restore custom integrations: %s", err)
+		log.Errorf("failed to restore custom integrations: %s", err)
 	}
 	if err := fixRestoredIntegrationOwnership(ctx); err != nil {
 		log.Warnf("failed to fix restored integration file ownership: %s", err)
@@ -448,7 +448,7 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 		return err
 	}
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
-		log.Warnf("failed to restore custom integrations: %s", err)
+		log.Errorf("failed to restore custom integrations: %s", err)
 	}
 	if err := fixRestoredIntegrationOwnership(ctx); err != nil {
 		log.Warnf("failed to fix restored integration file ownership: %s", err)
