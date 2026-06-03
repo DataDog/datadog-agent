@@ -257,7 +257,7 @@ func portIsAlwaysSupported(_ int) ([]*Metric, error) {
 func getSupportedNvlinkPorts(device ddnvml.Device, metricCollector func(int) ([]*Metric, error)) ([]int, error) {
 	totalPorts, err := GetNVLinkCount(device)
 	if err != nil {
-		if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+		if ddnvml.IsAPIUnsupportedOnDevice(err, device) || errors.Is(err, errUnsupportedDevice) {
 			return nil, fmt.Errorf("%w: get NVLink link count: %w", errUnsupportedDevice, err)
 		}
 		return nil, fmt.Errorf("get NVLink link count: %w", err)
@@ -274,7 +274,7 @@ func getSupportedNvlinkPorts(device ddnvml.Device, metricCollector func(int) ([]
 		if err != nil {
 			portErrors = append(portErrors, fmt.Errorf("collect metrics for port %d: %w", port, err))
 
-			if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+			if ddnvml.IsAPIUnsupportedOnDevice(err, device) || errors.Is(err, errUnsupportedDevice) {
 				// only ignore ports if the error is because the API is unsupported
 				continue
 			}

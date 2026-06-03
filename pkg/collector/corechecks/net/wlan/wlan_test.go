@@ -97,7 +97,7 @@ func TestWLANErrorStoppedSender(t *testing.T) {
 	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 
-	senderManager.Stop(false)
+	senderManager.Stop()
 	err := wlanCheck.Run()
 
 	assert.Equal(t, "demultiplexer is stopped", err.Error())
