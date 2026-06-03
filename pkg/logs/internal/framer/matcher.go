@@ -12,6 +12,11 @@ type FrameMatcher interface {
 	// the frame was truncated due to exceeding the content length limit.
 	// Return `nil, 0, false` when no complete frame is present in buf.
 	//
+	// Return `nil, N, false` with N > 0 to consume N leading bytes that do not
+	// form a frame (e.g. a stray delimiter or a zero-length declared frame).
+	// The framer advances past those bytes without emitting a frame, so the
+	// matcher never has to produce an empty frame to skip data.
+	//
 	// The `seen` argument is the length of `buf` last time this function was called,
 	// and can be used to avoid repeating work when looking for a frame terminator.
 	FindFrame(buf []byte, seen int) (content []byte, rawDataLen int, wasTruncated bool)

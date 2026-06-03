@@ -242,6 +242,97 @@ func TestSyslogOversizedMalformedSplit(t *testing.T) {
 	require.NotEmpty(t, oversized)
 }
 
+// TestSyslogNeverEmitsEmptyFrames asserts the framer skips bytes that do not
+// form a frame instead of emitting zero-length content. An empty frame would be
+// wrapped by the syslog parser into a structured message that the stream tailer
+// forwards as a blank log (HasContent is true for any structured message), so
+// the framer must never emit one. Unlike processSyslog, collectAll records
+// EVERY emitted frame, including empties, so the assertion actually fails if the
+// framer regresses to emitting empty frames.
+func TestSyslogNeverEmitsEmptyFrames(t *testing.T) {
+	collectAll := func(limit int, chunks [][]byte) (all []string) {
+		outputFn := func(msg *message.Message, _ int) {
+			all = append(all, string(msg.GetContent()))
+		}
+		fr := NewFramer(outputFn, SyslogFraming, limit)
+		for _, c := range chunks {
+			fr.Process(message.NewMessage(c, nil, "", 0))
+		}
+		fr.Flush()
+		return
+	}
+
+	assertNoEmpty := func(t *testing.T, frames []string) {
+		t.Helper()
+		for i, f := range frames {
+			require.NotEmpty(t, f, "framer emitted an empty frame at index %d: %v", i, frames)
+		}
+	}
+
+	t.Run("consecutive non-transparent delimiters", func(t *testing.T) {
+		frames := collectAll(4096, [][]byte{[]byte("<13>a\n\n<13>b\n")})
+		assertNoEmpty(t, frames)
+		assert.Equal(t, []string{"<13>a", "<13>b"}, frames)
+	})
+
+	t.Run("leading delimiter", func(t *testing.T) {
+		frames := collectAll(4096, [][]byte{[]byte("\n<13>a\n")})
+		assertNoEmpty(t, frames)
+		assert.Equal(t, []string{"<13>a"}, frames)
+	})
+
+	t.Run("oversized non-transparent body that is an exact multiple of the limit", func(t *testing.T) {
+		// Body before the delimiter is 8 bytes = 2*limit, delivered without a
+		// trailing delimiter so a chunk boundary lands exactly on the body end.
+		// The delimiter then arrives alone, which previously produced an empty
+		// continuation frame.
+		limit := 4
+		body := "<1>ABCDE" // 8 bytes
+		frames := collectAll(limit, [][]byte{[]byte(body), []byte("\n")})
+		assertNoEmpty(t, frames)
+		assert.Equal(t, body, strings.Join(frames, ""), "split chunks must reconstruct the body with no data loss")
+	})
+}
+
+// TestSyslogOctetCountedStraddlesLimit covers a sub-limit octet-counted frame
+// whose "MSG-LEN SP" header pushes the full frame (header + body) past
+// contentLenLimit, delivered fragmented across the limit boundary. The matcher
+// must strip the header and never leak it into content or corrupt the frame
+// boundary by falling through to the Framer's blind guard. Because the buffer
+// fills to the limit before the full body arrives, the frame is split into
+// bounded chunks and flagged truncated — framing-level truncation signals a
+// severe upstream error, since real syslog lines are far below the limit. The
+// split chunks must still reconstruct the body with no data loss.
+func TestSyslogOctetCountedStraddlesLimit(t *testing.T) {
+	limit := 20
+	body := strings.Repeat("x", 20) // msgLen == limit; header pushes total to 23
+
+	// "20 " + first 17 body bytes = 20 bytes (== limit) with the body still
+	// incomplete; the remaining 3 body bytes then arrive in a second chunk so a
+	// chunk boundary lands inside the declared body, above the limit.
+	chunk1 := []byte("20 " + body[:17])
+	chunk2 := []byte(body[17:])
+
+	var contents []string
+	var truncated []bool
+	outputFn := func(msg *message.Message, _ int) {
+		contents = append(contents, string(msg.GetContent()))
+		truncated = append(truncated, msg.ParsingExtra.IsTruncated)
+	}
+	tailerInfo := status.NewInfoRegistry()
+	fr := NewSyslogFramer(outputFn, limit, tailerInfo)
+	fr.Process(message.NewMessage(chunk1, nil, "", 0))
+	fr.Process(message.NewMessage(chunk2, nil, "", 0))
+	fr.Flush()
+
+	require.NotEmpty(t, contents, "expected at least one frame")
+	assert.Equal(t, body, strings.Join(contents, ""), "header must be stripped and the split chunks must reconstruct the body with no data loss")
+	for i, f := range contents {
+		require.NotEmpty(t, f, "framer emitted an empty frame at index %d", i)
+		assert.True(t, truncated[i], "a frame split at the framing limit must be flagged truncated")
+	}
+}
+
 func TestSyslogOversizedFlushFrame(t *testing.T) {
 	t.Run("matcher splits oversized buffer", func(t *testing.T) {
 		// Test the FlushFrame method directly on the matcher.

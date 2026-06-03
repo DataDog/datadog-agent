@@ -6,10 +6,6 @@
 package framer
 
 import (
-	"bytes"
-
-	"go.uber.org/atomic"
-
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
@@ -103,7 +99,8 @@ func (m *syslogFrameMatcher) FindFrame(buf []byte, seen int) ([]byte, int, bool)
 		return m.findNonTransparent(buf, seen)
 
 	case b == '\n' || b == '\r' || b == 0:
-		return buf[:0], 1, false
+		// Stray delimiter between frames: consume it, emit nothing.
+		return nil, 1, false
 
 	default:
 		return m.findMalformed(buf)
@@ -213,10 +210,11 @@ func isSyslogFrameStart(buf []byte, i int) bool {
 // Returns nil if the buffer does not yet contain enough data.
 //
 // The MSG-LEN SP header is transport framing and is stripped from emitted
-// content. When the declared body exceeds contentLenLimit, the matcher does
-// NOT buffer the whole declared body (which could be arbitrarily large);
-// instead it emits a bounded first chunk as soon as one is available, records
-// the remainder in octetRemaining, and enters overflowOctet. MSG-LEN stays the
+// content. When the frame cannot be held whole under contentLenLimit — the
+// declared body exceeds the limit, or the header pushes an otherwise sub-limit
+// body past it before the body fully arrives — the matcher does NOT buffer the
+// whole declared body; instead it emits a bounded first chunk, records the
+// remainder in octetRemaining, and enters overflowOctet. MSG-LEN stays the
 // authoritative boundary (RFC 6587 §3.4.1): the remaining declared bytes are
 // emitted as raw continuation, never re-detected.
 func (m *syslogFrameMatcher) findOctetCounted(buf []byte) ([]byte, int, bool) {
@@ -231,12 +229,12 @@ func (m *syslogFrameMatcher) findOctetCounted(buf []byte) ([]byte, int, bool) {
 		}
 		if b < '0' || b > '9' {
 			m.recordDiscarded(1)
-			return buf[:0], 1, false
+			return nil, 1, false
 		}
 		i++
 		if i > 10 {
 			m.recordDiscarded(1)
-			return buf[:0], 1, false
+			return nil, 1, false
 		}
 		msgLen = msgLen*10 + int(b-'0')
 	}
@@ -247,44 +245,47 @@ func (m *syslogFrameMatcher) findOctetCounted(buf []byte) ([]byte, int, bool) {
 	}
 
 	if msgLen == 0 {
-		// "0 " is not a valid octet-counted frame — skip the prefix.
-		return buf[:0], i, false
+		// "0 " is not a valid octet-counted frame — skip the prefix, emit nothing.
+		return nil, i, false
 	}
 
 	headerLen := i // digits + SP
-
-	if msgLen > m.contentLenLimit {
-		bodyAvail := len(buf) - headerLen
-		emit := bodyAvail
-		if emit > m.contentLenLimit {
-			emit = m.contentLenLimit
-		}
-		// Wait only while we are still under the limit (bounded by the header
-		// plus contentLenLimit). Once len(buf) reaches the limit we must emit
-		// so the Framer guard never chops mid-frame.
-		if emit < m.contentLenLimit && len(buf) < m.contentLenLimit {
-			return nil, 0, false
-		}
-		m.recordOversized()
-		m.octetRemaining = msgLen - emit
-		m.overflow = overflowOctet
-		return buf[headerLen : headerLen+emit], headerLen + emit, true
-	}
-
 	totalLen := headerLen + msgLen
 
-	// Not oversized: wait for the full (bounded) body, then emit it whole.
-	if len(buf) < totalLen {
-		return nil, 0, false
+	// Common case: the whole frame is buffered and its body fits the limit.
+	// Strip the MSG-LEN SP header and emit the body whole.
+	if msgLen <= m.contentLenLimit && len(buf) >= totalLen {
+		return buf[headerLen:totalLen], totalLen, false
 	}
 
-	return buf[headerLen:totalLen], totalLen, false
+	// Otherwise the frame cannot be held whole under the limit: either the
+	// declared body genuinely exceeds contentLenLimit, or the buffer filled to
+	// the limit before the full body arrived (only reachable in the
+	// pathological near-limit band, since real syslog lines are far below the
+	// limit). Wait while still under the limit so the first chunk is as large
+	// as the limit allows, then emit a bounded first chunk with the header
+	// stripped and consume the declared remainder as raw continuation. MSG-LEN
+	// stays the authoritative boundary (RFC 6587 §3.4.1). Such frames are
+	// flagged truncated; any framing-level truncation signals a severe upstream
+	// error, since syslog lines are conventionally far below the framer limit.
+	if len(buf) < m.contentLenLimit {
+		return nil, 0, false
+	}
+	emit := len(buf) - headerLen
+	if emit > m.contentLenLimit {
+		emit = m.contentLenLimit
+	}
+	m.recordOversized()
+	m.octetRemaining = msgLen - emit
+	m.overflow = overflowOctet
+	return buf[headerLen : headerLen+emit], headerLen + emit, true
 }
 
-// emitOctetContinuation emits the next bounded chunk of an oversized
-// octet-counted frame's remaining declared body. Continuation chunks carry no
-// header and are flagged truncated. The matcher waits only for a single
-// chunk's worth of bytes, so the buffer never exceeds contentLenLimit.
+// emitOctetContinuation emits the next bounded chunk of an octet-counted
+// frame's remaining declared body. Continuation chunks carry no header and are
+// always flagged truncated: the matcher only enters overflowOctet when the
+// frame could not be held whole under contentLenLimit. The matcher waits only
+// for a single chunk's worth of bytes, so the buffer never exceeds the limit.
 func (m *syslogFrameMatcher) emitOctetContinuation(buf []byte) ([]byte, int, bool) {
 	chunk := m.octetRemaining
 	if chunk > m.contentLenLimit {
@@ -358,9 +359,9 @@ func (m *syslogFrameMatcher) emitNonTransparentContinuation(buf []byte) ([]byte,
 				// Prior continuation chunks already drained the whole body
 				// (body length was an exact multiple of contentLenLimit), so
 				// the delimiter now sits at the buffer head. Consume it without
-				// emitting an empty frame, matching the stray-delimiter path in
-				// FindFrame; otherwise a blank log would be forwarded.
-				return buf[:0], i + 1, false
+				// emitting an empty frame; otherwise a blank log would be
+				// forwarded.
+				return nil, i + 1, false
 			}
 			return content, i + 1, true // include the delimiter
 		}
@@ -400,7 +401,22 @@ func (m *syslogFrameMatcher) FlushFrame(buf []byte) ([]byte, int, bool) {
 			return nil, 0, false
 		}
 		return buf[:chunk], chunk, true
-	case overflowNonTransparent, overflowMalformed:
+	case overflowMalformed:
+		// Malformed bytes drained at EOF are discarded data and must be
+		// counted, mirroring the in-stream findMalformed path, so the
+		// discarded_bytes telemetry stays an accurate total.
+		content := syslogTrimTrailer(buf)
+		if len(content) > m.contentLenLimit {
+			m.recordDiscarded(int64(m.contentLenLimit))
+			return buf[:m.contentLenLimit], m.contentLenLimit, true
+		}
+		m.overflow = overflowNone
+		if len(content) == 0 {
+			return nil, 0, false
+		}
+		m.recordDiscarded(int64(len(content)))
+		return content, len(buf), true
+	case overflowNonTransparent:
 		content := syslogTrimTrailer(buf)
 		if len(content) > m.contentLenLimit {
 			return buf[:m.contentLenLimit], m.contentLenLimit, true
@@ -460,13 +476,7 @@ func NewSyslogFramer(
 		discardedBytes:  discardedBytes,
 		oversizedFrames: oversizedFrames,
 	}
-	return &Framer{
-		frames:          atomic.NewInt64(0),
-		outputFn:        outputFn,
-		matcher:         matcher,
-		buffer:          bytes.Buffer{},
-		contentLenLimit: contentLenLimit,
-	}
+	return newFramer(outputFn, matcher, contentLenLimit, false)
 }
 
 // syslogTrimTrailer removes trailing non-transparent frame delimiters

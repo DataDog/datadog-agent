@@ -151,6 +151,13 @@ func NewFramer(
 		panic(fmt.Sprintf("unknown framing %d", framing))
 	}
 
+	return newFramer(outputFn, matcher, contentLenLimit, framing == UTF8NewlineDatagram)
+}
+
+// newFramer builds a Framer around an already-constructed matcher. NewFramer
+// and NewSyslogFramer both route through it so the Framer struct is initialized
+// in exactly one place and neither constructor silently misses a future field.
+func newFramer(outputFn func(input *message.Message, rawDataLen int), matcher FrameMatcher, contentLenLimit int, flushAfterProcess bool) *Framer {
 	return &Framer{
 		frames:            atomic.NewInt64(0),
 		outputFn:          outputFn,
@@ -158,7 +165,7 @@ func NewFramer(
 		buffer:            bytes.Buffer{},
 		bytesFramed:       0,
 		contentLenLimit:   contentLenLimit,
-		flushAfterProcess: framing == UTF8NewlineDatagram,
+		flushAfterProcess: flushAfterProcess,
 	}
 }
 
@@ -204,6 +211,15 @@ func (fr *Framer) Process(input *message.Message) {
 
 		content, rawDataLen, isTruncated := fr.matcher.FindFrame(buf, seen-framed)
 		if content == nil {
+			// A matcher may consume bytes that do not form a frame (e.g. a
+			// stray syslog delimiter or a zero-length declared frame). It
+			// signals this by returning nil content with a positive rawDataLen:
+			// advance past those bytes without emitting an empty frame.
+			if rawDataLen > 0 {
+				framed += rawDataLen
+				seen = framed
+				continue
+			}
 			// if the matcher was asked to match more than contentLenLimit,
 			// chop off contentLenLimit raw bytes and output them
 			if len(buf) >= contentLenLimit {
