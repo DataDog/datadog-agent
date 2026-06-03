@@ -10,6 +10,7 @@ import json
 import os
 
 from invoke import task
+from invoke.exceptions import Exit
 
 from tasks.build_tags import build_tags, compute_config_build_tags
 from tasks.flavor import AgentFlavor
@@ -40,6 +41,7 @@ def _read_existing_plugin() -> tuple[Version, str | None]:
     help={
         "targets": f"Comma separated list of targets to include. Possible values: all, {', '.join(build_tags[AgentFlavor.base].keys())}. Default: all",
         "flavor": f"Agent flavor to use. Possible values: {', '.join(AgentFlavor.__members__.keys())}. Default: {AgentFlavor.base.name}",
+        "check": "Only validate existing Claude Code gopls plugin config.",
     }
 )
 def set_buildtags(
@@ -48,9 +50,10 @@ def set_buildtags(
     build_include: str | None = None,
     build_exclude: str | None = None,
     flavor: str = AgentFlavor.base.name,
+    check: bool = False,
 ) -> None:
     """
-    Create/update Claude Code gopls plugin configuration with correct build tags
+    Create/update the Claude Code gopls plugin configuration with the correct build tags.
     """
     use_tags = compute_config_build_tags(
         targets=targets,
@@ -59,9 +62,6 @@ def set_buildtags(
         flavor=flavor,
         platform="linux",
     )
-
-    if not os.path.exists(PLUGIN_DIR):
-        os.makedirs(PLUGIN_DIR)
 
     new_tags_flag = f"-tags={','.join(sorted(use_tags))}"
     version, old_tags_flag = _read_existing_plugin()
@@ -94,6 +94,29 @@ def set_buildtags(
     }
 
     fullpath = os.path.join(PLUGIN_DIR, PLUGIN_FILE)
+
+    if check:
+        try:
+            with open(fullpath) as f:
+                committed = json.load(f)
+        except FileNotFoundError as e:
+            raise Exit(
+                f"{fullpath} is missing. Run `dda inv claude.set-buildtags` and commit the result.",
+                code=1,
+            ) from e
+        except json.JSONDecodeError as e:
+            raise Exit(f"{fullpath} is not valid JSON: {e}", code=1) from e
+        if committed != plugin:
+            raise Exit(
+                f"{fullpath} is out of sync with the build tags. "
+                "Run `dda inv claude.set-buildtags` and commit the result.",
+                code=1,
+            )
+        print(f"{fullpath} is up to date.")
+        return
+
+    if not os.path.exists(PLUGIN_DIR):
+        os.makedirs(PLUGIN_DIR)
     with open(fullpath, "w") as f:
         json.dump(plugin, f, indent=2)
         f.write("\n")
