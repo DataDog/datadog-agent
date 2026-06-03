@@ -15,8 +15,10 @@ import (
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	orchestratorinterface "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface/def"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	defaultforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/fx"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
@@ -76,7 +78,6 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
 	config.Set("serializer_max_payload_size", 2*megaByte+megaByte/2, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_max_uncompressed_payload_size", 4*megaByte, pkgconfigmodel.SourceDefault)
-	config.Set("serializer_max_series_points_per_payload", 10000, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_max_series_payload_size", 512000, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_max_series_uncompressed_payload_size", 5242880, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_compressor_kind", pkgconfigsetup.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
@@ -114,7 +115,7 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 }
 
 // InitSerializer initializes the serializer and forwarder for sending metrics. Should only be used in OSS Datadog exporter or in tests.
-func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider source.Provider) (*serializer.Serializer, *defaultforwarder.DefaultForwarder, error) {
+func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider source.Provider) (*serializer.Serializer, *defaultforwarderimpl.DefaultForwarder, error) {
 	var f defaultforwarder.Component
 	var s *serializer.Serializer
 	app := fx.New(
@@ -150,7 +151,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		}),
 		// casts the defaultforwarder.Component to a defaultforwarder.Forwarder
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
-			return defaultforwarder.Forwarder(c), nil
+			return c, nil
 		}),
 		// this is the hostname argument for serializer.NewSerializer
 		// this should probably be wrapped by a type
@@ -168,7 +169,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 			return c
 		}),
 		fx.Provide(func() secrets.Component { return &secretnooptypes.SecretNoop{} }),
-		defaultforwarder.Module(defaultforwarder.NewParams()),
+		defaultforwarderfx.Module(defaultforwarder.NewParams()),
 		delegatedauthnoopfx.Module(),
 		fx.Populate(&f),
 		fx.Populate(&s),
@@ -176,9 +177,9 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 	if err := app.Err(); err != nil {
 		return nil, nil, err
 	}
-	fw, ok := f.(*defaultforwarder.DefaultForwarder)
+	fw, ok := f.(*defaultforwarderimpl.DefaultForwarder)
 	if !ok {
-		return nil, nil, errors.New("failed to cast forwarder to defaultforwarder.DefaultForwarder")
+		return nil, nil, errors.New("failed to cast forwarder to defaultforwarderimpl.DefaultForwarder")
 	}
 	return s, fw, nil
 }

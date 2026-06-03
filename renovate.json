@@ -6,6 +6,7 @@
     },
     "constraintsFiltering": "strict",
     "minimumReleaseAge": "7 days",
+    "prConcurrentLimit": 20,
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
     "gitIgnoredAuthors": ["200755185+dd-octo-sts[bot]@users.noreply.github.com"],
@@ -114,6 +115,12 @@
         "matchManagers": ["gomod"],
         "matchDepNames": ["github.com/uptrace/bun{,/**}"],
         "groupName": "bun"
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/DataDog/rshell"],
+        "minimumReleaseAge": null,
+        "prPriority": 10
       },
       {
         "matchManagers": ["gomod"],
