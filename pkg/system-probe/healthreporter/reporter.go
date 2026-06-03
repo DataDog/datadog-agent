@@ -15,7 +15,9 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/anypb"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	ipcdef "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -49,11 +51,11 @@ func New(ipc ipcdef.Component) *Reporter {
 	}
 }
 
-// ReportWithRetry sends report to the core agent in a background goroutine,
+// ReportWithRetry sends issue to the core agent in a background goroutine,
 // retrying with exponential backoff until the call succeeds or DefaultMaxWait elapses.
-func (r *Reporter) ReportWithRetry(report *pb.RemoteIssueReport) {
-	go r.retryWithBackoff("report "+report.GetIssueId(), func() error {
-		return r.Report(context.Background(), report)
+func (r *Reporter) ReportWithRetry(issue *healthplatformpayload.Issue) {
+	go r.retryWithBackoff("report "+issue.GetId(), func() error {
+		return r.Report(context.Background(), issue)
 	})
 }
 
@@ -67,16 +69,18 @@ func (r *Reporter) ResolveWithRetry(issueID string) {
 
 // Report sends a single ReportHealthIssue RPC. The caller is responsible for
 // any retry / timeout policy.
-func (r *Reporter) Report(ctx context.Context, report *pb.RemoteIssueReport) error {
+func (r *Reporter) Report(ctx context.Context, issue *healthplatformpayload.Issue) error {
 	client, err := r.newClient()
 	if err != nil {
 		return err
 	}
+	packed, err := anypb.New(issue)
+	if err != nil {
+		return fmt.Errorf("pack issue: %w", err)
+	}
 	ctx, cancel := context.WithTimeout(ctx, r.callTimeout)
 	defer cancel()
-	_, err = client.ReportHealthIssue(ctx, &pb.ReportHealthIssueRequest{
-		Payload: &pb.ReportHealthIssueRequest_Report{Report: report},
-	})
+	_, err = client.ReportHealthIssue(ctx, &pb.ReportHealthIssueRequest{Issue: packed})
 	return err
 }
 
