@@ -5,15 +5,23 @@
 
 //go:build test
 
-package hostnameinterface
+// Package mock provides a mock for the hostnameinterface component.
+package mock
 
 import (
 	"context"
 
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"go.uber.org/fx"
 )
+
+// Mock implements mock-specific methods.
+type Mock interface {
+	// Component methods are included in Mock.
+	hostnameinterface.Component
+}
 
 // MockModule defines the fx options for the mock component.
 // Injecting MockModule will provide the hostname 'my-hostname';
@@ -45,8 +53,8 @@ func (m *mockService) Set(name string) {
 }
 
 // GetWithProvider returns the hostname for the Agent and the provider that was use to retrieve it.
-func (m *mockService) GetWithProvider(_ context.Context) (Data, error) {
-	return Data{
+func (m *mockService) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
+	return hostnameinterface.Data{
 		Hostname: m.name,
 		Provider: "mockService",
 	}, nil
@@ -57,7 +65,7 @@ func (m *mockService) GetWithProvider(_ context.Context) (Data, error) {
 type MockHostname string
 
 // NewMock returns a new instance of the mock for the component hostname
-func NewMock(name MockHostname) (Component, Mock) {
+func NewMock(name MockHostname) (hostnameinterface.Component, Mock) {
 	mock := &mockService{string(name)}
 	return mock, mock
 }
