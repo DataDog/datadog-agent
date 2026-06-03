@@ -131,7 +131,7 @@ func parseConfigSnmpMain(conf config.Component) ([]SNMPConfig, error) {
 func GetConfigCheckSnmp(conf config.Component, client ipc.HTTPClient) ([]SNMPConfig, error) {
 	// TODO: change the URL if the SNMP check is a cluster check
 	// add /agent/config-check to cluster agent API
-	// Copy the code from comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go#writeConfigCheck
+	// Copy the code from comp/core/autodiscovery/impl/autoconfig.go#writeConfigCheck
 	endpoint, err := client.NewIPCEndpoint("/agent/config-check")
 	if err != nil {
 		return nil, err

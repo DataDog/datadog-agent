@@ -26,7 +26,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/mock",
         "//pkg/config/mock",
         "@com_github_go_viper_mapstructure_v2//:mapstructure",

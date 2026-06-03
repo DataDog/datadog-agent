@@ -9,6 +9,7 @@ package nvidia
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -37,11 +38,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 		return nil, errors.New("failure")
 	}
 
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
-	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache := ddnvml.NewDeviceCache()
-	devices, err := deviceCache.AllPhysicalDevices()
-	require.NoError(t, err)
+	devices := setupMockDevices(t, testutil.WithMIGDisabled())
 	deps := &CollectorDependencies{}
 	collectors, err := buildCollectors(devices, deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory}, nil)
 	require.NotNil(t, collectors)
@@ -50,25 +47,19 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 
 func TestGetDeviceTagsMapping(t *testing.T) {
 	tests := []struct {
-		name      string
-		mockSetup func() (*nvmlmock.Interface, taggermock.Mock)
-		expected  func(t *testing.T, tagsMapping map[string][]string)
+		name        string
+		mockOpts    []testutil.NvmlMockOption
+		setupTagger func(taggermock.Mock)
+		expected    func(t *testing.T, tagsMapping map[string][]string)
 	}{
 		{
 			name: "Happy flow with 2 devices",
-			mockSetup: func() (*nvmlmock.Interface, taggermock.Mock) {
-				nvmlMock := &nvmlmock.Interface{
-					DeviceGetCountFunc: func() (int, nvml.Return) {
-						return 2, nvml.SUCCESS
-					},
-					DeviceGetHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
-						return testutil.GetDeviceMock(index), nvml.SUCCESS
-					},
-				}
-				fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			mockOpts: []testutil.NvmlMockOption{
+				testutil.WithDeviceCount(2),
+			},
+			setupTagger: func(fakeTagger taggermock.Mock) {
 				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.GPUUUIDs[0]), "foo", []string{"gpu_uuid=" + testutil.GPUUUIDs[0], "gpu_vendor=nvidia", "gpu_arch=pascal"}, nil, nil, nil)
 				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.GPUUUIDs[1]), "foo", []string{"gpu_uuid=" + testutil.GPUUUIDs[1], "gpu_vendor=nvidia", "gpu_arch=turing"}, nil, nil, nil)
-				return nvmlMock, fakeTagger
 			},
 			expected: func(t *testing.T, tagsMapping map[string][]string) {
 				require.Len(t, tagsMapping, 2)
@@ -83,14 +74,8 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 		},
 		{
 			name: "No available devices",
-			mockSetup: func() (*nvmlmock.Interface, taggermock.Mock) {
-				nvmlMock := &nvmlmock.Interface{
-					DeviceGetCountFunc: func() (int, nvml.Return) {
-						return 0, nvml.SUCCESS
-					},
-				}
-				fakeTagger := taggerfxmock.SetupFakeTagger(t)
-				return nvmlMock, fakeTagger
+			mockOpts: []testutil.NvmlMockOption{
+				testutil.WithDeviceCount(0),
 			},
 			expected: func(t *testing.T, tagsMapping map[string][]string) {
 				require.Nil(t, tagsMapping)
@@ -98,21 +83,19 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 		},
 		{
 			name: "Only one device successfully retrieved",
-			mockSetup: func() (*nvmlmock.Interface, taggermock.Mock) {
-				nvmlMock := &nvmlmock.Interface{
-					DeviceGetCountFunc: func() (int, nvml.Return) {
-						return 2, nvml.SUCCESS
-					},
-					DeviceGetHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
+			mockOpts: []testutil.NvmlMockOption{
+				testutil.WithDeviceCount(2),
+				testutil.WithCustomLibHook(func(lib *nvmlmock.Interface) {
+					lib.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
 						if index == 0 {
 							return testutil.GetDeviceMock(index), nvml.SUCCESS
 						}
 						return nil, nvml.ERROR_INVALID_ARGUMENT
-					},
-				}
-				fakeTagger := taggerfxmock.SetupFakeTagger(t)
+					}
+				}),
+			},
+			setupTagger: func(fakeTagger taggermock.Mock) {
 				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.GPUUUIDs[1]), "foo", []string{"gpu_vendor=nvidia", "gpu_arch=pascal", "gpu_uuid=" + testutil.GPUUUIDs[1]}, nil, nil, nil)
-				return nvmlMock, fakeTagger
 			},
 			expected: func(t *testing.T, tagsMapping map[string][]string) {
 				require.Len(t, tagsMapping, 1)
@@ -123,8 +106,13 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup
-			nvmlMock, fakeTagger := tc.mockSetup()
+			mockOpts := append(tc.mockOpts, testutil.WithMIGDisabled())
+			nvmlMock := testutil.GetBasicNvmlMockWithOptions(mockOpts...)
 			ddnvml.WithMockNVML(t, nvmlMock)
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			if tc.setupTagger != nil {
+				tc.setupTagger(fakeTagger)
+			}
 
 			// Execute
 			deviceCache := ddnvml.NewDeviceCache()
@@ -140,19 +128,15 @@ func TestAllCollectorsWork(t *testing.T) {
 	// This test doesn't validate the results of the collectors, it only checks that they work with
 	// the basic mock, and we don't have any panics or anything.
 
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+	devices := setupMockDevices(t,
 		testutil.WithMIGDisabled(),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithMockAllFunctions(),
 		testutil.WithArchitecture("blackwell")) // Ensure all functions are marked as supported
 
-	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache := ddnvml.NewDeviceCache()
 	eventsGatherer := NewDeviceEventsGatherer()
 	require.NoError(t, eventsGatherer.Start())
 	t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
-	devices, err := deviceCache.AllPhysicalDevices()
-	require.NoError(t, err)
 
 	deps := &CollectorDependencies{
 		DeviceEventsGatherer: eventsGatherer,
@@ -182,76 +166,84 @@ func TestAllCollectorsWork(t *testing.T) {
 	}
 }
 
+func removeFromList(list []string, items ...string) []string {
+	list = slices.Clone(list)
+	return slices.DeleteFunc(list, func(item string) bool {
+		return slices.Contains(items, item)
+	})
+}
+
 func TestDisabledCollectors(t *testing.T) {
+	numCollectors := NumCollectors()
+	allCollectorNames := make([]string, 0, numCollectors)
+	for name := range factory {
+		allCollectorNames = append(allCollectorNames, string(name))
+	}
+
 	tests := []struct {
 		name                   string
 		disabledCollectors     []string
 		expectedCollectorCount int
-		expectedCollectorNames []CollectorName
-		unexpectedNames        []CollectorName
+		expectedCollectorNames []string
+		unexpectedNames        []string
 	}{
 		{
 			name:                   "no collectors disabled",
 			disabledCollectors:     []string{},
-			expectedCollectorCount: 7, // stateless, sampling, fields, gpm, device_events, nvlink_plr, nvlink_fec
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkPLR, nvlinkFEC},
+			expectedCollectorCount: numCollectors,
+			expectedCollectorNames: allCollectorNames,
 		},
 		{
 			name:                   "disable gpm collector",
 			disabledCollectors:     []string{"gpm"},
-			expectedCollectorCount: 6,
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, deviceEvents, nvlinkPLR, nvlinkFEC},
-			unexpectedNames:        []CollectorName{gpm},
+			expectedCollectorCount: numCollectors - 1,
+			expectedCollectorNames: removeFromList(allCollectorNames, "gpm"),
 		},
 		{
 			name:                   "disable multiple collectors",
 			disabledCollectors:     []string{"gpm", "fields"},
-			expectedCollectorCount: 5,
-			expectedCollectorNames: []CollectorName{stateless, sampling, deviceEvents, nvlinkPLR, nvlinkFEC},
-			unexpectedNames:        []CollectorName{gpm, field},
+			expectedCollectorCount: numCollectors - 2,
+			expectedCollectorNames: removeFromList(allCollectorNames, "gpm", "fields"),
+			unexpectedNames:        []string{"gpm", "fields"},
 		},
 		{
 			name:                   "disable nvlink PLR collector",
 			disabledCollectors:     []string{"nvlink_plr"},
-			expectedCollectorCount: 6,
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkFEC},
-			unexpectedNames:        []CollectorName{nvlinkPLR},
+			expectedCollectorCount: numCollectors - 1,
+			expectedCollectorNames: removeFromList(allCollectorNames, "nvlink_plr"),
+			unexpectedNames:        []string{"nvlink_plr"},
 		},
 		{
 			name:                   "disable nvlink FEC collector",
 			disabledCollectors:     []string{"nvlink_fec"},
-			expectedCollectorCount: 6,
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkPLR},
-			unexpectedNames:        []CollectorName{nvlinkFEC},
+			expectedCollectorCount: numCollectors - 1,
+			expectedCollectorNames: removeFromList(allCollectorNames, "nvlink_fec"),
+			unexpectedNames:        []string{"nvlink_fec"},
 		},
 		{
 			name:                   "disable all collectors",
-			disabledCollectors:     []string{"stateless", "sampling", "fields", "gpm", "device_events", "nvlink_plr", "nvlink_fec"},
+			disabledCollectors:     allCollectorNames,
 			expectedCollectorCount: 0,
-			expectedCollectorNames: []CollectorName{},
+			expectedCollectorNames: []string{},
 		},
 		{
 			name:                   "disable non-existent collector",
 			disabledCollectors:     []string{"non_existent"},
-			expectedCollectorCount: 7,
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkPLR, nvlinkFEC},
+			expectedCollectorCount: numCollectors,
+			expectedCollectorNames: slices.Clone(allCollectorNames),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup NVML mock
-			nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+			devices := setupMockDevices(t,
 				testutil.WithDeviceCount(1),
 				testutil.WithMIGDisabled(),
 				testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 				testutil.WithMockAllFunctions(),
 				testutil.WithArchitecture("blackwell"),
 			)
-			ddnvml.WithMockNVML(t, nvmlMock)
-			deviceCache := ddnvml.NewDeviceCache()
-			devices, err := deviceCache.AllPhysicalDevices()
-			require.NoError(t, err)
 
 			// Setup dependencies
 			eventsGatherer := NewDeviceEventsGatherer()
@@ -280,13 +272,13 @@ func TestDisabledCollectors(t *testing.T) {
 			}
 
 			for _, expectedName := range tt.expectedCollectorNames {
-				require.True(t, collectorNames[expectedName],
+				require.True(t, collectorNames[CollectorName(expectedName)],
 					"expected collector %s to be created", expectedName)
 			}
 
 			// Verify disabled collectors were not created
 			for _, unexpectedName := range tt.unexpectedNames {
-				require.False(t, collectorNames[unexpectedName],
+				require.False(t, collectorNames[CollectorName(unexpectedName)],
 					"collector %s should not be created", unexpectedName)
 			}
 		})
@@ -295,11 +287,7 @@ func TestDisabledCollectors(t *testing.T) {
 
 func TestDisabledCollectorsWithSystemProbe(t *testing.T) {
 	// Setup NVML mock
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
-	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache := ddnvml.NewDeviceCache()
-	devices, err := deviceCache.AllPhysicalDevices()
-	require.NoError(t, err)
+	devices := setupMockDevices(t, testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
 
 	// Setup dependencies with system-probe cache
 	eventsGatherer := NewDeviceEventsGatherer()
@@ -519,26 +507,21 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 // TestConfiguredMetricPriority ensures that the priority is as defined for certain critical metrics
 func TestConfiguredMetricPriority(t *testing.T) {
 	const pid = 123
-	device := setupMockDeviceWithLibOpts(t, func(device *nvmlmock.Device) *nvmlmock.Device {
-		device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
-			return []nvml.ProcessUtilizationSample{
-				{
-					Pid:    pid,
-					SmUtil: 50,
-				},
-			}, nvml.SUCCESS
-		}
-		device.GetSamplesFunc = func(_ nvml.SamplingType, lastTimestamp uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
-			return nvml.VALUE_TYPE_UNSIGNED_INT, []nvml.Sample{
-				{TimeStamp: lastTimestamp + 100, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 1}},
-				{TimeStamp: lastTimestamp + 200, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 2}},
-			}, nvml.SUCCESS
-		}
-		device.GpmSampleGetFunc = func(_ nvml.GpmSample) nvml.Return {
-			return nvml.SUCCESS
-		}
-		return device
-	}, testutil.WithCapabilities(testutil.Capabilities{GPM: true}), testutil.WithMockAllFunctions())
+	device := setupMockDevice(t,
+		testutil.WithProcessData([]testutil.MockProcessData{{Pid: pid, SmUtil: 50}}, nvml.SUCCESS),
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
+		testutil.WithMockAllFunctions(),
+		testutil.WithCustomHook(func(device *nvmlmock.Device) {
+			device.GetSamplesFunc = func(_ nvml.SamplingType, lastTimestamp uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
+				return nvml.VALUE_TYPE_UNSIGNED_INT, []nvml.Sample{
+					{TimeStamp: lastTimestamp + 100, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 1}},
+					{TimeStamp: lastTimestamp + 200, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 2}},
+				}, nvml.SUCCESS
+			}
+			device.GpmSampleGetFunc = func(_ nvml.GpmSample) nvml.Return {
+				return nvml.SUCCESS
+			}
+		}))
 	deviceUUID := device.GetDeviceInfo().UUID
 
 	spCache := &SystemProbeCache{

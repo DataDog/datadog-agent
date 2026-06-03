@@ -594,6 +594,7 @@
 /pkg/procmgr/rust/src/transport/named_pipe.rs       @DataDog/agent-runtimes @DataDog/windows-products
 /pkg/privateactionrunner/               @DataDog/action-platform
 /pkg/privateactionrunner/bundles/remoteaction  @DataDog/action-platform @DataDog/dd-agent-mcp
+/pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement  @DataDog/action-platform @DataDog/ndm-integrations
 /pkg/privateactionrunner/bundles/remoteaction/networks  @DataDog/action-platform @Datadog/network-path
 /pkg/proto/                             @DataDog/agent-runtimes
 /pkg/proto/datadog/dogstatsdhttp        @DataDog/agent-metric-pipelines
@@ -651,6 +652,7 @@
 /pkg/util/crashreport/                  @DataDog/windows-products
 /pkg/util/pdhutil/                      @DataDog/windows-products
 /pkg/util/winutil/                      @DataDog/windows-products
+/pkg/util/winutil/iisconfig             @DataDog/windows-products @DataDog/universal-service-monitoring
 /pkg/util/testutil/flake                @DataDog/agent-devx
 /pkg/util/testutil/patternscanner.go    @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/testutil/docker               @DataDog/universal-service-monitoring @DataDog/ebpf-platform
@@ -755,6 +757,7 @@
 /tasks/msi.py                           @DataDog/windows-products
 /tasks/agent.py                         @DataDog/agent-runtimes
 /tasks/build_tags.py                    @DataDog/agent-devx @DataDog/agent-build
+/tasks/anomalydetection.py              @DataDog/q-branch
 /tasks/loader.py                        @DataDog/agent-runtimes
 /tasks/go_deps.py                       @DataDog/agent-runtimes
 /tasks/dogstatsd.py                     @DataDog/agent-metric-pipelines
@@ -786,6 +789,7 @@
 /tasks/secret_generic_connector.py      @DataDog/agent-configuration
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/sbomgen.py                       @DataDog/agent-security
+/tasks/libs/anomalydetection/           @DataDog/q-branch
 /tasks/libs/build/                      @DataDog/agent-build
 /tasks/libs/cws/                        @DataDog/agent-security
 /tasks/libs/gpu/                        @DataDog/ebpf-platform
@@ -942,10 +946,13 @@
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
 
 /q_branch/                               @DataDog/q-branch
+/internal/qbranch/                       @DataDog/q-branch
 /comp/anomalydetection/                  @DataDog/q-branch # Useful for AGENTS.md files etc. at the root of all AD components
 
 # AI-related files
+/.claude/rules/bazel.md               @DataDog/agent-build
 /.claude/skills/explain-lading-config @DataDog/single-machine-performance
+/.claude/skills/update-3rd-party-libs @DataDog/agent-build
 
 # Temporary during Bazel migration
 # This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden

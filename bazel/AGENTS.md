@@ -282,7 +282,7 @@ BUILD files are configuration, not code — prioritize readability over deduplic
 Starlark is Python-like but with deliberate restrictions for hermeticity and parallelism. Key divergences:
 
 - No recursion, no `while`, no `yield`, no `class`, no `import` (use `load`), no `try`/`except`/`finally`.
-- No float or set types. No generator expressions. No implicit string concatenation.
+- `set` and `float` types exist (Bazel 8+), but there is no set literal syntax — `{...}` is always a dict, so build sets with `set([...])`. No generator expressions. No implicit string concatenation.
 - `for` and `if` statements are not allowed at the **top level** of a file — only inside functions. In BUILD files list
   comprehensions are allowed at top level.
 - Global variables become **immutable** once the file finishes loading. Values loaded from another `.bzl` file are
@@ -950,6 +950,39 @@ Use `query` / `cquery` to investigate build size regressions before profiling ex
 - Many new packages loaded → dependency graph growth (check `deps()` for new transitive deps).
 - Many new targets configured → diamond dependencies or platform proliferation.
 - Many new actions created → check `aquery --output=summary`.
+
+## eBPF programs and code generation
+
+eBPF programs, runtime compilation bundles, and cgo godefs type definitions
+are built with Bazel. Two convenience targets in `pkg/ebpf/BUILD.bazel`
+cover the most common workflows:
+
+```bash
+# Build every eBPF .o program and runtime flattened .c file at once
+bazel build //pkg/ebpf:all_ebpf_programs
+
+# Verify all committed cgo godefs files are up to date.
+# Covers both Linux and Windows targets; incompatible tests are
+# skipped automatically via target_compatible_with.
+bazel test //pkg/ebpf:verify_generated_files
+```
+
+When a `verify_generated_files` test fails, run the corresponding
+`write_source_file` target to update the committed file:
+
+```bash
+# Update a single cgo godefs output
+bazel run //pkg/ebpf:types_godefs
+```
+
+Runtime compilation integrity hash files (`pkg/ebpf/bytecode/runtime/*.go`) are
+`.gitignored` and generated during the build by `bazel_build_ebpf()`.  To update
+one locally: `bazel run //pkg/ebpf/bytecode:<name>_verify`.
+
+Key Bazel macros:
+- `ebpf_prog` / `ebpf_program_suite` (`bazel/rules/ebpf/ebpf.bzl`) — compile `.c` → `.o`
+- `cgo_godefs` (`bazel/rules/ebpf/cgo_godefs.bzl`) — `go tool cgo -godefs` + `write_source_file` verification
+- `runtime_compilation_bundle` (`bazel/rules/ebpf/runtime_compilation.bzl`) — flatten headers + generate integrity hash `.go` file
 
 ## See also
 

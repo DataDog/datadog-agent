@@ -8,6 +8,7 @@
 package networkconfigmanagement
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -27,7 +28,6 @@ import (
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
@@ -54,14 +54,12 @@ func mockAgentHostname(t *testing.T, hostname string) {
 
 // MockRemoteClient is a "mocked" Client to help with testing
 type MockRemoteClient struct {
-	Session         *MockRemoteSession
+	Connection      *MockConnection
 	Profile         *profile.NCMProfile
-	Closed          bool
-	RunningConfig   string
-	StartupConfig   string
 	ConnectionError error
-	ConfigError     error
 }
+
+var _ ncmremote.Connector = (*MockRemoteClient)(nil)
 
 const (
 	runningOutput = `Building configuration...
@@ -76,78 +74,74 @@ ip address 192.168.1.1 255.255.255.0`
 func newMockRemoteClient() *MockRemoteClient {
 	// Set up mock remote client
 	mockClient := &MockRemoteClient{
-		Session: &MockRemoteSession{
-			OutputMap: map[string]string{
-				"show running-config": runningOutput,
-				"show startup-config": startupOutput,
-				"show version":        versionOutput,
+		Connection: &MockConnection{
+			OutputMap: map[string]result{
+				"show running-config": ok(runningOutput),
+				"show startup-config": ok(startupOutput),
+				"show version":        ok(versionOutput),
 			},
 		},
 	}
 	return mockClient
 }
 
-func (m *MockRemoteClient) Connect() error {
-	return m.ConnectionError
-}
-
-func (m *MockRemoteClient) NewSession() (ncmremote.Session, error) {
+func (m *MockRemoteClient) Connect() (ncmremote.Connection, error) {
 	if m.ConnectionError != nil {
 		return nil, m.ConnectionError
 	}
-	return m.Session, nil
+	return m.Connection, nil
 }
 
-func (m *MockRemoteClient) RetrieveRunningConfig() ([]byte, error) {
-	if m.ConfigError != nil {
-		return []byte{}, m.ConfigError
-	}
-	runningCommand, err := m.Profile.GetCommandValues(profile.Running)
-	if err != nil {
-		return []byte{}, err
-	}
-	output, err := m.Session.CombinedOutput(runningCommand[0])
-	return output, err
+type result struct {
+	response string
+	err      error
 }
 
-func (m *MockRemoteClient) RetrieveStartupConfig() ([]byte, error) {
-	if m.ConfigError != nil {
-		return []byte{}, m.ConfigError
-	}
-	runningCommand, err := m.Profile.GetCommandValues(profile.Startup)
-	if err != nil {
-		return []byte{}, err
-	}
-	output, err := m.Session.CombinedOutput(runningCommand[0])
-	return output, err
+func ok(msg string) result {
+	return result{response: msg}
 }
 
-func (m *MockRemoteClient) SetProfile(np *profile.NCMProfile) {
+func fail(err error) result {
+	return result{err: err}
+}
+
+// MockConnection simulates a Connection
+type MockConnection struct {
+	OutputMap map[string]result // cmd -> output
+	Closed    bool
+	Calls     []string
+	Profile   *profile.NCMProfile
+}
+
+func (m *MockConnection) execute(cmd *profile.Command) ([]byte, error) {
+	r := fail(errors.New("unsupported command"))
+	if cmd != nil {
+		var ok bool
+		r, ok = m.OutputMap[cmd.Command]
+		if !ok {
+			r = fail(fmt.Errorf("unknown command %q", cmd))
+		}
+	}
+	return []byte(r.response), r.err
+}
+
+func (m *MockConnection) RetrieveRunningConfig(_ context.Context) ([]byte, error) {
+	return m.execute(m.Profile.Commands.GetRunning)
+}
+
+func (m *MockConnection) RetrieveStartupConfig(_ context.Context) ([]byte, error) {
+	return m.execute(m.Profile.Commands.GetStartup)
+}
+
+func (m *MockConnection) PushConfig(_ context.Context, _ string) error {
+	return errors.New("not implemented")
+}
+
+func (m *MockConnection) SetProfile(np *profile.NCMProfile) {
 	m.Profile = np
 }
 
-func (m *MockRemoteClient) Close() error {
-	m.Closed = true
-	return nil
-}
-
-// MockRemoteSession simulates a Session
-type MockRemoteSession struct {
-	OutputMap map[string]string // cmd -> output
-	Closed    bool
-	Calls     []string
-}
-
-func (m *MockRemoteSession) CombinedOutput(cmd string) ([]byte, error) {
-	m.Calls = append(m.Calls, cmd)
-
-	if output, ok := m.OutputMap[cmd]; ok {
-		return []byte(output), nil
-	}
-	return []byte(""), fmt.Errorf("no such command: %s", cmd)
-}
-
-func (m *MockRemoteSession) Close() error {
+func (m *MockConnection) Close() error {
 	m.Closed = true
 	return nil
 }
@@ -208,8 +202,8 @@ ssh:
 func TestCheck_Configure_ValidConfig(t *testing.T) {
 	check := createTestCheck(t)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
+	profile.SetProfilesForTesting(t, profile.TestProfiles)
 
-	profile.SetConfdPathAndCleanProfiles()
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 
 	require.NoError(t, err)
@@ -271,7 +265,7 @@ func TestCheck_Run_Success(t *testing.T) {
 	mockSender.On("Commit").Return()
 
 	// Configure the check
-	profile.SetConfdPathAndCleanProfiles()
+	profile.SetProfilesForTesting(t, profile.TestProfiles)
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 	require.NoError(t, err)
 
@@ -300,7 +294,7 @@ func TestCheck_Run_Success(t *testing.T) {
 	err = check.Run()
 
 	assert.NoError(t, err)
-	assert.True(t, mockClient.Closed, "Remote client should be closed after run")
+	assert.True(t, mockClient.Connection.Closed, "Remote client should be closed after run")
 	expectedTags := []string{
 		"device_namespace:default",
 		"device_ip:10.0.0.1",
@@ -422,14 +416,13 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
 	// Configure the check
-	profile.SetConfdPathAndCleanProfiles()
+	profile.SetProfilesForTesting(t, profile.TestProfiles)
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 	require.NoError(t, err)
 
 	// Set up mock remote client factory that fails to connect
-	connectionError := errors.New("connection refused")
 	client := newMockRemoteClient()
-	client.ConnectionError = connectionError
+	client.ConnectionError = errors.New("connection refused")
 	check.remoteClient = client
 
 	// Run the check
@@ -444,8 +437,7 @@ func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
 	// Configure the check
-	profile.SetConfdPathAndCleanProfiles()
-	t.Cleanup(profile.ResetProfilesPath)
+	profile.SetProfilesForTesting(t, profile.TestProfiles)
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 	require.NoError(t, err)
 
@@ -454,9 +446,9 @@ func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	check.checkContext.ProfileCache.Profile = nil
 
 	// Set up a mock remote client that fails config retrieval
-	mockClient := &MockRemoteClient{
-		ConfigError: errors.New("command execution failed"),
-	}
+	mockClient := newMockRemoteClient()
+	mockClient.Connection.OutputMap["show running-config"] = fail(errors.New("command execution failed"))
+
 	check.remoteClient = mockClient
 
 	// Run the check
@@ -464,7 +456,7 @@ func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unable to find matching profile for device 10.0.0.1")
-	assert.True(t, mockClient.Closed, "Remote client should be closed even on failure")
+	assert.True(t, mockClient.Connection.Closed, "Remote client should be closed even on failure")
 }
 
 func TestCheck_FindMatchingProfile(t *testing.T) {
@@ -472,7 +464,7 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
 	// Configure the check
-	profile.SetConfdPathAndCleanProfiles()
+	profile.SetProfilesForTesting(t, profile.TestProfiles)
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 	require.NoError(t, err)
 
@@ -484,56 +476,15 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 	// Set up mock remote client
 	mockClient := newMockRemoteClient()
 	check.remoteClient = mockClient
+	conn, err := mockClient.Connect()
+	require.NoError(t, err)
 
 	// Run the profile matching function
 	// Expected that the `_base` profile will fail and still continue to the next one (p2)
-	actual, err := check.FindMatchingProfile()
+	actual, err := check.FindMatchingProfile(conn)
 	assert.NoError(t, err)
 
-	expected := &profile.NCMProfile{
-		BaseProfile: profile.BaseProfile{
-			Name: "p2",
-		},
-		Commands: map[profile.CommandType]*profile.Commands{
-			profile.Running: {
-				CommandType: profile.Running,
-				Values:      []string{"show running-config"},
-				ProcessingRules: profile.ProcessingRules{
-					MetadataRules: []profile.MetadataRule{
-						{
-							Type:   profile.Timestamp,
-							Regex:  regexp.MustCompile(`! Last configuration change at (.*)`),
-							Format: "15:04:05 MST Mon Jan 2 2006",
-						},
-						{
-							Type:  profile.ConfigSize,
-							Regex: regexp.MustCompile(`Current configuration : (?P<Size>\d+)`),
-						},
-					},
-					ValidationRules: []profile.ValidationRule{
-						{
-							Type:    "valid_output",
-							Pattern: regexp.MustCompile(`Building configuration...`),
-						},
-					},
-					RedactionRules: []profile.RedactionRule{
-						{
-							Regex:       regexp.MustCompile(`(username .+ (password|secret) \d) .+`),
-							Replacement: "$1 <redacted secret>"},
-					},
-				},
-				Scrubber: getRunningScrubber(),
-			},
-			profile.Startup: {
-				CommandType: profile.Startup,
-				Values:      []string{"show startup-config"},
-			},
-			profile.Version: {
-				CommandType: profile.Version,
-				Values:      []string{"show version"},
-			},
-		},
-	}
+	expected := profile.TestProfiles["p2"]
 	assert.Equal(t, expected, actual)
 }
 
@@ -542,7 +493,7 @@ func TestCheck_FindMatchingProfile_Error(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
 	// Configure the check
-	profile.SetConfdPathAndCleanProfiles()
+	profile.SetProfilesForTesting(t, profile.TestProfiles)
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 	require.NoError(t, err)
 
@@ -554,19 +505,12 @@ func TestCheck_FindMatchingProfile_Error(t *testing.T) {
 	// Set up mock remote client, remove the version command for the test to fail
 	mockClient := newMockRemoteClient()
 	check.remoteClient = mockClient
-	delete(mockClient.Session.OutputMap, "show running-config")
+	delete(mockClient.Connection.OutputMap, "show running-config")
+	conn, err := mockClient.Connect()
+	require.NoError(t, err)
 
 	// Run the profile matching function
-	_, err = check.FindMatchingProfile()
+	_, err = check.FindMatchingProfile(conn)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unable to find matching profile for device")
-}
-
-func getRunningScrubber() *scrubber.Scrubber {
-	sc := scrubber.New()
-	sc.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
-		Regex: regexp.MustCompile(`(username .+ (password|secret) \d) .+`),
-		Repl:  []byte("$1 " + "<redacted secret>"),
-	})
-	return sc
 }

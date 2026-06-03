@@ -12,7 +12,7 @@ go_library(
         "//comp/api/api/def",
         "//comp/api/api/utils/stream",
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/hostname/hostnameinterface/def",
         "//comp/def",
         "//comp/forwarder/eventplatform/def",
         "//comp/forwarder/eventplatformreceiver/def",
