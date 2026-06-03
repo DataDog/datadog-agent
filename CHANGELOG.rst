@@ -2,6 +2,71 @@
 Release Notes
 =============
 
+.. _Release Notes_7.79.2:
+
+7.79.2
+======
+
+.. _Release Notes_7.79.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-03
+
+- Please refer to the `7.79.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7792>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.79.2_Security Notes:
+
+Security Notes
+--------------
+
+- Bumped containerd dependencies to mitigate CVE-2026-46680:
+  ``github.com/containerd/containerd`` to v1.7.32 and pinned
+  ``github.com/containerd/containerd/v2`` to v2.0.9 (the EOL v2.1.x line
+  has no fix).
+
+
+.. _Release Notes_7.79.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Use the Docker daemon's ``/ping`` endpoint instead of ``/info`` to verify
+  connectivity during ``DockerUtil`` initialization. Some daemons emit
+  ``DefaultAddressPools[].Base`` values in ``/info`` that are not valid CIDRs,
+  which fail the strict ``netip.Prefix`` decoding introduced by the moby v29
+  client and previously caused ``DockerUtil`` to fail to initialize. This
+  cascaded into the Docker workloadmeta collector and the Docker core check
+  being unavailable, leading to missing container/image tags on metrics and
+  traces from Docker containers.
+
+- Fix the Agent's Docker integration against Docker daemons that return
+  malformed values in their ``/info`` response. The failure was visible in
+  Agent logs as::
+  
+      Docker init error: temporary failure in dockerutil, will retry later:
+      Error reading remote info: netip.ParsePrefix("invalid Prefix"): no '/'
+  
+  When triggered, it prevented the Docker integration from initializing,
+  which cascaded into:
+  
+  * missing container and image tags on metrics, traces and logs collected
+    from Docker containers,
+  * missing ``docker_version`` and ``docker_swarm`` entries in host
+    metadata,
+  * missing ``docker_swarm_node_role`` host tag on Docker Swarm nodes,
+  * in containerized deployments without an explicit ``DD_HOSTNAME``, the
+    Agent could refuse to start because the Docker hostname provider could
+    no longer determine a hostname.
+
+- Add the macOS hardened-runtime Location Services entitlement
+  (``com.apple.security.personal-information.location``) to signed
+  Agent binaries in order to trigger the system location permission
+  prompt properly.
+
+
 .. _Release Notes_7.79.1:
 
 7.79.1
