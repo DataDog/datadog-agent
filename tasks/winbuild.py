@@ -103,12 +103,14 @@ def _symbol_index_key(pdb_path):
     This is the same key debuggers derive from the binary's RSDS debug-directory
     record, so symsrv finds the PDB at `<pdb>\\<key>\\<pdb>`.
 
-    We compute the key ourselves instead of shelling out to symstore.exe:
-    symstore (and symchk) reject the mingw `ld --pdb` PDBs the Go toolchain
-    emits with "unsupported format. ErrorLevel is 11" -- dbghelp's index-
-    extraction path can't parse them, at any dbghelp version. cdb/WinDbg/xperf
-    read the very same PDBs fine, so the PDBs are usable; only symstore's
-    indexer is not.
+    We compute the key ourselves rather than shelling out to symstore.exe. This
+    was originally written because symstore failed to index the agent PDBs with
+    "unsupported format, ErrorLevel 11" -- but that turned out to be the
+    binutils/ld 2.43 `--pdb` bug (cdb and xperf can't read those PDBs either),
+    and ld >= 2.44 fixes all of them. We keep the in-house indexer anyway: it's
+    straightforward, it works, and it avoids having to discard the extra
+    index/transaction files (000Admin, etc.) symstore would create alongside the
+    store.
 
     Reads only the blocks it needs (superblock, stream directory, PDB Info
     stream) by seeking, never loading the whole file -- PDBs can be hundreds of
