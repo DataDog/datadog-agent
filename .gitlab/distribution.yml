@@ -9,7 +9,6 @@ stages:
   - deploy_secret_generic_connector_mutable_tags
   - deploy_dca
   - deploy_dca_mutable_tags
-  - public_images_legacy
   - trigger_release
 
 include:

@@ -177,7 +177,6 @@ stages:
   - scan
   - check_deploy
   - dev_container_deploy
-  - public_images_legacy
   - deploy_packages
   - choco_build
   - install_script_deploy
@@ -549,12 +548,6 @@ workflow:
 
 .manual:
   - !reference [.except_mergequeue]
-  - when: manual
-    allow_failure: true
-
-.public_images_legacy_e2e_manual:
-  - !reference [.except_mergequeue]
-  - !reference [.except_disable_e2e_tests]
   - when: manual
     allow_failure: true
 

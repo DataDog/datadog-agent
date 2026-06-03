@@ -8,21 +8,14 @@
   SRC_DDOT_EBPF: registry.ddbuild.io/ci/datadog-agent/ddot-ebpf
   SRC_SGC: registry.ddbuild.io/ci/datadog-agent/secret-generic-connector
 
-.legacy_public_images_publish:
-  stage: public_images_legacy
-  variables:
-    PUBLIC_IMAGES_USE_LEGACY_TRIGGER: "true"
-
 .docker_publish_job_definition:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
   variables:
     <<: *docker_variables
-    DD_PKG_ARCH: x86_64
     IMG_VARIABLES: ""
     IMG_SIGNING: "false"
     PUBLIC_IMAGES_PUBLISH_TIMEOUT: "1800"
-    PUBLIC_IMAGES_USE_LEGACY_TRIGGER: "false"
   script:
     - |
       export IMG_SIGNING=false
@@ -52,15 +45,8 @@
           --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS
       }
 
-      ensure_dd_pkg() {
-        if ! command -v dd-pkg >/dev/null 2>&1; then
-          curl --retry 5 -sSL "https://dd-package-tools.s3.amazonaws.com/dd-pkg/${DD_PKG_VERSION}/dd-pkg_Linux_${DD_PKG_ARCH}.tar.gz" | tar -xz -C /usr/local/bin dd-pkg
-        fi
-        dd-pkg version
-      }
-
       publish_with_dd_pkg() {
-        ensure_dd_pkg
+        dd-pkg version
 
         args=(publish-image --timeout "${PUBLIC_IMAGES_PUBLISH_TIMEOUT}" --poll-interval 30 --signing=false)
 
@@ -77,8 +63,31 @@
         dd-pkg "${args[@]}"
       }
 
-      if [[ "${PUBLIC_IMAGES_USE_LEGACY_TRIGGER:-}" == "true" ]]; then
-        publish_with_legacy_trigger
-      else
-        publish_with_dd_pkg
-      fi
+      feature_args=(self feature agent-ci-public-images-dd-pkg --default true)
+      add_feature_scope() {
+        if [[ -n "$2" ]]; then
+          feature_args+=(--scope "$1" "$2")
+        fi
+      }
+
+      add_feature_scope repo datadog-agent
+      add_feature_scope project_path "${CI_PROJECT_PATH:-}"
+      add_feature_scope job_name "${CI_JOB_NAME:-}"
+      add_feature_scope job_stage "${CI_JOB_STAGE:-}"
+      add_feature_scope ref "${CI_COMMIT_REF_NAME:-}"
+      add_feature_scope branch "${CI_COMMIT_BRANCH:-}"
+      add_feature_scope bucket_branch "${BUCKET_BRANCH:-}"
+      add_feature_scope pipeline_source "${CI_PIPELINE_SOURCE:-}"
+      add_feature_scope registries "${IMG_REGISTRIES:-}"
+
+      use_dd_pkg="$(dda "${feature_args[@]}")"
+      case "${use_dd_pkg}" in
+        true|True|TRUE)
+          echo "Publishing image with dd-pkg"
+          publish_with_dd_pkg
+          ;;
+        *)
+          echo "Publishing image with legacy public-images trigger"
+          publish_with_legacy_trigger
+          ;;
+      esac
