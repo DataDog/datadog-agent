@@ -184,7 +184,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 
 	var rcService *remoteconfig.CoreAgentService
 	if os.Getenv(mode.RemoteConfigPreviewEnvVar) == "true" {
-		rcService = setupRemoteConfig(hostname)
+		rcService = setupRemoteConfig(apiKey, hostname)
 	}
 
 	traceTags := serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags)
@@ -332,13 +332,13 @@ func (noopRcTelemetryReporter) SetConfigSubscriptionClientsTracked(int)    {}
 
 // setupRemoteConfig starts the embedded RC service that backs the trace agent's
 // /v0.7/config proxy. Returns nil if RC is disabled or setup fails.
-func setupRemoteConfig(hostname hostnameinterface.Component) *remoteconfig.CoreAgentService {
+func setupRemoteConfig(apiKey string, hostname hostnameinterface.Component) *remoteconfig.CoreAgentService {
 	cfg := pkgconfigsetup.Datadog()
 	if !configUtils.IsRemoteConfigEnabled(cfg) {
 		log.Debug("Remote Config is disabled, skipping RC service setup")
 		return nil
 	}
-	apiKey := configUtils.SanitizeAPIKey(cfg.GetString("api_key"))
+	// apiKey is the resolved DD_API_KEY from setup; RC additionally honors a dedicated override.
 	if cfg.IsSet("remote_configuration.api_key") {
 		apiKey = configUtils.SanitizeAPIKey(cfg.GetString("remote_configuration.api_key"))
 	}
