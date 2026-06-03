@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
@@ -21,6 +22,7 @@ func TestSetConfigProcessAgent(t *testing.T) {
 		processCollection   *bool
 		containerCollection *bool
 		processDiscovery    *bool
+		expectErr           bool
 	}{
 		{
 			name: "unset leaves all nil",
@@ -32,9 +34,24 @@ func TestSetConfigProcessAgent(t *testing.T) {
 			processCollection: config.BoolToPtr(true),
 		},
 		{
+			name:              "process collection enabled with 1",
+			env:               map[string]string{"DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED": "1"},
+			processCollection: config.BoolToPtr(true),
+		},
+		{
+			name:              "process collection disabled with 0",
+			env:               map[string]string{"DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED": "0"},
+			processCollection: config.BoolToPtr(false),
+		},
+		{
 			name:              "process collection explicitly disabled",
 			env:               map[string]string{"DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED": "false"},
 			processCollection: config.BoolToPtr(false),
+		},
+		{
+			name:      "invalid boolean value is rejected",
+			env:       map[string]string{"DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED": "yes"},
+			expectErr: true,
 		},
 		{
 			name:                "container collection via process_agent alias",
@@ -74,7 +91,12 @@ func TestSetConfigProcessAgent(t *testing.T) {
 			}
 
 			s := &common.Setup{}
-			setConfigProcessAgent(s)
+			err := setConfigProcessAgent(s)
+			if tc.expectErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
 
 			pc := s.Config.DatadogYAML.ProcessConfig
 			assert.Equal(t, tc.processCollection, pc.ProcessCollection.Enabled, "process_collection.enabled")

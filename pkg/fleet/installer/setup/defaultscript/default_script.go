@@ -11,6 +11,7 @@ import (
 	"os"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
@@ -98,7 +99,9 @@ func SetupDefaultScript(s *common.Setup) error {
 	// Config management
 	setConfigTags(s)
 	setConfigSecurityProducts(s)
-	setConfigProcessAgent(s)
+	if err := setConfigProcessAgent(s); err != nil {
+		return err
+	}
 
 	if url, ok := os.LookupEnv("DD_URL"); ok {
 		s.Config.DatadogYAML.DDURL = url
@@ -161,18 +164,36 @@ func setConfigSecurityProducts(s *common.Setup) {
 // setConfigProcessAgent sets the process_config collection toggles from environment variables.
 // Each toggle honors both the canonical DD_PROCESS_CONFIG_* name and the historical
 // DD_PROCESS_AGENT_* alias the agent itself accepts (see pkg/config/setup/process.go).
-// Values are parsed as explicit true/false (not presence-only) because container_collection
+// Values are parsed as explicit booleans (not presence-only) because container_collection
 // and process_discovery default to true at runtime, so a presence-only var could not disable them.
-func setConfigProcessAgent(s *common.Setup) {
-	if val, ok := lookupEnvAny("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "DD_PROCESS_AGENT_PROCESS_COLLECTION_ENABLED"); ok {
-		s.Config.DatadogYAML.ProcessConfig.ProcessCollection.Enabled = config.BoolToPtr(strings.ToLower(val) == "true")
+func setConfigProcessAgent(s *common.Setup) error {
+	var err error
+	if s.Config.DatadogYAML.ProcessConfig.ProcessCollection.Enabled, err = processToggle("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "DD_PROCESS_AGENT_PROCESS_COLLECTION_ENABLED"); err != nil {
+		return err
 	}
-	if val, ok := lookupEnvAny("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "DD_PROCESS_AGENT_CONTAINER_COLLECTION_ENABLED"); ok {
-		s.Config.DatadogYAML.ProcessConfig.ContainerCollection.Enabled = config.BoolToPtr(strings.ToLower(val) == "true")
+	if s.Config.DatadogYAML.ProcessConfig.ContainerCollection.Enabled, err = processToggle("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "DD_PROCESS_AGENT_CONTAINER_COLLECTION_ENABLED"); err != nil {
+		return err
 	}
-	if val, ok := lookupEnvAny("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED"); ok {
-		s.Config.DatadogYAML.ProcessConfig.ProcessDiscovery.Enabled = config.BoolToPtr(strings.ToLower(val) == "true")
+	if s.Config.DatadogYAML.ProcessConfig.ProcessDiscovery.Enabled, err = processToggle("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED"); err != nil {
+		return err
 	}
+	return nil
+}
+
+// processToggle reads the first set environment variable in names and coerces it to a
+// boolean using strconv.ParseBool, so the same truthy/falsy values the agent accepts
+// (e.g. "1"/"0", "true"/"false") are honored. It returns nil when none are set, and an
+// error when the value is not a valid boolean rather than silently treating it as false.
+func processToggle(names ...string) (*bool, error) {
+	val, ok := lookupEnvAny(names...)
+	if !ok {
+		return nil, nil
+	}
+	enabled, err := strconv.ParseBool(val)
+	if err != nil {
+		return nil, fmt.Errorf("invalid boolean value %q for %s: %w", val, names[0], err)
+	}
+	return config.BoolToPtr(enabled), nil
 }
 
 // lookupEnvAny returns the value of the first environment variable in names that is set.
