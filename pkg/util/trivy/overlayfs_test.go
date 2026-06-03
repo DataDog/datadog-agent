@@ -54,11 +54,11 @@ func TestFakeContainer(t *testing.T) {
 	// One empty-layer history marker exercises the filter.
 	imageMeta := &workloadmeta.ContainerImageMetadata{
 		Layers: []workloadmeta.ContainerImageLayer{
-			{Digest: ""},
+			{DiffID: ""},
 		},
 	}
 	for _, id := range layerIDs {
-		imageMeta.Layers = append(imageMeta.Layers, workloadmeta.ContainerImageLayer{Digest: id})
+		imageMeta.Layers = append(imageMeta.Layers, workloadmeta.ContainerImageLayer{DiffID: id})
 	}
 
 	c, err := newFakeContainer(layersPath, imageMeta, layerIDs)

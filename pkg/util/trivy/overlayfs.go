@@ -39,7 +39,7 @@ type fakeContainer struct {
 // to keep the i-th non-empty entry aligned with layerIDs[i].
 func newFakeContainer(layerPaths []string, imgMeta *workloadmeta.ContainerImageMetadata, layerIDs []string) (*fakeContainer, error) {
 	imageLayers := lo.Filter(imgMeta.Layers, func(layer workloadmeta.ContainerImageLayer, _ int) bool {
-		return layer.Digest != ""
+		return layer.DiffID != ""
 	})
 	// Path / DiffID alignment must be exact: these are what trivy looks up.
 	// imageLayers feeds the optional Digest annotation; tolerate the Docker
@@ -58,7 +58,7 @@ func newFakeContainer(layerPaths []string, imgMeta *workloadmeta.ContainerImageM
 		layers[i] = ftypes.LayerPath{
 			DiffID: diffID.String(),
 			Path:   layerPaths[i],
-			Digest: imageLayers[i].Digest,
+			Digest: imageLayers[i].DiffID,
 		}
 	}
 

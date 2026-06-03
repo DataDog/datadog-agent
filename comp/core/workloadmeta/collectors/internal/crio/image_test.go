@@ -157,7 +157,7 @@ func TestConvertImageToEvent(t *testing.T) {
 					Variant:      "v1",
 					Layers: []workloadmeta.ContainerImageLayer{
 						{
-							Digest: "sha256:layer1",
+							DiffID: "sha256:layer1",
 							History: &imgspecs.History{
 								Created:    parseTime("2023-01-01T00:00:00Z"),
 								CreatedBy:  "command1",
@@ -167,7 +167,7 @@ func TestConvertImageToEvent(t *testing.T) {
 							},
 						},
 						{
-							Digest: "sha256:layer2",
+							DiffID: "sha256:layer2",
 							History: &imgspecs.History{
 								Created:    parseTime("2023-01-02T00:00:00Z"),
 								CreatedBy:  "command2",
@@ -261,7 +261,7 @@ func TestConvertImageToEvent(t *testing.T) {
 			require.Equal(t, len(expectedImg.Layers), len(actualImg.Layers))
 			for i, expectedLayer := range expectedImg.Layers {
 				actualLayer := actualImg.Layers[i]
-				assert.Equal(t, expectedLayer.Digest, actualLayer.Digest)
+				assert.Equal(t, expectedLayer.DiffID, actualLayer.DiffID)
 				if expectedLayer.History != nil && actualLayer.History != nil {
 					assert.Equal(t, expectedLayer.History.CreatedBy, actualLayer.History.CreatedBy)
 					assert.Equal(t, expectedLayer.History.Author, actualLayer.History.Author)
@@ -605,7 +605,7 @@ func TestParseImageInfo(t *testing.T) {
 				},
 				layers: []workloadmeta.ContainerImageLayer{
 					{
-						Digest: "sha256:layer1",
+						DiffID: "sha256:layer1",
 						History: &imgspecs.History{
 							Created:    parseTime("2023-01-01T00:00:00Z"),
 							CreatedBy:  "command1",
@@ -615,7 +615,7 @@ func TestParseImageInfo(t *testing.T) {
 						},
 					},
 					{
-						Digest: "sha256:layer2",
+						DiffID: "sha256:layer2",
 						History: &imgspecs.History{
 							Created:    parseTime("2023-01-02T00:00:00Z"),
 							CreatedBy:  "command2",
@@ -657,7 +657,7 @@ func TestParseImageInfo(t *testing.T) {
 			require.Equal(t, len(tt.expected.layers), len(result.layers))
 			for i, expectedLayer := range tt.expected.layers {
 				actualLayer := result.layers[i]
-				assert.Equal(t, expectedLayer.Digest, actualLayer.Digest)
+				assert.Equal(t, expectedLayer.DiffID, actualLayer.DiffID)
 				if expectedLayer.History != nil && actualLayer.History != nil {
 					assert.Equal(t, expectedLayer.History.CreatedBy, actualLayer.History.CreatedBy)
 					assert.Equal(t, expectedLayer.History.Author, actualLayer.History.Author)
