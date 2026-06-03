@@ -652,6 +652,7 @@
 /pkg/util/crashreport/                  @DataDog/windows-products
 /pkg/util/pdhutil/                      @DataDog/windows-products
 /pkg/util/winutil/                      @DataDog/windows-products
+/pkg/util/winutil/iisconfig             @DataDog/windows-products @DataDog/universal-service-monitoring
 /pkg/util/testutil/flake                @DataDog/agent-devx
 /pkg/util/testutil/patternscanner.go    @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/testutil/docker               @DataDog/universal-service-monitoring @DataDog/ebpf-platform
