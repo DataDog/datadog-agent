@@ -471,7 +471,7 @@ func TestProcessSerializer_IsExecFields_Ancestors(t *testing.T) {
 		events.AnomalyDetectionRuleDesc,
 		&eval.Opts{},
 	)
-	pcs := NewProcessContextSerializer(event.ProcessContext, event, rule)
+	pcs := newProcessContextSerializer(event.ProcessContext, event, rule)
 	require.NotNil(t, pcs)
 
 	// Verify main process fields.
