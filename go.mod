@@ -1276,6 +1276,8 @@ replace github.com/open-policy-agent/opa => github.com/DataDog/opa v0.0.0-202511
 
 replace github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 v5.0.198
 
+replace go.opentelemetry.io/otel/sdk/metric v1.43.1-0.20260514180605-442cdbdd9466 => go.opentelemetry.io/otel/sdk/metric v1.44.0
+
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
@@ -1456,5 +1458,3 @@ replace (
 	github.com/DataDog/datadog-agent/test/new-e2e => ./test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ./test/otel
 )
-
-replace go.opentelemetry.io/otel/sdk/metric v1.43.1-0.20260514180605-442cdbdd9466 => go.opentelemetry.io/otel/sdk/metric v1.44.0
