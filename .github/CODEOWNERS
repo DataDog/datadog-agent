@@ -210,6 +210,7 @@
 /.gitlab/test/e2e/e2e_gpu.yml                             @DataDog/ebpf-platform @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_autoscaling.yml                     @DataDog/container-autoscaling @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_anomalydetection.yml                @DataDog/q-branch @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_usm.yml                             @DataDog/universal-service-monitoring @DataDog/agent-devx
 /.gitlab/deploy/container_build/fakeintake.yml               @DataDog/agent-devx
 /.gitlab/build/binary_build/fakeintake.yml                  @DataDog/agent-devx
 
