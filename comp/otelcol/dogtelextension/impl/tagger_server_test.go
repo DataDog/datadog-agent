@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	configmock "github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"

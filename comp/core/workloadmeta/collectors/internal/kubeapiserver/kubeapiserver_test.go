@@ -23,7 +23,8 @@ import (
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -64,8 +65,11 @@ func TestShouldHaveDeploymentStore(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := config.NewMockWithOverrides(t, tt.cfg)
-			assert.Equal(t, tt.expected, shouldHaveDeploymentStore(cfg))
+			cfg := configmock.NewWithOverrides(t, tt.cfg)
+			expectedStores := collectResultStoreGenerator(tt.expectedStoresGenerator, cfg)
+			stores := collectResultStoreGenerator(storeGenerators(cfg), cfg)
+
+			assert.Equal(t, expectedStores, stores)
 		})
 	}
 }
@@ -494,7 +498,7 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			cfg := config.NewMockWithOverrides(t, test.cfg)
+			cfg := configmock.NewWithOverrides(t, test.cfg)
 
 			client := fakeclientset.NewSimpleClientset()
 			fakeDiscoveryClient, ok := client.Discovery().(*fakediscovery.FakeDiscovery)
@@ -639,7 +643,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cfg := config.NewMockWithOverrides(t, test.cfg)
+			cfg := configmock.NewWithOverrides(t, test.cfg)
 			assert.ElementsMatch(t, test.expectedResources, resourcesWithMetadataCollectionEnabled(cfg))
 		})
 	}

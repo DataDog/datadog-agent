@@ -19,7 +19,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -47,8 +48,8 @@ func TestSend(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cfg := config.NewMock(t)
-	cfg.SetInTest("api_key", "test-api-key")
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("api_key", "test-api-key")
 
 	fwd := newTestForwarder(t, cfg)
 	fwd.intakeURL = server.URL
@@ -80,8 +81,8 @@ func TestSendHTTPError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cfg := config.NewMock(t)
-	cfg.SetInTest("api_key", "test-api-key")
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("api_key", "test-api-key")
 
 	fwd := newTestForwarder(t, cfg)
 	fwd.intakeURL = server.URL
@@ -92,7 +93,7 @@ func TestSendHTTPError(t *testing.T) {
 }
 
 func TestSendNoAPIKey(t *testing.T) {
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	fwd := newTestForwarder(t, cfg)
 
 	err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
@@ -126,7 +127,7 @@ func TestBuildIntakeURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := config.NewMock(t)
+			cfg := configmock.New(t)
 			if tt.site != "" {
 				cfg.SetInTest("site", tt.site)
 			}

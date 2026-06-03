@@ -26,7 +26,7 @@ import (
 	reportertestbenchfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx-testbench"
 	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"

@@ -5,7 +5,7 @@
 
 package logssourceimpl
 
-import config "github.com/DataDog/datadog-agent/comp/core/config"
+import config "github.com/DataDog/datadog-agent/comp/core/config/def"
 
 const (
 	anomalyDetectionLogsEnabledKey           = "anomaly_detection.logs.enabled"

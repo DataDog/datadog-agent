@@ -22,7 +22,8 @@ import (
 	"go.uber.org/fx/fxtest"
 
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -69,7 +70,7 @@ func newTestNpCollector(t testing.TB, agentConfigs map[string]any, statsdClient 
 	app := fxtest.New(t, fx.Options(
 		testOptions,
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
-		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, agentConfigs) }),
+		fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, agentConfigs) }),
 		fx.Populate(&component),
 		fx.Provide(func() statsd.ClientInterface {
 			return statsdClient

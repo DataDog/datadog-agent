@@ -23,7 +23,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -255,7 +256,7 @@ func TestCollection(t *testing.T) {
 			mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) config.Component {
-					return config.NewMockWithOverrides(t, map[string]interface{}{
+					return configmock.NewWithOverrides(t, map[string]interface{}{
 						"language_detection.enabled": true,
 					})
 				}),

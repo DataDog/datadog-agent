@@ -15,7 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
@@ -36,7 +37,7 @@ func TestExpvarServer(t *testing.T) {
 	_ = fxutil.Test[expvars.Component](t, fx.Options(
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component {
-			return config.NewMockWithOverrides(t, map[string]interface{}{
+			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"process_config.expvar_port": 43423,
 			})
 		}),
@@ -65,7 +66,7 @@ func TestTelemetry(t *testing.T) {
 	_ = fxutil.Test[expvars.Component](t, fx.Options(
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component {
-			return config.NewMockWithOverrides(t, map[string]interface{}{
+			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"telemetry.enabled":          true,
 				"process_config.expvar_port": 43423,
 			})

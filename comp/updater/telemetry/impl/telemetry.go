@@ -10,7 +10,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/updater/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"

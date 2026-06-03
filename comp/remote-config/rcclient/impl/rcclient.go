@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"

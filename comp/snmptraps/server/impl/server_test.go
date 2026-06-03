@@ -16,7 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
 	server "github.com/DataDog/datadog-agent/comp/snmptraps/server/def"
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
@@ -37,7 +38,7 @@ func TestServer(t *testing.T) {
 	srv := fxutil.Test[server.Component](t,
 		senderhelper.Opts,
 		fx.Provide(func(t testing.TB) config.Component {
-			return config.NewMockWithOverrides(t, map[string]interface{}{
+			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"confd_path":                                   confdPath,
 				"network_devices.snmp_traps.enabled":           true,
 				"network_devices.snmp_traps.port":              port,
@@ -60,7 +61,7 @@ func TestNonBlockingFailure(t *testing.T) {
 	srv := fxutil.Test[server.Component](t,
 		senderhelper.Opts,
 		fx.Provide(func(t testing.TB) config.Component {
-			return config.NewMockWithOverrides(t, map[string]interface{}{
+			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"confd_path":                                   confdPath,
 				"network_devices.snmp_traps.enabled":           true,
 				"network_devices.snmp_traps.port":              port,
@@ -79,7 +80,7 @@ func TestDisabled(t *testing.T) {
 	srv := fxutil.Test[server.Component](t,
 		senderhelper.Opts,
 		fx.Provide(func(t testing.TB) config.Component {
-			return config.NewMockWithOverrides(t, map[string]interface{}{
+			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"network_devices.snmp_traps.enabled": false,
 			})
 		}),

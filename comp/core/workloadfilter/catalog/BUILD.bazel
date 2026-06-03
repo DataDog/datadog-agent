@@ -18,7 +18,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/def",
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadfilter/impl/parse",

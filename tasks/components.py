@@ -86,7 +86,7 @@ def has_type_component(content) -> bool:
 # The migration of these components is in progresss.
 # Please do not add a new component to this list.
 components_to_migrate = [
-    "comp/core/config/component.go",
+    "comp/aggregator/demultiplexer/component.go",
     "comp/core/flare/component.go",
     "comp/forwarder/defaultforwarder/component.go",
 ]
@@ -98,9 +98,25 @@ components_classic_style = [
     'comp/api/api/apiimpl',
     'comp/api/api/def',
     "comp/checks/winregistry/impl",
+    'comp/collector/collector/collectorimpl',
+    'comp/core/autodiscovery/autodiscoveryimpl',
+    'comp/core/configsync/configsyncimpl',
     'comp/core/hostname/hostnameimpl',
     'comp/core/status/statusimpl',
     'comp/etw/impl',
+    'comp/forwarder/eventplatform/eventplatformimpl',
+    'comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl',
+    'comp/forwarder/orchestrator/orchestratorimpl',
+    'comp/logs/adscheduler/adschedulerimpl',
+    'comp/logs/agent/agentimpl',
+    'comp/metadata/host/hostimpl',
+    'comp/metadata/inventorychecks/inventorychecksimpl',
+    'comp/metadata/inventoryhost/inventoryhostimpl',
+    'comp/metadata/packagesigning/packagesigningimpl',
+    'comp/metadata/resources/resourcesimpl',
+    'comp/metadata/runner/runnerimpl',
+    'comp/ndmtmp/forwarder/forwarderimpl',
+    'comp/networkpath/npcollector/npcollectorimpl',
     'comp/otelcol/logsagentpipeline/logsagentpipelineimpl',
 ]
 
@@ -119,8 +135,6 @@ ignore_fx_import = [
     "comp/forwarder/eventplatform",
     "comp/collector/collector",
     "comp/forwarder/eventplatformreceiver",
-    "comp/forwarder/orchestrator",
-    "comp/logs/agent",
     "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/rdnsquerier",
@@ -133,8 +147,6 @@ ignore_provide_component_constructor_missing = [
     "comp/forwarder/eventplatform",
     "comp/collector/collector",
     "comp/forwarder/eventplatformreceiver",
-    "comp/forwarder/orchestrator",
-    "comp/logs/agent",
     "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/trace/agent",
@@ -259,7 +271,7 @@ def locate_implementation_folders(comp):
             continue
 
         if to_posix_path(entry) in components_missing_implementation_folder:
-            continue
+            return 'skip'
 
         if comp.version == 2:
             # Check for component implementation using the new-style folder structure: comp/<component>/impl[-suffix]

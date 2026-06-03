@@ -16,7 +16,8 @@ import (
 	"go.uber.org/fx"
 
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -26,7 +27,7 @@ func TestStatusProvider(t *testing.T) {
 	dc := fxutil.Test[datadogclient.Component](t,
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {
-			return config.NewMockWithOverrides(t, map[string]interface{}{
+			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"api_key":                           "apikey123",
 				"app_key":                           "appkey456",
 				"external_metrics_provider.enabled": true,

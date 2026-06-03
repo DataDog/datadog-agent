@@ -18,7 +18,8 @@ import (
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
+	coreconfigfx "github.com/DataDog/datadog-agent/comp/core/config/fx"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
@@ -87,7 +88,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		secretsfx.Module(),
 		delegatedauthfx.Module(),
 		telemetryfx.Module(),
-		coreconfig.Module(),
+		coreconfigfx.Module(),
 		fx.Provide(func() log.Params {
 			return log.ForDaemon("TRACE", "apm_config.log_file", traceconfigimpl.DefaultLogFilePath)
 		}),

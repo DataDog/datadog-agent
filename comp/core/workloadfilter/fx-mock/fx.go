@@ -13,7 +13,8 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
@@ -34,7 +35,7 @@ func MockModule() fxutil.Module {
 // SetupMockFilter calls fxutil.Test to create a mock filter for testing
 func SetupMockFilter(t testing.TB) workloadfiltermock.Mock {
 	return fxutil.Test[workloadfiltermock.Mock](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() config.Component { return configmock.New(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		noopTelemetry.Module(),
 		MockModule(),

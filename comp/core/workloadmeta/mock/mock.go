@@ -7,7 +7,7 @@
 package mock
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 

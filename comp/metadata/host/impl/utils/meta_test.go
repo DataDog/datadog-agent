@@ -11,14 +11,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 func TestGetMeta(t *testing.T) {
 	ctx := context.Background()
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 
 	meta := getMeta(ctx, cfg, hostnameimpl.NewHostnameService())
 	assert.NotEmpty(t, meta.SocketHostname)
@@ -28,7 +29,7 @@ func TestGetMeta(t *testing.T) {
 
 func TestGetMetaFromCache(t *testing.T) {
 	ctx := context.Background()
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 
 	cache.Cache.Set(metaCacheKey, &Meta{
 		SocketHostname: "socket_test",

@@ -10,7 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/privateactionrunner/status/statusimpl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/status",
         "//comp/privateactionrunner/def",
         "//pkg/privateactionrunner/adapters/config",
@@ -26,7 +26,8 @@ go_test(
     embed = [":statusimpl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
+        "//comp/core/config/mock",
         "//pkg/util/flavor",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

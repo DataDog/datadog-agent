@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"

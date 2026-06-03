@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 )
 
 // ApplicationMonitoringConfig fetches the `application_monitoring.yaml` configurations from the disk.

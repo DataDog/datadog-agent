@@ -12,7 +12,7 @@ import (
 
 	"go.yaml.in/yaml/v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 

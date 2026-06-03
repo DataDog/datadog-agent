@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/configstream/server",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/configstream/def",
         "//comp/core/remoteagentregistry/def",
         "//pkg/proto/pbgo/core",

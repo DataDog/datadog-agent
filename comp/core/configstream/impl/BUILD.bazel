@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/configstream/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/configstream/def",
         "//comp/core/log/def",
         "//comp/core/telemetry/def",
@@ -24,7 +24,7 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/telemetry/impl/noops",

@@ -14,7 +14,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
@@ -126,7 +127,7 @@ func loadConfig(t *testing.T, path string) config.Component {
 	t.Helper()
 	// Use NewMockFromYAMLFile which properly handles nested config structures
 	// instead of NewMockWithOverrides which doesn't support nested maps
-	return config.NewMockFromYAMLFile(t, path)
+	return configmock.NewFromYAMLFile(t, path)
 }
 
 func TestProvider(t *testing.T) {
@@ -331,7 +332,7 @@ func TestProviderMultipleEndpoints(t *testing.T) {
 }
 
 func TestProviderMethods(t *testing.T) {
-	provider := newProvider(config.NewMock(t), testCollectorParams{})(confmap.ProviderSettings{})
+	provider := newProvider(configmock.New(t), testCollectorParams{})(confmap.ProviderSettings{})
 
 	require.Equal(t, "dd", provider.Scheme())
 

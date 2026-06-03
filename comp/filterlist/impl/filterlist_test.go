@@ -8,7 +8,8 @@ package filterlistimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
@@ -24,7 +25,7 @@ func TestHistogramMetricNamesFilter(t *testing.T) {
 	cfg["histogram_percentiles"] = []string{"0.73", "0.22"}
 
 	logComponent := logmock.New(t)
-	configComponent := config.NewMockWithOverrides(t, cfg)
+	configComponent := configmock.NewWithOverrides(t, cfg)
 	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
 	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
 

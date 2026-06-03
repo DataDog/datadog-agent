@@ -10,7 +10,7 @@ package configimpl
 import (
 	"errors"
 
-	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )

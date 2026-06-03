@@ -15,7 +15,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 )
 
 var defaultDDRegistries = map[string]struct{}{
@@ -39,8 +40,8 @@ func TestNewConfig(t *testing.T) {
 		{
 			name: "default_config",
 			configFactory: func(t *testing.T) config.Component {
-				mockConfig := config.NewMock(t)
-				mockConfig.SetInTest("site", "datadoghq.com")
+				mockConfig := configmock.New(t)
+				mockConfig.SetWithoutSource("site", "datadoghq.com")
 				return mockConfig
 			},
 			expectedState: Config{
@@ -54,9 +55,9 @@ func TestNewConfig(t *testing.T) {
 		{
 			name: "custom_dd_registries",
 			configFactory: func(t *testing.T) config.Component {
-				mockConfig := config.NewMock(t)
-				mockConfig.SetInTest("site", "datadoghq.com")
-				mockConfig.SetInTest("admission_controller.auto_instrumentation.default_dd_registries", []string{"helloworld.io/datadog"})
+				mockConfig := configmock.New(t)
+				mockConfig.SetWithoutSource("site", "datadoghq.com")
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.default_dd_registries", []string{"helloworld.io/datadog"})
 				return mockConfig
 			},
 			expectedState: Config{
@@ -70,8 +71,8 @@ func TestNewConfig(t *testing.T) {
 		{
 			name: "configured_site",
 			configFactory: func(t *testing.T) config.Component {
-				mockConfig := config.NewMock(t)
-				mockConfig.SetInTest("site", "datad0g.com")
+				mockConfig := configmock.New(t)
+				mockConfig.SetWithoutSource("site", "datad0g.com")
 				return mockConfig
 			},
 			expectedState: Config{
@@ -85,9 +86,9 @@ func TestNewConfig(t *testing.T) {
 		{
 			name: "bucket_id_based_on_api_key",
 			configFactory: func(t *testing.T) config.Component {
-				mockConfig := config.NewMock(t)
-				mockConfig.SetInTest("site", "datadoghq.com")
-				mockConfig.SetInTest("api_key", "1234567890abcdef")
+				mockConfig := configmock.New(t)
+				mockConfig.SetWithoutSource("site", "datadoghq.com")
+				mockConfig.SetWithoutSource("api_key", "1234567890abcdef")
 				return mockConfig
 			},
 			expectedState: Config{
@@ -101,10 +102,10 @@ func TestNewConfig(t *testing.T) {
 		{
 			name: "gradual_rollout_disabled",
 			configFactory: func(t *testing.T) config.Component {
-				mockConfig := config.NewMock(t)
-				mockConfig.SetInTest("site", "datadoghq.com")
-				mockConfig.SetInTest("api_key", "1234567890abcdef")
-				mockConfig.SetInTest("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
+				mockConfig := configmock.New(t)
+				mockConfig.SetWithoutSource("site", "datadoghq.com")
+				mockConfig.SetWithoutSource("api_key", "1234567890abcdef")
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
 				return mockConfig
 			},
 			expectedState: Config{
@@ -118,10 +119,10 @@ func TestNewConfig(t *testing.T) {
 		{
 			name: "gradual_rollout_cache_ttl_hours_configured",
 			configFactory: func(t *testing.T) config.Component {
-				mockConfig := config.NewMock(t)
-				mockConfig.SetInTest("site", "datadoghq.com")
-				mockConfig.SetInTest("api_key", "1234567890abcdef")
-				mockConfig.SetInTest("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl", "2h")
+				mockConfig := configmock.New(t)
+				mockConfig.SetWithoutSource("site", "datadoghq.com")
+				mockConfig.SetWithoutSource("api_key", "1234567890abcdef")
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl", "2h")
 				return mockConfig
 			},
 			expectedState: Config{

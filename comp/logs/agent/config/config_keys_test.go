@@ -10,13 +10,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func getLogsConfigKeys(t *testing.T) (config.Component, *LogsConfigKeys) {
-	mockConfig := config.NewMockWithOverrides(t, map[string]any{"api_key": "1234"})
+	mockConfig := configmock.NewWithOverrides(t, map[string]any{"api_key": "1234"})
 	return mockConfig, defaultLogsConfigKeys(mockConfig)
 }
 

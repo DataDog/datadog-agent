@@ -12,7 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/ipc/def",
         "//comp/core/ipc/httphelpers",
         "//comp/core/log/def",

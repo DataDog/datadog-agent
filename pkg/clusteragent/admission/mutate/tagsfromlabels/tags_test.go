@@ -14,7 +14,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 )
 
@@ -159,7 +160,7 @@ func Test_injectTags(t *testing.T) {
 			},
 		},
 	}
-	datadogConfig := config.NewMock(t)
+	datadogConfig := configmock.New(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			filter, err := NewFilter(datadogConfig)

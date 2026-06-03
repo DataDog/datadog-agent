@@ -16,7 +16,8 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,7 +29,7 @@ type ConfigTestSuite struct {
 }
 
 func (suite *ConfigTestSuite) SetupTest() {
-	suite.config = config.NewMock(suite.T())
+	suite.config = configmock.New(suite.T())
 }
 
 func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
@@ -1441,10 +1442,10 @@ func TestShouldUseTCP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := config.NewMock(t)
-			cfg.SetInTest("api_key", "test-key")
-			cfg.SetInTest("logs_config.force_use_tcp", tt.forceTCP)
-			cfg.SetInTest("logs_config.socks5_proxy_address", tt.socks5Proxy)
+			cfg := configmock.New(t)
+			cfg.SetWithoutSource("api_key", "test-key")
+			cfg.SetWithoutSource("logs_config.force_use_tcp", tt.forceTCP)
+			cfg.SetWithoutSource("logs_config.socks5_proxy_address", tt.socks5Proxy)
 
 			if tt.additionalEndpoints {
 				cfg.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{{"host": "additional-host.com", "port": 10516, "api_key": "additional-key"}})

@@ -18,7 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -74,7 +75,7 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, confOverrides) }),
+			fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, confOverrides) }),
 			fx.Provide(func() sysprobeconfig.Component { return sysprobeConf }),
 			fxutil.ProvideOptional[sysprobeconfig.Component](),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
@@ -575,7 +576,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			fx.Provide(func() config.Component { return configmock.New(t) }),
 			sysprobeconfig.NoneModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),

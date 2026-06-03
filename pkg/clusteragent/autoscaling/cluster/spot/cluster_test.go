@@ -32,7 +32,8 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
+	coreconfigmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -86,7 +87,7 @@ func newFakeCluster(t *testing.T) *fakeCluster {
 	ctx := t.Context()
 	wlm := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
+		fx.Provide(func() coreconfig.Component { return coreconfigmock.New(t) }),
 		fx.Supply(ctx),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))

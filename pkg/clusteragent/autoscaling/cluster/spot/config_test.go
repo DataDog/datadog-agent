@@ -13,13 +13,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
+	coreconfigmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	spot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 )
 
 func TestReadConfig(t *testing.T) {
 	t.Run("valid values returned as-is", func(t *testing.T) {
-		cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		cfg := coreconfigmock.NewWithOverrides(t, map[string]interface{}{
 			"autoscaling.cluster.spot.defaults.percentage":             60,
 			"autoscaling.cluster.spot.defaults.min_on_demand_replicas": 3,
 			"autoscaling.cluster.spot.schedule_timeout":                "30s",
@@ -35,7 +36,7 @@ func TestReadConfig(t *testing.T) {
 	})
 
 	t.Run("percentage out of range falls back to default", func(t *testing.T) {
-		cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		cfg := coreconfigmock.NewWithOverrides(t, map[string]interface{}{
 			"autoscaling.cluster.spot.defaults.percentage":             101,
 			"autoscaling.cluster.spot.defaults.min_on_demand_replicas": 1,
 			"autoscaling.cluster.spot.schedule_timeout":                "30s",
@@ -46,7 +47,7 @@ func TestReadConfig(t *testing.T) {
 	})
 
 	t.Run("negative min_on_demand_replicas falls back to default", func(t *testing.T) {
-		cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		cfg := coreconfigmock.NewWithOverrides(t, map[string]interface{}{
 			"autoscaling.cluster.spot.defaults.percentage":             50,
 			"autoscaling.cluster.spot.defaults.min_on_demand_replicas": -1,
 			"autoscaling.cluster.spot.schedule_timeout":                "30s",
@@ -57,7 +58,7 @@ func TestReadConfig(t *testing.T) {
 	})
 
 	t.Run("zero durations fall back to defaults", func(t *testing.T) {
-		cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		cfg := coreconfigmock.NewWithOverrides(t, map[string]interface{}{
 			"autoscaling.cluster.spot.defaults.percentage":             50,
 			"autoscaling.cluster.spot.defaults.min_on_demand_replicas": 1,
 			"autoscaling.cluster.spot.schedule_timeout":                "0s",

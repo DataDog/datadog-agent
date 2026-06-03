@@ -10,7 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
         "//pkg/config/schema",
@@ -28,7 +28,8 @@ go_test(
     embed = [":invalidconfig"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
+        "//comp/core/config/mock",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

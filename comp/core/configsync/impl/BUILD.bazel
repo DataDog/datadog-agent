@@ -10,7 +10,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/configsync/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
+        "//comp/core/config/mock",
         "//comp/core/configsync/def",
         "//comp/core/ipc/def",
         "//comp/core/ipc/httphelpers",
@@ -37,7 +38,8 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
+        "//comp/core/config/mock",
         "//comp/core/configsync/def",
         "//comp/core/ipc/mock",
         "//comp/core/log/mock",

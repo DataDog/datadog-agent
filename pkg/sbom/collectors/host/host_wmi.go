@@ -13,7 +13,7 @@ import (
 	"encoding/hex"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 

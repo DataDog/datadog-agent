@@ -14,7 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -213,7 +214,7 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 				"ha_agent.enabled": true,
 				"config_id":        testConfigID,
 			}
-			agentConfigComponent := config.NewMockWithOverrides(t, agentConfigs)
+			agentConfigComponent := configmock.NewWithOverrides(t, agentConfigs)
 
 			h := newHaAgentImpl(logmock.New(t), hostnameimpl.NewHostnameService(), newHaAgentConfigs(agentConfigComponent))
 

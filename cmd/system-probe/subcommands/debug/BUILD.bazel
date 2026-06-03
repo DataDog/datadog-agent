@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//cmd/system-probe/command",
         "//comp/core",
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/def",
         "//comp/core/sysprobeconfig/def",
         "//comp/core/sysprobeconfig/impl",

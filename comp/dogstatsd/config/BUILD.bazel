@@ -5,7 +5,7 @@ go_library(
     srcs = ["config.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/config",
     visibility = ["//visibility:public"],
-    deps = ["//comp/core/config"],
+    deps = ["//comp/core/config/def"],
 )
 
 go_test(

@@ -16,7 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -29,7 +30,7 @@ import (
 
 func TestProcessEvents(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() config.Component { return configmock.New(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -457,7 +458,7 @@ func TestGenerateConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Provide(func() config.Component {
-					return config.NewMockWithOverrides(t, map[string]interface{}{
+					return configmock.NewWithOverrides(t, map[string]interface{}{
 						"logs_config.container_collect_all": tt.containerCollectAll,
 					})
 				}),

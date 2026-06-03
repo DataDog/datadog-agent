@@ -6,8 +6,12 @@
 package config
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
+
+// Reader is a subset of Config that only allows reading of configuration.
+type Reader = pkgconfigmodel.Reader //nolint:revive
 
 // Params defines the parameters for the config component.
 type Params struct {
@@ -28,7 +32,7 @@ type Params struct {
 	// "datadog".
 	configName string
 
-	// securityAgentConfigFilePaths are the paths at which to look for security-aegnt
+	// securityAgentConfigFilePaths are the paths at which to look for security-agent
 	// configuration, usually given by the --cfgpath command-line flag.
 	securityAgentConfigFilePaths []string
 
@@ -65,7 +69,7 @@ func NewParams(defaultConfPath string, options ...func(*Params)) Params {
 func NewAgentParams(confFilePath string, options ...func(*Params)) Params {
 	params := NewParams(DefaultConfPath, options...)
 	params.ConfFilePath = confFilePath
-	setup.InitConfigObjects(params.ConfFilePath, params.defaultConfPath)
+	pkgconfigsetup.InitConfigObjects(params.ConfFilePath, params.defaultConfPath)
 	return params
 }
 
@@ -125,7 +129,7 @@ func WithConfFilePath(confFilePath string) func(*Params) {
 	}
 }
 
-// WithExtraConfFiles returns an option which sets ConfFilePath
+// WithExtraConfFiles returns an option which sets ExtraConfFilePath
 func WithExtraConfFiles(extraConfFilePath []string) func(*Params) {
 	return func(b *Params) {
 		b.ExtraConfFilePath = extraConfFilePath
@@ -139,10 +143,45 @@ func WithFleetPoliciesDirPath(fleetPoliciesDirPath string) func(*Params) {
 	}
 }
 
-// WithCLIOverride registers a list of settings overrides from the CLI for the configuration. The map associate settings
+// WithCLIOverride registers a list of settings overrides from the CLI for the configuration. The map associates settings
 // name like "logs_config.enabled" to its value.
 func WithCLIOverride(setting string, value interface{}) func(*Params) {
 	return func(b *Params) {
 		b.cliOverride[setting] = value
 	}
+}
+
+// GetInstallPath returns the install path for the agent
+func GetInstallPath() string {
+	return pkgconfigsetup.InstallPath
+}
+
+// GetConfigName returns the config name (root of the configuration filename).
+func (p Params) GetConfigName() string {
+	return p.configName
+}
+
+// GetSecurityAgentConfigFilePaths returns the security agent config file paths.
+func (p Params) GetSecurityAgentConfigFilePaths() []string {
+	return p.securityAgentConfigFilePaths
+}
+
+// GetConfigLoadSecurityAgent returns whether to load the security agent config.
+func (p Params) GetConfigLoadSecurityAgent() bool {
+	return p.configLoadSecurityAgent
+}
+
+// GetIgnoreErrors returns whether config load errors should be ignored.
+func (p Params) GetIgnoreErrors() bool {
+	return p.ignoreErrors
+}
+
+// GetDefaultConfPath returns the default configuration path.
+func (p Params) GetDefaultConfPath() string {
+	return p.defaultConfPath
+}
+
+// GetCLIOverride returns the CLI overrides map.
+func (p Params) GetCLIOverride() map[string]interface{} {
+	return p.cliOverride
 }

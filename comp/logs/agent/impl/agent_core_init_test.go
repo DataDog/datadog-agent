@@ -10,12 +10,13 @@ package agentimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestBuildEndpoints(t *testing.T) {
-	config := config.NewMock(t)
+	config := configmock.New(t)
 
 	endpoints, err := buildEndpoints(config)
 	assert.Nil(t, err)

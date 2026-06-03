@@ -14,7 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
@@ -22,7 +23,7 @@ import (
 )
 
 func getProvides(t *testing.T, confOverrides map[string]any) (Provides, error) {
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	for k, v := range confOverrides {
 		cfg.SetInTest(k, v)
 	}

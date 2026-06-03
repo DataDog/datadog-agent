@@ -12,7 +12,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 )
 
 func Test_filterMapStringKey(t *testing.T) {
@@ -28,7 +29,7 @@ func Test_filterMapStringKey(t *testing.T) {
 		"ad.datadoghq.com/tags":             `["bar","foo"]`,
 	}
 
-	conf := config.NewMock(t)
+	conf := configmock.New(t)
 	defaultExclude := conf.GetStringSlice("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude")
 	extraExclude := append(defaultExclude, "foo")
 

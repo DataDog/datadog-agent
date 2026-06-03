@@ -23,7 +23,7 @@ import (
 
 	"github.com/DataDog/zstd"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"

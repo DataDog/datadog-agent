@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/agent/jmxlogger/def",
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/def",
         "//pkg/util/defaultpaths",
         "//pkg/util/log/setup",
@@ -21,7 +21,8 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/agent/jmxlogger/def",
-        "//comp/core/config",
+        "//comp/core/config/def",
+        "//comp/core/config/mock",
         "//comp/def",
         "@com_github_stretchr_testify//assert",
     ],

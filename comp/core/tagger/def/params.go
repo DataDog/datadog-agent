@@ -9,7 +9,7 @@ import (
 	"crypto/tls"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )

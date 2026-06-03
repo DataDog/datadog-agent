@@ -17,7 +17,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
 	egressfx "github.com/DataDog/datadog-agent/comp/healthplatform/egress/fx"

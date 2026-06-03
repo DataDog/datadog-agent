@@ -21,7 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -62,7 +63,7 @@ K8v8KAngdgbh8ihjagt1zyqQbSOhRANCAAS2/cnezdb31wqnEzlsqCIYywWiDOoY
 )
 
 func getMockServerAndConfig(t testing.TB, handler http.Handler, token string) (ipc.HTTPClient, *httptest.Server) {
-	conf := config.NewMock(t)
+	conf := configmock.New(t)
 
 	ts := httptest.NewTLSServer(handler)
 	t.Cleanup(ts.Close)
@@ -290,7 +291,7 @@ func TestIPCEndpointDeprecatedIPCAddress(t *testing.T) {
 		w.Write([]byte("ok"))
 	}), testToken)
 
-	conf := config.NewMock(t)
+	conf := configmock.New(t)
 	// Use the deprecated (but still supported) option "ipc_address"
 	conf.UnsetForSource("cmd_host", pkgconfigmodel.SourceAgentRuntime)
 	conf.Set("ipc_address", "127.0.0.1", pkgconfigmodel.SourceAgentRuntime)

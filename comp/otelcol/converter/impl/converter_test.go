@@ -15,7 +15,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -464,7 +465,7 @@ func TestConvert(t *testing.T) {
 			if tc.agentConfig != "" {
 				f, err := os.ReadFile(uriFromFile(tc.agentConfig)[0])
 				require.NoError(t, err)
-				acfg := config.NewMockFromYAML(t, string(f))
+				acfg := configmock.NewFromYAML(t, string(f))
 				r.Conf = acfg
 				if tc.hostnameErr {
 					r.Hostname = &mockHostname{hostname: "", err: errors.New("hostname resolution failed")}
@@ -520,7 +521,7 @@ func TestConvert(t *testing.T) {
 func TestConvert_APIKeyFromEnvVar(t *testing.T) {
 	t.Setenv("DD_API_KEY", "123456")
 	t.Setenv("DD_SITE", "")
-	converter, err := NewConverterForAgent(Requires{Conf: config.NewMock(t), Hostname: &mockHostname{hostname: "test-host"}})
+	converter, err := NewConverterForAgent(Requires{Conf: configmock.New(t), Hostname: &mockHostname{hostname: "test-host"}})
 	assert.NoError(t, err)
 
 	resolver, err := newResolver(uriFromFile("dd-core-cfg/apikey/unset-number/config.yaml"))
@@ -577,7 +578,7 @@ func TestHostmetricsWarning(t *testing.T) {
 
 			f, err := os.ReadFile(uriFromFile(tc.agentConfig)[0])
 			require.NoError(t, err)
-			acfg := config.NewMockFromYAML(t, string(f))
+			acfg := configmock.NewFromYAML(t, string(f))
 
 			conv := &ddConverter{
 				coreConfig: acfg,

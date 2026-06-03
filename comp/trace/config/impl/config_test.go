@@ -30,7 +30,7 @@ import (
 	"go.uber.org/fx"
 	"go.yaml.in/yaml/v2"
 
-	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"

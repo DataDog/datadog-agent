@@ -7,7 +7,7 @@
 package configimpl
 
 import (
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 )

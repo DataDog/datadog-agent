@@ -10,7 +10,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	profilercomp "github.com/DataDog/datadog-agent/comp/process/profiler/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"

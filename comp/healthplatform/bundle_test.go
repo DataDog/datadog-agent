@@ -22,7 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -39,7 +40,7 @@ import (
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
+		fx.Provide(func(t testing.TB) config.Component { return configmock.New(t) }),
 		telemetrymock.Module(),
 		hostnameinterface.MockModule(),
 	)
@@ -83,13 +84,13 @@ func TestBundleStartLifecycle(t *testing.T) {
 		Bundle(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component {
-			cfg := config.NewMock(t)
-			cfg.SetInTest("api_key", "test-api-key")
-			cfg.SetInTest("dd_url", server.URL)
-			cfg.SetInTest("health_platform.enabled", true)
-			cfg.SetInTest("health_platform.persist_on_kubernetes", true)
-			cfg.SetInTest("health_platform.forwarder.interval", tickInterval)
-			cfg.SetInTest("run_path", t.TempDir())
+			cfg := configmock.New(t)
+			cfg.SetWithoutSource("api_key", "test-api-key")
+			cfg.SetWithoutSource("dd_url", server.URL)
+			cfg.SetWithoutSource("health_platform.enabled", true)
+			cfg.SetWithoutSource("health_platform.persist_on_kubernetes", true)
+			cfg.SetWithoutSource("health_platform.forwarder.interval", tickInterval)
+			cfg.SetWithoutSource("run_path", t.TempDir())
 			return cfg
 		}),
 		telemetrymock.Module(),
@@ -150,7 +151,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 // GetActiveIssueIDsByIssueName is called with module.IssueName(). They must
 // match or restart-based issue resolution silently breaks.
 func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	mods := issues.GetAllModules(cfg)
 	require.NotEmpty(t, mods, "no modules registered")
 	for _, mod := range mods {

@@ -18,7 +18,7 @@ import (
 	"github.com/benbjohnson/clock"
 	"go.uber.org/atomic"
 
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"

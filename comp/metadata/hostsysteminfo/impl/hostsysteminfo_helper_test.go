@@ -10,7 +10,8 @@ package hostsysteminfoimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
@@ -29,7 +30,7 @@ func getTestHostSystemInfo(t *testing.T, overrides map[string]any) *hostSystemIn
 
 	p := NewSystemInfoProvider(Requires{
 		Log:        logmock.New(t),
-		Config:     config.NewMockWithOverrides(t, overrides),
+		Config:     configmock.NewWithOverrides(t, overrides),
 		Serializer: serializermock.NewMetricSerializer(t),
 		Hostname:   hostname,
 	})

@@ -20,7 +20,8 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -90,7 +91,7 @@ func getAPIServer(t *testing.T, confOverrides map[string]interface{}, fxOptions 
 			}
 		}),
 		mocktelemetry.Module(),
-		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, confOverrides) }),
+		fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, confOverrides) }),
 		grpcNonefx.Module(),
 		fx.Options(fxOptions...),
 	)

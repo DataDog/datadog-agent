@@ -10,7 +10,7 @@ package resourcesimpl
 import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	resources "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
 )

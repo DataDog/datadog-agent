@@ -13,7 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 
@@ -51,7 +52,7 @@ func TestFromLocal(t *testing.T) {
 	}
 
 	// Config and logger
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	logger := logmock.New(t)
 
 	cfg.Set("external_metrics_provider.enabled", true, pkgconfigmodel.SourceLocalConfigProcess)

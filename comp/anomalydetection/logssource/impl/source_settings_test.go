@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	compConfig "github.com/DataDog/datadog-agent/comp/core/config"
+	compConfig "github.com/DataDog/datadog-agent/comp/core/config/def"
 )
 
 func TestLogSourceSettings(t *testing.T) {

@@ -21,7 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
@@ -88,8 +89,8 @@ func newFixtureWithData(t *testing.T, enabled bool, mockData []software.Entry) *
 	logComp := logmock.New(t)
 	hostnameComp := &mockHostname{}
 
-	configComp := config.NewMock(t)
-	configComp.SetInTest("software_inventory.enabled", enabled)
+	configComp := configmock.New(t)
+	configComp.SetWithoutSource("software_inventory.enabled", enabled)
 
 	// Create a mock event platform forwarder
 	epMock := &mockEventPlatform{}

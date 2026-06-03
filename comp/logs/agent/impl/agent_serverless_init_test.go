@@ -13,14 +13,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 )
 
 func TestBuildServerlessEndpoints(t *testing.T) {
-	config := config.NewMock(t)
+	config := configmock.New(t)
 
 	endpoints, err := buildEndpoints(config)
 	assert.Nil(t, err)
@@ -32,7 +33,7 @@ func TestServerlessLogsAgent(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	fakeCompression := compressionmock.NewMockCompressor()
 	hostnameService := hostnameimpl.NewHostnameService()
-	config := config.NewMock(t)
+	config := configmock.New(t)
 
 	serverlessLogsAgent := NewServerlessLogsAgent(fakeTagger, fakeCompression, hostnameService)
 	logsAgent, ok := serverlessLogsAgent.(*logAgent)

@@ -18,7 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -31,7 +32,7 @@ func TestMkURL(t *testing.T) {
 func TestFlareHasRightForm(t *testing.T) {
 	var lastRequest *http.Request
 
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 
 	testCases := []struct {
 		name        string
@@ -268,7 +269,7 @@ func TestAnalyzeResponse(t *testing.T) {
 }
 
 func TestSendToRetryLogic(t *testing.T) {
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 
 	testCases := []struct {
 		name             string
@@ -485,7 +486,7 @@ func TestIsRetryableFlareError(t *testing.T) {
 }
 
 func TestSendToWithNetworkErrors(t *testing.T) {
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 
 	t.Run("retry on 500 errors then succeed", func(t *testing.T) {
 		attemptCount := 0

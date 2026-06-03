@@ -12,7 +12,7 @@ import (
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	configstream "github.com/DataDog/datadog-agent/comp/core/configstream/def"
 	configstreamServer "github.com/DataDog/datadog-agent/comp/core/configstream/server"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"

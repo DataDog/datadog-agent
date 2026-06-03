@@ -9,7 +9,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/def",
         "//comp/forwarder/defaultforwarder/endpoints",
         "//comp/forwarder/defaultforwarder/transaction",

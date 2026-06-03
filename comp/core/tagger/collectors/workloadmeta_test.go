@@ -18,7 +18,8 @@ import (
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
@@ -75,7 +76,7 @@ func TestHandleKubePod(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() config.Component { return configmock.New(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -1122,7 +1123,7 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {
-			return config.NewMockWithOverrides(t, map[string]any{
+			return configmock.NewWithOverrides(t, map[string]any{
 				"kubernetes_persistent_volume_claims_as_tags": false,
 			})
 		}),
@@ -1265,7 +1266,7 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() config.Component { return configmock.New(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -1384,7 +1385,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() config.Component { return configmock.New(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -1479,7 +1480,7 @@ func TestHandleKubeCRD(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() config.Component { return configmock.New(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -1560,7 +1561,7 @@ func TestHandleKubeDeployment(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() config.Component { return configmock.New(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -1703,7 +1704,7 @@ func TestHandleECSTask(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {
-			return config.NewMockWithOverrides(t, map[string]any{
+			return configmock.NewWithOverrides(t, map[string]any{
 				"ecs_collect_resource_tags_ec2": true,
 			})
 		}),
@@ -3123,7 +3124,7 @@ func TestHandleDelete(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() config.Component { return configmock.New(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -3199,7 +3200,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 
 	fakeStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() config.Component { return configmock.New(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), fakeStore, &fakeProcessor{collectorCh})
@@ -3451,7 +3452,7 @@ func TestHandleProcess(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() config.Component { return configmock.New(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))

@@ -21,7 +21,8 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsfxnoop "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
@@ -471,7 +472,7 @@ func getSubmitterDeps(t *testing.T, configOverrides map[string]interface{}, sysp
 		sysprobeConf.SetInTest(k, v)
 	}
 	return fxutil.Test[submitterDeps](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, configOverrides) }),
+		fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, configOverrides) }),
 		fx.Provide(func() sysprobeconfig.Component { return sysprobeConf }),
 		connectionsforwarderfx.Module(),
 		secretsfxnoop.Module(),

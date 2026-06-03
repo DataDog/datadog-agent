@@ -19,7 +19,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -521,8 +522,8 @@ type testFixture struct {
 func newFixture(t *testing.T, enabled bool) *testFixture {
 	logComp := logmock.New(t)
 
-	configComp := config.NewMock(t)
-	configComp.SetInTest("logon_duration.enabled", enabled)
+	configComp := configmock.New(t)
+	configComp.SetWithoutSource("logon_duration.enabled", enabled)
 
 	sysprobeConfigComp := sysprobeconfigmock.NewMock(t)
 

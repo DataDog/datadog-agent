@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
-	config "github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 

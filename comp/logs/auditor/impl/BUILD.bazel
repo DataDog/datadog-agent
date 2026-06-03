@@ -12,7 +12,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/logs/auditor/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/def",
         "//comp/logs-library/kubehealth/def",
         "//comp/logs/auditor/def",
@@ -34,7 +34,7 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/mock",
         "//comp/logs-library/kubehealth/mock",
         "//comp/logs/agent/config",

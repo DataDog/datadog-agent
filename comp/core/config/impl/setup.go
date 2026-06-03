@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package configimpl
 
 import (
 	"errors"
@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 
+	configdef "github.com/DataDog/datadog-agent/comp/core/config/def"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -26,14 +27,14 @@ import (
 const defaultCommonRoot = "/opt/datadog-agent"
 
 // setupConfig loads additional configuration data from yaml files, fleet policies, and command-line options
-func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, p Params) error {
+func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, p configdef.Params) error {
 	confFilePath := p.ConfFilePath
-	configName := p.configName
-	defaultConfPath := p.defaultConfPath
+	configName := p.GetConfigName()
+	defaultConfPath := p.GetDefaultConfPath()
 
 	// Check for common_root early - before determining config file paths.
 	// CLI flag takes precedence over environment variable.
-	commonRoot := getCommonRoot(p.cliOverride)
+	commonRoot := getCommonRoot(p.GetCLIOverride())
 
 	// If common_root is set, transform the default config path to use the new layout
 	// and set the common root in defaultpaths so all getter functions return transformed paths
@@ -84,17 +85,18 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 	}
 
 	// Load the remote configuration
-	if p.FleetPoliciesDirPath == "" {
-		p.FleetPoliciesDirPath = config.GetString("fleet_policies_dir")
+	fleetPoliciesDirPath := p.FleetPoliciesDirPath
+	if fleetPoliciesDirPath == "" {
+		fleetPoliciesDirPath = config.GetString("fleet_policies_dir")
 	}
-	if p.FleetPoliciesDirPath != "" {
+	if fleetPoliciesDirPath != "" {
 		// Main config file
-		err := config.MergeFleetPolicy(path.Join(p.FleetPoliciesDirPath, "datadog.yaml"))
+		err := config.MergeFleetPolicy(path.Join(fleetPoliciesDirPath, "datadog.yaml"))
 		if err != nil {
 			return err
 		}
-		if p.configLoadSecurityAgent {
-			err := config.MergeFleetPolicy(path.Join(p.FleetPoliciesDirPath, "security-agent.yaml"))
+		if p.GetConfigLoadSecurityAgent() {
+			err := config.MergeFleetPolicy(path.Join(fleetPoliciesDirPath, "security-agent.yaml"))
 			if err != nil {
 				return err
 			}
@@ -104,16 +106,11 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 		pkgconfigsetup.ApplyUseDogstatsdSuppression(config)
 	}
 
-	for k, v := range p.cliOverride {
+	for k, v := range p.GetCLIOverride() {
 		config.Set(k, v, pkgconfigmodel.SourceCLI)
 	}
 
 	return nil
-}
-
-// GetInstallPath returns the install path for the agent
-func GetInstallPath() string {
-	return pkgconfigsetup.InstallPath
 }
 
 // getCommonRoot determines the common root path from CLI flags or environment.

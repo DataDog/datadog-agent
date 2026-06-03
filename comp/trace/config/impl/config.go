@@ -21,7 +21,7 @@ import (
 
 	"go.yaml.in/yaml/v2"
 
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config/def"

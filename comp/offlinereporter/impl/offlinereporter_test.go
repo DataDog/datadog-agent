@@ -20,7 +20,8 @@ import (
 
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
-	config "github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -46,7 +47,7 @@ func newTestOptions(t *testing.T, enabled bool) (afero.Fs, *clock.Mock, fx.Optio
 	return fs, clk, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {
-			return config.NewMockWithOverrides(t, map[string]interface{}{
+			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"telemetry.offlinereporter.enabled":            enabled,
 				"telemetry.offlinereporter.heartbeat_interval": "5s",
 				"run_path": testRunPath,
@@ -160,7 +161,7 @@ func TestNegativeInterval(t *testing.T) {
 	opts := fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {
-			return config.NewMockWithOverrides(t, map[string]interface{}{
+			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"telemetry.offlinereporter.enabled":            true,
 				"telemetry.offlinereporter.heartbeat_interval": "-1s",
 				"run_path": testRunPath,

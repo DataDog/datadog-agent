@@ -17,7 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -55,7 +56,7 @@ func TestNewHostProviderDefaultIntervals(t *testing.T) {
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			fx.Provide(func() config.Component { return configmock.New(t) }),
 			resourcesmock.MockModule(),
 			fx.Replace(resourcesmock.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -142,7 +143,7 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 				makeRequires(fxutil.Test[testDeps](
 					t,
 					fx.Provide(func() log.Component { return logmock.New(t) }),
-					fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
+					fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, overrides) }),
 					resourcesmock.MockModule(),
 					fx.Replace(resourcesmock.MockParams{Data: nil}),
 					fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -169,7 +170,7 @@ func TestBackoffWhenEarlyIntervalEqualsCollectionInterval(t *testing.T) {
 	}
 	ret := NewComponent(makeRequires(fxutil.Test[testDeps](t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
+		fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, overrides) }),
 		resourcesmock.MockModule(),
 		fx.Replace(resourcesmock.MockParams{Data: nil}),
 		fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -188,7 +189,7 @@ func TestFlareProvider(t *testing.T) {
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			fx.Provide(func() config.Component { return configmock.New(t) }),
 			resourcesmock.MockModule(),
 			fx.Replace(resourcesmock.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -208,7 +209,7 @@ func TestStatusHeaderProvider(t *testing.T) {
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			fx.Provide(func() config.Component { return configmock.New(t) }),
 			resourcesmock.MockModule(),
 			fx.Replace(resourcesmock.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),

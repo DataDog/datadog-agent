@@ -20,7 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -66,7 +67,7 @@ func TestConfDisabled(t *testing.T) {
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
+			fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, overrides) }),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
 		)),
@@ -90,7 +91,7 @@ func TestConfInterval(t *testing.T) {
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
+			fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, overrides) }),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
 		)),
@@ -123,7 +124,7 @@ func TestCollect(t *testing.T) {
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			fx.Provide(func() config.Component { return configmock.New(t) }),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
 			hostnameimpl.MockModule(),
 		)),
@@ -148,7 +149,7 @@ func TestCollectError(t *testing.T) {
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			fx.Provide(func() config.Component { return configmock.New(t) }),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
 			hostnameimpl.MockModule(),
 		)),

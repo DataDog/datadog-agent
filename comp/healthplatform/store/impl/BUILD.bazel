@@ -11,7 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/flare/types",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",

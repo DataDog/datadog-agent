@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
-	configComp "github.com/DataDog/datadog-agent/comp/core/config"
+	configComp "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"

@@ -17,7 +17,8 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
@@ -57,7 +58,7 @@ func TestHandleProvider(t *testing.T) {
 		makeRequires(t, fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			fx.Provide(func() config.Component { return configmock.New(t) }),
 			fx.Supply(runner.NewProvider(provider)),
 		)))
 
@@ -77,7 +78,7 @@ func TestHandleProviderShortTimeout(t *testing.T) {
 		makeRequires(t, fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			fx.Provide(func() config.Component { return configmock.New(t) }),
 			fx.Supply(runner.NewProvider(provider)),
 		)))
 
@@ -107,7 +108,7 @@ func TestHandleProviderLongTimeout(t *testing.T) {
 		makeRequires(t, fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			fx.Provide(func() config.Component { return configmock.New(t) }),
 			fx.Supply(runner.NewProvider(provider)),
 		)))
 
@@ -142,7 +143,7 @@ func TestRunnerCreation(t *testing.T) {
 		t,
 		fx.Supply(lc),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() config.Component { return configmock.New(t) }),
 		fxutil.ProvideComponentConstructor(NewComponent),
 		// Supplying our provider by using the helper function
 		fx.Supply(runner.NewProvider(provider)),

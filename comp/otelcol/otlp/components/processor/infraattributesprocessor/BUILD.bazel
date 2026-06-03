@@ -18,7 +18,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/def",
         "//comp/core/log/fx",
         "//comp/core/tagger/def",

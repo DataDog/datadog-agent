@@ -45,7 +45,7 @@ go_library(
         "//comp/anomalydetection/observer/impl/patterns",
         "//comp/anomalydetection/recorder/def",
         "//comp/anomalydetection/reporter/def",
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/def",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl/noops",

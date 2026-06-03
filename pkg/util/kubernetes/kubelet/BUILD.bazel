@@ -23,7 +23,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/diagnose/def",
         "//comp/core/tagger/types",
         "//comp/core/telemetry/def",

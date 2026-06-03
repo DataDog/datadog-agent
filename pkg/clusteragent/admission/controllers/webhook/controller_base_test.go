@@ -21,7 +21,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
@@ -49,7 +50,7 @@ func newFilterStoreFromConfig(t testing.TB, cfg config.Component) workloadfilter
 func TestNewController(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	datadogConfig := config.NewMock(t)
+	datadogConfig := configmock.New(t)
 	factory := informers.NewSharedInformerFactory(client, time.Duration(0))
 
 	// V1
@@ -158,7 +159,7 @@ func TestAutoInstrumentation(t *testing.T) {
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(config.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				fx.Provide(func() config.Component { return configmock.New(t) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 

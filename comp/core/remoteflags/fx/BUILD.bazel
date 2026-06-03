@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/remoteflags/fx",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/remoteflags/def",
         "//comp/core/remoteflags/impl",
         "//comp/core/remoteflags/impl-noop",

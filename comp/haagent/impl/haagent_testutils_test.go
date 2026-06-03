@@ -10,7 +10,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -20,7 +21,7 @@ func newTestHaAgentComponent(t *testing.T, agentConfigs map[string]interface{}, 
 	if logger == nil {
 		logger = logmock.New(t)
 	}
-	agentConfigComponent := config.NewMockWithOverrides(t, agentConfigs)
+	agentConfigComponent := configmock.NewWithOverrides(t, agentConfigs)
 
 	requires := Requires{
 		Logger:      logger,

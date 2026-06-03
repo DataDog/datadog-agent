@@ -13,7 +13,8 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 )
 
 func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
@@ -42,7 +43,7 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 // A vanilla mock has only defaults, which round-trip through YAML cleanly and
 // pass the schema. Confirms Run() is a no-op on a healthy config.
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
-	reports, err := newChecker(config.NewMock(t)).Run()
+	reports, err := newChecker(configmock.New(t)).Run()
 	require.NoError(t, err)
 	assert.Empty(t, reports)
 }
@@ -50,8 +51,8 @@ func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
 // Inject a string into an integer-typed field. Confirms the validator surfaces
 // the violation and the checker wraps it into an IssueReport.
 func TestCheck_SchemaViolationProducesReport(t *testing.T) {
-	cfg := config.NewMock(t)
-	cfg.SetInTest("agent_ipc.port", "not-a-number")
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("agent_ipc.port", "not-a-number")
 
 	reports, err := newChecker(cfg).Run()
 	require.NoError(t, err)

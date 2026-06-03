@@ -12,7 +12,7 @@ import (
 
 	"github.com/gobwas/glob"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"

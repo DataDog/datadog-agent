@@ -11,7 +11,7 @@ import (
 	"errors"
 	"testing"
 
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 )
 

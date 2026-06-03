@@ -14,7 +14,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/autoscaling/datadogclient/def",
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/def",
         "//comp/core/status",
         "//pkg/config/model",
@@ -35,7 +35,8 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/autoscaling/datadogclient/def",
-        "//comp/core/config",
+        "//comp/core/config/def",
+        "//comp/core/config/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//pkg/config/model",

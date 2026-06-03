@@ -14,7 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 )
 
@@ -258,7 +259,7 @@ func TestRemoveConfig(t *testing.T) {
 			tempDir := t.TempDir()
 			tt.setupFiles(t, tempDir)
 
-			mockConfig := config.NewMock(t)
+			mockConfig := configmock.New(t)
 			mockLog := logmock.New(t)
 
 			component := &workloadselectionComponent{

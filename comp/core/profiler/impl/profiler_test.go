@@ -16,7 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -76,7 +77,7 @@ func getProfiler(t testing.TB, overrideSysProbe map[string]interface{}) profiler
 		t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {
-			return config.NewMock(t)
+			return configmock.New(t)
 		}),
 		fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
 		fxutil.ProvideOptional[sysprobeconfigdef.Component](),

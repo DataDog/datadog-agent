@@ -25,7 +25,8 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
@@ -141,8 +142,8 @@ func fakeInformerFactory(t *testing.T, crs ...*datadoghq.DatadogInstrumentation)
 }
 
 func newTestWebhook(t *testing.T, factory dynamicinformer.DynamicSharedInformerFactory, handlers ...instrumentation.Handler) *Webhook {
-	cfg := config.NewMock(t)
-	cfg.SetInTest("instrumentation_crd_controller.enabled", true)
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("instrumentation_crd_controller.enabled", true)
 	return NewWebhook(cfg, handlers, factory)
 }
 

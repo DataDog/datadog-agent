@@ -16,7 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -42,7 +43,7 @@ func TestOptionalModule(t *testing.T) {
 		"agent_ipc.port":                    port,
 		"agent_ipc.config_refresh_interval": 1,
 	}
-	cfg := config.NewMockWithOverrides(t, overrides)
+	cfg := configmock.NewWithOverrides(t, overrides)
 
 	lc := compdef.NewTestLifecycle(t)
 	comp, err := NewComponent(Requires{

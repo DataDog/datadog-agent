@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//pkg/util/fxutil",
         "//pkg/util/fxutil/logging",
         "@org_uber_go_fx//:fx",

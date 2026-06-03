@@ -12,7 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -20,12 +21,12 @@ func TestStatusEnabled(t *testing.T) {
 	flavor.SetFlavor(flavor.ClusterAgent)
 	defer flavor.SetFlavor(flavor.DefaultAgent)
 
-	configComponent := config.NewMock(t)
-	configComponent.SetInTest("private_action_runner.enabled", true)
-	configComponent.SetInTest("private_action_runner.urn", "urn:datadog:action-runner:abcdef123456")
-	configComponent.SetInTest("private_action_runner.self_enroll", true)
-	configComponent.SetInTest("private_action_runner.actions_allowlist", []string{"com.datadoghq.http.request"})
-	configComponent.SetInTest("private_action_runner.default_actions_enabled", true)
+	configComponent := configmock.New(t)
+	configComponent.SetWithoutSource("private_action_runner.enabled", true)
+	configComponent.SetWithoutSource("private_action_runner.urn", "urn:datadog:action-runner:abcdef123456")
+	configComponent.SetWithoutSource("private_action_runner.self_enroll", true)
+	configComponent.SetWithoutSource("private_action_runner.actions_allowlist", []string{"com.datadoghq.http.request"})
+	configComponent.SetWithoutSource("private_action_runner.default_actions_enabled", true)
 
 	provider := statusProvider{config: configComponent}
 
@@ -71,8 +72,8 @@ func TestStatusEnabled(t *testing.T) {
 }
 
 func TestStatusDisabled(t *testing.T) {
-	configComponent := config.NewMock(t)
-	configComponent.SetInTest("private_action_runner.enabled", false)
+	configComponent := configmock.New(t)
+	configComponent.SetWithoutSource("private_action_runner.enabled", false)
 
 	provider := statusProvider{config: configComponent}
 

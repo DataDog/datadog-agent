@@ -15,7 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
@@ -28,7 +29,7 @@ func TestJMXLog(t *testing.T) {
 
 	provides, err := NewComponent(Requires{
 		Lc:     compdef.NewTestLifecycle(t),
-		Config: config.NewMock(t),
+		Config: configmock.New(t),
 		Params: jmxlogger.NewCliParams(filePath),
 	})
 

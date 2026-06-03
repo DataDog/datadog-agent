@@ -19,7 +19,7 @@ go_library(
         "@com_github_datadog_datadog_agent_pkg_serializer//:__subpackages__",
     ],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/def",
         "//comp/core/telemetry/impl",
         "//comp/forwarder/defaultforwarder/resolver",

@@ -13,7 +13,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	par "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"

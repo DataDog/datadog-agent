@@ -16,12 +16,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 )
 
 func TestNew(t *testing.T) {
 	t.Run("gradual_rollout_enabled", func(t *testing.T) {
-		mockConfig := NewConfig(config.NewMock(t))
+		mockConfig := NewConfig(configmock.New(t))
 		resolver := New(mockConfig)
 
 		_, ok := resolver.(*bucketTagResolver)
@@ -144,7 +145,7 @@ func TestIsDatadoghqRegistry(t *testing.T) {
 	for _, tc := range testCases {
 
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := config.NewMock(t)
+			mockConfig := configmock.New(t)
 			datadogRegistries := newDatadoghqRegistries(mockConfig.GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
 			result := isDatadoghqRegistry(tc.registry, datadogRegistries)
 			assert.Equal(t, tc.expected, result, "isDatadoghqRegistry(%s) should return %v", tc.registry, tc.expected)

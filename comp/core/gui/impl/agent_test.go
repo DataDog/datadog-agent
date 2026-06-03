@@ -18,7 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 )
 
 func Test_makeFlare(t *testing.T) {
@@ -93,7 +94,7 @@ func Test_getConfigSetting(t *testing.T) {
 
 	fakeGuiStartTimestamp := time.Now().Unix()
 
-	c := config.NewMock(t)
+	c := configmock.New(t)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

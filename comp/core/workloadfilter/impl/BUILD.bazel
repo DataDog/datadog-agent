@@ -9,7 +9,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/flare/types",
         "//comp/core/log/def",
         "//comp/core/telemetry/def",
@@ -30,7 +30,8 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
+        "//comp/core/config/mock",
         "//comp/core/log/mock",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/mock",

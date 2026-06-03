@@ -13,7 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	daemoncheckerMock "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/mock"
 )
 
@@ -44,8 +45,8 @@ func TestFleetStatus(t *testing.T) {
 				},
 			}
 
-			cfg := config.NewMock(t)
-			cfg.SetInTest("remote_updates", tt.remoteUpdatesConfig)
+			cfg := configmock.New(t)
+			cfg.SetWithoutSource("remote_updates", tt.remoteUpdatesConfig)
 
 			daemonChecker := daemoncheckerMock.Mock(t)
 
