@@ -16,6 +16,6 @@ import (
 
 // Component is the component type.
 type Component interface {
-	ScheduleNetworkTrafficPathTests(conns iter.Seq[npmodel.NetworkPathConnection])
+	ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection])
 	ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection])
 }

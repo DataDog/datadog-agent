@@ -6,8 +6,6 @@
 package flowaggregator
 
 import (
-	"strings"
-
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/netflow/portrollup"
 )
@@ -35,8 +33,4 @@ func sourcePortForNetworkPath(port int32) (uint16, bool) {
 		return 0, true
 	}
 	return toUint16Port(port)
-}
-
-func normalizeReverseDNSHostname(hostname string) string {
-	return strings.TrimSuffix(hostname, ".")
 }

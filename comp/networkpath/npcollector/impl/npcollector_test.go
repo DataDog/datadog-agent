@@ -431,7 +431,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 			Type:              model.ConnectionType_udp,
 		},
 	}
-	npCollector.ScheduleNetworkTrafficPathTests(slices.Values(conns))
+	npCollector.ScheduleNetworkPathTests(slices.Values(conns))
 
 	waitForProcessedPathtests(npCollector, 5*time.Second, 2)
 
@@ -499,7 +499,7 @@ func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 			Type:              model.ConnectionType_tcp,
 		})
 	}
-	npCollector.ScheduleNetworkTrafficPathTests(slices.Values(conns))
+	npCollector.ScheduleNetworkPathTests(slices.Values(conns))
 
 	waitForProcessedPathtests(npCollector, 5*time.Second, 10)
 
@@ -510,7 +510,7 @@ func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 	app.RequireStop()
 }
 
-func Test_NpCollector_ScheduleNetworkTrafficPathTests_ScheduleDurationMetric(t *testing.T) {
+func Test_NpCollector_ScheduleNetworkPathTests_ScheduleDurationMetric(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
@@ -542,7 +542,7 @@ func Test_NpCollector_ScheduleNetworkTrafficPathTests_ScheduleDurationMetric(t *
 	}
 
 	// WHEN
-	npCollector.ScheduleNetworkTrafficPathTests(slices.Values(conns))
+	npCollector.ScheduleNetworkPathTests(slices.Values(conns))
 
 	// THEN
 	calls := stats.GaugeCalls
@@ -590,7 +590,7 @@ func Test_newNpCollectorImpl_overrideConfigs(t *testing.T) {
 	assert.Equal(t, "ns1", npCollector.networkDevicesNamespace)
 }
 
-func Test_npCollectorImpl_ScheduleNetworkTrafficPathTests(t *testing.T) {
+func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 	type logCount struct {
 		log   string
 		count int
@@ -664,7 +664,7 @@ func Test_npCollectorImpl_ScheduleNetworkTrafficPathTests(t *testing.T) {
 			},
 		},
 		{
-			name:            "one outgoing NetFlow UDP conn with reverse DNS domain",
+			name:            "one outgoing NetFlow UDP conn with IP target",
 			agentConfigs:    netflowMonitorIPWithoutDomainConfigs,
 			scheduleNetflow: true,
 			conns: []npmodel.NetworkPathConnection{
@@ -674,18 +674,14 @@ func Test_npCollectorImpl_ScheduleNetworkTrafficPathTests(t *testing.T) {
 					Namespace: "netflow-ns",
 					Direction: model.ConnectionDirection_outgoing,
 					Type:      model.ConnectionType_udp,
-					Domain:    "ptr.customer.example",
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
 				{
-					Hostname:  "ptr.customer.example",
+					Hostname:  "10.0.0.6",
 					Protocol:  payload.ProtocolUDP,
 					Namespace: "netflow-ns",
 					Origin:    payload.PathOriginNetflow,
-					Metadata: common.PathtestMetadata{
-						ReverseDNSHostname: "ptr.customer.example",
-					},
 				},
 			},
 		},
@@ -1038,7 +1034,7 @@ func Test_npCollectorImpl_ScheduleNetworkTrafficPathTests(t *testing.T) {
 			if tt.scheduleNetflow {
 				npCollector.ScheduleNetflowPathTests(slices.Values(tt.conns))
 			} else {
-				npCollector.ScheduleNetworkTrafficPathTests(slices.Values(tt.conns))
+				npCollector.ScheduleNetworkPathTests(slices.Values(tt.conns))
 			}
 
 			actualPathtests := []*common.Pathtest{}
@@ -1052,13 +1048,11 @@ func Test_npCollectorImpl_ScheduleNetworkTrafficPathTests(t *testing.T) {
 			}
 
 			expectedPathtests := tt.expectedPathtests
-			expectedOrigin := payload.PathOriginNetworkTraffic
 			if tt.scheduleNetflow {
-				expectedOrigin = payload.PathOriginNetflow
-			}
-			for _, pathtest := range expectedPathtests {
-				if pathtest.Origin == "" {
-					pathtest.Origin = expectedOrigin
+				for _, pathtest := range expectedPathtests {
+					if pathtest.Origin == "" {
+						pathtest.Origin = payload.PathOriginNetflow
+					}
 				}
 			}
 			assert.Equal(t, expectedPathtests, actualPathtests)
@@ -1130,7 +1124,6 @@ func Test_npCollectorImpl_ScheduleMethods_methodGates(t *testing.T) {
 				Hostname: "10.0.0.2",
 				Port:     uint16(80),
 				Protocol: payload.ProtocolTCP,
-				Origin:   payload.PathOriginNetworkTraffic,
 			},
 		},
 		{
@@ -1165,7 +1158,7 @@ func Test_npCollectorImpl_ScheduleMethods_methodGates(t *testing.T) {
 			if tt.scheduleNetflow {
 				npCollector.ScheduleNetflowPathTests(slices.Values([]npmodel.NetworkPathConnection{tt.conn}))
 			} else {
-				npCollector.ScheduleNetworkTrafficPathTests(slices.Values([]npmodel.NetworkPathConnection{tt.conn}))
+				npCollector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{tt.conn}))
 			}
 
 			select {
@@ -1210,7 +1203,7 @@ func Test_npCollectorImpl_ScheduleMethods_VPCSubnetsOnlyFilterNetworkTraffic(t *
 		stats := &teststatsd.Client{}
 		_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 
-		npCollector.ScheduleNetworkTrafficPathTests(slices.Values([]npmodel.NetworkPathConnection{conn}))
+		npCollector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{conn}))
 
 		assert.Equal(t, 1, vpcSubnetFetches)
 		require.Contains(t, stats.CountCalls, subnetSkippedStat)
@@ -1403,7 +1396,7 @@ func Test_npCollectorImpl_flushLoop(t *testing.T) {
 	}, 3*time.Second, 10*time.Millisecond)
 }
 
-func Benchmark_npCollectorImpl_ScheduleNetworkTrafficPathTests(b *testing.B) {
+func Benchmark_npCollectorImpl_ScheduleNetworkPathTests(b *testing.B) {
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 		"network_path.collector.workers":              50,
@@ -1432,7 +1425,7 @@ func Benchmark_npCollectorImpl_ScheduleNetworkTrafficPathTests(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// add line to avoid linter error
 		_ = i
-		npCollector.ScheduleNetworkTrafficPathTests(slices.Values(connections))
+		npCollector.ScheduleNetworkPathTests(slices.Values(connections))
 
 		waitForProcessedPathtests(npCollector, 60*time.Second, 50)
 	}
@@ -1721,19 +1714,6 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: false,
 		},
 		{
-			name: "should schedule netflow domain by default",
-			conn: npmodel.NetworkPathConnection{
-				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
-				Dest:      netip.MustParseAddrPort("10.0.0.2:53"),
-				Origin:    payload.PathOriginNetflow,
-				Direction: model.ConnectionDirection_outgoing,
-				Family:    model.ConnectionFamily_v4,
-				Type:      model.ConnectionType_udp,
-				Domain:    "service.customer.example",
-			},
-			shouldSchedule: true,
-		},
-		{
 			name: "should not schedule incoming conn",
 			conn: npmodel.NetworkPathConnection{
 				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
@@ -2006,26 +1986,6 @@ network_path:
 				Dest:      netip.MustParseAddrPort("10.0.0.2:80"),
 				Direction: model.ConnectionDirection_outgoing,
 				Domain:    "google.com",
-			},
-			shouldSchedule: false,
-		},
-		{
-			name: "FILTERS: excluded netflow domain",
-			filters: `
-network_path:
-  collector:
-    filters:
-      - match_domain: 'blocked.customer.example'
-        type: exclude
-`,
-			conn: npmodel.NetworkPathConnection{
-				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
-				Dest:      netip.MustParseAddrPort("10.0.0.2:53"),
-				Origin:    payload.PathOriginNetflow,
-				Direction: model.ConnectionDirection_outgoing,
-				Family:    model.ConnectionFamily_v4,
-				Type:      model.ConnectionType_udp,
-				Domain:    "blocked.customer.example",
 			},
 			shouldSchedule: false,
 		},

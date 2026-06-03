@@ -15,7 +15,7 @@ import (
 
 type npCollectorMock struct{}
 
-func (s *npCollectorMock) ScheduleNetworkTrafficPathTests(_conns iter.Seq[npmodel.NetworkPathConnection]) {
+func (s *npCollectorMock) ScheduleNetworkPathTests(_conns iter.Seq[npmodel.NetworkPathConnection]) {
 }
 
 func (s *npCollectorMock) ScheduleNetflowPathTests(_conns iter.Seq[npmodel.NetworkPathConnection]) {}

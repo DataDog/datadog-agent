@@ -1100,39 +1100,6 @@ func TestGetHostname(t *testing.T) {
 	}
 }
 
-func TestGetHostnameAsyncWithOptionsAllowsPublicIP(t *testing.T) {
-	overrides := map[string]interface{}{
-		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
-	}
-
-	ts := testSetup(t, overrides, true, nil, 0)
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	err := ts.rdnsQuerier.GetHostnameAsyncWithOptions(
-		[]byte{8, 8, 8, 8},
-		rdnsquerierdef.LookupOptions{AllowPublic: true},
-		func(_ string) {
-			assert.FailNow(t, "Sync callback should not be called")
-		},
-		func(hostname string, err error) {
-			assert.NoError(t, err)
-			assert.Equal(t, "fakehostname-8.8.8.8", hostname)
-			wg.Done()
-		},
-	)
-	require.NoError(t, err)
-	wg.Wait()
-
-	expectedTelemetry := ts.makeExpectedTelemetry(map[string]float64{
-		"total":      1.0,
-		"chan_added": 1.0,
-		"successful": 1.0,
-		"cache_miss": 1.0,
-	})
-	ts.validateExpected(t, expectedTelemetry)
-}
-
 func TestGetHostnameTimeout(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,

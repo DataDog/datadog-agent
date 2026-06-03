@@ -320,7 +320,7 @@ func (d *directSender) collect() {
 		defer dsc.cleanupProcesses()
 	}
 
-	d.npCollector.ScheduleNetworkTrafficPathTests(d.networkPathConnections(conns))
+	d.npCollector.ScheduleNetworkPathTests(d.networkPathConnections(conns))
 
 	groupID := d.groupID.Add(1)
 

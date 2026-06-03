@@ -77,17 +77,12 @@ func (ts *testState) stop(t *testing.T) {
 func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeIPResults map[string]*fakeResults, delay time.Duration) *testState {
 	lc := compdef.NewTestLifecycle(t)
 
-	configOverrides := maps.Clone(overrides)
-	if configOverrides == nil {
-		configOverrides = make(map[string]interface{})
-	}
 	// Ensure run_path is sandboxed so cache.persist() on stop doesn't write to
 	// the system path (/opt/datadog-agent/run on POSIX systems).
-	if _, ok := configOverrides["run_path"]; !ok {
-		configOverrides["run_path"] = t.TempDir()
+	if _, ok := overrides["run_path"]; !ok {
+		overrides["run_path"] = t.TempDir()
 	}
-
-	config := config.NewMockWithOverrides(t, configOverrides)
+	config := config.NewMockWithOverrides(t, overrides)
 
 	logComp := logmock.New(t)
 	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())

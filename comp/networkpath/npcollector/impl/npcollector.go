@@ -252,7 +252,7 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 	return vpcSubnets, nil
 }
 
-func (s *npCollectorImpl) ScheduleNetworkTrafficPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
+func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
@@ -281,7 +281,9 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	connCount := 0
 	for conn := range conns {
 		connCount++
-		conn.Origin = origin
+		if origin != payload.PathOriginNetworkTraffic {
+			conn.Origin = origin
+		}
 		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets) {
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
 			continue

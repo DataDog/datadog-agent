@@ -32,12 +32,6 @@ func (q *rdnsQuerierImplNone) GetHostnameAsync(_ []byte, _ func(string), _ func(
 	return nil
 }
 
-// GetHostnameAsyncWithOptions does nothing for the noop rdnsquerier implementation
-func (q *rdnsQuerierImplNone) GetHostnameAsyncWithOptions(_ []byte, _ rdnsquerier.LookupOptions, _ func(string), _ func(string, error)) error {
-	// noop
-	return nil
-}
-
 // GetHostname does nothing for the noop rdnsquerier implementation
 func (q *rdnsQuerierImplNone) GetHostname(_ context.Context, _ string) (string, error) {
 	// noop

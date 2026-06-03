@@ -113,7 +113,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
 	return &FlowAggregator{
 		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:                      newFlowAccumulator(flushConfig, flowScheduler, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger, rdnsQuerier, rdnsquerier.LookupOptions{AllowPublic: config.ReverseDNSEnrichmentPublicIPsEnabled}),
+		flowAcc:                      newFlowAccumulator(flushConfig, flowScheduler, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger, rdnsQuerier),
 		FlushConfig:                  flushConfig,
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
@@ -201,20 +201,11 @@ func (agg *FlowAggregator) scheduleNetworkPathForFlow(flow *common.Flow) {
 		family = model.ConnectionFamily_v6
 	}
 
-	destDomain := normalizeReverseDNSHostname(flow.DstReverseDNSHostname)
-	// NetFlow dynamic paths intentionally require destination reverse DNS.
-	// The resolved hostname is used as the NPCollector domain signal while
-	// the traceroute target remains the destination IP.
-	if destDomain == "" {
-		return
-	}
-
 	agg.npCollector.ScheduleNetflowPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
 		yield(npmodel.NetworkPathConnection{
 			Source:    netip.AddrPortFrom(srcIP, srcPort),
 			Dest:      netip.AddrPortFrom(dstIP, dstPort),
 			Namespace: flow.Namespace,
-			Domain:    destDomain,
 			Type:      connType,
 			Direction: model.ConnectionDirection_outgoing,
 			Family:    family,
@@ -351,14 +342,14 @@ func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
 	flushTime := ctx.FlushTime
 	flowsToFlush := agg.flowAcc.flush(ctx)
-	for _, flow := range flowsToFlush {
-		agg.scheduleNetworkPathForFlow(flow)
-	}
 
 	// apply filtering
 	flowsBeforeFilter := len(flowsToFlush)
 	flowsToFlush = agg.flowFilter.Filter(ctx, flowsToFlush)
 	numRowsFiltered := flowsBeforeFilter - len(flowsToFlush)
+	for _, flow := range flowsToFlush {
+		agg.scheduleNetworkPathForFlow(flow)
+	}
 
 	agg.logger.Debugf("Flushing %d flows to the forwarder, %d have been dropped by TopN filtering (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), numRowsFiltered, time.Since(flushTime).Milliseconds(), flowsContexts)
 
