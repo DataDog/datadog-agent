@@ -74,6 +74,12 @@ var (
 		"DD_LOGS_ENABLED",
 		"DD_PRIVATE_ACTION_RUNNER_ENABLED",
 		"DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST",
+		"DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED",
+		"DD_PROCESS_AGENT_PROCESS_COLLECTION_ENABLED",
+		"DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED",
+		"DD_PROCESS_AGENT_CONTAINER_COLLECTION_ENABLED",
+		"DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED",
+		"DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED",
 	}
 )
 
@@ -92,6 +98,7 @@ func SetupDefaultScript(s *common.Setup) error {
 	// Config management
 	setConfigTags(s)
 	setConfigSecurityProducts(s)
+	setConfigProcessAgent(s)
 
 	if url, ok := os.LookupEnv("DD_URL"); ok {
 		s.Config.DatadogYAML.DDURL = url
@@ -149,6 +156,34 @@ func setConfigSecurityProducts(s *common.Setup) {
 		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Enabled = config.BoolToPtr(true)
 		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Host.Enabled = config.BoolToPtr(true)
 	}
+}
+
+// setConfigProcessAgent sets the process_config collection toggles from environment variables.
+// Each toggle honors both the canonical DD_PROCESS_CONFIG_* name and the historical
+// DD_PROCESS_AGENT_* alias the agent itself accepts (see pkg/config/setup/process.go).
+// Values are parsed as explicit true/false (not presence-only) because container_collection
+// and process_discovery default to true at runtime, so a presence-only var could not disable them.
+func setConfigProcessAgent(s *common.Setup) {
+	if val, ok := lookupEnvAny("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "DD_PROCESS_AGENT_PROCESS_COLLECTION_ENABLED"); ok {
+		s.Config.DatadogYAML.ProcessConfig.ProcessCollection.Enabled = config.BoolToPtr(strings.ToLower(val) == "true")
+	}
+	if val, ok := lookupEnvAny("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "DD_PROCESS_AGENT_CONTAINER_COLLECTION_ENABLED"); ok {
+		s.Config.DatadogYAML.ProcessConfig.ContainerCollection.Enabled = config.BoolToPtr(strings.ToLower(val) == "true")
+	}
+	if val, ok := lookupEnvAny("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED"); ok {
+		s.Config.DatadogYAML.ProcessConfig.ProcessDiscovery.Enabled = config.BoolToPtr(strings.ToLower(val) == "true")
+	}
+}
+
+// lookupEnvAny returns the value of the first environment variable in names that is set.
+// The canonical name should be listed first so it wins when multiple aliases are set.
+func lookupEnvAny(names ...string) (string, bool) {
+	for _, name := range names {
+		if val, ok := os.LookupEnv(name); ok {
+			return val, true
+		}
+	}
+	return "", false
 }
 
 // setConfigInstallerDaemon sets the daemon in the configuration
