@@ -71,16 +71,15 @@
       }
 
       add_feature_scope repo datadog-agent
-      add_feature_scope project_path "${CI_PROJECT_PATH:-}"
       add_feature_scope job_name "${CI_JOB_NAME:-}"
       add_feature_scope job_stage "${CI_JOB_STAGE:-}"
       add_feature_scope ref "${CI_COMMIT_REF_NAME:-}"
-      add_feature_scope branch "${CI_COMMIT_BRANCH:-}"
-      add_feature_scope bucket_branch "${BUCKET_BRANCH:-}"
-      add_feature_scope pipeline_source "${CI_PIPELINE_SOURCE:-}"
       add_feature_scope registries "${IMG_REGISTRIES:-}"
 
-      use_dd_pkg="$(dda "${feature_args[@]}")"
+      if ! use_dd_pkg="$(dda "${feature_args[@]}")"; then
+        echo "Feature flag lookup failed; defaulting to dd-pkg"
+        use_dd_pkg=true
+      fi
       case "${use_dd_pkg}" in
         true|True|TRUE)
           echo "Publishing image with dd-pkg"

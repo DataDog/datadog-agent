@@ -50,31 +50,6 @@
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
-.on_deploy_manual_auto_on_rc_legacy:
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      OTEL_AGENT_REPOSITORY: ddot-collector-dev
-      DSD_REPOSITORY: dogstatsd-dev
-      IMG_REGISTRIES: dev
-  - <<: *if_rc_tag_on_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      OTEL_AGENT_REPOSITORY: ddot-collector
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      OTEL_AGENT_REPOSITORY: ddot-collector
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-
 .on_deploy_rc:
   - <<: *if_rc_tag_on_beta_repo_branch
     when: on_success
@@ -87,44 +62,9 @@
       SECRET_GENERIC_CONNECTOR_REPOSITORY: secret-generic-connector
       IMG_REGISTRIES: public
 
-.on_deploy_rc_legacy:
-  - <<: *if_rc_tag_on_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      CLUSTER_AGENT_REPOSITORY: cluster-agent
-      OTEL_AGENT_REPOSITORY: ddot-collector
-      DSD_REPOSITORY: dogstatsd
-      CWS_INSTRUMENTATION_REPOSITORY: cws-instrumentation
-      SECRET_GENERIC_CONNECTOR_REPOSITORY: secret-generic-connector
-      IMG_REGISTRIES: public
-
 # Same as on_deploy_manual, except the job would not run on pipelines
 # using beta branch, it would only run for the final release.
 .on_deploy_manual_final:
-  - <<: *if_beta_repo_branch
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      OTEL_AGENT_REPOSITORY: ddot-collector-dev
-      DSD_REPOSITORY: dogstatsd-dev
-      IMG_REGISTRIES: dev
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      CLUSTER_AGENT_REPOSITORY: cluster-agent
-      OTEL_AGENT_REPOSITORY: ddot-collector
-      DSD_REPOSITORY: dogstatsd
-      CWS_INSTRUMENTATION_REPOSITORY: cws-instrumentation
-      SECRET_GENERIC_CONNECTOR_REPOSITORY: secret-generic-connector
-      IMG_REGISTRIES: public
-
-.on_deploy_manual_final_legacy:
   - <<: *if_beta_repo_branch
     when: never
   - <<: *if_not_stable_or_beta_repo_branch
@@ -163,38 +103,9 @@
       SECRET_GENERIC_CONNECTOR_REPOSITORY: ci/datadog-agent/secret-generic-connector-release
       IMG_REGISTRIES: internal-aws-ddbuild
 
-.on_deploy_internal_rc_legacy:
-  - <<: *if_rc_tag_on_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: ci/datadog-agent/agent-release
-      CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
-      OTEL_AGENT_REPOSITORY: ci/datadog-agent/otel-agent-release
-      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
-      CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
-      SECRET_GENERIC_CONNECTOR_REPOSITORY: ci/datadog-agent/secret-generic-connector-release
-      IMG_REGISTRIES: internal-aws-ddbuild
-
 # Same as on_deploy_manual_final, except the job is used to publish images
 # to our internal registries.
 .on_deploy_internal_manual_final:
-  - <<: *if_beta_repo_branch
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: ci/datadog-agent/agent-release
-      OTEL_AGENT_REPOSITORY: ci/datadog-agent/otel-agent-release
-      CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
-      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
-      CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
-      SECRET_GENERIC_CONNECTOR_REPOSITORY: ci/datadog-agent/secret-generic-connector-release
-      IMG_REGISTRIES: internal-aws-ddbuild
-
-.on_deploy_internal_manual_final_legacy:
   - <<: *if_beta_repo_branch
     when: never
   - <<: *if_not_stable_or_beta_repo_branch

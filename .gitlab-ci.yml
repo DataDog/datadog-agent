@@ -603,13 +603,6 @@ workflow:
     when: never
   - <<: *if_deploy
 
-.on_deploy_nightly_repo_branch_manual:
-  - <<: *if_not_nightly_or_dev_repo_branch
-    when: never
-  - <<: *if_deploy
-    when: manual
-    allow_failure: true
-
 .on_deploy_stable_or_beta_repo_branch:
   - !reference [.except_mergequeue]
   - <<: *if_not_stable_or_beta_repo_branch
@@ -1424,24 +1417,10 @@ workflow:
       <<: *fakeintake_paths
       compare_to: $COMPARE_TO_BRANCH
 
-.on_fakeintake_changes_manual:
-  - changes:
-      <<: *fakeintake_paths
-      compare_to: $COMPARE_TO_BRANCH
-    when: manual
-    allow_failure: true
-
 .on_fakeintake_changes_on_main:
   - changes:
       <<: *fakeintake_paths
     <<: *if_main_branch
-
-.on_fakeintake_changes_on_main_manual:
-  - changes:
-      <<: *fakeintake_paths
-    <<: *if_main_branch
-    when: manual
-    allow_failure: true
 
 .fast_on_dev_branch_only:
   - <<: *if_main_branch
