@@ -39,11 +39,9 @@ const RemoteConfigPreviewEnvVar = "DD_REMOTE_CONFIGURATION_ENABLED_SERVERLESS_IN
 func DetectMode() Conf {
 
 	envToSet := map[string]string{
-		"DD_HOSTNAME":      "none",
-		"DD_APM_ENABLED":   "true",
-		"DD_TRACE_ENABLED": "true",
-		// Keep instrumentation telemetry off in serverless even under the RC preview;
-		// Remote Config and Live Debugger do not depend on it.
+		"DD_HOSTNAME":                          "none",
+		"DD_APM_ENABLED":                       "true",
+		"DD_TRACE_ENABLED":                     "true",
 		"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
 	}
 	if os.Getenv(RemoteConfigPreviewEnvVar) != "true" {
