@@ -570,23 +570,21 @@ func runLauncherProcessLogSymlinkTest(t *testing.T, ops TestOps, testDir string)
 	cfg := configmock.New(t)
 	t.Cleanup(status.Clear)
 
-	// targetPath is a real .log file an attacker would point a swapped symlink at.
-	// It is a .log file so the privileged-logs allow-list accepts it; the only
-	// behaviour under test is whether the symlink is followed or rejected.
-	targetPath := testDir + "/target.log"
-	targetFile, err := ops.create(targetPath)
-	require.NoError(t, err)
-	_, err = targetFile.WriteString("secret\n")
-	require.NoError(t, err)
-	require.NoError(t, targetFile.Close())
-
-	makeReal := func(path string) {
+	// createEmpty creates an empty file at path.  The files are empty (like
+	// runLauncherFileRotationTest) so that started tailers never block sending to
+	// the pipeline channel, which lets launcher.cleanup() stop them; and they use a
+	// .log name so the privileged-logs module's allow-list (any *.log file) accepts
+	// them.  The only behaviour under test is whether a symlink is followed or rejected.
+	createEmpty := func(path string) {
 		f, err := ops.create(path)
-		require.NoError(t, err)
-		_, err = f.WriteString("hello\n")
 		require.NoError(t, err)
 		require.NoError(t, f.Close())
 	}
+
+	// targetPath is the file an attacker would point a swapped symlink at.
+	targetPath := testDir + "/target.log"
+	createEmpty(targetPath)
+
 	// swapToSymlink replaces the file at path with a symlink to targetPath, simulating
 	// an attacker swapping the discovered path after the agent first opened it.
 	swapToSymlink := func(path string) {
@@ -594,28 +592,12 @@ func runLauncherProcessLogSymlinkTest(t *testing.T, ops TestOps, testDir string)
 		require.NoError(t, ops.symlink(targetPath, path))
 	}
 
-	// newLauncher builds a fresh launcher for a single exact-path source and returns a
-	// scan function that runs one launcher scan and reports the tailer count.  The
-	// pipeline channel is drained so started tailers never block on send; this also
-	// lets the launcher stop a tailer (e.g. on rotation) without cleanup() hanging.
-	newLauncher := func(path string, processLog bool) func() int {
+	// newLauncher builds a launcher tailing a single exact-path source (the shape of a
+	// process_log path, which is an exact /proc/<pid>/fd entry rather than a glob).
+	newLauncher := func(path string, processLog bool) *Launcher {
 		launcher := createLauncher(t, launcherTestOptions{openFilesLimit: 2})
 		launcher.pipelineProvider = mock.NewMockProvider()
 		launcher.registry = auditorMock.NewMockRegistry()
-
-		outputChan := launcher.pipelineProvider.NextPipelineChan()
-		stopDrain := make(chan struct{})
-		go func() {
-			for {
-				select {
-				case <-outputChan:
-				case <-stopDrain:
-					return
-				}
-			}
-		}()
-		t.Cleanup(func() { close(stopDrain) })
-
 		source := sources.NewLogSource("", &config.LogsConfig{
 			Type:       config.FileType,
 			Path:       path,
@@ -624,46 +606,76 @@ func runLauncherProcessLogSymlinkTest(t *testing.T, ops TestOps, testDir string)
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
 		status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
-
-		return func() int {
-			launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
-			return launcher.tailers.Count()
-		}
+		return launcher
+	}
+	scan := func(l *Launcher) {
+		l.resolveActiveTailers(l.fileProvider.FilesToTail(context.Background(), l.validatePodContainerID, l.activeSources, l.registry))
 	}
 
 	t.Run("initial open", func(t *testing.T) {
 		realPath := testDir + "/init_real.log"
-		makeReal(realPath)
-		assert.Equal(t, 1, newLauncher(realPath, true)(),
-			"process_log source should tail a real file")
+		createEmpty(realPath)
+		l := newLauncher(realPath, true)
+		scan(l)
+		assert.Equal(t, 1, l.tailers.Count(), "process_log source should tail a real file")
+		assert.True(t, l.tailers.Contains(realPath))
+		l.cleanup()
 
 		symlinkPath := testDir + "/init_symlink.log"
 		require.NoError(t, ops.symlink(targetPath, symlinkPath))
-		assert.Equal(t, 0, newLauncher(symlinkPath, true)(),
-			"process_log source must reject a path that is a symlink")
-		assert.Equal(t, 1, newLauncher(symlinkPath, false)(),
-			"non-process_log source should follow a symlink")
+
+		l = newLauncher(symlinkPath, true)
+		scan(l)
+		assert.Equal(t, 0, l.tailers.Count(), "process_log source must reject a symlinked path")
+		l.cleanup()
+
+		l = newLauncher(symlinkPath, false)
+		scan(l)
+		assert.Equal(t, 1, l.tailers.Count(), "non-process_log source should follow a symlink")
+		assert.True(t, l.tailers.Contains(symlinkPath))
+		l.cleanup()
 	})
 
 	t.Run("rotation", func(t *testing.T) {
 		// process_log: a path swapped to a symlink after the tailer started must be
 		// rejected on the rotation re-open, dropping the tailer.
 		plPath := testDir + "/rot_pl.log"
-		makeReal(plPath)
-		scanPL := newLauncher(plPath, true)
-		require.Equal(t, 1, scanPL(), "process_log tailer should start on the real file")
+		createEmpty(plPath)
+		l := newLauncher(plPath, true)
+		scan(l)
+		require.Equal(t, 1, l.tailers.Count(), "process_log tailer should start on the real file")
+		plTailer, ok := l.tailers.Get(plPath)
+		require.True(t, ok)
+
 		swapToSymlink(plPath)
-		assert.Equal(t, 0, scanPL(),
+		didRotate, err := plTailer.DidRotate()
+		assert.Error(t, err, "DidRotate must fail when the path became a symlink")
+		assert.False(t, didRotate)
+
+		scan(l)
+		assert.Equal(t, 0, l.tailers.Count(),
 			"process_log tailer must drop when the path becomes a symlink on rotation")
+		l.cleanup()
 
 		// non-process_log: the rotation re-open still follows the symlink.
 		nplPath := testDir + "/rot_npl.log"
-		makeReal(nplPath)
-		scanNPL := newLauncher(nplPath, false)
-		require.Equal(t, 1, scanNPL(), "non-process_log tailer should start on the real file")
+		createEmpty(nplPath)
+		l = newLauncher(nplPath, false)
+		scan(l)
+		require.Equal(t, 1, l.tailers.Count(), "non-process_log tailer should start on the real file")
+		nplTailer, ok := l.tailers.Get(nplPath)
+		require.True(t, ok)
+
 		swapToSymlink(nplPath)
-		assert.Equal(t, 1, scanNPL(),
+		didRotate, err = nplTailer.DidRotate()
+		assert.NoError(t, err)
+		assert.True(t, didRotate, "non-process_log rotation should be detected and followed")
+
+		scan(l)
+		assert.Equal(t, 1, l.tailers.Count(),
 			"non-process_log tailer should follow the symlink across rotation")
+		assert.True(t, l.tailers.Contains(nplPath))
+		l.cleanup()
 	})
 }
 
