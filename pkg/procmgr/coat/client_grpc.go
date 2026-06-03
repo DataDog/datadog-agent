@@ -8,6 +8,7 @@ package coat
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 )
@@ -20,18 +21,25 @@ func newGRPCClient(socketPath string) Client {
 	return &grpcClient{socketPath: socketPath}
 }
 
-func (c *grpcClient) DaemonStatus(ctx context.Context) (DaemonSnapshot, error) {
-	client, closer, err := c.connect()
+func (c *grpcClient) Connect(_ context.Context) (ProcmgrSession, error) {
+	pm, closer, err := c.connect()
+	if err != nil {
+		return nil, err
+	}
+	return &grpcSession{pm: pm, closer: closer}, nil
+}
+
+type grpcSession struct {
+	pm     pb.ProcessManagerClient
+	closer func()
+	once   sync.Once
+}
+
+func (s *grpcSession) Status(ctx context.Context) (DaemonSnapshot, error) {
+	resp, err := s.pm.GetStatus(ctx, &pb.GetStatusRequest{})
 	if err != nil {
 		return DaemonSnapshot{}, err
 	}
-	defer closer()
-
-	resp, err := client.GetStatus(ctx, &pb.GetStatusRequest{})
-	if err != nil {
-		return DaemonSnapshot{}, err
-	}
-
 	return DaemonSnapshot{
 		Reachable:        true,
 		Ready:            resp.GetReady(),
@@ -39,18 +47,25 @@ func (c *grpcClient) DaemonStatus(ctx context.Context) (DaemonSnapshot, error) {
 	}, nil
 }
 
-func (c *grpcClient) ListProcesses(ctx context.Context) (map[string]ProcessSnapshot, error) {
-	client, closer, err := c.connect()
+func (s *grpcSession) List(ctx context.Context) (map[string]ProcessSnapshot, error) {
+	resp, err := s.pm.List(ctx, &pb.ListRequest{})
 	if err != nil {
 		return nil, err
 	}
-	defer closer()
+	return processesFromListResponse(resp), nil
+}
 
-	resp, err := client.List(ctx, &pb.ListRequest{})
-	if err != nil {
-		return nil, err
-	}
+func (s *grpcSession) Disconnect() error {
+	s.once.Do(func() {
+		if s.closer != nil {
+			s.closer()
+			s.closer = nil
+		}
+	})
+	return nil
+}
 
+func processesFromListResponse(resp *pb.ListResponse) map[string]ProcessSnapshot {
 	processes := make(map[string]ProcessSnapshot, len(resp.GetProcesses()))
 	for _, proc := range resp.GetProcesses() {
 		processes[proc.GetName()] = ProcessSnapshot{
@@ -58,7 +73,7 @@ func (c *grpcClient) ListProcesses(ctx context.Context) (map[string]ProcessSnaps
 			State: processStateString(proc.GetState()),
 		}
 	}
-	return processes, nil
+	return processes
 }
 
 func (c *grpcClient) connect() (pb.ProcessManagerClient, func(), error) {

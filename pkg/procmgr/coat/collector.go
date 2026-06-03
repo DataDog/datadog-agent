@@ -43,28 +43,36 @@ func (c *Collector) Collect(ctx context.Context) Snapshot {
 	defer cancel()
 
 	snapshot := Snapshot{
-		Daemon:   c.collectDaemon(ctx),
 		Services: make([]ServiceSnapshot, 0, len(migratableServices)),
 	}
 
-	processes, err := c.client.ListProcesses(ctx)
+	var processes map[string]ProcessSnapshot
+
+	sess, err := c.client.Connect(ctx)
 	if err != nil {
-		logCoatProcmgrErr("coat: listing dd-procmgrd processes", err)
+		logCoatProcmgrErr("coat: dd-procmgrd connect", err)
+		snapshot.Daemon = DaemonSnapshot{}
 		processes = map[string]ProcessSnapshot{}
+	} else {
+		defer func() { _ = sess.Disconnect() }()
+		snapshot.Daemon, err = sess.Status(ctx)
+		if err != nil {
+			logCoatProcmgrErr("coat: dd-procmgrd status", err)
+			snapshot.Daemon = DaemonSnapshot{}
+			processes = map[string]ProcessSnapshot{}
+		} else {
+			processes, err = sess.List(ctx)
+			if err != nil {
+				logCoatProcmgrErr("coat: dd-procmgrd list", err)
+				processes = map[string]ProcessSnapshot{}
+			}
+		}
 	}
+
 	for _, service := range migratableServices {
 		snapshot.Services = append(snapshot.Services, c.collectService(ctx, service, processes))
 	}
 	return snapshot
-}
-
-func (c *Collector) collectDaemon(ctx context.Context) DaemonSnapshot {
-	status, err := c.client.DaemonStatus(ctx)
-	if err != nil {
-		logCoatProcmgrErr("coat: dd-procmgrd daemon status", err)
-		return DaemonSnapshot{}
-	}
-	return status
 }
 
 // logCoatProcmgrErr logs expected "procmgr not there / not ready" conditions at debug and

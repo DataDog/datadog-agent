@@ -19,27 +19,44 @@ import (
 )
 
 type mockClient struct {
-	daemon    DaemonSnapshot
-	daemonErr error
-	processes map[string]ProcessSnapshot
-	listErr   error
+	connectErr error
+	daemon     DaemonSnapshot
+	daemonErr  error
+	processes  map[string]ProcessSnapshot
+	listErr    error
 }
 
-func (m *mockClient) DaemonStatus(context.Context) (DaemonSnapshot, error) {
-	if m.daemonErr != nil {
-		return DaemonSnapshot{}, m.daemonErr
+func (m *mockClient) Connect(context.Context) (ProcmgrSession, error) {
+	if m.connectErr != nil {
+		return nil, m.connectErr
 	}
-	return m.daemon, nil
+	return &mockSession{m: m}, nil
 }
 
-func (m *mockClient) ListProcesses(context.Context) (map[string]ProcessSnapshot, error) {
-	if m.listErr != nil {
-		return nil, m.listErr
+type mockSession struct {
+	m *mockClient
+}
+
+func (s *mockSession) Status(context.Context) (DaemonSnapshot, error) {
+	if s.m.daemonErr != nil {
+		return DaemonSnapshot{}, s.m.daemonErr
 	}
-	if m.processes == nil {
-		return map[string]ProcessSnapshot{}, nil
+	return s.m.daemon, nil
+}
+
+func (s *mockSession) List(context.Context) (map[string]ProcessSnapshot, error) {
+	if s.m.listErr != nil {
+		return nil, s.m.listErr
 	}
-	return m.processes, nil
+	procs := s.m.processes
+	if procs == nil {
+		procs = map[string]ProcessSnapshot{}
+	}
+	return procs, nil
+}
+
+func (s *mockSession) Disconnect() error {
+	return nil
 }
 
 func setupDDOTInstallFixture(t *testing.T) string {
@@ -165,5 +182,25 @@ func TestCollectDaemonUnreachable(t *testing.T) {
 	assert.False(t, snapshot.Daemon.Reachable, "daemon status error should yield empty snapshot")
 	assert.False(t, snapshot.Daemon.Ready)
 	require.Len(t, snapshot.Services, 1)
-	assert.Equal(t, ManagementModeProcmgr, snapshot.Services[0].ManagementMode)
+	assert.Equal(t, ManagementModeNone, snapshot.Services[0].ManagementMode,
+		"daemon failure prevents listing processes")
+	assert.Empty(t, snapshot.Services[0].ProcmgrState)
+}
+
+func TestCollectDaemonReachableListFails(t *testing.T) {
+	root := setupDDOTInstallFixture(t)
+
+	collector := NewCollectorWithClient(root, &mockClient{
+		daemon:    DaemonSnapshot{Reachable: true, Ready: true, RunningProcesses: 1},
+		listErr:   errors.New("list failed"),
+		processes: map[string]ProcessSnapshot{"datadog-agent-ddot": {Name: "datadog-agent-ddot", State: "Running"}},
+	})
+
+	snapshot := collector.Collect(context.Background())
+
+	assert.True(t, snapshot.Daemon.Reachable)
+	assert.True(t, snapshot.Daemon.Ready)
+	require.Len(t, snapshot.Services, 1)
+	assert.Equal(t, ManagementModeNone, snapshot.Services[0].ManagementMode)
+	assert.Empty(t, snapshot.Services[0].ProcmgrState)
 }

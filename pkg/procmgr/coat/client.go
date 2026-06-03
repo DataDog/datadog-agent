@@ -10,10 +10,16 @@ import (
 	"time"
 )
 
-// Client queries dd-procmgrd state.
+// ProcmgrSession is an open gRPC session to dd-procmgrd. Call Disconnect when finished.
+type ProcmgrSession interface {
+	Status(ctx context.Context) (DaemonSnapshot, error)
+	List(ctx context.Context) (map[string]ProcessSnapshot, error)
+	Disconnect() error
+}
+
+// Client opens sessions to dd-procmgrd.
 type Client interface {
-	DaemonStatus(ctx context.Context) (DaemonSnapshot, error)
-	ListProcesses(ctx context.Context) (map[string]ProcessSnapshot, error)
+	Connect(ctx context.Context) (ProcmgrSession, error)
 }
 
 const clientTimeout = 5 * time.Second
