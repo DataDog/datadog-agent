@@ -206,10 +206,11 @@ func TestAdaptiveSampler_DetectionOnlyTagsWouldDrop(t *testing.T) {
 	out2 := s.Process(testMsg(), patternA)
 	require.NotNil(t, out2, "detection-only should keep messages that would be dropped")
 	assert.Contains(t, out2.ParsingExtra.Tags, adaptiveSamplerNoisyLogTag)
-	assert.Equal(t, int64(1), s.entries[0].sampled, "would-dropped messages should preserve suppressed accounting")
+	requireNoSampledCountTag(t, out2)
+	assert.Equal(t, int64(0), s.entries[0].sampled, "detection-only should not count kept messages as suppressed")
 }
 
-func TestAdaptiveSampler_DetectionOnlyPreservesSamplerAccounting(t *testing.T) {
+func TestAdaptiveSampler_DetectionOnlyDoesNotEmitSampledCountAfterRefill(t *testing.T) {
 	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
 		MaxPatterns:    10,
 		RateLimit:      1,
@@ -224,13 +225,15 @@ func TestAdaptiveSampler_DetectionOnlyPreservesSamplerAccounting(t *testing.T) {
 	out2 := s.Process(testMsg(), patternA)
 	require.NotNil(t, out2)
 	assert.Contains(t, out2.ParsingExtra.Tags, adaptiveSamplerNoisyLogTag)
+	requireNoSampledCountTag(t, out2)
+	assert.Equal(t, int64(0), s.entries[0].sampled)
 
 	s.now = func() time.Time { return t0.Add(time.Second) }
 	out3 := s.Process(testMsg(), patternA)
 	require.NotNil(t, out3, "the next credited message should still pass through normally")
 	requireNoTagWithPrefix(t, out3, "noisy_log:")
-	requireSampledCountTag(t, out3, 1)
-	assert.Equal(t, int64(0), s.entries[0].sampled, "emitting should reset the suppressed count")
+	requireNoSampledCountTag(t, out3)
+	assert.Equal(t, int64(0), s.entries[0].sampled)
 }
 
 // Credits are capped at BurstSize even if a long time has passed.

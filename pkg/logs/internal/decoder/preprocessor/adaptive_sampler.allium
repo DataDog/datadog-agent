@@ -261,11 +261,17 @@ rule EmitMatchingLog {
     ensures: entry.last_seen = now
     ensures: entry.match_count = entry.match_count + 1
     ensures: entry.sampled_count = 0
-    ensures: LogEmitted(message, sampled_count: prior_sampled_count, pattern_hash: entry.signature if config.tag_pattern_hash)
+    ensures: if config.detection_only:
+        LogEmitted(message, sampled_count: 0, pattern_hash: entry.signature if config.tag_pattern_hash)
+    ensures: if not config.detection_only:
+        LogEmitted(message, sampled_count: prior_sampled_count, pattern_hash: entry.signature if config.tag_pattern_hash)
 
     @guidance
-        -- If prior_sampled_count > 0 the emitted message is tagged
+        -- If not in detection-only mode and prior_sampled_count > 0,
+        -- the emitted message is tagged
         -- adaptive_sampler_sampled_count:<n>. If 0 no tag is added.
+        -- Detection-only mode never emits adaptive_sampler_sampled_count
+        -- because it does not actually drop matching logs.
         --
         -- After updating, the entry is bubbled toward the front of
         -- the sorted table to maintain descending match_count order.
@@ -275,8 +281,9 @@ rule EmitMatchingLog {
 }
 
 -- A log matches an existing pattern but credits are insufficient.
--- The suppressed count increments. In normal mode the message is
--- dropped; in detection-only mode it is emitted with noisy_log:true.
+-- In normal mode the suppressed count increments and the message is
+-- dropped; in detection-only mode the message is emitted with
+-- noisy_log:true and the suppressed count is not updated.
 
 rule DropMatchingLog {
     when: ProcessLog(message, incoming)
@@ -293,11 +300,15 @@ rule DropMatchingLog {
         else: entry.credits + refill
 
     requires: capped_credits < 1.0
+    let prior_sampled_count = entry.sampled_count
 
     ensures: entry.credits = capped_credits
     ensures: entry.last_seen = now
     ensures: entry.match_count = entry.match_count + 1
-    ensures: entry.sampled_count = entry.sampled_count + 1
+    ensures: if config.detection_only:
+        entry.sampled_count = prior_sampled_count
+    ensures: if not config.detection_only:
+        entry.sampled_count = prior_sampled_count + 1
     ensures: if config.detection_only:
         LogEmitted(message, noisy_log: true, pattern_hash: entry.signature if config.tag_pattern_hash)
     ensures: if not config.detection_only:

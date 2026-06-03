@@ -245,11 +245,11 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		if allow {
 			s.tagPatternHash(msg, matchedTokens)
 			e.credits--
-			if e.sampled > 0 {
+			if !s.config.DetectionOnly && e.sampled > 0 {
 				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerSampledCountTag(e.sampled))
 			}
 			e.sampled = 0
-		} else {
+		} else if !s.config.DetectionOnly {
 			e.sampled++
 		}
 
