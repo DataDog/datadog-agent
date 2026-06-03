@@ -9,27 +9,18 @@
 package client
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
 )
 
 // Open provides a fallback for non-Linux platforms where the privileged logs module is not available.
-// RejectSymlinks degrades to a plain open here: the process_log provider only produces
-// sources from /proc/<pid>/fd, which does not exist outside Linux, so symlink-rejection
-// is Linux-only by nature and there is no attack surface to defend on other platforms.
-func Open(path string, _ common.SymlinkPolicy) (*os.File, error) {
-	return os.Open(path)
-}
+func Open(path string, policy common.SymlinkPolicy) (*os.File, error) {
+	if policy != common.FollowSymlinks {
+		return nil, fmt.Errorf("privileged-logs client: invalid SymlinkPolicy %d; must be FollowSymlinks on non-Linux platforms", policy)
+	}
 
-// OpenPrivileged is not supported on non-Linux platforms.
-func OpenPrivileged(_ string, _ string, _ common.SymlinkPolicy) (*os.File, error) {
-	return nil, os.ErrUnsupported
-}
-
-// OpenNoFollow provides a fallback for non-Linux platforms.
-// On non-Linux platforms this is equivalent to Open with FollowSymlinks.
-func OpenNoFollow(path string) (*os.File, error) {
 	return os.Open(path)
 }
 
