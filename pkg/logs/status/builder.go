@@ -115,6 +115,7 @@ func (b *Builder) getComponentUtilization() []ComponentUtilization {
 			Max2h:               s.Windows.Max2h,
 			Max5h:               s.Windows.Max5h,
 			Max10h:              s.Windows.Max10h,
+			Saturated1mSeconds:  int64(s.Windows.Saturated1m.Seconds()),
 			Saturated30mSeconds: int64(s.Windows.Saturated30m.Seconds()),
 			LastSaturatedAt:     lastSat,
 			HasLastSaturated:    s.Windows.HasLastSaturated,
@@ -134,21 +135,36 @@ func (b *Builder) getComponentUtilization() []ComponentUtilization {
 }
 
 // getBackpressureStatus computes the overall pipeline backpressure state.
+// Returns SATURATED if any component was saturated in the last 1m, WARNING if any
+// component was saturated in the last 30m but not the last 1m, or HEALTHY otherwise.
 func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) BackpressureStatus {
-	var maxSat int64
-	var satName, satInst string
+	var maxSat1m, maxSat30m int64
+	var satName1m, satInst1m string
+	var satName30m, satInst30m string
 	for _, u := range utils {
-		if u.Saturated30mSeconds > maxSat {
-			maxSat = u.Saturated30mSeconds
-			satName = u.Name
-			satInst = u.Instance
+		if u.Saturated1mSeconds > maxSat1m {
+			maxSat1m = u.Saturated1mSeconds
+			satName1m = u.Name
+			satInst1m = u.Instance
+		}
+		if u.Saturated30mSeconds > maxSat30m {
+			maxSat30m = u.Saturated30mSeconds
+			satName30m = u.Name
+			satInst30m = u.Instance
 		}
 	}
-	if maxSat > 0 {
-		dur := time.Duration(maxSat) * time.Second
+	if maxSat1m > 0 {
+		dur30m := time.Duration(maxSat30m) * time.Second
 		return BackpressureStatus{
 			State:  "SATURATED",
-			Reason: fmt.Sprintf("%s pipeline %s was saturated for %s in the last 30m", satName, satInst, fmtDuration(dur)),
+			Reason: fmt.Sprintf("%s pipeline %s is currently saturated (saturated for %s in the last 30m)", satName1m, satInst1m, fmtDuration(dur30m)),
+		}
+	}
+	if maxSat30m > 0 {
+		dur30m := time.Duration(maxSat30m) * time.Second
+		return BackpressureStatus{
+			State:  "WARNING",
+			Reason: fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName30m, satInst30m, fmtDuration(dur30m)),
 		}
 	}
 	return BackpressureStatus{State: "HEALTHY"}

@@ -35,7 +35,7 @@ type TelemetryUtilizationMonitor struct {
 	lastSample time.Time
 	sampleRate time.Duration
 	avg        float64 // N=30 EWMA
-	shortAvg   float64 // N=5 EWMA
+	shortAvg   float64 // N=15 EWMA
 	history    *rollingHistory
 	name       string
 	instance   string

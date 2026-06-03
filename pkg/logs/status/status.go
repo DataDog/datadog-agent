@@ -79,7 +79,7 @@ type ComponentUtilization struct {
 	// Current 1-second window values
 	AvgRatio      float64 `json:"avg_ratio"`       // N=30 EWMA
 	RawRatio      float64 `json:"raw_ratio"`       // instantaneous 1-second sample
-	ShortAvgRatio float64 `json:"short_avg_ratio"` // N=5 EWMA (~5-second window)
+	ShortAvgRatio float64 `json:"short_avg_ratio"` // N=15 EWMA (~15-second window)
 	AvgItems      float64 `json:"avg_items"`
 	RawItems      int64   `json:"raw_items"`
 	AvgBytes      float64 `json:"avg_bytes"`
@@ -93,6 +93,7 @@ type ComponentUtilization struct {
 	Max5h  float64 `json:"max_5h"`
 	Max10h float64 `json:"max_10h"`
 	// Saturation stats (threshold = 90% raw ratio)
+	Saturated1mSeconds  int64  `json:"saturated_1m_s"`       // seconds spent saturated in last 1m
 	Saturated30mSeconds int64  `json:"saturated_30m_s"`      // seconds spent saturated in last 30m
 	LastSaturatedAt     string `json:"last_saturated_at"`    // "15:04:05" or ""
 	HasLastSaturated    bool   `json:"has_last_saturated"`
@@ -100,8 +101,12 @@ type ComponentUtilization struct {
 
 // BackpressureStatus summarises the overall backpressure state of the logs pipeline.
 type BackpressureStatus struct {
-	State  string `json:"state"`  // "HEALTHY" or "SATURATED"
-	Reason string `json:"reason"` // human-readable explanation when saturated
+	// State is one of:
+	//   "HEALTHY"   — no saturation in the last 30m
+	//   "WARNING"   — no current saturation but at least one component was saturated in the last 30m
+	//   "SATURATED" — at least one component was saturated within the last 1m
+	State  string `json:"state"`
+	Reason string `json:"reason"` // human-readable explanation; empty when HEALTHY
 }
 
 // Status provides some information about logs-agent.

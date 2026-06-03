@@ -32,6 +32,8 @@ type WindowStats struct {
 	Max2h  float64
 	Max5h  float64
 	Max10h float64
+	// Saturated1m is total time within the last 1 minute where value >= SaturationThreshold.
+	Saturated1m time.Duration
 	// Saturated30m is total time within the last 30 minutes where value >= SaturationThreshold.
 	// Since samples are 1 second apart, each qualifying sample counts as 1 second.
 	Saturated30m     time.Duration
@@ -71,6 +73,7 @@ func (h *rollingHistory) allStats(now time.Time) WindowStats {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	c1m := now.Add(-1 * time.Minute).UnixNano()
 	c5m := now.Add(-5 * time.Minute).UnixNano()
 	c30m := now.Add(-30 * time.Minute).UnixNano()
 	c2h := now.Add(-2 * time.Hour).UnixNano()
@@ -78,13 +81,13 @@ func (h *rollingHistory) allStats(now time.Time) WindowStats {
 	c10h := now.Add(-10 * time.Hour).UnixNano()
 
 	var (
-		sum5m, sum30m          float64
-		cnt5m, cnt30m          int
-		max5m, max30m          float64
-		max2h, max5h, max10h   float64
-		sat30m                 int
-		lastSat                time.Time
-		hasLastSat             bool
+		sum5m, sum30m        float64
+		cnt5m, cnt30m        int
+		max5m, max30m        float64
+		max2h, max5h, max10h float64
+		sat1m, sat30m        int
+		lastSat              time.Time
+		hasLastSat           bool
 	)
 
 	for i := 0; i < h.size; i++ {
@@ -118,6 +121,9 @@ func (h *rollingHistory) allStats(now time.Time) WindowStats {
 			}
 			if v >= SaturationThreshold {
 				sat30m++
+				if s.tsNano >= c1m {
+					sat1m++
+				}
 			}
 		}
 		if s.tsNano >= c5m {
@@ -145,6 +151,7 @@ func (h *rollingHistory) allStats(now time.Time) WindowStats {
 		Max2h:            max2h,
 		Max5h:            max5h,
 		Max10h:           max10h,
+		Saturated1m:      time.Duration(sat1m) * time.Second,
 		Saturated30m:     time.Duration(sat30m) * time.Second,
 		LastSaturatedAt:  lastSat,
 		HasLastSaturated: hasLastSat,

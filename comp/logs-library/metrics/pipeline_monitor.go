@@ -11,7 +11,7 @@ import (
 
 const (
 	ewmaAlpha      = 2 / (float64(30) + 1) // ~0.0645 — 30-second smoothing window
-	shortEwmaAlpha = 2 / (float64(5) + 1)  // ~0.333  — 5-second smoothing window
+	shortEwmaAlpha = 2 / (float64(15) + 1) // ~0.125 — 15-second smoothing window
 )
 
 // ComponentSnapshot holds the most-recently-reported utilization and capacity metrics
@@ -24,8 +24,8 @@ type ComponentSnapshot struct {
 	AvgRatio float64
 	// RawRatio is the instantaneous ratio over the last 1-second sample window (pre-EWMA).
 	RawRatio float64
-	// ShortAvgRatio is the N=5 EWMA-smoothed utilization ratio (~5-second window).
-	// Responds to sustained saturation within ~7 seconds, compared to ~45 seconds for AvgRatio.
+	// ShortAvgRatio is the N=15 EWMA-smoothed utilization ratio (~15-second window).
+	// Responds to sustained saturation within ~22 seconds, compared to ~45 seconds for AvgRatio.
 	ShortAvgRatio float64
 	// AvgItems is the N=30 EWMA-smoothed count of items held in the component's buffers.
 	AvgItems float64
