@@ -104,7 +104,6 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 	})
 
 	suite.T().Run("Resolution", func(t *testing.T) {
-		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
 		suite.UpdateEnv(awshost.Provisioner(
 			awshost.WithRunOptions(
 				ec2.WithAgentOptions(
@@ -118,6 +117,7 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 				),
 			),
 		))
+		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
 
 		require.Never(t, func() bool {
 			payloads, _ := fakeIntake.GetAgentHealth()

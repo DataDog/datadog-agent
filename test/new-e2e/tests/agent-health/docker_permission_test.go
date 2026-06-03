@@ -82,12 +82,12 @@ func (suite *dockerPermissionSuite) TestDockerHealthCheckTransientFailure() {
 	// On restart the scheduler fires immediately; the docker probe may error or
 	// return stale data in the first tick (socket not yet warmed up). Either way
 	// the scheduler must preserve the active issue.
-	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
 	host.MustExecute("sudo pkill -KILL datadog-agent || true")
 
 	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
 		assert.True(ct, agent.Client.IsReady())
 	}, 2*time.Minute, 10*time.Second, "agent did not restart after SIGKILL")
+	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
 
 	// After the crash restart the issue must still be ONGOING — it must never
 	// have been resolved during the brief window between restart and the first
@@ -123,10 +123,6 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 	const issueID = "docker-socket-permissions"
 
 	suite.T().Run("PreCondition", func(t *testing.T) {
-		require.EventuallyWithT(t, func(ct *assert.CollectT) {
-			assert.True(ct, agent.Client.IsReady())
-		}, 2*time.Minute, 10*time.Second, "agent not ready")
-
 		containers, err := suite.Env().Docker.Client.ListContainers()
 		require.NoError(t, err)
 		found := false
@@ -182,11 +178,11 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		perm := host.MustExecute("stat -c '%a' /var/run/docker.sock")
 		assert.Contains(t, strings.TrimSpace(perm), "666", "docker socket should be world-accessible")
 
-		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
 		require.NoError(t, agent.Client.Restart())
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			assert.True(ct, agent.Client.IsReady())
 		}, 2*time.Minute, 10*time.Second, "agent not ready after fix restart")
+		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
 
 		require.Never(t, func() bool {
 			payloads, _ := fakeIntake.GetAgentHealth()

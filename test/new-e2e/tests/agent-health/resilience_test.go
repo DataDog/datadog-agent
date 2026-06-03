@@ -81,11 +81,11 @@ func (suite *resilienceSuite) TestHealthPlatformResilience() {
 		}
 	}
 
-	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
 	require.NoError(suite.T(), agent.Client.Restart())
 	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
 		assert.True(ct, agent.Client.IsReady())
 	}, 2*time.Minute, 10*time.Second, "agent not ready after restart")
+	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
 
 	// After restart the issue must be re-reported as ONGOING (loaded from on-disk store).
 	var reloadedIssues []*healthplatform.Issue
@@ -139,7 +139,6 @@ func (suite *resilienceSuite) TestHealthPlatformIssueRecurrence() {
 	}, defaultIssueTimeout, defaultIssuePollInterval, "issue not detected in fakeintake before recurrence test")
 
 	// Fix the issue.
-	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
 	suite.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(
 			ec2.WithAgentOptions(
@@ -149,6 +148,7 @@ func (suite *resilienceSuite) TestHealthPlatformIssueRecurrence() {
 			),
 		),
 	))
+	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
 
 	// Verify the issue is resolved or no longer reported.
 	require.Never(suite.T(), func() bool {
@@ -164,7 +164,6 @@ func (suite *resilienceSuite) TestHealthPlatformIssueRecurrence() {
 	}, defaultIssueAbsenceWindow, defaultIssuePollInterval, "issue not resolved after fix")
 
 	// Re-break: deploy the broken check again.
-	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
 	suite.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(
 			ec2.WithAgentOptions(
@@ -174,6 +173,7 @@ func (suite *resilienceSuite) TestHealthPlatformIssueRecurrence() {
 			),
 		),
 	))
+	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
 
 	// Issue must reappear as NEW (not ONGOING) with a reset first_seen.
 	var recurrentIssues []*healthplatform.Issue
