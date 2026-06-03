@@ -50,7 +50,6 @@ BPF_HASH_MAP(traced_cgroups, u64, u64, 1) // max entries will be overridden at r
 BPF_HASH_MAP(traced_pids, u32, u64, 8192) // max entries will be overridden at runtime
 BPF_HASH_MAP(register_netdevice_cache, u64, struct register_netdevice_cache_t, 1024)
 BPF_HASH_MAP(netdevice_lookup_cache, u64, struct device_ifindex_t, 1024)
-BPF_HASH_MAP(fd_link_pid, u8, u32, 1)
 BPF_HASH_MAP(security_profiles, u64, struct security_profile_t, 1) // max entries will be overriden at runtime
 BPF_HASH_MAP(secprofs_syscalls, u64, struct security_profile_syscalls_t, 1) // max entries will be overriden at runtime
 BPF_HASH_MAP(auid_approvers, u32, struct event_mask_filter_t, 128)
