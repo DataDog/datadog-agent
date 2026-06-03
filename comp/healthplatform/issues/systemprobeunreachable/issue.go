@@ -50,12 +50,12 @@ func (t *SystemProbeUnreachableIssue) BuildIssue(context map[string]string) (*he
 
 	return &healthplatform.Issue{
 		Id:          IssueID,
-		IssueName:   "system_probe_unreachable",
+		IssueName:   IssueName,
 		Title:       "System Probe Is Not Reachable",
 		Description: fmt.Sprintf("Network Performance Monitoring or Universal Service Monitoring is enabled but the system-probe is not running or its socket %s is not accessible.", socketPath),
 		Category:    "configuration",
 		Location:    "system-probe",
-		Severity:    "medium",
+		Severity:    healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
 		DetectedAt:  "", // Will be filled by health platform
 		Source:      "agent",
 		Extra:       extra,

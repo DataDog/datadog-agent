@@ -8,9 +8,10 @@
 package systemprobeunreachable
 
 import (
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 func init() {
@@ -18,8 +19,9 @@ func init() {
 }
 
 const (
-	// IssueType is the template type identifier for system-probe unreachable issues
-	IssueType = "system-probe-unreachable"
+	// IssueName is the identifier for system-probe unreachable issues,
+	// used as the template registry key and the proto IssueName field.
+	IssueName = "system_probe_unreachable"
 
 	// IssueID is the unique instance id used when reporting this issue
 	IssueID = "system-probe-unreachable"
@@ -39,26 +41,24 @@ func NewModule(conf config.Component) issues.Module {
 	}
 }
 
-// IssueType returns the template type identifier for this issue type
-func (m *systemProbeUnreachableModule) IssueType() string {
-	return IssueType
+func (m *systemProbeUnreachableModule) IssueName() string {
+	return IssueName
 }
 
-// IssueTemplate returns the template for building complete issues
-func (m *systemProbeUnreachableModule) IssueTemplate() issues.IssueTemplate {
-	return m.template
+func (m *systemProbeUnreachableModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+	return m.template.BuildIssue(context)
 }
 
 // BuiltInPeriodicHealthCheck returns nil — system-probe reachability is checked once at startup, not periodically.
-func (m *systemProbeUnreachableModule) BuiltInPeriodicHealthCheck() *issues.BuiltInPeriodicHealthCheck {
+func (m *systemProbeUnreachableModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
 	return nil
 }
 
 // BuiltInStartupHealthCheck runs the system-probe reachability check once at agent startup.
-func (m *systemProbeUnreachableModule) BuiltInStartupHealthCheck() *issues.BuiltInStartupHealthCheck {
-	return &issues.BuiltInStartupHealthCheck{
+func (m *systemProbeUnreachableModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
+	return &runnerdef.BuiltInHealthCheck{
 		Source: "system-probe",
-		Fn: func() ([]storedef.IssueReport, error) {
+		Fn: func() ([]runnerdef.IssueReport, error) {
 			return Check(m.conf)
 		},
 	}

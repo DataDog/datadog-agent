@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 const (
@@ -22,7 +22,7 @@ const (
 
 // Check detects whether NPM/USM is enabled but system-probe is not reachable.
 // Returns an IssueReport if the socket is unreachable, nil otherwise.
-func Check(cfg config.Component) ([]storedef.IssueReport, error) {
+func Check(cfg config.Component) ([]runnerdef.IssueReport, error) {
 	npmEnabled := cfg.GetBool("network_config.enabled")
 	usmEnabled := cfg.GetBool("service_monitoring_config.enabled")
 
@@ -46,10 +46,10 @@ func Check(cfg config.Component) ([]storedef.IssueReport, error) {
 		networkEnabled = "true"
 	}
 
-	return []storedef.IssueReport{
+	return []runnerdef.IssueReport{
 		{
 			IssueID:   IssueID,
-			IssueType: IssueType,
+			IssueName: IssueName,
 			Context: map[string]string{
 				"socket":          socketPath,
 				"network_enabled": networkEnabled,
