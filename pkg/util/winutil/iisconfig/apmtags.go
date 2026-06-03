@@ -77,10 +77,8 @@ var (
 	errorlogcount = 0
 )
 
-// ReadDotNetConfig reads an IIS web.config and returns its APM tags. The bool
-// reports whether they came from <aspNetCore> env vars (real process env, the
-// tracer's top tier) rather than <appSettings>/datadog.json; buildPathTagTree
-// uses it to rank web.config against applicationHost.config.
+// ReadDotNetConfig reads an IIS web.config and returns its APM tags. The bool is
+// true when they came from <aspNetCore> env vars (real env) vs <appSettings>.
 func ReadDotNetConfig(cfgpath string) (APMTags, bool, error) {
 	var newcfg appConfiguration
 	var apmtags APMTags
@@ -98,10 +96,8 @@ func ReadDotNetConfig(cfgpath string) (APMTags, bool, error) {
 		return apmtags, false, err
 	}
 
-	// ASP.NET Core app: ANCM injects <aspNetCore> env vars into the worker (the
-	// tracer's top precedence) and never reads <appSettings> (Framework-only,
-	// #if NETFRAMEWORK in dd-trace-dotnet). Use them exclusively, ignoring
-	// appSettings, so USM matches what APM sees.
+	// ASP.NET Core app: <aspNetCore> env vars are real process env; the Core
+	// tracer ignores <appSettings> (Framework-only), so we do too.
 	if newcfg.SystemWebServer.AspNetCore.XMLName.Local != "" {
 		return applyEnvVarsOver(APMTags{}, newcfg.SystemWebServer.AspNetCore.EnvVars), true, nil
 	}

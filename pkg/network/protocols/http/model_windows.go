@@ -121,11 +121,8 @@ func (tx *WinHttpTransaction) DynamicTags() []string {
 		}
 	}
 
-	// Per-field precedence matches the .NET tracer, highest first: real process
-	// env (TagsFromAppHost -- IIS env vars, with a Core app's web.config
-	// <aspNetCore> folded in by buildPathTagTree), then Framework <appSettings>
-	// (TagsFromConfig), then datadog.json (TagsFromJson). Fields fall through
-	// independently.
+	// Per-field precedence (matches the .NET tracer): real env (TagsFromAppHost)
+	// > Framework appSettings (TagsFromConfig) > datadog.json (TagsFromJson).
 	if len(tx.TagsFromAppHost.DDEnv) > 0 {
 		tags = append(tags, fmt.Sprintf("env:%v", tx.TagsFromAppHost.DDEnv))
 	} else if len(tx.TagsFromConfig.DDEnv) > 0 {

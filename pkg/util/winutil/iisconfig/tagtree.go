@@ -180,11 +180,8 @@ func applyEnvVarsOver(base APMTags, vars iisEnvironmentVariables) APMTags {
 	return state
 }
 
-// buildPoolEnvTags maps lowercased pool name -> UST tags from
-// applicationHost.config (pool names are case-insensitive). IIS does not merge a
-// pool's own <environmentVariables> with applicationPoolDefaults: declaring the
-// collection (even empty) replaces the defaults; only a pool that omits it
-// inherits them.
+// buildPoolEnvTags maps lowercased pool name -> UST tags. A pool with its own
+// <environmentVariables> replaces applicationPoolDefaults; one that omits it inherits.
 func buildPoolEnvTags(pools iisApplicationPools) (perPool map[string]APMTags, defaults APMTags) {
 	defaults = applyEnvVarsOver(APMTags{}, pools.Defaults.EnvVars)
 	perPool = make(map[string]APMTags, len(pools.Pools))
@@ -392,12 +389,8 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 				}
 			}
 
-			// A Core app's web.config <aspNetCore> env vars are the most
-			// specific real env: ANCM overlays them over the pool env and the
-			// tracer reads them at its top tier. Fold them onto the
-			// applicationHost env (web.config wins per field) and drop the
-			// separate tier so the result outranks applicationHost. Framework
-			// <appSettings> ranks below real env, so it stays in appconfig.
+			// Core web.config <aspNetCore> env overrides the pool env (ANCM
+			// applies it last); fold it in so it outranks applicationHost.
 			if configFromEnv {
 				if appconfig.DDService != "" {
 					envvars.DDService = appconfig.DDService
