@@ -829,6 +829,229 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
 	suite.compareEndpoints(expectedEndpoints, endpoints)
 }
 
+// TestBuildEndpointsWithOPWDualShip verifies that when dual_ship=true the primary DD endpoint
+// is kept and OPW is added as an additional best-effort (unreliable) endpoint by default.
+func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShip() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dual_ship", true)
+
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	suite.Require().Nil(err)
+
+	// Primary endpoint must be the Datadog intake, not OPW.
+	suite.Equal("agent-http-intake.logs.datadoghq.com.", endpoints.Main.Host)
+
+	// There must be exactly two endpoints: [main (DD), OPW additional].
+	suite.Require().Len(endpoints.Endpoints, 2, "expected 2 endpoints (DD primary + OPW additional)")
+
+	opwEndpoint := endpoints.Endpoints[1]
+	suite.Equal("opw.example.com", opwEndpoint.Host)
+	suite.Equal(8443, opwEndpoint.Port)
+	suite.True(opwEndpoint.UseSSL())
+	suite.False(opwEndpoint.IsReliable(), "OPW dual-ship endpoint must default to unreliable so an unhealthy OPW cannot stall delivery to Datadog")
+	suite.True(opwEndpoint.isAdditionalEndpoint)
+
+	// OPW must inherit v2-API metadata from the main endpoint so traffic uses
+	// /api/v2/logs and the DD-PROTOCOL / DD-EVP-ORIGIN headers — same semantics as
+	// the primary Datadog destination and as user-supplied additional_endpoints.
+	suite.Equal(endpoints.Main.Version, opwEndpoint.Version)
+	suite.Equal(endpoints.Main.TrackType, opwEndpoint.TrackType)
+	suite.Equal(endpoints.Main.Protocol, opwEndpoint.Protocol)
+	suite.Equal(endpoints.Main.Origin, opwEndpoint.Origin)
+	suite.Equal(EPIntakeVersion2, opwEndpoint.Version)
+	suite.Equal(IntakeTrackType("test-track"), opwEndpoint.TrackType)
+}
+
+// TestBuildEndpointsWithOPWDualShipReliable verifies that the dual_ship_reliable opt-in flips the
+// OPW additional endpoint to reliable mode (so OPW failures apply backpressure to the main pipeline).
+func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShipReliable() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dual_ship", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dual_ship_reliable", true)
+
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	suite.Require().Nil(err)
+
+	suite.Require().Len(endpoints.Endpoints, 2)
+	opwEndpoint := endpoints.Endpoints[1]
+	suite.Equal("opw.example.com", opwEndpoint.Host)
+	suite.True(opwEndpoint.IsReliable(), "dual_ship_reliable=true must make OPW a reliable additional endpoint")
+}
+
+// TestBuildEndpointsWithOPWDualShipAndAdditionalEndpoints verifies that when dual_ship=true is
+// combined with explicit additional_endpoints the user-configured endpoints are preserved and
+// the final list is: [DD primary, OPW additional, ...user additional_endpoints].
+func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShipAndAdditionalEndpoints() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dual_ship", true)
+	suite.config.SetWithoutSource("logs_config.additional_endpoints", []map[string]interface{}{
+		{"api_key": "456", "host": "extra.logs.example.com", "port": 443, "use_ssl": true},
+	})
+
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	suite.Require().Nil(err)
+
+	// Primary endpoint must be Datadog.
+	suite.Equal("agent-http-intake.logs.datadoghq.com.", endpoints.Main.Host)
+
+	// [DD primary, OPW additional, user-configured additional] = 3 total.
+	suite.Require().Len(endpoints.Endpoints, 3, "expected 3 endpoints (DD + OPW + user additional)")
+
+	opwEndpoint := endpoints.Endpoints[1]
+	suite.Equal("opw.example.com", opwEndpoint.Host)
+
+	userEndpoint := endpoints.Endpoints[2]
+	suite.Equal("extra.logs.example.com", userEndpoint.Host)
+}
+
+// TestBuildEndpointsWithOPWNoDualShipReplacesPrimary verifies that when dual_ship is absent
+// (default false) OPW continues to replace the primary Datadog endpoint — the default OPW mode.
+func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWNoDualShipReplacesPrimary() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
+	// dual_ship is intentionally NOT set — should default to false.
+
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	suite.Require().Nil(err)
+
+	// Primary endpoint must be OPW (the default OPW-replaces-primary behaviour).
+	suite.Equal("opw.example.com", endpoints.Main.Host)
+	suite.Equal(8443, endpoints.Main.Port)
+
+	// Only one endpoint in total (no additional endpoints).
+	suite.Require().Len(endpoints.Endpoints, 1, "expected 1 endpoint (OPW as primary, default mode)")
+}
+
+// TestBuildEndpointsWithOPWDualShipInheritsCompressionOverride verifies that a compression override
+// passed via BuildHTTPEndpointsWithCompressionOverride is propagated to the OPW dual-ship endpoint.
+// Without the copy block the OPW endpoint would use the pre-override compression settings while the
+// primary DD endpoint uses the overridden ones — causing the two endpoints to compress differently.
+func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShipInheritsCompressionOverride() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dual_ship", true)
+
+	logsConfig := NewLogsConfigKeysWithVector("logs_config.", "logs.", suite.config)
+	compressionOverride := EndpointCompressionOptions{
+		CompressionKind:  "zstd",
+		CompressionLevel: 9,
+	}
+
+	endpoints, err := BuildHTTPEndpointsWithCompressionOverride(suite.config, logsConfig, httpEndpointPrefix, "test-track", "test-proto", "test-source", compressionOverride)
+	suite.Require().Nil(err)
+
+	suite.Require().Len(endpoints.Endpoints, 2)
+	opwEndpoint := endpoints.Endpoints[1]
+	suite.Equal("opw.example.com", opwEndpoint.Host)
+
+	// OPW must use the same compression as the primary DD endpoint.
+	suite.Equal(endpoints.Main.UseCompression, opwEndpoint.UseCompression, "OPW must inherit UseCompression from main")
+	suite.Equal("zstd", opwEndpoint.CompressionKind, "OPW must inherit CompressionKind override from main")
+	suite.Equal(9, opwEndpoint.CompressionLevel, "OPW must inherit CompressionLevel override from main")
+	suite.Equal(endpoints.Main.BackoffFactor, opwEndpoint.BackoffFactor, "OPW must inherit BackoffFactor from main")
+	suite.Equal(endpoints.Main.BackoffBase, opwEndpoint.BackoffBase, "OPW must inherit BackoffBase from main")
+	suite.Equal(endpoints.Main.BackoffMax, opwEndpoint.BackoffMax, "OPW must inherit BackoffMax from main")
+	suite.Equal(endpoints.Main.RecoveryInterval, opwEndpoint.RecoveryInterval, "OPW must inherit RecoveryInterval from main")
+	suite.Equal(endpoints.Main.RecoveryReset, opwEndpoint.RecoveryReset, "OPW must inherit RecoveryReset from main")
+	suite.Equal(endpoints.Main.ConnectionResetInterval, opwEndpoint.ConnectionResetInterval, "OPW must inherit ConnectionResetInterval from main")
+}
+
+// TestBuildEndpointsWithLegacyVectorDualShip verifies that the legacy vector.* prefix is
+// honoured for dual_ship so that users still on the old config are not silently broken.
+// When vector.logs.dual_ship=true the OPW endpoint must appear as an additional endpoint
+// (dual-ship mode) exactly as it would when the modern observability_pipelines_worker key is set.
+func (suite *ConfigTestSuite) TestBuildEndpointsWithLegacyVectorDualShip() {
+	suite.config.SetWithoutSource("api_key", "123")
+	// Use the legacy vector.* prefix for all three OPW settings.
+	suite.config.SetWithoutSource("vector.logs.enabled", true)
+	suite.config.SetWithoutSource("vector.logs.url", "https://opw.example.com:8443/")
+	suite.config.SetWithoutSource("vector.logs.dual_ship", true)
+
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	suite.Require().Nil(err)
+
+	// Primary endpoint must be the Datadog intake, not OPW.
+	suite.Equal("agent-http-intake.logs.datadoghq.com.", endpoints.Main.Host)
+
+	// There must be exactly two endpoints: [main (DD), OPW additional].
+	suite.Require().Len(endpoints.Endpoints, 2, "expected 2 endpoints (DD primary + OPW additional) when legacy vector.logs.dual_ship=true")
+
+	opwEndpoint := endpoints.Endpoints[1]
+	suite.Equal("opw.example.com", opwEndpoint.Host)
+	suite.Equal(8443, opwEndpoint.Port)
+	suite.True(opwEndpoint.UseSSL())
+	suite.True(opwEndpoint.isAdditionalEndpoint)
+	suite.False(opwEndpoint.IsReliable(), "OPW dual-ship endpoint must default to unreliable even via legacy prefix")
+}
+
+// TestBuildEndpointsWithLegacyVectorDualShipReliable verifies that the legacy
+// vector.logs.dual_ship_reliable key is honoured via the fallback path.
+func (suite *ConfigTestSuite) TestBuildEndpointsWithLegacyVectorDualShipReliable() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("vector.logs.enabled", true)
+	suite.config.SetWithoutSource("vector.logs.url", "https://opw.example.com:8443/")
+	suite.config.SetWithoutSource("vector.logs.dual_ship", true)
+	suite.config.SetWithoutSource("vector.logs.dual_ship_reliable", true)
+
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	suite.Require().Nil(err)
+
+	suite.Require().Len(endpoints.Endpoints, 2)
+	opwEndpoint := endpoints.Endpoints[1]
+	suite.Equal("opw.example.com", opwEndpoint.Host)
+	suite.True(opwEndpoint.IsReliable(), "vector.logs.dual_ship_reliable=true must make OPW a reliable additional endpoint via legacy prefix")
+}
+
+// TestBuildEndpointsWithOPWDualShipNoOPWEnabledWarns verifies that setting dual_ship=true when
+// OPW is not enabled (or has no URL) emits a startup warning, because dual_ship has no effect
+// in that configuration — the OPW block is skipped entirely.
+func TestBuildEndpointsWithOPWDualShipNoOPWEnabledWarns(t *testing.T) {
+	cfg := config.NewMock(t)
+	cfg.SetWithoutSource("api_key", "123")
+	// OPW is NOT enabled — dual_ship=true should warn and silently no-op.
+	cfg.SetWithoutSource("observability_pipelines_worker.logs.dual_ship", true)
+
+	var buf bytes.Buffer
+	logger, err := pkglog.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&buf, pkglog.WarnLvl)
+	assert.NoError(t, err)
+	pkglog.SetupLogger(logger, "warn")
+
+	_, buildErr := BuildHTTPEndpointsWithVectorOverride(cfg, "test-track", "test-proto", "test-source")
+	assert.NoError(t, buildErr)
+
+	assert.True(t, strings.Contains(buf.String(), "dual_ship=true has no effect"), "expected startup warning when dual_ship=true and OPW is not enabled; got: %s", buf.String())
+}
+
+// TestBuildEndpointsWithOPWDualShipReliableWithoutDualShipWarns verifies that setting
+// dual_ship_reliable=true without dual_ship=true emits a startup warning, because the
+// reliability setting is silently ignored in that configuration.
+func TestBuildEndpointsWithOPWDualShipReliableWithoutDualShipWarns(t *testing.T) {
+	cfg := config.NewMock(t)
+	cfg.SetWithoutSource("api_key", "123")
+	cfg.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	cfg.SetWithoutSource("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
+	// dual_ship_reliable=true but dual_ship is false (default) — should warn.
+	cfg.SetWithoutSource("observability_pipelines_worker.logs.dual_ship_reliable", true)
+
+	var buf bytes.Buffer
+	logger, err := pkglog.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&buf, pkglog.WarnLvl)
+	assert.NoError(t, err)
+	pkglog.SetupLogger(logger, "warn")
+
+	_, buildErr := BuildHTTPEndpointsWithVectorOverride(cfg, "test-track", "test-proto", "test-source")
+	assert.NoError(t, buildErr)
+
+	assert.True(t, strings.Contains(buf.String(), "dual_ship_reliable=true has no effect"), "expected startup warning when dual_ship_reliable=true and dual_ship=false; got: %s", buf.String())
+}
+
 func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 	suite.config.SetWithoutSource("api_key", "123")
 
