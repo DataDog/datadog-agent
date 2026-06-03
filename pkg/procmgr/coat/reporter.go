@@ -11,6 +11,7 @@ import (
 	"time"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 )
 
 const reportInterval = 5 * time.Minute
@@ -100,7 +101,7 @@ func report(ctx context.Context, g gauges, collector *Collector) {
 
 		setBoolGauge(g.serviceInstalled, service.Installed, service.ID)
 		setBoolGauge(g.serviceProcmgrConfigured, service.ProcmgrConfigured, service.ID)
-		setBoolGauge(g.processRunning, service.ProcmgrState == "Running", spec.ProcmgrProcessName)
+		setBoolGauge(g.processRunning, service.ProcmgrState == pb.ProcessState_RUNNING, spec.ProcmgrProcessName)
 
 		// Do not emit management_mode=none on platforms where we never classify
 		// systemd/SCM/procmgr (e.g. macOS); avoids polluting COAT adoption metrics.

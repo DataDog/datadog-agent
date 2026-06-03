@@ -7,7 +7,6 @@ package coat
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
@@ -70,7 +69,7 @@ func processesFromListResponse(resp *pb.ListResponse) map[string]ProcessSnapshot
 	for _, proc := range resp.GetProcesses() {
 		processes[proc.GetName()] = ProcessSnapshot{
 			Name:  proc.GetName(),
-			State: processStateString(proc.GetState()),
+			State: proc.GetState(),
 		}
 	}
 	return processes
@@ -83,29 +82,4 @@ func (c *grpcClient) connect() (pb.ProcessManagerClient, func(), error) {
 	}
 
 	return pb.NewProcessManagerClient(conn), func() { _ = conn.Close() }, nil
-}
-
-func processStateString(state pb.ProcessState) string {
-	switch state {
-	case pb.ProcessState_UNKNOWN:
-		return "Unknown"
-	case pb.ProcessState_CREATED:
-		return "Created"
-	case pb.ProcessState_STARTING:
-		return "Starting"
-	case pb.ProcessState_RUNNING:
-		return "Running"
-	case pb.ProcessState_STOPPING:
-		return "Stopping"
-	case pb.ProcessState_STOPPED:
-		return "Stopped"
-	case pb.ProcessState_CRASHED:
-		return "Crashed"
-	case pb.ProcessState_EXITED:
-		return "Exited"
-	case pb.ProcessState_FAILED:
-		return "Failed"
-	default:
-		return fmt.Sprintf("Unknown(%d)", int32(state))
-	}
 }

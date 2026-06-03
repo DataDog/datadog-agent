@@ -16,6 +16,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 )
 
 type mockClient struct {
@@ -81,7 +83,7 @@ func TestCollectServiceProcmgrRunning(t *testing.T) {
 	collector := NewCollectorWithClient(root, &mockClient{
 		daemon: DaemonSnapshot{Reachable: true, Ready: true, RunningProcesses: 1},
 		processes: map[string]ProcessSnapshot{
-			"datadog-agent-ddot": {Name: "datadog-agent-ddot", State: "Running"},
+			"datadog-agent-ddot": {Name: "datadog-agent-ddot", State: pb.ProcessState_RUNNING},
 		},
 	})
 
@@ -92,7 +94,7 @@ func TestCollectServiceProcmgrRunning(t *testing.T) {
 	assert.Equal(t, "ddot", service.ID)
 	assert.True(t, service.Installed)
 	assert.True(t, service.ProcmgrConfigured)
-	assert.Equal(t, "Running", service.ProcmgrState)
+	assert.Equal(t, pb.ProcessState_RUNNING, service.ProcmgrState)
 	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
 	assert.True(t, snapshot.Daemon.Reachable)
 	assert.True(t, snapshot.Daemon.Ready)
@@ -103,7 +105,7 @@ func TestCollectServiceProcmgrNotRunningStillManaged(t *testing.T) {
 
 	collector := NewCollectorWithClient(root, &mockClient{
 		processes: map[string]ProcessSnapshot{
-			"datadog-agent-ddot": {Name: "datadog-agent-ddot", State: "Starting"},
+			"datadog-agent-ddot": {Name: "datadog-agent-ddot", State: pb.ProcessState_STARTING},
 		},
 	})
 
@@ -112,7 +114,7 @@ func TestCollectServiceProcmgrNotRunningStillManaged(t *testing.T) {
 
 	service := snapshot.Services[0]
 	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
-	assert.Equal(t, "Starting", service.ProcmgrState)
+	assert.Equal(t, pb.ProcessState_STARTING, service.ProcmgrState)
 }
 
 func TestCollectNoProcmgrNoLegacy(t *testing.T) {
@@ -127,7 +129,7 @@ func TestCollectNoProcmgrNoLegacy(t *testing.T) {
 	assert.False(t, service.Installed)
 	assert.False(t, service.ProcmgrConfigured)
 	assert.Equal(t, ManagementModeNone, service.ManagementMode)
-	assert.Empty(t, service.ProcmgrState)
+	assert.Equal(t, pb.ProcessState_UNKNOWN, service.ProcmgrState)
 }
 
 func TestCollectInstallMarkerAbsent(t *testing.T) {
@@ -173,7 +175,7 @@ func TestCollectDaemonUnreachable(t *testing.T) {
 	collector := NewCollectorWithClient(root, &mockClient{
 		daemonErr: errors.New("dial failed"),
 		processes: map[string]ProcessSnapshot{
-			"datadog-agent-ddot": {Name: "datadog-agent-ddot", State: "Running"},
+			"datadog-agent-ddot": {Name: "datadog-agent-ddot", State: pb.ProcessState_RUNNING},
 		},
 	})
 
@@ -184,7 +186,7 @@ func TestCollectDaemonUnreachable(t *testing.T) {
 	require.Len(t, snapshot.Services, 1)
 	assert.Equal(t, ManagementModeNone, snapshot.Services[0].ManagementMode,
 		"daemon failure prevents listing processes")
-	assert.Empty(t, snapshot.Services[0].ProcmgrState)
+	assert.Equal(t, pb.ProcessState_UNKNOWN, snapshot.Services[0].ProcmgrState)
 }
 
 func TestCollectDaemonReachableListFails(t *testing.T) {
@@ -193,7 +195,7 @@ func TestCollectDaemonReachableListFails(t *testing.T) {
 	collector := NewCollectorWithClient(root, &mockClient{
 		daemon:    DaemonSnapshot{Reachable: true, Ready: true, RunningProcesses: 1},
 		listErr:   errors.New("list failed"),
-		processes: map[string]ProcessSnapshot{"datadog-agent-ddot": {Name: "datadog-agent-ddot", State: "Running"}},
+		processes: map[string]ProcessSnapshot{"datadog-agent-ddot": {Name: "datadog-agent-ddot", State: pb.ProcessState_RUNNING}},
 	})
 
 	snapshot := collector.Collect(context.Background())
@@ -202,5 +204,5 @@ func TestCollectDaemonReachableListFails(t *testing.T) {
 	assert.True(t, snapshot.Daemon.Ready)
 	require.Len(t, snapshot.Services, 1)
 	assert.Equal(t, ManagementModeNone, snapshot.Services[0].ManagementMode)
-	assert.Empty(t, snapshot.Services[0].ProcmgrState)
+	assert.Equal(t, pb.ProcessState_UNKNOWN, snapshot.Services[0].ProcmgrState)
 }
