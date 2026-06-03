@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "clusterinfo",
+    srcs = ["tags.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/clusterinfo",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/tags",
+        "//pkg/util/kubernetes/clustername",
+        "@com_github_cenkalti_backoff_v5//:backoff",
+    ],
+)

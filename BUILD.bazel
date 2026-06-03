@@ -37,7 +37,6 @@ exports_files(glob(
 # gazelle:exclude cmd/serverless-init
 # gazelle:exclude cmd/system-probe/modules
 # gazelle:exclude cmd/system-probe/subcommands/compliance
-# gazelle:exclude cmd/system-probe/subcommands/coverage
 # gazelle:exclude cmd/system-probe/subcommands/ebpf
 # gazelle:exclude cmd/system-probe/subcommands/run
 # gazelle:exclude cmd/system-probe/subcommands/runtime
@@ -76,7 +75,6 @@ exports_files(glob(
 # gazelle:exclude comp/collector/bundle.go
 # gazelle:exclude comp/collector/collector/fx
 # gazelle:exclude comp/collector/collector/impl
-# gazelle:exclude comp/collector/collector/mock
 # gazelle:exclude comp/connectivitychecker/checker
 # gazelle:exclude comp/connectivitychecker/fx
 # gazelle:exclude comp/connectivitychecker/impl
@@ -201,9 +199,7 @@ exports_files(glob(
 # gazelle:exclude comp/offlinereporter/impl
 # gazelle:exclude comp/otelcol/collector-contrib/fx
 # gazelle:exclude comp/otelcol/collector-contrib/impl
-# gazelle:exclude comp/otelcol/collector/fx
 # gazelle:exclude comp/otelcol/collector/fx-pipeline
-# gazelle:exclude comp/otelcol/collector/impl
 # gazelle:exclude comp/otelcol/collector/impl-pipeline
 # gazelle:exclude comp/otelcol/converter/examples
 # gazelle:exclude comp/otelcol/ddflareextension/image
@@ -262,7 +258,6 @@ exports_files(glob(
 # gazelle:exclude pkg/cli/subcommands/clusterchecks
 # gazelle:exclude pkg/cli/subcommands/dcaconfigcheck
 # gazelle:exclude pkg/cli/subcommands/dcaflare
-# gazelle:exclude pkg/cli/subcommands/experimental
 # gazelle:exclude pkg/cli/subcommands/processchecks
 # gazelle:exclude pkg/cloudfoundry
 # gazelle:exclude pkg/clusteragent/admission
@@ -347,7 +342,6 @@ exports_files(glob(
 # gazelle:exclude pkg/compliance/tests
 # gazelle:exclude pkg/config/autodiscovery
 # gazelle:exclude pkg/config/legacy
-# gazelle:exclude pkg/databasemonitoring
 # gazelle:exclude pkg/diagnose/connectivity
 # gazelle:exclude pkg/discovery/language
 # gazelle:exclude pkg/discovery/module/rust/include
@@ -446,7 +440,6 @@ exports_files(glob(
 # gazelle:exclude pkg/logs/launchers/file
 # gazelle:exclude pkg/logs/launchers/integration
 # gazelle:exclude pkg/logs/launchers/journald
-# gazelle:exclude pkg/logs/launchers/windowsevent
 # gazelle:exclude pkg/logs/pipeline
 # gazelle:exclude pkg/logs/processor
 # gazelle:exclude pkg/logs/schedulers
@@ -489,7 +482,6 @@ exports_files(glob(
 # gazelle:exclude pkg/network/usm/testutil/grpc
 # gazelle:exclude pkg/network/usm/utils
 # gazelle:exclude pkg/networkconfigmanagement/sender
-# gazelle:exclude pkg/networkconfigmanagement/test
 # gazelle:exclude pkg/networkdevice/sender
 # gazelle:exclude pkg/networkdevice/utils
 # gazelle:exclude pkg/networkpath/telemetry
@@ -497,7 +489,6 @@ exports_files(glob(
 # gazelle:exclude pkg/orchestrator/config
 # gazelle:exclude pkg/privateactionrunner/autoconnections
 # gazelle:exclude pkg/privateactionrunner/bundles/remoteaction/rshell
-# gazelle:exclude pkg/privateactionrunner/enrollment
 # gazelle:exclude pkg/privateactionrunner/runners
 # gazelle:exclude pkg/privileged-logs/module
 # gazelle:exclude pkg/privileged-logs/test
@@ -516,8 +507,6 @@ exports_files(glob(
 # gazelle:exclude pkg/sbom/scanner
 # gazelle:exclude pkg/security/clihelpers
 # gazelle:exclude pkg/security/config
-# gazelle:exclude pkg/security/ebpf/c
-# gazelle:exclude pkg/security/ebpf/probes
 # gazelle:exclude pkg/security/ebpf/tests
 # gazelle:exclude pkg/security/events
 # gazelle:exclude pkg/security/generators/backend_doc
@@ -558,20 +547,14 @@ exports_files(glob(
 # gazelle:exclude pkg/status/clusteragent
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
 # gazelle:exclude pkg/system-probe/api/module
-# gazelle:exclude pkg/util/cloudproviders/kubernetes
-# gazelle:exclude pkg/util/cloudproviders/network
 # gazelle:exclude pkg/util/containers/metrics/containerd
 # gazelle:exclude pkg/util/containers/metrics/docker
 # gazelle:exclude pkg/util/containers/metrics/kubelet
 # gazelle:exclude pkg/util/containers/metrics/mock
 # gazelle:exclude pkg/util/containers/metrics/system
 # gazelle:exclude pkg/util/crashreport
-# gazelle:exclude pkg/util/kubelet
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status_templates
-# gazelle:exclude pkg/util/kubernetes/cloudprovider
-# gazelle:exclude pkg/util/kubernetes/clusterinfo
-# gazelle:exclude pkg/util/kubernetes/clustername
 # TODO(agent-build): re-include the following files once their unmigrated deps are
 #   reachable from Bazel-migrated targets:
 #     - hostname.go      -> pkg/util/kubernetes/apiserver, pkg/util/kubernetes/clustername
@@ -580,7 +563,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/kubernetes/hostname.go
 # gazelle:exclude pkg/util/kubernetes/resource.go
 # gazelle:exclude pkg/util/kubernetes/resource_test.go
-# gazelle:exclude pkg/util/tags
 # gazelle:exclude tasks/unit_tests
 # gazelle:exclude test/benchmarks
 # gazelle:exclude test/e2e-framework/components/datadog/agent/helm
@@ -690,7 +672,6 @@ exports_files(glob(
 # gazelle:exclude tools/gdb
 # gazelle:exclude tools/go-update
 # gazelle:exclude tools/retry_file_dump
-# gazelle:exclude tools/windows
 
 # ======= TESTDATA EXCLUDES =======
 # gazelle:exclude **/testdata/**/*.go
