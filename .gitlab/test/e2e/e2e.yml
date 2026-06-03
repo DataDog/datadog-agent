@@ -1148,7 +1148,7 @@ new-e2e-ssi-aks:
     E2E_STACK_NAME_SUFFIX: aks
     # Image volume is not supported on AKS in our current test setup.
     EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
-    
+
 new-e2e-ssi-gradual-rollout:
   extends: .new_e2e_template
   rules:
@@ -1222,7 +1222,7 @@ new-e2e-gpu:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/gpu # the target path where tests are
-    TEAM: ebpf-platform
+    TEAM: gpu-monitoring-agent
     E2E_PULUMI_LOG_LEVEL: 10 # incident-33572
     ON_NIGHTLY_FIPS: "true"
   needs: # list of required jobs. By default gitlab waits for any previous jobs.

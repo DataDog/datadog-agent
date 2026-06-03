@@ -205,10 +205,7 @@ jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-security"
 github_labels = ["team/agent-security"]
-exclude_members = [
-  "jinroh",
-  "0intro",
-]
+exclude_members = ["jinroh", "0intro"]
 
 [teams."CSPM Agent"]
 jira_project = "SEC"
@@ -289,3 +286,10 @@ jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "profiling-full-host"
 github_labels = ["team/profiling-full-host"]
+
+[teams."GPU Monitoring Agent"]
+jira_project = "EBPF"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "gpu-monitoring-agent"
+github_labels = ["team/gpu-monitoring-agent"]
