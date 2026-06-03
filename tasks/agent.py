@@ -568,14 +568,14 @@ COPY {runtime_dir}/*.c       /opt/datadog-agent/embedded/share/system-probe/ebpf
 COPY --from=bin /opt/datadog-agent/embedded/share/system-probe/ebpf /opt/datadog-agent/embedded/share/system-probe/ebpf
 """
 
-    # The agent built with the `sds` tag dynamically links libdd_sds_go, so the
+    # The agent built with the `sds` tag dynamically links libdd_sds, so the
     # shared library must be present in the image. Build it first with
-    # `inv sds.build-library` so that dev/lib/libdd_sds_go.so exists (it must be a
+    # `inv sds.build-library` so that dev/lib/libdd_sds.so exists (it must be a
     # Linux .so, matching the linux/<arch> image, not a macOS .dylib).
     copy_sds_lib = ""
     copy_sds_lib_final = ""
     if include_sds:
-        sds_lib = os.path.join("dev", "lib", "libdd_sds_go.so")
+        sds_lib = os.path.join("dev", "lib", "libdd_sds.so")
         if not os.path.exists(sds_lib):
             print(
                 f"Unable to find {sds_lib}: run `inv sds.build-library` (on Linux/in the dev env) before building with --include-sds",
@@ -583,11 +583,11 @@ COPY --from=bin /opt/datadog-agent/embedded/share/system-probe/ebpf /opt/datadog
             )
             raise Exit(code=1)
         copy_sds_lib = """
-COPY dev/lib/libdd_sds_go.so /opt/datadog-agent/embedded/lib/libdd_sds_go.so
-RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdd_sds_go.so
+COPY dev/lib/libdd_sds.so /opt/datadog-agent/embedded/lib/libdd_sds.so
+RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdd_sds.so
 """
         copy_sds_lib_final = """
-COPY --from=bin /opt/datadog-agent/embedded/lib/libdd_sds_go.so /opt/datadog-agent/embedded/lib/libdd_sds_go.so
+COPY --from=bin /opt/datadog-agent/embedded/lib/libdd_sds.so /opt/datadog-agent/embedded/lib/libdd_sds.so
 """
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:

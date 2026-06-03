@@ -23,7 +23,7 @@ SDS_VERSION = "3c48e9fa5604"
 
 # Name of the shared library produced by `cargo build` (matches the `-ldd_sds_go`
 # cgo directive in the sds-go Go bindings).
-LIB_BASENAME = "libdd_sds_go"
+LIB_BASENAME = "libdd_sds"
 
 
 @task
@@ -42,8 +42,8 @@ def build_library(ctx):
             ctx.run("git clone https://github.com/DataDog/dd-sensitive-data-scanner")
             with ctx.cd("dd-sensitive-data-scanner"):
                 ctx.run(f"git checkout {SDS_VERSION}")
-            with ctx.cd("dd-sensitive-data-scanner/sds-go/rust"):
-                ctx.run("cargo build --release")
+            with ctx.cd("dd-sensitive-data-scanner/sds"):
+                ctx.run("cargo build --release --features dd_sds_go")
                 # install the lib besides the rtloader libs so the Agent build links against it
                 dev_path = get_dev_path()
                 lib_path = os.path.join(dev_path, "lib")
