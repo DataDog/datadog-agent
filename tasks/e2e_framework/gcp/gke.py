@@ -58,7 +58,6 @@ def create_gke(
 
     extra_flags = {
         "ddinfra:env": f"gcp/{account if account else cfg.get_gcp().account}",
-        "ddinfra:gcp/defaultPublicKeyPath": cfg.get_gcp().publicKeyPath,
         "ddinfra:gcp/gke/enableAutopilot": use_autopilot,
         "ddagent:localChartPath": local_chart_path,
         "ddinfra:kubernetesVersion": kube_version,

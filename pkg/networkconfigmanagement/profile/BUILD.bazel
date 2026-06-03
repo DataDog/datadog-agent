@@ -4,23 +4,13 @@ go_library(
     name = "profile",
     srcs = [
         "command.go",
+        "default_profiles.go",
         "profile.go",
         "profile_cache.go",
         "profile_processing.go",
         "profile_test_utils.go",
     ],
     embedsrcs = [
-        "default_profiles/aoscx.json",
-        "default_profiles/aosw.json",
-        "default_profiles/cisco-asa.json",
-        "default_profiles/cisco-ios.json",
-        "default_profiles/dellos10.json",
-        "default_profiles/eos.json",
-        "default_profiles/fortios.json",
-        "default_profiles/junos.json",
-        "default_profiles/nxos.json",
-        "default_profiles/pan-os.json",
-        "default_profiles/tmos.json",
         "fixtures/aoscx/running/expected.txt",
         "fixtures/aoscx/running/initial.txt",
         "fixtures/aoscx/startup/expected.txt",
@@ -59,7 +49,6 @@ go_library(
     deps = [
         "//pkg/util/log",
         "//pkg/util/scrubber",
-        "@in_yaml_go_yaml_v2//:yaml",
     ],
 )
 
@@ -68,7 +57,6 @@ go_test(
     srcs = [
         "default_profiles_test.go",
         "profile_processing_test.go",
-        "profile_test.go",
     ],
     data = ["//pkg/networkconfigmanagement/test/conf.d/network_config_management.d/default_profiles"],
     embed = [":profile"],

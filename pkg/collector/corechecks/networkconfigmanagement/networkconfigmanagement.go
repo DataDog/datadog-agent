@@ -46,7 +46,7 @@ type Check struct {
 	sender        *ncmsender.NCMSender
 	agentConfig   config.Component
 	ncmComp       networkconfigmanagement.Component
-	remoteClient  ncmremote.Client
+	remoteClient  ncmremote.Connector
 	clock         clock.Clock
 	lastCheckTime time.Time
 	agentHostname string
@@ -63,26 +63,20 @@ func saveConfig(store store.ConfigStore, deviceID string, cType types.ConfigType
 
 // Run executes the check to retrieve network device configurations from a device
 func (c *Check) Run() error {
-	var checkErr error
 	var configs []ncmreport.NetworkDeviceConfig
+	ctx := context.Background()
 	checkStartTime := c.clock.Now()
 
-	checkErr = c.remoteClient.Connect()
-	if checkErr != nil {
-		log.Errorf("unable to connect to remote device %s: %s", c.checkContext.Device.IPAddress, checkErr)
-		return checkErr
+	conn, err := c.remoteClient.Connect()
+	if err != nil {
+		log.Errorf("unable to connect to remote device %s: %s", c.checkContext.Device.IPAddress, err)
+		return err
 	}
-
-	// Must defer this way because sometimes we will have to redial the remote client
-	defer func() {
-		if c.remoteClient != nil {
-			_ = c.remoteClient.Close()
-		}
-	}()
+	defer conn.Close()
 
 	// If the check did not have inline profile explicitly defined/from cache, find the profile that works
 	if !c.checkContext.ProfileCache.HasSetProfile() {
-		prof, err := c.FindMatchingProfile()
+		prof, err := c.FindMatchingProfile(conn)
 		if err != nil {
 			return err
 		}
@@ -90,7 +84,7 @@ func (c *Check) Run() error {
 		c.checkContext.ProfileCache.ProfileName = prof.Name
 	}
 	// Update the remote client's device profile to access the correct commands
-	c.remoteClient.SetProfile(c.checkContext.ProfileCache.Profile)
+	conn.SetProfile(c.checkContext.ProfileCache.Profile)
 
 	deviceID := fmt.Sprintf("%s:%s", c.checkContext.Namespace, c.checkContext.Device.IPAddress)
 	deviceTags := c.getDeviceTags()
@@ -107,11 +101,11 @@ func (c *Check) Run() error {
 
 	var hasNewConfigs bool
 
-	rawRunningConfig, checkErr := c.remoteClient.RetrieveRunningConfig()
+	rawRunningConfig, checkErr := conn.RetrieveRunningConfig(ctx)
 	if checkErr != nil {
 		return checkErr
 	}
-	runningConfig, metadata, checkErr := c.checkContext.ProfileCache.Profile.ProcessCommandOutput(profile.Running, rawRunningConfig)
+	runningConfig, metadata, checkErr := c.checkContext.ProfileCache.Profile.ProcessConfig(rawRunningConfig)
 	if checkErr != nil {
 		log.Warnf("unable to process rules for running config for device %s, using agent collection ts: %s", deviceID, checkErr)
 	} else {
@@ -125,12 +119,12 @@ func (c *Check) Run() error {
 		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.RUNNING, metadata, deviceTags, runningConfig, runningUUID, runningHash))
 	}
 
-	rawStartupConfig, checkErr := c.remoteClient.RetrieveStartupConfig()
+	rawStartupConfig, checkErr := conn.RetrieveStartupConfig(ctx)
 	if checkErr != nil {
 		// If the startup config cannot be retrieved, log a warning but continue
 		log.Warnf("unable to retrieve startup config for %s, will not send: %s", deviceID, checkErr)
 	} else {
-		startupConfig, metadata, checkErr := c.checkContext.ProfileCache.Profile.ProcessCommandOutput(profile.Startup, rawStartupConfig)
+		startupConfig, metadata, checkErr := c.checkContext.ProfileCache.Profile.ProcessConfig(rawStartupConfig)
 		if checkErr != nil {
 			log.Warnf("unable to process rules for startup config for device %s, using agent collection ts: %s", deviceID, checkErr)
 		} else {
@@ -201,7 +195,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.sender = ncmSender
 
 	// TODO: add check to see the device's credentials type (SSH/Telnet) and create appropriate client factory
-	c.remoteClient, err = ncmremote.NewSSHClient(c.checkContext.Device)
+	c.remoteClient, err = ncmremote.NewSSHConnector(c.checkContext.Device)
 	if err != nil {
 		return fmt.Errorf("create remote SSH client failed: %w", err)
 	}
@@ -234,13 +228,13 @@ func newCheck(agentConfig config.Component, ncmComp networkconfigmanagement.Comp
 }
 
 // FindMatchingProfile supports testing profiles until one is found with a successful command for the device
-func (c *Check) FindMatchingProfile() (*profile.NCMProfile, error) {
+func (c *Check) FindMatchingProfile(conn ncmremote.Connection) (*profile.NCMProfile, error) {
 	for profName, prof := range c.checkContext.ProfileMap {
 		if c.checkContext.ProfileCache.HasTried(profName) {
 			continue
 		}
-		c.remoteClient.SetProfile(prof)
-		_, err := c.remoteClient.RetrieveRunningConfig()
+		conn.SetProfile(prof)
+		_, err := conn.RetrieveRunningConfig(context.Background())
 		if err != nil {
 			log.Warnf("error with running config retrieval on profile %s on remote device %s: %s", profName, c.checkContext.Device.IPAddress, err)
 			c.checkContext.ProfileCache.AppendToTriedProfiles(profName)

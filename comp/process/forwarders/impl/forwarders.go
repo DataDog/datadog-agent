@@ -12,7 +12,8 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	forwarders "github.com/DataDog/datadog-agent/comp/process/forwarders/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -62,17 +63,17 @@ func NewComponent(deps dependencies) (forwarders.Component, error) {
 	}, nil
 }
 
-func createForwarder(deps dependencies, options *defaultforwarder.Options) defaultforwarder.Component {
+func createForwarder(deps dependencies, options *defaultforwarderimpl.Options) defaultforwarder.Component {
 	options.Secrets = deps.Secrets
-	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, options).Comp
+	return defaultforwarderimpl.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, options).Comp
 }
 
-func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) (*defaultforwarder.Options, error) {
+func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) (*defaultforwarderimpl.Options, error) {
 	resolver, err := resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(endpoints))
 	if err != nil {
 		return nil, err
 	}
-	forwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver)
+	forwarderOpts := defaultforwarderimpl.NewOptionsWithResolvers(config, log, resolver)
 	forwarderOpts.DisableAPIKeyChecking = true
 	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
 	return forwarderOpts, nil
