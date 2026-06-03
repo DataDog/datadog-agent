@@ -8,7 +8,6 @@ package eventplatformimpl
 import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func getGenResourcesPipelines() []passthroughPipelineDesc {
@@ -21,9 +20,9 @@ func getGenResourcesPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "resources-intake.",
 			intakeTrackType:               "genresources",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    epfDefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
+			defaultInputChanSize:          epfDefaultInputChanSize,
 		},
 	}
 }

@@ -7,7 +7,6 @@ package eventplatformimpl
 
 import (
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 const eventTypeDoQueryResults = "do-query-results"
@@ -23,7 +22,7 @@ func getDataObservabilityPipelines() []passthroughPipelineDesc {
 			intakeTrackType:               "query-actions",
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    20e6,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
 			defaultInputChanSize:          500,
 		},
 	}

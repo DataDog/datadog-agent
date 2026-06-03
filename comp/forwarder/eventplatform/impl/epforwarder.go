@@ -44,6 +44,29 @@ import (
 
 //go:generate go run go.uber.org/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go -build_constraint test
 
+// Default batch/channel size constants mirrored from pkgconfigsetup so that
+// split pipeline files can reference them without importing pkg/config/setup.
+const (
+	epfDefaultBatchMaxConcurrentSend = pkgconfigsetup.DefaultBatchMaxConcurrentSend
+	epfDefaultBatchMaxContentSize    = pkgconfigsetup.DefaultBatchMaxContentSize
+	epfDefaultBatchMaxSize           = pkgconfigsetup.DefaultBatchMaxSize
+	epfDefaultInputChanSize          = pkgconfigsetup.DefaultInputChanSize
+)
+
+// Config wrappers for pipeline files — keep pkg/config/setup usage in this
+// already-exempt file rather than spreading it to each split pipeline file.
+func isKubeActionsEnabled() bool {
+	return pkgconfigsetup.Datadog().GetBool("kubeactions.enabled")
+}
+
+func kubeActionsForwarderUseV2API() bool {
+	return pkgconfigsetup.Datadog().GetBool("kubeactions.forwarder.use_v2_api")
+}
+
+func isSoftwareInventoryEnabled() bool {
+	return pkgconfigsetup.Datadog().GetBool("software_inventory.enabled")
+}
+
 // Requires defines the component's dependencies.
 type Requires struct {
 	Params                eventplatform.Params
