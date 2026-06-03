@@ -1056,10 +1056,16 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 				}
 				if action.Def.Set.Append {
 					if err := mutable.Append(ctx, value); err != nil {
+						if errors.Is(err, eval.ErrScopeNotAvailable) {
+							break
+						}
 						return fmt.Errorf("append is not supported for type `%s` with variable `%s` in rule `%s`: %w", reflect.TypeOf(value), name, rule.ID, err)
 					}
 				} else {
 					if err := mutable.Set(ctx, value); err != nil {
+						if errors.Is(err, eval.ErrScopeNotAvailable) {
+							break
+						}
 						return err
 					}
 				}
