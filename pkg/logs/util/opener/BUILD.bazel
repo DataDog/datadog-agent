@@ -11,6 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/logs/internal/util/opener",
+        "//pkg/privileged-logs/common",
         "//pkg/util/filesystem",
         "@com_github_spf13_afero//:afero",
     ],

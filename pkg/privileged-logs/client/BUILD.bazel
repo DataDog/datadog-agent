@@ -9,15 +9,57 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/privileged-logs/client",
     visibility = ["//visibility:public"],
     deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/privileged-logs/common",
+        ],
         "@rules_go//go/platform:android": [
             "//pkg/config/setup",
             "//pkg/privileged-logs/common",
             "//pkg/util/log",
         ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/privileged-logs/common",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/privileged-logs/common",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/privileged-logs/common",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/privileged-logs/common",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/privileged-logs/common",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/privileged-logs/common",
+        ],
         "@rules_go//go/platform:linux": [
             "//pkg/config/setup",
             "//pkg/privileged-logs/common",
             "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/privileged-logs/common",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/privileged-logs/common",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/privileged-logs/common",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/privileged-logs/common",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/privileged-logs/common",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/privileged-logs/common",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/privileged-logs/common",
         ],
         "//conditions:default": [],
     }),

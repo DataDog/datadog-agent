@@ -27,8 +27,8 @@ go_library(
             "//pkg/util/filesystem",
         ],
         "@rules_go//go/platform:android": [
+            "//pkg/privileged-logs/client",
             "//pkg/privileged-logs/common",
-            "//pkg/util/filesystem",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/privileged-logs/common",
