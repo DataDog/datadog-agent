@@ -37,38 +37,26 @@ qa_agent_on_failure:
   extends:
     - qa_agent
     - .legacy_public_images_publish
-  needs:
-    - job: qa_agent
-      artifacts: false
-      optional: true
+  needs: []
   rules: !reference [.public_images_legacy_e2e_manual]
 
 qa_agent_fips_on_failure:
   extends:
     - qa_agent_fips
     - .legacy_public_images_publish
-  needs:
-    - job: qa_agent_fips
-      artifacts: false
-      optional: true
+  needs: []
   rules: !reference [.public_images_legacy_e2e_manual]
 
 qa_agent_jmx_on_failure:
   extends:
     - qa_agent_jmx
     - .legacy_public_images_publish
-  needs:
-    - job: qa_agent_jmx
-      artifacts: false
-      optional: true
+  needs: []
   rules: !reference [.public_images_legacy_e2e_manual]
 
 qa_agent_fips_jmx_on_failure:
   extends:
     - qa_agent_fips_jmx
     - .legacy_public_images_publish
-  needs:
-    - job: qa_agent_fips_jmx
-      artifacts: false
-      optional: true
+  needs: []
   rules: !reference [.public_images_legacy_e2e_manual]
