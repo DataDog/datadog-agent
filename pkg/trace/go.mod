@@ -37,7 +37,7 @@ require (
 	golang.org/x/sys v0.45.0
 	golang.org/x/time v0.15.0
 	google.golang.org/grpc v1.81.1
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
 	k8s.io/apimachinery v0.35.5
 )
 
@@ -55,6 +55,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.26.4
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	go.opentelemetry.io/collector/component/componenttest v0.152.0
+	go.uber.org/mock v0.6.0
 )
 
 require go.opentelemetry.io/collector/processor v1.58.0 // indirect
@@ -91,7 +92,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260216142805-b3301c5f2a88 // indirect
 	github.com/mdlayher/socket v0.6.0 // indirect
-	github.com/mdlayher/vsock v1.2.1 // indirect
+	github.com/mdlayher/vsock v1.3.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
@@ -104,7 +105,7 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_golang v1.23.3-0.20251103151724-a5ae20370e5e // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.67.5 // indirect
+	github.com/prometheus/common v0.68.0 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.11.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
@@ -122,13 +123,13 @@ require (
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20260508232706-74f9aab9d74a // indirect
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260406210006-6f92a3bedf2d // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260511170946-3700d4141b60 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260504160031-60b97b32f348 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
@@ -147,6 +148,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../comp/core/hostname/hostnameinterface
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def => ../../comp/core/hostname/hostnameinterface/def
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock => ../../comp/core/hostname/hostnameinterface/mock
 	github.com/DataDog/datadog-agent/comp/core/ipc/def => ../../comp/core/ipc/def
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers => ../../comp/core/ipc/httphelpers
 	github.com/DataDog/datadog-agent/comp/core/ipc/impl => ../../comp/core/ipc/impl

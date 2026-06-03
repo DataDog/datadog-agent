@@ -46,7 +46,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/configsync v0.64.0
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.77.2
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.73.0-devel.0.20251030121902-cd89eab046d6
 	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/ipc/impl v0.72.0-devel.0.20250915111542-570ca4a195dc
@@ -167,7 +166,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/DataDog/datadog-operator/api v0.0.0-20260505153817-d1d2b65124cc
 	github.com/DataDog/datadog-traceroute v1.0.15
-	github.com/DataDog/dd-trace-go/v2 v2.8.1
+	github.com/DataDog/dd-trace-go/v2 v2.8.2
 	github.com/DataDog/ebpf-manager v0.7.18
 	github.com/DataDog/go-acl v1.0.1
 	github.com/DataDog/go-sqllexer v0.2.2
@@ -239,13 +238,12 @@ require (
 	github.com/godror/godror v0.50.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
-	// github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/golang/protobuf v1.5.4
 	github.com/google/btree v1.1.3
 	github.com/google/cel-go v0.28.1
 	github.com/google/go-cmp v0.7.0
-	github.com/google/go-containerregistry v0.21.5
+	github.com/google/go-containerregistry v0.21.6
 	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.6.0
@@ -277,7 +275,7 @@ require (
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/mailru/easyjson v0.9.1
 	github.com/mattn/go-sqlite3 v1.14.42
-	github.com/mdlayher/netlink v1.11.1
+	github.com/mdlayher/netlink v1.11.2
 	github.com/miekg/dns v1.1.72
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
@@ -297,7 +295,7 @@ require (
 	github.com/prometheus-community/pro-bing v0.8.0
 	github.com/prometheus/client_golang v1.23.3-0.20251103151724-a5ae20370e5e
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.67.5
+	github.com/prometheus/common v0.68.0
 	github.com/prometheus/procfs v0.20.1
 	github.com/redis/go-redis/v9 v9.17.3
 	github.com/rickar/props v1.0.0
@@ -393,7 +391,7 @@ require (
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/grpc v1.81.1
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
@@ -424,9 +422,9 @@ require (
 
 require (
 	cel.dev/expr v0.25.1 // indirect
-	cloud.google.com/go/auth v0.18.2 // indirect
+	cloud.google.com/go/auth v0.20.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	cloud.google.com/go/compute v1.63.0 // indirect
+	cloud.google.com/go/compute v1.64.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	code.cloudfoundry.org/cfhttp/v2 v2.0.0 // indirect
 	code.cloudfoundry.org/clock v1.0.0 // indirect
@@ -457,7 +455,7 @@ require (
 	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.0 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl v0.0.0 // indirect
@@ -534,7 +532,6 @@ require (
 	github.com/containerd/fifo v1.1.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v1.0.0-rc.1 // indirect
-	github.com/containerd/stargz-snapshotter/estargz v0.18.2 // indirect
 	github.com/containerd/ttrpc v1.2.7 // indirect
 	github.com/containernetworking/plugins v1.4.1 // indirect
 	github.com/dennwc/varint v1.0.0 // indirect
@@ -542,7 +539,7 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/digitalocean/go-metadata v0.0.0-20250129100319-e3650a3df44b // indirect
 	github.com/digitalocean/godo v1.178.0 // indirect
-	github.com/docker/cli v29.4.0+incompatible // indirect
+	github.com/docker/cli v29.4.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
 	github.com/docker/go-units v0.5.0 // indirect
@@ -596,8 +593,8 @@ require (
 	github.com/google/pprof v0.0.0-20260302011040-a15ffb7f9dcc // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/wire v0.6.0 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.14 // indirect
-	github.com/googleapis/gax-go/v2 v2.21.0 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.15 // indirect
+	github.com/googleapis/gax-go/v2 v2.22.0 // indirect
 	github.com/gophercloud/gophercloud/v2 v2.11.1 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
@@ -663,7 +660,7 @@ require (
 	github.com/mattn/go-shellwords v1.0.13 // indirect
 	github.com/mdlayher/kobject v0.0.0-20200520190114-19ca17470d7d // indirect
 	github.com/mdlayher/socket v0.6.0 // indirect
-	github.com/mdlayher/vsock v1.2.1
+	github.com/mdlayher/vsock v1.3.0
 	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -791,7 +788,6 @@ require (
 	github.com/ua-parser/uap-go v0.0.0-20251207011819-db9adb27a0b8 // indirect
 	github.com/ugorji/go/codec v1.3.0 // indirect
 	github.com/ulikunitz/xz v0.5.15 // indirect
-	github.com/vbatts/tar-split v0.12.2 // indirect
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
@@ -897,10 +893,10 @@ require (
 	golang.org/x/term v0.43.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
-	google.golang.org/api v0.274.0 // indirect
+	google.golang.org/api v0.279.0 // indirect
 	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260406210006-6f92a3bedf2d // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260406210006-6f92a3bedf2d // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260511170946-3700d4141b60 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260504160031-60b97b32f348 // indirect
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
@@ -925,8 +921,10 @@ require (
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0
+	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.5.0
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.78.1
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.61.0
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/logs-library v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.0.0-00010101000000-000000000000
@@ -981,6 +979,7 @@ require (
 	go.opentelemetry.io/collector/otelcol/otelcoltest v0.152.0
 	go.temporal.io/api v1.62.2
 	go.temporal.io/sdk v1.39.0
+	go.uber.org/mock v0.6.0
 	mvdan.cc/sh/v3 v3.13.1
 )
 
@@ -1243,7 +1242,7 @@ replace github.com/hashicorp/vault/sdk => github.com/hashicorp/vault/sdk v0.19.1
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 // Maps to Trivy fork https://github.com/DataDog/trivy/pull/32
-replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20260513170708-3c7f1f6b38e8
+replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20260601163858-2f12eac6ff81
 
 // github.com/docker/docker v28 has known security vulnerabilities (CVE-2026-34040, CVE-2026-33997).
 // Pin to the 28.x branch head which includes the backported security fixes (not yet tagged).
@@ -1294,6 +1293,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ./comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ./comp/core/hostname/hostnameinterface
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def => ./comp/core/hostname/hostnameinterface/def
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock => ./comp/core/hostname/hostnameinterface/mock
 	github.com/DataDog/datadog-agent/comp/core/ipc/def => ./comp/core/ipc/def
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers => ./comp/core/ipc/httphelpers
 	github.com/DataDog/datadog-agent/comp/core/ipc/impl => ./comp/core/ipc/impl

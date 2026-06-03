@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.198
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.73.0-devel.0.20251030121902-cd89eab046d6
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.77.0-devel.0.20260213154712-e02b9359151a
@@ -44,7 +44,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260213154712-e02b9359151a // indirect
@@ -74,10 +73,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.79.0-devel.0.20260402163801-bfa4eff6c991 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.75.4 // indirect
@@ -111,7 +108,6 @@ require (
 	github.com/google/go-tpm v0.9.8 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-version v1.9.0 // indirect
-	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/knadh/koanf/maps v0.1.2 // indirect
@@ -120,7 +116,7 @@ require (
 	github.com/lufia/plan9stats v0.0.0-20260216142805-b3301c5f2a88 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mdlayher/socket v0.6.0 // indirect
-	github.com/mdlayher/vsock v1.2.1 // indirect
+	github.com/mdlayher/vsock v1.3.0 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -135,12 +131,11 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_golang v1.23.3-0.20251103151724-a5ae20370e5e // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.67.5 // indirect
+	github.com/prometheus/common v0.68.0 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.4 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
-	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
@@ -183,8 +178,6 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.43.0 // indirect
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/dig v1.19.0 // indirect
-	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
@@ -195,9 +188,9 @@ require (
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260406210006-6f92a3bedf2d // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260504160031-60b97b32f348 // indirect
 	google.golang.org/grpc v1.81.1 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
+	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
@@ -216,6 +209,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../../../comp/core/hostname/hostnameinterface
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def => ../../../../../../comp/core/hostname/hostnameinterface/def
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock => ../../../../../../comp/core/hostname/hostnameinterface/mock
 	github.com/DataDog/datadog-agent/comp/core/ipc/def => ../../../../../../comp/core/ipc/def
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers => ../../../../../../comp/core/ipc/httphelpers
 	github.com/DataDog/datadog-agent/comp/core/ipc/impl => ../../../../../../comp/core/ipc/impl

@@ -21,3 +21,12 @@ func NewRetryableError(err error) *RetryableError {
 func (e *RetryableError) Error() string {
 	return e.err.Error()
 }
+
+// Unwrap returns the wrapped error so that errors.Is and errors.As can traverse
+// RetryableError. Without this, callers can match neither the inner sentinel
+// (e.g. a package-level errServer) nor any wrapped *url.Error / *net.OpError —
+// which made error-classification helpers fall back to message-string heuristics
+// and miscategorise wrapped HTTP-status errors as "other".
+func (e *RetryableError) Unwrap() error {
+	return e.err
+}

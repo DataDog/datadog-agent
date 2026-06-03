@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.73.0-devel.0.20251030121902-cd89eab046d6
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/hostport v0.0.0-00010101000000-000000000000
@@ -74,7 +74,7 @@ require (
 	github.com/lufia/plan9stats v0.0.0-20260216142805-b3301c5f2a88 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mdlayher/socket v0.6.0 // indirect
-	github.com/mdlayher/vsock v1.2.1 // indirect
+	github.com/mdlayher/vsock v1.3.0 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
@@ -118,6 +118,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../comp/core/hostname/hostnameinterface
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def => ../../../../comp/core/hostname/hostnameinterface/def
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock => ../../../../comp/core/hostname/hostnameinterface/mock
 	github.com/DataDog/datadog-agent/comp/core/ipc/def => ../../../../comp/core/ipc/def
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers => ../../../../comp/core/ipc/httphelpers
 	github.com/DataDog/datadog-agent/comp/core/ipc/impl => ../../../../comp/core/ipc/impl

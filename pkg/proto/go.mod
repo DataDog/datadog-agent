@@ -5,14 +5,14 @@ go 1.25.0
 retract v0.46.0-devel
 
 require (
-	github.com/golang/mock v1.7.0-rc.1
 	github.com/google/gofuzz v1.2.0
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/stretchr/testify v1.11.1
 	github.com/tinylib/msgp v1.6.4
 	github.com/vmihailenco/msgpack/v5 v5.4.1
+	go.uber.org/mock v0.6.0
 	google.golang.org/grpc v1.81.1
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
 )
 
 require gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -27,7 +27,7 @@ require (
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260406210006-6f92a3bedf2d // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260504160031-60b97b32f348 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
 
@@ -47,6 +47,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../comp/core/hostname/hostnameinterface
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def => ../../comp/core/hostname/hostnameinterface/def
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock => ../../comp/core/hostname/hostnameinterface/mock
 	github.com/DataDog/datadog-agent/comp/core/ipc/def => ../../comp/core/ipc/def
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers => ../../comp/core/ipc/httphelpers
 	github.com/DataDog/datadog-agent/comp/core/ipc/impl => ../../comp/core/ipc/impl
