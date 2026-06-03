@@ -30,3 +30,16 @@ metadata:
 ```
 
 The Operator rolls out a new DaemonSet revision adding the host-profiler container. Agent pods restart one node at a time.
+
+## AppArmor (optional)
+
+Load [`../apparmor-profile`](../apparmor-profile) on each node using your cluster's AppArmor provisioning mechanism, then set `appArmorProfileName` on the host-profiler container override in your `DatadogAgent` CR:
+
+```yaml
+spec:
+  override:
+    nodeAgent:
+      containers:
+        host-profiler:
+          appArmorProfileName: localhost/dd-host-profiler
+```

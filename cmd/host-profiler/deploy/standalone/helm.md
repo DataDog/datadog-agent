@@ -30,6 +30,15 @@ helm upgrade --install dd-host-profiler open-telemetry/opentelemetry-collector \
   --values standalone/helm/otel-config.yaml
 ```
 
+### AppArmor (optional)
+
+Load [`../apparmor-profile`](../apparmor-profile) on each node using your cluster's AppArmor provisioning mechanism, then update `pod-spec.yaml`:
+
+```yaml
+podAnnotations:
+  container.apparmor.security.beta.kubernetes.io/opentelemetry-collector: localhost/dd-host-profiler
+```
+
 ### Cilium (optional)
 
 On clusters with Cilium, apply the Cilium network policy to restrict egress to Datadog endpoints:

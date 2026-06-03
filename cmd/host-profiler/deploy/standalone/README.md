@@ -27,4 +27,4 @@ kubectl create secret generic datadog-secret \
 
 ## Verification
 
-After deploying the host profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Profiler Troubleshooting] guide.
+After deploying the host profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.

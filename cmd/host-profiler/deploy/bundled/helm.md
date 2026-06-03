@@ -15,7 +15,15 @@ datadog:
     image: "<IMAGE_REPOSITORY>:<IMAGE_TAG>"
 ```
 
-2. Upgrade:
+2. To enable AppArmor (optional), load [`../apparmor-profile`](../apparmor-profile) on each node, then add to `values.yaml`:
+
+```yaml
+datadog:
+  hostProfiler:
+    apparmor: localhost/dd-host-profiler
+```
+
+3. Upgrade:
 
 ```shell
 helm upgrade --install datadog datadog/datadog \

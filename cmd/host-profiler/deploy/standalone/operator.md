@@ -28,6 +28,17 @@ kubectl apply -f standalone/operator/collector.yaml
 
 The Operator reconciles the CR and creates the DaemonSet.
 
+### AppArmor (optional)
+
+Load [`../apparmor-profile`](../apparmor-profile) on each node using your cluster's AppArmor provisioning mechanism, then update the `podSecurityContext` in `operator/collector.yaml`:
+
+```yaml
+podSecurityContext:
+  appArmorProfile:
+    type: Localhost
+    localhostProfile: dd-host-profiler
+```
+
 ### Cilium (optional)
 
 On clusters with Cilium, apply the Cilium network policy to restrict egress to Datadog endpoints:
