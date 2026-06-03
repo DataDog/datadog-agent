@@ -202,6 +202,7 @@ func (s *stackTraceAggregator) combine() {
 	out.SetContent(combined)
 	out.RawDataLen = s.rawDataLen
 	out.ParsingExtra.IsMultiLine = true
+	out.ParsingExtra.Tags = append(out.ParsingExtra.Tags, message.MultiLineSourceTag("go_stack"))
 
 	s.collected = append(s.collected, out)
 	s.resetBuffer()

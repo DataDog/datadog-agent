@@ -44,6 +44,7 @@ func assertCombined(t *testing.T, msgs []*message.Message) {
 	t.Helper()
 	require.Len(t, msgs, 1, "expected exactly 1 combined message")
 	assert.True(t, msgs[0].ParsingExtra.IsMultiLine, "expected IsMultiLine to be true on combined message")
+	assert.Contains(t, msgs[0].ParsingExtra.Tags, message.MultiLineSourceTag("go_stack"), "expected go_stack multiline source tag on combined message")
 }
 
 // assertAbandoned checks that >1 messages were produced and none has IsMultiLine set.
