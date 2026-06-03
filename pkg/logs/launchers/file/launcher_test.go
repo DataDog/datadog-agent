@@ -11,11 +11,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -43,9 +45,10 @@ type RegularTestSetupStrategy struct{}
 func (s *RegularTestSetupStrategy) Setup(t *testing.T) TestSetupResult {
 	return TestSetupResult{TestDirs: []string{t.TempDir(), t.TempDir()},
 		TestOps: TestOps{
-			create: os.Create,
-			rename: os.Rename,
-			remove: os.Remove,
+			create:  os.Create,
+			rename:  os.Rename,
+			remove:  os.Remove,
+			symlink: os.Symlink,
 		}}
 }
 
@@ -116,9 +119,10 @@ type TestSetupStrategy interface {
 }
 
 type TestOps struct {
-	create func(name string) (*os.File, error)
-	rename func(oldPath, newPath string) error
-	remove func(name string) error
+	create  func(name string) (*os.File, error)
+	rename  func(oldPath, newPath string) error
+	remove  func(name string) error
+	symlink func(oldname, newname string) error
 }
 
 type TestSetupResult struct {
@@ -543,6 +547,93 @@ func runLauncherScanStartNewTailerTest(t *testing.T, testDirs []string) {
 		msg = <-outputChan
 		assert.Equal(t, "world", string(msg.GetContent()))
 	}
+}
+
+// runLauncherProcessLogSymlinkTest verifies the symlink policy that the launcher
+// applies to file sources discovered by the process_log provider.
+//
+// process_log paths come from /proc/<pid>/fd and are canonical at discovery time,
+// so any symlink that appears later on the path indicates an attacker-controlled
+// swap.  A source with ProcessLog=true must therefore refuse to open a symlinked
+// path, while an ordinary source (ProcessLog=false) must keep following symlinks,
+// since admin-configured log paths may legitimately be symlinks.
+//
+// The test drives a full launcher scan, so under the privileged-logs suite (run as
+// root with unsearchable directories) it also exercises the system-probe
+// fd-transfer path: the open happens in system-probe, which must honour O_NOFOLLOW.
+//
+// All files use a .log name so that the privileged-logs module's allow-list (which
+// permits any *.log file) accepts them; the only behavioural difference under test
+// is whether the symlink is followed or rejected.
+func runLauncherProcessLogSymlinkTest(t *testing.T, ops TestOps, testDir string) {
+	cfg := configmock.New(t)
+
+	// startTailers builds a fresh launcher for a single exact-path source, runs one
+	// scan, and returns the number of tailers that were started.  A real file should
+	// yield one tailer; a path the launcher refuses to open should yield zero.
+	startTailers := func(path string, processLog bool) int {
+		launcher := createLauncher(t, launcherTestOptions{openFilesLimit: 2})
+		launcher.pipelineProvider = mock.NewMockProvider()
+		launcher.registry = auditorMock.NewMockRegistry()
+		source := sources.NewLogSource("", &config.LogsConfig{
+			Type:       config.FileType,
+			Path:       path,
+			ProcessLog: processLog,
+		})
+		launcher.activeSources = append(launcher.activeSources, source)
+		status.Clear()
+		status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
+		launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+		// resolveActiveTailers starts tailers synchronously, so the count is final
+		// here.  Like the other standalone launcher helpers we deliberately do not
+		// stop the launcher: a started tailer would block sending to the undrained
+		// pipeline channel, so cleanup() would hang.  The test process tears the
+		// goroutines down on exit.
+		return launcher.tailers.Count()
+	}
+	t.Cleanup(status.Clear)
+
+	// A real, canonical file as process_log would discover it.
+	realPath := testDir + "/real.log"
+	realFile, err := ops.create(realPath)
+	require.NoError(t, err)
+	_, err = realFile.WriteString("hello\n")
+	require.NoError(t, err)
+	require.NoError(t, realFile.Close())
+
+	// The file an attacker would point a swapped symlink at.  It is also a .log file
+	// so that following the symlink fails only when the policy rejects symlinks, not
+	// because of the allow-list.
+	targetPath := testDir + "/target.log"
+	targetFile, err := ops.create(targetPath)
+	require.NoError(t, err)
+	_, err = targetFile.WriteString("secret\n")
+	require.NoError(t, err)
+	require.NoError(t, targetFile.Close())
+
+	// The discovered path, now swapped for a symlink after discovery.
+	symlinkPath := testDir + "/swapped.log"
+	require.NoError(t, ops.symlink(targetPath, symlinkPath))
+
+	assert.Equal(t, 1, startTailers(realPath, true),
+		"process_log source should tail a real file")
+	assert.Equal(t, 0, startTailers(symlinkPath, true),
+		"process_log source must reject a path that has become a symlink")
+	assert.Equal(t, 1, startTailers(symlinkPath, false),
+		"non-process_log source should follow a symlink as before")
+}
+
+// TestLauncherProcessLogSymlink runs the process_log symlink policy test with the
+// ordinary (unprivileged) opener.  The privileged-logs suite runs the same helper
+// against the system-probe fd-transfer path; see launcher_privileged_logs_test.go.
+func TestLauncherProcessLogSymlink(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		// RejectSymlinks is only enforced on Linux; on other platforms the opener
+		// rejects the policy outright (see opener.OpenLogFile for non-Linux).
+		t.Skip("process_log symlink rejection is only supported on Linux")
+	}
+	res := (&RegularTestSetupStrategy{}).Setup(t)
+	runLauncherProcessLogSymlinkTest(t, res.TestOps, res.TestDirs[0])
 }
 
 func runLauncherScanStartNewTailerForEmptyFileTest(t *testing.T, testDirs []string) {
