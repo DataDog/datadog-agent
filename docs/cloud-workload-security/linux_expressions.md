@@ -776,7 +776,9 @@ A DNS request was sent
 | [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`dns.question.name.root_domain`](#common-string-root_domain-doc) | Root domain of the corresponding element |
 | [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
+| [`dns.response.cnames`](#dns-response-cnames-doc) | CNAME targets returned by the DNS response |
 | [`dns.response.code`](#dns-response-code-doc) | Response code of the DNS response according to RFC 1035 |
+| [`dns.response.ips`](#dns-response-ips-doc) | IP addresses resolved by the DNS response |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
@@ -4108,6 +4110,13 @@ Constants: [DNS qtypes](#dns-qtypes)
 
 
 
+### `dns.response.cnames` {#dns-response-cnames-doc}
+Type: string
+
+Definition: CNAME targets returned by the DNS response
+
+
+
 ### `dns.response.code` {#dns-response-code-doc}
 Type: int
 
@@ -4115,6 +4124,13 @@ Definition: Response code of the DNS response according to RFC 1035
 
 
 Constants: [DNS Responses](#dns-responses)
+
+
+
+### `dns.response.ips` {#dns-response-ips-doc}
+Type: IP/CIDR
+
+Definition: IP addresses resolved by the DNS response
 
 
 

@@ -25,14 +25,14 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 
 		{
 			name:                      "Cisco ASA",
-			profile:                   ASAProfile(),
-			fixture:                   loadFixture("cisco-asa", Running),
+			profile:                   DefaultProfile(t, "cisco-asa"),
+			fixture:                   loadFixture("cisco-asa", "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:    "Cisco IOS",
-			profile: IOSProfile(),
-			fixture: loadFixture("cisco-ios", Running),
+			profile: DefaultProfile(t, "cisco-ios"),
+			fixture: loadFixture("cisco-ios", "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				Timestamp:  1760099696,
 				ConfigSize: 3781,
@@ -40,8 +40,8 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 		},
 		{
 			name:    "JunOS",
-			profile: JunOSProfile(),
-			fixture: loadFixture("junos", Running),
+			profile: DefaultProfile(t, "junos"),
+			fixture: loadFixture("junos", "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				ConfigSize: 0,
 				Timestamp:  1730646727,
@@ -50,52 +50,52 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 		},
 		{
 			name:                      "PAN-OS",
-			profile:                   DefaultProfile("pan-os"),
-			fixture:                   loadFixture("pan-os", Running),
+			profile:                   DefaultProfile(t, "pan-os"),
+			fixture:                   loadFixture("pan-os", "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:                      "AOSW",
-			profile:                   DefaultProfile("aosw"),
-			fixture:                   loadFixture("aosw", Running),
+			profile:                   DefaultProfile(t, "aosw"),
+			fixture:                   loadFixture("aosw", "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:    "NXOS",
-			profile: DefaultProfile("nxos"),
-			fixture: loadFixture("nxos", Running),
+			profile: DefaultProfile(t, "nxos"),
+			fixture: loadFixture("nxos", "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				Timestamp: 1767709263,
 			},
 		},
 		{
 			name:                      "TMOS",
-			profile:                   DefaultProfile("tmos"),
-			fixture:                   loadFixture("tmos", Running),
+			profile:                   DefaultProfile(t, "tmos"),
+			fixture:                   loadFixture("tmos", "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:                      "AOSCX",
-			profile:                   DefaultProfile("aoscx"),
-			fixture:                   loadFixture("aoscx", Running),
+			profile:                   DefaultProfile(t, "aoscx"),
+			fixture:                   loadFixture("aoscx", "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:                      "EOS",
-			profile:                   DefaultProfile("eos"),
-			fixture:                   loadFixture("eos", Running),
+			profile:                   DefaultProfile(t, "eos"),
+			fixture:                   loadFixture("eos", "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:                      "fortios",
-			profile:                   DefaultProfile("fortios"),
-			fixture:                   loadFixture("fortios", Running),
+			profile:                   DefaultProfile(t, "fortios"),
+			fixture:                   loadFixture("fortios", "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:    "DellOS10",
-			profile: DefaultProfile("dellos10"),
-			fixture: loadFixture("dellos10", Running),
+			profile: DefaultProfile(t, "dellos10"),
+			fixture: loadFixture("dellos10", "running"),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				Timestamp: 1491873902,
 			},
@@ -103,8 +103,7 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.profile.initializeScrubbers()
-			actualOutput, actualExtractedMetadata, err := tt.profile.ProcessCommandOutput(Running, tt.fixture.Initial)
+			actualOutput, actualExtractedMetadata, err := tt.profile.ProcessConfig(tt.fixture.Initial)
 			if tt.expectedErrMsg != "" {
 				assert.EqualError(t, err, tt.expectedErrMsg)
 			}
@@ -126,8 +125,8 @@ func Test_DefaultProfiles_Startup(t *testing.T) {
 	}{
 		{
 			name:    "Cisco IOS",
-			profile: IOSProfile(),
-			fixture: loadFixture("cisco-ios", Startup),
+			profile: DefaultProfile(t, "cisco-ios"),
+			fixture: loadFixture("cisco-ios", "startup"),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				Timestamp:  1765307830,
 				ConfigSize: 3163,
@@ -135,22 +134,22 @@ func Test_DefaultProfiles_Startup(t *testing.T) {
 		},
 		{
 			name:    "NXOS",
-			profile: DefaultProfile("nxos"),
-			fixture: loadFixture("nxos", Startup),
+			profile: DefaultProfile(t, "nxos"),
+			fixture: loadFixture("nxos", "startup"),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				Timestamp: 1767899167,
 			},
 		},
 		{
 			name:                      "AOSCX",
-			profile:                   DefaultProfile("aoscx"),
-			fixture:                   loadFixture("aoscx", Startup),
+			profile:                   DefaultProfile(t, "aoscx"),
+			fixture:                   loadFixture("aoscx", "startup"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:    "EOS",
-			profile: DefaultProfile("eos"),
-			fixture: loadFixture("eos", Startup),
+			profile: DefaultProfile(t, "eos"),
+			fixture: loadFixture("eos", "startup"),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				Timestamp: 1392798871,
 				Author:    "admin",
@@ -158,15 +157,14 @@ func Test_DefaultProfiles_Startup(t *testing.T) {
 		},
 		{
 			name:                      "dellos10",
-			profile:                   DefaultProfile("dellos10"),
-			fixture:                   loadFixture("dellos10", Startup),
+			profile:                   DefaultProfile(t, "dellos10"),
+			fixture:                   loadFixture("dellos10", "startup"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.profile.initializeScrubbers()
-			actualOutput, actualExtractedMetadata, err := tt.profile.ProcessCommandOutput(Startup, tt.fixture.Initial)
+			actualOutput, actualExtractedMetadata, err := tt.profile.ProcessConfig(tt.fixture.Initial)
 			if tt.expectedErrMsg != "" {
 				assert.EqualError(t, err, tt.expectedErrMsg)
 			}
