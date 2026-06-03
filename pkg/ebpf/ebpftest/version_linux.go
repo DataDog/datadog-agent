@@ -11,6 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+var kv = kernel.MustHostVersion()
+
 // RequireKernelVersion skips a test if the minimum kernel version is not met
 func RequireKernelVersion(tb testing.TB, version kernel.Version) {
 	if kv < version {

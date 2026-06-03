@@ -1,3 +1,10 @@
+# gazelle:ignore
+#
+# ebpftest imports pkg/ebpf/features (and transitively pkg/ebpf/kernelbugs),
+# which are intentionally excluded from Bazel (see root BUILD.bazel). A
+# gazelle-managed BUILD here re-adds an unloadable "@//pkg/ebpf/features" dep on
+# every `bazel run //:gazelle`, so this file is hand-maintained instead — same
+# pattern as pkg/collector/corechecks/ebpf/probe/tcpqueuelength/BUILD.bazel.
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
