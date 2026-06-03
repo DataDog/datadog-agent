@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:generate go run go.uber.org/mock/mockgen -source=$GOFILE -package=mock_containers -destination=mocks/containers.go -build_constraint test
+
 //nolint:revive // TODO(PROC) Fix revive linter
 package containers
 
