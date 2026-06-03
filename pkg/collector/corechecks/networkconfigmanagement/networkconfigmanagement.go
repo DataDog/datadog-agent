@@ -86,7 +86,7 @@ func (c *Check) Run() error {
 	// Update the remote client's device profile to access the correct commands
 	conn.SetProfile(c.checkContext.ProfileCache.Profile)
 
-	deviceID := fmt.Sprintf("%s:%s", c.checkContext.Namespace, c.checkContext.Device.IPAddress)
+	deviceID := fmt.Sprintf("%s:%s", c.checkContext.Device.Namespace, c.checkContext.Device.IPAddress)
 	deviceTags := c.getDeviceTags()
 	c.sender.SetDeviceTags(deviceTags)
 
@@ -147,7 +147,7 @@ func (c *Check) Run() error {
 
 	c.sender.SendNCMCheckMetrics(checkStartTime, c.lastCheckTime)
 	c.lastCheckTime = checkStartTime
-	checkErr = c.sender.SendNCMPayload(ncmreport.ToNCMPayload(c.checkContext.Namespace, c.agentHostname, configs, inventoryEntries, c.clock.Now().Unix()))
+	checkErr = c.sender.SendNCMPayload(ncmreport.ToNCMPayload(c.checkContext.Device.Namespace, c.agentHostname, configs, inventoryEntries, c.clock.Now().Unix()))
 	if checkErr != nil {
 		return checkErr
 	}
@@ -191,7 +191,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	if err != nil {
 		return err
 	}
-	ncmSender := ncmsender.NewNCMSender(s, c.checkContext.Namespace, c.clock, agentHostname)
+	ncmSender := ncmsender.NewNCMSender(s, c.checkContext.Device.Namespace, c.clock, agentHostname)
 	c.sender = ncmSender
 
 	// TODO: add check to see the device's credentials type (SSH/Telnet) and create appropriate client factory
@@ -265,7 +265,7 @@ func (c *Check) buildInventoryReport(configStore store.ConfigStore, hasNewConfig
 	entries := make([]ncmreport.InventoryEntry, 0, len(configMeta))
 	for _, m := range configMeta {
 		entries = append(entries, ncmreport.InventoryEntry{
-			Namespace:  c.checkContext.Namespace,
+			Namespace:  c.checkContext.Device.Namespace,
 			ConfigID:   m.ConfigUUID,
 			DeviceID:   m.DeviceID,
 			ReportedAt: m.CapturedAt,
@@ -275,9 +275,9 @@ func (c *Check) buildInventoryReport(configStore store.ConfigStore, hasNewConfig
 }
 
 func (c *Check) getDeviceTags() []string {
-	deviceID := fmt.Sprintf("%s:%s", c.checkContext.Namespace, c.checkContext.Device.IPAddress)
+	deviceID := fmt.Sprintf("%s:%s", c.checkContext.Device.Namespace, c.checkContext.Device.IPAddress)
 	deviceTags := []string{
-		"device_namespace:" + c.checkContext.Namespace,
+		"device_namespace:" + c.checkContext.Device.Namespace,
 		"device_ip:" + c.checkContext.Device.IPAddress,
 		"device_id:" + deviceID,
 		// TODO: device_hostname - may need to be extracted from config / output to be retrieved in NCM core check

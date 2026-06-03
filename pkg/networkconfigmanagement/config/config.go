@@ -50,8 +50,14 @@ type AuthCredentials struct { // auth_credentials
 // DeviceInstance holds the initial config to connect to a network device, including its IP address and authentication credentials.
 type DeviceInstance struct {
 	IPAddress string          `yaml:"ip_address"` // ip address of the network device, e.g., "10.0.0.1"
+	Namespace string          `yaml:"namespace"`  // namespace for the device; if empty, defaults to value from initconfig
 	Profile   string          `yaml:"profile"`    // device profile name, e.g., "cisco-ios"
 	Auth      AuthCredentials `yaml:"auth"`
+}
+
+// DeviceID returns the formatted ID for this DeviceInstance.
+func (di *DeviceInstance) DeviceID() string {
+	return fmt.Sprintf("%s:%s", di.Namespace, di.IPAddress)
 }
 
 // InitConfig holds the initial configuration for the NCM component, including the namespace and check interval.
@@ -81,18 +87,11 @@ type SSHConfig struct {
 
 // NcmCheckContext holds the processed config needed for an integration instance to run
 type NcmCheckContext struct {
-	Namespace                  string
 	Device                     *DeviceInstance
 	MinCollectionInterval      time.Duration
 	InventoryReportMinInterval time.Duration
 	ProfileMap                 profile.Map
 	ProfileCache               *profile.Cache
-}
-
-// NcmComponentContext is the processed config structure for Network Config Management (NCM) to be used by the component
-type NcmComponentContext struct {
-	Namespace string
-	Devices   map[string]DeviceInstance // map of device IP addresses to DeviceInstance
 }
 
 // NewNcmCheckContext creates a new NcmCheckContext from raw instance and init config data
@@ -105,30 +104,18 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal init config: %s", err)
 	}
+	// Apply defaults if missing optional values
+	initConfig.applyDefaults()
+	if err = initConfig.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid init config: %w", err)
+	}
+
 	var deviceInstance DeviceInstance
 	err = yaml.Unmarshal(rawInstance, &deviceInstance)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal device config: %s", err)
 	}
-
-	// Apply defaults if missing optional values
-	initConfig.applyDefaults()
-	deviceInstance.applyDefaults()
-
-	// Device-specific SSH config takes precedence, if not set, use init_config's SSH config as a "global"
-	if deviceInstance.Auth.SSH == nil {
-		deviceInstance.Auth.SSH = initConfig.SSH
-	}
-
-	// If still empty (init_config also has no SSH configs), error for needed configuration
-	if deviceInstance.Auth.SSH == nil {
-		return nil, fmt.Errorf("no SSH configuration found in device instance or init_config or device %s", deviceInstance.IPAddress)
-	}
-
-	// Validate configs after all of that
-	if err = initConfig.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid init config: %w", err)
-	}
+	deviceInstance.applyDefaults(&initConfig)
 	if err = deviceInstance.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid device config for %s: %w", deviceInstance.IPAddress, err)
 	}
@@ -150,7 +137,6 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	}
 	// Build the final context to send out
 	ncc := &NcmCheckContext{
-		Namespace:                  initConfig.Namespace,
 		MinCollectionInterval:      time.Duration(initConfig.MinCollectionInterval) * time.Second,
 		InventoryReportMinInterval: time.Duration(initConfig.InventoryReportMinInterval) * time.Second,
 		Device:                     &deviceInstance,
@@ -272,7 +258,7 @@ func (di *DeviceInstance) Validate() error {
 }
 
 // applyDefaults set default values for any optional fields that are not set + not required
-func (di *DeviceInstance) applyDefaults() {
+func (di *DeviceInstance) applyDefaults(initConfig *InitConfig) {
 	if di.Auth.Port == "" {
 		log.Debugf("Applying default port for device %s: %s", di.IPAddress, "22")
 		di.Auth.Port = "22"
@@ -281,6 +267,14 @@ func (di *DeviceInstance) applyDefaults() {
 		log.Debugf("Applying default protocol for device %s: %s", di.IPAddress, "tcp")
 		di.Auth.Protocol = "tcp"
 	}
+	// Device-specific SSH config takes precedence, if not set, use init_config's SSH config as a "global"
+	if di.Auth.SSH == nil && initConfig != nil {
+		di.Auth.SSH = initConfig.SSH
+	}
+	if di.Namespace == "" && initConfig != nil {
+		di.Namespace = initConfig.Namespace
+	}
+
 }
 
 func (di *DeviceInstance) hasRequiredFields() error {
@@ -295,6 +289,9 @@ func (di *DeviceInstance) hasRequiredFields() error {
 	// must have at least 1 auth method: password or private key
 	if di.Auth.Password == "" && di.Auth.PrivateKeyFile == "" {
 		return fmt.Errorf(authBaseString, "auth method (either password or private key)", di.IPAddress)
+	}
+	if di.Auth.SSH == nil {
+		return fmt.Errorf(authBaseString, "SSH configuration", di.IPAddress)
 	}
 
 	return nil

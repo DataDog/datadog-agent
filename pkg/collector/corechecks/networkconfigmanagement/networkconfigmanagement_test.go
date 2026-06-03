@@ -273,7 +273,7 @@ func TestCheck_Run_Success(t *testing.T) {
 	mockClock := clock.NewMock()
 	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
 	check.clock = mockClock
-	check.sender = ncmsender.NewNCMSender(mockSender, check.checkContext.Namespace, mockClock, check.agentHostname)
+	check.sender = ncmsender.NewNCMSender(mockSender, check.checkContext.Device.Namespace, mockClock, check.agentHostname)
 
 	// Swap the ncm component for one backed by a memstore configured with the
 	// mock clock and deterministic UUIDs, so inventory output is predictable.

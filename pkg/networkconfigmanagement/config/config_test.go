@@ -32,6 +32,9 @@ func TestDeviceInstance_Validation(t *testing.T) {
 					Password: "password",
 					Port:     "22",
 					Protocol: "tcp",
+					SSH: &SSHConfig{
+						InsecureSkipVerify: true,
+					},
 				},
 			},
 			expectValid: true,
@@ -44,6 +47,9 @@ func TestDeviceInstance_Validation(t *testing.T) {
 					Password: "password",
 					Port:     "22",
 					Protocol: "tcp",
+					SSH: &SSHConfig{
+						InsecureSkipVerify: true,
+					},
 				},
 			},
 			expectValid: false,
@@ -58,6 +64,9 @@ func TestDeviceInstance_Validation(t *testing.T) {
 					Password: "password",
 					Port:     "22",
 					Protocol: "tcp",
+					SSH: &SSHConfig{
+						InsecureSkipVerify: true,
+					},
 				},
 			},
 			expectValid: false,
@@ -71,6 +80,9 @@ func TestDeviceInstance_Validation(t *testing.T) {
 					Password: "password",
 					Port:     "22",
 					Protocol: "tcp",
+					SSH: &SSHConfig{
+						InsecureSkipVerify: true,
+					},
 				},
 			},
 			expectValid: false,
@@ -84,6 +96,9 @@ func TestDeviceInstance_Validation(t *testing.T) {
 					Username: "admin",
 					Port:     "22",
 					Protocol: "tcp",
+					SSH: &SSHConfig{
+						InsecureSkipVerify: true,
+					},
 				},
 			},
 			expectValid: false,
@@ -98,6 +113,9 @@ func TestDeviceInstance_Validation(t *testing.T) {
 					Password: "password",
 					Port:     "not-a-port",
 					Protocol: "tcp",
+					SSH: &SSHConfig{
+						InsecureSkipVerify: true,
+					},
 				},
 			},
 			expectValid: false,
@@ -112,10 +130,27 @@ func TestDeviceInstance_Validation(t *testing.T) {
 					Password: "password",
 					Port:     "99999",
 					Protocol: "tcp",
+					SSH: &SSHConfig{
+						InsecureSkipVerify: true,
+					},
 				},
 			},
 			expectValid: false,
 			errorMsg:    "invalid port, out of range",
+		},
+		{
+			name: "missing SSH config",
+			config: DeviceInstance{
+				IPAddress: "100.1.1.1",
+				Auth: AuthCredentials{
+					Username: "admin",
+					Password: "password",
+					Port:     "22",
+					Protocol: "tcp",
+				},
+			},
+			expectValid: false,
+			errorMsg:    "auth is required: missing SSH configuration for device 100.1.1.1",
 		},
 	}
 
@@ -215,9 +250,17 @@ func TestAuthCredentials_DefaultValues(t *testing.T) {
 			Password: "password",
 		},
 	}
-	config.applyDefaults()
+	ic := &InitConfig{
+		Namespace: "thenamespace",
+		SSH: &SSHConfig{
+			InsecureSkipVerify: true,
+		},
+	}
+	config.applyDefaults(ic)
 	assert.Equal(t, "22", config.Auth.Port)
 	assert.Equal(t, "tcp", config.Auth.Protocol)
+	assert.Equal(t, "thenamespace", config.Namespace)
+	assert.True(t, config.Auth.SSH.InsecureSkipVerify)
 }
 
 func TestInitConfig_InventoryReportMinInterval_ApplyDefaults(t *testing.T) {
