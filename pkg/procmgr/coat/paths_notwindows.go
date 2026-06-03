@@ -21,6 +21,6 @@ func procmgrConfigPath(installRoot, configFile string) string {
 	return filepath.Join(installRoot, processesDirRel, configFile)
 }
 
-func installMarkerPath(installRoot string, service MigratableService) string {
-	return filepath.Join(installRoot, service.InstallMarkerRel)
+func installMarkerPaths(installRoot string, service MigratableService) []string {
+	return []string{filepath.Join(installRoot, filepath.FromSlash(service.InstallMarkerRel))}
 }

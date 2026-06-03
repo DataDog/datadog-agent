@@ -112,8 +112,14 @@ func (c *Collector) collectService(ctx context.Context, service MigratableServic
 		ManagementMode: ManagementModeNone,
 	}
 
-	if _, err := os.Stat(installMarkerPath(c.installRoot, service)); err == nil {
-		status.Installed = true
+	for _, marker := range installMarkerPaths(c.installRoot, service) {
+		if marker == "" {
+			continue
+		}
+		if _, err := os.Stat(marker); err == nil {
+			status.Installed = true
+			break
+		}
 	}
 
 	if _, err := os.Stat(procmgrConfigPath(c.installRoot, service.ProcmgrConfigFile)); err == nil {

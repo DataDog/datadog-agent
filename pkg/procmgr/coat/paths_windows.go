@@ -23,18 +23,25 @@ func procmgrConfigPath(_ string, configFile string) string {
 	return filepath.Join(windowsProcmgrConfigDir(), configFile)
 }
 
-func installMarkerPath(_ string, service MigratableService) string {
+// installMarkerPaths returns paths to check for an installed DDOT payload on Windows.
+// DDOT may be a standalone fleet package (under Installer\packages\...) or an extension
+// under <agent install>\ext\ddot\... (see postInstallDDOTExtension in fleet installer).
+func installMarkerPaths(installRoot string, service MigratableService) []string {
+	rel := filepath.FromSlash(service.InstallMarkerRel)
+	extMarker := filepath.Join(installRoot, rel+".exe")
+	out := []string{extMarker}
 	if service.WindowsPackageName == "" {
-		return ""
+		return out
 	}
-	return filepath.Join(
+	out = append(out, filepath.Join(
 		windowsPackagesPath(),
 		service.WindowsPackageName,
 		"stable",
 		"embedded",
 		"bin",
 		"otel-agent.exe",
-	)
+	))
+	return out
 }
 
 // windowsDatadogDataDir returns the agent data directory (MSI ConfigRoot when set,
