@@ -1,28 +1,35 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "admissionprobe",
+    name = "invalidsysprobeconfig",
     srcs = [
+        "check.go",
         "issue.go",
         "module.go",
+        "stub.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe",
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/sysprobeconfig/def",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
+        "//pkg/config/schema",
+        "//pkg/util/log",
+        "//pkg/util/scrubber",
         "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@org_golang_google_protobuf//types/known/structpb",
     ],
 )
 
 go_test(
-    name = "admissionprobe_test",
-    srcs = ["issue_test.go"],
-    embed = [":admissionprobe"],
+    name = "invalidsysprobeconfig_test",
+    srcs = ["invalidsysprobeconfig_test.go"],
+    embed = [":invalidsysprobeconfig"],
     gotags = ["test"],
     deps = [
-        "//comp/healthplatform/issues",
+        "//comp/core/sysprobeconfig/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

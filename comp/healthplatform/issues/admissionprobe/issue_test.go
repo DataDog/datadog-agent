@@ -12,6 +12,8 @@ import (
 
 	healthplatform "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 )
 
 func TestBuildIssue_BasicFields(t *testing.T) {
@@ -75,7 +77,7 @@ func TestBuildIssue_Extra(t *testing.T) {
 }
 
 func TestNewModule(t *testing.T) {
-	m := NewModule(nil)
+	m := NewModule(issues.ModuleDeps{})
 	assert.Equal(t, IssueName, m.IssueName())
 	issue, err := m.BuildIssue(map[string]string{})
 	require.NoError(t, err)
