@@ -11,21 +11,17 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestBouncer_FirstSightingNotSuppressed(t *testing.T) {
 	b := NewBouncer(15*time.Minute, 0)
 	now := time.Now()
 	suppressed, count, firstSeen := b.Observe(0xCAFE, now)
-	if suppressed {
-		t.Fatalf("first sighting must NOT be suppressed")
-	}
-	if count != 1 {
-		t.Fatalf("first sighting count = %d, want 1", count)
-	}
-	if !firstSeen.Equal(now) {
-		t.Fatalf("first sighting firstSeen = %v, want %v", firstSeen, now)
-	}
+	assert.False(t, suppressed, "first sighting must NOT be suppressed")
+	assert.Equal(t, uint32(1), count, "first sighting count")
+	assert.True(t, firstSeen.Equal(now), "first sighting firstSeen = %v, want %v", firstSeen, now)
 }
 
 func TestBouncer_SecondSightingSuppressedInsideWindow(t *testing.T) {
@@ -35,15 +31,9 @@ func TestBouncer_SecondSightingSuppressedInsideWindow(t *testing.T) {
 
 	t1 := t0.Add(time.Minute)
 	suppressed, count, firstSeen := b.Observe(0xCAFE, t1)
-	if !suppressed {
-		t.Fatalf("second sighting inside window MUST be suppressed")
-	}
-	if count != 2 {
-		t.Fatalf("second sighting count = %d, want 2", count)
-	}
-	if !firstSeen.Equal(t0) {
-		t.Fatalf("firstSeen drifted: got %v, want original %v", firstSeen, t0)
-	}
+	assert.True(t, suppressed, "second sighting inside window MUST be suppressed")
+	assert.Equal(t, uint32(2), count, "second sighting count")
+	assert.True(t, firstSeen.Equal(t0), "firstSeen drifted: got %v, want original %v", firstSeen, t0)
 }
 
 func TestBouncer_ResetsAfterWindow(t *testing.T) {
@@ -59,15 +49,9 @@ func TestBouncer_ResetsAfterWindow(t *testing.T) {
 	// window internally.
 	t2 := t0.Add(16 * time.Minute)
 	suppressed, count, firstSeen := b.Observe(0xCAFE, t2)
-	if suppressed {
-		t.Fatalf("sighting after window MUST NOT be suppressed")
-	}
-	if count != 2 {
-		t.Fatalf("post-window sighting count = %d, want 2 (prior-window total)", count)
-	}
-	if !firstSeen.Equal(t2) {
-		t.Fatalf("post-window firstSeen = %v, want %v", firstSeen, t2)
-	}
+	assert.False(t, suppressed, "sighting after window MUST NOT be suppressed")
+	assert.Equal(t, uint32(2), count, "post-window sighting count (want prior-window total)")
+	assert.True(t, firstSeen.Equal(t2), "post-window firstSeen = %v, want %v", firstSeen, t2)
 }
 
 // TestBouncer_WindowElapseCarriesPriorCount exercises the
@@ -83,49 +67,29 @@ func TestBouncer_WindowElapseCarriesPriorCount(t *testing.T) {
 
 	// First sighting — delivered, count=1.
 	suppressed, count, _ := b.Observe(key, t0)
-	if suppressed {
-		t.Fatalf("first sighting must NOT be suppressed")
-	}
-	if count != 1 {
-		t.Fatalf("first sighting count = %d, want 1", count)
-	}
+	assert.False(t, suppressed, "first sighting must NOT be suppressed")
+	assert.Equal(t, uint32(1), count, "first sighting count")
 
 	// Two more sightings within the window — both suppressed.
 	suppressed, count, _ = b.Observe(key, t0.Add(5*time.Minute))
-	if !suppressed {
-		t.Fatalf("sighting inside window MUST be suppressed")
-	}
-	if count != 2 {
-		t.Fatalf("second sighting count = %d, want 2", count)
-	}
+	assert.True(t, suppressed, "sighting inside window MUST be suppressed")
+	assert.Equal(t, uint32(2), count, "second sighting count")
 
 	suppressed, count, _ = b.Observe(key, t0.Add(10*time.Minute))
-	if !suppressed {
-		t.Fatalf("sighting inside window MUST be suppressed")
-	}
-	if count != 3 {
-		t.Fatalf("third sighting count = %d, want 3", count)
-	}
+	assert.True(t, suppressed, "sighting inside window MUST be suppressed")
+	assert.Equal(t, uint32(3), count, "third sighting count")
 
 	// Window elapses; next sighting is delivered with the prior
 	// window's total (3).
 	suppressed, count, _ = b.Observe(key, t0.Add(20*time.Minute))
-	if suppressed {
-		t.Fatalf("window elapsed; sighting must be delivered")
-	}
-	if count != 3 {
-		t.Fatalf("delivered record count = %d, want 3 (prior-window total)", count)
-	}
+	assert.False(t, suppressed, "window elapsed; sighting must be delivered")
+	assert.Equal(t, uint32(3), count, "delivered record count (want prior-window total)")
 
 	// Subsequent sighting in the new window — suppressed, count starts
 	// from the post-reset 1 and increments to 2.
 	suppressed, count, _ = b.Observe(key, t0.Add(21*time.Minute))
-	if !suppressed {
-		t.Fatalf("sighting inside fresh window MUST be suppressed")
-	}
-	if count != 2 {
-		t.Fatalf("post-reset sighting count = %d, want 2", count)
-	}
+	assert.True(t, suppressed, "sighting inside fresh window MUST be suppressed")
+	assert.Equal(t, uint32(2), count, "post-reset sighting count")
 }
 
 func TestBouncer_PerPCIndependent(t *testing.T) {
@@ -134,12 +98,8 @@ func TestBouncer_PerPCIndependent(t *testing.T) {
 	b.Observe(0xCAFE, now)
 	// A different PC must NOT see the suppression state of 0xCAFE.
 	suppressed, count, _ := b.Observe(0xBEEF, now)
-	if suppressed {
-		t.Fatalf("different PC must NOT be suppressed by another PC's sighting")
-	}
-	if count != 1 {
-		t.Fatalf("different PC count = %d, want 1", count)
-	}
+	assert.False(t, suppressed, "different PC must NOT be suppressed by another PC's sighting")
+	assert.Equal(t, uint32(1), count, "different PC count")
 }
 
 func TestBouncer_DisabledWindowPassesThrough(t *testing.T) {
@@ -147,12 +107,8 @@ func TestBouncer_DisabledWindowPassesThrough(t *testing.T) {
 	now := time.Now()
 	for i := 0; i < 5; i++ {
 		suppressed, count, _ := b.Observe(0xCAFE, now.Add(time.Duration(i)*time.Second))
-		if suppressed {
-			t.Fatalf("disabled window must never suppress (i=%d)", i)
-		}
-		if count != 1 {
-			t.Fatalf("disabled window count = %d, want 1 (i=%d)", count, i)
-		}
+		assert.False(t, suppressed, "disabled window must never suppress (i=%d)", i)
+		assert.Equal(t, uint32(1), count, "disabled window count (i=%d)", i)
 	}
 }
 
@@ -194,7 +150,5 @@ func TestBouncer_PrunesNearCap(t *testing.T) {
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if len(b.entries) > b.maxEntries {
-		t.Fatalf("entries (%d) exceeded cap (%d) after prune", len(b.entries), b.maxEntries)
-	}
+	assert.LessOrEqual(t, len(b.entries), b.maxEntries, "entries exceeded cap after prune")
 }
