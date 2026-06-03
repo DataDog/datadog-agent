@@ -793,8 +793,13 @@ new-e2e-apm:
 # suite's test methods are sharded across two jobs (two VMs per platform) to roughly
 # halve its duration. Shard 1 runs an explicit subset; shard 2 runs the complement
 # (whole suite minus shard 1), so any newly added test still runs on Windows via shard 2.
-# The test hierarchy is TestFleet<Suite>/<platform>/<TestMethod>, hence the
-# "<suite>$/.+/(<methods>)$" run filters (.+ matches the platform subtest level).
+# The test hierarchy is TestFleet<Suite>/<platform>/<TestMethod>; go test -run/-skip
+# patterns are matched per slash-separated level, so both the shard-1 -run filter and the
+# shard-2 -skip filter MUST carry the full "<suite>$/.+/(<methods>)$" path (.+ matches the
+# platform subtest level) for the method-level filter to take effect.
+# Shards are balanced by measured Windows test duration, accounting for methods that skip
+# on Windows (e.g. config's FilePermissions/ExperimentIntegrationLoaded, upgrade's ODBC,
+# extensions' ManagedByProcmgr/RestoredAfterExperimentRollback) which cost ~0 there.
 new-e2e-fleet-config:
   extends: .new_e2e_fleet_template
   parallel:
@@ -802,9 +807,9 @@ new-e2e-fleet-config:
       - E2E_FLEET_PLATFORM_GROUP: linux
         EXTRA_PARAMS: --run "TestFleetConfig$"
       - E2E_FLEET_PLATFORM_GROUP: windows
-        EXTRA_PARAMS: --run "TestFleetConfig$/.+/(TestConfig|TestMultipleConfigs|TestConfigFailureCrash|TestConfigFailureTimeout|TestConfigFailureHealth)$"
+        EXTRA_PARAMS: --run "TestFleetConfig$/.+/(TestConfig|TestConfigFailureCrash|TestSystemProbeConfig|TestConfigWithSecrets|TestConfigFilePermissions)$"
       - E2E_FLEET_PLATFORM_GROUP: windows
-        EXTRA_PARAMS: --run "TestFleetConfig$" --skip "(TestConfig|TestMultipleConfigs|TestConfigFailureCrash|TestConfigFailureTimeout|TestConfigFailureHealth)$"
+        EXTRA_PARAMS: --run "TestFleetConfig$" --skip "TestFleetConfig$/.+/(TestConfig|TestConfigFailureCrash|TestSystemProbeConfig|TestConfigWithSecrets|TestConfigFilePermissions)$"
 
 new-e2e-fleet-upgrade:
   extends: .new_e2e_fleet_template
@@ -815,7 +820,7 @@ new-e2e-fleet-upgrade:
       - E2E_FLEET_PLATFORM_GROUP: windows
         EXTRA_PARAMS: --run "TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$"
       - E2E_FLEET_PLATFORM_GROUP: windows
-        EXTRA_PARAMS: --run "TestFleetUpgrade$" --skip "(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$"
+        EXTRA_PARAMS: --run "TestFleetUpgrade$" --skip "TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$"
 
 new-e2e-fleet-extensions:
   extends: .new_e2e_fleet_template
@@ -824,9 +829,9 @@ new-e2e-fleet-extensions:
       - E2E_FLEET_PLATFORM_GROUP: linux
         EXTRA_PARAMS: --run "TestFleetExtensions$"
       - E2E_FLEET_PLATFORM_GROUP: windows
-        EXTRA_PARAMS: --run "TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSaveAndRestore|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$"
+        EXTRA_PARAMS: --run "TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$"
       - E2E_FLEET_PLATFORM_GROUP: windows
-        EXTRA_PARAMS: --run "TestFleetExtensions$" --skip "(TestExtensionInstallAndRemove|TestExtensionSaveAndRestore|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$"
+        EXTRA_PARAMS: --run "TestFleetExtensions$" --skip "TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$"
 
 new-e2e-installer-script:
   extends: .new_e2e_template
