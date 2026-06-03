@@ -3,27 +3,29 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux_bpf
+
 package ebpftest
 
 import (
 	"os"
-	"runtime"
 	"testing"
 
 	"github.com/cilium/ebpf/rlimit"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/features"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-var hostPlatform string
-var kv = kernel.MustHostVersion()
+// fentryProbeFunc is the kernel function used to probe for fentry support. It
+// must be a stable kernel symbol present across the supported distros.
+const fentryProbeFunc = "tcp_close"
 
-func init() {
-	hostPlatform, _ = kernel.Platform()
-}
+var fentrySupported = funcs.MemoizeNoError(func() bool {
+	return features.SupportsFentry(fentryProbeFunc) == nil
+})
 
 // SupportedBuildModes returns the build modes supported on the current host
 func SupportedBuildModes() []BuildMode {
@@ -31,8 +33,7 @@ func SupportedBuildModes() []BuildMode {
 	if !prebuilt.IsDeprecated() || os.Getenv("TEST_PREBUILT_OVERRIDE") == "true" {
 		modes = append(modes, Prebuilt)
 	}
-	if os.Getenv("TEST_FENTRY_OVERRIDE") == "true" ||
-		(runtime.GOARCH == "amd64" && (hostPlatform == "amazon" || hostPlatform == "amzn") && kv.Major() == 5 && kv.Minor() == 10) {
+	if fentrySupported() {
 		modes = append(modes, Fentry)
 	}
 	if os.Getenv("TEST_EBPFLESS_OVERRIDE") == "true" {
