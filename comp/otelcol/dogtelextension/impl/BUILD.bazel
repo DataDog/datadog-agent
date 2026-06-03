@@ -12,7 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/ipc/def",
         "//comp/core/log/def",
         "//comp/core/secrets/def",
@@ -50,7 +50,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/ipc/mock",
         "//comp/core/log/mock",
         "//comp/core/secrets/def",

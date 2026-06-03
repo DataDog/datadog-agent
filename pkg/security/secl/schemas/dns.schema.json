@@ -69,6 +69,18 @@
                         "properties": {
                             "code": {
                                 "type": "number"
+                            },
+                            "ips": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "cnames": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
                             }
                         }
                     }

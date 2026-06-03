@@ -1,13 +1,14 @@
 import getpass
 import json
 import os
+import secrets
 from pathlib import Path
 
 from invoke.context import Context
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.e2e_framework.config import Config
-from tasks.e2e_framework.setup.ssh_keys import KeyInfo
+from tasks.e2e_framework.setup.ssh_keys import KeyInfo, add_key_to_ssh_agent, default_key_paths
 from tasks.e2e_framework.tool import ask, ask_yesno, error, get_aws_cmd, info, is_windows, warn
 
 SUPPORTED_KEY_TYPES = ["rsa", "ed25519"]
@@ -18,14 +19,6 @@ DEFAULT_KEY_TYPE = "rsa"
 
 def _default_keypair_name(account: str, user: str) -> str:
     return f"e2e-{account}-{user}".replace("_", "-")
-
-
-def _default_key_paths(account: str, user: str, key_type: str = DEFAULT_KEY_TYPE) -> tuple[Path, Path]:
-    account_part = account.replace("-", "_")
-    private_path = Path.home().joinpath(".ssh", f"id_{key_type}_e2e_{account_part}_{user}.pem")
-    # Match the convention used by aws_resolve_keypair_opts: <stem>.pub alongside the .pem.
-    public_path = private_path.with_name(f"{private_path.stem}.pub")
-    return private_path, public_path
 
 
 def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
@@ -54,7 +47,7 @@ def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
     # Keypair name & paths — derived from username, no prompt.
     if not aws.keyPairName:
         aws.keyPairName = _default_keypair_name(aws.account, user)
-    default_priv, default_pub = _default_key_paths(aws.account, user)
+    default_priv, default_pub = default_key_paths(aws.account, user)
     if not aws.privateKeyPath:
         aws.privateKeyPath = str(default_priv)
     if not aws.publicKeyPath:
@@ -295,6 +288,12 @@ def _aws_create_keypair(
     with open(public_key_path, "w") as f:
         f.write(public_key)
 
+    # encrypt the private key with a random passphrase (matches token_urlsafe length used for Pulumi)
+    passphrase = secrets.token_urlsafe(32)
+    ctx.run(f'ssh-keygen -p -P "" -N "{passphrase}" -f "{private_key_path}"', hide=True)
+    info("✓ Private key encrypted with passphrase (stored in ~/.test_infra_config.yaml, chmod 0600)")
+    add_key_to_ssh_agent(ctx, private_key_path, passphrase)
+
     # update config object
     awsConf = config.configParams.aws
     if keypair_name:
@@ -303,6 +302,7 @@ def _aws_create_keypair(
         awsConf.publicKeyPath = public_key_path
     if private_key_path:
         awsConf.privateKeyPath = private_key_path
+    awsConf.privateKeyPassword = passphrase
 
 
 def aws_resolve_keypair_opts(

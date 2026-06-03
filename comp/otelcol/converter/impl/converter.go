@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"

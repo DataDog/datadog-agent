@@ -8,7 +8,7 @@ package haagentimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"

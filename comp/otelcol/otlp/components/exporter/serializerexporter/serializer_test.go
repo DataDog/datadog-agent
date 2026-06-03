@@ -9,7 +9,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
@@ -25,7 +25,7 @@ func TestInitSerializer(t *testing.T) {
 	cfg := &ExporterConfig{}
 	s, fw, err := InitSerializer(logger, cfg, sourceProvider)
 	assert.Nil(t, err)
-	assert.IsType(t, &defaultforwarder.DefaultForwarder{}, fw)
+	assert.IsType(t, &defaultforwarderimpl.DefaultForwarder{}, fw)
 	assert.NotNil(t, fw)
 	assert.NotNil(t, s)
 }

@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/go-viper/mapstructure/v2"

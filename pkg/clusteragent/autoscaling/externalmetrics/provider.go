@@ -86,6 +86,16 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 	}
 	go metricsRetriever.Run(ctx.Done())
 
+	selectorStr := pkgconfigsetup.Datadog().GetString("external_metrics_provider.autoscaler_autogen_label_selector")
+	var autoscalerAutogenLabelSelector labels.Selector
+	autoscalerAutogenLabelSelector, err = labels.Parse(selectorStr)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse external_metrics_provider.autoscaler_autogen_label_selector %q: %v", selectorStr, err)
+	}
+	if selectorStr != "" {
+		log.Infof("Autoscaler autogen label selector configured: %s", selectorStr)
+	}
+
 	var wpaInformer dynamicinformer.DynamicSharedInformerFactory
 	if wpaEnabled {
 		wpaInformer = apiCl.DynamicInformerFactory
@@ -98,6 +108,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 		autogenEnabled,
 		autogenExpirationPeriodHours,
 		autogenNamespace,
+		autoscalerAutogenLabelSelector,
 		apiCl.Cl,
 		apiCl.InformerFactory,
 		wpaInformer,

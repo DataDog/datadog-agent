@@ -12,10 +12,10 @@ import (
 	"testing"
 
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 )
 
 // Mock returns a mock for connectionsforwarder component.
 func Mock(_ *testing.T) connectionsforwarder.Component {
-	return &defaultforwarder.MockedForwarder{}
+	return &defaultforwarderimpl.MockedForwarder{}
 }

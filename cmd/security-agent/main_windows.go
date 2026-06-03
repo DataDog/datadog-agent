@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"

@@ -40,7 +40,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
@@ -56,7 +57,7 @@ import (
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	orchestratormock "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
@@ -125,7 +126,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		fx.Provide(func(h hostnameinterface.Component) serializerexporter.SourceProviderFunc {
 			return h.Get
 		}),
-		hostnameinterface.MockModule(),
+		hostnamemock.MockModule(),
 		secretsnoopfx.Module(),
 
 		fx.Provide(func(_ coreconfig.Component) logdef.Params {
@@ -149,7 +150,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		}),
 		fx.Supply("test-host"),
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
-			return defaultforwarder.Forwarder(c), nil
+			return c, nil
 		}),
 		orchestratormock.MockModule(),
 		pidfx.Module(),

@@ -30,7 +30,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -811,7 +811,7 @@ type aggregatorDeps struct {
 func createAggrDeps(t *testing.T) aggregatorDeps {
 	deps := fxutil.Test[TestDeps](t,
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		defaultforwarder.MockModule(),
+		defaultforwardermock.MockModule(),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		logscompressionmock.MockModule(),

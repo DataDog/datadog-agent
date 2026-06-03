@@ -11,7 +11,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/diagnose/def",
-        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/secrets/def",
         "//comp/core/secrets/noop-impl",
         "//comp/def",

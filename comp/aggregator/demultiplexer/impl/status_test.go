@@ -21,7 +21,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	orchestratormock "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
@@ -67,7 +67,7 @@ func TestStatusOutPut(t *testing.T) {
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		defaultforwarder.MockModule(),
+		defaultforwardermock.MockModule(),
 		haagentmock.Module(),
 		orchestratormock.MockModule(),
 		eventplatformmock.MockModule(),

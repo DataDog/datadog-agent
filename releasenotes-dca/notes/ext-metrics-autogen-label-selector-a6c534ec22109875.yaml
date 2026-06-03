@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add ``external_metrics_provider.autoscaler_autogen_label_selector`` configuration option to the Cluster Agent.
+    When set, only HPAs and WPAs matching the label selector trigger autogeneration of ``DatadogMetric`` objects.
+    Autoscalers with explicit ``datadogmetric@`` references are always tracked regardless of the selector.
+    This allows filtering out autoscalers managed by other controllers (e.g. KEDA) to avoid creating unwanted ``DatadogMetric`` objects.

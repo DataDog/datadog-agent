@@ -11,7 +11,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/hostname/hostnameinterface/def",
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/privateactionrunner/adapters/logging",

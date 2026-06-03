@@ -224,6 +224,10 @@ type DNSEventSerializer struct {
 type DNSResponseEventSerializer struct {
 	// RCode is the response code present in the response
 	RCode uint8 `json:"code"`
+	// IPs is the list of IP addresses resolved by the DNS response
+	IPs []string `json:"ips,omitempty"`
+	// CNames is the list of CNAME targets returned by the DNS response
+	CNames []string `json:"cnames,omitempty"`
 }
 
 // ExitEventSerializer serializes an exit event to JSON
@@ -403,8 +407,18 @@ func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
 	}
 
 	if d.HasResponse() {
+		var ips []string
+		if len(d.Response.IPs) > 0 {
+			ips = make([]string, 0, len(d.Response.IPs))
+			for _, ip := range d.Response.IPs {
+				ips = append(ips, utils.GetIPStringFromIPNet(ip))
+			}
+		}
+
 		ret.Response = &DNSResponseEventSerializer{
-			RCode: d.Response.ResponseCode,
+			RCode:  d.Response.ResponseCode,
+			IPs:    ips,
+			CNames: d.Response.CNames,
 		}
 	}
 

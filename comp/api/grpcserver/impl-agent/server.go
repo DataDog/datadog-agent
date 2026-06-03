@@ -19,7 +19,7 @@ import (
 	autodiscoverystream "github.com/DataDog/datadog-agent/comp/core/autodiscovery/stream"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamServer "github.com/DataDog/datadog-agent/comp/core/configstream/server"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"

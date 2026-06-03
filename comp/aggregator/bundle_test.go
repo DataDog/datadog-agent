@@ -17,7 +17,7 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	orchestratormock "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
@@ -30,7 +30,7 @@ func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(demultiplexerimpl.Params{}),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
-		defaultforwarder.MockModule(),
+		defaultforwardermock.MockModule(),
 		orchestratormock.MockModule(),
 		eventplatformmock.MockModule(),
 		nooptagger.Module(),

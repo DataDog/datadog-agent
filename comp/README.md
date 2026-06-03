@@ -302,7 +302,7 @@ Package connectionsforwarder defines a component to send connections data to the
 
 ### [comp/forwarder/defaultforwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder)
 
-Package defaultforwarder implements a component to send payloads to the backend
+Package defaultforwarder defines the interface for the default forwarder component.
 
 ### [comp/forwarder/eventplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatform)
 

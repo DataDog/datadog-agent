@@ -16,7 +16,7 @@ import (
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"

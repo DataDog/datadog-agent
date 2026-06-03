@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"

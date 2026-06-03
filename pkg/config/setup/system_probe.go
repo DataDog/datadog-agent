@@ -300,6 +300,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.pid_cache_size", 10000)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.dns_resolution.cache_size", 1024)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.dns_resolution.enabled", true)
+	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.dns_resolution.cname_max_depth", 2)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.events_stats.tags_cardinality", "high")
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.custom_sensitive_words", []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.custom_sensitive_regexps", []string{})

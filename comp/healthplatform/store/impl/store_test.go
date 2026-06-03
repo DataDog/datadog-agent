@@ -23,7 +23,7 @@ import (
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 )

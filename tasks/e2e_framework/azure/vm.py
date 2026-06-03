@@ -82,7 +82,6 @@ def create_vm(
 
     extra_flags = {
         "ddinfra:env": f"az/{account if account else cfg.get_azure().account}",
-        "ddinfra:az/defaultPublicKeyPath": cfg.get_azure().publicKeyPath,
         "ddinfra:osDescriptor": f"{os_family}:{os_version if os_version else ''}:{os_arch}",
     }
 

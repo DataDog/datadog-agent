@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 

@@ -10,7 +10,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"

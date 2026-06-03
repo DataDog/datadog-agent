@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"

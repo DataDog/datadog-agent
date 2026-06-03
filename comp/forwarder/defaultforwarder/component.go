@@ -7,50 +7,41 @@
 package defaultforwarder
 
 import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	defaultforwarderdef "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 )
 
-// team: agent-metric-pipelines
+// Forwarder is the interface for the default forwarder.
+//
+// Deprecated: use comp/forwarder/defaultforwarder/def instead.
+type Forwarder = defaultforwarderdef.Forwarder
 
-// Component is the component type.
-type Component interface {
-	// TODO: (components) When the code of the forwarder will be
-	// in /comp/forwarder move the content of forwarder.Forwarder inside this interface.
-	Forwarder
-}
+// Options contains the options for the default forwarder.
+//
+// Deprecated: use comp/forwarder/defaultforwarder/impl instead.
+type Options = defaultforwarderimpl.Options
 
-// Module defines the fx options for this component.
-func Module(params Params) fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newForwarder),
-		fx.Supply(params),
-	)
-}
+// DefaultForwarder is the default implementation of the forwarder.
+//
+// Deprecated: use comp/forwarder/defaultforwarder/impl instead.
+type DefaultForwarder = defaultforwarderimpl.DefaultForwarder
 
-// ModulWithOptionTMP defines the fx options for this component with an option.
-// This is a temporary function to until configsync is cleanup.
-func ModulWithOptionTMP(option fx.Option) fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newForwarder),
-		option,
-	)
-}
+// NewOptions creates forwarder options from the given configuration.
+//
+// Deprecated: use comp/forwarder/defaultforwarder/impl instead.
+var NewOptions = defaultforwarderimpl.NewOptions
 
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-}
+// NewDefaultForwarder creates a new default forwarder.
+//
+// Deprecated: use comp/forwarder/defaultforwarder/impl instead.
+var NewDefaultForwarder = defaultforwarderimpl.NewDefaultForwarder
 
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMockForwarder))
-}
+// Stopped represents the internal state of an unstarted Forwarder.
+//
+// Deprecated: use comp/forwarder/defaultforwarder/impl instead.
+const Stopped = defaultforwarderimpl.Stopped
 
-// NoopModule provides a stub forwarder component that does nothing.
-func NoopModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(func() Component { return NoopForwarder{} }))
-}
+// Started represents the internal state of a started Forwarder.
+//
+// Deprecated: use comp/forwarder/defaultforwarder/impl instead.
+const Started = defaultforwarderimpl.Started

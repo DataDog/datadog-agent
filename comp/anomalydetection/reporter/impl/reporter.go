@@ -15,7 +15,7 @@ import (
 
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
-	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 )
