@@ -42,6 +42,7 @@
           <clear />
         </environmentVariables>
       </add>
+      <add name="poolNoEnv" />
     </applicationPools>
     <sites>
       <applicationDefaults applicationPool="poolB" />
@@ -92,6 +93,9 @@
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
         <application path="/emptychild/child" applicationPool="poolEmpty">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/noenv" applicationPool="poolNoEnv">
           <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
         </application>
       </site>

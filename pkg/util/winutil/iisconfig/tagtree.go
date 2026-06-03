@@ -180,16 +180,20 @@ func applyEnvVarsOver(base APMTags, vars iisEnvironmentVariables) APMTags {
 	return state
 }
 
-// buildPoolEnvTags returns a map keyed by lowercased pool name to UST tags
-// derived from applicationHost.config applicationPools. Per-pool
-// environmentVariables directives are applied in document order on top of
-// the resolved applicationPoolDefaults state. IIS treats pool names
-// case-insensitively, so the lookup side must also lowercase.
+// buildPoolEnvTags maps lowercased pool name -> UST tags from
+// applicationHost.config (pool names are case-insensitive). IIS does not merge a
+// pool's own <environmentVariables> with applicationPoolDefaults: declaring the
+// collection (even empty) replaces the defaults; only a pool that omits it
+// inherits them.
 func buildPoolEnvTags(pools iisApplicationPools) (perPool map[string]APMTags, defaults APMTags) {
 	defaults = applyEnvVarsOver(APMTags{}, pools.Defaults.EnvVars)
 	perPool = make(map[string]APMTags, len(pools.Pools))
 	for _, p := range pools.Pools {
-		perPool[strings.ToLower(p.Name)] = applyEnvVarsOver(defaults, p.EnvVars)
+		if p.EnvVars.XMLName.Local != "" {
+			perPool[strings.ToLower(p.Name)] = applyEnvVarsOver(APMTags{}, p.EnvVars)
+		} else {
+			perPool[strings.ToLower(p.Name)] = defaults
+		}
 	}
 	return perPool, defaults
 }
@@ -337,6 +341,7 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 
 			var ddjson APMTags
 			var appconfig APMTags
+			configFromEnv := false
 			hasddjson := false
 			haswebcfg := false
 
@@ -377,13 +382,33 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 					}
 				}
 				if haswebcfg {
-					parsed, perr := ReadDotNetConfig(webcfg)
+					parsed, fromEnv, perr := ReadDotNetConfig(webcfg)
 					if perr != nil {
 						haswebcfg = false
 					} else {
 						appconfig = parsed
+						configFromEnv = fromEnv
 					}
 				}
+			}
+
+			// A Core app's web.config <aspNetCore> env vars are the most
+			// specific real env: ANCM overlays them over the pool env and the
+			// tracer reads them at its top tier. Fold them onto the
+			// applicationHost env (web.config wins per field) and drop the
+			// separate tier so the result outranks applicationHost. Framework
+			// <appSettings> ranks below real env, so it stays in appconfig.
+			if configFromEnv {
+				if appconfig.DDService != "" {
+					envvars.DDService = appconfig.DDService
+				}
+				if appconfig.DDEnv != "" {
+					envvars.DDEnv = appconfig.DDEnv
+				}
+				if appconfig.DDVersion != "" {
+					envvars.DDVersion = appconfig.DDVersion
+				}
+				appconfig = APMTags{}
 			}
 
 			// Every declared <application> is a worker-process boundary, so

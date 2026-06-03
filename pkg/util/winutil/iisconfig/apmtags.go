@@ -68,20 +68,26 @@ type iisAppSettings struct {
 type appConfiguration struct {
 	XMLName     xml.Name `xml:"configuration"`
 	AppSettings iisAppSettings
+	// Presence of <system.webServer><aspNetCore> marks an ASP.NET Core app; see
+	// ReadDotNetConfig for how its env vars override <appSettings>.
+	SystemWebServer iisLocationSystemWebServer `xml:"system.webServer"`
 }
 
 var (
 	errorlogcount = 0
 )
 
-// ReadDotNetConfig reads an iis config file(xml) and returns the APM tags
-func ReadDotNetConfig(cfgpath string) (APMTags, error) { //(APMTags, error) {
+// ReadDotNetConfig reads an IIS web.config and returns its APM tags. The bool
+// reports whether they came from <aspNetCore> env vars (real process env, the
+// tracer's top tier) rather than <appSettings>/datadog.json; buildPathTagTree
+// uses it to rank web.config against applicationHost.config.
+func ReadDotNetConfig(cfgpath string) (APMTags, bool, error) {
 	var newcfg appConfiguration
 	var apmtags APMTags
 	var chasedatadogJSON string
 	f, err := os.ReadFile(cfgpath)
 	if err != nil {
-		return apmtags, err
+		return apmtags, false, err
 	}
 	err = xml.Unmarshal(f, &newcfg)
 	if err != nil {
@@ -89,8 +95,19 @@ func ReadDotNetConfig(cfgpath string) (APMTags, error) { //(APMTags, error) {
 			log.Warnf("Error reading datadog.json file %s: %v", cfgpath, err)
 			jsonLogCount++
 		}
-		return apmtags, err
+		return apmtags, false, err
 	}
+
+	// ASP.NET Core app: ANCM injects <aspNetCore> env vars into the worker (the
+	// tracer's top precedence) and never reads <appSettings> (Framework-only,
+	// #if NETFRAMEWORK in dd-trace-dotnet). Use them exclusively, ignoring
+	// appSettings, so USM matches what APM sees.
+	if newcfg.SystemWebServer.AspNetCore.XMLName.Local != "" {
+		return applyEnvVarsOver(APMTags{}, newcfg.SystemWebServer.AspNetCore.EnvVars), true, nil
+	}
+
+	// .NET Framework path: <appSettings>, plus the datadog.json a
+	// DD_TRACE_CONFIG_FILE appSetting points to.
 	for _, setting := range newcfg.AppSettings.Adds {
 		switch setting.Key {
 		case "DD_SERVICE":
@@ -106,13 +123,15 @@ func ReadDotNetConfig(cfgpath string) (APMTags, error) { //(APMTags, error) {
 	if len(chasedatadogJSON) > 0 {
 		ddjson, err := ReadDatadogJSON(chasedatadogJSON)
 		if err == nil {
-			if len(ddjson.DDService) > 0 {
+			// appSettings outranks datadog.json in the tracer, so only fill
+			// fields appSettings left unset.
+			if len(apmtags.DDService) == 0 {
 				apmtags.DDService = ddjson.DDService
 			}
-			if len(ddjson.DDEnv) > 0 {
+			if len(apmtags.DDEnv) == 0 {
 				apmtags.DDEnv = ddjson.DDEnv
 			}
-			if len(ddjson.DDVersion) > 0 {
+			if len(apmtags.DDVersion) == 0 {
 				apmtags.DDVersion = ddjson.DDVersion
 			}
 		} else {
@@ -123,5 +142,5 @@ func ReadDotNetConfig(cfgpath string) (APMTags, error) { //(APMTags, error) {
 			errorlogcount++
 		}
 	}
-	return apmtags, nil
+	return apmtags, false, nil
 }

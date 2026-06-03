@@ -7,6 +7,7 @@
 package iisconfig
 
 import (
+	"encoding/xml"
 	"os"
 	"path/filepath"
 	"testing"
@@ -33,17 +34,16 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 	require.Nil(t, iisCfg.Start())
 	defer iisCfg.Stop()
 
-	t.Run("pool env overlays applicationPoolDefaults", func(t *testing.T) {
-		// site 10, app "/" uses poolA: SERVICE/VERSION from pool, ENV from
-		// applicationPoolDefaults.
+	t.Run("pool with own env does not inherit applicationPoolDefaults", func(t *testing.T) {
+		// poolA declares its own <environmentVariables>, so it does not inherit
+		// applicationPoolDefaults: DD_ENV (defaults-only) is dropped.
 		_, _, env := iisCfg.GetAPMTags(10, "/")
 		assert.Equal(t, "poolA-service", env.DDService)
-		assert.Equal(t, "default-env", env.DDEnv)
+		assert.Equal(t, "", env.DDEnv)
 		assert.Equal(t, "1.0.0", env.DDVersion)
 	})
 
-	t.Run("pool overrides applicationPoolDefaults", func(t *testing.T) {
-		// poolB sets DD_ENV explicitly, overriding the default.
+	t.Run("pool sets its own DD_ENV", func(t *testing.T) {
 		_, _, env := iisCfg.GetAPMTags(10, "/b")
 		assert.Equal(t, "poolB-service", env.DDService)
 		assert.Equal(t, "poolB-env", env.DDEnv)
@@ -56,26 +56,35 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		// IIS treats pool names case-insensitively.
 		_, _, env := iisCfg.GetAPMTags(10, "/e")
 		assert.Equal(t, "poolA-service", env.DDService)
-		assert.Equal(t, "default-env", env.DDEnv)
+		assert.Equal(t, "", env.DDEnv)
 		assert.Equal(t, "1.0.0", env.DDVersion)
 	})
 
 	t.Run("undeclared pool falls back to applicationPoolDefaults", func(t *testing.T) {
 		// /f references "DefaultAppPool" which is not listed under
-		// <applicationPools><add>. IIS still applies applicationPoolDefaults.
+		// <applicationPools><add>. An implicit pool has no <environmentVariables>
+		// of its own, so IIS applies applicationPoolDefaults.
 		_, _, env := iisCfg.GetAPMTags(10, "/f")
 		assert.Equal(t, "", env.DDService)
 		assert.Equal(t, "default-env", env.DDEnv)
 		assert.Equal(t, "", env.DDVersion)
 	})
 
+	t.Run("declared pool that omits env inherits applicationPoolDefaults", func(t *testing.T) {
+		// poolNoEnv omits <environmentVariables> entirely (vs an empty one), so
+		// it inherits applicationPoolDefaults.
+		_, _, env := iisCfg.GetAPMTags(10, "/noenv")
+		assert.Equal(t, "", env.DDService)
+		assert.Equal(t, "default-env", env.DDEnv)
+		assert.Equal(t, "", env.DDVersion)
+	})
+
 	t.Run("env var names matched case-insensitively", func(t *testing.T) {
-		// /g uses poolMixedCase which declares Dd_Service and dd_version
-		// (mixed/lowercase). Windows env vars are case-insensitive so these
-		// must still populate DD_SERVICE / DD_VERSION.
+		// poolMixedCase declares Dd_Service/dd_version (mixed/lowercase); env var
+		// names are case-insensitive so they still populate DD_SERVICE/DD_VERSION.
 		_, _, env := iisCfg.GetAPMTags(10, "/g")
 		assert.Equal(t, "mixed-case-service", env.DDService)
-		assert.Equal(t, "default-env", env.DDEnv)
+		assert.Equal(t, "", env.DDEnv)
 		assert.Equal(t, "lower-version", env.DDVersion)
 	})
 
@@ -89,29 +98,30 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 	})
 
 	t.Run("app inherits applicationPool from per-site <applicationDefaults>", func(t *testing.T) {
-		// site 11 has <site><applicationDefaults applicationPool="poolA"/>;
-		// its "/" application omits applicationPool. Per-site default wins
-		// over the <sites>-level default (which would have chosen poolB).
+		// site 11's <site><applicationDefaults applicationPool="poolA"/> supplies
+		// the pool for its "/" app; the per-site default wins over the
+		// <sites>-level one (poolB).
 		_, _, env := iisCfg.GetAPMTags(11, "/")
 		assert.Equal(t, "poolA-service", env.DDService)
-		assert.Equal(t, "default-env", env.DDEnv)
+		assert.Equal(t, "", env.DDEnv)
 		assert.Equal(t, "1.0.0", env.DDVersion)
 	})
 
-	t.Run("<remove> drops an inherited applicationPoolDefaults entry", func(t *testing.T) {
-		// poolWithRemove sets DD_SERVICE and removes the inherited DD_ENV
-		// from applicationPoolDefaults.
+	t.Run("<remove> inside a pool collection is a no-op against defaults", func(t *testing.T) {
+		// poolWithRemove declares its own collection, so applicationPoolDefaults
+		// is not inherited in the first place. Its <remove name="DD_ENV"/> has
+		// nothing to remove; the <add> for DD_SERVICE is what takes effect.
 		_, _, env := iisCfg.GetAPMTags(10, "/i")
 		assert.Equal(t, "remove-pool-service", env.DDService)
 		assert.Equal(t, "", env.DDEnv)
 		assert.Equal(t, "", env.DDVersion)
 	})
 
-	t.Run("<clear/> wipes all inherited applicationPoolDefaults entries", func(t *testing.T) {
-		// poolWithClear resets the inherited defaults and then adds DD_SERVICE.
+	t.Run("<clear/> inside a pool collection then add", func(t *testing.T) {
+		// poolWithClear declares its own collection (no defaults inherited),
+		// <clear/>s it, then adds DD_SERVICE.
 		_, _, env := iisCfg.GetAPMTags(10, "/j")
 		assert.Equal(t, "clear-pool-service", env.DDService)
-		// DD_ENV was inherited from applicationPoolDefaults; <clear/> drops it.
 		assert.Equal(t, "", env.DDEnv)
 		assert.Equal(t, "", env.DDVersion)
 	})
@@ -133,9 +143,10 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		// <remove> here only touches the aspNetCore collection, DD_ENV from
 		// applicationPoolDefaults still flows through; DD_VERSION is
 		// overridden by the location and DD_SERVICE keeps the poolA value.
+		// poolA does not inherit applicationPoolDefaults, so DD_ENV is empty.
 		_, _, env := iisCfg.GetAPMTags(10, "/locremove")
 		assert.Equal(t, "poolA-service", env.DDService)
-		assert.Equal(t, "default-env", env.DDEnv)
+		assert.Equal(t, "", env.DDEnv)
 		assert.Equal(t, "3.0.0", env.DDVersion)
 	})
 
@@ -158,13 +169,14 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		// what the ASP.NET Core Module would actually apply to the process.
 		_, _, env := iisCfg.GetAPMTags(10, "/loccascadeclear/child")
 		assert.Equal(t, "poolA-service", env.DDService)
-		assert.Equal(t, "default-env", env.DDEnv)
+		assert.Equal(t, "", env.DDEnv)
 		assert.Equal(t, "1.0.0", env.DDVersion)
 	})
 
 	t.Run("empty child app does not inherit parent app's pool tags", func(t *testing.T) {
 		// envsite/emptychild runs on poolA and resolves to
-		// {poolA-service, default-env, 1.0.0}. envsite/emptychild/child
+		// {poolA-service, "", 1.0.0} (poolA declares its own env so it does
+		// not inherit applicationPoolDefaults). envsite/emptychild/child
 		// is a separate worker on poolEmpty whose <clear/> wipes the
 		// inherited applicationPoolDefaults -- the child worker process has
 		// no DD_* env at all. The child must therefore be its own node in
@@ -172,7 +184,7 @@ func TestAPMTagsFromEnvVars(t *testing.T) {
 		// the parent app's poolA tags.
 		_, _, parent := iisCfg.GetAPMTags(10, "/emptychild")
 		assert.Equal(t, "poolA-service", parent.DDService)
-		assert.Equal(t, "default-env", parent.DDEnv)
+		assert.Equal(t, "", parent.DDEnv)
 		assert.Equal(t, "1.0.0", parent.DDVersion)
 
 		_, _, child := iisCfg.GetAPMTags(10, "/emptychild/child")
@@ -230,6 +242,45 @@ func TestAPMTagsFromGlobalEnvVars(t *testing.T) {
 		assert.Equal(t, "override-service", env.DDService)
 		assert.Equal(t, "pathless-global-env", env.DDEnv)
 		assert.Equal(t, "1.0.0", env.DDVersion)
+	})
+}
+
+// TestWebConfigPrecedenceOverApplicationHost checks cross-file precedence: a
+// Core app's web.config <aspNetCore> env overrides the app-pool env per field
+// (pool fills the rest), while a Framework app's <appSettings> ranks below the
+// pool env and stays in its own tier.
+func TestWebConfigPrecedenceOverApplicationHost(t *testing.T) {
+	path, err := os.Getwd()
+	require.Nil(t, err)
+
+	iisCfgPath = filepath.Join(path, "testdata", "webconfig_precedence.xml")
+	t.Setenv("TESTROOTDIR", filepath.Join(path, "testdata"))
+
+	iisCfg, err := NewDynamicIISConfig()
+	require.Nil(t, err)
+	require.NotNil(t, iisCfg)
+	require.Nil(t, iisCfg.Start())
+	defer iisCfg.Stop()
+
+	t.Run("Core web.config <aspNetCore> overrides applicationHost env", func(t *testing.T) {
+		json, config, appHost := iisCfg.GetAPMTags(30, "/core")
+		// web.config aspNetCore DD_SERVICE wins; the pool supplies env/version.
+		assert.Equal(t, "webconfig-service", appHost.DDService)
+		assert.Equal(t, "poolX-env", appHost.DDEnv)
+		assert.Equal(t, "poolX-version", appHost.DDVersion)
+		// Folded into the env tier, so the separate web.config tier is empty.
+		assert.True(t, config.isEmpty())
+		assert.True(t, json.isEmpty())
+	})
+
+	t.Run("Framework web.config <appSettings> stays below applicationHost env", func(t *testing.T) {
+		_, config, appHost := iisCfg.GetAPMTags(30, "/fw")
+		// pool env vars are the real environment -> they outrank appSettings.
+		assert.Equal(t, "poolX-service", appHost.DDService)
+		assert.Equal(t, "poolX-env", appHost.DDEnv)
+		assert.Equal(t, "poolX-version", appHost.DDVersion)
+		// appSettings stays in its own lower tier (not folded, not dropped).
+		assert.Equal(t, "appsettings-service", config.DDService)
 	})
 }
 
@@ -295,6 +346,11 @@ func TestPoolDefaultsToDefaultAppPool(t *testing.T) {
 					{
 						Name: "DefaultAppPool",
 						EnvVars: iisEnvironmentVariables{
+							// XMLName mirrors what the XML decoder sets when the
+							// pool declares its own <environmentVariables>; it is
+							// the signal buildPoolEnvTags uses to decide the pool
+							// does not inherit applicationPoolDefaults.
+							XMLName: xml.Name{Local: "environmentVariables"},
 							Ops: []iisEnvVarOp{
 								{kind: iisEnvVarOpAdd, name: "DD_SERVICE", value: "default-app-pool-svc"},
 								{kind: iisEnvVarOpAdd, name: "DD_VERSION", value: "0.1"},

@@ -21,14 +21,48 @@ func TestAppConfig(t *testing.T) {
 
 	apppath := filepath.Join(path, "testdata", "app_1.config.xml")
 	//apppath := filepath.Join(path, "testdata", "iisconfig.xml")
-	iisCfg, err := ReadDotNetConfig(apppath)
+	iisCfg, fromEnv, err := ReadDotNetConfig(apppath)
 	assert.Nil(t, err)
 	assert.NotNil(t, iisCfg)
+	// appSettings-only (no <aspNetCore>) -> .NET Framework tier.
+	assert.False(t, fromEnv)
 
 	assert.Equal(t, iisCfg.DDService, "service1")
 	assert.Equal(t, iisCfg.DDEnv, "false")
 	assert.Equal(t, iisCfg.DDVersion, "1.0-prerelease")
 
+}
+
+// A Core web.config (<aspNetCore>) derives UST from its env vars only, ignoring
+// <appSettings> -- matching the tracer, which never reads appSettings on Core.
+func TestAppConfigEnvironmentVariables(t *testing.T) {
+	path, err := os.Getwd()
+	require.Nil(t, err)
+
+	apppath := filepath.Join(path, "testdata", "app_envvars.config.xml")
+	iisCfg, fromEnv, err := ReadDotNetConfig(apppath)
+	assert.Nil(t, err)
+	assert.True(t, fromEnv)
+
+	assert.Equal(t, "from-env", iisCfg.DDService) // env wins over appSettings
+	assert.Equal(t, "", iisCfg.DDEnv)             // appSettings-only -> dropped on Core
+	assert.Equal(t, "2.0-env", iisCfg.DDVersion)  // env only
+}
+
+// On the Framework path, <appSettings> outranks the DD_TRACE_CONFIG_FILE
+// datadog.json, which still fills fields appSettings left unset.
+func TestAppConfigAppSettingsOutranksDatadogJSON(t *testing.T) {
+	path, err := os.Getwd()
+	require.Nil(t, err)
+
+	apppath := filepath.Join(path, "testdata", "app_framework.config.xml")
+	iisCfg, fromEnv, err := ReadDotNetConfig(apppath)
+	assert.Nil(t, err)
+	assert.False(t, fromEnv)
+
+	assert.Equal(t, "appsettings-service", iisCfg.DDService) // both -> appSettings wins
+	assert.Equal(t, "appsettings-version", iisCfg.DDVersion) // both -> appSettings wins
+	assert.Equal(t, "json-env", iisCfg.DDEnv)                // json fills the gap
 }
 
 func TestPathSplitting(t *testing.T) {

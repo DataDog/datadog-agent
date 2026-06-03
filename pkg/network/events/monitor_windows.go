@@ -66,7 +66,7 @@ func getAPMTags(already map[string]string, filename string) []*intern.Value {
 	ddJSON := filepath.Join(dir, "datadog.json")
 	if _, err := os.Stat(appConfig); err == nil {
 
-		appcfg, err := iisconfig.ReadDotNetConfig(appConfig)
+		appcfg, _, err := iisconfig.ReadDotNetConfig(appConfig)
 		if err == nil {
 			found := makeTagsSlice(already, appcfg)
 			if len(found) > 0 {
