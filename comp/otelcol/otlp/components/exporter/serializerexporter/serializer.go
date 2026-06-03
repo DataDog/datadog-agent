@@ -16,7 +16,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
+	orchestratorinterface "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface/def"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
@@ -76,7 +76,6 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
 	config.Set("serializer_max_payload_size", 2*megaByte+megaByte/2, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_max_uncompressed_payload_size", 4*megaByte, pkgconfigmodel.SourceDefault)
-	config.Set("serializer_max_series_points_per_payload", 10000, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_max_series_payload_size", 512000, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_max_series_uncompressed_payload_size", 5242880, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_compressor_kind", pkgconfigsetup.DefaultCompressorKind, pkgconfigmodel.SourceDefault)

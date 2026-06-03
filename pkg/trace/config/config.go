@@ -303,8 +303,6 @@ type EVPProxy struct {
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
 	APIKey string `json:"-"` // Never marshal this field
-	// ApplicationKey to be used for requests with the X-Datadog-NeedsAppKey set (defaults to the top-level Application Key).
-	ApplicationKey string `json:"-"` // Never marshal this field
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
@@ -554,6 +552,15 @@ type AgentConfig struct {
 	RemoteConfigClient RemoteClient `json:"-"`
 	// MRFRemoteConfigClient retrieves MRF updates from the remote config DC.
 	MRFRemoteConfigClient RemoteClient `json:"-"`
+
+	// RemoteConfigAPMSamplingEnabled gates the trace-agent's APM_SAMPLING subscription.
+	RemoteConfigAPMSamplingEnabled bool
+	// RemoteConfigAgentConfigEnabled gates the trace-agent's AGENT_CONFIG subscription.
+	// When the user has not set remote_configuration.agent_config.enabled explicitly,
+	// this is initialised by inheriting remote_configuration.apm_sampling.enabled.
+	RemoteConfigAgentConfigEnabled bool
+	// RemoteConfigAPMSemanticsEnabled gates the trace-agent's APM_SEMANTIC_CORE_DD subscription.
+	RemoteConfigAPMSemanticsEnabled bool
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
@@ -838,11 +845,10 @@ func (c *AgentConfig) MRFFailoverAPM() bool {
 
 // ConfiguredPeerTags returns the set of peer tags that should be used
 // for aggregation based on the various config values and the base set of tags.
+// For callers that need to cache the result against the live semantic registry
+// version (e.g. the Concentrator's hot path), use PeerTagsCache instead.
 func (c *AgentConfig) ConfiguredPeerTags() []string {
-	if !c.PeerTagsAggregation {
-		return nil
-	}
-	return preparePeerTags(append(basePeerTags(), c.PeerTags...))
+	return c.PeerTagsCache().Keys
 }
 
 // ConfiguredSpanDerivedPrimaryTagKeys returns the configured span-derived primary

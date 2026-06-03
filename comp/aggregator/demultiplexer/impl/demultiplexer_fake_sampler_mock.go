@@ -50,9 +50,9 @@ func (f *fakeSamplerMock) GetAgentDemultiplexer() *aggregator.AgentDemultiplexer
 	return f.TestAgentDemultiplexer.AgentDemultiplexer
 }
 
-func (f *fakeSamplerMock) Stop(flush bool) {
+func (f *fakeSamplerMock) Stop() {
 	if !f.stopped {
-		f.TestAgentDemultiplexer.Stop(flush)
+		f.TestAgentDemultiplexer.Stop()
 		f.stopped = true
 	}
 }
@@ -61,7 +61,7 @@ func newFakeSamplerMock(deps fakeSamplerMockDependencies) demultiplexerComp.Fake
 	mock := NewFakeSamplerMock(deps.Log, deps.Hostname, deps.LogsCompression, deps.MetricsCompression)
 	deps.Lc.Append(fx.Hook{
 		OnStop: func(_ context.Context) error {
-			mock.Stop(false)
+			mock.Stop()
 			return nil
 		}})
 	return mock
