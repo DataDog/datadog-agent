@@ -53,7 +53,7 @@ func TestDockerPermissionSuite(t *testing.T) {
 func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 	host := suite.Env().RemoteHost
 	agent := suite.Env().Agent
-	fi := suite.Env().Fakeintake.Client()
+	fakeIntake := suite.Env().Fakeintake.Client()
 
 	const issueID = "docker-socket-permissions"
 
@@ -79,7 +79,7 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 
 		var issues []*healthplatform.Issue
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
-			payloads, err := fi.GetAgentHealth()
+			payloads, err := fakeIntake.GetAgentHealth()
 			assert.NoError(ct, err)
 			issues = nil
 			for _, p := range payloads {
@@ -117,14 +117,14 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		perm := host.MustExecute("stat -c '%a' /var/run/docker.sock")
 		assert.Contains(t, strings.TrimSpace(perm), "666", "docker socket should be world-accessible")
 
-		require.NoError(t, fi.FlushServerAndResetAggregators())
+		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
 		require.NoError(t, agent.Client.Restart())
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			assert.True(ct, agent.Client.IsReady())
 		}, 2*time.Minute, 10*time.Second, "agent not ready after fix restart")
 
 		require.Never(t, func() bool {
-			payloads, _ := fi.GetAgentHealth()
+			payloads, _ := fakeIntake.GetAgentHealth()
 			for _, p := range payloads {
 				for _, iss := range findIssuesByID(t, p, issueID) {
 					if iss.PersistedIssue == nil || iss.PersistedIssue.State != healthplatform.IssueState_ISSUE_STATE_RESOLVED {

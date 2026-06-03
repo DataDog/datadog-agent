@@ -56,14 +56,14 @@ func TestResilienceSuite(t *testing.T) {
 // ONGOING with the same first_seen timestamp as before the restart.
 func (suite *resilienceSuite) TestHealthPlatformResilience() {
 	agent := suite.Env().Agent
-	fi := suite.Env().FakeIntake.Client()
+	fakeIntake := suite.Env().FakeIntake.Client()
 
 	const issuePrefix = "check-execution-failure:broken_check"
 
 	// Wait for the initial NEW report so we have a first_seen to compare.
 	var initialIssues []*healthplatform.Issue
 	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
-		payloads, err := fi.GetAgentHealth()
+		payloads, err := fakeIntake.GetAgentHealth()
 		assert.NoError(ct, err)
 		initialIssues = nil
 		for _, p := range payloads {
@@ -84,7 +84,7 @@ func (suite *resilienceSuite) TestHealthPlatformResilience() {
 		}
 	}
 
-	require.NoError(suite.T(), fi.FlushServerAndResetAggregators())
+	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
 	require.NoError(suite.T(), agent.Client.Restart())
 	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
 		assert.True(ct, agent.Client.IsReady())
@@ -93,7 +93,7 @@ func (suite *resilienceSuite) TestHealthPlatformResilience() {
 	// After restart the issue must be re-reported as ONGOING (loaded from on-disk store).
 	var reloadedIssues []*healthplatform.Issue
 	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
-		payloads, err := fi.GetAgentHealth()
+		payloads, err := fakeIntake.GetAgentHealth()
 		assert.NoError(ct, err)
 		reloadedIssues = nil
 		for _, p := range payloads {

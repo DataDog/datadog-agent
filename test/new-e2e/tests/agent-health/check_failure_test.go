@@ -72,7 +72,7 @@ func TestCheckFailureSuite(t *testing.T) {
 //
 // Cross-restart persistence is tested separately in TestResilienceSuite.
 func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
-	fi := suite.Env().FakeIntake.Client()
+	fakeIntake := suite.Env().FakeIntake.Client()
 
 	const issuePrefix = "check-execution-failure:broken_check"
 
@@ -80,7 +80,7 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 		// broken_check.py is deployed by the provisioner; agent is ready at suite start.
 		var issues []*healthplatform.Issue
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
-			payloads, err := fi.GetAgentHealth()
+			payloads, err := fakeIntake.GetAgentHealth()
 			assert.NoError(ct, err)
 			issues = nil
 			for _, p := range payloads {
@@ -104,7 +104,7 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 	})
 
 	suite.T().Run("Resolution", func(t *testing.T) {
-		require.NoError(t, fi.FlushServerAndResetAggregators())
+		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
 		suite.UpdateEnv(awshost.Provisioner(
 			awshost.WithRunOptions(
 				ec2.WithAgentOptions(
@@ -120,7 +120,7 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 		))
 
 		require.Never(t, func() bool {
-			payloads, _ := fi.GetAgentHealth()
+			payloads, _ := fakeIntake.GetAgentHealth()
 			for _, p := range payloads {
 				for _, iss := range findIssuesByPrefix(p, issuePrefix) {
 					if iss.PersistedIssue == nil || iss.PersistedIssue.State != healthplatform.IssueState_ISSUE_STATE_RESOLVED {
