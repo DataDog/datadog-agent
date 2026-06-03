@@ -1,7 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
-# gazelle:exclude cgo_align.go
-
 go_library(
     name = "ebpftest",
     srcs = [
@@ -18,6 +16,10 @@ go_library(
         "version_linux.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest",
+    # Don't pick this up in ... expansion. It requires gotag linux_bpf to build
+    # but you can't add gotags to go_library. One fix is to test with
+    # --build_tests_only. 'manual' is the other recommended work-around
+    # https://github.com/bazel-contrib/rules_go/issues/3203
     tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
@@ -47,6 +49,12 @@ go_library(
     }),
 )
 
+# cgo_align.go is strange.
+# If it is included in the library the ebpftest tests will not build. The
+# failure is:
+#     golang cannot use generic function l.TestCgoAlignment without instantiation
+# So we have a distinct library for it, so it can be used from the single test
+# that uses it.
 # keep
 go_library(
     name = "cgo_align",

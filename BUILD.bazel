@@ -410,6 +410,7 @@ exports_files(glob(
 # gazelle:exclude pkg/dyninst/uprobe
 # gazelle:exclude pkg/ebpf/_obj
 # gazelle:exclude pkg/ebpf/bytecode/runtime
+# gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
 # gazelle:exclude pkg/ebpf/features
 # gazelle:exclude pkg/ebpf/kernelbugs
 # gazelle:exclude pkg/ebpf/modifiers
