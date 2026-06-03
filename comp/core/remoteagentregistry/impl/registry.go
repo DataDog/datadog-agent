@@ -8,6 +8,7 @@ package remoteagentregistryimpl
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -218,6 +219,32 @@ func (ra *remoteAgentRegistry) RefreshRemoteAgent(sessionID string) bool {
 	}
 	agentClient.RegisteredAgent.LastSeen = time.Now()
 	return ok
+}
+
+// ReportRemoteAgentEvent records one or more events reported by a remote agent.
+//
+// It returns an error if no remote agent is registered with the given session ID.
+//
+// NOTE: This is currently a stub that only logs the reported events. Routing them to telemetry/alerting is future work.
+func (ra *remoteAgentRegistry) ReportRemoteAgentEvent(sessionID string, events []remoteagentregistry.RemoteAgentEvent) error {
+	ra.agentMapMu.Lock()
+	agentClient, ok := ra.agentMap[sessionID]
+	ra.agentMapMu.Unlock()
+
+	if !ok {
+		return fmt.Errorf("no remote agent found with session ID %q", sessionID)
+	}
+
+	displayName := agentClient.RegisteredAgent.DisplayName
+	for _, event := range events {
+		eventType := "unknown"
+		if event.Details != nil {
+			eventType = event.Details.EventType()
+		}
+		log.Infof("Remote agent '%s' reported event (type: %s): %s", displayName, eventType, event.Message)
+	}
+
+	return nil
 }
 
 // Start starts the remote agent registry, which periodically checks for idle remote agents and deregisters them.
