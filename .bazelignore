@@ -6,3 +6,4 @@
 # inside of arm64 Linux containers.
 bazel-datadog-agent/
 bazel-testlogs/
+junit-*.xml
