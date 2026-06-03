@@ -1,6 +1,6 @@
 ---
-# e2e stage - csm-threats-agent owned jobs
-# Owned by: csm-threats-agent, agent-devx
+# e2e stage - security owned jobs (csm-threats-agent and agent-cspm)
+# Owned by: csm-threats-agent, agent-cspm, agent-devx
 
 .on_sbom_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -8,6 +8,20 @@
       paths:
         - pkg/sbom/**/*
         - test/new-e2e/tests/sbom/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+.on_cspm_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/security/**/*
+        - pkg/compliance/**/*
+        - test/new-e2e/tests/cspm/**/*
+        # The host-benchmark suite validates the bundled benchmark content, whose
+        # version is pinned by SECURITY_AGENT_POLICIES_VERSION in release.json, so a
+        # policy bump must run the suite before it can break the main pipeline.
+        - release.json
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -54,3 +68,35 @@ new-e2e-sbom:
       - EXTRA_PARAMS: --run "TestSBOMKubeadmCrioSuite"
       - EXTRA_PARAMS: --run "TestSBOMPackageInUseKubeadmSuite"
       - EXTRA_PARAMS: --run "TestSBOMDockerHostSuite"
+
+new-e2e-cspm:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_cspm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_linux
+    - qa_dca
+    - agent_deb-x64-a7
+    - agent_rpm-x64-a7
+  variables:
+    TARGETS: ./tests/cspm
+    TEAM: cspm
+    ON_NIGHTLY_FIPS: "true"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestCSPM
+      - EXTRA_PARAMS: --run TestDockerHostCSPM
+      - EXTRA_PARAMS: --run TestHostBenchmarksRHEL8
+      - EXTRA_PARAMS: --run TestHostBenchmarksRHEL9
+      - EXTRA_PARAMS: --run TestHostBenchmarksRHEL10
+      - EXTRA_PARAMS: --run TestHostBenchmarksUbuntu2404
+      - EXTRA_PARAMS: --run TestHostBenchmarksAmazonLinux2023
+      - EXTRA_PARAMS: --run TestHostBenchmarksAlmaLinux9
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksRHEL9
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksRHEL10
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksUbuntu2404
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksAmazonLinux2023
+      - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksAlmaLinux9
+  timeout: 35m

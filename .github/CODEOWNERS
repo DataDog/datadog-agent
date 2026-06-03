@@ -193,24 +193,19 @@
 /.gitlab/test/e2e/e2e_npm.yml                             @DataDog/cloud-network-monitoring @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_ssi.yml                             @DataDog/injection-platform @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_otel.yml                            @DataDog/opentelemetry-agent @DataDog/agent-devx
-/.gitlab/test/e2e/e2e_cws.yml                             @DataDog/csm-threats-agent @DataDog/agent-devx
-/.gitlab/test/e2e/e2e_remote_config.yml                   @DataDog/remote-config @DataDog/agent-devx
-/.gitlab/test/e2e/e2e_agent_configuration.yml             @DataDog/agent-configuration @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_security.yml                        @DataDog/csm-threats-agent @DataDog/agent-cspm @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_agent_configuration.yml             @DataDog/agent-configuration @DataDog/remote-config @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_agent_runtimes.yml                  @DataDog/agent-runtimes @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_agent_health.yml                    @DataDog/agent-health @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_apm.yml                             @DataDog/agent-apm @DataDog/agent-devx
-/.gitlab/test/e2e/e2e_amp.yml                             @DataDog/agent-metric-pipelines @DataDog/agent-devx
-/.gitlab/test/e2e/e2e_alp.yml                             @DataDog/agent-log-pipelines @DataDog/agent-devx
-/.gitlab/test/e2e/e2e_orchestrator.yml                    @DataDog/kubernetes-experiences @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_pipelines.yml                       @DataDog/agent-metric-pipelines @DataDog/agent-log-pipelines @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_orchestrator.yml                    @DataDog/kubernetes-experiences @DataDog/container-autoscaling @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_process.yml                         @DataDog/container-experiences @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_ndm.yml                             @DataDog/network-device-monitoring-core @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_discovery.yml                       @DataDog/agent-discovery @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_privateactionrunner.yml              @DataDog/action-platform @DataDog/agent-devx
-/.gitlab/test/e2e/e2e_cspm.yml                            @DataDog/agent-cspm @DataDog/agent-devx
-/.gitlab/test/e2e/e2e_gpu.yml                             @DataDog/ebpf-platform @DataDog/agent-devx
-/.gitlab/test/e2e/e2e_autoscaling.yml                     @DataDog/container-autoscaling @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_ebpf.yml                            @DataDog/ebpf-platform @DataDog/universal-service-monitoring @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_anomalydetection.yml                @DataDog/q-branch @DataDog/agent-devx
-/.gitlab/test/e2e/e2e_usm.yml                             @DataDog/universal-service-monitoring @DataDog/agent-devx
 /.gitlab/deploy/container_build/fakeintake.yml               @DataDog/agent-devx
 /.gitlab/build/binary_build/fakeintake.yml                  @DataDog/agent-devx
 

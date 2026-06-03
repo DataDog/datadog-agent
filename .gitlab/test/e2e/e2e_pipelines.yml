@@ -1,6 +1,6 @@
 ---
-# e2e stage - agent-metric-pipelines owned jobs
-# Owned by: agent-metric-pipelines, agent-devx
+# e2e stage - agent-metric-pipelines and agent-log-pipelines owned jobs
+# Owned by: agent-metric-pipelines, agent-log-pipelines, agent-devx
 
 .on_amp_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -74,5 +74,25 @@ new-e2e-amp-adp:
     TARGETS: ./tests/agent-metric-pipelines
     TEAM: agent-data-plane
     EXTRA_PARAMS: --run "ADP"
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-alp:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - qa_agent_linux
+    - qa_agent_linux_jmx
+    - qa_agent_fips_linux_jmx
+    - qa_dca
+  rules:
+    - !reference [.on_alp_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-log-pipelines
+    TEAM: agent-log-pipelines
+    EXTRA_PARAMS: --skip "Windows"
+  # Temporary for #incident-44744
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
