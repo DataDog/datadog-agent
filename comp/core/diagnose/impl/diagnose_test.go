@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/impl"
 )
 
 const runSuitetextresult = `=== Starting diagnose ===

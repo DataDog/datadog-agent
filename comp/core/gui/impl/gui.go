@@ -26,7 +26,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
 	guidef "github.com/DataDog/datadog-agent/comp/core/gui/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"

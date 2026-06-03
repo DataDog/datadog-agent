@@ -5,7 +5,7 @@
 
 //go:build test
 
-package helpers
+package flareimpl
 
 import (
 	"errors"

@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/fx"
 	"go.yaml.in/yaml/v2"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -41,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -483,4 +485,19 @@ func getHTTPData(client *http.Client, url string) ([]byte, error) {
 		return nil, fmt.Errorf("non-ok status code: url: %s, status_code: %d, response: `%s`", req.URL, resp.StatusCode, string(data))
 	}
 	return data, nil
+}
+
+// Module returns an fxutil.Module that registers the extra flare providers
+// (providers not owned by a specific component) into the flare group.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(
+			fx.Annotate(
+				func(wm option.Option[workloadmeta.Component], ipcComp ipc.Component) []*flaretypes.FlareFiller {
+					return ExtraFlareProviders(wm, ipcComp)
+				},
+				fx.ResultTags(`group:"flare,flatten"`),
+			),
+		),
+	)
 }

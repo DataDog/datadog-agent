@@ -21,7 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
+	flarfx "github.com/DataDog/datadog-agent/comp/core/flare/fx"
+	pkgflare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -100,7 +102,8 @@ func MakeCommand() *cobra.Command {
 				core.Bundle(),
 				hostnameimpl.Module(),
 				// flare
-				flare.Module(flare.NewParams(
+				pkgflare.Module(),
+				flarfx.Module(flare.NewParams(
 					defaultpaths.GetDistPath(),
 					defaultpaths.PyChecksPath,
 					defaultpaths.LogFile,

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package flare
+package flareimpl
 
 import (
 	"context"
@@ -18,35 +18,19 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
-	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
-	collectornoopimpl "github.com/DataDog/datadog-agent/comp/collector/collector/noop-impl"
-	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
-	adcmock "github.com/DataDog/datadog-agent/comp/core/autodiscovery/mock"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 
-	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type rcSettings struct {
@@ -56,107 +40,67 @@ type rcSettings struct {
 	enableStreamLogs bool
 }
 
-func getFlare(t *testing.T, overrides map[string]interface{}, fillers ...fx.Option) *flare {
-	return getFlareWithParams(t, Params{}, overrides, fillers...)
+func getFlare(t *testing.T, overrides map[string]interface{}, providers ...*types.FlareFiller) *flareImpl {
+	return getFlareWithParams(t, flare.Params{}, overrides, providers...)
 }
 
-func getFlareWithParams(t *testing.T, params Params, overrides map[string]interface{}, fillers ...fx.Option) *flare {
-	fillerModule := fxutil.Component(fillers...)
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	return newFlare(
-		fxutil.Test[dependencies](
-			t,
-			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
-			nooptelemetry.Module(),
-			hostnameimpl.MockModule(),
-			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-			demultiplexerimpl.MockModule(),
-			fx.Provide(func() Params { return params }),
-			collectornoopimpl.NoneModule(),
-			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			adcmock.MockModule(),
-			fx.Supply(adcmock.MockParams{Scheduler: scheduler.NewController()}),
-			fx.Provide(func(ac adcmock.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
-			fx.Provide(func() taggermock.Mock { return fakeTagger }),
-			fx.Provide(func() tagger.Component { return fakeTagger }),
-			fillerModule,
-			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
-		),
-	).Comp.(*flare)
+func getFlareWithParams(t *testing.T, params flare.Params, overrides map[string]interface{}, providers ...*types.FlareFiller) *flareImpl {
+	return NewComponent(Requires{
+		Log:       logmock.New(t),
+		Config:    config.NewMockWithOverrides(t, overrides),
+		Params:    params,
+		Providers: providers,
+		WMeta:     option.None[workloadmeta.Component](),
+		IPC:       ipcmock.New(t),
+	}).Comp.(*flareImpl)
 }
 
 // getFlareComponent returns the flare Component (public API) for tests that should only use the interface.
-func getFlareComponent(t *testing.T, params Params, overrides map[string]interface{}, fillers ...fx.Option) Component {
-	fillerModule := fxutil.Component(fillers...)
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	return newFlare(
-		fxutil.Test[dependencies](
-			t,
-			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
-			nooptelemetry.Module(),
-			hostnameimpl.MockModule(),
-			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-			demultiplexerimpl.MockModule(),
-			fx.Provide(func() Params { return params }),
-			collectornoopimpl.NoneModule(),
-			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			adcmock.MockModule(),
-			fx.Supply(adcmock.MockParams{Scheduler: scheduler.NewController()}),
-			fx.Provide(func(ac adcmock.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
-			fx.Provide(func() taggermock.Mock { return fakeTagger }),
-			fx.Provide(func() tagger.Component { return fakeTagger }),
-			fillerModule,
-			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
-		),
-	).Comp
+func getFlareComponent(t *testing.T, params flare.Params, overrides map[string]interface{}, providers ...*types.FlareFiller) flare.Component {
+	return NewComponent(Requires{
+		Log:       logmock.New(t),
+		Config:    config.NewMockWithOverrides(t, overrides),
+		Params:    params,
+		Providers: providers,
+		WMeta:     option.None[workloadmeta.Component](),
+		IPC:       ipcmock.New(t),
+	}).Comp
 }
 
 // CreateFlareBuilderMockFactory generates a FlareBuilderFactory that will output mocked builders when called.
 func setupMockBuilder(t *testing.T) func() {
 	fbFactory = func(localFlare bool, flareArgs types.FlareArgs) (types.FlareBuilder, error) {
-		return helpers.NewFlareBuilderMockWithArgs(t, localFlare, flareArgs), nil
+		return NewFlareBuilderMockWithArgs(t, localFlare, flareArgs), nil
 	}
 
 	return func() {
-		fbFactory = helpers.NewFlareBuilder
+		fbFactory = NewFlareBuilder
 	}
 }
 func TestFlareCreation(t *testing.T) {
 	realProvider := types.NewFiller(func(_ context.Context, _ types.FlareBuilder) error { return nil })
 
-	flare := getFlare(
+	flareComp := getFlare(
 		t,
 		map[string]interface{}{},
-		// provider a nil FlareFiller
-		fx.Provide(fx.Annotate(
-			func() *types.FlareFiller { return nil },
-			fx.ResultTags(`group:"flare"`),
-		)),
-		// provider a real FlareFiller
-		fx.Provide(fx.Annotate(
-			func() *types.FlareFiller { return realProvider },
-			fx.ResultTags(`group:"flare"`),
-		)),
+		nil,          // nil FlareFiller
+		realProvider, // real FlareFiller
 	)
 
-	assert.GreaterOrEqual(t, len(flare.providers), 1)
-	assert.NotContains(t, flare.providers, nil)
+	assert.GreaterOrEqual(t, len(flareComp.providers), 1)
+	assert.NotContains(t, flareComp.providers, nil)
 }
 
 func TestRunProviders(t *testing.T) {
 	firstStarted := make(chan struct{}, 1)
 	var secondDone atomic.Bool
 
-	flare := getFlare(t, nil)
+	flareComp := getFlare(t, nil)
 	// We override the providers list as the default implementation adds ExtraFlareProviders and more. Those
 	// extra providers would continue after the timeout and could access config after test cleanup.
 	// Note: the callback goroutine may still run past the timeout (e.g. time.Sleep); subprocesses
 	// started with exec.CommandContext(providerCtx, ...) are cancelled when the provider context times out.
-	flare.providers = []*types.FlareFiller{
+	flareComp.providers = []*types.FlareFiller{
 		types.NewFiller(func(_ context.Context, _ types.FlareBuilder) error {
 			firstStarted <- struct{}{}
 			return nil
@@ -170,11 +114,11 @@ func TestRunProviders(t *testing.T) {
 
 	cliProviderTimeout := time.Nanosecond
 
-	fb, err := helpers.NewFlareBuilder(false, flarebuilder.FlareArgs{})
+	fb, err := NewFlareBuilder(false, flarebuilder.FlareArgs{})
 	require.NoError(t, err)
 
 	start := time.Now()
-	flare.runProviders(fb, cliProviderTimeout)
+	flareComp.runProviders(fb, cliProviderTimeout)
 	// ensure that providers are actually started
 	<-firstStarted
 	elapsed := time.Since(start)
@@ -186,8 +130,8 @@ func TestRunProviders(t *testing.T) {
 
 func TestRunProviders_CancelsSubprocessOnTimeout(t *testing.T) {
 	errCh := make(chan error, 1)
-	flare := getFlare(t, nil)
-	flare.providers = []*types.FlareFiller{
+	flareComp := getFlare(t, nil)
+	flareComp.providers = []*types.FlareFiller{
 		types.NewFiller(func(ctx context.Context, _ types.FlareBuilder) error {
 			var cmd *exec.Cmd
 			if runtime.GOOS == "windows" {
@@ -200,10 +144,10 @@ func TestRunProviders_CancelsSubprocessOnTimeout(t *testing.T) {
 		}),
 	}
 
-	fb, err := helpers.NewFlareBuilder(false, flarebuilder.FlareArgs{})
+	fb, err := NewFlareBuilder(false, flarebuilder.FlareArgs{})
 	require.NoError(t, err)
 
-	flare.runProviders(fb, time.Nanosecond)
+	flareComp.runProviders(fb, time.Nanosecond)
 
 	select {
 	case err := <-errCh:
@@ -329,12 +273,12 @@ func TestSendRemovesArchiveAfterSuccess(t *testing.T) {
 
 	origSendTo := sendToFunc
 	defer func() { sendToFunc = origSendTo }()
-	sendToFunc = func(_ model.Reader, _ string, _ string, _ string, _ string, _ string, _ helpers.FlareSource) (string, error) {
+	sendToFunc = func(_ model.Reader, _ string, _ string, _ string, _ string, _ string, _ types.FlareSource) (string, error) {
 		return "success", nil
 	}
 
-	comp := getFlareComponent(t, Params{}, nil)
-	_, err := comp.Send(archivePath, "case1", "test@example.com", helpers.NewLocalFlareSource())
+	comp := getFlareComponent(t, flare.Params{}, nil)
+	_, err := comp.Send(archivePath, "case1", "test@example.com", types.NewLocalFlareSource())
 	require.NoError(t, err)
 
 	_, statErr := os.Stat(archivePath)
@@ -348,12 +292,12 @@ func TestSendKeepsArchiveWhenKeepArchiveAfterSend(t *testing.T) {
 
 	origSendTo := sendToFunc
 	defer func() { sendToFunc = origSendTo }()
-	sendToFunc = func(_ model.Reader, _ string, _ string, _ string, _ string, _ string, _ helpers.FlareSource) (string, error) {
+	sendToFunc = func(_ model.Reader, _ string, _ string, _ string, _ string, _ string, _ types.FlareSource) (string, error) {
 		return "success", nil
 	}
 
-	comp := getFlareComponent(t, Params{KeepArchiveAfterSend: true}, nil)
-	_, err := comp.Send(archivePath, "case1", "test@example.com", helpers.NewLocalFlareSource())
+	comp := getFlareComponent(t, flare.Params{KeepArchiveAfterSend: true}, nil)
+	_, err := comp.Send(archivePath, "case1", "test@example.com", types.NewLocalFlareSource())
 	require.NoError(t, err)
 
 	_, statErr := os.Stat(archivePath)
@@ -367,9 +311,9 @@ func runFlareTestScenarios(t *testing.T, testCfg map[string]interface{}, scenari
 }, assertFunc func(fb types.FlareBuilder, expSettings rcSettings)) {
 	for _, s := range scenarios {
 		t.Run(s.name, func(t *testing.T) {
-			flare := getFlare(t, testCfg)
+			flareComp := getFlare(t, testCfg)
 
-			flare.providers = []*types.FlareFiller{
+			flareComp.providers = []*types.FlareFiller{
 				types.NewFiller(func(_ context.Context, fb types.FlareBuilder) error {
 					assertFunc(fb, s.expSettings)
 					return nil
@@ -378,21 +322,21 @@ func runFlareTestScenarios(t *testing.T, testCfg map[string]interface{}, scenari
 			atc, err := rcclienttypes.ParseConfigAgentTask([]byte(s.task), state.Metadata{})
 			assert.NoError(t, err)
 
-			flare.onAgentTaskEvent(rcclienttypes.TaskFlare, atc)
+			flareComp.onAgentTaskEvent(rcclienttypes.TaskFlare, atc)
 		})
 	}
 }
 
 func TestLocalFlareFileContent(t *testing.T) {
-	var mockBuilder *helpers.FlareBuilderMock
+	var mockBuilder *FlareBuilderMock
 	fbFactory = func(localFlare bool, flareArgs types.FlareArgs) (types.FlareBuilder, error) {
-		mockBuilder = helpers.NewFlareBuilderMockWithArgs(t, localFlare, flareArgs)
+		mockBuilder = NewFlareBuilderMockWithArgs(t, localFlare, flareArgs)
 		return mockBuilder, nil
 	}
-	defer func() { fbFactory = helpers.NewFlareBuilder }()
+	defer func() { fbFactory = NewFlareBuilder }()
 
 	errIpc := errors.New("connection refused")
-	flareComp := getFlareWithParams(t, NewLocalParams("", "", "", "", "", ""), nil)
+	flareComp := getFlareWithParams(t, flare.NewLocalParams("", "", "", "", "", ""), nil)
 	// Override providers to prevent them from running past the timeout and writing into
 	// t.TempDir()-backed flare directories during test cleanup.
 	// This also avoids side-effects caused by default providers.

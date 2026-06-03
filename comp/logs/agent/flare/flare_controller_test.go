@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flareimpl "github.com/DataDog/datadog-agent/comp/core/flare/impl"
 )
 
 func TestFillFlare(t *testing.T) {
@@ -21,7 +21,7 @@ func TestFillFlare(t *testing.T) {
 	fi, err := os.Stat(file.Name())
 	assert.Nil(t, err)
 
-	f := helpers.NewFlareBuilderMock(t, false)
+	f := flareimpl.NewFlareBuilderMock(t, false)
 	fc := NewFlareController()
 
 	fc.SetAllFiles([]string{file.Name()})
@@ -43,7 +43,7 @@ func TestAllFiles(t *testing.T) {
 
 func TestNonexistantFile(t *testing.T) {
 	fc := NewFlareController()
-	f := helpers.NewFlareBuilderMock(t, false)
+	f := flareimpl.NewFlareBuilderMock(t, false)
 	name := "file.log"
 
 	fc.SetAllFiles([]string{name})

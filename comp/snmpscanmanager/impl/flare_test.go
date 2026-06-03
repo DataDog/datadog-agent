@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flareimpl "github.com/DataDog/datadog-agent/comp/core/flare/impl"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -93,7 +93,7 @@ func TestFillFlare(t *testing.T) {
 	mockScanner.AssertExpectations(t)
 	mockConfigProvider.AssertExpectations(t)
 
-	flareBuilderMock := helpers.NewFlareBuilderMock(t, false)
+	flareBuilderMock := flareimpl.NewFlareBuilderMock(t, false)
 
 	err = scanManager.fillFlare(context.Background(), flareBuilderMock)
 	assert.NoError(t, err)
@@ -135,7 +135,7 @@ func TestFillFlare_NoCache(t *testing.T) {
 	err = mockLifecycle.Stop(context.Background())
 	assert.NoError(t, err)
 
-	flareBuilderMock := helpers.NewFlareBuilderMock(t, false)
+	flareBuilderMock := flareimpl.NewFlareBuilderMock(t, false)
 
 	err = scanManager.fillFlare(context.Background(), flareBuilderMock)
 	assert.NoError(t, err)

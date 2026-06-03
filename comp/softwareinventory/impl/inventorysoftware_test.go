@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flareimpl "github.com/DataDog/datadog-agent/comp/core/flare/impl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
@@ -168,7 +168,7 @@ func TestFlareProviderOutputDisabled(t *testing.T) {
 	assert.NotNil(t, flareProvider.FlareFiller.Callback)
 
 	// Create a mock FlareBuilder to test the callback
-	mockBuilder := helpers.NewFlareBuilderMock(t, false)
+	mockBuilder := flareimpl.NewFlareBuilderMock(t, false)
 	err := flareProvider.FlareFiller.Callback(context.Background(), mockBuilder)
 	assert.NoError(t, err)
 
@@ -190,7 +190,7 @@ func TestFlareProviderOutputFailed(t *testing.T) {
 	assert.NotNil(t, flareProvider.FlareFiller.Callback)
 
 	// Create a mock FlareBuilder to test the callback
-	mockBuilder := helpers.NewFlareBuilderMock(t, false)
+	mockBuilder := flareimpl.NewFlareBuilderMock(t, false)
 	err := flareProvider.FlareFiller.Callback(context.Background(), mockBuilder)
 	assert.NoError(t, err)
 
@@ -209,7 +209,7 @@ func TestFlareProviderOutput(t *testing.T) {
 	assert.NotNil(t, flareProvider.FlareFiller.Callback)
 
 	// Create a mock FlareBuilder to test the callback
-	mockBuilder := helpers.NewFlareBuilderMock(t, false)
+	mockBuilder := flareimpl.NewFlareBuilderMock(t, false)
 	err := flareProvider.FlareFiller.Callback(context.Background(), mockBuilder)
 	assert.NoError(t, err)
 

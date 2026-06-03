@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package helpers
+package flareimpl
 
 import (
 	"os"

@@ -18,7 +18,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	helpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	helpers "github.com/DataDog/datadog-agent/comp/core/flare/impl"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 )
 

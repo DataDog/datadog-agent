@@ -11,13 +11,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flareimpl "github.com/DataDog/datadog-agent/comp/core/flare/impl"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkMocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 )
 
 func TestFillFlare(t *testing.T) {
-	f := helpers.NewFlareBuilderMock(t, false)
+	f := flareimpl.NewFlareBuilderMock(t, false)
 
 	check := &checkMocks.Check{}
 	check.On("Name").Return("process")

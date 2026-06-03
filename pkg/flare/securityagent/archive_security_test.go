@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/impl"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"

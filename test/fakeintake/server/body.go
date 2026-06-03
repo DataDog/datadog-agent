@@ -15,7 +15,7 @@ type errorResponseBody struct {
 	Errors []string `json:"errors"`
 }
 
-// Same struct as in datadog-agent/comp/core/flare/helpers/send_flare.go
+// Same struct as in datadog-agent/comp/core/flare/impl/send_flare.go
 type flareResponseBody struct {
 	CaseID int    `json:"case_id,omitempty"`
 	Error  string `json:"error,omitempty"`

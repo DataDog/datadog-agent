@@ -5,41 +5,34 @@
 
 //go:build test
 
-// Package flareimpl implements the component flare
-package flareimpl
+// Package mock provides a mock implementation of the flare component.
+package mock
 
 import (
 	"net/http"
+	"testing"
 	"time"
 
-	"go.uber.org/fx"
-
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(NewMock),
-	)
+// Mock implements mock-specific methods.
+type Mock interface {
+	flare.Component
 }
 
-// MockProvides is the mock component output
-type MockProvides struct {
-	fx.Out
-
+// Provides is the mock component output.
+type Provides struct {
 	Comp     flare.Component
 	Endpoint api.AgentEndpointProvider
 }
 
-// MockFlare is a mock of the
+// MockFlare is a mock of the flare component
 type MockFlare struct{}
 
-// ServeHTTP is a simple mocked http.Handler function
+// handlerFunc is a simple mocked http.Handler function
 func (fc *MockFlare) handlerFunc(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("OK"))
 }
@@ -50,7 +43,7 @@ func (fc *MockFlare) Create(_ flaretypes.ProfileData, _ time.Duration, _ error, 
 }
 
 // Send mocks the flare send function
-func (fc *MockFlare) Send(_ string, _ string, _ string, _ helpers.FlareSource) (string, error) {
+func (fc *MockFlare) Send(_ string, _ string, _ string, _ flaretypes.FlareSource) (string, error) {
 	return "", nil
 }
 
@@ -59,11 +52,10 @@ func (fc *MockFlare) CreateWithArgs(_ flaretypes.FlareArgs, _ time.Duration, _ e
 	return "", nil
 }
 
-// NewMock returns a new flare provider
-func NewMock() MockProvides {
+// New returns a new mock flare component.
+func New(_ *testing.T) Provides {
 	m := &MockFlare{}
-
-	return MockProvides{
+	return Provides{
 		Comp:     m,
 		Endpoint: api.NewAgentEndpointProvider(m.handlerFunc, "/flare", "POST"),
 	}

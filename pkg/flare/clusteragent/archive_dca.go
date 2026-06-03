@@ -21,7 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/impl"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"

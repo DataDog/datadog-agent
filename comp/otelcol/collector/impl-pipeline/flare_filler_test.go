@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flareimpl "github.com/DataDog/datadog-agent/comp/core/flare/impl"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -141,7 +141,7 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 	col := provs.Comp.(*collectorImpl)
 
 	// Fill the flare
-	f := helpers.NewFlareBuilderMock(t, false)
+	f := flareimpl.NewFlareBuilderMock(t, false)
 	col.fillFlare(context.Background(), f)
 
 	f.AssertFileExists("otel", "otel-response.json")

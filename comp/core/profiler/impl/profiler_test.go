@@ -17,7 +17,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flareimpl "github.com/DataDog/datadog-agent/comp/core/flare/impl"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -123,7 +123,7 @@ func TestProfileSetting(t *testing.T) {
 
 	for _, s := range scenarios {
 		t.Run(s.name, func(t *testing.T) {
-			fb := helpers.NewFlareBuilderMockWithArgs(t, true, types.FlareArgs{})
+			fb := flareimpl.NewFlareBuilderMockWithArgs(t, true, types.FlareArgs{})
 			profiler := getProfiler(t, map[string]interface{}{})
 			profiler.settingsComponent.SetRuntimeSetting("runtime_block_profile_rate", s.oldVal, model.SourceDefault)
 
@@ -282,7 +282,7 @@ func TestTimeout(t *testing.T) {
 			for k, v := range s.extraCfgs {
 				cfg.SetInTest(k, v)
 			}
-			fb := helpers.NewFlareBuilderMockWithArgs(t, true, fArgs)
+			fb := flareimpl.NewFlareBuilderMockWithArgs(t, true, fArgs)
 			profiler := getProfiler(t, s.extraSysCfgs)
 
 			timeout := profiler.timeout(fb)
