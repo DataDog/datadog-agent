@@ -47,6 +47,8 @@ func (p Pathtest) GetHash() uint64 {
 	return h.Sum64()
 }
 
+// writeHashString prefixes string fields with their length so adjacent fields
+// cannot collide when their concatenated bytes are identical.
 func writeHashString(h hash.Hash, value string) {
 	_ = binary.Write(h, binary.LittleEndian, uint64(len(value)))
 	_, _ = h.Write([]byte(value))
