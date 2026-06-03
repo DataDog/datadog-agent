@@ -10,6 +10,8 @@ go_library(
     tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/dyninst/ir",
+        "//pkg/dyninst/output",
         "//pkg/util/log",
         "@com_github_cilium_ebpf//ringbuf",
     ],
