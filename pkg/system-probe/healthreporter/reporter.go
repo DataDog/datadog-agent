@@ -51,9 +51,16 @@ func New(ipc ipcdef.Component) *Reporter {
 	}
 }
 
-// ReportWithRetry sends issue to the core agent in a background goroutine,
-// retrying with exponential backoff until the call succeeds or DefaultMaxWait elapses.
+// ReportWithRetry attempts to send issue to the core agent synchronously first.
+// If the first attempt fails (e.g. core agent not yet up), it continues retrying
+// in a background goroutine with exponential backoff for up to DefaultMaxWait.
+// The synchronous first attempt is critical when the calling module factory is about
+// to return an error that causes system-probe to exit: a pure background goroutine
+// would be killed before it could report anything.
 func (r *Reporter) ReportWithRetry(issue *healthplatformpayload.Issue) {
+	if err := r.Report(context.Background(), issue); err == nil {
+		return
+	}
 	go r.retryWithBackoff("report "+issue.GetId(), func() error {
 		return r.Report(context.Background(), issue)
 	})
