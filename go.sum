@@ -2557,6 +2557,8 @@ github.com/DataDog/datadog-operator/api v0.0.0-20260505153817-d1d2b65124cc h1:Lg
 github.com/DataDog/datadog-operator/api v0.0.0-20260505153817-d1d2b65124cc/go.mod h1:ptousqBWjpi/Rioc5Apy7ljh1k7II0XMn5s9XJV61uw=
 github.com/DataDog/datadog-traceroute v1.0.15 h1:CTki7WWwx/tLZ9tcFvQAFBZYENi8oJJjAHsNqAY1pNU=
 github.com/DataDog/datadog-traceroute v1.0.15/go.mod h1:4KQA88cpktnEFlgm1ULZ1JZlLjZz71lquagOz2sVOH8=
+github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20260601185219-3c48e9fa5604 h1:oNBOOBj/0VDy0pSagRnbAfbZzunFdRDcvAAs97sbxEY=
+github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20260601185219-3c48e9fa5604/go.mod h1:TX7CTOQ3LbQjfAi4SwqUoR5gY1zfUk7VRBDTuArjaDc=
 github.com/DataDog/dd-trace-go/v2 v2.8.1 h1:O/lPXXcJof4hqfcBGsL6p/PiVa5xTfvYzv5iv/4S66U=
 github.com/DataDog/dd-trace-go/v2 v2.8.1/go.mod h1:IVkBpsq66Cw/YIRM/Te3pl2F0M9n4zguAB2ReGczWeo=
 github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5 h1:R6uhWnfvq23xRAoV3vK9sc6D5pDHxEEDYBgs2YbcX8s=

@@ -121,6 +121,7 @@ use_repo(
     "com_github_datadog_datadog_go_v5",
     "com_github_datadog_datadog_operator_api",
     "com_github_datadog_datadog_traceroute",
+    "com_github_datadog_dd_sensitive_data_scanner_sds_go_go",
     "com_github_datadog_dd_trace_go_v2",
     "com_github_datadog_ddtrivy",
     "com_github_datadog_ebpf_manager",

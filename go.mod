@@ -1024,6 +1024,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.77.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/aws/creds v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-go v3.2.0+incompatible // indirect
+	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20260601185219-3c48e9fa5604 // indirect
 	github.com/DataDog/go-libddwaf/v4 v4.9.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d // indirect
 	github.com/Jeffail/gabs/v2 v2.1.0 // indirect
