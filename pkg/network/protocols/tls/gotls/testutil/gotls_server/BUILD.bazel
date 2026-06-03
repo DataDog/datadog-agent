@@ -4,7 +4,7 @@ go_library(
     name = "gotls_server_lib",
     srcs = ["gotls_server.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil/gotls_server",
-    tags = ["manual"], # keep
+    tags = ["manual"],  # keep
     visibility = ["//visibility:private"],
     deps = ["//pkg/network/protocols/http/testutil"],
 )
@@ -12,6 +12,6 @@ go_library(
 go_binary(
     name = "gotls_server",
     embed = [":gotls_server_lib"],
-    gotags = ["test"], # keep
+    gotags = ["test"],  # keep
     visibility = ["//visibility:public"],
 )
