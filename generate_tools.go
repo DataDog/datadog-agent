@@ -13,10 +13,5 @@ package tools
 import (
 	_ "github.com/go-delve/delve/pkg/goversion"
 	_ "github.com/mailru/easyjson/easyjson"
-	_ "github.com/tinylib/msgp"
 	_ "golang.org/x/tools/cmd/stringer"
-
-	_ "github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
-	_ "github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
-	_ "github.com/DataDog/datadog-agent/pkg/network/go/lutgen"
 )
