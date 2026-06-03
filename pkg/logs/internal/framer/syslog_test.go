@@ -849,8 +849,8 @@ func TestSyslogMalformedOctetCount(t *testing.T) {
 	})
 
 	t.Run("zero length skipped then next frame parsed", func(t *testing.T) {
-		// Leading '0' is not in '1'-'9', so it enters findMalformed.
-		// findMalformed scans forward and resyncs at the '<' of <134>.
+		// Leading '0' is not in '1'-'9', so it enters scanMalformed.
+		// scanMalformed scans forward and resyncs at the '<' of <134>.
 		// "0 " is emitted as malformed junk, then the real message parses.
 		msg := "<134>1 2024-01-01T00:00:00Z h app - - - after zero"
 		input := []byte("0 " + msg + "\n")
@@ -883,7 +883,7 @@ func TestSyslogMalformedOctetCount(t *testing.T) {
 		assert.Contains(t, frame0, "<134>1 2024", "frame bleeds into the second message")
 
 		// Whatever remains after position 33 is processed as a new frame.
-		// It will be a fragment of msg2, emitted via findMalformed or Flush.
+		// It will be a fragment of msg2, emitted via scanMalformed or Flush.
 		if len(got) > 1 {
 			remainder := strings.Join(got[1:], "")
 			assert.Contains(t, remainder, "second message here",
@@ -893,7 +893,7 @@ func TestSyslogMalformedOctetCount(t *testing.T) {
 
 	t.Run("non-numeric after digit discards and resyncs", func(t *testing.T) {
 		// "3X " — findOctetCounted sees '3' then 'X' (not digit/space),
-		// discards 1 byte, then findMalformed resyncs at <134>.
+		// discards 1 byte, then scanMalformed resyncs at <134>.
 		msg := "<134>1 2024-01-01T00:00:00Z host app - - - hello"
 		input := []byte("3X " + msg + "\n")
 		got, _ := processSyslog(t, 4096, [][]byte{input})
