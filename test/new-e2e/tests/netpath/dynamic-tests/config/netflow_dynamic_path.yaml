@@ -1,0 +1,16 @@
+network_devices:
+  netflow:
+    enabled: true
+    forwarder:
+      logs_dd_url: FAKEINTAKE_URL
+    listeners:
+      - flow_type: netflow5
+        port: 2056
+
+network_path:
+  netflow_monitoring:
+    enabled: true
+  collector:
+    monitor_ip_without_domain: true
+  forwarder:
+    logs_dd_url: FAKEINTAKE_URL
