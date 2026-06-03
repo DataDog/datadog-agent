@@ -366,6 +366,44 @@ func TestAdaptiveSampler_BubblingAliasesSampledCount(t *testing.T) {
 	requireSampledCountTag(t, out, 1)
 }
 
+func TestAdaptiveSampler_DetectionOnlyHashUsesMatchedPatternAfterBubbling(t *testing.T) {
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      1,
+		BurstSize:      1,
+		MatchThreshold: 0.9,
+		DetectionOnly:  true,
+		TagPatternHash: true,
+	}, "test")
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	// Create A and bump its matchCount to 3.
+	s.Process(testMsg(), patternA)
+	s.now = func() time.Time { return t0.Add(1 * time.Second) }
+	s.Process(testMsg(), patternA)
+	s.now = func() time.Time { return t0.Add(2 * time.Second) }
+	s.Process(testMsg(), patternA)
+
+	// Create B and bump its matchCount to 3, matching A without bubbling yet.
+	s.now = func() time.Time { return t0.Add(3 * time.Second) }
+	s.Process(testMsg(), patternB)
+	s.now = func() time.Time { return t0.Add(4 * time.Second) }
+	s.Process(testMsg(), patternB)
+	s.now = func() time.Time { return t0.Add(5 * time.Second) }
+	s.Process(testMsg(), patternB)
+
+	// A same-timestamp B match has no refill, would be dropped, and bubbles B
+	// past A. Detection-only keeps it, so the hash must still be B's pattern.
+	out := s.Process(testMsg(), patternB)
+	require.NotNil(t, out, "detection-only should keep the would-drop message")
+	assert.Contains(t, out.ParsingExtra.Tags, adaptiveSamplerNoisyLogTag)
+
+	hashTag := requireTagWithPrefix(t, out, "log_hash:")
+	assert.Equal(t, adaptiveSamplerLogHashTag(patternB), hashTag)
+	assert.NotEqual(t, adaptiveSamplerLogHashTag(patternA), hashTag)
+}
+
 // --- AdaptiveSampler: misc ---
 
 func TestAdaptiveSampler_FlushReturnsNil(t *testing.T) {

@@ -228,6 +228,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		if !IsMatch(e.tokens, tokens, s.config.MatchThreshold) {
 			continue
 		}
+		matchedTokens := e.tokens
 		// Refill credits based on time elapsed since last seen.
 		elapsed := now.Sub(e.lastSeen).Seconds()
 		e.credits += elapsed * s.config.RateLimit
@@ -242,7 +243,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		// entry after the first swap.
 		allow := e.credits >= 1.0
 		if allow {
-			s.tagPatternHash(msg, e.tokens)
+			s.tagPatternHash(msg, matchedTokens)
 			e.credits--
 			if e.sampled > 0 {
 				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerSampledCountTag(e.sampled))
@@ -263,7 +264,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 			return msg
 		}
 		if s.config.DetectionOnly {
-			s.tagPatternHash(msg, e.tokens)
+			s.tagPatternHash(msg, matchedTokens)
 			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerNoisyLogTag)
 			tlmAdaptiveSamplerKept.Inc(s.source)
 			return msg
