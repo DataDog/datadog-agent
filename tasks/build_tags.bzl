@@ -246,7 +246,7 @@ SYSTEM_PROBE_TAGS = set([
     "seclmax",
 ])
 
-# TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
+# TRACE_AGENT_TAGS lists the tags necessary to build the trace-agent
 TRACE_AGENT_TAGS = set([
     "docker",
     "containerd",
