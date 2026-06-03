@@ -8,7 +8,6 @@ package agenthealth
 import (
 	_ "embed"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,8 +72,6 @@ func TestCheckFailureSuite(t *testing.T) {
 //
 // Cross-restart persistence is tested separately in TestResilienceSuite.
 func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
-	host := suite.Env().RemoteHost
-	agent := suite.Env().Agent
 	fi := suite.Env().FakeIntake.Client()
 
 	const issuePrefix = "check-execution-failure:broken_check"
@@ -107,12 +104,20 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 	})
 
 	suite.T().Run("Resolution", func(t *testing.T) {
-		writeCheckFile(t, host, fixedCheckPy)
 		require.NoError(t, fi.FlushServerAndResetAggregators())
-		require.NoError(t, agent.Client.Restart())
-		require.EventuallyWithT(t, func(ct *assert.CollectT) {
-			assert.True(ct, agent.Client.IsReady())
-		}, 2*time.Minute, 10*time.Second, "agent not ready after fix restart")
+		suite.UpdateEnv(awshost.Provisioner(
+			awshost.WithRunOptions(
+				ec2.WithAgentOptions(
+					agentparams.WithAgentConfig(healthPlatformAgentConfig),
+					agentparams.WithIntegration("broken_check.d", brokenCheckConf),
+					agentparams.WithFile(
+						"/etc/datadog-agent/checks.d/broken_check.py",
+						fixedCheckPy,
+						true,
+					),
+				),
+			),
+		))
 
 		require.Never(t, func() bool {
 			payloads, _ := fi.GetAgentHealth()
