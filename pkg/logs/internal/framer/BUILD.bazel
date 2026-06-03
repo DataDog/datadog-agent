@@ -24,7 +24,7 @@ go_library(
         "@com_github_datadog_datadog_agent_pkg_logs_util_testutils//:__subpackages__",
     ],
     deps = [
-        "//comp/core/telemetry/def",
+        "//comp/logs-library/metrics",
         "//pkg/logs/message",
         "//pkg/logs/status/utils",
         "@org_uber_go_atomic//:atomic",

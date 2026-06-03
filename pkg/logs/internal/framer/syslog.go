@@ -6,7 +6,7 @@
 package framer
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
@@ -416,7 +416,7 @@ func (m *syslogFrameMatcher) FlushFrame(buf []byte) ([]byte, int, bool) {
 // recordDiscarded increments both the global telemetry counter and the
 // per-tailer status counter for discarded bytes.
 func (m *syslogFrameMatcher) recordDiscarded(n int64) {
-	telemetry.GetStatsTelemetryProvider().Count("logs_syslog_framer.discarded_bytes", float64(n), nil)
+	metrics.TlmSyslogDiscardedBytes.Add(float64(n))
 	if m.discardedBytes != nil {
 		m.discardedBytes.Add(n)
 	}
@@ -425,7 +425,7 @@ func (m *syslogFrameMatcher) recordDiscarded(n int64) {
 // recordOversized increments both the global telemetry counter and the
 // per-tailer status counter for oversized frame splits.
 func (m *syslogFrameMatcher) recordOversized() {
-	telemetry.GetStatsTelemetryProvider().Count("logs_syslog_framer.oversized_frames", 1, nil)
+	metrics.TlmSyslogOversizedFrames.Inc()
 	if m.oversizedFrames != nil {
 		m.oversizedFrames.Add(1)
 	}
