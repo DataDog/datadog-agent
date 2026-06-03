@@ -298,7 +298,7 @@ func (s *openmetricsScraper) generateSampleData(metric parsedMetric, sender send
 			continue
 		}
 
-		labels := copyLabels(sample.Labels)
+		labels := sample.Labels
 		s.labelAggregator.populate(labels)
 		normalizeSampleLabels(metric.Type, labels)
 
