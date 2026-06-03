@@ -412,6 +412,7 @@ def compute_build_tags_for_flavor(
     build_exclude: str | None,
     flavor: AgentFlavor = AgentFlavor.base,
     platform: str | None = None,
+    include_sds: bool = False,
 ):
     """
     Given a flavor, an architecture, a list of tags to include and exclude, get the final list
@@ -421,6 +422,9 @@ def compute_build_tags_for_flavor(
     for the given architecture.
 
     Then, remove from these the provided list of tags to exclude.
+
+    When include_sds is set, the `sds` tag is added to link against the Sensitive
+    Data Scanner shared library.
     """
     platform = _resolve_platform(platform)
 
@@ -433,6 +437,9 @@ def compute_build_tags_for_flavor(
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     list = get_build_tags(build_include, build_exclude)
+
+    if include_sds:
+        list.append("sds")
 
     return list
 

@@ -79,6 +79,7 @@ def build(
     rtloader_root=None,
     python_home_3=None,
     exclude_rtloader=False,
+    include_sds=False,
     go_mod="readonly",
     windows_sysprobe=False,
     cmake_options='',
@@ -143,6 +144,8 @@ def build(
         all_tags = set()
         if bundle_ebpf and "system-probe" in bundled_agents:
             all_tags.add("ebpf_bindata")
+        if include_sds:
+            all_tags.add("sds")
 
         for build in bundled_agents:
             all_tags.add("bundle_" + build.replace("-", "_"))
@@ -435,6 +438,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
         "signed_pull": doc.signed_pull,
         "arch": doc.arch,
         "development": doc.development,
+        "include_sds": doc.include_sds,
     }
 )
 def hacky_dev_image_build(
@@ -452,6 +456,7 @@ def hacky_dev_image_build(
     signed_pull=False,
     arch=None,
     development=True,
+    include_sds=False,
 ):
     """
     Builds the agent or cluster-agent Docker image.
@@ -495,6 +500,7 @@ def hacky_dev_image_build(
             ctx,
             race=race,
             development=development,
+            include_sds=include_sds,
             cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
         )
         ctx.run(
@@ -562,6 +568,28 @@ COPY {runtime_dir}/*.c       /opt/datadog-agent/embedded/share/system-probe/ebpf
 COPY --from=bin /opt/datadog-agent/embedded/share/system-probe/ebpf /opt/datadog-agent/embedded/share/system-probe/ebpf
 """
 
+    # The agent built with the `sds` tag dynamically links libdd_sds_go, so the
+    # shared library must be present in the image. Build it first with
+    # `inv sds.build-library` so that dev/lib/libdd_sds_go.so exists (it must be a
+    # Linux .so, matching the linux/<arch> image, not a macOS .dylib).
+    copy_sds_lib = ""
+    copy_sds_lib_final = ""
+    if include_sds:
+        sds_lib = os.path.join("dev", "lib", "libdd_sds_go.so")
+        if not os.path.exists(sds_lib):
+            print(
+                f"Unable to find {sds_lib}: run `inv sds.build-library` (on Linux/in the dev env) before building with --include-sds",
+                file=sys.stderr,
+            )
+            raise Exit(code=1)
+        copy_sds_lib = """
+COPY dev/lib/libdd_sds_go.so /opt/datadog-agent/embedded/lib/libdd_sds_go.so
+RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdd_sds_go.so
+"""
+        copy_sds_lib_final = """
+COPY --from=bin /opt/datadog-agent/embedded/lib/libdd_sds_go.so /opt/datadog-agent/embedded/lib/libdd_sds_go.so
+"""
+
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
             f'''FROM ubuntu:latest AS src
@@ -583,6 +611,7 @@ COPY bin/agent/dist/conf.d                      /etc/datadog-agent/conf.d
 COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 {copy_ebpf_assets}
+{copy_sds_lib}
 
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/bin/agent/agent
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
@@ -619,6 +648,7 @@ COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so       
 COPY --from=bin /etc/datadog-agent/conf.d /etc/datadog-agent/conf.d
 {copy_extra_agents}
 {copy_ebpf_assets_final}
+{copy_sds_lib_final}
 RUN agent          completion bash > /usr/share/bash-completion/completions/agent
 RUN process-agent  completion bash > /usr/share/bash-completion/completions/process-agent
 RUN security-agent completion bash > /usr/share/bash-completion/completions/security-agent

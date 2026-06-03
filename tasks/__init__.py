@@ -73,6 +73,7 @@ from tasks import (
     rtloader,
     sbomgen,
     schema,
+    sds,
     secret_generic_connector,
     security_agent,
     selinux,
@@ -243,6 +244,7 @@ ns.add_collection(systray)
 ns.add_collection(release)
 ns.add_collection(renovate)
 ns.add_collection(rtloader)
+ns.add_collection(sds)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(privateactionrunner)
