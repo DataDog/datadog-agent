@@ -2557,8 +2557,8 @@ github.com/DataDog/datadog-operator/api v0.0.0-20260505153817-d1d2b65124cc h1:Lg
 github.com/DataDog/datadog-operator/api v0.0.0-20260505153817-d1d2b65124cc/go.mod h1:ptousqBWjpi/Rioc5Apy7ljh1k7II0XMn5s9XJV61uw=
 github.com/DataDog/datadog-traceroute v1.0.15 h1:CTki7WWwx/tLZ9tcFvQAFBZYENi8oJJjAHsNqAY1pNU=
 github.com/DataDog/datadog-traceroute v1.0.15/go.mod h1:4KQA88cpktnEFlgm1ULZ1JZlLjZz71lquagOz2sVOH8=
-github.com/DataDog/dd-trace-go/v2 v2.8.1 h1:O/lPXXcJof4hqfcBGsL6p/PiVa5xTfvYzv5iv/4S66U=
-github.com/DataDog/dd-trace-go/v2 v2.8.1/go.mod h1:IVkBpsq66Cw/YIRM/Te3pl2F0M9n4zguAB2ReGczWeo=
+github.com/DataDog/dd-trace-go/v2 v2.8.2 h1:ZqF2M7j5DPG7PxkJpLIjF4L62LU/QnI86oOSAZjQC/U=
+github.com/DataDog/dd-trace-go/v2 v2.8.2/go.mod h1:o+fhXzd1mPT4Ji5YYcqIjORnNKWcS6m2eW4xqdJplRA=
 github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5 h1:R6uhWnfvq23xRAoV3vK9sc6D5pDHxEEDYBgs2YbcX8s=
 github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5/go.mod h1:oz6zVBIVeK9I/AFP9k7TljSGtA9Opslmay0FcXg0fuQ=
 github.com/DataDog/ebpf-manager v0.7.18 h1:uhP6MG00Csb+9IgfzmKCHklY3eY1GhLwZ+VROPApDiE=
@@ -2595,8 +2595,8 @@ github.com/DataDog/rshell v0.0.20 h1:WO/GUY/SPplBBRU2wPVMLE8SCP4lZpFhVXu/h6KBzb0
 github.com/DataDog/rshell v0.0.20/go.mod h1:jZm0YIxCKYEyHJeSSH5rxqmlI1oUi+mXQF6Zf102q+k=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
 github.com/DataDog/sketches-go v1.4.8/go.mod h1:a/wjRUqzqtGS8qRHRPDCs4EAQfmvPDZGDlMIF5mxXOE=
-github.com/DataDog/trivy v0.0.0-20260513170708-3c7f1f6b38e8 h1:SGspm+q7GP1LWZvvhx2NbkRjYWRowvTXvI/QXAbkrrg=
-github.com/DataDog/trivy v0.0.0-20260513170708-3c7f1f6b38e8/go.mod h1:Kb3o3UpLuPGtY1IDeNSi5Br2npMaFkqrYkvzk/7tLFE=
+github.com/DataDog/trivy v0.0.0-20260601163858-2f12eac6ff81 h1:GGzfDFX3hWCJgUQZwhwmY6S+LsQ0QYyKkQ67lsPp23E=
+github.com/DataDog/trivy v0.0.0-20260601163858-2f12eac6ff81/go.mod h1:Kb3o3UpLuPGtY1IDeNSi5Br2npMaFkqrYkvzk/7tLFE=
 github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101 h1:aatle7zFb175XJ6iJvyr9a7Ipr1Dvpw4oy4MqL9v4GA=
 github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101/go.mod h1:GRki58GuFuDh0GFVg280DZt3oCYxZG02ldDPtQ5FBoo=
 github.com/DataDog/viper v1.15.1 h1:kcdFE+qPndlWkhU4iEf/WpWQMCyVYHTv5HqvVf+SYJs=
@@ -6724,8 +6724,8 @@ google.golang.org/protobuf v1.36.1/go.mod h1:9fA7Ob0pmnwhb644+1+CVWFRbNajQ6iRojt
 google.golang.org/protobuf v1.36.3/go.mod h1:9fA7Ob0pmnwhb644+1+CVWFRbNajQ6iRojtC/QF5bRE=
 google.golang.org/protobuf v1.36.4/go.mod h1:9fA7Ob0pmnwhb644+1+CVWFRbNajQ6iRojtC/QF5bRE=
 google.golang.org/protobuf v1.36.5/go.mod h1:9fA7Ob0pmnwhb644+1+CVWFRbNajQ6iRojtC/QF5bRE=
-google.golang.org/protobuf v1.36.11 h1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE=
-google.golang.org/protobuf v1.36.11/go.mod h1:HTf+CrKn2C3g5S8VImy6tdcUvCska2kB7j23XfzDpco=
+google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca h1:/ro7D0tSP+jEnQPzy9e1r5L6mAcEShGlE5kFsShX5O8=
+google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca/go.mod h1:HTf+CrKn2C3g5S8VImy6tdcUvCska2kB7j23XfzDpco=
 gopkg.in/Knetic/govaluate.v3 v3.0.0 h1:18mUyIt4ZlRlFZAAfVetz4/rzlJs9yhN+U02F4u1AOc=
 gopkg.in/Knetic/govaluate.v3 v3.0.0/go.mod h1:csKLBORsPbafmSCGTEh3U7Ozmsuq8ZSIlKk1bcqph0E=
 gopkg.in/alecthomas/kingpin.v2 v2.2.6/go.mod h1:FMv+mEhP44yOT+4EoQTLFTRgOQ1FBLkstjWtayDeSgw=

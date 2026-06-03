@@ -20,6 +20,7 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
+	"github.com/DataDog/datadog-agent/pkg/config/schema"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -116,7 +117,43 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	}
 	cmd.AddCommand(otelCmd)
 
+	agentSchemaCmd := &cobra.Command{
+		Use:   "print-agent-schema",
+		Short: "Print the YAML-schema shipped with the Agent for the datadog.yaml file",
+		Long:  ``,
+		RunE:  oneShotRunE(printAgentSchema),
+	}
+	cmd.AddCommand(agentSchemaCmd)
+
+	systemProbeSchemaCmd := &cobra.Command{
+		Use:   "print-system-probe-schema",
+		Short: "Print the YAML-schema shipped with the Agent for the system-probe.yaml file",
+		Long:  ``,
+		RunE:  oneShotRunE(printSystemProbeSchema),
+	}
+	cmd.AddCommand(systemProbeSchemaCmd)
+
 	return cmd
+}
+
+func printAgentSchema() error {
+	s, err := schema.GetCoreSchema()
+	if err != nil {
+		fmt.Printf("Error: %s", err)
+	} else {
+		fmt.Print(string(s))
+	}
+	return nil
+}
+
+func printSystemProbeSchema() error {
+	s, err := schema.GetSystemProbeSchema()
+	if err != nil {
+		fmt.Printf("Error: %s", err)
+	} else {
+		fmt.Print(string(s))
+	}
+	return nil
 }
 
 func showRuntimeConfiguration(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) error {

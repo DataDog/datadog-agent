@@ -42,7 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-//go:generate go run go.uber.org/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go
+//go:generate go run go.uber.org/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go -build_constraint test
 
 // Requires defines the component's dependencies.
 type Requires struct {
