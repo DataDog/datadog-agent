@@ -1048,6 +1048,7 @@ workflow:
       paths:
         - .gitlab/deploy/**/*
         - .gitlab/test/e2e_install_packages/**/*
+        - .gitlab/test/e2e/e2e_templates.yml
         - .gitlab/test/e2e/e2e_fleet.yml
         - omnibus/config/**/*
         - pkg/fleet/**/*
