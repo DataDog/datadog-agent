@@ -7,7 +7,7 @@ import os
 import tempfile
 
 import yaml
-from invoke import task, Failure
+from invoke import Failure, task
 from invoke.exceptions import Exit
 
 from tasks.libs.build.bazel import bazel

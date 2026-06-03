@@ -288,7 +288,7 @@ def retrieve_default_value(keypath, schema):
 
     elif settingType == 'object':
         textDefault = str(settingDefault)
-        add = curr.get('additionalProperties')
+        add = node.get('additionalProperties')
         if add is not None:
             if add.get('type') == 'string':
                 return f"map[string]string{as_go_value(settingDefault)}"
@@ -395,9 +395,11 @@ def output_single_setting(name, kind, internal_comment, schema, target):
 
     env_parser = retrieve_env_parser(name.split('.'), schema)
     if env_parser:
+
         def get_vartype():
             node = get_node(name.split('.'), schema)
             return to_vartype(node, '{}')
+
         line = env_parser_to_func_call(name, env_parser, get_vartype)
         sourcecode.append(line)
 
