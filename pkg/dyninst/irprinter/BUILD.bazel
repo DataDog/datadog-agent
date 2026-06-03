@@ -10,6 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/irprinter",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/dyninst/ir",
         "@com_github_go_json_experiment_json//:json",
         "@com_github_go_json_experiment_json//jsontext",
         "@in_yaml_go_yaml_v3//:yaml",
@@ -21,4 +22,5 @@ go_test(
     srcs = ["example_test.go"],
     embed = [":irprinter"],
     gotags = ["test"],
+    deps = ["//pkg/dyninst/ir"],
 )
