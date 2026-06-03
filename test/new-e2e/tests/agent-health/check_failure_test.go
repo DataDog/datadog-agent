@@ -78,6 +78,8 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 
 	suite.T().Run("IssueDetection", func(t *testing.T) {
 		// broken_check.py is deployed by the provisioner; agent is ready at suite start.
+		// Accept NEW or ONGOING: the check may fail multiple times before the first egress
+		// tick fires, so the state could already be ONGOING by the time it reaches fakeintake.
 		var issues []*healthplatform.Issue
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			payloads, err := fakeIntake.GetAgentHealth()
@@ -85,13 +87,15 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 			issues = nil
 			for _, p := range payloads {
 				for _, iss := range findIssuesByPrefix(p, issuePrefix) {
-					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW {
+					if iss.PersistedIssue != nil &&
+						(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW ||
+							iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING) {
 						issues = append(issues, iss)
 					}
 				}
 			}
-			assert.NotEmpty(ct, issues, "check execution failure not found as NEW in fakeintake")
-		}, defaultIssueTimeout, defaultIssuePollInterval, "check execution failure not detected as NEW in fakeintake")
+			assert.NotEmpty(ct, issues, "check execution failure not found as NEW or ONGOING in fakeintake")
+		}, defaultIssueTimeout, defaultIssuePollInterval, "check execution failure not detected in fakeintake")
 
 		require.NotEmpty(t, issues)
 		issue := issues[0]

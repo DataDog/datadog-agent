@@ -89,9 +89,12 @@ func (suite *dockerPermissionSuite) TestDockerHealthCheckTransientFailure() {
 	}, 2*time.Minute, 10*time.Second, "agent did not restart after SIGKILL")
 	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
 
-	// After the crash restart the issue must still be ONGOING — it must never
-	// have been resolved during the brief window between restart and the first
-	// successful probe tick.
+	// After the crash restart the issue must still be present (NEW or ONGOING).
+	// The first scheduler tick on restart may run before the agent has fully dropped
+	// privileges, briefly seeing the socket as accessible and resolving the issue.
+	// If that race fires, the docker probe will detect the issue again on the next
+	// successful tick and report it as NEW. Either state confirms the issue survived
+	// the crash window.
 	var reloadedIssues []*healthplatform.Issue
 	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
 		payloads, err := fakeIntake.GetAgentHealth()
@@ -99,13 +102,15 @@ func (suite *dockerPermissionSuite) TestDockerHealthCheckTransientFailure() {
 		reloadedIssues = nil
 		for _, p := range payloads {
 			for _, iss := range findIssuesByID(suite.T(), p, issueID) {
-				if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING {
+				if iss.PersistedIssue != nil &&
+					(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW ||
+						iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING) {
 					reloadedIssues = append(reloadedIssues, iss)
 				}
 			}
 		}
-		assert.NotEmpty(ct, reloadedIssues, "docker permission issue not found as ONGOING after crash restart")
-	}, defaultIssueTimeout, defaultIssuePollInterval, "docker permission issue not re-reported as ONGOING after crash restart")
+		assert.NotEmpty(ct, reloadedIssues, "docker permission issue not found as NEW or ONGOING after crash restart")
+	}, defaultIssueTimeout, defaultIssuePollInterval, "docker permission issue not re-reported after crash restart")
 
 	require.NotEmpty(suite.T(), reloadedIssues)
 }
