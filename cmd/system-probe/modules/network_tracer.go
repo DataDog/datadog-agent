@@ -39,7 +39,9 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 
 	// Checking whether the current OS + kernel version is supported by the tracer
 	if supported, err := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
-		return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, err)
+		initErr := fmt.Errorf("%w: %s", ErrSysprobeUnsupported, err)
+		reportNetworkProbeInitFailure(deps, initErr, ncfg.NPMEnabled, ncfg.ServiceMonitoringEnabled)
+		return nil, initErr
 	}
 
 	if ncfg.NPMEnabled {
@@ -51,8 +53,10 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 
 	t, err := tracer.NewTracer(ncfg, deps.Telemetry, deps.Statsd)
 	if err != nil {
+		reportNetworkProbeInitFailure(deps, err, ncfg.NPMEnabled, ncfg.ServiceMonitoringEnabled)
 		return nil, err
 	}
+	resolveNetworkProbeInitFailure(deps)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	var connsSender sender.Sender
