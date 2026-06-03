@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
+	"path"
 	"strings"
 	"testing"
 
@@ -416,7 +416,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 			args: args{
 				exec: &corev1.PodExecOptions{
 					Command: []string{
-						filepath.Join(cwsMountPath, "cws-instrumentation"),
+						path.Join(cwsMountPath, "cws-instrumentation"),
 						"inject",
 						"--session-type",
 						"k8s",
@@ -445,7 +445,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 			args: args{
 				exec: &corev1.PodExecOptions{
 					Command: []string{
-						filepath.Join(cwsMountPath, "cws-instrumentation"),
+						path.Join(cwsMountPath, "cws-instrumentation"),
 						"inject",
 						"--session-type",
 						"k8s",
@@ -538,7 +538,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 						return
 					}
 					assert.True(t, injected)
-					expectedCommand := fmt.Sprintf("%s%s", filepath.Join(cwsMountPath, "cws-instrumentation"), " inject --session-type k8s --data")
+					expectedCommand := fmt.Sprintf("%s%s", path.Join(cwsMountPath, "cws-instrumentation"), " inject --session-type k8s --data")
 					require.Equal(t, expectedCommand, strings.Join(tt.args.exec.Command[0:5], " "), "incorrect CWS instrumentation")
 					require.Equal(t, "--", tt.args.exec.Command[6], "incorrect CWS instrumentation")
 					require.LessOrEqual(t, len(tt.args.exec.Command[5]), cwsUserSessionDataMaxSize, "user session context too long")

@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -466,8 +467,10 @@ func findContainerByName(pod *corev1.Pod, container string) *corev1.Container {
 }
 
 func volumeMountContainsPath(mountPath, target string) bool {
-	mountPath = filepath.Clean(mountPath)
-	target = filepath.Clean(target)
+	// These are container paths, which are always POSIX (forward slashes),
+	// so we use "path" instead of "filepath" to avoid OS-specific separators.
+	mountPath = path.Clean(mountPath)
+	target = path.Clean(target)
 	if mountPath == target {
 		return true
 	}
@@ -486,7 +489,7 @@ func (ci *CWSInstrumentation) isDirectoryReadOnly(pod *corev1.Pod, containerName
 	var matched *corev1.VolumeMount
 	matchedLen := -1
 	for i, mnt := range container.VolumeMounts {
-		mountPath := filepath.Clean(mnt.MountPath)
+		mountPath := path.Clean(mnt.MountPath)
 		if !volumeMountContainsPath(mountPath, directory) {
 			continue
 		}
@@ -591,7 +594,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 
 	switch ci.mode {
 	case InitContainer:
-		cwsInstrumentationRemotePath = filepath.Join(cwsMountPath, "cws-instrumentation")
+		cwsInstrumentationRemotePath = path.Join(cwsMountPath, "cws-instrumentation")
 		// is the pod instrumentation ready ? (i.e. has the CWS Instrumentation init container been added ?)
 		if !isPodCWSInstrumentationReady(pod.Annotations) {
 			// pod isn't instrumented, do not attempt to override the pod exec command
@@ -600,7 +603,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 			return false, nil
 		}
 	case RemoteCopy:
-		cwsInstrumentationRemotePath = filepath.Join(ci.directoryForRemoteCopy, "/cws-instrumentation")
+		cwsInstrumentationRemotePath = path.Join(ci.directoryForRemoteCopy, "/cws-instrumentation")
 
 		// if we're using a shared volume, we need to make sure the pod is instrumented first
 		if ci.mountVolumeForRemoteCopy {
@@ -610,7 +613,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 				metrics.CWSExecMutationAttempts.Inc(ci.mode.String(), "false", cwsPodNotInstrumentedReason)
 				return false, nil
 			}
-			cwsInstrumentationRemotePath = filepath.Join(cwsMountPath, cwsInstrumentationRemotePath)
+			cwsInstrumentationRemotePath = path.Join(cwsMountPath, cwsInstrumentationRemotePath)
 		} else {
 			// if we're not using a shared volume, we need to make sure the directory is writable
 			if ci.isDirectoryReadOnly(pod, container.Name, ci.directoryForRemoteCopy) {
