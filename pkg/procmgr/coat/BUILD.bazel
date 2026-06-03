@@ -23,8 +23,11 @@ go_library(
         "//comp/core/telemetry/def",
         "//pkg/proto/pbgo/procmgr",
         "//pkg/util/defaultpaths",
+        "//pkg/util/log",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//status",
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",
