@@ -26,7 +26,9 @@ type ConfigStatus struct {
 type RunnerStatus struct {
 	Workers     int
 	WorkersUsed float64
-	NumChecks   int
+	// Note: this is different from the number of configs
+	// because a config can contain multiple check instances
+	NumChecks int
 }
 
 func (ns RunnerStatus) utilization() float64 {
@@ -121,13 +123,17 @@ func (distribution *configsDistribution) addConfig(digest, checkName string, wor
 		}
 		distribution.Configs[digest] = configInfo
 	}
-	configInfo.WorkersNeeded += workersNeeded
 
-	// Expect condition to never be true
+	// Prioritize the new assigned runner over the existing one
+	// Note: this edge case should never happen in practice
 	if configInfo.Runner != runner {
-		log.Warnf("configsDistribution.addConfig: digest %s already placed on runner %q, but received conflicting assignment to %q; workers credited to %q",
-			digest, configInfo.Runner, runner, runner)
+		log.Warnf("digest %s already placed on runner %q, but received conflicting assignment to %q",
+			digest, configInfo.Runner, runner)
+		distribution.Runners[configInfo.Runner].WorkersUsed -= configInfo.WorkersNeeded
+		configInfo.Runner = runner
 	}
+
+	configInfo.WorkersNeeded += workersNeeded
 }
 
 func (distribution *configsDistribution) runnerWorkers() map[string]int {
