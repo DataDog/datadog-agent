@@ -20,8 +20,9 @@ go_library(
 go_test(
     name = "sds_test",
     srcs = [
+        "default_test.go",
         "rules_test.go",
-        "scanner_test.go",
+        "scanner_test.go",        
     ],
     embed = [":sds"],
     gotags = ["test"],
