@@ -30,14 +30,14 @@ import (
 type EBPFMonitors struct {
 	ebpfProbe *EBPFProbe
 
-	eventStreamMonitor    *eventstream.Monitor
-	discarderMonitor      *discarder.Monitor
-	cgroupsMonitor        *cgroups.Monitor
-	approverMonitor       *approver.Monitor
-	syscallsMonitor       *syscalls.Monitor
+	eventStreamMonitor   *eventstream.Monitor
+	discarderMonitor     *discarder.Monitor
+	cgroupsMonitor       *cgroups.Monitor
+	approverMonitor      *approver.Monitor
+	syscallsMonitor      *syscalls.Monitor
 	syscallCGroupMonitor *syscalls.CGroupMonitor
-	dnsMonitor            *dns.Monitor
-	eventSampleMonitor    *eventsample.Monitor
+	dnsMonitor           *dns.Monitor
+	eventSampleMonitor   *eventsample.Monitor
 }
 
 // NewEBPFMonitors returns a new instance of a ProbeMonitor
