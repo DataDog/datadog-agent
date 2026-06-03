@@ -8,11 +8,10 @@ package eventplatformimpl
 import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func getSoftwareInventoryPipelines() []passthroughPipelineDesc {
-	if !pkgconfigsetup.Datadog().GetBool("software_inventory.enabled") {
+	if !isSoftwareInventoryEnabled() {
 		return nil
 	}
 	return []passthroughPipelineDesc{
@@ -23,10 +22,10 @@ func getSoftwareInventoryPipelines() []passthroughPipelineDesc {
 			endpointsConfigPrefix:         "software_inventory.forwarder.",
 			hostnameEndpointPrefix:        "softinv-intake.",
 			intakeTrackType:               "softinv",
-			defaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxConcurrentSend: epfDefaultBatchMaxConcurrentSend,
+			defaultBatchMaxContentSize:    epfDefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
+			defaultInputChanSize:          epfDefaultInputChanSize,
 		},
 	}
 }

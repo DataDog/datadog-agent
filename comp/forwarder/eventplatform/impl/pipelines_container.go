@@ -8,7 +8,6 @@ package eventplatformimpl
 import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,9 +21,9 @@ func getContainerPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "contlcycle-intake.",
 			intakeTrackType:               "contlcycle",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    epfDefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
+			defaultInputChanSize:          epfDefaultInputChanSize,
 		},
 		{
 			eventType:                     eventplatform.EventTypeContainerImages,
@@ -34,9 +33,9 @@ func getContainerPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "contimage-intake.",
 			intakeTrackType:               "contimage",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    epfDefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
+			defaultInputChanSize:          epfDefaultInputChanSize,
 		},
 		{
 			eventType:                     eventplatform.EventTypeContainerSBOM,
@@ -46,8 +45,8 @@ func getContainerPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "sbom-intake.",
 			intakeTrackType:               "sbom",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultBatchMaxContentSize:    epfDefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
 			// on every periodic refresh, we re-send all the SBOMs for all the
 			// container images in the workloadmeta store. This can be a lot of
 			// payloads at once, so we need a large input channel size to avoid dropping
@@ -55,7 +54,7 @@ func getContainerPipelines() []passthroughPipelineDesc {
 		},
 	}
 
-	if pkgconfigsetup.Datadog().GetBool("kubeactions.enabled") {
+	if isKubeActionsEnabled() {
 		kubeactionsPipeline := passthroughPipelineDesc{
 			eventType:                     eventplatform.EventTypeKubeActions,
 			category:                      "Kubernetes Actions",
@@ -64,16 +63,16 @@ func getContainerPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "kubeops-intake.",
 			intakeTrackType:               "kubeactions",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    epfDefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
+			defaultInputChanSize:          epfDefaultInputChanSize,
 		}
 		descs = append(descs, kubeactionsPipeline)
 		// TODO(kubeactions): Remove this log once EVP intake is stable
 		log.Infof("[KubeActions] EVP pipeline registered: host_prefix=%s, track_type=%s, v2_api=%v",
 			kubeactionsPipeline.hostnameEndpointPrefix,
 			kubeactionsPipeline.intakeTrackType,
-			pkgconfigsetup.Datadog().GetBool("kubeactions.forwarder.use_v2_api"))
+			kubeActionsForwarderUseV2API())
 	}
 
 	return descs
