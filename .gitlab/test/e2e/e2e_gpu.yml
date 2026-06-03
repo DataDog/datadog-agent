@@ -1,0 +1,37 @@
+---
+# e2e stage - ebpf-platform owned jobs
+# Owned by: ebpf-platform, agent-devx
+
+.on_gpu_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/gpu/**/*
+        - pkg/ebpf/**/*
+        - pkg/util/kernel/**/*
+        - test/new-e2e/tests/gpu/**/*
+        - pkg/collector/corechecks/gpu/**/*
+        - comp/core/workloadmeta/collectors/internal/nvml/**/*
+        - comp/core/autodiscovery/listeners/staticconfig.go
+      compare_to: $COMPARE_TO_BRANCH
+
+new-e2e-gpu:
+  extends: .new_e2e_template_needs_container_deploy_linux
+  rules:
+    - !reference [.on_gpu_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/gpu # the target path where tests are
+    TEAM: gpu-monitoring-agent
+    E2E_PULUMI_LOG_LEVEL: 10 # incident-33572
+    ON_NIGHTLY_FIPS: "true"
+  needs: # list of required jobs. By default gitlab waits for any previous jobs.
+    - !reference [.new_e2e_template_needs_container_deploy_linux, needs]
+    - agent_deb-x64-a7 # agent 7 debian package
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu2204"
+      - EXTRA_PARAMS: "--run TestGPUK8sSuiteUbuntu2204"
+      - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver510"
+      - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver430" # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
+  retry: !reference [.retry_only_infra_failure, retry]

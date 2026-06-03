@@ -1,0 +1,36 @@
+---
+# e2e stage - kubernetes-experiences owned jobs
+# Owned by: kubernetes-experiences, agent-devx
+
+.on_orchestrator_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/forwarder/defaultforwarder/**/*
+        - pkg/collector/corechecks/cluster/orchestrator/**/*
+        - pkg/collector/corechecks/orchestrator/**/*
+        - test/new-e2e/tests/orchestrator/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
+new-e2e-orchestrator-ecs:
+  extends: .new_e2e_template_needs_container_deploy_linux
+  rules:
+    - !reference [.on_orchestrator_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    EXTRA_PARAMS: --run TestECSSuite
+    TARGETS: ./tests/orchestrator
+    TEAM: kubernetes-experiences
+    ON_NIGHTLY_FIPS: "true"
+  timeout: 55m
+
+new-e2e-orchestrator:
+  extends: .new_e2e_template_needs_container_deploy_linux
+  rules:
+    - !reference [.on_orchestrator_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    EXTRA_PARAMS: --skip TestECSSuite
+    TARGETS: ./tests/orchestrator
+    TEAM: kubernetes-experiences
+    ON_NIGHTLY_FIPS: "true"

@@ -1,0 +1,65 @@
+---
+# e2e stage - agent-runtimes owned jobs
+# Owned by: agent-runtimes, agent-devx
+
+.on_arun_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - cmd/**/*
+        - pkg/**/*
+        - comp/**/*
+        - test/new-e2e/tests/agent-runtimes/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
+.on_agenttelemetry_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - cmd/agent/subcommands/run/**/*
+        - comp/core/agenttelemetry/**/*
+        - pkg/util/log/setup/**/*
+        - pkg/util/log/errortracking/**/*
+        - test/new-e2e/tests/agent-telemetry/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+new-e2e-agent-runtimes:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_arun_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-runtimes
+    TEAM: agent-runtimes
+    EXTRA_PARAMS: --skip "Windows"
+    ON_NIGHTLY_FIPS: "true"
+
+new-e2e-agent-telemetry:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_agenttelemetry_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-telemetry
+    TEAM: agent-runtimes
+
+new-e2e-fips-compliance-test:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7-fips
+    - qa_agent_fips_linux
+    - qa_dca_fips
+  rules:
+    - !reference [.on_arun_or_e2e_changes]
+    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/fips-compliance
+    TEAM: agent-runtimes
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestFIPSCiphersLinuxSuite$"
+      - EXTRA_PARAMS: --run "TestLinuxFIPSComplianceSuite$"
+      - EXTRA_PARAMS: --run "TestFIPSCiphersClusterAgentSuite$"

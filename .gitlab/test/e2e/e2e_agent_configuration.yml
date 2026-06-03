@@ -1,0 +1,36 @@
+---
+# e2e stage - agent-configuration owned jobs
+# Owned by: agent-configuration, agent-devx
+
+.on_subcommands_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - cmd/**/*
+        - pkg/**/*
+        - comp/**/*
+        - test/new-e2e/tests/agent-subcommands/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
+new-e2e-agent-configuration:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_acfg_or_e2e_changes]
+    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-configuration
+    TEAM: agent-configuration
+    EXTRA_PARAMS: --skip "Windows"
+
+new-e2e-agent-subcommands:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_subcommands_or_e2e_changes]
+    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-subcommands
+    TEAM: agent-configuration
+    ON_NIGHTLY_FIPS: "true"
+    EXTRA_PARAMS: --skip "Windows"
