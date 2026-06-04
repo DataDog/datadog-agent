@@ -146,10 +146,7 @@ type networkDeviceConfigImpl struct {
 
 // RegisterDevice tells the component how to connect to a device.
 func (n *networkDeviceConfigImpl) RegisterDevice(config *ncmconfig.DeviceInstance) error {
-	_, loaded := n.deviceConfigs.LoadOrStore(config.DeviceID(), config)
-	if loaded {
-		return fmt.Errorf("duplicate registration for device %q", config.DeviceID())
-	}
+	n.deviceConfigs.Store(config.DeviceID(), config)
 	return nil
 }
 
