@@ -1845,6 +1845,10 @@ properties:
                 default: []
                 items:
                   type: string
+              max_dump_size:
+                node_type: setting
+                type: integer
+                default: 5120
           watch_dir:
             node_type: setting
             type: boolean
