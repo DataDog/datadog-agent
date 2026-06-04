@@ -55,7 +55,7 @@ func (m *mockNetworkConfigManagement) RollbackConfig(_ string, _ string, _ strin
 
 // SetMaxReportInterval implements [networkconfigmanagement.Component].
 func (m *mockNetworkConfigManagement) SetMaxReportInterval(_ time.Duration) error {
-	return errors.New("TODO unimplemented")
+	return nil
 }
 
 // Mock returns a networkconfigmanagement.Component backed by an in-memory store.
