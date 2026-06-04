@@ -166,6 +166,26 @@ func TestLogTagsBaseComputedFromTagConfigTags(t *testing.T) {
 	assert.NotEmpty(t, logTagsBase)
 }
 
+// TestBaseTraceTagsComputedFromTagConfigTags verifies that traceTags —
+// passed as BaseTraceTags to LifecycleContext — contains all tags from DD_TAGS
+// so that the lifecycle server can extend the map with lambda_microvm_id at /launch
+// without losing any startup tags.
+func TestBaseTraceTagsComputedFromTagConfigTags(t *testing.T) {
+	configmock.New(t)
+	modeConf = mode.DetectMode()
+	t.Setenv("DD_TAGS", "env:prod region:us-east-1")
+
+	cloudService := &cloudservice.LocalService{}
+	tagConfig := configureTags(cloudService)
+	baseTraceTags := serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags)
+
+	assert.Equal(t, "prod", baseTraceTags["env"],
+		"BaseTraceTags must include all DD_TAGS entries (used as BaseTraceTags on the lifecycle server)")
+	assert.Equal(t, "us-east-1", baseTraceTags["region"])
+	assert.NotEmpty(t, baseTraceTags)
+}
+
+
 // TestSetupOtlpAgentNoPanic ensures setupOtlpAgent does not panic when OTLP is enabled.
 func TestSetupOtlpAgentNoPanic(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_LOGS_ENABLED", "true")
