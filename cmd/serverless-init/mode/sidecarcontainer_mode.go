@@ -13,15 +13,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
 	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RunSidecar is the entrypoint when serverless-init runs as a sidecar
-// container. It blocks until SIGINT/SIGTERM. The child handle is unused
-// because no user process is spawned in this mode.
-func RunSidecar(_ *serverlessLog.Config, _ *lifecycle.Child) error {
+// container. It blocks until SIGINT/SIGTERM.
+func RunSidecar(_ *serverlessLog.Config) error {
 	stopCh := make(chan struct{})
 	go handleTerminationSignals(stopCh, signal.Notify)
 	<-stopCh

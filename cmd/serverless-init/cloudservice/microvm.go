@@ -16,6 +16,8 @@ import (
 	"log"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -186,6 +188,21 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 // Child returns the *lifecycle.Child that mode.RunInit uses for /ready
 // alive-checking. Nil in sidecar mode or when Init has not been called.
 func (m *MicroVM) Child() *lifecycle.Child { return m.child }
+
+// Run spawns the user process in init-container mode. ProcessHooks bind
+// m.child.MarkAlive/MarkDead so the lifecycle server's /ready alive-check
+// reflects the user app's state without exposing *lifecycle.Child to the
+// mode package. MicroVM is exclusively an init-container deployment; sidecar
+// mode is a wiring error and is treated as fatal.
+func (m *MicroVM) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error {
+	if modeConf.SidecarMode {
+		log.Fatalf("MicroVM does not support sidecar mode")
+	}
+	return mode.RunInit(logConfig, &mode.ProcessHooks{
+		OnAlive: m.child.MarkAlive,
+		OnDead:  m.child.MarkDead,
+	})
+}
 
 // Shutdown stops the MicroVM lifecycle hook server so that any in-flight
 // /suspend or /terminate request can complete before the metric and trace
