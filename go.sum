@@ -2839,6 +2839,8 @@ github.com/aws/aws-sdk-go-v2/service/timestreamwrite v1.35.16 h1:0lxNpE8zuNIvxUS
 github.com/aws/aws-sdk-go-v2/service/timestreamwrite v1.35.16/go.mod h1:3FcOfkSHwdxE2w0pDKTXkt1PmloObRPokcCt1fkLSK0=
 github.com/aws/karpenter-provider-aws v1.9.0 h1:JER51ivJqzz4FeAuRpA5ozEUEmJhHpyqHQlscJW7M14=
 github.com/aws/karpenter-provider-aws v1.9.0/go.mod h1:luLmzj7d9IhXS9O4OuO44QYySzKwkZc0TFb8yGHxfyw=
+github.com/aws/karpenter-provider-aws v1.12.1 h1:GOIYhlnXOmiVrxIMRPQrxor0KXSJw7x3p1FH3eBaBPs=
+github.com/aws/karpenter-provider-aws v1.12.1/go.mod h1:xGAZxAILxs35rchZzde4gmvzQ5gs78QqngRYRYxpKeU=
 github.com/aws/smithy-go v1.25.1 h1:J8ERsGSU7d+aCmdQur5Txg6bVoYelvQJgtZehD12GkI=
 github.com/aws/smithy-go v1.25.1/go.mod h1:YE2RhdIuDbA5E5bTdciG9KrW3+TiEONeUWCqxX9i1Fc=
 github.com/awslabs/amazon-eks-ami/nodeadm v0.0.0-20240229193347-cfab22a10647 h1:8yRBVsjGmI7qQsPWtIrbWP+XfwHO9Wq7gdLVzjqiZFs=
@@ -4734,6 +4736,8 @@ github.com/sagikazarmark/locafero v0.11.0 h1:1iurJgmM9G3PA/I+wWYIOw/5SyBtxapeHDc
 github.com/sagikazarmark/locafero v0.11.0/go.mod h1:nVIGvgyzw595SUSUE6tvCp3YYTeHs15MvlmU87WwIik=
 github.com/samber/lo v1.52.0 h1:Rvi+3BFHES3A8meP33VPAxiBZX/Aws5RxrschYGjomw=
 github.com/samber/lo v1.52.0/go.mod h1:4+MXEGsJzbKGaUEQFKBq2xtfuznW9oz/WrgyzMzRoM0=
+github.com/samber/lo v1.53.0 h1:t975lj2py4kJPQ6haz1QMgtId2gtmfktACxIXArw3HM=
+github.com/samber/lo v1.53.0/go.mod h1:4+MXEGsJzbKGaUEQFKBq2xtfuznW9oz/WrgyzMzRoM0=
 github.com/samber/oops v1.18.1 h1:qjhZbqbdyhWBKntkY8sxrDNKA8b4c5VHlmI1rli7X7M=
 github.com/samber/oops v1.18.1/go.mod h1:xYqvimigkKV70HyLXiBZJFpIWi2CGcc6Xx7eV+2HycI=
 github.com/santhosh-tekuri/jsonschema/v5 v5.3.1 h1:lZUw3E0/J3roVtGQ+SCrUrg3ON6NgVqpn3+iol9aGu4=
@@ -6867,6 +6871,8 @@ sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 h1:IpInykpT6ceI+QxKBbEflcR5E
 sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730/go.mod h1:mdzfpAEoE6DHQEN0uh9ZbOCuHbLK5wOm7dK4ctXE9Tg=
 sigs.k8s.io/karpenter v1.9.0 h1:95p6+9AaZ/eYD3hLPyvBDBquC3v8m09T2u/pB/3Qrqs=
 sigs.k8s.io/karpenter v1.9.0/go.mod h1:qQOhEoIl4nqo6vkGhEw95tzcXou5Osjn/mvLzIVFw5A=
+sigs.k8s.io/karpenter v1.12.0 h1:SffONGtSqVfTiEBM55OZb5ZVEsBPaEcLuRLL8v98sPo=
+sigs.k8s.io/karpenter v1.12.0/go.mod h1:9eMMjkY2Wjx37QkrcPrSr+oiILoOr+DcuEV523Ygg2k=
 sigs.k8s.io/randfill v1.0.0 h1:JfjMILfT8A6RbawdsK2JXGBR5AQVfd+9TbzrlneTyrU=
 sigs.k8s.io/randfill v1.0.0/go.mod h1:XeLlZ/jmk4i1HRopwe7/aU3H5n1zNUcX6TM94b3QxOY=
 sigs.k8s.io/structured-merge-diff/v6 v6.3.2 h1:kwVWMx5yS1CrnFWA/2QHyRVJ8jM6dBA80uLmm0wJkk8=
