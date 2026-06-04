@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -67,8 +66,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Logger.Errorf("NCM service could not be initialized: %s", err)
 		compOpt = option.None[networkconfigmanagement.Component]()
 	} else {
-		compOpt = option.New(comp)
-		store = comp.GetConfigStore()
+		compOpt = option.New(networkconfigmanagement.Component(comp))
+		store = comp.store
 	}
 	var getConfigHandler http.HandlerFunc
 	if store == nil {
@@ -85,7 +84,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 }
 
-func newComponent(reqs Requires) (networkconfigmanagement.Component, error) {
+func newComponent(reqs Requires) (*networkDeviceConfigImpl, error) {
 	rollbackEnabled := reqs.Config.GetBool("network_devices.config_management.rollback.enabled")
 	hostname, err := reqs.HostnameService.Get(context.Background())
 	if err != nil {
@@ -137,7 +136,6 @@ type networkDeviceConfigImpl struct {
 	// config report was requested for that deviceID.
 	lastReportTimes       map[string]time.Time
 	inventoryMaxInterval  time.Duration
-	inventoryLock         sync.Mutex
 	lastInventoryReportAt time.Time
 	clock                 clock.Clock
 	hostname              string
@@ -185,7 +183,7 @@ func (n *networkDeviceConfigImpl) retrieveAndStoreConfig(
 		return nil, false, checkErr
 	}
 
-	configStore := n.GetConfigStore()
+	configStore := n.store
 	deviceID := device.DeviceID()
 	redactedConfig, metadata, checkErr := profile.ProcessConfig(rawConfig)
 	if checkErr != nil {
@@ -254,7 +252,7 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 		n.log.Warnf("ncm[%s]: failed to send device metadata: %s", deviceID, err)
 	}
 	defer sender.Commit()
-	configStore := n.GetConfigStore()
+	configStore := n.store
 
 	var localStoreChanged bool
 
@@ -342,43 +340,11 @@ func (n *networkDeviceConfigImpl) RollbackConfig(_ string, _ string, _ string) e
 }
 
 // SetMaxReportInterval sets the minimum time
-func (n *networkDeviceConfigImpl) SetMaxReportInterval(interval time.Duration) error {
+func (n *networkDeviceConfigImpl) SetMaxReportInterval(interval time.Duration) {
 	if n.inventoryMaxInterval != 0 && n.inventoryMaxInterval != interval {
 		n.log.Warnf("Changing inventory max interval from %v to %v - all check runners are supposed to agree on this", n.inventoryMaxInterval, interval)
 	}
 	n.inventoryMaxInterval = interval
-	return nil
-}
-
-func (n *networkDeviceConfigImpl) GetConfigStore() ncmstore.ConfigStore {
-	return n.store
-}
-
-// MeetsInventoryReportRequirements returns true if the caller should send an inventory report
-// — either because hasNewConfigs is true, or because maxInterval has elapsed since the
-// last report.
-func (n *networkDeviceConfigImpl) MeetsInventoryReportRequirements(hasNewConfigs bool, maxInterval time.Duration, now time.Time) bool {
-	n.inventoryLock.Lock()
-	defer n.inventoryLock.Unlock()
-	if !hasNewConfigs && now.Sub(n.lastInventoryReportAt) < maxInterval {
-		return false
-	}
-	return true
-}
-
-func (n *networkDeviceConfigImpl) MarkInventoryReportSent(now time.Time) {
-	n.inventoryLock.Lock()
-	defer n.inventoryLock.Unlock()
-	n.lastInventoryReportAt = now
-}
-
-// saveConfig saves the config if store is non-nil. Returns the resulting UUID, config hash, a bool
-// that is true when a new entry was written (false when deduplicated), and any error.
-func saveConfig(store ncmstore.ConfigStore, deviceID string, cType ncmtypes.ConfigType, rawConfig []byte) (string, string, bool, error) {
-	if store == nil {
-		return "", "", false, errors.New("local config store unavailable - will not save configs for rollback")
-	}
-	return store.StoreConfig(deviceID, cType, string(rawConfig))
 }
 
 // findMatchingProfile tests each profile until one is successful.

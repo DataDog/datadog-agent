@@ -9,7 +9,6 @@ package mock
 import (
 	"errors"
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
@@ -20,10 +19,8 @@ import (
 )
 
 type mockNetworkConfigManagement struct {
-	store                 ncmstore.ConfigStore
-	devices               map[string]*config.DeviceInstance
-	inventoryLock         sync.Mutex
-	lastInventoryReportAt time.Time
+	store   ncmstore.ConfigStore
+	devices map[string]*config.DeviceInstance
 }
 
 // ReportConfig implements [networkconfigmanagement.Component].
@@ -54,16 +51,11 @@ func (m *mockNetworkConfigManagement) RollbackConfig(_ string, _ string, _ strin
 }
 
 // SetMaxReportInterval implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) SetMaxReportInterval(_ time.Duration) error {
-	return nil
-}
+func (m *mockNetworkConfigManagement) SetMaxReportInterval(_ time.Duration) {}
 
 // Mock returns a networkconfigmanagement.Component backed by an in-memory store.
-func Mock(_ *testing.T) networkconfigmanagement.Component {
-	return &mockNetworkConfigManagement{
-		store:   ncmstore.NewMemStore(),
-		devices: make(map[string]*config.DeviceInstance),
-	}
+func Mock(t *testing.T) networkconfigmanagement.Component {
+	return MockWithStore(t, ncmstore.NewMemStore())
 }
 
 // MockWithStore returns a networkconfigmanagement.Component backed by the
@@ -71,25 +63,8 @@ func Mock(_ *testing.T) networkconfigmanagement.Component {
 // (e.g. deterministic clock or UUID generator) so inventory output is
 // predictable.
 func MockWithStore(_ *testing.T, store ncmstore.ConfigStore) networkconfigmanagement.Component {
-	return &mockNetworkConfigManagement{store: store}
-}
-
-func (m *mockNetworkConfigManagement) GetConfigStore() ncmstore.ConfigStore {
-	return m.store
-}
-
-func (m *mockNetworkConfigManagement) MeetsInventoryReportRequirements(hasNewConfigs bool, maxInterval time.Duration, now time.Time) bool {
-	m.inventoryLock.Lock()
-	defer m.inventoryLock.Unlock()
-	if !hasNewConfigs && now.Sub(m.lastInventoryReportAt) < maxInterval {
-		return false
+	return &mockNetworkConfigManagement{
+		store:   store,
+		devices: make(map[string]*config.DeviceInstance),
 	}
-	m.lastInventoryReportAt = now
-	return true
-}
-
-func (m *mockNetworkConfigManagement) MarkInventoryReportSent(now time.Time) {
-	m.inventoryLock.Lock()
-	defer m.inventoryLock.Unlock()
-	m.lastInventoryReportAt = now
 }

@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
-	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 )
 
 // Component is the component type.
@@ -32,8 +31,4 @@ type Component interface {
 	// SetMaxReportInterval sets a maximum time to wait between sending
 	// inventory reports.
 	SetMaxReportInterval(interval time.Duration)
-
-	GetConfigStore() ncmstore.ConfigStore
-	MeetsInventoryReportRequirements(hasNewConfigs bool, maxInterval time.Duration, now time.Time) bool
-	MarkInventoryReportSent(now time.Time)
 }
