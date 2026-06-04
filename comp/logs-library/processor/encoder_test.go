@@ -437,6 +437,203 @@ func TestPassthroughEncoder(t *testing.T) {
 	assert.Equal(t, "hello world", string(msg.GetContent()))
 }
 
+func TestJSONServerlessInitEncoder(t *testing.T) {
+	t.Cleanup(InvalidateServerlessInitTagCache) // reset singleton cache after test
+
+	logsConfig := &config.LogsConfig{
+		Service: "my-service",
+		Source:  "my-source",
+	}
+	source := sources.NewLogSource("", logsConfig)
+
+	type payload struct {
+		Message   string `json:"message"`
+		Status    string `json:"status"`
+		Timestamp int64  `json:"timestamp"`
+		Hostname  string `json:"hostname"`
+		Service   string `json:"service,omitempty"`
+		Source    string `json:"ddsource"`
+		Tags      string `json:"ddtags"`
+	}
+
+	msg := newMessage([]byte("hello world"), source, message.StatusInfo)
+	msg.State = message.StateRendered
+	msg.Origin.LogSource = source
+	msg.Origin.SetTags([]string{"env:prod", "region:us-east-1"})
+
+	err := JSONServerlessInitEncoder.Encode(msg, "myhost")
+	assert.NoError(t, err)
+
+	var log payload
+	assert.NoError(t, json.Unmarshal(msg.GetContent(), &log))
+	assert.Equal(t, "hello world", log.Message)
+	assert.Equal(t, "myhost", log.Hostname)
+	assert.Equal(t, "my-service", log.Service)
+	assert.Equal(t, "my-source", log.Source)
+	assert.Equal(t, message.StatusInfo, log.Status)
+	assert.NotEmpty(t, log.Timestamp)
+	assert.Equal(t, "env:prod,region:us-east-1", log.Tags)
+}
+
+// TestJSONServerlessInitEncoder_CachesTagsOnFirstUse pins the cache behavior:
+// the second message's ddtags uses the cached string from the first message,
+// not its own (different) origin tags. This documents the intentional trade-off
+// between performance and the need for cache invalidation on tag changes.
+func TestJSONServerlessInitEncoder_CachesTagsOnFirstUse(t *testing.T) {
+	t.Cleanup(InvalidateServerlessInitTagCache)
+
+	source := sources.NewLogSource("", &config.LogsConfig{Source: "src"})
+
+	msg1 := newMessage([]byte("first"), source, message.StatusInfo)
+	msg1.State = message.StateRendered
+	msg1.Origin.LogSource = source
+	msg1.Origin.SetTags([]string{"env:prod"})
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg1, "host"))
+
+	// Second message has different origin tags — without invalidation the
+	// encoder reuses the cached string from the first message.
+	msg2 := newMessage([]byte("second"), source, message.StatusInfo)
+	msg2.State = message.StateRendered
+	msg2.Origin.LogSource = source
+	msg2.Origin.SetTags([]string{"env:prod", "microvm_id:vm-abc"})
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg2, "host"))
+
+	type payload struct {
+		Tags string `json:"ddtags"`
+	}
+	var p1, p2 payload
+	assert.NoError(t, json.Unmarshal(msg1.GetContent(), &p1))
+	assert.NoError(t, json.Unmarshal(msg2.GetContent(), &p2))
+
+	assert.Equal(t, "env:prod", p1.Tags)
+	// Cache was NOT invalidated — second message still carries the startup tags.
+	assert.Equal(t, "env:prod", p2.Tags,
+		"without invalidation, encoder reuses the first message's cached tags")
+}
+
+// TestInvalidateServerlessInitTagCache_UpdatesTagsOnNextEncode is the primary
+// feature test for the MicroVM /launch fix. It simulates the pre-launch →
+// post-launch tag transition:
+//
+//  1. Encode a pre-launch message — encoder caches the startup tags.
+//  2. Call InvalidateServerlessInitTagCache (what SetLogsTags triggers at /launch).
+//  3. Encode a post-launch message whose origin.tags now include microvm_id.
+//  4. Assert that post-launch ddtags carries microvm_id.
+func TestInvalidateServerlessInitTagCache_UpdatesTagsOnNextEncode(t *testing.T) {
+	t.Cleanup(InvalidateServerlessInitTagCache)
+
+	source := sources.NewLogSource("", &config.LogsConfig{Source: "lambda-microvm"})
+
+	// Pre-launch: startup tags, no microvm_id.
+	preLaunch := newMessage([]byte("app started"), source, message.StatusInfo)
+	preLaunch.State = message.StateRendered
+	preLaunch.Origin.LogSource = source
+	preLaunch.Origin.SetTags([]string{"env:prod", "account_id:123"})
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(preLaunch, "host"))
+
+	// /launch fires: SetLogsTags updates ChannelTags, then invalidates the cache.
+	InvalidateServerlessInitTagCache()
+
+	// Post-launch: same base tags + microvm_id (what the channel tailer now reads).
+	postLaunch := newMessage([]byte("launch hook called"), source, message.StatusInfo)
+	postLaunch.State = message.StateRendered
+	postLaunch.Origin.LogSource = source
+	postLaunch.Origin.SetTags([]string{"env:prod", "account_id:123", "microvm_id:vm-local"})
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(postLaunch, "host"))
+
+	type payload struct {
+		Tags string `json:"ddtags"`
+	}
+	var pre, post payload
+	assert.NoError(t, json.Unmarshal(preLaunch.GetContent(), &pre))
+	assert.NoError(t, json.Unmarshal(postLaunch.GetContent(), &post))
+
+	assert.Equal(t, "env:prod,account_id:123", pre.Tags,
+		"pre-launch entry must not carry microvm_id")
+	assert.Equal(t, "env:prod,account_id:123,microvm_id:vm-local", post.Tags,
+		"post-launch entry must carry microvm_id after cache invalidation")
+}
+
+// TestInvalidateServerlessInitTagCache_WhenEmpty_DoesNotPanic verifies that
+// calling InvalidateServerlessInitTagCache before any Encode call is safe.
+func TestInvalidateServerlessInitTagCache_WhenEmpty_DoesNotPanic(t *testing.T) {
+	t.Cleanup(InvalidateServerlessInitTagCache)
+	assert.NotPanics(t, InvalidateServerlessInitTagCache)
+}
+
+// TestInvalidateServerlessInitTagCache_IdempotentOnRepeat verifies that calling
+// InvalidateServerlessInitTagCache multiple times in a row does not corrupt state.
+func TestInvalidateServerlessInitTagCache_IdempotentOnRepeat(t *testing.T) {
+	t.Cleanup(InvalidateServerlessInitTagCache)
+
+	source := sources.NewLogSource("", &config.LogsConfig{Source: "src"})
+	msg := newMessage([]byte("msg"), source, message.StatusInfo)
+	msg.State = message.StateRendered
+	msg.Origin.LogSource = source
+	msg.Origin.SetTags([]string{"k:v"})
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg, "host"))
+
+	// Multiple successive invalidations must leave the encoder in a clean state.
+	InvalidateServerlessInitTagCache()
+	InvalidateServerlessInitTagCache()
+
+	msg2 := newMessage([]byte("msg2"), source, message.StatusInfo)
+	msg2.State = message.StateRendered
+	msg2.Origin.LogSource = source
+	msg2.Origin.SetTags([]string{"k:v", "new:tag"})
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg2, "host"))
+
+	type payload struct {
+		Tags string `json:"ddtags"`
+	}
+	var p payload
+	assert.NoError(t, json.Unmarshal(msg2.GetContent(), &p))
+	assert.Equal(t, "k:v,new:tag", p.Tags)
+}
+
+// TestJSONServerlessInitEncoder_ReturnsErrorForUnrenderedMessage verifies that
+// Encode rejects messages that have not yet been rendered. Only StateRendered
+// messages carry a final content representation; encoding earlier states would
+// silently emit incomplete data.
+func TestJSONServerlessInitEncoder_ReturnsErrorForUnrenderedMessage(t *testing.T) {
+	t.Cleanup(InvalidateServerlessInitTagCache)
+
+	source := sources.NewLogSource("", &config.LogsConfig{Source: "src"})
+	msg := newMessage([]byte("raw"), source, message.StatusInfo)
+	// msg.State is StateUnstructured by default — not rendered.
+
+	err := JSONServerlessInitEncoder.Encode(msg, "host")
+	assert.Error(t, err, "encoding an unrendered message must return an error")
+}
+
+// TestJSONServerlessInitEncoder_UsesServerlessTimestampWhenSet verifies that when
+// msg.ServerlessExtra.Timestamp is non-zero the encoder uses it instead of
+// time.Now(). This matters for forwarded log entries whose original timestamp
+// must be preserved.
+func TestJSONServerlessInitEncoder_UsesServerlessTimestampWhenSet(t *testing.T) {
+	t.Cleanup(InvalidateServerlessInitTagCache)
+
+	source := sources.NewLogSource("", &config.LogsConfig{Source: "src"})
+	msg := newMessage([]byte("timed"), source, message.StatusInfo)
+	msg.State = message.StateRendered
+	msg.Origin.LogSource = source
+	msg.Origin.SetTags([]string{"k:v"})
+
+	fixedTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+	msg.ServerlessExtra.Timestamp = fixedTime
+
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg, "host"))
+
+	type payload struct {
+		Timestamp int64 `json:"timestamp"`
+	}
+	var p payload
+	assert.NoError(t, json.Unmarshal(msg.GetContent(), &p))
+	// The encoder stores milliseconds (nanoToMillis = 1_000_000).
+	assert.Equal(t, fixedTime.UnixNano()/1_000_000, p.Timestamp,
+		"encoder must use ServerlessExtra.Timestamp, not time.Now()")
+}
+
 func BenchmarkJSONEncoder_Encode(b *testing.B) {
 	logsConfig := &config.LogsConfig{
 		Service:        "Service",

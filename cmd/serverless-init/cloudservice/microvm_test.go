@@ -7,6 +7,9 @@ package cloudservice
 
 import (
 	"context"
+	"net/http"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -96,6 +99,73 @@ func TestMicroVMOrigin(t *testing.T) {
 
 func TestMicroVMMetricPrefix(t *testing.T) {
 	assert.Equal(t, microVMPrefix, (&MicroVM{}).GetMetricPrefix())
+}
+
+// TestLifecycleContext_NilLogsTagSetter_IsAccepted verifies that
+// LifecycleContext.LogsTagSetter is nil-safe: passing nil must not cause any
+// compile or runtime issue. This pins the nil-check added to MicroVM.Init so
+// callers that don't need log-tag forwarding are not required to supply a setter.
+func TestLifecycleContext_NilLogsTagSetter_IsAccepted(t *testing.T) {
+	lc := &LifecycleContext{LogsTagSetter: nil, BaseTags: nil}
+	assert.Nil(t, lc.LogsTagSetter, "nil LogsTagSetter must be accepted by LifecycleContext")
+}
+
+// TestMicroVM_LogsTagSetter_InvokedOnLaunch verifies the behaviour that
+// MicroVM.Init wires when LogsTagSetter is non-nil: SetLogsTagSetter is called
+// on the server, and the server then invokes the setter on /launch with the
+// base tags plus the microvm_id from the request body.
+//
+// The test constructs the server directly with port 0 (random free port) to
+// avoid the log.Fatalf that Init emits when port 9000 is already bound.
+func TestMicroVM_LogsTagSetter_InvokedOnLaunch(t *testing.T) {
+	metricAgent := &serverlessMetrics.ServerlessMetricAgent{}
+
+	var mu sync.Mutex
+	var receivedTags []string
+	setter := lifecycle.LogsTagSetterFunc(func(tags []string) {
+		mu.Lock()
+		defer mu.Unlock()
+		receivedTags = tags
+	})
+	baseTags := []string{"env:test", "service:myapp"}
+
+	// Construct the server directly with port 0 — same path Init takes, minus
+	// the port-9000 binding that would log.Fatalf in a shared test environment.
+	srv := lifecycle.NewServer(
+		0, // random free port
+		metricAgent, &noopTraceAgent{}, &noopLogsFlusher{},
+		metricAgent, metricAgent,
+		(&MicroVM{}).GetSource(),
+		time.Second,
+		lifecycle.NewNoopChildHandle(),
+		nil, // no forwarder
+		nil, // no heartbeat
+	)
+	// This is the call Init makes when lc.LogsTagSetter != nil.
+	srv.SetLogsTagSetter(setter, baseTags)
+
+	l, err := srv.Listen()
+	require.NoError(t, err)
+	go srv.Serve(l)
+	t.Cleanup(func() {
+		shutCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = srv.Stop(shutCtx)
+	})
+
+	launchPath := "/aws/lambda-microvms/runtime/beta/v1/launch"
+	body := strings.NewReader(`{"microVmId":"vm-abc123"}`)
+	resp, err := http.Post("http://"+l.Addr().String()+launchPath, "application/json", body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	mu.Lock()
+	got := receivedTags
+	mu.Unlock()
+
+	assert.Contains(t, got, "env:test", "base tags must be forwarded to LogsTagSetter on /launch")
+	assert.Contains(t, got, "service:myapp", "base tags must be forwarded to LogsTagSetter on /launch")
+	assert.Contains(t, got, "lambda_microvm_id:vm-abc123", "microvm_id from /launch body must be appended to tags")
 }
 
 func TestMicroVMInit_NilTracingCtx_DoesNotStartServer(t *testing.T) {

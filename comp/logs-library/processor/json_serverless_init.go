@@ -20,8 +20,19 @@ var JSONServerlessInitEncoder Encoder = &jsonServerlessInitEncoder{}
 
 // jsonServerlessInitEncoder transforms a message into a JSON byte array.
 // It caches the tags string since tags are constant in serverless-init environments.
+// Call InvalidateServerlessInitTagCache when tags change at runtime (e.g. after
+// a MicroVM /launch hook adds lambda_microvm_id).
 type jsonServerlessInitEncoder struct {
 	cachedTags string
+}
+
+// InvalidateServerlessInitTagCache resets the JSONServerlessInitEncoder's
+// cached tags so the next Encode call re-reads tags from the live message.
+// Call this whenever the log tag set changes at runtime.
+func InvalidateServerlessInitTagCache() {
+	if enc, ok := JSONServerlessInitEncoder.(*jsonServerlessInitEncoder); ok {
+		enc.cachedTags = ""
+	}
 }
 
 // JSON representation of a message for serverless-init.

@@ -21,7 +21,8 @@ import (
 const DefaultHeartbeatInterval = 5 * time.Minute
 
 const (
-	activeInstancesMetricName = "aws.lambda.enhanced.microvm.active_instances"
+	activeInstancesMetricName   = "aws.lambda.enhanced.microvm.active_instances"
+	tracedInvocationsMetricName = activeInstancesMetricName
 
 	// unknownTagValue is the placeholder used when the MicroVM ID has not
 	// yet been observed (when the platform omits the header).
