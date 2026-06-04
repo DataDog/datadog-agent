@@ -166,7 +166,6 @@ func newPayloadsBuilderV3WithConfig(
 ) (*payloadsBuilderV3, error) {
 	maxCompressedSize := config.GetInt("serializer_max_series_payload_size")
 	maxUncompressedSize := config.GetInt("serializer_max_series_uncompressed_payload_size")
-	maxPointsPerPayload := config.GetInt("serializer_max_series_points_per_payload")
 
 	if level := config.GetInt("serializer_experimental_use_v3_api.compression_level"); level > 0 {
 		compression = selector.NewCompressor(config.GetString("serializer_compressor_kind"), level)
@@ -175,7 +174,7 @@ func newPayloadsBuilderV3WithConfig(
 	return newPayloadsBuilderV3(
 		maxCompressedSize,
 		maxUncompressedSize,
-		maxPointsPerPayload,
+		maxSeriesPointsPerPayload,
 		compression,
 		pipelineConfig,
 		pipelineContext,

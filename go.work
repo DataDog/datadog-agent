@@ -20,6 +20,8 @@ use (
 	comp/core/flare/builder
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface
+	comp/core/hostname/hostnameinterface/def
+	comp/core/hostname/hostnameinterface/mock
 	comp/core/ipc/def
 	comp/core/ipc/httphelpers
 	comp/core/ipc/impl

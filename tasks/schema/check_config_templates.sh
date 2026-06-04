@@ -9,8 +9,8 @@
 set -euo pipefail
 
 PROJECT_DIR="$1"
-CORE_SCHEMA="$PROJECT_DIR/pkg/config/schema/core_schema.yaml"
-SYSPROBE_SCHEMA="$PROJECT_DIR/pkg/config/schema/system-probe_schema.yaml"
+CORE_SCHEMA="$PROJECT_DIR/pkg/config/schema/yaml/core_schema.yaml"
+SYSPROBE_SCHEMA="$PROJECT_DIR/pkg/config/schema/yaml/system-probe_schema.yaml"
 RENDER_CONFIG="$PROJECT_DIR/pkg/config/render_config/render_config.go"
 CONFIG_DIR="$PROJECT_DIR/pkg/config"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

@@ -10,14 +10,16 @@ package executors
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
+	"path"
+	"slices"
 	"strings"
 
-	"k8s.io/client-go/kubernetes"
-
-	"sigs.k8s.io/yaml"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
 )
@@ -29,8 +31,10 @@ const (
 	maxResourceOutputSize int = 1.5 * 1024 * 1024 // 1.5MB
 )
 
+var protectedResourceKinds = []string{"secret", "secrets"}
+
 type GetResourceExecutor struct {
-	clientset kubernetes.Interface
+	dynamicClient dynamic.Interface
 }
 
 // Ensure interface compliance at compile time
@@ -42,10 +46,14 @@ var (
 )
 
 // NewGetResourceExecutor creates a new GetResourceExecutor
-func NewGetResourceExecutor(clientset kubernetes.Interface) *GetResourceExecutor {
+func NewGetResourceExecutor(dynamicClient dynamic.Interface) *GetResourceExecutor {
 	return &GetResourceExecutor{
-		clientset: clientset,
+		dynamicClient: dynamicClient,
 	}
+}
+
+func getResourceName(kind, namespace, name string) string {
+	return path.Join(kind, namespace, name)
 }
 
 // Execute retrieves the specified Kubernetes resource and returns it as JSON string in the message field of ExecutionResult
@@ -63,60 +71,56 @@ func (e *GetResourceExecutor) Execute(ctx context.Context, action *kubeactions.K
 		}
 	}
 
-	// prevent the executor from being used to get secrets for security reasons, even if the user has permissions to do so, we don't want to allow that
-	if strings.Contains(kind, "secret") {
+	// prevent the executor from being used to get protected resources for security reasons, even if the user has permissions to do so, we don't want to allow that
+	if slices.Contains(protectedResourceKinds, strings.ToLower(kind)) {
 		return ExecutionResult{
 			Status:  StatusFailed,
-			Message: "getting secrets is not allowed for security reasons",
+			Message: fmt.Sprintf("getting %s is not allowed for security reasons", kind),
 		}
 	}
 
-	// build the raw REST request to get the resource as unstructured JSON
-	var path string
-
-	// the api version for core resources does not contain a '/'.
-	// and the path for core resources is /api/....
-	// as for all other resources the path is /apis/...
-	var apiPrefix string
-	if !strings.Contains(apiVersion, "/") {
-		apiPrefix = "/api"
+	// parse apiVersion into group and version for the dynamic client.
+	// core resources have no group (e.g. "v1"), others use "group/version" (e.g. "apps/v1").
+	var group, version string
+	if parts := strings.SplitN(apiVersion, "/", 2); len(parts) == 2 {
+		group, version = parts[0], parts[1]
 	} else {
-		apiPrefix = "/apis"
+		version = apiVersion
 	}
 
-	// resource.GetApiVersion() returns group/version, it will automagically handle adding the group prefix if needed
-	// or not adding it for core resources
-	if namespace == "" {
-		path, _ = url.JoinPath(apiPrefix, apiVersion, kind, name)
-	} else {
-		path, _ = url.JoinPath(apiPrefix, apiVersion, "namespaces", namespace, kind, name)
-	}
+	resourceName := getResourceName(kind, namespace, name)
+
+	gvr := schema.GroupVersionResource{Group: group, Version: version, Resource: kind}
 
 	ctx, cancel := context.WithTimeout(ctx, defaultExecutorTimeout)
 	defer cancel()
 
-	data, err := e.clientset.CoreV1().RESTClient().Get().AbsPath(path).Do(ctx).Raw()
+	obj, err := e.dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return ExecutionResult{
 			Status:  StatusFailed,
-			Message: fmt.Sprintf("failed to get resource: %v -- raw response body: %s", err, string(data)),
+			Message: fmt.Sprintf("failed to get resource %s: %v", resourceName, err),
 		}
 	}
 
-	outputFormat := "json"
-	if output := action.GetGetResource_().GetOutputFormat(); output != "" {
-		outputFormat = strings.ToLower(output)
-	}
-
-	output, err := formatOutput(data, outputFormat)
+	data, err := obj.MarshalJSON()
 	if err != nil {
 		return ExecutionResult{
 			Status:  StatusFailed,
-			Message: fmt.Sprintf("failed to format output to %s: %v", outputFormat, err),
+			Message: fmt.Sprintf("failed to marshal resource %s to JSON: %v", resourceName, err),
 		}
 	}
 
-	output = bytes.TrimSpace(output)
+	buff := bytes.Buffer{}
+
+	// try to compact the JSON data
+	if json.Compact(&buff, data) != nil {
+		// if the JSON data is not compactable, we will use the original data
+		buff.Reset()
+		buff.Write(data)
+	}
+
+	output := bytes.TrimSpace(buff.Bytes())
 	if len(output) > maxResourceOutputSize {
 		return ExecutionResult{
 			Status:  StatusFailed,
@@ -126,25 +130,9 @@ func (e *GetResourceExecutor) Execute(ctx context.Context, action *kubeactions.K
 
 	return ExecutionResult{
 		Status:  StatusSuccess,
-		Message: fmt.Sprintf("get resource %s/%s success", kind, name),
+		Message: fmt.Sprintf("get resource %s success", resourceName),
 		Payloads: map[string][]byte{
-			namespace + "/" + name: output,
+			resourceName: output,
 		},
-	}
-}
-
-func formatOutput(data []byte, format string) ([]byte, error) {
-	switch format {
-	case "json":
-		return data, nil
-	case "yaml":
-		jsonData := data
-		yamlData, err := yaml.JSONToYAML(jsonData)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert resource JSON to YAML: %v", err)
-		}
-		return yamlData, nil
-	default:
-		return nil, ErrUnsupportedFormat
 	}
 }
