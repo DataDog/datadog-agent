@@ -121,7 +121,9 @@ Go build tags control feature inclusion, some examples are:
 - `docker` - Docker support
 - `ebpf` - eBPF support
 - `python` - Python check support
-- and MANY more, refer to ./tasks/build_tags.py for a full reference.
+- and MANY more, refer to `tasks/build_tags.bzl` (the source of truth) for a full reference.
+
+Bazel/Gazelle build-tag handling is documented in `bazel/AGENTS.md` ("Go build tags and flavors").
 
 ## Important Files
 - `datadog.yaml` - Main agent configuration

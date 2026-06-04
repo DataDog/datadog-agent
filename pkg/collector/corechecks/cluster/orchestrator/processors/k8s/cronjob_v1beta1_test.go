@@ -50,7 +50,7 @@ func TestCronJobV1Beta1Handlers_BeforeCacheCheck(t *testing.T) {
 	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
 	handlers := NewCronJobV1Beta1Handlers(tagger)
 
-	skip := handlers.BeforeCacheCheck(ctx, resource, resourceModel)
+	skip := handlers.EnrichModel(ctx, resource, resourceModel)
 	assert.False(t, skip)
 	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
 }
@@ -118,16 +118,16 @@ func TestCronJobV1Beta1Handlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*batchv1beta1.CronJob)
 	assert.True(t, ok)
 	assert.Equal(t, "cronjob-1", resource1.Name)
-	assert.NotSame(t, cronJob1, resource1) // Should be a copy
+	assert.Same(t, cronJob1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*batchv1beta1.CronJob)
 	assert.True(t, ok)
 	assert.Equal(t, "cronjob-2", resource2.Name)
-	assert.NotSame(t, cronJob2, resource2) // Should be a copy
+	assert.Same(t, cronJob2, resource2) // ResourceList returns raw informer references
 }
 
 func TestCronJobV1Beta1Handlers_ResourceUID(t *testing.T) {
@@ -441,4 +441,14 @@ func createTestCronJobV1Beta1(name, namespace string) *batchv1beta1.CronJob {
 			LastSuccessfulTime: &lastSuccessfulTime,
 		},
 	}
+}
+
+func TestCronJobV1Beta1Handlers_CloneResource(t *testing.T) {
+	handlers := &CronJobV1Beta1Handlers{}
+	original := createTestCronJobV1Beta1("test", "ns")
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*batchv1beta1.CronJob)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

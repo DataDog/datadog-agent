@@ -4,6 +4,7 @@ load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_sourc
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
+load("//tasks:build_tags.bzl", "GAZELLE_BUILD_TAGS")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -410,10 +411,9 @@ exports_files(glob(
 # gazelle:exclude pkg/dyninst/uprobe
 # gazelle:exclude pkg/ebpf/_obj
 # gazelle:exclude pkg/ebpf/bytecode/runtime
-# gazelle:exclude pkg/ebpf/ebpftest
+# gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
 # gazelle:exclude pkg/ebpf/features
 # gazelle:exclude pkg/ebpf/kernelbugs
-# gazelle:exclude pkg/ebpf/maps
 # gazelle:exclude pkg/ebpf/modifiers
 # gazelle:exclude pkg/ebpf/perf
 # gazelle:exclude pkg/ebpf/uprobes
@@ -678,72 +678,15 @@ exports_files(glob(
 # gazelle:exclude **/testdata/**/*.go
 # ======= END TESTDATA EXCLUDES =======
 
-# All custom build tags from tasks/build_tags.py ALL_TAGS, plus "test".
-# "test" is included so Gazelle analyzes test-only sources and generates their
-# deps. The go_build_tags Gazelle extension removes those files from go_library
-# and moves them into go_test targets; their deps remain in go_library (harmless
-# extra) and are accessible to go_test via embedding.
-_GAZELLE_BUILD_TAGS = [
-    "bundle_installer",
-    "cel",
-    "clusterchecks",
-    "consul",
-    "containerd",
-    "cri",
-    "crio",
-    "cws_instrumentation_injector_only",
-    "datadog.no_waf",
-    "docker",
-    "e2eunit",
-    "ec2",
-    "etcd",
-    "fargateprocess",
-    "goexperiment.systemcrypto",
-    "grpcnotrace",
-    "jetson",
-    "jmx",
-    "kubeapiserver",
-    "kubelet",
-    "linux_bpf",
-    "ncm",
-    "netcgo",
-    "netgo",
-    "no_dynamic_plugins",
-    "npm",
-    "nvml",
-    "oracle",
-    "orchestrator",
-    "osusergo",
-    "otlp",
-    "podman",
-    "private_runner_experimental",
-    "python",
-    "requirefips",
-    "retrynotrace",
-    "seclmax",
-    "serverless",
-    "sharedlibrarycheck",
-    "systemd",
-    "systemprobechecks",
-    "test",
-    "trivy",
-    "trivy_no_javadb",
-    "wmi",
-    "zk",
-    "zlib",
-    "zstd",
-    "e2ecoverage",
-    "functionaltests",
-    "manualtest",
-]
-
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient //pkg/proto/pbgo/privateactionrunner/actionsclient
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode //pkg/proto/pbgo/privateactionrunner/errorcode
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions //pkg/proto/pbgo/privateactionrunner/privateactions
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx //pkg/proto/pbgo/trace/idx
+# GAZELLE_BUILD_TAGS is the source-of-truth tag list from
+# tasks/build_tags.bzl, shared with the dda inv build-tag code.
 gazelle(
     name = "gazelle",
-    build_tags = _GAZELLE_BUILD_TAGS,
+    build_tags = GAZELLE_BUILD_TAGS,
     external = "static",  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
     extra_args = [
         "-build_file_name=BUILD.bazel",  # avoid BUILD/build mess: https://github.com/docker/desktop-feedback/issues/251
@@ -758,6 +701,7 @@ gazelle_binary(
     languages = DEFAULT_LANGUAGES + [
         "//bazel/rules/cws_codegen:gazelle_extension",
         "//bazel/rules/go_build_tags:gazelle_extension",
+        "//bazel/rules/go_msgp:gazelle_extension",
         "//bazel/rules/go_stringer:gazelle_extension",
         "//bazel/rules/write_pb_go:gazelle_extension",
     ],
