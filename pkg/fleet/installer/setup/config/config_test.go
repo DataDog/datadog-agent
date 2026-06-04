@@ -303,6 +303,29 @@ logs_enabled: true
 	}, datadog)
 }
 
+func TestRemoteConfigurationEnabled(t *testing.T) {
+	tempDir := t.TempDir()
+	existing := `---
+api_key: "key"
+`
+	writeInitialDatadogConfig(t, tempDir, existing)
+
+	cfg := Config{}
+	cfg.DatadogYAML.APIKey = "key"
+	cfg.DatadogYAML.RemoteConfiguration = &DatadogConfigRemoteConfiguration{Enabled: BoolToPtr(true)}
+
+	err := WriteConfigs(cfg, tempDir)
+	assert.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key": "key",
+		"remote_configuration": map[string]interface{}{
+			"enabled": true,
+		},
+	}, datadog)
+}
+
 func TestAllBasicEnvVars(t *testing.T) {
 	tempDir := t.TempDir()
 	existing := `---

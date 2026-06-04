@@ -119,6 +119,14 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 		},
 	}
 
+	// For GovCloud, remote_configuration.enabled defaults to false unless explicitly set.
+	// The installer daemon requires RC, so we must opt-in explicitly when bootstrapping.
+	if s.Env.IsGovSite() {
+		s.Config.DatadogYAML.RemoteConfiguration = &config.DatadogConfigRemoteConfiguration{
+			Enabled: config.BoolToPtr(true),
+		}
+	}
+
 	// Map DD_LOGS_ENABLED env var into datadog.yaml
 	if logsEnabledEnv := os.Getenv("DD_LOGS_ENABLED"); logsEnabledEnv != "" {
 		logsEnabled := strings.EqualFold(logsEnabledEnv, "true") || logsEnabledEnv == "1"

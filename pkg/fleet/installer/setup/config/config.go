@@ -71,27 +71,33 @@ type Config struct {
 
 // DatadogConfig represents the configuration to write in /etc/datadog-agent/datadog.yaml
 type DatadogConfig struct {
-	APIKey               string                     `yaml:"api_key,omitempty"`
-	Hostname             string                     `yaml:"hostname,omitempty"`
-	Site                 string                     `yaml:"site,omitempty"`
-	Proxy                DatadogConfigProxy         `yaml:"proxy,omitempty"`
-	Env                  string                     `yaml:"env,omitempty"`
-	Tags                 []string                   `yaml:"tags,omitempty"`
-	ExtraTags            []string                   `yaml:"extra_tags,omitempty"`
-	LogsEnabled          *bool                      `yaml:"logs_enabled,omitempty"`
-	DJM                  DatadogConfigDJM           `yaml:"djm_config,omitempty"`
-	ProcessConfig        DatadogConfigProcessConfig `yaml:"process_config,omitempty"`
-	ExpectedTagsDuration string                     `yaml:"expected_tags_duration,omitempty"`
-	RemoteUpdates        *bool                      `yaml:"remote_updates,omitempty"`
-	Installer            DatadogConfigInstaller     `yaml:"installer,omitempty"`
-	DDURL                string                     `yaml:"dd_url,omitempty"`
-	LogsConfig           LogsConfig                 `yaml:"logs_config,omitempty"`
-	GPUCheck             GPUCheckConfig             `yaml:"gpu,omitempty"`
-	SBOM                 SBOMConfig                 `yaml:"sbom,omitempty"`
-	InfrastructureMode   string                     `yaml:"infrastructure_mode,omitempty"`
-	APMConfig            DatadogAPMConfig           `yaml:"apm_config,omitempty"`
-	AppKey               string                     `yaml:"app_key,omitempty"`
-	PrivateActionRunner  PrivateActionRunnerConfig  `yaml:"private_action_runner,omitempty"`
+	APIKey               string                            `yaml:"api_key,omitempty"`
+	Hostname             string                            `yaml:"hostname,omitempty"`
+	Site                 string                            `yaml:"site,omitempty"`
+	Proxy                DatadogConfigProxy                `yaml:"proxy,omitempty"`
+	Env                  string                            `yaml:"env,omitempty"`
+	Tags                 []string                          `yaml:"tags,omitempty"`
+	ExtraTags            []string                          `yaml:"extra_tags,omitempty"`
+	LogsEnabled          *bool                             `yaml:"logs_enabled,omitempty"`
+	DJM                  DatadogConfigDJM                  `yaml:"djm_config,omitempty"`
+	ProcessConfig        DatadogConfigProcessConfig        `yaml:"process_config,omitempty"`
+	ExpectedTagsDuration string                            `yaml:"expected_tags_duration,omitempty"`
+	RemoteUpdates        *bool                             `yaml:"remote_updates,omitempty"`
+	Installer            DatadogConfigInstaller            `yaml:"installer,omitempty"`
+	DDURL                string                            `yaml:"dd_url,omitempty"`
+	LogsConfig           LogsConfig                        `yaml:"logs_config,omitempty"`
+	GPUCheck             GPUCheckConfig                    `yaml:"gpu,omitempty"`
+	SBOM                 SBOMConfig                        `yaml:"sbom,omitempty"`
+	InfrastructureMode   string                            `yaml:"infrastructure_mode,omitempty"`
+	APMConfig            DatadogAPMConfig                  `yaml:"apm_config,omitempty"`
+	AppKey               string                            `yaml:"app_key,omitempty"`
+	PrivateActionRunner  PrivateActionRunnerConfig         `yaml:"private_action_runner,omitempty"`
+	RemoteConfiguration  *DatadogConfigRemoteConfiguration `yaml:"remote_configuration,omitempty"`
+}
+
+// DatadogConfigRemoteConfiguration represents the remote_configuration section of datadog.yaml
+type DatadogConfigRemoteConfiguration struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 // PrivateActionRunnerConfig represents the configuration for the private action runner
