@@ -20,6 +20,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
+	"go.opentelemetry.io/collector/featuregate"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
@@ -28,6 +29,18 @@ import (
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
+)
+
+// NativeHistogramFeatureGate enables lossless OTel histogram export via the Datadog v3 wire format.
+// When enabled, ExponentialHistogram and ExplicitBoundHistogram data points are forwarded as native
+// OTel histograms instead of being converted to DDSketches. Only delta points are emitted;
+// cumulative points are silently skipped.
+//
+// Enable with: --feature-gates=exporter.datadogexporter.NativeOTelHistograms
+var NativeHistogramFeatureGate = featuregate.GlobalRegistry().MustRegister(
+	"exporter.datadogexporter.NativeOTelHistograms",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterDescription("Send OTel histograms in native v3 wire format (delta only, replaces DDSketch conversion)"),
 )
 
 const (
@@ -106,6 +119,10 @@ func newFactoryForAgentWithType(
 
 	if featuregates.InferIntervalDeltaFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithInferDeltaInterval())
+	}
+
+	if NativeHistogramFeatureGate.IsEnabled() {
+		options = append(options, otlpmetrics.WithNativeHistograms())
 	}
 
 	f := &factory{

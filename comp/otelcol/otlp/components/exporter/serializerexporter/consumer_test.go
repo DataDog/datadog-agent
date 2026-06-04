@@ -190,11 +190,17 @@ func (m *MockSerializer) SendEvents(_ event.Events) error { return nil }
 func (m *MockSerializer) SendAgentShutdownEvent(_ context.Context, _ *event.Event) error {
 	return nil
 }
-func (m *MockSerializer) SendServiceChecks(_ servicecheck.ServiceChecks) error    { return nil }
-func (m *MockSerializer) SendIterableSeries(_ metrics.SerieSource) error          { return nil }
-func (m *MockSerializer) AreSeriesEnabled() bool                                  { return true }
-func (m *MockSerializer) SendSketch(_ metrics.SketchesSource) error               { return nil }
-func (m *MockSerializer) AreSketchesEnabled() bool                                { return true }
+func (m *MockSerializer) SendServiceChecks(_ servicecheck.ServiceChecks) error { return nil }
+func (m *MockSerializer) SendIterableSeries(_ metrics.SerieSource) error       { return nil }
+func (m *MockSerializer) AreSeriesEnabled() bool                               { return true }
+func (m *MockSerializer) SendSketch(_ metrics.SketchesSource) error            { return nil }
+func (m *MockSerializer) AreSketchesEnabled() bool                             { return true }
+func (m *MockSerializer) SendExplicitBucketHistograms(_ metrics.ExplicitBucketHistogramSource) error {
+	return nil
+}
+func (m *MockSerializer) SendExponentialHistograms(_ metrics.ExponentialHistogramSource) error {
+	return nil
+}
 func (m *MockSerializer) SendMetadata(_ marshaler.JSONMarshaler) error            { return nil }
 func (m *MockSerializer) SendHostMetadata(_ marshaler.JSONMarshaler) error        { return nil }
 func (m *MockSerializer) SendProcessesMetadata(_ interface{}) error               { return nil }

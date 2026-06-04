@@ -90,14 +90,16 @@ type SerializerConsumer interface {
 }
 
 type serializerConsumer struct {
-	extraTags       []string
-	series          metrics.Series
-	sketches        metrics.SketchSeriesList
-	apmstats        []io.Reader
-	apmReceiverAddr string
-	ipath           ingestionPath
-	hosts           map[string]struct{}
-	ecsFargateTags  map[string]struct{}
+	extraTags                []string
+	series                   metrics.Series
+	sketches                 metrics.SketchSeriesList
+	explicitBucketHistograms []*metrics.ExplicitBucketHistogramSeries
+	exponentialHistograms    []*metrics.ExponentialHistogramSeries
+	apmstats                 []io.Reader
+	apmReceiverAddr          string
+	ipath                    ingestionPath
+	hosts                    map[string]struct{}
+	ecsFargateTags           map[string]struct{}
 }
 
 // ingestionPath specifies which ingestion path is using the serializer exporter
@@ -109,12 +111,34 @@ const (
 	agentOTLPIngest
 )
 
-func (c *serializerConsumer) ConsumeExplicitBoundHistogram(_ context.Context, _ *otlpmetrics.Dimensions, _ pmetric.HistogramDataPointSlice) {
-	// TODO noop for now
+func (c *serializerConsumer) ConsumeExplicitBoundHistogram(_ context.Context, dimensions *otlpmetrics.Dimensions, _ uint64, interval int64, point pmetric.HistogramDataPoint, _ bool) {
+	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
+	if !ok {
+		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
+	}
+	c.explicitBucketHistograms = append(c.explicitBucketHistograms, &metrics.ExplicitBucketHistogramSeries{
+		Name:           dimensions.Name(),
+		EnrichmentTags: tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
+		Host:           dimensions.Host(),
+		Interval:       interval,
+		Points:         []pmetric.HistogramDataPoint{point},
+		Source:         msrc,
+	})
 }
 
-func (c *serializerConsumer) ConsumeExponentialHistogram(_ context.Context, _ *otlpmetrics.Dimensions, _ pmetric.ExponentialHistogramDataPointSlice) {
-	// TODO noop for now
+func (c *serializerConsumer) ConsumeExponentialHistogram(_ context.Context, dimensions *otlpmetrics.Dimensions, _ uint64, interval int64, point pmetric.ExponentialHistogramDataPoint) {
+	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
+	if !ok {
+		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
+	}
+	c.exponentialHistograms = append(c.exponentialHistograms, &metrics.ExponentialHistogramSeries{
+		Name:           dimensions.Name(),
+		EnrichmentTags: tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
+		Host:           dimensions.Host(),
+		Interval:       interval,
+		Points:         []pmetric.ExponentialHistogramDataPoint{point},
+		Source:         msrc,
+	})
 }
 
 func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
@@ -277,25 +301,39 @@ func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Se
 
 // Send exports all data recorded by the consumer. It does not reset the consumer.
 func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
-	var serieErr, sketchesErr error
+	var serieErr, sketchesErr, explicitHistErr, exponentialHistErr error
 	metrics.Serialize(
 		metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 200, 4000),
 		metrics.NewIterableSketches(func(_ *metrics.SketchSeries) {}, 200, 4000),
-		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+		metrics.NewIterableExplicitBucketHistograms(func(_ *metrics.ExplicitBucketHistogramSeries) {}, 200, 4000),
+		metrics.NewIterableExponentialHistograms(func(_ *metrics.ExponentialHistogramSeries) {}, 200, 4000),
+		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink, explicitSink metrics.ExplicitBucketHistogramSink, exponentialSink metrics.ExponentialHistogramSink) {
 			for _, serie := range c.series {
 				seriesSink.Append(serie)
 			}
 			for _, sketch := range c.sketches {
 				sketchesSink.Append(sketch)
 			}
+			for _, h := range c.explicitBucketHistograms {
+				explicitSink.Append(h)
+			}
+			for _, h := range c.exponentialHistograms {
+				exponentialSink.Append(h)
+			}
 		}, func(serieSource metrics.SerieSource) {
 			serieErr = s.SendIterableSeries(serieSource)
 		}, func(sketchesSource metrics.SketchesSource) {
 			sketchesErr = s.SendSketch(sketchesSource)
 		},
+		func(source metrics.ExplicitBucketHistogramSource) {
+			explicitHistErr = s.SendExplicitBucketHistograms(source)
+		},
+		func(source metrics.ExponentialHistogramSource) {
+			exponentialHistErr = s.SendExponentialHistograms(source)
+		},
 	)
 	apmErr := c.sendAPMStats()
-	return multierr.Combine(serieErr, sketchesErr, apmErr)
+	return multierr.Combine(serieErr, sketchesErr, explicitHistErr, exponentialHistErr, apmErr)
 }
 
 func (c *serializerConsumer) sendAPMStats() error {
