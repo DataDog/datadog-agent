@@ -277,6 +277,14 @@ BUILD files are configuration, not code — prioritize readability over deduplic
   directory *node*, not its contents, breaking incremental builds.
 - Use `[]` to express "no targets", not a glob that matches nothing.
 
+## Go build tags and flavors
+
+Tags and per-flavor tag sets are defined in `tasks/build_tags.bzl`, the single source of truth. It
+is written in the Starlark∩Python subset so it is both `load()`ed by `//BUILD.bazel` (for
+`GAZELLE_BUILD_TAGS`, the `//:gazelle` `build_tags`) and exec'd by `tasks/build_tags.py` — no codegen
+step. Edit that file to add or change a tag, using `set([...])` (a `{...}` literal is a dict in
+Starlark). The `AgentFlavor` mapping stays in `build_tags.py`, since Starlark has no enums.
+
 ## Starlark language
 
 Starlark is Python-like but with deliberate restrictions for hermeticity and parallelism. Key divergences:
