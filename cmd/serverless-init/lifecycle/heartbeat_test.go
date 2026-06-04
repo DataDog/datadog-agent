@@ -18,13 +18,13 @@ import (
 
 func newTestHeartbeat(interval time.Duration) (*Heartbeat, *mockMetricEmitter) {
 	emitter := &mockMetricEmitter{}
-	hb := NewHeartbeat(interval, emitter, metrics.MetricSourceAWSMicroVMEnhanced, []string{"microvm_image_arn:test-arn", "microvm_id:test-id"})
+	hb := NewHeartbeat(interval, emitter, metrics.MetricSourceAWSMicroVMEnhanced, "test-arn")
 	return hb, emitter
 }
 
 func TestNewHeartbeat_NonPositiveIntervalFallsBackToDefault(t *testing.T) {
 	for _, in := range []time.Duration{0, -1, -time.Second} {
-		hb := NewHeartbeat(in, &mockMetricEmitter{}, metrics.MetricSourceAWSMicroVMEnhanced, nil)
+		hb := NewHeartbeat(in, &mockMetricEmitter{}, metrics.MetricSourceAWSMicroVMEnhanced, "")
 		assert.Equal(t, DefaultHeartbeatInterval, hb.interval, "interval=%s should fall back to default", in)
 	}
 }
@@ -39,7 +39,7 @@ func TestHeartbeat_EmitsImmediatelyOnStart(t *testing.T) {
 	defer hb.Stop()
 
 	require.Eventually(t, func() bool {
-		return countOfMetric(emitter, heartbeatMetricName) >= 1
+		return countOfMetric(emitter, activeInstancesMetricName) >= 1
 	}, 500*time.Millisecond, time.Millisecond, "must emit once immediately, without waiting for the ticker")
 }
 
@@ -54,13 +54,12 @@ func TestHeartbeat_EmitsAtInterval(t *testing.T) {
 	// Wait long enough for at least 3 ticks. Allow generous slack so a slow
 	// CI runner doesn't flake.
 	require.Eventually(t, func() bool {
-		return countOfMetric(emitter, heartbeatMetricName) >= 3
+		return countOfMetric(emitter, activeInstancesMetricName) >= 3
 	}, 2*time.Second, 5*time.Millisecond, "expected at least 3 heartbeat emissions")
 
-	// All emitted metrics should be heartbeats; assertion guards against a
-	// future bug that emits something else through the same goroutine.
 	for _, name := range emitter.getEmitted() {
-		assert.Equal(t, heartbeatMetricName, name)
+		assert.Equal(t, activeInstancesMetricName, name,
+			"unexpected metric name from heartbeat goroutine: %s", name)
 	}
 }
 
@@ -76,11 +75,12 @@ func TestHeartbeat_StartIsIdempotent_NoDoubleEmission(t *testing.T) {
 	// then stop to freeze the count before checking the upper bound.
 	// With two goroutines (bug): count would be ~2× the single-goroutine rate.
 	require.Eventually(t, func() bool {
-		return countOfMetric(emitter, heartbeatMetricName) >= 3
+		return countOfMetric(emitter, activeInstancesMetricName) >= 3
 	}, 2*time.Second, 5*time.Millisecond, "should have emitted at least 3 times (1 immediate + 2 ticks)")
 	hb.Stop()
 
-	count := countOfMetric(emitter, heartbeatMetricName)
+	count := countOfMetric(emitter, activeInstancesMetricName)
+	assert.GreaterOrEqual(t, count, 3, "should have emitted at least 3 times (1 immediate + 2 ticks)")
 	assert.LessOrEqual(t, count, 5, "double-Start must not double the emission rate")
 }
 
@@ -107,15 +107,15 @@ func TestHeartbeat_RestartAfterStopWorks(t *testing.T) {
 	hb, emitter := newTestHeartbeat(20 * time.Millisecond)
 	hb.Start()
 	require.Eventually(t, func() bool {
-		return countOfMetric(emitter, heartbeatMetricName) >= 1
+		return countOfMetric(emitter, activeInstancesMetricName) >= 1
 	}, 500*time.Millisecond, 5*time.Millisecond)
 	hb.Stop()
-	beforeRestart := countOfMetric(emitter, heartbeatMetricName)
+	beforeRestart := countOfMetric(emitter, activeInstancesMetricName)
 
 	hb.Start()
 	defer hb.Stop()
 	require.Eventually(t, func() bool {
-		return countOfMetric(emitter, heartbeatMetricName) > beforeRestart+1
+		return countOfMetric(emitter, activeInstancesMetricName) > beforeRestart+1
 	}, 500*time.Millisecond, 5*time.Millisecond, "heartbeat must resume emissions after restart")
 }
 
@@ -146,7 +146,7 @@ func TestHeartbeat_StopWaitsForGoroutineToExit(t *testing.T) {
 func TestHeartbeat_StopIsUnblockedWhenEmitterStucks(t *testing.T) {
 	block := make(chan struct{}) // closed later to unblock the emitter
 	blocker := &blockingMetricEmitter{block: block}
-	hb := NewHeartbeat(time.Millisecond /* fire immediately */, blocker, metrics.MetricSourceAWSMicroVMEnhanced, nil)
+	hb := NewHeartbeat(time.Millisecond /* fire immediately */, blocker, metrics.MetricSourceAWSMicroVMEnhanced, "")
 	hb.Start()
 
 	// Wait until the goroutine is blocked inside AddEnhancedMetric.
@@ -185,18 +185,55 @@ func TestHeartbeat_StopIsUnblockedWhenEmitterStucks(t *testing.T) {
 // Start, so this state should never reach an emitted metric in practice;
 // the test pins the contract anyway in case wiring changes.
 func TestHeartbeat_TagsForEmit_DefaultsMicroVMIDToUnknown(t *testing.T) {
-	hb := NewHeartbeat(time.Hour, &mockMetricEmitter{}, metrics.MetricSourceAWSMicroVMEnhanced, []string{"microvm_image_arn:test-arn"})
+	hb := NewHeartbeat(time.Hour, &mockMetricEmitter{}, metrics.MetricSourceAWSMicroVMEnhanced, "test-arn")
 	tags := hb.tagsForEmit()
 	assert.Contains(t, tags, "microvm_image_arn:test-arn")
 	assert.Contains(t, tags, "microvm_id:unknown")
 }
 
+// When resourceName is empty the microvm_image_arn tag must be absent — an
+// empty tag value would create a junk time-series in the metrics backend.
+func TestHeartbeat_TagsForEmit_NoARNTagWhenResourceNameEmpty(t *testing.T) {
+	hb := NewHeartbeat(time.Hour, &mockMetricEmitter{}, metrics.MetricSourceAWSMicroVMEnhanced, "")
+	for _, tag := range hb.tagsForEmit() {
+		assert.NotContains(t, tag, "microvm_image_arn",
+			"microvm_image_arn must not appear when resourceName is empty")
+	}
+}
+
 func TestHeartbeat_SetMicroVMID_ReflectsOnEmittedTags(t *testing.T) {
-	hb := NewHeartbeat(time.Hour, &mockMetricEmitter{}, metrics.MetricSourceAWSMicroVMEnhanced, []string{"microvm_image_arn:test-arn"})
+	hb := NewHeartbeat(time.Hour, &mockMetricEmitter{}, metrics.MetricSourceAWSMicroVMEnhanced, "test-arn")
 	hb.SetMicroVMID("mvm-abc123")
 	tags := hb.tagsForEmit()
 	assert.Contains(t, tags, "microvm_image_arn:test-arn")
 	assert.Contains(t, tags, "microvm_id:mvm-abc123")
+}
+
+// TestHeartbeat_EmittedMetric_CarriesARNTag verifies end-to-end that the
+// microvm_image_arn tag derived from resourceName reaches AddEnhancedMetric.
+// Testing tagsForEmit() in isolation does not prove emitAll passes the tags
+// through correctly; this test closes that gap.
+func TestHeartbeat_EmittedMetric_CarriesARNTag(t *testing.T) {
+	emitter := &mockMetricEmitter{}
+	hb := NewHeartbeat(time.Hour, emitter, metrics.MetricSourceAWSMicroVMEnhanced, "my-image-arn")
+	hb.Start()
+	defer hb.Stop()
+
+	require.Eventually(t, func() bool {
+		return countOfMetric(emitter, activeInstancesMetricName) >= 1
+	}, 500*time.Millisecond, time.Millisecond)
+
+	var hbMetric *emittedMetric
+	for _, m := range emitter.getEmittedMetrics() {
+		m := m
+		if m.name == activeInstancesMetricName {
+			hbMetric = &m
+			break
+		}
+	}
+	require.NotNil(t, hbMetric)
+	assert.Contains(t, hbMetric.extraTags, "microvm_image_arn:my-image-arn",
+		"ARN from resourceName must appear in the emitted heartbeat metric tags")
 }
 
 // Empty SetMicroVMID input is ignored — preserves the existing value rather
@@ -204,7 +241,7 @@ func TestHeartbeat_SetMicroVMID_ReflectsOnEmittedTags(t *testing.T) {
 // header is missing: the heartbeat keeps emitting with whatever ID was
 // last seen (or "unknown" if never set).
 func TestHeartbeat_SetMicroVMID_EmptyIsIgnored(t *testing.T) {
-	hb := NewHeartbeat(time.Hour, &mockMetricEmitter{}, metrics.MetricSourceAWSMicroVMEnhanced, nil)
+	hb := NewHeartbeat(time.Hour, &mockMetricEmitter{}, metrics.MetricSourceAWSMicroVMEnhanced, "")
 	hb.SetMicroVMID("first-id")
 	hb.SetMicroVMID("")
 	tags := hb.tagsForEmit()
@@ -221,19 +258,19 @@ func TestHeartbeat_SetMicroVMID_OnNilReceiverIsSafe(t *testing.T) {
 // slices so we can assert on what reached AddEnhancedMetric.
 func TestHeartbeat_SetMicroVMID_VisibleOnNextTick(t *testing.T) {
 	emitter := &mockMetricEmitter{}
-	hb := NewHeartbeat(20*time.Millisecond, emitter, metrics.MetricSourceAWSMicroVMEnhanced, []string{"microvm_image_arn:test-arn"})
+	hb := NewHeartbeat(20*time.Millisecond, emitter, metrics.MetricSourceAWSMicroVMEnhanced, "")
 	hb.Start()
 	defer hb.Stop()
 
 	require.Eventually(t, func() bool {
-		return countOfMetric(emitter, heartbeatMetricName) >= 1
+		return countOfMetric(emitter, activeInstancesMetricName) >= 1
 	}, 500*time.Millisecond, 5*time.Millisecond)
 
 	hb.SetMicroVMID("mvm-after-start")
 	// Wait for at least one tick after the SetMicroVMID call.
-	emittedBefore := countOfMetric(emitter, heartbeatMetricName)
+	emittedBefore := countOfMetric(emitter, activeInstancesMetricName)
 	require.Eventually(t, func() bool {
-		return countOfMetric(emitter, heartbeatMetricName) > emittedBefore
+		return countOfMetric(emitter, activeInstancesMetricName) > emittedBefore
 	}, 500*time.Millisecond, 5*time.Millisecond)
 
 	// The most recent emission must carry the updated ID.
@@ -254,7 +291,7 @@ func TestHeartbeat_EmittedMetricsCarryCurrentTimestamp(t *testing.T) {
 	defer hb.Stop()
 
 	require.Eventually(t, func() bool {
-		return countOfMetric(emitter, heartbeatMetricName) >= 1
+		return countOfMetric(emitter, activeInstancesMetricName) >= 1
 	}, 500*time.Millisecond, 5*time.Millisecond, "expected at least one heartbeat emission")
 
 	after := float64(time.Now().UnixNano()) / float64(time.Second)

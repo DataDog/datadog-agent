@@ -133,8 +133,8 @@ func NewServer(
 	metricSource metrics.MetricSource,
 	flushTimeout time.Duration,
 	childHandle ChildHandle, // may be nil
-	fwd *Forwarder, // may be nil
-	heartbeat *Heartbeat, // may be nil
+	fwd *Forwarder,          // may be nil
+	heartbeat *Heartbeat,    // may be nil
 ) *Server {
 	s := &Server{
 		metricFlusher: metricFlusher,
