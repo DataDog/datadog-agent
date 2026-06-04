@@ -418,14 +418,37 @@ if [ ! -f "$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}" ]; then
     exit 1
 fi
 
+# ─── Step 6b: Create runtime-path symlink ────────────────────────────────────
+#
+# Python's sys.prefix is baked-in as $EMBEDDED (/opt/datadog-agent/embedded).
+# The Python binaries now carry -blibpath:$EMBEDDED/lib in their XCOFF loader
+# section (see _PYTHON_LDFLAGS above). We must create the symlink BEFORE the
+# first invocation of the staged Python (ensurepip below) so that libpython
+# can be found via the baked-in path on a clean build host.
+#
+# The symlink also ensures that C extensions in later stages can resolve
+# ld_so_aix and Python config files at the $EMBEDDED prefix.
+# The 10-assemble stage removes this symlink and replaces it with real files.
+
+if [ -L "$EMBEDDED" ] && [ "$(readlink "$EMBEDDED")" = "$EMBEDDED_DESTDIR" ]; then
+    log "INFO: $EMBEDDED symlink already correct."
+else
+    if [ -e "$EMBEDDED" ] && [ ! -L "$EMBEDDED" ]; then
+        log "INFO: $EMBEDDED is a real path — removing to create symlink"
+        rm -rf "$EMBEDDED"
+    fi
+    mkdir -p "$(dirname "$EMBEDDED")"
+    ln -sf "$EMBEDDED_DESTDIR" "$EMBEDDED"
+    log "Created runtime-path symlink: $EMBEDDED -> $EMBEDDED_DESTDIR"
+fi
+
 # ─── Step 7: Bootstrap pip ───────────────────────────────────────────────────
 #
 # We configured with --without-ensurepip, so we must bootstrap pip manually.
 # We invoke the STAGING executable ($EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}).
 # Python discovers sys.prefix from its executable path at runtime, so it finds
 # its stdlib under $EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}/ and installs packages into
-# the staging tree — not into $EMBEDDED (which does not exist yet on this host).
-# At runtime on the user's system the files are at $EMBEDDED, which is correct.
+# the staging tree. At runtime on the user's system the files are at $EMBEDDED.
 
 log "Bootstrapping pip using staging Python executable"
 "$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}" -m ensurepip
@@ -455,26 +478,6 @@ log "Created: $EMBEDDED_DESTDIR/lib/libpython${PYTHON_MAJ_MIN}.a (member: shr_64
 # of hardcoding the minor version.
 ln -sf "libpython${PYTHON_MAJ_MIN}.a" "$EMBEDDED_DESTDIR/lib/libpython3.a"
 log "Created symlink: libpython3.a -> libpython${PYTHON_MAJ_MIN}.a"
-
-# ─── Step 7c: Create runtime-path symlink (needed to build C extensions) ─────
-#
-# Python's sys.prefix is baked-in as $EMBEDDED (/opt/datadog-agent/embedded).
-# When building C extensions (cffi, psutil, etc.) in later stages, Python looks
-# for ld_so_aix and config files at that prefix. We create a symlink from the
-# runtime path to the staging path so Python can find these files during the build.
-# The 10-assemble stage will remove this symlink and replace it with the real files.
-
-if [ -L "$EMBEDDED" ] && [ "$(readlink "$EMBEDDED")" = "$EMBEDDED_DESTDIR" ]; then
-    log "INFO: $EMBEDDED symlink already correct."
-else
-    if [ -e "$EMBEDDED" ] && [ ! -L "$EMBEDDED" ]; then
-        log "INFO: $EMBEDDED is a real path — removing to create symlink"
-        rm -rf "$EMBEDDED"
-    fi
-    mkdir -p "$(dirname "$EMBEDDED")"
-    ln -sf "$EMBEDDED_DESTDIR" "$EMBEDDED"
-    log "Created runtime-path symlink: $EMBEDDED -> $EMBEDDED_DESTDIR"
-fi
 
 # ─── Step 8: Convenience symlinks ────────────────────────────────────────────
 
