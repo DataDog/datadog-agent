@@ -76,6 +76,67 @@ func TestMigrateLegacyOCIBaseline(t *testing.T) {
 	})
 }
 
+func TestMigrateLegacyOCIDiff(t *testing.T) {
+	const legacyContent = "datadog-redisdb==5.0.0\n"
+
+	t.Run("legacy diff is migrated to storage when absent", func(t *testing.T) {
+		legacyDir := t.TempDir()
+		storageDir := filepath.Join(t.TempDir(), "run") // not yet created
+		if err := os.WriteFile(filepath.Join(legacyDir, diffFileName), []byte(legacyContent), 0o644); err != nil {
+			t.Fatalf("failed to seed legacy diff: %v", err)
+		}
+
+		if err := migrateLegacyOCIFile(legacyDir, storageDir, diffFileName); err != nil {
+			t.Fatalf("migrateLegacyOCIFile failed: %v", err)
+		}
+
+		got, err := os.ReadFile(filepath.Join(storageDir, diffFileName))
+		if err != nil {
+			t.Fatalf("expected diff at storage dir: %v", err)
+		}
+		if string(got) != legacyContent {
+			t.Errorf("diff content mismatch: got %q want %q", got, legacyContent)
+		}
+	})
+
+	t.Run("existing storage diff is not clobbered", func(t *testing.T) {
+		legacyDir := t.TempDir()
+		storageDir := t.TempDir()
+		const newContent = "datadog-postgres==7.0.0\n"
+		if err := os.WriteFile(filepath.Join(legacyDir, diffFileName), []byte(legacyContent), 0o644); err != nil {
+			t.Fatalf("failed to seed legacy diff: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(storageDir, diffFileName), []byte(newContent), 0o644); err != nil {
+			t.Fatalf("failed to seed storage diff: %v", err)
+		}
+
+		if err := migrateLegacyOCIFile(legacyDir, storageDir, diffFileName); err != nil {
+			t.Fatalf("migrateLegacyOCIFile failed: %v", err)
+		}
+
+		got, err := os.ReadFile(filepath.Join(storageDir, diffFileName))
+		if err != nil {
+			t.Fatalf("expected diff at storage dir: %v", err)
+		}
+		if string(got) != newContent {
+			t.Errorf("storage diff was overwritten: got %q want %q", got, newContent)
+		}
+	})
+
+	t.Run("no legacy diff is a no-op", func(t *testing.T) {
+		legacyDir := t.TempDir()
+		storageDir := t.TempDir()
+
+		if err := migrateLegacyOCIFile(legacyDir, storageDir, diffFileName); err != nil {
+			t.Fatalf("migrateLegacyOCIFile failed: %v", err)
+		}
+
+		if _, err := os.Stat(filepath.Join(storageDir, diffFileName)); !os.IsNotExist(err) {
+			t.Errorf("expected no diff to be created, got err=%v", err)
+		}
+	})
+}
+
 func TestRemoveCustomIntegrations(t *testing.T) {
 	dir := t.TempDir()
 

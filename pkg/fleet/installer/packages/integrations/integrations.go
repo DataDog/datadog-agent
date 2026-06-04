@@ -28,6 +28,10 @@ var (
 // pre.py to compute the set of custom integrations to restore across upgrades.
 const baselineFileName = ".post_python_installed_packages.txt"
 
+// diffFileName is the set of custom integrations to reinstall, written by pre.py
+// during the save step and read by post.py during the restore step.
+const diffFileName = ".diff_python_installed_packages.txt"
+
 // executePythonScript executes a Python script with the given arguments
 func executePythonScript(ctx context.Context, installPath, scriptName string, args ...string) error {
 	pythonPath := filepath.Join(installPath, "embedded/bin/python")
@@ -83,24 +87,32 @@ func SaveCustomIntegrations(ctx context.Context, installPath string, storagePath
 // Seeding the baseline at storageDir also lands the old script's diff there, where
 // the new post.py expects to read it.
 func migrateLegacyOCIBaseline(legacyDir, storageDir string) error {
-	dst := filepath.Join(storageDir, baselineFileName)
+	return migrateLegacyOCIFile(legacyDir, storageDir, baselineFileName)
+}
+
+// migrateLegacyOCIFile copies fileName from the legacy OCI tmp location to the
+// persistent storage path. It is a no-op when the destination already exists (we
+// never clobber a copy written by a newer hook) or when the legacy file is absent
+// (first install, or already migrated).
+func migrateLegacyOCIFile(legacyDir, storageDir, fileName string) error {
+	dst := filepath.Join(storageDir, fileName)
 	if _, err := os.Stat(dst); err == nil {
-		return nil // Already at the persistent location; don't clobber a newer baseline.
+		return nil
 	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("failed to stat baseline at %s: %w", dst, err)
+		return fmt.Errorf("failed to stat %s: %w", dst, err)
 	}
-	data, err := os.ReadFile(filepath.Join(legacyDir, baselineFileName))
+	data, err := os.ReadFile(filepath.Join(legacyDir, fileName))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil // No legacy baseline: first install or already migrated.
+			return nil
 		}
-		return fmt.Errorf("failed to read legacy baseline: %w", err)
+		return fmt.Errorf("failed to read legacy %s: %w", fileName, err)
 	}
 	if err := os.MkdirAll(storageDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create storage dir %s: %w", storageDir, err)
 	}
 	if err := os.WriteFile(dst, data, 0o644); err != nil {
-		return fmt.Errorf("failed to write baseline to %s: %w", dst, err)
+		return fmt.Errorf("failed to write %s to %s: %w", fileName, dst, err)
 	}
 	return nil
 }
@@ -120,6 +132,17 @@ func RestoreCustomIntegrations(ctx context.Context, installPath string) (err err
 	storagePath := installPath
 	if strings.HasPrefix(installPath, paths.PackagesPath) {
 		storagePath = paths.RunPath
+	}
+
+	// Backward-compat for OCI Agents installed before the baseline moved to RunPath:
+	// the save step (pre.py) ran from the old package and wrote the integration diff to
+	// the legacy RootTmpDir, but this restore reads it from RunPath. Seed RunPath with the
+	// legacy diff so the first upgrade to this version still restores custom integrations
+	// instead of silently dropping them. No-op once the diff already lives in RunPath.
+	if storagePath == paths.RunPath {
+		if err := migrateLegacyOCIFile(paths.RootTmpDir, storagePath, diffFileName); err != nil {
+			return err
+		}
 	}
 
 	return executePythonScript(ctx, installPath, "post.py", installPath, storagePath)
