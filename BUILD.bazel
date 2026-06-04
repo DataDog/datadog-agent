@@ -1,5 +1,9 @@
 # Global build settings
 
+# Opt-in repo-wide; enabled per subtree with `# gazelle:dd_agent_go_test on`.
+# TODO(ABLD-474): remove once per-flavor tests are enabled repo-wide.
+# gazelle:dd_agent_go_test off
+
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_source_files")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
