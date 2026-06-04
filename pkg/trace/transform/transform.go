@@ -318,10 +318,7 @@ func OtelSpanToDDSpan(
 	if msg := otelspan.Status().Message(); msg != "" {
 		ddspan.Meta[string(semconv.OtelStatusDescriptionKey)] = msg
 	}
-
-	if !spanMetaHasKey(ddspan, "error.msg") || !spanMetaHasKey(ddspan, "error.type") || !spanMetaHasKey(ddspan, "error.stack") {
-		ddspan.Error = Status2Error(otelspan.Status(), otelspan.Events(), ddspan.Meta)
-	}
+	SetErrorMsg(ddspan, otelspan.Status(), spanAccessor)
 
 	if !spanMetaHasKey(ddspan, "env") {
 		if env := LookupSemanticStringWithAccessor(spanAccessor, semantics.ConceptDeploymentEnv, true); env != "" {
@@ -564,6 +561,30 @@ func SetMetricOTLPIfEmpty(s *pb.Span, k string, v float64) {
 	}
 	if _, ok := s.Metrics[key]; !ok {
 		s.Metrics[key] = v
+	}
+}
+
+// SetErrorMsg checks the given status and sets error.msg when appropriate.
+func SetErrorMsg(s *pb.Span, status ptrace.Status, accessor semantics.Accessor) {
+	if _, ok := s.Meta["error.msg"]; s.Error == 0 || ok {
+		// Not an error span, or error message already set
+		return
+	}
+	if status.Message() != "" {
+		// Use the status message
+		s.Meta["error.msg"] = status.Message()
+		return
+	}
+	httpCode, ok := semantics.LookupInt64(semantics.DefaultRegistry(), accessor, semantics.ConceptHTTPStatusCode)
+	// If the status code is in the 1xx, 2xx, or 3xx range, the error must be unrelated
+	// See https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+	if !ok || (100 <= httpCode && httpCode <= 399) {
+		return
+	}
+	if statusText := http.StatusText(int(httpCode)); int64(int(httpCode)) == httpCode && statusText != "" {
+		s.Meta["error.msg"] = fmt.Sprintf("%d %s", httpCode, statusText)
+	} else {
+		s.Meta["error.msg"] = fmt.Sprintf("%d", httpCode)
 	}
 }
 
