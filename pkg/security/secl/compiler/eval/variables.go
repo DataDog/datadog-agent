@@ -24,6 +24,9 @@ var (
 	variableRegex         = regexp.MustCompile(`\${[^}]*}`)
 	fieldReferenceRegex   = regexp.MustCompile(`%{[^}]*}`)
 	errAppendNotSupported = errors.New("append is not supported")
+	// ErrScopeNotAvailable is returned when a scoped variable operation cannot be
+	// applied because the current event does not provide the requested scope.
+	ErrScopeNotAvailable = errors.New("scope not available")
 )
 
 // Telemetry tracks the values of evaluation metrics
@@ -1129,7 +1132,7 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 	setVariable := func(ctx *Context, value any) error {
 		scope := v.scoper(ctx)
 		if scope == nil {
-			return fmt.Errorf("`%s` scoper failed to scope variable '%s'", v.scoperName, name)
+			return fmt.Errorf("%w: `%s` scoper failed to scope variable '%s'", ErrScopeNotAvailable, v.scoperName, name)
 		}
 		key := scope.Hash()
 

@@ -2748,6 +2748,12 @@ properties:
   gpu_monitoring:
     node_type: section
     type: object
+    title: System Probe GPU Monitoring module
+    description: |-
+      Configuration for the GPU Monitoring module, which uses eBPF probes to collect
+      per-process GPU metrics on Linux hosts (kernel 5.8+).
+      Required for GPU monitoring on non-containerized Linux hosts alongside
+      gpu.enabled: true in datadog.yaml.
     properties:
       attacher_detailed_logs:
         node_type: setting
