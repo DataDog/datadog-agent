@@ -20,7 +20,6 @@ from tasks.e2e_framework.tool import add_known_host as add_known_host_func
 from tasks.e2e_framework.tool import clean_known_hosts as clean_known_hosts_func
 from tasks.e2e_framework.tool import get_host, notify, show_connection_message
 
-default_public_path_key_name = "ddinfra:aws/defaultPublicKeyPath"
 scenario_name = "aws/vm"
 remote_hostname = "aws-vm"
 
@@ -111,7 +110,6 @@ def create_vm(
         scenario_name,
         config_path,
         key_pair_required=True,
-        public_key_required=(os_family.lower() == "windows"),
         stack_name=stack_name,
         pipeline_id=pipeline_id,
         install_agent=install_agent,

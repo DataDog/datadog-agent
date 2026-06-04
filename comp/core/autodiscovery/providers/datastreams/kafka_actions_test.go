@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	noopautoconfig "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
