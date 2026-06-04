@@ -292,5 +292,5 @@ AND   h.id2     = w.id2
 AND   h.type    = w.type
 AND   h.con_id  = w.con_id
 AND   h.lmode   > 0
-AND   h.sid    != w.sid
+AND   NOT (h.inst_id = SYS_CONTEXT('USERENV', 'INSTANCE') AND h.sid = w.sid)
 AND   ROWNUM    = 1`
