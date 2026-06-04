@@ -77,11 +77,17 @@ notify_panic_unwound_lost(uint32_t prog_id, const di_event_header_t* header) {
   if (stats) {
     __sync_fetch_and_add(&stats->recovery_submit_failures, 1);
   }
-  send_drop_notification(
-      prog_id, /* probe_id */ 0, header->goid, /* stack_byte_depth */ 0,
-      /* last_seq */ 0, /* entry_ktime_ns */ 0,
-      DROP_REASON_PANIC_UNWOUND_LOST,
-      header->panic_lo_depth, header->panic_hi_depth);
+  di_drop_notification_t* dn = drop_notify_prepare();
+  if (dn) {
+    *dn = (di_drop_notification_t){
+        .prog_id = prog_id,
+        .goid = header->goid,
+        .drop_reason = DROP_REASON_PANIC_UNWOUND_LOST,
+        .panic_lo_depth = header->panic_lo_depth,
+        .panic_hi_depth = header->panic_hi_depth,
+    };
+    (void)send_drop_notification();
+  }
 }
 
 static inline __attribute__((always_inline)) void
@@ -266,10 +272,20 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
         // the side channel so the buffered entry can be emitted alone rather
         // than leaking until process shutdown.
         LOG(1, "probe_run: failed to submit condition-failed signal for return event");
-        send_drop_notification(
-            prog_id, params->probe_id, header->goid, header->stack_byte_depth,
-            0, global_ctx.stack_machine->entry_ktime_ns, DROP_REASON_RETURN_LOST,
-            /* panic_lo_depth */ 0, /* panic_hi_depth */ 0);
+        {
+          di_drop_notification_t* dn = drop_notify_prepare();
+          if (dn) {
+            *dn = (di_drop_notification_t){
+                .prog_id = prog_id,
+                .probe_id = params->probe_id,
+                .goid = header->goid,
+                .stack_byte_depth = header->stack_byte_depth,
+                .entry_ktime_ns = global_ctx.stack_machine->entry_ktime_ns,
+                .drop_reason = DROP_REASON_RETURN_LOST,
+            };
+            (void)send_drop_notification();
+          }
+        }
       }
     }
     // Entry: in_progress_calls insertion was deferred, so nothing to clean up.
@@ -285,10 +301,20 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_CONDITION_FAILED;
       if (!events_scratch_buf_submit(global_ctx.buf, start_ns)) {
         LOG(1, "probe_run: failed to submit throttled condition-failed signal");
-        send_drop_notification(
-            prog_id, params->probe_id, header->goid, header->stack_byte_depth,
-            0, global_ctx.stack_machine->entry_ktime_ns, DROP_REASON_RETURN_LOST,
-            /* panic_lo_depth */ 0, /* panic_hi_depth */ 0);
+        {
+          di_drop_notification_t* dn = drop_notify_prepare();
+          if (dn) {
+            *dn = (di_drop_notification_t){
+                .prog_id = prog_id,
+                .probe_id = params->probe_id,
+                .goid = header->goid,
+                .stack_byte_depth = header->stack_byte_depth,
+                .entry_ktime_ns = global_ctx.stack_machine->entry_ktime_ns,
+                .drop_reason = DROP_REASON_RETURN_LOST,
+            };
+            (void)send_drop_notification();
+          }
+        }
       }
     }
     // Entry: in_progress_calls insertion was deferred, so nothing to clean up.
@@ -344,17 +370,38 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       uint8_t reason = (params->kind == EVENT_KIND_RETURN)
                            ? DROP_REASON_PARTIAL_RETURN
                            : DROP_REASON_PARTIAL_ENTRY;
-      send_drop_notification(
-          prog_id, params->probe_id, header->goid, header->stack_byte_depth,
-          sm->last_submitted_seq, sm->entry_ktime_ns, reason,
-          /* panic_lo_depth */ 0, /* panic_hi_depth */ 0);
+      {
+        di_drop_notification_t* dn = drop_notify_prepare();
+        if (dn) {
+          *dn = (di_drop_notification_t){
+              .prog_id = prog_id,
+              .probe_id = params->probe_id,
+              .goid = header->goid,
+              .stack_byte_depth = header->stack_byte_depth,
+              .last_seq = sm->last_submitted_seq,
+              .entry_ktime_ns = sm->entry_ktime_ns,
+              .drop_reason = reason,
+          };
+          (void)send_drop_notification();
+        }
+      }
     } else if (params->kind == EVENT_KIND_RETURN) {
       // The very first flush failed; no return fragments are in flight.
       // Tell userspace to emit the matching entry alone.
-      send_drop_notification(
-          prog_id, params->probe_id, header->goid, header->stack_byte_depth,
-          0, sm->entry_ktime_ns, DROP_REASON_RETURN_LOST,
-          /* panic_lo_depth */ 0, /* panic_hi_depth */ 0);
+      {
+        di_drop_notification_t* dn = drop_notify_prepare();
+        if (dn) {
+          *dn = (di_drop_notification_t){
+              .prog_id = prog_id,
+              .probe_id = params->probe_id,
+              .goid = header->goid,
+              .stack_byte_depth = header->stack_byte_depth,
+              .entry_ktime_ns = sm->entry_ktime_ns,
+              .drop_reason = DROP_REASON_RETURN_LOST,
+          };
+          (void)send_drop_notification();
+        }
+      }
     }
     // Entry probe with no fragments: no userspace state to clean up.
     LOG(1, "probe_run: continuation aborted at seq=%d", sm->last_submitted_seq);
@@ -381,17 +428,38 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       uint8_t reason = (params->kind == EVENT_KIND_RETURN)
                            ? DROP_REASON_PARTIAL_RETURN
                            : DROP_REASON_PARTIAL_ENTRY;
-      send_drop_notification(
-          prog_id, params->probe_id, header->goid, header->stack_byte_depth,
-          sm->last_submitted_seq, sm->entry_ktime_ns, reason,
-          /* panic_lo_depth */ 0, /* panic_hi_depth */ 0);
+      {
+        di_drop_notification_t* dn = drop_notify_prepare();
+        if (dn) {
+          *dn = (di_drop_notification_t){
+              .prog_id = prog_id,
+              .probe_id = params->probe_id,
+              .goid = header->goid,
+              .stack_byte_depth = header->stack_byte_depth,
+              .last_seq = sm->last_submitted_seq,
+              .entry_ktime_ns = sm->entry_ktime_ns,
+              .drop_reason = reason,
+          };
+          (void)send_drop_notification();
+        }
+      }
     } else if (params->kind == EVENT_KIND_RETURN) {
       // No fragments were submitted; the return probe produced nothing in
       // userspace. Tell userspace to emit the matching entry alone.
-      send_drop_notification(
-          prog_id, params->probe_id, header->goid, header->stack_byte_depth,
-          0, sm->entry_ktime_ns, DROP_REASON_RETURN_LOST,
-          /* panic_lo_depth */ 0, /* panic_hi_depth */ 0);
+      {
+        di_drop_notification_t* dn = drop_notify_prepare();
+        if (dn) {
+          *dn = (di_drop_notification_t){
+              .prog_id = prog_id,
+              .probe_id = params->probe_id,
+              .goid = header->goid,
+              .stack_byte_depth = header->stack_byte_depth,
+              .entry_ktime_ns = sm->entry_ktime_ns,
+              .drop_reason = DROP_REASON_RETURN_LOST,
+          };
+          (void)send_drop_notification();
+        }
+      }
     }
     // Entry probe with no fragments (and not the recovery probe): no
     // userspace state to clean up.
