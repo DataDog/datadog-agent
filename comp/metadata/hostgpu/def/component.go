@@ -6,7 +6,7 @@
 // Package hostgpu exposes the interface for the component to generate the 'host_gpu' metadata payload for inventory.
 package hostgpu
 
-// team: gpu-monitoring-agent
+// team: ebpf-platform
 
 // Component is the component type.
 type Component interface {
