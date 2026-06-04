@@ -1,150 +1,179 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
-from tasks.renovate import _extract_urls, _parse_top_level_namespace
+from tasks.renovate import (
+    RepositoryRuleCall,
+    _parse_repository_rule_calls_from_text,
+    _replace_sha256_in_rule_block,
+    _strip_use_repo_rule_assignments,
+)
 
+try:
+    import starlark  # noqa: F401
 
-class TestParseTopLevelNamespace(unittest.TestCase):
-    def test_simple_string(self):
-        text = 'foo = "bar"\nhttp_archive(\n    name = "x",\n)\n'
-        ns = _parse_top_level_namespace(text)
-        self.assertEqual(ns["foo"], "bar")
-
-    def test_tuple(self):
-        text = 'ver = ("3", "45", "00")\nhttp_archive(\n    name = "x",\n)\n'
-        ns = _parse_top_level_namespace(text)
-        self.assertEqual(ns["ver"], ("3", "45", "00"))
-
-    def test_derived_variable(self):
-        text = (
-            'ver = ("3", "45", "00")\n'
-            'amalgamation = "sqlite-amalgamation-{}00".format("".join(ver))\n'
-            'http_archive(\n    name = "x",\n)\n'
-        )
-        ns = _parse_top_level_namespace(text)
-        # "".join(("3","45","00")) = "34500", then + "00" suffix = "3450000"
-        self.assertEqual(ns["amalgamation"], "sqlite-amalgamation-3450000")
-
-    def test_stops_before_http_archive(self):
-        # Variables defined inside a block must not bleed into the namespace.
-        text = 'top = "yes"\n' 'http_archive(\n' '    name = "x",\n' '    inside = "no",\n' ')\n'
-        ns = _parse_top_level_namespace(text)
-        self.assertIn("top", ns)
-        self.assertNotIn("inside", ns)
-
-    def test_stops_before_http_file(self):
-        text = 'top = "yes"\nhttp_file(\n    name = "x",\n)\n'
-        ns = _parse_top_level_namespace(text)
-        self.assertIn("top", ns)
-
-    def test_invalid_expression_skipped(self):
-        # An unresolvable expression must not raise — just be absent from namespace.
-        text = 'good = "ok"\nbad = unknown_var + 1\nhttp_archive(\n    name = "x",\n)\n'
-        ns = _parse_top_level_namespace(text)
-        self.assertEqual(ns["good"], "ok")
-        self.assertNotIn("bad", ns)
-
-    def test_empty_preamble(self):
-        text = 'http_archive(\n    name = "x",\n    url = "https://example.com/x.tar.gz",\n)\n'
-        ns = _parse_top_level_namespace(text)
-        self.assertEqual(ns, {})
+    HAS_STARLARK = True
+except ModuleNotFoundError:
+    HAS_STARLARK = False
 
 
-class TestExtractUrls(unittest.TestCase):
-    def test_plain_literal_url(self):
-        body = '    url = "https://example.com/pkg-1.0.tar.gz",\n'
-        self.assertEqual(_extract_urls(body), ["https://example.com/pkg-1.0.tar.gz"])
+ROOT = Path("/repo")
 
-    def test_multiple_literal_urls(self):
-        body = (
-            '    urls = [\n'
-            '        "https://mirror.example.com/pkg-1.0.tar.gz",\n'
-            '        "https://github.com/org/pkg/releases/download/v1.0/pkg-1.0.tar.gz",\n'
-            '    ],\n'
-        )
-        urls = _extract_urls(body)
-        self.assertEqual(len(urls), 2)
-        self.assertIn("https://mirror.example.com/pkg-1.0.tar.gz", urls)
-        self.assertIn("https://github.com/org/pkg/releases/download/v1.0/pkg-1.0.tar.gz", urls)
 
-    def test_no_urls_no_namespace(self):
-        body = '    url = "https://example.com/{}.zip".format(ver),\n'
-        self.assertEqual(_extract_urls(body), [])
+@unittest.skipUnless(HAS_STARLARK, "starlark-pyo3 is only available in the Bazel Python toolchain")
+class TestParseRepositoryRuleCalls(unittest.TestCase):
+    def test_resolves_top_level_version(self):
+        path = ROOT / "deps" / "demo" / "demo.MODULE.bazel"
+        text = """
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-    def test_template_url_resolved_via_namespace(self):
-        # Mirrors the sqlite3 pattern: url = ".../{}.zip".format(amalgamation)
-        ns = {"amalgamation": "sqlite-amalgamation-345000"}
-        body = '    url = "https://www.sqlite.org/2025/{}.zip".format(amalgamation),\n'
-        urls = _extract_urls(body, ns)
-        self.assertEqual(urls, ["https://www.sqlite.org/2025/sqlite-amalgamation-345000.zip"])
+VERSION = "1.2.3"
 
-    def test_template_urls_list_comprehension_resolved(self):
-        # Mirrors the sqlite3_license pattern:
-        #   urls = [url.format(ver_str) for url in ("https://.../{}/LICENSE.md",)]
-        ns = {"ver_str": "3.45.0"}
-        body = (
-            '    urls = [u.format(ver_str) for u in (\n'
-            '        "https://raw.githubusercontent.com/sqlite/sqlite/version-{}/LICENSE.md",\n'
-            '    )],\n'
-        )
-        urls = _extract_urls(body, ns)
+http_archive(
+    name = "demo",
+    sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    strip_prefix = "demo-{}".format(VERSION),
+    url = "https://example.com/demo-{}.tar.gz".format(VERSION),
+)
+"""
+
+        calls = _parse_repository_rule_calls_from_text(path, text, ROOT)
+        call = calls[("deps/demo/demo.MODULE.bazel", "demo")]
+
+        self.assertEqual(call.kind, "http_archive")
+        self.assertEqual(call.name, "demo")
+        self.assertEqual(call.sha256, "a" * 64)
+        self.assertEqual(call.urls, ("https://example.com/demo-1.2.3.tar.gz",))
+        self.assertIn("demo-1.2.3", repr(call.identity))
+
+    def test_resolves_loop_emitted_names_and_urls(self):
+        path = ROOT / "deps" / "cpython" / "cpython.MODULE.bazel"
+        text = """
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+python_src_deps = {
+    "xz": ("5.2.5", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
+    "zlib": ("1.3.1", "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
+}
+
+[
+    http_archive(
+        name = "{}_win".format(name),
+        sha256 = sha256,
+        strip_prefix = "cpython-source-deps-{name}-{version}".format(
+            name = name,
+            version = version,
+        ),
+        url = "https://github.com/python/cpython-source-deps/archive/{name}-{version}.zip".format(
+            name = name,
+            version = version,
+        ),
+    )
+    for name, (version, sha256) in python_src_deps.items()
+]
+"""
+
+        calls = _parse_repository_rule_calls_from_text(path, text, ROOT)
+
         self.assertEqual(
-            urls,
-            ["https://raw.githubusercontent.com/sqlite/sqlite/version-3.45.0/LICENSE.md"],
+            calls[("deps/cpython/cpython.MODULE.bazel", "xz_win")].urls,
+            ("https://github.com/python/cpython-source-deps/archive/xz-5.2.5.zip",),
         )
-
-    def test_template_url_unresolvable_skipped(self):
-        # Unknown variable — must not raise, must return empty list.
-        ns: dict = {}
-        body = '    url = "https://example.com/{}".format(unknown_var),\n'
-        self.assertEqual(_extract_urls(body, ns), [])
-
-    def test_literal_takes_priority_over_namespace(self):
-        # If there are plain literals, we never try to eval anything.
-        ns = {"ver": "1.0"}
-        body = '    url = "https://example.com/pkg-1.0.tar.gz",\n'
-        self.assertEqual(_extract_urls(body, ns), ["https://example.com/pkg-1.0.tar.gz"])
-
-
-class TestSqliteIntegration(unittest.TestCase):
-    """End-to-end: namespace parsed from a sqlite-style preamble resolves both blocks."""
-
-    PREAMBLE = (
-        'sqlite_ver = ("3", "45", "00")\n'
-        'sqlite_amalgamation = "sqlite-amalgamation-{}00".format("".join(sqlite_ver))\n'
-    )
-
-    SQLITE3_BODY = (
-        '    name = "sqlite3",\n'
-        '    strip_prefix = sqlite_amalgamation,\n'
-        '    url = "https://www.sqlite.org/2025/{}.zip".format(sqlite_amalgamation),\n'
-    )
-
-    SQLITE3_LICENSE_BODY = (
-        '    name = "sqlite3_license",\n'
-        '    urls = [url.format(".".join([v.replace("00", "0") for v in sqlite_ver])) for url in (\n'
-        '        "https://raw.githubusercontent.com/sqlite/sqlite/version-{}/LICENSE.md",\n'
-        '    )],\n'
-    )
-
-    def _ns(self):
-        return _parse_top_level_namespace(self.PREAMBLE + "http_archive(\n)\n")
-
-    def test_sqlite3_url_resolved(self):
-        ns = self._ns()
-        urls = _extract_urls(self.SQLITE3_BODY, ns)
-        # amalgamation = "sqlite-amalgamation-3450000" (join("3","45","00") + "00")
-        self.assertEqual(urls, ["https://www.sqlite.org/2025/sqlite-amalgamation-3450000.zip"])
-
-    def test_sqlite3_license_url_resolved(self):
-        ns = self._ns()
-        urls = _extract_urls(self.SQLITE3_LICENSE_BODY, ns)
-        # ".".join(["3","45","0"]) = "3.45.0"
         self.assertEqual(
-            urls,
-            ["https://raw.githubusercontent.com/sqlite/sqlite/version-3.45.0/LICENSE.md"],
+            calls[("deps/cpython/cpython.MODULE.bazel", "zlib_win")].urls,
+            ("https://github.com/python/cpython-source-deps/archive/zlib-1.3.1.zip",),
         )
+
+    def test_http_file_is_recorded(self):
+        path = ROOT / "deps" / "gstatus" / "gstatus.MODULE.bazel"
+        text = """
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
+VERSION = "1.0.9"
+
+http_file(
+    name = "gstatus_binary",
+    executable = True,
+    sha256 = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    urls = [
+        "https://github.com/gluster/gstatus/releases/download/v{version}/gstatus".format(version = VERSION),
+    ],
+)
+"""
+
+        calls = _parse_repository_rule_calls_from_text(path, text, ROOT)
+        call = calls[("deps/gstatus/gstatus.MODULE.bazel", "gstatus_binary")]
+
+        self.assertEqual(call.kind, "http_file")
+        self.assertEqual(call.urls, ("https://github.com/gluster/gstatus/releases/download/v1.0.9/gstatus",))
+
+
+class TestUseRepoRuleStripping(unittest.TestCase):
+    def test_strips_multiline_assignment(self):
+        text = """
+http_archive = use_repo_rule(
+    "@bazel_tools//tools/build_defs/repo:http.bzl",
+    "http_archive",
+)
+
+http_archive(name = "x")
+"""
+
+        stripped = _strip_use_repo_rule_assignments(text)
+
+        self.assertNotIn("use_repo_rule", stripped)
+        self.assertIn('http_archive(name = "x")', stripped)
+
+
+class TestReplaceSha256(unittest.TestCase):
+    def test_replaces_http_file_sha256(self):
+        text = """
+http_file(
+    name = "gstatus_binary",
+    executable = True,
+    sha256 = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    urls = ["https://example.com/gstatus"],
+)
+"""
+        call = RepositoryRuleCall(
+            kind="http_file",
+            name="gstatus_binary",
+            path=ROOT / "deps" / "gstatus" / "gstatus.MODULE.bazel",
+            relative_path="deps/gstatus/gstatus.MODULE.bazel",
+            sha256="d" * 64,
+            urls=("https://example.com/gstatus",),
+            identity=(),
+        )
+
+        updated = _replace_sha256_in_rule_block(text, call, "e" * 64)
+
+        self.assertIn(f'sha256 = "{"e" * 64}"', updated)
+        self.assertNotIn(f'sha256 = "{"d" * 64}"', updated)
+
+    def test_templated_name_replacement_fails_loudly(self):
+        text = """
+[
+    http_archive(
+        name = "{}_win".format(name),
+        sha256 = sha256,
+        url = "https://example.com/{}.zip".format(name),
+    )
+    for name, sha256 in {"xz": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}.items()
+]
+"""
+        call = RepositoryRuleCall(
+            kind="http_archive",
+            name="xz_win",
+            path=ROOT / "deps" / "cpython" / "cpython.MODULE.bazel",
+            relative_path="deps/cpython/cpython.MODULE.bazel",
+            sha256="d" * 64,
+            urls=("https://example.com/xz.zip",),
+            identity=(),
+        )
+
+        with self.assertRaisesRegex(Exception, "Templated names"):
+            _replace_sha256_in_rule_block(text, call, "e" * 64)
 
 
 if __name__ == "__main__":

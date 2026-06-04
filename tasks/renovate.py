@@ -7,15 +7,16 @@ is either tracked by a Renovate ``customManager`` in ``renovate.json`` or listed
 in ``deps/.renovate-untracked.json`` with a rationale. It runs in CI via
 ``.github/workflows/validate-renovate-deps.yml``.
 
-The task  ``refresh_archive_hashes``, is the companion to the
-Renovate auto-bump flow for native deps pinned via ``http_archive(...)`` in
-``deps/repos.MODULE.bazel``. Renovate updates the version literal but cannot
-recompute the ``sha256`` field; this task downloads the new tarball, hashes
-it, and rewrites the source. It is invoked from
+The task  ``refresh_archive_hashes``, is the companion to the Renovate
+auto-bump flow for native deps pinned via ``http_archive(...)`` or
+``http_file(...)`` in ``deps/**/*.MODULE.bazel``. Renovate updates the version
+literal but cannot recompute the ``sha256`` field; this task downloads the new
+artifact, hashes it, and rewrites the source. It is invoked from
 ``.github/workflows/bazel-native-tidy.yml``.
 
-Design mirrors ``tasks/python_version.py::_prepare_bazel_update``: regex-based
-edits with strict match-count validation so partial/silent failures abort the
+Design mirrors ``tasks/python_version.py::_prepare_bazel_update``: Starlark
+evaluation for dependency discovery, then scoped regex edits with strict
+match-count validation so partial/silent failures abort the run.
 """
 
 from __future__ import annotations
@@ -24,8 +25,10 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 
 from invoke.context import Context
@@ -33,59 +36,50 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MODULE_FILE = REPO_ROOT / "deps" / "repos.MODULE.bazel"
 
-# Match each `http_archive(...)` block. Captures the block body so individual
-# fields can be extracted with separate regexes. Anchored on column-0 `)` —
-# matches the formatting convention used throughout deps/repos.MODULE.bazel.
-ARCHIVE_BLOCK_RE = re.compile(
-    r"^http_archive\(\n(?P<body>.*?)^\)$",
+# Match each literal `http_archive(...)` / `http_file(...)` block. Captures the
+# block body so the sha256 line can be replaced after Starlark evaluation has
+# identified the dep. Anchored on a closing `)` with the same indentation as the
+# call, which covers both top-level calls and calls inside comprehensions.
+REPOSITORY_RULE_BLOCK_RE = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<kind>http_archive|http_file)\(\n(?P<body>.*?)(?P=indent)\)",
     re.MULTILINE | re.DOTALL,
 )
-NAME_RE = re.compile(r'^\s*name\s*=\s*"(?P<name>[^"]+)"', re.MULTILINE)
-SHA256_RE = re.compile(r'^\s*sha256\s*=\s*"(?P<sha>[0-9a-fA-F]{64})"', re.MULTILINE)
-# Used by ``_block_signature`` to strip the sha256 line regardless of value validity,
-# so a stale/wrong hash doesn't preserve the signature when the version literal moved.
-SHA256_LINE_RE = re.compile(r'^\s*sha256\s*=\s*"[^"]*",?\s*\n', re.MULTILINE)
-# Capture plain URL string literals (no template placeholders).
-URL_LITERAL_RE = re.compile(r'"(https?://[^"\s{}]+)"')
-# Match top-level scalar assignments: `name = <expr>` not inside any block.
-# Captures the variable name and the right-hand side expression.
-_TOP_LEVEL_ASSIGN_RE = re.compile(r'^(\w+)\s*=\s*(.+)$', re.MULTILINE)
-# Locate the start of a `url =` or `urls =` field within a block body.
-_URL_FIELD_RE = re.compile(r'^\s*urls?\s*=\s*', re.MULTILINE)
+NAME_RE = re.compile(r"""^\s*name\s*=\s*(?P<quote>["'])(?P<name>[^"']+)(?P=quote)""", re.MULTILINE)
+SHA256_RE = re.compile(
+    r'^(?P<indent>\s*)sha256\s*=\s*"(?P<sha>[0-9a-fA-F]{64})"(?P<comma>,?)',
+    re.MULTILINE,
+)
+USE_REPO_RULE_ASSIGN_RE = re.compile(r"^[A-Za-z_]\w*\s*=\s*use_repo_rule\(", re.MULTILINE)
 
-# Safe builtins allowed when evaluating top-level Starlark scalar expressions.
-# Starlark is a Python subset; these cover all constructs used in the file.
-_SAFE_BUILTINS: dict = {"__builtins__": {}}
+STUBBED_MODULE_FUNCTIONS = (
+    "archive_override",
+    "bazel_dep",
+    "constants_repo",
+    "git_override",
+    "include",
+    "register_toolchains",
+    "use_extension",
+    "use_repo",
+    "use_repo_rule",
+)
 
 
-def _parse_top_level_namespace(text: str) -> dict:
-    """Evaluate top-level scalar assignments from a MODULE.bazel file.
+@dataclass(frozen=True)
+class RepositoryRuleCall:
+    kind: str
+    name: str
+    path: Path
+    relative_path: str
+    sha256: str | None
+    urls: tuple[str, ...]
+    identity: tuple
 
-    Walks the assignments in source order so later variables can reference
-    earlier ones (e.g. ``sqlite_amalgamation`` references ``sqlite_ver``).
-    Only simple expressions are evaluated — anything that raises is silently
-    skipped so a complex assignment never blocks resolution of simpler ones.
 
-    The returned namespace can be passed to ``_extract_urls`` to resolve URL
-    expressions that reference these variables.
-    """
-    namespace: dict = {}
-    # Only consider lines that appear before the first http_archive/http_file
-    # call so we don't accidentally pick up block-internal assignments.
-    preamble_end = min(
-        (text.index(marker) for marker in ("http_archive(", "http_file(") if marker in text),
-        default=len(text),
-    )
-    preamble = text[:preamble_end]
-    for m in _TOP_LEVEL_ASSIGN_RE.finditer(preamble):
-        name, expr = m.group(1), m.group(2).strip()
-        try:
-            namespace[name] = eval(expr, {"__builtins__": {}}, namespace)  # noqa: S307 — restricted namespace, preamble-only expressions
-        except Exception:
-            pass
-    return namespace
+def _starlark():
+    import starlark as sl
+
+    return sl
 
 
 def main():
@@ -370,155 +364,248 @@ def _emit_failure_report(
 
 @task(
     help={
-        "base_ref": "Git ref to compare against to detect changed http_archive blocks. "
+        "base_ref": "Git ref to compare against to detect changed http_archive/http_file calls. "
         "Defaults to origin/main, which suits the bazel-native-tidy workflow. "
         "For local testing pass HEAD~1 or any other ref."
     }
 )
 def refresh_archive_hashes(ctx: Context, base_ref: str = "origin/main") -> None:
     """
-    Recompute sha256 for any http_archive in deps/repos.MODULE.bazel whose
-    version literal differs from ``base_ref``.
+    Recompute sha256 for changed Bazel native deps.
+
+    The implementation depends on the Bazel Python toolchain's starlark-pyo3
+    wheel, which is not installed in dda's legacy invoke environment. Keep this
+    invoke entry point as a stable wrapper and run the real implementation via
+    Bazel.
+    """
+    ctx.run(
+        "bazel run //tasks:refresh_renovate_archive_hashes -- " f"--base-ref={shlex.quote(base_ref)}",
+    )
+
+
+def refresh_archive_hashes_impl(ctx: Context, root: Path, base_ref: str = "origin/main") -> None:
+    """
+    Recompute sha256 for any http_archive/http_file in deps/**/*.MODULE.bazel
+    whose resolved non-sha fields differ from ``base_ref``.
 
     Used by ``.github/workflows/bazel-native-tidy.yml`` after Renovate bumps a
     version. Renovate cannot refresh ``sha256`` itself; this task downloads the
-    new tarball from the first reachable URL, hashes it, and rewrites the
-    source so the next Bazel build verifies cleanly.
+    new artifact from the first reachable URL, hashes it, and rewrites the
+    literal ``sha256`` field so the next Bazel build verifies cleanly.
     """
-    current_text = MODULE_FILE.read_text()
-    current_blocks = _parse_archive_blocks(current_text)
-    namespace = _parse_top_level_namespace(current_text)
+    base_check = ctx.run(
+        f"git -C {shlex.quote(str(root))} rev-parse --verify {shlex.quote(base_ref)}",
+        hide=True,
+        warn=True,
+    )
+    if not base_check.ok:
+        raise Exit(f"Could not resolve base ref {base_ref!r}: {base_check.stderr.strip()}")
 
-    result = ctx.run(f"git show {base_ref}:deps/repos.MODULE.bazel", hide=True, warn=True)
-    if not result.ok:
-        raise Exit(f"Could not read deps/repos.MODULE.bazel at {base_ref!r}: {result.stderr.strip()}")
-    previous_blocks = _parse_archive_blocks(result.stdout)
+    current_calls = _parse_repository_rule_calls_in_deps(root / "deps", root)
+    previous_calls = _parse_repository_rule_calls_at_ref(ctx, root, base_ref, current_calls)
 
-    needs_refresh: list[str] = []
-    for name, body in current_blocks.items():
-        prev = previous_blocks.get(name)
-        if prev is None:
-            # New http_archive added in this PR — initial sha256 is the human's job.
+    needs_refresh: list[RepositoryRuleCall] = []
+    for key, current in current_calls.items():
+        previous = previous_calls.get(key)
+        if previous is None:
+            # New repository rule added in this PR — initial sha256 is the human's job.
             continue
-        if _block_signature(body) != _block_signature(prev):
-            needs_refresh.append(name)
+        if current.identity != previous.identity:
+            needs_refresh.append(current)
 
     if not needs_refresh:
-        print("No http_archive blocks need sha256 refresh.")
+        print("No http_archive/http_file blocks need sha256 refresh.")
         return
 
-    print(f"Refreshing sha256 for {len(needs_refresh)} block(s): {', '.join(needs_refresh)}")
-    new_text = current_text
-    for name in needs_refresh:
-        body = _parse_archive_blocks(new_text)[name]
-        urls = _extract_urls(body, namespace)
-        if not urls:
-            print(f"  ! {name}: skipping — no literal URL found in block")
-            continue
-        old_sha = _extract_sha256(body)
-        print(f"  → {name}: downloading from {urls[0]}")
-        new_sha = _download_and_hash(urls)
-        if new_sha == old_sha:
-            print(f"    sha256 unchanged ({old_sha[:12]}...)")
-            continue
-        new_text = _replace_sha256_in_block(new_text, name, new_sha)
-        print(f"    sha256 {old_sha[:12]}... -> {new_sha[:12]}...")
+    needs_refresh.sort(key=lambda call: (call.relative_path, call.name))
+    print(f"Refreshing sha256 for {len(needs_refresh)} block(s): {', '.join(call.name for call in needs_refresh)}")
 
-    if new_text != current_text:
-        MODULE_FILE.write_text(new_text)
-        print(f"Updated {MODULE_FILE.relative_to(REPO_ROOT)}.")
+    updated_texts: dict[Path, str] = {}
+    for call in needs_refresh:
+        if not call.urls:
+            raise Exit(f"{call.relative_path}: {call.name} changed but has no resolved URL to download")
+        if call.sha256 is None:
+            raise Exit(f"{call.relative_path}: {call.name} changed but has no resolved sha256 field")
+
+        print(f"  → {call.name}: downloading from {call.urls[0]}")
+        new_sha = _download_and_hash(list(call.urls))
+        if new_sha == call.sha256:
+            print(f"    sha256 unchanged ({call.sha256[:12]}...)")
+            continue
+
+        text = updated_texts.get(call.path)
+        if text is None:
+            text = call.path.read_text()
+        updated_texts[call.path] = _replace_sha256_in_rule_block(text, call, new_sha)
+        print(f"    sha256 {call.sha256[:12]}... -> {new_sha[:12]}...")
+
+    if updated_texts:
+        for path, text in sorted(updated_texts.items(), key=lambda item: item[0].as_posix()):
+            path.write_text(text)
+            print(f"Updated {path.relative_to(root)}.")
     else:
         print("No sha256 values changed.")
 
 
-def _parse_archive_blocks(text: str) -> dict[str, str]:
-    """Return a mapping of http_archive name -> raw block body."""
-    blocks: dict[str, str] = {}
-    for m in ARCHIVE_BLOCK_RE.finditer(text):
-        body = m.group("body")
-        name_match = NAME_RE.search(body)
-        if name_match:
-            blocks[name_match.group("name")] = body
-    return blocks
-
-
-def _block_signature(body: str) -> str:
-    """Identity of a block excluding its sha256 — used to detect version bumps."""
-    return SHA256_LINE_RE.sub("", body)
-
-
-def _extract_urls(body: str, namespace: dict | None = None) -> list[str]:
-    """Return URLs found in the block, in order of appearance.
-
-    First tries plain string literals (no ``{}`` placeholders). If none are
-    found and a ``namespace`` is provided (populated by
-    ``_parse_top_level_namespace``), locates each ``url``/``urls`` field,
-    extracts its full right-hand-side expression using bracket-depth tracking,
-    and evaluates it in the namespace to resolve variable references and
-    ``.format()`` calls. This covers blocks whose URLs are constructed from
-    top-level variables (e.g. sqlite3).
-    """
-    literals = URL_LITERAL_RE.findall(body)
-    if literals:
-        return literals
-    if namespace is None:
-        return []
-    urls: list[str] = []
-    for m in _URL_FIELD_RE.finditer(body):
-        expr = _extract_balanced_expr(body, m.end())
-        if expr is None:
+def _parse_repository_rule_calls_in_deps(deps_dir: Path, root: Path) -> dict[tuple[str, str], RepositoryRuleCall]:
+    calls: dict[tuple[str, str], RepositoryRuleCall] = {}
+    for path in deps_dir.rglob("*.MODULE.bazel"):
+        text = path.read_text()
+        if "http_archive(" not in text and "http_file(" not in text:
             continue
-        try:
-            result = eval(expr, {"__builtins__": {}}, namespace)  # noqa: S307 — namespace is preamble-only scalars
-        except Exception:
+        calls.update(_parse_repository_rule_calls_from_text(path, text, root))
+    return calls
+
+
+def _parse_repository_rule_calls_at_ref(
+    ctx: Context,
+    root: Path,
+    base_ref: str,
+    current_calls: dict[tuple[str, str], RepositoryRuleCall],
+) -> dict[tuple[str, str], RepositoryRuleCall]:
+    calls: dict[tuple[str, str], RepositoryRuleCall] = {}
+    for relative_path in sorted({call.relative_path for call in current_calls.values()}):
+        result = ctx.run(
+            f"git -C {shlex.quote(str(root))} show {shlex.quote(f'{base_ref}:{relative_path}')}",
+            hide=True,
+            warn=True,
+        )
+        if not result.ok:
             continue
-        if isinstance(result, str) and result.startswith("http"):
-            urls.append(result)
-        elif isinstance(result, list | tuple):
-            urls.extend(u for u in result if isinstance(u, str) and u.startswith("http"))
-    return urls
+        calls.update(_parse_repository_rule_calls_from_text(root / relative_path, result.stdout, root))
+    return calls
 
 
-def _extract_balanced_expr(text: str, start: int) -> str | None:
-    """Extract a Starlark expression starting at ``start``, respecting bracket depth.
+def _parse_repository_rule_calls_from_text(
+    path: Path, text: str, root: Path
+) -> dict[tuple[str, str], RepositoryRuleCall]:
+    """Evaluate a MODULE.bazel file and return resolved http_archive/http_file calls."""
+    calls: list[RepositoryRuleCall] = []
+    relative_path = path.relative_to(root).as_posix()
 
-    Reads until the expression ends: either at a top-level comma/newline (for
-    simple scalar values) or after the matching closing bracket (for lists and
-    tuples). Returns the stripped expression string, or ``None`` if ``start``
-    is out of range.
-    """
-    if start >= len(text):
+    def record(kind: str):
+        def _record(*args: object, **kwargs: object) -> None:
+            if args:
+                raise ValueError(f"{kind} in {relative_path} used positional args; only keyword args are supported")
+            calls.append(_repository_rule_call_from_kwargs(kind, path, relative_path, kwargs))
+
+        return _record
+
+    def noop(*_args: object, **_kwargs: object) -> None:
         return None
-    depth = 0
+
+    sl = _starlark()
+    module = sl.Module()
+    module.add_callable("http_archive", record("http_archive"))
+    module.add_callable("http_file", record("http_file"))
+    for name in STUBBED_MODULE_FUNCTIONS:
+        module.add_callable(name, noop)
+
+    stripped_text = _strip_use_repo_rule_assignments(text)
+    try:
+        ast = sl.parse(relative_path, stripped_text)
+        sl.eval(module, ast, sl.Globals.standard())
+    except Exception as exc:
+        raise Exit(f"Could not evaluate {relative_path} while resolving repository rules: {exc}") from exc
+
+    result: dict[tuple[str, str], RepositoryRuleCall] = {}
+    for call in calls:
+        key = (call.relative_path, call.name)
+        if key in result:
+            raise Exit(f"{relative_path}: duplicate repository rule name {call.name!r}")
+        result[key] = call
+    return result
+
+
+def _repository_rule_call_from_kwargs(
+    kind: str,
+    path: Path,
+    relative_path: str,
+    kwargs: dict[str, object],
+) -> RepositoryRuleCall:
+    name = kwargs.get("name")
+    if not isinstance(name, str) or not name:
+        raise ValueError(f"{kind} in {relative_path} has no string name")
+
+    sha256 = kwargs.get("sha256")
+    if sha256 is not None and not isinstance(sha256, str):
+        raise ValueError(f"{kind}({name}) in {relative_path} has non-string sha256")
+
+    return RepositoryRuleCall(
+        kind=kind,
+        name=name,
+        path=path,
+        relative_path=relative_path,
+        sha256=sha256,
+        urls=tuple(_extract_resolved_urls(kwargs)),
+        identity=(kind, _stable_value({k: v for k, v in kwargs.items() if k != "sha256"})),
+    )
+
+
+def _extract_resolved_urls(kwargs: dict[str, object]) -> list[str]:
+    urls = kwargs.get("urls")
+    if urls is None:
+        urls = kwargs.get("url")
+    if urls is None:
+        return []
+    if isinstance(urls, str):
+        return [urls]
+    if isinstance(urls, list | tuple):
+        return [url for url in urls if isinstance(url, str)]
+    return []
+
+
+def _stable_value(value: object) -> object:
+    if isinstance(value, dict):
+        return tuple(sorted((str(k), _stable_value(v)) for k, v in value.items()))
+    if isinstance(value, list | tuple):
+        return tuple(_stable_value(v) for v in value)
+    return value
+
+
+def _strip_use_repo_rule_assignments(text: str) -> str:
+    """Remove `name = use_repo_rule(...)` assignments before starlark-pyo3 eval.
+
+    Bazel's use_repo_rule returns a callable repository-rule proxy. starlark-pyo3
+    cannot return Python callables into Starlark through normal value
+    conversion, so we strip those assignments and inject Python recorder
+    functions with the same names instead.
+    """
+    pieces: list[str] = []
+    pos = 0
+    for match in USE_REPO_RULE_ASSIGN_RE.finditer(text):
+        start = match.start()
+        end = _find_call_end(text, match.end(), start)
+        pieces.append(text[pos:start])
+        pos = end
+    pieces.append(text[pos:])
+    return "".join(pieces)
+
+
+def _find_call_end(text: str, start: int, fallback: int) -> int:
+    depth = 1
     i = start
-    while i < len(text):
+    while i < len(text) and depth:
         c = text[i]
-        if c in "([":
-            depth += 1
-        elif c in ")]":
-            depth -= 1
-            if depth < 0:
-                # Stepped outside the enclosing block — stop before this char.
-                break
-        elif c in ('"', "'"):
-            # Skip string literals so brackets inside them don't affect depth.
+        if c in ('"', "'"):
             quote = c
             i += 1
             while i < len(text) and text[i] != quote:
                 if text[i] == "\\":
                     i += 1
                 i += 1
-        elif c == "," and depth == 0:
-            break
-        elif c == "\n" and depth == 0:
-            break
+        elif c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
         i += 1
-    return text[start:i].strip() or None
-
-
-def _extract_sha256(body: str) -> str | None:
-    m = SHA256_RE.search(body)
-    return m.group("sha") if m else None
+    if depth != 0:
+        raise Exit(f"Could not parse use_repo_rule assignment starting at byte {fallback}")
+    while i < len(text) and text[i] in " \t":
+        i += 1
+    if i < len(text) and text[i] == "\n":
+        i += 1
+    return i
 
 
 def _download_and_hash(urls: list[str]) -> str:
@@ -538,27 +625,36 @@ def _download_and_hash(urls: list[str]) -> str:
     raise Exit(f"All URLs failed; last error: {last_err}")
 
 
-def _replace_sha256_in_block(text: str, archive_name: str, new_sha: str) -> str:
-    """Rewrite the sha256 line for the named http_archive block."""
+def _replace_sha256_in_rule_block(text: str, call: RepositoryRuleCall, new_sha: str) -> str:
+    """Rewrite the sha256 line for the named repository rule block."""
 
-    # Locate the block, then replace its sha256 in a single substitution scoped
-    # to that block. Match-count validation guards against silent partial edits.
+    replacements = 0
+
     def repl(match: re.Match[str]) -> str:
+        nonlocal replacements
+        if match.group("kind") != call.kind:
+            return match.group(0)
         body = match.group("body")
-        if not NAME_RE.search(body) or NAME_RE.search(body).group("name") != archive_name:
+        name_match = NAME_RE.search(body)
+        if not name_match or name_match.group("name") != call.name:
             return match.group(0)
         new_body, count = SHA256_RE.subn(
-            lambda _: f'    sha256 = "{new_sha}"',
+            lambda sha_match: f'{sha_match.group("indent")}sha256 = "{new_sha}"{sha_match.group("comma")}',
             body,
             count=1,
         )
         if count != 1:
-            raise Exit(f"Expected 1 sha256 line in http_archive(name={archive_name!r}), found {count}")
-        return f"http_archive(\n{new_body})"
+            raise Exit(f"Expected 1 literal sha256 line in {call.kind}(name={call.name!r}), found {count}")
+        replacements += 1
+        return f"{match.group('indent')}{call.kind}(\n{new_body}{match.group('indent')})"
 
-    new_text, count = ARCHIVE_BLOCK_RE.subn(repl, text, count=0)
-    if count == 0:
-        raise Exit(f"Could not locate http_archive block for {archive_name!r}")
+    new_text = REPOSITORY_RULE_BLOCK_RE.sub(repl, text)
+    if replacements != 1:
+        raise Exit(
+            f"Expected to replace sha256 for exactly 1 {call.kind}(name={call.name!r}) block "
+            f"in {call.relative_path}, found {replacements}. Templated names or sha256 values "
+            "must be refreshed manually."
+        )
     return new_text
 
 

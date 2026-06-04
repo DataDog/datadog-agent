@@ -2099,9 +2099,42 @@
             "https://files.pythonhosted.org/packages/53/a4/f48c9d79cb507ed1373477dbceaba7401fd8a23af63b837fa61f1dcd3691/SecretStorage-3.3.3.tar.gz": "2403533ef369eca6d2ba81718576c5e0f564d5cca1b58f73a8b23e7d4eeebd77",
             "https://files.pythonhosted.org/packages/54/24/b4293291fa1dd830f353d2cb163295742fa87f179fcc8a20a306a81978b7/SecretStorage-3.3.3-py3-none-any.whl": "f356e6628222568e3af06f2eba8df495efa13b3b63081dafd4f7d9a7b7bc9f99"
           },
+          "starlark-pyo3": {
+            "https://files.pythonhosted.org/packages/10/a1/0da624093605bedf3a15b29f1f2ed1e02305588f27bc1609297e3190a274/starlark_pyo3-2026.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl": "8192b394b637cb2e6056b915bc23ce5641abecf5197f51567ccd673a8f520335",
+            "https://files.pythonhosted.org/packages/1c/b1/abf6960722743d17c6bf5290a44bd824759b692d6a39e15f5b9c5747ee65/starlark_pyo3-2026.1-cp312-cp312-win_amd64.whl": "34e63685186ac77d9d192ae1aa927ce2585529f29e624e9dda3f374943dc37dc",
+            "https://files.pythonhosted.org/packages/29/25/52b5ed8b8062f398ed4ede50bf33972e9c33747749302da726aed6e2d03e/starlark_pyo3-2026.1-cp313-cp313-win_amd64.whl": "a2265f4f9468710571a523cdbb25e1c5039c0daac9585eca9bf8f9ce66fd0756",
+            "https://files.pythonhosted.org/packages/2d/ee/8fad5836bf22ee73f7b02e5b2b80808f20c28b1906c59c014a04d7a97996/starlark_pyo3-2026.1.tar.gz": "c2aab1df537901be9244faca4b859739e18d4567db302d472e46e1f35cb13847",
+            "https://files.pythonhosted.org/packages/44/bb/f6e5e7528b26f48885ac9191d4674bc85f5c8d657faf55107b4fa7d057b9/starlark_pyo3-2026.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "301479c46063b9289f17479e927843f3d652e25b2a6593fdfb40c74ccd94a99a",
+            "https://files.pythonhosted.org/packages/52/42/b9b361a86358e3885d4d45e6d314e839c3f53bc596c34dceb3e287796b67/starlark_pyo3-2026.1-cp311-cp311-win_amd64.whl": "02c1cc71c5e5bb078cf5fd46a7e315c8e9ac9ba849df9f71ebccf016eb06c2b1",
+            "https://files.pythonhosted.org/packages/66/8d/4f4459c83c03d4551e33704af0f3dad0377e6ac934e5020f81a1bc30c91c/starlark_pyo3-2026.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl": "0c781c2a623835ceb47abaa1c6096b52f96ca26f20432ca87f4b72a963d4e9e7",
+            "https://files.pythonhosted.org/packages/68/4c/7ef4d18bfba685b4acc03198146971d3fa68e0a9338cc9e78535cefb929f/starlark_pyo3-2026.1-cp312-cp312-manylinux_2_17_armv7l.manylinux2014_armv7l.whl": "f8bad3ef79246b07abc555e2021cbc947c0c0a38f384dca9a943d2e5df466e4b",
+            "https://files.pythonhosted.org/packages/71/03/1536925d1532142fa4b8e65cd896f9ce7a1f14c14dddeec9c060b0264554/starlark_pyo3-2026.1-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl": "03183c87a9355222de1be413dd7b7ec184a4f12f980e2270398d0f1402595495",
+            "https://files.pythonhosted.org/packages/7a/38/e47dca5bd1f76bd31f0b05a6f90b53e09aad2f011e0158aefbac43c82784/starlark_pyo3-2026.1-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "ba22714843d4ed89c403704a7ffe3104eee30acc5e648676a2516580dbf1e727",
+            "https://files.pythonhosted.org/packages/7d/f4/667e251050806da06e35c5759b0e483cca10d7b521a9b5394b7db7af1ad9/starlark_pyo3-2026.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "3ca09bb18a14cf9745d2c22680da87f76e336a27603283132cb00b4cd9f1f26a",
+            "https://files.pythonhosted.org/packages/7e/ae/128ffbc18390553bc78728b302d49f4c0b02c6f61435df21fab5b8770260/starlark_pyo3-2026.1-cp314-cp314-win_amd64.whl": "849b4a755242f97eae96ccc9140b61c6c37bc01388f5dc69838d8057b867616d",
+            "https://files.pythonhosted.org/packages/9d/f2/9302070c00b1daca369173763d2d1613a92ba2776b78d020d7b45300c898/starlark_pyo3-2026.1-cp313-cp313-macosx_11_0_arm64.whl": "446ae406d8e14f34fc736524de56572b138a4f80b1a995d1e2f1e8491fc65f1d",
+            "https://files.pythonhosted.org/packages/ab/8a/6b432383d514a98ad0a1fa83ebddbf5716fee6a134567107f2106bfa434a/starlark_pyo3-2026.1-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl": "52247f51713b843f8573836b1607de7e2192c4a213be587e6d65fa460322390b",
+            "https://files.pythonhosted.org/packages/b9/23/5fdf896b1fc7d1e3069e0fcb039e753b17f0a9cc66147b180f1e68b16037/starlark_pyo3-2026.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "04cb2d0a1dcd74f6e772cfb0f07c7e9c0f7c2f87cfe74fa0fe3e518559646378",
+            "https://files.pythonhosted.org/packages/c2/4b/c6a0faa062a63d6b6f29b2034ca1f021335d81b58192b951c91bc768f5a3/starlark_pyo3-2026.1-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl": "84c8723536b631b5faf901904edca54a556b5b01a69f981218ee8eeeae539a03",
+            "https://files.pythonhosted.org/packages/c3/62/f9ec706711cfea11b9eb1d101828dd3eb5cef51425a588e6c61bbb69716d/starlark_pyo3-2026.1-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "cf58cd958097a3a33842f46fac3a578c35ad32168071ba215feec51bfe19c540",
+            "https://files.pythonhosted.org/packages/c4/ef/319857e7d953ff067c1a5cc862013c5f7b78ad0f7045c62fb5558a535ab0/starlark_pyo3-2026.1-cp314-cp314-macosx_11_0_arm64.whl": "6f015bcf243dd946ec45ad2742311450ba8608b0c0a76fe83f629fe4ca63f3ec",
+            "https://files.pythonhosted.org/packages/d2/c8/04a2d690cfe1f1b57482173c3e2df04d8c9fe22de1d4a0664f73d9c23247/starlark_pyo3-2026.1-cp39-cp39-manylinux_2_17_armv7l.manylinux2014_armv7l.whl": "cefd626ba59c8b46b1398664662a19de504ff59e0ba4441a91285626274ad322",
+            "https://files.pythonhosted.org/packages/d7/7f/a91141911d5c6008f790873ca5aa1b81e20fb003b141415cc7e6f1390e3a/starlark_pyo3-2026.1-cp311-cp311-manylinux_2_17_armv7l.manylinux2014_armv7l.whl": "4671e1cd62e64ac6c8e61e5ceb62073b3690c836bf96a4cd093f8678cadbfe4e",
+            "https://files.pythonhosted.org/packages/de/72/ebc0b850ef35b2141aa57413d974c4af70f5ad8a6b822f7e1e77013bdb28/starlark_pyo3-2026.1-cp311-cp311-macosx_11_0_arm64.whl": "30e6cc0e3ae20e8576183109d80e2b1e0291d417f3d35fcaafbddb9dc7513789",
+            "https://files.pythonhosted.org/packages/de/83/28d66d3e963d286fb15aae7e9892ca21cd9a2fe96ef5bea1fbe97ab655f8/starlark_pyo3-2026.1-cp310-cp310-win_amd64.whl": "2e9d5ef0b17a7bfdfdd15a9d5335e84a7f205333fa2e0110aae26d834d2b5ac3",
+            "https://files.pythonhosted.org/packages/de/e7/f84d3c4d22c502cddef00142c5883ec2bac6005b7c2f3d73b2432f64496a/starlark_pyo3-2026.1-cp313-cp313-manylinux_2_17_armv7l.manylinux2014_armv7l.whl": "75558cd34cdf4099633dfa147a55436210be24eacfadb08ae00474e1965e6c55",
+            "https://files.pythonhosted.org/packages/e0/ec/11c7fd49422c5a0811381b8d6a7a8b87cf63776162fc70df6689aee7b3fd/starlark_pyo3-2026.1-cp310-cp310-manylinux_2_17_armv7l.manylinux2014_armv7l.whl": "ba2801b41cc408e5708502fe4d8af1806f18ad22b195cf5d5dd9a0394558c117",
+            "https://files.pythonhosted.org/packages/e7/c9/a74f38f41b4915b39210261d6d2287006f4fb73a9c3571eb01fe1b86bf74/starlark_pyo3-2026.1-cp312-cp312-macosx_11_0_arm64.whl": "c98773d957ac5236b393786fb000ce83a9b7f77f19cfc4149efb0199c9997b73",
+            "https://files.pythonhosted.org/packages/ea/99/00284c0f7a9b7a140743a14fac658085be08b833180cb4420d297bcf92b1/starlark_pyo3-2026.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "fb5575a2e6d60d1447571e62ec4da33c8ff4b35f92d559f6790c79bf23e4acf2",
+            "https://files.pythonhosted.org/packages/fd/b5/5d0af128024d9e09816be219eecb1e2c49edb32aea0b605cf5b84afc54f5/starlark_pyo3-2026.1-pp311-pypy311_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "02d3b3eeaa145aad9f3b0642c9dc85dc8a6c2ad1b078c5a3d38fe06659c60097"
+          },
           "twine": {
             "https://files.pythonhosted.org/packages/5d/ec/00f9d5fd040ae29867355e559a94e9a8429225a0284a3f5f091a3878bfc0/twine-5.1.1-py3-none-any.whl": "215dbe7b4b94c2c50a7315c0275d2258399280fbb7d04182c7e55e24b5f93997",
             "https://files.pythonhosted.org/packages/77/68/bd982e5e949ef8334e6f7dcf76ae40922a8750aa2e347291ae1477a4782b/twine-5.1.1.tar.gz": "9aa0825139c02b3434d913545c7b847a21c835e11597f5255842d457da2322db"
+          },
+          "typing-extensions": {
+            "https://files.pythonhosted.org/packages/18/67/36e9267722cc04a6b9f15c7f3441c2363321a3ea07da7ae0c0707beb2a9c/typing_extensions-4.15.0-py3-none-any.whl": "f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548",
+            "https://files.pythonhosted.org/packages/72/94/1a15dd82efb362ac84269196e94cf00f187f7ed21c242792a923cdb1c61f/typing_extensions-4.15.0.tar.gz": "0cea48d173cc12fa28ecabc3b837ea3cf6f38c6d1136f85cbaaf598984861466"
           },
           "urllib3": {
             "https://files.pythonhosted.org/packages/39/08/aaaad47bc4e9dc8c725e68f9d04865dbcb2052843ff09c97b08904852d84/urllib3-2.6.3-py3-none-any.whl": "bf272323e553dfb2e87d9bfd225ca7b0f467b919d7bbd355436d3fd37cb0acd4",
@@ -2146,7 +2179,9 @@
           "rfc3986": "/simple/rfc3986/",
           "rich": "/simple/rich/",
           "secretstorage": "/simple/secretstorage/",
+          "starlark_pyo3": "/simple/starlark-pyo3/",
           "twine": "/simple/twine/",
+          "typing_extensions": "/simple/typing-extensions/",
           "urllib3": "/simple/urllib3/",
           "zipp": "/simple/zipp/"
         }
