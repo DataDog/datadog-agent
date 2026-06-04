@@ -336,7 +336,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/yusufpapurcu/wmi v1.2.4
 	go.etcd.io/bbolt v1.4.3
-	go.etcd.io/etcd/client/v3 v3.6.11 // indirect
+	go.etcd.io/etcd/client/v3 v3.6.11
 	go.mongodb.org/mongo-driver/v2 v2.5.0
 	go.opentelemetry.io/collector/component v1.59.0
 	go.opentelemetry.io/collector/component/componenttest v0.153.0
@@ -973,7 +973,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.9.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	gitlab.com/gitlab-org/api/client-go v1.46.0
-	go.etcd.io/etcd/client/v2 v2.305.30
+	go.etcd.io/etcd/client/v2 v2.305.17
 	go.opentelemetry.io/collector/otelcol/otelcoltest v0.153.0
 	go.temporal.io/api v1.62.13
 	go.temporal.io/sdk v1.39.0
