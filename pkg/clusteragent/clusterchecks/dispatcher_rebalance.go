@@ -422,17 +422,19 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 
 		jsonDistribution, _ := json.Marshal(proposedDistribution)
 
+		calculatedMoves := d.applyDistribution(proposedDistribution, currentConfigsDistribution)
+		numOfMoves, numOfConfigs, numOfRunners := len(calculatedMoves), len(proposedDistribution.Configs), len(proposedDistribution.Runners)
+
+		prefixMessage := "Found a better distribution for the cluster checks. "
 		if force {
-			log.Infof("Forcing rebalance proposed distribution for the cluster checks. Utilization stdDev of proposed distribution: %.3f. StdDev of current distribution: %.3f. Proposed distribution: %s",
-				proposedUtilizationStdDev, currentUtilizationStdDev, jsonDistribution)
-		} else {
-			log.Infof("Found a better distribution for the cluster checks. Utilization stdDev of proposed distribution: %.3f. StdDev of current distribution: %.3f. Proposed distribution: %s",
-				proposedUtilizationStdDev, currentUtilizationStdDev, jsonDistribution)
+			prefixMessage = "Forcing rebalance proposed distribution for the cluster checks. "
 		}
 
-		setPredictedUtilization(proposedDistribution)
+		log.Infof("%s Moving %d checks out of %d configs on %d runners. Utilization stdDev of proposed distribution: %.3f. StdDev of current distribution: %.3f. Proposed distribution: %s",
+			prefixMessage, numOfMoves, numOfConfigs, numOfRunners, proposedUtilizationStdDev, currentUtilizationStdDev, jsonDistribution)
 
-		return d.applyDistribution(proposedDistribution, currentConfigsDistribution)
+		setPredictedUtilization(proposedDistribution)
+		return calculatedMoves
 	}
 
 	log.Debugf("Didn't find a distribution better enough so that rescheduling checks is worth it (current utilization stddev: %.3f, found utilization stddev: %.3f)",
