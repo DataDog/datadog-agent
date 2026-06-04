@@ -14,6 +14,7 @@ go_library(
         "pipelines_ndm_core.go",
         "pipelines_ndm_integrations.go",
         "pipelines_networkpath.go",
+        "pipelines_sbom.go",
         "pipelines_softwareinventory.go",
         "pipelines_synthetics.go",
     ],
