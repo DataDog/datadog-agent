@@ -634,6 +634,64 @@ func (s *slowLogsFlusher) Flush(_ context.Context) {
 	time.Sleep(s.block)
 }
 
+// When a forwarder is configured and the flush goroutine exceeds flushTimeout,
+// handleSuspend must still return promptly. The flush runs concurrently with
+// PassThrough inside handleParallel; flushAll's waitForFlushes honours the
+// timeout and closes sideDone so the handler is not blocked on the slow flusher.
+func TestHandleSuspend_WithForwarder_FlushTimeout_ReturnsPromptly(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	srv, _, _, _, _, _ := newTestServer()
+	srv.flushTimeout = 50 * time.Millisecond
+	srv.logsFlusher = &slowLogsFlusher{block: 1 * time.Second}
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		forwardTimeout:       2 * time.Second,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+
+	start := time.Now()
+	rec := httptest.NewRecorder()
+	srv.handleSuspend(rec, httptest.NewRequest(http.MethodPost, pathSuspend, nil))
+	elapsed := time.Since(start)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Less(t, elapsed, 500*time.Millisecond,
+		"handleSuspend with forwarder must return promptly when flush times out (≪ slow flusher's 1s)")
+}
+
+// Same as TestHandleSuspend_WithForwarder_FlushTimeout_ReturnsPromptly but for
+// /terminate, which also calls handleParallel with withFlush=true.
+func TestHandleTerminate_WithForwarder_FlushTimeout_ReturnsPromptly(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	srv, _, _, _, _, _ := newTestServer()
+	srv.flushTimeout = 50 * time.Millisecond
+	srv.logsFlusher = &slowLogsFlusher{block: 1 * time.Second}
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		forwardTimeout:       2 * time.Second,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+
+	start := time.Now()
+	rec := httptest.NewRecorder()
+	srv.handleTerminate(rec, httptest.NewRequest(http.MethodPost, pathTerminate, nil))
+	elapsed := time.Since(start)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Less(t, elapsed, 500*time.Millisecond,
+		"handleTerminate with forwarder must return promptly when flush times out (≪ slow flusher's 1s)")
+}
+
 // /terminate with a forwarder waits for the user-app forward to complete
 // before responding. Without this wait, /terminate's parallel
 // flush-then-mirror would race against the platform's destruction of the VM

@@ -123,7 +123,7 @@ func TestNewForwarder_DisableKeepAlives_OpensNewConnectionPerRequest(t *testing.
 	port, err := strconv.Atoi(u.Port())
 	require.NoError(t, err)
 
-	f := NewForwarder(port)
+	f := NewForwarder(port, defaultForwardTimeout, defaultReadyTimeout, defaultValidateTimeout)
 	const requests = 3
 	for i := 0; i < requests; i++ {
 		resp := f.PassThrough("/x", nil, nil)
@@ -134,16 +134,15 @@ func TestNewForwarder_DisableKeepAlives_OpensNewConnectionPerRequest(t *testing.
 		"DisableKeepAlives must open a fresh TCP connection per request; with keep-alives enabled only 1 connection would be accepted")
 }
 
-// NewForwarder defaults must match the AWS Lambda MicroVM platform-bound
-// analysis: 30s for the four lifecycle hooks (well under /terminate's 60s
-// platform bound), 60s for /ready and /validate (matching the platform's
-// hook timeouts per AWS guidance). Bumping these defaults is a behavior
-// change worth a deliberate test failure.
+// NewForwarder defaults reflect the configured wire.go constants. /ready keeps
+// a 60s budget (matches the platform hook timeout); the remaining hooks default
+// to 1s. Changing these defaults is a deliberate behavior change — the test
+// failure is intentional.
 func TestNewForwarder_Defaults(t *testing.T) {
-	f := NewForwarder(8080)
-	assert.Equal(t, 30*time.Second, f.forwardTimeout, "forwardTimeout default must be 30s")
+	f := NewForwarder(8080, defaultForwardTimeout, defaultReadyTimeout, defaultValidateTimeout)
+	assert.Equal(t, 1*time.Second, f.forwardTimeout, "forwardTimeout default must be 1s")
 	assert.Equal(t, 60*time.Second, f.readyTimeout, "readyTimeout default must be 60s (matches platform /ready hook timeout)")
-	assert.Equal(t, 60*time.Second, f.validateTimeout, "validateTimeout default must be 60s (matches platform /validate hook timeout)")
+	assert.Equal(t, 1*time.Second, f.validateTimeout, "validateTimeout default must be 1s")
 	assert.Equal(t, defaultMaxResponseBodyBytes, f.maxResponseBodyBytes, "maxResponseBodyBytes default must be 1 MiB")
 	tr, ok := f.client.Transport.(*http.Transport)
 	require.True(t, ok, "transport must be *http.Transport")
