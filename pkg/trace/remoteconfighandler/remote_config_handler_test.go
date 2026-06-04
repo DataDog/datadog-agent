@@ -42,7 +42,7 @@ func applyEmpty(_ string, _ state.ApplyStatus) {}
 
 func TestStart(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:             remoteClient,
 		DebugServerPort:                1,
@@ -65,7 +65,7 @@ func TestStart(t *testing.T) {
 
 func TestStart_AllFlagsEnabled(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:              remoteClient,
 		DebugServerPort:                 1,
@@ -90,7 +90,7 @@ func TestStart_AllFlagsEnabled(t *testing.T) {
 
 func TestStart_OnlySemanticsEnabled(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:              remoteClient,
 		DebugServerPort:                 1,
@@ -112,7 +112,7 @@ func TestStart_OnlySemanticsEnabled(t *testing.T) {
 
 func TestStart_OnlyAgentConfigEnabled(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:             remoteClient,
 		DebugServerPort:                1,
@@ -141,7 +141,7 @@ func TestStartNoRemoteClient(t *testing.T) {
 // requested — semantics RC does not depend on the debug server.
 func TestNew_NoDebugServerWithSemanticsOnly(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:              remoteClient,
 		DebugServerPort:                 0,
@@ -162,7 +162,7 @@ func TestNew_NoDebugServerWithSemanticsOnly(t *testing.T) {
 // requested — there is nothing useful for the handler to do.
 func TestNew_NoDebugServerNoOtherProducts(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:             remoteClient,
 		DebugServerPort:                0,
@@ -180,7 +180,7 @@ func TestNew_NoDebugServerNoOtherProducts(t *testing.T) {
 // subscription is skipped with a warning.
 func TestStart_AgentConfigSkippedWithoutDebugServer(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:             remoteClient,
 		DebugServerPort:                0,
@@ -200,7 +200,7 @@ func TestStart_AgentConfigSkippedWithoutDebugServer(t *testing.T) {
 
 func TestPrioritySampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
@@ -229,7 +229,7 @@ func TestPrioritySampler(t *testing.T) {
 
 func TestErrorsSampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
@@ -258,7 +258,7 @@ func TestErrorsSampler(t *testing.T) {
 
 func TestRareSampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
@@ -287,7 +287,7 @@ func TestRareSampler(t *testing.T) {
 
 func TestEnvPrecedence(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
@@ -326,7 +326,7 @@ func TestEnvPrecedence(t *testing.T) {
 
 func TestLogLevel(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
@@ -367,8 +367,8 @@ func TestLogLevel(t *testing.T) {
 
 func TestStartWithMRF(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
-	mrfClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
+	mrfClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:             remoteClient,
 		MRFRemoteConfigClient:          mrfClient,
@@ -394,8 +394,8 @@ func TestStartWithMRF(t *testing.T) {
 
 func TestMRFUpdateCallback(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
-	mrfClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
+	mrfClient := config.NewMockRemoteClient(ctrl)
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
@@ -451,8 +451,8 @@ func TestMRFUpdateCallback(t *testing.T) {
 
 func TestMRFUpdateCallbackWithMultipleConfigs(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
-	mrfClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
+	mrfClient := config.NewMockRemoteClient(ctrl)
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
@@ -496,7 +496,7 @@ const semanticTestJSON = `{"version":"test-1.0","concepts":{"db.statement":{"can
 func newSemanticTestHandler(t *testing.T) *RemoteConfigHandler {
 	t.Helper()
 	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
+	remoteClient := config.NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:              remoteClient,
 		DebugServerPort:                 1,
