@@ -782,11 +782,12 @@ export function MetricsView({
             ) : (
               <>
                 {/* Anomaly intensity timeline */}
-                <AnomalyScoreTimeline 
+                <AnomalyScoreTimeline
                   anomalies={timelineAnomalies}
                   scenarioStart={state.status?.scenarioStart ?? null}
                   scenarioEnd={state.status?.scenarioEnd ?? null}
                   timeRange={timeRange}
+                  phaseMarkers={phaseMarkers}
                 />
 
                 {/* Regular metric groups */}
