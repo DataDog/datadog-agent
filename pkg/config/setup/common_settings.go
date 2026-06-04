@@ -7,6 +7,7 @@
 package setup
 
 import (
+	"fmt"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -866,6 +867,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Network
 	config.BindEnv("network.id") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+
+	// Process manager (dd-procmgrd): on Windows the core agent starts dd-procmgr-service when enabled.
+	// On Linux, dd-procmgrd is managed by systemd (datadog-agent-procmgr.service); this setting is ignored there.
+	config.BindEnvAndSetDefault("process_manager.enabled", true)
 
 	// OTel Collector
 	config.BindEnvAndSetDefault("otelcollector.enabled", false)
@@ -1933,14 +1938,35 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 // vector integration
 func vector(config pkgconfigmodel.Setup) {
-	config.BindEnvAndSetDefault("observability_pipelines_worker.metrics.enabled", false)
-	config.BindEnvAndSetDefault("observability_pipelines_worker.metrics.url", "")
-	config.BindEnvAndSetDefault("vector.metrics.enabled", false)
-	config.BindEnvAndSetDefault("vector.metrics.url", "")
-	config.BindEnvAndSetDefault("observability_pipelines_worker.logs.enabled", false)
-	config.BindEnvAndSetDefault("observability_pipelines_worker.logs.url", "")
-	config.BindEnvAndSetDefault("vector.logs.enabled", false)
-	config.BindEnvAndSetDefault("vector.logs.url", "")
+	bindVectorOptions(config, Metrics)
+	bindVectorOptions(config, Logs)
+
+	// dual_ship is logs-only: there is no equivalent dual-shipping code path for metrics, so
+	// these keys live outside bindVectorOptions to avoid registering an unused metrics variant.
+	//
+	// dual_ship: when false (default), OPW replaces the primary Datadog endpoint and is the only
+	// destination logs are shipped to. When true, Datadog remains the primary endpoint and OPW is
+	// added as an additional endpoint — intended for operators evaluating OPW without interrupting
+	// the existing flow of telemetry to Datadog.
+	//
+	// dual_ship_reliable: when dual_ship=true, controls whether the OPW additional endpoint applies
+	// backpressure to the main pipeline on failure (true) or is best-effort (false, the default).
+	// Best-effort is the safer default: an unreachable OPW must not block delivery to Datadog.
+	config.BindEnvAndSetDefault("observability_pipelines_worker.logs.dual_ship", false)
+	config.BindEnvAndSetDefault("observability_pipelines_worker.logs.dual_ship_reliable", false)
+
+	// Legacy vector.* aliases for dual_ship keys — users still on the legacy prefix must not have
+	// dual_ship=true silently dropped when the fallback in obsPipelineWorkerDualShip reads these keys.
+	config.BindEnvAndSetDefault("vector.logs.dual_ship", false)
+	config.BindEnvAndSetDefault("vector.logs.dual_ship_reliable", false)
+}
+
+func bindVectorOptions(config pkgconfigmodel.Setup, datatype string) {
+	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype), false)
+	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.url", datatype), "")
+
+	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
+	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
 }
 
 func cloudfoundry(config pkgconfigmodel.Setup) {

@@ -32,6 +32,12 @@ const (
 	KubeAppPartOfLabelKey = "app.kubernetes.io/part-of"
 	// KubeAppManagedByLabelKey is the label key of the tool being used to manage the operation of an application
 	KubeAppManagedByLabelKey = "app.kubernetes.io/managed-by"
+	// KueueQueueNameLabelKey is the queue selection label key used by Kueue-managed workloads
+	KueueQueueNameLabelKey = "kueue.x-k8s.io/queue-name"
+	// KueueLocalQueueNameLabelKey is the pod label key set by Kueue with the admitted local queue name
+	KueueLocalQueueNameLabelKey = "kueue.x-k8s.io/local-queue-name"
+	// KueueClusterQueueNameLabelKey is the pod label key set by Kueue with the admitted cluster queue name
+	KueueClusterQueueNameLabelKey = "kueue.x-k8s.io/cluster-queue-name"
 	// ArgoRolloutLabelKey is the label key that is present when the resource is managed by Argo Rollouts
 	ArgoRolloutLabelKey = "rollouts-pod-template-hash"
 

@@ -113,7 +113,7 @@ type MockConnection struct {
 	Profile   *profile.NCMProfile
 }
 
-func (m *MockConnection) execute(cmd *profile.Command) ([]byte, error) {
+func (m *MockConnection) execute(cmd *profile.PlainCommand) ([]byte, error) {
 	r := fail(errors.New("unsupported command"))
 	if cmd != nil {
 		var ok bool

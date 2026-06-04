@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build jetson || (clusterchecks && !test)
+//go:build jetson
 
 // Package invalidconfig is an empty stub keeping the package importable on IoT
-// Agent (jetson) and Cluster Agent builds where the real validator is excluded
-// to stay under the binary size budget.
+// Agent (jetson) builds where the real validator is excluded to stay under
+// the binary size budget.
 package invalidconfig

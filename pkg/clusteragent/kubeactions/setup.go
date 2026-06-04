@@ -11,6 +11,7 @@ import (
 	"context"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
@@ -19,14 +20,14 @@ import (
 )
 
 // Setup initializes the kubeactions subsystem with all executors registered
-func Setup(ctx context.Context, clientset kubernetes.Interface, clusterName, clusterID string, isLeader func() bool, rcClient RcClient, epForwarderComp eventplatform.Component) (*ConfigRetriever, error) {
+func Setup(ctx context.Context, clientset kubernetes.Interface, dynamicClient dynamic.Interface, clusterName, clusterID string, isLeader func() bool, rcClient RcClient, epForwarderComp eventplatform.Component) (*ConfigRetriever, error) {
 	log.Infof("[KubeActions] Setting up Kubernetes actions subsystem")
 
 	// Create the executor registry
 	registry := NewExecutorRegistry(clientset)
 
 	// Register all action executors
-	registerExecutors(registry, clientset)
+	registerExecutors(registry, clientset, dynamicClient)
 
 	// Create in-memory action store with TTL-based expiration
 	store := NewActionStore(ctx)
@@ -59,10 +60,10 @@ func (a *executorAdapter) Execute(ctx context.Context, action *kubeactions.KubeA
 }
 
 // registerExecutors registers all available action executors
-func registerExecutors(registry *ExecutorRegistry, clientset kubernetes.Interface) {
+func registerExecutors(registry *ExecutorRegistry, clientset kubernetes.Interface, dynamicClient dynamic.Interface) {
 	registry.Register("delete_pod", &executorAdapter{exec: executors.NewDeletePodExecutor(clientset)})
 	registry.Register("restart_deployment", &executorAdapter{exec: executors.NewRestartDeploymentExecutor(clientset)})
 	registry.Register("patch_deployment", &executorAdapter{exec: executors.NewPatchDeploymentExecutor(clientset)})
 	registry.Register("rollback_deployment", &executorAdapter{exec: executors.NewRollbackDeploymentExecutor(clientset)})
-	registry.Register("get_resource", &executorAdapter{exec: executors.NewGetResourceExecutor(clientset)})
+	registry.Register("get_resource", &executorAdapter{exec: executors.NewGetResourceExecutor(dynamicClient)})
 }

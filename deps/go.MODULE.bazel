@@ -364,7 +364,6 @@ use_repo(
     "com_gitlab_gitlab_org_api_client_go",
     "com_google_cloud_go_compute",
     "com_google_cloud_go_compute_metadata",
-    "in_gopkg_evanphx_json_patch_v4",
     "in_gopkg_ini_v1",
     "in_gopkg_yaml_v3",
     "in_gopkg_zorkian_go_datadog_api_v2",

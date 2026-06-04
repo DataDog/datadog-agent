@@ -28,7 +28,7 @@ type sshClient interface {
 
 // Execute runs a command and validates the output with its validation rules.
 // The validation runs on the combined stdout and stderr of the command.
-func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.Command) (string, error) {
+func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCommand) (string, error) {
 	session, err := client.NewSession()
 	if err != nil {
 		return "", err

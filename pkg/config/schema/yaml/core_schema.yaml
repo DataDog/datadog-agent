@@ -312,6 +312,30 @@ properties:
     - template_section:Common
     - full-agent-only:true
     comment: Installer configuration
+  process_manager:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      When true (see `enabled` below), the Datadog process manager daemon (dd-procmgrd) is enabled for this host install.
+      On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
+      On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
+      this setting is ignored on Linux and does not enable or disable the systemd unit.
+    tags:
+    - template_section:Common
+    - full-agent-only:true
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        visibility: public
+        description: |-
+          When true (Windows only), the core Agent starts the dd-procmgr-service Windows service.
+          On Linux, the process manager daemon is started by systemd; this option is ignored.
+        tags:
+        - template_section:Common
+        comment: Process manager
   tag_value_split_separator:
     node_type: setting
     type: object

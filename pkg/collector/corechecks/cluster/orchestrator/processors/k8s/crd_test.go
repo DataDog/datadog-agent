@@ -55,16 +55,16 @@ func TestCRDHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*v1.CustomResourceDefinition)
 	assert.True(t, ok)
 	assert.Equal(t, "crd-1", resource1.Name)
-	assert.NotSame(t, crd1, resource1) // Should be a copy
+	assert.Same(t, crd1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*v1.CustomResourceDefinition)
 	assert.True(t, ok)
 	assert.Equal(t, "crd-2", resource2.Name)
-	assert.NotSame(t, crd2, resource2) // Should be a copy
+	assert.Same(t, crd2, resource2) // ResourceList returns raw informer references
 }
 
 func TestCRDHandlers_ResourceUID(t *testing.T) {
@@ -400,4 +400,14 @@ func createTestCustomResourceDefinition(name string) *v1.CustomResourceDefinitio
 			},
 		},
 	}
+}
+
+func TestCRDHandlers_CloneResource(t *testing.T) {
+	handlers := &CRDHandlers{}
+	original := createTestCustomResourceDefinition("test")
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*v1.CustomResourceDefinition)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

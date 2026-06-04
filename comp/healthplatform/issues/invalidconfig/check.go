@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build !jetson && (!clusterchecks || test)
+//go:build !jetson
 
 // Package invalidconfig reports datadog.yaml schema violations through the Agent Health Platform.
-// Excluded from the IoT Agent and Cluster Agent builds to stay under the binary size budget.
+// Excluded from the IoT Agent build to stay under the binary size budget.
 package invalidconfig
 
 import (

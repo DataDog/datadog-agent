@@ -7,6 +7,7 @@ import shutil
 
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_version
+from tasks.schema.generate import compress as schema_compress
 
 
 def build_common(
@@ -29,6 +30,8 @@ def build_common(
 
     # We rely on the go libs embedded in the debian stretch image to build dynamically
     ldflags, gcflags, env = get_build_flags(ctx, static=False)
+
+    schema_compress(ctx)
 
     go_build(
         ctx,

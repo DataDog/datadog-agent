@@ -956,10 +956,7 @@ require (
 	github.com/aymerick/raymond v2.0.2+incompatible
 	github.com/bazelbuild/rules_go v0.60.0
 	github.com/creack/pty v1.1.24
-	github.com/frapposelli/wwhrd v0.4.0
-	github.com/go-enry/go-license-detector/v4 v4.3.1
 	github.com/go-jose/go-jose/v4 v4.1.4
-	github.com/goware/modvendor v0.5.0
 	github.com/hashicorp/vault v1.21.4
 	github.com/hashicorp/vault/api v1.22.0
 	github.com/hashicorp/vault/api/auth/approle v0.11.0
@@ -970,7 +967,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.1
-	github.com/modelcontextprotocol/go-sdk v1.6.0
+	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/rabbitmq/amqp091-go v1.9.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
@@ -1050,20 +1047,13 @@ require (
 	github.com/coreos/pkg v0.0.0-20220810130054-c7d1c02cb6cf // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/denverdino/aliyungo v0.0.0-20190125010748-a747050bb1ba // indirect
-	github.com/dgryski/go-minhash v0.0.0-20190315135803-ad340ca03076 // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
 	github.com/duosecurity/duo_api_golang v0.0.0-20250430191550-ac36954387e7 // indirect
-	github.com/ekzhu/minhash-lsh v0.0.0-20190924033628-faac2c6342f8 // indirect
-	github.com/emicklei/dot v0.15.0 // indirect
-	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
 	github.com/felixge/fgprof v0.9.5 // indirect
 	github.com/gammazero/deque v0.2.1 // indirect
 	github.com/gammazero/workerpool v1.1.3 // indirect
-	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
-	github.com/go-git/go-billy/v5 v5.6.2 // indirect
-	github.com/go-git/go-git/v5 v5.16.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.4 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
 	github.com/go-ozzo/ozzo-validation v3.6.0+incompatible // indirect
@@ -1072,7 +1062,6 @@ require (
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/google/certificate-transparency-go v1.3.2 // indirect
 	github.com/google/go-metrics-stackdriver v0.2.0 // indirect
-	github.com/google/licensecheck v0.3.1 // indirect
 	github.com/gophercloud/gophercloud v0.1.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
 	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
@@ -1122,23 +1111,18 @@ require (
 	github.com/hashicorp/vault/sdk v0.21.0 // indirect
 	github.com/hashicorp/vic v1.5.1-0.20190403131502-bbfe86ec9443 // indirect
 	github.com/hashicorp/yamux v0.1.2 // indirect
-	github.com/hhatto/gorst v0.0.0-20181029133204-ca9f730cac5b // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgconn v1.14.3 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgproto3/v2 v2.3.3 // indirect
 	github.com/jackc/pgtype v1.14.3 // indirect
 	github.com/jackc/pgx/v4 v4.18.3 // indirect
-	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
-	github.com/jdkato/prose v1.2.1 // indirect
 	github.com/jefferai/isbadcipher v0.0.0-20190226160619-51d2077c035f // indirect
 	github.com/jefferai/jsonx v1.0.1 // indirect
-	github.com/jessevdk/go-flags v1.6.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24 // indirect
 	github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531 // indirect
 	github.com/joyent/triton-go v1.7.1-0.20200416154420-6801d15b779f // indirect
 	github.com/kelseyhightower/envconfig v1.4.0 // indirect
-	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/lestrrat-go/backoff/v2 v2.0.8 // indirect
 	github.com/lestrrat-go/blackmagic v1.0.2 // indirect
 	github.com/lestrrat-go/httpcc v1.0.1 // indirect
@@ -1146,7 +1130,6 @@ require (
 	github.com/lestrrat-go/jwx v1.2.29 // indirect
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/linkdata/deadlock v0.5.5 // indirect
-	github.com/mattn/go-zglob v0.0.2-0.20191112051448-a8912a37f9e7 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
 	github.com/mitchellh/pointerstructure v1.2.1 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
@@ -1170,14 +1153,12 @@ require (
 	github.com/petermattis/goid v0.0.0-20260226131333-17d1149c6ac6 // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pires/go-proxyproto v0.8.0 // indirect
-	github.com/pjbgf/sha1cd v0.3.2 // indirect
 	github.com/posener/complete v1.2.3 // indirect
 	github.com/pquerna/otp v1.2.1-0.20191009055518-468c2dd2b58d // indirect
 	github.com/prometheus/client_golang/exp v0.0.0-20260325093428-d8591d0db856 // indirect
 	github.com/rboyer/safeio v0.2.3 // indirect
 	github.com/renier/xmlrpc v0.0.0-20170708154548-ce4a1a486c03 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
-	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/saracen/walker v0.1.2 // indirect
@@ -1185,10 +1166,7 @@ require (
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/segmentio/fasthash v1.0.3 // indirect
-	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/sethvargo/go-limiter v0.7.1 // indirect
-	github.com/shogo82148/go-shuffle v1.0.1 // indirect
-	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/softlayer/softlayer-go v0.0.0-20180806151055-260589d94c7d // indirect
 	github.com/sony/gobreaker v0.5.0 // indirect
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.480 // indirect
@@ -1199,10 +1177,7 @@ require (
 	github.com/vmware/govmomi v0.18.0 // indirect
 	github.com/vultr/govultr/v3 v3.28.1 // indirect
 	github.com/weppos/publicsuffix-go v0.50.3 // indirect
-	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.4 // indirect
-	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
-	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
 
 // TODO(songy23): remove this once https://github.com/kubernetes/apiserver/commit/b887c9ebecf558a2001fc5c5dbd5c87fd672500c is brought to agent
