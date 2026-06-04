@@ -185,21 +185,13 @@ func (l *LocalService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
 	return false
 }
 
-func isSupportedArch(arch string) bool {
-	return arch == archAMD64 || arch == archARM64
-}
-
 // GetCloudServiceType TODO: Refactor to avoid leaking individual service implementation details into the interface layer
 //
 //nolint:revive // TODO(SERV) Fix revive lin
 func GetCloudServiceType() CloudService {
 	arch := runtime.GOARCH
 
-	// MicroVM supports both amd64 and arm64; all other services are amd64-only.
 	if isMicroVM() {
-		if !isSupportedArch(arch) {
-			log.Errorf(unsupportedArchMsg, arch)
-		}
 		return &MicroVM{}
 	}
 
