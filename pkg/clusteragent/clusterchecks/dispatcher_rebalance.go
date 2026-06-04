@@ -385,21 +385,13 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	}()
 
 	currentConfigsDistribution := d.currentDistribution()
-
 	proposedDistribution := newConfigsDistribution(currentConfigsDistribution.runnerWorkers())
-
-	// Pin excluded configs to their current runner.
-	for digest, config := range currentConfigsDistribution.Configs {
-		if _, excluded := d.excludedChecksFromDispatching[config.CheckName]; excluded {
-			proposedDistribution.addConfig(digest, config.CheckName, config.WorkersNeeded, config.Runner)
-		}
-	}
 
 	// Place the rest greedily by descending workersNeeded.
 	for _, digest := range currentConfigsDistribution.configsSortedByWorkersNeeded() {
 		config := currentConfigsDistribution.Configs[digest]
-		if _, excluded := d.excludedChecksFromDispatching[config.CheckName]; excluded {
-			continue
+		if config.Pinned {
+			proposedDistribution.addConfig(digest, config.CheckName, config.WorkersNeeded, config.Runner, true)
 		}
 		proposedDistribution.addToLeastBusy(
 			digest,
@@ -407,6 +399,7 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 			config.WorkersNeeded,
 			config.Runner,
 			"",
+			false,
 		)
 	}
 
@@ -487,7 +480,12 @@ func (d *dispatcher) currentDistribution() configsDistribution {
 				workersNeeded = 1
 			}
 
-			distribution.addConfig(digest, conf.Name, workersNeeded, nodeName)
+			// Pin if the check is explicitly excluded from rebalancing or if
+			// this instance has no usable execution-time signal (AverageExecutionTime == 0).
+			_, excluded := d.excludedChecksFromDispatching[conf.Name]
+			pinned := excluded || workersNeeded == 0
+
+			distribution.addConfig(digest, conf.Name, workersNeeded, nodeName, pinned)
 		}
 		nodeStoreInfo.RUnlock()
 	}
