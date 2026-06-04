@@ -104,9 +104,9 @@ func main() {
 
 // removing these unused dependencies will cause silent crash due to fx framework
 func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
-	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled, child := setup(secretComp, delegatedAuthComp, modeConf, tagger, compression, hostname)
+	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(secretComp, delegatedAuthComp, modeConf, tagger, compression, hostname)
 
-	err := modeConf.Runner(logConfig, child)
+	err := cloudService.Run(modeConf, logConfig)
 
 	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, logsAgent)
@@ -124,7 +124,7 @@ func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component
 	return err
 }
 
-func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *enhancedmetrics.Collector, bool, *lifecycle.Child) {
+func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *enhancedmetrics.Collector, bool) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
 	// load proxy settings
@@ -195,11 +195,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 		if origin == cloudservice.MicroVMOrigin {
 			_ = cloudService.Init(tracingCtx)
 		}
-		var child *lifecycle.Child
-		if m, ok := cloudService.(*cloudservice.MicroVM); ok {
-			child = m.Child()
-		}
-		return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, nil, false, child
+		return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, nil, false
 	}
 
 	traceTags := serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags)
@@ -251,11 +247,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 
 	go flushMetricsAgent(metricAgent)
 
-	var child *lifecycle.Child
-	if m, ok := cloudService.(*cloudservice.MicroVM); ok {
-		child = m.Child()
-	}
-	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled, child
+	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled
 }
 
 // tagConfiguration holds the various tag sets for telemetry.

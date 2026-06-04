@@ -8,6 +8,8 @@ package cloudservice
 import (
 	"context"
 	"net/http"
+	"os"
+	"sync/atomic"
 	"strings"
 	"sync"
 	"testing"
@@ -17,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -109,6 +113,40 @@ func TestMicroVMGetEnhancedMetricTagsMissingARN(t *testing.T) {
 	assert.Equal(t, "lambda_microvm", result.Base["resource_type"])
 	assert.Equal(t, "aws", result.Base["resource_provider"])
 	assert.Equal(t, result.Base["resource_id"], result.Usage["resource_id"])
+}
+
+// Compile-time guard: *MicroVM must satisfy the CloudService interface,
+// including the new Run method.
+var _ CloudService = (*MicroVM)(nil)
+
+// TestMicroVM_Run_InitMode_ThreadsChildLiveness verifies that MicroVM.Run in
+// init-container mode threads m.child into RunInit so the lifecycle server's
+// /ready alive-check reflects the user app's actual state.
+func TestMicroVM_Run_InitMode_ThreadsChildLiveness(t *testing.T) {
+	if testing.Short() {
+		t.Skip("spawns a subprocess")
+	}
+	saved := os.Args
+	defer func() { os.Args = saved }()
+	os.Args = []string{"datadog-init", "sh", "-c", "sleep 0.3"}
+
+	child := lifecycle.NewChild()
+	m := &MicroVM{child: child}
+
+	var midRunAlive atomic.Bool
+	probeDone := make(chan struct{})
+	go func() {
+		defer close(probeDone)
+		time.Sleep(100 * time.Millisecond)
+		midRunAlive.Store(child.IsAlive())
+	}()
+
+	err := m.Run(mode.Conf{SidecarMode: false}, &serverlessInitLog.Config{})
+	<-probeDone
+
+	require.NoError(t, err)
+	assert.True(t, midRunAlive.Load(), "child must be alive while Run is blocked on the subprocess")
+	assert.False(t, child.IsAlive(), "child must be dead after Run returns")
 }
 
 func TestParseMicroVMARNWithColonInName(t *testing.T) {
