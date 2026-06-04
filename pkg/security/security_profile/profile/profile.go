@@ -90,6 +90,17 @@ type Profile struct {
 	// V2
 	// First has been sent
 	hasAlreadyBeenSent *atomic.Bool
+	isEnabled          *atomic.Bool
+}
+
+// IsEnabled returns true if the profile is enabled
+func (p *Profile) IsEnabled() bool {
+	return p.isEnabled.Load()
+}
+
+// Disable disables the profile
+func (p *Profile) Disable() {
+	p.isEnabled.Store(false)
 }
 
 // HasAlreadyBeenSent returns true if the profile has already been sent
@@ -151,6 +162,7 @@ func New(opts ...Opts) *Profile {
 		hasAlreadyBeenSent: atomic.NewBool(false),
 		versionContexts:    make(map[string]*VersionContext),
 		profileCookie:      utils.RandNonZeroUint64(),
+		isEnabled:          atomic.NewBool(true),
 	}
 
 	for _, opt := range opts {
