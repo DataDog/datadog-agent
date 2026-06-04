@@ -42,8 +42,10 @@ type LifecycleContext struct {
 	SampleDrainer lifecycle.SampleDrainer
 	FlushTimeout  time.Duration
 	SidecarMode   bool
-	LogsTagSetter lifecycle.LogsTagSetter // nil-safe; applied via server.SetLogsTagSetter after /launch
-	BaseTags      []string                // startup log tag snapshot passed alongside LogsTagSetter
+	LogsTagSetter  lifecycle.LogsTagSetter  // nil-safe; applied via server.SetLogsTagSetter after /launch
+	BaseTags       []string                 // startup log tag snapshot passed alongside LogsTagSetter
+	TraceTagSetter lifecycle.TraceTagSetter // nil-safe; applied via server.SetTraceTagSetter after /launch
+	BaseTraceTags  map[string]string        // startup trace tag snapshot passed alongside TraceTagSetter
 }
 
 // MicroVM implements CloudService for AWS Lambda MicroVMs.
@@ -146,6 +148,9 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 	)
 	if lc.LogsTagSetter != nil {
 		m.server.SetLogsTagSetter(lc.LogsTagSetter, lc.BaseTags)
+	}
+	if lc.TraceTagSetter != nil {
+		m.server.SetTraceTagSetter(lc.TraceTagSetter, lc.BaseTraceTags)
 	}
 	l, err := m.server.Listen()
 	if err != nil {

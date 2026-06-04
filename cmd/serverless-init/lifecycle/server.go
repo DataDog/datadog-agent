@@ -44,6 +44,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"strconv"
@@ -71,7 +72,8 @@ const (
 	resumeMetricName    = "aws.lambda.microvm.enhanced.resume"
 	terminateMetricName = "aws.lambda.microvm.enhanced.terminate"
 
-	lambdaMicroVmId = "lambda_microvm_id:"
+	lambdaMicroVmIdKey = "lambda_microvm_id"      // for map[string]string trace tags: key only
+	lambdaMicroVmId    = lambdaMicroVmIdKey + ":" // for []string log/metric tags: key:value concatenated
 )
 
 // Flusher is satisfied by serverless.FlushableAgent.
@@ -110,6 +112,19 @@ type LogsTagSetterFunc func([]string)
 // SetLogsTags implements LogsTagSetter.
 func (f LogsTagSetterFunc) SetLogsTags(tags []string) { f(tags) }
 
+// TraceTagSetter can replace the full tag map on the live trace pipeline.
+// Satisfied by trace.ServerlessTraceAgent.SetTags (wrapped via TraceTagSetterFunc).
+type TraceTagSetter interface {
+	SetTraceTags(tags map[string]string)
+}
+
+// TraceTagSetterFunc wraps a bare function so it satisfies TraceTagSetter.
+type TraceTagSetterFunc func(map[string]string)
+
+// SetTraceTags implements TraceTagSetter.
+func (f TraceTagSetterFunc) SetTraceTags(tags map[string]string) { f(tags) }
+
+
 // launchBody is the JSON payload sent by the MicroVM platform on /launch.
 type launchBody struct {
 	MicroVMID string `json:"microVmId"`
@@ -131,8 +146,10 @@ type Server struct {
 	fwd         *Forwarder  // nil = no opt-in; today's behavior preserved
 	heartbeat   *Heartbeat  // nil-safe; nil disables periodic heartbeat emission
 
-	logsTagSetter LogsTagSetter // nil-safe; set via SetLogsTagSetter after construction
-	baseTags      []string      // startup tag snapshot; lambda_microvm_id is appended at /launch
+	logsTagSetter  LogsTagSetter     // nil-safe; set via SetLogsTagSetter after construction
+	baseTags       []string          // startup tag snapshot; lambda_microvm_id is appended at /launch
+	traceTagSetter TraceTagSetter    // nil-safe; set via SetTraceTagSetter after construction
+	baseTraceTags  map[string]string // startup trace tag snapshot; lambda_microvm_id is added at /launch
 
 	httpServer *http.Server
 }
@@ -198,6 +215,15 @@ func (s *Server) SetLogsTagSetter(setter LogsTagSetter, baseTags []string) {
 	s.logsTagSetter = setter
 	s.baseTags = baseTags
 }
+
+// SetTraceTagSetter wires a TraceTagSetter and a baseline trace tag map into the
+// server. Must be called before the first /launch request. baseTraceTags is the
+// startup trace tag snapshot; lambda_microvm_id is added to it when /launch fires.
+func (s *Server) SetTraceTagSetter(setter TraceTagSetter, baseTraceTags map[string]string) {
+	s.traceTagSetter = setter
+	s.baseTraceTags = baseTraceTags
+}
+
 
 // Listen binds the TCP port synchronously. Call before Serve so the socket is
 // ready before the MicroVM platform sends the first lifecycle hook.
@@ -430,6 +456,11 @@ func (s *Server) handleLaunch(w http.ResponseWriter, r *http.Request) {
 		s.heartbeat.SetMicroVMID(body.MicroVMID)
 		if s.logsTagSetter != nil {
 			s.logsTagSetter.SetLogsTags(append(append([]string{}, s.baseTags...), lambdaMicroVmId+body.MicroVMID))
+		}
+		if s.traceTagSetter != nil {
+			tags := maps.Clone(s.baseTraceTags)
+			tags[lambdaMicroVmIdKey] = body.MicroVmID
+			s.traceTagSetter.SetTraceTags(tags)
 		}
 	} else {
 		log.Info("MicroVM lifecycle: launch")

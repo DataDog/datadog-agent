@@ -1276,3 +1276,146 @@ func TestHandleLaunch_WithForwarder_UpdatesLogTags(t *testing.T) {
 	require.Equal(t, 1, setter.callCount(), "SetLogsTags must be called even when forwarder is configured")
 	assert.Equal(t, []string{"env:staging", lambdaMicroVmId + "vm-fwd456"}, setter.lastCall())
 }
+
+// ---------------------------------------------------------------------------
+// Trace tag setter tests
+// ---------------------------------------------------------------------------
+
+// mockTraceTagSetter records every SetTraceTags call for assertions.
+type mockTraceTagSetter struct {
+	mu    sync.Mutex
+	calls []map[string]string
+}
+
+func (m *mockTraceTagSetter) SetTraceTags(tags map[string]string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cp := make(map[string]string, len(tags))
+	for k, v := range tags {
+		cp[k] = v
+	}
+	m.calls = append(m.calls, cp)
+}
+
+func (m *mockTraceTagSetter) callCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.calls)
+}
+
+func (m *mockTraceTagSetter) lastCall() map[string]string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.calls) == 0 {
+		return nil
+	}
+	return m.calls[len(m.calls)-1]
+}
+
+// TestTraceTagSetterFunc_CallsWrappedFunction verifies that TraceTagSetterFunc
+// delegates to the underlying function when SetTraceTags is called.
+func TestTraceTagSetterFunc_CallsWrappedFunction(t *testing.T) {
+	var received map[string]string
+	fn := TraceTagSetterFunc(func(tags map[string]string) { received = tags })
+	fn.SetTraceTags(map[string]string{"env": "prod"})
+	assert.Equal(t, map[string]string{"env": "prod"}, received)
+}
+
+// TestSetTraceTagSetter_WiresFields verifies that SetTraceTagSetter stores both
+// the setter and the base trace tag snapshot on the server.
+func TestSetTraceTagSetter_WiresFields(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockTraceTagSetter{}
+	base := map[string]string{"env": "prod", "region": "us-east-1"}
+	srv.SetTraceTagSetter(setter, base)
+	assert.Equal(t, setter, srv.traceTagSetter)
+	assert.Equal(t, base, srv.baseTraceTags)
+}
+
+// TestHandleLaunch_UpdatesTraceTagsWithMicroVMID is the primary feature test:
+// /launch with a microVmId body calls SetTraceTags with baseTraceTags + lambda_microvm_id.
+func TestHandleLaunch_UpdatesTraceTagsWithMicroVMID(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockTraceTagSetter{}
+	srv.SetTraceTagSetter(setter, map[string]string{"env": "prod", "region": "us-east-1"})
+
+	body := strings.NewReader(`{"microVmId":"vm-abc123"}`)
+	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+
+	require.Equal(t, 1, setter.callCount(), "SetTraceTags must be called exactly once on /launch")
+	got := setter.lastCall()
+	assert.Equal(t, "vm-abc123", got["lambda_microvm_id"])
+	assert.Equal(t, "prod", got["env"])
+	assert.Equal(t, "us-east-1", got["region"])
+}
+
+// TestHandleLaunch_NoMicroVmID_DoesNotUpdateTraceTags verifies that when the
+// platform sends /launch with no microVmId, SetTraceTags is not called.
+func TestHandleLaunch_NoMicroVmID_DoesNotUpdateTraceTags(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockTraceTagSetter{}
+	srv.SetTraceTagSetter(setter, map[string]string{"env": "prod"})
+
+	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, nil))
+
+	assert.Equal(t, 0, setter.callCount(), "SetTraceTags must not be called when microVmId is absent")
+}
+
+// TestHandleLaunch_NilTraceTagSetter_DoesNotPanic verifies nil-safety: a server
+// constructed without SetTraceTagSetter must not panic when /launch fires.
+func TestHandleLaunch_NilTraceTagSetter_DoesNotPanic(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+
+	body := strings.NewReader(`{"microVmId":"vm-abc123"}`)
+	assert.NotPanics(t, func() {
+		srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+	})
+}
+
+// TestHandleLaunch_BaseTraceTagsNotMutated verifies the safe-copy contract: each
+// /launch call produces an independent map and does not modify baseTraceTags.
+func TestHandleLaunch_BaseTraceTagsNotMutated(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockTraceTagSetter{}
+	base := map[string]string{"env": "prod"}
+	srv.SetTraceTagSetter(setter, base)
+
+	body1 := strings.NewReader(`{"microVmId":"vm-first"}`)
+	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body1))
+
+	assert.Equal(t, map[string]string{"env": "prod"}, base, "handleLaunch must not mutate baseTraceTags")
+	assert.Equal(t, "vm-first", setter.lastCall()["lambda_microvm_id"])
+
+	// A second /launch (e.g. resume from snapshot with new ID) must produce an
+	// independent result without leaking the first ID into baseTraceTags.
+	body2 := strings.NewReader(`{"microVmId":"vm-second"}`)
+	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body2))
+
+	assert.Equal(t, map[string]string{"env": "prod"}, base, "baseTraceTags must still be unmodified after second /launch")
+	assert.Equal(t, "vm-second", setter.lastCall()["lambda_microvm_id"])
+}
+
+// TestHandleLaunch_WithForwarder_UpdatesTraceTags verifies that the trace tag
+// update fires even when a user-app forwarder is configured.
+func TestHandleLaunch_WithForwarder_UpdatesTraceTags(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	srv, _, _, _, _, _ := newTestServer()
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		forwardTimeout:       2 * time.Second,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+	setter := &mockTraceTagSetter{}
+	srv.SetTraceTagSetter(setter, map[string]string{"env": "staging"})
+
+	body := strings.NewReader(`{"microVmId":"vm-fwd789"}`)
+	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+
+	require.Equal(t, 1, setter.callCount(), "SetTraceTags must be called even when forwarder is configured")
+	assert.Equal(t, "vm-fwd789", setter.lastCall()["lambda_microvm_id"])
+}
