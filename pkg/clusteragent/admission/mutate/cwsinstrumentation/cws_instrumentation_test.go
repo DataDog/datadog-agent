@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
+	"path"
 	"strings"
 	"testing"
 
@@ -416,7 +416,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 			args: args{
 				exec: &corev1.PodExecOptions{
 					Command: []string{
-						filepath.Join(cwsMountPath, "cws-instrumentation"),
+						path.Join(cwsMountPath, "cws-instrumentation"),
 						"inject",
 						"--session-type",
 						"k8s",
@@ -445,7 +445,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 			args: args{
 				exec: &corev1.PodExecOptions{
 					Command: []string{
-						filepath.Join(cwsMountPath, "cws-instrumentation"),
+						path.Join(cwsMountPath, "cws-instrumentation"),
 						"inject",
 						"--session-type",
 						"k8s",
@@ -538,7 +538,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 						return
 					}
 					assert.True(t, injected)
-					expectedCommand := fmt.Sprintf("%s%s", filepath.Join(cwsMountPath, "cws-instrumentation"), " inject --session-type k8s --data")
+					expectedCommand := fmt.Sprintf("%s%s", path.Join(cwsMountPath, "cws-instrumentation"), " inject --session-type k8s --data")
 					require.Equal(t, expectedCommand, strings.Join(tt.args.exec.Command[0:5], " "), "incorrect CWS instrumentation")
 					require.Equal(t, "--", tt.args.exec.Command[6], "incorrect CWS instrumentation")
 					require.LessOrEqual(t, len(tt.args.exec.Command[5]), cwsUserSessionDataMaxSize, "user session context too long")
@@ -1084,4 +1084,278 @@ func Test_initCWSInitContainerResources(t *testing.T) {
 			}
 		})
 	}
+}
+
+// boolPtr returns a pointer to the provided bool value.
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+// newPodWithContainer returns a pod whose single regular container is built
+// from the provided container.
+func newPodWithContainer(c corev1.Container) *corev1.Pod {
+	return &corev1.Pod{
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{c},
+		},
+	}
+}
+
+func Test_isDirectoryReadOnly(t *testing.T) {
+	const (
+		targetContainer = "target"
+		directory       = "/tmp"
+	)
+
+	tests := []struct {
+		name      string
+		pod       *corev1.Pod
+		container string
+		directory string
+		want      bool
+	}{
+		{
+			name: "no VolumeMount, no SecurityContext -> writable",
+			pod: newPodWithContainer(corev1.Container{
+				Name: targetContainer,
+			}),
+			container: targetContainer,
+			directory: directory,
+			want:      false,
+		},
+		{
+			name: "no VolumeMount, ReadOnlyRootFilesystem=false -> writable",
+			pod: newPodWithContainer(corev1.Container{
+				Name: targetContainer,
+				SecurityContext: &corev1.SecurityContext{
+					ReadOnlyRootFilesystem: boolPtr(false),
+				},
+			}),
+			container: targetContainer,
+			directory: directory,
+			want:      false,
+		},
+		{
+			name: "no VolumeMount, ReadOnlyRootFilesystem=true -> read-only (fallback)",
+			pod: newPodWithContainer(corev1.Container{
+				Name: targetContainer,
+				SecurityContext: &corev1.SecurityContext{
+					ReadOnlyRootFilesystem: boolPtr(true),
+				},
+			}),
+			container: targetContainer,
+			directory: directory,
+			want:      true,
+		},
+		{
+			name: "VolumeMount on /tmp writable wins over RO rootfs (system-probe case)",
+			pod: newPodWithContainer(corev1.Container{
+				Name: targetContainer,
+				SecurityContext: &corev1.SecurityContext{
+					ReadOnlyRootFilesystem: boolPtr(true),
+				},
+				VolumeMounts: []corev1.VolumeMount{
+					{Name: "tmpdir", MountPath: "/tmp", ReadOnly: false},
+				},
+			}),
+			container: targetContainer,
+			directory: directory,
+			want:      false,
+		},
+		{
+			name: "VolumeMount on /tmp read-only wins over writable rootfs",
+			pod: newPodWithContainer(corev1.Container{
+				Name: targetContainer,
+				VolumeMounts: []corev1.VolumeMount{
+					{Name: "tmpdir", MountPath: "/tmp", ReadOnly: true},
+				},
+			}),
+			container: targetContainer,
+			directory: directory,
+			want:      true,
+		},
+		{
+			name: "VolumeMount on parent path / covers /tmp",
+			pod: newPodWithContainer(corev1.Container{
+				Name: targetContainer,
+				SecurityContext: &corev1.SecurityContext{
+					ReadOnlyRootFilesystem: boolPtr(true),
+				},
+				VolumeMounts: []corev1.VolumeMount{
+					{Name: "rootfs", MountPath: "/", ReadOnly: false},
+				},
+			}),
+			container: targetContainer,
+			directory: directory,
+			want:      false,
+		},
+		{
+			name: "most specific VolumeMount wins: / rw + /tmp ro -> /tmp ro",
+			pod: newPodWithContainer(corev1.Container{
+				Name: targetContainer,
+				VolumeMounts: []corev1.VolumeMount{
+					{Name: "rootfs", MountPath: "/", ReadOnly: false},
+					{Name: "tmpdir", MountPath: "/tmp", ReadOnly: true},
+				},
+			}),
+			container: targetContainer,
+			directory: directory,
+			want:      true,
+		},
+		{
+			name: "sibling VolumeMount does not cover /tmp (no false positive)",
+			pod: newPodWithContainer(corev1.Container{
+				Name: targetContainer,
+				SecurityContext: &corev1.SecurityContext{
+					ReadOnlyRootFilesystem: boolPtr(true),
+				},
+				VolumeMounts: []corev1.VolumeMount{
+					{Name: "tmpfoo", MountPath: "/tmpfoo", ReadOnly: false},
+				},
+			}),
+			container: targetContainer,
+			directory: directory,
+			want:      true,
+		},
+		{
+			name: "child VolumeMount does not cover parent /tmp",
+			pod: newPodWithContainer(corev1.Container{
+				Name: targetContainer,
+				SecurityContext: &corev1.SecurityContext{
+					ReadOnlyRootFilesystem: boolPtr(true),
+				},
+				VolumeMounts: []corev1.VolumeMount{
+					{Name: "subdir", MountPath: "/tmp/foo", ReadOnly: false},
+				},
+			}),
+			container: targetContainer,
+			directory: directory,
+			want:      true,
+		},
+		{
+			name: "VolumeMount mountPath with trailing slash is normalized",
+			pod: newPodWithContainer(corev1.Container{
+				Name: targetContainer,
+				SecurityContext: &corev1.SecurityContext{
+					ReadOnlyRootFilesystem: boolPtr(true),
+				},
+				VolumeMounts: []corev1.VolumeMount{
+					{Name: "tmpdir", MountPath: "/tmp/", ReadOnly: false},
+				},
+			}),
+			container: targetContainer,
+			directory: directory,
+			want:      false,
+		},
+		{
+			name: "container name does not exist -> read-only (safe default)",
+			pod: newPodWithContainer(corev1.Container{
+				Name: "other",
+				VolumeMounts: []corev1.VolumeMount{
+					{Name: "tmpdir", MountPath: "/tmp", ReadOnly: false},
+				},
+			}),
+			container: targetContainer,
+			directory: directory,
+			want:      true,
+		},
+		{
+			name: "init container is also inspected",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					InitContainers: []corev1.Container{
+						{
+							Name: targetContainer,
+							VolumeMounts: []corev1.VolumeMount{
+								{Name: "tmpdir", MountPath: "/tmp", ReadOnly: false},
+							},
+							SecurityContext: &corev1.SecurityContext{
+								ReadOnlyRootFilesystem: boolPtr(true),
+							},
+						},
+					},
+				},
+			},
+			container: targetContainer,
+			directory: directory,
+			want:      false,
+		},
+		{
+			name: "non-default directory falls back when no mount covers it",
+			pod: newPodWithContainer(corev1.Container{
+				Name: targetContainer,
+				SecurityContext: &corev1.SecurityContext{
+					ReadOnlyRootFilesystem: boolPtr(true),
+				},
+				VolumeMounts: []corev1.VolumeMount{
+					{Name: "tmpdir", MountPath: "/tmp", ReadOnly: false},
+				},
+			}),
+			container: targetContainer,
+			directory: "/var/run",
+			want:      true,
+		},
+	}
+
+	ci := &CWSInstrumentation{}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ci.isDirectoryReadOnly(tt.pod, tt.container, tt.directory)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func Test_volumeMountContainsPath(t *testing.T) {
+	tests := []struct {
+		name      string
+		mountPath string
+		target    string
+		want      bool
+	}{
+		{"exact match", "/tmp", "/tmp", true},
+		{"mountPath is parent", "/", "/tmp", true},
+		{"mountPath is multi-level parent", "/var", "/var/run/foo", true},
+		{"mountPath equals target with trailing slash", "/tmp/", "/tmp", true},
+		{"target with trailing slash", "/tmp", "/tmp/", true},
+		{"sibling prefix is not a match", "/tmpfoo", "/tmp", false},
+		{"target sibling of mount", "/tmp", "/tmpfoo", false},
+		{"child mount does not cover parent", "/tmp/foo", "/tmp", false},
+		{"unrelated paths", "/var", "/tmp", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, volumeMountContainsPath(tt.mountPath, tt.target))
+		})
+	}
+}
+
+func Test_findContainerByName(t *testing.T) {
+	pod := &corev1.Pod{
+		Spec: corev1.PodSpec{
+			InitContainers: []corev1.Container{
+				{Name: "init"},
+			},
+			Containers: []corev1.Container{
+				{Name: "app"},
+				{Name: "sidecar"},
+			},
+		},
+	}
+
+	t.Run("found in regular containers", func(t *testing.T) {
+		c := findContainerByName(pod, "sidecar")
+		require.NotNil(t, c)
+		require.Equal(t, "sidecar", c.Name)
+	})
+
+	t.Run("found in init containers", func(t *testing.T) {
+		c := findContainerByName(pod, "init")
+		require.NotNil(t, c)
+		require.Equal(t, "init", c.Name)
+	})
+
+	t.Run("not found returns nil", func(t *testing.T) {
+		require.Nil(t, findContainerByName(pod, "missing"))
+	})
 }
