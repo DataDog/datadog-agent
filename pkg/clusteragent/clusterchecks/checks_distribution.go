@@ -130,6 +130,7 @@ func (distribution *configsDistribution) addConfig(digest, checkName string, wor
 		log.Warnf("digest %s already placed on runner %q, but received conflicting assignment to %q",
 			digest, configInfo.Runner, runner)
 		distribution.Runners[configInfo.Runner].WorkersUsed -= configInfo.WorkersNeeded
+		runnerInfo.WorkersUsed += configInfo.WorkersNeeded
 		configInfo.Runner = runner
 	}
 

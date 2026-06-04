@@ -230,6 +230,29 @@ func TestNumRunnersWithHighUtilization(t *testing.T) {
 	assert.Equal(t, 2, distribution.numRunnersWithHighUtilization())
 }
 
+func TestAddConfigConflictTransfersAccumulatedWeight(t *testing.T) {
+	distribution := newConfigsDistribution(map[string]int{
+		"runner1": 4,
+		"runner2": 4,
+	})
+
+	// Two instances of digestA are processed on runner1 first.
+	distribution.addConfig("digestA", "configA", 2.0, "runner1")
+	distribution.addConfig("digestA", "configA", 1.5, "runner1")
+	assert.InDelta(t, 3.5, distribution.Runners["runner1"].WorkersUsed, 0.001)
+	assert.InDelta(t, 0.0, distribution.Runners["runner2"].WorkersUsed, 0.001)
+
+	// Conflicting assignment of digestA to runner2
+	distribution.addConfig("digestA", "configA", 3.0, "runner2")
+
+	// All accumulated weight for digestA (3.5) must transfer from runner1 to runner2,
+	// plus the new instance weight (3.0).
+	assert.InDelta(t, 0.0, distribution.Runners["runner1"].WorkersUsed, 0.001)
+	assert.InDelta(t, 6.5, distribution.Runners["runner2"].WorkersUsed, 0.001)
+	assert.InDelta(t, 6.5, distribution.Configs["digestA"].WorkersNeeded, 0.001)
+	assert.Equal(t, "runner2", distribution.Configs["digestA"].Runner)
+}
+
 func TestUtilizationStdDev(t *testing.T) {
 	// Define runner1 with 3 workers needed, runner2 with 5, runner3 with 8, and runner4 with 0
 	distribution := newConfigsDistribution(map[string]int{
