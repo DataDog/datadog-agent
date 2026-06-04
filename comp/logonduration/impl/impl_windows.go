@@ -238,21 +238,29 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 		ts       time.Time
 		duration time.Duration
 	}{
-		{"boot_start", "Boot Start", tl.BootStart, 0},
+		{"boot_duration", "Boot Duration", tl.BootStart, durationBetween(tl.BootStart, tl.LoginUIStart)},
 		{"login_ui_start", "Login UI Start", tl.LoginUIStart, durationBetween(tl.LoginUIStart, tl.LoginUIDone)},
 		{"computer_group_policy", "Computer Group Policy", tl.MachineGPStart, durationBetween(tl.MachineGPStart, tl.MachineGPEnd)},
 		{"user_group_policy", "User Group Policy", tl.UserGPStart, durationBetween(tl.UserGPStart, tl.UserGPEnd)},
 		{"user_logon", "User Logon", tl.SessionLogon, durationBetween(tl.SessionLogon, tl.DesktopVisibleStart)},
+		{"logon_duration", "Logon Duration", tl.SessionLogon, durationBetween(tl.SessionLogon, tl.DesktopVisibleStart)},
 		{"profile_loaded", "Profile Loaded", tl.ProfileLoadStart, durationBetween(tl.ProfileLoadStart, tl.ProfileLoadEnd)},
 		{"profile_created", "Profile Created", tl.ProfileCreationStart, durationBetween(tl.ProfileCreationStart, tl.ProfileCreationEnd)},
 		{"execute_shell_commands", "Execute Shell Commands", tl.ExecuteShellCommandListStart, durationBetween(tl.ExecuteShellCommandListStart, tl.ExecuteShellCommandListEnd)},
-		{"explorer_exe_start", "Explorer.exe Start", tl.ExplorerStart, 0},
 		{"explorer_initializing", "Explorer Initializing", tl.ExplorerInitStart, durationBetween(tl.ExplorerInitStart, tl.ExplorerInitEnd)},
 		{"desktop_visible", "Desktop Visible", tl.DesktopCreateStart, durationBetween(tl.DesktopCreateStart, tl.DesktopVisibleEnd)},
 		{"desktop_startup_apps", "Desktop Startup Apps", tl.DesktopStartupAppsStart, durationBetween(tl.DesktopStartupAppsStart, tl.DesktopStartupAppsEnd)},
 	}
 
 	hasBootRef := !boot.IsZero()
+
+	// gap is the idle time at the login screen (LoginUIDone -> SessionLogon).
+	// It is collapsed out of post-logon offsets so the timeline renders
+	// contiguously; the per-milestone Timestamp retains wall-clock truth.
+	gap := time.Duration(0)
+	if !tl.LoginUIDone.IsZero() && !tl.SessionLogon.IsZero() && tl.SessionLogon.After(tl.LoginUIDone) {
+		gap = tl.SessionLogon.Sub(tl.LoginUIDone)
+	}
 
 	var milestones []Milestone
 	for _, c := range candidates {
@@ -262,6 +270,9 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 		var offset float64
 		if hasBootRef {
 			offset = float64(c.ts.Sub(boot).Milliseconds())
+			if gap > 0 && !c.ts.Before(tl.SessionLogon) {
+				offset -= float64(gap.Milliseconds())
+			}
 		}
 		milestones = append(milestones, Milestone{
 			ID:         c.id,
@@ -304,6 +315,11 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 	}
 
 	for _, milestone := range milestones {
+		// boot_duration and logon_duration are already represented by the
+		// authoritative boot_duration_ms / logon_duration_ms keys above.
+		if milestone.ID == "boot_duration" || milestone.ID == "logon_duration" {
+			continue
+		}
 		if milestone.DurationMs > 0 {
 			durations[milestone.ID] = milestone.DurationMs
 		}
