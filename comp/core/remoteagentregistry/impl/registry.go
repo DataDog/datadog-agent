@@ -22,7 +22,7 @@ import (
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	remoteagentregistryStatus "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/status"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -241,7 +241,7 @@ func (ra *remoteAgentRegistry) ReportRemoteAgentEvent(sessionID string, events [
 		if event.Details != nil {
 			eventType = event.Details.EventType()
 		}
-		log.Infof("Remote agent '%s' reported event (type: %s): %s", displayName, eventType, event.Message)
+		log.Debug("Remote agent '%s' reported event (type: %s): %s", displayName, eventType, event.Message)
 	}
 
 	return nil
