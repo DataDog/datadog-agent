@@ -96,7 +96,7 @@ func (u *TelemetryUtilizationMonitor) reportIfNeeded() {
 		u.shortAvg = shortEwma(rawRatio, u.shortAvg)
 
 		now := u.clock.Now()
-		u.history.add(now, rawRatio)
+		u.history.add(now, u.shortAvg)
 		ws := u.history.allStats(now)
 
 		TlmUtilizationRatio.Set(u.avg, u.name, u.instance)

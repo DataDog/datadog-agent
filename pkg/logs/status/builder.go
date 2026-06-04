@@ -138,12 +138,27 @@ func (b *Builder) getComponentUtilization() []ComponentUtilization {
 // Returns SATURATED if any component was saturated in the last 1m, WARNING if any
 // component was saturated in the last 30m but not the last 1m, or HEALTHY otherwise.
 func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) BackpressureStatus {
+	// Track the component with the highest live short-EWMA for the SATURATED signal.
+	var maxCurrRatio float64
+	var currSatName, currSatInst string
+	var currSat30m int64
+
+	// Track the component with the most recent 1m saturation for the WARNING signal.
 	var maxSat1m, maxSat30m int64
+	var sat30mForMaxSat1m int64
 	var satName1m, satInst1m string
 	var satName30m, satInst30m string
+
 	for _, u := range utils {
+		if u.ShortAvgRatio > maxCurrRatio {
+			maxCurrRatio = u.ShortAvgRatio
+			currSatName = u.Name
+			currSatInst = u.Instance
+			currSat30m = u.Saturated30mSeconds
+		}
 		if u.Saturated1mSeconds > maxSat1m {
 			maxSat1m = u.Saturated1mSeconds
+			sat30mForMaxSat1m = u.Saturated30mSeconds
 			satName1m = u.Name
 			satInst1m = u.Instance
 		}
@@ -153,11 +168,21 @@ func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) Backpressu
 			satInst30m = u.Instance
 		}
 	}
-	if maxSat1m > 0 {
-		dur30m := time.Duration(maxSat30m) * time.Second
+
+	// SATURATED: a component is at or above threshold right now. Clears within seconds of recovery.
+	if maxCurrRatio >= logsMetrics.SaturationThreshold {
+		dur30m := time.Duration(currSat30m) * time.Second
 		return BackpressureStatus{
 			State:  "SATURATED",
-			Reason: fmt.Sprintf("%s pipeline %s is currently saturated (saturated for %s in the last 30m)", satName1m, satInst1m, fmtDuration(dur30m)),
+			Reason: fmt.Sprintf("%s pipeline %s is currently saturated (saturated for %s in the last 30m)", currSatName, currSatInst, fmtDuration(dur30m)),
+		}
+	}
+	// WARNING: saturation occurred in the last 1m or 30m but no component is currently at threshold.
+	if maxSat1m > 0 {
+		dur30m := time.Duration(sat30mForMaxSat1m) * time.Second
+		return BackpressureStatus{
+			State:  "WARNING",
+			Reason: fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName1m, satInst1m, fmtDuration(dur30m)),
 		}
 	}
 	if maxSat30m > 0 {
@@ -185,20 +210,34 @@ func (b *Builder) formatBackpressureSection(utils []ComponentUtilization, bp Bac
 		sb.WriteString(fmt.Sprintf("  Reason: %s\n", bp.Reason))
 	}
 	sb.WriteString("\n")
-	// Header
-	sb.WriteString(fmt.Sprintf("  %-12s %-10s %-9s %-13s %-14s %-9s %-9s %-10s %-16s %s\n",
+
+	// Compute column widths dynamically so long component names (e.g. destination_reliable_0)
+	// don't push all subsequent columns out of alignment.
+	nameW := len("Component")
+	instW := len("Instance")
+	for _, u := range utils {
+		if len(u.Name) > nameW {
+			nameW = len(u.Name)
+		}
+		if len(u.Instance) > instW {
+			instW = len(u.Instance)
+		}
+	}
+	rowFmt := fmt.Sprintf("  %%-%ds %%-%ds %%-9s %%-13s %%-14s %%-9s %%-9s %%-10s %%-16s %%s\n", nameW, instW)
+
+	sb.WriteString(fmt.Sprintf(rowFmt,
 		"Component", "Instance", "Current", "5m avg/max", "30m avg/max",
 		"2h max", "5h max", "10h max", "30m saturated", "Last saturated"))
-	// Rows
+
 	for _, u := range utils {
 		lastSat := u.LastSaturatedAt
 		if !u.HasLastSaturated {
 			lastSat = "-"
 		}
-		sb.WriteString(fmt.Sprintf("  %-12s %-10s %-9s %-13s %-14s %-9s %-9s %-10s %-16s %s\n",
+		sb.WriteString(fmt.Sprintf(rowFmt,
 			u.Name,
 			u.Instance,
-			bpPct(u.RawRatio),
+			bpPct(u.ShortAvgRatio),
 			bpPctRange(u.Avg5m, u.Max5m),
 			bpPctRange(u.Avg30m, u.Max30m),
 			bpPct(u.Max2h),
