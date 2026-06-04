@@ -10,6 +10,8 @@ import glob
 import operator
 import os
 import re
+import shutil
+import subprocess
 import sys
 import time
 from collections import defaultdict
@@ -27,7 +29,6 @@ from tasks.collector import OTEL_CONTRIB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
-from tasks.libs.build.bazel import run_bazel
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
@@ -215,6 +216,7 @@ def get_bazel_test_targets(ctx, flavor: str, modules: list[GoModule], bazel_flag
             "cquery",
             *all_flags,
             f"kind(go_test, {scope}) except attr(tags, manual, {scope})",
+            # hide="both",
         )
         output = result.stdout
     except UnexpectedExit as e:
@@ -310,13 +312,14 @@ def _run_bazel_tests(
 
     for batch in batches:
         try:
-            result = run_bazel(ctx, *base_args, *batch)
-            output = result.stderr
+            result = run_bazel(ctx, *base_args, *batch, verbose=True)
+            output = result.stdout
         except UnexpectedExit as e:
-            output = (e.result.stdout or "") + (e.result.stderr or "")
+            output = e.result.stdout
             run_failed = True
 
         if output:
+            print(output)
             for line in output.splitlines():
                 # In non-verbose mode filter Bazel's progress/info noise.
                 if not verbose and line.strip().startswith(_NOISY_PREFIXES):
@@ -1418,3 +1421,31 @@ def check_otel_module_versions(ctx, fix=False):
             f"  - {error}" for error in all_errors
         )
         raise Exit(error_msg)
+
+
+def run_bazel(
+    unused_context,
+    *args: str,
+    verbose: bool = False,
+    **kwargs,
+) -> None | str:
+    """Execute a bazel command.
+
+    args: command args
+    verbose: Echo comand line to stdout.
+
+    Returns:
+       subprocess run result
+    """
+    if not (resolved_bazel := shutil.which("bazel")):
+        raise Exit(bazel_not_found_message("red"))
+    cmd = [resolved_bazel] + list(args)
+    if kwargs.get("verbose", True):
+        print(' '.join(cmd))
+    # subprocess.run("printenv")
+    return subprocess.run(
+        cmd,
+        encoding='utf-8',
+        capture_output=True,
+        **kwargs,
+    )
