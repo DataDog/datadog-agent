@@ -10,12 +10,21 @@ import os
 import sys
 import packages
 
-# Older OCI Agents wrote the baseline to the 24h-reaped tmp dir; fall back to it for
-# upgrades from those versions. Linux/OCI only (path absent elsewhere).
+# Older Agent versions wrote the integration baseline (.post_python_installed_packages.txt)
+# to /opt/datadog-packages/tmp, which the installer reaps after 24h. The baseline now lives
+# in the persistent run directory, but a baseline written by a previously-installed version
+# may still be here, so we fall back to it. Linux/OCI only; on other platforms the path does
+# not exist and is skipped.
 LEGACY_OCI_STORAGE_LOCATION = "/opt/datadog-packages/tmp"
 
 def find_baseline_file(storage_location, install_directory):
-    """Locate the .post baseline: primary storage, then legacy OCI tmp, then install dir."""
+    """
+    Locate the .post baseline, trying in order:
+      1. the primary storage location (run dir for OCI, install dir for deb/rpm)
+      2. the legacy OCI tmp directory (baselines written by older versions)
+      3. the install directory (deb/rpm -> OCI migration)
+    Returns the path to an existing baseline file, or None if none is found.
+    """
     candidates = [storage_location]
     if os.name != 'nt':
         candidates.append(LEGACY_OCI_STORAGE_LOCATION)
@@ -43,13 +52,21 @@ def pre(install_directory, storage_location):
                 packages.create_diff_installed_packages_file(storage_location, post_python_installed_packages_file, pre_python_installed_packages_file)
                 packages.cleanup_files(post_python_installed_packages_file, pre_python_installed_packages_file)
             else:
-                # No baseline. A prior install is marked by embedded/.installed_by_pkg.txt;
-                # absent means a genuine first install (nothing to diff, non-fatal).
+                # No baseline anywhere. Distinguish a genuine first install from an upgrade
+                # whose baseline was lost. pre.py is the "save" step and only has something
+                # to diff when a previous Agent was installed; that previous install is marked
+                # by embedded/.installed_by_pkg.txt (the same marker used to remove custom
+                # integrations on uninstall). On a first install this marker is absent.
                 installed_by_pkg_file = os.path.join(install_directory, "embedded", ".installed_by_pkg.txt")
                 if not os.path.exists(installed_by_pkg_file):
+                    # First install: no prior Agent, so no baseline is expected and there is
+                    # nothing to diff. Non-fatal no-op.
                     print(f"No prior installation detected ('{installed_by_pkg_file}' missing); treating as first install. Nothing to diff (non-fatal).")
                     return 0
-                # Prior install exists but its baseline is gone: fail so it surfaces in telemetry.
+                # A prior Agent is installed but its baseline is gone (e.g. reaped from the
+                # legacy tmp dir before it could be migrated to persistent storage). Report a
+                # failure so it surfaces in telemetry. The caller only logs a warning, so the
+                # upgrade itself still proceeds.
                 print("Baseline file missing despite an existing installation; cannot save custom integrations.")
                 return 1
         else:

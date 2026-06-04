@@ -102,8 +102,9 @@ func RestoreCustomIntegrations(ctx context.Context, installPath string) (err err
 		span.Finish(err)
 	}()
 
-	// OCI baselines must outlive the 24h-reaped RootTmpDir, so they live in RunPath;
-	// deb/rpm (installPath == /opt/datadog-agent) keep them in the install dir.
+	// For OCI packages, the baseline must persist across upgrades (days-weeks),
+	// so it lives in the persistent RunPath rather than the 24h-reaped RootTmpDir.
+	// For deb/rpm (installPath == /opt/datadog-agent) it stays in the install dir.
 	storagePath := installPath
 	if strings.HasPrefix(installPath, paths.PackagesPath) {
 		storagePath = paths.RunPath
