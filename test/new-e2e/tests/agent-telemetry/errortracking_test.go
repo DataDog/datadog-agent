@@ -112,6 +112,7 @@ func (s *errorTrackingSuite) TestDisabledByDefault() {
 	// pipeline a full cycle to (incorrectly) forward a payload before declaring success.
 	assert.Never(s.T(), func() bool {
 		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
-		return err == nil && len(logs) > 0
+		require.NoError(s.T(), err)
+		return len(logs) > 0
 	}, 5*time.Second, 500*time.Millisecond, "agent telemetry logs must not arrive when errortracking is disabled")
 }
