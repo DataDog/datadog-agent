@@ -279,6 +279,71 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/int-metrics-level-none/out.yaml",
 		},
 		{
+			name:     "internal-metrics-preserves-absent-user-metrics-pipeline",
+			provided: "no_agent/int-metrics-absent-metrics-reader/in.yaml",
+			expected: "no_agent/int-metrics-absent-metrics-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-on-reserved-receiver-conflict",
+			provided: "no_agent/int-metrics-reserved-receiver/in.yaml",
+			expected: "no_agent/int-metrics-reserved-receiver/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-on-reserved-processor-conflict",
+			provided: "no_agent/int-metrics-reserved-processor/in.yaml",
+			expected: "no_agent/int-metrics-reserved-processor/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-on-reserved-pipeline-conflict",
+			provided: "no_agent/int-metrics-reserved-pipeline/in.yaml",
+			expected: "no_agent/int-metrics-reserved-pipeline/out.yaml",
+		},
+		{
+			name:     "internal-metrics-uses-explicit-prometheus-reader",
+			provided: "no_agent/int-metrics-explicit-reader/in.yaml",
+			expected: "no_agent/int-metrics-explicit-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-uses-first-valid-prometheus-reader",
+			provided: "no_agent/int-metrics-multiple-readers/in.yaml",
+			expected: "no_agent/int-metrics-multiple-readers/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-periodic-reader",
+			provided: "no_agent/int-metrics-periodic-reader/in.yaml",
+			expected: "no_agent/int-metrics-periodic-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-empty-readers",
+			provided: "no_agent/int-metrics-empty-readers/in.yaml",
+			expected: "no_agent/int-metrics-empty-readers/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-malformed-prometheus-reader",
+			provided: "no_agent/int-metrics-malformed-reader/in.yaml",
+			expected: "no_agent/int-metrics-malformed-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-null-readers",
+			provided: "no_agent/int-metrics-null-readers/in.yaml",
+			expected: "no_agent/int-metrics-null-readers/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-mixed-reader",
+			provided: "no_agent/int-metrics-mixed-reader-entry/in.yaml",
+			expected: "no_agent/int-metrics-mixed-reader-entry/out.yaml",
+		},
+		{
+			name:     "internal-metrics-covered-by-user-pipeline",
+			provided: "no_agent/int-metrics-covered-by-user-pipeline/in.yaml",
+			expected: "no_agent/int-metrics-covered-by-user-pipeline/out.yaml",
+		},
+		{
+			name:     "internal-metrics-partial-user-pipeline-coverage",
+			provided: "no_agent/int-metrics-partial-coverage/in.yaml",
+			expected: "no_agent/int-metrics-partial-coverage/out.yaml",
+		},
+		{
 			name:     "internal-metrics-skips-exporters-without-any-endpoint",
 			provided: "no_agent/int-metrics-mixed/in.yaml",
 			expected: "no_agent/int-metrics-mixed/out.yaml",
