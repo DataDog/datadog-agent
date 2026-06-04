@@ -334,6 +334,21 @@ func TestRoutes(t *testing.T) {
 	}
 }
 
+// TestRoutes_NonPost_Returns405 verifies that the mux rejects non-POST requests
+// with 405 Method Not Allowed. All lifecycle hooks are POST-only; the platform
+// never sends GET/PUT/DELETE to these paths.
+func TestRoutes_NonPost_Returns405(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	handler := srv.handler()
+	routes := []string{pathReady, pathValidate, pathLaunch, pathSuspend, pathResume, pathTerminate}
+	for _, route := range routes {
+		req := httptest.NewRequest(http.MethodGet, route, nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusMethodNotAllowed, rec.Code, "route %s must reject GET with 405", route)
+	}
+}
+
 // fakeChildHandle drives /ready behavior in tests.
 type fakeChildHandle struct {
 	alive atomic.Bool
