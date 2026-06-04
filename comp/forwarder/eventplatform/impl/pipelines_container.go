@@ -37,21 +37,6 @@ func getContainerPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
 			defaultInputChanSize:          epfDefaultInputChanSize,
 		},
-		{
-			eventType:                     eventplatform.EventTypeContainerSBOM,
-			category:                      "SBOM",
-			contentType:                   logshttp.ProtobufContentType,
-			endpointsConfigPrefix:         "sbom.",
-			hostnameEndpointPrefix:        "sbom-intake.",
-			intakeTrackType:               "sbom",
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    epfDefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
-			// on every periodic refresh, we re-send all the SBOMs for all the
-			// container images in the workloadmeta store. This can be a lot of
-			// payloads at once, so we need a large input channel size to avoid dropping
-			defaultInputChanSize: 1000,
-		},
 	}
 
 	if isKubeActionsEnabled() {

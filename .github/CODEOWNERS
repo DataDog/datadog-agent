@@ -427,9 +427,10 @@
 /comp/forwarder/eventplatform/impl/pipelines_ndm_core.go               @DataDog/network-device-monitoring-core
 /comp/forwarder/eventplatform/impl/pipelines_ndm_integrations.go       @DataDog/ndm-integrations
 /comp/forwarder/eventplatform/impl/pipelines_networkpath.go            @DataDog/network-path
-/comp/forwarder/eventplatform/impl/pipelines_container.go              @DataDog/container-integrations @DataDog/agent-security
+/comp/forwarder/eventplatform/impl/pipelines_container.go              @DataDog/container-integrations
+/comp/forwarder/eventplatform/impl/pipelines_sbom.go                   @DataDog/agent-security
 /comp/forwarder/eventplatform/impl/pipelines_synthetics.go             @DataDog/synthetics-executing
-/comp/forwarder/eventplatform/impl/pipelines_eventmanagement.go        @DataDog/q-branch @DataDog/windows-products
+/comp/forwarder/eventplatform/impl/pipelines_eventmanagement.go        @DataDog/windows-products
 /comp/forwarder/eventplatform/impl/pipelines_datastreams.go            @DataDog/data-streams-monitoring
 /comp/forwarder/eventplatform/impl/pipelines_dataobservability.go      @DataDog/data-observability
 /comp/forwarder/eventplatform/impl/pipelines_softwareinventory.go      @DataDog/windows-products
