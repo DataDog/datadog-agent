@@ -44,6 +44,7 @@
         export RELEASE_STAGING="true"
         export RELEASE_PROD=""
       fi
+    - if [ "${RELEASE_PROD_OVERRIDE:-}" = "true" ]; then export RELEASE_PROD="true"; fi
     - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref ${IMAGES_GIT_REF} --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
   retry: 2
 
@@ -68,7 +69,7 @@
   IMAGE_VERSION: tmpl-v1
   IMAGE_NAME: ddot-ebpf
   TMPL_SRC_REPO: ci/datadog-agent/ddot-ebpf
-  RELEASE_PROD: "true"
+  RELEASE_PROD_OVERRIDE: "true"
 
 # -- publish jobs --
 publish_internal_container_image-jmx:
