@@ -175,3 +175,249 @@ message BatchStatus {
 service StatefulLogsService {
   rpc LogsStream(stream StatefulBatch) returns (stream BatchStatus);
 }
+
+// ===========================================================================
+// Metric stateful encoding
+//
+// Mirrors the columnar v3 metrics wire format (apiv3.payload.proto in
+// dd-source) but lifts the dictionary out of each payload into stream scope.
+// Dict entries persist across batches until stream rotation; each batch
+// carries the per-series + per-point columns referencing the stream's
+// accumulated dict.
+//
+// Contract source: phase3-proto-proposal.md (ratified 2026-05-15 in
+// contract.md D5-D11 + D6.1).
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Dictionary entry definitions
+//
+// Each kind mirrors one of the six interner kinds in the v3
+// dictionaryBuilder (pkg/serializer/internal/metrics/iterable_series_v3.go).
+// IDs are stream-scoped, monotonic, per-kind (each kind has its own ID
+// space — id=1 in MetricNameDefine and id=1 in MetricTagStringDefine
+// refer to different entries). Id=0 is the "absent" sentinel (matches
+// v3 dict semantics; e.g. internName("") returns 0).
+// ---------------------------------------------------------------------------
+
+message MetricNameDefine {
+  uint64 id = 1;
+  string value = 2;
+}
+
+message MetricTagStringDefine {
+  uint64 id = 1;
+  string value = 2;
+}
+
+message MetricSourceTypeNameDefine {
+  uint64 id = 1;
+  string value = 2;
+}
+
+// Resource strings are interned in one pool but referenced as either
+// resource-type ("host", "device") or resource-name ("agent-dev-docker")
+// from MetricResourceDefine. Mirrors apiv3 dictResourceStr.
+message MetricResourceStringDefine {
+  uint64 id = 1;
+  string value = 2;
+}
+
+// A resource set: parallel arrays of (type_string_id, name_string_id).
+// type_string_ids[i] and name_string_ids[i] together identify the i-th
+// resource in this set.
+//
+// Mirrors apiv3 dictResourceLen + dictResourceType + dictResourceName
+// columns combined for one resource set, in proto-idiomatic form
+// (not the v3 packed/delta-encoded form).
+//
+// INVARIANTS (wire-level, contract.md D6 invariant 1):
+//   - len(type_string_ids) == len(name_string_ids). A length mismatch
+//     is a malformed-batch wire violation.
+//   - All referenced string IDs must already be defined via
+//     MetricResourceStringDefine earlier on the stream (in this batch
+//     OR a previous batch on this stream).
+message MetricResourceDefine {
+  uint64 id = 1;
+  repeated uint64 type_string_ids = 2;
+  repeated uint64 name_string_ids = 3;
+}
+
+// Origin info tuple, mirroring apiv3 dictOriginInfo. Triples of
+// (product, category, service) enum codes (not strings).
+message MetricOriginDefine {
+  uint64 id = 1;
+  int32 product = 2;
+  int32 category = 3;
+  int32 service = 4;
+}
+
+// Tagset definition with prefix-sharing, mirroring apiv3 dictTagsets
+// semantics. The full tag set for this tagset is the union of:
+//   - the tagset referenced by prefix_id (if prefix_id != 0)
+//   - the tag strings listed in tag_string_ids
+//
+// INVARIANTS (wire-level, contract.md D6 invariant 2):
+//   - prefix_id == 0 is the "no prefix" sentinel: this tagset stands
+//     alone, the full tag set is just tag_string_ids.
+//   - prefix_id != 0 MUST reference a MetricTagsetDefine already
+//     defined earlier on the stream. Self-reference (id == prefix_id)
+//     is a wire violation.
+//   - All tag_string_ids MUST already be defined via
+//     MetricTagStringDefine earlier on the stream.
+message MetricTagsetDefine {
+  uint64 id = 1;
+  uint64 prefix_id = 2;
+  repeated uint64 tag_string_ids = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Metric series batch
+//
+// Carries the per-series + per-point columns of a v3 columnar payload,
+// with dict columns lifted out into the dict-define datums above.
+// References in the ref columns resolve against the stream's accumulated
+// dict.
+//
+// metric_data layout: identical to apiv3 MetricData encoding (per-column
+// streaming compression, concatenated with compressed protobuf field
+// headers — see pkg/serializer/internal/metrics/iterable_series_v3.go),
+// EXCEPT that dict columns 1-9 are absent (empty). Columns present in
+// the PoC scope (series only, no sketches):
+//
+//   10  types               16  timestamps
+//   11  nameRefs            17  valsSint64
+//   12  tagsetRefs          18  valsFloat32
+//   13  resourcesRefs       19  valsFloat64
+//   14  intervals           23  sourceTypeNameRefs
+//   15  numPoints           24  originInfoRefs
+//
+// Ref column encoding (nameRefs, tagsetRefs, resourcesRefs,
+// sourceTypeNameRefs, originInfoRefs) is unchanged from v3:
+// delta-zigzag-varint within the column, reset at the start of each
+// batch. Delta-encoder state is BATCH-scoped (not stream-scoped) —
+// matches v3's per-payload reset and logs' DeltaEncodingSync
+// "currently we are doing it at batch level" stance.
+//
+// metric_data is opaque bytes at the proto level. The bytes already
+// contain per-column compressed streams. Outer DatumSequence
+// compression (if applied at the stream-level) is benign but
+// redundant — zstd handles already-compressed input cheaply.
+//
+// Sketches (sketch columns 20-22) are out of PoC scope per contract D2.
+// Unit columns (25/26) and legacy-origin columns (27/28) are deferred
+// (agent doesn't write today).
+//
+// INVARIANTS (wire-level, contract.md D6 invariant 3):
+//   - All ref-column IDs (nameRefs, tagsetRefs, resourcesRefs,
+//     sourceTypeNameRefs, originInfoRefs) MUST resolve to dict entries
+//     already defined on the stream — either via define datums earlier
+//     in the same MetricDatumSequence or in a previous batch on this
+//     stream. Forward refs (referencing a define that appears later in
+//     the same sequence) and unresolved refs (no define exists) are
+//     wire violations.
+//   - The inner protobuf layout (which fields appear at which numbers)
+//     is the apiv3.MetricData schema as of dd-source commit SHA
+//     `6c9f8125ba37f881e3ab7aa1d04deeb7692ef914` (main, 2026-05-15).
+//     Future column additions in apiv3 require coordinated update on
+//     both agent + intake; see contract.md D6.1 versioning policy.
+message MetricSeriesBatch {
+  bytes metric_data = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Metric datum envelope
+//
+// One element in a metric stream's batch payload.
+//
+// Ordering within a MetricDatumSequence is significant (contract.md
+// D6 invariant "define-before-reference ordering"):
+//   - Define datums must precede any datum (define OR series batch)
+//     that references their ID.
+//   - For composite defines:
+//       - MetricTagsetDefine references MetricTagStringDefine ids
+//       - MetricResourceDefine references MetricResourceStringDefine ids
+//       The referenced entries must be defined earlier in the stream
+//       (in this batch OR a previous batch on this stream).
+//   - MetricSeriesBatch typically appears last (references all prior
+//     defines on this and previous batches).
+//
+// Delete datums are reserved for future use. PoC handles eviction
+// implicitly via stream rotation (15-min default; full dict re-emitted
+// on rotation per D6 snapshot semantics). Production multi-day stream
+// lifetime would add MetricNameDelete, MetricTagStringDelete, etc.
+// using reserved field numbers in the 9-15 range.
+message MetricDatum {
+  oneof data {
+    MetricNameDefine            metric_name_define             = 1;
+    MetricTagStringDefine       metric_tag_string_define       = 2;
+    MetricSourceTypeNameDefine  metric_source_type_name_define = 3;
+    MetricResourceStringDefine  metric_resource_string_define  = 4;
+    MetricResourceDefine        metric_resource_define         = 5;
+    MetricOriginDefine          metric_origin_define           = 6;
+    MetricTagsetDefine          metric_tagset_define           = 7;
+    MetricSeriesBatch           metric_series_batch            = 8;
+
+    // 9-15  reserved for define/delete additions within the
+    //       single-byte varint field-tag range.
+  }
+}
+
+// MetricDatumSequence wraps a sequence of MetricDatum messages.
+// Mirrors the role of DatumSequence for logs.
+message MetricDatumSequence {
+  repeated MetricDatum data = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Streaming envelope
+// ---------------------------------------------------------------------------
+
+// MetricStatefulBatch is the unit shipped over the gRPC stream. data is
+// the bytes of a serialized and (optionally stream-compressed)
+// MetricDatumSequence. Mirrors StatefulBatch for logs.
+//
+// batch_id semantics (contract.md D6 snapshot semantics):
+//   - batch_id == 0: snapshot batch. Receiver MUST reset its
+//     per-stream state machine (clear all dict maps for this stream)
+//     before processing the contained MetricDatumSequence. The
+//     snapshot's MetricDatumSequence contains the FULL accumulated
+//     dict-define datums needed to bootstrap the new stream (PoC
+//     uses non-lazy full dump — see phase3-proto-proposal.md §9 for
+//     the lazy-snapshot deferral rationale). No MetricSeriesBatch
+//     datum is expected in the snapshot batch.
+//   - batch_id >= 1: incremental batches in strict send-order on this
+//     stream. The agent assigns batch_ids monotonically starting from
+//     1 on each new stream. Intake's ack (MetricBatchStatus.batch_id)
+//     must echo the same id; receiving an out-of-order ack is a
+//     protocol violation that triggers stream rotation on the agent.
+//   - batch_id RESETS to 0 (then 1, 2, ...) on every stream rotation.
+//     batch_ids are NOT continuous across rotations. The new stream
+//     starts a fresh counter; intake distinguishes "new stream" from
+//     "next batch on same stream" by the fact that the gRPC stream
+//     itself is a new bidirectional RPC.
+message MetricStatefulBatch {
+  uint32 batch_id = 1;
+  bytes data = 2;
+}
+
+// MetricBatchStatus is intake's acknowledgment per batch_id.
+// Status enum values mirror the logs BatchStatus.Status enum for symmetry.
+// Per contract.md D8: no per-batch error codes. Malformed batches are
+// log+drop server-side (no ack) per D11 commitment 3.
+message MetricBatchStatus {
+  uint32 batch_id = 1;
+  enum Status {
+    UNKNOWN = 0;
+    OK = 1;
+  }
+  Status status = 2;
+}
+
+// ---------------------------------------------------------------------------
+// gRPC service definition (bi-directional streaming)
+// ---------------------------------------------------------------------------
+
+service StatefulMetricsService {
+  rpc MetricsStream(stream MetricStatefulBatch) returns (stream MetricBatchStatus);
+}

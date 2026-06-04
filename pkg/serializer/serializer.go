@@ -27,6 +27,7 @@ import (
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	statefulgrpc "github.com/DataDog/datadog-agent/pkg/serializer/metrics/grpc"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -122,6 +123,20 @@ type Serializer struct {
 	enableJSONToV1Intake bool
 	hostname             string
 	logger               log.Component
+
+	// Stateful gRPC metric path state. Both nil unless
+	// serializer_experimental_use_v3_stateful_api.series.enabled is set.
+	//
+	// These point at the PROCESS-WIDE singletons constructed in
+	// initStatefulSingleton (metrics.go). When the AgentDemultiplexer
+	// builds multiple Serializer instances, they all share the same
+	// underlying Sender + Dictionary — exactly one gRPC stream and one
+	// dict ID space per agent.
+	//
+	// PoC scope: one lane (one stream). The dict persists across
+	// flushes; the sender owns the gRPC ClientConn and streamWorker.
+	statefulSender *statefulgrpc.Sender
+	statefulDict   *metricsserializer.StreamDictionary
 }
 
 // NewSerializer returns a new Serializer initialized
@@ -146,6 +161,29 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestr
 	}
 
 	initExtraHeaders(s)
+
+	// Stateful gRPC sender — constructed iff enabled. Failure to construct
+	// is logged and falls back to the HTTP path (statefulSender remains
+	// nil; buildPipelines's `useStateful && s.statefulSender != nil` guard
+	// keeps the agent functional).
+	//
+	// The Sender and Dictionary are PROCESS-WIDE singletons. The
+	// AgentDemultiplexer constructs multiple Serializer instances (one for
+	// the aggregator path, one for the no-aggregation streaming path) — but
+	// the agent must have exactly ONE gRPC stream to intake and ONE shared
+	// dictionary state, otherwise the two senders would each open their
+	// own connection and produce divergent dict ID spaces (an intake-side
+	// protocol violation). We use sync.Once to guarantee construction +
+	// Start() run once across all Serializer instances; both instances
+	// reference the same Sender + Dict.
+	//
+	// PoC accepts no graceful Stop() — process exit cleans up the gRPC
+	// connection. A future revision could plug into a component lifecycle.
+	if config.GetBool("serializer_experimental_use_v3_stateful_api.series.enabled") {
+		initStatefulSingleton(config, logger)
+		s.statefulSender = statefulSenderShared
+		s.statefulDict = statefulDictShared
+	}
 
 	if !s.enableEvents {
 		logger.Warn("event payloads are disabled: all events will be dropped")

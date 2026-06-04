@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	statefulgrpc "github.com/DataDog/datadog-agent/pkg/serializer/metrics/grpc"
 )
 
 // Filterable defines the minimal interface needed for pipeline
@@ -66,9 +67,16 @@ func (mf MapFilter) ToList() []string {
 // doesn't belong here.
 //
 // This type must be comparable.
+//
+// Stateful=true selects the gRPC stateful v3 builder
+// (payloadsBuilderV3Stateful). When Stateful is true, V3 must also be
+// true (the stateful path is a v3-columnar wire format). The HTTP-v3
+// route is replaced by the gRPC stream for stateful pipelines, not
+// duplicated (contract.md D9).
 type PipelineConfig struct {
-	Filter Filter
-	V3     bool
+	Filter   Filter
+	V3       bool
+	Stateful bool
 }
 
 // PipelineDestination describes how to deliver a payload to the intake.
@@ -110,9 +118,20 @@ func (dest *PipelineDestination) send(payloads transaction.BytesPayloads, forwar
 }
 
 // PipelineContext holds information needed during and after pipeline execution.
+//
+// For stateful pipelines (PipelineConfig.Stateful=true), StatefulDict and
+// StatefulSender must be populated by the pipeline builder; the encoder
+// uses these to intern dict entries and submit batches over the gRPC
+// stream. For non-stateful pipelines they are nil.
 type PipelineContext struct {
 	Destinations []PipelineDestination
 	payloads     transaction.BytesPayloads
+
+	// StatefulDict and StatefulSender are non-nil iff the owning
+	// PipelineConfig has Stateful=true. They're externally-owned (the
+	// serializer holds them); the pipeline only borrows them per flush.
+	StatefulDict   *StreamDictionary
+	StatefulSender *statefulgrpc.Sender
 }
 
 func (c *PipelineContext) addPayload(p *transaction.BytesPayload) {

@@ -113,3 +113,100 @@ var StatefulLogsService_ServiceDesc = grpc.ServiceDesc{
 	},
 	Metadata: "datadog/stateful/stateful_encoding.proto",
 }
+
+const (
+	StatefulMetricsService_MetricsStream_FullMethodName = "/datadog.intake.stateful.StatefulMetricsService/MetricsStream"
+)
+
+// StatefulMetricsServiceClient is the client API for StatefulMetricsService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type StatefulMetricsServiceClient interface {
+	MetricsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[MetricStatefulBatch, MetricBatchStatus], error)
+}
+
+type statefulMetricsServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewStatefulMetricsServiceClient(cc grpc.ClientConnInterface) StatefulMetricsServiceClient {
+	return &statefulMetricsServiceClient{cc}
+}
+
+func (c *statefulMetricsServiceClient) MetricsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[MetricStatefulBatch, MetricBatchStatus], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &StatefulMetricsService_ServiceDesc.Streams[0], StatefulMetricsService_MetricsStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[MetricStatefulBatch, MetricBatchStatus]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type StatefulMetricsService_MetricsStreamClient = grpc.BidiStreamingClient[MetricStatefulBatch, MetricBatchStatus]
+
+// StatefulMetricsServiceServer is the server API for StatefulMetricsService service.
+// All implementations must embed UnimplementedStatefulMetricsServiceServer
+// for forward compatibility.
+type StatefulMetricsServiceServer interface {
+	MetricsStream(grpc.BidiStreamingServer[MetricStatefulBatch, MetricBatchStatus]) error
+	mustEmbedUnimplementedStatefulMetricsServiceServer()
+}
+
+// UnimplementedStatefulMetricsServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedStatefulMetricsServiceServer struct{}
+
+func (UnimplementedStatefulMetricsServiceServer) MetricsStream(grpc.BidiStreamingServer[MetricStatefulBatch, MetricBatchStatus]) error {
+	return status.Errorf(codes.Unimplemented, "method MetricsStream not implemented")
+}
+func (UnimplementedStatefulMetricsServiceServer) mustEmbedUnimplementedStatefulMetricsServiceServer() {
+}
+func (UnimplementedStatefulMetricsServiceServer) testEmbeddedByValue() {}
+
+// UnsafeStatefulMetricsServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to StatefulMetricsServiceServer will
+// result in compilation errors.
+type UnsafeStatefulMetricsServiceServer interface {
+	mustEmbedUnimplementedStatefulMetricsServiceServer()
+}
+
+func RegisterStatefulMetricsServiceServer(s grpc.ServiceRegistrar, srv StatefulMetricsServiceServer) {
+	// If the following call pancis, it indicates UnimplementedStatefulMetricsServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&StatefulMetricsService_ServiceDesc, srv)
+}
+
+func _StatefulMetricsService_MetricsStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(StatefulMetricsServiceServer).MetricsStream(&grpc.GenericServerStream[MetricStatefulBatch, MetricBatchStatus]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type StatefulMetricsService_MetricsStreamServer = grpc.BidiStreamingServer[MetricStatefulBatch, MetricBatchStatus]
+
+// StatefulMetricsService_ServiceDesc is the grpc.ServiceDesc for StatefulMetricsService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var StatefulMetricsService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "datadog.intake.stateful.StatefulMetricsService",
+	HandlerType: (*StatefulMetricsServiceServer)(nil),
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "MetricsStream",
+			Handler:       _StatefulMetricsService_MetricsStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
+	Metadata: "datadog/stateful/stateful_encoding.proto",
+}

@@ -1446,6 +1446,21 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.sketches.validate", false)
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.compression_level", 0)
 
+	// Stateful v3 series path (gRPC) — contract.md D9.
+	// When series.enabled = true, the v3-over-HTTP series path is REPLACED
+	// (not duplicated) for the default destination; gRPC connection target
+	// configured via series.grpc.*.
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_stateful_api.series.enabled", false)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_stateful_api.series.grpc.host", "")
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_stateful_api.series.grpc.port", 443)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_stateful_api.series.grpc.use_ssl", true)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_stateful_api.series.grpc.compression_kind", "zstd")
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_stateful_api.series.grpc.compression_level", 1)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_stateful_api.series.grpc.stream_lifetime", 900) // seconds
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_stateful_api.series.grpc.max_inflight_payloads", 50)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_stateful_api.series.grpc.drain_timeout", 5)       // seconds
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_stateful_api.series.grpc.connection_timeout", 10) // seconds
+
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
 	config.BindEnvAndSetDefault("enable_payloads.events", true)

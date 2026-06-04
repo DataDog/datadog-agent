@@ -643,15 +643,22 @@ COPY {runtime_dir}/*.c       /opt/datadog-agent/embedded/share/system-probe/ebpf
 COPY --from=bin /opt/datadog-agent/embedded/share/system-probe/ebpf /opt/datadog-agent/embedded/share/system-probe/ebpf
 """
 
-    # Check if the Rust patterns library was built (optional)
-    patterns_lib = os.path.join("dev", "lib", "libpatterns.so")
-    if os.path.exists(patterns_lib):
-        copy_patterns_bin = "COPY dev/lib/libpatterns.so /opt/datadog-agent/embedded/lib/libpatterns.so\n"
+    # Locate the Rust patterns library. The image runs Linux, so prefer:
+    #   1. dev/lib/libpatterns.so (produced by `dda inv patterns.build-library`)
+    #   2. the vendored prebuilt that matches the host arch
+    vendored_arch = "linux_arm64" if platform.machine() in ("aarch64", "arm64") else "linux_amd64"
+    patterns_lib_candidates = [
+        os.path.join("dev", "lib", "libpatterns.so"),
+        os.path.join("pkg", "logs", "patterns", "tokenizer", "rust", "vendor", vendored_arch, "libpatterns.so"),
+    ]
+    patterns_lib_src = next((p for p in patterns_lib_candidates if os.path.exists(p)), None)
+    if patterns_lib_src:
+        copy_patterns_bin = f"COPY {patterns_lib_src} /opt/datadog-agent/embedded/lib/libpatterns.so\n"
         patchelf_patterns = (
             "RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libpatterns.so\n"
         )
         copy_patterns_final = "COPY --from=bin /opt/datadog-agent/embedded/lib/libpatterns.so /opt/datadog-agent/embedded/lib/libpatterns.so\n"
-        print("Including Rust patterns library (dev/lib/libpatterns.so) in image")
+        print(f"Including Rust patterns library ({patterns_lib_src}) in image")
     else:
         copy_patterns_bin = ""
         patchelf_patterns = ""

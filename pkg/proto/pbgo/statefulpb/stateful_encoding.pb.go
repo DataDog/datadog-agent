@@ -68,6 +68,52 @@ func (BatchStatus_Status) EnumDescriptor() ([]byte, []int) {
 	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{13, 0}
 }
 
+type MetricBatchStatus_Status int32
+
+const (
+	MetricBatchStatus_UNKNOWN MetricBatchStatus_Status = 0
+	MetricBatchStatus_OK      MetricBatchStatus_Status = 1
+)
+
+// Enum value maps for MetricBatchStatus_Status.
+var (
+	MetricBatchStatus_Status_name = map[int32]string{
+		0: "UNKNOWN",
+		1: "OK",
+	}
+	MetricBatchStatus_Status_value = map[string]int32{
+		"UNKNOWN": 0,
+		"OK":      1,
+	}
+)
+
+func (x MetricBatchStatus_Status) Enum() *MetricBatchStatus_Status {
+	p := new(MetricBatchStatus_Status)
+	*p = x
+	return p
+}
+
+func (x MetricBatchStatus_Status) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (MetricBatchStatus_Status) Descriptor() protoreflect.EnumDescriptor {
+	return file_datadog_stateful_stateful_encoding_proto_enumTypes[1].Descriptor()
+}
+
+func (MetricBatchStatus_Status) Type() protoreflect.EnumType {
+	return &file_datadog_stateful_stateful_encoding_proto_enumTypes[1]
+}
+
+func (x MetricBatchStatus_Status) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use MetricBatchStatus_Status.Descriptor instead.
+func (MetricBatchStatus_Status) EnumDescriptor() ([]byte, []int) {
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{25, 0}
+}
+
 type DictEntryDefine struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -1119,6 +1165,905 @@ func (x *BatchStatus) GetStatus() BatchStatus_Status {
 	return BatchStatus_UNKNOWN
 }
 
+type MetricNameDefine struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MetricNameDefine) Reset() {
+	*x = MetricNameDefine{}
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MetricNameDefine) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MetricNameDefine) ProtoMessage() {}
+
+func (x *MetricNameDefine) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MetricNameDefine.ProtoReflect.Descriptor instead.
+func (*MetricNameDefine) Descriptor() ([]byte, []int) {
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *MetricNameDefine) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *MetricNameDefine) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+type MetricTagStringDefine struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MetricTagStringDefine) Reset() {
+	*x = MetricTagStringDefine{}
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MetricTagStringDefine) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MetricTagStringDefine) ProtoMessage() {}
+
+func (x *MetricTagStringDefine) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MetricTagStringDefine.ProtoReflect.Descriptor instead.
+func (*MetricTagStringDefine) Descriptor() ([]byte, []int) {
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *MetricTagStringDefine) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *MetricTagStringDefine) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+type MetricSourceTypeNameDefine struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MetricSourceTypeNameDefine) Reset() {
+	*x = MetricSourceTypeNameDefine{}
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MetricSourceTypeNameDefine) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MetricSourceTypeNameDefine) ProtoMessage() {}
+
+func (x *MetricSourceTypeNameDefine) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MetricSourceTypeNameDefine.ProtoReflect.Descriptor instead.
+func (*MetricSourceTypeNameDefine) Descriptor() ([]byte, []int) {
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *MetricSourceTypeNameDefine) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *MetricSourceTypeNameDefine) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+// Resource strings are interned in one pool but referenced as either
+// resource-type ("host", "device") or resource-name ("agent-dev-docker")
+// from MetricResourceDefine. Mirrors apiv3 dictResourceStr.
+type MetricResourceStringDefine struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MetricResourceStringDefine) Reset() {
+	*x = MetricResourceStringDefine{}
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MetricResourceStringDefine) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MetricResourceStringDefine) ProtoMessage() {}
+
+func (x *MetricResourceStringDefine) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MetricResourceStringDefine.ProtoReflect.Descriptor instead.
+func (*MetricResourceStringDefine) Descriptor() ([]byte, []int) {
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *MetricResourceStringDefine) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *MetricResourceStringDefine) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+// A resource set: parallel arrays of (type_string_id, name_string_id).
+// type_string_ids[i] and name_string_ids[i] together identify the i-th
+// resource in this set.
+//
+// Mirrors apiv3 dictResourceLen + dictResourceType + dictResourceName
+// columns combined for one resource set, in proto-idiomatic form
+// (not the v3 packed/delta-encoded form).
+//
+// INVARIANTS (wire-level, contract.md D6 invariant 1):
+//   - len(type_string_ids) == len(name_string_ids). A length mismatch
+//     is a malformed-batch wire violation.
+//   - All referenced string IDs must already be defined via
+//     MetricResourceStringDefine earlier on the stream (in this batch
+//     OR a previous batch on this stream).
+type MetricResourceDefine struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	TypeStringIds []uint64               `protobuf:"varint,2,rep,packed,name=type_string_ids,json=typeStringIds,proto3" json:"type_string_ids,omitempty"`
+	NameStringIds []uint64               `protobuf:"varint,3,rep,packed,name=name_string_ids,json=nameStringIds,proto3" json:"name_string_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MetricResourceDefine) Reset() {
+	*x = MetricResourceDefine{}
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MetricResourceDefine) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MetricResourceDefine) ProtoMessage() {}
+
+func (x *MetricResourceDefine) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MetricResourceDefine.ProtoReflect.Descriptor instead.
+func (*MetricResourceDefine) Descriptor() ([]byte, []int) {
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *MetricResourceDefine) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *MetricResourceDefine) GetTypeStringIds() []uint64 {
+	if x != nil {
+		return x.TypeStringIds
+	}
+	return nil
+}
+
+func (x *MetricResourceDefine) GetNameStringIds() []uint64 {
+	if x != nil {
+		return x.NameStringIds
+	}
+	return nil
+}
+
+// Origin info tuple, mirroring apiv3 dictOriginInfo. Triples of
+// (product, category, service) enum codes (not strings).
+type MetricOriginDefine struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Product       int32                  `protobuf:"varint,2,opt,name=product,proto3" json:"product,omitempty"`
+	Category      int32                  `protobuf:"varint,3,opt,name=category,proto3" json:"category,omitempty"`
+	Service       int32                  `protobuf:"varint,4,opt,name=service,proto3" json:"service,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MetricOriginDefine) Reset() {
+	*x = MetricOriginDefine{}
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MetricOriginDefine) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MetricOriginDefine) ProtoMessage() {}
+
+func (x *MetricOriginDefine) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MetricOriginDefine.ProtoReflect.Descriptor instead.
+func (*MetricOriginDefine) Descriptor() ([]byte, []int) {
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *MetricOriginDefine) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *MetricOriginDefine) GetProduct() int32 {
+	if x != nil {
+		return x.Product
+	}
+	return 0
+}
+
+func (x *MetricOriginDefine) GetCategory() int32 {
+	if x != nil {
+		return x.Category
+	}
+	return 0
+}
+
+func (x *MetricOriginDefine) GetService() int32 {
+	if x != nil {
+		return x.Service
+	}
+	return 0
+}
+
+// Tagset definition with prefix-sharing, mirroring apiv3 dictTagsets
+// semantics. The full tag set for this tagset is the union of:
+//   - the tagset referenced by prefix_id (if prefix_id != 0)
+//   - the tag strings listed in tag_string_ids
+//
+// INVARIANTS (wire-level, contract.md D6 invariant 2):
+//   - prefix_id == 0 is the "no prefix" sentinel: this tagset stands
+//     alone, the full tag set is just tag_string_ids.
+//   - prefix_id != 0 MUST reference a MetricTagsetDefine already
+//     defined earlier on the stream. Self-reference (id == prefix_id)
+//     is a wire violation.
+//   - All tag_string_ids MUST already be defined via
+//     MetricTagStringDefine earlier on the stream.
+type MetricTagsetDefine struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	PrefixId      uint64                 `protobuf:"varint,2,opt,name=prefix_id,json=prefixId,proto3" json:"prefix_id,omitempty"`
+	TagStringIds  []uint64               `protobuf:"varint,3,rep,packed,name=tag_string_ids,json=tagStringIds,proto3" json:"tag_string_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MetricTagsetDefine) Reset() {
+	*x = MetricTagsetDefine{}
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MetricTagsetDefine) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MetricTagsetDefine) ProtoMessage() {}
+
+func (x *MetricTagsetDefine) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MetricTagsetDefine.ProtoReflect.Descriptor instead.
+func (*MetricTagsetDefine) Descriptor() ([]byte, []int) {
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *MetricTagsetDefine) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *MetricTagsetDefine) GetPrefixId() uint64 {
+	if x != nil {
+		return x.PrefixId
+	}
+	return 0
+}
+
+func (x *MetricTagsetDefine) GetTagStringIds() []uint64 {
+	if x != nil {
+		return x.TagStringIds
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Metric series batch
+//
+// Carries the per-series + per-point columns of a v3 columnar payload,
+// with dict columns lifted out into the dict-define datums above.
+// References in the ref columns resolve against the stream's accumulated
+// dict.
+//
+// metric_data layout: identical to apiv3 MetricData encoding (per-column
+// streaming compression, concatenated with compressed protobuf field
+// headers — see pkg/serializer/internal/metrics/iterable_series_v3.go),
+// EXCEPT that dict columns 1-9 are absent (empty). Columns present in
+// the PoC scope (series only, no sketches):
+//
+//	10  types               16  timestamps
+//	11  nameRefs            17  valsSint64
+//	12  tagsetRefs          18  valsFloat32
+//	13  resourcesRefs       19  valsFloat64
+//	14  intervals           23  sourceTypeNameRefs
+//	15  numPoints           24  originInfoRefs
+//
+// Ref column encoding (nameRefs, tagsetRefs, resourcesRefs,
+// sourceTypeNameRefs, originInfoRefs) is unchanged from v3:
+// delta-zigzag-varint within the column, reset at the start of each
+// batch. Delta-encoder state is BATCH-scoped (not stream-scoped) —
+// matches v3's per-payload reset and logs' DeltaEncodingSync
+// "currently we are doing it at batch level" stance.
+//
+// metric_data is opaque bytes at the proto level. The bytes already
+// contain per-column compressed streams. Outer DatumSequence
+// compression (if applied at the stream-level) is benign but
+// redundant — zstd handles already-compressed input cheaply.
+//
+// Sketches (sketch columns 20-22) are out of PoC scope per contract D2.
+// Unit columns (25/26) and legacy-origin columns (27/28) are deferred
+// (agent doesn't write today).
+//
+// INVARIANTS (wire-level, contract.md D6 invariant 3):
+//   - All ref-column IDs (nameRefs, tagsetRefs, resourcesRefs,
+//     sourceTypeNameRefs, originInfoRefs) MUST resolve to dict entries
+//     already defined on the stream — either via define datums earlier
+//     in the same MetricDatumSequence or in a previous batch on this
+//     stream. Forward refs (referencing a define that appears later in
+//     the same sequence) and unresolved refs (no define exists) are
+//     wire violations.
+//   - The inner protobuf layout (which fields appear at which numbers)
+//     is the apiv3.MetricData schema as of dd-source commit SHA
+//     `6c9f8125ba37f881e3ab7aa1d04deeb7692ef914` (main, 2026-05-15).
+//     Future column additions in apiv3 require coordinated update on
+//     both agent + intake; see contract.md D6.1 versioning policy.
+type MetricSeriesBatch struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MetricData    []byte                 `protobuf:"bytes,1,opt,name=metric_data,json=metricData,proto3" json:"metric_data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MetricSeriesBatch) Reset() {
+	*x = MetricSeriesBatch{}
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MetricSeriesBatch) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MetricSeriesBatch) ProtoMessage() {}
+
+func (x *MetricSeriesBatch) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MetricSeriesBatch.ProtoReflect.Descriptor instead.
+func (*MetricSeriesBatch) Descriptor() ([]byte, []int) {
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *MetricSeriesBatch) GetMetricData() []byte {
+	if x != nil {
+		return x.MetricData
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Metric datum envelope
+//
+// One element in a metric stream's batch payload.
+//
+// Ordering within a MetricDatumSequence is significant (contract.md
+// D6 invariant "define-before-reference ordering"):
+//   - Define datums must precede any datum (define OR series batch)
+//     that references their ID.
+//   - For composite defines:
+//   - MetricTagsetDefine references MetricTagStringDefine ids
+//   - MetricResourceDefine references MetricResourceStringDefine ids
+//     The referenced entries must be defined earlier in the stream
+//     (in this batch OR a previous batch on this stream).
+//   - MetricSeriesBatch typically appears last (references all prior
+//     defines on this and previous batches).
+//
+// Delete datums are reserved for future use. PoC handles eviction
+// implicitly via stream rotation (15-min default; full dict re-emitted
+// on rotation per D6 snapshot semantics). Production multi-day stream
+// lifetime would add MetricNameDelete, MetricTagStringDelete, etc.
+// using reserved field numbers in the 9-15 range.
+type MetricDatum struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Data:
+	//
+	//	*MetricDatum_MetricNameDefine
+	//	*MetricDatum_MetricTagStringDefine
+	//	*MetricDatum_MetricSourceTypeNameDefine
+	//	*MetricDatum_MetricResourceStringDefine
+	//	*MetricDatum_MetricResourceDefine
+	//	*MetricDatum_MetricOriginDefine
+	//	*MetricDatum_MetricTagsetDefine
+	//	*MetricDatum_MetricSeriesBatch
+	Data          isMetricDatum_Data `protobuf_oneof:"data"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MetricDatum) Reset() {
+	*x = MetricDatum{}
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MetricDatum) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MetricDatum) ProtoMessage() {}
+
+func (x *MetricDatum) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MetricDatum.ProtoReflect.Descriptor instead.
+func (*MetricDatum) Descriptor() ([]byte, []int) {
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *MetricDatum) GetData() isMetricDatum_Data {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *MetricDatum) GetMetricNameDefine() *MetricNameDefine {
+	if x != nil {
+		if x, ok := x.Data.(*MetricDatum_MetricNameDefine); ok {
+			return x.MetricNameDefine
+		}
+	}
+	return nil
+}
+
+func (x *MetricDatum) GetMetricTagStringDefine() *MetricTagStringDefine {
+	if x != nil {
+		if x, ok := x.Data.(*MetricDatum_MetricTagStringDefine); ok {
+			return x.MetricTagStringDefine
+		}
+	}
+	return nil
+}
+
+func (x *MetricDatum) GetMetricSourceTypeNameDefine() *MetricSourceTypeNameDefine {
+	if x != nil {
+		if x, ok := x.Data.(*MetricDatum_MetricSourceTypeNameDefine); ok {
+			return x.MetricSourceTypeNameDefine
+		}
+	}
+	return nil
+}
+
+func (x *MetricDatum) GetMetricResourceStringDefine() *MetricResourceStringDefine {
+	if x != nil {
+		if x, ok := x.Data.(*MetricDatum_MetricResourceStringDefine); ok {
+			return x.MetricResourceStringDefine
+		}
+	}
+	return nil
+}
+
+func (x *MetricDatum) GetMetricResourceDefine() *MetricResourceDefine {
+	if x != nil {
+		if x, ok := x.Data.(*MetricDatum_MetricResourceDefine); ok {
+			return x.MetricResourceDefine
+		}
+	}
+	return nil
+}
+
+func (x *MetricDatum) GetMetricOriginDefine() *MetricOriginDefine {
+	if x != nil {
+		if x, ok := x.Data.(*MetricDatum_MetricOriginDefine); ok {
+			return x.MetricOriginDefine
+		}
+	}
+	return nil
+}
+
+func (x *MetricDatum) GetMetricTagsetDefine() *MetricTagsetDefine {
+	if x != nil {
+		if x, ok := x.Data.(*MetricDatum_MetricTagsetDefine); ok {
+			return x.MetricTagsetDefine
+		}
+	}
+	return nil
+}
+
+func (x *MetricDatum) GetMetricSeriesBatch() *MetricSeriesBatch {
+	if x != nil {
+		if x, ok := x.Data.(*MetricDatum_MetricSeriesBatch); ok {
+			return x.MetricSeriesBatch
+		}
+	}
+	return nil
+}
+
+type isMetricDatum_Data interface {
+	isMetricDatum_Data()
+}
+
+type MetricDatum_MetricNameDefine struct {
+	MetricNameDefine *MetricNameDefine `protobuf:"bytes,1,opt,name=metric_name_define,json=metricNameDefine,proto3,oneof"`
+}
+
+type MetricDatum_MetricTagStringDefine struct {
+	MetricTagStringDefine *MetricTagStringDefine `protobuf:"bytes,2,opt,name=metric_tag_string_define,json=metricTagStringDefine,proto3,oneof"`
+}
+
+type MetricDatum_MetricSourceTypeNameDefine struct {
+	MetricSourceTypeNameDefine *MetricSourceTypeNameDefine `protobuf:"bytes,3,opt,name=metric_source_type_name_define,json=metricSourceTypeNameDefine,proto3,oneof"`
+}
+
+type MetricDatum_MetricResourceStringDefine struct {
+	MetricResourceStringDefine *MetricResourceStringDefine `protobuf:"bytes,4,opt,name=metric_resource_string_define,json=metricResourceStringDefine,proto3,oneof"`
+}
+
+type MetricDatum_MetricResourceDefine struct {
+	MetricResourceDefine *MetricResourceDefine `protobuf:"bytes,5,opt,name=metric_resource_define,json=metricResourceDefine,proto3,oneof"`
+}
+
+type MetricDatum_MetricOriginDefine struct {
+	MetricOriginDefine *MetricOriginDefine `protobuf:"bytes,6,opt,name=metric_origin_define,json=metricOriginDefine,proto3,oneof"`
+}
+
+type MetricDatum_MetricTagsetDefine struct {
+	MetricTagsetDefine *MetricTagsetDefine `protobuf:"bytes,7,opt,name=metric_tagset_define,json=metricTagsetDefine,proto3,oneof"`
+}
+
+type MetricDatum_MetricSeriesBatch struct {
+	MetricSeriesBatch *MetricSeriesBatch `protobuf:"bytes,8,opt,name=metric_series_batch,json=metricSeriesBatch,proto3,oneof"`
+}
+
+func (*MetricDatum_MetricNameDefine) isMetricDatum_Data() {}
+
+func (*MetricDatum_MetricTagStringDefine) isMetricDatum_Data() {}
+
+func (*MetricDatum_MetricSourceTypeNameDefine) isMetricDatum_Data() {}
+
+func (*MetricDatum_MetricResourceStringDefine) isMetricDatum_Data() {}
+
+func (*MetricDatum_MetricResourceDefine) isMetricDatum_Data() {}
+
+func (*MetricDatum_MetricOriginDefine) isMetricDatum_Data() {}
+
+func (*MetricDatum_MetricTagsetDefine) isMetricDatum_Data() {}
+
+func (*MetricDatum_MetricSeriesBatch) isMetricDatum_Data() {}
+
+// MetricDatumSequence wraps a sequence of MetricDatum messages.
+// Mirrors the role of DatumSequence for logs.
+type MetricDatumSequence struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Data          []*MetricDatum         `protobuf:"bytes,1,rep,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MetricDatumSequence) Reset() {
+	*x = MetricDatumSequence{}
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MetricDatumSequence) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MetricDatumSequence) ProtoMessage() {}
+
+func (x *MetricDatumSequence) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MetricDatumSequence.ProtoReflect.Descriptor instead.
+func (*MetricDatumSequence) Descriptor() ([]byte, []int) {
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *MetricDatumSequence) GetData() []*MetricDatum {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// MetricStatefulBatch is the unit shipped over the gRPC stream. data is
+// the bytes of a serialized and (optionally stream-compressed)
+// MetricDatumSequence. Mirrors StatefulBatch for logs.
+//
+// batch_id semantics (contract.md D6 snapshot semantics):
+//   - batch_id == 0: snapshot batch. Receiver MUST reset its
+//     per-stream state machine (clear all dict maps for this stream)
+//     before processing the contained MetricDatumSequence. The
+//     snapshot's MetricDatumSequence contains the FULL accumulated
+//     dict-define datums needed to bootstrap the new stream (PoC
+//     uses non-lazy full dump — see phase3-proto-proposal.md §9 for
+//     the lazy-snapshot deferral rationale). No MetricSeriesBatch
+//     datum is expected in the snapshot batch.
+//   - batch_id >= 1: incremental batches in strict send-order on this
+//     stream. The agent assigns batch_ids monotonically starting from
+//     1 on each new stream. Intake's ack (MetricBatchStatus.batch_id)
+//     must echo the same id; receiving an out-of-order ack is a
+//     protocol violation that triggers stream rotation on the agent.
+//   - batch_id RESETS to 0 (then 1, 2, ...) on every stream rotation.
+//     batch_ids are NOT continuous across rotations. The new stream
+//     starts a fresh counter; intake distinguishes "new stream" from
+//     "next batch on same stream" by the fact that the gRPC stream
+//     itself is a new bidirectional RPC.
+type MetricStatefulBatch struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BatchId       uint32                 `protobuf:"varint,1,opt,name=batch_id,json=batchId,proto3" json:"batch_id,omitempty"`
+	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MetricStatefulBatch) Reset() {
+	*x = MetricStatefulBatch{}
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MetricStatefulBatch) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MetricStatefulBatch) ProtoMessage() {}
+
+func (x *MetricStatefulBatch) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MetricStatefulBatch.ProtoReflect.Descriptor instead.
+func (*MetricStatefulBatch) Descriptor() ([]byte, []int) {
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *MetricStatefulBatch) GetBatchId() uint32 {
+	if x != nil {
+		return x.BatchId
+	}
+	return 0
+}
+
+func (x *MetricStatefulBatch) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// MetricBatchStatus is intake's acknowledgment per batch_id.
+// Status enum values mirror the logs BatchStatus.Status enum for symmetry.
+// Per contract.md D8: no per-batch error codes. Malformed batches are
+// log+drop server-side (no ack) per D11 commitment 3.
+type MetricBatchStatus struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	BatchId       uint32                   `protobuf:"varint,1,opt,name=batch_id,json=batchId,proto3" json:"batch_id,omitempty"`
+	Status        MetricBatchStatus_Status `protobuf:"varint,2,opt,name=status,proto3,enum=datadog.intake.stateful.MetricBatchStatus_Status" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MetricBatchStatus) Reset() {
+	*x = MetricBatchStatus{}
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MetricBatchStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MetricBatchStatus) ProtoMessage() {}
+
+func (x *MetricBatchStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MetricBatchStatus.ProtoReflect.Descriptor instead.
+func (*MetricBatchStatus) Descriptor() ([]byte, []int) {
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *MetricBatchStatus) GetBatchId() uint32 {
+	if x != nil {
+		return x.BatchId
+	}
+	return 0
+}
+
+func (x *MetricBatchStatus) GetStatus() MetricBatchStatus_Status {
+	if x != nil {
+		return x.Status
+	}
+	return MetricBatchStatus_UNKNOWN
+}
+
 var File_datadog_stateful_stateful_encoding_proto protoreflect.FileDescriptor
 
 const file_datadog_stateful_stateful_encoding_proto_rawDesc = "" +
@@ -1199,10 +2144,61 @@ const file_datadog_stateful_stateful_encoding_proto_rawDesc = "" +
 	"\x06status\x18\x02 \x01(\x0e2+.datadog.intake.stateful.BatchStatus.StatusR\x06status\"\x1d\n" +
 	"\x06Status\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\x06\n" +
+	"\x02OK\x10\x01\"8\n" +
+	"\x10MetricNameDefine\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\"=\n" +
+	"\x15MetricTagStringDefine\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\"B\n" +
+	"\x1aMetricSourceTypeNameDefine\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\"B\n" +
+	"\x1aMetricResourceStringDefine\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\"v\n" +
+	"\x14MetricResourceDefine\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12&\n" +
+	"\x0ftype_string_ids\x18\x02 \x03(\x04R\rtypeStringIds\x12&\n" +
+	"\x0fname_string_ids\x18\x03 \x03(\x04R\rnameStringIds\"t\n" +
+	"\x12MetricOriginDefine\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x18\n" +
+	"\aproduct\x18\x02 \x01(\x05R\aproduct\x12\x1a\n" +
+	"\bcategory\x18\x03 \x01(\x05R\bcategory\x12\x18\n" +
+	"\aservice\x18\x04 \x01(\x05R\aservice\"g\n" +
+	"\x12MetricTagsetDefine\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x1b\n" +
+	"\tprefix_id\x18\x02 \x01(\x04R\bprefixId\x12$\n" +
+	"\x0etag_string_ids\x18\x03 \x03(\x04R\ftagStringIds\"4\n" +
+	"\x11MetricSeriesBatch\x12\x1f\n" +
+	"\vmetric_data\x18\x01 \x01(\fR\n" +
+	"metricData\"\xd7\x06\n" +
+	"\vMetricDatum\x12Y\n" +
+	"\x12metric_name_define\x18\x01 \x01(\v2).datadog.intake.stateful.MetricNameDefineH\x00R\x10metricNameDefine\x12i\n" +
+	"\x18metric_tag_string_define\x18\x02 \x01(\v2..datadog.intake.stateful.MetricTagStringDefineH\x00R\x15metricTagStringDefine\x12y\n" +
+	"\x1emetric_source_type_name_define\x18\x03 \x01(\v23.datadog.intake.stateful.MetricSourceTypeNameDefineH\x00R\x1ametricSourceTypeNameDefine\x12x\n" +
+	"\x1dmetric_resource_string_define\x18\x04 \x01(\v23.datadog.intake.stateful.MetricResourceStringDefineH\x00R\x1ametricResourceStringDefine\x12e\n" +
+	"\x16metric_resource_define\x18\x05 \x01(\v2-.datadog.intake.stateful.MetricResourceDefineH\x00R\x14metricResourceDefine\x12_\n" +
+	"\x14metric_origin_define\x18\x06 \x01(\v2+.datadog.intake.stateful.MetricOriginDefineH\x00R\x12metricOriginDefine\x12_\n" +
+	"\x14metric_tagset_define\x18\a \x01(\v2+.datadog.intake.stateful.MetricTagsetDefineH\x00R\x12metricTagsetDefine\x12\\\n" +
+	"\x13metric_series_batch\x18\b \x01(\v2*.datadog.intake.stateful.MetricSeriesBatchH\x00R\x11metricSeriesBatchB\x06\n" +
+	"\x04data\"O\n" +
+	"\x13MetricDatumSequence\x128\n" +
+	"\x04data\x18\x01 \x03(\v2$.datadog.intake.stateful.MetricDatumR\x04data\"D\n" +
+	"\x13MetricStatefulBatch\x12\x19\n" +
+	"\bbatch_id\x18\x01 \x01(\rR\abatchId\x12\x12\n" +
+	"\x04data\x18\x02 \x01(\fR\x04data\"\x98\x01\n" +
+	"\x11MetricBatchStatus\x12\x19\n" +
+	"\bbatch_id\x18\x01 \x01(\rR\abatchId\x12I\n" +
+	"\x06status\x18\x02 \x01(\x0e21.datadog.intake.stateful.MetricBatchStatus.StatusR\x06status\"\x1d\n" +
+	"\x06Status\x12\v\n" +
+	"\aUNKNOWN\x10\x00\x12\x06\n" +
 	"\x02OK\x10\x012u\n" +
 	"\x13StatefulLogsService\x12^\n" +
 	"\n" +
-	"LogsStream\x12&.datadog.intake.stateful.StatefulBatch\x1a$.datadog.intake.stateful.BatchStatus(\x010\x01B\x1bZ\x19pkg/proto/pbgo/statefulpbb\x06proto3"
+	"LogsStream\x12&.datadog.intake.stateful.StatefulBatch\x1a$.datadog.intake.stateful.BatchStatus(\x010\x012\x87\x01\n" +
+	"\x16StatefulMetricsService\x12m\n" +
+	"\rMetricsStream\x12,.datadog.intake.stateful.MetricStatefulBatch\x1a*.datadog.intake.stateful.MetricBatchStatus(\x010\x01B\x1bZ\x19pkg/proto/pbgo/statefulpbb\x06proto3"
 
 var (
 	file_datadog_stateful_stateful_encoding_proto_rawDescOnce sync.Once
@@ -1216,52 +2212,77 @@ func file_datadog_stateful_stateful_encoding_proto_rawDescGZIP() []byte {
 	return file_datadog_stateful_stateful_encoding_proto_rawDescData
 }
 
-var file_datadog_stateful_stateful_encoding_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_datadog_stateful_stateful_encoding_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_datadog_stateful_stateful_encoding_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_datadog_stateful_stateful_encoding_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_datadog_stateful_stateful_encoding_proto_goTypes = []any{
-	(BatchStatus_Status)(0),   // 0: datadog.intake.stateful.BatchStatus.Status
-	(*DictEntryDefine)(nil),   // 1: datadog.intake.stateful.DictEntryDefine
-	(*DictEntryDelete)(nil),   // 2: datadog.intake.stateful.DictEntryDelete
-	(*PatternDefine)(nil),     // 3: datadog.intake.stateful.PatternDefine
-	(*PatternDelete)(nil),     // 4: datadog.intake.stateful.PatternDelete
-	(*TagSet)(nil),            // 5: datadog.intake.stateful.TagSet
-	(*Tag)(nil),               // 6: datadog.intake.stateful.Tag
-	(*Log)(nil),               // 7: datadog.intake.stateful.Log
-	(*StructuredLog)(nil),     // 8: datadog.intake.stateful.StructuredLog
-	(*DynamicValue)(nil),      // 9: datadog.intake.stateful.DynamicValue
-	(*DeltaEncodingSync)(nil), // 10: datadog.intake.stateful.DeltaEncodingSync
-	(*Datum)(nil),             // 11: datadog.intake.stateful.Datum
-	(*DatumSequence)(nil),     // 12: datadog.intake.stateful.DatumSequence
-	(*StatefulBatch)(nil),     // 13: datadog.intake.stateful.StatefulBatch
-	(*BatchStatus)(nil),       // 14: datadog.intake.stateful.BatchStatus
+	(BatchStatus_Status)(0),            // 0: datadog.intake.stateful.BatchStatus.Status
+	(MetricBatchStatus_Status)(0),      // 1: datadog.intake.stateful.MetricBatchStatus.Status
+	(*DictEntryDefine)(nil),            // 2: datadog.intake.stateful.DictEntryDefine
+	(*DictEntryDelete)(nil),            // 3: datadog.intake.stateful.DictEntryDelete
+	(*PatternDefine)(nil),              // 4: datadog.intake.stateful.PatternDefine
+	(*PatternDelete)(nil),              // 5: datadog.intake.stateful.PatternDelete
+	(*TagSet)(nil),                     // 6: datadog.intake.stateful.TagSet
+	(*Tag)(nil),                        // 7: datadog.intake.stateful.Tag
+	(*Log)(nil),                        // 8: datadog.intake.stateful.Log
+	(*StructuredLog)(nil),              // 9: datadog.intake.stateful.StructuredLog
+	(*DynamicValue)(nil),               // 10: datadog.intake.stateful.DynamicValue
+	(*DeltaEncodingSync)(nil),          // 11: datadog.intake.stateful.DeltaEncodingSync
+	(*Datum)(nil),                      // 12: datadog.intake.stateful.Datum
+	(*DatumSequence)(nil),              // 13: datadog.intake.stateful.DatumSequence
+	(*StatefulBatch)(nil),              // 14: datadog.intake.stateful.StatefulBatch
+	(*BatchStatus)(nil),                // 15: datadog.intake.stateful.BatchStatus
+	(*MetricNameDefine)(nil),           // 16: datadog.intake.stateful.MetricNameDefine
+	(*MetricTagStringDefine)(nil),      // 17: datadog.intake.stateful.MetricTagStringDefine
+	(*MetricSourceTypeNameDefine)(nil), // 18: datadog.intake.stateful.MetricSourceTypeNameDefine
+	(*MetricResourceStringDefine)(nil), // 19: datadog.intake.stateful.MetricResourceStringDefine
+	(*MetricResourceDefine)(nil),       // 20: datadog.intake.stateful.MetricResourceDefine
+	(*MetricOriginDefine)(nil),         // 21: datadog.intake.stateful.MetricOriginDefine
+	(*MetricTagsetDefine)(nil),         // 22: datadog.intake.stateful.MetricTagsetDefine
+	(*MetricSeriesBatch)(nil),          // 23: datadog.intake.stateful.MetricSeriesBatch
+	(*MetricDatum)(nil),                // 24: datadog.intake.stateful.MetricDatum
+	(*MetricDatumSequence)(nil),        // 25: datadog.intake.stateful.MetricDatumSequence
+	(*MetricStatefulBatch)(nil),        // 26: datadog.intake.stateful.MetricStatefulBatch
+	(*MetricBatchStatus)(nil),          // 27: datadog.intake.stateful.MetricBatchStatus
 }
 var file_datadog_stateful_stateful_encoding_proto_depIdxs = []int32{
-	9,  // 0: datadog.intake.stateful.TagSet.tagset:type_name -> datadog.intake.stateful.DynamicValue
-	9,  // 1: datadog.intake.stateful.Tag.key:type_name -> datadog.intake.stateful.DynamicValue
-	9,  // 2: datadog.intake.stateful.Tag.value:type_name -> datadog.intake.stateful.DynamicValue
-	8,  // 3: datadog.intake.stateful.Log.structured:type_name -> datadog.intake.stateful.StructuredLog
-	5,  // 4: datadog.intake.stateful.Log.tags:type_name -> datadog.intake.stateful.TagSet
-	9,  // 5: datadog.intake.stateful.Log.status:type_name -> datadog.intake.stateful.DynamicValue
-	9,  // 6: datadog.intake.stateful.Log.service:type_name -> datadog.intake.stateful.DynamicValue
-	9,  // 7: datadog.intake.stateful.StructuredLog.dynamic_values:type_name -> datadog.intake.stateful.DynamicValue
-	9,  // 8: datadog.intake.stateful.StructuredLog.json_message_key:type_name -> datadog.intake.stateful.DynamicValue
-	9,  // 9: datadog.intake.stateful.StructuredLog.json_context_values:type_name -> datadog.intake.stateful.DynamicValue
-	5,  // 10: datadog.intake.stateful.DeltaEncodingSync.tags:type_name -> datadog.intake.stateful.TagSet
-	3,  // 11: datadog.intake.stateful.Datum.pattern_define:type_name -> datadog.intake.stateful.PatternDefine
-	4,  // 12: datadog.intake.stateful.Datum.pattern_delete:type_name -> datadog.intake.stateful.PatternDelete
-	1,  // 13: datadog.intake.stateful.Datum.dict_entry_define:type_name -> datadog.intake.stateful.DictEntryDefine
-	2,  // 14: datadog.intake.stateful.Datum.dict_entry_delete:type_name -> datadog.intake.stateful.DictEntryDelete
-	10, // 15: datadog.intake.stateful.Datum.delta_encoding_sync:type_name -> datadog.intake.stateful.DeltaEncodingSync
-	7,  // 16: datadog.intake.stateful.Datum.logs:type_name -> datadog.intake.stateful.Log
-	11, // 17: datadog.intake.stateful.DatumSequence.data:type_name -> datadog.intake.stateful.Datum
+	10, // 0: datadog.intake.stateful.TagSet.tagset:type_name -> datadog.intake.stateful.DynamicValue
+	10, // 1: datadog.intake.stateful.Tag.key:type_name -> datadog.intake.stateful.DynamicValue
+	10, // 2: datadog.intake.stateful.Tag.value:type_name -> datadog.intake.stateful.DynamicValue
+	9,  // 3: datadog.intake.stateful.Log.structured:type_name -> datadog.intake.stateful.StructuredLog
+	6,  // 4: datadog.intake.stateful.Log.tags:type_name -> datadog.intake.stateful.TagSet
+	10, // 5: datadog.intake.stateful.Log.status:type_name -> datadog.intake.stateful.DynamicValue
+	10, // 6: datadog.intake.stateful.Log.service:type_name -> datadog.intake.stateful.DynamicValue
+	10, // 7: datadog.intake.stateful.StructuredLog.dynamic_values:type_name -> datadog.intake.stateful.DynamicValue
+	10, // 8: datadog.intake.stateful.StructuredLog.json_message_key:type_name -> datadog.intake.stateful.DynamicValue
+	10, // 9: datadog.intake.stateful.StructuredLog.json_context_values:type_name -> datadog.intake.stateful.DynamicValue
+	6,  // 10: datadog.intake.stateful.DeltaEncodingSync.tags:type_name -> datadog.intake.stateful.TagSet
+	4,  // 11: datadog.intake.stateful.Datum.pattern_define:type_name -> datadog.intake.stateful.PatternDefine
+	5,  // 12: datadog.intake.stateful.Datum.pattern_delete:type_name -> datadog.intake.stateful.PatternDelete
+	2,  // 13: datadog.intake.stateful.Datum.dict_entry_define:type_name -> datadog.intake.stateful.DictEntryDefine
+	3,  // 14: datadog.intake.stateful.Datum.dict_entry_delete:type_name -> datadog.intake.stateful.DictEntryDelete
+	11, // 15: datadog.intake.stateful.Datum.delta_encoding_sync:type_name -> datadog.intake.stateful.DeltaEncodingSync
+	8,  // 16: datadog.intake.stateful.Datum.logs:type_name -> datadog.intake.stateful.Log
+	12, // 17: datadog.intake.stateful.DatumSequence.data:type_name -> datadog.intake.stateful.Datum
 	0,  // 18: datadog.intake.stateful.BatchStatus.status:type_name -> datadog.intake.stateful.BatchStatus.Status
-	13, // 19: datadog.intake.stateful.StatefulLogsService.LogsStream:input_type -> datadog.intake.stateful.StatefulBatch
-	14, // 20: datadog.intake.stateful.StatefulLogsService.LogsStream:output_type -> datadog.intake.stateful.BatchStatus
-	20, // [20:21] is the sub-list for method output_type
-	19, // [19:20] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	16, // 19: datadog.intake.stateful.MetricDatum.metric_name_define:type_name -> datadog.intake.stateful.MetricNameDefine
+	17, // 20: datadog.intake.stateful.MetricDatum.metric_tag_string_define:type_name -> datadog.intake.stateful.MetricTagStringDefine
+	18, // 21: datadog.intake.stateful.MetricDatum.metric_source_type_name_define:type_name -> datadog.intake.stateful.MetricSourceTypeNameDefine
+	19, // 22: datadog.intake.stateful.MetricDatum.metric_resource_string_define:type_name -> datadog.intake.stateful.MetricResourceStringDefine
+	20, // 23: datadog.intake.stateful.MetricDatum.metric_resource_define:type_name -> datadog.intake.stateful.MetricResourceDefine
+	21, // 24: datadog.intake.stateful.MetricDatum.metric_origin_define:type_name -> datadog.intake.stateful.MetricOriginDefine
+	22, // 25: datadog.intake.stateful.MetricDatum.metric_tagset_define:type_name -> datadog.intake.stateful.MetricTagsetDefine
+	23, // 26: datadog.intake.stateful.MetricDatum.metric_series_batch:type_name -> datadog.intake.stateful.MetricSeriesBatch
+	24, // 27: datadog.intake.stateful.MetricDatumSequence.data:type_name -> datadog.intake.stateful.MetricDatum
+	1,  // 28: datadog.intake.stateful.MetricBatchStatus.status:type_name -> datadog.intake.stateful.MetricBatchStatus.Status
+	14, // 29: datadog.intake.stateful.StatefulLogsService.LogsStream:input_type -> datadog.intake.stateful.StatefulBatch
+	26, // 30: datadog.intake.stateful.StatefulMetricsService.MetricsStream:input_type -> datadog.intake.stateful.MetricStatefulBatch
+	15, // 31: datadog.intake.stateful.StatefulLogsService.LogsStream:output_type -> datadog.intake.stateful.BatchStatus
+	27, // 32: datadog.intake.stateful.StatefulMetricsService.MetricsStream:output_type -> datadog.intake.stateful.MetricBatchStatus
+	31, // [31:33] is the sub-list for method output_type
+	29, // [29:31] is the sub-list for method input_type
+	29, // [29:29] is the sub-list for extension type_name
+	29, // [29:29] is the sub-list for extension extendee
+	0,  // [0:29] is the sub-list for field type_name
 }
 
 func init() { file_datadog_stateful_stateful_encoding_proto_init() }
@@ -1289,15 +2310,25 @@ func file_datadog_stateful_stateful_encoding_proto_init() {
 		(*Datum_DeltaEncodingSync)(nil),
 		(*Datum_Logs)(nil),
 	}
+	file_datadog_stateful_stateful_encoding_proto_msgTypes[22].OneofWrappers = []any{
+		(*MetricDatum_MetricNameDefine)(nil),
+		(*MetricDatum_MetricTagStringDefine)(nil),
+		(*MetricDatum_MetricSourceTypeNameDefine)(nil),
+		(*MetricDatum_MetricResourceStringDefine)(nil),
+		(*MetricDatum_MetricResourceDefine)(nil),
+		(*MetricDatum_MetricOriginDefine)(nil),
+		(*MetricDatum_MetricTagsetDefine)(nil),
+		(*MetricDatum_MetricSeriesBatch)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_stateful_stateful_encoding_proto_rawDesc), len(file_datadog_stateful_stateful_encoding_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   14,
+			NumEnums:      2,
+			NumMessages:   26,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_datadog_stateful_stateful_encoding_proto_goTypes,
 		DependencyIndexes: file_datadog_stateful_stateful_encoding_proto_depIdxs,

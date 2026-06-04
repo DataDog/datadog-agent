@@ -120,22 +120,38 @@ func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Compon
 	pbs := make([]serieWriter, 0, len(pipelines))
 	var sw serieWriter
 	for pipelineConfig, pipelineContext := range pipelines {
-		if !pipelineConfig.V3 {
+		switch {
+		case pipelineConfig.Stateful:
+			// Stateful path: v3 columnar bytes + stream-scoped dict, submitted
+			// over gRPC instead of accumulated into pipelineContext. Requires
+			// StatefulDict and StatefulSender to be set on the context (the
+			// serializer wires these in buildPipelines for stateful endpoints).
+			if pipelineContext.StatefulDict == nil || pipelineContext.StatefulSender == nil {
+				return errors.New("stateful pipeline missing StatefulDict or StatefulSender")
+			}
+			pb, err := newPayloadsBuilderV3StatefulWithConfig(
+				config, strategy, pipelineConfig, pipelineContext,
+				pipelineContext.StatefulDict, pipelineContext.StatefulSender,
+			)
+			if err != nil {
+				return err
+			}
+			sw = pb
+		case pipelineConfig.V3:
+			pb, err := newPayloadsBuilderV3WithConfig(config, strategy, pipelineConfig, pipelineContext)
+			if err != nil {
+				return err
+			}
+			sw = pb
+		default:
 			bufferContext := marshaler.NewBufferContext()
 			pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy, pipelineConfig, pipelineContext)
 			if err != nil {
 				return err
 			}
 			sw = &pb
-			pbs = append(pbs, sw)
-		} else {
-			pb, err := newPayloadsBuilderV3WithConfig(config, strategy, pipelineConfig, pipelineContext)
-			if err != nil {
-				return err
-			}
-			sw = pb
-			pbs = append(pbs, sw)
 		}
+		pbs = append(pbs, sw)
 		err := sw.startPayload()
 		if err != nil {
 			return err
