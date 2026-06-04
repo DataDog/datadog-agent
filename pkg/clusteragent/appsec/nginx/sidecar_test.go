@@ -187,6 +187,17 @@ func TestMutatePod(t *testing.T) {
 	assert.Equal(t, "datadog/ingress-nginx-injection:v1.15.1", ic.Image)
 	assert.Equal(t, []string{"/bin/sh", "/datadog/init_module.sh", "/modules_mount"}, ic.Command)
 
+	// The injection image runs as root, so RunAsNonRoot must be paired with an
+	// explicit non-root UID/GID or the kubelet rejects the container with
+	// "container has runAsNonRoot and image will run as root".
+	require.NotNil(t, ic.SecurityContext)
+	require.NotNil(t, ic.SecurityContext.RunAsNonRoot)
+	assert.True(t, *ic.SecurityContext.RunAsNonRoot)
+	require.NotNil(t, ic.SecurityContext.RunAsUser, "RunAsUser must be set so kubelet accepts a root image under RunAsNonRoot")
+	assert.NotZero(t, *ic.SecurityContext.RunAsUser, "RunAsUser must be non-zero (non-root)")
+	require.NotNil(t, ic.SecurityContext.RunAsGroup)
+	assert.NotZero(t, *ic.SecurityContext.RunAsGroup)
+
 	// Verify volume was added
 	require.Len(t, pod.Spec.Volumes, 1)
 	assert.Equal(t, moduleVolumeName, pod.Spec.Volumes[0].Name)

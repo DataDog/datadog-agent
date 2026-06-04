@@ -54,6 +54,17 @@ const (
 	labelNameValue      = "ingress-nginx"
 	labelComponentKey   = "app.kubernetes.io/component"
 	labelComponentValue = "controller"
+
+	// initContainerRunAsUser/Group pin the init container to a non-root identity.
+	// The datadog/ingress-nginx-injection image declares no USER (defaults to
+	// root), so RunAsNonRoot alone makes the kubelet reject the container with
+	// "container has runAsNonRoot and image will run as root". An explicit
+	// non-root UID/GID is required. We reuse ingress-nginx's own well-known
+	// www-data identity (101:82) so the copied module file ownership matches the
+	// controller container that consumes it; the module is world-readable
+	// regardless, so this only needs to be any non-zero ID.
+	initContainerRunAsUser  int64 = 101
+	initContainerRunAsGroup int64 = 82
 )
 
 var _ appsecconfig.SidecarInjectionPattern = (*nginxSidecarPattern)(nil)
@@ -312,6 +323,8 @@ func buildInitContainer(image, moduleMountPath string) corev1.Container {
 		},
 		SecurityContext: &corev1.SecurityContext{
 			RunAsNonRoot:             ptr.To(true),
+			RunAsUser:                ptr.To(initContainerRunAsUser),
+			RunAsGroup:               ptr.To(initContainerRunAsGroup),
 			AllowPrivilegeEscalation: ptr.To(false),
 			ReadOnlyRootFilesystem:   ptr.To(true),
 			Capabilities: &corev1.Capabilities{
