@@ -40,6 +40,7 @@ go_library(
         "//pkg/version",
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_datadog_datadog_agent_comp_logs_library//sender",
+        "@com_github_datadog_datadog_agent_pkg_logs_client//http",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//connectivity",
