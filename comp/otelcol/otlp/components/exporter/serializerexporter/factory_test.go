@@ -10,12 +10,17 @@ package serializerexporter
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exportertest"
+	"go.opentelemetry.io/collector/featuregate"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 )
 
 // newFactory creates a factory for test-only
@@ -68,4 +73,53 @@ func TestNewLogsExporter(t *testing.T) {
 	set := exportertest.NewNopSettings(component.MustNewType(TypeStr))
 	_, err := factory.CreateLogs(context.Background(), set, cfg)
 	assert.Error(t, err)
+}
+
+func TestNativeHistogramFeatureGateWiring(t *testing.T) {
+	require.NoError(t, featuregate.GlobalRegistry().Set(NativeHistogramFeatureGate.ID(), true))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(NativeHistogramFeatureGate.ID(), false))
+	})
+
+	mock := &capturingMockSerializer{}
+	hostGetter := SourceProviderFunc(func(_ context.Context) (string, error) { return "testhost", nil })
+	factory := NewFactoryForAgent(mock, hostGetter, TelemetryStore{})
+
+	cfg := factory.CreateDefaultConfig()
+	set := exportertest.NewNopSettings(component.MustNewType(TypeStr))
+	exporter, err := factory.CreateMetrics(context.Background(), set, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, exporter)
+
+	err = exporter.Start(context.Background(), componenttest.NewNopHost())
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, exporter.Shutdown(context.Background()))
+	}()
+
+	md := pmetric.NewMetrics()
+	rm := md.ResourceMetrics().AppendEmpty()
+	rm.Resource().Attributes().PutStr("host.name", "testhost")
+	sm := rm.ScopeMetrics().AppendEmpty()
+	m := sm.Metrics().AppendEmpty()
+	m.SetName("gate.test.histogram")
+	h := m.SetEmptyHistogram()
+	h.SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	dp := h.DataPoints().AppendEmpty()
+	dp.ExplicitBounds().FromRaw([]float64{1, 5, 10})
+	dp.BucketCounts().FromRaw([]uint64{1, 3, 5, 2})
+	dp.SetCount(11)
+	dp.SetSum(42.0)
+	now := time.Now()
+	dp.SetTimestamp(pcommon.NewTimestampFromTime(now))
+	dp.SetStartTimestamp(pcommon.NewTimestampFromTime(now.Add(-10 * time.Second)))
+
+	err = exporter.ConsumeMetrics(context.Background(), md)
+	require.NoError(t, err)
+
+	// Give async queue time to process
+	assert.Eventually(t, func() bool {
+		return len(mock.explicitHistograms) > 0
+	}, 5*time.Second, 10*time.Millisecond,
+		"with NativeHistogramFeatureGate ON, delta explicit-bound histograms should be sent as native histograms, not sketches")
 }
