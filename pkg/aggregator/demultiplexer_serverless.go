@@ -135,7 +135,8 @@ func (d *ServerlessDemultiplexer) forceFlushToSerializer(start time.Time, waitFo
 	metrics.Serialize(
 		series,
 		sketches,
-		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+		nil, nil,
+		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink, _ metrics.ExplicitBucketHistogramSink, _ metrics.ExponentialHistogramSink) {
 			trigger := flushTrigger{
 				trigger: trigger{
 					time:              start,
@@ -156,7 +157,9 @@ func (d *ServerlessDemultiplexer) forceFlushToSerializer(start time.Time, waitFo
 			if sketches.WaitForValue() {
 				d.serializer.SendSketch(sketches) //nolint:errcheck
 			}
-		})
+		},
+		func(_ metrics.ExplicitBucketHistogramSource) {},
+		func(_ metrics.ExponentialHistogramSource) {})
 }
 
 // AggregateSample send a MetricSample to the TimeSampler.

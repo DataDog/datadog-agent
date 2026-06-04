@@ -88,6 +88,12 @@ type MetricSerializer interface {
 	AreSeriesEnabled() bool
 	SendSketch(sketches metrics.SketchesSource) error
 	AreSketchesEnabled() bool
+	// SendExplicitBucketHistograms sends OTel explicit-bound histograms via the v3 wire format.
+	// Implemented by the AMP team; stub returns nil until the implementation is available.
+	SendExplicitBucketHistograms(source metrics.ExplicitBucketHistogramSource) error
+	// SendExponentialHistograms sends OTel exponential histograms via the v3 wire format.
+	// Implemented by the AMP team; stub returns nil until the implementation is available.
+	SendExponentialHistograms(source metrics.ExponentialHistogramSource) error
 
 	SendMetadata(m marshaler.JSONMarshaler) error
 	SendHostMetadata(m marshaler.JSONMarshaler) error
@@ -332,6 +338,18 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	}
 
 	return pipelines.Send(s.Forwarder, s.protobufExtraHeadersWithCompression)
+}
+
+// SendExplicitBucketHistograms is a stub for AMP team implementation.
+// It will serialize OTel explicit-bound histograms via the v3 wire format.
+func (s *Serializer) SendExplicitBucketHistograms(_ metrics.ExplicitBucketHistogramSource) error {
+	return nil
+}
+
+// SendExponentialHistograms is a stub for AMP team implementation.
+// It will serialize OTel exponential histograms via the v3 wire format.
+func (s *Serializer) SendExponentialHistograms(_ metrics.ExponentialHistogramSource) error {
+	return nil
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder

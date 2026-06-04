@@ -130,6 +130,90 @@ func (_c *MetricSerializer_AreSketchesEnabled_Call) RunAndReturn(run func() bool
 	return _c
 }
 
+// SendExplicitBucketHistograms provides a mock function for the type MetricSerializer
+func (_mock *MetricSerializer) SendExplicitBucketHistograms(source metrics.ExplicitBucketHistogramSource) error {
+	ret := _mock.Called(source)
+	if len(ret) == 0 {
+		panic("no return value specified for SendExplicitBucketHistograms")
+	}
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(metrics.ExplicitBucketHistogramSource) error); ok {
+		r0 = returnFunc(source)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MetricSerializer_SendExplicitBucketHistograms_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SendExplicitBucketHistograms'
+type MetricSerializer_SendExplicitBucketHistograms_Call struct {
+	*mock.Call
+}
+
+// SendExplicitBucketHistograms is a helper method to define mock.On call
+func (_e *MetricSerializer_Expecter) SendExplicitBucketHistograms(source interface{}) *MetricSerializer_SendExplicitBucketHistograms_Call {
+	return &MetricSerializer_SendExplicitBucketHistograms_Call{Call: _e.mock.On("SendExplicitBucketHistograms", source)}
+}
+
+func (_c *MetricSerializer_SendExplicitBucketHistograms_Call) Run(run func(source metrics.ExplicitBucketHistogramSource)) *MetricSerializer_SendExplicitBucketHistograms_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(metrics.ExplicitBucketHistogramSource))
+	})
+	return _c
+}
+
+func (_c *MetricSerializer_SendExplicitBucketHistograms_Call) Return(err error) *MetricSerializer_SendExplicitBucketHistograms_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MetricSerializer_SendExplicitBucketHistograms_Call) RunAndReturn(run func(metrics.ExplicitBucketHistogramSource) error) *MetricSerializer_SendExplicitBucketHistograms_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SendExponentialHistograms provides a mock function for the type MetricSerializer
+func (_mock *MetricSerializer) SendExponentialHistograms(source metrics.ExponentialHistogramSource) error {
+	ret := _mock.Called(source)
+	if len(ret) == 0 {
+		panic("no return value specified for SendExponentialHistograms")
+	}
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(metrics.ExponentialHistogramSource) error); ok {
+		r0 = returnFunc(source)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MetricSerializer_SendExponentialHistograms_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SendExponentialHistograms'
+type MetricSerializer_SendExponentialHistograms_Call struct {
+	*mock.Call
+}
+
+// SendExponentialHistograms is a helper method to define mock.On call
+func (_e *MetricSerializer_Expecter) SendExponentialHistograms(source interface{}) *MetricSerializer_SendExponentialHistograms_Call {
+	return &MetricSerializer_SendExponentialHistograms_Call{Call: _e.mock.On("SendExponentialHistograms", source)}
+}
+
+func (_c *MetricSerializer_SendExponentialHistograms_Call) Run(run func(source metrics.ExponentialHistogramSource)) *MetricSerializer_SendExponentialHistograms_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(metrics.ExponentialHistogramSource))
+	})
+	return _c
+}
+
+func (_c *MetricSerializer_SendExponentialHistograms_Call) Return(err error) *MetricSerializer_SendExponentialHistograms_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MetricSerializer_SendExponentialHistograms_Call) RunAndReturn(run func(metrics.ExponentialHistogramSource) error) *MetricSerializer_SendExponentialHistograms_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SendAgentShutdownEvent provides a mock function for the type MetricSerializer
 func (_mock *MetricSerializer) SendAgentShutdownEvent(ctx context.Context, e *event.Event) error {
 	ret := _mock.Called(ctx, e)

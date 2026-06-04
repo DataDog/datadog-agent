@@ -136,13 +136,16 @@ func (e *dogtelExtension) sendLivenessMetric(ctx context.Context) error {
 	agentmetrics.Serialize(
 		agentmetrics.NewIterableSeries(func(_ *agentmetrics.Serie) {}, 200, 4000),
 		agentmetrics.NewIterableSketches(func(_ *agentmetrics.SketchSeries) {}, 200, 4000),
-		func(seriesSink agentmetrics.SerieSink, _ agentmetrics.SketchesSink) {
+		nil, nil,
+		func(seriesSink agentmetrics.SerieSink, _ agentmetrics.SketchesSink, _ agentmetrics.ExplicitBucketHistogramSink, _ agentmetrics.ExponentialHistogramSink) {
 			seriesSink.Append(serie)
 		},
 		func(serieSource agentmetrics.SerieSource) {
 			serieErr = e.serializer.SendIterableSeries(serieSource)
 		},
 		func(_ agentmetrics.SketchesSource) {},
+		func(_ agentmetrics.ExplicitBucketHistogramSource) {},
+		func(_ agentmetrics.ExponentialHistogramSource) {},
 	)
 	return serieErr
 }
