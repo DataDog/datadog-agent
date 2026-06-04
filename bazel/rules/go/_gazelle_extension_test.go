@@ -236,30 +236,52 @@ func TestKnownDirectives(t *testing.T) {
 	}
 }
 
-func TestConfigure_DirectiveOff(t *testing.T) {
-	f := &rule.File{}
-	f.Directives = []rule.Directive{{Key: "dd_agent_go_test", Value: "off"}}
-
+func TestConfigure_DefaultDisabled(t *testing.T) {
 	c := &config.Config{Exts: map[string]interface{}{}}
-	NewLanguage().(*lang).Configure(c, "some/pkg", f)
+	NewLanguage().(*lang).Configure(c, "some/pkg", nil)
 
 	got, ok := c.Exts[extName].(ddAgentGoTestConfig)
 	if !ok {
 		t.Fatal("expected ddAgentGoTestConfig in c.Exts")
 	}
 	if got.enabled {
+		t.Error("expected enabled=false by default (conversion is opt-in)")
+	}
+}
+
+func TestConfigure_DirectiveOn(t *testing.T) {
+	f := &rule.File{}
+	f.Directives = []rule.Directive{{Key: "dd_agent_go_test", Value: "on"}}
+
+	c := &config.Config{Exts: map[string]interface{}{}}
+	NewLanguage().(*lang).Configure(c, "some/pkg", f)
+
+	if !c.Exts[extName].(ddAgentGoTestConfig).enabled {
+		t.Error("expected enabled=true after directive on")
+	}
+}
+
+// TestConfigure_DirectiveOff verifies an explicit off wins over an inherited
+// "on" (off is also the default, but it must still override).
+func TestConfigure_DirectiveOff(t *testing.T) {
+	c := &config.Config{Exts: map[string]interface{}{extName: ddAgentGoTestConfig{enabled: true}}}
+	f := &rule.File{}
+	f.Directives = []rule.Directive{{Key: "dd_agent_go_test", Value: "off"}}
+	NewLanguage().(*lang).Configure(c, "some/pkg", f)
+
+	if c.Exts[extName].(ddAgentGoTestConfig).enabled {
 		t.Error("expected enabled=false after directive off")
 	}
 }
 
 // TestConfigure_Inherits verifies the directive is inheritable: a subpackage
 // with no directive of its own keeps the value Gazelle cloned in from the
-// parent (here, "off"), rather than resetting to the enabled default.
+// parent (here, "on"), rather than resetting to the disabled default.
 func TestConfigure_Inherits(t *testing.T) {
 	l := NewLanguage().(*lang)
 
 	parent := &rule.File{}
-	parent.Directives = []rule.Directive{{Key: "dd_agent_go_test", Value: "off"}}
+	parent.Directives = []rule.Directive{{Key: "dd_agent_go_test", Value: "on"}}
 	c := &config.Config{Exts: map[string]interface{}{}}
 	l.Configure(c, "some/pkg", parent)
 
@@ -267,29 +289,27 @@ func TestConfigure_Inherits(t *testing.T) {
 	// child then configures with no directive of its own.
 	l.Configure(c, "some/pkg/child", nil)
 
-	got := c.Exts[extName].(ddAgentGoTestConfig)
-	if got.enabled {
-		t.Error("expected enabled=false inherited from parent")
+	if !c.Exts[extName].(ddAgentGoTestConfig).enabled {
+		t.Error("expected enabled=true inherited from parent")
 	}
 }
 
-// TestConfigure_OverridesInherited verifies a descendant can re-enable a
-// subtree that an ancestor turned off.
+// TestConfigure_OverridesInherited verifies a descendant can disable a subtree
+// that an ancestor turned on.
 func TestConfigure_OverridesInherited(t *testing.T) {
 	l := NewLanguage().(*lang)
 
 	parent := &rule.File{}
-	parent.Directives = []rule.Directive{{Key: "dd_agent_go_test", Value: "off"}}
+	parent.Directives = []rule.Directive{{Key: "dd_agent_go_test", Value: "on"}}
 	c := &config.Config{Exts: map[string]interface{}{}}
 	l.Configure(c, "some/pkg", parent)
 
 	child := &rule.File{}
-	child.Directives = []rule.Directive{{Key: "dd_agent_go_test", Value: "on"}}
+	child.Directives = []rule.Directive{{Key: "dd_agent_go_test", Value: "off"}}
 	l.Configure(c, "some/pkg/child", child)
 
-	got := c.Exts[extName].(ddAgentGoTestConfig)
-	if !got.enabled {
-		t.Error("expected enabled=true after child re-enables with on")
+	if c.Exts[extName].(ddAgentGoTestConfig).enabled {
+		t.Error("expected enabled=false after child disables with off")
 	}
 }
 
@@ -300,8 +320,15 @@ func TestShouldReplace(t *testing.T) {
 		want bool
 	}{
 		{
-			name: "default",
+			name: "default (no config) is disabled",
 			c:    &config.Config{Exts: map[string]interface{}{}},
+			want: false,
+		},
+		{
+			name: "enabled",
+			c: &config.Config{Exts: map[string]interface{}{
+				extName: ddAgentGoTestConfig{enabled: true},
+			}},
 			want: true,
 		},
 		{
@@ -312,9 +339,11 @@ func TestShouldReplace(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "map_kind go_test redirects to a custom wrapper",
+			name: "enabled but map_kind go_test redirects to a custom wrapper",
 			c: &config.Config{
-				Exts: map[string]interface{}{},
+				Exts: map[string]interface{}{
+					extName: ddAgentGoTestConfig{enabled: true},
+				},
 				KindMap: map[string]config.MappedKind{
 					"go_test": {KindName: "rtloader_go_test", KindLoad: "//rtloader/test:defs.bzl"},
 				},
@@ -322,9 +351,11 @@ func TestShouldReplace(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "map_kind on unrelated kind",
+			name: "enabled with map_kind on unrelated kind",
 			c: &config.Config{
-				Exts: map[string]interface{}{},
+				Exts: map[string]interface{}{
+					extName: ddAgentGoTestConfig{enabled: true},
+				},
 				KindMap: map[string]config.MappedKind{
 					"go_library": {KindName: "my_go_library"},
 				},

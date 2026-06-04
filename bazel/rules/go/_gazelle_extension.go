@@ -85,14 +85,16 @@ func (l *lang) KnownDirectives() []string {
 }
 
 // Configure reads the # gazelle:dd_agent_go_test directive from the BUILD file.
-// "off" disables the go_test → dd_agent_go_test conversion; "on" re-enables it.
+// "on" enables the go_test → dd_agent_go_test conversion; "off" disables it.
 // The setting is inheritable: it applies to this package and all subpackages
 // until a descendant overrides it, so a subtree can be toggled from one BUILD
 // file. We seed from the parent's config (cloned into c.Exts by Gazelle before
-// this runs) and default to enabled only at the root, where there is no parent.
+// this runs).
 func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 	l.Language.Configure(c, rel, f)
-	cfg := ddAgentGoTestConfig{enabled: true}
+	// Disabled by default: the conversion is opt-in per subtree via
+	// "# gazelle:dd_agent_go_test on" while the repo migrates (ABLD-474).
+	cfg := ddAgentGoTestConfig{enabled: false}
 	if prev, ok := c.Exts[extName].(ddAgentGoTestConfig); ok {
 		cfg = prev
 	}
@@ -118,14 +120,16 @@ func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult
 }
 
 // shouldReplace decides whether go_test rules in this package should be
-// rewritten to dd_agent_go_test. It declines when:
-//   - the # gazelle:dd_agent_go_test off directive is set, or
+// rewritten to dd_agent_go_test. The conversion is off by default, so it
+// declines unless explicitly enabled (the # gazelle:dd_agent_go_test on
+// directive, inherited or local). It also declines when:
 //   - the package has a # gazelle:map_kind go_test <wrapper> directive,
 //     because the user has already chosen a different wrapper for go_test
 //     (e.g. rtloader_go_test that sets up dlopen runfiles) and dd_agent_go_test
 //     doesn't compose with such wrappers.
 func shouldReplace(c *config.Config) bool {
-	if cfg, ok := c.Exts[extName].(ddAgentGoTestConfig); ok && !cfg.enabled {
+	cfg, ok := c.Exts[extName].(ddAgentGoTestConfig)
+	if !ok || !cfg.enabled {
 		return false
 	}
 	if _, mapped := c.KindMap["go_test"]; mapped {
