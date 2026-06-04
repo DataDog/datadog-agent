@@ -72,16 +72,6 @@ func TestComputeLibraryPath_Valid(t *testing.T) {
 	}
 }
 
-func TestIsPathConfined(t *testing.T) {
-	folder := "/etc/datadog-agent/checks.d"
-
-	assert.True(t, isPathConfined("/etc/datadog-agent/checks.d/libdatadog-agent-foo.so", folder))
-
-	assert.False(t, isPathConfined("/tmp/evil.so", folder))
-	assert.False(t, isPathConfined("/etc/datadog-agent/checks.d/libdatadog-agent-foo/../../evil.so", folder))
-	assert.False(t, isPathConfined("/etc/evil.so", folder))
-}
-
 func TestComputeLibraryPath_RejectsInvalidNames(t *testing.T) {
 	loader := NewSharedLibraryLoader(t.TempDir())
 
@@ -119,4 +109,14 @@ func TestComputeLibraryPath_RejectsInvalidNames(t *testing.T) {
 			assert.Empty(t, libPath)
 		})
 	}
+}
+
+func TestIsPathConfined(t *testing.T) {
+	folder := "/etc/datadog-agent/checks.d"
+
+	assert.True(t, isPathConfined("/etc/datadog-agent/checks.d/libdatadog-agent-foo.so", folder))
+
+	assert.False(t, isPathConfined("/tmp/evil.so", folder))
+	assert.False(t, isPathConfined("/etc/datadog-agent/checks.d/libdatadog-agent-foo/../../evil.so", folder))
+	assert.False(t, isPathConfined("/etc/evil.so", folder))
 }

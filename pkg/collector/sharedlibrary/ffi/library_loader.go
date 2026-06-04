@@ -91,7 +91,7 @@ func validateLibraryName(name string) error {
 
 // isPathConfined reports whether libPath is a direct child of folderPath.
 func isPathConfined(libPath, folderPath string) bool {
-	return path.Dir(libPath) == path.Clean(folderPath)
+	return path.Dir(path.Clean(libPath)) == path.Clean(folderPath)
 }
 
 // SharedLibraryLoader loads and uses shared libraries
