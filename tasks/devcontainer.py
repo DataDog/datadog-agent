@@ -23,7 +23,9 @@ from tasks.libs.common.utils import is_installed
 DEVCONTAINER_DIR = ".devcontainer"
 DEVCONTAINER_FILE = "devcontainer.json"
 DEVCONTAINER_NAME = "datadog-agent-devcontainer"
-DEVCONTAINER_IMAGE = "registry.ddbuild.io/ci/datadog-agent-devenv:1-arm64"
+# This is our standard Linux developer environment image, built from the buildimages
+# repo (https://github.com/DataDog/datadog-agent-buildimages/tree/main/dev-envs/linux).
+DEVCONTAINER_IMAGE = "datadog/agent-dev-env-linux"
 
 
 class SkaffoldProfile(Enum):
@@ -40,7 +42,7 @@ def setup(
     build_exclude=None,
     skaffoldProfile=None,
     flavor=AgentFlavor.base.name,
-    image='',
+    image=DEVCONTAINER_IMAGE,
     claude_code=False,
 ):
     """
@@ -93,19 +95,36 @@ def setup(
     ]
     if devcontainer.get("image") and "amd64" in devcontainer["image"].casefold():
         devcontainer["runArgs"].append("--platform=linux/amd64")
+    if sys.platform != "win32":
+        # The image's entrypoint realigns its user to this UID/GID so writes to bind
+        # mounts keep host ownership. We pass them as explicit `docker run` env vars
+        # because no devcontainer variable resolves to the host UID/GID. (`os.getuid`/
+        # `os.getgid` are absent on Windows, but the platform check short-circuits first.)
+        devcontainer["runArgs"] += ["-e", f"HOST_UID={os.getuid()}", "-e", f"HOST_GID={os.getgid()}"]
     devcontainer["features"] = {}
-    devcontainer["remoteUser"] = "datadog"
+    # Keep the image's entrypoint, which realigns `dd` to the host's UID/GID and runs
+    # the image's startup before exec'ing its long-running command. Otherwise the dev
+    # container CLI replaces the entrypoint with its own keep-alive command and skips
+    # that setup.
+    devcontainer["overrideCommand"] = False
+    # The image provides this user, and its entrypoint realigns it to the host's UID/GID
+    # (via HOST_UID/HOST_GID above).
+    devcontainer["remoteUser"] = "dd"
+    # The host home directory is `USERPROFILE` on Windows and `HOME` elsewhere. We use a
+    # single variable rather than concatenating both, because some Windows shells also
+    # set `HOME`, which would otherwise produce a doubled, invalid path.
+    home_env = "${localEnv:USERPROFILE}" if sys.platform == "win32" else "${localEnv:HOME}"
     devcontainer["mounts"] = [
         "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
-        "source=${localEnv:HOME}/.ssh,target=/home/datadog/.ssh,type=bind",
+        f"source={home_env}/.ssh,target=/home/dd/.ssh,type=bind",
     ]
     devcontainer["customizations"] = {
         "vscode": {
             "settings": {
                 "go.toolsManagement.checkForUpdates": "local",
                 "go.useLanguageServer": True,
-                "go.gopath": "/home/datadog/go",
-                "go.goroot": "/usr/local/go",
+                # GOPATH and GOROOT are auto-detected from the image's environment, so
+                # they are intentionally left unset here.
                 "go.buildTags": local_build_tags,
                 "go.testTags": local_build_tags,
                 "go.lintTool": "golangci-lint",
@@ -126,7 +145,12 @@ def setup(
     # onCreateCommand runs the install-tools and deps tasks only when the devcontainer is created and not each time
     # the container is started. Set the github token to prevent rate limiting on creation.
     devcontainer["onCreateCommand"] = (
-        "git config --global --add safe.directory /workspaces/${localWorkspaceFolderBasename}"
+        # The image rewrites github.com to SSH so it can clone private repos, but the
+        # devcontainer authenticates over HTTPS with GITHUB_TOKEN, so we undo that
+        # rewrite (the `|| true` tolerates its absence if the image stops setting it).
+        # See https://github.com/DataDog/datadog-agent-buildimages/blob/main/dev-envs/linux/ssh.sh
+        "git config --global --unset url.ssh://git@github.com/.insteadOf || true"
+        " && git config --global --add safe.directory /workspaces/${localWorkspaceFolderBasename}"
         " && dda config set github.auth.token \"$GITHUB_TOKEN\""
         " && dda inv -- -e install-tools && dda inv -- -e deps"
     )
@@ -161,7 +185,7 @@ def configure_claude_code(devcontainer: dict, claude_code: bool):
         claude_data_path = Path.home() / ".devcontainer" / "claude-data"
         Path(claude_data_path).mkdir(parents=True, exist_ok=True)
         devcontainer["mounts"].append(
-            "source=${localWorkspaceFolder}/.devcontainer/claude-data/,target=/home/datadog/.claude,type=bind"
+            "source=${localWorkspaceFolder}/.devcontainer/claude-data/,target=/home/dd/.claude,type=bind"
         )
 
         devcontainer["features"]["ghcr.io/devcontainers/features/node:1"] = {}
