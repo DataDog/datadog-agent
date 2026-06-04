@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/test/new-e2e
 
-go 1.25.6
+go 1.26.0
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.198
