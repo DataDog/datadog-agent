@@ -104,6 +104,10 @@ Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table abo
 - Use `/write-e2e` skill or read those docs directly to write new E2E tests
 - Run locally: `dda inv new-e2e-tests.run --targets=./tests/<area>/...`
 
+### Manual QA
+- When the agent needs to be inspected in a given environment (e.g. EKS, ECS, a cloud VM) that is not easily reproducible locally, use the manual QA infrastructure.
+- Full guide (scenarios, commands, stack lifecycle): `docs/public/how-to/test/manual-qa/index.md`
+
 ### Linting
 - Python: various linters via `dda inv linter.python`
 - YAML: yamllint
@@ -121,7 +125,9 @@ Go build tags control feature inclusion, some examples are:
 - `docker` - Docker support
 - `ebpf` - eBPF support
 - `python` - Python check support
-- and MANY more, refer to ./tasks/build_tags.py for a full reference.
+- and MANY more, refer to `tasks/build_tags.bzl` (the source of truth) for a full reference.
+
+Bazel/Gazelle build-tag handling is documented in `bazel/AGENTS.md` ("Go build tags and flavors").
 
 ## Important Files
 - `datadog.yaml` - Main agent configuration
