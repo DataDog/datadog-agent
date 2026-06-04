@@ -106,21 +106,28 @@ func (it *iterableMetrics) WaitForValue() bool {
 	return it.ch.WaitForValue()
 }
 
-// Serialize starts the serialization for series and sketches.
+// Serialize starts the serialization for series, sketches, and (optionally) native OTel histograms.
 // `producer` callback is responsible for adding the data. It runs in the current goroutine.
 // `serieConsumer` callback is responsible for consuming the series. It runs in its OWN goroutine.
 // `sketchesConsumer` callback is responsible for consuming the sketches. It runs in its OWN goroutine.
-// This function returns when all three `producer`, `serieConsumer` and `sketchesConsumer` functions are finished.
+// `explicitBucketHistogramConsumer` and `exponentialHistogramConsumer` are optional; pass nil to skip.
+// This function returns when all goroutines and the producer are finished.
 func Serialize(
 	iterableSeries *IterableSeries,
 	iterableSketches *IterableSketches,
-	producer func(SerieSink, SketchesSink),
+	iterableExplicitBucketHistograms *IterableExplicitBucketHistograms,
+	iterableExponentialHistograms *IterableExponentialHistograms,
+	producer func(SerieSink, SketchesSink, ExplicitBucketHistogramSink, ExponentialHistogramSink),
 	serieConsumer func(SerieSource),
 	sketchesConsumer func(SketchesSource),
+	explicitBucketHistogramConsumer func(ExplicitBucketHistogramSource),
+	exponentialHistogramConsumer func(ExponentialHistogramSource),
 ) {
 	var waitGroup sync.WaitGroup
 	var serieSink SerieSink = noOpSerieSink{}
 	var sketchesSink SketchesSink = noOpSketchesSink{}
+	var explicitBucketHistogramSink ExplicitBucketHistogramSink = noOpExplicitBucketHistogramSink{}
+	var exponentialHistogramSink ExponentialHistogramSink = noOpExponentialHistogramSink{}
 	if iterableSeries != nil {
 		serieSink = iterableSeries
 		waitGroup.Add(1)
@@ -139,12 +146,36 @@ func Serialize(
 			iterableSketches.iterationStopped()
 		}()
 	}
-	producer(serieSink, sketchesSink)
+	if iterableExplicitBucketHistograms != nil {
+		explicitBucketHistogramSink = iterableExplicitBucketHistograms
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			explicitBucketHistogramConsumer(iterableExplicitBucketHistograms)
+			iterableExplicitBucketHistograms.iterationStopped()
+		}()
+	}
+	if iterableExponentialHistograms != nil {
+		exponentialHistogramSink = iterableExponentialHistograms
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			exponentialHistogramConsumer(iterableExponentialHistograms)
+			iterableExponentialHistograms.iterationStopped()
+		}()
+	}
+	producer(serieSink, sketchesSink, explicitBucketHistogramSink, exponentialHistogramSink)
 	if iterableSeries != nil {
 		iterableSeries.senderStopped()
 	}
 	if iterableSketches != nil {
 		iterableSketches.senderStopped()
+	}
+	if iterableExplicitBucketHistograms != nil {
+		iterableExplicitBucketHistograms.senderStopped()
+	}
+	if iterableExponentialHistograms != nil {
+		iterableExponentialHistograms.senderStopped()
 	}
 	waitGroup.Wait()
 }
@@ -160,3 +191,15 @@ var _ SketchesSink = noOpSketchesSink{}
 type noOpSketchesSink struct{}
 
 func (noOpSketchesSink) Append(*SketchSeries) {}
+
+var _ ExplicitBucketHistogramSink = noOpExplicitBucketHistogramSink{}
+
+type noOpExplicitBucketHistogramSink struct{}
+
+func (noOpExplicitBucketHistogramSink) Append(*ExplicitBucketHistogramSeries) {}
+
+var _ ExponentialHistogramSink = noOpExponentialHistogramSink{}
+
+type noOpExponentialHistogramSink struct{}
+
+func (noOpExponentialHistogramSink) Append(*ExponentialHistogramSeries) {}

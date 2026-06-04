@@ -12,6 +12,8 @@ go_library(
         "histogram.go",
         "histogram_bucket.go",
         "historate.go",
+        "iterable_explicit_bucket_histograms.go",
+        "iterable_exponential_histograms.go",
         "iterable_metrics.go",
         "iterable_series.go",
         "iterable_skeches.go",
@@ -40,6 +42,7 @@ go_library(
         "//pkg/util/buf",
         "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
         "@org_uber_go_atomic//:atomic",
     ],
 )
