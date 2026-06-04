@@ -127,7 +127,7 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 		lifecycle.DefaultHeartbeatInterval,
 		lc.MetricEmitter,
 		m.GetSource(),
-		[]string{"microvm_image_arn:" + arn},
+		arn,
 	)
 	m.server = lifecycle.NewServer(
 		components.Port,
