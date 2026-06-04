@@ -7,7 +7,6 @@
 package pathteststore
 
 import (
-	"fmt"
 	"net/netip"
 	"sync"
 	time "time"
@@ -214,7 +213,7 @@ func (f *Store) Flush() []*PathtestContext {
 	// and a separate tagged gauge for each explicitly-configured origin override.
 	f.statsdClient.Gauge(networkPathStoreMetricPrefix+"ratelimiter_tokens", f.defaultRateLimiter.Tokens(), []string{}, 1) //nolint:errcheck
 	for origin, limiter := range f.rateLimiters {
-		tag := fmt.Sprintf("origin:%s", string(origin))
+		tag := "origin:" + string(origin)
 		f.statsdClient.Gauge(networkPathStoreMetricPrefix+"ratelimiter_tokens", limiter.Tokens(), []string{tag}, 1) //nolint:errcheck
 	}
 
