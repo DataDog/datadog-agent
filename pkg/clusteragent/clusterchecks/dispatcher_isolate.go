@@ -58,6 +58,7 @@ func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
 			digest,
 			config.CheckName,
 			config.WorkersNeeded,
+			config.NumInstances,
 			config.Runner,
 			isolateNode,
 		)

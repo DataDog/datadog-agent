@@ -12,8 +12,11 @@ import (
 	"math/rand"
 	"time"
 
+	"go.yaml.in/yaml/v2"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
@@ -187,6 +190,9 @@ func (d *dispatcher) expireNodes() {
 
 // updateRunnersStats collects stats from the registred
 // Cluster Level Check runners and updates the stats cache
+//
+// This function MUST be called BEFORE rebalancing because it creates the
+// per-config aggregate from the runner stats on the individual check instances metadata.
 func (d *dispatcher) updateRunnersStats() {
 	if d.clcRunnersClient == nil {
 		log.Debug("Cluster Level Check runner client was not correctly initialised")
@@ -223,24 +229,65 @@ func (d *dispatcher) updateRunnersStats() {
 			continue
 		}
 		node.Lock()
-		for idStr, checkStats := range stats {
-			id := checkid.ID(idStr)
-
-			// Stats contain info about all the running checks on a node
-			// Node checks must be filtered from Cluster Checks
-			// so they can be included in calculating node Agent busyness and excluded from rebalancing decisions.
-			if _, found := d.store.idToDigest[id]; found {
-				// Cluster check detected (exists in the Cluster Agent checks store)
-				log.Tracef("Check %s running on node %s is a cluster check", id, node.name)
-				checkStats.IsClusterCheck = true
-				stats[idStr] = checkStats
-			}
-		}
 		node.clcRunnerStats = stats
+		node.digestToRuntimeStats = aggregateRuntimeStats(stats, d.store.idToDigest, d.store.digestToConfig)
 		log.Tracef("Updated CLC Runner stats on node: %s, node IP: %s, stats: %v", name, node.clientIP, stats)
 		node.busyness = calculateBusyness(stats)
 		log.Debugf("Updated busyness on node: %s, node IP: %s, busyness value: %d", name, node.clientIP, node.busyness)
 		busyness.Set(float64(node.busyness), node.name, le.JoinLeaderValue)
 		node.Unlock()
 	}
+}
+
+// aggregateRuntimeStats groups per-instance stats by config digest and
+// returns the per-config runtime aggregate consumed by the rebalancing
+// algorithm. Non-cluster-check entries (no registered digest) are skipped.
+// As a side effect, this function flips IsClusterCheck=true on stats
+// entries that belong to a registered cluster check, so callers can also
+// use it to mark up a freshly fetched stats payload.
+func aggregateRuntimeStats(stats types.CLCRunnersStats, idToDigest map[checkid.ID]string, digestToConfig map[string]integration.Config) map[string]configRuntimeStats {
+	aggs := make(map[string]configRuntimeStats)
+	for idStr, checkStats := range stats {
+		digest, ok := idToDigest[checkid.ID(idStr)]
+		if !ok {
+			continue
+		}
+		checkStats.IsClusterCheck = true
+		stats[idStr] = checkStats
+
+		conf, hasConf := digestToConfig[digest]
+		minInterval := defaultMinCollectionInterval(conf, hasConf)
+		workersNeeded := float64(checkStats.AverageExecutionTime) / float64(minInterval.Milliseconds())
+		if workersNeeded > 1 {
+			// TODO (agent health): Notify about potential issue
+			// causing check exec time to exceed the interval
+			workersNeeded = 1
+		}
+
+		agg := aggs[digest]
+		agg.WorkersNeeded += workersNeeded
+		agg.Busyness += busynessFunc(checkStats)
+		agg.NumInstances++
+		aggs[digest] = agg
+	}
+	return aggs
+}
+
+// defaultMinCollectionInterval reads MinCollectionInterval from a config's
+// first instance (the cluster check pipeline assigns identical intervals to
+// all instances of a config). Returns the default check interval if the
+// config is missing, has no instances, or the field is unset/zero.
+func defaultMinCollectionInterval(conf integration.Config, hasConf bool) time.Duration {
+	if !hasConf || len(conf.Instances) == 0 {
+		return defaults.DefaultCheckInterval
+	}
+	commonOptions := integration.CommonInstanceConfig{}
+	if err := yaml.Unmarshal(conf.Instances[0], &commonOptions); err != nil {
+		log.Errorf("error getting min collection interval for config %s: %v", conf.Name, err)
+		return defaults.DefaultCheckInterval
+	}
+	if commonOptions.MinCollectionInterval == 0 {
+		return defaults.DefaultCheckInterval
+	}
+	return time.Duration(commonOptions.MinCollectionInterval) * time.Second
 }

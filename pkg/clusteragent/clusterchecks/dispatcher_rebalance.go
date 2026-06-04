@@ -15,12 +15,8 @@ import (
 	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
-	"go.yaml.in/yaml/v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -52,7 +48,7 @@ func (d *dispatcher) calculateAvg() (int, error) {
 	defer d.store.RUnlock()
 
 	for _, node := range d.store.nodes {
-		busyness += node.GetBusyness(busynessFunc)
+		busyness += node.GetBusyness()
 		length++
 	}
 
@@ -74,7 +70,7 @@ func (d *dispatcher) getDiffAndWeights(avg int) (map[string]int, Weights) {
 	defer d.store.RUnlock()
 
 	for nodeName, node := range d.store.nodes {
-		busyness := node.GetBusyness(busynessFunc)
+		busyness := node.GetBusyness()
 		diffMap[nodeName] = busyness - avg
 		weights = append(weights, Weight{
 			nodeName: nodeName,
@@ -93,15 +89,14 @@ func (d *dispatcher) updateDiff(avg int) map[string]int {
 	defer d.store.RUnlock()
 
 	for nodeName, node := range d.store.nodes {
-		busyness := node.GetBusyness(busynessFunc)
+		busyness := node.GetBusyness()
 		diffMap[nodeName] = busyness - avg
 	}
 
 	return diffMap
 }
 
-// pickConfigToMove returns the digest of the heaviest config on the node,
-// with weight summed across the config's instances.
+// pickConfigToMove returns the digest of the heaviest config on the node
 func (d *dispatcher) pickConfigToMove(nodeName string) (string, int, error) {
 	d.store.RLock()
 	node, found := d.store.getNodeStore(nodeName)
@@ -112,32 +107,28 @@ func (d *dispatcher) pickConfigToMove(nodeName string) (string, int, error) {
 	}
 
 	node.RLock()
-	weightsByDigest := make(map[string]int, len(node.clcRunnerStats))
-	for checkID, stats := range node.clcRunnerStats {
-		if !stats.IsClusterCheck {
-			continue
+	digests := make([]string, 0, len(node.digestToRuntimeStats))
+	for digest := range node.digestToRuntimeStats {
+		digests = append(digests, digest)
+	}
+	// Sort for deterministic tie-breaking; map iteration order is randomized.
+	sort.Strings(digests)
+
+	bestDigest := ""
+	bestWeight := -1
+	for _, digest := range digests {
+		weight := node.digestToRuntimeStats[digest].Busyness
+		if weight > bestWeight {
+			bestDigest = digest
+			bestWeight = weight
 		}
-		digest, ok := d.store.idToDigest[checkid.ID(checkID)]
-		if !ok {
-			continue
-		}
-		weightsByDigest[digest] += busynessFunc(stats)
 	}
 	node.RUnlock()
 	d.store.RUnlock()
 
-	if len(weightsByDigest) == 0 {
+	if bestDigest == "" {
 		log.Debugf("Node %s has no cluster check stats", nodeName)
 		return "", -1, fmt.Errorf("no cluster checks found on node %s", nodeName)
-	}
-
-	bestDigest := ""
-	bestWeight := 0
-	for digest, weight := range weightsByDigest {
-		if weight >= bestWeight {
-			bestDigest = digest
-			bestWeight = weight
-		}
 	}
 	return bestDigest, bestWeight, nil
 }
@@ -196,36 +187,33 @@ func (d *dispatcher) moveConfig(src, dest, digest string) error {
 		return fmt.Errorf("no instances registered for digest %s", digest)
 	}
 
-	// Move per-instance runner stats
-	var firstErr error
-	movedAny := false
+	sourceNode.Lock()
+	destNode.Lock()
+
+	// Move the per-config aggregate (single entry)
+	if agg, ok := sourceNode.digestToRuntimeStats[digest]; ok {
+		destNode.digestToRuntimeStats[digest] = agg
+		delete(sourceNode.digestToRuntimeStats, digest)
+		sourceNode.busyness -= agg.Busyness
+		destNode.busyness += agg.Busyness
+	}
+
+	// Move the raw per-instance stats so the state API reflects the new node
 	for _, checkID := range instanceIDs {
-		stats, err := sourceNode.GetRunnerStats(checkID)
-		if err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
+		if stats, ok := sourceNode.clcRunnerStats[checkID]; ok {
+			destNode.clcRunnerStats[checkID] = stats
+			delete(sourceNode.clcRunnerStats, checkID)
 		}
-		destNode.AddRunnerStats(checkID, stats)
-		sourceNode.RemoveRunnerStats(checkID)
-		movedAny = true
 	}
-	if !movedAny {
-		log.Debugf("Cannot get runner stats on node %s for config %s; will not move", src, digest)
-		return firstErr
-	}
+
+	sourceNode.removeConfig(digest)
+	destNode.addConfig(config)
+
+	destNode.Unlock()
+	sourceNode.Unlock()
 
 	// Reassign the config at the node level.
 	d.store.digestToNode[digest] = dest
-
-	sourceNode.Lock()
-	sourceNode.removeConfig(digest)
-	sourceNode.Unlock()
-
-	destNode.Lock()
-	destNode.addConfig(config)
-	destNode.Unlock()
 
 	// Re-key configsInfo from src to dest.
 	for _, checkID := range instanceIDs {
@@ -391,7 +379,7 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	// Pin excluded configs to their current runner.
 	for digest, config := range currentConfigsDistribution.Configs {
 		if _, excluded := d.excludedChecksFromDispatching[config.CheckName]; excluded {
-			proposedDistribution.addConfig(digest, config.CheckName, config.WorkersNeeded, config.Runner)
+			proposedDistribution.addConfig(digest, config.CheckName, config.WorkersNeeded, config.NumInstances, config.Runner)
 		}
 	}
 
@@ -405,6 +393,7 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 			digest,
 			config.CheckName,
 			config.WorkersNeeded,
+			config.NumInstances,
 			config.Runner,
 			"",
 		)
@@ -457,37 +446,13 @@ func (d *dispatcher) currentDistribution() configsDistribution {
 
 	for nodeName, nodeStoreInfo := range d.store.nodes {
 		nodeStoreInfo.RLock()
-		for checkID, stats := range nodeStoreInfo.clcRunnerStats {
-			if !stats.IsClusterCheck {
-				continue
-			}
-
-			// Group by digest so the algorithm operates on whole configs.
-			// Skip checkIDs the dispatcher doesn't own.
-			digest, ok := d.store.idToDigest[checkid.ID(checkID)]
+		for digest, agg := range nodeStoreInfo.digestToRuntimeStats {
+			conf, ok := d.store.digestToConfig[digest]
 			if !ok {
-				log.Debugf("No digest registered for check ID %s on node %s; skipping in distribution", checkID, nodeName)
+				log.Debugf("No config registered for digest %s on node %s; skipping in distribution", digest, nodeName)
 				continue
 			}
-			conf := d.store.digestToConfig[digest]
-
-			minCollectionInterval := defaults.DefaultCheckInterval
-			if len(conf.Instances) > 0 {
-				commonOptions := integration.CommonInstanceConfig{}
-				err := yaml.Unmarshal(conf.Instances[0], &commonOptions)
-				if err != nil {
-					log.Errorf("error getting min collection interval for check ID %s: %v", checkID, err)
-				} else if commonOptions.MinCollectionInterval != 0 {
-					minCollectionInterval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
-				}
-			}
-
-			workersNeeded := (float64)(stats.AverageExecutionTime) / (float64)(minCollectionInterval.Milliseconds())
-			if workersNeeded > 1 {
-				workersNeeded = 1
-			}
-
-			distribution.addConfig(digest, conf.Name, workersNeeded, nodeName)
+			distribution.addConfig(digest, conf.Name, agg.WorkersNeeded, agg.NumInstances, nodeName)
 		}
 		nodeStoreInfo.RUnlock()
 	}

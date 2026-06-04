@@ -99,6 +99,16 @@ func (s *clusterStore) clearDangling() {
 	s.danglingConfigs = make(map[string]*danglingConfigWrapper)
 }
 
+// configRuntimeStats is the per-config aggregate of runtime stats, summed across the config's instances.
+// This serves as an abstraction layer between the rebalancing algorithm and the per-instance data.
+type configRuntimeStats struct {
+	// WorkersNeeded is the sum of the per-instance (executionTime/interval) values
+	// Each individual instance is capped at 1, so aggregate is bounded by NumInstances.
+	WorkersNeeded float64
+	Busyness      int
+	NumInstances  int
+}
+
 // nodeStore holds the state store for one node.
 // Lock is to be held by the user (dispatcher)
 type nodeStore struct {
@@ -112,15 +122,19 @@ type nodeStore struct {
 	busyness         int
 	workers          int
 	nodetype         types.NodeType
+	// digestToRuntimeStats is the per-config aggregate consumed by the
+	// rebalancing algorithm. It is rebuilt on every updateRunnersStats call.
+	digestToRuntimeStats map[string]configRuntimeStats
 }
 
 func newNodeStore(name, clientIP string) *nodeStore {
 	return &nodeStore{
-		name:           name,
-		clientIP:       clientIP,
-		digestToConfig: make(map[string]integration.Config),
-		clcRunnerStats: types.CLCRunnersStats{},
-		busyness:       defaultBusynessValue,
+		name:                 name,
+		clientIP:             clientIP,
+		digestToConfig:       make(map[string]integration.Config),
+		clcRunnerStats:       types.CLCRunnersStats{},
+		digestToRuntimeStats: map[string]configRuntimeStats{},
+		busyness:             defaultBusynessValue,
 	}
 }
 
@@ -174,14 +188,10 @@ func (s *nodeStore) GetRunnerStats(checkID string) (types.CLCRunnerStats, error)
 	return stats, nil
 }
 
-// GetBusyness calculates busyness of the node
+// GetBusyness retrieves the busyness of the node
 // The nodeStore handles thread safety for this public method
-func (s *nodeStore) GetBusyness(busynessFunc func(stats types.CLCRunnerStats) int) int {
+func (s *nodeStore) GetBusyness() int {
 	s.RLock()
 	defer s.RUnlock()
-	busyness := 0
-	for _, stats := range s.clcRunnerStats {
-		busyness += busynessFunc(stats)
-	}
-	return busyness
+	return s.busyness
 }
