@@ -309,10 +309,18 @@ func OtelSpanToDDSpan(
 		ddspan.Meta["w3c.tracestate"] = otelspan.TraceState().AsRaw()
 	}
 	if lib.Name() != "" {
-		ddspan.Meta[string(semconv.OtelLibraryNameKey)] = lib.Name()
+		if conf.OTLPReceiver.UseScopeConvention {
+			ddspan.Meta["otel.scope.name"] = lib.Name()
+		} else {
+			ddspan.Meta[string(semconv.OtelLibraryNameKey)] = lib.Name()
+		}
 	}
 	if lib.Version() != "" {
-		ddspan.Meta[string(semconv.OtelLibraryVersionKey)] = lib.Version()
+		if conf.OTLPReceiver.UseScopeConvention {
+			ddspan.Meta["otel.scope.version"] = lib.Version()
+		} else {
+			ddspan.Meta[string(semconv.OtelLibraryVersionKey)] = lib.Version()
+		}
 	}
 	ddspan.Meta[string(semconv.OtelStatusCodeKey)] = otelspan.Status().Code().String()
 	if msg := otelspan.Status().Message(); msg != "" {
