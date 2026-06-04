@@ -42,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -3391,7 +3392,7 @@ func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 		return 1
 	}
 
-	check, err := ddebpf.VerifyKernelFuncs(patchSentinel)
+	check, err := ksyms.VerifyKernelFuncs(patchSentinel)
 	if err != nil {
 		return 0
 	}
