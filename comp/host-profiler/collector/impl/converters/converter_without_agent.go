@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
+	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 	"go.uber.org/zap/exp/zapslog"
@@ -58,24 +59,24 @@ func newConverterWithoutAgent(convSettings confmap.ConverterSettings) confmap.Co
 func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) error {
 	confStringMap := xconfmap.ToStringMapRaw(conf)
 
-	profilesPipeline, err := Ensure[confMap](confStringMap, "service::pipelines::profiles")
+	profilesPipeline, err := confmaputils.Ensure[confMap](confStringMap, "service::pipelines::profiles")
 	if err != nil {
 		return err
 	}
 
 	// no need to check for errors here as we directly depend on profilesPipeline that had to be valid for this code
 	// path to be executed
-	processorNames, err := Ensure[[]any](profilesPipeline, "processors")
+	processorNames, err := confmaputils.Ensure[[]any](profilesPipeline, "processors")
 	if err != nil {
 		return err
 	}
 
-	receiverNames, err := Ensure[[]any](profilesPipeline, "receivers")
+	receiverNames, err := confmaputils.Ensure[[]any](profilesPipeline, "receivers")
 	if err != nil {
 		return err
 	}
 
-	exporterNames, err := Ensure[[]any](profilesPipeline, "exporters")
+	exporterNames, err := confmaputils.Ensure[[]any](profilesPipeline, "exporters")
 	if err != nil {
 		return err
 	}
@@ -124,7 +125,7 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 
 	// Add internal health metrics pipeline
 	// Get updated exporter list from profiles pipeline (may have been modified by ensureOtlpHTTPExporterConfig)
-	updatedExporterNames, err := Ensure[[]any](profilesPipeline, "exporters")
+	updatedExporterNames, err := confmaputils.Ensure[[]any](profilesPipeline, "exporters")
 	if err != nil {
 		return err
 	}
@@ -137,12 +138,12 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 }
 
 func (c *converterWithoutAgent) ensureMetricsPipeline(conf confMap) error {
-	metrics, err := Ensure[confMap](conf, "service::pipelines::metrics")
+	metrics, err := confmaputils.Ensure[confMap](conf, "service::pipelines::metrics")
 	if err != nil {
 		return err
 	}
 
-	processors, err := Ensure[[]any](metrics, "processors")
+	processors, err := confmaputils.Ensure[[]any](metrics, "processors")
 	if err != nil {
 		return err
 	}
@@ -154,7 +155,7 @@ func (c *converterWithoutAgent) ensureMetricsPipeline(conf confMap) error {
 			return errors.New("processors in metrics pipeline should be strings")
 		}
 
-		if isComponentType(processor, componentTypeInfraAttributes) {
+		if confmaputils.IsComponentType(processor, componentTypeInfraAttributes) {
 			continue
 		}
 
@@ -168,13 +169,13 @@ func (c *converterWithoutAgent) ensureMetricsPipeline(conf confMap) error {
 }
 
 func (c *converterWithoutAgent) ensureGlobalProcessors(conf confMap) error {
-	processors, err := Ensure[confMap](conf, "processors")
+	processors, err := confmaputils.Ensure[confMap](conf, "processors")
 	if err != nil {
 		return err
 	}
 
 	for name := range processors {
-		if isComponentType(name, componentTypeInfraAttributes) {
+		if confmaputils.IsComponentType(name, componentTypeInfraAttributes) {
 			delete(processors, name)
 		}
 	}
@@ -182,7 +183,7 @@ func (c *converterWithoutAgent) ensureGlobalProcessors(conf confMap) error {
 }
 
 func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNames []any) ([]any, error) {
-	processors, err := Ensure[confMap](conf, "processors")
+	processors, err := confmaputils.Ensure[confMap](conf, "processors")
 	if err != nil {
 		return nil, err
 	}
@@ -198,15 +199,15 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 		}
 
 		// Remove infraattributes from pipeline and global config
-		if isComponentType(name, componentTypeInfraAttributes) {
+		if confmaputils.IsComponentType(name, componentTypeInfraAttributes) {
 			delete(processors, name)
 			toDelete[name] = true
 			continue
 		}
 
 		// Track if we have resourcedetection
-		if isComponentType(name, componentTypeResourceDetection) {
-			if resourceDetectionConfig, ok := Get[confMap](conf, pathPrefixProcessors+name); ok {
+		if confmaputils.IsComponentType(name, componentTypeResourceDetection) {
+			if resourceDetectionConfig, ok := confmaputils.Get[confMap](conf, pathPrefixProcessors+name); ok {
 				if err := c.ensureResourceDetectionConfig(resourceDetectionConfig); err != nil {
 					return nil, err
 				}
@@ -214,14 +215,14 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 			foundResourcedetection = true
 		}
 
-		if isComponentType(name, componentTypeDDHostNameProcessor) {
+		if confmaputils.IsComponentType(name, componentTypeDDHostNameProcessor) {
 			foundDDHostNameProcessor = true
 		}
 	}
 
 	// Add resourcedetection/default if none found
 	if !foundResourcedetection {
-		if err := Set(processors, defaultResourceDetectionName, resourceDetectionDefaultConfig); err != nil {
+		if err := confmaputils.Set(processors, defaultResourceDetectionName, resourceDetectionDefaultConfig); err != nil {
 			return nil, err
 		}
 		slog.Warn("Added minimal resourcedetection processor to user configuration")
@@ -230,7 +231,7 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 
 	// Add ddhostname/default if none found
 	if !foundDDHostNameProcessor {
-		if err := Set(processors, defaultDDHostNameProcessorName, confMap{}); err != nil {
+		if err := confmaputils.Set(processors, defaultDDHostNameProcessorName, confMap{}); err != nil {
 			return nil, err
 		}
 		slog.Info("Added minimal ddhostname processor to user configuration")
@@ -248,7 +249,7 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 }
 
 func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection confMap) error {
-	detectors, err := Ensure[[]any](resourceDetection, "detectors")
+	detectors, err := confmaputils.Ensure[[]any](resourceDetection, "detectors")
 	if err != nil {
 		return err
 	}
@@ -263,7 +264,7 @@ func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection 
 	}
 
 	// Always ensure host.arch is enabled
-	ddDefaultValue, err := SetDefault(resourceDetection, "system::resource_attributes::host.arch::enabled", true)
+	ddDefaultValue, err := confmaputils.SetDefault(resourceDetection, "system::resource_attributes::host.arch::enabled", true)
 	if err != nil {
 		return err
 	}
@@ -273,10 +274,10 @@ func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection 
 
 	// Only set these defaults if we added the system detector
 	if !hasSystemDetector {
-		if _, err := SetDefault(resourceDetection, "system::resource_attributes::host.name::enabled", false); err != nil {
+		if _, err := confmaputils.SetDefault(resourceDetection, "system::resource_attributes::host.name::enabled", false); err != nil {
 			return err
 		}
-		if _, err := SetDefault(resourceDetection, "system::resource_attributes::os.type::enabled", false); err != nil {
+		if _, err := confmaputils.SetDefault(resourceDetection, "system::resource_attributes::os.type::enabled", false); err != nil {
 			return err
 		}
 	}
@@ -295,13 +296,13 @@ func (c *converterWithoutAgent) fixReceiversPipeline(conf confMap, receiverNames
 			return nil, fmt.Errorf("receiver name must be a string, got %T", nameAny)
 		}
 
-		if !isComponentType(name, componentTypeProfiling) {
+		if !confmaputils.IsComponentType(name, componentTypeProfiling) {
 			continue
 		}
 
 		hasProfiling = true
 
-		if profilingConfig, ok := Get[confMap](conf, pathPrefixReceivers+name); ok {
+		if profilingConfig, ok := confmaputils.Get[confMap](conf, pathPrefixReceivers+name); ok {
 			if err := c.checkProfilingReceiverConfig(profilingConfig); err != nil {
 				return nil, err
 			}
@@ -313,7 +314,7 @@ func (c *converterWithoutAgent) fixReceiversPipeline(conf confMap, receiverNames
 	}
 
 	// Ensure default config exists if profiling receiver is not configured
-	if err := Set(conf, pathPrefixReceivers+defaultProfilingName+"::"+pathSymbolUploaderEnabled, false); err != nil {
+	if err := confmaputils.Set(conf, pathPrefixReceivers+defaultProfilingName+"::"+pathSymbolUploaderEnabled, false); err != nil {
 		return nil, err
 	}
 
@@ -325,11 +326,11 @@ func (c *converterWithoutAgent) fixReceiversPipeline(conf confMap, receiverNames
 // It ensures that if symbol_uploader is enabled, symbol_endpoints is properly configured
 // and all api_key/app_key values are strings.
 func (c *converterWithoutAgent) checkProfilingReceiverConfig(profiling confMap) error {
-	if isEnabled, ok := Get[bool](profiling, pathSymbolUploaderEnabled); !ok || !isEnabled {
+	if isEnabled, ok := confmaputils.Get[bool](profiling, pathSymbolUploaderEnabled); !ok || !isEnabled {
 		return nil
 	}
 
-	endpoints, ok := Get[[]any](profiling, pathSymbolEndpoints)
+	endpoints, ok := confmaputils.Get[[]any](profiling, pathSymbolEndpoints)
 
 	if !ok {
 		return errors.New("symbol_endpoints must be a list")
@@ -355,11 +356,11 @@ func (c *converterWithoutAgent) ensureOtlpHTTPExporterConfig(conf confMap, expor
 		if name, ok := nameAny.(string); ok && isComponentTypeOtlpHTTP(name) {
 			hasOtlpHTTP = true
 
-			if _, err := SetDefault(conf, pathPrefixExporters+name+"::compression", "zstd"); err != nil {
+			if _, err := confmaputils.SetDefault(conf, pathPrefixExporters+name+"::compression", "zstd"); err != nil {
 				return err
 			}
 
-			headers, err := Ensure[confMap](conf, pathPrefixExporters+name+"::headers")
+			headers, err := confmaputils.Ensure[confMap](conf, pathPrefixExporters+name+"::headers")
 			if err != nil {
 				return err
 			}
@@ -367,10 +368,10 @@ func (c *converterWithoutAgent) ensureOtlpHTTPExporterConfig(conf confMap, expor
 			if !ensureKeyStringValue(headers, fieldDDAPIKey) {
 				return fmt.Errorf("%s exporter missing required dd-api-key header", name)
 			}
-			if _, err := SetDefault(headers, fieldDDEVPOrigin, version.StandaloneProfilerName); err != nil {
+			if _, err := confmaputils.SetDefault(headers, fieldDDEVPOrigin, version.StandaloneProfilerName); err != nil {
 				return err
 			}
-			if _, err := SetDefault(headers, fieldDDEVPOriginVersion, version.ProfilerVersion); err != nil {
+			if _, err := confmaputils.SetDefault(headers, fieldDDEVPOriginVersion, version.ProfilerVersion); err != nil {
 				return err
 			}
 		}
@@ -384,12 +385,12 @@ func (c *converterWithoutAgent) ensureOtlpHTTPExporterConfig(conf confMap, expor
 }
 
 func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
-	service, err := Ensure[confMap](conf, "service")
+	service, err := confmaputils.Ensure[confMap](conf, "service")
 	if err != nil {
 		return err
 	}
 
-	extensions, ok := Get[[]any](service, "extensions")
+	extensions, ok := confmaputils.Get[[]any](service, "extensions")
 	if !ok {
 		return nil
 	}
@@ -403,12 +404,12 @@ func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 			return errors.New("extension names in service should be strings")
 		}
 
-		if isComponentType(ext, componentTypeDDProfiling) {
+		if confmaputils.IsComponentType(ext, componentTypeDDProfiling) {
 			ddProfilingExtensions++
 		}
 
 		// Skip hpflare extensions
-		if isComponentType(ext, componentTypeHPFlare) {
+		if confmaputils.IsComponentType(ext, componentTypeHPFlare) {
 			continue
 		}
 
@@ -422,10 +423,10 @@ func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 	}
 
 	// Also remove the extension definitions from global config
-	extensionsConf, ok := Get[confMap](conf, "extensions")
+	extensionsConf, ok := confmaputils.Get[confMap](conf, "extensions")
 	if ok {
 		for name := range extensionsConf {
-			if isComponentType(name, componentTypeHPFlare) {
+			if confmaputils.IsComponentType(name, componentTypeHPFlare) {
 				delete(extensionsConf, name)
 			}
 		}
@@ -437,27 +438,27 @@ func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 // addInternalHealthMetricsPipeline scrapes OTel collector internal telemetry and exports it
 // to the same orgs as profiles. Separate from ensureMetricsPipeline which handles user-defined pipelines.
 func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, profilesExporterNames []any, profilesProcessors []any) error {
-	if existing, ok := Get[confMap](conf, "service::pipelines::"+internalHealthMetricsPipelineName); ok {
+	if existing, ok := confmaputils.Get[confMap](conf, "service::pipelines::"+internalHealthMetricsPipelineName); ok {
 		slog.Warn("metrics/profiler-internal-health pipeline already configured, skipping auto-configuration",
 			slog.Any("existing_config", existing))
 		return nil
 	}
 
-	if level, ok := Get[string](conf, "service::telemetry::metrics::level"); ok {
+	if level, ok := confmaputils.Get[string](conf, "service::telemetry::metrics::level"); ok {
 		if strings.ToLower(level) == "none" {
 			slog.Info("metrics telemetry disabled (level=none), skipping metrics pipeline")
 			return nil
 		}
 	}
 
-	if receivers, ok := Get[confMap](conf, "receivers"); ok {
+	if receivers, ok := confmaputils.Get[confMap](conf, "receivers"); ok {
 		if _, exists := receivers[reservedPrometheusReceiver]; exists {
 			slog.Warn("receiver name conflicts with reserved name, skipping pipeline",
 				slog.String("receiver", reservedPrometheusReceiver))
 			return nil
 		}
 	}
-	if processors, ok := Get[confMap](conf, "processors"); ok {
+	if processors, ok := confmaputils.Get[confMap](conf, "processors"); ok {
 		for _, reserved := range []string{reservedFilterProcessor, reservedCumulativeToDeltaProcessor} {
 			if _, exists := processors[reserved]; exists {
 				slog.Warn("processor name conflicts with reserved name, skipping pipeline",
@@ -478,13 +479,13 @@ func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, p
 			continue
 		}
 
-		exporterConf, ok := Get[confMap](conf, pathPrefixExporters+exporterName)
+		exporterConf, ok := confmaputils.Get[confMap](conf, pathPrefixExporters+exporterName)
 		if !ok {
 			slog.Warn("exporter not found in config", slog.String("exporter", exporterName))
 			continue
 		}
 
-		if _, hasMetrics := Get[string](exporterConf, "metrics_endpoint"); hasMetrics {
+		if _, hasMetrics := confmaputils.Get[string](exporterConf, "metrics_endpoint"); hasMetrics {
 			slog.Debug("metrics_endpoint already set, preserving user config", slog.String("exporter", exporterName))
 			metricsExporterNames = append(metricsExporterNames, exporterName)
 			continue
@@ -493,13 +494,13 @@ func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, p
 		// If a top-level endpoint is set, otlphttp derives the metrics URL by appending
 		// /v1/metrics. We check this before profiles_endpoint so a bare endpoint takes
 		// precedence over a profiles_endpoint override.
-		if _, hasEndpoint := Get[string](exporterConf, "endpoint"); hasEndpoint {
+		if _, hasEndpoint := confmaputils.Get[string](exporterConf, "endpoint"); hasEndpoint {
 			slog.Debug("endpoint set, reusing exporter for metrics", slog.String("exporter", exporterName))
 			metricsExporterNames = append(metricsExporterNames, exporterName)
 			continue
 		}
 
-		profilesEndpoint, ok := Get[string](exporterConf, "profiles_endpoint")
+		profilesEndpoint, ok := confmaputils.Get[string](exporterConf, "profiles_endpoint")
 		if !ok {
 			slog.Warn("otlp_http exporter missing endpoint and profiles_endpoint, cannot infer metrics endpoint",
 				slog.String("exporter", exporterName))
@@ -515,7 +516,7 @@ func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, p
 			continue
 		}
 
-		if err := Set(exporterConf, "metrics_endpoint", metricsEndpoint); err != nil {
+		if err := confmaputils.Set(exporterConf, "metrics_endpoint", metricsEndpoint); err != nil {
 			return fmt.Errorf("failed to set metrics_endpoint for %s: %w", exporterName, err)
 		}
 
@@ -532,14 +533,14 @@ func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, p
 		return nil
 	}
 
-	if err := Set(conf, pathPrefixReceivers+reservedPrometheusReceiver, PrometheusReceiverConfig()); err != nil {
+	if err := confmaputils.Set(conf, pathPrefixReceivers+reservedPrometheusReceiver, confmaputils.PrometheusReceiverConfig("host-profiler-internal", "127.0.0.1:8889")); err != nil {
 		return fmt.Errorf("failed to add prometheus receiver: %w", err)
 	}
 
-	if err := Set(conf, pathPrefixProcessors+reservedFilterProcessor, FilterProcessorConfig()); err != nil {
+	if err := confmaputils.Set(conf, pathPrefixProcessors+reservedFilterProcessor, confmaputils.FilterProcessorConfig()); err != nil {
 		return fmt.Errorf("failed to add filter processor: %w", err)
 	}
-	if err := Set(conf, pathPrefixProcessors+reservedCumulativeToDeltaProcessor, confMap{}); err != nil {
+	if err := confmaputils.Set(conf, pathPrefixProcessors+reservedCumulativeToDeltaProcessor, confMap{}); err != nil {
 		return fmt.Errorf("failed to add cumulativetodelta processor: %w", err)
 	}
 
@@ -552,7 +553,7 @@ func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, p
 		"exporters":  metricsExporterNames,
 	}
 
-	if err := Set(conf, "service::pipelines::"+internalHealthMetricsPipelineName, metricsPipeline); err != nil {
+	if err := confmaputils.Set(conf, "service::pipelines::"+internalHealthMetricsPipelineName, metricsPipeline); err != nil {
 		return fmt.Errorf("failed to create pipeline: %w", err)
 	}
 

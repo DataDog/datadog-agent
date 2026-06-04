@@ -237,6 +237,26 @@
 #
 #     enabled: true
 
+########################################
+## System Probe GPU Monitoring module ##
+########################################
+
+## @param gpu_monitoring - custom object - optional
+## Configuration for the GPU Monitoring module, which uses eBPF probes to collect
+## per-process GPU metrics on Linux hosts (kernel 5.8+).
+## Required for GPU monitoring on non-containerized Linux hosts alongside
+## gpu.enabled: true in datadog.yaml.
+#
+# gpu_monitoring:
+
+#   # @param enabled - boolean - optional - default: false
+#   # @env DD_GPU_MONITORING_ENABLED - boolean - optional - default: false
+#   # Set to true to enable the GPU Monitoring module. This loads the eBPF programs
+#   # that collect per-process GPU utilization, memory, and performance metrics.
+#   # Must be used together with gpu.enabled: true in datadog.yaml.
+#
+#   enabled: false
+
 {{- if (eq .OS "windows") }}
 
 ##################################################

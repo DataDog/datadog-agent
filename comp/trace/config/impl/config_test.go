@@ -53,6 +53,14 @@ import (
 
 // team: agent-apm
 
+func TestMain(m *testing.M) {
+	// Tests run in containerized CI runners where isOSHostnameUsable returns false.
+	// Default to true so all tests can fall back to os.Hostname() as expected.
+	// TestAcquireHostnameFallbackContainerized overrides this to false explicitly.
+	osHostnameUsableFunc = func(_ context.Context) bool { return true }
+	os.Exit(m.Run())
+}
+
 // MockModule defines the fx options for the mock component for use in tests within this package.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
@@ -443,6 +451,25 @@ func TestConfigHostname(t *testing.T) {
 			assert.Equal(t, "fallback.host", cfg.Hostname)
 		})
 
+		t.Run("empty+disallowed+containerized", func(t *testing.T) {
+			bin := makeProgram(t, "", 0)
+			defer os.Remove(bin)
+
+			// Build the config first (uses TestMain's osHostnameUsableFunc=true),
+			// then override to false so only acquireHostnameFallback sees it.
+			cfg := buildConfigComponent(t, false).Object()
+			require.NotNil(t, cfg)
+
+			defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
+			osHostnameUsableFunc = func(_ context.Context) bool { return false }
+
+			cfg.DDAgentBin = bin
+			cfg.Features = map[string]struct{}{"disable_empty_hostname": {}}
+			err := acquireHostnameFallback(cfg)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "container UTS namespace")
+		})
+
 		t.Run("fallback1", func(t *testing.T) {
 			bin := makeProgram(t, "", 1)
 			defer os.Remove(bin)
@@ -699,6 +726,19 @@ func TestAcquireHostnameFallback(t *testing.T) {
 	assert.Nil(t, err)
 	host, _ := os.Hostname()
 	assert.Equal(t, host, c.Hostname)
+}
+
+func TestAcquireHostnameFallbackContainerized(t *testing.T) {
+	defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
+	osHostnameUsableFunc = func(_ context.Context) bool { return false }
+
+	t.Run("binary_fails", func(t *testing.T) {
+		c := traceconfig.New()
+		c.DDAgentBin = "/not/exist"
+		err := acquireHostnameFallback(c)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "Set DD_HOSTNAME")
+	})
 }
 
 func TestNormalizeEnvFromDDEnv(t *testing.T) {

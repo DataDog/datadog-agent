@@ -42,7 +42,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/telemetry/mock",

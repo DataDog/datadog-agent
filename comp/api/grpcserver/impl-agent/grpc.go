@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstream "github.com/DataDog/datadog-agent/comp/core/configstream/def"
 	configstreamServer "github.com/DataDog/datadog-agent/comp/core/configstream/server"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
