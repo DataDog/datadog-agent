@@ -15,16 +15,27 @@ import (
 	"os/user"
 	"runtime"
 	"strconv"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Permission handles permissions for Unix and Windows
-type Permission struct{}
+type Permission struct {
+	ddUserUID uint32
+}
 
 // NewPermission creates a new instance of `Permission`
 func NewPermission() (*Permission, error) {
-	return &Permission{}, nil
+	perms := &Permission{}
+
+	ddUserUID, err := getDatadogUserUID()
+	if err != nil {
+		return perms, err
+	}
+
+	perms.ddUserUID = ddUserUID
+	return perms, nil
 }
 
 // agentUsername returns the agent user name for the current platform.
@@ -81,4 +92,36 @@ func (p *Permission) RemoveAccessToOtherUsers(path string) error {
 	// We keep the original 'user' rights but set 'group' and 'other' to zero.
 	newPerm := fperm.Mode().Perm() & 0700
 	return os.Chmod(path, fs.FileMode(newPerm))
+}
+
+func getDatadogUserUID() (uint32, error) {
+	if ddAgentUser, err := user.Lookup(agentUsername()); err == nil {
+		ddAgentUID, err := strconv.Atoi(ddAgentUser.Uid)
+		if err != nil {
+			return 0, err
+		}
+		return uint32(ddAgentUID), nil
+	}
+
+	// agent user not found, fall back to the current user
+	return uint32(os.Getuid()), nil
+}
+
+// isRootOrAgentUID reports whether uid is root (0) or the dd-agent service account.
+func (p *Permission) isRootOrAgentUID(uid uint32) bool {
+	return uid == 0 || uid == p.ddUserUID
+}
+
+// checkOwner verifies that path is owned by root or dd-agent.
+func (p *Permission) checkOwner(path string) error {
+	var stat syscall.Stat_t
+	if err := syscall.Stat(path, &stat); err != nil {
+		return err
+	}
+
+	if !p.isRootOrAgentUID(stat.Uid) {
+		return errors.New("file owner is not a trusted user")
+	}
+
+	return nil
 }
