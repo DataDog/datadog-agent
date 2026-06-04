@@ -338,10 +338,6 @@ func setupRemoteConfig(apiKey string) *remoteconfig.CoreAgentService {
 		log.Debug("Remote Config is disabled, skipping RC service setup")
 		return nil
 	}
-	// apiKey is the resolved DD_API_KEY from setup; RC additionally honors a dedicated override.
-	if cfg.IsSet("remote_configuration.api_key") {
-		apiKey = configUtils.SanitizeAPIKey(cfg.GetString("remote_configuration.api_key"))
-	}
 	if apiKey == "" {
 		log.Warn("Remote Config requires DD_API_KEY; service not started")
 		return nil
