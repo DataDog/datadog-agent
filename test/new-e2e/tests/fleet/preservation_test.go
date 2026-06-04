@@ -24,31 +24,14 @@ import (
 
 const thirdPartyIntegration = "datadog-ping==1.0.2"
 
-// secondaryThirdPartyIntegration is a second third-party integration used alongside
-// datadog-ping in TestIntegrationPreservationMixedCustomization to exercise the
-// multi-package branch of omnibus/python-scripts/packages.py:create_diff_installed_packages_file.
-// Must be an extras-only integration (i.e., not in requirements-agent-release.txt) so
-// `agent integration install` does not refuse it via the min-version guard at
-// cmd/agent/subcommands/integrations/command.go:453.
-//
-// TODO(blind-spots #5): the version-upgrade branch of create_diff_installed_packages_file
-// (customer upgrades a *bundled* integration to a newer version) is still not covered.
-// Requires picking a core integration whose newer wheel is also published on the extras
-// feed, because post.py:install_datadog_package hardcodes `-t` (extras layout) on
-// restore. Tracked separately.
+// secondaryThirdPartyIntegration exercises the multi-package diff branch alongside
+// datadog-ping. Must be extras-only (not in requirements-agent-release.txt) or
+// `agent integration install` refuses it via the min-version guard.
 const secondaryThirdPartyIntegration = "datadog-puma==2.0.0"
 
-// snapshotIntegrationState dumps the on-host state that determines whether
-// integration save/restore worked: the installer journal (where the
-// save_custom_integrations / restore_custom_integrations spans land), the
-// contents of the baseline storage directories, and the stable site-packages
-// directory listing. The OCI integration baseline now lives in the persistent
-// /opt/datadog-packages/run directory (pre.py writes the diff there and post.py
-// reads it); the legacy /opt/datadog-packages/tmp directory is still dumped
-// because older Agent versions wrote the baseline there and pre.py falls back
-// to it. Captured to T.Logf at every upgrade phase boundary so that a red CI
-// test can be triaged from the log alone, without SSH. Linux-only; no-op on
-// other OS families.
+// snapshotIntegrationState dumps the on-host save/restore state (installer journal,
+// run + legacy tmp baseline dirs, site-packages) to T.Logf at each phase boundary so a
+// red CI test can be triaged from the log alone. Linux-only.
 func snapshotIntegrationState(t *testing.T, env *environments.Host, phase string) {
 	if env.RemoteHost.OSFamily != e2eos.LinuxFamily {
 		return
@@ -118,13 +101,8 @@ func integrationCheckDirOwner(env *environments.Host, location, integrationName 
 	return strings.TrimSpace(out)
 }
 
-// ---- integrationPreservationSuite ----
-//
-// Linux-only suite for integration-preservation and ownership tests that require
-// Linux-specific tooling (file ownership checks, find -printf, InstallIntegrationAs).
-// TestIntegrationPreservationDebToOCI and TestIntegrationPreservationOCIToOCI run on
-// all platforms and live in upgradeSuite instead.
-
+// integrationPreservationSuite holds Linux-only preservation and ownership tests that
+// need Linux-specific tooling (file ownership checks, find -printf, InstallIntegrationAs).
 type integrationPreservationSuite struct {
 	suite.FleetSuite
 }
@@ -140,12 +118,10 @@ func TestFleetIntegrationPreservation(t *testing.T) {
 	suite.Run(t, newIntegrationPreservationSuite, suite.LinuxPlatforms)
 }
 
-// TestIntegrationPreservationStableToOCIExperiment verifies that a third-party integration
-// installed against a released OCI stable survives an experiment to the pipeline's testing
-// version and the subsequent promotion. This exercises the released stable's preStartExperiment
-// (old save) handing off to the pipeline build's postStartExperiment (new restore), which is the
-// production upgrade path customers follow. The existing TestIntegrationPreservationOCIToOCI
-// inverts that direction by promoting the pipeline build to stable first.
+// TestIntegrationPreservationStableToOCIExperiment verifies an integration on a released
+// OCI stable survives an experiment to the pipeline version and promotion. Exercises the
+// released stable's preStartExperiment (old save) handing off to the pipeline build's
+// postStartExperiment (new restore) — the production upgrade path customers follow.
 func (s *integrationPreservationSuite) TestIntegrationPreservationStableToOCIExperiment() {
 	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
@@ -208,21 +184,10 @@ func (s *integrationPreservationSuite) TestIntegrationPreservationStableToOCIExp
 	}, 60*time.Second, 5*time.Second)
 }
 
-// TestIntegrationPreservationSurvivesTmpReaping verifies that a third-party integration
-// survives an OCI→OCI upgrade even when the installer's garbage collector has reaped
-// /opt/datadog-packages/tmp between the install and the upgrade.
-//
-// Regression guard for the storage move: the integration baseline
-// (.post_python_installed_packages.txt) used to live in /opt/datadog-packages/tmp, which
-// the installer reaps on a 24h TTL. If the reaper ran before the next upgrade, pre.py
-// could not find the baseline, so the custom integration was silently dropped (or the
-// upgrade failed). The baseline now lives in the persistent /opt/datadog-packages/run
-// directory, which is never reaped, so purging tmp must not affect preservation.
-//
-// Like TestIntegrationPreservationOCIToOCI, this reaches an OCI-stable state running the
-// pipeline build (the version carrying the fix) by promoting from a released stable first,
-// so both the save (preStartExperiment) and restore (postStartExperiment) sides exercise
-// the new run-dir storage and pre.py's fallback logic.
+// TestIntegrationPreservationSurvivesTmpReaping is the regression guard for the storage
+// move: the baseline used to live in the 24h-reaped /opt/datadog-packages/tmp, so a reap
+// before the next upgrade silently dropped the integration. It now lives in the persistent
+// run dir, so purging tmp must not affect preservation.
 func (s *integrationPreservationSuite) TestIntegrationPreservationSurvivesTmpReaping() {
 	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()

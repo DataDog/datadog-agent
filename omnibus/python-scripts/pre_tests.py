@@ -70,9 +70,7 @@ class TestPre(unittest.TestCase):
 
     @unittest.skipIf(os.name == 'nt', "legacy OCI tmp fallback is Linux-only")
     def test_pre_falls_back_to_legacy_tmp(self):
-        # Simulates an OCI upgrade where the baseline was written by an older Agent
-        # version to the legacy /opt/datadog-packages/tmp location and the new
-        # storage location (run dir) does not yet contain it.
+        # OCI upgrade: baseline only in the legacy tmp dir, not yet in the run dir.
         install_directory = tempfile.mkdtemp()
         storage_location = tempfile.mkdtemp()
         legacy_location = tempfile.mkdtemp()
@@ -100,8 +98,7 @@ class TestPre(unittest.TestCase):
         os.rmdir(legacy_location)
 
     def test_pre_falls_back_to_install_directory(self):
-        # Simulates a deb/rpm -> OCI migration where the baseline only exists in the
-        # install directory and neither the primary nor the legacy location has it.
+        # deb/rpm -> OCI migration: baseline only in the install dir.
         install_directory = tempfile.mkdtemp()
         storage_location = tempfile.mkdtemp()
         legacy_location = tempfile.mkdtemp()
@@ -127,9 +124,7 @@ class TestPre(unittest.TestCase):
         os.rmdir(legacy_location)
 
     def test_pre_no_baseline_first_install_returns_zero(self):
-        # First install: no baseline exists anywhere AND no prior installation marker
-        # (embedded/.installed_by_pkg.txt) is present. There is nothing to diff, so pre
-        # must be a non-fatal no-op: return 0 and create nothing.
+        # First install: no baseline and no .installed_by_pkg.txt marker -> non-fatal no-op.
         install_directory = tempfile.mkdtemp()
         storage_location = tempfile.mkdtemp()
         legacy_location = tempfile.mkdtemp()
@@ -152,10 +147,8 @@ class TestPre(unittest.TestCase):
         os.rmdir(legacy_location)
 
     def test_pre_no_baseline_on_upgrade_returns_error(self):
-        # Upgrade with a lost baseline: no baseline exists anywhere, but the install
-        # directory has the embedded/.installed_by_pkg.txt marker proving a prior Agent
-        # was installed. This is the reaping bug we want to surface, so pre must return 1
-        # (the caller logs a warning, so the upgrade itself still proceeds) and write nothing.
+        # Upgrade with a lost baseline: no baseline but .installed_by_pkg.txt marker present
+        # -> return 1 to surface the reaping bug (caller treats it as non-fatal).
         install_directory = tempfile.mkdtemp()
         storage_location = tempfile.mkdtemp()
         legacy_location = tempfile.mkdtemp()

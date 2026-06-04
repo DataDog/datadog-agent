@@ -15,126 +15,69 @@ import (
 	"testing"
 )
 
-func TestMigrateLegacyOCIBaseline(t *testing.T) {
-	const legacyContent = "datadog-checks-base==1.0.0\ndatadog-ping==1.0.2\n"
+func TestMigrateLegacyOCIFile(t *testing.T) {
+	for _, fileName := range []string{baselineFileName, diffFileName} {
+		t.Run(fileName, func(t *testing.T) {
+			const legacyContent = "datadog-ping==1.0.2\n"
 
-	t.Run("legacy baseline is migrated to storage when absent", func(t *testing.T) {
-		legacyDir := t.TempDir()
-		storageDir := filepath.Join(t.TempDir(), "run") // not yet created
-		if err := os.WriteFile(filepath.Join(legacyDir, baselineFileName), []byte(legacyContent), 0o644); err != nil {
-			t.Fatalf("failed to seed legacy baseline: %v", err)
-		}
+			t.Run("migrated to storage when absent", func(t *testing.T) {
+				legacyDir := t.TempDir()
+				storageDir := filepath.Join(t.TempDir(), "run") // not yet created
+				if err := os.WriteFile(filepath.Join(legacyDir, fileName), []byte(legacyContent), 0o644); err != nil {
+					t.Fatalf("failed to seed legacy file: %v", err)
+				}
 
-		if err := migrateLegacyOCIBaseline(legacyDir, storageDir); err != nil {
-			t.Fatalf("migrateLegacyOCIBaseline failed: %v", err)
-		}
+				if err := migrateLegacyOCIFile(legacyDir, storageDir, fileName); err != nil {
+					t.Fatalf("migrateLegacyOCIFile failed: %v", err)
+				}
 
-		got, err := os.ReadFile(filepath.Join(storageDir, baselineFileName))
-		if err != nil {
-			t.Fatalf("expected baseline at storage dir: %v", err)
-		}
-		if string(got) != legacyContent {
-			t.Errorf("baseline content mismatch: got %q want %q", got, legacyContent)
-		}
-	})
+				got, err := os.ReadFile(filepath.Join(storageDir, fileName))
+				if err != nil {
+					t.Fatalf("expected file at storage dir: %v", err)
+				}
+				if string(got) != legacyContent {
+					t.Errorf("content mismatch: got %q want %q", got, legacyContent)
+				}
+			})
 
-	t.Run("existing storage baseline is not clobbered", func(t *testing.T) {
-		legacyDir := t.TempDir()
-		storageDir := t.TempDir()
-		const newContent = "datadog-checks-base==2.0.0\n"
-		if err := os.WriteFile(filepath.Join(legacyDir, baselineFileName), []byte(legacyContent), 0o644); err != nil {
-			t.Fatalf("failed to seed legacy baseline: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(storageDir, baselineFileName), []byte(newContent), 0o644); err != nil {
-			t.Fatalf("failed to seed storage baseline: %v", err)
-		}
+			t.Run("existing storage file is not clobbered", func(t *testing.T) {
+				legacyDir := t.TempDir()
+				storageDir := t.TempDir()
+				const newContent = "datadog-postgres==7.0.0\n"
+				if err := os.WriteFile(filepath.Join(legacyDir, fileName), []byte(legacyContent), 0o644); err != nil {
+					t.Fatalf("failed to seed legacy file: %v", err)
+				}
+				if err := os.WriteFile(filepath.Join(storageDir, fileName), []byte(newContent), 0o644); err != nil {
+					t.Fatalf("failed to seed storage file: %v", err)
+				}
 
-		if err := migrateLegacyOCIBaseline(legacyDir, storageDir); err != nil {
-			t.Fatalf("migrateLegacyOCIBaseline failed: %v", err)
-		}
+				if err := migrateLegacyOCIFile(legacyDir, storageDir, fileName); err != nil {
+					t.Fatalf("migrateLegacyOCIFile failed: %v", err)
+				}
 
-		got, err := os.ReadFile(filepath.Join(storageDir, baselineFileName))
-		if err != nil {
-			t.Fatalf("expected baseline at storage dir: %v", err)
-		}
-		if string(got) != newContent {
-			t.Errorf("storage baseline was overwritten: got %q want %q", got, newContent)
-		}
-	})
+				got, err := os.ReadFile(filepath.Join(storageDir, fileName))
+				if err != nil {
+					t.Fatalf("expected file at storage dir: %v", err)
+				}
+				if string(got) != newContent {
+					t.Errorf("storage file was overwritten: got %q want %q", got, newContent)
+				}
+			})
 
-	t.Run("no legacy baseline is a no-op", func(t *testing.T) {
-		legacyDir := t.TempDir()
-		storageDir := t.TempDir()
+			t.Run("no legacy file is a no-op", func(t *testing.T) {
+				legacyDir := t.TempDir()
+				storageDir := t.TempDir()
 
-		if err := migrateLegacyOCIBaseline(legacyDir, storageDir); err != nil {
-			t.Fatalf("migrateLegacyOCIBaseline failed: %v", err)
-		}
+				if err := migrateLegacyOCIFile(legacyDir, storageDir, fileName); err != nil {
+					t.Fatalf("migrateLegacyOCIFile failed: %v", err)
+				}
 
-		if _, err := os.Stat(filepath.Join(storageDir, baselineFileName)); !os.IsNotExist(err) {
-			t.Errorf("expected no baseline to be created, got err=%v", err)
-		}
-	})
-}
-
-func TestMigrateLegacyOCIDiff(t *testing.T) {
-	const legacyContent = "datadog-redisdb==5.0.0\n"
-
-	t.Run("legacy diff is migrated to storage when absent", func(t *testing.T) {
-		legacyDir := t.TempDir()
-		storageDir := filepath.Join(t.TempDir(), "run") // not yet created
-		if err := os.WriteFile(filepath.Join(legacyDir, diffFileName), []byte(legacyContent), 0o644); err != nil {
-			t.Fatalf("failed to seed legacy diff: %v", err)
-		}
-
-		if err := migrateLegacyOCIFile(legacyDir, storageDir, diffFileName); err != nil {
-			t.Fatalf("migrateLegacyOCIFile failed: %v", err)
-		}
-
-		got, err := os.ReadFile(filepath.Join(storageDir, diffFileName))
-		if err != nil {
-			t.Fatalf("expected diff at storage dir: %v", err)
-		}
-		if string(got) != legacyContent {
-			t.Errorf("diff content mismatch: got %q want %q", got, legacyContent)
-		}
-	})
-
-	t.Run("existing storage diff is not clobbered", func(t *testing.T) {
-		legacyDir := t.TempDir()
-		storageDir := t.TempDir()
-		const newContent = "datadog-postgres==7.0.0\n"
-		if err := os.WriteFile(filepath.Join(legacyDir, diffFileName), []byte(legacyContent), 0o644); err != nil {
-			t.Fatalf("failed to seed legacy diff: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(storageDir, diffFileName), []byte(newContent), 0o644); err != nil {
-			t.Fatalf("failed to seed storage diff: %v", err)
-		}
-
-		if err := migrateLegacyOCIFile(legacyDir, storageDir, diffFileName); err != nil {
-			t.Fatalf("migrateLegacyOCIFile failed: %v", err)
-		}
-
-		got, err := os.ReadFile(filepath.Join(storageDir, diffFileName))
-		if err != nil {
-			t.Fatalf("expected diff at storage dir: %v", err)
-		}
-		if string(got) != newContent {
-			t.Errorf("storage diff was overwritten: got %q want %q", got, newContent)
-		}
-	})
-
-	t.Run("no legacy diff is a no-op", func(t *testing.T) {
-		legacyDir := t.TempDir()
-		storageDir := t.TempDir()
-
-		if err := migrateLegacyOCIFile(legacyDir, storageDir, diffFileName); err != nil {
-			t.Fatalf("migrateLegacyOCIFile failed: %v", err)
-		}
-
-		if _, err := os.Stat(filepath.Join(storageDir, diffFileName)); !os.IsNotExist(err) {
-			t.Errorf("expected no diff to be created, got err=%v", err)
-		}
-	})
+				if _, err := os.Stat(filepath.Join(storageDir, fileName)); !os.IsNotExist(err) {
+					t.Errorf("expected no file to be created, got err=%v", err)
+				}
+			})
+		})
+	}
 }
 
 func TestRemoveCustomIntegrations(t *testing.T) {

@@ -24,12 +24,7 @@ var (
 	datadogInstalledIntegrationsPattern = regexp.MustCompile(`embedded/lib/python[^/]+/site-packages/datadog_.*`)
 )
 
-// baselineFileName is the integration baseline written by post.py and read by
-// pre.py to compute the set of custom integrations to restore across upgrades.
 const baselineFileName = ".post_python_installed_packages.txt"
-
-// diffFileName is the set of custom integrations to reinstall, written by pre.py
-// during the save step and read by post.py during the restore step.
 const diffFileName = ".diff_python_installed_packages.txt"
 
 // executePythonScript executes a Python script with the given arguments
@@ -64,36 +59,17 @@ func SaveCustomIntegrations(ctx context.Context, installPath string, storagePath
 	defer func() {
 		span.Finish(err)
 	}()
-	// Backward-compat for OCI Agents installed before the baseline moved to RunPath:
-	// the pre.py that runs during an upgrade comes from the currently-installed (old)
-	// package, and only OCI uses a storage path distinct from the install dir.
 	if storagePath == paths.RunPath {
-		if err := migrateLegacyOCIBaseline(paths.RootTmpDir, storagePath); err != nil {
+		if err := migrateLegacyOCIFile(paths.RootTmpDir, storagePath, baselineFileName); err != nil {
 			return err
 		}
 	}
 	return executePythonScript(ctx, installPath, "pre.py", installPath, storagePath)
 }
 
-// migrateLegacyOCIBaseline copies the integration baseline from the legacy OCI
-// location to the current storage path when upgrading an OCI Agent installed
-// before the baseline moved to the persistent RunPath.
-//
-// The pre.py executed during an upgrade is the currently-installed (old) script,
-// and those older versions only look in the storage argument and the install dir,
-// never the legacy tmp location. Without this migration the old script misses the
-// baseline it wrote there, the diff is lost, and RemoveCustomIntegrations then
-// strips the user's custom integrations on the very upgrade meant to migrate them.
-// Seeding the baseline at storageDir also lands the old script's diff there, where
-// the new post.py expects to read it.
-func migrateLegacyOCIBaseline(legacyDir, storageDir string) error {
-	return migrateLegacyOCIFile(legacyDir, storageDir, baselineFileName)
-}
-
-// migrateLegacyOCIFile copies fileName from the legacy OCI tmp location to the
-// persistent storage path. It is a no-op when the destination already exists (we
-// never clobber a copy written by a newer hook) or when the legacy file is absent
-// (first install, or already migrated).
+// migrateLegacyOCIFile seeds storageDir with a save/restore file an older OCI
+// package wrote to the legacy RootTmpDir, so the first upgrade to a RunPath-based
+// version still finds it. No-op if the destination exists or the legacy file does not.
 func migrateLegacyOCIFile(legacyDir, storageDir, fileName string) error {
 	dst := filepath.Join(storageDir, fileName)
 	if _, err := os.Stat(dst); err == nil {
@@ -126,19 +102,15 @@ func RestoreCustomIntegrations(ctx context.Context, installPath string) (err err
 		span.Finish(err)
 	}()
 
-	// For OCI packages, the baseline must persist across upgrades (days-weeks),
-	// so it lives in the persistent RunPath rather than the 24h-reaped RootTmpDir.
-	// For deb/rpm (installPath == /opt/datadog-agent) it stays in the install dir.
+	// OCI baselines must outlive the 24h-reaped RootTmpDir, so they live in RunPath;
+	// deb/rpm (installPath == /opt/datadog-agent) keep them in the install dir.
 	storagePath := installPath
 	if strings.HasPrefix(installPath, paths.PackagesPath) {
 		storagePath = paths.RunPath
 	}
 
-	// Backward-compat for OCI Agents installed before the baseline moved to RunPath:
-	// the save step (pre.py) ran from the old package and wrote the integration diff to
-	// the legacy RootTmpDir, but this restore reads it from RunPath. Seed RunPath with the
-	// legacy diff so the first upgrade to this version still restores custom integrations
-	// instead of silently dropping them. No-op once the diff already lives in RunPath.
+	// An older package's pre.py wrote the diff to RootTmpDir; this restore reads RunPath.
+	// Seed it so the first upgrade to this version restores instead of dropping integrations.
 	if storagePath == paths.RunPath {
 		if err := migrateLegacyOCIFile(paths.RootTmpDir, storagePath, diffFileName); err != nil {
 			return err
