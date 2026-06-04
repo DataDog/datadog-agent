@@ -18,23 +18,17 @@ import (
 
 // No issue modules are imported here, so GetAllModules returns an empty slice.
 // These tests verify that New() wires the inner registry correctly and that all
-// four Component methods delegate to it without panicking on an empty registry.
+// Component methods delegate to it without panicking on an empty registry.
 
 func TestNewReturnsValidComponent(t *testing.T) {
 	comp := New(Requires{Config: config.NewMock(t)})
 	assert.NotNil(t, comp)
 }
 
-func TestHasTemplateReturnsFalseForUnknown(t *testing.T) {
+func TestGetTemplateReturnsFalseForUnknown(t *testing.T) {
 	comp := New(Requires{Config: config.NewMock(t)})
-	assert.False(t, comp.HasTemplate("unknown-type"))
-}
-
-func TestBuildIssueReturnsErrorForUnknown(t *testing.T) {
-	comp := New(Requires{Config: config.NewMock(t)})
-	issue, err := comp.BuildIssue("unknown-type", nil)
-	assert.Error(t, err)
-	assert.Nil(t, issue)
+	_, ok := comp.GetTemplate("unknown-type")
+	assert.False(t, ok)
 }
 
 func TestGetBuiltInPeriodicHealthChecksEmptyRegistry(t *testing.T) {

@@ -26,6 +26,8 @@ const (
 	DefaultHostProfilerLogFile = "/opt/datadog-agent/logs/host-profiler.log"
 	// DefaultPrivateActionRunnerLogFile is the default private-action-runner log file
 	DefaultPrivateActionRunnerLogFile = "/opt/datadog-agent/logs/private-action-runner.log"
+	// DefaultDataPlaneLogFile is the default log file used by the data-plane agent if not configured
+	DefaultDataPlaneLogFile = "/opt/datadog-agent/logs/agent-data-plane.log"
 	// DefaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
 	DefaultSystemProbeAddress     = "/opt/datadog-agent/run/sysprobe.sock"
 	defaultSystemProbeLogFilePath = "/opt/datadog-agent/logs/system-probe.log"

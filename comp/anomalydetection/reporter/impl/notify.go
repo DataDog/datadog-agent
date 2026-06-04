@@ -6,6 +6,7 @@
 package reporterimpl
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,8 +17,9 @@ import (
 	"unicode/utf8"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	pkgstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
@@ -49,12 +51,11 @@ const (
 
 	// changeEventIntegrationID identifies the publishing integration. The
 	// `edge-intelligence` integration is registered upstream in
-	// integrations-internal-core#3240 (source_type_id 78252213) and the
-	// event-management intake derives source_type from this value. We also
-	// emit changeEventSourceTypeID explicitly so the intake can validate the
-	// pairing without a registry lookup.
+	// integrations-internal-core#3240 and the event-management intake derives
+	// source_type from this value. The v2 Events API schema does not accept
+	// source_type_id as a field at $.data.attributes — integration_id alone
+	// is sufficient for routing.
 	changeEventIntegrationID = "edge-intelligence"
-	changeEventSourceTypeID  = 78252213
 
 	// changedResourceType is the resource classification carried in
 	// data.attributes.attributes.changed_resource.type.
@@ -79,12 +80,13 @@ type eventSender struct {
 	forwarder eventplatform.Forwarder
 	logger    log.Component
 	storage   observerdef.StorageReader
+	hostname  hostname.Component
 }
 
 // newEventSender creates an eventSender backed by the given forwarder.
 // storage is used to compute windowed log rates for display in event messages;
 // it may be nil and will be set later via EventReporter.SetStorage.
-func newEventSender(forwarder eventplatform.Forwarder, logger log.Component, storage observerdef.StorageReader) (*eventSender, error) {
+func newEventSender(forwarder eventplatform.Forwarder, logger log.Component, storage observerdef.StorageReader, hn hostname.Component) (*eventSender, error) {
 	if forwarder == nil {
 		return nil, errors.New("event-platform forwarder is not available")
 	}
@@ -92,6 +94,7 @@ func newEventSender(forwarder eventplatform.Forwarder, logger log.Component, sto
 		forwarder: forwarder,
 		logger:    logger,
 		storage:   storage,
+		hostname:  hn,
 	}, nil
 }
 
@@ -147,9 +150,14 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 	ts := time.Unix(c.FirstSeen, 0).UTC().Format(time.RFC3339)
 	aggKey := "observer:" + c.Pattern
 
+	var host string
+	if s.hostname != nil {
+		host = s.hostname.GetSafe(context.TODO())
+	}
+
 	s.logger.Infof("[observer] sending change event: pattern=%s title=%q aggKey=%s timestamp=%s\n%s\n", c.Pattern, c.Title, aggKey, ts, msg)
 
-	payload := buildChangeEventPayload(c, msg, ts, aggKey)
+	payload := buildChangeEventPayload(c, msg, ts, aggKey, host)
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal change-event payload: %w", err)
@@ -162,24 +170,27 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 // buildChangeEventPayload returns the v2 Events API JSON envelope for a
 // correlation. Keys mirror the schema produced by datadog-api-client-go's
 // EventCreateRequestPayload (data.type=event, data.attributes.{title, message,
-// category, integration_id, source_type_id, tags, timestamp, aggregation_key,
-// attributes}). integration_id pins the publisher to the `edge-intelligence`
-// integration so the event-management intake can route and authorize the event.
-func buildChangeEventPayload(c observerdef.ActiveCorrelation, msg, ts, aggKey string) map[string]any {
+// category, integration_id, tags, timestamp, aggregation_key, attributes}).
+// integration_id pins the publisher to the `edge-intelligence` integration so
+// the event-management intake can route and authorize the event.
+func buildChangeEventPayload(c observerdef.ActiveCorrelation, msg, ts, aggKey, host string) map[string]any {
+	attrs := map[string]any{
+		"title":           c.Title,
+		"message":         msg,
+		"category":        "change",
+		"integration_id":  changeEventIntegrationID,
+		"tags":            BuildEventTags(c),
+		"timestamp":       ts,
+		"aggregation_key": aggKey,
+		"attributes":      buildChangeAttributes(c),
+	}
+	if host != "" {
+		attrs["host"] = host
+	}
 	return map[string]any{
 		"data": map[string]any{
-			"type": "event",
-			"attributes": map[string]any{
-				"title":           c.Title,
-				"message":         msg,
-				"category":        "change",
-				"integration_id":  changeEventIntegrationID,
-				"source_type_id":  changeEventSourceTypeID,
-				"tags":            BuildEventTags(c),
-				"timestamp":       ts,
-				"aggregation_key": aggKey,
-				"attributes":      buildChangeAttributes(c),
-			},
+			"type":       "event",
+			"attributes": attrs,
 		},
 	}
 }

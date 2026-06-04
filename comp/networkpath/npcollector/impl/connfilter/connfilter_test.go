@@ -297,6 +297,19 @@ filters:
 			expectedErr: "",
 		},
 		{
+			name:   "default local and internal domains excluded",
+			config: ``,
+			expectedMatches: []expectedMatch{
+				{domain: "printer.local", shouldMatch: false},
+				{domain: "foo.bar.local", shouldMatch: false},
+				{domain: "compute.internal", shouldMatch: false},
+				{domain: "foo.bar.internal", shouldMatch: false},
+				{domain: "local.example.com", shouldMatch: true},
+				{domain: "internal.example.com", shouldMatch: true},
+			},
+			expectedCustomFilterCount: 0,
+		},
+		{
 			name: "include all domain",
 			config: `
 filters:

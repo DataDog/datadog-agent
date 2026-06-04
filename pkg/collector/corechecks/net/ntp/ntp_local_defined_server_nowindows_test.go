@@ -135,3 +135,39 @@ func TestGetNTPServersFromFileNoServer(t *testing.T) {
 		assert.Equal(t, []string(nil), servers)
 	})
 }
+
+func TestGetNTPServersFromTimesyncdConfig(t *testing.T) {
+	config := `[Time]
+NTP=time1.example.com time2.example.com
+FallbackNTP=0.pool.ntp.org 1.pool.ntp.org
+`
+	createTempFile(t, config, func(f1 string) {
+		servers, err := getNTPServersFromFiles([]string{f1})
+		assert.NoError(t, err)
+		sort.Strings(servers)
+		assert.Equal(t, []string{"0.pool.ntp.org", "1.pool.ntp.org", "time1.example.com", "time2.example.com"}, servers)
+	})
+}
+
+func TestGetNTPServersFromTimesyncdConfigEdgeCases(t *testing.T) {
+	config := `# vendor defaults
+[Time]
+#NTP=
+NTP=time1.example.com  time2.example.com   # trailing comment
+FallbackNTP=
+`
+	createTempFile(t, config, func(f1 string) {
+		servers, err := getNTPServersFromFiles([]string{f1})
+		assert.NoError(t, err)
+		sort.Strings(servers)
+		assert.Equal(t, []string{"time1.example.com", "time2.example.com"}, servers)
+	})
+}
+
+func TestGetLocalDefinedNTPServersIncludesTimesyncdPath(t *testing.T) {
+	_, err := getLocalDefinedNTPServers()
+	if err == nil {
+		t.Skip("a real ntp/chrony/timesyncd config exists on this host")
+	}
+	assert.Contains(t, err.Error(), "/etc/systemd/timesyncd.conf")
+}

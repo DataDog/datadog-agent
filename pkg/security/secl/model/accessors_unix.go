@@ -60,6 +60,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("setuid"),
 		eval.EventType("setxattr"),
 		eval.EventType("signal"),
+		eval.EventType("socket"),
 		eval.EventType("splice"),
 		eval.EventType("sysctl"),
 		eval.EventType("unlink"),
@@ -1994,15 +1995,44 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "dns.response.cnames":
+		return &eval.StringArrayEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.DNS.HasResponse() {
+					return []string{}
+				}
+				return ev.DNS.Response.CNames
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "dns.response.code":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				if !ev.DNS.HasResponse() {
-					return 0
+					return -1
 				}
 				return int(ev.DNS.Response.ResponseCode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "dns.response.ips":
+		return &eval.CIDRArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.DNS.HasResponse() {
+					return []net.IPNet{}
+				}
+				return ev.DNS.Response.IPs
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -36013,6 +36043,50 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "socket.domain":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Socket.Domain)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "socket.protocol":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Socket.Protocol)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "socket.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Socket.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "socket.type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Socket.Type)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "splice.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -37312,7 +37386,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"dns.question.name.length",
 		"dns.question.name.root_domain",
 		"dns.question.type",
+		"dns.response.cnames",
 		"dns.response.code",
+		"dns.response.ips",
 		"event.async",
 		"event.hostname",
 		"event.origin",
@@ -39353,6 +39429,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.user_session.ssh_public_key",
 		"signal.target.user_session.ssh_session_id",
 		"signal.type",
+		"socket.domain",
+		"socket.protocol",
+		"socket.retval",
+		"socket.type",
 		"splice.file.change_time",
 		"splice.file.extension",
 		"splice.file.filesystem",
@@ -39807,8 +39887,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "dns", reflect.String, "string", false, nil
 	case "dns.question.type":
 		return "dns", reflect.Int, "int", false, nil
+	case "dns.response.cnames":
+		return "dns", reflect.String, "string", true, nil
 	case "dns.response.code":
 		return "dns", reflect.Int, "int", false, nil
+	case "dns.response.ips":
+		return "dns", reflect.Struct, "net.IPNet", true, nil
 	case "event.async":
 		return "", reflect.Bool, "bool", false, nil
 	case "event.hostname":
@@ -43889,6 +43973,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.type":
 		return "signal", reflect.Int, "int", false, nil
+	case "socket.domain":
+		return "socket", reflect.Int, "int", false, nil
+	case "socket.protocol":
+		return "socket", reflect.Int, "int", false, nil
+	case "socket.retval":
+		return "socket", reflect.Int, "int", false, nil
+	case "socket.type":
+		return "socket", reflect.Int, "int", false, nil
 	case "splice.file.change_time":
 		return "splice", reflect.Int, "int", false, nil
 	case "splice.file.extension":
@@ -44465,11 +44557,29 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return &eval.ErrFieldReadOnly{Field: "dns.question.name.root_domain"}
 	case "dns.question.type":
 		return ev.setUint16FieldValue("dns.question.type", &ev.DNS.Question.Type, value)
+	case "dns.response.cnames":
+		if ev.DNS.Response == nil {
+			ev.DNS.Response = &DNSResponse{}
+		}
+		return ev.setStringArrayFieldValue("dns.response.cnames", &ev.DNS.Response.CNames, value)
 	case "dns.response.code":
 		if ev.DNS.Response == nil {
 			ev.DNS.Response = &DNSResponse{}
 		}
 		return ev.setUint8FieldValue("dns.response.code", &ev.DNS.Response.ResponseCode, value)
+	case "dns.response.ips":
+		if ev.DNS.Response == nil {
+			ev.DNS.Response = &DNSResponse{}
+		}
+		switch rv := value.(type) {
+		case net.IPNet:
+			ev.DNS.Response.IPs = append(ev.DNS.Response.IPs, rv)
+		case []net.IPNet:
+			ev.DNS.Response.IPs = append(ev.DNS.Response.IPs, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "dns.response.ips"}
+		}
+		return nil
 	case "event.async":
 		return ev.setBoolFieldValue("event.async", &ev.Async, value)
 	case "event.hostname":
@@ -53608,6 +53718,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint64FieldValue("signal.target.user_session.ssh_session_id", &ev.Signal.Target.Process.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "signal.type":
 		return ev.setUint32FieldValue("signal.type", &ev.Signal.Type, value)
+	case "socket.domain":
+		return ev.setUint16FieldValue("socket.domain", &ev.Socket.Domain, value)
+	case "socket.protocol":
+		return ev.setUint16FieldValue("socket.protocol", &ev.Socket.Protocol, value)
+	case "socket.retval":
+		return ev.setInt64FieldValue("socket.retval", &ev.Socket.SyscallEvent.Retval, value)
+	case "socket.type":
+		return ev.setUint16FieldValue("socket.type", &ev.Socket.Type, value)
 	case "splice.file.change_time":
 		return ev.setUint64FieldValue("splice.file.change_time", &ev.Splice.File.FileFields.CTime, value)
 	case "splice.file.extension":

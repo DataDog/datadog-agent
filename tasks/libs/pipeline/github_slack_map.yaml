@@ -37,8 +37,10 @@
     name: '#agent-configuration-ops'
     id: 'C08A85VGC8P'
   review:
-    name: '#agent-configuration-ops'
-    id: 'C08A85VGC8P'
+    # DO NOT FILL IN - team opted out of PR review notifications, see:
+    # https://github.com/DataDog/datadog-agent/pull/51716#issuecomment-4610991841
+    name: ''
+    id: ''
 '@datadog/agent-cspm':
   notification:
     name: '#security-and-compliance-agent-ops'
@@ -249,6 +251,13 @@
   review:
     name: '#database-monitoring'
     id: 'C011QG8MJBA'
+'@datadog/dd-agent-mcp':
+  notification:
+    name: '#dd-agent-mcp'
+    id: 'C0A9L3290GZ'
+  review:
+    name: '#dd-agent-mcp'
+    id: 'C0A9L3290GZ'
 '@datadog/debugger':
   notification:
     name: '#debugger-ops-prod'

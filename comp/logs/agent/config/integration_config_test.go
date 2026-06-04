@@ -510,6 +510,30 @@ func TestValidateWildcardWithBeginningMode(t *testing.T) {
 	}
 }
 
+func TestValidateSyslogFormatWithEncoding(t *testing.T) {
+	t.Run("syslog format with non-UTF8 encoding warns but passes", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:     FileType,
+			Path:     "/var/log/syslog",
+			Source:   "mysource",
+			Format:   SyslogFormat,
+			Encoding: UTF16LE,
+		}
+		err := cfg.Validate()
+		assert.Nil(t, err)
+	})
+
+	t.Run("syslog format without encoding passes", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:   FileType,
+			Path:   "/var/log/syslog",
+			Format: SyslogFormat,
+		}
+		err := cfg.Validate()
+		assert.Nil(t, err)
+	})
+}
+
 func TestValidateIPFilter(t *testing.T) {
 	t.Run("valid CIDR entries pass", func(t *testing.T) {
 		cfg := &LogsConfig{

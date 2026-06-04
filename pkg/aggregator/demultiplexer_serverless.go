@@ -15,7 +15,7 @@ import (
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -108,12 +108,10 @@ func (d *ServerlessDemultiplexer) Run() {
 	d.statsdWorker.run()
 }
 
-// Stop stops the wrapped aggregator and the forwarder.
-func (d *ServerlessDemultiplexer) Stop(flush bool) {
-	if flush {
-		forceFlushAll := pkgconfigsetup.Datadog().GetBool("dogstatsd_flush_incomplete_buckets")
-		d.forceFlushToSerializer(time.Now(), true, forceFlushAll)
-	}
+// Stop performs a final flush, then stops the wrapped aggregator and the forwarder.
+func (d *ServerlessDemultiplexer) Stop() {
+	forceFlushAll := pkgconfigsetup.Datadog().GetBool("dogstatsd_flush_incomplete_buckets")
+	d.forceFlushToSerializer(time.Now(), true, forceFlushAll)
 
 	d.statsdWorker.stop()
 

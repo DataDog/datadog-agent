@@ -23,7 +23,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
@@ -154,7 +154,7 @@ func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
 	mods := issues.GetAllModules(cfg)
 	require.NotEmpty(t, mods, "no modules registered")
 	for _, mod := range mods {
-		issue, err := mod.IssueTemplate().BuildIssue(map[string]string{})
+		issue, err := mod.BuildIssue(map[string]string{})
 		require.NoError(t, err, "module %s: BuildIssue failed", mod.IssueName())
 		assert.Equal(t, mod.IssueName(), issue.IssueName,
 			"module IssueName() %q must equal BuildIssue().IssueName %q",

@@ -19,6 +19,12 @@ import (
 
 type confMap = map[string]any
 
+const (
+	infraAttributesName = "infraattributes"
+	hpflareName         = "hpflare"
+	ddprofilingName     = "ddprofiling"
+)
+
 func buildReceivers(conf confMap, agent configManager) []any {
 	receivers := make(confMap)
 
@@ -44,10 +50,9 @@ func buildReceivers(conf confMap, agent configManager) []any {
 
 func buildExporters(conf confMap, agent configManager) []any {
 	const (
-		profilesEndpointFormat = "https://intake.profile.%s/v1development/profiles"
-		metricsEndpointFormat  = "https://otlp.%s/v1/metrics"
-		otlpHTTPNameFormat     = "otlphttp/%s_%d"
-		debugExporterName      = "debug"
+		endpointFormat     = "https://otlp.%s"
+		otlpHTTPNameFormat = "otlp_http/%s_%d"
+		debugExporterName  = "debug"
 	)
 
 	exporters := make(confMap)
@@ -62,10 +67,9 @@ func buildExporters(conf confMap, agent configManager) []any {
 		headers["dd-evp-origin"] = version.BundledProfilerName
 		headers["dd-evp-origin-version"] = version.ProfilerVersion
 		return confMap{
-			"profiles_endpoint": fmt.Sprintf(profilesEndpointFormat, site),
-			"metrics_endpoint":  fmt.Sprintf(metricsEndpointFormat, site),
-			"compression":       "zstd",
-			"headers":           headers,
+			"endpoint":    fmt.Sprintf(endpointFormat, site),
+			"compression": "zstd",
+			"headers":     headers,
 		}
 	}
 
@@ -105,7 +109,7 @@ func buildProcessors(conf confMap) []any {
 		"allow_hostname_override": true,
 		"cardinality":             2,
 	}
-	_ = converters.Set(processors, "infraattributes/default", infraattributes)
+	_ = converters.Set(processors, infraAttributesName, infraattributes)
 
 	metadata := confMap{
 		"attributes": []any{
@@ -124,7 +128,7 @@ func buildProcessors(conf confMap) []any {
 	_ = converters.Set(processors, "resource/dd-profiler-internal-metadata", metadata)
 
 	conf["processors"] = processors
-	return []any{"infraattributes/default", "resource/dd-profiler-internal-metadata"}
+	return []any{infraAttributesName, "resource/dd-profiler-internal-metadata"}
 }
 
 func buildMetricsTelemetry(conf confMap, healthMetrics healthMetricsConfig) {
@@ -186,15 +190,15 @@ func buildConfig(agent configManager, p params.CollectorParams) confMap {
 	buildMetricsPipeline(config, p.GetGoRuntimeMetrics(), agent.hostProfilerConfig.HealthMetrics, profilesProcessors, profilesExporters)
 
 	hpflareConf := confMap{"endpoint": fmt.Sprintf("localhost:%d", hpflareextension.EffectivePort(agent.hostProfilerConfig.HPFlare.Port))}
-	_ = converters.Set(config, "extensions::hpflare/default", hpflareConf)
-	serviceExtensions := []any{"hpflare/default"}
+	_ = converters.Set(config, "extensions::"+hpflareName, hpflareConf)
+	serviceExtensions := []any{hpflareName}
 	if agent.hostProfilerConfig.DDProfiling.Enabled {
 		ddprofilingConf := make(confMap)
 		if agent.hostProfilerConfig.DDProfiling.Period > 0 {
 			_ = converters.Set(ddprofilingConf, "profiler_options::period", agent.hostProfilerConfig.DDProfiling.Period)
 		}
-		_ = converters.Set(config, "extensions::ddprofiling/default", ddprofilingConf)
-		serviceExtensions = append(serviceExtensions, "ddprofiling/default")
+		_ = converters.Set(config, "extensions::"+ddprofilingName, ddprofilingConf)
+		serviceExtensions = append(serviceExtensions, ddprofilingName)
 	}
 	_ = converters.Set(config, "service::extensions", serviceExtensions)
 

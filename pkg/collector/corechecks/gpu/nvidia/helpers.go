@@ -215,22 +215,34 @@ func RemoveDuplicateMetrics(allMetrics map[CollectorName][]*Metric) []*Metric {
 	return result
 }
 
-// getNVLinkCount returns the number of NVLink ports on the device
-func getNVLinkCount(device ddnvml.Device) (int, error) {
+func fieldValueForField(device ddnvml.Device, fieldID uint32, fieldName string) (int, error) {
 	fields := []nvml.FieldValue{{
-		FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
+		FieldId: fieldID,
 		ScopeId: 0,
 	}}
 
 	if err := device.GetFieldValues(fields); err != nil {
-		return 0, fmt.Errorf("get NVLink link count: %w", err)
+		return 0, fmt.Errorf("get %s: %w", fieldName, err)
+	}
+	if ret := nvml.Return(fields[0].NvmlReturn); ret != nvml.SUCCESS {
+		return 0, ddnvml.NewNvmlAPIErrorOrNil(fmt.Sprintf("GetFieldValues(%s)", fieldName), ret)
 	}
 
-	totalPorts, err := fieldValueToNumber[int](nvml.ValueType(fields[0].ValueType), fields[0].Value)
+	value, err := fieldValueToNumber[int](nvml.ValueType(fields[0].ValueType), fields[0].Value)
 	if err != nil {
-		return 0, fmt.Errorf("convert NVLink link count: %w", err)
+		return 0, fmt.Errorf("convert %s: %w", fieldName, err)
 	}
-	return totalPorts, nil
+	return value, nil
+}
+
+// GetNVLinkCount returns the number of NVLink ports on the device.
+func GetNVLinkCount(device ddnvml.Device) (int, error) {
+	return fieldValueForField(device, nvml.FI_DEV_NVLINK_LINK_COUNT, "FI_DEV_NVLINK_LINK_COUNT")
+}
+
+// GetC2CLinkCount returns the number of C2C links on the device.
+func GetC2CLinkCount(device ddnvml.Device) (int, error) {
+	return fieldValueForField(device, nvml.FI_DEV_C2C_LINK_COUNT, "FI_DEV_C2C_LINK_COUNT")
 }
 
 func nvlinkPortTag(port int) string {
@@ -243,9 +255,9 @@ func portIsAlwaysSupported(_ int) ([]*Metric, error) {
 }
 
 func getSupportedNvlinkPorts(device ddnvml.Device, metricCollector func(int) ([]*Metric, error)) ([]int, error) {
-	totalPorts, err := getNVLinkCount(device)
+	totalPorts, err := GetNVLinkCount(device)
 	if err != nil {
-		if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+		if ddnvml.IsAPIUnsupportedOnDevice(err, device) || errors.Is(err, errUnsupportedDevice) {
 			return nil, fmt.Errorf("%w: get NVLink link count: %w", errUnsupportedDevice, err)
 		}
 		return nil, fmt.Errorf("get NVLink link count: %w", err)
@@ -260,12 +272,14 @@ func getSupportedNvlinkPorts(device ddnvml.Device, metricCollector func(int) ([]
 	for port := 1; port <= totalPorts; port++ {
 		_, err := metricCollector(port)
 		if err != nil {
-			if !ddnvml.IsAPIUnsupportedOnDevice(err, device) {
-				portErrors = append(portErrors, fmt.Errorf("collect metrics for port %d: %w", port, err))
-			}
+			portErrors = append(portErrors, fmt.Errorf("collect metrics for port %d: %w", port, err))
 
-			continue
+			if ddnvml.IsAPIUnsupportedOnDevice(err, device) || errors.Is(err, errUnsupportedDevice) {
+				// only ignore ports if the error is because the API is unsupported
+				continue
+			}
 		}
+
 		ports = append(ports, port)
 	}
 

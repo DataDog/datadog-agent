@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "networkdeviceconfig.go",
+        "store_endpoint.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/networkconfigmanagement/def",
+        "//pkg/networkconfigmanagement/store",
+        "//pkg/networkconfigmanagement/types",
+        "//pkg/util/http",
+        "//pkg/util/option",
+    ],
+)

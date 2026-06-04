@@ -53,6 +53,7 @@ type InstallAgentParams struct {
 	InfrastructureMode      string `installer_arg:"DD_INFRASTRUCTURE_MODE"`
 	InstallOnly             string `installer_arg:"DD_INSTALL_ONLY"`
 	LogonDurationAutologger string `installer_arg:"DD_LOGON_DURATION_AUTOLOGGER"`
+	KeepUserRights          string `installer_arg:"DDAGENTUSER_KEEP_RIGHTS"`
 }
 
 // InstallAgentOption is an optional function parameter type for InstallAgentParams options
@@ -88,6 +89,16 @@ func WithAgentUser(username string) InstallAgentOption {
 func WithAgentUserPassword(password string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.AgentUserPassword = password
+		return nil
+	}
+}
+
+// WithKeepUserRights specifies the DDAGENTUSER_KEEP_RIGHTS parameter. When set to a
+// truthy value (1/true/yes), the installer skips re-applying the ddagentuser
+// SeDeny*LogonRight assignments so operator customizations survive upgrades.
+func WithKeepUserRights(value string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.KeepUserRights = value
 		return nil
 	}
 }

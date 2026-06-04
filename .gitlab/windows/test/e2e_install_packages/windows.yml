@@ -57,6 +57,7 @@
       - E2E_MSI_TEST: TestAgentUser/hostname_user
       - E2E_MSI_TEST: TestAgentUser/LocalSystem
       - E2E_MSI_TEST: TestAgentUser/SYSTEM
+      - E2E_MSI_TEST: TestAgentUserKeepRights
       - E2E_MSI_TEST: TestInstallOpts
       - E2E_MSI_TEST: TestSubServicesOpts/all-subservices
       - E2E_MSI_TEST: TestSubServicesOpts/no-subservices

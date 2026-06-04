@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "os",
+    srcs = [
+        "const.go",
+        "descriptor.go",
+        "generic_packagemanager.go",
+        "linux.go",
+        "linux_descriptors.go",
+        "linux_disable_upgrades.go",
+        "linux_packagemanagers.go",
+        "linux_servicemanagers.go",
+        "linux_zypper_packagemanager.go",
+        "macos.go",
+        "macos_descriptors.go",
+        "macos_packagemanagers.go",
+        "macos_servicemanagers.go",
+        "os.go",
+        "windows.go",
+        "windows_descriptors.go",
+        "windows_packagemanagers.go",
+        "windows_servicemanagers.go",
+        "windows_setup_ssh.go",
+    ],
+    embedsrcs = [
+        "scripts/apt-disable-unattended-upgrades.sh",
+        "scripts/setup-ssh.ps1",
+        "scripts/ssh-allow-sftp-root.sh",
+        "scripts/zypper-disable-unattended-upgrades.sh",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/os",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common",
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/namer",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components/command",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

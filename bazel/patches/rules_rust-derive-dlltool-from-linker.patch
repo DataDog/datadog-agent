@@ -1,0 +1,35 @@
+diff --git a/rust/private/rustc.bzl b/rust/private/rustc.bzl
+index c8f6ecc9..c7319735 100644
+--- a/rust/private/rustc.bzl
++++ b/rust/private/rustc.bzl
+@@ -1158,6 +1158,30 @@ def construct_arguments(
+     # If linker_type is not explicitly set, infer from which linker is actually being used
+     ld_is_direct_driver = False
+ 
++    # rustc on Windows-GNU shells out to dlltool to synthesize import
++    # libraries -- both for #[link(... kind = "raw-dylib")] declarations
++    # in *any* crate (rlib included; windows-sys 0.61+ is the common case)
++    # and for the *.dll.a companion that cdylib crates emit alongside
++    # their .dll.  cc_toolchain has no action / tool slot for dlltool
++    # because gcc-as-linker invokes it internally -- but rustc drives the
++    # linker directly, so it needs an explicit pointer.
++    #
++    # Inject the derived path here, *outside* the link-emit gate below, so
++    # rlib compiles also see it.  Every MinGW distribution (winlibs, MSYS2
++    # mingw64, llvm-mingw) ships dlltool.exe next to the linker, so reuse
++    # the cc_toolchain's CPP_LINK_EXECUTABLE_ACTION_NAME tool path and
++    # swap the basename.  User-supplied `-Cdlltool=` via extra_rustc_flags
++    # is appended later and still wins because rustc honors the last
++    # `-C<key>=` for a given key.
++    if cc_toolchain and toolchain.target_os == "windows" and toolchain.target_abi != "msvc":
++        dlltool_linker = cc_common.get_tool_for_action(
++            feature_configuration = feature_configuration,
++            action_name = CPP_LINK_EXECUTABLE_ACTION_NAME,
++        )
++        dlltool_sep = max(dlltool_linker.rfind("/"), dlltool_linker.rfind("\\"))
++        if dlltool_sep >= 0:
++            rustc_flags.add(dlltool_linker[:dlltool_sep] + "/dlltool.exe", format = "--codegen=dlltool=%s")
++
+     # Link!
+     if ("link" in emit and crate_info.type not in ["rlib", "lib"]) or add_flags_for_binary:
+         # Rust's built-in linker can handle linking wasm files. We don't want to attempt to use the cc
