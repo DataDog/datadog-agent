@@ -1437,15 +1437,16 @@ def run_bazel(
     Returns:
        subprocess run result
     """
-    if not (resolved_bazel := shutil.which("bazel")):
+    resolved_bazel = shutil.which("bazel")
+    if not resolved_bazel:
         raise Exit(bazel_not_found_message("red"))
     cmd = [resolved_bazel] + list(args)
     if kwargs.get("verbose", True):
-        print(' '.join(cmd))
+        print(" ".join(cmd))
     # subprocess.run("printenv")
     return subprocess.run(
         cmd,
-        encoding='utf-8',
+        encoding="utf-8",
         capture_output=True,
         **kwargs,
     )
