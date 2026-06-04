@@ -211,7 +211,6 @@ go_library(
         "//pkg/ebpf/ksyms",
         "//pkg/ebpf/maps",
         "//pkg/ebpf/names",
-        "//pkg/process/util",
         "//pkg/remoteconfig/state",
         "//pkg/system-probe/config",
         "//pkg/util/archive",
