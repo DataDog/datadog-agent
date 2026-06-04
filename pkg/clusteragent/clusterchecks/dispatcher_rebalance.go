@@ -96,8 +96,7 @@ func (d *dispatcher) updateDiff(avg int) map[string]int {
 	return diffMap
 }
 
-// pickConfigToMove returns the digest of the heaviest config on the node,
-// with weight summed across the config's instances.
+// pickConfigToMove returns the digest of the heaviest config on the node
 func (d *dispatcher) pickConfigToMove(nodeName string) (string, int, error) {
 	d.store.RLock()
 	node, found := d.store.getNodeStore(nodeName)
@@ -380,7 +379,7 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	// Pin excluded configs to their current runner.
 	for digest, config := range currentConfigsDistribution.Configs {
 		if _, excluded := d.excludedChecksFromDispatching[config.CheckName]; excluded {
-			proposedDistribution.addConfig(digest, config.CheckName, config.WorkersNeeded, config.Runner)
+			proposedDistribution.addConfig(digest, config.CheckName, config.WorkersNeeded, config.NumInstances, config.Runner)
 		}
 	}
 
@@ -394,6 +393,7 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 			digest,
 			config.CheckName,
 			config.WorkersNeeded,
+			config.NumInstances,
 			config.Runner,
 			"",
 		)
@@ -452,7 +452,7 @@ func (d *dispatcher) currentDistribution() configsDistribution {
 				log.Debugf("No config registered for digest %s on node %s; skipping in distribution", digest, nodeName)
 				continue
 			}
-			distribution.addConfig(digest, conf.Name, agg.WorkersNeeded, nodeName)
+			distribution.addConfig(digest, conf.Name, agg.WorkersNeeded, agg.NumInstances, nodeName)
 		}
 		nodeStoreInfo.RUnlock()
 	}

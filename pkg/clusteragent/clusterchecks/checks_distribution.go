@@ -10,25 +10,22 @@ package clusterchecks
 import (
 	"math"
 	"sort"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ConfigStatus is one config's entry in a distribution.
 // WorkersNeeded is summed across the config's instances.
 type ConfigStatus struct {
 	WorkersNeeded float64
+	NumInstances  int
 	Runner        string
 	CheckName     string
 }
 
 // RunnerStatus represents the status of a check runner
 type RunnerStatus struct {
-	Workers     int
-	WorkersUsed float64
-	// Note: this is different from the number of configs
-	// because a config can contain multiple check instances
-	NumChecks int
+	Workers      int
+	WorkersUsed  float64
+	NumInstances int
 }
 
 func (ns RunnerStatus) utilization() float64 {
@@ -50,9 +47,9 @@ func newConfigsDistribution(workersPerRunner map[string]int) configsDistribution
 	runners := map[string]*RunnerStatus{}
 	for runnerName, runnerWorkers := range workersPerRunner {
 		runners[runnerName] = &RunnerStatus{
-			Workers:     runnerWorkers,
-			WorkersUsed: 0.0,
-			NumChecks:   0,
+			Workers:      runnerWorkers,
+			WorkersUsed:  0.0,
+			NumInstances: 0,
 		}
 	}
 
@@ -65,12 +62,12 @@ func newConfigsDistribution(workersPerRunner map[string]int) configsDistribution
 // leastBusyRunner returns the runner with the lowest utilization. If there are
 // several options, it gives preference to preferredRunner. If preferredRunner
 // is not among the runners with the lowest utilization, it gives precedence to
-// the runner with the lowest number of configs deployed. excludeRunner can be
-// set to avoid assigning a config to a specific runner.
+// the runner running the fewest check instances. excludeRunner can be set to
+// avoid assigning a config to a specific runner.
 func (distribution *configsDistribution) leastBusyRunner(preferredRunner string, excludeRunner string) string {
 	leastBusyRunner := ""
 	minUtilization := 0.0
-	numChecksLeastBusyRunner := 0
+	leastBusyNumInstances := 0
 
 	for runnerName, runnerStatus := range distribution.Runners {
 		if runnerName == excludeRunner {
@@ -78,63 +75,47 @@ func (distribution *configsDistribution) leastBusyRunner(preferredRunner string,
 		}
 
 		runnerUtilization := runnerStatus.utilization()
-		runnerNumChecks := runnerStatus.NumChecks
+		runnerNumInstances := runnerStatus.NumInstances
 
 		selectRunner := (leastBusyRunner == "") ||
 			(runnerUtilization < minUtilization) ||
 			(runnerUtilization == minUtilization && runnerName == preferredRunner) ||
-			(runnerUtilization == minUtilization && leastBusyRunner != preferredRunner && runnerNumChecks < numChecksLeastBusyRunner)
+			(runnerUtilization == minUtilization && leastBusyRunner != preferredRunner && runnerNumInstances < leastBusyNumInstances)
 
 		if selectRunner {
 			leastBusyRunner = runnerName
 			minUtilization = runnerUtilization
-			numChecksLeastBusyRunner = runnerNumChecks
+			leastBusyNumInstances = runnerNumInstances
 		}
 	}
 
 	return leastBusyRunner
 }
 
-func (distribution *configsDistribution) addToLeastBusy(digest, checkName string, workersNeeded float64, preferredRunner string, excludeRunner string) {
+func (distribution *configsDistribution) addToLeastBusy(digest, checkName string, workersNeeded float64, numInstances int, preferredRunner string, excludeRunner string) {
 	leastBusy := distribution.leastBusyRunner(preferredRunner, excludeRunner)
 	if leastBusy == "" {
 		return
 	}
 
-	distribution.addConfig(digest, checkName, workersNeeded, leastBusy)
+	distribution.addConfig(digest, checkName, workersNeeded, numInstances, leastBusy)
 }
 
-func (distribution *configsDistribution) addConfig(digest, checkName string, workersNeeded float64, runner string) {
-	// Initialize the runner and attribute work
+func (distribution *configsDistribution) addConfig(digest, checkName string, workersNeeded float64, numInstances int, runner string) {
 	runnerInfo, runnerExists := distribution.Runners[runner]
 	if !runnerExists {
 		runnerInfo = &RunnerStatus{}
 		distribution.Runners[runner] = runnerInfo
 	}
 	runnerInfo.WorkersUsed += workersNeeded
-	runnerInfo.NumChecks++
+	runnerInfo.NumInstances += numInstances
 
-	// Initialize the config and attribute work
-	configInfo, configExists := distribution.Configs[digest]
-	if !configExists {
-		configInfo = &ConfigStatus{
-			Runner:    runner,
-			CheckName: checkName,
-		}
-		distribution.Configs[digest] = configInfo
+	distribution.Configs[digest] = &ConfigStatus{
+		WorkersNeeded: workersNeeded,
+		NumInstances:  numInstances,
+		Runner:        runner,
+		CheckName:     checkName,
 	}
-
-	// Prioritize the new assigned runner over the existing one
-	// Note: this edge case should never happen in practice
-	if configInfo.Runner != runner {
-		log.Warnf("digest %s already placed on runner %q, but received conflicting assignment to %q",
-			digest, configInfo.Runner, runner)
-		distribution.Runners[configInfo.Runner].WorkersUsed -= configInfo.WorkersNeeded
-		runnerInfo.WorkersUsed += configInfo.WorkersNeeded
-		configInfo.Runner = runner
-	}
-
-	configInfo.WorkersNeeded += workersNeeded
 }
 
 func (distribution *configsDistribution) runnerWorkers() map[string]int {
@@ -196,7 +177,7 @@ func (distribution *configsDistribution) configsSortedByWorkersNeeded() []string
 func (distribution *configsDistribution) numEmptyRunners() int {
 	empty := 0
 	for _, runnerStatus := range distribution.Runners {
-		if runnerStatus.NumChecks == 0 {
+		if runnerStatus.NumInstances == 0 {
 			empty++
 		}
 	}

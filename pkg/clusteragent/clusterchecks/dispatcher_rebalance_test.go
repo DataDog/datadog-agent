@@ -1895,25 +1895,25 @@ func TestRebalanceIsWorthIt(t *testing.T) {
 	// The proposed solution is worth it if it leaves less unused runners
 
 	currentDistribution := newConfigsDistribution(workersPerRunner)
-	currentDistribution.addConfig("check1", "check1", 1, "runner1")
-	currentDistribution.addConfig("check2", "check2", 1, "runner1")
+	currentDistribution.addConfig("check1", "check1", 1, 1, "runner1")
+	currentDistribution.addConfig("check2", "check2", 1, 1, "runner1")
 
 	proposedDistribution := newConfigsDistribution(workersPerRunner)
-	proposedDistribution.addConfig("check1", "check1", 1, "runner1")
-	proposedDistribution.addConfig("check2", "check2", 1, "runner2")
+	proposedDistribution.addConfig("check1", "check1", 1, 1, "runner1")
+	proposedDistribution.addConfig("check2", "check2", 1, 1, "runner2")
 
 	assert.True(t, rebalanceIsWorthIt(currentDistribution, proposedDistribution, 10))
 
 	// The proposed	solution is worth it if it has fewer runners with a high utilization
 	currentDistribution = newConfigsDistribution(workersPerRunner)
-	currentDistribution.addConfig("check1", "check1", 1, "runner1")
-	currentDistribution.addConfig("check2", "check2", 1, "runner1")
-	currentDistribution.addConfig("check3", "check3", 1, "runner1")
+	currentDistribution.addConfig("check1", "check1", 1, 1, "runner1")
+	currentDistribution.addConfig("check2", "check2", 1, 1, "runner1")
+	currentDistribution.addConfig("check3", "check3", 1, 1, "runner1")
 
 	proposedDistribution = newConfigsDistribution(workersPerRunner)
-	proposedDistribution.addConfig("check1", "check1", 1, "runner1")
-	proposedDistribution.addConfig("check2", "check2", 1, "runner2")
-	proposedDistribution.addConfig("check3", "check3", 1, "runner3")
+	proposedDistribution.addConfig("check1", "check1", 1, 1, "runner1")
+	proposedDistribution.addConfig("check2", "check2", 1, 1, "runner2")
+	proposedDistribution.addConfig("check3", "check3", 1, 1, "runner3")
 
 	assert.True(t, rebalanceIsWorthIt(currentDistribution, proposedDistribution, 10))
 }
