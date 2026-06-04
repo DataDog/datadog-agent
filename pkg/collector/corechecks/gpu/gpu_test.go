@@ -459,14 +459,71 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	assertCollectors(check.collectors)
 }
 
+func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
+	mockSender := mocksender.NewMockSender("gpu")
+	mockSender.SetupAcceptAll()
+
+	check := newConfiguredGPUCheck(
+		t,
+		taggerfxmock.SetupFakeTagger(t),
+		testutil.GetWorkloadMetaMock(t),
+		mocksender.CreateDefaultDemultiplexer(),
+		nil,
+	)
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithMockAllFunctions(),
+		testutil.WithDeviceCount(1),
+		testutil.WithMIGDisabled(),
+	)
+	ddnvml.WithMockNVML(t, nvmlMock)
+
+	const collectorCount = 3
+	deviceUUID := testutil.GPUUUIDs[0]
+	allStarted := make(chan struct{})
+	started := atomic.Int32{}
+	check.collectors = make([]nvidia.Collector, 0, collectorCount)
+	for i := range collectorCount {
+		collectorName := nvidia.CollectorName(fmt.Sprintf("parallel-%d", i))
+		metricName := fmt.Sprintf("parallel.metric%d", i)
+		metricValue := float64(i)
+		check.collectors = append(check.collectors, &mockCollector{
+			name:       collectorName,
+			deviceUUID: deviceUUID,
+			collectFunc: func() ([]*nvidia.Metric, error) {
+				if started.Add(1) == collectorCount {
+					close(allStarted)
+				}
+
+				select {
+				case <-allStarted:
+				case <-time.After(time.Second):
+					return nil, fmt.Errorf("collector %s timed out waiting for other collectors", collectorName)
+				}
+
+				return []*nvidia.Metric{
+					{Name: metricName, Value: metricValue, Type: ddmetrics.GaugeType},
+				}, nil
+			},
+		})
+	}
+
+	require.NoError(t, check.deviceCache.Refresh())
+	require.NoError(t, check.emitMetrics(mockSender, nil, time.Now()))
+	require.Equal(t, int32(collectorCount), started.Load())
+}
+
 // mockCollector implements the nvidia.Collector interface for testing
 type mockCollector struct {
-	name       nvidia.CollectorName
-	deviceUUID string
-	metrics    []*nvidia.Metric
+	name        nvidia.CollectorName
+	deviceUUID  string
+	metrics     []*nvidia.Metric
+	collectFunc func() ([]*nvidia.Metric, error)
 }
 
 func (m *mockCollector) Collect() ([]*nvidia.Metric, error) {
+	if m.collectFunc != nil {
+		return m.collectFunc()
+	}
 	return m.metrics, nil
 }
 

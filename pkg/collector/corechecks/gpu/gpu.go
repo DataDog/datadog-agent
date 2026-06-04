@@ -11,6 +11,7 @@ package gpu
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -349,6 +350,14 @@ type deviceMetricsCollection struct {
 	totalCount       int                                       // total number of metrics across all collectors
 }
 
+type collectorMetricsCollection struct {
+	name       nvidia.CollectorName
+	deviceUUID string
+	metrics    []*nvidia.Metric
+	err        error
+	duration   time.Duration
+}
+
 func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container, currentExecutionTime time.Time) error {
 	err := c.ensureInitCollectors()
 	if err != nil {
@@ -358,30 +367,26 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 	perDeviceMetrics := make(map[string]*deviceMetricsCollection)
 
 	var multiErr []error
-	for _, collector := range c.collectors {
-		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
-		startTime := time.Now()
-		metrics, collectErr := collector.Collect()
-		collectTime := time.Since(startTime)
-		c.telemetry.collectorTelemetry.Time.Observe(float64(collectTime.Milliseconds()), string(collector.Name()))
+	for _, collectorResult := range collectMetrics(c.collectors) {
+		c.telemetry.collectorTelemetry.Time.Observe(float64(collectorResult.duration.Milliseconds()), string(collectorResult.name))
 
-		if collectErr != nil {
-			c.telemetry.collectorTelemetry.CollectionErrors.Add(1, string(collector.Name()))
-			multiErr = append(multiErr, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
+		if collectorResult.err != nil {
+			c.telemetry.collectorTelemetry.CollectionErrors.Add(1, string(collectorResult.name))
+			multiErr = append(multiErr, fmt.Errorf("collector %s failed. %w", collectorResult.name, collectorResult.err))
 		}
 
-		if len(metrics) > 0 {
-			deviceUUID := collector.DeviceUUID()
+		if len(collectorResult.metrics) > 0 {
+			deviceUUID := collectorResult.deviceUUID
 			if perDeviceMetrics[deviceUUID] == nil {
 				perDeviceMetrics[deviceUUID] = &deviceMetricsCollection{
 					collectorMetrics: make(map[nvidia.CollectorName][]*nvidia.Metric),
 				}
 			}
-			perDeviceMetrics[deviceUUID].collectorMetrics[collector.Name()] = metrics
-			perDeviceMetrics[deviceUUID].totalCount += len(metrics)
+			perDeviceMetrics[deviceUUID].collectorMetrics[collectorResult.name] = collectorResult.metrics
+			perDeviceMetrics[deviceUUID].totalCount += len(collectorResult.metrics)
 		}
 
-		c.telemetry.metrics.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
+		c.telemetry.metrics.metricsSent.Add(float64(len(collectorResult.metrics)), string(collectorResult.name))
 	}
 
 	//iterate through devices to emit its metrics
@@ -403,6 +408,34 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 	}
 
 	return errors.Join(multiErr...)
+}
+
+func collectMetrics(collectors []nvidia.Collector) []collectorMetricsCollection {
+	results := make([]collectorMetricsCollection, len(collectors))
+
+	var wg sync.WaitGroup
+	wg.Add(len(collectors))
+	for i, collector := range collectors {
+		go func(i int, collector nvidia.Collector) {
+			defer wg.Done()
+
+			name := collector.Name()
+			log.Debugf("Collecting metrics from NVML collector: %s", name)
+
+			startTime := time.Now()
+			metrics, err := collector.Collect()
+			results[i] = collectorMetricsCollection{
+				name:       name,
+				deviceUUID: collector.DeviceUUID(),
+				metrics:    metrics,
+				err:        err,
+				duration:   time.Since(startTime),
+			}
+		}(i, collector)
+	}
+	wg.Wait()
+
+	return results
 }
 
 func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, currentExecutionTime time.Time, deviceContainers []*workloadmeta.Container, deviceTags []string) error {
