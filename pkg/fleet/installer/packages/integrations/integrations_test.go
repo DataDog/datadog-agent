@@ -15,6 +15,67 @@ import (
 	"testing"
 )
 
+func TestMigrateLegacyOCIBaseline(t *testing.T) {
+	const legacyContent = "datadog-checks-base==1.0.0\ndatadog-ping==1.0.2\n"
+
+	t.Run("legacy baseline is migrated to storage when absent", func(t *testing.T) {
+		legacyDir := t.TempDir()
+		storageDir := filepath.Join(t.TempDir(), "run") // not yet created
+		if err := os.WriteFile(filepath.Join(legacyDir, baselineFileName), []byte(legacyContent), 0o644); err != nil {
+			t.Fatalf("failed to seed legacy baseline: %v", err)
+		}
+
+		if err := migrateLegacyOCIBaseline(legacyDir, storageDir); err != nil {
+			t.Fatalf("migrateLegacyOCIBaseline failed: %v", err)
+		}
+
+		got, err := os.ReadFile(filepath.Join(storageDir, baselineFileName))
+		if err != nil {
+			t.Fatalf("expected baseline at storage dir: %v", err)
+		}
+		if string(got) != legacyContent {
+			t.Errorf("baseline content mismatch: got %q want %q", got, legacyContent)
+		}
+	})
+
+	t.Run("existing storage baseline is not clobbered", func(t *testing.T) {
+		legacyDir := t.TempDir()
+		storageDir := t.TempDir()
+		const newContent = "datadog-checks-base==2.0.0\n"
+		if err := os.WriteFile(filepath.Join(legacyDir, baselineFileName), []byte(legacyContent), 0o644); err != nil {
+			t.Fatalf("failed to seed legacy baseline: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(storageDir, baselineFileName), []byte(newContent), 0o644); err != nil {
+			t.Fatalf("failed to seed storage baseline: %v", err)
+		}
+
+		if err := migrateLegacyOCIBaseline(legacyDir, storageDir); err != nil {
+			t.Fatalf("migrateLegacyOCIBaseline failed: %v", err)
+		}
+
+		got, err := os.ReadFile(filepath.Join(storageDir, baselineFileName))
+		if err != nil {
+			t.Fatalf("expected baseline at storage dir: %v", err)
+		}
+		if string(got) != newContent {
+			t.Errorf("storage baseline was overwritten: got %q want %q", got, newContent)
+		}
+	})
+
+	t.Run("no legacy baseline is a no-op", func(t *testing.T) {
+		legacyDir := t.TempDir()
+		storageDir := t.TempDir()
+
+		if err := migrateLegacyOCIBaseline(legacyDir, storageDir); err != nil {
+			t.Fatalf("migrateLegacyOCIBaseline failed: %v", err)
+		}
+
+		if _, err := os.Stat(filepath.Join(storageDir, baselineFileName)); !os.IsNotExist(err) {
+			t.Errorf("expected no baseline to be created, got err=%v", err)
+		}
+	})
+}
+
 func TestRemoveCustomIntegrations(t *testing.T) {
 	dir := t.TempDir()
 

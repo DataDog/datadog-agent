@@ -24,6 +24,10 @@ var (
 	datadogInstalledIntegrationsPattern = regexp.MustCompile(`embedded/lib/python[^/]+/site-packages/datadog_.*`)
 )
 
+// baselineFileName is the integration baseline written by post.py and read by
+// pre.py to compute the set of custom integrations to restore across upgrades.
+const baselineFileName = ".post_python_installed_packages.txt"
+
 // executePythonScript executes a Python script with the given arguments
 func executePythonScript(ctx context.Context, installPath, scriptName string, args ...string) error {
 	pythonPath := filepath.Join(installPath, "embedded/bin/python")
@@ -56,7 +60,49 @@ func SaveCustomIntegrations(ctx context.Context, installPath string, storagePath
 	defer func() {
 		span.Finish(err)
 	}()
+	// Backward-compat for OCI Agents installed before the baseline moved to RunPath:
+	// the pre.py that runs during an upgrade comes from the currently-installed (old)
+	// package, and only OCI uses a storage path distinct from the install dir.
+	if storagePath == paths.RunPath {
+		if err := migrateLegacyOCIBaseline(paths.RootTmpDir, storagePath); err != nil {
+			return err
+		}
+	}
 	return executePythonScript(ctx, installPath, "pre.py", installPath, storagePath)
+}
+
+// migrateLegacyOCIBaseline copies the integration baseline from the legacy OCI
+// location to the current storage path when upgrading an OCI Agent installed
+// before the baseline moved to the persistent RunPath.
+//
+// The pre.py executed during an upgrade is the currently-installed (old) script,
+// and those older versions only look in the storage argument and the install dir,
+// never the legacy tmp location. Without this migration the old script misses the
+// baseline it wrote there, the diff is lost, and RemoveCustomIntegrations then
+// strips the user's custom integrations on the very upgrade meant to migrate them.
+// Seeding the baseline at storageDir also lands the old script's diff there, where
+// the new post.py expects to read it.
+func migrateLegacyOCIBaseline(legacyDir, storageDir string) error {
+	dst := filepath.Join(storageDir, baselineFileName)
+	if _, err := os.Stat(dst); err == nil {
+		return nil // Already at the persistent location; don't clobber a newer baseline.
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to stat baseline at %s: %w", dst, err)
+	}
+	data, err := os.ReadFile(filepath.Join(legacyDir, baselineFileName))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // No legacy baseline: first install or already migrated.
+		}
+		return fmt.Errorf("failed to read legacy baseline: %w", err)
+	}
+	if err := os.MkdirAll(storageDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create storage dir %s: %w", storageDir, err)
+	}
+	if err := os.WriteFile(dst, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write baseline to %s: %w", dst, err)
+	}
+	return nil
 }
 
 // RestoreCustomIntegrations restores custom integrations from the previous installation
