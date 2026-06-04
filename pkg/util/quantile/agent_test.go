@@ -7,6 +7,7 @@ package quantile
 
 import (
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/stretchr/testify/require"
@@ -195,28 +196,55 @@ func TestAgentInterpolation(t *testing.T) {
 // InsertInterpolate. Before bounds were enforced, an upper bound large enough
 // to saturate key() at uvinf made the loop counter (int16 Key) overflow when
 // incremented past 32767, producing an unbounded slice and an effectively
-// infinite loop. Each subtest must complete in well under the test timeout.
+// infinite loop. Each case must complete in well under the watchdog budget.
 func TestAgentInterpolationBoundedKeys(t *testing.T) {
-	t.Run("saturating upper bound terminates", func(t *testing.T) {
-		a := &Agent{}
-		// 1e300 is finite but large enough that key(1e300) saturates at uvinf.
-		// The pre-fix code would loop forever here.
-		err := a.InsertInterpolate(1, 1e300, 10)
-		require.NoError(t, err)
-		require.Equal(t, int64(10), a.Sketch.Basic.Cnt)
-	})
+	// 1e300 is finite but large enough that agentConfig.key(±1e300) saturates
+	// at ±uvinf. The pre-fix code would loop forever on these inputs.
+	const (
+		bigPos = 1e300
+		bigNeg = -1e300
+	)
 
-	t.Run("non-monotonic bounds return error", func(t *testing.T) {
-		a := &Agent{}
-		err := a.InsertInterpolate(100, 1, 5)
-		require.Error(t, err)
-		require.Equal(t, ErrNonMonotonicBoundaries, err.Error())
-	})
+	cases := []struct {
+		name    string
+		lower   float64
+		upper   float64
+		count   uint
+		wantErr string // empty = no error expected
+		wantCnt int64  // only checked when wantErr is empty
+	}{
+		{name: "saturating upper bound", lower: 1, upper: bigPos, count: 10, wantCnt: 10},
+		{name: "saturating both bounds", lower: bigNeg, upper: bigPos, count: 100, wantCnt: 100},
+		{name: "saturating lower bound only", lower: bigNeg, upper: 1, count: 50, wantCnt: 50},
+		{name: "non-monotonic bounds", lower: 100, upper: 1, count: 5, wantErr: ErrNonMonotonicBoundaries},
+		{name: "equal bounds", lower: 42, upper: 42, count: 7, wantCnt: 7},
+		{name: "zero count", lower: 1, upper: 100, count: 0, wantCnt: 0},
+	}
 
-	t.Run("equal bounds yield single key", func(t *testing.T) {
-		a := &Agent{}
-		err := a.InsertInterpolate(42, 42, 7)
-		require.NoError(t, err)
-		require.Equal(t, int64(7), a.Sketch.Basic.Cnt)
-	})
+	// Generous budget; a correctly bounded call iterates at most ~65535 keys.
+	const budget = 5 * time.Second
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			a := &Agent{}
+
+			done := make(chan error, 1)
+			go func() {
+				done <- a.InsertInterpolate(tt.lower, tt.upper, tt.count)
+			}()
+
+			select {
+			case err := <-done:
+				if tt.wantErr != "" {
+					require.EqualError(t, err, tt.wantErr)
+					return
+				}
+				require.NoError(t, err)
+				require.Equal(t, tt.wantCnt, a.Sketch.Basic.Cnt)
+			case <-time.After(budget):
+				t.Fatalf("InsertInterpolate(%v, %v, %d) did not complete within %v",
+					tt.lower, tt.upper, tt.count, budget)
+			}
+		})
+	}
 }

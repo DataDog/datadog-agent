@@ -10,20 +10,12 @@ import "errors"
 
 const (
 	agentBufCap = 512
-
-	// maxInterpolateKeys caps the number of keys an InsertInterpolate call may
-	// allocate. It matches the full Key (int16) range [-uvinf, uvinf] so any
-	// legitimate input is accepted while pathological inputs (where key(upper)
-	// saturates at uvinf) can no longer drive an unbounded loop.
-	maxInterpolateKeys = 2*uvinf + 1
 )
 
 var (
 	agentConfig = Default()
 	// ErrNonMonotonicBoundaries is returned when the boundaries of an explicit bucket histogram are not monotonic.
 	ErrNonMonotonicBoundaries = "explicit bucket histogram: non-monotonic boundaries"
-	// ErrKeyRangeTooLarge is returned when the interpolation key range exceeds the maximum Key space.
-	ErrKeyRangeTooLarge = "explicit bucket histogram: interpolation key range too large"
 )
 
 // An Agent sketch is an insert optimized version of the sketch for use in the
@@ -106,9 +98,6 @@ func (a *Agent) InsertInterpolate(lower float64, upper float64, count uint) erro
 	n := end - start + 1
 	if n <= 0 {
 		return errors.New(ErrNonMonotonicBoundaries)
-	}
-	if n > maxInterpolateKeys {
-		return errors.New(ErrKeyRangeTooLarge)
 	}
 	keys := make([]Key, 0, n)
 	for k := start; k <= end; k++ {
