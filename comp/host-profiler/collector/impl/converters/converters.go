@@ -67,11 +67,13 @@ const (
 
 // Configuration field names used multiple times
 const (
-	fieldDDAPIKey           = "dd-api-key"
-	fieldDDEVPOrigin        = "dd-evp-origin"
-	fieldDDEVPOriginVersion = "dd-evp-origin-version"
-	fieldAPIKey             = "api_key"
-	fieldAppKey             = "app_key"
+	fieldDDAPIKey                = "dd-api-key"
+	fieldDDEVPOrigin             = "dd-evp-origin"
+	fieldDDEVPOriginVersion      = "dd-evp-origin-version"
+	fieldDDOtelMetricConfig      = "dd-otel-metric-config"
+	fieldDDOtelMetricConfigValue = `{"resource_attributes_as_tags": true}`
+	fieldAPIKey                  = "api_key"
+	fieldAppKey                  = "app_key"
 )
 
 // OTEL config path prefixes
