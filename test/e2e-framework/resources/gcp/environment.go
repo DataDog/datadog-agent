@@ -22,6 +22,12 @@ const (
 	gcpConfigNamespace = "gcp"
 	gcpNamerNamespace  = "gcp"
 
+	// MaxResourceLabelValueLen is the maximum length allowed by GCP for a
+	// resource label value (in bytes). Values longer than this are rejected
+	// by the API with `Resource_labels.value must be less than 63 bytes`.
+	// See https://cloud.google.com/resource-manager/docs/labels-overview.
+	MaxResourceLabelValueLen = 63
+
 	// GCP Infra
 	DDInfraDefaultPublicKeyPath            = "gcp/defaultPublicKeyPath"
 	DDInfraDefaultPrivateKeyPath           = "gcp/defaultPrivateKeyPath"
@@ -69,7 +75,11 @@ func NewEnvironment(ctx *pulumi.Context) (Environment, error) {
 	defaultLabels := env.ResourcesTags()
 	defaultLabels = defaultLabels.ToStringMapOutput().ApplyT(func(labels map[string]string) map[string]string {
 		for k, v := range labels {
-			labels[k] = strings.ReplaceAll(strings.ToLower(v), ".", "-")
+			v = strings.ReplaceAll(strings.ToLower(v), ".", "-")
+			if len(v) > MaxResourceLabelValueLen {
+				v = v[:MaxResourceLabelValueLen]
+			}
+			labels[k] = v
 		}
 		return labels
 	}).(pulumi.StringMapOutput)
