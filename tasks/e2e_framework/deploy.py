@@ -89,6 +89,43 @@ def deploy(
 
     flags["ddagent:pipeline_id"] = "" if pipeline_id is None else pipeline_id
 
+    # Configure SSH keys for the different cloud providers
+    privateKeyPassword = cfg.get_aws().privateKeyPassword
+    if privateKeyPassword is not None:
+        flags["ddinfra:aws/defaultPrivateKeyPassword"] = privateKeyPassword
+
+    privateKeyPassword = cfg.get_azure().privateKeyPassword
+    if privateKeyPassword is not None:
+        flags["ddinfra:az/defaultPrivateKeyPassword"] = privateKeyPassword
+
+    privateKeyPassword = cfg.get_gcp().privateKeyPassword
+    if privateKeyPassword is not None:
+        flags["ddinfra:gcp/defaultPrivateKeyPassword"] = privateKeyPassword
+
+    privateKeyPath = cfg.get_azure().privateKeyPath
+    if privateKeyPath is not None:
+        flags["ddinfra:az/defaultPrivateKeyPath"] = privateKeyPath
+
+    privateKeyPath = cfg.get_gcp().privateKeyPath
+    if privateKeyPath is not None:
+        flags["ddinfra:gcp/defaultPrivateKeyPath"] = privateKeyPath
+
+    privateKeyPath = cfg.get_aws().privateKeyPath
+    if privateKeyPath is not None:
+        flags["ddinfra:aws/defaultPrivateKeyPath"] = privateKeyPath
+
+    publicKeyPath = cfg.get_aws().publicKeyPath
+    if publicKeyPath is not None:
+        flags["ddinfra:aws/defaultPublicKeyPath"] = publicKeyPath
+
+    publicKeyPath = cfg.get_azure().publicKeyPath
+    if publicKeyPath is not None:
+        flags["ddinfra:az/defaultPublicKeyPath"] = publicKeyPath
+
+    publicKeyPath = cfg.get_gcp().publicKeyPath
+    if publicKeyPath is not None:
+        flags["ddinfra:gcp/defaultPublicKeyPath"] = publicKeyPath
+
     if pipeline_id:
         commit_sha = get_pipeline_commit_sha(pipeline_id)
         if commit_sha:

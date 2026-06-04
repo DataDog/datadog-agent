@@ -3,9 +3,12 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "remote",
     srcs = [
+        "cmd.go",
+        "fake_server.go",
         "interfaces.go",
+        "retry.go",
+        "scp.go",
         "ssh.go",
-        "test_utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote",
     visibility = ["//visibility:public"],
@@ -20,11 +23,16 @@ go_library(
 
 go_test(
     name = "remote_test",
-    srcs = ["ssh_test.go"],
+    srcs = [
+        "cmd_test.go",
+        "retry_test.go",
+        "ssh_test.go",
+    ],
     embed = [":remote"],
     gotags = ["test"],
     deps = [
         "//pkg/networkconfigmanagement/config",
+        "//pkg/networkconfigmanagement/profile",
         "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
