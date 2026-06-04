@@ -87,6 +87,8 @@ build do
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
+  # TEMP: DO NOT SUBMIT. Run some tests to ensure that we cache between runs in mixed dda/bazel jobs.
+  command_on_repo_root "bazelisk test #{bazel_flags} -- //pkg/util/log --verbose", :live_stream => Omnibus.logger.live_stream(:info)
   command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/agent/product:post_build_install --destdir=#{install_dir} --verbose", :live_stream => Omnibus.logger.live_stream(:info)
 
   # TODO: dda inv agent.build also builds datadog.yaml. We need to work with the
