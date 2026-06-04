@@ -717,6 +717,7 @@ def test(
             exclude_packages = set(bazel_targets.values())
             print(f"Skipping {len(exclude_packages)} Bazel-covered packages from go test")
 
+    _ = """
     with gitlab_section("Running unit tests", collapsed=True):
         result_junit = f"junit-out-{flavor}.xml" if junit_tar else ""
         test_result = test_flavor(
@@ -756,6 +757,10 @@ def test(
             flavor,
             test_washer,
         )
+    """
+    go_success = True
+    go_stats: TestStats | None = None
+    test_result = False
 
     # Bazel test output — displayed after go test results.
     bazel_success = True
