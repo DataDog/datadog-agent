@@ -115,7 +115,7 @@ process_config:
 	assert.Equal(t, map[string]interface{}{
 		"api_key": "0987654321",
 		"process_config": map[string]interface{}{
-			"expvar_port":          6063,                                      // pre-existing key preserved
+			"expvar_port":          6063,                                     // pre-existing key preserved
 			"container_collection": map[string]interface{}{"enabled": false}, // pre-existing subkey preserved
 			"process_collection":   map[string]interface{}{"enabled": true},  // newly added
 		},
