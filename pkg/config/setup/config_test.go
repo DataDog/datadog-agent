@@ -77,6 +77,22 @@ func TestDefaults(t *testing.T) {
 	assert.True(t, config.GetBool("process_manager.enabled"))
 }
 
+func TestRelativePathResolvedByDefault(t *testing.T) {
+	config := newTestConf(t)
+
+	// Defaults expressed with the ${...}/ relative-path notation must be resolved
+	// to concrete paths once the schema is built. If resolution were not enabled by
+	// default, these settings would still contain the literal ${...} token.
+	logFile := config.GetString("log_file")
+	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultLogPath(), "agent.log"), logFile)
+	assert.NotContains(t, logFile, "${", "relative path was not resolved")
+
+	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultLogPath(), "jmxfetch.log"), config.GetString("jmx_log_file"))
+	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultConfPath(), "conf.d"), config.GetString("confd_path"))
+	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultConfPath(), "checks.d"), config.GetString("additional_checksd"))
+	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultRunPath(), "sbom-agent"), config.GetString("sbom.cache_directory"))
+}
+
 func TestProcessManagerEnabledEnvOverride(t *testing.T) {
 	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "false")
 	cfg := newTestConf(t)
