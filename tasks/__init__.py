@@ -11,6 +11,7 @@ from tasks import (
     agent,
     agent_ci_api,
     ami,
+    anomalydetection,
     auth,
     bench,
     buildimages,
@@ -89,7 +90,7 @@ from tasks import (
     windows_dev_env,
     worktree,
 )
-from tasks.build_tags import audit_tag_impact, print_default_build_tags
+from tasks.build_tags import audit_tag_impact, codegen_to_json, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.custom_task.custom_task import custom__call__
 
@@ -167,6 +168,7 @@ ns.add_task(show_linters_issues)
 ns.add_task(go_version)
 ns.add_task(update_go)
 ns.add_task(audit_tag_impact)
+ns.add_task(codegen_to_json)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
 ns.add_task(install_shellcheck)
@@ -195,6 +197,7 @@ ns.add_task(build_and_upload_fuzz)
 # To deprecate
 ns.add_task(lint_go)
 # add namespaced tasks to the root
+ns.add_collection(anomalydetection)
 ns.add_collection(auth)
 ns.add_collection(agent)
 ns.add_collection(ami)

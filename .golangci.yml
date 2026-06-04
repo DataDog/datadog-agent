@@ -51,6 +51,12 @@ linters:
               desc: "use the std maps package instead (Keys/Values need slices.Collect wrapping)"
             - pkg: "github.com/aws/aws-sdk-go/"
               desc: "use the v2 sdk instead"
+            - pkg: "github.com/golang/mock"
+              desc: "archived and unmaintained; use go.uber.org/mock instead (maintained fork, same API)"
+            - pkg: "github.com/imdario/mergo"
+              desc: "archived; use dario.cat/mergo instead (same author, same API)"
+            - pkg: "golang.org/x/xerrors"
+              desc: "superseded by stdlib since Go 1.13; use errors.New, fmt.Errorf with %w, or errors.Is/As instead"
         multierror:
           files:
             - $all
@@ -70,12 +76,13 @@ linters:
             # Treat this list as a TODO for fixing issues with pkgconfigusage rule
             # DO NOT ADD NEW ENTRIES
             - "!**/comp/api/api/apiimpl/listener/common.go"
-            - "!**/comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go"
-            - "!**/comp/core/autodiscovery/autodiscoveryimpl/autoconfig_test.go"
-            - "!**/comp/core/autodiscovery/autodiscoveryimpl/secrets.go"
+            - "!**/comp/core/autodiscovery/impl/autoconfig.go"
+            - "!**/comp/core/autodiscovery/impl/autoconfig_test.go"
+            - "!**/comp/core/autodiscovery/impl/secrets.go"
             - "!**/comp/core/autodiscovery/common/utils/container_collect_all.go"
             - "!**/comp/core/autodiscovery/common/utils/prometheus.go"
-            - "!**/comp/core/autodiscovery/component.go"
+            - "!**/comp/core/autodiscovery/def/component.go"
+            - "!**/comp/core/autodiscovery/mock/mock.go"
             - "!**/comp/core/autodiscovery/configresolver/configresolver.go"
             - "!**/comp/core/autodiscovery/listeners/common.go"
             - "!**/comp/core/autodiscovery/listeners/container.go"
@@ -150,6 +157,8 @@ linters:
             - "!**/comp/forwarder/connectionsforwarder/impl/connectionsforwarder.go"
             - "!**/comp/forwarder/defaultforwarder/blocked_endpoints.go"
             - "!**/comp/forwarder/defaultforwarder/default_forwarder.go"
+            - "!**/comp/forwarder/defaultforwarder/impl/blocked_endpoints.go"
+            - "!**/comp/forwarder/defaultforwarder/impl/default_forwarder.go"
             - "!**/comp/forwarder/eventplatform/impl/epforwarder.go"
             - "!**/comp/logs-library/pipeline/provider.go"
             - "!**/comp/logs-library/pipeline/provider_test.go"

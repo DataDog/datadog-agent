@@ -9,8 +9,10 @@
 package probe
 
 import (
+	"net"
 	"testing"
 
+	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -26,6 +28,19 @@ func newTestEBPFProbe() *EBPFProbe {
 		return &model.Event{}
 	})
 	return p
+}
+
+func TestDNSAnswerIPNet(t *testing.T) {
+	t.Run("accept IPv4-mapped IPv6 AAAA answer", func(t *testing.T) {
+		ipNet, ok := dnsAnswerIPNet(layers.DNSResourceRecord{
+			Type: layers.DNSTypeAAAA,
+			IP:   net.ParseIP("::ffff:192.0.2.1"),
+		})
+
+		assert.True(t, ok)
+		assert.Equal(t, net.ParseIP("::ffff:192.0.2.1").To16(), ipNet.IP)
+		assert.Equal(t, net.CIDRMask(128, 128), ipNet.Mask)
+	})
 }
 
 func TestGetPoolEvent(t *testing.T) {

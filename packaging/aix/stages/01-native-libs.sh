@@ -66,7 +66,7 @@ ZLIB_VERSION="1.3.1"
 BZIP2_VERSION="1.0.8"
 OPENSSL_VERSION="3.5.6"
 XZ_VERSION="5.8.1"
-LIBXML2_VERSION="2.14.5"    # built from source (AIX Toolbox also available but we build)
+LIBXML2_VERSION="2.15.3"    # built from source (AIX Toolbox also available but we build)
 LIBXSLT_VERSION="1.1.45"   # from AIX Toolbox (yum install libxslt-devel; source build fails on AIX)
 
 # These are sourced from AIX Toolbox (build from source fails on AIX)
