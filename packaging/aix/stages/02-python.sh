@@ -346,6 +346,20 @@ log "AIX patching complete."
 log "Configuring Python ${PYTHON_VERSION} (--prefix=$EMBEDDED)"
 log "  (Note: configure can take several minutes on POWER8)"
 
+# Extend LDFLAGS with the final install-time -blibpath for all Python binaries
+# (python3.13, libpython3.13.so, and every C extension .so built in later stages).
+#
+# Without this, the linker bakes the staging path ($EMBEDDED_DESTDIR/lib, i.e.
+# /opt/dd-build/staging/opt/datadog-agent/embedded/lib) into the XCOFF loader
+# section. That path does not exist on the installed system, so any direct
+# invocation of the embedded Python without LIBPATH set (e.g. running pip as the
+# operator) fails with "libpython3.13.so could not be loaded".
+#
+# On AIX, -blibpath replaces the default runtime search path computed by ld, so
+# we must list every directory needed at runtime: our embedded libs, the GCC/
+# freeware libs (libgcc_s, libstdc++, etc.), and the system defaults.
+_PYTHON_LDFLAGS="$LDFLAGS -Wl,-blibpath:$EMBEDDED/lib:/opt/freeware/lib64:/opt/freeware/lib:/usr/lib:/lib"
+
 cd "$PYTHON_SRC"
 ./configure \
     --prefix="$EMBEDDED" \
@@ -358,7 +372,7 @@ cd "$PYTHON_SRC"
     CXX="$CXX" \
     CFLAGS="$CFLAGS -I$EMBEDDED_DESTDIR/include" \
     CPPFLAGS="$CPPFLAGS" \
-    LDFLAGS="$LDFLAGS" \
+    LDFLAGS="$_PYTHON_LDFLAGS" \
     ARFLAGS="$ARFLAGS" \
     NM="$NM" \
     ac_cv_header_libintl_h=no \
