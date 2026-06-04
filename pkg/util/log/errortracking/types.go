@@ -52,6 +52,13 @@ type ErrorLog struct {
 	// into this record (≥ 1; 1 means "first or only sighting in the
 	// current bouncer window"). Propagated to the wire Log.Count.
 	Count uint32
+
+	// ErrorKind is the reflect type name of the first error-typed slog
+	// attribute found in the record (e.g. "*net.OpError"). Empty when the
+	// log call carried no error attribute. The type name is not
+	// user-controlled — it is determined by the code that creates the
+	// error — so it is safe to ship unlike the error message itself.
+	ErrorKind string
 }
 
 // Submitter is the registration target for sending an ErrorLog to a

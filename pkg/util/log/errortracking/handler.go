@@ -7,6 +7,7 @@ package errortracking
 
 import (
 	"context"
+	"fmt"
 	"hash/fnv"
 	"log/slog"
 	"runtime"
@@ -160,14 +161,35 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	count = c
 
 	out := ErrorLog{
-		Time:   r.Time,
-		PC:     r.PC,
-		PCs:    pcs,
-		PCsLen: pcsLen,
-		Count:  count,
+		Time:      r.Time,
+		PC:        r.PC,
+		PCs:       pcs,
+		PCsLen:    pcsLen,
+		Count:     count,
+		ErrorKind: errorKindFromRecord(r),
 	}
 	submit(out)
 	return nil
+}
+
+// errorKindFromRecord returns the reflect type name of the first error-typed
+// slog attribute in r (e.g. "*net.OpError"), or "" when none is present.
+// The type name is code-determined, not user-controlled, so it is safe to
+// ship on the wire unlike the error message itself.
+func errorKindFromRecord(r slog.Record) string {
+	var kind string
+	r.Attrs(func(a slog.Attr) bool {
+		v := a.Value.Resolve()
+		if v.Kind() != slog.KindAny {
+			return true
+		}
+		if err, ok := v.Any().(error); ok {
+			kind = fmt.Sprintf("%T", err)
+			return false // stop at first error attr
+		}
+		return true
+	})
+	return kind
 }
 
 // hashPCs returns a 64-bit FNV-1a hash of the captured stack PCs.
