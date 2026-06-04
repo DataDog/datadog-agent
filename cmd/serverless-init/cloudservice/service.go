@@ -10,6 +10,8 @@ import (
 	"os"
 	"runtime"
 
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -98,6 +100,11 @@ type CloudService interface {
 	// shutdown flow is more abrupt than other environments. We may want to
 	// unravel this thread in a cleaner way in the future.
 	ShouldForceFlushAllOnForceFlushToSerializer() bool
+
+	// Run executes the user process for the given mode. In sidecar mode it calls
+	// RunSidecar; in init-container mode it spawns the user app via RunInit.
+	// MicroVM overrides this to pass its child handle so /ready reflects liveness.
+	Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
@@ -166,6 +173,22 @@ func (l *LocalService) GetSource() metrics.MetricSource {
 // Init is not necessary for LocalService
 func (l *LocalService) Init(_ *TracingContext) error {
 	return nil
+}
+
+// Run uses the default run behaviour for LocalService.
+func (l *LocalService) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error {
+	return defaultRun(modeConf, logConfig)
+}
+
+// defaultRun is the standard Run implementation for cloud services that do not
+// manage a child process themselves. In sidecar mode it calls RunSidecar; in
+// init-container mode it spawns the user app with no child handle (no
+// MarkAlive/MarkDead tracking). MicroVM overrides Run to supply its child.
+func defaultRun(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error {
+	if modeConf.SidecarMode {
+		return mode.RunSidecar(logConfig)
+	}
+	return mode.RunInit(logConfig, nil) // no child tracking for non-MicroVM services
 }
 
 // Shutdown emits the shutdown metric for LocalService

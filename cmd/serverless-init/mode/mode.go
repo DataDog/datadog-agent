@@ -10,7 +10,6 @@ package mode
 import (
 	"os"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
 	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -18,7 +17,7 @@ import (
 // Conf contains the configuration for the mode in which the serverless-init agent should run
 type Conf struct {
 	LoggerName                    string
-	Runner                        func(logConfig *serverlessLog.Config, child *lifecycle.Child) error
+	Runner                        func(logConfig *serverlessLog.Config) error
 	TagVersionMode                string // tag name used for mode on dogstatsd metrics, legacy enhanced metrics, logs, and traces
 	TagVersionModeEnhancedMetrics string // tag name used for mode on enhanced metrics
 	SidecarMode                   bool
@@ -58,7 +57,6 @@ func DetectMode() Conf {
 	log.Infof("Arguments provided, launching in Init mode")
 	return Conf{
 		LoggerName:                    loggerNameInit,
-		Runner:                        RunInit,
 		TagVersionMode:                "_dd.datadog_init_version",
 		TagVersionModeEnhancedMetrics: "datadog_init_version",
 		SidecarMode:                   false,
