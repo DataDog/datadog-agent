@@ -145,7 +145,6 @@ func StartWorkloadAutoscaling(
 	apiCl.InformerFactory.Start(ctx.Done())
 
 	dpaNumWorkers := pkgconfigsetup.Datadog().GetInt("autoscaling.workload.num_workers")
-	// TODO: Wait POD Watcher sync before running the controller
 	go builtinManager.Run(ctx)
 	go profileController.Run(ctx, 1)
 	go workloadWatcher.Run(ctx)
