@@ -176,6 +176,11 @@ type dsdServer struct {
 	taggerProcessor option.Option[taggerdef.Processor]
 	offlineReporter offlinereporter.Component
 
+	gpuJobMetadataProcessesLock   sync.Mutex
+	gpuJobMetadataProcesses       map[string]gpuJobMetadataProcessRecord
+	gpuJobMetadataProcessSequence uint64
+	gpuJobMetadataProcessExists   func(uint32) bool
+
 	// telemetry
 	telemetry               telemetry.Component
 	tlmProcessed            telemetry.Counter
@@ -322,14 +327,16 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
 		},
-		wmeta:                   wmeta,
-		taggerProcessor:         taggerProcessor,
-		telemetry:               telemetrycomp,
-		filterList:              filterList,
-		tlmProcessed:            dogstatsdTelemetryCount,
-		tlmProcessedOk:          dogstatsdTelemetryCount.WithValues("metrics", "ok", ""),
-		tlmProcessedError:       dogstatsdTelemetryCount.WithValues("metrics", "error", ""),
-		stringInternerTelemetry: newSiTelemetry(utils.IsTelemetryEnabled(cfg), telemetrycomp),
+		wmeta:                       wmeta,
+		taggerProcessor:             taggerProcessor,
+		gpuJobMetadataProcesses:     make(map[string]gpuJobMetadataProcessRecord),
+		gpuJobMetadataProcessExists: defaultGPUJobMetadataProcessExists,
+		telemetry:                   telemetrycomp,
+		filterList:                  filterList,
+		tlmProcessed:                dogstatsdTelemetryCount,
+		tlmProcessedOk:              dogstatsdTelemetryCount.WithValues("metrics", "ok", ""),
+		tlmProcessedError:           dogstatsdTelemetryCount.WithValues("metrics", "error", ""),
+		stringInternerTelemetry:     newSiTelemetry(utils.IsTelemetryEnabled(cfg), telemetrycomp),
 	}
 
 	buckets := getBuckets(cfg, log, "telemetry.dogstatsd.aggregator_channel_latency_buckets")
@@ -588,6 +595,7 @@ func (s *dsdServer) handleMessages() {
 	// It is important to set this up after the workers are running so they receive
 	// any updates.
 	s.filterList.OnUpdateMetricFilterList(s.onFilterListUpdate)
+	s.startGPUJobMetadataProcessSweeper()
 }
 
 func (s *dsdServer) UDPLocalAddr() string {

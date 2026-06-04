@@ -6,7 +6,7 @@ This is a small prototype for carrying job identity from a training workload int
 
 A training process sends a reserved DogStatsD event when a GPU job starts, updates, heartbeats, or ends. The event carries a job id and optional tags such as `team:ml` or `phase:train`.
 
-The Agent uses existing DogStatsD origin detection to determine which container sent the event, then publishes those tags into the existing Agent tagger for that container. The GPU check already looks up container tags when it emits GPU metrics, so the same tags are picked up through the normal tag path.
+The Agent uses existing DogStatsD origin detection to determine which container sent the event, then publishes those tags into the existing Agent tagger for that container. For the Unix socket path, the Agent also records the sender PID and clears the job tags if that process exits without sending an explicit end event. The GPU check already looks up container tags when it emits GPU metrics, so the same tags are picked up through the normal tag path.
 
 The prototype tag name is currently `gpu_job_id`. The mechanism is independent of the final spelling; it could be renamed or aliased to `ml_job_id` if that is the desired product tag.
 
@@ -16,8 +16,9 @@ The prototype tag name is currently `gpu_job_id`. The mechanism is independent o
 training process
   -> DogStatsD reserved event over the existing metrics socket
   -> DogStatsD parses lifecycle + tags
-  -> Agent origin detection maps sender to container id
+  -> Agent origin detection maps sender to container id and, on UDS/Linux, PID
   -> Agent tagger stores tags for container_id://<container>
+  -> small PID sweep clears tags if the sender process exits
   -> GPU check emits metrics with normal container/tagger tags
 ```
 
@@ -49,7 +50,8 @@ The Agent consumes these reserved events as control-plane input; they are not me
 - DogStatsD server integration: consumes those events when `gpu.job_metadata.enabled` is true.
 - Tagger bridge: publishes tags on `container_id://<container>` from source `dogstatsd-gpu-job-metadata`.
 - Clear path: end events replace that source with an empty tag set for the container.
-- Optional fallback TTL: default is `0s`, meaning tags remain until an explicit end event.
+- PID auto-clear: UDS/Linux events with a sender PID are tracked and cleared if the PID disappears.
+- Optional fallback TTL: default is `0s`, meaning tags do not expire by time.
 - Demo check for non-Linux/macOS validation: emits a placeholder metric using the same tagger lookup.
 - Linux demo support: runs the real `gpu` check with a minimal fake NVML library and a small Docker workload.
 
@@ -59,7 +61,7 @@ The Agent consumes these reserved events as control-plane input; they are not me
 - There is no aggregator-level metric-name enrichment.
 - There is no workloadmeta schema change in this prototype.
 - There is no Slurm/job-to-PID correlation logic in this prototype.
-- Container-deletion cleanup is not implemented as a separate path yet; explicit end events are the primary lifecycle signal, with TTL available as a stale-data fallback.
+- Container-deletion cleanup is not implemented as a separate path yet; explicit end events and sender-PID exit are the primary lifecycle signals, with TTL available as a stale-data fallback.
 
 ## Demo status
 
@@ -73,9 +75,49 @@ tools/gpu_job_metadata_demo_cmux.py --build
 
 That path builds the Agent and fake NVML library, starts a small Docker container, runs the real `gpu` check, and sends start/end events so `gpu.*` series should show the dynamic job tags.
 
+Expected log evidence:
+
+```text
+DogStatsD GPU job metadata published: ... gpu_job_id:job-123 ...
+Flushing serie: gpu.process.memory.usage ... gpu_job_id:job-123 ...
+DogStatsD GPU job metadata cleared: ...
+```
+
+The cmux script also enables a Linux DogStatsD UDS at:
+
+```text
+/tmp/datadog-agent-gpu-job-metadata-demo/dsd.socket
+```
+
+To manually validate PID auto-clear, send a start event over that UDS from a short-lived process and do not send an `end` event. This command uses `c:ci-<container_id>` to target the fake GPU workload container while still exercising UDS sender PID capture:
+
+```bash
+export CID=<container id printed by the cmux script>
+python3 - <<'PY'
+import os
+import socket
+
+cid = os.environ["CID"]
+sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+sock.connect("/tmp/datadog-agent-gpu-job-metadata-demo/dsd.socket")
+sock.sendall((
+    f"_e{{15,5}}:datadog.gpu.job|start|s:datadog_gpu_job|"
+    f"c:ci-{cid}|#gpu_job_id:auto-clear,team:ml\n"
+).encode())
+PY
+```
+
+After the Python process exits, wait up to the 15s prototype sweep interval and look for:
+
+```text
+DogStatsD GPU job metadata auto-cleared: entity_id="container_id://..." pid=...
+```
+
+For the stronger container-origin test, run the sender inside a container with the Agent socket mounted and omit `c:ci-...`; then the Agent should derive both container id and sender PID from UDS origin detection.
+
 ## Open questions before productionizing
 
 - Final tag spelling: `gpu_job_id`, `ml_job_id`, or both.
 - Which extra user-supplied tags should be allowed.
 - Source priority/conflict behavior for tags from `dogstatsd-gpu-job-metadata`.
-- Whether container lifecycle cleanup should be explicit in workloadmeta/tagger in addition to end events and TTL.
+- Whether container lifecycle cleanup should be explicit in workloadmeta/tagger in addition to end events, PID auto-clear, and TTL.

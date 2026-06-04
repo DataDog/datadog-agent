@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	coretaggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/gpu/jobmetadata"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -16,11 +17,18 @@ import (
 )
 
 const (
-	gpuJobMetadataEnabledConfig = "gpu.job_metadata.enabled"
-	gpuJobMetadataTTLConfig     = "gpu.job_metadata.ttl"
-	gpuJobMetadataTaggerSource  = "dogstatsd-gpu-job-metadata"
-	containerIDOriginPrefix     = "container_id://"
+	gpuJobMetadataEnabledConfig        = "gpu.job_metadata.enabled"
+	gpuJobMetadataTTLConfig            = "gpu.job_metadata.ttl"
+	gpuJobMetadataTaggerSource         = "dogstatsd-gpu-job-metadata"
+	gpuJobMetadataProcessSweepInterval = 15 * time.Second
+	containerIDOriginPrefix            = "container_id://"
 )
+
+type gpuJobMetadataProcessRecord struct {
+	ContainerID string
+	ProcessID   uint32
+	Sequence    uint64
+}
 
 func (s *dsdServer) handleGPUJobMetadataEvent(event *metricsevent.Event) bool {
 	if event == nil || !jobmetadata.IsControlEvent(event.Title, event.SourceTypeName) {
@@ -47,19 +55,13 @@ func (s *dsdServer) handleGPUJobMetadataEvent(event *metricsevent.Event) bool {
 		return true
 	}
 
-	entityID := coretaggertypes.NewEntityID(coretaggertypes.ContainerID, record.ContainerID)
 	if record.Action == jobmetadata.ActionEnd {
-		processor.ProcessTagInfo([]*coretaggertypes.TagInfo{
-			{
-				Source:     gpuJobMetadataTaggerSource,
-				EntityID:   entityID,
-				IsComplete: true,
-			},
-		})
-		s.log.Infof("DogStatsD GPU job metadata cleared: entity_id=%q", entityID.String())
+		s.forgetGPUJobMetadataProcess(record.ContainerID)
+		s.clearGPUJobMetadataTags(processor, record.ContainerID)
 		return true
 	}
 
+	entityID := coretaggertypes.NewEntityID(coretaggertypes.ContainerID, record.ContainerID)
 	processor.ProcessTagInfo([]*coretaggertypes.TagInfo{
 		{
 			Source:               gpuJobMetadataTaggerSource,
@@ -69,6 +71,9 @@ func (s *dsdServer) handleGPUJobMetadataEvent(event *metricsevent.Event) bool {
 			IsComplete:           true,
 		},
 	})
+	// UDS origin detection provides the sender PID. Track it so a missing
+	// explicit end event can still be cleaned up when the training process exits.
+	s.trackGPUJobMetadataProcess(record.ContainerID, event.OriginInfo.LocalData.ProcessID)
 
 	s.log.Infof(
 		"DogStatsD GPU job metadata published: entity_id=%q job_id=%q tags=%v expires_at=%s",
@@ -78,6 +83,109 @@ func (s *dsdServer) handleGPUJobMetadataEvent(event *metricsevent.Event) bool {
 		formatGPUJobMetadataExpiry(record.ExpiresAt),
 	)
 	return true
+}
+
+func (s *dsdServer) startGPUJobMetadataProcessSweeper() {
+	if !s.config.GetBool(gpuJobMetadataEnabledConfig) {
+		return
+	}
+
+	ticker := time.NewTicker(gpuJobMetadataProcessSweepInterval)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				s.sweepGPUJobMetadataProcesses()
+			case <-s.stopChan:
+				return
+			}
+		}
+	}()
+}
+
+func (s *dsdServer) trackGPUJobMetadataProcess(containerID string, processID uint32) {
+	s.gpuJobMetadataProcessesLock.Lock()
+	defer s.gpuJobMetadataProcessesLock.Unlock()
+
+	if processID == 0 {
+		delete(s.gpuJobMetadataProcesses, containerID)
+		return
+	}
+	if s.gpuJobMetadataProcesses == nil {
+		s.gpuJobMetadataProcesses = make(map[string]gpuJobMetadataProcessRecord)
+	}
+
+	s.gpuJobMetadataProcessSequence++
+	s.gpuJobMetadataProcesses[containerID] = gpuJobMetadataProcessRecord{
+		ContainerID: containerID,
+		ProcessID:   processID,
+		Sequence:    s.gpuJobMetadataProcessSequence,
+	}
+}
+
+func (s *dsdServer) forgetGPUJobMetadataProcess(containerID string) {
+	s.gpuJobMetadataProcessesLock.Lock()
+	defer s.gpuJobMetadataProcessesLock.Unlock()
+	delete(s.gpuJobMetadataProcesses, containerID)
+}
+
+func (s *dsdServer) gpuJobMetadataProcessRecords() []gpuJobMetadataProcessRecord {
+	s.gpuJobMetadataProcessesLock.Lock()
+	defer s.gpuJobMetadataProcessesLock.Unlock()
+
+	records := make([]gpuJobMetadataProcessRecord, 0, len(s.gpuJobMetadataProcesses))
+	for _, record := range s.gpuJobMetadataProcesses {
+		records = append(records, record)
+	}
+	return records
+}
+
+func (s *dsdServer) removeGPUJobMetadataProcessIfCurrent(record gpuJobMetadataProcessRecord) bool {
+	s.gpuJobMetadataProcessesLock.Lock()
+	defer s.gpuJobMetadataProcessesLock.Unlock()
+
+	current, ok := s.gpuJobMetadataProcesses[record.ContainerID]
+	if !ok || current.ProcessID != record.ProcessID || current.Sequence != record.Sequence {
+		return false
+	}
+	delete(s.gpuJobMetadataProcesses, record.ContainerID)
+	return true
+}
+
+func (s *dsdServer) sweepGPUJobMetadataProcesses() {
+	processor, ok := s.taggerProcessor.Get()
+	if !ok {
+		return
+	}
+
+	processExists := s.gpuJobMetadataProcessExists
+	if processExists == nil {
+		processExists = defaultGPUJobMetadataProcessExists
+	}
+
+	for _, record := range s.gpuJobMetadataProcessRecords() {
+		if record.ProcessID == 0 || processExists(record.ProcessID) {
+			continue
+		}
+		if !s.removeGPUJobMetadataProcessIfCurrent(record) {
+			continue
+		}
+		s.clearGPUJobMetadataTags(processor, record.ContainerID)
+		s.log.Infof("DogStatsD GPU job metadata auto-cleared: entity_id=%q pid=%d", coretaggertypes.NewEntityID(coretaggertypes.ContainerID, record.ContainerID).String(), record.ProcessID)
+	}
+}
+
+func (s *dsdServer) clearGPUJobMetadataTags(processor taggerdef.Processor, containerID string) {
+	entityID := coretaggertypes.NewEntityID(coretaggertypes.ContainerID, containerID)
+	processor.ProcessTagInfo([]*coretaggertypes.TagInfo{
+		{
+			Source:     gpuJobMetadataTaggerSource,
+			EntityID:   entityID,
+			IsComplete: true,
+		},
+	})
+	s.log.Infof("DogStatsD GPU job metadata cleared: entity_id=%q", entityID.String())
 }
 
 func formatGPUJobMetadataExpiry(expiresAt time.Time) string {

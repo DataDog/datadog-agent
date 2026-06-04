@@ -117,6 +117,9 @@ def write_files(rt: Runtime) -> tuple[Path, Path]:
     enabled: true
     ttl: 0s
 '''
+        uds_config = f'''dogstatsd_socket: "{demo_dir / 'dsd.socket'}"
+dogstatsd_origin_detection: true
+'''
         log_level, log_payloads, series_payloads = "debug", "true", "true"
         check_config = f"instances:\n  - min_collection_interval: {INTERVAL}\n"
     else:
@@ -124,6 +127,7 @@ def write_files(rt: Runtime) -> tuple[Path, Path]:
     enabled: true
     ttl: 0s
 '''
+        uds_config = ""
         log_level, log_payloads, series_payloads = "info", "false", "false"
         check_config = f'''init_config:
 
@@ -146,7 +150,7 @@ confd_path: "{confd}"
 additional_checksd: "{checks}"
 
 dogstatsd_port: {DOGSTATSD_PORT}
-dogstatsd_origin_detection_client: true
+{uds_config}dogstatsd_origin_detection_client: true
 use_dogstatsd: true
 
 remote_configuration:

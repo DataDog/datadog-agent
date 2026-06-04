@@ -80,6 +80,37 @@ func TestGPUJobMetadataEventOptionalTTL(t *testing.T) {
 	require.WithinDuration(t, start.Add(time.Minute), processor.tagInfos[0].ExpiryDate, time.Second)
 }
 
+func TestGPUJobMetadataAutoClearsTagsWhenSenderPIDExits(t *testing.T) {
+	deps := fulfillDepsWithConfigOverride(t, map[string]interface{}{
+		"dogstatsd_port":                    listeners.RandomPortName,
+		"dogstatsd_origin_detection_client": true,
+		"gpu.job_metadata.enabled":          true,
+	})
+	s := deps.Server.(*dsdServer)
+	processor := &fakeTaggerProcessor{}
+	s.taggerProcessor = option.New[taggerdef.Processor](processor)
+	s.gpuJobMetadataProcessExists = func(processID uint32) bool {
+		require.Equal(t, uint32(1234), processID)
+		return false
+	}
+	requireStart(t, s)
+
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	event, err := s.parseEventMessage(parser, []byte("_e{15,5}:datadog.gpu.job|start|s:datadog_gpu_job|c:ci-demo-container|#gpu_job_id:job-123"), "", 1234)
+	require.NoError(t, err)
+
+	require.True(t, s.handleGPUJobMetadataEvent(event))
+	s.sweepGPUJobMetadataProcesses()
+
+	require.Len(t, processor.tagInfos, 2)
+	require.Equal(t, []string{"gpu_job_id:job-123"}, processor.tagInfos[0].OrchestratorCardTags)
+	clearInfo := processor.tagInfos[1]
+	require.Equal(t, gpuJobMetadataTaggerSource, clearInfo.Source)
+	require.Equal(t, coretaggertypes.NewEntityID(coretaggertypes.ContainerID, "demo-container"), clearInfo.EntityID)
+	require.Empty(t, clearInfo.OrchestratorCardTags)
+	require.True(t, clearInfo.IsComplete)
+}
+
 func TestGPUJobMetadataEndEventClearsTags(t *testing.T) {
 	deps := fulfillDepsWithConfigOverride(t, map[string]interface{}{
 		"dogstatsd_port":                    listeners.RandomPortName,
