@@ -95,6 +95,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 		getNDMIntegrationsPipelines,
 		getNetworkPathPipelines,
 		getContainerPipelines,
+		getSBOMPipelines,
 		getGenResourcesPipelines,
 		getSyntheticsPipelines,
 		getEventManagementPipelines,
