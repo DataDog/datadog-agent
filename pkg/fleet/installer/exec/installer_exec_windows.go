@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/garbagecollect"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/apmlibrarydotnet"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -101,8 +100,6 @@ func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 		}
 	}()
 
-	repos := repository.NewRepositories(paths.PackagesPath, map[string]repository.PreRemoveHook{
-		apmlibrarydotnet.PackageName: apmlibrarydotnet.AsyncPreRemoveHook,
-	})
+	repos := repository.NewRepositories(paths.PackagesPath, i.preRemoveHooks)
 	return garbagecollect.Run(ctx, repos, paths.RootTmpDir)
 }

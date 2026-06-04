@@ -23,6 +23,7 @@ go_library(
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/errors",
         "//pkg/fleet/installer/exec",
+        "//pkg/fleet/installer/packages",
         "//pkg/fleet/installer/paths",
         "//pkg/fleet/installer/repository",
         "//pkg/fleet/installer/telemetry",

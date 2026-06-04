@@ -30,14 +30,29 @@ import (
 type InstallerExec struct {
 	env              *env.Env
 	installerBinPath string
+	preRemoveHooks   map[string]repository.PreRemoveHook
+}
+
+// Option configures InstallerExec.
+type Option func(*InstallerExec)
+
+// WithPreRemoveHooks configures hooks run before package versions are removed by garbage collection.
+func WithPreRemoveHooks(preRemoveHooks map[string]repository.PreRemoveHook) Option {
+	return func(i *InstallerExec) {
+		i.preRemoveHooks = preRemoveHooks
+	}
 }
 
 // NewInstallerExec returns a new InstallerExec.
-func NewInstallerExec(env *env.Env, installerBinPath string) *InstallerExec {
-	return &InstallerExec{
+func NewInstallerExec(env *env.Env, installerBinPath string, opts ...Option) *InstallerExec {
+	i := &InstallerExec{
 		env:              env,
 		installerBinPath: installerBinPath,
 	}
+	for _, opt := range opts {
+		opt(i)
+	}
+	return i
 }
 
 type installerCmd struct {

@@ -65,7 +65,6 @@ go_library(
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/msi",
-            "//pkg/fleet/installer/packages/apmlibrarydotnet",
             "//pkg/fleet/installer/packages/exec",
             "//pkg/fleet/installer/packages/service/windows",
             "//pkg/fleet/installer/packages/ssi",

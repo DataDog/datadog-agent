@@ -21,7 +21,6 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/db",
             "//pkg/fleet/installer/garbagecollect",
-            "//pkg/fleet/installer/packages/apmlibrarydotnet",
         ],
         "//conditions:default": [],
     }),
