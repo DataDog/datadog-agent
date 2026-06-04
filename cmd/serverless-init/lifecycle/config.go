@@ -8,24 +8,56 @@ package lifecycle
 import (
 	"fmt"
 	"strconv"
+	"time"
 )
 
 // UserAppPortEnvVar opts in to forwarding lifecycle hooks to the user app.
 const UserAppPortEnvVar = "DD_SERVERLESS_MICROVM_USER_APP_PORT"
 
-func parseUserAppPort(raw string) (int, error) {
+// LifecyclePortEnvVar overrides the port the lifecycle hook server listens on (default 9000).
+const LifecyclePortEnvVar = "DD_SERVERLESS_MICROVM_LIFECYCLE_PORT"
+
+// ForwardTimeoutMsEnvVar overrides the timeout (ms) for /launch, /resume, /suspend, /terminate.
+const ForwardTimeoutMsEnvVar = "DD_SERVERLESS_MICROVM_FORWARD_TIMEOUT_MS"
+
+// ReadyTimeoutMsEnvVar overrides the timeout (ms) for /ready.
+const ReadyTimeoutMsEnvVar = "DD_SERVERLESS_MICROVM_READY_TIMEOUT_MS"
+
+// ValidateTimeoutMsEnvVar overrides the timeout (ms) for /validate.
+const ValidateTimeoutMsEnvVar = "DD_SERVERLESS_MICROVM_VALIDATE_TIMEOUT_MS"
+
+// parsePort parses a port number from a raw env-var string.
+// Returns defaultVal when raw is empty. Parsed port must not equal any value in forbidden.
+func parsePort(envVar, raw string, defaultVal int, forbidden ...int) (int, error) {
 	if raw == "" {
-		return 0, nil
+		return defaultVal, nil
 	}
 	port, err := strconv.Atoi(raw)
 	if err != nil {
-		return 0, fmt.Errorf("%s: must be an integer (got %q)", UserAppPortEnvVar, raw)
+		return 0, fmt.Errorf("%s: must be an integer (got %q)", envVar, raw)
 	}
 	if port < 1 || port > 65535 {
-		return 0, fmt.Errorf("%s: must be in [1, 65535] (got %d)", UserAppPortEnvVar, port)
+		return 0, fmt.Errorf("%s: must be in [1, 65535] (got %d)", envVar, port)
 	}
-	if port == DefaultPort {
-		return 0, fmt.Errorf("%s: must not equal %d (collides with the lifecycle server)", UserAppPortEnvVar, DefaultPort)
+	for _, f := range forbidden {
+		if port == f {
+			return 0, fmt.Errorf("%s: must not equal %d (collides with the lifecycle server)", envVar, f)
+		}
 	}
 	return port, nil
+}
+
+// parseDurationMs parses a millisecond integer env var. Returns defaultVal when raw is empty.
+func parseDurationMs(envVar, raw string, defaultVal time.Duration) (time.Duration, error) {
+	if raw == "" {
+		return defaultVal, nil
+	}
+	ms, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%s: must be an integer number of milliseconds (got %q)", envVar, raw)
+	}
+	if ms <= 0 {
+		return 0, fmt.Errorf("%s: must be a positive number of milliseconds (got %d)", envVar, ms)
+	}
+	return time.Duration(ms) * time.Millisecond, nil
 }
