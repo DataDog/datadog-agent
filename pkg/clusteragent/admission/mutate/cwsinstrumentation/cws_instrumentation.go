@@ -471,39 +471,46 @@ func volumeMountContainsPath(mountPath, target string) bool {
 	// so we use "path" instead of "filepath" to avoid OS-specific separators.
 	mountPath = path.Clean(mountPath)
 	target = path.Clean(target)
-	if mountPath == target {
-		return true
-	}
-	if mountPath == "/" {
-		return true
-	}
-	return strings.HasPrefix(target, mountPath+"/")
+	result := mountPath == target || mountPath == "/" || strings.HasPrefix(target, mountPath+"/")
+	log.Infof("[CWS-DEBUG] volumeMountContainsPath: mountPath=%q target=%q -> %t", mountPath, target, result)
+	return result
 }
 
 func (ci *CWSInstrumentation) isDirectoryReadOnly(pod *corev1.Pod, containerName, directory string) bool {
+	log.Infof("[CWS-DEBUG] isDirectoryReadOnly: pod=%s/%s container=%q directory=%q", pod.Namespace, pod.Name, containerName, directory)
+
 	container := findContainerByName(pod, containerName)
 	if container == nil {
+		log.Infof("[CWS-DEBUG] isDirectoryReadOnly: container %q not found in pod, defaulting to readonly=true", containerName)
 		return true
 	}
+	log.Infof("[CWS-DEBUG] isDirectoryReadOnly: container %q found with %d volume mount(s)", containerName, len(container.VolumeMounts))
+
 	// find the most specific VolumeMount that contains the directory
 	var matched *corev1.VolumeMount
 	matchedLen := -1
 	for i, mnt := range container.VolumeMounts {
 		mountPath := path.Clean(mnt.MountPath)
-		if !volumeMountContainsPath(mountPath, directory) {
+		contains := volumeMountContainsPath(mountPath, directory)
+		log.Infof("[CWS-DEBUG] isDirectoryReadOnly: evaluating volumeMount[%d] name=%q mountPath=%q readOnly=%t containsDirectory=%t", i, mnt.Name, mountPath, mnt.ReadOnly, contains)
+		if !contains {
 			continue
 		}
 		if len(mountPath) > matchedLen {
 			matchedLen = len(mountPath)
 			matched = &container.VolumeMounts[i]
+			log.Infof("[CWS-DEBUG] isDirectoryReadOnly: volumeMount[%d] mountPath=%q is now the most specific match (len=%d)", i, mountPath, matchedLen)
 		}
 	}
 	// if we found a VolumeMount, check its ReadOnly flag
 	if matched != nil {
+		log.Infof("[CWS-DEBUG] isDirectoryReadOnly: matched volumeMount name=%q mountPath=%q -> readOnly=%t", matched.Name, matched.MountPath, matched.ReadOnly)
 		return matched.ReadOnly
 	}
 	// otherwise, fall back to the container's SecurityContext
-	return containerHasReadonlyRootfs(*container)
+	readOnly := containerHasReadonlyRootfs(*container)
+	log.Infof("[CWS-DEBUG] isDirectoryReadOnly: no matching volumeMount, falling back to container SecurityContext readOnlyRootFilesystem=%t", readOnly)
+	return readOnly
 }
 
 func (ci *CWSInstrumentation) getPod(apiClient kubernetes.Interface, name string, ns string) (*corev1.Pod, error) {
