@@ -1,15 +1,30 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "sender",
-    srcs = ["sender.go"],
+    srcs = [
+        "metric_sample_factory.go",
+        "sender.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/sender",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
+        "//pkg/metrics",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
         "//pkg/serializer/types",
+    ],
+)
+
+go_test(
+    name = "sender_test",
+    srcs = ["metric_sample_factory_test.go"],
+    embed = [":sender"],
+    deps = [
+        "//pkg/collector/check/id",
+        "//pkg/metrics",
+        "@com_github_stretchr_testify//assert",
     ],
 )
