@@ -16,6 +16,11 @@ func NewDefaultParams() Params {
 	return Params{UseEventPlatformForwarder: true, UseNoopEventPlatformForwarder: false}
 }
 
+// NewClusterAgentParams returns the event platform forwarder parameters for the Cluster Agent.
+func NewClusterAgentParams() Params {
+	return NewDefaultParams()
+}
+
 // NewDisabledParams returns the disabled parameters for the event platform forwarder.
 func NewDisabledParams() Params {
 	return Params{UseEventPlatformForwarder: false, UseNoopEventPlatformForwarder: false}

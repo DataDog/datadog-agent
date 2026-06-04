@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	laconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -44,6 +45,22 @@ func (suite *EventPlatformForwarderTestSuite) SetupTest() {
 
 func TestEventPlatformForwarderTestSuite(t *testing.T) {
 	suite.Run(t, new(EventPlatformForwarderTestSuite))
+}
+
+func (suite *EventPlatformForwarderTestSuite) TestGetClusterAgentPassthroughPipelines() {
+	suite.config.SetWithoutSource("kubeactions.enabled", false)
+	pipelines := getClusterAgentPassthroughPipelines()
+	suite.Require().Len(pipelines, 1)
+	suite.Equal(eventplatform.EventTypeNetworkPath, pipelines[0].eventType)
+	suite.Nil(pipelines[0].updateEndpoints)
+
+	suite.config.SetWithoutSource("kubeactions.enabled", true)
+	pipelines = getClusterAgentPassthroughPipelines()
+	suite.Require().Len(pipelines, 2)
+	suite.Equal(eventplatform.EventTypeNetworkPath, pipelines[0].eventType)
+	suite.Equal(eventplatform.EventTypeKubeActions, pipelines[1].eventType)
+	suite.Nil(pipelines[0].updateEndpoints)
+	suite.Nil(pipelines[1].updateEndpoints)
 }
 
 func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineCompression() {

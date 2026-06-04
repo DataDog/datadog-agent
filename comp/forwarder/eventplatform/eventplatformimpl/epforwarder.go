@@ -29,26 +29,36 @@ import (
 	httpsender "github.com/DataDog/datadog-agent/comp/logs-library/sender/http"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
-	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 //go:generate go run github.com/golang/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go
 
 // Module defines the fx options for this component.
 func Module(params Params) fxutil.Module {
-	return fxutil.Component(fx.Provide(newEventPlatformForwarder), fx.Supply(params))
+	return module(params, getPassthroughPipelines)
+}
+
+// ClusterAgentModule defines the fx options for the Cluster Agent event platform forwarder.
+func ClusterAgentModule(params Params) fxutil.Module {
+	return module(params, getClusterAgentPassthroughPipelines)
+}
+
+func module(params Params, getPipelines func() []passthroughPipelineDesc) fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newEventPlatformForwarder),
+		fx.Supply(params),
+		fx.Supply(passthroughPipelineProvider{getPipelines: getPipelines}),
+	)
 }
 
 const (
@@ -200,18 +210,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			//   by aggregator.
 			defaultInputChanSize: 10000,
 		},
-		{
-			eventType:                     eventplatform.EventTypeNetworkPath,
-			category:                      "Network Path",
-			contentType:                   logshttp.JSONContentType,
-			endpointsConfigPrefix:         "network_path.forwarder.",
-			hostnameEndpointPrefix:        "netpath-intake.",
-			intakeTrackType:               "netpath",
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-		},
+		newNetworkPathPipelineDesc(),
 		{
 			eventType:                     eventplatform.EventTypeNetworkConfigManagement,
 			category:                      "Network Config Management",
@@ -301,6 +300,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			updateEndpoints:               addDataStreamsMessageHeaders,
 		},
 		{
 			eventType:                     eventTypeDoQueryResults,
@@ -316,26 +316,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 		},
 	}
 
-	if pkgconfigsetup.Datadog().GetBool("kubeactions.enabled") {
-		kubeactionsPipeline := passthroughPipelineDesc{
-			eventType:                     eventplatform.EventTypeKubeActions,
-			category:                      "Kubernetes Actions",
-			contentType:                   logshttp.JSONContentType,
-			endpointsConfigPrefix:         "kubeactions.forwarder.",
-			hostnameEndpointPrefix:        "kubeops-intake.",
-			intakeTrackType:               "kubeactions",
-			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-		}
-		passthroughPipelineDescs = append(passthroughPipelineDescs, kubeactionsPipeline)
-		// TODO(kubeactions): Remove this log once EVP intake is stable
-		log.Infof("[KubeActions] EVP pipeline registered: host_prefix=%s, track_type=%s, v2_api=%v",
-			kubeactionsPipeline.hostnameEndpointPrefix,
-			kubeactionsPipeline.intakeTrackType,
-			pkgconfigsetup.Datadog().GetBool("kubeactions.forwarder.use_v2_api"))
-	}
+	passthroughPipelineDescs = appendKubeActionsPipelineIfEnabled(passthroughPipelineDescs)
 
 	if pkgconfigsetup.Datadog().GetBool("software_inventory.enabled") {
 		softinvPipeline := passthroughPipelineDesc{
@@ -353,6 +334,53 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 		passthroughPipelineDescs = append(passthroughPipelineDescs, softinvPipeline)
 	}
 
+	return passthroughPipelineDescs
+}
+
+func getClusterAgentPassthroughPipelines() []passthroughPipelineDesc {
+	return appendKubeActionsPipelineIfEnabled([]passthroughPipelineDesc{
+		newNetworkPathPipelineDesc(),
+	})
+}
+
+func newNetworkPathPipelineDesc() passthroughPipelineDesc {
+	return passthroughPipelineDesc{
+		eventType:                     eventplatform.EventTypeNetworkPath,
+		category:                      "Network Path",
+		contentType:                   logshttp.JSONContentType,
+		endpointsConfigPrefix:         "network_path.forwarder.",
+		hostnameEndpointPrefix:        "netpath-intake.",
+		intakeTrackType:               "netpath",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+	}
+}
+
+func appendKubeActionsPipelineIfEnabled(passthroughPipelineDescs []passthroughPipelineDesc) []passthroughPipelineDesc {
+	if !pkgconfigsetup.Datadog().GetBool("kubeactions.enabled") {
+		return passthroughPipelineDescs
+	}
+
+	kubeactionsPipeline := passthroughPipelineDesc{
+		eventType:                     eventplatform.EventTypeKubeActions,
+		category:                      "Kubernetes Actions",
+		contentType:                   logshttp.JSONContentType,
+		endpointsConfigPrefix:         "kubeactions.forwarder.",
+		hostnameEndpointPrefix:        "kubeops-intake.",
+		intakeTrackType:               "kubeactions",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+	}
+	passthroughPipelineDescs = append(passthroughPipelineDescs, kubeactionsPipeline)
+	// TODO(kubeactions): Remove this log once EVP intake is stable
+	log.Infof("[KubeActions] EVP pipeline registered: host_prefix=%s, track_type=%s, v2_api=%v",
+		kubeactionsPipeline.hostnameEndpointPrefix,
+		kubeactionsPipeline.intakeTrackType,
+		pkgconfigsetup.Datadog().GetBool("kubeactions.forwarder.use_v2_api"))
 	return passthroughPipelineDescs
 }
 
@@ -547,6 +575,7 @@ type passthroughPipelineDesc struct {
 	forceCompressionKind          string
 	forceCompressionLevel         int
 	useStreamStrategy             bool
+	updateEndpoints               func(endpoints *config.Endpoints, hostname string)
 }
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
@@ -582,17 +611,8 @@ func newHTTPPassthroughPipeline(
 		return nil, errors.New("endpoints must be http")
 	}
 
-	if desc.eventType == eventTypeDataStreamsMessage {
-		tags := fmt.Sprintf("host:%s,agent_version:%s", hostname, version.AgentVersion)
-		if taskARN := getECSFargateTaskARN(); taskARN != "" {
-			tags += ",task_arn:" + taskARN
-		}
-		extraHeaders := map[string]string{
-			"X-Datadog-Additional-Tags": tags,
-		}
-		for i := range endpoints.Endpoints {
-			endpoints.Endpoints[i].ExtraHTTPHeaders = extraHeaders
-		}
+	if desc.updateEndpoints != nil {
+		desc.updateEndpoints(endpoints, hostname)
 	}
 
 	// epforwarder pipelines apply their own defaults on top of the hardcoded logs defaults
@@ -689,24 +709,6 @@ func (p *passthroughPipeline) Stop() {
 	}
 }
 
-// getECSFargateTaskARN returns the ECS task ARN when running on Fargate, or empty string otherwise.
-func getECSFargateTaskARN() string {
-	if !env.IsECSFargate() {
-		return ""
-	}
-	client, err := ecsmeta.V2()
-	if err != nil {
-		log.Debugf("Failed to initialize ECS metadata V2 client for task ARN: %v", err)
-		return ""
-	}
-	taskMeta, err := client.GetTask(context.Background())
-	if err != nil {
-		log.Debugf("Failed to get ECS task metadata for task ARN: %v", err)
-		return ""
-	}
-	return taskMeta.TaskARN
-}
-
 func joinHosts(endpoints []config.Endpoint) string {
 	var additionalHosts []string
 	for _, e := range endpoints {
@@ -715,11 +717,11 @@ func joinHosts(endpoints []config.Endpoint) string {
 	return strings.Join(additionalHosts, ",")
 }
 
-func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compression logscompression.Component, hostname string, secretsComp secrets.Component) *defaultEventPlatformForwarder {
+func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compression logscompression.Component, hostname string, secretsComp secrets.Component, pipelineDescs []passthroughPipelineDesc) *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
-	for i, desc := range getPassthroughPipelines() {
+	for i, desc := range pipelineDescs {
 		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, compression, desc, destinationsCtx, i, hostname, secretsComp)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
@@ -733,9 +735,14 @@ func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver
 	}
 }
 
+type passthroughPipelineProvider struct {
+	getPipelines func() []passthroughPipelineDesc
+}
+
 type dependencies struct {
 	fx.In
 	Params                Params
+	PipelineProvider      passthroughPipelineProvider
 	Config                configcomp.Component
 	Lc                    fx.Lifecycle
 	EventPlatformReceiver eventplatformreceiver.Component
@@ -752,7 +759,7 @@ func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
 		forwarder = newNoopEventPlatformForwarder(deps.Hostname, deps.Compression)
 	} else if deps.Params.UseEventPlatformForwarder {
 		hostnameStr := deps.Hostname.GetSafe(context.Background())
-		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver, deps.Compression, hostnameStr, deps.Secrets)
+		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver, deps.Compression, hostnameStr, deps.Secrets, deps.PipelineProvider.getPipelines())
 	}
 	if forwarder == nil {
 		return option.NonePtr[eventplatform.Forwarder]()
@@ -778,7 +785,7 @@ func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, compres
 
 func newNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
 	hostnameStr := hostname.GetSafe(context.Background())
-	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp)
+	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp, getPassthroughPipelines())
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil

@@ -171,7 +171,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				filterlistfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
-				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+				eventplatformimpl.ClusterAgentModule(eventplatformimpl.NewClusterAgentParams()),
 				eventplatformreceiverimpl.Module(),
 				// setup workloadmeta
 				wmcatalog.GetCatalog(),
