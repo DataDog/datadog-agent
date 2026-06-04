@@ -767,6 +767,7 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 		Description       string             `json:"description"`
 		Tags              []string           `json:"tags"`
 		Timestamp         int64              `json:"timestamp"`
+		Score             *float64           `json:"score,omitempty"`
 		DebugInfo         *debugInfoResponse `json:"debugInfo,omitempty"`
 	}
 
@@ -798,6 +799,7 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 			Description:       a.Description,
 			Tags:              a.Source.Tags,
 			Timestamp:         a.Timestamp,
+			Score:             a.Score,
 		}
 		if a.DebugInfo != nil {
 			resp.DebugInfo = &debugInfoResponse{

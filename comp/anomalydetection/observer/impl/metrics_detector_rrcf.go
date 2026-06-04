@@ -459,16 +459,18 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 		}
 
 		if r.config.ThresholdSigma > 0 && threshold > 0 && score > threshold {
+			deviationSigma := (score - r.rollingMean()) / math.Max(r.rollingStddev(), 1)
 			anomaly := observer.Anomaly{
 				Source:       observer.SeriesDescriptor{Namespace: "rrcf", Name: "score"},
 				DetectorName: r.Name(),
 				Title:        "RRCF multivariate anomaly",
 				Description:  fmt.Sprintf("Unusual system metric combination (CoDisp=%.1f, threshold=%.1f)", score, threshold),
 				Timestamp:    s.endTimestamp,
+				Score:        &score,
 				DebugInfo: &observer.AnomalyDebugInfo{
 					CurrentValue:   score,
 					Threshold:      threshold,
-					DeviationSigma: (score - r.rollingMean()) / math.Max(r.rollingStddev(), 1),
+					DeviationSigma: deviationSigma,
 				},
 			}
 			anomalies = append(anomalies, anomaly)

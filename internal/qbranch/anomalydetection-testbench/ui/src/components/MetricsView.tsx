@@ -10,6 +10,15 @@ import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
 import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
 import { TagFilterGroups } from './TagFilterGroups';
+import { AnomalyScoreTimeline, type TimelineAnomalyType } from './AnomalyScoreTimeline';
+
+type MetricSourceKind = 'standard' | 'log-derived' | 'telemetry';
+const ALL_SOURCE_KINDS: MetricSourceKind[] = ['standard', 'log-derived', 'telemetry'];
+const SOURCE_KIND_LABELS: Record<MetricSourceKind, string> = {
+  standard: 'Standard',
+  'log-derived': 'Log-derived',
+  telemetry: 'Telemetry',
+};
 
 const AGGREGATION_TYPES = ['avg', 'count', 'sum', 'min', 'max'] as const;
 type AggregationType = typeof AGGREGATION_TYPES[number];
@@ -30,6 +39,18 @@ function isPatternCounterBaseName(baseName: string): boolean {
 
 function getDetectorComponent(anomaly: { detectorName: string; detectorComponent?: string }): string {
   return anomaly.detectorComponent ?? anomaly.detectorName;
+}
+
+function getSeriesSourceKind(series: SeriesInfo): MetricSourceKind {
+  if (series.namespace === 'telemetry') return 'telemetry';
+  if (series.virtual === true) return 'log-derived';
+  return 'standard';
+}
+
+function getAnomalySourceKind(anomaly: { sourceSeriesId?: string }, seriesById: Map<string, SeriesInfo>): MetricSourceKind {
+  if (!anomaly.sourceSeriesId) return 'standard';
+  const series = seriesById.get(anomaly.sourceSeriesId);
+  return series ? getSeriesSourceKind(series) : 'standard';
 }
 
 function formatSeriesLabel(tags: string[]): string {
@@ -187,20 +208,47 @@ export function MetricsView({
   const allSeries = state.series ?? [];
   const allAnomalies = state.anomalies ?? [];
 
+  const seriesById = useMemo(() => {
+    const map = new Map<string, SeriesInfo>();
+    allSeries.forEach(s => map.set(s.id, s));
+    return map;
+  }, [allSeries]);
+
   const detectorComponents = useMemo(
     () => components.filter((c) => c.category === 'detector'),
     [components]
   );
 
-  // Derive enabled detectors from backend component state (source of truth)
-  const enabledDetectors = useMemo(
-    () => new Set(detectorComponents.filter((c) => c.enabled).map((c) => c.name)),
-    [detectorComponents]
-  );
+  // Local visibility set — toggling detectors here does NOT trigger backend replay.
+  const [visibleDetectors, setVisibleDetectors] = useState<Set<string>>(new Set());
+  const initializedDetectorScenarioRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (detectorComponents.length > 0 && state.activeScenario && initializedDetectorScenarioRef.current !== state.activeScenario) {
+      initializedDetectorScenarioRef.current = state.activeScenario;
+      setVisibleDetectors(new Set(detectorComponents.map((c) => c.name)));
+    }
+  }, [detectorComponents, state.activeScenario]);
+
+  // Source kind filter — which categories of metrics to include in the timeline and charts.
+  const [visibleSourceKinds, setVisibleSourceKinds] = useState<Set<MetricSourceKind>>(new Set(ALL_SOURCE_KINDS));
+  const toggleSourceKind = (kind: MetricSourceKind) => {
+    setVisibleSourceKinds(prev => {
+      const next = new Set(prev);
+      next.has(kind) ? next.delete(kind) : next.add(kind);
+      return next;
+    });
+  };
+
+  // enabledDetectors kept as an alias so prop names passed to charts don't change.
+  const enabledDetectors = visibleDetectors;
 
   const anomalies = useMemo(
-    () => allAnomalies.filter((a) => enabledDetectors.has(getDetectorComponent(a))),
-    [allAnomalies, enabledDetectors]
+    () => allAnomalies.filter((a) => {
+      if (!visibleDetectors.has(getDetectorComponent(a))) return false;
+      const sourceKind = getAnomalySourceKind(a, seriesById);
+      return visibleSourceKinds.has(sourceKind);
+    }),
+    [allAnomalies, visibleDetectors, visibleSourceKinds, seriesById]
   );
 
   // Map comp.name (detectorComponent) → detectorName used by the timeline for coloring
@@ -280,9 +328,21 @@ export function MetricsView({
   }, [anomalies]);
 
   const visibleGroups = useMemo(() => {
-    if (!showAnomalyOnlyGroups) return metricGroups;
-    return metricGroups.filter((g) => (anomalyCountByGroup.get(g.key) ?? 0) > 0);
-  }, [metricGroups, showAnomalyOnlyGroups, anomalyCountByGroup]);
+    let groups = metricGroups;
+    
+    // Filter by source kind
+    groups = groups.filter((g) => {
+      const sourceKind = g.namespace === 'telemetry' ? 'telemetry' : g.virtual ? 'log-derived' : 'standard';
+      return visibleSourceKinds.has(sourceKind);
+    });
+    
+    // Filter by anomaly presence if requested
+    if (showAnomalyOnlyGroups) {
+      groups = groups.filter((g) => (anomalyCountByGroup.get(g.key) ?? 0) > 0);
+    }
+    
+    return groups;
+  }, [metricGroups, visibleSourceKinds, showAnomalyOnlyGroups, anomalyCountByGroup]);
 
   const telemetryGroups = useMemo(
     () => visibleGroups.filter((g) => g.namespace === 'telemetry'),
@@ -399,7 +459,11 @@ export function MetricsView({
   }, [selectedGroups, state.connectionState, state.activeScenario, groupByKey, groupSeriesData.size]);
 
   const toggleDetector = (name: string) => {
-    actions.toggleComponent(name);
+    setVisibleDetectors(prev => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
   };
 
   const [expandedConfigs, setExpandedConfigs] = useState<Set<string>>(new Set());
@@ -418,6 +482,17 @@ export function MetricsView({
     });
     return keys;
   }, [metricGroups, anomalyCountByGroup]);
+
+  // Timeline data: convert filtered anomalies to timeline format
+  const timelineAnomalies = useMemo(() => {
+    return anomalies.map(a => ({
+      timestamp: a.timestamp,
+      detectorName: a.detectorName,
+      title: a.title,
+      score: a.score,
+      type: getAnomalySourceKind(a, seriesById) as TimelineAnomalyType,
+    }));
+  }, [anomalies, seriesById]);
 
   return (
     <div className="flex-1 flex">
@@ -488,6 +563,25 @@ export function MetricsView({
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        <div className="p-4 border-b border-slate-700">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+            Metric Sources
+          </h2>
+          <div className="space-y-1">
+            {ALL_SOURCE_KINDS.map((kind) => (
+              <label key={kind} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={visibleSourceKinds.has(kind)}
+                  onChange={() => toggleSourceKind(kind)}
+                  className="rounded border-slate-600 bg-slate-700 text-purple-600 focus:ring-purple-500"
+                />
+                <span className="text-sm text-slate-300 flex-1">{SOURCE_KIND_LABELS[kind]}</span>
+              </label>
+            ))}
           </div>
         </div>
 
@@ -687,6 +781,14 @@ export function MetricsView({
               <div className="text-center py-10 text-slate-500">Loading series data...</div>
             ) : (
               <>
+                {/* Anomaly intensity timeline */}
+                <AnomalyScoreTimeline 
+                  anomalies={timelineAnomalies}
+                  scenarioStart={state.status?.scenarioStart ?? null}
+                  scenarioEnd={state.status?.scenarioEnd ?? null}
+                  timeRange={timeRange}
+                />
+
                 {/* Regular metric groups */}
                 {(() => {
                   const cards = Array.from(selectedGroups)

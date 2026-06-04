@@ -24,6 +24,9 @@ def build_testbench(ctx):
 # --- Run ---
 
 
+ALL_DETECTORS = "cusum,bocpd,rrcf,scanmw,scanwelch,holt_residual,tukey_biweight"
+
+
 @task
 def launch_testbench(
     ctx,
@@ -40,6 +43,7 @@ def launch_testbench(
     disable: str = "",
     timeout: int = 0,
     logs_only: bool = False,
+    detectors_only: bool = False,
 ):
     """
     Launches the anomalydetection-testbench backend (and UI in interactive mode).
@@ -56,6 +60,7 @@ def launch_testbench(
         disable: Comma-separated components to disable (passed as --disable).
         timeout: Kill the headless process after this many seconds (0 = no limit).
         logs_only: Pass --logs-only (skip parquet metrics and trace stats).
+        detectors_only: Enable ALL detectors and disable ALL correlators (no --config/--enable/--disable override).
     """
     if build:
         print("Building anomalydetection-testbench...")
@@ -102,7 +107,11 @@ def launch_testbench(
                 print(f"To profile, run: go tool pprof -http=:8081 {profile_path}")
     else:
         if not config and not enable and not disable:
-            flags += " --only scanmw,scanwelch,bocpd"
+            if detectors_only:
+                flags += f" --only {ALL_DETECTORS}"
+                print(f"Launching with all detectors, no correlators: {ALL_DETECTORS}")
+            else:
+                flags += " --only scanmw,scanwelch,bocpd"
         print("Launching anomalydetection-testbench backend and UI, use ^C to exit")
         print(
             "To profile, run: go tool pprof -http=:8081 http://localhost:8080/debug/pprof/heap (8080 is the testbench API port)"

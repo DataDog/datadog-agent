@@ -125,6 +125,7 @@ export interface Anomaly {
   description: string;
   tags: string[];
   timestamp: number;
+  score?: number;
   debugInfo?: AnomalyDebugInfo;
 }
 
