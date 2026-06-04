@@ -2,17 +2,37 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2014-present Datadog, Inc.
 
-//go:build aix
-
 package platform
 
 import (
+	"fmt"
 	"runtime"
+	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	gopsutilhost "github.com/shirou/gopsutil/v4/host"
 	"golang.org/x/sys/unix"
 )
+
+// ParseOsLevelToKernelVersion parses the output of `oslevel -s` into
+// version, release, TL, and SP components following the pattern
+// "version.release-TL-SP-date".
+func ParseOsLevelToKernelVersion(osLevel string) string {
+	// check that osLevel is in the format "version.release-TL-SP-date"
+	parts := strings.SplitN(osLevel, "-", 4)
+	if len(parts) < 4 || len(parts[0]) < 2 {
+		return ""
+	}
+
+	// extract each part of the kernel version
+	version := int(parts[0][0]) - '0'
+	release := int(parts[0][1]) - '0'
+	tl, _ := strconv.Atoi(parts[1])
+	sp, _ := strconv.Atoi(parts[2])
+
+	return fmt.Sprintf("%d.%d.%d.%d", version, release, tl, sp)
+}
 
 func (info *Info) fillPlatformInfo() {
 	info.Family = utils.NewErrorValue[string](utils.ErrNotCollectable)
@@ -30,13 +50,15 @@ func (info *Info) fillPlatformInfo() {
 	info.KernelRelease = utils.NewValueFrom(utils.StringFromBytes(uname.Release[:]), unameErr)
 	info.Machine = utils.NewValue(runtime.GOARCH)
 
-	// gopsutil provides the full AIX maintenance level as KernelVersion
-	// (e.g. "7300-02-02-2419") and hostname, which are more informative.
+	// gopsutil provides the full AIX maintenance level via `oslevel -s`
+	// (e.g. "7300-02-02-2419") and hostname. We format KernelVersion as
+	// "V.R.TL.SP" (e.g. "7.3.2.2") to match VRMF dot notation used by
+	// installp/lslpp, which is more useful than the raw dash-separated string.
 	hostInfo, err := gopsutilhost.Info()
 	if err == nil {
 		info.KernelName = utils.NewValue("AIX")
 		info.Hostname = utils.NewValue(hostInfo.Hostname)
-		info.KernelVersion = utils.NewValue(hostInfo.KernelVersion)
+		info.KernelVersion = utils.NewValue(ParseOsLevelToKernelVersion(hostInfo.KernelVersion))
 	} else if unameErr == nil {
 		// Fall back to uname fields if gopsutil fails.
 		info.KernelName = utils.NewValue(utils.StringFromBytes(uname.Sysname[:]))
