@@ -20,6 +20,7 @@ go_test(
     name = "lookbacksender_test",
     srcs = ["sender_test.go"],
     embed = [":lookbacksender"],
+    gotags = ["test"],
     deps = [
         "//pkg/collector/check/id",
         "//pkg/metrics",
