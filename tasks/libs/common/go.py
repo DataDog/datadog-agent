@@ -97,6 +97,26 @@ def _with_pdb_extldflag(ldflags: str, bin_path: str) -> str:
     return (ldflags + suffix) if ldflags else suffix.lstrip()
 
 
+def _with_hermetic_mingw_path(ctx: Context, env: dict[str, str] | None) -> dict[str, str] | None:
+    """
+    Prepend the Bazel hermetic MinGW (GNU ld >= 2.44) to PATH for a Windows cgo
+    build, so the linker emits PDBs that Microsoft dbghelp/symstore can read. The
+    build image's default mingw is ld 2.43, whose `--pdb` output those tools
+    can't parse (WINA-2770). Returns env unchanged if it can't be resolved.
+
+    TODO: remove once migrated fully to the Bazel MinGW toolchain.
+    """
+    # bazel fetch is idempotent: it extracts @winlibs_mingw64 only if missing.
+    if not ctx.run("bazelisk fetch --repo=@winlibs_mingw64", hide=True, warn=True).ok:
+        return env
+    res = ctx.run("bazelisk info output_base", hide=True, warn=True)
+    if not res.ok:
+        return env
+    mingw_bin = f"{res.stdout.strip()}/external/+winlibs_mingw_repository+winlibs_mingw64/bin"
+    path = (env or {}).get("PATH") or os.environ.get("PATH", "")
+    return {**(env or {}), "PATH": f"{mingw_bin}{os.pathsep}{path}"}
+
+
 def go_build(
     ctx: Context,
     entrypoint: str | Path,
@@ -126,6 +146,8 @@ def go_build(
         os.makedirs(os.path.dirname(os.path.abspath(str(bin_path))) or ".", exist_ok=True)
         if os.environ.get("DD_GO_PDB", "1") != "0":
             ldflags = _with_pdb_extldflag(ldflags or "", str(bin_path))
+            if sys.platform == "win32":
+                env = _with_hermetic_mingw_path(ctx, env)
 
     cmd = "go build"
     if coverage:
