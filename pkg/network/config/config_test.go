@@ -627,4 +627,56 @@ func TestDNSMonitoringPorts(t *testing.T) {
 		cfg := New()
 		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
 	})
+
+	t.Run("via YAML - out-of-range ports should be removed", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{53, 0, -1, 65536, 99999, 5353})
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - many space-separated ports", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "1 2 3 4 5 6 7 53")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{1, 2, 3, 4, 5, 6, 7, 53}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - out-of-range ports should be removed", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53 -1 65536 99999 5353")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - empty string falls back to default", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - all HTTP ports fall back to default", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "80 443")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - all out-of-range ports fall back to default", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "0 65536")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
+	})
+
+	// With the generic string-to-numeric-slice converter, a single malformed
+	// token fails the whole env-var parse (it is not coerced to 0 per-element),
+	// so the override is ignored and the default is used.
+	t.Run("via env var - a malformed token invalidates the override", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53 not-a-port 5353")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
+	})
 }
