@@ -69,9 +69,8 @@ func SaveCustomIntegrations(ctx context.Context, installPath string, storagePath
 	}
 	if storagePath == paths.RunPath {
 		// An OCI package released before the move to RunPath restores the diff from
-		// RootTmpDir. Mirror it there so an experiment running such a build still finds
-		// the diff pre.py just wrote and restores custom integrations.
-		if err := copyOCIFile(storagePath, paths.RootTmpDir, diffFileName); err != nil {
+		// RootTmpDir, so mirror it there for such experiments.
+		if err := mirrorOCIFile(storagePath, paths.RootTmpDir, diffFileName); err != nil {
 			return err
 		}
 	}
@@ -107,6 +106,18 @@ func copyOCIFile(srcDir, dstDir, fileName string) error {
 		return fmt.Errorf("failed to write %s: %w", filepath.Join(dstDir, fileName), err)
 	}
 	return nil
+}
+
+// mirrorOCIFile copies fileName into dstDir only when dstDir already exists, so a
+// reaped RootTmpDir is not recreated (which would break experiment temp dirs).
+func mirrorOCIFile(srcDir, dstDir, fileName string) error {
+	if _, err := os.Stat(dstDir); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to stat %s: %w", dstDir, err)
+	}
+	return copyOCIFile(srcDir, dstDir, fileName)
 }
 
 // RestoreCustomIntegrations restores custom integrations from the previous installation

@@ -125,6 +125,68 @@ func TestCopyOCIFile(t *testing.T) {
 	}
 }
 
+func TestMirrorOCIFile(t *testing.T) {
+	const srcContent = "datadog-ping==1.0.2\n"
+	const dstContent = "datadog-postgres==7.0.0\n"
+
+	tests := []struct {
+		name         string
+		srcContent   string // "" means no source file
+		dstDirExists bool
+		dstContent   string // "" means no pre-existing destination file
+		wantContent  string // "" means the destination file should not exist
+		wantDir      bool   // whether dstDir should exist afterwards
+	}{
+		{"copied when dest dir exists", srcContent, true, "", srcContent, true},
+		{"skipped when dest dir absent", srcContent, false, "", "", false},
+		{"no source file is a no-op", "", true, dstContent, dstContent, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srcDir := t.TempDir()
+			dstDir := filepath.Join(t.TempDir(), "tmp") // not pre-created unless the case asks for it
+			if tt.srcContent != "" {
+				if err := os.WriteFile(filepath.Join(srcDir, diffFileName), []byte(tt.srcContent), 0o644); err != nil {
+					t.Fatalf("failed to seed source file: %v", err)
+				}
+			}
+			if tt.dstDirExists {
+				if err := os.MkdirAll(dstDir, 0o755); err != nil {
+					t.Fatalf("failed to create destination dir: %v", err)
+				}
+			}
+			if tt.dstContent != "" {
+				if err := os.WriteFile(filepath.Join(dstDir, diffFileName), []byte(tt.dstContent), 0o644); err != nil {
+					t.Fatalf("failed to seed destination file: %v", err)
+				}
+			}
+
+			if err := mirrorOCIFile(srcDir, dstDir, diffFileName); err != nil {
+				t.Fatalf("mirrorOCIFile failed: %v", err)
+			}
+
+			if _, err := os.Stat(dstDir); tt.wantDir != (err == nil) {
+				t.Errorf("dstDir existence: got err %v, wantDir %v", err, tt.wantDir)
+			}
+
+			got, err := os.ReadFile(filepath.Join(dstDir, diffFileName))
+			if tt.wantContent == "" {
+				if !os.IsNotExist(err) {
+					t.Errorf("expected no destination file, got %q (err %v)", got, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected file at destination dir: %v", err)
+			}
+			if string(got) != tt.wantContent {
+				t.Errorf("content mismatch: got %q want %q", got, tt.wantContent)
+			}
+		})
+	}
+}
+
 func TestRemoveCustomIntegrations(t *testing.T) {
 	dir := t.TempDir()
 
