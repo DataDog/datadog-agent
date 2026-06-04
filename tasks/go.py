@@ -401,7 +401,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.25.10 linux/amd64"
+    # result is like "go version go1.25.11 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

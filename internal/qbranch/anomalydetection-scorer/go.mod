@@ -1,3 +1,3 @@
 module github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-scorer
 
-go 1.25.9
+go 1.25.0
