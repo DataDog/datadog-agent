@@ -6,6 +6,7 @@
 package lookbacksender
 
 import (
+	"context"
 	"sync"
 	"testing"
 
@@ -18,6 +19,7 @@ import (
 )
 
 type recordedAppend struct {
+	ctx     context.Context
 	checkID checkid.ID
 	samples []metrics.MetricSample
 }
@@ -27,13 +29,13 @@ type recordingWriter struct {
 	appends []recordedAppend
 }
 
-func (w *recordingWriter) Append(checkID checkid.ID, samples []metrics.MetricSample) error {
+func (w *recordingWriter) Append(ctx context.Context, checkID checkid.ID, samples []metrics.MetricSample) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	samplesCopy := make([]metrics.MetricSample, len(samples))
 	copy(samplesCopy, samples)
-	w.appends = append(w.appends, recordedAppend{checkID: checkID, samples: samplesCopy})
+	w.appends = append(w.appends, recordedAppend{ctx: ctx, checkID: checkID, samples: samplesCopy})
 	return nil
 }
 
@@ -48,7 +50,8 @@ func (w *recordingWriter) snapshots() []recordedAppend {
 
 func TestSenderCommitWritesScalarMetricBatch(t *testing.T) {
 	writer := &recordingWriter{}
-	manager := NewSenderManager("default-host", writer, func() float64 { return 42 })
+	ctx := context.WithValue(context.Background(), testContextKey{}, "test")
+	manager := NewSenderManager(ctx, "default-host", writer, func() float64 { return 42 })
 
 	sender, err := manager.GetSender(checkid.ID("cpu:shadow"))
 	require.NoError(t, err)
@@ -67,6 +70,7 @@ func TestSenderCommitWritesScalarMetricBatch(t *testing.T) {
 
 	appends := writer.snapshots()
 	require.Len(t, appends, 1)
+	assert.Equal(t, "test", appends[0].ctx.Value(testContextKey{}))
 	assert.Equal(t, checkid.ID("cpu:shadow"), appends[0].checkID)
 	require.Len(t, appends[0].samples, 3)
 
@@ -113,9 +117,34 @@ func TestSenderCommitWritesScalarMetricBatch(t *testing.T) {
 	assert.Equal(t, int64(0), lookbackSender.GetSenderStats().MetricSamples)
 }
 
+func TestSenderCopiesTagsBeforeBuffering(t *testing.T) {
+	writer := &recordingWriter{}
+	manager := NewSenderManager(context.Background(), "default-host", writer, func() float64 { return 42 })
+
+	sender, err := manager.GetSender(checkid.ID("cpu:shadow"))
+	require.NoError(t, err)
+	lookbackSender := sender.(*Sender)
+
+	tags := []string{"device:first"}
+	lookbackSender.GaugeNoIndex("metric.gauge", 1, "", tags)
+	tags[0] = "device:second"
+
+	err = lookbackSender.GaugeWithTimestamp("metric.timestamped", 2, "", tags, 123)
+	require.NoError(t, err)
+	tags[0] = "device:third"
+
+	lookbackSender.Commit()
+
+	appends := writer.snapshots()
+	require.Len(t, appends, 1)
+	require.Len(t, appends[0].samples, 2)
+	assert.Equal(t, []string{"device:first"}, appends[0].samples[0].Tags)
+	assert.Equal(t, []string{"device:second"}, appends[0].samples[1].Tags)
+}
+
 func TestSenderDropsUnsupportedPayloadsAndRejectsInvalidTimestamps(t *testing.T) {
 	writer := &recordingWriter{}
-	manager := NewSenderManager("default-host", writer, func() float64 { return 42 })
+	manager := NewSenderManager(context.Background(), "default-host", writer, func() float64 { return 42 })
 
 	sender, err := manager.GetSender(checkid.ID("cpu:shadow"))
 	require.NoError(t, err)
@@ -136,7 +165,7 @@ func TestSenderDropsUnsupportedPayloadsAndRejectsInvalidTimestamps(t *testing.T)
 }
 
 func TestSenderManagerReusesAndDestroysSendersByCheckID(t *testing.T) {
-	manager := NewSenderManager("default-host", &recordingWriter{}, func() float64 { return 42 })
+	manager := NewSenderManager(context.Background(), "default-host", &recordingWriter{}, func() float64 { return 42 })
 	checkID := checkid.ID("cpu:shadow")
 
 	first, err := manager.GetSender(checkID)
@@ -150,3 +179,5 @@ func TestSenderManagerReusesAndDestroysSendersByCheckID(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotSame(t, first, third)
 }
+
+type testContextKey struct{}

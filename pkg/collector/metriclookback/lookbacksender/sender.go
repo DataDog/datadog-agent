@@ -7,6 +7,7 @@
 package lookbacksender
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
@@ -18,16 +19,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	log "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Writer stores scalar metric samples emitted by shadow checks.
 type Writer interface {
-	Append(checkID checkid.ID, samples []metrics.MetricSample) error
+	Append(ctx context.Context, checkID checkid.ID, samples []metrics.MetricSample) error
 }
 
 // SenderManager provides lookback senders for shadow check IDs.
 type SenderManager struct {
 	mu              sync.Mutex
+	ctx             context.Context
 	defaultHostname string
 	writer          Writer
 	now             func() float64
@@ -36,7 +39,10 @@ type SenderManager struct {
 }
 
 // NewSenderManager creates a sender manager for lookback shadow checks.
-func NewSenderManager(defaultHostname string, writer Writer, now func() float64) *SenderManager {
+func NewSenderManager(ctx context.Context, defaultHostname string, writer Writer, now func() float64) *SenderManager {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if now == nil {
 		now = func() float64 {
 			return float64(time.Now().UnixNano()) / 1e9
@@ -44,6 +50,7 @@ func NewSenderManager(defaultHostname string, writer Writer, now func() float64)
 	}
 
 	return &SenderManager{
+		ctx:             ctx,
 		defaultHostname: defaultHostname,
 		writer:          writer,
 		now:             now,
@@ -61,7 +68,7 @@ func (m *SenderManager) GetSender(id checkid.ID) (aggregatorsender.Sender, error
 		return s, nil
 	}
 
-	s := newSender(id, m.defaultHostname, m.writer, m.now)
+	s := newSender(m.ctx, id, m.defaultHostname, m.writer, m.now)
 	m.senders[id] = s
 	return s, nil
 }
@@ -93,6 +100,7 @@ func (m *SenderManager) GetDefaultSender() (aggregatorsender.Sender, error) {
 
 // Sender implements sender.Sender for lookback shadow checks.
 type Sender struct {
+	ctx     context.Context
 	id      checkid.ID
 	writer  Writer
 	factory *aggregatorsender.CheckMetricSampleFactory
@@ -105,8 +113,9 @@ type Sender struct {
 	service   string
 }
 
-func newSender(id checkid.ID, defaultHostname string, writer Writer, now func() float64) *Sender {
+func newSender(ctx context.Context, id checkid.ID, defaultHostname string, writer Writer, now func() float64) *Sender {
 	return &Sender{
+		ctx:       ctx,
 		id:        id,
 		writer:    writer,
 		factory:   aggregatorsender.NewCheckMetricSampleFactory(id, defaultHostname, now),
@@ -128,16 +137,26 @@ func (s *Sender) Commit() {
 		return
 	}
 
-	_ = s.writer.Append(s.id, samples)
+	if err := s.writer.Append(s.ctx, s.id, samples); err != nil {
+		log.Warnf("failed to append %d lookback samples for check %s: %v", len(samples), s.id, err)
+	}
 }
 
 func (s *Sender) appendScalarSample(input aggregatorsender.ScalarSample) {
 	sample := *s.factory.BuildMetricSample(input)
+	sample.Tags = cloneTags(sample.Tags)
 
 	s.mu.Lock()
 	s.samples = append(s.samples, sample)
 	s.stats.MetricSamples++
 	s.mu.Unlock()
+}
+
+func cloneTags(tags []string) []string {
+	if tags == nil {
+		return nil
+	}
+	return append([]string(nil), tags...)
 }
 
 // GetSenderStats returns sender stats from the previous committed run.
