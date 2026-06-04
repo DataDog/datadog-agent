@@ -90,7 +90,9 @@ build do
     lockfile = windows_safe_path(project_dir, ".deps", "resolved", lockfile_name)
     command "#{python} -m pip install --require-hashes --only-binary=:all: --no-deps -r #{lockfile}"
   else
-    command_on_repo_root "bazelisk run --//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} -- //deps/agent_integrations:install_dependencies --destdir=#{install_dir}"
+    command_on_repo_root "bazelisk run --//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
+                         "--//:install_dir=#{install_dir} -- " \
+                         " //deps/agent_integrations:install_dependencies --destdir=#{install_dir}"
   end
 
   # Prepare build env for integrations

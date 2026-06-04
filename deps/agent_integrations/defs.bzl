@@ -45,10 +45,14 @@ install_wheels = rule(
         "python": attr.label(
             mandatory = True,
             executable = True,
-            cfg = "exec",
-            doc = """Executable target providing the python interpreter. Its
-            DefaultInfo.files must contain everything needed at runtime
-            (libpython, lib-dynload, dynamic deps).""",
+            # Even though it's a tool, which should usually require cfg "exec" (to enable
+            # cross-build), in practice the whole point of using our own-built python here
+            # is that it needs to match our target, and using cfg "exec" would require a separate
+            # rebuild of Python.
+            # We can revisit this once all of the pieces related to integrations-core are migrated
+            # to dig into whether we do actually need our embedded Python or we can do without.
+            cfg = "target",
+            doc = """Executable target providing the python interpreter, ideally matching the target platform.""",
         ),
     },
     doc = "Installs the wheels given in `srcs` into a directory using pip.",

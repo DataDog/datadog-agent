@@ -9,8 +9,6 @@ build do
   # 2.0 is the license version here, not the python version
   license "Python-2.0"
 
-  flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
-
   if !windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
     command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @cpython//:install --destdir='#{install_dir}'"
@@ -20,7 +18,9 @@ build do
       " #{install_dir}/embedded/lib/python3.*/_sysconfigdata__*.py"
     python = "#{install_dir}/embedded/bin/python3"
   else
-    command_on_repo_root "bazelisk run #{flavor_flag} --//:install_dir=#{install_dir} -- @cpython//:install --destdir=#{install_dir}"
+    command_on_repo_root "bazelisk run --//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
+                         "--//:install_dir=#{install_dir} -- " \
+                         "@cpython//:install --destdir=#{install_dir}"
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
   end
 
