@@ -13,7 +13,7 @@ go_library(
     deps = [
         "//comp/core/agenttelemetry/def",
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/ipc/def",
         "//comp/core/log/def",
         "//comp/core/secrets/def",

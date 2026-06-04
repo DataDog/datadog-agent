@@ -134,7 +134,7 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	}
 
 	// Populate the profiles map (from defaults/OOTB)
-	profMap, err := profile.GetProfileMap("default_profiles")
+	profMap, err := profile.GetProfileMap()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get profile map: %w", err)
 	}
@@ -162,7 +162,7 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 
 // GetNCMContextFromCoreCheck retrieves the NCM configurations from the agent's config for the integration
 // TODO: tests for this to come when the component is refactored / we're working on the trigger-based approach for config changes
-func GetNCMContextFromCoreCheck(ctx context.Context, client ipc.HTTPClient) (*NcmComponentContext, error) {
+func GetNCMContextFromCoreCheck(ctx context.Context, client ipc.HTTPClient, ipAddr string) (*NcmCheckContext, error) {
 	// Call the agent's config check endpoint to retrieve the NCM configs (from core check)
 	endpoint, err := client.NewIPCEndpoint("/agent/config-check")
 	if err != nil {
@@ -179,57 +179,24 @@ func GetNCMContextFromCoreCheck(ctx context.Context, client ipc.HTTPClient) (*Nc
 	if err != nil {
 		return nil, err
 	}
-	var ncc NcmComponentContext
 
 	// Iterate through the instances (devices) and parse the device configs
-	var deviceInstances []DeviceInstance
 	for _, c := range cr.Configs {
-		if c.Config.Name == checkName { // Check name for NCM
-			// Parse each instance / device
-			for _, instance := range c.Config.Instances {
+		if c.Config.Name == checkName { // config is for NCM
+			for _, instance := range c.Config.Instances { // find the instance for this IP
 				var deviceInstance DeviceInstance
 				err := yaml.Unmarshal(instance, &deviceInstance)
 				if err != nil {
-					return nil, fmt.Errorf("failed to unmarshal NCM device config: %s", err)
+					return nil, fmt.Errorf("unable to parse NCM config: %v", err)
 				}
-				err = deviceInstance.Validate()
-				if err != nil {
-					return nil, fmt.Errorf("invalid device config for device %s: %w", deviceInstance.IPAddress, err)
+				if deviceInstance.IPAddress != ipAddr {
+					continue
 				}
-				deviceInstances = append(deviceInstances, deviceInstance)
-			}
-			// Parse init config if exists
-			if c.Config.InitConfig != nil {
-				var initConfig InitConfig
-				err := yaml.Unmarshal(c.Config.InitConfig, &initConfig)
-				if err != nil {
-					return nil, fmt.Errorf("failed to unmarshal init config: %s", err)
-				}
-				err = initConfig.Validate()
-				if err != nil {
-					return nil, err
-				}
-				ncc.Namespace = initConfig.Namespace
+				return NewNcmCheckContext(instance, c.Config.InitConfig)
 			}
 		}
 	}
-	// Make device map to easily reference from component when retrieving configs upon event of config change
-	deviceMap := make(map[string]DeviceInstance)
-	for _, d := range deviceInstances {
-		_, exists := deviceMap[d.IPAddress]
-		if exists {
-			log.Warnf("Duplicate device IP address found in config: %s, skipping duplicate", d.IPAddress)
-			continue
-		}
-		if d.IPAddress != "" {
-			deviceMap[d.IPAddress] = d
-		} else {
-			log.Warnf("Device config missing IP address, skipping: %+v", d)
-		}
-	}
-	ncc.Devices = deviceMap
-
-	return &ncc, nil
+	return nil, errors.New("no NCM configuration found")
 }
 
 func (ic *InitConfig) applyDefaults() {
