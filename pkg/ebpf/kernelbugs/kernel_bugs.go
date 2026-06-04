@@ -9,7 +9,7 @@
 package kernelbugs
 
 import (
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 )
 
 // HasTasksRCUExitLockSymbol returns true if the tasks_rcu_exit_srcu symbol is found in the kernel symbols.
@@ -17,7 +17,7 @@ import (
 // This was fixed by https://github.com/torvalds/linux/commit/1612160b91272f5b1596f499584d6064bf5be794
 func HasTasksRCUExitLockSymbol() (bool, error) {
 	const tasksRCUExitLockSymbol = "tasks_rcu_exit_srcu"
-	missingSymbols, err := ddebpf.VerifyKernelFuncs(tasksRCUExitLockSymbol)
+	missingSymbols, err := ksyms.VerifyKernelFuncs(tasksRCUExitLockSymbol)
 	if err != nil {
 		return false, err
 	}

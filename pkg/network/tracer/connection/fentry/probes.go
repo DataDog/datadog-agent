@@ -11,7 +11,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -200,7 +200,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 }
 
 func enableAdvancedUDP(enabled map[string]struct{}) error {
-	missing, err := ebpf.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
+	missing, err := ksyms.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
 	if err != nil {
 		return fmt.Errorf("error verifying kernel function presence: %s", err)
 	}

@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -67,5 +68,5 @@ func GetKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses ...string) (m
 	}
 	defer ksymsReader.Close()
 
-	return GetKernelSymbolsAddressesNoCache(ksymsReader, kernelAddresses...)
+	return ksyms.GetKernelSymbolsAddressesNoCache(ksymsReader, kernelAddresses...)
 }

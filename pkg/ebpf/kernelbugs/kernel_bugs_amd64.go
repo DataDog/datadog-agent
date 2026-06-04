@@ -16,8 +16,8 @@ import (
 	"os/exec"
 	"syscall"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -41,7 +41,7 @@ var HasUretprobeSyscallSeccompBug = funcs.Memoize(func() (bool, error) {
 
 func hasUretprobeSyscallSeccompBug() (bool, error) {
 	const uretprobeSyscallSymbol = "__x64_sys_uretprobe"
-	missingSymbols, err := ddebpf.VerifyKernelFuncs(uretprobeSyscallSymbol)
+	missingSymbols, err := ksyms.VerifyKernelFuncs(uretprobeSyscallSymbol)
 	if err != nil {
 		return false, err
 	}
