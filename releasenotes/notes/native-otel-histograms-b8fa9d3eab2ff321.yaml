@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    Add alpha support for lossless native OTel histogram export in DDOT.
+    When the ``exporter.datadogexporter.NativeOTelHistograms`` feature gate is enabled,
+    ExplicitBound and Exponential histogram data points are forwarded in their original
+    OTel format instead of being converted to DDSketches. Only delta temporality histograms
+    are exported; cumulative histograms are silently skipped.
+    Enable with ``--feature-gates=exporter.datadogexporter.NativeOTelHistograms``.
+    The gate is off by default; existing sketch-based behavior is unchanged.
