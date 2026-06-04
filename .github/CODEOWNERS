@@ -652,6 +652,7 @@
 /pkg/util/crashreport/                  @DataDog/windows-products
 /pkg/util/pdhutil/                      @DataDog/windows-products
 /pkg/util/winutil/                      @DataDog/windows-products
+/pkg/util/winutil/iisconfig             @DataDog/windows-products @DataDog/universal-service-monitoring
 /pkg/util/testutil/flake                @DataDog/agent-devx
 /pkg/util/testutil/patternscanner.go    @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/testutil/docker               @DataDog/universal-service-monitoring @DataDog/ebpf-platform
@@ -755,7 +756,8 @@
 /tasks/macos.py                         @DataDog/windows-products
 /tasks/msi.py                           @DataDog/windows-products
 /tasks/agent.py                         @DataDog/agent-runtimes
-/tasks/build_tags.py                    @DataDog/agent-devx @DataDog/agent-build
+/tasks/build_tags.py                    @DataDog/agent-build
+/tasks/build_tags.bzl                   @DataDog/agent-build
 /tasks/anomalydetection.py              @DataDog/q-branch
 /tasks/loader.py                        @DataDog/agent-runtimes
 /tasks/go_deps.py                       @DataDog/agent-runtimes
@@ -808,6 +810,7 @@
 /tasks/libs/releasing/                  @DataDog/agent-delivery
 /tasks/schema/                          @DataDog/agent-configuration
 /tasks/unit_tests/components_tests.py   @DataDog/agent-runtimes
+/tasks/unit_tests/build_tags_tests.py   @DataDog/agent-build
 /tasks/unit_tests/libs/build/           @DataDog/agent-build
 /tasks/unit_tests/omnibus_tests.py      @DataDog/agent-build
 /tasks/unit_tests/testdata/components_src/ @DataDog/agent-runtimes

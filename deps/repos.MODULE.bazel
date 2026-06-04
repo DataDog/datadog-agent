@@ -111,7 +111,6 @@ http_archive(
     patches = [
         "//deps/openssl:0001-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
         "//deps/openssl:0002-OSSL_PARAM_BLD_push_octet_allow_NULL_buffer.patch",
-        "//deps/openssl:0003-add-install-prefix-configure-parameter.patch",
     ],
     sha256 = "deae7c80cba99c4b4f940ecadb3c3338b13cb77418409238e57d7f31f2a3b736",
     strip_prefix = "openssl-3.5.6",
@@ -311,10 +310,10 @@ http_archive(
         "config-linux-arm64.h": "//deps:libxml2/config-linux-arm64.h",
         "BUILD.bazel": "//deps:libxml2/overlay.BUILD.bazel",
     },
-    sha256 = "03d006f3537616833c16c53addcdc32a0eb20e55443cba4038307e3fa7d8d44b",
-    strip_prefix = "libxml2-2.14.5",
+    sha256 = "78262a6e7ac170d6528ebfe2efccdf220191a5af6a6cd61ea4a9a9a5042c7a07",
+    strip_prefix = "libxml2-2.15.3",
     urls = [
-        "https://download.gnome.org/sources/libxml2/2.14/libxml2-2.14.5.tar.xz",
+        "https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.3.tar.xz",
     ],
 )
 
@@ -325,10 +324,10 @@ http_archive(
         "config-linux-arm64.h": "//deps:libxslt/config-linux-arm64.h",
         "BUILD.bazel": "//deps:libxslt/overlay.BUILD.bazel",
     },
-    sha256 = "5a3d6b383ca5afc235b171118e90f5ff6aa27e9fea3303065231a6d403f0183a",
-    strip_prefix = "libxslt-1.1.43",
+    sha256 = "9acfe68419c4d06a45c550321b3212762d92f41465062ca4ea19e632ee5d216e",
+    strip_prefix = "libxslt-1.1.45",
     urls = [
-        "https://download.gnome.org/sources/libxslt/1.1/libxslt-1.1.43.tar.xz",
+        "https://download.gnome.org/sources/libxslt/1.1/libxslt-1.1.45.tar.xz",
     ],
 )
 
