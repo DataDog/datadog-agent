@@ -173,3 +173,85 @@ func testObfuscaterConfig(t *testing.T) {
 	}
 	assert.Equal(t, expected, obfuscaterConfig)
 }
+
+func testLoadSQLConfig(t *testing.T) {
+	optStr := `{"dbms":"postgresql","obfuscation_mode":"obfuscate_and_normalize","table_names":true,"return_json_metadata":true}`
+
+	c1, err := loadSQLConfig(optStr)
+	require.NoError(t, err)
+	require.NotNil(t, c1)
+	assert.Equal(t, obfuscate.ObfuscateAndNormalize, c1.ObfuscationMode)
+	assert.Equal(t, "postgresql", c1.DBMS)
+	assert.True(t, c1.TableNames)
+	assert.True(t, c1.ReturnJSONMetadata)
+
+	c2, err := loadSQLConfig(optStr)
+	require.NoError(t, err)
+	assert.Same(t, c1, c2, "identical options string should return the memoized *sqlConfig")
+
+	// memoized parse must equal a fresh json.Unmarshal (behavior preserved)
+	var fresh sqlConfig
+	require.NoError(t, json.Unmarshal([]byte(optStr), &fresh))
+	assert.Equal(t, fresh, *c1)
+
+	// a different options string gets its own config (no key collision)
+	mc, err := loadSQLConfig(`{"dbms":"mysql","obfuscation_mode":"obfuscate_only"}`)
+	require.NoError(t, err)
+	assert.Equal(t, "mysql", mc.DBMS)
+	assert.Equal(t, obfuscate.ObfuscateOnly, mc.ObfuscationMode)
+	assert.NotSame(t, c1, mc)
+	again, _ := loadSQLConfig(optStr)
+	assert.Equal(t, "postgresql", again.DBMS)
+
+	badStr := `{not valid json`
+	bad, err := loadSQLConfig(badStr)
+	require.Error(t, err)
+	require.NotNil(t, bad)
+	_, cached := sqlConfigCache.Load(badStr)
+	assert.False(t, cached, "a failed parse must not be cached")
+}
+
+func testObfuscateSQL(t *testing.T) {
+	pkgconfigmodel.CleanOverride(t)
+	_ = pkgconfigmock.New(t)
+	// use a fresh, non-stopped obfuscator regardless of test ordering
+	obfuscator = obfuscate.NewObfuscator(obfuscate.Config{})
+	obfuscatorLoader.Do(func() {})
+
+	query := "SELECT * FROM users WHERE id = 123 AND name = 'alice'"
+	opts := `{"dbms":"postgresql","obfuscation_mode":"obfuscate_and_normalize","table_names":true,"return_json_metadata":true}`
+
+	var errMsg *C.char
+	res := C.GoString(ObfuscateSQL(C.CString(query), C.CString(opts), &errMsg))
+	require.Nil(t, errMsg)
+
+	var oq struct {
+		Query    string `json:"query"`
+		Metadata struct {
+			TablesCSV string `json:"tables_csv"`
+		} `json:"metadata"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(res), &oq))
+	assert.NotContains(t, oq.Query, "123")
+	assert.NotContains(t, oq.Query, "alice")
+	assert.Contains(t, oq.Query, "?")
+	assert.Contains(t, oq.Metadata.TablesCSV, "users")
+
+	// same query+options again (memo + cache) -> byte-identical output
+	errMsg = nil
+	res2 := C.GoString(ObfuscateSQL(C.CString(query), C.CString(opts), &errMsg))
+	require.Nil(t, errMsg)
+	assert.Equal(t, res, res2)
+
+	// return_json_metadata:false -> bare obfuscated SQL, not JSON
+	errMsg = nil
+	bare := C.GoString(ObfuscateSQL(C.CString(query), C.CString(`{"dbms":"postgresql","obfuscation_mode":"obfuscate_and_normalize"}`), &errMsg))
+	require.Nil(t, errMsg)
+	assert.NotContains(t, bare, "123")
+	assert.Error(t, json.Unmarshal([]byte(bare), &oq), "bare result should be raw SQL, not JSON")
+
+	// empty options -> defaults to "{}", must not error or panic
+	errMsg = nil
+	assert.NotEmpty(t, C.GoString(ObfuscateSQL(C.CString(query), C.CString(""), &errMsg)))
+	require.Nil(t, errMsg)
+}

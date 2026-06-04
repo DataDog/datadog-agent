@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Database Monitoring: the Agent now memoizes parsed SQL obfuscation options on
+    the Python obfuscation path, replacing a per-call ``json.Unmarshal`` of the
+    identical options string with a cached lookup.

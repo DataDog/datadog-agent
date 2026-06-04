@@ -246,6 +246,8 @@ var (
 	obfuscator       *obfuscate.Obfuscator
 	obfuscaterConfig obfuscate.Config // For testing purposes
 	obfuscatorLoader sync.Once
+
+	sqlConfigCache sync.Map // map[string]*sqlConfig
 )
 
 // lazyInitObfuscator initializes the obfuscator the first time it is used. We can't initialize during the package init
@@ -282,6 +284,20 @@ type sqlConfig struct {
 	ReturnJSONMetadata bool `json:"return_json_metadata"`
 }
 
+// loadSQLConfig returns the memoized parse of optStr; on a parse error it returns a
+// zero-value config and does not cache it.
+func loadSQLConfig(optStr string) (*sqlConfig, error) {
+	if v, ok := sqlConfigCache.Load(optStr); ok {
+		return v.(*sqlConfig), nil
+	}
+	c := &sqlConfig{}
+	if err := json.Unmarshal([]byte(optStr), c); err != nil {
+		return c, err
+	}
+	sqlConfigCache.Store(optStr, c)
+	return c, nil
+}
+
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
 // fails. An optional configuration may be passed to change the behavior of the obfuscator.
 //
@@ -292,8 +308,8 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 		// ensure we have a valid JSON string before unmarshalling
 		optStr = "{}"
 	}
-	var sqlOpts sqlConfig
-	if err := json.Unmarshal([]byte(optStr), &sqlOpts); err != nil {
+	sqlOpts, err := loadSQLConfig(optStr)
+	if err != nil {
 		log.Errorf("Failed to unmarshal obfuscation options: %s", err.Error())
 		*errResult = TrackedCString(err.Error())
 	}
