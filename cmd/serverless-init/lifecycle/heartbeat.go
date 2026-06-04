@@ -7,7 +7,6 @@ package lifecycle
 
 import (
 	"context"
-	"slices"
 	"sync"
 	"time"
 
@@ -22,12 +21,10 @@ import (
 const DefaultHeartbeatInterval = 5 * time.Minute
 
 const (
-	heartbeatMetricName = "aws.lambda.microvm.enhanced.heartbeat"
+	activeInstancesMetricName = "aws.lambda.enhanced.microvm.active_instances"
 
 	// unknownTagValue is the placeholder used when the MicroVM ID has not
-	// yet been observed (pre-/launch heartbeats — should never happen in
-	// practice since heartbeat doesn't Start until /launch — and when the
-	// platform omits the header).
+	// yet been observed (when the platform omits the header).
 	unknownTagValue = "unknown"
 )
 
@@ -47,7 +44,9 @@ type Heartbeat struct {
 	interval      time.Duration
 	metricEmitter MetricEmitter
 	metricSource  metrics.MetricSource
-	baseTags      []string // immutable after construction (e.g., microvm_image_arn)
+	// resourceName is the MicroVM image ARN. When non-empty it is emitted as
+	// microvm_image_arn on the heartbeat metric. Empty disables the tag.
+	resourceName string
 
 	mu        sync.Mutex
 	cancel    context.CancelFunc
@@ -56,11 +55,9 @@ type Heartbeat struct {
 }
 
 // NewHeartbeat constructs a Heartbeat. Non-positive interval falls back to
-// DefaultHeartbeatInterval. baseTags are tags known at construction time
-// (typically derived from env vars, e.g., microvm_image_arn); the
-// microvm_id tag is appended at emit time and is set at runtime via
-// SetMicroVMID from the /launch request.
-func NewHeartbeat(interval time.Duration, emitter MetricEmitter, source metrics.MetricSource, baseTags []string) *Heartbeat {
+// DefaultHeartbeatInterval. resourceName is the MicroVM image ARN; it is used
+// as the microvm_image_arn tag on heartbeat emissions. Pass "" to omit the tag.
+func NewHeartbeat(interval time.Duration, emitter MetricEmitter, source metrics.MetricSource, resourceName string) *Heartbeat {
 	if interval <= 0 {
 		interval = DefaultHeartbeatInterval
 	}
@@ -68,18 +65,9 @@ func NewHeartbeat(interval time.Duration, emitter MetricEmitter, source metrics.
 		interval:      interval,
 		metricEmitter: emitter,
 		metricSource:  source,
-		baseTags:      slices.Clone(baseTags),
+		resourceName:  resourceName,
 		microVMID:     unknownTagValue,
 	}
-}
-
-// BaseTags returns the immutable tags set at construction (e.g. microvm_image_arn).
-// Safe to call on a nil receiver. Exposed for white-box tests in external packages.
-func (h *Heartbeat) BaseTags() []string {
-	if h == nil {
-		return nil
-	}
-	return slices.Clone(h.baseTags)
 }
 
 // SetMicroVMID records the MicroVM instance ID extracted from the /launch
@@ -160,9 +148,9 @@ func (h *Heartbeat) run(ctx context.Context, done chan struct{}) {
 		h.mu.Unlock()
 		close(done)
 	}()
-	// Emit once immediately so a metric is recorded even if the MicroVM
+	// Emit once immediately so metrics are recorded even if the MicroVM
 	// instance is terminated before the first ticker interval elapses.
-	emitMetric(h.metricEmitter, h.metricSource, heartbeatMetricName, h.tagsForEmit()...)
+	h.emitAll()
 	ticker := time.NewTicker(h.interval)
 	defer ticker.Stop()
 	for {
@@ -170,19 +158,32 @@ func (h *Heartbeat) run(ctx context.Context, done chan struct{}) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			emitMetric(h.metricEmitter, h.metricSource, heartbeatMetricName, h.tagsForEmit()...)
+			h.emitAll()
 		}
 	}
 }
 
-// tagsForEmit returns a fresh tag slice combining the immutable base tags
-// (set at construction) with the current microvm_id (set at /launch).
+func (h *Heartbeat) emitAll() {
+	h.mu.Lock()
+	id := h.microVMID
+	h.mu.Unlock()
+
+	emitMetric(h.metricEmitter, h.metricSource, activeInstancesMetricName, h.buildHeartbeatTags(id)...)
+}
+
+func (h *Heartbeat) buildHeartbeatTags(id string) []string {
+	tags := make([]string, 0, 2)
+	if h.resourceName != "" {
+		tags = append(tags, "microvm_image_arn:"+h.resourceName)
+	}
+	return append(tags, "microvm_id:"+id)
+}
+
+// tagsForEmit returns the current heartbeat tag slice. Used by tests to
+// inspect tag state without triggering a metric emission.
 func (h *Heartbeat) tagsForEmit() []string {
 	h.mu.Lock()
 	id := h.microVMID
 	h.mu.Unlock()
-	tags := make([]string, 0, len(h.baseTags)+1)
-	tags = append(tags, h.baseTags...)
-	tags = append(tags, "microvm_id:"+id)
-	return tags
+	return h.buildHeartbeatTags(id)
 }

@@ -56,6 +56,7 @@ func (m *mockLogsAgent) Flush(_ context.Context) {
 // emittedMetric records one AddEnhancedMetric call.
 type emittedMetric struct {
 	name      string
+	value     float64
 	timestamp float64
 	extraTags []string
 }
@@ -77,10 +78,10 @@ type mockMetricEmitter struct {
 	metrics []emittedMetric
 }
 
-func (m *mockMetricEmitter) AddEnhancedMetric(name string, _ float64, _ metrics.MetricSource, ts float64, tags ...string) {
+func (m *mockMetricEmitter) AddEnhancedMetric(name string, value float64, _ metrics.MetricSource, ts float64, tags ...string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.metrics = append(m.metrics, emittedMetric{name: name, timestamp: ts, extraTags: slices.Clone(tags)})
+	m.metrics = append(m.metrics, emittedMetric{name: name, value: value, timestamp: ts, extraTags: slices.Clone(tags)})
 }
 
 func (m *mockMetricEmitter) getEmitted() []string {
@@ -979,7 +980,7 @@ func TestFlushAllDrainTimeoutDoesNotBlock(t *testing.T) {
 func withFakeHeartbeat(t *testing.T, srv *Server) (started func() bool, teardown func()) {
 	t.Helper()
 	emitter := &mockMetricEmitter{}
-	hb := NewHeartbeat(time.Hour /* never ticks during the test */, emitter, metrics.MetricSourceAWSMicroVMEnhanced, nil)
+	hb := NewHeartbeat(time.Hour /* never ticks during the test */, emitter, metrics.MetricSourceAWSMicroVMEnhanced, "")
 	srv.heartbeat = hb
 	started = func() bool {
 		hb.mu.Lock()
