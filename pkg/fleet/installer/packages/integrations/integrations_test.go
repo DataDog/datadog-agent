@@ -71,6 +71,60 @@ func TestMigrateLegacyOCIFile(t *testing.T) {
 	}
 }
 
+func TestCopyOCIFile(t *testing.T) {
+	const srcContent = "datadog-ping==1.0.2\n"
+	const dstContent = "datadog-postgres==7.0.0\n"
+
+	tests := []struct {
+		name       string
+		srcContent string // "" means no source file
+		dstContent string // "" means no pre-existing destination file
+		want       string // "" means the destination file should not exist
+	}{
+		{"copied when destination absent", srcContent, "", srcContent},
+		{"overwrites existing destination", srcContent, dstContent, srcContent},
+		{"no source file is a no-op", "", dstContent, dstContent},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srcDir := t.TempDir()
+			dstDir := filepath.Join(t.TempDir(), "tmp") // not pre-created; exercises MkdirAll
+			if tt.srcContent != "" {
+				if err := os.WriteFile(filepath.Join(srcDir, diffFileName), []byte(tt.srcContent), 0o644); err != nil {
+					t.Fatalf("failed to seed source file: %v", err)
+				}
+			}
+			if tt.dstContent != "" {
+				if err := os.MkdirAll(dstDir, 0o755); err != nil {
+					t.Fatalf("failed to create destination dir: %v", err)
+				}
+				if err := os.WriteFile(filepath.Join(dstDir, diffFileName), []byte(tt.dstContent), 0o644); err != nil {
+					t.Fatalf("failed to seed destination file: %v", err)
+				}
+			}
+
+			if err := copyOCIFile(srcDir, dstDir, diffFileName); err != nil {
+				t.Fatalf("copyOCIFile failed: %v", err)
+			}
+
+			got, err := os.ReadFile(filepath.Join(dstDir, diffFileName))
+			if tt.want == "" {
+				if !os.IsNotExist(err) {
+					t.Errorf("expected no destination file, got %q (err %v)", got, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected file at destination dir: %v", err)
+			}
+			if string(got) != tt.want {
+				t.Errorf("content mismatch: got %q want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRemoveCustomIntegrations(t *testing.T) {
 	dir := t.TempDir()
 

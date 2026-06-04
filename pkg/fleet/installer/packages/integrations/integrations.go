@@ -64,31 +64,47 @@ func SaveCustomIntegrations(ctx context.Context, installPath string, storagePath
 			return err
 		}
 	}
-	return executePythonScript(ctx, installPath, "pre.py", installPath, storagePath)
+	if err := executePythonScript(ctx, installPath, "pre.py", installPath, storagePath); err != nil {
+		return err
+	}
+	if storagePath == paths.RunPath {
+		// An OCI package released before the move to RunPath restores the diff from
+		// RootTmpDir. Mirror it there so an experiment running such a build still finds
+		// the diff pre.py just wrote and restores custom integrations.
+		if err := copyOCIFile(storagePath, paths.RootTmpDir, diffFileName); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // migrateLegacyOCIFile seeds storageDir with a save/restore file an older OCI
 // package wrote to the legacy RootTmpDir, so the first upgrade to a RunPath-based
 // version still finds it. No-op if the destination exists or the legacy file does not.
 func migrateLegacyOCIFile(legacyDir, storageDir, fileName string) error {
-	dst := filepath.Join(storageDir, fileName)
-	if _, err := os.Stat(dst); err == nil {
+	if _, err := os.Stat(filepath.Join(storageDir, fileName)); err == nil {
 		return nil
 	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("failed to stat %s: %w", dst, err)
+		return fmt.Errorf("failed to stat %s: %w", filepath.Join(storageDir, fileName), err)
 	}
-	data, err := os.ReadFile(filepath.Join(legacyDir, fileName))
+	return copyOCIFile(legacyDir, storageDir, fileName)
+}
+
+// copyOCIFile copies fileName from srcDir to dstDir, creating dstDir if needed.
+// No-op if the source file does not exist.
+func copyOCIFile(srcDir, dstDir, fileName string) error {
+	data, err := os.ReadFile(filepath.Join(srcDir, fileName))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return fmt.Errorf("failed to read legacy %s: %w", fileName, err)
+		return fmt.Errorf("failed to read %s: %w", filepath.Join(srcDir, fileName), err)
 	}
-	if err := os.MkdirAll(storageDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create storage dir %s: %w", storageDir, err)
+	if err := os.MkdirAll(dstDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create %s: %w", dstDir, err)
 	}
-	if err := os.WriteFile(dst, data, 0o644); err != nil {
-		return fmt.Errorf("failed to write %s to %s: %w", fileName, dst, err)
+	if err := os.WriteFile(filepath.Join(dstDir, fileName), data, 0o644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", filepath.Join(dstDir, fileName), err)
 	}
 	return nil
 }
