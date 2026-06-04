@@ -84,7 +84,7 @@ var validCheckName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
 
 func validateLibraryName(name string) error {
 	if !validCheckName.MatchString(name) {
-		return fmt.Errorf("check name %q must contain only alphanumeric characters, hyphens, or underscores", name)
+		return fmt.Errorf("check name %q must start with an alphanumeric character and contain only alphanumeric characters, hyphens, or underscores", name)
 	}
 	return nil
 }
