@@ -17,27 +17,41 @@ import (
 
 func TestCleanupTmpDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
+	entries := []struct {
+		name       string
+		path       string
+		isDir      bool
+		age        time.Duration
+		wantExists bool
+	}{
+		{name: "old file", path: filepath.Join(tmpDir, "old-file"), age: -25 * time.Hour},
+		{name: "old directory", path: filepath.Join(tmpDir, "old-dir"), isDir: true, age: -25 * time.Hour},
+		{name: "recent file", path: filepath.Join(tmpDir, "recent-file"), age: -1 * time.Hour, wantExists: true},
+	}
 
-	oldFile := filepath.Join(tmpDir, "old-file")
-	recentFile := filepath.Join(tmpDir, "recent-file")
-	oldDir := filepath.Join(tmpDir, "old-dir")
-	oldDirFile := filepath.Join(oldDir, "file")
-
-	require.NoError(t, os.WriteFile(oldFile, []byte("old"), 0644))
-	require.NoError(t, os.WriteFile(recentFile, []byte("recent"), 0644))
-	require.NoError(t, os.MkdirAll(oldDir, 0755))
-	require.NoError(t, os.WriteFile(oldDirFile, []byte("old"), 0644))
-
-	oldTime := time.Now().Add(-25 * time.Hour)
-	require.NoError(t, os.Chtimes(oldFile, oldTime, oldTime))
-	require.NoError(t, os.Chtimes(oldDirFile, oldTime, oldTime))
-	require.NoError(t, os.Chtimes(oldDir, oldTime, oldTime))
+	for _, entry := range entries {
+		if entry.isDir {
+			require.NoError(t, os.MkdirAll(filepath.Join(entry.path, "subdir"), 0755))
+		} else {
+			require.NoError(t, os.WriteFile(entry.path, []byte(entry.name), 0644))
+		}
+		entryTime := time.Now().Add(entry.age)
+		require.NoError(t, os.Chtimes(entry.path, entryTime, entryTime))
+	}
 
 	require.NoError(t, cleanupTmpDirectory(tmpDir))
 
-	assert.NoFileExists(t, oldFile)
-	assert.NoDirExists(t, oldDir)
-	assert.FileExists(t, recentFile)
+	for _, entry := range entries {
+		t.Run(entry.name, func(t *testing.T) {
+			if entry.wantExists {
+				assert.FileExists(t, entry.path)
+			} else if entry.isDir {
+				assert.NoDirExists(t, entry.path)
+			} else {
+				assert.NoFileExists(t, entry.path)
+			}
+		})
+	}
 }
 
 func TestCleanupTmpDirectoryIgnoresMissingDirectory(t *testing.T) {

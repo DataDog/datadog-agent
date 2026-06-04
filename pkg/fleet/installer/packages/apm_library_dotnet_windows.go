@@ -28,7 +28,11 @@ var apmLibraryDotnetPackage = hooks{
 }
 
 const (
-	packageAPMLibraryDotnet = apmlibrarydotnet.PackageName
+	packageAPMLibraryDotnet = "datadog-apm-library-dotnet"
+)
+
+var (
+	installerRelativePath = []string{"installer", "Datadog.FleetInstaller.exe"}
 )
 
 func getTargetPath(target string) string {
@@ -36,11 +40,11 @@ func getTargetPath(target string) string {
 }
 
 func getExecutablePath(installDir string) string {
-	return apmlibrarydotnet.ExecutablePath(installDir)
+	return filepath.Join(append([]string{installDir}, installerRelativePath...)...)
 }
 
 func getLibraryPath(installDir string) string {
-	return apmlibrarydotnet.LibraryPath(installDir)
+	return filepath.Join(installDir, "library")
 }
 
 // postInstallAPMLibraryDotnet runs on the first install of the .NET APM library after the files are laid out on disk.
@@ -113,6 +117,12 @@ func preRemoveAPMLibraryDotnet(ctx HookContext) (err error) {
 		return err
 	}
 	return uninstrumentDotnetLibrary(ctx.Context, "stable")
+}
+
+// asyncPreRemoveHookAPMLibraryDotnet runs before the garbage collector deletes the package files for a version.
+// It checks that it's safe to delete it and cleans up the external dependencies of the package.
+func asyncPreRemoveHookAPMLibraryDotnet(ctx context.Context, pkgRepositoryPath string) (bool, error) {
+	return apmlibrarydotnet.AsyncPreRemoveHook(ctx, pkgRepositoryPath)
 }
 
 func instrumentDotnetLibrary(ctx context.Context, target string) (err error) {

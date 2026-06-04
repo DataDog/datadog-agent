@@ -22,20 +22,18 @@ const (
 
 var installerRelativePath = []string{"installer", "Datadog.FleetInstaller.exe"}
 
-// ExecutablePath returns the path to the .NET library helper executable.
-func ExecutablePath(installDir string) string {
+func executablePath(installDir string) string {
 	return filepath.Join(append([]string{installDir}, installerRelativePath...)...)
 }
 
-// LibraryPath returns the path to the .NET library home directory.
-func LibraryPath(installDir string) string {
+func libraryPath(installDir string) string {
 	return filepath.Join(installDir, "library")
 }
 
 // AsyncPreRemoveHook runs before the garbage collector deletes package files for a version.
 func AsyncPreRemoveHook(ctx context.Context, pkgRepositoryPath string) (bool, error) {
-	dotnetExec := exec.NewDotnetLibraryExec(ExecutablePath(pkgRepositoryPath))
-	exitCode, err := dotnetExec.UninstallVersion(ctx, LibraryPath(pkgRepositoryPath))
+	dotnetExec := exec.NewDotnetLibraryExec(executablePath(pkgRepositoryPath))
+	exitCode, err := dotnetExec.UninstallVersion(ctx, libraryPath(pkgRepositoryPath))
 	if err != nil {
 		// We only block deletion if we could not delete the native loader files
 		// cf https://github.com/DataDog/dd-trace-dotnet/blob/master/tracer/src/Datadog.FleetInstaller/ReturnCode.cs#L14
