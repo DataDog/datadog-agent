@@ -152,8 +152,11 @@ exports_files(glob(
 # gazelle:exclude comp/anomalydetection/logssource/impl
 # gazelle:exclude comp/logs/adscheduler/fx
 # gazelle:exclude comp/logs/adscheduler/impl
-# gazelle:exclude comp/logs/agent/agentimpl
+# gazelle:exclude comp/logs/agent/def
 # gazelle:exclude comp/logs/agent/flare
+# gazelle:exclude comp/logs/agent/fx
+# gazelle:exclude comp/logs/agent/impl
+# gazelle:exclude comp/logs/agent/mock
 # gazelle:exclude comp/logs/streamlogs/fx
 # gazelle:exclude comp/logs/streamlogs/impl
 # gazelle:exclude comp/metadata/clusteragent/fx
