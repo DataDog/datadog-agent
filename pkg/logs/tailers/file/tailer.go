@@ -479,9 +479,15 @@ func (t *Tailer) recordBytes(n int64) {
 	t.bytesRead.Add(n)
 }
 
-// ReplaceSource replaces the current source
+// ReplaceSource replaces the current source and refreshes open-policy state
+// derived from the source config (e.g. NoFollow).
 func (t *Tailer) ReplaceSource(newSource *sources.LogSource) {
 	t.file.Source.Replace(newSource)
+	if cfg := newSource.Config; cfg != nil && cfg.NoFollow {
+		t.symlinkPolicy = opener.RejectSymlinks
+	} else {
+		t.symlinkPolicy = opener.FollowSymlinks
+	}
 }
 
 // Source gets the source (currently only used for testing)
