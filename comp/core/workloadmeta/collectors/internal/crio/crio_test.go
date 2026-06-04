@@ -437,7 +437,7 @@ func TestGenerateImageEventFromContainer(t *testing.T) {
 				Type:   workloadmeta.EventTypeSet,
 				Source: workloadmeta.SourceRuntime,
 				Entity: &workloadmeta.ContainerImageMetadata{
-					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:123abc"},
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:image123"},
 					EntityMeta: workloadmeta.EntityMeta{
 						Name:   "myrepo/myimage:latest",
 						Labels: map[string]string{"label1": "value1", "label2": "value2"},
@@ -481,7 +481,7 @@ func TestGenerateImageEventFromContainer(t *testing.T) {
 				Type:   workloadmeta.EventTypeSet,
 				Source: workloadmeta.SourceRuntime,
 				Entity: &workloadmeta.ContainerImageMetadata{
-					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "image123"},
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:image123"},
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: "",
 					},
@@ -569,8 +569,8 @@ func TestOptimizedImageCollection(t *testing.T) {
 				}, nil
 			},
 			existingImages: map[string]*workloadmeta.ContainerImageMetadata{
-				"sha256:hash1": {
-					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:hash1"},
+				"sha256:image1": {
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:image1"},
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: "repo/image1:latest",
 					},
@@ -792,8 +792,8 @@ func TestPullWithImageCollectionEnabled(t *testing.T) {
 				return nil, errors.New("unexpected call")
 			},
 			existingImages: map[string]*workloadmeta.ContainerImageMetadata{
-				"sha256:123abc": {
-					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:123abc"},
+				"sha256:image123": {
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:image123"},
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: "myrepo/myimage:latest",
 					},
