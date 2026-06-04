@@ -249,10 +249,12 @@ func (s *integrationPreservationSuite) TestIntegrationPreservationSurvivesTmpRea
 	s.Require().NoError(err)
 	s.Require().Equal("1.0.2", installedIntegrations["ping"], "integration should be installed before the reaper purge")
 
-	// Simulate the installer's garbage collector reaping the legacy tmp directory between
-	// the install and the next upgrade. The persistent baseline in /opt/datadog-packages/run
-	// must be unaffected so the integration still survives.
-	_, err = s.Env().RemoteHost.Execute("sudo rm -rf /opt/datadog-packages/tmp")
+	// Simulate the installer's garbage collector reaping the legacy tmp baseline. Delete
+	// tmp's contents, not the directory itself: the real reaper (cleanupTmpDirectory) only
+	// removes stale entries inside tmp, and rm -rf of the directory forces a root-owned
+	// recreation that breaks the next experiment's MkdirTemp. The persistent baseline in
+	// /opt/datadog-packages/run must be unaffected so the integration still survives.
+	_, err = s.Env().RemoteHost.Execute("sudo find /opt/datadog-packages/tmp -mindepth 1 -delete")
 	s.Require().NoError(err)
 	// Confirm the legacy baseline is actually gone, so the test really exercises the
 	// persistent run-dir storage instead of silently passing on a stale tmp copy.
