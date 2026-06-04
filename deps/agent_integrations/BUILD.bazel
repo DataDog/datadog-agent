@@ -1,7 +1,33 @@
+load("@cpython_versions//:constants.bzl", "PYTHON_MAJOR_MINOR")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_files")
 load("//deps/agent_integrations:defs.bzl", "install_wheels")
 
 install_wheels(
     name = "integrations_dependencies",
     srcs = ["@integrations_core//:dependency_wheels"],
     python = "@cpython//:python_unix_runnable",
+    # TODO(agent-build): this currently depends INTEGRATIONS_CORE_VERSION being a commit hash,
+    # which is not guaranteed unless running under omnibus-wrapping code.
+    tags = ["manual"],
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+)
+
+pkg_files(
+    name = "integrations_dependency_files",
+    srcs = [":integrations_dependencies"],
+    prefix = "embedded/lib/python{}/site-packages".format(PYTHON_MAJOR_MINOR),
+    renames = {
+        ":integrations_dependencies": REMOVE_BASE_DIRECTORY,
+    },
+    tags = ["manual"],
+)
+
+pkg_install(
+    name = "install_dependencies",
+    srcs = [":integrations_dependency_files"],
+    tags = ["manual"],
 )

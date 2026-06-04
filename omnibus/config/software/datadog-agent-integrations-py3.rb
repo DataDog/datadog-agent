@@ -83,16 +83,15 @@ build do
   }
 
   # Install dependencies
-  lockfile_name = case
-    when linux_target?
-      arm_target? ? "linux-aarch64" : "linux-x86_64"
-    when osx_target?
-      arm_target? ? "macos-aarch64" : "macos-x86_64"
-    when windows_target?
-      "windows-x86_64"
-  end + "_#{python_version}.txt"
-  lockfile = windows_safe_path(project_dir, ".deps", "resolved", lockfile_name)
-  command "#{python} -m pip install --require-hashes --only-binary=:all: --no-deps -r #{lockfile}"
+  if windows_target?
+    # The Bazel integrations dependency installation target is not available on Windows yet.
+    # Keep the existing Omnibus code path there for now.
+    lockfile_name = "windows-x86_64_#{python_version}.txt"
+    lockfile = windows_safe_path(project_dir, ".deps", "resolved", lockfile_name)
+    command "#{python} -m pip install --require-hashes --only-binary=:all: --no-deps -r #{lockfile}"
+  else
+    command_on_repo_root "bazelisk run --//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} -- //deps/agent_integrations:install_dependencies --destdir=#{install_dir}"
+  end
 
   # Prepare build env for integrations
   wheel_build_dir = windows_safe_path(project_dir, ".wheels")
