@@ -259,6 +259,9 @@ func (s *Sender) CountWithTimestamp(metric string, value float64, hostname strin
 	return nil
 }
 
+// TODO(PR5): add drop telemetry for unsupported V1 payload methods when
+// shadow status/telemetry lands.
+
 // Distribution is not captured by lookback V1.
 func (s *Sender) Distribution(_ string, _ float64, _ string, _ []string) {}
 
