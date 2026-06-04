@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/cgroup"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 )
@@ -66,6 +67,7 @@ func buildExporters(conf confMap, agent configManager) []any {
 		headers["dd-api-key"] = key
 		headers["dd-evp-origin"] = version.BundledProfilerName
 		headers["dd-evp-origin-version"] = version.ProfilerVersion
+		headers["dd-otel-metric-config"] = `{"resource_attributes_as_tags": true}`
 		return confMap{
 			"endpoint":    fmt.Sprintf(endpointFormat, site),
 			"compression": "zstd",
@@ -166,6 +168,18 @@ func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, healthMetri
 	if enableGoRuntimeMetrics {
 		receivers["otlp"] = confMap{"protocols": confMap{"grpc": nil, "http": nil}}
 		metricsReceivers = append(metricsReceivers, "otlp")
+	}
+
+	if containerID, err := cgroup.GetSelfContainerID(); err == nil {
+		const containerIDProcessorName = "resource/dd-profiler-metrics-containerid"
+		processors[containerIDProcessorName] = confMap{
+			"attributes": []any{confMap{
+				"key":    version.OTelContainerIDKey,
+				"value":  containerID,
+				"action": "insert",
+			}},
+		}
+		metricsProcessors = append([]any{containerIDProcessorName}, metricsProcessors...)
 	}
 
 	metricsPipeline["receivers"] = metricsReceivers
