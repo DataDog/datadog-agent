@@ -1,4 +1,3 @@
-load("@cpython_versions//:constants.bzl", "PYTHON_MAJOR_MINOR")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_files")
 load("//deps/agent_integrations:defs.bzl", "install_wheels")
@@ -19,7 +18,7 @@ install_wheels(
 pkg_files(
     name = "integrations_dependency_files",
     srcs = [":integrations_dependencies"],
-    prefix = "embedded/lib/python{}/site-packages".format(PYTHON_MAJOR_MINOR),
+    prefix = "embedded",
     renames = {
         ":integrations_dependencies": REMOVE_BASE_DIRECTORY,
     },

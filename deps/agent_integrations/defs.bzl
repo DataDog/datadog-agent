@@ -8,9 +8,10 @@ def _install_wheels_impl(ctx):
 
     # TODO(agent-build): consider
     # - Installing the individual wheels in separate actions for per-wheel caching.
-    # - Simply unzipping the wheel instead of resorting to pip
+    # - Simply unzipping the wheels instead of resorting to pip
 
     installation_dir = ctx.actions.declare_directory(ctx.attr.output or ctx.attr.name)
+
     ctx.actions.run(
         mnemonic = "InstallPythonWheels",
         inputs = ctx.files.srcs + [requirements_file],
@@ -23,10 +24,10 @@ def _install_wheels_impl(ctx):
             "--only-binary=:all:",
             "--no-deps",
             "--no-index",
+            "--prefix",
+            installation_dir.path,
             "-r",
             requirements_file.path,
-            "--target",
-            installation_dir.path,
         ],
         progress_message = "Installing Python wheels for %{label}",
     )
