@@ -88,6 +88,9 @@ var (
 		"install.datadoghq.com",
 		"gcr.io/datadoghq",
 	}
+	defaultRegistriesGovCloud = []string{
+		"install.ddog-gov.com",
+	}
 )
 
 // LayerAnnotation is the annotation used to identify the layer.
@@ -223,8 +226,11 @@ func getRefAndKeychains(mainEnv *env.Env, url string) []urlWithKeychain {
 	}
 
 	defaultRegistries := defaultRegistriesProd
-	if mainEnv.Site == "datad0g.com" {
+	switch {
+	case mainEnv.Site == "datad0g.com":
 		defaultRegistries = defaultRegistriesStaging
+	case mainEnv.IsGovSite():
+		defaultRegistries = defaultRegistriesGovCloud
 	}
 	for _, additionalDefaultRegistry := range defaultRegistries {
 		refAndKeychain := getRefAndKeychain(&env.Env{RegistryOverride: additionalDefaultRegistry}, url)
@@ -459,9 +465,11 @@ func (d *DownloadedPackage) WriteOCILayout(dir string) (err error) {
 // Both base and FIPS flavors live under the same URL — flavor selection
 // happens at download time via Platform.Variant in downloadIndex.
 func PackageURL(env *env.Env, pkg string, version string) string {
-	switch env.Site {
-	case "datad0g.com":
+	switch {
+	case env.Site == "datad0g.com":
 		return fmt.Sprintf("oci://install.datad0g.com/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+	case env.IsGovSite():
+		return fmt.Sprintf("oci://install.ddog-gov.com/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	default:
 		return fmt.Sprintf("oci://install.datadoghq.com/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	}

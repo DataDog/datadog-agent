@@ -30,7 +30,15 @@ aarch64)
   ;;
 esac
 site=${DD_SITE:-datadoghq.com}
-installer_domain=${DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE:-$([[ "$site" == "datad0g.com" ]] && echo "install.datad0g.com" || echo "install.datadoghq.com")}
+if [[ -n "${DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE:-}" ]]; then
+  installer_domain="$DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE"
+elif [[ "$site" == "datad0g.com" ]]; then
+  installer_domain="install.datad0g.com"
+elif [[ "$site" == "ddog-gov.com" || "$site" == *.ddog-gov.com ]]; then
+  installer_domain="install.ddog-gov.com"
+else
+  installer_domain="install.datadoghq.com"
+fi
 installer_url="https://${installer_domain}/v2/PACKAGE_NAME/blobs/sha256:${installer_sha256}"
 
 tmp_dir="/opt/datadog-packages/tmp"

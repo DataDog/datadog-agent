@@ -323,6 +323,8 @@ func TestPackageURL(t *testing.T) {
 	tests := []test{
 		{site: "datad0g.com", pkg: "datadog-agent", version: "latest", expected: "oci://install.datad0g.com/agent-package:latest"},
 		{site: "datadoghq.com", pkg: "datadog-agent", version: "1.2.3", expected: "oci://install.datadoghq.com/agent-package:1.2.3"},
+		{site: "ddog-gov.com", pkg: "datadog-agent", version: "latest", expected: "oci://install.ddog-gov.com/agent-package:latest"},
+		{site: "us2.ddog-gov.com", pkg: "datadog-agent", version: "latest", expected: "oci://install.ddog-gov.com/agent-package:latest"},
 	}
 
 	for _, tt := range tests {
@@ -438,6 +440,7 @@ func TestGetRefAndKeychains(t *testing.T) {
 		registryAuthOverride    string
 		expectedRefAndKeychains []urlWithKeychain
 		isProd                  bool
+		site                    string // overrides isProd when set
 	}
 
 	tests := []test{
@@ -477,6 +480,22 @@ func TestGetRefAndKeychains(t *testing.T) {
 				{ref: "mysuperregistry.tv/agent-package@sha256:1234", keychain: google.Keychain},
 			},
 		},
+		{
+			name: "no override - gov",
+			url:  "install.ddog-gov.com/agent-package:latest",
+			site: "ddog-gov.com",
+			expectedRefAndKeychains: []urlWithKeychain{
+				{ref: "install.ddog-gov.com/agent-package:latest", keychain: authn.DefaultKeychain},
+			},
+		},
+		{
+			name: "no override - gov sub-site",
+			url:  "install.ddog-gov.com/agent-package:latest",
+			site: "us2.ddog-gov.com",
+			expectedRefAndKeychains: []urlWithKeychain{
+				{ref: "install.ddog-gov.com/agent-package:latest", keychain: authn.DefaultKeychain},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -488,6 +507,9 @@ func TestGetRefAndKeychains(t *testing.T) {
 			}
 			if tt.isProd {
 				env.Site = "datadoghq.com"
+			}
+			if tt.site != "" {
+				env.Site = tt.site
 			}
 			actual := getRefAndKeychains(env, tt.url)
 			assert.Len(t, actual, len(tt.expectedRefAndKeychains))

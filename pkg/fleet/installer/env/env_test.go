@@ -442,3 +442,24 @@ func TestAgentUserVars(t *testing.T) {
 		})
 	}
 }
+
+func TestIsGovSite(t *testing.T) {
+	tests := []struct {
+		site     string
+		expected bool
+	}{
+		{"ddog-gov.com", true},
+		{"us2.ddog-gov.com", true},
+		{"xxxx99.ddog-gov.com", true},
+		{"datadoghq.com", false},
+		{"datad0g.com", false},
+		{"evilddog-gov.com", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.site, func(t *testing.T) {
+			e := &Env{Site: tt.site}
+			assert.Equal(t, tt.expected, e.IsGovSite())
+		})
+	}
+}

@@ -235,6 +235,12 @@ type Env struct {
 	FIPSMode bool
 }
 
+// IsGovSite reports whether the configured site is a GovCloud site,
+// including org sub-sites such as us2.ddog-gov.com.
+func (e *Env) IsGovSite() bool {
+	return e.Site == "ddog-gov.com" || strings.HasSuffix(e.Site, ".ddog-gov.com")
+}
+
 func (e *Env) HasDefaultRegistryOverride() bool {
 	return e.RegistryOverride == defaultEnv.RegistryOverride
 }
