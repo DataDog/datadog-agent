@@ -315,6 +315,12 @@ func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) ma
 func (c *logonDurationComponent) submitEvent(bootTime time.Time, ts logonduration.LoginTimestamps) error {
 	custom := buildCustomPayload(bootTime, ts)
 
+	haveBoot := !bootTime.IsZero() && !ts.LoginWindowTime.IsZero()
+	haveLogon := !ts.LoginTime.IsZero() && !ts.DesktopReadyTime.IsZero()
+	complete := haveBoot && haveLogon
+	totalMs := safeDurationMs(ts.LoginWindowTime, bootTime) + safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)
+	title := buildEventTitle(complete, totalMs)
+
 	msg := "Total boot duration analysis after reboot"
 	if durations, ok := custom["durations"].(map[string]interface{}); ok {
 		if totalMs, ok := durations["total_boot_duration_ms"]; ok {
@@ -324,6 +330,7 @@ func (c *logonDurationComponent) submitEvent(bootTime time.Time, ts logonduratio
 
 	return sendEvent(c.eventPlatformForwarder, eventInput{
 		Hostname:  c.hostname.GetSafe(context.TODO()),
+		Title:     title,
 		Message:   msg,
 		Timestamp: bootTime,
 		Custom:    custom,

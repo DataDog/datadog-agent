@@ -309,7 +309,7 @@ func TestSubmitEvent_PayloadFormat(t *testing.T) {
 
 	attrs, ok := data["attributes"].(map[string]interface{})
 	require.True(t, ok)
-	assert.Equal(t, "Logon duration", attrs["title"])
+	assert.Equal(t, "Device booted: total boot & login duration took 70000 ms", attrs["title"])
 	assert.Equal(t, "alert", attrs["category"])
 	assert.Equal(t, "system-notable-events", attrs["integration_id"])
 
@@ -362,6 +362,69 @@ func TestSubmitEvent_MessageIncludesLogonDuration(t *testing.T) {
 	data := payload["data"].(map[string]interface{})
 	attrs := data["attributes"].(map[string]interface{})
 	assert.Equal(t, "Total boot duration took 70000 ms.", attrs["message"])
+}
+
+func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
+	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+
+	cases := []struct {
+		name     string
+		ts       logonduration.LoginTimestamps
+		expected string
+	}{
+		{
+			name: "complete",
+			ts: logonduration.LoginTimestamps{
+				LoginWindowTime:  boot.Add(10 * time.Second),
+				LoginTime:        boot.Add(30 * time.Second),
+				DesktopReadyTime: boot.Add(90 * time.Second),
+			},
+			expected: "Device booted: total boot & login duration took 70000 ms",
+		},
+		{
+			name:     "boot only",
+			ts:       logonduration.LoginTimestamps{LoginWindowTime: boot.Add(10 * time.Second)},
+			expected: "Device booted: boot timeline incomplete",
+		},
+		{
+			name: "logon only",
+			ts: logonduration.LoginTimestamps{
+				LoginTime:        boot.Add(30 * time.Second),
+				DesktopReadyTime: boot.Add(90 * time.Second),
+			},
+			expected: "Device booted: boot timeline incomplete",
+		},
+		{
+			name:     "neither",
+			ts:       logonduration.LoginTimestamps{},
+			expected: "Device booted: boot timeline incomplete",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			hostname := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+			compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
+			forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
+
+			comp := &logonDurationComponent{
+				hostname:               hostname,
+				eventPlatformForwarder: forwarder,
+			}
+
+			err := comp.submitEvent(boot, tc.ts)
+			require.NoError(t, err)
+
+			sent := forwarder.Purge()
+			msgs := sent[eventplatform.EventTypeEventManagement]
+			require.Len(t, msgs, 1)
+
+			var payload map[string]interface{}
+			require.NoError(t, json.Unmarshal(msgs[0].GetContent(), &payload))
+			attrs := payload["data"].(map[string]interface{})["attributes"].(map[string]interface{})
+			assert.Equal(t, tc.expected, attrs["title"])
+		})
+	}
 }
 
 func TestSubmitEvent_IncludesSystemNotableEventsMetadata(t *testing.T) {

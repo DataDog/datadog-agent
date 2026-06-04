@@ -344,6 +344,12 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 		eventTimestamp = time.Now()
 	}
 
+	haveBoot := !tl.BootStart.IsZero() && !tl.LoginUIStart.IsZero()
+	haveLogon := !tl.SessionLogon.IsZero() && !tl.DesktopVisibleStart.IsZero()
+	complete := haveBoot && haveLogon
+	totalMs := getDurationMilliseconds(tl.BootStart, tl.LoginUIStart) + getDurationMilliseconds(tl.SessionLogon, tl.DesktopVisibleStart)
+	title := buildEventTitle(complete, totalMs)
+
 	msg := "Total boot duration analysis after reboot"
 	if durations, ok := custom["durations"].(map[string]interface{}); ok {
 		if totalMs, ok := durations["total_boot_duration_ms"]; ok {
@@ -353,6 +359,7 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 
 	return sendEvent(c.eventPlatformForwarder, eventInput{
 		Hostname:  c.hostname.GetSafe(context.TODO()),
+		Title:     title,
 		Message:   msg,
 		Timestamp: eventTimestamp,
 		Custom:    custom,
