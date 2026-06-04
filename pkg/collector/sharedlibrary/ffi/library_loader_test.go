@@ -56,26 +56,56 @@ func TestComputeLibraryPath_Valid(t *testing.T) {
 	loader, err := NewSharedLibraryLoader(folder)
 	require.NoError(t, err)
 
-	libPath, err := loader.ComputeLibraryPath("my_check")
-	require.NoError(t, err)
-
-	expected := path.Join(folder, "libdatadog-agent-my_check."+getLibExtension())
-	assert.Equal(t, expected, libPath)
+	cases := []string{
+		"mycheck",
+		"my_check",
+		"my-check",
+		"no-run-symbol",
+		"check123",
+		"MY_CHECK",
+		"a",
+	}
+	for _, name := range cases {
+		t.Run(name, func(t *testing.T) {
+			libPath, err := loader.ComputeLibraryPath(name)
+			require.NoError(t, err)
+			expected := path.Join(folder, "libdatadog-agent-"+name+"."+getLibExtension())
+			assert.Equal(t, expected, libPath)
+			assert.True(t, strings.HasPrefix(libPath, folder+"/"), "libPath %q should be inside %q", libPath, folder)
+		})
+	}
 }
 
-func TestComputeLibraryPath_RejectsPathTraversal(t *testing.T) {
+func TestComputeLibraryPath_RejectsInvalidNames(t *testing.T) {
 	loader, err := NewSharedLibraryLoader(t.TempDir())
 	require.NoError(t, err)
 
 	cases := []string{
+		// empty
 		"",
+		// path traversal with slashes
 		"foo/../../tmp/baz",
 		"../baz",
 		"foo/bar",
 		`foo\bar`,
 		`..\baz`,
 		"/etc/passwd",
+		// NUL byte
 		"foo\x00bar",
+		// dots (allowed by old blocklist, rejected by allowlist)
+		"my.check",
+		".",
+		"..",
+		// starts with non-alphanumeric
+		"-mycheck",
+		"_mycheck",
+		// spaces and special characters
+		"my check",
+		"my@check",
+		"my+check",
+		// Windows drive prefixes
+		`C:\evil`,
+		"C:evil",
 	}
 	for _, name := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -86,13 +116,12 @@ func TestComputeLibraryPath_RejectsPathTraversal(t *testing.T) {
 	}
 }
 
-func TestComputeLibraryPath_StaysInsideFolder(t *testing.T) {
-	folder := t.TempDir()
-	loader, err := NewSharedLibraryLoader(folder)
-	require.NoError(t, err)
+func TestIsPathConfined(t *testing.T) {
+	folder := "/etc/datadog-agent/checks.d"
 
-	libPath, err := loader.ComputeLibraryPath("safe_check")
-	require.NoError(t, err)
+	assert.True(t, isPathConfined("/etc/datadog-agent/checks.d/libdatadog-agent-foo.so", folder))
 
-	assert.True(t, strings.HasPrefix(libPath, folder), "libPath %q should be inside %q", libPath, folder)
+	assert.False(t, isPathConfined("/tmp/evil.so", folder))
+	assert.False(t, isPathConfined("/etc/datadog-agent/checks.d/libdatadog-agent-foo/../../evil.so", folder))
+	assert.False(t, isPathConfined("/etc/evil.so", folder))
 }

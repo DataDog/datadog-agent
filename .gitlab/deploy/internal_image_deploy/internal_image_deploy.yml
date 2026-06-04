@@ -68,6 +68,7 @@
   IMAGE_VERSION: tmpl-v1
   IMAGE_NAME: ddot-ebpf
   TMPL_SRC_REPO: ci/datadog-agent/ddot-ebpf
+  RELEASE_PROD: "true"
 
 # -- publish jobs --
 publish_internal_container_image-jmx:

@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
-	"strings"
 	"unsafe"
 
 	_ "github.com/DataDog/datadog-agent/pkg/collector/aggregator" // import submit functions
@@ -78,19 +78,22 @@ type LibraryLoader interface {
 	ComputeLibraryPath(name string) (string, error)
 }
 
-// validateLibraryName ensures that name can be used as a filename component
-// without enabling path traversal. The agent loader concatenates the name
-// into "libdatadog-agent-<name>.<ext>", so any path separator or relative
-// segment would let an attacker who controls check names (e.g. via container
-// labels in autodiscovery) point dlopen at an arbitrary library on disk.
+// validCheckName is an allowlist for shared library check names.
+// Only alphanumeric characters, hyphens, and underscores are permitted,
+// and the name must start with an alphanumeric character. This prevents
+// path traversal via autodiscovery-supplied check names (e.g. container labels).
+var validCheckName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
+
 func validateLibraryName(name string) error {
-	if name == "" {
-		return errors.New("name is empty")
-	}
-	if strings.ContainsAny(name, `/\`+"\x00") {
-		return fmt.Errorf("name %q contains a path separator or NUL byte", name)
+	if !validCheckName.MatchString(name) {
+		return fmt.Errorf("check name %q must start with an alphanumeric character and contain only alphanumeric characters, hyphens, or underscores", name)
 	}
 	return nil
+}
+
+// isPathConfined reports whether libPath is a direct child of folderPath.
+func isPathConfined(libPath, folderPath string) bool {
+	return path.Dir(path.Clean(libPath)) == path.Clean(folderPath)
 }
 
 // SharedLibraryLoader loads and uses shared libraries
@@ -197,7 +200,11 @@ func (l *SharedLibraryLoader) ComputeLibraryPath(name string) (string, error) {
 		return "", err
 	}
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
-	return path.Join(l.folderPath, "libdatadog-agent-"+name+"."+getLibExtension()), nil
+	libPath := path.Join(l.folderPath, "libdatadog-agent-"+name+"."+getLibExtension())
+	if !isPathConfined(libPath, l.folderPath) {
+		return "", errors.New("library path is outside the configured checks directory")
+	}
+	return libPath, nil
 }
 
 // NewSharedLibraryLoader creates a new SharedLibraryLoader
