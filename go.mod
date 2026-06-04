@@ -44,8 +44,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx v0.0.0-20251027120702-0e91eee9852f
 	github.com/DataDog/datadog-agent/comp/core/config v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/comp/core/configsync v0.64.0
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.77.0-devel.0.20260213154712-e02b9359151a
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.77.2
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.81.0-devel.0.20260603133502-a41610237dba
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/ipc/impl v0.72.0-devel.0.20250915111542-570ca4a195dc
@@ -71,8 +71,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.64.1
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.77.0-devel.0.20260213154712-e02b9359151a
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.78.1
-	github.com/DataDog/datadog-agent/comp/def v0.78.1
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.81.0-devel.0.20260603133502-a41610237dba
+	github.com/DataDog/datadog-agent/comp/def v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.78.1
@@ -116,7 +116,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.78.1
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils v0.75.4
 	github.com/DataDog/datadog-agent/pkg/metrics v0.77.0-devel.0.20260213154712-e02b9359151a
-	github.com/DataDog/datadog-agent/pkg/network/driver v0.0.0-20250930180617-1968b85a8a3b
+	github.com/DataDog/datadog-agent/pkg/network/driver v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
@@ -130,7 +130,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/status/health v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/tagset v0.77.0-devel.0.20260213154712-e02b9359151a
-	github.com/DataDog/datadog-agent/pkg/template v0.78.1
+	github.com/DataDog/datadog-agent/pkg/template v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.78.1
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/common v0.77.0-devel.0.20260213154712-e02b9359151a
@@ -140,32 +140,32 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.78.1
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.78.1
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.71.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.78.1
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo v0.0.0-20251027120702-0e91eee9852f
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/util/http v0.78.1
 	github.com/DataDog/datadog-agent/pkg/util/json v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery v0.0.0-20251027120702-0e91eee9852f
-	github.com/DataDog/datadog-agent/pkg/util/log v0.78.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.77.0-devel.0.20260213154712-e02b9359151a
-	github.com/DataDog/datadog-agent/pkg/util/option v0.78.1
+	github.com/DataDog/datadog-agent/pkg/util/option v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.78.1
 	github.com/DataDog/datadog-agent/pkg/util/prometheus v0.64.0
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.79.0-devel.0.20260402163801-bfa4eff6c991
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.78.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/system v0.78.1
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.72.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.78.1
-	github.com/DataDog/datadog-agent/pkg/version v0.78.1
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.81.0-devel.0.20260603133502-a41610237dba
+	github.com/DataDog/datadog-agent/pkg/version v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/DataDog/datadog-operator/api v0.0.0-20260505153817-d1d2b65124cc
-	github.com/DataDog/datadog-traceroute v1.0.15
+	github.com/DataDog/datadog-traceroute v1.0.17
 	github.com/DataDog/dd-trace-go/v2 v2.8.2
 	github.com/DataDog/ebpf-manager v0.7.18
 	github.com/DataDog/go-acl v1.0.1
