@@ -8,7 +8,10 @@
 // per-flavor test generation. It must replace (not extend) the built-in Go extension
 // in the gazelle_binary languages list.
 //
-// Add "# gazelle:dd_agent_go_test off" to a BUILD file to keep a plain go_test in that package.
+// Add "# gazelle:dd_agent_go_test off" to a BUILD file to keep a plain go_test in
+// that package and its subpackages;
+// "# gazelle:dd_agent_go_test on" re-enables a subtree.
+// The directive is inheritable
 package dd_agent_go_test
 
 import (
@@ -76,10 +79,17 @@ func (l *lang) ApparentLoads(moduleToApparentName func(string) string) []rule.Lo
 }
 
 // Configure reads the # gazelle:dd_agent_go_test directive from the BUILD file.
-// "off" disables the go_test → dd_agent_go_test conversion for this package only.
+// "off" disables the go_test → dd_agent_go_test conversion; "on" re-enables it.
+// The setting is inheritable: it applies to this package and all subpackages
+// until a descendant overrides it, so a subtree can be toggled from one BUILD
+// file. We seed from the parent's config (cloned into c.Exts by Gazelle before
+// this runs) and default to enabled only at the root, where there is no parent.
 func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 	l.Language.Configure(c, rel, f)
 	cfg := ddAgentGoTestConfig{enabled: true}
+	if prev, ok := c.Exts[extName].(ddAgentGoTestConfig); ok {
+		cfg = prev
+	}
 	if f != nil {
 		for _, d := range f.Directives {
 			if d.Key == "dd_agent_go_test" {

@@ -233,6 +233,47 @@ func TestConfigure_DirectiveOff(t *testing.T) {
 	}
 }
 
+// TestConfigure_Inherits verifies the directive is inheritable: a subpackage
+// with no directive of its own keeps the value Gazelle cloned in from the
+// parent (here, "off"), rather than resetting to the enabled default.
+func TestConfigure_Inherits(t *testing.T) {
+	l := NewLanguage().(*lang)
+
+	parent := &rule.File{}
+	parent.Directives = []rule.Directive{{Key: "dd_agent_go_test", Value: "off"}}
+	c := &config.Config{Exts: map[string]interface{}{}}
+	l.Configure(c, "some/pkg", parent)
+
+	// Gazelle clones the parent config (carrying c.Exts) before descending; the
+	// child then configures with no directive of its own.
+	l.Configure(c, "some/pkg/child", nil)
+
+	got := c.Exts[extName].(ddAgentGoTestConfig)
+	if got.enabled {
+		t.Error("expected enabled=false inherited from parent")
+	}
+}
+
+// TestConfigure_OverridesInherited verifies a descendant can re-enable a
+// subtree that an ancestor turned off.
+func TestConfigure_OverridesInherited(t *testing.T) {
+	l := NewLanguage().(*lang)
+
+	parent := &rule.File{}
+	parent.Directives = []rule.Directive{{Key: "dd_agent_go_test", Value: "off"}}
+	c := &config.Config{Exts: map[string]interface{}{}}
+	l.Configure(c, "some/pkg", parent)
+
+	child := &rule.File{}
+	child.Directives = []rule.Directive{{Key: "dd_agent_go_test", Value: "on"}}
+	l.Configure(c, "some/pkg/child", child)
+
+	got := c.Exts[extName].(ddAgentGoTestConfig)
+	if !got.enabled {
+		t.Error("expected enabled=true after child re-enables with on")
+	}
+}
+
 func TestShouldReplace(t *testing.T) {
 	for _, tc := range []struct {
 		name string
