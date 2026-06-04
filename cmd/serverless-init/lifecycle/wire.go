@@ -8,46 +8,93 @@ package lifecycle
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	defaultForwardTimeout  = 1 * time.Second
+	defaultReadyTimeout    = 60 * time.Second
+	defaultValidateTimeout = 1 * time.Second
 )
 
 // SetupComponents holds the lifecycle dependencies that setup() threads
 // into the lifecycle server and into mode.RunInit.
 type SetupComponents struct {
+	Port      int         // lifecycle hook server port; always set (defaults to DefaultPort)
 	Handle    ChildHandle // always non-nil; noop in sidecar mode
 	Child     *Child      // non-nil only in init-container mode (used by mode.RunInit)
 	Forwarder *Forwarder  // non-nil only when env var is valid AND init-container mode
 }
 
-// SetupFromEnv reads the env var and delegates to setupComponents.
-func SetupFromEnv(sidecarMode bool) (SetupComponents, error) {
-	return setupComponents(os.Getenv(UserAppPortEnvVar), sidecarMode)
+// setupInput holds the raw string values for setupComponents. Empty string means
+// "unset / use default" for each field, matching env-var semantics.
+type setupInput struct {
+	userAppPort   string
+	lifecyclePort string
+	forwardMs     string
+	readyMs       string
+	validateMs    string
+	sidecarMode   bool
 }
 
-// SetupFallback returns components with no forwarder. Used when SetupFromEnv
-// fails (e.g. invalid port value) so the lifecycle server still starts on
-// port 9000 and the platform can complete lifecycle handshakes.
+// SetupFromEnv reads lifecycle configuration from environment variables and
+// delegates to setupComponents.
+func SetupFromEnv(sidecarMode bool) (SetupComponents, error) {
+	return setupComponents(setupInput{
+		userAppPort:   os.Getenv(UserAppPortEnvVar),
+		lifecyclePort: os.Getenv(LifecyclePortEnvVar),
+		forwardMs:     os.Getenv(ForwardTimeoutMsEnvVar),
+		readyMs:       os.Getenv(ReadyTimeoutMsEnvVar),
+		validateMs:    os.Getenv(ValidateTimeoutMsEnvVar),
+		sidecarMode:   sidecarMode,
+	})
+}
+
+// SetupFallback returns components with the default port and no forwarder. Used
+// when SetupFromEnv fails (e.g. invalid user-app port) so the lifecycle server
+// still starts and the platform can complete lifecycle handshakes.
 func SetupFallback(sidecarMode bool) SetupComponents {
-	c, err := setupComponents("", sidecarMode)
+	// zero-value setupInput → all defaults; always succeeds
+	c, err := setupComponents(setupInput{sidecarMode: sidecarMode})
 	if err != nil {
-		panic(fmt.Sprintf("BUG: SetupFallback failed with empty port: %v", err))
+		panic(fmt.Sprintf("BUG: SetupFallback failed with zero-value setupInput: %v", err))
 	}
 	return c
 }
 
-// setupComponents is the testable inner function. rawPort uses the same
-// "empty string = unset" semantics as the env var.
-func setupComponents(rawPort string, sidecarMode bool) (SetupComponents, error) {
-	port, err := parseUserAppPort(rawPort)
+// setupComponents is the testable inner function.
+func setupComponents(in setupInput) (SetupComponents, error) {
+	lifecyclePort, err := parsePort(LifecyclePortEnvVar, in.lifecyclePort, DefaultPort)
 	if err != nil {
 		return SetupComponents{}, err
 	}
 
-	c := SetupComponents{}
-	if sidecarMode {
+	userAppPort, err := parsePort(UserAppPortEnvVar, in.userAppPort, 0, lifecyclePort)
+	if err != nil {
+		return SetupComponents{}, err
+	}
+
+	forwardTimeout, err := parseDurationMs(ForwardTimeoutMsEnvVar, in.forwardMs, defaultForwardTimeout)
+	if err != nil {
+		return SetupComponents{}, err
+	}
+
+	readyTimeout, err := parseDurationMs(ReadyTimeoutMsEnvVar, in.readyMs, defaultReadyTimeout)
+	if err != nil {
+		return SetupComponents{}, err
+	}
+
+	validateTimeout, err := parseDurationMs(ValidateTimeoutMsEnvVar, in.validateMs, defaultValidateTimeout)
+	if err != nil {
+		return SetupComponents{}, err
+	}
+
+	c := SetupComponents{Port: lifecyclePort}
+	if in.sidecarMode {
 		c.Handle = NewNoopChildHandle()
-		if port != 0 {
+		if userAppPort != 0 {
 			log.Warnf("%s is set in sidecar mode; forwarder is disabled (init-container mode is required)", UserAppPortEnvVar)
 		}
 		return c, nil
@@ -55,8 +102,8 @@ func setupComponents(rawPort string, sidecarMode bool) (SetupComponents, error) 
 
 	c.Child = NewChild()
 	c.Handle = c.Child
-	if port != 0 {
-		c.Forwarder = NewForwarder(port)
+	if userAppPort != 0 {
+		c.Forwarder = NewForwarder(userAppPort, forwardTimeout, readyTimeout, validateTimeout)
 	}
 	return c, nil
 }
