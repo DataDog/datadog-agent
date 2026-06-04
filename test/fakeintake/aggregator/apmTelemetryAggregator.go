@@ -23,6 +23,7 @@ type AgentTelemetryLog struct {
 	Count         int    `json:"count"`
 	IsCrash       bool   `json:"is_crash"`
 	Message       string `json:"message"`
+	ErrorKind     string `json:"error_kind"`
 	collectedTime time.Time
 }
 

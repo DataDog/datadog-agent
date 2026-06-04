@@ -79,6 +79,9 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 		assert.GreaterOrEqual(s.T(), l.Count, 1)
 		// Message is intentionally empty — user-controlled data is never shipped.
 		assert.Empty(s.T(), l.Message, "message must not be on the wire")
+		// ErrorKind is empty for Python check logs: the bridge calls log.Error(string)
+		// with no error-typed slog attribute, so no type name can be extracted.
+		assert.Empty(s.T(), l.ErrorKind, "error_kind must be empty for Python check logs")
 	}
 }
 
