@@ -145,14 +145,26 @@ func (m *defaultMapper) MapHistogramMetrics(
 			}
 		}
 
-		switch m.cfg.HistMode {
-		case HistogramModeCounters:
-			if err := m.getLegacyBuckets(ctx, consumer, pointDims, p, delta); err != nil {
-				return err
+		if m.cfg.NativeHistograms {
+			// Native histogram mode: pass raw point to consumer; skip cumulative (delta only).
+			if !delta {
+				continue
 			}
-		case HistogramModeDistributions:
-			if err := m.getSketchBuckets(ctx, consumer, pointDims, p, histInfo, delta); err != nil {
-				return err
+			var interval int64
+			if m.cfg.InferDeltaInterval {
+				interval = inferDeltaInterval(startTs, ts)
+			}
+			consumer.ConsumeExplicitBoundHistogram(ctx, pointDims, ts, interval, p, true)
+		} else {
+			switch m.cfg.HistMode {
+			case HistogramModeCounters:
+				if err := m.getLegacyBuckets(ctx, consumer, pointDims, p, delta); err != nil {
+					return err
+				}
+			case HistogramModeDistributions:
+				if err := m.getSketchBuckets(ctx, consumer, pointDims, p, histInfo, delta); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -283,6 +295,19 @@ func (m *defaultMapper) MapExponentialHistogramMetrics(
 					consumer.ConsumeTimeSeries(ctx, maxDims, Gauge, ts, 0, p.Max())
 				}
 			}
+		}
+
+		if m.cfg.NativeHistograms {
+			// Native histogram mode: pass raw point to consumer; skip cumulative (delta only).
+			if !delta {
+				continue
+			}
+			var interval int64
+			if m.cfg.InferDeltaInterval {
+				interval = inferDeltaInterval(startTs, ts)
+			}
+			consumer.ConsumeExponentialHistogram(ctx, pointDims, ts, interval, p)
+			continue
 		}
 
 		expHistDDSketch, err := m.exponentialHistogramToDDSketch(p, delta)

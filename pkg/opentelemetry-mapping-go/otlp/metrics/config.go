@@ -57,6 +57,12 @@ type translatorConfig struct {
 	// customMapper allows overriding the default metric mapping behavior.
 	// If nil, the Translator uses itself as the mapper.
 	customMapper mapper
+
+	// NativeHistograms enables lossless OTel histogram export via the v3 wire format.
+	// When true, ExponentialHistogram and ExplicitBoundHistogram data points are passed
+	// to ConsumeExponentialHistogram / ConsumeExplicitBoundHistogram instead of being
+	// converted to DDSketches. Only delta points are emitted.
+	NativeHistograms bool
 }
 
 // TranslatorOption is a translator creation option.
@@ -246,6 +252,18 @@ func WithInitialCumulMonoValueMode(mode InitialCumulMonoValueMode) TranslatorOpt
 func WithInferDeltaInterval() TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.InferDeltaInterval = true
+		return nil
+	}
+}
+
+// WithNativeHistograms enables lossless OTel histogram export via the v3 wire format.
+// When enabled, ExponentialHistogram and ExplicitBoundHistogram data points are passed
+// to the consumer's ConsumeExponentialHistogram / ConsumeExplicitBoundHistogram methods
+// instead of being converted to DDSketches. Only delta points are emitted; cumulative
+// points are silently skipped.
+func WithNativeHistograms() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.NativeHistograms = true
 		return nil
 	}
 }

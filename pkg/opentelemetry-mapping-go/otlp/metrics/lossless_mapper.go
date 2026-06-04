@@ -178,11 +178,21 @@ func (m *lossLessMapper) MapSummaryMetrics(ctx context.Context, consumer Consume
 	}
 }
 
-func (m *lossLessMapper) MapHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.HistogramDataPointSlice, _ bool) error {
-	consumer.ConsumeExplicitBoundHistogram(ctx, dims, slice)
+func (m *lossLessMapper) MapHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.HistogramDataPointSlice, delta bool) error {
+	for i := 0; i < slice.Len(); i++ {
+		p := slice.At(i)
+		ts := uint64(p.Timestamp())
+		pointDims := dims.WithAttributeMap(p.Attributes())
+		consumer.ConsumeExplicitBoundHistogram(ctx, pointDims, ts, 0, p, delta)
+	}
 	return nil
 }
 
 func (m *lossLessMapper) MapExponentialHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.ExponentialHistogramDataPointSlice, _ bool) {
-	consumer.ConsumeExponentialHistogram(ctx, dims, slice)
+	for i := 0; i < slice.Len(); i++ {
+		p := slice.At(i)
+		ts := uint64(p.Timestamp())
+		pointDims := dims.WithAttributeMap(p.Attributes())
+		consumer.ConsumeExponentialHistogram(ctx, pointDims, ts, 0, p)
+	}
 }
