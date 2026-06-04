@@ -6,6 +6,7 @@
 package quantile
 
 import (
+	"math"
 	"testing"
 	"time"
 	"unsafe"
@@ -216,6 +217,11 @@ func TestAgentInterpolationBoundedKeys(t *testing.T) {
 		{name: "saturating upper bound", lower: 1, upper: bigPos, count: 10, wantCnt: 10},
 		{name: "saturating both bounds", lower: bigNeg, upper: bigPos, count: 100, wantCnt: 100},
 		{name: "saturating lower bound only", lower: bigNeg, upper: 1, count: 50, wantCnt: 50},
+		// Both bounds finite but past the sketch's representable range: key(lower)
+		// and key(upper) both saturate to uvinf. Pre-clamp, binLow(uvinf) returned
+		// +Inf and poisoned Sketch.Basic.
+		{name: "both bounds saturate positive", lower: 1e300, upper: 1e301, count: 10, wantCnt: 10},
+		{name: "both bounds saturate negative", lower: -1e301, upper: -1e300, count: 10, wantCnt: 10},
 		{name: "non-monotonic bounds", lower: 100, upper: 1, count: 5, wantErr: ErrNonMonotonicBoundaries},
 		{name: "equal bounds", lower: 42, upper: 42, count: 7, wantCnt: 7},
 		{name: "zero count", lower: 1, upper: 100, count: 0, wantCnt: 0},
@@ -241,6 +247,15 @@ func TestAgentInterpolationBoundedKeys(t *testing.T) {
 				}
 				require.NoError(t, err)
 				require.Equal(t, tt.wantCnt, a.Sketch.Basic.Cnt)
+				if tt.count > 0 {
+					// Sketch.Basic stats must stay finite even when the input
+					// bounds saturate key() to ±uvinf.
+					b := a.Sketch.Basic
+					require.False(t, math.IsInf(b.Min, 0), "Min must be finite, got %v", b.Min)
+					require.False(t, math.IsInf(b.Max, 0), "Max must be finite, got %v", b.Max)
+					require.False(t, math.IsInf(b.Sum, 0), "Sum must be finite, got %v", b.Sum)
+					require.False(t, math.IsInf(b.Avg, 0), "Avg must be finite, got %v", b.Avg)
+				}
 			case <-time.After(budget):
 				t.Fatalf("InsertInterpolate(%v, %v, %d) did not complete within %v",
 					tt.lower, tt.upper, tt.count, budget)

@@ -95,6 +95,20 @@ func (a *Agent) InsertInterpolate(lower float64, upper float64, count uint) erro
 	// when key(upper) saturates at uvinf (e.g. for very large finite bounds).
 	start := int32(agentConfig.key(lower))
 	end := int32(agentConfig.key(upper))
+	// Clamp the ±uvinf saturation sentinels to the largest representable finite
+	// key. Otherwise binLow returns ±Inf for these positions and poisons
+	// Sketch.Basic (min/max/sum/avg) for finite-but-out-of-range buckets like
+	// [1e300, 1e301].
+	if start == uvinf {
+		start = maxKey
+	} else if start == -uvinf {
+		start = -maxKey
+	}
+	if end == uvinf {
+		end = maxKey
+	} else if end == -uvinf {
+		end = -maxKey
+	}
 	n := end - start + 1
 	if n <= 0 {
 		return errors.New(ErrNonMonotonicBoundaries)
