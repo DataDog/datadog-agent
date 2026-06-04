@@ -992,7 +992,7 @@ func (at *ActivityTree) recomputeSizeBytes() {
 // fileSubtreeSizeBytes recursively sums the size of a FileNode and all its descendants.
 func fileSubtreeSizeBytes(fn *FileNode) int64 {
 	total := fn.size()
-	a
+
 	for _, child := range fn.Children {
 		total += fileSubtreeSizeBytes(child)
 	}
