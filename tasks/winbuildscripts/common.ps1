@@ -118,6 +118,10 @@ function Expand-ModCache() {
         }
         Write-Host "Modcache extracted"
     } else {
+        if ($env:CI) {
+            Write-Error "Modcache zst file $MODCACHE_ZST_FILE not found in CI"
+            exit 1
+        }
         Write-Host "Modcache zst file $MODCACHE_ZST_FILE not found, dependencies will be downloaded"
     }
 

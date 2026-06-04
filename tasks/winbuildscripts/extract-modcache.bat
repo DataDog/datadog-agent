@@ -36,6 +36,10 @@ if exist %MODCACHE_ZST_FILE% (
     Powershell -C "7z x %MODCACHE_TAR_FILE% -o%GOMODCACHE%\cache -aoa -bt"
     @echo Modcache extracted
 ) else (
+    if defined CI (
+        @echo ERROR: %MODCACHE_ZST_FILE% not found in CI
+        exit /b 1
+    )
     @echo %MODCACHE_ZST_FILE% not found, dependencies will be downloaded
 )
 goto :endofscript
