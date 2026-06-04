@@ -8,7 +8,6 @@ go_library(
         "consumer_collector.go",
         "exporter.go",
         "factory.go",
-        "featuregate.go",
         "host_metadata_pusher.go",
         "serializer.go",
         "telemetry.go",
