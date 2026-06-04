@@ -54,26 +54,27 @@ const (
 	envFIPSMode = "DD_FIPS_MODE"
 
 	// install script
-	envApmInstrumentationEnabled   = "DD_APM_INSTRUMENTATION_ENABLED"
-	envRuntimeMetricsEnabled       = "DD_RUNTIME_METRICS_ENABLED"
-	envLogsInjection               = "DD_LOGS_INJECTION"
-	envAPMTracingEnabled           = "DD_APM_TRACING_ENABLED"
-	envProfilingEnabled            = "DD_PROFILING_ENABLED"
-	envDataStreamsEnabled          = "DD_DATA_STREAMS_ENABLED"
-	envAppsecEnabled               = "DD_APPSEC_ENABLED"
-	envIastEnabled                 = "DD_IAST_ENABLED"
-	envDataJobsEnabled             = "DD_DATA_JOBS_ENABLED"
-	envAppsecScaEnabled            = "DD_APPSEC_SCA_ENABLED"
-	envInfrastructureMode          = "DD_INFRASTRUCTURE_MODE"
-	envAppKey                      = "DD_APP_KEY"
-	envPAREnabled                  = "DD_PRIVATE_ACTION_RUNNER_ENABLED"
-	envPARActionsAllowlist         = "DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST"
-	envTracerLogsCollectionEnabled = "DD_APP_LOGS_COLLECTION_ENABLED"
-	envRumEnabled                  = "DD_RUM_ENABLED"
-	envRumApplicationID            = "DD_RUM_APPLICATION_ID"
-	envRumClientToken              = "DD_RUM_CLIENT_TOKEN"
-	envRumRemoteConfigurationID    = "DD_RUM_REMOTE_CONFIGURATION_ID"
-	envRumSite                     = "DD_RUM_SITE"
+	envApmInstrumentationEnabled     = "DD_APM_INSTRUMENTATION_ENABLED"
+	envAPMInstrumentationPreloadMode = "DD_APM_INSTRUMENTATION_PRELOAD_MODE"
+	envRuntimeMetricsEnabled         = "DD_RUNTIME_METRICS_ENABLED"
+	envLogsInjection                 = "DD_LOGS_INJECTION"
+	envAPMTracingEnabled             = "DD_APM_TRACING_ENABLED"
+	envProfilingEnabled              = "DD_PROFILING_ENABLED"
+	envDataStreamsEnabled            = "DD_DATA_STREAMS_ENABLED"
+	envAppsecEnabled                 = "DD_APPSEC_ENABLED"
+	envIastEnabled                   = "DD_IAST_ENABLED"
+	envDataJobsEnabled               = "DD_DATA_JOBS_ENABLED"
+	envAppsecScaEnabled              = "DD_APPSEC_SCA_ENABLED"
+	envInfrastructureMode            = "DD_INFRASTRUCTURE_MODE"
+	envAppKey                        = "DD_APP_KEY"
+	envPAREnabled                    = "DD_PRIVATE_ACTION_RUNNER_ENABLED"
+	envPARActionsAllowlist           = "DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST"
+	envTracerLogsCollectionEnabled   = "DD_APP_LOGS_COLLECTION_ENABLED"
+	envRumEnabled                    = "DD_RUM_ENABLED"
+	envRumApplicationID              = "DD_RUM_APPLICATION_ID"
+	envRumClientToken                = "DD_RUM_CLIENT_TOKEN"
+	envRumRemoteConfigurationID      = "DD_RUM_REMOTE_CONFIGURATION_ID"
+	envRumSite                       = "DD_RUM_SITE"
 )
 
 // Windows MSI options
@@ -109,21 +110,22 @@ var defaultEnv = Env{
 	DefaultPackagesVersionOverride: map[string]string{},
 
 	InstallScript: InstallScriptEnv{
-		APMInstrumentationEnabled: "",
-		RuntimeMetricsEnabled:     nil,
-		LogsInjection:             nil,
-		APMTracingEnabled:         nil,
-		ProfilingEnabled:          "",
-		DataStreamsEnabled:        nil,
-		AppsecEnabled:             nil,
-		IastEnabled:               nil,
-		DataJobsEnabled:           nil,
-		AppsecScaEnabled:          nil,
-		RumEnabled:                nil,
-		RumApplicationID:          "",
-		RumClientToken:            "",
-		RumRemoteConfigurationID:  "",
-		RumSite:                   "",
+		APMInstrumentationEnabled:     "",
+		RuntimeMetricsEnabled:         nil,
+		LogsInjection:                 nil,
+		APMTracingEnabled:             nil,
+		ProfilingEnabled:              "",
+		DataStreamsEnabled:            nil,
+		AppsecEnabled:                 nil,
+		IastEnabled:                   nil,
+		DataJobsEnabled:               nil,
+		AppsecScaEnabled:              nil,
+		RumEnabled:                    nil,
+		RumApplicationID:              "",
+		RumClientToken:                "",
+		RumRemoteConfigurationID:      "",
+		RumSite:                       "",
+		APMInstrumentationPreloadMode: "",
 	},
 }
 
@@ -144,6 +146,9 @@ const (
 	APMInstrumentationEnabledIIS = "iis"
 	// APMInstrumentationNotSet is the default value when the environment variable is not set.
 	APMInstrumentationNotSet = "not_set"
+
+	// APMInstrumentationPreloadModeSystemd enables the systemd-based ld.so.preload management for host injection.
+	APMInstrumentationPreloadModeSystemd = "systemd"
 )
 
 // MsiParamsEnv contains the environment variables for options that are passed to the MSI.
@@ -180,6 +185,11 @@ type InstallScriptEnv struct {
 	RumClientToken           string
 	RumRemoteConfigurationID string
 	RumSite                  string
+
+	// APMInstrumentationPreloadMode controls the mechanism used for host injection.
+	// Set to APMInstrumentationPreloadModeSystemd to use systemd-managed ld.so.preload.
+	// When empty (default), the direct file-write approach is used.
+	APMInstrumentationPreloadMode string
 }
 
 // Env contains the configuration for the installer.
@@ -322,22 +332,23 @@ func FromEnv() *Env {
 		},
 
 		InstallScript: InstallScriptEnv{
-			APMInstrumentationEnabled:   getEnvOrDefault(envApmInstrumentationEnabled, APMInstrumentationNotSet),
-			RuntimeMetricsEnabled:       getBoolEnv(envRuntimeMetricsEnabled),
-			LogsInjection:               getBoolEnv(envLogsInjection),
-			APMTracingEnabled:           getBoolEnv(envAPMTracingEnabled),
-			ProfilingEnabled:            getEnvOrDefault(envProfilingEnabled, ""),
-			DataStreamsEnabled:          getBoolEnv(envDataStreamsEnabled),
-			AppsecEnabled:               getBoolEnv(envAppsecEnabled),
-			IastEnabled:                 getBoolEnv(envIastEnabled),
-			DataJobsEnabled:             getBoolEnv(envDataJobsEnabled),
-			AppsecScaEnabled:            getBoolEnv(envAppsecScaEnabled),
-			TracerLogsCollectionEnabled: getBoolEnv(envTracerLogsCollectionEnabled),
-			RumEnabled:                  getBoolEnv(envRumEnabled),
-			RumApplicationID:            getEnvOrDefault(envRumApplicationID, ""),
-			RumClientToken:              getEnvOrDefault(envRumClientToken, ""),
-			RumRemoteConfigurationID:    getEnvOrDefault(envRumRemoteConfigurationID, ""),
-			RumSite:                     getEnvOrDefault(envRumSite, ""),
+			APMInstrumentationEnabled:     getEnvOrDefault(envApmInstrumentationEnabled, APMInstrumentationNotSet),
+			RuntimeMetricsEnabled:         getBoolEnv(envRuntimeMetricsEnabled),
+			LogsInjection:                 getBoolEnv(envLogsInjection),
+			APMTracingEnabled:             getBoolEnv(envAPMTracingEnabled),
+			ProfilingEnabled:              getEnvOrDefault(envProfilingEnabled, ""),
+			DataStreamsEnabled:            getBoolEnv(envDataStreamsEnabled),
+			AppsecEnabled:                 getBoolEnv(envAppsecEnabled),
+			IastEnabled:                   getBoolEnv(envIastEnabled),
+			DataJobsEnabled:               getBoolEnv(envDataJobsEnabled),
+			AppsecScaEnabled:              getBoolEnv(envAppsecScaEnabled),
+			TracerLogsCollectionEnabled:   getBoolEnv(envTracerLogsCollectionEnabled),
+			RumEnabled:                    getBoolEnv(envRumEnabled),
+			RumApplicationID:              getEnvOrDefault(envRumApplicationID, ""),
+			RumClientToken:                getEnvOrDefault(envRumClientToken, ""),
+			RumRemoteConfigurationID:      getEnvOrDefault(envRumRemoteConfigurationID, ""),
+			RumSite:                       getEnvOrDefault(envRumSite, ""),
+			APMInstrumentationPreloadMode: getEnvOrDefault(envAPMInstrumentationPreloadMode, ""),
 		},
 
 		Tags: append(
@@ -393,6 +404,7 @@ func (e *InstallScriptEnv) ToEnv(env []string) []string {
 	env = appendStringEnv(env, envRumClientToken, e.RumClientToken, "")
 	env = appendStringEnv(env, envRumRemoteConfigurationID, e.RumRemoteConfigurationID, "")
 	env = appendStringEnv(env, envRumSite, e.RumSite, "")
+	env = appendStringEnv(env, envAPMInstrumentationPreloadMode, e.APMInstrumentationPreloadMode, "")
 	return env
 }
 

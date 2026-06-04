@@ -150,26 +150,31 @@ func (a *InjectorInstaller) Instrument(ctx context.Context) (retErr error) {
 			return err
 		}
 		if systemdRunning {
-			// The service manages /etc/ld.so.preload via ExecStart/ExecStop on
-			// every boot. We also call InstrumentLDPreload directly here so the
-			// current boot is covered: if the service started successfully its
-			// ExecStart already wrote the entry and this becomes a no-op; if the
-			// service failed to start (non-fatal, e.g. during initial install
-			// before the agent is running), this writes the entry directly.
-			mgr := NewSystemdServiceManager()
-			if err := mgr.Setup(ctx); err != nil {
-				return err
+			if a.Env.InstallScript.APMInstrumentationPreloadMode == env.APMInstrumentationPreloadModeSystemd {
+				// The service manages /etc/ld.so.preload via ExecStart/ExecStop on
+				// every boot. We also call InstrumentLDPreload directly here so the
+				// current boot is covered: if the service started successfully its
+				// ExecStart already wrote the entry and this becomes a no-op; if the
+				// service failed to start (non-fatal, e.g. during initial install
+				// before the agent is running), this writes the entry directly.
+				mgr := NewSystemdServiceManager()
+				if err := mgr.Setup(ctx); err != nil {
+					return err
+				}
+				a.rollbacks = append(a.rollbacks, func() error {
+					return mgr.Uninstall(ctx)
+				})
+			} else {
+				// Explicit opt-out: remove any previously-installed service so that
+				// future boots use direct ld.so.preload management, not the service.
+				// Uninstall is idempotent when no service file is present.
+				if err := NewSystemdServiceManager().Uninstall(ctx); err != nil {
+					return err
+				}
 			}
-			a.rollbacks = append(a.rollbacks, func() error {
-				return mgr.Uninstall(ctx)
-			})
-			if err := a.InstrumentLDPreload(ctx); err != nil {
-				return err
-			}
-		} else {
-			if err := a.InstrumentLDPreload(ctx); err != nil {
-				return err
-			}
+		}
+		if err := a.InstrumentLDPreload(ctx); err != nil {
+			return err
 		}
 	}
 
@@ -203,18 +208,22 @@ func (a *InjectorInstaller) Uninstrument(ctx context.Context) error {
 	errs := []error{}
 
 	if shouldInstrumentHost(a.Env) {
+		// Always attempt to remove the systemd service when systemd is running.
+		// Uninstall is idempotent: if no service file is present it returns nil.
+		// This handles the case where the service was installed with
+		// DD_APM_INSTRUMENTATION_PRELOAD_MODE=systemd but uninstrument is called
+		// without that env var (e.g. plain `datadog-installer apm uninstrument host`).
 		systemdRunning, err := systemd.IsRunning()
 		if err != nil {
 			errs = append(errs, err)
 		} else if systemdRunning {
 			errs = append(errs, NewSystemdServiceManager().Uninstall(ctx))
-			// Safety net: explicitly remove the ld.so.preload entry even if the
-			// service's ExecStop did not run (e.g. service was in a failed state
-			// when stopped). UninstrumentLDPreload is pure file I/O and idempotent.
-			errs = append(errs, a.UninstrumentLDPreload(ctx))
-		} else {
-			errs = append(errs, a.UninstrumentLDPreload(ctx))
 		}
+		// Safety net: always remove the ld.so.preload entry directly.
+		// In systemd mode this covers the case where the service's ExecStop did not
+		// run (e.g. the service was in a failed state). In direct mode it is the
+		// sole removal path. UninstrumentLDPreload is idempotent.
+		errs = append(errs, a.UninstrumentLDPreload(ctx))
 	}
 
 	if shouldInstrumentDocker(a.Env) {

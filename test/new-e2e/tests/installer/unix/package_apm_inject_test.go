@@ -572,7 +572,7 @@ func (s *packageApmInjectSuite) TestSystemdService() {
 		s.T().Skip("systemd is not running as PID 1 on this host")
 	}
 
-	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python", "DD_APM_INSTRUMENTATION_PRELOAD_MODE=systemd")
 	defer s.Purge()
 
 	// After install: service is enabled (will start on next boot) and ld.so.preload is
@@ -676,7 +676,7 @@ func (s *packageApmInjectSuite) TestSystemdServiceStopBrokenInjector() {
 		s.T().Skip("systemd is not running as PID 1 on this host")
 	}
 
-	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python", "DD_APM_INSTRUMENTATION_PRELOAD_MODE=systemd")
 	defer s.Purge()
 
 	s.host.WaitForUnitActive(s.T(), "datadog-apm-inject.service")
