@@ -40,10 +40,10 @@ bazel:test:windows-amd64:
   script:
     - bazel test --keep_going --config=$FLAVOR //...
 
-bazel:test:linux-amd64:datadog-agent:
+bazel:test:linux-amd64:base:
   extends: [ .bazel:test:flavor, .bazel:runner:linux-amd64 ]
   variables:
-    FLAVOR: datadog-agent
+    FLAVOR: base
 
 bazel:test:linux-amd64:dogstatsd:
   extends: [ .bazel:test:flavor, .bazel:runner:linux-amd64 ]
@@ -60,10 +60,10 @@ bazel:test:linux-amd64:iot:
   variables:
     FLAVOR: iot
 
-bazel:test:linux-arm64:datadog-agent:
+bazel:test:linux-arm64:base:
   extends: [ .bazel:test:flavor, .bazel:runner:linux-arm64 ]
   variables:
-    FLAVOR: datadog-agent
+    FLAVOR: base
 
 bazel:test:linux-arm64:dogstatsd:
   extends: [ .bazel:test:flavor, .bazel:runner:linux-arm64 ]
@@ -80,20 +80,20 @@ bazel:test:linux-arm64:iot:
   variables:
     FLAVOR: iot
 
-bazel:test:macos-amd64:datadog-agent:
+bazel:test:macos-amd64:base:
   extends: [ .bazel:test:flavor, .bazel:runner:macos-amd64 ]
   variables:
-    FLAVOR: datadog-agent
+    FLAVOR: base
 
 bazel:test:macos-amd64:dogstatsd:
   extends: [ .bazel:test:flavor, .bazel:runner:macos-amd64 ]
   variables:
     FLAVOR: dogstatsd
 
-bazel:test:macos-arm64:datadog-agent:
+bazel:test:macos-arm64:base:
   extends: [ .bazel:test:flavor, .bazel:runner:macos-arm64 ]
   variables:
-    FLAVOR: datadog-agent
+    FLAVOR: base
 
 bazel:test:macos-arm64:dogstatsd:
   extends: [ .bazel:test:flavor, .bazel:runner:macos-arm64 ]
@@ -103,11 +103,11 @@ bazel:test:macos-arm64:dogstatsd:
 # Windows can't extend .bazel:test:flavor: the Windows runner template consumes
 # POWERSHELL_SCRIPT instead of `script:`, and the test pattern needs to exclude
 # Linux-only packaging targets.
-bazel:test:windows-amd64:datadog-agent:
+bazel:test:windows-amd64:base:
   extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
   variables:
     POWERSHELL_SCRIPT: >-
-      bazel test --keep_going --config=datadog-agent
+      bazel test --keep_going --config=base
       //... --
       -//bazel/rules/dd_packaging/...
       -//packages/agent/linux/...
