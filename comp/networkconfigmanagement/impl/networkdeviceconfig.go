@@ -7,20 +7,38 @@
 package networkconfigmanagementimpl
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
 	"path/filepath"
 
-	"net/http"
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
+	ncmprofile "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
+	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
+	ncmsender "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/sender"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
+	ncmtypes "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
+
+// CheckName is the name of the check
+const CheckName = "network_config_management"
+const noProfileMatch = "--no matching profile--"
 
 // Provides defines the output of the networkconfigmanagement component
 type Provides struct {
@@ -33,69 +51,280 @@ type Provides struct {
 // Requires defines the dependencies for the networkconfigmanagement component
 type Requires struct {
 	compdef.In
-	// Remove this field if the component has no lifecycle hooks
-	Lifecycle compdef.Lifecycle
-	Config    config.Component
-	Logger    log.Component
-}
-
-type networkDeviceConfigImpl struct {
-	log   log.Component
-	store ncmstore.ConfigStore
-
-	inventoryLock         sync.Mutex
-	lastInventoryReportAt time.Time
+	Lifecycle       compdef.Lifecycle
+	Config          config.Component
+	Logger          log.Component
+	Demux           demultiplexer.Component
+	HostnameService hostname.Component
 }
 
 // NewComponent creates a new networkconfigmanagement component
 func NewComponent(reqs Requires) (Provides, error) {
-	enabled := reqs.Config.GetBool("network_devices.config_management.rollback.enabled")
-	if !enabled {
-		return NewNoopComponent()
-	}
+	var compOpt option.Option[networkconfigmanagement.Component]
+	var store ncmstore.ConfigStore
 	comp, err := newComponent(reqs)
 	if err != nil {
 		reqs.Logger.Errorf("NCM config store service could not be initialized: %s", err)
-		return NewNoopComponent()
+		compOpt = option.None[networkconfigmanagement.Component]()
+	} else {
+		compOpt = option.New(comp)
+		store = comp.GetConfigStore()
+	}
+	var getConfigHandler http.HandlerFunc
+	if store == nil {
+		getConfigHandler = func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, `{"error": "ncm not enabled for agent"}`, http.StatusBadRequest)
+		}
+	} else {
+		getConfigHandler = newConfigEndpointHandler(store)
 	}
 	return Provides{
-		Comp:              option.New(comp),
-		GetConfigEndpoint: api.NewAgentEndpointProvider(newConfigEndpointHandler(comp.GetConfigStore()), "/ncm/config", "GET").Provider,
+		Comp:              compOpt,
+		GetConfigEndpoint: api.NewAgentEndpointProvider(getConfigHandler, "/ncm/config", "GET").Provider,
 	}, nil
 
 }
 
 func newComponent(reqs Requires) (networkconfigmanagement.Component, error) {
-	runPath := reqs.Config.GetString("run_path")
-	dbPath := filepath.Join(runPath, "ncm_config.db")
-	store, err := ncmstore.Open(dbPath)
+	rollbackEnabled := reqs.Config.GetBool("network_devices.config_management.rollback.enabled")
+	hostname, err := reqs.HostnameService.Get(context.Background())
 	if err != nil {
 		return nil, err
 	}
-
-	reqs.Lifecycle.Append(compdef.Hook{OnStop: store.Close})
+	sender, err := reqs.Demux.GetSender(CheckName)
+	if err != nil {
+		return nil, err
+	}
+	profiles, err := ncmprofile.GetProfileMap()
+	if err != nil {
+		return nil, err
+	}
+	var store ncmstore.ConfigStore
+	if rollbackEnabled {
+		runPath := reqs.Config.GetString("run_path")
+		dbPath := filepath.Join(runPath, "ncm_config.db")
+		store, err = ncmstore.Open(dbPath)
+		if err != nil {
+			return nil, err
+		}
+		reqs.Lifecycle.Append(compdef.Hook{OnStop: store.Close})
+	}
 
 	impl := &networkDeviceConfigImpl{
-		log:   reqs.Logger,
-		store: store,
+		log:             reqs.Logger,
+		store:           store,
+		sender:          sender,
+		deviceConfigs:   make(map[string]*ncmconfig.DeviceInstance),
+		lastReportTimes: make(map[string]time.Time),
+		hostname:        hostname,
+		profiles:        profiles,
+		connect:         ncmremote.ConnectOverSSH,
+		clock:           clock.New(),
 	}
 	return impl, nil
 }
 
-func (n *networkDeviceConfigImpl) GetConfigStore() ncmstore.ConfigStore {
-	return n.store
+type networkDeviceConfigImpl struct {
+	log    log.Component
+	store  ncmstore.ConfigStore
+	sender sender.Sender
+
+	// deviceConfigs maps deviceIDs to their data. It is populated by check
+	// instances calling RegisterDevice
+	deviceConfigs map[string]*ncmconfig.DeviceInstance
+	// lastReportTimes maps a deviceID to the timestamp of the last time a
+	// config report was requested for that deviceID.
+	lastReportTimes       map[string]time.Time
+	inventoryMaxInterval  time.Duration
+	inventoryLock         sync.Mutex
+	lastInventoryReportAt time.Time
+	clock                 clock.Clock
+	hostname              string
+	profiles              ncmprofile.Map
+
+	connect func(*ncmconfig.DeviceInstance) (ncmremote.Connection, error)
 }
 
-// NewComponent creates a stub networkconfigmanagement component
-func NewNoopComponent() (Provides, error) {
-	endpoint := api.NewAgentEndpointProvider(func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, `{"error": "ncm not enabled for agent"}`, http.StatusBadRequest)
-	}, "/ncm/config", "GET")
-	provides := Provides{
-		Comp:              option.None[networkconfigmanagement.Component](),
-		GetConfigEndpoint: endpoint.Provider,
+// RegisterDevice tells the component how to connect to a device.
+func (n *networkDeviceConfigImpl) RegisterDevice(config *ncmconfig.DeviceInstance) error {
+	// TODO should we bother with a mutex here? The only case where it matters
+	// is if for some reason multiple checks are running for the same device at
+	// the same time, which shouldn't ever happen.
+	if _, exists := n.deviceConfigs[config.DeviceID()]; exists {
+		return fmt.Errorf("duplicate registration for device %q", config.DeviceID())
 	}
-	return provides, nil
+	n.deviceConfigs[config.DeviceID()] = config
+	return nil
+}
+
+// ReportConfig runs the NCM check - it fetches the running and startup config
+// and communicates them to the DD backend, along with an inventory report if
+// necessary. The inventory report will be included if the device had new
+// configuration, or if more than n.inventoryMaxInterval has elapsed since the
+// last time inventory was reported.
+func (n *networkDeviceConfigImpl) ReportConfig(deviceID string) error {
+	return n.ReportConfigWithSender(deviceID, n.sender)
+}
+
+func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSender sender.Sender) error {
+	var configs []ncmreport.NetworkDeviceConfig
+	ctx := context.Background()
+	startTime := n.clock.Now()
+
+	device, ok := n.deviceConfigs[deviceID]
+	if !ok {
+		return fmt.Errorf("unknown device: %q", deviceID)
+	}
+	// noProfileMatch is a sentinel used to remember that we checked all
+	// profiles against this device already and none of them worked.
+	if device.Profile == noProfileMatch {
+		return fmt.Errorf("no matching NCM profile for device %s", deviceID)
+	}
+
+	sender := ncmsender.NewNCMSender(baseSender, device.Namespace, n.clock, n.hostname)
+
+	conn, err := n.connect(device)
+	if err != nil {
+		n.log.Errorf("unable to connect to remote device %s: %s", deviceID, err)
+		return err
+	}
+	defer conn.Close()
+
+	// TODO find a matching profile if we don't have one.
+	if device.Profile == "" {
+		pname, ok := n.findMatchingProfile(device, conn)
+		if !ok {
+			device.Profile = noProfileMatch
+			return fmt.Errorf("no matching NCM profile for device %s", deviceID)
+		}
+		device.Profile = pname
+	}
+	// Update the remote client's device profile to access the correct commands
+	profile := n.profiles[device.Profile]
+	if profile == nil {
+		return fmt.Errorf("nonexistent NCM profile %q specified for device %s", device.Profile, deviceID)
+	}
+	conn.SetProfile(profile)
+
+	deviceTags := n.getDeviceTags(device)
+	sender.SetDeviceTags(deviceTags)
+
+	if err := sender.SendDeviceMetadata(deviceID, device.IPAddress); err != nil {
+		n.log.Warnf("failed to send device metadata for %s: %s", deviceID, err)
+	}
+
+	configStore := n.GetConfigStore()
+
+	var hasNewConfigs bool
+
+	rawRunningConfig, checkErr := conn.RetrieveRunningConfig(ctx)
+	if checkErr != nil {
+		return checkErr
+	}
+	runningConfig, metadata, checkErr := profile.ProcessConfig(rawRunningConfig)
+	if checkErr != nil {
+		n.log.Warnf("unable to process rules for running config for device %s, using agent collection ts: %s", deviceID, checkErr)
+	} else {
+		// TODO: helper fn to take metadata that needs to be emitted as metrics + emit them
+		runningUUID, runningHash, stored, err := saveConfig(configStore, deviceID, ncmtypes.RUNNING, rawRunningConfig)
+		if err != nil {
+			n.log.Warnf("unable to store running config: %v", err)
+		} else if stored {
+			hasNewConfigs = true
+		}
+		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, device.IPAddress, ncmtypes.RUNNING, metadata, deviceTags, runningConfig, runningUUID, runningHash))
+	}
+
+	rawStartupConfig, checkErr := conn.RetrieveStartupConfig(ctx)
+	if checkErr != nil {
+		// If the startup config cannot be retrieved, log a warning but continue
+		n.log.Warnf("unable to retrieve startup config for %s, will not send: %s", deviceID, checkErr)
+	} else {
+		startupConfig, metadata, checkErr := profile.ProcessConfig(rawStartupConfig)
+		if checkErr != nil {
+			n.log.Warnf("unable to process rules for startup config for device %s, using agent collection ts: %s", deviceID, checkErr)
+		} else {
+			// add the startup config to the payload if it was retrieved successfully
+			startupUUID, startupHash, stored, err := saveConfig(configStore, deviceID, ncmtypes.STARTUP, rawStartupConfig)
+			if err != nil {
+				n.log.Warnf("unable to store startup config: %v", err)
+			} else if stored {
+				hasNewConfigs = true
+			}
+			configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, device.IPAddress, ncmtypes.STARTUP, metadata, deviceTags, startupConfig, startupUUID, startupHash))
+		}
+	}
+
+	var inventoryEntries []ncmreport.InventoryEntry
+	if configStore != nil && (hasNewConfigs || startTime.Sub(n.lastInventoryReportAt) > n.inventoryMaxInterval) {
+		inventoryEntries = n.buildInventoryReport()
+	}
+	if !hasNewConfigs && len(inventoryEntries) == 0 {
+		n.log.Debugf("no new config for %s and no need to send inventory data", deviceID)
+		return nil
+	}
+	checkErr = sender.SendNCMPayload(ncmreport.ToNCMPayload(device.Namespace, n.hostname, configs, inventoryEntries, n.clock.Now().Unix()))
+	if checkErr != nil {
+		return checkErr
+	}
+	if len(inventoryEntries) > 0 {
+		n.lastInventoryReportAt = n.clock.Now()
+	}
+	sender.SendNCMCheckMetrics(startTime, n.lastReportTimes[deviceID])
+	n.lastReportTimes[deviceID] = startTime
+	sender.Commit()
+	return nil
+}
+
+func (n *networkDeviceConfigImpl) getDeviceTags(device *ncmconfig.DeviceInstance) []string {
+	return []string{
+		"device_namespace:" + device.Namespace,
+		"device_ip:" + device.IPAddress,
+		"device_id:" + device.DeviceID(),
+		// TODO: device_hostname - may need to be extracted from config / output to be retrieved in NCM core check
+		"config_source:cli",
+		"profile:" + device.Profile,
+	}
+}
+
+func (n *networkDeviceConfigImpl) buildInventoryReport() []ncmreport.InventoryEntry {
+	if n.store == nil {
+		return nil
+	}
+	configMeta, err := n.store.GetAllConfigMetadata()
+	if err != nil {
+		n.log.Errorf("error retrieving config metadata for inventory report: %v, skipping", err)
+		return nil
+	}
+	entries := make([]ncmreport.InventoryEntry, 0, len(configMeta))
+	for _, m := range configMeta {
+		entries = append(entries, ncmreport.InventoryEntry{
+			Namespace:  m.GetNamespace(),
+			ConfigID:   m.ConfigUUID,
+			DeviceID:   m.DeviceID,
+			ReportedAt: m.CapturedAt,
+		})
+	}
+	return entries
+}
+
+// RollbackConfig rolls back a device to a previous configuration that's
+// saved locally on this agent.
+func (n *networkDeviceConfigImpl) RollbackConfig(_ string, _ string, _ string) error {
+	return errors.New("not implemented")
+}
+
+// SetMaxReportInterval sets the minimum time
+func (n *networkDeviceConfigImpl) SetMaxReportInterval(interval time.Duration) error {
+	if n.inventoryMaxInterval != 0 && n.inventoryMaxInterval != interval {
+		n.log.Warnf("Changing inventory max interval from %v to %v - all check runners are supposed to agree on this", n.inventoryMaxInterval, interval)
+	}
+	n.inventoryMaxInterval = interval
+	return nil
+}
+
+func (n *networkDeviceConfigImpl) GetConfigStore() ncmstore.ConfigStore {
+	return n.store
 }
 
 // MeetsInventoryReportRequirements returns true if the caller should send an inventory report
@@ -114,4 +343,28 @@ func (n *networkDeviceConfigImpl) MarkInventoryReportSent(now time.Time) {
 	n.inventoryLock.Lock()
 	defer n.inventoryLock.Unlock()
 	n.lastInventoryReportAt = now
+}
+
+// saveConfig saves the config if store is non-nil. Returns the resulting UUID, config hash, a bool
+// that is true when a new entry was written (false when deduplicated), and any error.
+func saveConfig(store ncmstore.ConfigStore, deviceID string, cType ncmtypes.ConfigType, rawConfig []byte) (string, string, bool, error) {
+	if store == nil {
+		return "", "", false, errors.New("local config store unavailable - will not save configs for rollback")
+	}
+	return store.StoreConfig(deviceID, cType, string(rawConfig))
+}
+
+// findMatchingProfile tests each profile until one is successful.
+// TODO use GetVersion instead of fetching the entire config.
+func (n *networkDeviceConfigImpl) findMatchingProfile(device *ncmconfig.DeviceInstance, conn ncmremote.Connection) (string, bool) {
+	for profName, prof := range n.profiles {
+		conn.SetProfile(prof)
+		_, err := conn.RetrieveRunningConfig(context.Background())
+		if err != nil {
+			n.log.Infof("profile %s does not match remote device %s: %s", profName, device.IPAddress, err)
+			continue
+		}
+		return profName, true
+	}
+	return "", false
 }
