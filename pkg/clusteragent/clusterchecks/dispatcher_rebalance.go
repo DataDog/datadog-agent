@@ -166,6 +166,10 @@ func pickNode(diffMap map[string]int, sourceNode string) string {
 
 // moveCheck moves a config by its digest from a node to another
 func (d *dispatcher) moveConfig(src, dest, digest string) error {
+	if src == dest {
+		return nil
+	}
+
 	log.Debugf("Moving config %s from %s to %s", digest, src, dest)
 
 	d.store.Lock()
@@ -450,9 +454,6 @@ func (d *dispatcher) currentDistribution() configsDistribution {
 	distribution := newConfigsDistribution(currentWorkersPerRunner)
 
 	for nodeName, nodeStoreInfo := range d.store.nodes {
-		// Take the node's read lock while iterating its stats — moveConfig
-		// mutates clcRunnerStats under only node.Lock (without the store
-		// lock), so the store RLock alone doesn't prevent a data race.
 		nodeStoreInfo.RLock()
 		for checkID, stats := range nodeStoreInfo.clcRunnerStats {
 			if !stats.IsClusterCheck {
@@ -517,6 +518,7 @@ func (d *dispatcher) applyDistribution(proposedDistribution configsDistribution,
 			checksMoved,
 			types.RebalanceResponse{
 				Digest:         digest,
+				CheckName:      config.CheckName,
 				SourceNodeName: currentNode,
 				DestNodeName:   proposedNode,
 			},
